@@ -123,38 +123,6 @@ import from jaclang.jac0core.unitree {
 import from jaclang.jac0core.unitree { JsxText, JsxExpression }
 
 import from jaclang.jac0core.constant { Tokens as Tok, SymbolAccess, SymbolType }
-import from jaclang.jac0core.codeinfo { CodeLocInfo }
-import from jaclang.jac0core.passes.transform { Alert }
-import from jaclang.jac0core.diagnostics {
-    DiagnosticInfo,
-    Severity,
-    E0001,
-    E0002,
-    E0003,
-    E0004,
-    E0005,
-    E0006,
-    E0013,
-    E0021,
-    E0022,
-    E0025,
-    E0027,
-    E0028,
-    E0026,
-    E0030,
-    E0032,
-    E0034,
-    E0045,
-    E0046,
-    E0047,
-    E0080,
-    E0081,
-    E2023,
-    E2028,
-    W0060,
-    E0048,
-    W0063
-}
 
 impl Parser.current -> Token {
     if self.pos < self._tokens_len {
@@ -234,7 +202,9 @@ impl Parser.expect_any(*kinds: TokenKind) -> Token {
         return self.advance();
     }
     expected = " | ".join([k.value for k in kinds]);
-    self.emit_diag(E0001, expected=expected, got=self.current().kind.value);
+    self.emit_diag(
+        f"Expected '{expected}', got '{self.current().kind.value}'", "E0001"
+    );
     return self.advance();
 }
 
@@ -251,9 +221,11 @@ impl Parser.expect(kind: TokenKind) -> Token {
             TokenKind.SEMI,
             TokenKind.COMMA
         ) {
-        self.emit_diag(E0002, token=kind.value);
+        self.emit_diag(f"Missing '{kind.value}'", "E0002");
     } else {
-        self.emit_diag(E0001, expected=kind.value, got=self.current().kind.value);
+        self.emit_diag(
+            f"Expected '{kind.value}', got '{self.current().kind.value}'", "E0001"
+        );
         return self.advance();
     }
     return self.current();
@@ -264,62 +236,30 @@ impl Parser.consume_uni(kind: TokenKind) -> UniToken {
     return self.make_uni_token(tok);
 }
 
-impl Parser._make_alert(
-    message: str,
-    sloc: SourceLoc,
-    code: DiagnosticInfo | None = None,
-    help_text: str | None = None
-) -> Alert {
-    source = self.get_source();
-    tok = UniToken(
-        orig_src=source,
-        name="ERROR",
-        value="",
-        line=sloc.line,
-        end_line=sloc.end_line,
-        col_start=sloc.col_start,
-        col_end=sloc.col_end,
-        pos_start=sloc.pos_start,
-        pos_end=sloc.pos_end
-    );
-    loc = CodeLocInfo(tok, tok);
-    return Alert(message, loc, Parser, code=code, help_text=help_text);
-}
-
 impl Parser.error(message: str) {
-    sloc = self.current().loc;
     self.error_count += 1;
-    if self.prog is not None {
-        alrt = self._make_alert(message, sloc);
-        self.prog.errors_had.append(alrt);
-    }
+    self.diags.append(
+        SrcDiag(message=message, code_str="", loc=self.current().loc, is_error=True)
+    );
 }
 
 impl Parser.emit_diag(
-    diag: DiagnosticInfo, loc: SourceLoc | None = None, **kwargs: object
+    message: str, code_str: str, loc: SourceLoc | None = None, help: str = ""
 ) {
     sloc = loc if loc is not None else self.current().loc;
-    msg = diag.format_message(**kwargs);
     self.error_count += 1;
-    if self.prog is not None {
-        alrt = self._make_alert(
-            msg, sloc, code=diag, help_text=diag.format_help(**kwargs)
-        );
-        self.prog.errors_had.append(alrt);
-    }
+    self.diags.append(
+        SrcDiag(message=message, code_str=code_str, loc=sloc, is_error=True, help=help)
+    );
 }
 
 impl Parser.emit_warn(
-    diag: DiagnosticInfo, loc: SourceLoc | None = None, **kwargs: object
+    message: str, code_str: str, loc: SourceLoc | None = None, help: str = ""
 ) {
     sloc = loc if loc is not None else self.current().loc;
-    msg = diag.format_message(**kwargs);
-    if self.prog is not None {
-        alrt = self._make_alert(
-            msg, sloc, code=diag, help_text=diag.format_help(**kwargs)
-        );
-        self.prog.warnings_had.append(alrt);
-    }
+    self.diags.append(
+        SrcDiag(message=message, code_str=code_str, loc=sloc, is_error=False, help=help)
+    );
 }
 
 impl Parser.check_name -> bool {
@@ -455,7 +395,7 @@ impl Parser.expect_name -> Token {
     if self.check_name() {
         return self.advance();
     }
-    self.emit_diag(E0003, got=self.current().kind.value);
+    self.emit_diag(f"Expected identifier, got '{self.current().kind.value}'", "E0003");
     return self.current();
 }
 
@@ -779,7 +719,12 @@ impl Parser._recover_js_arrow_fault(left: Expr) -> Expr {
         pos_start=eq_tok.loc.pos_start,
         pos_end=gt_tok.loc.pos_end
     );
-    self.emit_diag(E0025, loc=_arrow_span);
+    self.emit_diag(
+        "JavaScript arrow function syntax ('=>') is not supported in Jac",
+        "E0025",
+        loc=_arrow_span,
+        help="Use Jac lambda syntax instead: 'lambda (e: ChangeEvent) { ... }' or 'lambda (x: int) { x + 1; }'."
+    );
     if self.check(TokenKind.LBRACE) {
         self.advance();
         self.parse_code_block_stmts();
@@ -1103,7 +1048,11 @@ impl Parser._recover_missing_connect_rhs -> bool {
     ) {
         return False;
     }
-    self.emit_diag(E0026);
+    self.emit_diag(
+        "Connect/disconnect operator requires a right operand",
+        "E0026",
+        help="Connect (`++>`, `+>:T:+>`) and disconnect (`del -->`, `del ->:T:->`) operators are binary -- supply the right-hand side, e.g. `a ++> b;` or `a del --> b;`."
+    );
     return True;
 }
 
@@ -1170,7 +1119,10 @@ impl Parser.parse_connect_op -> ConnectOp | DisconnectOp | None {
             }
         }
         if not self.check(TokenKind.CARROW_R_P2) {
-            self.emit_diag(E0027);
+            self.emit_diag(
+                "Expected ':+>' to close forward typed connection -- did you mean '+>: <EdgeType> :+> <node>'?",
+                "E0027"
+            );
             self.synchronize();
             return None;
         }
@@ -1238,7 +1190,10 @@ impl Parser.parse_connect_op -> ConnectOp | DisconnectOp | None {
                 kid=kid
             );
         } else {
-            self.emit_diag(E0028);
+            self.emit_diag(
+                "Expected ':<+' or ':+>' to close backward typed connection -- did you mean '<+: <EdgeType> :<+ <node>' (backward) or '<+: <EdgeType> :+> <node>' (bidirectional)?",
+                "E0028"
+            );
             self.synchronize();
             return None;
         }
@@ -1452,7 +1407,12 @@ impl Parser.parse_atomic_chain -> Expr {
             );
         } elif self.check(TokenKind.LPAREN) {
             if self.check_peek(TokenKind.NULL_OK) {
-                self.emit_diag(E0048, loc=self.current().loc);
+                self.emit_diag(
+                    "Parenthesized filter syntax '(?:...)' was removed. Use bracket syntax '[?:...]' instead.",
+                    "E0048",
+                    loc=self.current().loc,
+                    help="Replace (?:Type, cond) with [?:Type, cond]"
+                );
                 self.expect(TokenKind.LPAREN);
                 filter_expr = self.parse_filter_compr_inner();
 
@@ -1671,8 +1631,8 @@ impl Parser.parse_call_args(kid: list) -> list {
     }
 
     if not self.check(TokenKind.RPAREN) and not self.at_end() {
-        self.emit_diag(E0002, token=",");
-        self.emit_diag(E0006);
+        self.emit_diag("Missing ','", "E0002");
+        self.emit_diag("Unexpected token", "E0006");
 
         while not self.check(TokenKind.RPAREN) and not self.at_end() {
             self.advance();
@@ -2134,7 +2094,9 @@ impl Parser.parse_atom -> Expr {
     if self.check(TokenKind.JSX_OPEN_START) or self.check(TokenKind.JSX_FRAG_OPEN) {
         return self.parse_jsx_element();
     }
-    self.emit_diag(E0004, got=self.current().kind.value);
+    self.emit_diag(
+        f"Unexpected token in expression: '{self.current().kind.value}'", "E0004"
+    );
     return self.make_name(self.advance());
 }
 
@@ -2503,7 +2465,12 @@ impl Parser._continue_edge_ref_chain(start_expr: Expr, lsquare_uni: UniToken) ->
             kid.append(filter_expr);
         } elif self.check(TokenKind.LPAREN) {
             if self.check_peek(TokenKind.NULL_OK) {
-                self.emit_diag(E0048, loc=self.current().loc);
+                self.emit_diag(
+                    "Parenthesized filter syntax '(?:...)' was removed. Use bracket syntax '[?:...]' instead.",
+                    "E0048",
+                    loc=self.current().loc,
+                    help="Replace (?:Type, cond) with [?:Type, cond]"
+                );
                 self.advance();
                 filter_expr = self.parse_filter_compr_inner();
                 chain.append(filter_expr);
@@ -2584,7 +2551,12 @@ impl Parser.parse_edge_ref_chain -> Expr {
             kid.append(filter_expr);
         } elif self.check(TokenKind.LPAREN) {
             if self.check_peek(TokenKind.NULL_OK) {
-                self.emit_diag(E0048, loc=self.current().loc);
+                self.emit_diag(
+                    "Parenthesized filter syntax '(?:...)' was removed. Use bracket syntax '[?:...]' instead.",
+                    "E0048",
+                    loc=self.current().loc,
+                    help="Replace (?:Type, cond) with [?:Type, cond]"
+                );
                 self.expect(TokenKind.LPAREN);
                 filter_expr = self.parse_filter_compr_inner();
                 chain.append(filter_expr);
@@ -2872,7 +2844,11 @@ impl Parser.parse_lambda_expr -> Expr {
         body = self._apply_implicit_return(body);
         rbrace_uni = self.consume_uni(TokenKind.RBRACE);
     } else {
-        self.emit_diag(E0022);
+        self.emit_diag(
+            "Expected '{' after lambda parameters",
+            "E0022",
+            help="Lambda bodies are braced; a single expression statement is the implicit return, e.g. 'lambda (x: int) { x + 1; }'."
+        );
         body = self.parse_expression();
     }
     if return_type {
@@ -3113,7 +3089,12 @@ impl Parser.parse_jsx_attributes -> list {
                 spread_marker_kid = self.make_uni_token(star_tok);
                 saw_spread_marker = True;
             } elif self.check(TokenKind.ELLIPSIS) {
-                self.emit_warn(W0063, loc=self.current().loc);
+                self.emit_warn(
+                    "JSX spread '{...expr}' is JS-idiomatic. Prefer '{**expr}' in Jac.",
+                    "W0063",
+                    loc=self.current().loc,
+                    help="Jac uses ** for dict unpacking -- use {**expr} instead of {...expr} in JSX attributes."
+                );
                 ellipsis_tok = self.expect(TokenKind.ELLIPSIS);
                 spread_marker_kid = self.make_ellipsis(ellipsis_tok);
                 saw_spread_marker = True;
@@ -3252,7 +3233,7 @@ impl Parser.parse_jsx_child -> Expr | None {
 
 impl Parser.parse_element_stmt{
     if self.check(TokenKind.SEMI) {
-        self.emit_diag(E0030);
+        self.emit_diag("Unexpected semicolon at module level", "E0030");
         self.expect(TokenKind.SEMI);
         return None;
     }
@@ -3378,7 +3359,7 @@ impl Parser.parse_element_stmt{
     if self.check(TokenKind.KW_ASYNC) {
         return self._dispatch_async();
     }
-    self.emit_diag(E0005, token=self.current().value);
+    self.emit_diag(f"Unexpected token '{self.current().value}'", "E0005");
     self.synchronize();
     return EmptyToken();
 }
@@ -3560,7 +3541,11 @@ impl Parser.parse_code_block_stmts -> list {
                 }
             }
             if is_docstring {
-                self.emit_warn(W0060, loc=self.tokens[before].loc);
+                self.emit_warn(
+                    "Docstrings in Jac go before the declaration, not inside the body. Move this string before the enclosing test/can/obj/etc.",
+                    "W0060",
+                    loc=self.tokens[before].loc
+                );
             }
             if not isinstance(stmt, Semi) {
                 checked_first = True;
@@ -3657,7 +3642,14 @@ impl Parser.parse_statement{
         ) {
         redundant_lbrace_loc = self.current().loc;
         peeked_kw = self.peek().value;
-        self.emit_diag(E2023, loc=redundant_lbrace_loc, stmt_kw=peeked_kw);
+        self.emit_diag(
+            "Redundant '{...}' slot wrapping inside a JSX slot body -- slot "
+                + "bodies are already in slot mode. Drop the outer braces: write "
+                + f"'{peeked_kw} ... {{ ... }}' directly instead of "
+                + f"'{{{peeked_kw} ... {{ ... }}}}'.",
+            "E2023",
+            loc=redundant_lbrace_loc
+        );
         self.advance();
         inner = self.parse_statement();
 
@@ -3671,15 +3663,21 @@ impl Parser.parse_statement{
     if self._view_body_depth > 0 and self.check(TokenKind.LBRACE) {
         save_pos = self.pos;
         saved_error_count = self.error_count;
-        saved_errors_len = len(self.prog.errors_had) if self.prog is not None else 0;
-        saved_warns_len = len(self.prog.warnings_had) if self.prog is not None else 0;
+        saved_diags_len = len(self.diags);
+
         redundant_lbrace_loc = self.current().loc;
         self.advance();
         inner_expr = self.parse_expression();
-        parsed_clean = self.prog is None
-            or len(self.prog.errors_had) == saved_errors_len;
+        parsed_clean = self.error_count == saved_error_count;
         if parsed_clean and self.check(TokenKind.RBRACE) {
-            self.emit_diag(E2028, loc=redundant_lbrace_loc);
+            self.emit_diag(
+                "Redundant '{...}' around a single expression inside a JSX slot "
+                    + "body -- slot bodies are already in slot mode, so the value renders "
+                    + "without the extra braces. Drop them: write the expression directly, "
+                    + "terminated with ';' (e.g. 'name;' instead of '{name}').",
+                "E2028",
+                loc=redundant_lbrace_loc
+            );
             self.advance();
             expr_kid: list = [inner_expr];
             if self.match_tok(TokenKind.SEMI) {
@@ -3690,10 +3688,7 @@ impl Parser.parse_statement{
 
         self.pos = save_pos;
         self.error_count = saved_error_count;
-        if self.prog is not None {
-            del self.prog.errors_had[saved_errors_len:];
-            del self.prog.warnings_had[saved_warns_len:];
-        }
+        del self.diags[saved_diags_len:];
     }
 
     if self.check_any(TokenKind.KW_IMPORT, TokenKind.KW_INCLUDE) {
@@ -3847,7 +3842,10 @@ impl Parser.parse_statement{
         TokenKind.KW_FINALLY,
         TokenKind.KW_CASE
     ) {
-        self.emit_diag(E0032, token=self.current().value);
+        self.emit_diag(
+            f"Unexpected '{self.current().value}' -- must follow its parent statement (if/try/match/switch)",
+            "E0032"
+        );
         self.expect_any(
             TokenKind.KW_ELIF,
             TokenKind.KW_ELSE,
@@ -3898,11 +3896,16 @@ impl Parser.parse_statement{
         expr, Name
     )
         and expr.value == "new" {
-        self.emit_diag(E0012, loc=self.current().loc);
+        self.emit_diag(
+            "Use the `new(target, ...args)` ambient builtin to create new instances",
+            "E0012",
+            loc=self.current().loc,
+            help="`new` is a portable constructor: it lowers to `Cls(*args)` on the server and to `Reflect.construct(Cls, [args])` in cl blocks."
+        );
     } elif self.check(TokenKind.RBRACE) {
         return ExprStmt(expr=expr, in_fstring=False, has_semi=False, kid=expr_kid);
     } else {
-        self.emit_diag(E0002, token=";");
+        self.emit_diag("Missing ';'", "E0002");
     }
     return ExprStmt(expr=expr, in_fstring=False, kid=expr_kid);
 }
@@ -4632,7 +4635,9 @@ impl Parser.parse_literal_for_mapping{
         }
     }
 
-    self.emit_diag(E0045);
+    self.emit_diag(
+        "Expected literal (INT, FLOAT, or STRING) as mapping pattern key", "E0045"
+    );
     return self.make_name(self.advance());
 }
 
@@ -4787,7 +4792,11 @@ impl Parser._recover_misplaced_disconnect -> None {
     ) {
         return;
     }
-    self.emit_diag(E0026);
+    self.emit_diag(
+        "Connect/disconnect operator requires a right operand",
+        "E0026",
+        help="Connect (`++>`, `+>:T:+>`) and disconnect (`del -->`, `del ->:T:->`) operators are binary -- supply the right-hand side, e.g. `a ++> b;` or `a del --> b;`."
+    );
     while not self.at_end()
         and not self.check_any(
             TokenKind.SEMI, TokenKind.RBRACE, TokenKind.RPAREN, TokenKind.RSQUARE
@@ -4912,7 +4921,12 @@ impl Parser.parse_assignment_with_target(
             and value is not None
             and isinstance(value, Name)
             and value.value == "new" {
-            self.emit_diag(E0012, loc=self.current().loc);
+            self.emit_diag(
+                "Use the `new(target, ...args)` ambient builtin to create new instances",
+                "E0012",
+                loc=self.current().loc,
+                help="`new` is a portable constructor: it lowers to `Cls(*args)` on the server and to `Reflect.construct(Cls, [args])` in cl blocks."
+            );
         } else {
             self.expect(TokenKind.SEMI);
         }
@@ -5458,7 +5472,7 @@ impl Parser._skip_semicolons{
 }
 
 impl Parser._error_unexpected_member{
-    self.emit_diag(E0046);
+    self.emit_diag("Unexpected token in archetype body", "E0046");
     self.advance();
 }
 
@@ -5574,7 +5588,11 @@ impl Parser.parse_has_var -> HasVar {
     acc_rb_uni: UniToken | None = None;
     if self.check(TokenKind.LBRACE) {
         if value is not None {
-            self.emit_diag(E0080);
+            self.emit_diag(
+                "Property declarations cannot have an initializer",
+                "E0080",
+                help="Declare backing storage as a separate `has` field (e.g. `has _x: T = value;`) and reference it from your accessors."
+            );
         }
         acc_lb_uni = self.consume_uni(TokenKind.LBRACE);
         accessors = [];
@@ -5583,7 +5601,10 @@ impl Parser.parse_has_var -> HasVar {
         }
         acc_rb_uni = self.consume_uni(TokenKind.RBRACE);
         if len(accessors) == 0 {
-            self.emit_diag(E0081);
+            self.emit_diag(
+                "Property declaration must contain at least one of `getter`, `setter`, `deleter`",
+                "E0081"
+            );
         }
     }
     kid: list = [name, type_tag];
@@ -5621,7 +5642,9 @@ impl Parser._consume_accessor_kind -> tuple[str, Token] {
     if self.check(TokenKind.KW_GETTER) {
         return ("property", self.advance());
     }
-    self.emit_diag(E0001);
+    self.emit_diag(
+        f"Expected 'getter' or 'setter', got '{self.current().kind.value}'", "E0001"
+    );
     return ("property", self.advance());
 }
 
@@ -5764,7 +5787,10 @@ impl Parser.parse_ability -> Ability {
             event=event_uni_tok, arch_tag_info=event_type, kid=sig_kid
         );
     } elif is_can {
-        self.emit_diag(E0034);
+        self.emit_diag(
+            "Expected 'with' after 'can' ability name (use 'def' for function-style declarations)",
+            "E0034"
+        );
         signature = self.parse_func_signature();
     } else {
         signature = self.parse_func_signature();
@@ -6040,7 +6066,10 @@ impl Parser.parse_param_var -> ParamVar | None {
         name = self.make_name_or_special(name_tok);
     } elif self.is_keyword_token() {
         kw = self.current().value;
-        self.emit_diag(E0013, keyword=kw, context="parameter");
+        self.emit_diag(
+            f"'{kw}' is a keyword and cannot be used as a parameter name (prefix with backtick to escape: `{kw})",
+            "E0013"
+        );
         name_tok = self.advance();
         name = self.make_name_or_special(name_tok);
     } else {
@@ -6531,7 +6560,7 @@ impl Parser.parse_impl_def -> ImplDef {
         body = self.parse_expression();
         self.expect(TokenKind.SEMI);
     } else {
-        self.emit_diag(E0047);
+        self.emit_diag("Expected '{' or 'by' for impl body", "E0047");
         self.expect(TokenKind.SEMI);
     }
     kid: list = [];

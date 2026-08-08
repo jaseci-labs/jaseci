@@ -61,6 +61,37 @@ def _native_scan -> any {
     return fn;
 }
 
+def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Source) {
+    for d in diags {
+        loc = d.loc;
+        dtok = UniToken(
+            orig_src=diag_src,
+            name="ERROR" if d.is_error else "WARNING",
+            value="",
+            line=loc.line,
+            end_line=loc.end_line,
+            col_start=loc.col_start,
+            col_end=loc.col_end,
+            pos_start=loc.pos_start,
+            pos_end=loc.pos_end
+        );
+        code = DIAGNOSTICS.get(d.code_str) if d.code_str else None;
+        help_text = getattr(d, "help", "");
+        alrt = Alert(
+            d.message,
+            CodeLocInfo(dtok, dtok),
+            from_pass,
+            code=code,
+            help_text=help_text
+        );
+        if d.is_error {
+            prog.errors_had.append(alrt);
+        } else {
+            prog.warnings_had.append(alrt);
+        }
+    }
+}
+
 def parse(
     source: str, file_path: str = "<input>", prog: (JacProgram | None) = None
 ) -> tuple[Module, bool] {
@@ -73,32 +104,19 @@ def parse(
         );
     }
 
+    diag_src: Source | None = None;
     if prog is not None and diags {
         diag_src = Source(source, mod_path=file_path);
-        for d in diags {
-            loc = d.loc;
-            dtok = UniToken(
-                orig_src=diag_src,
-                name="ERROR" if d.is_error else "WARNING",
-                value="",
-                line=loc.line,
-                end_line=loc.end_line,
-                col_start=loc.col_start,
-                col_end=loc.col_end,
-                pos_start=loc.pos_start,
-                pos_end=loc.pos_end
-            );
-            code = DIAGNOSTICS.get(d.code_str) if d.code_str else None;
-            alrt = Alert(d.message, CodeLocInfo(dtok, dtok), Lexer, code=code);
-            if d.is_error {
-                prog.errors_had.append(alrt);
-            } else {
-                prog.warnings_had.append(alrt);
-            }
-        }
+        _replay_diags(diags, Lexer, prog, diag_src);
     }
-    parser = Parser(tokens=tokens, file_path=file_path, source_code=source, prog=prog);
+    parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
     module = parser.parse();
+    if prog is not None and parser.diags {
+        if diag_src is None {
+            diag_src = Source(source, mod_path=file_path);
+        }
+        _replay_diags(parser.diags, Parser, prog, diag_src);
+    }
 
     if module.source and comments {
         for cdata in comments {

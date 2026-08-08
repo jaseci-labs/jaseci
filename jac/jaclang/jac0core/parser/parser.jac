@@ -1,36 +1,6 @@
-import from .tokens { Token, TokenKind, SourceLoc }
+import from .tokens { Token, TokenKind, SourceLoc, SrcDiag }
 
 import from jaclang.jac0core.unitree { UniNode, Token as UniToken, Expr }
-import from jaclang.jac0core.codeinfo { CodeLocInfo }
-import from jaclang.jac0core.passes.transform { Alert }
-import type from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.diagnostics {
-    DiagnosticInfo,
-    E0001,
-    E0002,
-    E0003,
-    E0004,
-    E0005,
-    E0006,
-    E0012,
-    E0013,
-    E0022,
-    E0025,
-    E0026,
-    E0027,
-    E0028,
-    E0030,
-    E0032,
-    E0034,
-    E0045,
-    E0046,
-    E0047,
-    E2023,
-    E2028,
-    W0060,
-    E0048,
-    W0063
-}
 import from jaclang.jac0core.unitree { Name, String, Int, Float, Bool, Null }
 import from jaclang.jac0core.unitree {
     Ellipsis as EllipsisLit,
@@ -363,7 +333,7 @@ obj Parser {
         file_path: str = "<input>",
         source_code: str = "",
         source: Source | None = None,
-        prog: (JacProgram | None) = None,
+        diags: list[SrcDiag] = [],
         _view_body_depth: int = 0,
         _impl_enum_comma_unis: list = [];
 
@@ -386,20 +356,13 @@ obj Parser {
     def expect_any(*kinds: TokenKind) -> Token;
     def consume_uni(kind: TokenKind) -> UniToken;
     def expect_name -> Token;
-    def _make_alert(
-        message: str,
-        sloc: SourceLoc,
-        code: DiagnosticInfo | None = None,
-        help_text: str | None = None
-    ) -> Alert;
-
     def error(message: str);
     def emit_diag(
-        diag: DiagnosticInfo, loc: SourceLoc | None = None, **kwargs: object
+        message: str, code_str: str, loc: SourceLoc | None = None, help: str = ""
     );
 
     def emit_warn(
-        diag: DiagnosticInfo, loc: SourceLoc | None = None, **kwargs: object
+        message: str, code_str: str, loc: SourceLoc | None = None, help: str = ""
     );
 
     def make_uni_token(tok: Token) -> UniToken;

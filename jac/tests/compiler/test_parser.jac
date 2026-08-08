@@ -775,3 +775,39 @@ with entry {
         "parser", MICRO_JAC_FILES, parser_file_test, id_fn=lambda (f) { Path(f).stem; }
     );
 }
+
+test "parser core emits flat diag records without prog" {
+    # W1 (#6930): the parser core appends flat SrcDiag records and holds no
+    # JacProgram reference; frontend.parse() replays records into Alerts.
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.parser { Parser }
+    src = "with entry { x = ( ; }";
+    (tokens, comments, ldiags, lex_errs) = tokenize_full(src, "<probe>");
+    parser = Parser(tokens=tokens, file_path="<probe>", source_code=src);
+    parser.parse();
+    assert parser.error_count > 0;
+    assert len(parser.diags) >= parser.error_count;
+    d = parser.diags[0];
+    assert d.message != "";
+    assert d.is_error;
+    assert d.loc.line >= 1;
+    assert not hasattr(parser, "prog");
+}
+
+test "parser core sources are foreign-free" {
+    # W1/W2 (#6930): the sealed parser core may not reference host-side
+    # machinery; all Alert construction lives in frontend.jac.
+    pkg = Path(jaclang.__file__).parent / "jac0core" / "parser";
+    core = (pkg / "parser.jac").read_text(encoding="utf-8")
+        + (pkg / "impl" / "parser.impl.jac").read_text(encoding="utf-8");
+    banned = [
+        "passes.transform",
+        "CodeLocInfo",
+        "JacProgram",
+        "jac0core.diagnostics",
+        "**kwargs"
+    ];
+    for b in banned {
+        assert b not in core , f"parser core references {b}";
+    }
+}

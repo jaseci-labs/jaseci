@@ -2,7 +2,7 @@ import from .tokens {
     Token,
     TokenKind,
     SourceLoc,
-    LexDiag,
+    SrcDiag,
     CommentData,
     lookup_keyword
 }
@@ -37,7 +37,7 @@ obj Lexer {
         jsx_closing_tag: bool = False,
         prev_token_kind: TokenKind | None = None,
         comments: list[CommentData] = [],
-        diags: list[LexDiag] = [],
+        diags: list[SrcDiag] = [],
         _brace_depth: int = 0,
         _paren_depth: int = 0,
         _bracket_depth: int = 0,
@@ -118,7 +118,7 @@ def tokenize(source: str, file_path: str = "<input>") -> tuple[list[Token], int]
 
 def tokenize_full(
     source: str, file_path: str = "<input>"
-) -> tuple[list[Token], list[CommentData], list[LexDiag], int] {
+) -> tuple[list[Token], list[CommentData], list[SrcDiag], int] {
     lexer = Lexer(source=source, file_path=file_path);
     tokens = lexer.tokenize();
     return (tokens, lexer.comments, lexer.diags, lexer.error_count);

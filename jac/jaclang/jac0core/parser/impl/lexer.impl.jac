@@ -249,7 +249,7 @@ impl Lexer.error(
 ) {
     self.error_count += 1;
     self.diags.append(
-        LexDiag(
+        SrcDiag(
             message=message,
             code_str=code_str,
             loc=self.make_loc(start_line, start_col, start_pos),
@@ -262,7 +262,7 @@ impl Lexer.warning(
     message: str, start_line: int, start_col: int, start_pos: int, code_str: str = ""
 ) {
     self.diags.append(
-        LexDiag(
+        SrcDiag(
             message=message,
             code_str=code_str,
             loc=self.make_loc(start_line, start_col, start_pos),
