@@ -1,4 +1,5 @@
-import from .tokens { LexToken, TokenKind, SourceLoc, SrcDiag }
+import from .tokens { LexToken, TokenKind, SourceLoc, SrcDiag, CommentData }
+import from .lexer { tokenize_full }
 
 import from jaclang.jac0core.unitree { UniNode, Token as UniToken, Expr }
 import from jaclang.jac0core.unitree { Name, String, Int, Float, Bool, Null }
@@ -559,4 +560,20 @@ def parse_source(
     parser = Parser(tokens=tokens, file_path=file_path, source_code=source_code);
     module = parser.parse();
     return (module, parser.error_count, parser.diags);
+}
+
+def parse_program(
+    source: str, file_path: str
+) -> tuple[(Module, int, list[SrcDiag], list[CommentData], list[SrcDiag], int)] {
+    (tokens, comments, lex_diags, lex_error_count) = tokenize_full(source, file_path);
+    parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
+    module = parser.parse();
+    return (
+        module,
+        parser.error_count,
+        parser.diags,
+        comments,
+        lex_diags,
+        lex_error_count
+    );
 }
