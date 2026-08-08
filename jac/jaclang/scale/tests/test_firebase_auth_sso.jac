@@ -5,7 +5,7 @@ import json;
 import unittest.mock;
 import from tempfile { mkdtemp }
 import from uuid { uuid4 }
-import from fastapi { Request }
+import from jaclang.runtimelib.serving.datatypes { Request }
 
 import from jaclang.scale.config.config_loader { reset_scale_config }
 import from jaclang.scale.shared.enums { Platforms, Operations }
@@ -90,9 +90,7 @@ def _teardown_user_manager(test_dir: str) {
 
 def _make_request(body: dict) -> Request {
     mock_request = unittest.mock.Mock(spec=Request);
-    mock_request.body = unittest.mock.AsyncMock(
-        return_value=json.dumps(body).encode('utf-8')
-    );
+    mock_request.body = json.dumps(body).encode('utf-8');
     return mock_request;
 }
 

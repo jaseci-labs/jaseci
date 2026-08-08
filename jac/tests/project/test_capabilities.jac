@@ -49,13 +49,7 @@ def make_project(toml: str) -> tuple[str, Path] {
     return (tmp, project_dir);
 }
 
-glob SERVE_PKGS = [
-         "fastapi",
-         "uvicorn[standard]",
-         "pyjwt",
-         "python-multipart",
-         "bcrypt"
-     ],
+glob SERVE_PKGS = ["sqlalchemy", "python-dotenv", "requests"],
      DEPLOY_PKGS = ["kubernetes", "docker"];
 
 # ===== Registry =====
@@ -235,7 +229,7 @@ test "k8s split -- pod runtime never carries kubernetes or docker" {
     deploy = closures[DEPLOY];
 
     # Runtime (pod image): serve + mongo, never deploy clients.
-    assert "fastapi" in runtime.deps;
+    assert "sqlalchemy" in runtime.deps;
     assert "pymongo" in runtime.deps;
     assert "kubernetes" not in runtime.deps;
     assert "docker" not in runtime.deps;
@@ -267,7 +261,7 @@ test "resolve_config_closures reads [scale] intent from jac.toml" {
 
         closures = resolve_config_closures(config, action="serve", scale=True);
         assert "pymongo" in closures[RUNTIME].deps;
-        assert "fastapi" in closures[RUNTIME].deps;
+        assert "sqlalchemy" in closures[RUNTIME].deps;
         assert "kubernetes" not in closures[RUNTIME].deps;
         assert "kubernetes" in closures[DEPLOY].deps;
     } finally {
@@ -358,7 +352,7 @@ test "python provider installs a capability closure into .jac/venv" {
             ];
             assert install_calls , "expected a pip install call";
             installed_args: list = list(install_calls[0].args[1]);
-            assert "fastapi>=0.121.3,<0.122.0" in installed_args;
+            assert "sqlalchemy>=2.0.0,<3.0.0" in installed_args;
             # runtime closure must not push deploy clients to pip
             assert "kubernetes>=34.1.0,<35.0.0" not in installed_args;
         }
@@ -482,7 +476,7 @@ test "capability_dependencies resolves runtime closure from config + kind" {
         specs = _capability_specs(config, scale=False);
         joined = " ".join(specs);
         # serve (command-implied by the service kind) + mongo (config-implied)
-        assert "fastapi>=0.121.3,<0.122.0" in specs;
+        assert "sqlalchemy>=2.0.0,<3.0.0" in specs;
         assert "pymongo>=4.15.4,<5.0.0" in specs;
         # runtime closure must never carry deploy-only clients
         assert "kubernetes" not in joined;
@@ -490,7 +484,7 @@ test "capability_dependencies resolves runtime closure from config + kind" {
         # every entry is traceable to the capability that pulled it in
         origins = {d.name: d.origin for d in deps};
         assert origins["pymongo"] == "capability:data.mongo";
-        assert origins["fastapi"] == "capability:serve";
+        assert origins["sqlalchemy"] == "capability:serve";
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
         reset_config();
@@ -530,8 +524,8 @@ test "scale app inferred as kind=cli still installs the serve closure (#7206)" {
         config = JacConfig.load(project_dir / "jac.toml");
         # plain install: serve deps land despite kind=cli
         runtime = _capability_specs(config, scale=False);
-        assert "fastapi>=0.121.3,<0.122.0" in runtime;
-        assert "uvicorn[standard]>=0.38.0,<0.39.0" in runtime;
+        assert "sqlalchemy>=2.0.0,<3.0.0" in runtime;
+        assert "python-dotenv>=1.2.1,<2.0.0" in runtime;
         assert "pymongo>=4.15.4,<5.0.0" in runtime;
         assert "kubernetes" not in " ".join(runtime);
         # --scale additionally pulls the deploy clients

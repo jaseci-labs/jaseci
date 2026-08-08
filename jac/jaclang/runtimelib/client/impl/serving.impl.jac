@@ -1,34 +1,5 @@
 import from jaclang.project.config { get_config }
 
-impl JacClient.send_static_file(
-    handler: BaseHTTPRequestHandler, file_path: Path, content_type: (str | None) = None
-) -> None {
-    import from jaclang.runtimelib.server { ResponseBuilder }
-    if (not file_path.exists() or not file_path.is_file()) {
-        ResponseBuilder.send_json(handler, 404, {'error': 'File not found'});
-        return;
-    }
-    try {
-        file_content = file_path.read_bytes();
-        if (content_type is None) {
-            (content_type, _) = mimetypes.guess_type(str(file_path));
-            if (content_type is None) {
-                content_type = 'application/octet-stream';
-            }
-        }
-        handler.send_response(200);
-        handler.send_header('Content-Type', content_type);
-        handler.send_header('Content-Length', str(len(file_content)));
-        handler.send_header('Cache-Control', 'public, max-age=3600');
-        ResponseBuilder._add_cors_headers(handler);
-        ResponseBuilder._add_custom_headers(handler);
-        handler.end_headers();
-        handler.wfile.write(file_content);
-    } except Exception as exc {
-        ResponseBuilder.send_json(handler, 500, {'error': str(exc)});
-    }
-}
-
 impl JacClient.render_page(
     introspector: ModuleIntrospector,
     function_name: str,

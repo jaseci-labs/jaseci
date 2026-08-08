@@ -1,7 +1,11 @@
 import from collections.abc { Callable }
 import from pathlib { Path }
-import from fastapi.responses { HTMLResponse, JSONResponse, Response }
-import from jaclang.scale.jserver.jserver {
+import from jaclang.runtimelib.serving.datatypes {
+    HTMLResponse,
+    JSONResponse,
+    Response
+}
+import from jaclang.runtimelib.serving.endpoint {
     APIParameter,
     HTTPMethod,
     JEndPoint,
@@ -60,9 +64,9 @@ impl JacAPIServerStatic.register_static_file_endpoint -> None {
                     name='file_path',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Path of the static file to serve',
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 )
             ],
             response_model=None,
@@ -119,9 +123,9 @@ impl JacAPIServerStatic.register_page_endpoint -> None {
                     name='page_name',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Name of the page to render',
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 )
             ],
             response_model=None,
@@ -253,9 +257,9 @@ impl JacAPIServerStatic.register_root_asset_endpoint -> None {
                     name='file_path',
                     data_type='string',
                     required=True,
-                    default=None,
+                    default_value=None,
                     description='Path to asset file (e.g., img.png, icons/logo.svg)',
-                    type=ParameterType.PATH
+                    kind=ParameterType.PATH
                 )
             ],
             response_model=None,
@@ -289,9 +293,9 @@ impl JacAPIServerStatic.register_graph_endpoint -> None {
                     name='Authorization',
                     data_type='string',
                     required=False,
-                    default=None,
+                    default_value=None,
                     description='Bearer JWT token (optional - falls back to public/guest graph if not provided)',
-                    type=ParameterType.HEADER
+                    kind=ParameterType.HEADER
                 )
             ],
             response_model=None,
