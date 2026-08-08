@@ -125,6 +125,44 @@ test "no transformation when graphmend disabled" {
     assert "if not mask.all():" in src;
 }
 
+test "f-string guard message declines instead of dropping the diagnostic" {
+    # MultiString.lit_value accumulates only String parts, so folding an
+    # f-string into the trap marker would yield a well-formed marker wrapped
+    # around an EMPTY message: right exception type, lost diagnostic, no signal.
+    src = _pysrc("guard_fstring_msg.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "if not mask.all()" in src;
+    assert "raise ValueError(f'" in src;
+    # The decline is the trap pass declining, not detection missing it; the two
+    # scopes must stay distinguishable or a real detection regression could hide
+    # behind this test.
+    assert _break_count("guard_fstring_msg.jac") == 1;
+}
+
+test "runtime-expression guard message declines instead of losing the type" {
+    # A concatenation is not a literal, so no marker can be built and the
+    # boundary guard would have nothing to restore: lowering would surface the
+    # failure as RuntimeError rather than the original ValueError.
+    src = _pysrc("guard_dynamic_msg.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError('bad mask in ' + name)" in src;
+    assert _break_count("guard_dynamic_msg.jac") == 1;
+}
+
+test "guard in a compiled class declines for want of a call boundary" {
+    # The archetype is an entry point, so the guard IS tagged, but no enclosing
+    # ability carries the decorator: there is no compiled boundary at which the
+    # trap guard could restore the exception, and the async assert may surface
+    # after the method returns.
+    src = _pysrc("guard_in_compiled_class.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError('mask must be all true')" in src;
+    assert _break_count("guard_in_compiled_class.jac") == 1;
+}
+
 test "static (non-tensor) guard is not rewritten" {
     # `if not isinstance(flag, str): raise` has no tensor-data dependence;
     # Dynamo traces it without a break, so GraphMend must leave it alone.

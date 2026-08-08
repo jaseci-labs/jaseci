@@ -131,6 +131,20 @@ left unfixed is a soundness property, not a defect.
    without it, broadcasting could make `(a == b).all()` true for shapes that
    `torch.equal` reports as unequal, and the precheck itself is static
    metadata that adds no break.
+4. The original exception must be reconstructible at the call boundary, or the
+   guard is left intact. This needs three things at once: an enclosing
+   `@torch.compile`-decorated ability to carry the eager decorator, a named
+   exception type, and a message that is a pure string literal. Three shapes
+   therefore decline. An f-string declines because a `MultiString` contributes
+   only its `String` parts to a literal value, so folding one would produce a
+   marker wrapped around an empty message -- the right exception type with its
+   diagnostic silently dropped. A runtime expression (concatenation,
+   `%`-formatting) declines because no marker can be built at all, which would
+   surface the failure as `RuntimeError` instead of the original type. A guard
+   inside a `@torch.compile`-decorated *class* declines for want of a boundary:
+   the method carries no decorator of its own, and an async assert can surface
+   after that method has already returned. Detection still tags all three --
+   the decline belongs to the transform, not to the analysis.
 
 ### Exception-type preservation
 
@@ -147,9 +161,15 @@ and re-raises the original exception type with the original message; unmarked
 to `RuntimeError` so no message is ever lost.
 
 The marker is folded at compile time, not concatenated at runtime, so the
-assert stays a native torch op inside the graph. When the message is not a
-literal, or the entry point is a module compiled at a call site (nothing to
-decorate), the lowering degrades to message-only rather than declining.
+assert stays a native torch op inside the graph. That also makes the marker
+the limit of what can be preserved: a runtime concat to rebuild a dynamic
+message would reintroduce the break it is trying to remove, so there is no
+fallback. When the marker cannot be built -- a non-literal message, or an
+entry point compiled at a call site with nothing to decorate -- the pass
+declines under condition 4 rather than lowering a guard whose exception
+contract it cannot honor. Widening this is a coverage question for later
+passes (call-site entry resolution lands with the scoped-import PR), not a
+licence to weaken the contract now.
 
 ### Runtime support
 
