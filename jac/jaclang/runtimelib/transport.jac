@@ -2,8 +2,6 @@ import json;
 import from collections.abc { Callable }
 import from typing { Any }
 
-# True for a framework Response object (e.g. FastAPI/Starlette) that should pass
-# through the runtime envelope untouched. Duck-typed so runtimelib never imports a web framework.
 def is_raw_response(value: any) -> bool {
     return hasattr(value, 'render')
         and hasattr(value, 'status_code')
