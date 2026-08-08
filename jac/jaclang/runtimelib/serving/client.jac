@@ -6,7 +6,7 @@ import queue as queue_lib;
 import from base64 { b64encode }
 import from concurrent.futures { ThreadPoolExecutor }
 import from json { dumps, loads }
-import from urllib.parse { urlsplit }
+import from urllib.parse { urlencode, urlsplit }
 import from jaclang.runtimelib.serving.datatypes { Headers }
 import from jaclang.runtimelib.serving.sse { parse_sse }
 import from jaclang.runtimelib.serving.ws { WebSocket, compute_accept_key }
@@ -193,8 +193,13 @@ async def arequest(
     json_body: any = None,
     data: (bytes | str | None) = None,
     timeout: float = DEFAULT_TIMEOUT,
-    stream: bool = False
+    stream: bool = False,
+    params: (dict | None) = None
 ) -> ClientResponse {
+    if params {
+        sep = '&' if '?' in url else '?';
+        url = f"{url}{sep}{urlencode(params, doseq=True)}";
+    }
     (scheme, host, port, path) = _split_url(url);
     if scheme not in ('http', 'https') {
         raise ClientConnectionError(detail=f"unsupported scheme: {scheme}");

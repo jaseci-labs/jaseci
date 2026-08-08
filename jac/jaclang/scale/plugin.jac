@@ -717,12 +717,7 @@ class JacScalePlugin {
     }
 
     static def sv_transport_available -> bool {
-        try {
-            import httpx;
-            return True;
-        } except ImportError {
-            return False;
-        }
+        return True;
     }
 
     static def sv_service_call(module_name: str, func_name: str, args: dict) -> any {

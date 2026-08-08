@@ -66,7 +66,10 @@ def _build_traceql(service: str, status: str, min_duration_ms: int) -> str {
 
 
 async def _tempo_request(path: str, params: dict, accept_json: bool = False) -> dict {
-    import httpx;
+    import from jaclang.runtimelib.serving.client {
+        ClientConnectionError,
+        arequest
+    }
     base = _tempo_base_url();
     url = base + path;
     headers: dict = {};
@@ -74,18 +77,16 @@ async def _tempo_request(path: str, params: dict, accept_json: bool = False) -> 
         headers["Accept"] = "application/json";
     }
     try {
-        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0, connect=3.0)) as cl {
-            resp = await cl.get(url, params=params, headers=headers);
-            resp.raise_for_status();
-            return resp.json();
-        }
-    } except httpx.TimeoutException as e {
-        raise ConnectionError(f"Tempo timed out: {e}");
-    } except httpx.HTTPStatusError as e {
-        raise ConnectionError(f"Tempo returned {e.response.status_code}");
-    } except httpx.RequestError as e {
+        resp = await arequest(
+            "GET", url, headers=headers, params=params, timeout=8.0
+        );
+    } except ClientConnectionError as e {
         raise ConnectionError(f"Tempo unreachable: {e}");
     }
+    if not resp.ok() {
+        raise ConnectionError(f"Tempo returned {resp.status_code}");
+    }
+    return resp.json();
 }
 
 
