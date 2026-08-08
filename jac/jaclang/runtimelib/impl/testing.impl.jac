@@ -212,8 +212,11 @@ impl JacTestClient._execute_request(
         body=body or b"",
         client_host="127.0.0.1"
     );
-    response = run_blocking(self._app.dispatch(request));
-    content = collect_response_bytes(response);
+    outcome: tuple[Response, bytes] = run_blocking(
+        dispatch_and_collect(self._app, request)
+    );
+    response = outcome[0];
+    content = outcome[1];
     response_headers: dict[(str, str)] = {};
     for (name, value) in response.headers.items() {
         response_headers[name] = value;

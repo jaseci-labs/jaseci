@@ -25,6 +25,7 @@ glob _logger: logging.Logger = logging.getLogger(
      MAX_BODY_BYTES: int = 104857600,
      HEADER_TIMEOUT_SECONDS: float = 30.0,
      KEEPALIVE_TIMEOUT_SECONDS: float = 65.0,
+     CLOSE_TIMEOUT_SECONDS: float = 5.0,
      PORT_RETRY_LIMIT: int = 10,
      ERRNO_ADDR_IN_USE: tuple[int, int, int] = (98, 48, 10048);
 
@@ -68,7 +69,9 @@ obj ServingServer {
         _server: any = None,
         _loop: any = None,
         _stop_event: any = None,
-        _active: set[any] = set();
+        _active: set[any] = set(),
+        _busy: set[any] = set(),
+        _stopping: bool = False;
 
     async def _serve(
         on_ready: (Callable[[int], None] | None) = None,
@@ -107,16 +110,30 @@ obj ServingServer {
             await self._stop_event.wait();
         } finally {
             self._server.close();
-            await self._server.wait_closed();
             await self._drain();
+
+            try {
+                await asyncio.wait_for(
+                    self._server.wait_closed(), timeout=CLOSE_TIMEOUT_SECONDS
+                );
+            } except asyncio.TimeoutError {
+                ;
+            }
             await self.app.shutdown();
         }
     }
 
     async def _drain {
+        self._stopping = True;
+
+        for t in list(self._active) {
+            if t not in self._busy and not t.done() {
+                t.cancel();
+            }
+        }
         pending = [
             t
-            for t in self._active
+            for t in self._busy
             if not t.done()
         ];
         if not pending {
@@ -195,6 +212,7 @@ obj ServingServer {
             _logger.exception("connection handler failed");
         } finally {
             self._active.discard(task);
+            self._busy.discard(task);
             try {
                 writer.close();
             } except Exception {
@@ -230,9 +248,18 @@ obj ServingServer {
                 await self._handle_ws(request, reader, writer);
                 return;
             }
-            response = await self.app.dispatch(request);
-            keep_alive = self._should_keep_alive(request, http_version);
-            wrote = await self._write_response(writer, request, response, keep_alive);
+            task = asyncio.current_task();
+            self._busy.add(task);
+            try {
+                response = await self.app.dispatch(request);
+                keep_alive = self._should_keep_alive(request, http_version)
+                    and not self._stopping;
+                wrote = await self._write_response(
+                    writer, request, response, keep_alive
+                );
+            } finally {
+                self._busy.discard(task);
+            }
             _access_logger.info(
                 f'{request.client_host or "-"} - '
                 f'"{request.method} {request.url.path} {http_version}" '

@@ -11,10 +11,11 @@ import from jaclang.runtimelib.serving.datatypes {
     Headers,
     QueryParams,
     Request,
+    Response,
     URL,
     parse_query_string
 }
-import from jaclang.runtimelib.serving.testing { collect_response_bytes }
+import from jaclang.runtimelib.serving.testing { dispatch_and_collect }
 
 obj TestResponse {
     has status_code: int,

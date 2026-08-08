@@ -9,6 +9,7 @@ import from jaclang.runtimelib.serving.datatypes {
     Headers,
     QueryParams,
     Request,
+    Response,
     URL,
     parse_query_string
 }
@@ -134,6 +135,7 @@ obj ServingTestClient {
         path: str,
         json: any = None,
         data: any = None,
+        content: any = None,
         files: (dict | None) = None,
         params: (dict | None) = None,
         headers: (dict | None) = None,
@@ -163,6 +165,10 @@ obj ServingTestClient {
             if header_obj.get('Content-Type') is None {
                 header_obj.set('Content-Type', 'application/json');
             }
+        } elif content is not None {
+            body = content
+                if isinstance(content, bytes)
+                else str(content).encode('utf-8');
         } elif isinstance(data, dict) {
             body = urlencode(data, doseq=True).encode('utf-8');
             header_obj.set('Content-Type', 'application/x-www-form-urlencoded');
@@ -179,7 +185,23 @@ obj ServingTestClient {
             body=body,
             client_host='testclient'
         );
-        response = run_blocking(self.app.dispatch(request));
+        outcome: tuple[Response, bytes] = run_blocking(
+            self._dispatch_chain(request, follow_redirects)
+        );
+        response = outcome[0];
+        content = outcome[1];
+        if response.headers.get('Content-Type') is None {
+            response.headers.set('Content-Type', response.content_type_header());
+        }
+        return TestResponse(
+            status_code=response.status_code, headers=response.headers, content=content
+        );
+    }
+
+    async def _dispatch_chain(
+        request: Request, follow_redirects: bool
+    ) -> tuple[Response, bytes] {
+        response = await self.app.dispatch(request);
         hops = 0;
         while follow_redirects
             and response.status_code in (301, 302, 303, 307, 308)
@@ -206,15 +228,10 @@ obj ServingTestClient {
                 body=next_body,
                 client_host='testclient'
             );
-            response = run_blocking(self.app.dispatch(request));
+            response = await self.app.dispatch(request);
         }
-        content = collect_response_bytes(response);
-        if response.headers.get('Content-Type') is None {
-            response.headers.set('Content-Type', response.content_type_header());
-        }
-        return TestResponse(
-            status_code=response.status_code, headers=response.headers, content=content
-        );
+        content = await collect_response_stream(response);
+        return (response, content);
     }
 
     def get(path: str, **kwargs: any) -> TestResponse {
@@ -275,30 +292,32 @@ obj ServingTestClient {
     }
 }
 
-def collect_response_bytes(response: any) -> bytes {
+async def collect_response_stream(response: any) -> bytes {
     if response.stream is None {
         return response.body_bytes();
     }
     stream = response.stream;
-
-    async def _collect -> bytes {
-        collected: list[bytes] = [];
-        if hasattr(stream, '__aiter__') {
-            async for chunk in stream {
-                collected.append(
-                    chunk if isinstance(chunk, bytes) else str(chunk).encode('utf-8')
-                );
-            }
-        } else {
-            for chunk in stream {
-                collected.append(
-                    chunk if isinstance(chunk, bytes) else str(chunk).encode('utf-8')
-                );
-            }
+    collected: list[bytes] = [];
+    if hasattr(stream, '__aiter__') {
+        async for chunk in stream {
+            collected.append(
+                chunk if isinstance(chunk, bytes) else str(chunk).encode('utf-8')
+            );
         }
-        return b''.join(collected);
+    } else {
+        for chunk in stream {
+            collected.append(
+                chunk if isinstance(chunk, bytes) else str(chunk).encode('utf-8')
+            );
+        }
     }
-    return run_blocking(_collect());
+    return b''.join(collected);
+}
+
+async def dispatch_and_collect(app: any, request: any) -> tuple[any, bytes] {
+    response = await app.dispatch(request);
+    content = await collect_response_stream(response);
+    return (response, content);
 }
 
 def _build_multipart(files: dict, data: any = None) -> tuple[bytes, str] {
