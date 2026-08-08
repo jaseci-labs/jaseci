@@ -201,3 +201,49 @@ impl NaIRGenPass._class_enum_member_str(cls_name: str, member: str) -> (str | No
     _cache[_key] = _found;
     return _found;
 }
+
+impl NaIRGenPass._class_enum_member_int(cls_name: str, member: str) -> (int | None) {
+    _cache = self?._class_enum_int_cache;
+    if _cache is None {
+        _cache = {};
+        self._class_enum_int_cache = _cache;
+    }
+    _key = f"{cls_name}.{member}";
+    if _key in _cache {
+        return _cache[_key];
+    }
+    _mods: list = [self.ir_in];
+    for _fm in (self?._foreign_modules or []) {
+        _mods.append(_fm);
+    }
+    _found: (int | None) = None;
+    for _m in _mods {
+        for _arch in _m.get_all_sub_nodes(uni.Archetype) {
+            if (_arch.name.value if _arch.name else None) != cls_name {
+                continue;
+            }
+            for _asgn in _arch.get_all_sub_nodes(uni.Assignment) {
+                _tgt0 = _asgn.target[0]
+                    if _asgn.target and len(_asgn.target) > 0
+                    else None;
+                if not (isinstance(_tgt0, uni.Name) and _tgt0.value == member) {
+                    continue;
+                }
+                _v = _asgn.value;
+                if isinstance(_v, uni.Int) {
+                    _found = int(_v.lit_value);
+                } elif isinstance(_v, uni.BinaryExpr)
+                    and isinstance(_v.left, uni.Int)
+                    and isinstance(_v.right, uni.Int)
+                    and _v.op.name == "LSHIFT" {
+                    _found = int(_v.left.lit_value) << int(_v.right.lit_value);
+                }
+            }
+        }
+        if _found is not None {
+            break;
+        }
+    }
+    _cache[_key] = _found;
+    return _found;
+}

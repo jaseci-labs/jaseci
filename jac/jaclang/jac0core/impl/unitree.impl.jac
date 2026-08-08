@@ -703,8 +703,8 @@ impl WalkerStmtOnlyNode.postinit -> None {
 impl UniCFGNode.postinit -> None {
     self.bb_in = [];
     self.bb_out = [];
-
-    self.affected_symbols = set();
+    _syms: set[str] = set();
+    self.affected_symbols = _syms;
 }
 
 impl ConditionalNode.postinit -> None {

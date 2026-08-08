@@ -360,6 +360,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _native_module_call_target(nd: uni.FuncCall) -> (tuple | None);
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
+    def _empty_ctor_args_of(nd: uni.FuncCall) -> list;
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
 
     has lambda_captures: dict[str, list[tuple]] = {},
@@ -544,6 +545,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_enum(nd: uni.Enum) -> None;
     def _codegen_enum_layout(enum_name: str, owner: (uni.Module | None)) -> None;
     def _class_enum_member_str(cls_name: str, member: str) -> (str | None);
+    def _class_enum_member_int(cls_name: str, member: str) -> (int | None);
     def _build_enum_string_table(
         enum_name: str, entries: list, with_values: bool = True
     ) -> None;

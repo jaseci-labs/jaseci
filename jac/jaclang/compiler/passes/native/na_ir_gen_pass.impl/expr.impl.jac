@@ -1588,6 +1588,10 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 if _cem is not None {
                     return self._make_global_string(_cem);
                 }
+                _cei = self._class_enum_member_int(_real_cls, right_name);
+                if _cei is not None {
+                    return ir.Constant(ir.IntType(64), _cei);
+                }
                 if _real_cls in self.struct_types
                     and _real_cls not in self.local_vars {
                     for _rcn in self._mro_of(_real_cls) {

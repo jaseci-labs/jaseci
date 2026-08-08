@@ -5246,6 +5246,16 @@ impl NativeBuiltinEmitter.emit_list(
             return _le.emit_copy(_ctx2, val, []);
         }
     }
+    if isinstance(val.type, ir.PointerType) {
+        p._emit_list_helpers("ptr", ir.IntType(8).as_pointer());
+        _lt_ptr = p.list_types.get("ptr");
+        _le3 = p?._native_emitters?.get("list");
+        if _lt_ptr is not None and _le3 is not None {
+            _lv = b.bitcast(val, _lt_ptr.as_pointer(), name="l.union.cast");
+            _ctx3 = ctx.__class__(pass_ref=p, type_key="ptr");
+            return _le3.emit_copy(_ctx3, _lv, []);
+        }
+    }
     return None;
 }
 

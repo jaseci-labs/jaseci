@@ -607,6 +607,9 @@ impl NaIRGenPass._resolve_field_type(var: uni.UniNode) -> ir.Type {
         if self._foreign_optional_field(_ptb) {
             return ir.IntType(8).as_pointer();
         }
+        if var?.accessors is not None {
+            return ir.IntType(8).as_pointer();
+        }
         if not self._type_base_is_unknown(_ptb) {
             return self._emit_unlowerable_type(var, _ptb);
         }
@@ -640,8 +643,18 @@ impl NaIRGenPass._foreign_optional_field(tb: any) -> bool {
     if len(_non_none) == len(_members) or not _non_none {
         return False;
     }
+    try {
+        import from jaclang.compiler.type_system.types {
+            TypeVarType as _FofTypeVarType
+        }
+    } except ImportError {
+        return False;
+    }
     for m in _non_none {
         if isinstance(m, _FofUnknownType) {
+            continue;
+        }
+        if isinstance(m, _FofTypeVarType) and self._lower_type(m) is None {
             continue;
         }
         if isinstance(m, _FofClassType) and self._lower_type(m) is None {
