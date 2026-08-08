@@ -1,4 +1,6 @@
-import from typing { get_args, get_origin }
+import inspect;
+import from types { UnionType }
+import from typing { Union, get_args, get_origin, get_type_hints }
 import from jaclang.runtimelib.serving.app { ServingApp }
 import from jaclang.runtimelib.serving.datatypes { HTMLResponse }
 import from jaclang.runtimelib.serving.endpoint {
@@ -25,7 +27,7 @@ glob _NAME_SCHEMAS: dict[str, dict[str, str]] = {
      };
 
 
-def _schema_for_type(target: any) -> dict[str, any] {
+def _schema_for_type(target: any, schemas: (dict | None) = None) -> dict[str, any] {
     if target is None {
         return {};
     }
@@ -35,11 +37,22 @@ def _schema_for_type(target: any) -> dict[str, any] {
     origin = get_origin(target);
     if origin is list {
         args = get_args(target);
-        items = _schema_for_type(args[0]) if args else {};
+        items = _schema_for_type(args[0], schemas) if args else {};
         return {'type': 'array', 'items': items};
     }
     if origin is dict {
         return {'type': 'object'};
+    }
+    if origin is Union or origin is UnionType {
+        options = [
+            a
+            for a in get_args(target)
+            if a is not type(None)
+        ];
+        if len(options) == 1 {
+            return _schema_for_type(options[0], schemas);
+        }
+        return {'anyOf': [_schema_for_type(a, schemas) for a in options]};
     }
     if target is str {
         return {'type': 'string'};
@@ -54,16 +67,68 @@ def _schema_for_type(target: any) -> dict[str, any] {
         return {'type': 'boolean'};
     }
     if isinstance(target, type) {
-        return {'type': 'object', 'title': target.__name__};
+        return _object_schema(target, schemas);
     }
     return {};
 }
 
-def _param_schema(param: APIParameter) -> dict[str, any] {
-    if param.type_obj is not None {
-        return _schema_for_type(param.type_obj);
+def _object_schema(target: type, schemas: (dict | None)) -> dict[str, any] {
+    if schemas is None {
+        return {'type': 'object', 'title': target.__name__};
     }
-    return _schema_for_type(param.data_type);
+    name = target.__name__;
+    ref = {'$ref': f"#/components/schemas/{name}"};
+    if name in schemas {
+        return ref;
+    }
+
+    schemas[name] = {'type': 'object', 'title': name};
+    props: dict[str, any] = {};
+    required: list[str] = [];
+    try {
+        init_fn = getattr(target, '__init__');
+        hints = get_type_hints(init_fn);
+        sig = inspect.signature(init_fn);
+    } except Exception {
+        return ref;
+    }
+    for (pname, param) in sig.parameters.items() {
+        if pname in ('self', 'args', 'kwargs') {
+            continue;
+        }
+        props[pname] = _schema_for_type(hints.get(pname), schemas);
+        if param.default is inspect.Parameter.empty {
+            required.append(pname);
+        }
+    }
+    entry: dict[str, any] = {'type': 'object', 'title': name, 'properties': props};
+    if required {
+        entry['required'] = required;
+    }
+    schemas[name] = entry;
+    return ref;
+}
+
+def _param_schema(
+    param: APIParameter, schemas: (dict | None) = None
+) -> dict[str, any] {
+    if param.type_obj is not None {
+        return _schema_for_type(param.type_obj, schemas);
+    }
+    return _schema_for_type(param.data_type, schemas);
+}
+
+def _body_schema_name(ep: JEndPoint, method: str) -> str {
+    parts = [
+        seg
+        for seg in ep.path.strip('/').split('/')
+        if seg and not seg.startswith('{')
+    ];
+    ident = ''.join([seg.replace('-', '_').replace('.', '_') for seg in parts]);
+    if not ident {
+        ident = 'Root';
+    }
+    return f"{ident[0].upper()}{ident[1:]}{method.capitalize()}Body";
 }
 
 def _openapi_path(path: str) -> str {
@@ -75,6 +140,7 @@ def build_openapi(app: ServingApp) -> dict[str, any] {
         return app.openapi_cache;
     }
     paths: dict[str, any] = {};
+    component_schemas: dict[str, any] = {};
     for ep in app.router.all_endpoints() {
         if not ep.include_in_schema {
             continue;
@@ -103,7 +169,7 @@ def build_openapi(app: ServingApp) -> dict[str, any] {
             if kind
                 in (ParameterType.QUERY, ParameterType.PATH, ParameterType.HEADER) {
                 location = str(kind.value);
-                param_schema = _param_schema(param);
+                param_schema = _param_schema(param, component_schemas);
                 if not param.required and param.default_value is not None {
                     param_schema['default'] = param.default_value;
                 }
@@ -123,7 +189,7 @@ def build_openapi(app: ServingApp) -> dict[str, any] {
                     body_required.append(param.name);
                 }
             } else {
-                body_schema = _param_schema(param);
+                body_schema = _param_schema(param, component_schemas);
                 if not param.required and param.default_value is not None {
                     body_schema['default'] = param.default_value;
                 }
@@ -142,6 +208,20 @@ def build_openapi(app: ServingApp) -> dict[str, any] {
                 schema['required'] = body_required;
             }
             content_type = 'multipart/form-data' if has_file else 'application/json';
+            if not has_file {
+                body_name = _body_schema_name(ep, method);
+                existing = component_schemas.get(body_name);
+                if existing is not None and existing != schema {
+                    suffix = 2;
+                    while component_schemas.get(f"{body_name}{suffix}")
+                        not in (None, schema) {
+                        suffix += 1;
+                    }
+                    body_name = f"{body_name}{suffix}";
+                }
+                component_schemas[body_name] = schema;
+                schema = {'$ref': f"#/components/schemas/{body_name}"};
+            }
             entry['requestBody'] = {
                 'content': {content_type: {'schema': schema}},
                 'required': bool(body_required)
@@ -159,12 +239,12 @@ def build_openapi(app: ServingApp) -> dict[str, any] {
         'info': {'title': app.title, 'version': app.version},
         'paths': paths
     };
-    if app.openapi_security {
-        spec['components'] = {'securitySchemes': dict(app.openapi_security)};
-    } else {
-        spec['components'] = {
-            'securitySchemes': {'BearerAuth': {'type': 'http', 'scheme': 'bearer'}}
-        };
+    security_schemes = dict(app.openapi_security)
+        if app.openapi_security
+        else {'BearerAuth': {'type': 'http', 'scheme': 'bearer'}};
+    spec['components'] = {'securitySchemes': security_schemes};
+    if component_schemas {
+        spec['components']['schemas'] = component_schemas;
     }
     app.openapi_cache = spec;
     return spec;

@@ -269,6 +269,18 @@ def _extract_raw(
     return (False, None);
 }
 
+def _fresh_default(value: any) -> any {
+    if isinstance(value, (dict, list, set)) {
+        import copy;
+        try {
+            return copy.deepcopy(value);
+        } except Exception {
+            return value;
+        }
+    }
+    return value;
+}
+
 def bind_parameters(ep: JEndPoint, request: Request, body_json: any) -> dict[str, Any] {
     kwargs: dict[str, Any] = {};
     errors: list[dict] = [];
@@ -289,7 +301,7 @@ def bind_parameters(ep: JEndPoint, request: Request, body_json: any) -> dict[str
                     }
                 );
             } elif param.default_value is not None {
-                kwargs[param.name] = param.default_value;
+                kwargs[param.name] = _fresh_default(param.default_value);
             }
             continue;
         }

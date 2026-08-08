@@ -6,7 +6,6 @@ import from jaclang.runtimelib.serving.endpoint { WSEndPoint }
 
 def _install_ws_catchall(gw: MicroserviceGateway) {
     import from jaclang.scale.runtime.middleware.ws_forward { websocket_forward }
-    _ws_needs_registration = True;
     import from jaclang.scale.runtime.lifecycle.drain { is_draining }
     import from jaclang.scale.runtime.gateway.service_registry { ServiceStatus }
 
@@ -46,6 +45,7 @@ def _install_ws_catchall(gw: MicroserviceGateway) {
         logger.info(f"ws proxy: {full_path} -> {target_http}");
         await websocket_forward(websocket, target_http, req_headers);
     }
+    gw.app.add_ws_endpoint(WSEndPoint(path="/{ws_path:path}", handler=ws_proxy));
 }
 
 impl MicroserviceGateway.service_base_url(service_entry: ServiceEntry) -> str {

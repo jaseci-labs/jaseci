@@ -359,6 +359,12 @@ class StreamingResponse(Response) {
         );
         self.stream = content;
     }
+
+    has body_iterator: any {
+        getter {
+            return self.stream;
+        }
+    }
 }
 
 def parse_query_string(query: str) -> dict[str, list[str]] {
