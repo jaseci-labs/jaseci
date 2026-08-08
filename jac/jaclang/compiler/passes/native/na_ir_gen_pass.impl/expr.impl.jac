@@ -1534,7 +1534,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             )
                         );
                     }
-                } elif right_name == "value" and _re_tk in self.enum_value_arrays {
+                } elif right_name == "value" and _re_tk in self.enum_name_arrays {
                     return self._codegen_expr(nd.target);
                 }
             }

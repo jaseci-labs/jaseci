@@ -43,20 +43,38 @@ impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
             _members.append(m);
         }
         _had_none = len(_members) < len(t.types or []);
-        if _members {
+        if len(_members) == 1 {
             _mlow = self._lower_type(_members[0]);
             if self._str_desc_ty is not None and _mlow == self._str_desc_ty {
                 _mlow = ir.IntType(8).as_pointer();
             }
             if (
-                _had_none
-                and len(_members) == 1
-                and _mlow is not None
-                and not isinstance(_mlow, ir.VoidType)
+                _had_none and _mlow is not None and not isinstance(_mlow, ir.VoidType)
             ) {
                 lowered = self._jac_optional_type(_mlow);
             } else {
                 lowered = _mlow;
+            }
+        } elif _members {
+            _mlows: list = [];
+            for _m in _members {
+                _ml = self._lower_type(_m);
+                if self._str_desc_ty is not None and _ml == self._str_desc_ty {
+                    _ml = ir.IntType(8).as_pointer();
+                }
+                if _ml is None or isinstance(_ml, ir.VoidType) {
+                    _mlows = [];
+                    break;
+                }
+                _mlows.append(_ml);
+            }
+            if not _mlows {
+                lowered = self.jacval_type;
+            } elif all(_ml == _mlows[0] for _ml in _mlows)
+                or all(isinstance(_ml, ir.PointerType) for _ml in _mlows) {
+                lowered = _mlows[0];
+            } else {
+                lowered = self.jacval_type;
             }
         }
     } elif isinstance(t, _FunctionType) {

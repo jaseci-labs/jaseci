@@ -2589,6 +2589,9 @@ impl NativeListEmitter.emit_extend(
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     src = args[0];
+    if p._opt_payload_of(src.type) is not None {
+        src = p._coerce_type(src, target.type);
+    }
     if not isinstance(src.type, ir.PointerType) or src.type.is_opaque {
         return None;
     }

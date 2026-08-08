@@ -312,6 +312,22 @@ def _arm64_apply_reloc(
 }
 
 
+def _unsigned_inline_addend(
+    rel: MachOReloc, patch_buf: bytearray, patch_off: int, sections: list[MachOSection]
+) -> int {
+    if rel.length != 3 or patch_off + 8 > len(patch_buf) {
+        return 0;
+    }
+    inline_val = struct.unpack_from("<Q", patch_buf, patch_off)[0];
+    if rel.extern == 1 {
+        return inline_val;
+    }
+    tsi = rel.symbolnum - 1;
+    old_base = sections[tsi].addr if (tsi >= 0 and tsi < len(sections)) else 0;
+    return inline_val - old_base;
+}
+
+
 def _x86_64_build_stub(stub_vaddr: int, got_entry_vaddr: int) -> bytes {
     disp32 = got_entry_vaddr - (stub_vaddr + 6);
     return b"\xFF\x25" + struct.pack("<i", disp32);
@@ -1333,13 +1349,20 @@ impl MachOLinker.build_executable -> bytes {
         }
         (patch_buf, patch_off, patch_vaddr) = site;
 
+        eff_addend = rel.addend;
+        if (is_arm64 and rel.rtype == ARM64_RELOC_UNSIGNED)
+            or (not is_arm64 and rel.rtype == X86_64_RELOC_UNSIGNED) {
+            eff_addend += _unsigned_inline_addend(
+                rel, patch_buf, patch_off, self.sections
+            );
+        }
         if is_arm64 {
             _arm64_apply_reloc(
-                rel.rtype, patch_buf, patch_off, sym_addr, rel.addend, patch_vaddr
+                rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
             );
         } else {
             _x86_64_apply_reloc(
-                rel.rtype, patch_buf, patch_off, sym_addr, rel.addend, patch_vaddr
+                rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
             );
         }
     }
@@ -2211,13 +2234,20 @@ impl MachOLinker.build_shared_object -> bytes {
             continue;
         }
         (patch_buf, patch_off, patch_vaddr) = site;
+        eff_addend = rel.addend;
+        if (is_arm64 and rel.rtype == ARM64_RELOC_UNSIGNED)
+            or (not is_arm64 and rel.rtype == X86_64_RELOC_UNSIGNED) {
+            eff_addend += _unsigned_inline_addend(
+                rel, patch_buf, patch_off, self.sections
+            );
+        }
         if is_arm64 {
             _arm64_apply_reloc(
-                rel.rtype, patch_buf, patch_off, sym_addr, rel.addend, patch_vaddr
+                rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
             );
         } else {
             _x86_64_apply_reloc(
-                rel.rtype, patch_buf, patch_off, sym_addr, rel.addend, patch_vaddr
+                rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
             );
         }
     }

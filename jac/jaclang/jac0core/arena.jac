@@ -41,12 +41,9 @@ obj SyntaxArena {
         if got >= 0 {
             return got;
         }
-        # own the content: callers may hand descriptors backed by transient
-        # storage (enum-constant lookups); concat forces a heap-owned copy
-        owned: str = f"{s}";
         idx = len(self.strtab);
-        self.strtab.append(owned);
-        self._intern[owned] = idx;
+        self.strtab.append(s);
+        self._intern[s] = idx;
         return idx;
     }
 
