@@ -342,6 +342,10 @@ impl Session._evict_uncommitted -> None {
             }
         }
         if dirty {
+            if isinstance(anchor, EdgeAnchor) {
+                import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
+                sv_forget_edge(anchor, self);
+            }
             self.__mem__.pop(id, None);
             self._flushed_hash.pop(id, None);
         }
@@ -355,6 +359,8 @@ impl Session.get_mem -> dict[UUID, Anchor] {
 
 
 impl Session.quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> None {
+    import from jaclang.jac0core.osp_graph_sv { sv_forget_by_id }
+    sv_forget_by_id(stub.id, self);
     if self.store is not None {
         try {
             self.store.quarantine(
@@ -599,4 +605,6 @@ impl Session.close -> None {
     self._dirty.clear();
     self._deleted.clear();
     self._flushed_hash.clear();
+    import from jaclang.jac0core.osp_graph_sv { sv_store_closed }
+    sv_store_closed(self);
 }

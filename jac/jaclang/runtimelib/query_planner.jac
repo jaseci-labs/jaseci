@@ -10,6 +10,11 @@ Two execution paths, split per origin:
 - volatile origins (or storeless sessions): a direct walk of the live
   anchor objects. Mixed chains cannot exist: persistence cascades on
   attach, so a persistent frontier never reaches a volatile anchor.
+
+ACL (#7963 item 3): for a downscoped user every surfaced anchor passes
+check_access_level. The memory walk gates each hop's frontier; the SQL path
+gates the materialized results (per-hop gating inside the SQL statement
+awaits ACL pushdown).
 """
 
 import logging;
@@ -46,6 +51,12 @@ def _hop_matches_node(anchor: Anchor, hop: QHop) -> bool;
 
 
 def resolve_query_prefix(mem: Session, q: GraphQuery, upto: int) -> list[UUID];
+
+
+def _acl_gated -> bool;
+
+
+def _acl_read_ok(anchor: Anchor) -> bool;
 
 
 def resolve_query(mem: Session, q: GraphQuery) -> list[Anchor];

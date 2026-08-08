@@ -445,12 +445,14 @@ impl JacContext.reset_graph(root_node: (Root | None) = None) -> int {
             for anchor in mem.get_mem().values()
         ];
     }
+    import from jaclang.jac0core.osp_graph_sv { sv_forget_by_id }
     for (aid, aroot) in candidates {
         if ((aid == ranchor.id) or (aroot != str(ranchor.id))) {
             continue;
         }
         deleted_ids.add(aid);
         mem.delete(aid);
+        sv_forget_by_id(aid, mem);
         deleted_count += 1;
     }
     ranchor.edges = [
@@ -965,44 +967,44 @@ impl JacGraph.disconnect(
     dir: EdgeDir = EdgeDir.OUT,
     filter: (Callable[([EdgeArchetype], bool)] | None) = None
 ) -> bool {
+    import from jaclang.jac0core.osp_graph_sv {
+        sv_candidate_edges_between,
+        sv_register_hydrated
+    }
     disconnect_occurred = False;
     left = [left] if isinstance(left, NodeArchetype) else left;
     right = [right] if isinstance(right, NodeArchetype) else right;
     for i in left {
         nd = i.__jac__;
-        for anchor in `set(nd.edges) {
-            if (
-                (source := anchor.source)
-                and (target := anchor.target)
-                and (not filter or filter(anchor.archetype))
-                and source.archetype
-                and target.archetype
-            ) {
-                if (
-                    (dir in [EdgeDir.OUT, EdgeDir.ANY])
-                    and (nd == source)
-                    and (target.archetype in right)
-                    and JacRuntimeInterface.check_connect_access(
-                        target, op_hint="edge_delete"
-                    )
-                ) {
-                    JacRuntimeInterface.destroy([anchor])
-                        if anchor.persistent
-                        else anchor.detach();
-                    disconnect_occurred = True;
+        for stub in `set(nd.edges) {
+            if not stub.is_populated() {
+                stub.populate();
+            }
+        }
+        sv_register_hydrated(nd);
+        handled: set = set();
+        for j in right {
+            for anchor in sv_candidate_edges_between(nd, j.__jac__, dir.value) {
+                if anchor.id in handled {
+                    continue;
                 }
+                handled.add(anchor.id);
                 if (
-                    (dir in [EdgeDir.IN, EdgeDir.ANY])
-                    and (nd == target)
-                    and (source.archetype in right)
-                    and JacRuntimeInterface.check_connect_access(
-                        source, op_hint="edge_delete"
-                    )
+                    (source := anchor.source)
+                    and (target := anchor.target)
+                    and (not filter or filter(anchor.archetype))
+                    and source.archetype
+                    and target.archetype
                 ) {
-                    JacRuntimeInterface.destroy([anchor])
-                        if anchor.persistent
-                        else anchor.detach();
-                    disconnect_occurred = True;
+                    other = target if source.id == nd.id else source;
+                    if JacRuntimeInterface.check_connect_access(
+                        other, op_hint="edge_delete"
+                    ) {
+                        JacRuntimeInterface.destroy([anchor])
+                            if anchor.persistent
+                            else anchor.detach();
+                        disconnect_occurred = True;
+                    }
                 }
             }
         }
@@ -1046,12 +1048,14 @@ impl JacGraph.build_edge(
 ) -> Callable[([NodeAnchor, NodeAnchor], EdgeArchetype)] {
     ct = conn_type or GenericEdge;
     def builder(source: NodeAnchor, target: NodeAnchor) -> EdgeArchetype {
+        import from jaclang.jac0core.osp_graph_sv { sv_conn }
         `edge = ct() if isinstance(ct, `type) else ct;
         eanch = `edge.__jac__=EdgeAnchor(
             archetype=`edge, source=source, target=target, is_undirected=is_undirected
         );
         source.edges.append(eanch);
         target.edges.append(eanch);
+        sv_conn(source, target, eanch, is_undirected);
         if conn_assign {
             for (fld, val) in zip(conn_assign[0], conn_assign[1], strict=False) {
                 if hasattr(`edge, fld) {

@@ -1,3 +1,23 @@
+impl _acl_gated -> bool {
+    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    try {
+        jctx = JacRuntimeInterface.get_context();
+    } except Exception {
+        return False;
+    }
+    ur = jctx?.user_root;
+    return ur is not None and ur != jctx.system_root;
+}
+
+
+impl _acl_read_ok(anchor: Anchor) -> bool {
+    import from jaclang.jac0core.archetype { AccessLevel }
+    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    level = JacRuntimeInterface.check_access_level(anchor);
+    return level.value > AccessLevel.NO_ACCESS.value;
+}
+
+
 impl _origin_anchors(q: GraphQuery) -> list[Anchor] {
     seen: set[UUID] = set();
     out: list[Anchor] = [];
@@ -111,6 +131,7 @@ impl _walk_memory(
         (a, None)
         for a in origins
     ];
+    gated = _acl_gated();
     for hop in q.hops[:upto] {
         nxt: list[tuple[Anchor, (EdgeAnchor | None)]] = [];
         seen_edges: set[UUID] = set();
@@ -124,6 +145,9 @@ impl _walk_memory(
                 }
                 other = _edge_pair_for(e, cur, hop);
                 if other is not None {
+                    if gated and not _acl_read_ok(other) {
+                        continue;
+                    }
                     seen_edges.add(e.id);
                     nxt.append((other, e));
                 }
@@ -223,10 +247,18 @@ impl resolve_query(mem: Session, q: GraphQuery) -> list[Anchor] {
     }
     (pairs, local) = _resolve_pairs(mem, q, len(q.hops));
     ids = _unique_nodes(pairs);
-    if q.slc is not None {
-        ids = ids[q.slc];
+    out = _materialize_ids(mem, ids, local);
+    if _acl_gated() {
+        out = [
+            a
+            for a in out
+            if _acl_read_ok(a)
+        ];
     }
-    return _materialize_ids(mem, ids, local);
+    if q.slc is not None {
+        out = out[q.slc];
+    }
+    return out;
 }
 
 
@@ -249,6 +281,23 @@ impl resolve_query_edges(mem: Session, q: GraphQuery) -> list[Anchor] {
         }
     }
     edges = _materialize_ids(mem, edge_ids, local);
+    if _acl_gated() {
+        kept: list[Anchor] = [];
+        for ea in edges {
+            if not _acl_read_ok(ea) {
+                continue;
+            }
+            nid = node_of.get(ea.id);
+            if nid is not None {
+                ends = _materialize_ids(mem, [nid], local);
+                if not ends or not _acl_read_ok(ends[0]) {
+                    continue;
+                }
+            }
+            kept.append(ea);
+        }
+        edges = kept;
+    }
     if not q.from_visit {
         out_e: list[Anchor] = list(edges);
         if q.slc is not None {

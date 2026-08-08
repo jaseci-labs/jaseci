@@ -181,6 +181,12 @@ impl compile_query(q: GraphQuery, upto: int) -> CompiledQuery {
             nconds.append(f"{nd_alias}.id = ANY(CAST(:{key} AS uuid[]))");
         }
         joins.append(f"JOIN anchors {nd_alias} ON {' AND '.join(nconds)}");
+        src_alias = 's1' if n == 1 else f"n{n - 1}";
+        order.append(
+            f"(SELECT t.ord FROM jsonb_array_elements_text("
+            f"{src_alias}.props->'edges') WITH ORDINALITY AS t(eid, ord) "
+            f"WHERE t.eid = CAST({e}.id AS text) LIMIT 1) NULLS LAST"
+        );
         order.append(f"{e}.id");
         fid = f"{nd_alias}.id";
     }
@@ -194,9 +200,10 @@ impl compile_query(q: GraphQuery, upto: int) -> CompiledQuery {
     }
     out.sql = (
         f"SELECT n{n}.id, e{n}.id "
-        f"FROM unnest(CAST(:origin AS uuid[])) AS f0(id) "
+        f"FROM unnest(CAST(:origin AS uuid[])) WITH ORDINALITY AS f0(id, ord) "
+        f"LEFT JOIN anchors s1 ON s1.id = f0.id "
         + ' '.join(joins)
-        + ' ORDER BY '
+        + ' ORDER BY f0.ord, '
         + ', '.join(order)
     );
     out.params = params;
