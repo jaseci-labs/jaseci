@@ -86,6 +86,8 @@ class ValueKind(`enum.IntEnum) {
     }
 }
 
+"""A weak reference to a LLVM value.
+    """
 class ValueRef(ffi.ObjectRef) {
     def init(self: ValueRef, ptr: Any, kind: Any, parents: Any) -> object {
         self._kind = kind;
@@ -100,123 +102,134 @@ class ValueRef(ffi.ObjectRef) {
         }
     }
 
-    has module: object {
-        getter {
-            return self._parents.get('module');
-        }
+    """
+        The module this function or global variable value was obtained from.
+        """
+    @property
+    def module(self: ValueRef) -> object {
+        return self._parents.get('module');
     }
 
-    has function: object {
-        getter {
-            return self._parents.get('function');
-        }
+    """
+        The function this argument or basic block value was obtained from.
+        """
+    @property
+    def function(self: ValueRef) -> object {
+        return self._parents.get('function');
     }
 
-    has block: object {
-        getter {
-            return self._parents.get('block');
-        }
+    """
+        The block this instruction value was obtained from.
+        """
+    @property
+    def block(self: ValueRef) -> object {
+        return self._parents.get('block');
     }
 
-    has instruction: object {
-        getter {
-            return self._parents.get('instruction');
-        }
+    """
+        The instruction this operand value was obtained from.
+        """
+    @property
+    def instruction(self: ValueRef) -> object {
+        return self._parents.get('instruction');
     }
 
-    has is_global: object {
-        getter {
-            return (self._kind == 'global');
-        }
+    @property
+    def is_global(self: ValueRef) -> object {
+        return (self._kind == 'global');
     }
 
-    has is_function: object {
-        getter {
-            return (self._kind == 'function');
-        }
+    @property
+    def is_function(self: ValueRef) -> object {
+        return (self._kind == 'function');
     }
 
-    has is_block: object {
-        getter {
-            return (self._kind == 'block');
-        }
+    @property
+    def is_block(self: ValueRef) -> object {
+        return (self._kind == 'block');
     }
 
-    has is_argument: object {
-        getter {
-            return (self._kind == 'argument');
-        }
+    @property
+    def is_argument(self: ValueRef) -> object {
+        return (self._kind == 'argument');
     }
 
-    has is_instruction: object {
-        getter {
-            return (self._kind == 'instruction');
-        }
+    @property
+    def is_instruction(self: ValueRef) -> object {
+        return (self._kind == 'instruction');
     }
 
-    has is_operand: object {
-        getter {
-            return (self._kind == 'operand');
-        }
+    @property
+    def is_operand(self: ValueRef) -> object {
+        return (self._kind == 'operand');
     }
 
-    has is_constant: object {
-        getter {
-            return bool(ffi.lib.LLVMPY_IsConstant(self));
-        }
+    @property
+    def is_constant(self: ValueRef) -> object {
+        return bool(ffi.lib.LLVMPY_IsConstant(self));
     }
 
-    has value_kind: object {
-        getter {
-            return ValueKind(ffi.lib.LLVMPY_GetValueKind(self));
-        }
+    @property
+    def value_kind(self: ValueRef) -> object {
+        return ValueKind(ffi.lib.LLVMPY_GetValueKind(self));
     }
 
-    has name: object {
-        getter {
-            return _decode_string(ffi.lib.LLVMPY_GetValueName(self));
-        }
-        setter(self: ValueRef, val: Any) -> object {
-            ffi.lib.LLVMPY_SetValueName(self, _encode_string(val));
-        }
+    @property
+    def name(self: ValueRef) -> object {
+        return _decode_string(ffi.lib.LLVMPY_GetValueName(self));
     }
 
-    has linkage: object {
-        getter {
-            return Linkage(ffi.lib.LLVMPY_GetLinkage(self));
-        }
-        setter(self: ValueRef, value: Any) -> object {
-            if not isinstance(value, Linkage) {
-                value = Linkage[value];
-            }
-            ffi.lib.LLVMPY_SetLinkage(self, value);
-        }
+    @name.setter
+    def name(self: ValueRef, val: Any) -> object {
+        ffi.lib.LLVMPY_SetValueName(self, _encode_string(val));
     }
 
-    has visibility: object {
-        getter {
-            return Visibility(ffi.lib.LLVMPY_GetVisibility(self));
-        }
-        setter(self: ValueRef, value: Any) -> object {
-            if not isinstance(value, Visibility) {
-                value = Visibility[value];
-            }
-            ffi.lib.LLVMPY_SetVisibility(self, value);
-        }
+    @property
+    def linkage(self: ValueRef) -> object {
+        return Linkage(ffi.lib.LLVMPY_GetLinkage(self));
     }
 
-    has storage_class: object {
-        getter {
-            return StorageClass(ffi.lib.LLVMPY_GetDLLStorageClass(self));
+    @linkage.setter
+    def linkage(self: ValueRef, value: Any) -> object {
+        if not isinstance(value, Linkage) {
+            value = Linkage[value];
         }
-        setter(self: ValueRef, value: Any) -> object {
-            if not isinstance(value, StorageClass) {
-                value = StorageClass[value];
-            }
-            ffi.lib.LLVMPY_SetDLLStorageClass(self, value);
-        }
+        ffi.lib.LLVMPY_SetLinkage(self, value);
     }
 
+    @property
+    def visibility(self: ValueRef) -> object {
+        return Visibility(ffi.lib.LLVMPY_GetVisibility(self));
+    }
+
+    @visibility.setter
+    def visibility(self: ValueRef, value: Any) -> object {
+        if not isinstance(value, Visibility) {
+            value = Visibility[value];
+        }
+        ffi.lib.LLVMPY_SetVisibility(self, value);
+    }
+
+    @property
+    def storage_class(self: ValueRef) -> object {
+        return StorageClass(ffi.lib.LLVMPY_GetDLLStorageClass(self));
+    }
+
+    @storage_class.setter
+    def storage_class(self: ValueRef, value: Any) -> object {
+        if not isinstance(value, StorageClass) {
+            value = StorageClass[value];
+        }
+        ffi.lib.LLVMPY_SetDLLStorageClass(self, value);
+    }
+
+    """Only works on function value
+
+        Parameters
+        -----------
+        attr : str
+            attribute name
+        """
     def add_function_attribute(self: ValueRef, attr: Any) -> object {
         if not self.is_function {
             raise ValueError(('expected function value, got %s' % (self._kind, )));
@@ -231,126 +244,159 @@ class ValueRef(ffi.ObjectRef) {
         ffi.lib.LLVMPY_AddFunctionAttr(self, attrval);
     }
 
-    has global_value_type: object {
-        getter {
-            assert (self.is_global or self.is_function);
-            return ffi.ret_string(
-                ffi.lib.LLVMPY_PrintType(ffi.lib.LLVMPY_GlobalGetValueType(self))
+    """
+        The printed LLVM type of this global's value (LLVMGlobalGetValueType),
+        as a string. Kept for the wasm libc linker, which compares signatures
+        to enforce the jac_host1 import contract (see wasm_build._link_wasm_libc).
+        """
+    @property
+    def global_value_type(self: ValueRef) -> object {
+        assert (self.is_global or self.is_function);
+        return ffi.ret_string(
+            ffi.lib.LLVMPY_PrintType(ffi.lib.LLVMPY_GlobalGetValueType(self))
+        );
+    }
+
+    """
+        Whether this value (presumably global) is defined in the current
+        module.
+        """
+    @property
+    def is_declaration(self: ValueRef) -> object {
+        if not (self.is_global or self.is_function) {
+            raise ValueError(
+                ('expected global or function value, got %s' % (self._kind, ))
             );
         }
+        return ffi.lib.LLVMPY_IsDeclaration(self);
     }
 
-    has is_declaration: object {
-        getter {
-            if not (self.is_global or self.is_function) {
-                raise ValueError(
-                    ('expected global or function value, got %s' % (self._kind, ))
-                );
-            }
-            return ffi.lib.LLVMPY_IsDeclaration(self);
-        }
-    }
-
-    has attributes: object {
-        getter {
-            itr = iter(());
-            if self.is_function {
-                it = ffi.lib.LLVMPY_FunctionAttributesIter(self);
+    """
+        Return an iterator over this value's attributes.
+        The iterator will yield a string for each attribute.
+        """
+    @property
+    def attributes(self: ValueRef) -> object {
+        itr = iter(());
+        if self.is_function {
+            it = ffi.lib.LLVMPY_FunctionAttributesIter(self);
+            itr = _AttributeListIterator(it);
+        } elif self.is_instruction {
+            if (self.opcode == 'call') {
+                it = ffi.lib.LLVMPY_CallInstAttributesIter(self);
                 itr = _AttributeListIterator(it);
-            } elif self.is_instruction {
-                if (self.opcode == 'call') {
-                    it = ffi.lib.LLVMPY_CallInstAttributesIter(self);
-                    itr = _AttributeListIterator(it);
-                } elif (self.opcode == 'invoke') {
-                    it = ffi.lib.LLVMPY_InvokeInstAttributesIter(self);
-                    itr = _AttributeListIterator(it);
-                }
-            } elif self.is_global {
-                it = ffi.lib.LLVMPY_GlobalAttributesIter(self);
-                itr = _AttributeSetIterator(it);
-            } elif self.is_argument {
-                it = ffi.lib.LLVMPY_ArgumentAttributesIter(self);
-                itr = _AttributeSetIterator(it);
+            } elif (self.opcode == 'invoke') {
+                it = ffi.lib.LLVMPY_InvokeInstAttributesIter(self);
+                itr = _AttributeListIterator(it);
             }
-            return itr;
+        } elif self.is_global {
+            it = ffi.lib.LLVMPY_GlobalAttributesIter(self);
+            itr = _AttributeSetIterator(it);
+        } elif self.is_argument {
+            it = ffi.lib.LLVMPY_ArgumentAttributesIter(self);
+            itr = _AttributeSetIterator(it);
         }
+        return itr;
     }
 
-    has blocks: object {
-        getter {
-            if not self.is_function {
-                raise ValueError(('expected function value, got %s' % (self._kind, )));
-            }
-            it = ffi.lib.LLVMPY_FunctionBlocksIter(self);
-            parents = self._parents.copy();
-            parents.update(function=self);
-            return _BlocksIterator(it, parents);
+    """
+        Return an iterator over this function's blocks.
+        The iterator will yield a ValueRef for each block.
+        """
+    @property
+    def blocks(self: ValueRef) -> object {
+        if not self.is_function {
+            raise ValueError(('expected function value, got %s' % (self._kind, )));
         }
+        it = ffi.lib.LLVMPY_FunctionBlocksIter(self);
+        parents = self._parents.copy();
+        parents.update(function=self);
+        return _BlocksIterator(it, parents);
     }
 
-    has arguments: object {
-        getter {
-            if not self.is_function {
-                raise ValueError(('expected function value, got %s' % (self._kind, )));
-            }
-            it = ffi.lib.LLVMPY_FunctionArgumentsIter(self);
-            parents = self._parents.copy();
-            parents.update(function=self);
-            return _ArgumentsIterator(it, parents);
+    """
+        Return an iterator over this function's arguments.
+        The iterator will yield a ValueRef for each argument.
+        """
+    @property
+    def arguments(self: ValueRef) -> object {
+        if not self.is_function {
+            raise ValueError(('expected function value, got %s' % (self._kind, )));
         }
+        it = ffi.lib.LLVMPY_FunctionArgumentsIter(self);
+        parents = self._parents.copy();
+        parents.update(function=self);
+        return _ArgumentsIterator(it, parents);
     }
 
-    has instructions: object {
-        getter {
-            if not self.is_block {
-                raise ValueError(('expected block value, got %s' % (self._kind, )));
-            }
-            it = ffi.lib.LLVMPY_BlockInstructionsIter(self);
-            parents = self._parents.copy();
-            parents.update(block=self);
-            return _InstructionsIterator(it, parents);
+    """
+        Return an iterator over this block's instructions.
+        The iterator will yield a ValueRef for each instruction.
+        """
+    @property
+    def instructions(self: ValueRef) -> object {
+        if not self.is_block {
+            raise ValueError(('expected block value, got %s' % (self._kind, )));
         }
+        it = ffi.lib.LLVMPY_BlockInstructionsIter(self);
+        parents = self._parents.copy();
+        parents.update(block=self);
+        return _InstructionsIterator(it, parents);
     }
 
-    has operands: object {
-        getter {
-            if not self.is_instruction {
-                raise ValueError(
-                    ('expected instruction value, got %s' % (self._kind, ))
-                );
-            }
-            it = ffi.lib.LLVMPY_InstructionOperandsIter(self);
-            parents = self._parents.copy();
-            parents.update(instruction=self);
-            return _OperandsIterator(it, parents);
+    """
+        Return an iterator over this instruction's operands.
+        The iterator will yield a ValueRef for each operand.
+        """
+    @property
+    def operands(self: ValueRef) -> object {
+        if not self.is_instruction {
+            raise ValueError(('expected instruction value, got %s' % (self._kind, )));
         }
+        it = ffi.lib.LLVMPY_InstructionOperandsIter(self);
+        parents = self._parents.copy();
+        parents.update(instruction=self);
+        return _OperandsIterator(it, parents);
     }
 
-    has opcode: object {
-        getter {
-            if not self.is_instruction {
-                raise ValueError(
-                    ('expected instruction value, got %s' % (self._kind, ))
-                );
-            }
-            return ffi.ret_string(ffi.lib.LLVMPY_GetOpcodeName(self));
+    @property
+    def opcode(self: ValueRef) -> object {
+        if not self.is_instruction {
+            raise ValueError(('expected instruction value, got %s' % (self._kind, )));
         }
+        return ffi.ret_string(ffi.lib.LLVMPY_GetOpcodeName(self));
     }
 
-    has incoming_blocks: object {
-        getter {
-            if (not self.is_instruction or (self.opcode != 'phi')) {
-                raise ValueError(
-                    ('expected phi instruction value, got %s' % (self._kind, ))
-                );
-            }
-            it = ffi.lib.LLVMPY_PhiIncomingBlocksIter(self);
-            parents = self._parents.copy();
-            parents.update(instruction=self);
-            return _IncomingBlocksIterator(it, parents);
+    """
+        Return an iterator over this phi instruction's incoming blocks.
+        The iterator will yield a ValueRef for each block.
+        """
+    @property
+    def incoming_blocks(self: ValueRef) -> object {
+        if (not self.is_instruction or (self.opcode != 'phi')) {
+            raise ValueError(
+                ('expected phi instruction value, got %s' % (self._kind, ))
+            );
         }
+        it = ffi.lib.LLVMPY_PhiIncomingBlocksIter(self);
+        parents = self._parents.copy();
+        parents.update(instruction=self);
+        return _IncomingBlocksIterator(it, parents);
     }
 
+    """
+        Return the constant value, either as a literal (when supported)
+        or as a string.
+
+        Parameters
+        -----------
+        signed_int : bool
+            if True and the constant is an integer, returns a signed version
+        round_fp : bool
+            if True and the constant is a floating point value, rounds the
+            result upon accuracy loss (e.g., when querying an fp128 value).
+            By default, raises an exception on accuracy loss
+        """
     def get_constant_value(
         self: ValueRef, signed_int: Any = False, round_fp: Any = False
     ) -> object {

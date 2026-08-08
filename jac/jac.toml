@@ -61,7 +61,9 @@ exclude = [
     #    `jac gen-uni-dispatch --verify` to stay green.
     "dispatch.impl.jac",
     "surface.impl.jac",
-    #  - llvm/ir/*.jac is the vendored llvmlite IR port; it keeps upstream's
-    #    docstring/property style so diffs against llvmlite stay reviewable.
+    #  - llvm/*.jac is the vendored llvmlite port (ir + binding); it keeps
+    #    upstream's docstring/property style so diffs against llvmlite stay
+    #    reviewable.
     "*/llvm/ir/*",
+    "*/llvm/binding/*",
 ]

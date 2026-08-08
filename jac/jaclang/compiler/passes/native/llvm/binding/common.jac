@@ -23,6 +23,12 @@ with entry {
     atexit.register(_at_shutdown);
 }
 
+"""
+    Whether the interpreter is currently shutting down.
+    For use in finalizers, __del__ methods, and similar; it is advised
+    to early bind this function rather than look it up when calling it,
+    since at shutdown module globals may be cleared.
+    """
 def _is_shutting_down(_shutting_down: Any = _shutting_down) -> object {
     return _shutting_down[0];
 }

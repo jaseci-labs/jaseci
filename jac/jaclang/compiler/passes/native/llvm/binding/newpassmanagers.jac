@@ -22,6 +22,8 @@ with entry {
     _prunestats = namedtuple('PruneStats', 'basicblock diamond fanout fanout_raise');
 }
 
+""" Holds statistics from reference count pruning.
+    """
 class PruneStats(_prunestats) {
     def __add__(self: PruneStats, other: Any) -> object {
         if not isinstance(other, PruneStats) {
@@ -62,6 +64,10 @@ class _c_PruneStats(Structure) {
     }
 }
 
+""" Returns a namedtuple containing the current values for the refop pruning
+    statistics. If kwarg `printout` is True the stats are printed to stderr,
+    default is False.
+    """
 def dump_refprune_stats(printout: Any = False) -> object {
     stats = _c_PruneStats(0, 0, 0, 0);
     do_print = c_bool(printout);
@@ -71,10 +77,28 @@ def dump_refprune_stats(printout: Any = False) -> object {
     );
 }
 
+"""Enable or disable the pass timers.
+
+    Parameters
+    ----------
+    enable : bool
+        Set to True to enable the pass timers.
+        Set to False to disable the pass timers.
+    """
 def set_time_passes(enable: Any) -> object {
     ffi.lib.LLVMPY_SetTimePasses(c_bool(enable));
 }
 
+"""Returns the pass timings report and resets the LLVM internal timers.
+
+    Pass timers are enabled by ``set_time_passes()``. If the timers are not
+    enabled, this function will return an empty string.
+
+    Returns
+    -------
+    res : str
+        LLVM generated timing report.
+    """
 def report_and_reset_timings -> object {
     with ffi.OutputString() as buf {
         ffi.lib.LLVMPY_ReportAndResetTimings(buf);
@@ -520,6 +544,18 @@ class ModulePassManager(ffi.ObjectRef, NewPassManager) {
         ffi.lib.LLVMPY_module_AddPostOrderFunctionAttrsPass(self);
     }
 
+    """Add Numba specific Reference count pruning pass.
+
+        Parameters
+        ----------
+        subpasses_flags : RefPruneSubpasses
+            A bitmask to control the subpasses to be enabled.
+        subgraph_limit : int
+            Limit the fanout pruners to working on a subgraph no bigger than
+            this number of basic-blocks to avoid spending too much time in very
+            large graphs. Default is 1000. Subject to change in future
+            versions.
+        """
     def add_refprune_pass(
         self: ModulePassManager,
         subpasses_flags: Any = RefPruneSubpasses.ALL,
@@ -538,6 +574,18 @@ class FunctionPassManager(ffi.ObjectRef, NewPassManager) {
         super.init(ptr);
     }
 
+    """Add Numba specific Reference count pruning pass.
+
+        Parameters
+        ----------
+        subpasses_flags : RefPruneSubpasses
+            A bitmask to control the subpasses to be enabled.
+        subgraph_limit : int
+            Limit the fanout pruners to working on a subgraph no bigger than
+            this number of basic-blocks to avoid spending too much time in very
+            large graphs. Default is 1000. Subject to change in future
+            versions.
+        """
     def add_refprune_pass(
         self: FunctionPassManager,
         subpasses_flags: Any = RefPruneSubpasses.ALL,
@@ -555,63 +603,67 @@ class PipelineTuningOptions(ffi.ObjectRef) {
         super.init(ffi.lib.LLVMPY_CreatePipelineTuningOptions());
     }
 
-    has speed_level: object {
-        getter {
-            return self._speed_level;
-        }
-        setter(self: PipelineTuningOptions, value: Any) -> object {
-            if not (0 <= value <= 3) {
-                raise ValueError(
-                    "Optimization level for speed should be 0, 1, 2, or 3"
-                );
-            }
-            self._speed_level = value;
-        }
+    @property
+    def speed_level(self: PipelineTuningOptions) -> object {
+        return self._speed_level;
     }
 
-    has loop_interleaving: object {
-        getter {
-            return ffi.lib.LLVMPY_PTOGetLoopInterleaving(self);
+    @speed_level.setter
+    def speed_level(self: PipelineTuningOptions, value: Any) -> object {
+        if not (0 <= value <= 3) {
+            raise ValueError("Optimization level for speed should be 0, 1, 2, or 3");
         }
-        setter(self: PipelineTuningOptions, value: Any) -> object {
-            ffi.lib.LLVMPY_PTOSetLoopInterleaving(self, value);
-        }
+        self._speed_level = value;
     }
 
-    has loop_vectorization: object {
-        getter {
-            return ffi.lib.LLVMPY_PTOGetLoopVectorization(self);
-        }
-        setter(self: PipelineTuningOptions, value: Any) -> object {
-            ffi.lib.LLVMPY_PTOSetLoopVectorization(self, value);
-        }
+    @property
+    def loop_interleaving(self: PipelineTuningOptions) -> object {
+        return ffi.lib.LLVMPY_PTOGetLoopInterleaving(self);
     }
 
-    has slp_vectorization: object {
-        getter {
-            return ffi.lib.LLVMPY_PTOGetSLPVectorization(self);
-        }
-        setter(self: PipelineTuningOptions, value: Any) -> object {
-            ffi.lib.LLVMPY_PTOSetSLPVectorization(self, value);
-        }
+    @loop_interleaving.setter
+    def loop_interleaving(self: PipelineTuningOptions, value: Any) -> object {
+        ffi.lib.LLVMPY_PTOSetLoopInterleaving(self, value);
     }
 
-    has loop_unrolling: object {
-        getter {
-            return ffi.lib.LLVMPY_PTOGetLoopUnrolling(self);
-        }
-        setter(self: PipelineTuningOptions, value: Any) -> object {
-            ffi.lib.LLVMPY_PTOSetLoopUnrolling(self, value);
-        }
+    @property
+    def loop_vectorization(self: PipelineTuningOptions) -> object {
+        return ffi.lib.LLVMPY_PTOGetLoopVectorization(self);
     }
 
-    has inlining_threshold: object {
-        getter {
-            return ffi.lib.LLVMPY_PTOGetInlinerThreshold(self);
-        }
-        setter(self: PipelineTuningOptions, value: Any) -> object {
-            ffi.lib.LLVMPY_PTOSetInlinerThreshold(self, value);
-        }
+    @loop_vectorization.setter
+    def loop_vectorization(self: PipelineTuningOptions, value: Any) -> object {
+        ffi.lib.LLVMPY_PTOSetLoopVectorization(self, value);
+    }
+
+    @property
+    def slp_vectorization(self: PipelineTuningOptions) -> object {
+        return ffi.lib.LLVMPY_PTOGetSLPVectorization(self);
+    }
+
+    @slp_vectorization.setter
+    def slp_vectorization(self: PipelineTuningOptions, value: Any) -> object {
+        ffi.lib.LLVMPY_PTOSetSLPVectorization(self, value);
+    }
+
+    @property
+    def loop_unrolling(self: PipelineTuningOptions) -> object {
+        return ffi.lib.LLVMPY_PTOGetLoopUnrolling(self);
+    }
+
+    @loop_unrolling.setter
+    def loop_unrolling(self: PipelineTuningOptions, value: Any) -> object {
+        ffi.lib.LLVMPY_PTOSetLoopUnrolling(self, value);
+    }
+
+    @property
+    def inlining_threshold(self: PipelineTuningOptions) -> object {
+        return ffi.lib.LLVMPY_PTOGetInlinerThreshold(self);
+    }
+
+    @inlining_threshold.setter
+    def inlining_threshold(self: PipelineTuningOptions, value: Any) -> object {
+        ffi.lib.LLVMPY_PTOSetInlinerThreshold(self, value);
     }
 
     def _dispose(self: PipelineTuningOptions) -> object {
@@ -651,6 +703,13 @@ class PassBuilder(ffi.ObjectRef) {
         );
     }
 
+    """Enable the pass timers.
+
+        Raises
+        ------
+        RuntimeError
+            If pass timing is already enabled.
+        """
     def start_pass_timing(self: PassBuilder) -> object {
         if self._time_passes_handler {
             raise RuntimeError("Pass timing can only be done once");
@@ -659,6 +718,15 @@ class PassBuilder(ffi.ObjectRef) {
         ffi.lib.LLVMPY_EnableTimePasses(self, self._time_passes_handler);
     }
 
+    """Returns the pass timings report and disables the LLVM internal
+        timers. Pass timers are enabled by ``start_pass_timing()``. If the
+        timers are not enabled, this function will return an empty string.
+
+        Returns
+        -------
+        res : str
+            LLVM generated timing report.
+        """
     def finish_pass_timing(self: PassBuilder) -> object {
         if not self._time_passes_handler {
             raise RuntimeError("Pass timing is not enabled");
