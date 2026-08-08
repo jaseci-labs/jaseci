@@ -25,6 +25,8 @@ glob FIXTURE = os.path.join(
 test "flow for output is byte-identical across gc modes" {
     with tempfile.TemporaryDirectory() as tmp {
         outs: dict[str, str] = {};
+        run_env = dict(os.environ);
+        run_env["JAC_FLOW_THREADS"] = "1";
         for mode in ("none", "rc", "cycles") {
             out_bin = os.path.join(tmp, f"ff_{mode}");
             res = subprocess.run(
@@ -32,10 +34,13 @@ test "flow for output is byte-identical across gc modes" {
                     + MODE_FLAGS[mode]
                     + ["-o", out_bin],
                 capture_output=True,
-                text=True
+                text=True,
+                env=run_env
             );
             assert res.returncode == 0 , f"{mode}: {res.stderr}";
-            ran = subprocess.run([out_bin], capture_output=True, text=True);
+            ran = subprocess.run(
+                [out_bin], capture_output=True, text=True, env=run_env
+            );
             assert ran.returncode == 0 , f"{mode}: {ran.stderr}";
             outs[mode] = ran.stdout;
         }

@@ -362,8 +362,7 @@ impl ExecutionManager._finalize_call_response(
     if isgenerator(reports) or isinstance(reports, AsyncGenerator) {
         return reports;
     }
-    # FastAPI/Starlette Response (FileResponse, raw bytes, etc.) -- pass through
-    # verbatim; the body IS the response, so skip the envelope + serialization.
+
     if isinstance(result, Response) {
         return result;
     }

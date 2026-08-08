@@ -7,8 +7,8 @@ import from jaclang.scale.tests.scale_test_client {
     extract_data
 }
 
-glob FIXTURES_DIR: Path = Path(__file__).parent.parent / "fixtures";
-glob PHOTO_BYTES: bytes = (FIXTURES_DIR / "photo_1x1.png").read_bytes();
+glob FIXTURES_DIR: Path = Path(__file__).parent.parent / "fixtures",
+     PHOTO_BYTES: bytes = (FIXTURES_DIR / "photo_1x1.png").read_bytes();
 
 test "custom method walker" {
     client = make_client("restspec_fixtures.jac");
