@@ -665,7 +665,7 @@ test "envelope remains the default" {
 }
 
 # ============================================================================
-# File / binary responses -- return Response / FileResponse from functions
+# File / binary responses -- return BodyResponse / FileResponse from functions
 # ============================================================================
 test "file response skips the transport envelope" {
     client = make_client("restspec_fixtures.jac");

@@ -351,7 +351,7 @@ def _occ_policy -> tuple {
 
 impl ExecutionManager._finalize_call_response(
     call_state: CallState, result: any
-) -> dict[str, JsonValue] | Generator | AsyncGenerator | Any {
+) -> dict[str, JsonValue] | Generator | AsyncGenerator | HTTPResponse {
     call_state.reports.put_nowait(call_state._sentinel);
     reports = await self.report_collector(call_state);
     await Jac.acommit();
@@ -385,7 +385,7 @@ async def _run_function_with_occ(
     run_attempt: Callable,
     deserialize_args: bool = True,
     include_traceback: bool = False
-) -> dict[str, JsonValue] | Generator | AsyncGenerator {
+) -> dict[str, JsonValue] | Generator | AsyncGenerator | HTTPResponse {
     resolved = await _abegin_user_request_context(mgr.user_manager, username);
     if isinstance(resolved, dict) {
         return resolved;
@@ -445,7 +445,7 @@ async def _run_function_with_occ(
 
 impl ExecutionManager.execute_function(
     func: Callable[(..., Any)], args: dict[(str, Any)], username: str
-) -> dict[str, JsonValue] {
+) -> dict[str, JsonValue] | Generator | AsyncGenerator | HTTPResponse {
     import inspect;
 
     if inspect.iscoroutinefunction(func) {
@@ -456,7 +456,7 @@ impl ExecutionManager.execute_function(
 
 impl ExecutionManager.execute_function_sync(
     func: Callable[(..., Any)], args: dict[(str, Any)], username: str
-) -> dict[str, JsonValue] {
+) -> dict[str, JsonValue] | Generator | AsyncGenerator | HTTPResponse {
     async def run_attempt(call_state: CallState, _ctx: ExecutionContext) {
         result = await asyncio.to_thread(func, **args);
 
@@ -470,7 +470,7 @@ impl ExecutionManager.execute_function_sync(
 
 impl ExecutionManager.execute_function_async(
     func: Callable[(..., Any)], args: dict[(str, Any)], username: str
-) -> dict[str, JsonValue] {
+) -> dict[str, JsonValue] | Generator | AsyncGenerator | HTTPResponse {
     async def run_attempt(call_state: CallState, _ctx: ExecutionContext) {
         result = await func(**args);
         return await self._finalize_call_response(call_state, result);

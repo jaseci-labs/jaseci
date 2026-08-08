@@ -565,9 +565,9 @@ Everything crossing a marshalled boundary is **JSON** (for `cl↔sv` and the
   [jac-scale HTTP](../reference/plugins/jac-scale-http.md#raw-response-bodies).
 
   Binary payloads bypass both the envelope and `Serializer.serialize`: when a
-  `def:pub` function returns a Starlette/FastAPI `Response` (including
-  `FileResponse`), `_finalize_call_response` passes it through unchanged and
-  the HTTP callback returns it without wrapping in `TransportResponse`.
+  `def:pub` function returns Jac's `BodyResponse` or `FileResponse`,
+  `_finalize_call_response` preserves it and the HTTP adapter converts it to
+  its framework response without wrapping it in `TransportResponse`.
   Functions only -- walkers have no single return value to project onto a raw
   body. See
   [jac-scale HTTP](../reference/plugins/jac-scale-http.md#limits).

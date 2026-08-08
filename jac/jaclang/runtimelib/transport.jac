@@ -1,13 +1,27 @@
 import json;
-import from abc { ABC }
 import from collections.abc { Callable }
 import from typing { Any }
 
-obj RawResponse(ABC) {
+obj BodyResponse {
+    has content: bytes | str = b"",
+        status_code: int = 200,
+        headers: dict[(str, str)] = {},
+        media_type: str | None = None;
 }
 
-def is_raw_response(value: any) -> bool {
-    return isinstance(value, RawResponse);
+obj FileResponse {
+    has path: str,
+        status_code: int = 200,
+        headers: dict[(str, str)] = {},
+        media_type: str | None = None,
+        filename: str | None = None,
+        content_disposition_type: str = "attachment";
+}
+
+type HTTPResponse = BodyResponse | FileResponse;
+
+def is_raw_response(value: object) -> bool {
+    return isinstance(value, (BodyResponse, FileResponse));
 }
 
 enum MessageType {

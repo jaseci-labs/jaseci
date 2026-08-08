@@ -26,6 +26,7 @@ import from jaclang.runtimelib.transport {
     TransportResponse,
     HTTPTransport,
     Meta,
+    HTTPResponse,
     is_raw_response
 }
 import from jaclang { JacRuntime as Jac }
@@ -73,15 +74,15 @@ obj ExecutionManager {
 
     async def execute_function(
         func: Callable[(..., Any)], args: dict[(str, Any)], username: str
-    ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator | HTTPResponse;
 
     async def execute_function_sync(
         func: Callable[(..., Any)], args: dict[(str, Any)], username: str
-    ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator | HTTPResponse;
 
     async def execute_function_async(
         func: Callable[(..., Any)], args: dict[(str, Any)], username: str
-    ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator | HTTPResponse;
 
     async def spawn_walker(
         walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
@@ -98,7 +99,7 @@ obj ExecutionManager {
     async def report_collector(call_state: CallState) -> dict[str, JsonValue];
     async def _finalize_call_response(
         call_state: CallState, result: any
-    ) -> dict[str, JsonValue] | Generator | AsyncGenerator | Any;
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator | HTTPResponse;
 }
 
 obj ModuleIntrospector {

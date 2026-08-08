@@ -243,9 +243,14 @@ impl JacAPIServerEndpoints.create_function_parameters(
 impl JacAPIServerEndpoints.create_function_callback(
     func_name: str
 ) -> Callable[..., (TransportResponse | StreamingResponse | Response)] {
-    import from jaclang.runtimelib.transport { TransportResponse, Meta }
+    import from jaclang.runtimelib.transport {
+        TransportResponse,
+        Meta,
+        BodyResponse,
+        FileResponse as JacFileResponse
+    }
     import from fastapi { Request }
-    import from fastapi.responses { Response }
+    import from fastapi.responses { FileResponse as FastAPIFileResponse, Response }
     requires_auth = self.introspector.is_auth_required_for_function(func_name);
 
     func_spec = self.get_functions()[func_name].restspec
@@ -271,8 +276,26 @@ impl JacAPIServerEndpoints.create_function_callback(
         result = await self.execution_manager.execute_function(
             self.get_functions()[func_name], kwargs, (username or Con.GUEST.value)
         );
-        if isinstance(result, Response) {
-            return result;
+        if isinstance(result, (BodyResponse, JacFileResponse)) {
+            if isinstance(result, BodyResponse) {
+                return Response(
+                    content=result.content,
+                    status_code=result.status_code,
+                    headers=result.headers,
+                    media_type=result.media_type
+                );
+            }
+            if isinstance(result, JacFileResponse) {
+                return FastAPIFileResponse(
+                    path=result.path,
+                    status_code=result.status_code,
+                    headers=result.headers,
+                    media_type=result.media_type,
+                    filename=result.filename,
+                    content_disposition_type=result.content_disposition_type
+                );
+            }
+            raise TypeError(f"Unsupported HTTP response: {type(result).__name__}");
         }
         if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
             import from jaclang.scale.runtime.middleware.sse { sse_frame_stream }
@@ -303,7 +326,9 @@ impl JacAPIServerEndpoints.create_function_callback(
         }
         if raw_body {
             payload = result.get('result') if isinstance(result, dict) else result;
-            if isinstance(payload, str) {
+            if isinstance(payload, bytes) {
+                body = payload;
+            } elif isinstance(payload, str) {
                 body = payload.encode('utf-8');
             } elif payload is None {
                 body = b"";

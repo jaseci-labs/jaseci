@@ -162,8 +162,8 @@ read `data.reports` for walkers and `data.result` for functions.
 
 Functions can opt out of the envelope for text or JSON with
 `@restspec(envelope=False)` -- see [Raw Response Bodies](#raw-response-bodies).
-For binary payloads (images, downloads), return a Starlette/FastAPI
-`Response` or `FileResponse` from the function body instead.
+For binary payloads (images, downloads), return Jac's `BodyResponse` or
+`FileResponse` from the function body instead.
 
 ---
 
@@ -347,21 +347,20 @@ The HTTP concerns stay on the declaration, so the body remains an ordinary
 - **Functions only.** A walker can `report` any number of times, so there is
   no single value to project onto a raw body. `envelope=False` on a walker
   has no effect.
-- **Binary payloads.** Return a Starlette/FastAPI `Response` or
-  `FileResponse` from the function body instead of relying on `envelope=False`
-  (which is for text/JSON). The runtime passes the response through without
-  serialization or the transport envelope:
+- **Binary payloads.** Return Jac's `BodyResponse` or `FileResponse` instead
+  of relying on `envelope=False` (which is for text/JSON). The HTTP adapter
+  converts these framework-neutral values without serializing or wrapping them:
 
   ```jac
-  import from fastapi.responses { FileResponse, Response }
+  import from jaclang.runtimelib.transport { BodyResponse, FileResponse }
 
   @restspec(method=HTTPMethod.GET, path="/photo.png")
   def:pub photo() -> FileResponse {
       return FileResponse(path="assets/photo.png", media_type="image/png");
   }
 
-  def:pub icon() -> Response {
-      return Response(content=ICON_BYTES, media_type="image/png");
+  def:pub icon() -> BodyResponse {
+      return BodyResponse(content=ICON_BYTES, media_type="image/png");
   }
   ```
 
