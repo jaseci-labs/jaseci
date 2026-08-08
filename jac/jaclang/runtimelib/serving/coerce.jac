@@ -288,7 +288,7 @@ def bind_parameters(ep: JEndPoint, request: Request, body_json: any) -> dict[str
                         'msg': 'Field required'
                     }
                 );
-            } else {
+            } elif param.default_value is not None {
                 kwargs[param.name] = param.default_value;
             }
             continue;

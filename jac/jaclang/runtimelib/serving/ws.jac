@@ -4,7 +4,12 @@ import struct;
 import from base64 { b64encode }
 import from hashlib { sha1 }
 import from json { dumps, loads }
-import from jaclang.runtimelib.serving.datatypes { Headers, URL, WebSocketDisconnect }
+import from jaclang.runtimelib.serving.datatypes {
+    Headers,
+    QueryParams,
+    URL,
+    WebSocketDisconnect
+}
 
 
 glob WS_GUID: str = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11',
@@ -83,6 +88,7 @@ obj WebSocket {
         writer: any = None,
         headers: Headers = Headers(),
         url: URL = URL(),
+        query_params: QueryParams = QueryParams(),
         path_params: dict[(str, str)] = {},
         client_host: str = '',
         accept_key: str = '',
@@ -108,7 +114,7 @@ obj WebSocket {
         self.accepted = True;
     }
 
-    async def close(code: int = 1000) {
+    async def close(code: int = 1000, reason: str = '') {
         if self.closed {
             return;
         }
@@ -125,6 +131,9 @@ obj WebSocket {
                 self.writer.write(response.encode('latin-1'));
             } else {
                 payload = struct.pack('!H', code);
+                if reason {
+                    payload = payload + reason.encode('utf-8')[:123];
+                }
                 self.writer.write(
                     encode_frame(OP_CLOSE, payload, mask=self.is_client_side)
                 );
@@ -242,5 +251,14 @@ obj WebSocket {
 
     async def receive_json -> any {
         return loads(await self.receive_text());
+    }
+
+    async def __aenter__ -> WebSocket {
+        return self;
+    }
+
+    async def __aexit__(exc_type: any, exc: any, tb: any) -> bool {
+        await self.close();
+        return False;
     }
 }

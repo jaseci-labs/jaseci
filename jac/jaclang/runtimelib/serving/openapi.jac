@@ -103,12 +103,16 @@ def build_openapi(app: ServingApp) -> dict[str, any] {
             if kind
                 in (ParameterType.QUERY, ParameterType.PATH, ParameterType.HEADER) {
                 location = str(kind.value);
+                param_schema = _param_schema(param);
+                if not param.required and param.default_value is not None {
+                    param_schema['default'] = param.default_value;
+                }
                 params_out.append(
                     {
                         'name': param.name,
                         'in': location,
                         'required': param.required or kind == ParameterType.PATH,
-                        'schema': _param_schema(param),
+                        'schema': param_schema,
                         'description': param.description or ''
                     }
                 );
@@ -119,7 +123,11 @@ def build_openapi(app: ServingApp) -> dict[str, any] {
                     body_required.append(param.name);
                 }
             } else {
-                body_props[param.name] = _param_schema(param);
+                body_schema = _param_schema(param);
+                if not param.required and param.default_value is not None {
+                    body_schema['default'] = param.default_value;
+                }
+                body_props[param.name] = body_schema;
                 if param.required {
                     body_required.append(param.name);
                 }

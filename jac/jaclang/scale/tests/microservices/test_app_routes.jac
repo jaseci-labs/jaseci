@@ -22,28 +22,13 @@ import from jaclang.scale.runtime.gateway.route_table {
 
 """Serve the in-process jac app over a real socket; returns (server, port)."""
 def _expose_backend(client: ScaleTestClient) -> tuple {
-    import threading;
-    import time;
-    import uvicorn;
-
-    config = uvicorn.Config(
-        client._server.server.app,
-        host="127.0.0.1",
-        port=0,
-        log_level="warning",
-        loop="asyncio",
-        ws="none",
-        lifespan="off"
+    import from jaclang.runtimelib.serving.server { ServingServer }
+    server = ServingServer(
+        app=client._server.server.app, host="127.0.0.1", port=0
     );
-    server = uvicorn.Server(config);
-    threading.Thread(target=server.run, daemon=True).start();
-    deadline = time.time() + 15.0;
-    while not server.started {
-        assert time.time() < deadline , "backend server did not start in time";
-        time.sleep(0.05);
-    }
-    port = server.servers[0].sockets[0].getsockname()[1];
-    return (server, port);
+    server.serve_background();
+    assert server.bound_port , "backend server did not start in time";
+    return (server, server.bound_port);
 }
 
 
@@ -74,7 +59,7 @@ test "a root-level @restspec route reaches the real backend that declares it" {
     (srv, port) = _expose_backend(backend);
     gw = _gateway_for(port);
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/custom/walker");
@@ -88,7 +73,7 @@ test "a root-level @restspec route reaches the real backend that declares it" {
 
         assert gw.route_table.owner("/custom/walker") == "main";
     } finally {
-        srv.should_exit = True;
+        srv.request_stop();
         backend.close();
     }
 }
@@ -102,7 +87,7 @@ test "a declared route wins over the SPA shell for a browser navigation" {
     (Path(tmp) / "index.html").write_text("<html>spa-shell</html>");
     gw = _gateway_for(port, dist_dir=tmp);
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/custom/walker", headers={"Accept": "text/html"});
@@ -118,7 +103,7 @@ test "a declared route wins over the SPA shell for a browser navigation" {
             "client-side routes no service declares still fall back to the SPA"
         );
     } finally {
-        srv.should_exit = True;
+        srv.request_stop();
         backend.close();
         import shutil;
         shutil.rmtree(tmp);
@@ -136,7 +121,7 @@ test "static assets keep winning over a service's declared routes" {
     (custom_dir / "walker").write_text("from-disk");
     gw = _gateway_for(port, dist_dir=tmp);
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/custom/walker");
@@ -146,7 +131,7 @@ test "static assets keep winning over a service's declared routes" {
             "when a service declares the same path"
         );
     } finally {
-        srv.should_exit = True;
+        srv.request_stop();
         backend.close();
         import shutil;
         shutil.rmtree(tmp);
@@ -159,14 +144,14 @@ test "a path no service declares still 404s instead of fanning out" {
     (srv, port) = _expose_backend(backend);
     gw = _gateway_for(port);
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         resp = client.get("/custom/nope");
         assert resp.status_code == 404;
         assert resp.json()["error"]["code"] == "NOT_FOUND";
     } finally {
-        srv.should_exit = True;
+        srv.request_stop();
         backend.close();
     }
 }
@@ -177,7 +162,7 @@ test "learning a real backend's spec keeps gateway-owned paths out of the table"
     (srv, port) = _expose_backend(backend);
     gw = _gateway_for(port);
 
-    import from fastapi.testclient { TestClient }
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
     client = TestClient(gw.app);
     try {
         assert client.get("/custom/walker").status_code == 200;
@@ -189,7 +174,7 @@ test "learning a real backend's spec keeps gateway-owned paths out of the table"
             );
         }
     } finally {
-        srv.should_exit = True;
+        srv.request_stop();
         backend.close();
     }
 }

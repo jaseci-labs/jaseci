@@ -8,8 +8,8 @@ import from types { TracebackType }
 import unittest.mock;
 
 import pytest;
-import from fastapi { Request }
-import from fastapi.responses { JSONResponse, RedirectResponse }
+import from jaclang.runtimelib.serving.datatypes { Request }
+import from jaclang.runtimelib.serving.datatypes { JSONResponse, RedirectResponse }
 
 import from jaclang.scale.config.config_loader { reset_scale_config }
 import from jaclang.scale.shared.utils { is_safe_loopback_redirect }

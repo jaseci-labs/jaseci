@@ -1191,13 +1191,13 @@ test "user management operations" {
 }
 
 test "websocket functionality" {
-    import websockets;
+    import from jaclang.runtimelib.serving.client { aws_connect }
     sp = setup_serve_server();
     try {
         async def test_echo {
-            async with websockets.connect(f"{sv_ws_url}/ws/EchoMessage") as ws {
-                await ws.send(json.dumps({"message": "hello", "client_id": "test-1"}));
-                response = json.loads(await ws.recv());
+            async with await aws_connect(f"{sv_ws_url}/ws/EchoMessage") as ws {
+                await ws.send_text(json.dumps({"message": "hello", "client_id": "test-1"}));
+                response = json.loads(await ws.receive_text());
                 assert response["ok"] is True , f"Expected ok=True, got {response}";
                 data = response["data"];
                 rpt = data;
@@ -1212,9 +1212,9 @@ test "websocket functionality" {
         asyncio.run(test_echo());
 
         async def test_minimal {
-            async with websockets.connect(f"{sv_ws_url}/ws/MinimalWebSocket") as ws {
-                await ws.send(json.dumps({}));
-                response = json.loads(await ws.recv());
+            async with await aws_connect(f"{sv_ws_url}/ws/MinimalWebSocket") as ws {
+                await ws.send_text(json.dumps({}));
+                response = json.loads(await ws.receive_text());
                 assert response["ok"] is True , f"Expected ok=True, got {response}";
                 data = response["data"];
                 rpt = data;
@@ -1228,12 +1228,12 @@ test "websocket functionality" {
         asyncio.run(test_minimal());
 
         async def test_multiple {
-            async with websockets.connect(f"{sv_ws_url}/ws/EchoMessage") as ws {
+            async with await aws_connect(f"{sv_ws_url}/ws/EchoMessage") as ws {
                 for i in range(3) {
-                    await ws.send(
+                    await ws.send_text(
                         json.dumps({"message": f"msg-{i}", "client_id": f"client-{i}"})
                     );
-                    response = json.loads(await ws.recv());
+                    response = json.loads(await ws.receive_text());
                     assert response["ok"] is True;
                     data = response["data"];
                     rpt = data;
@@ -1260,8 +1260,8 @@ test "websocket functionality" {
             connected = False;
             err: any = None;
             try {
-                async with websockets.connect(url) as ws {
-                    await ws.recv();
+                async with await aws_connect(url) as ws {
+                    await ws.receive_text();
                     connected = True;
                 }
             } except Exception as e {
@@ -1291,9 +1291,9 @@ test "websocket functionality" {
         );
 
         async def test_private_no_auth {
-            async with websockets.connect(f"{sv_ws_url}/ws/PrivateWebSocket") as ws {
-                await ws.send(json.dumps({"message": "hello"}));
-                response = json.loads(await ws.recv());
+            async with await aws_connect(f"{sv_ws_url}/ws/PrivateWebSocket") as ws {
+                await ws.send_text(json.dumps({"message": "hello"}));
+                response = json.loads(await ws.receive_text());
                 assert response["ok"] is False , f"Expected ok=False, got {response}";
                 assert response["error"]["code"] == "UNAUTHORIZED";
                 assert "token" in response["error"]["message"].lower();
@@ -1326,11 +1326,11 @@ test "websocket functionality" {
         token = response.json()["data"]["token"];
 
         async def test_private_with_token(t: str) {
-            async with websockets.connect(f"{sv_ws_url}/ws/PrivateWebSocket") as ws {
-                await ws.send(
+            async with await aws_connect(f"{sv_ws_url}/ws/PrivateWebSocket") as ws {
+                await ws.send_text(
                     json.dumps({"message": "authenticated hello", "token": t})
                 );
-                response = json.loads(await ws.recv());
+                response = json.loads(await ws.receive_text());
                 assert response["ok"] is True , f"Expected ok=True, got {response}";
                 data = response["data"];
                 rpt = data;
@@ -1367,11 +1367,11 @@ test "websocket functionality" {
         query_token = response.json()["data"]["token"];
 
         async def test_query_token(t: str) {
-            async with websockets.connect(
+            async with await aws_connect(
                 f"{sv_ws_url}/ws/PrivateWebSocket?token={t}"
             ) as ws {
-                await ws.send(json.dumps({"message": "query auth hello"}));
-                response = json.loads(await ws.recv());
+                await ws.send_text(json.dumps({"message": "query auth hello"}));
+                response = json.loads(await ws.receive_text());
                 assert response["ok"] is True , f"Expected ok=True, got {response}";
                 data = response["data"];
                 rpt = data;
@@ -1384,17 +1384,17 @@ test "websocket functionality" {
         asyncio.run(test_query_token(query_token));
 
         async def test_broadcast {
-            async with websockets.connect(f"{sv_ws_url}/ws/BroadcastChat") as ws1 {
-                async with websockets.connect(f"{sv_ws_url}/ws/BroadcastChat") as ws2 {
+            async with await aws_connect(f"{sv_ws_url}/ws/BroadcastChat") as ws1 {
+                async with await aws_connect(f"{sv_ws_url}/ws/BroadcastChat") as ws2 {
                     await asyncio.sleep(0.1);
-                    await ws1.send(
+                    await ws1.send_text(
                         json.dumps({"message": "hello everyone", "sender": "client1"})
                     );
                     response1 = json.loads(
-                        await asyncio.wait_for(ws1.recv(), timeout=5)
+                        await asyncio.wait_for(ws1.receive_text(), timeout=5)
                     );
                     response2 = json.loads(
-                        await asyncio.wait_for(ws2.recv(), timeout=5)
+                        await asyncio.wait_for(ws2.receive_text(), timeout=5)
                     );
                     assert response1["ok"] is True , f"Client1 expected ok=True: {response1}";
                     assert response2["ok"] is True , f"Client2 expected ok=True: {response2}";
@@ -1420,11 +1420,11 @@ test "websocket functionality" {
         asyncio.run(test_broadcast());
 
         async def test_private_broadcast_no_auth {
-            async with websockets.connect(
+            async with await aws_connect(
                 f"{sv_ws_url}/ws/PrivateBroadcastChat"
             ) as ws {
-                await ws.send(json.dumps({"message": "hello", "room": "general"}));
-                response = json.loads(await ws.recv());
+                await ws.send_text(json.dumps({"message": "hello", "room": "general"}));
+                response = json.loads(await ws.receive_text());
                 assert response["ok"] is False;
                 assert response["error"]["code"] == "UNAUTHORIZED";
             }
@@ -1461,21 +1461,21 @@ test "websocket functionality" {
         }
 
         async def test_private_broadcast_with_auth(u: list) {
-            async with websockets.connect(
+            async with await aws_connect(
                 f"{sv_ws_url}/ws/PrivateBroadcastChat?token={u[0]['token']}"
             ) as ws1 {
-                async with websockets.connect(
+                async with await aws_connect(
                     f"{sv_ws_url}/ws/PrivateBroadcastChat?token={u[1]['token']}"
                 ) as ws2 {
                     await asyncio.sleep(0.1);
-                    await ws1.send(
+                    await ws1.send_text(
                         json.dumps({"message": "secret broadcast", "room": "team"})
                     );
                     response1 = json.loads(
-                        await asyncio.wait_for(ws1.recv(), timeout=5)
+                        await asyncio.wait_for(ws1.receive_text(), timeout=5)
                     );
                     response2 = json.loads(
-                        await asyncio.wait_for(ws2.recv(), timeout=5)
+                        await asyncio.wait_for(ws2.receive_text(), timeout=5)
                     );
                     assert response1["ok"] is True;
                     assert response2["ok"] is True;

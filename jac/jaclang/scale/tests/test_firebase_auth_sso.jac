@@ -4,7 +4,7 @@ import asyncio;
 import json;
 import unittest.mock;
 import from tempfile { mkdtemp }
-import from fastapi { Request }
+import from jaclang.runtimelib.serving.datatypes { Request }
 
 import from jaclang.scale.config.config_loader { reset_scale_config }
 import from jaclang.scale.shared.enums { Platforms, Operations }

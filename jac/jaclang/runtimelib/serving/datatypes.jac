@@ -212,6 +212,9 @@ class Response {
     ) {
         self.content = content;
         self.status_code = status_code;
+        if media_type.startswith('text/') and 'charset' not in media_type {
+            media_type = f"{media_type}; charset=utf-8";
+        }
         self.media_type = media_type;
         self.headers = _normalize_headers(headers);
         self.stream = None;

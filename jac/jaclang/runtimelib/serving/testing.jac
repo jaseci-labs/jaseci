@@ -24,13 +24,20 @@ obj TestResponse {
         headers: Headers = Headers(),
         content: bytes = b'';
 
+    has text: str { getter; }
+    has ok: bool { getter; }
+
     def json -> any {
         return loads(self.content) if self.content else None;
     }
+}
 
-    def text -> str {
-        return self.content.decode('utf-8', errors='replace');
-    }
+impl TestResponse.text.getter -> str {
+    return self.content.decode('utf-8', errors='replace');
+}
+
+impl TestResponse.ok.getter -> bool {
+    return 200 <= self.status_code < 300;
 }
 
 obj SyncWebSocket {
@@ -128,7 +135,8 @@ obj ServingTestClient {
         data: any = None,
         files: (dict | None) = None,
         params: (dict | None) = None,
-        headers: (dict | None) = None
+        headers: (dict | None) = None,
+        follow_redirects: bool = True
     ) -> TestResponse {
         target = path;
         if params {
@@ -168,6 +176,35 @@ obj ServingTestClient {
             client_host='testclient'
         );
         response = run_blocking(self.app.dispatch(request));
+        hops = 0;
+        while follow_redirects
+            and response.status_code in (301, 302, 303, 307, 308)
+            and hops < 5 {
+            location = response.headers.get('Location');
+            if not location or '://' in location {
+                break;
+            }
+            hops += 1;
+            next_method = request.method;
+            next_body = request.body;
+            if response.status_code == 303
+                or (response.status_code in (301, 302)
+                    and next_method == 'POST') {
+                next_method = 'GET';
+                next_body = b'';
+            }
+            loc_split = location.split('?', 1);
+            loc_query = loc_split[1] if len(loc_split) > 1 else '';
+            request = Request(
+                method=next_method,
+                url=URL(path=loc_split[0], query=loc_query),
+                headers=request.headers,
+                query_params=QueryParams(raw=parse_query_string(loc_query)),
+                body=next_body,
+                client_host='testclient'
+            );
+            response = run_blocking(self.app.dispatch(request));
+        }
         content = collect_response_bytes(response);
         if response.headers.get('Content-Type') is None {
             response.headers.set('Content-Type', response.media_type);

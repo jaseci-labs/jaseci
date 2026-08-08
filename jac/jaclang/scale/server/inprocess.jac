@@ -35,6 +35,9 @@ def _register_endpoint_profile(server: any, profile: str) {
         server.register_walkers_endpoints();
         server.register_functions_endpoints();
     } elif profile == "test" {
+        import from jaclang.runtimelib.serving.openapi {
+            register_docs_endpoints
+        }
         server.register_health_endpoint();
         server.register_auth_endpoints();
         server.register_graph_endpoint();
@@ -47,6 +50,8 @@ def _register_endpoint_profile(server: any, profile: str) {
         server.register_static_file_endpoint();
         server.register_page_endpoint();
         server.register_client_js_endpoint();
+        server._configure_openapi_security();
+        register_docs_endpoints(server.server.app);
     } elif profile == "full" {
         server._register_endpoints();
     } else {

@@ -16,7 +16,9 @@ glob DEFAULT_TIMEOUT: float = 30.0;
 
 
 obj ClientConnectionError(Exception) {
-    has detail: str = 'connection failed';
+    has detail: str = 'connection failed',
+        status_code: (int | None) = None,
+        response: any = None;
 
     def __str__ -> str {
         return self.detail;
@@ -296,7 +298,8 @@ async def aws_connect(
             ;
         }
         raise ClientConnectionError(
-            detail=f"websocket upgrade failed: {status} {reason}"
+            detail=f"websocket upgrade failed: {status} {reason}",
+            status_code=status
         );
     }
     accept = resp_headers.get('Sec-WebSocket-Accept') or '';

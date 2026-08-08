@@ -162,6 +162,11 @@ obj ServingApp {
         self.openapi_cache = None;
     }
 
+    def openapi -> dict[str, any] {
+        import from jaclang.runtimelib.serving.openapi { build_openapi }
+        return build_openapi(self);
+    }
+
     async def shutdown -> None {
         for hook in list(self.on_shutdown) {
             try {

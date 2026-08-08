@@ -20,7 +20,7 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
         resp = tc.post(f"/function/{func_name}", json=args);
         ct = str(resp.headers.get("Content-Type") or "");
         if ct.startswith("text/event-stream") {
-            return _iter_sse_text(resp.text(), func_label);
+            return _iter_sse_text(str(resp.text), func_label);
         }
         data = resp.json();
         return _unwrap_sv_envelope(data, module_name, func_name);

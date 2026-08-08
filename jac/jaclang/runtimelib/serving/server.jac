@@ -377,6 +377,7 @@ obj ServingServer {
             writer=writer,
             headers=request.headers,
             url=request.url,
+            query_params=request.query_params,
             path_params=path_params,
             client_host=request.client_host,
             accept_key=compute_accept_key(key)
@@ -430,9 +431,12 @@ obj ServingServer {
         } else {
             head_lines.append(f"Content-Length: {len(body)}");
         }
-        head_lines.append(
-            'Connection: keep-alive' if keep_alive else 'Connection: close'
-        );
+        conn_override = (response.headers.get('Connection') or '').lower();
+        if not conn_override {
+            head_lines.append(
+                'Connection: keep-alive' if keep_alive else 'Connection: close'
+            );
+        }
         for (name, value) in response.headers.items() {
             head_lines.append(f"{name}: {value}");
         }
@@ -446,7 +450,7 @@ obj ServingServer {
                 writer.write(body);
             }
             await writer.drain();
-            return True;
+            return conn_override != 'close';
         } except (ConnectionError, OSError) {
             return False;
         }

@@ -1,6 +1,6 @@
 import os;
 import tempfile;
-import from starlette.requests { Request }
+import from jaclang.runtimelib.serving.datatypes { Request }
 import from jaclang.scale.runtime.gateway.microservice_gateway { MicroserviceGateway }
 import from jaclang.scale.runtime.gateway.service_registry { ServiceRegistry }
 
