@@ -266,18 +266,18 @@ test "fleet rollout still fails when a companion Deployment pod outside the flee
     healthy_pod.status.container_statuses = [unittest.mock.MagicMock(restart_count=0)];
     healthy_pod.status.phase = "Running";
 
-    # Redis is provisioned separately from the fleet's own microservice
-    # Deployments (bundle["deployments"]), so "svc-a-companion" is never in
-    # fleet_app_names and its pod-template-hash was never resolved into
-    # current_hashes - it must still be checked for crashes. This is the
-    # test that actually guards the fleet_app_names bypass in
+    # The database is provisioned separately from the fleet's own
+    # microservice Deployments (bundle["deployments"]), so "svc-a-postgres"
+    # is never in fleet_app_names and its pod-template-hash was never
+    # resolved into current_hashes - it must still be checked for crashes.
+    # This is the test that actually guards the fleet_app_names bypass in
     # _scan_for_crash_loop.
     companion_pod = unittest.mock.MagicMock();
     companion_pod.metadata.labels = {
-        "app": "svc-a-companion",
+        "app": "svc-a-postgres",
         "pod-template-hash": "companion-hash-not-in-current-hashes"
     };
-    companion_pod.metadata.name = "svc-a-companion-789";
+    companion_pod.metadata.name = "svc-a-postgres-789";
     companion_pod.metadata.deletion_timestamp = None;
     companion_pod.status.container_statuses = [
         unittest.mock.MagicMock(restart_count=5)
@@ -289,7 +289,7 @@ test "fleet rollout still fails when a companion Deployment pod outside the flee
 
     caught = _run_fleet_rollout(deployment_target, bundle, fake_apps_v1, fake_core_v1);
 
-    assert caught is not None and "crash-looping" in str(caught) , "a crash-looping companion Deployment pod (e.g. Redis) outside the fleet's own Deployments must still fail the rollout wait";
+    assert caught is not None and "crash-looping" in str(caught) , "a crash-looping companion database pod outside the fleet's own Deployments must still fail the rollout wait";
 }
 
 # Exercises the `except Exception` fallback in _wait_for_fleet_rollout, not

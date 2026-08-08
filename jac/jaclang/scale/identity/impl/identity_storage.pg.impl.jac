@@ -26,6 +26,11 @@ glob _PG_IDENTITY_SCHEMA: list[str] = [
      ];
 
 
+def _pg_json_default(o: object) -> str {
+    return str(o);
+}
+
+
 def _pg_unique_violation(e: Exception) -> bool {
     for arg in getattr(e, 'args', ()) {
         if isinstance(arg, dict) and arg.get('C') == '23505' {
@@ -74,7 +79,7 @@ impl PgIdentityStorage._store_user(user_doc: dict[str, any]) -> None {
         INSERT INTO identity_users (user_id, doc)
         VALUES (:u, CAST(:d AS jsonb))
         """,
-        {'u': user_id, 'd': json.dumps(user_doc, default=str)}
+        {'u': user_id, 'd': json.dumps(user_doc, default=_pg_json_default)}
     );
     for identity in user_doc.get('identities', []) {
         if identity.get('type') == 'sso' and identity.get('provider') {
@@ -168,7 +173,7 @@ impl PgIdentityStorage._update_fields(user_id: str, fields: dict[str, any]) -> b
         UPDATE identity_users SET doc = doc || CAST(:p AS jsonb)
         WHERE user_id = :u RETURNING user_id
         """,
-        {'u': user_id, 'p': json.dumps(safe_fields, default=str)}
+        {'u': user_id, 'p': json.dumps(safe_fields, default=_pg_json_default)}
     );
     return bool(rows);
 }
@@ -192,7 +197,7 @@ impl PgIdentityStorage._update_credentials(
         UPDATE identity_users SET doc = doc || CAST(:p AS jsonb)
         WHERE user_id = :u
         """,
-        {'u': user_id, 'p': json.dumps(patch, default=str)}
+        {'u': user_id, 'p': json.dumps(patch, default=_pg_json_default)}
     );
 }
 
@@ -246,7 +251,7 @@ impl PgIdentityStorage._add_identity(user_id: str, identity: dict[str, any]) -> 
     patch = {'identities': identities, 'updated_at': datetime.now(UTC).isoformat()};
     self.store.rows(
         'UPDATE identity_users SET doc = doc || CAST(:p AS jsonb) WHERE user_id = :u',
-        {'u': user_id, 'p': json.dumps(patch, default=str)}
+        {'u': user_id, 'p': json.dumps(patch, default=_pg_json_default)}
     );
     return True;
 }
@@ -276,7 +281,7 @@ impl PgIdentityStorage._set_identity_verified(
     patch = {'identities': identities, 'updated_at': datetime.now(UTC).isoformat()};
     self.store.rows(
         'UPDATE identity_users SET doc = doc || CAST(:p AS jsonb) WHERE user_id = :u',
-        {'u': user_id, 'p': json.dumps(patch, default=str)}
+        {'u': user_id, 'p': json.dumps(patch, default=_pg_json_default)}
     );
     return True;
 }
@@ -300,7 +305,7 @@ impl PgIdentityStorage._remove_sso_identity(user_id: str, platform: str) -> bool
     patch = {'identities': filtered, 'updated_at': datetime.now(UTC).isoformat()};
     self.store.rows(
         'UPDATE identity_users SET doc = doc || CAST(:p AS jsonb) WHERE user_id = :u',
-        {'u': user_id, 'p': json.dumps(patch, default=str)}
+        {'u': user_id, 'p': json.dumps(patch, default=_pg_json_default)}
     );
     self.store.rows(
         'DELETE FROM sso_lookups WHERE user_id = :u AND provider = :p',

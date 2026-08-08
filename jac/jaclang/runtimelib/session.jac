@@ -1,5 +1,6 @@
 import logging;
 import os;
+import threading;
 import from collections.abc { Callable, Generator, Iterable }
 import from typing { Any }
 import from uuid { UUID }
@@ -38,7 +39,7 @@ obj Session {
         _on_commit: list[Callable] postinit,
         _txn_changed: set[UUID] postinit,
         _runtime: (Any | None) postinit,
-        _lock: Any postinit,
+        _lock: threading.RLock postinit,
         _fetch_count: int postinit;
 
     def postinit -> None;

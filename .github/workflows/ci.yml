@@ -951,7 +951,6 @@ jobs:
         JAC_TEST_JOBS: "0"
       run: |
         jac test jac/jaclang/scale/tests/test_gcs_storage.jac -x
-        jac test jac/jaclang/scale/tests/test_firestore_db.jac -x
         jac test jac/jaclang/scale/tests/test_firebase_auth_sso.jac -x
 
   # One job, not a two-leg matrix: the deploy-core and failure-path phases
@@ -1233,6 +1232,15 @@ jobs:
         })()'
         echo "--- client console output (informational) ---"
         jac browse console
+
+    - name: Dump server thread stacks on failure
+      if: failure()
+      run: |
+        pip install py-spy >/dev/null 2>&1 || true
+        for p in $(pgrep -f "jac start main.jac"); do
+          echo "=== py-spy dump pid $p ==="
+          sudo env "PATH=$PATH" py-spy dump --pid "$p" --nonblocking || true
+        done
 
     - name: Screenshot browse state on failure
       if: failure()

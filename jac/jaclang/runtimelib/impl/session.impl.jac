@@ -103,6 +103,11 @@ def _cache_ns(store: (Any | None)) -> str {
 }
 
 
+def _json_default(o: object) -> str {
+    return str(o);
+}
+
+
 def _persist_hash(anchor: Anchor) -> int {
     import from json { dumps }
     import from jaclang.runtimelib.serializer { Serializer }
@@ -541,7 +546,7 @@ impl Session.flush(full: bool = False) -> None {
             candidates = list(self._dirty.keys());
         }
         rows: list[AnchorRow] = [];
-        pending: list = [];
+        pending: list[tuple[Anchor, int]] = [];
         for id in candidates {
             anchor = self.__mem__.get(id);
             if anchor is None or not anchor.persistent or not anchor.is_populated() {
@@ -630,6 +635,13 @@ impl Session._materialize(
         logger.warning(
             f"could not materialize anchor {row.id} ({row.arch_type}); skipping"
         );
+        if self.store is not None {
+            try {
+                self.store.quarantine(row.id, None, row.kind);
+            } except Exception as e {
+                logger.debug(f"quarantine record failed: {e}");
+            }
+        }
         return None;
     }
     anchor: Anchor = got;

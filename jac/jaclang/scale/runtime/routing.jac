@@ -66,7 +66,8 @@ def ensure_main_service(
     if not entry_file {
         try {
             import from jaclang.project.config { get_config }
-            entry_file = get_config().entry_point or 'main.jac';
+            cfg = get_config();
+            entry_file = str(getattr(cfg, 'entry_point', None) or 'main.jac');
         } except Exception {
             entry_file = 'main.jac';
         }

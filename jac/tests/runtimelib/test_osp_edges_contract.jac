@@ -59,6 +59,12 @@ glob SCAN_ROOTS: list[str] = ["jac0core", "runtimelib", "scale", "byllm"],
              "serialization proper: writing data.edges on save and "
              "rebuilding the stub list plus _initial_edge_ids on load"
          ),
+         "runtimelib/impl/session.impl.jac": (
+             1,
+             "hydration: _materialize rebuilds the stub list from the "
+             "store's src/dst adjacency (ordered by seq) since node rows "
+             "no longer rewrite on edge changes (epic #7945)"
+         ),
 
      };
 
