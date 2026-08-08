@@ -219,9 +219,10 @@ impl JacProgram.load_dependency_module(
                 type_check=False,
                 symtab_ir_only=True
             );
-            if jir_cacheable_source_path(resolved_path) {
-                write_module_jir_cache(resolved_path, mod);
-            }
+            # Symtab-only .jac IR has no bytecode. Writing JIR here would stamp a
+            # valid on-disk cache without SEC_BYTECODE and later force runtime
+            # imports (meta_importer → get_bytecode) through a full recompile that
+            # can fail when internal type-checking is enabled.
         }
         target_hub[resolved_path] = mod;
         target_program.hub_cache_stamp(resolved_path);
