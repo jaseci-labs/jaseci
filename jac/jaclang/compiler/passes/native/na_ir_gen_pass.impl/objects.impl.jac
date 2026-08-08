@@ -794,8 +794,21 @@ impl NaIRGenPass._arch_has_vtable(arch_name: str) -> bool {
         return False;
     }
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    lay = get_layout_registry(self.ir_in, self.prog).get_layout(arch_name);
-    return lay is not None and lay.has_vtable;
+    _owner = None;
+    _arch_nd = self.arch_ast_map.get(arch_name);
+    if _arch_nd is not None {
+        _owner = _arch_nd.find_parent_of_type(uni.Module);
+    }
+    for _cand in [_owner, self.ir_in] {
+        if _cand is None {
+            continue;
+        }
+        lay = get_layout_registry(_cand, self.prog).get_layout(arch_name);
+        if lay is not None {
+            return lay.has_vtable;
+        }
+    }
+    return False;
 }
 
 impl NaIRGenPass._union_layout_conflict(members: list[str]) -> (str | None) {
