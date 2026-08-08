@@ -172,18 +172,20 @@ test "a loop back-edge re-widens: None is never read as a payload" {
 }
 
 test "narrowing removes the tag check from the proven use" {
+    # optional_scalar.jac lowers with and without narrowing, so the checked
+    # unwrap the guard makes unnecessary is directly measurable as an A/B.
     orig = NaIRGenPass._narrowed_flow_type;
     NaIRGenPass._narrowed_flow_type = _no_narrowing;
     try {
-        (_, base_ir) = compile_native(FIXTURE);
+        (_, base_ir) = compile_native("optional_scalar.jac");
         base = str(base_ir.gen.llvm_ir);
     } finally {
         NaIRGenPass._narrowed_flow_type = orig;
     }
-    (_, narrowed_ir) = compile_native(FIXTURE);
+    (_, narrowed_ir) = compile_native("optional_scalar.jac");
     narrowed = str(narrowed_ir.gen.llvm_ir);
 
-    for name in ["scalar_guard", "scalar_raise_guard", "ptr_guard_is_none"] {
+    for name in ["use_pick", "opt_local", "opt_param"] {
         assert "opt.isnone" in func_ir(base, name) , (
             f"baseline {name} should pay a checked unwrap without narrowing"
         );
@@ -191,4 +193,15 @@ test "narrowing removes the tag check from the proven use" {
             f"narrowed {name} must read the payload with no tag check"
         );
     }
+}
+
+test "a proven pointer-optional use emits no unwrap branch" {
+    (_, narrowed_ir) = compile_native(FIXTURE);
+    body = func_ir(str(narrowed_ir.gen.llvm_ir), "ptr_guard_is_none");
+    assert "opt.isnone" not in body , (
+        "the guarded len(ids) must read the payload with no tag check"
+    );
+    assert "raise.TypeError" not in body , (
+        "the guarded len(ids) must not branch to a runtime raise"
+    );
 }
