@@ -68,6 +68,7 @@ impl JacTestClient._ensure_initialized -> None {
     Jac.set_context(mach);
 
     import from jaclang.project.config { set_config, get_config }
+    import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
     pinned = self._config;
     if pinned is not None {
         set_config(pinned);
@@ -75,9 +76,13 @@ impl JacTestClient._ensure_initialized -> None {
         get_config(start_path=Path(self._base_path), force_discover=True);
     }
 
+    set_effective_default_codespace('server');
+
     Jac.jac_import(target=mod, base_path=base, lng="jac");
 
-    self._server = JacAPIServer(module_name=mod, port=0, base_path=self._base_path);
+    self._server = JacAPIServer(
+        module_name=mod, port=0, base_path=self._base_path, module_file=self._jac_file
+    );
 
     self._server.load_module();
 

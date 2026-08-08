@@ -20,13 +20,8 @@ glob _PASSTHROUGH_SEGMENTS: set[str] = {
          "graph"
      };
 
-glob _SERVICE_MEMBER_SEGMENTS: set[str] = _PASSTHROUGH_SEGMENTS | {
-         "healthz",
-         "health",
-         "metrics",
-         "openapi.json",
-         "docs"
-     };
+glob _SERVICE_MEMBER_SEGMENTS: set[str] = _PASSTHROUGH_SEGMENTS
+         | {"healthz", "health", "metrics", "openapi.json", "docs"};
 
 glob ROUTE_BUILTIN: str = "builtin",
      ROUTE_ADMIN: str = "admin",
@@ -75,6 +70,18 @@ def _longest_prefix_match(norm_path: str, service_prefixes: list[str]) -> str {
 }
 
 
+def is_gateway_owned(path: str) -> bool {
+    norm = _normalize(path);
+    if norm in _BUILTIN_EXACT {
+        return True;
+    }
+    if norm == "/admin" or norm.startswith("/admin/") {
+        return True;
+    }
+    return _first_segment(norm) == "user";
+}
+
+
 def classify_route(path: str, service_prefixes: list[str]) -> RouteDecision {
     norm = _normalize(path);
     if norm in _BUILTIN_EXACT {
@@ -88,10 +95,6 @@ def classify_route(path: str, service_prefixes: list[str]) -> RouteDecision {
         return RouteDecision(kind=ROUTE_PROXY, service=matched);
     }
     if _first_segment(norm) == "user" {
-        # Identity is gateway-owned: /user/* is answered by the gateway's own
-        # user manager first, with service passthrough as the fallback for
-        # endpoints the gateway does not implement. Explicit per-service
-        # routes (/svc/user/...) still proxy via the prefix match above.
         return RouteDecision(kind=ROUTE_IDENTITY);
     }
     if _first_segment(norm) in _PASSTHROUGH_SEGMENTS {

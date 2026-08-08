@@ -9,63 +9,33 @@ import from .config.config_loader { get_scale_config }
 import from jaclang.runtimelib.server { UserManager }
 import from jaclang.runtimelib.storage { Storage }
 
-# Heavy server/identity modules (fastapi, uvicorn, pyjwt, python-dotenv) are
-# imported lazily inside the hook bodies below so that `import jaclang` -- which
-# now always loads this built-in plugin -- never pulls the serve runtime closure.
-# The deps arrive in the project .jac/venv via the capability registry.
 obj DeployFactories {
     has utility: type,
         target: type;
 }
 
 def _load_deploy_factories -> DeployFactories {
-    # Lazy import: DeploymentTargetFactory (deploy/target/*, kubernetes) and
-    # UtilityFactory (observability/*) pull in large subtrees that a local
-    # `jac start`/`jac serve` dev server never touches. Importing them at module
-    # scope forced those modules to compile on every server start.
     import from .observability.factory { UtilityFactory }
     import from .deploy.target.factory { DeploymentTargetFactory }
     return DeployFactories(utility=UtilityFactory, target=DeploymentTargetFactory);
 }
 
-def _print_local_ms_banner(
-    routes: dict[str, str], explicit_routes: dict[str, str], ms_configured: bool
-) {
-    import from .runtime.discovery.route_policy { format_route_origin_lines }
+def _print_local_ms_banner(routes: dict[str, str]) {
+    import from .runtime.routing { format_route_lines }
     names = sorted(routes.keys());
     plural = "s" if len(names) != 1 else "";
-    label = "" if ms_configured else " (auto-detected)";
     console.print(
-        f"Microservice mode{label}: {len(names)} service{plural} "
+        f"Microservice mode: {len(names)} service{plural} "
         f"[{', '.join(names)}], running locally as subprocesses with no "
         f"Docker images.",
         style="cyan"
     );
-    for line in format_route_origin_lines(routes, explicit_routes) {
+    for line in format_route_lines(routes) {
         console.print(f"  {line}", style="muted");
-    }
-    # Only nudge toward [scale.microservices] when the section is genuinely
-    # absent from jac.toml (issue #7434: the hint used to print even when the
-    # config was set and honored, masking real config-loading failures).
-    if not ms_configured {
-        console.print(
-            "  Routes are auto-derived; set [scale.microservices] in jac.toml to customize.",
-            style="muted"
-        );
     }
 }
 
 def _scale_runtime_active -> bool {
-    # True when this process is a scale runtime, in which case graph state lives
-    # in the scale tiered-memory context rather than core's local SQLite store.
-    # That is the case when:
-    #   - it is the `jac start` server (JAC_SCALE_RUNTIME set by scale_start)
-    #     or a spawned sv sibling (JAC_SV_SIBLING), or
-    #   - a scale (mongo / redis) persistence backend is configured, so even a
-    #     plain `jac run` / `jac test` pointed at that backend gets the scale
-    #     context.
-    # Otherwise (plain `jac run` / `jac test` / `jac db` with no scale backend)
-    # this declines so core's per-file `.jac/data/<name>.db` store is used.
     if (
         os.environ.get("JAC_SCALE_RUNTIME") == "1"
         or os.environ.get("JAC_SV_SIBLING") == "1"
@@ -84,50 +54,35 @@ def scale_start(
     dry_run: bool,
     show_yaml: bool
 ) -> int | None {
-    # `jac start` dispatches here before serving. Mark the process so the
-    # server-boot and per-request contexts resolve to the scale tiered-memory
-    # context, auto-detect microservices for a plain start, or deploy to a
-    # platform target with --scale. Returns None to fall through to the core
-    # single-process server; an int when scale served or deployed.
     os.environ["JAC_SCALE_RUNTIME"] = "1";
     scale_config = get_scale_config();
     ms_config = scale_config.get_microservices_config();
     is_sv_sibling = os.environ.get("JAC_SV_SIBLING") == "1";
 
     enabled = ms_config.get("enabled", None);
-    explicit_routes = dict(ms_config.get("routes", {}));
     if (not is_sv_sibling) and (not scale) and (enabled is not False) {
         realizer = None;
         should_serve_ms = False;
         try {
-            if filename {
-                import from jaclang.scale.runtime.discovery.discovery {
-                    resolve_routes,
-                    resolve_service_files
-                }
-                ms_config["routes"] = resolve_routes(filename, explicit_routes);
-                ms_config["service_files"] = resolve_service_files(
-                    filename, ms_config["routes"]
-                );
+            import from jaclang.scale.runtime.routing {
+                resolve_routes,
+                resolve_service_files
             }
+            ms_config["routes"] = resolve_routes(ms_config);
+            ms_config["service_files"] = resolve_service_files(
+                ms_config, ms_config["routes"]
+            );
 
             import from jaclang.scale.runtime.realizer.local_realizer { LocalRealizer }
             realizer = LocalRealizer(ms_config=ms_config);
             should_serve_ms = realizer.should_serve(enabled);
         } except Exception {
-            # Microservice serving stack unavailable (e.g. fastapi/uvicorn not
-            # installed) or discovery failed: decline and let the core
-            # single-process server handle this start.
             realizer = None;
             should_serve_ms = False;
         }
         if should_serve_ms and realizer is not None {
             if enabled is None {
-                _print_local_ms_banner(
-                    ms_config.get("routes", {}),
-                    explicit_routes,
-                    scale_config.microservices_declared()
-                );
+                _print_local_ms_banner(ms_config.get("routes", {}));
             }
             realizer.serve();
             return 0;
@@ -332,6 +287,82 @@ def deploy_status(file_path: str, target: str = "kubernetes") -> int {
     return 0;
 }
 
+def _scale_split(module_name: str) -> int {
+    import tomllib;
+    import from jaclang.jac0core.modresolver { find_jac_project_root }
+    import from .runtime.routing { derive_route_prefix, guard_route_name }
+
+    if not module_name {
+        console.print("Module name required: jac scale split <module>", style="error");
+        return 1;
+    }
+    name = module_name[:-4] if module_name.endswith(".jac") else module_name;
+    try {
+        guard_route_name(name);
+    } except ValueError as e {
+        console.print(str(e), style="error");
+        return 1;
+    }
+    proj_root = find_jac_project_root(os.getcwd());
+    if not proj_root {
+        console.print(
+            "No jac.toml found: run `jac scale split` inside a jac project.",
+            style="error"
+        );
+        return 1;
+    }
+    toml_path = pathlib.Path(proj_root) / "jac.toml";
+    text = toml_path.read_text(encoding="utf-8") if toml_path.exists() else "";
+    try {
+        doc = tomllib.loads(text);
+    } except Exception as e {
+        console.print(f"Cannot parse {toml_path}: {e}", style="error");
+        return 1;
+    }
+    declared = (
+        doc.get("scale", {}).get("microservices", {}).get("routes", {})
+        or doc.get("plugins", {}).get("scale", {}).get("microservices", {}).get(
+            "routes", {}
+        )
+    );
+    if name in declared {
+        console.print(
+            f"Service '{name}' is already declared "
+            f"([scale.microservices.routes] -> {declared[name]}).",
+            style="muted"
+        );
+        return 0;
+    }
+    prefix = derive_route_prefix(name);
+    header = "[scale.microservices.routes]";
+    entry_line = name + ' = "' + prefix + '"';
+    lines = text.splitlines();
+    header_idx = -1;
+    for (i, ln) in enumerate(lines) {
+        if ln.strip() == header {
+            header_idx = i;
+            break;
+        }
+    }
+    if header_idx >= 0 {
+        lines.insert(header_idx + 1, entry_line);
+        new_text = "\n".join(lines);
+        if text.endswith("\n") {
+            new_text += "\n";
+        }
+    } else {
+        base = text if (not text or text.endswith("\n")) else text + "\n";
+        sep = "\n" if base else "";
+        new_text = f"{base}{sep}{header}\n{entry_line}\n";
+    }
+    toml_path.write_text(new_text, encoding="utf-8");
+    console.success(
+        f"Declared service '{name}' -> {prefix} in {toml_path}", emoji=False
+    );
+    return 0;
+}
+
+
 @registry.command(
     name="scale",
     help="Manage scale deployments: local microservices (status/stop/restart/logs) and platform deployments (status/destroy on a .jac app)",
@@ -339,13 +370,13 @@ def deploy_status(file_path: str, target: str = "kubernetes") -> int {
         Arg.create(
             "action",
             kind=ArgKind.POSITIONAL,
-            help="Action: status, stop, restart, logs, destroy"
+            help="Action: status, stop, restart, logs, destroy, split"
         ),
         Arg.create(
             "service_name",
             kind=ArgKind.POSITIONAL,
             default="",
-            help="Service name (stop/restart/logs), or a .jac app file for platform status/destroy"
+            help="Service name (stop/restart/logs), module to declare as a service (split), or a .jac app file for platform status/destroy"
         ),
         Arg.create(
             "lines",
@@ -369,6 +400,10 @@ def deploy_status(file_path: str, target: str = "kubernetes") -> int {
     ],
     examples=[
         ("jac scale status", "Show status of all microservices"),
+        (
+            "jac scale split orders",
+            "Declare the orders module as a service in [scale.microservices.routes]"
+        ),
         ("jac scale stop orders", "Stop the orders service"),
         ("jac scale restart cart", "Restart the cart service"),
         ("jac scale logs products", "Show logs for products service"),
@@ -396,6 +431,9 @@ def scale_cmd(
         }
         return deploy_destroy(service_name, target, component);
     }
+    if action == "split" {
+        return _scale_split(service_name);
+    }
     import from jaclang.scale.runtime.orchestrator.orchestrator {
         ServiceRegistry,
         build_registry
@@ -405,7 +443,9 @@ def scale_cmd(
     scale_config = get_scale_config();
     ms_config = scale_config.get_microservices_config();
 
-    if ms_config.get("enabled", None) is False {
+    is_fleet_pod = os.environ.get("JAC_SV_SIBLING") == "1";
+    if ms_config.get("enabled", None) is False
+        and not (action == "gateway" and is_fleet_pod) {
         console.print(
             "Microservice mode is disabled (enabled = false in jac.toml).",
             style="error"
@@ -413,20 +453,16 @@ def scale_cmd(
         return 1;
     }
 
-    import from jaclang.scale.runtime.discovery.discovery {
-        resolve_routes,
-        resolve_service_files
-    }
-    merged_routes = resolve_routes(".", dict(ms_config.get("routes", {})));
-    if merged_routes {
-        ms_config["routes"] = merged_routes;
-        ms_config["service_files"] = resolve_service_files(".", merged_routes);
+    import from jaclang.scale.runtime.routing { resolve_routes, resolve_service_files }
+    resolved_routes = resolve_routes(ms_config);
+    if resolved_routes {
+        ms_config["routes"] = resolved_routes;
+        ms_config["service_files"] = resolve_service_files(ms_config, resolved_routes);
     } else {
         console.print(
-            "No microservices found: no routes in "
-            "[scale.microservices.routes] and no "
-            "`sv import` / `sv { }` services detected in the "
-            "current directory.",
+            "No microservices declared: add entries to "
+            "[scale.microservices.routes] in jac.toml "
+            "(`jac scale split <module>` adds one).",
             style="error"
         );
         return 1;
@@ -512,10 +548,6 @@ def scale_cmd(
 }
 
 class JacScalePlugin {
-    # Scale is a built-in that is always registered, so this declines (returns
-    # None -> core default) unless the process is actually a scale runtime. Only
-    # then does graph state live in the scale tiered-memory context; otherwise a
-    # plain `jac run` / `jac test` keeps core's local SQLite store.
     static def create_j_context(
         user_root: (str | None),
         base_path_dir: (str | None) = None,
@@ -532,11 +564,6 @@ class JacScalePlugin {
         return ctx;
     }
 
-    # The three server hooks below decline (return None) when the serve runtime
-    # closure (fastapi / uvicorn / pyjwt / ...) is not installed, so pluggy falls
-    # back to core's zero-dependency stdlib server. This keeps non-scale serving
-    # (e.g. a client app, or `jac start` in an env without the scale deps) working
-    # now that scale is a built-in that is always registered.
     static def create_server(jac_server: JacServer, host: str, port: int) {
         try {
             import from .jserver.jfast_api { JFastApiServer }
@@ -598,7 +625,7 @@ class JacScalePlugin {
         if "KUBERNETES_SERVICE_HOST" in os.environ {
             try {
                 import from jaclang.scale.config.config_loader { get_scale_config }
-                import from jaclang.scale.deploy.target.kubernetes.microservice.manifest_builder {
+                import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
                     k8s_safe_name
                 }
                 import from jaclang.scale.runtime.context.util {
@@ -631,17 +658,9 @@ class JacScalePlugin {
         child_env = dict(os.environ);
         child_env["JAC_SV_SIBLING"] = "1";
 
-        cmd = [
-            jac_executable(),
-            "start",
-            str(module_file),
-            "--port",
-            str(port),
-            "--no_client"
-        ];
+        cmd = [jac_executable()]
+            + sv_client.headless_start_args(str(module_file), port);
 
-        # The sibling's output is the only way to diagnose a service that
-        # dies or never becomes healthy - never discard it.
         log_dir = base_dir / '.jac' / 'logs';
         log_dir.mkdir(parents=True, exist_ok=True);
         log_path = log_dir / f"{module_name}.log";
@@ -686,7 +705,7 @@ class JacScalePlugin {
 
         try {
             import from jaclang.scale.config.config_loader { get_scale_config }
-            import from jaclang.scale.deploy.target.kubernetes.microservice.runtime_resolver {
+            import from jaclang.scale.deploy.target.kubernetes.runtime_resolver {
                 build_k8s_registry
             }
             ms_cfg = get_scale_config().get_microservices_config();
@@ -702,16 +721,16 @@ class JacScalePlugin {
         }
     }
 
-    # Like the server methods above, the RPC methods decline (return None) when
-    # scale's transport closure (httpx) is not installed, so core falls back to
-    # its stdlib http.client RPC and sv-to-sv keeps working with zero
-    # third-party deps.
-    static def sv_service_call(module_name: str, func_name: str, args: dict) -> any {
+    static def sv_transport_available -> bool {
         try {
             import httpx;
+            return True;
         } except ImportError {
-            return None;
+            return False;
         }
+    }
+
+    static def sv_service_call(module_name: str, func_name: str, args: dict) -> any {
         import from jaclang.scale.runtime.transport.transport { http_transport }
         return http_transport().call_function(module_name, func_name, args);
     }
@@ -719,11 +738,6 @@ class JacScalePlugin {
     static def sv_walker_call(
         module_name: str, walker_name: str, args: dict, stub_cls: any
     ) -> any {
-        try {
-            import httpx;
-        } except ImportError {
-            return None;
-        }
         import from jaclang.scale.runtime.transport.transport { http_transport }
         return http_transport().call_walker(module_name, walker_name, args, stub_cls);
     }

@@ -27,7 +27,11 @@ impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
         file_name = Path(file_path).name;
 
         client_build_dist_file = base_path / '.jac' / 'client' / 'dist' / file_path;
-        client_build_dist_file_simple = base_path / '.jac' / 'client' / 'dist' / file_name;
+        client_build_dist_file_simple = base_path
+            / '.jac'
+            / 'client'
+            / 'dist'
+            / file_name;
 
         dist_file = base_path / 'dist' / file_path;
         dist_file_simple = base_path / 'dist' / file_name;
@@ -211,7 +215,10 @@ impl JacAPIServerStatic.render_base_route_callback(
             render_payload = self.introspector.render_page(
                 app_name, kwargs, Con.GUEST.value
             );
-            return HTMLResponse(content=render_payload['html']);
+            return HTMLResponse(
+                content=render_payload['html'],
+                status_code=self.introspector.spa_fallback_status('/')
+            );
         } except ValueError as exc {
             return HTMLResponse(content=f"<h1>404 Not Found</h1>", status_code=404);
         } except RuntimeError as exc {
@@ -264,7 +271,10 @@ impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
                 render_payload = self.introspector.render_page(
                     base_route_app, {}, Con.GUEST.value
                 );
-                return HTMLResponse(content=render_payload['html']);
+                return HTMLResponse(
+                    content=render_payload['html'],
+                    status_code=self.introspector.spa_fallback_status(file_path)
+                );
             } except ValueError {
                 return HTMLResponse(content="<h1>404 Not Found</h1>", status_code=404);
             } except RuntimeError {
@@ -387,8 +397,7 @@ impl JacAPIServerStatic.register_graph_endpoint -> None {
 impl JacAPIServerStatic.serve_graph_page -> HTMLResponse {
     import jaclang.scale;
     import from pathlib { Path }
-    # jaclang.scale is a .jac package (custom loader), so importlib.resources
-    # can't resolve it; use the package __file__ to locate bundled templates.
+
     html_content = (
         Path(jaclang.scale.__file__).parent / 'templates' / 'graph.html'
     ).read_text(
@@ -432,9 +441,6 @@ impl JacAPIServerStatic.graph_data(Authorization: (str | None) = None) -> JSONRe
 
         collect_node_connections(user_root, visited_nodes, connections, edge_ids);
 
-        # jids, not id(obj): stable across processes and refreshes so the
-        # gateway can merge sibling services' fragments, and the same ref
-        # format walker payloads expose as _jac_id / jobj() accepts.
         nodes.append({'id': Jac.object_ref(user_root), 'label': 'root'});
         for node_arch in visited_nodes {
             if (node_arch != user_root) {

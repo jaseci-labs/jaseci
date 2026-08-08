@@ -6,6 +6,8 @@ detection: class rename resolution via alias, and value coercion for
 common primitive/container/temporal type changes.
 """
 
+import io;
+import logging;
 import from datetime { date, datetime, time }
 import from enum { Enum }
 import from uuid { UUID, uuid4 }
@@ -59,6 +61,45 @@ test "alias to same qualified name is a no-op (does not self-alias)" {
 test "_get_class returns None for truly unregistered class names" {
     resolved = Serializer._get_class("definitely.not", "Present");
     assert resolved is None;
+}
+
+
+test "unregistered-class warnings are emitted once per class, not once per anchor" {
+    unique_name = f"Ghost_{uuid4().hex}";
+    module_name = "definitely.not.registered";
+    key = f"{module_name}.{unique_name}";
+    blob = {
+        '__type__': 'NodeAnchor',
+        '__module__': 'jaclang.jac0core.archetype',
+        'id': str(uuid4()),
+        'root': None,
+        'persistent': False,
+        'access': {'all': -1, 'roots': {'anchors': {}}},
+        'archetype': {'__type__': unique_name, '__module__': module_name, 'x': 42},
+        'edges': [],
+        'version': 0
+    };
+    buf = io.StringIO();
+    capture = logging.StreamHandler(buf);
+    logger = logging.getLogger("jaclang.runtimelib.serializer");
+    prev_level = logger.level;
+    logger.setLevel(logging.WARNING);
+    logger.addHandler(capture);
+    Serializer._reset_warn_cache();
+    try {
+        for _ in range(50) {
+            assert Serializer.deserialize(blob) is None;
+        }
+    } finally {
+        logger.removeHandler(capture);
+        logger.setLevel(prev_level);
+        Serializer._reset_warn_cache();
+    }
+    out = buf.getvalue();
+    # The two failure modes are namespaced separately, so each fires exactly
+    # once across all 50 reads rather than once per read.
+    assert out.count(f"Refused to deserialize unregistered class: {key}") == 1 , out;
+    assert out.count(f"archetype reconstruction failed for {key}") == 1 , out;
 }
 
 
@@ -170,6 +211,127 @@ test "_deserialize_archetype coerces str to int when stored type changed" {
     assert isinstance(getattr(arch, 'ratio'), float);
     assert getattr(arch, 'label') == "7";
     assert isinstance(getattr(arch, 'label'), str);
+}
+
+
+test "per-field coercion-fallback warning is emitted once per field, not once per anchor" {
+    # Class is registered, so _get_class succeeds and the dedup on the
+    # unregistered path never runs; the per-field warnings must dedup on their own.
+    original = _Typed(count=42, ratio=3.14, label="seven");
+    raw = Serializer.serialize(original, include_type=True);
+    assert isinstance(raw, dict);
+    raw['count'] = 'not-a-number';  # cannot coerce to int -> coercion fallback
+    buf = io.StringIO();
+    capture = logging.StreamHandler(buf);
+    logger = logging.getLogger("jaclang.runtimelib.serializer");
+    prev_level = logger.level;
+    logger.setLevel(logging.WARNING);
+    logger.addHandler(capture);
+    Serializer._reset_warn_cache();
+    try {
+        for _ in range(50) {
+            anchor = NodeAnchor.__new__(NodeAnchor);
+            arch = Serializer._deserialize_archetype(raw, anchor);
+            assert arch is not None;
+            assert getattr(arch, 'count') == 'not-a-number';
+        }
+    } finally {
+        logger.removeHandler(capture);
+        logger.setLevel(prev_level);
+        Serializer._reset_warn_cache();
+    }
+    count = buf.getvalue().count("coercion fallback");
+    assert count == 1 , f"expected one coercion-fallback warning, got {count}";
+}
+
+
+test "aliased-class resolution info is logged once per class, not once per lookup" {
+    buf = io.StringIO();
+    capture = logging.StreamHandler(buf);
+    logger = logging.getLogger("jaclang.runtimelib.serializer");
+    prev_level = logger.level;
+    logger.setLevel(logging.INFO);
+    logger.addHandler(capture);
+    Serializer._reset_warn_cache();
+    try {
+        for _ in range(50) {
+            assert Serializer._get_class("oldmod", "LegacyName") is _AliasedNewName;
+        }
+    } finally {
+        logger.removeHandler(capture);
+        logger.setLevel(prev_level);
+        Serializer._reset_warn_cache();
+    }
+    count = buf.getvalue().count("resolving aliased class");
+    assert count == 1 , f"expected one alias-resolution line, got {count}";
+}
+
+
+test "non-dict archetype warning is logged once, not once per anchor" {
+    blob = {
+        '__type__': 'NodeAnchor',
+        '__module__': 'jaclang.jac0core.archetype',
+        'id': str(uuid4()),
+        'root': None,
+        'persistent': False,
+        'access': {'all': -1, 'roots': {'anchors': {}}},
+        'archetype': 'not-a-dict',
+        'edges': [],
+        'version': 0
+    };
+    buf = io.StringIO();
+    capture = logging.StreamHandler(buf);
+    logger = logging.getLogger("jaclang.runtimelib.serializer");
+    prev_level = logger.level;
+    logger.setLevel(logging.WARNING);
+    logger.addHandler(capture);
+    Serializer._reset_warn_cache();
+    try {
+        for _ in range(50) {
+            assert Serializer.deserialize(blob) is None;
+        }
+    } finally {
+        logger.removeHandler(capture);
+        logger.setLevel(prev_level);
+        Serializer._reset_warn_cache();
+    }
+    count = buf.getvalue().count("archetype field is not a dict");
+    assert count == 1 , f"expected one non-dict warning, got {count}";
+}
+
+
+test "distinct classes do not share a diagnostic slot" {
+    node_blob = {
+        '__type__': 'NodeAnchor',
+        '__module__': 'jaclang.jac0core.archetype',
+        'id': str(uuid4()),
+        'root': None,
+        'persistent': False,
+        'access': {'all': -1, 'roots': {'anchors': {}}},
+        'archetype': 'not-a-dict',
+        'edges': [],
+        'version': 0
+    };
+    edge_blob = dict(node_blob) | {'__type__': 'EdgeAnchor'};
+    buf = io.StringIO();
+    capture = logging.StreamHandler(buf);
+    logger = logging.getLogger("jaclang.runtimelib.serializer");
+    prev_level = logger.level;
+    logger.setLevel(logging.WARNING);
+    logger.addHandler(capture);
+    Serializer._reset_warn_cache();
+    try {
+        assert Serializer.deserialize(node_blob) is None;
+        assert Serializer.deserialize(edge_blob) is None;
+    } finally {
+        logger.removeHandler(capture);
+        logger.setLevel(prev_level);
+        Serializer._reset_warn_cache();
+    }
+    # The two anchor types must not collapse into one process-wide slot: a
+    # warning for one class must never suppress the first warning for another.
+    count = buf.getvalue().count("archetype field is not a dict");
+    assert count == 2 , f"distinct classes shared a warning slot, got {count}";
 }
 
 

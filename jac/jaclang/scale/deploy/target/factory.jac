@@ -10,14 +10,7 @@ import from jaclang.project.capabilities {
 
 type TargetFactory = Callable[[dict[str, any], Logger | None], DeploymentTarget];
 
-"""Deploy tooling is operator-machine tooling pinned by the jac binary, not a
-project dependency -- sync it into the jac global site on first use so a scale
-deploy never requires a manual 'jac install --scale'.
-
-A dry run renders manifests and applies nothing, so it must not reach for the
-tooling at all: installing into the global site is a mutation of the operator's
-machine, and --dry-run promises not to make any."""
-def _ensure_deploy_tooling(dry_run: bool = False) {
+def ensure_deploy_tooling(dry_run: bool = False) {
     if dry_run {
         return;
     }
@@ -38,10 +31,7 @@ def _ensure_deploy_tooling(dry_run: bool = False) {
     }
 }
 
-"""Gate the k8s client behind the deploy path only. Manifest rendering is pure
-dict-building, so a dry run stays useful on a machine that has never installed
-the deploy tooling."""
-def _require_deploy_tooling(dry_run: bool = False) {
+def require_deploy_tooling(dry_run: bool = False) {
     if dry_run {
         return;
     }
@@ -66,30 +56,17 @@ class DeploymentTargetFactory {
             return factory(config, logger);
         }
 
-        if target_type == 'kubernetes' {
-            _ensure_deploy_tooling(dry_run);
-            _require_deploy_tooling(dry_run);
-            import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
-                KubernetesTarget
-            }
+        if target_type in ('kubernetes', 'kubernetes-microservice') {
+            ensure_deploy_tooling(dry_run);
+            require_deploy_tooling(dry_run);
             import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
                 KubernetesConfig
+            }
+            import from jaclang.scale.deploy.target.kubernetes.target {
+                KubernetesTarget
             }
             k8s_config = KubernetesConfig.from_dict(KubernetesConfig, config);
             return KubernetesTarget(config=k8s_config, logger=logger, dry_run=dry_run);
-        } elif target_type == 'kubernetes-microservice' {
-            _ensure_deploy_tooling(dry_run);
-            _require_deploy_tooling(dry_run);
-            import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
-                KubernetesConfig
-            }
-            import from jaclang.scale.deploy.target.kubernetes.microservice.target {
-                KubernetesMicroserviceTarget
-            }
-            k8s_config = KubernetesConfig.from_dict(KubernetesConfig, config);
-            return KubernetesMicroserviceTarget(
-                config=k8s_config, logger=logger, dry_run=dry_run
-            );
         } elif target_type == 'aws' {
             raise NotImplementedError("AWS target not yet implemented");
         } elif target_type == 'gcp' {

@@ -2,14 +2,25 @@ import os;
 import from jaclang.scale.runtime.context.tracing { start_memory_span, end_memory_span }
 import from jaclang.runtimelib.exceptions { WriteConflict }
 
+import from jaclang.scale.persistence.mongo_health {
+    mongo_reachable,
+    warn_mongo_unreachable
+}
+
 impl MongoBackend.postinit -> None {
+    db_config = _get_db_config();
     if self.mongo_url is None {
-        self.mongo_url = _get_db_config().get('mongodb_uri');
+        self.mongo_url = db_config.get('mongodb_uri');
     }
     if self.mongo_url {
         if 'mongo_client' not in _process_cache {
+            timeout_ms = db_config['mongodb_timeout_ms'];
             try {
-                _process_cache['mongo_client'] = MongoClient(self.mongo_url);
+                _process_cache['mongo_client'] = MongoClient(
+                    self.mongo_url,
+                    serverSelectionTimeoutMS=timeout_ms,
+                    connectTimeoutMS=timeout_ms
+                );
             } except Exception as e {
                 logger.warning(f"MongoDB connection failed: {e}");
             }
@@ -21,6 +32,15 @@ impl MongoBackend.postinit -> None {
         }
     }
     if self.client is not None {
+        self._probe_ok = self.is_available();
+        if not self._probe_ok {
+            warn_mongo_unreachable(
+                self.mongo_url, db_config['mongodb_timeout_ms'], "local persistence"
+            );
+            self.db = None;
+            self.collection = None;
+            return;
+        }
         try {
             self._load_db_aliases();
         } except Exception as e {
@@ -250,24 +270,21 @@ impl MongoBackend.is_available -> bool {
     if _process_cache.get('mongo_available') is True {
         return True;
     }
+
+    if self._probe_ok is not None {
+        return self._probe_ok;
+    }
     if not self.mongo_url {
         self.mongo_url = _get_db_config().get('mongodb_uri');
     }
-    if not self.mongo_url or self.client is None {
+    if not self.mongo_url {
         return False;
     }
-    try {
-        self.client.admin.command('ping', maxTimeMS=100);
+    if mongo_reachable(self.client) {
         _process_cache['mongo_available'] = True;
         return True;
-    } except ConnectionFailure {
-        _process_cache['mongo_available'] = False;
-        return False;
-    } except Exception as e {
-        logger.debug(f"MongoDB availability check failed: {e}");
-        _process_cache['mongo_available'] = False;
-        return False;
     }
+    return False;
 }
 
 impl MongoBackend.get(id: UUID) -> (Anchor | None) {
@@ -339,9 +356,6 @@ impl MongoBackend.get(id: UUID) -> (Anchor | None) {
                 else None
         );
         if cls_resolved is None {
-            # A sibling service pod is EXPECTED to lack peer services'
-            # archetype classes in a shared store -- skip without mutating the
-            # shared collection; quarantining would poison it for the owner.
             if os.environ.get("JAC_SV_SIBLING") == "1" {
                 logger.debug(
                     f"MongoBackend: class {arch_module}.{arch_type} not "
@@ -483,67 +497,382 @@ impl MongoBackend.get_roots -> Generator[Root, None, None] {
 }
 
 
-impl MongoBackend.capabilities -> set[str] {
-    return {'type_pushdown', 'field_pushdown', 'id_in', 'slice'};
+def _mongo_types_col(backend: MongoBackend) -> any {
+    return backend.collection.database['graph_types'];
 }
 
 
-def _plan_to_mongo_filter(plan: QueryPlan) -> tuple[dict, int, (int | None)] {
-    filt: dict = {};
-
-    type_name = plan.node_type_final;
-    if type_name is None and plan.chain {
-        type_name = plan.chain[-1].node_type;
+def _mongo_record_ancestry(backend: MongoBackend, cls: type) {
+    import from jaclang.jac0core.archetype {
+        Archetype,
+        EdgeArchetype,
+        NodeArchetype,
+        WalkerArchetype
     }
-    if type_name {
-        filt['arch_type'] = type_name;
-        filt['type'] = 'NodeAnchor';
-    }
-    if plan.id_in is not None {
-        filt['_id'] = {'$in': [str(u) for u in plan.id_in]};
-    }
-    for (k, v) in plan.field_predicates.items() {
-        filt[f'data.archetype.{k}'] = v;
-    }
-    skip_n: int = 0;
-    limit_n: (int | None) = None;
-    if plan.slc is not None {
-        step = plan.slc.step;
-        if step is None or step == 1 {
-            start = plan.slc.start or 0;
-            stop = plan.slc.stop;
-            skip_n = start;
-            if stop is not None {
-                limit_n = max(0, stop - start);
-            }
-        }
-    }
-    return (filt, skip_n, limit_n);
-}
-
-
-impl MongoBackend.execute_plan(plan: QueryPlan) -> Generator[Anchor, None, None] {
-    if self.client is None {
-        return;
-    }
-    (filt, skip_n, limit_n) = _plan_to_mongo_filter(plan);
+    stops = (NodeArchetype, EdgeArchetype, WalkerArchetype, Archetype, object);
     try {
-        # sort every query by _id so a pushed-down slice matches an in-memory slice
-        cursor = self.collection.find(filt).sort('_id', 1);
-        if skip_n {
-            cursor = cursor.skip(skip_n);
+        col = _mongo_types_col(backend);
+        for c in type(cls).__mro__ if not isinstance(cls, type) else cls.__mro__ {
+            if c in stops {
+                break;
+            }
+            col.update_one(
+                {'_id': f"{cls.__name__}::{c.__name__}"},
+                {'$set': {'type_name': cls.__name__, 'ancestor': c.__name__}},
+                upsert=True
+            );
         }
-        if limit_n is not None {
-            cursor = cursor.limit(limit_n);
-        }
-        for doc in cursor {
-            if (anchor := self._load_anchor(doc)) {
-                yield anchor;
+    } except Exception as e {
+        logger.debug(f"MongoDB ancestry record failed: {e}");
+    }
+}
+
+
+def _mongo_type_names(backend: MongoBackend, cls: type) -> list[str] {
+    names: list[str] = [cls.__name__];
+    try {
+        col = _mongo_types_col(backend);
+        for doc in col.find({'ancestor': cls.__name__}, {'type_name': 1}) {
+            tn = doc.get('type_name');
+            if tn and tn not in names {
+                names.append(tn);
             }
         }
     } except Exception as e {
-        logger.debug(f"MongoDB execute_plan failed ({filt}): {e}");
+        logger.debug(f"MongoDB ancestry lookup failed: {e}");
     }
+    return names;
+}
+
+
+def _mongo_pred_filter(preds: list[QPred]) -> dict {
+    filt: dict = {};
+    for p in preds {
+        v = p.value;
+        if isinstance(v, UUID) {
+            v = str(v);
+        }
+        key = f"data.archetype.{p.field}";
+        if p.op == '==' {
+            filt[key] = {'$eq': v};
+        } elif p.op == '!=' {
+            filt[key] = {'$ne': v};
+        } elif p.op == 'in' {
+            vals = [str(x) if isinstance(x, UUID) else x for x in p.value];
+            filt[key] = {'$in': vals};
+        } elif p.op == '<' {
+            filt[key] = {'$lt': v};
+        } elif p.op == '<=' {
+            filt[key] = {'$lte': v};
+        } elif p.op == '>' {
+            filt[key] = {'$gt': v};
+        } else {
+            filt[key] = {'$gte': v};
+        }
+    }
+    return filt;
+}
+
+
+impl MongoBackend.hop_rows(
+    src_ids: list[UUID], hop: QHop, ordered: bool = False
+) -> (list[tuple[UUID, UUID]] | None) {
+    if self.client is None or not src_ids {
+        return [];
+    }
+    keys = [str(i) for i in src_ids];
+    arms: list;
+    if hop.dir == 1 {
+        arms = [
+            ('data.target', 'data.source', False),
+            ('data.source', 'data.target', True)
+        ];
+    } elif hop.dir == 3 {
+        arms = [
+            ('data.source', 'data.target', False),
+            ('data.target', 'data.source', False)
+        ];
+    } else {
+        arms = [
+            ('data.source', 'data.target', False),
+            ('data.target', 'data.source', True)
+        ];
+    }
+    base: dict = {'type': 'EdgeAnchor'};
+    if hop.`edge is not None {
+        base['arch_type'] = {'$in': _mongo_type_names(self, hop.`edge)};
+    }
+    rows: list = [];
+    try {
+        for (mkey, nkey, undir_only) in arms {
+            filt = dict(base);
+            filt[mkey] = {'$in': keys};
+            if undir_only {
+                filt['data.is_undirected'] = True;
+            }
+            proj = {'_id': 1, 'data.source': 1, 'data.target': 1};
+            for doc in self.collection.find(filt, proj).sort('_id', 1) {
+                data = doc.get('data') or {};
+                nbr = data.get(nkey.split('.')[-1]);
+                if nbr {
+                    rows.append((str(doc['_id']), str(nbr)));
+                }
+            }
+        }
+        nd = hop.nd;
+        node_types = (
+            nd if isinstance(nd, tuple) else ((nd, ) if nd is not None else ())
+        );
+        if node_types {
+            nbr_ids = list({r[1] for r in rows});
+            keep: set = set(nbr_ids);
+            for nt in node_types {
+                nfilt = {
+                    '_id': {
+                        '$in': [
+                            k
+                            for k in nbr_ids
+                            if k in keep
+                        ]
+                    },
+                    'arch_type': {'$in': _mongo_type_names(self, nt)}
+                };
+                got = {str(d['_id']) for d in self.collection.find(nfilt, {'_id': 1})};
+                keep = keep & got;
+            }
+            rows = [
+                r
+                for r in rows
+                if r[1] in keep
+            ];
+        }
+    } except Exception as e {
+        logger.debug(f"MongoDB hop_rows failed: {e}");
+        return [];
+    }
+    return [(UUID(a), UUID(b)) for (a, b) in rows];
+}
+
+
+impl MongoBackend.edge_endpoints(
+    ids: list[UUID]
+) -> (dict[UUID, tuple[UUID, UUID]] | None) {
+    if not ids or self.client is None {
+        return {};
+    }
+    out: dict[UUID, tuple[UUID, UUID]] = {};
+    try {
+        filt = {'_id': {'$in': [str(i) for i in ids]}, 'type': 'EdgeAnchor'};
+        proj = {'_id': 1, 'data.source': 1, 'data.target': 1};
+        for doc in self.collection.find(filt, proj) {
+            data = doc.get('data') or {};
+            s_id = data.get('source');
+            t_id = data.get('target');
+            if s_id and t_id {
+                out[UUID(str(doc['_id']))] = (UUID(str(s_id)), UUID(str(t_id)));
+            }
+        }
+    } except Exception as e {
+        logger.debug(f"MongoDB edge_endpoints failed: {e}");
+    }
+    return out;
+}
+
+
+def _mongo_scalar_cols(arch: any) -> dict {
+    out: dict = {};
+    if isinstance(arch, dict) {
+        for (k, v) in arch.items() {
+            if isinstance(k, str) and not k.startswith('$') and not k.startswith('_') {
+                if v is None or isinstance(v, (str, int, float, bool)) {
+                    out[k] = v;
+                }
+            }
+        }
+    }
+    return out;
+}
+
+
+def _mongo_ancestry_map(backend: MongoBackend, names: set[str]) -> dict[str, tuple] {
+    out: dict[str, tuple] = {};
+    if names {
+        try {
+            col = _mongo_types_col(backend);
+            for doc in col.find(
+                {'type_name': {'$in': list(names)}}, {'type_name': 1, 'ancestor': 1}
+            ) {
+                tn = doc.get('type_name');
+                if tn {
+                    out[tn] = out.get(tn, ()) + (doc.get('ancestor'), );
+                }
+            }
+        } except Exception as e {
+            logger.debug(f"MongoDB ancestry map failed: {e}");
+        }
+    }
+    for n in names {
+        if n not in out {
+            out[n] = (n, );
+        }
+    }
+    return out;
+}
+
+
+impl MongoBackend.node_pages(ids: list[UUID]) -> (dict[UUID, dict] | None) {
+    if not ids or self.client is None {
+        return {};
+    }
+    out: dict[UUID, dict] = {};
+    try {
+        keys = [str(i) for i in ids];
+        key_set = set(keys);
+        proj_n = {'_id': 1, 'arch_type': 1, 'data.archetype': 1};
+        node_facts: dict[str, tuple] = {};
+        for doc in self.collection.find({'_id': {'$in': keys}}, proj_n) {
+            data = doc.get('data') or {};
+            node_facts[str(doc['_id'])] = (
+                doc.get('arch_type') or '',
+                _mongo_scalar_cols(data.get('archetype'))
+            );
+        }
+        proj_e = {
+            '_id': 1,
+            'arch_type': 1,
+            'data.source': 1,
+            'data.target': 1,
+            'data.is_undirected': 1,
+            'data.archetype': 1
+        };
+        adj_rows: list = [];
+        efilt = {
+            'type': 'EdgeAnchor',
+            '$or': [{'data.source': {'$in': keys}}, {'data.target': {'$in': keys}}]
+        };
+        for doc in self.collection.find(efilt, proj_e).sort('_id', 1) {
+            data = doc.get('data') or {};
+            src = data.get('source');
+            tgt = data.get('target');
+            if src and tgt {
+                adj_rows.append(
+                    (
+                        str(doc['_id']),
+                        str(src),
+                        str(tgt),
+                        doc.get('arch_type') or '',
+                        bool(data.get('is_undirected')),
+                        _mongo_scalar_cols(data.get('archetype'))
+                    )
+                );
+            }
+        }
+        nbr_ids = list(
+            {(r[2] if r[1] in key_set else r[1]) for r in adj_rows} - key_set
+        );
+        nbr_facts: dict[str, tuple] = {};
+        if nbr_ids {
+            for doc in self.collection.find({'_id': {'$in': nbr_ids}}, proj_n) {
+                data = doc.get('data') or {};
+                nbr_facts[str(doc['_id'])] = (
+                    doc.get('arch_type') or '',
+                    _mongo_scalar_cols(data.get('archetype'))
+                );
+            }
+        }
+        tnames: set[str] = set();
+        for (tn, _) in node_facts.values() {
+            tnames.add(tn);
+        }
+        for r in adj_rows {
+            tnames.add(r[3]);
+        }
+        for (tn, _) in nbr_facts.values() {
+            tnames.add(tn);
+        }
+        anc = _mongo_ancestry_map(self, tnames);
+        for k in keys {
+            facts = node_facts.get(k);
+            if facts is None {
+                continue;
+            }
+            (tn, cols) = facts;
+            out[UUID(k)] = {
+                'ancestors': list(anc.get(tn, (tn, ))),
+                'cols': cols,
+                'adj': [],
+                'nbr': {}
+            };
+        }
+        for (eid, src, tgt, etype, undir, e_cols) in adj_rows {
+            e_anc = anc.get(etype, (etype, ));
+            arms = (
+                [(src, tgt, True), (tgt, src, False)]
+                    if src != tgt
+                    else [(src, tgt, True)]
+            );
+            for (owner, other, is_out) in arms {
+                page = out.get(UUID(owner)) if owner in key_set else None;
+                if page is None {
+                    continue;
+                }
+                page['adj'].append(
+                    (UUID(eid), e_anc, undir, is_out, UUID(other), e_cols)
+                );
+                if other not in key_set {
+                    o_facts = nbr_facts.get(other);
+                    if o_facts is not None {
+                        (otn, ocols) = o_facts;
+                        page['nbr'][UUID(other)] = (anc.get(otn, (otn, )), ocols);
+                    }
+                }
+            }
+        }
+    } except Exception as e {
+        logger.debug(f"MongoDB node_pages failed: {e}");
+        return {};
+    }
+    return out;
+}
+
+
+impl MongoBackend.existing_ids(ids: list[UUID]) -> (set[UUID] | None) {
+    if not ids or self.client is None {
+        return set();
+    }
+    out: set[UUID] = set();
+    try {
+        filt = {'_id': {'$in': [str(i) for i in ids]}};
+        for doc in self.collection.find(filt, {'_id': 1}) {
+            out.add(UUID(str(doc['_id'])));
+        }
+    } except Exception as e {
+        logger.debug(f"MongoDB existing_ids failed: {e}");
+    }
+    return out;
+}
+
+
+impl MongoBackend.filter_ids(
+    ids: list[UUID], preds: list[QPred]
+) -> (set[UUID] | None) {
+    if not ids or not preds {
+        return set(ids);
+    }
+    if self.client is None {
+        return set();
+    }
+    filt = _mongo_pred_filter(preds);
+    filt['_id'] = {'$in': [str(i) for i in ids]};
+    out: set[UUID] = set();
+    try {
+        for doc in self.collection.find(filt, {'_id': 1}) {
+            out.add(UUID(str(doc['_id'])));
+        }
+    } except Exception as e {
+        logger.debug(f"MongoDB filter_ids failed: {e}");
+    }
+    return out;
 }
 
 impl MongoBackend.commit(anchor: (Anchor | None) = None) -> None { }
@@ -796,7 +1125,7 @@ impl MongoBackend._put_node_atomic(
         try {
             if merged_doc {
                 merged_ids_str: list = merged_doc.get('data', {}).get('edges', [])
-                or [];
+                    or [];
                 merged_ids: set = {
                     UUID(s)
                     for s in merged_ids_str
@@ -1015,7 +1344,11 @@ def _format_q_doc(d: dict) -> dict {
 
 impl MongoBackend.inspect_summary -> dict {
     loc = (
-        (self.mongo_url or '<no mongo url>') + '/' + self.db_name + '.' + self.collection_name
+        (self.mongo_url or '<no mongo url>')
+        + '/'
+        + self.db_name
+        + '.'
+        + self.collection_name
     );
     if self.client is None {
         return {
@@ -1214,7 +1547,8 @@ impl MongoBackend.is_recoverable_quarantine(id: UUID) -> bool {
         return _mongo_q_collection(self).find_one(
             {'_id': str(to_uuid(id)), 'reason_code': {'$ne': 'DANGLING_REF'}},
             {'_id': 1}
-        ) is not None;
+        )
+            is not None;
     } except Exception {
         return False;
     }
@@ -1223,7 +1557,11 @@ impl MongoBackend.is_recoverable_quarantine(id: UUID) -> bool {
 
 impl MongoBackend.fsck(repair: bool = False) -> dict {
     loc = (
-        (self.mongo_url or '<no mongo url>') + '/' + self.db_name + '.' + self.collection_name
+        (self.mongo_url or '<no mongo url>')
+        + '/'
+        + self.db_name
+        + '.'
+        + self.collection_name
     );
     fsck_report: dict = {
         'location': loc,
@@ -1532,7 +1870,12 @@ impl MongoBackend.aget(id: UUID) -> (Anchor | None) {
         return await super.aget(id);
     }
     if 'async_mongo_client' not in _process_cache {
-        _process_cache['async_mongo_client'] = AsyncMongoClient(self.mongo_url);
+        timeout_ms = _get_db_config()['mongodb_timeout_ms'];
+        _process_cache['async_mongo_client'] = AsyncMongoClient(
+            self.mongo_url,
+            serverSelectionTimeoutMS=timeout_ms,
+            connectTimeoutMS=timeout_ms
+        );
     }
     coll = _process_cache['async_mongo_client'][self.db_name][self.collection_name];
     span = start_memory_span(

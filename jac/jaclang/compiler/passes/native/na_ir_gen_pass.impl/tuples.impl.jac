@@ -23,13 +23,14 @@ impl NaIRGenPass._codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) {
         if v is None {
             return None;
         }
+        v = self._str_norm(v);
 
         if (
             _in_return and isinstance(v.type, ir.PointerType) and not self._is_owned(v)
         ) {
             is_named_local = isinstance(val, uni.Name)
-            and val.sym_name in self.local_vars
-            and val.sym_name not in self.param_vars;
+                and val.sym_name in self.local_vars
+                and val.sym_name not in self.param_vars;
             if not is_named_local {
                 self._emit_rc_retain(v, op="return_tuple_elem");
                 self._mark_owned(v);
@@ -82,23 +83,28 @@ impl NaIRGenPass._infer_unpack_struct_ptr(nd: object) -> (ir.Type | None) {
 impl NaIRGenPass._codegen_tuple_unpack(
     targets: list, tuple_val: ir.Value, tuple_node: (object | None)
 ) -> bool {
+    _tu_opt = self._opt_payload_of(tuple_val.type);
+    if _tu_opt is not None {
+        tuple_val = self._coerce_type(tuple_val, _tu_opt);
+    }
+    _orig_tv = tuple_val;
     struct_type: (ir.LiteralStructType | None) = None;
     is_value = False;
     if isinstance(tuple_val.type, ir.LiteralStructType) {
         struct_type = tuple_val.type;
         is_value = True;
     } elif isinstance(tuple_val.type, ir.PointerType)
-    and isinstance(tuple_val.type.pointee, ir.LiteralStructType) {
+        and isinstance(tuple_val.type.pointee, ir.LiteralStructType) {
         struct_type = tuple_val.type.pointee;
     }
 
     if struct_type is None
-    and isinstance(tuple_val.type, ir.PointerType)
-    and tuple_node is not None {
+        and isinstance(tuple_val.type, ir.PointerType)
+        and tuple_node is not None {
         cast_ptr_type = self._infer_unpack_struct_ptr(tuple_node);
         if cast_ptr_type is not None
-        and isinstance(cast_ptr_type, ir.PointerType)
-        and isinstance(cast_ptr_type.pointee, ir.LiteralStructType) {
+            and isinstance(cast_ptr_type, ir.PointerType)
+            and isinstance(cast_ptr_type.pointee, ir.LiteralStructType) {
             tuple_val = self.builder.bitcast(
                 tuple_val, cast_ptr_type, name="unpack.cast"
             );
@@ -109,7 +115,7 @@ impl NaIRGenPass._codegen_tuple_unpack(
         return False;
     }
 
-    retain_fields = not is_value and not self._is_owned(tuple_val);
+    retain_fields = not is_value;
     pending_old: list = [];
     for (i, target) in enumerate(targets) {
         if i >= len(struct_type.elements) {
@@ -154,6 +160,9 @@ impl NaIRGenPass._codegen_tuple_unpack(
 
     for old_val in pending_old {
         self._emit_rc_release_simple(old_val, op="unpack_old", loc="");
+    }
+    if (not is_value) and self._is_owned(_orig_tv) {
+        self._emit_rc_release_simple(_orig_tv, op="unpack_box", loc="");
     }
     return True;
 }
@@ -206,11 +215,11 @@ impl NaIRGenPass._coerce_tuple_to_struct(
     val: ir.Value, target_struct: ir.Type
 ) -> ir.Value {
     if not isinstance(val.type, ir.LiteralStructType)
-    or not isinstance(target_struct, ir.LiteralStructType) {
+        or not isinstance(target_struct, ir.LiteralStructType) {
         return val;
     }
     if val.type == target_struct
-    or len(val.type.elements) != len(target_struct.elements) {
+        or len(val.type.elements) != len(target_struct.elements) {
         return val;
     }
     out = ir.Constant(target_struct, ir.Undefined);

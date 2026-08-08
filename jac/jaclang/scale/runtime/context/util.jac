@@ -21,13 +21,11 @@ def pick_free_port(name: str, base: int = 18000, retries: int = 100) -> int {
 }
 
 def jac_executable -> str {
-    # Re-invoking jac must not depend on `jac` being on PATH: the single-binary
-    # launcher pins its real path in JAC_EXECUTABLE. Fall back to PATH, then a
-    # bare name for dev / link-source runs.
     return os.environ.get("JAC_EXECUTABLE", "") or shutil.which("jac") or "jac";
 }
 
-glob _DEFAULT_HTTP_FORWARD_TIMEOUT: float = 30.0;
+glob _DEFAULT_HTTP_FORWARD_TIMEOUT: float = 30.0,
+     _DEFAULT_ROUTE_REFRESH_SECONDS: float = 30.0;
 
 glob DEFAULT_GATEWAY_PORT: int = 8000,
      DEFAULT_GATEWAY_HOST: str = "0.0.0.0",
@@ -74,6 +72,20 @@ def http_forward_timeout(service_name: str | None = None) -> float {
         ;
     }
     return _DEFAULT_HTTP_FORWARD_TIMEOUT;
+}
+
+
+def route_refresh_seconds -> float {
+    try {
+        import from jaclang.scale.config.config_loader { get_scale_config }
+        ms_cfg = get_scale_config().get_microservices_config();
+        if "route_refresh_seconds" in ms_cfg {
+            return float(ms_cfg["route_refresh_seconds"]);
+        }
+    } except Exception {
+        ;
+    }
+    return _DEFAULT_ROUTE_REFRESH_SECONDS;
 }
 
 

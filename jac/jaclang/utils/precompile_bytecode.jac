@@ -108,17 +108,84 @@ def find_jac_files(package_dir: str) -> list[str] {
     return result;
 }
 
+glob _sealable_cache: dict[str, list[str]] = {},
+     _placement_cache: dict[str, dict[str, set[str]]] = {};
+
 def sealable_sources(package_dir: str) -> list[str] {
+    key = os.path.abspath(package_dir);
+    cached = _sealable_cache.get(key);
+    if cached is not None {
+        return cached;
+    }
     boot_prefix = str(Path(package_dir) / "jac0core") + os.sep;
     nested = _nested_project_dirs(package_dir);
-    return [
+    candidates = [
         p
         for p in find_jac_files(package_dir)
-        if not p.startswith(boot_prefix)
-        and not ext_registry.is_native_module(p)
-        and not ext_registry.is_client_module(p)
-        and not any(p.startswith(n) for n in nested)
+        if not p.startswith(boot_prefix) and not any(p.startswith(n) for n in nested)
     ];
+    if Path(package_dir).name == "jaclang" {
+        import from jaclang.jac0core.placement_facts { toolchain_native_by_policy }
+        result = [
+            p
+            for p in candidates
+            if not toolchain_native_by_policy(package_dir, p)
+        ];
+    } else {
+        import from jaclang.jac0core.placement_facts {
+            discover_spaces,
+            spaces_are_client_only
+        }
+        import from jaclang.jac0core.program { JacProgram }
+        discovery = JacProgram();
+        facts = discover_spaces(candidates, discovery);
+        _placement_cache[key] = facts;
+        if discovery.errors_had {
+            console.print(
+                f"  Placement discovery hit {len(discovery.errors_had)} "
+                "error(s); sealing every candidate so each failure surfaces "
+                "per-file instead of being skipped."
+            );
+            result = candidates;
+        } else {
+            skipped = [
+                p
+                for p in candidates
+                if spaces_are_client_only(facts[os.path.abspath(p)])
+            ];
+            result = [
+                p
+                for p in candidates
+                if p not in skipped
+            ];
+            if skipped {
+                names = ", ".join(
+                    str(Path(p).relative_to(Path(key))) for p in skipped[:8]
+                );
+                console.print(
+                    f"  Skipping {len(skipped)} client-only module(s): {names}"
+                );
+            }
+        }
+        discovery.release_compile_closure();
+    }
+    _sealable_cache[key] = result;
+    return result;
+}
+
+def placement_facts_map(package_dir: str) -> dict[str, list[str]] {
+    key = os.path.abspath(package_dir);
+    sealable_sources(package_dir);
+    facts = _placement_cache.get(key);
+    if not facts {
+        return {};
+    }
+    out: dict[str, list[str]] = {};
+    for (ap, spaces) in facts.items() {
+        rel = Path(ap).relative_to(Path(key)).as_posix();
+        out[rel] = sorted(spaces);
+    }
+    return out;
 }
 
 def precompile_unit(
@@ -201,6 +268,116 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     return failed;
 }
 
+glob NATIVE_SEAL_MODULES: tuple = ("jac0core/parser/lexer.jac", );
+
+def _native_lib_filename(stem: str) -> str {
+    if sys.platform.startswith("win") {
+        return f"jac_{stem}.dll";
+    }
+    if sys.platform == "darwin" {
+        return f"libjac_{stem}.dylib";
+    }
+    return f"libjac_{stem}.so";
+}
+
+def seal_native_artifacts(
+    pkg_path: Path, precompiled_dir: Path
+) -> (dict[str, dict] | None) {
+    artifacts: dict[str, dict] = {};
+    stale_native = precompiled_dir / "native";
+    if stale_native.is_dir() {
+        shutil.rmtree(stale_native, ignore_errors=True);
+    }
+    if os.environ.get("JAC_SEAL_NO_NATIVE") or sys.platform.startswith("win") {
+        return artifacts;
+    }
+    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.jac0core.codeinfo { native_layout_to_dict }
+    import from jaclang.compiler.passes.native.shared_emit { emit_shared_library }
+    import jaclang.compiler.passes.native.llvm.binding as llvm;
+
+    pkg_name = pkg_path.name;
+    for rel in NATIVE_SEAL_MODULES {
+        src = pkg_path / rel;
+        if not src.is_file() {
+            console.error(f"NATIVE SEAL: missing source {src}");
+            return None;
+        }
+        prog = JacProgram();
+        ir = prog.compile(
+            file_path=str(src),
+            options=CompileOptions(
+                aot_mode=True,
+                type_check=False,
+                force_codespace='native',
+                force_target_program=True,
+                na_gc_mode='cycles'
+            )
+        );
+        if prog.errors_had {
+            for _err in prog.errors_had {
+                console.error(f"NATIVE SEAL: {_err.pretty_print()}");
+            }
+            return None;
+        }
+        if ir is None or ir.gen.llvm_ir is None or ir.gen.native_layout is None {
+            console.error(f"NATIVE SEAL: no native IR/layout for {rel}");
+            return None;
+        }
+        manifest = ir.gen.interop_manifest;
+        if manifest is not None and manifest.native_imports {
+            console.error(
+                f"NATIVE SEAL: {rel} has Python-side imports; artifact would "
+                "need in-process callbacks and cannot be sealed AOT."
+            );
+            return None;
+        }
+        layout = ir.gen.native_layout;
+        exports = sorted(layout.functions.keys());
+        if not exports {
+            console.error(f"NATIVE SEAL: {rel} exports no module functions");
+            return None;
+        }
+        triple = llvm.get_default_triple();
+        out_dir = precompiled_dir / "native" / triple;
+        out_dir.mkdir(parents=True, exist_ok=True);
+        stem = ext_registry.base_stem(os.path.basename(rel));
+        lib_path = out_dir / _native_lib_filename(stem);
+        transitive = list(manifest.native_transitive_sources) if manifest else [];
+        (ok, err) = emit_shared_library(
+            str(ir.gen.llvm_ir), transitive, exports, str(lib_path)
+        );
+        if not ok {
+            console.error(f"NATIVE SEAL: {rel}: {err}");
+            return None;
+        }
+        layout_path = out_dir / f"{stem}.layout.json";
+        layout_path.write_text(
+            json.dumps(native_layout_to_dict(layout), sort_keys=True) + "\n",
+            encoding="utf-8"
+        );
+        parts = [
+            p
+            for p in os.path.dirname(rel).split("/")
+            if p
+        ];
+        fullname = ".".join([pkg_name] + parts + [stem]);
+        artifacts[fullname] = {
+            "lib": lib_path.relative_to(precompiled_dir).as_posix(),
+            "layout": layout_path.relative_to(precompiled_dir).as_posix(),
+            "triple": triple,
+            "lib_sha256": hashlib.sha256(lib_path.read_bytes()).hexdigest(),
+            "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest()
+        };
+        console.print(
+            f"  Native artifact: {fullname} -> {lib_path.name} "
+            f"({lib_path.stat().st_size:,} bytes, {len(exports)} exports)"
+        );
+    }
+    return artifacts;
+}
+
 def jir_to_module(pkg_name: str, rel_jir: str) -> tuple[str, str, bool] {
     source_rel = rel_jir[:-4] + ".jac";
     name = os.path.basename(source_rel);
@@ -248,10 +425,10 @@ def app_metadata(pkg_path: Path, pkg_name: str) -> dict {
         caps.append("has-entry");
     }
     if (pkg_path / CLIENT_DIST_REL).is_dir()
-    or any(ext_registry.is_client_module(p) for p in find_jac_files(str(pkg_path))) {
+        or kind in ["web-app", "desktop", "mobile"] {
         caps.append("has-client");
     }
-    if any(ext_registry.is_native_module(p) for p in find_jac_files(str(pkg_path))) {
+    if (pkg_path / NATIVE_DIR_REL).is_dir() {
         caps.append("has-native");
     }
     if kind in ["py-package", "js-package"] or not entry {
@@ -360,6 +537,16 @@ def seal_finalize(
         return 1;
     }
 
+    native_artifacts: (dict[str, dict] | None) = {};
+    if pkg_name == "jaclang" {
+        console.print("  Sealing AOT native artifacts...");
+        native_artifacts = seal_native_artifacts(pkg_path, precompiled_dir);
+        if native_artifacts is None {
+            console.error("Seal aborted: native artifact build failed.");
+            return 1;
+        }
+    }
+
     manifest_modules: dict[str, dict] = {};
     n_boot = 0;
     for jir in sorted(out_dir.rglob("*.jir")) {
@@ -389,8 +576,20 @@ def seal_finalize(
             f"  App: kind={app_meta.get('kind')} caps={app_meta.get('capabilities')}"
         );
     }
+    placement = placement_facts_map(str(pkg_path)) if pkg_name != "jaclang" else {};
+    if placement {
+        console.print(f"  Placement facts: {len(placement)} modules");
+        app_meta = dict(app_meta);
+        app_meta["placement"] = placement;
+    }
     write_manifest(
-        precompiled_dir, pkg_name, pyver, manifest_modules, payloads, app_meta
+        precompiled_dir,
+        pkg_name,
+        pyver,
+        manifest_modules,
+        payloads,
+        app_meta,
+        native_artifacts
     );
     console.print(f"  Manifest: {precompiled_dir / MANIFEST_NAME}");
     return 0;
@@ -402,7 +601,8 @@ def write_manifest(
     pyver: str,
     modules: dict[str, dict],
     payloads: (dict[str, str] | None) = None,
-    app_meta: (dict | None) = None
+    app_meta: (dict | None) = None,
+    native_artifacts: (dict[str, dict] | None) = None
 ) {
     import from importlib.metadata { version as pkg_version }
     try {
@@ -410,7 +610,7 @@ def write_manifest(
     } except Exception {
         jac_ver = "0.0.0";
     }
-    manifest = {
+    manifest: dict[str, any] = {
         "format": MANIFEST_FORMAT,
         "package": pkg_name,
         "python_tag": pyver,
@@ -423,6 +623,9 @@ def write_manifest(
     }
     if app_meta {
         manifest.update(app_meta);
+    }
+    if native_artifacts {
+        manifest["native_artifacts"] = native_artifacts;
     }
     (precompiled_dir / MANIFEST_NAME).write_text(
         json.dumps(manifest, sort_keys=True, indent=1) + "\n", encoding="utf-8"
@@ -480,6 +683,17 @@ def main {
     }
 
     pkg_name = Path(package_dir).name;
+    if (seal or seal_compile or finalize_only)
+        and pkg_name != "jaclang"
+        and not (Path(package_dir) / "jac.toml").is_file() {
+        console.error(
+            f"Seal aborted: {package_dir} has no jac.toml. An app seal reads "
+            "placement, nested-project scoping, and app metadata from the "
+            "project config; sealing without it would compile every module "
+            "including client code. Stage a sanitized jac.toml first."
+        );
+        sys.exit(1);
+    }
     pyver = f"cpython-{sys.version_info.major}{sys.version_info.minor}";
     precompiled_dir = Path(package_dir) / "_precompiled";
 
@@ -546,7 +760,7 @@ def main {
             if jir_path.is_file() {
                 existing = jir_path.read_bytes();
                 if jir_matches_source(existing, jac_path)
-                and embed_src == (read_debug_source(existing) is not None) {
+                    and embed_src == (read_debug_source(existing) is not None) {
                     reused += 1;
                     continue;
                 }
@@ -572,7 +786,8 @@ def main {
     sys.stderr.flush();
 
     console.print(
-        f"\nDone! Compiled {compiled}/{len(jac_files)} modules" + f" ({reused} reused, {failed} failed)"
+        f"\nDone! Compiled {compiled}/{len(jac_files)} modules"
+            + f" ({reused} reused, {failed} failed)"
     );
     console.print(f"  Output: {precompiled_dir}");
     console.print(f"  Python version: {pyver}");
@@ -585,7 +800,8 @@ def main {
                 "reused": reused,
                 "failed": failed
             }
-        ) + "\n",
+        )
+            + "\n",
         encoding="utf-8"
     );
 

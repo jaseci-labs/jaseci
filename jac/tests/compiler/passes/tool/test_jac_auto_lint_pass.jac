@@ -34,7 +34,7 @@ test "auto lint full extraction" {
     # Note: consecutive globs with same modifiers are now combined; leading
     # comments stay attached to their assignment inside the combined glob
     assert ("glob x = 5,\n     y = " in formatted)
-    or ("x = 5,\n     y = " in formatted);
+        or ("x = 5,\n     y = " in formatted);
     assert "y = " in formatted;
     assert "z = " in formatted;
     assert "int_val" in formatted;
@@ -153,10 +153,13 @@ test "auto lint class entry not extracted" {
     assert "glob another_var" not in formatted;
     assert "glob list_var" not in formatted;
 
-    # Module-level with entry SHOULD be fully extracted (all assignments)
-    # Note: consecutive globs with same modifiers are now combined
-    # Format is now multiline with all assignments indented
-    assert "glob module_var = 100,\n     cls_obj = MyClass();" in formatted;
+    # Module-level literal assignments SHOULD be extracted; call-bearing
+    # initializers must stay in with entry (glob initializers run before all
+    # entry blocks on the native backend, so hoisting a call reorders its
+    # side effects relative to the surrounding entry statements)
+    assert "glob module_var = 100;" in formatted;
+    assert "glob cls_obj" not in formatted;
+    assert "cls_obj = MyClass();" in formatted;
 
     # Module-level with entry containing TYPE_CHECKING blocks should extract
     # assignments to glob while keeping if blocks in with entry (since if
@@ -533,6 +536,29 @@ test "empty parens removed" {
     assert "x: int" in formatted;
 }
 
+test "paren-less zero-arg def emits no W3005" {
+    src = "def already_clean {\n    return;\n}\n\n"
+    "def clean_with_return -> int {\n    return 1;\n}\n";
+    (fd, path) = tempfile.mkstemp(suffix=".jac");
+    os.close(fd);
+    with open(path, "w") as f {
+        f.write(src);
+    }
+    try {
+        prog = JacProgram.jac_file_formatter(path, auto_lint=True);
+        formatted = prog.mod.main.gen.jac;
+        assert "def already_clean {" in formatted;
+        assert "def clean_with_return -> int {" in formatted;
+        for w in (prog.warnings_had or []) {
+            assert "remove-empty-parens" not in str(w) , (
+                f"false W3005 on paren-less def: {w}"
+            );
+        }
+    } finally {
+        os.remove(path);
+    }
+}
+
 test "empty parens method preserved when has self" {
     input_path = auto_lint_fixture_path("empty_parens.jac");
 
@@ -617,7 +643,7 @@ test "hasattr to null ok" {
 
     # Binary expressions with hasattr should be converted
     assert "instance?.value and" in formatted
-    or "?.value and instance.value" in formatted;
+        or "?.value and instance.value" in formatted;
 
     # Variable attribute name should NOT be converted (attr_name is a variable)
     assert "hasattr(instance, attr_name)" in formatted;
@@ -716,7 +742,7 @@ test "ternary to or" {
 
     # Null-safe with int default should be converted
     assert "instance?.value or -1" in formatted
-    or "instance?.value or (- 1)" in formatted;
+        or "instance?.value or (- 1)" in formatted;
 }
 
 test "ternary no lint preserves" {
@@ -1339,7 +1365,8 @@ test "W3042 converts map lambda to list comprehension" {
 
     # Single-param case: HourGrid is converted.
     assert "for hour in hours" in formatted;
-    assert "[<div className=\"text-xs text-center\">{hour}</div> for hour in hours]" in formatted;
+    assert "[<div className=\"text-xs text-center\">{hour}</div> for hour in hours]"
+        in formatted;
 
     # Multi-param case: MultiParamMap must be left untouched — list
     # comprehensions only bind one iteration variable per `for` clause.
@@ -1382,6 +1409,24 @@ test "W3050 strip-comments removes all comments when selected" {
     # Docstrings are a separate rule and must be preserved here.
     assert "Module docstring to deslop" in formatted;
     assert "Archetype docstring to deslop" in formatted;
+}
+
+test "W3050 strip-comments keeps jac:ignore directives" {
+    input_path = auto_lint_fixture_path("deslop.jac");
+    config = JacConfig();
+    config.check = CheckConfig(lint=LintConfig(select=["default", "strip-comments"]));
+    set_config(config);
+    try {
+        prog = JacProgram.jac_file_formatter(input_path, auto_lint=True);
+        formatted = prog.mod.main.gen.jac;
+    } finally {
+        set_config(None);
+    }
+    # The parser reads `# jac:ignore[...]` into inline_suppressions, so deleting
+    # one silently re-arms the diagnostic it was suppressing: it is a directive,
+    # not slop.
+    assert "# jac:ignore[E1053]" in formatted;
+    assert "# field comment" not in formatted;
 }
 
 test "W3051 strip-docstrings removes all docstrings when selected" {

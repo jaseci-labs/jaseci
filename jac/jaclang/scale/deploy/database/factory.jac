@@ -85,7 +85,14 @@ class DatabaseProviderFactory {
         if (db_type_enum == DatabaseType.MONGODB) {
             require_optional("pymongo", "data.mongo");
             import from pymongo { MongoClient }
-            return MongoClient(resolved_uri, **(config or {}));
+            opts = dict(config or {});
+            timeout_ms = get_scale_config().get_database_config()["mongodb_timeout_ms"];
+            for key in ["serverSelectionTimeoutMS", "connectTimeoutMS"] {
+                if key not in opts {
+                    opts[key] = timeout_ms;
+                }
+            }
+            return MongoClient(resolved_uri, **opts);
         } elif (db_type_enum == DatabaseType.REDIS) {
             require_optional("redis", "data.redis");
             import from redis { Redis }

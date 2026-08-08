@@ -1,3 +1,4 @@
+import sys;
 import types;
 import from threading { Event }
 import jaclang.jac0core.unitree as uni;
@@ -7,6 +8,12 @@ import from jaclang.jac0core.passes { Alert }
 import type from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 import type from jaclang.jac0core.compiler { JacCompiler }
 import type from jaclang.jac0core.passes { Transform }
+
+with entry {
+    if sys.getrecursionlimit() < 12000 {
+        sys.setrecursionlimit(12000);
+    }
+}
 
 class JacProgram {
     has mod: uni.ProgramModule,
@@ -21,10 +28,10 @@ class JacProgram {
         _hub_cache_times: dict[str, float],
         _dependents: dict[str, set[str]],
         _track_dependencies: bool,
-        _auto_promote_native: bool,
-        _auto_promote_target: str,
         _inferred_mods: set,
-        _analyses_run: dict;
+        _analyses_run: dict,
+        _placement_summaries: dict,
+        _placement_state: dict;
 
     def init(self: JacProgram, main_mod: (uni.ProgramModule | None) = None) -> None;
     def _get_compiler(self: JacProgram) -> JacCompiler;

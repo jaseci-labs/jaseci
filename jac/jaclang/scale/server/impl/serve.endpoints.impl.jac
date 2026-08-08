@@ -138,8 +138,6 @@ impl JacAPIServerEndpoints.create_walker_callback(
         }
         if 'error' in result {
             if result.get('error') == 'User not found' {
-                # Validly-signed token for a user this service cannot resolve:
-                # an auth problem for the caller, not a server fault.
                 return TransportResponse.fail(
                     code='UNAUTHORIZED',
                     message='Unauthorized: unknown user',
@@ -244,13 +242,22 @@ impl JacAPIServerEndpoints.create_function_parameters(
 
 impl JacAPIServerEndpoints.create_function_callback(
     func_name: str
-) -> Callable[..., (TransportResponse | StreamingResponse)] {
+) -> Callable[..., (TransportResponse | StreamingResponse | Response)] {
     import from jaclang.runtimelib.transport { TransportResponse, Meta }
     import from fastapi { Request }
     requires_auth = self.introspector.is_auth_required_for_function(func_name);
+
+    func_spec = self.get_functions()[func_name].restspec
+        if self.get_functions()[func_name]?.restspec
+        else None;
+    raw_body = func_spec is not None and not func_spec.envelope;
+    raw_media_type = (func_spec.produces or 'text/plain')
+        if func_spec
+        else 'text/plain';
+
     async def callback(
         request: Request, **kwargs: JsonValue
-    ) -> (TransportResponse | StreamingResponse) {
+    ) -> (TransportResponse | StreamingResponse | Response) {
         username: (str | None) = request.state?.username if request?.state else None;
         if requires_auth and not username {
             return TransportResponse.fail(
@@ -278,8 +285,6 @@ impl JacAPIServerEndpoints.create_function_callback(
         }
         if 'error' in result {
             if result.get('error') == 'User not found' {
-                # Validly-signed token for a user this service cannot resolve:
-                # an auth problem for the caller, not a server fault.
                 return TransportResponse.fail(
                     code='UNAUTHORIZED',
                     message='Unauthorized: unknown user',
@@ -292,6 +297,19 @@ impl JacAPIServerEndpoints.create_function_callback(
                 details=result.get('traceback') if 'traceback' in result else None,
                 meta=Meta(extra={'http_status': 500})
             );
+        }
+        if raw_body {
+            payload = result.get('result') if isinstance(result, dict) else result;
+            if isinstance(payload, bytes) {
+                body = payload;
+            } elif isinstance(payload, str) {
+                body = payload.encode('utf-8');
+            } elif payload is None {
+                body = b"";
+            } else {
+                body = json.dumps(payload).encode('utf-8');
+            }
+            return Response(content=body, media_type=raw_media_type);
         }
         return TransportResponse.success(
             data=result, meta=Meta(extra={'http_status': 200})
@@ -313,7 +331,6 @@ impl JacAPIServerEndpoints.get_walker_protocol(walker_name: str) -> str {
     return APIProtocol.HTTP;
 }
 
-"""Get the API protocol for a function by checking its restspec."""
 impl JacAPIServerEndpoints.get_function_protocol(func_name: str) -> str {
     functions = self.get_functions();
     if func_name not in functions {
@@ -578,10 +595,12 @@ impl JacAPIServerEndpoints.create_webhook_parameters(
 }
 
 impl JacAPIServerEndpoints.register_webhook_endpoints -> None {
+    has_webhook_walkers = False;
     for walker_name in self.get_walkers() {
         protocol = self.get_walker_protocol(walker_name);
 
         if protocol == APIProtocol.WEBHOOK {
+            has_webhook_walkers = True;
             self.server.add_endpoint(
                 JEndPoint(
                     method=HTTPMethod.POST,
@@ -595,6 +614,9 @@ impl JacAPIServerEndpoints.register_webhook_endpoints -> None {
                 )
             );
         }
+    }
+    if has_webhook_walkers {
+        self.get_api_key_manager();
     }
 }
 
@@ -619,17 +641,6 @@ impl JacAPIServerEndpoints.get_ws_manager -> WebSocketConnectionManager {
     return self._ws_manager;
 }
 
-"""Drive one hardened WebSocket connection lifecycle.
-
-Handles the auth handshake (pre-accept query token with a first-frame fallback,
-tagged reject reasons and token refresh), connection-cap registration, the
-heartbeat/idle-close loop, per-message size and rate limits, target execution
-under a timeout, and streamed or single-result delivery. `make_awaitable(data,
-user)` returns the coroutine that runs the target for one request.
-
-A stray `token` key is dropped from every dispatched frame. The connection is
-authenticated once at the handshake, but clients written against the older
-per-message auth would otherwise pass their token through as a target field."""
 async def _ws_serve_connection(
     websocket: WebSocket,
     ws_manager: WebSocketConnectionManager,
@@ -767,11 +778,6 @@ async def _ws_serve_connection(
     }
 }
 
-"""Shared factory for the walker and function WebSocket handlers.
-
-`target_kind` is 'walker' or 'function'; `execute` is the async runner
-(spawn_walker / execute_function) invoked as execute(target, data, username).
-"""
 impl JacAPIServerEndpoints._create_websocket_target_handler(
     target_kind: str,
     target_name: str,
@@ -816,7 +822,6 @@ impl JacAPIServerEndpoints.create_websocket_handler(walker_name: str) -> Callabl
     );
 }
 
-"""Create a WebSocket handler for a specific def/function."""
 impl JacAPIServerEndpoints.create_websocket_function_handler(
     func_name: str
 ) -> Callable {

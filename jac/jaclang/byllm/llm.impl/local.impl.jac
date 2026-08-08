@@ -1,10 +1,3 @@
-"""LocalLLM impl — runs `local:<alias>` models in-process via llama.cpp.
-
-Mirrors the OpenAI/LiteLLM response shape so the rest of byllm's
-ReAct loop (BaseLLM.dispatch_no_streaming) doesn't care that the
-inference is local.
-"""
-
 import from jaclang.byllm.local_runtime {
     LOCAL_MODELS,
     parse_alias,
@@ -30,12 +23,10 @@ impl LocalLLM.postinit -> None {
         );
     }
     self.spec = s;
-    # llama.cpp has no reliable server-side tool calling: byllm renders the
-    # tool protocol into the prompt and recovers tool calls from the reply.
+
     self.supports_native_tools = False;
 }
 
-"""Build (or return cached) underlying llama.cpp instance."""
 impl LocalLLM._ensure_llama -> object {
     if self._llama is not None {
         return self._llama;
@@ -79,8 +70,7 @@ impl LocalLLM.model_call_no_stream(params: dict) -> dict {
     engine = self._ensure_llama();
     call_params = filter_params(params);
     resp = engine.create_chat_completion(**call_params);
-    # llama-cpp returns OpenAI-shaped dict; coerce tool_calls so attribute
-    # access on `.function.name` works downstream (see BaseLLM dispatch).
+
     if isinstance(resp, dict) {
         choices = resp.get("choices", []);
         for choice in choices {
@@ -113,10 +103,10 @@ impl LocalLLM.model_call_with_stream(params: dict) -> Generator[object, None, No
 impl LocalLLM._get_ctx_window(call_params: dict) -> int {
     override = int(
         call_params.get("ctx_window")
-        or self.ctx_window
-        or get_byllm_config().get_compaction_config().get("ctx_window", 0)
-        or int(self.config.get("n_ctx", 0))
-        or 0
+            or self.ctx_window
+            or get_byllm_config().get_compaction_config().get("ctx_window", 0)
+            or int(self.config.get("n_ctx", 0))
+            or 0
     );
     if override > 0 {
         return override;

@@ -15,7 +15,9 @@ glob logger = logging.getLogger(__name__);
 glob APP_VOLUME_NAME: str = "jac-app",
      APP_MOUNT_PATH: str = "/app",
      JAC_HOME: str = "/app/.jachome",
-     TOOLCHAIN_SUBDIR: str = ".jactoolchain";
+     TOOLCHAIN_SUBDIR: str = ".jactoolchain",
+     DEFAULT_SEAL_TIMEOUT_S: int = 1800,
+     PLACEHOLDER_JAC_TOML: str = "[project]\nname = \"app\"\n";
 
 glob _EXCLUDE_DIRS: set[str] = {
          ".jac",
@@ -60,8 +62,11 @@ def is_excluded(rel: Path) -> bool {
     ) {
         return False;
     }
-    # The staged admin console the gateway serves directly.
+
     if len(parts) >= 2 and parts[0] == ".jac" and parts[1] == "admin" {
+        return False;
+    }
+    if len(parts) == 2 and parts[0] == ".jac" and parts[1] == "serve_manifest.json" {
         return False;
     }
     for part in parts {
@@ -85,9 +90,9 @@ def is_excluded(rel: Path) -> bool {
 
 def _is_secret_path(name: str) -> bool {
     return name == "plugins.scale.secrets"
-    or name.startswith("plugins.scale.secrets.")
-    or name == "scale.secrets"
-    or name.startswith("scale.secrets.");
+        or name.startswith("plugins.scale.secrets.")
+        or name == "scale.secrets"
+        or name.startswith("scale.secrets.");
 }
 
 
@@ -96,13 +101,6 @@ def _is_dev_section(name: str) -> bool {
 }
 
 
-"""Materialize the database backend the deploy provisions into the shipped
-manifest. The deployer injects the connection URI (e.g. MONGODB_URI) into
-every service pod, so the pod's `jac install` must close over the matching
-data capability; a project with no declared [plugins.scale.*] intent would
-otherwise boot straight into an ImportError (#7137). scale_intent_from_config
-prefers a top-level [scale] table over [plugins.scale], so the appended
-section follows whichever form the project uses."""
 def bake_database_intent(toml_text: str, backend: str) -> str {
     if not backend {
         return toml_text;
@@ -178,8 +176,6 @@ def sanitized_jac_toml(base: Path, provisioned_database: str = "") -> (str | Non
 
 
 def det_tar_member(info: tarfile.TarInfo) -> tarfile.TarInfo {
-    # Bundles are content-addressed; wall-clock mtimes and uid/gid would give
-    # identical content a new digest every deploy, defeating seed skip-if-present.
     info.mtime = 0;
     info.uid = 0;
     info.gid = 0;
@@ -190,16 +186,28 @@ def det_tar_member(info: tarfile.TarInfo) -> tarfile.TarInfo {
 
 
 def open_det_tar(buf: io.BytesIO) -> tuple[tarfile.TarFile, any] {
-    # gzip stamps the current time into its header - zero it for determinism.
     gz = gzip.GzipFile(fileobj=buf, mode="wb", mtime=0);
     return (tarfile.open(fileobj=gz, mode="w"), gz);
 }
 
 
-def _precompile_app(base: Path, pod_binary: bytes) -> Path {
-    # Seal the app's modules with the pod binary into _precompiled/MANIFEST.json
-    # so the deploy artifact is a valid .jab. The seal is mandatory: an
-    # incomplete seal raises rather than shipping a cold-compile fallback.
+def nested_sanitized_tomls(base: Path) -> dict[str, str] {
+    out: dict[str, str] = {};
+    for toml_path in sorted(base.rglob("jac.toml")) {
+        rel = toml_path.relative_to(base);
+        if len(rel.parts) == 1 or any(part in _EXCLUDE_DIRS for part in rel.parts) {
+            continue;
+        }
+        text = sanitized_jac_toml(toml_path.parent);
+        if text is not None {
+            out[rel.as_posix()] = text;
+        }
+    }
+    return out;
+}
+
+
+def _stage_app(base: Path, sanitized_toml: (str | None)) -> Path {
     stage_root = Path(tempfile.mkdtemp(prefix="jac-app-precompile-"));
     stage = stage_root / "app";
     try {
@@ -211,22 +219,54 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
             dest.parent.mkdir(parents=True, exist_ok=True);
             shutil.copy2(str(path), str(dest));
         }
-        # The precompiler discovers a package by its __init__; app projects are
-        # flat, so mark the staged copy (the marker's .jir is not packed).
+        stage.mkdir(parents=True, exist_ok=True);
+        if sanitized_toml is not None {
+            (stage / "jac.toml").write_text(sanitized_toml, encoding="utf-8");
+        } else {
+            (stage / "jac.toml").write_text(PLACEHOLDER_JAC_TOML, encoding="utf-8");
+        }
+        for (rel, text) in nested_sanitized_tomls(base).items() {
+            dest = stage / Path(rel);
+            dest.parent.mkdir(parents=True, exist_ok=True);
+            dest.write_text(text, encoding="utf-8");
+        }
         marker = stage / "__init__.jac";
         if not marker.exists() {
             marker.write_text("");
         }
+        return stage_root;
+    } except Exception {
+        shutil.rmtree(str(stage_root), ignore_errors=True);
+        raise;
+    }
+}
+
+
+def _precompile_app(
+    base: Path, pod_binary: bytes, sanitized_toml: (str | None), timeout_s: int
+) -> Path {
+    stage_root = _stage_app(base, sanitized_toml);
+    stage = stage_root / "app";
+    try {
         jac_path = stage_root / ".pod-jac";
         jac_path.write_bytes(pod_binary);
         jac_path.chmod(0o755);
-        script = Path(str(__file__)).parent.parent.parent / "utils" / "precompile_bytecode.jac";
-        # --seal emits the MANIFEST.json that makes the tree a sealed image.
+        script = Path(str(__file__)).parent.parent.parent
+            / "utils"
+            / "precompile_bytecode.jac";
+
+        seal_env = {
+            k: v
+            for (k, v) in os.environ.items()
+            if k not in ("PYTHONPATH", "PYTHONHOME", "JAC_LLVM_SHIM")
+        };
         result = subprocess.run(
             [str(jac_path), "run", str(script), str(stage_root), "--seal"],
             capture_output=True,
             text=True,
-            timeout=600
+            timeout=timeout_s,
+            env=seal_env,
+            cwd=str(stage_root)
         );
         jac_path.unlink();
         if (
@@ -235,8 +275,13 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
         ) {
             raise RuntimeError(
                 f"App seal did not complete, so the deploy cannot produce a "
-                f".jab: {(result.stderr or result.stdout).strip()[-300:]}"
+                f".jab: {(result.stderr or result.stdout).strip()[-2000:]}"
             );
+        }
+        for line in (result.stdout or "").splitlines()[-12:] {
+            if line.strip() {
+                logger.info(f"seal: {line.strip()}");
+            }
         }
         return stage;
     } except Exception {
@@ -246,22 +291,124 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
 }
 
 
+def fat_bundle_setting(project_dir: str) -> tuple[bool, bool] {
+    import from jaclang.project.config { get_config_for_path }
+
+    try {
+        config = get_config_for_path(Path(project_dir));
+    } except Exception as exc {
+        logger.warning(f"fat_bundle check skipped, jac.toml unparseable: {exc}");
+        return (False, False);
+    }
+    if config is None {
+        return (False, False);
+    }
+    section = config.get_section("scale");
+    if section is None or "fat_bundle" not in section {
+        return (True, False);
+    }
+    return (bool(section.get("fat_bundle")), True);
+}
+
+
+def fat_bundle_enabled(project_dir: str) -> bool {
+    (enabled, _) = fat_bundle_setting(project_dir);
+    return enabled;
+}
+
+
+def seal_timeout_setting(project_dir: str) -> int {
+    import from jaclang.project.config { get_config_for_path }
+
+    try {
+        config = get_config_for_path(Path(project_dir));
+    } except Exception as exc {
+        logger.warning(f"seal_timeout check skipped, jac.toml unparseable: {exc}");
+        return DEFAULT_SEAL_TIMEOUT_S;
+    }
+    if config is None {
+        return DEFAULT_SEAL_TIMEOUT_S;
+    }
+    section = config.get_section("scale");
+    if section is None or "seal_timeout" not in section {
+        return DEFAULT_SEAL_TIMEOUT_S;
+    }
+    try {
+        val = int(section.get("seal_timeout"));
+    } except (TypeError, ValueError) {
+        logger.warning("Ignoring non-integer [scale] seal_timeout in jac.toml.");
+        return DEFAULT_SEAL_TIMEOUT_S;
+    }
+    return val if val > 0 else DEFAULT_SEAL_TIMEOUT_S;
+}
+
+
+def _vendor_stage(stage: Path, pod_binary: bytes) {
+    jac_path = stage.parent / ".pod-jac";
+    jac_path.write_bytes(pod_binary);
+    jac_path.chmod(0o755);
+    script = Path(str(__file__)).parent.parent / "utils" / "vendor_wheels.jac";
+    try {
+        result = subprocess.run(
+            [str(jac_path), "run", str(script), str(stage)],
+            capture_output=True,
+            text=True,
+            timeout=900
+        );
+    } finally {
+        jac_path.unlink(missing_ok=True);
+    }
+    if (result.returncode != 0 or not (stage / "_vendor" / "VENDOR.json").is_file()) {
+        raise RuntimeError(
+            f"Fat bundle vendoring failed, so the deploy cannot ship offline "
+            f"deps: {(result.stderr or result.stdout).strip()[-300:]}"
+        );
+    }
+
+    for line in f"{result.stdout}\n{result.stderr}".splitlines() {
+        if line.strip() {
+            logger.info(f"vendor: {line.strip()}");
+        }
+    }
+}
+
+
 def pack_jab(project_dir: str, provisioned_database: str, pod_binary: bytes) -> bytes {
-    # Pack the app into a sealed .jab: project source, the sealed _precompiled/
-    # image (MANIFEST.json at tar root), and jac.toml. The gzip-tar IS a valid
-    # .jab (both materialize_jab and a plain `tar xzf` accept it), so pods load
-    # the manifest-verified image instead of cold-compiling on boot.
     if not pod_binary {
         raise ValueError(
             "pack_jab requires the pod binary to seal the app image; none given."
         );
     }
     base = Path(project_dir).resolve();
-    staged = _precompile_app(base, pod_binary);
-    # staged is <stage_root>/app; the whole mkdtemp tree must be removed even if
-    # a tar.add below raises, or a full project copy leaks in /tmp on every
-    # failed deploy (accumulates on a retrying deploy driver).
+    if not base.is_dir() {
+        raise ValueError(
+            f"App project directory does not exist: {base}. A deploy seals "
+            "the project tree; check the code_folder path."
+        );
+    }
+    sanitized = sanitized_jac_toml(base, provisioned_database);
+    staged = _precompile_app(
+        base, pod_binary, sanitized, seal_timeout_setting(project_dir)
+    );
+
     try {
+        (fat, fat_explicit) = fat_bundle_setting(project_dir);
+        if fat {
+            try {
+                _vendor_stage(staged, pod_binary);
+            } except Exception as exc {
+                if fat_explicit {
+                    raise;
+                }
+
+                shutil.rmtree(str(staged / "_vendor"), ignore_errors=True);
+                logger.warning(
+                    f"Fat bundle vendoring failed; shipping a thin bundle "
+                    f"(pods will install python deps from PyPI at boot). "
+                    f"Set [scale] fat_bundle = true to make this fatal. {exc}"
+                );
+            }
+        }
         buf = io.BytesIO();
         (tar, gz) = open_det_tar(buf);
         try {
@@ -288,10 +435,32 @@ def pack_jab(project_dir: str, provisioned_database: str, pod_binary: bytes) -> 
                 logger.info(
                     f"Sealed {count} precompiled app-module artifacts into the .jab."
                 );
-                sanitized = sanitized_jac_toml(base, provisioned_database);
+                ven = staged / "_vendor";
+                if ven.is_dir() {
+                    wheel_count = 0;
+                    for path in sorted(ven.rglob("*")) {
+                        if path.is_file() {
+                            rel = path.relative_to(staged);
+                            tar.add(str(path), arcname=str(rel), filter=det_tar_member);
+                            if path.suffix == ".whl" {
+                                wheel_count += 1;
+                            }
+                        }
+                    }
+                    logger.info(
+                        f"Fat bundle: vendored {wheel_count} wheel(s) into the "
+                        f".jab; pods install python deps offline."
+                    );
+                }
                 if sanitized is not None {
                     data = sanitized.encode("utf-8");
                     info = tarfile.TarInfo(name="jac.toml");
+                    info.size = len(data);
+                    tar.addfile(info, io.BytesIO(data));
+                }
+                for (toml_rel, toml_text) in nested_sanitized_tomls(base).items() {
+                    data = toml_text.encode("utf-8");
+                    info = tarfile.TarInfo(name=toml_rel);
                     info.size = len(data);
                     tar.addfile(info, io.BytesIO(data));
                 }

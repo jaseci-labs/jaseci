@@ -20,6 +20,7 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         'database': {
             'type': None,
             'mongodb_uri': None,
+            'mongodb_timeout_ms': DEFAULT_MONGODB_TIMEOUT_MS,
             'redis_url': None,
             'project_id': None,
             'shelf_db_path': '.jac/data/anchor_store.db',
@@ -47,8 +48,6 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'messages_per_second': 20
         },
         'kubernetes': {
-            # app_name intentionally absent: any key here wins the jac.toml
-            # deep-merge, which would kill the project-name default.
             'namespace': 'default',
             'container_port': 8000,
             'mongodb_enabled': True,
@@ -72,10 +71,6 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'cpu_limit': None,
             'memory_request': None,
             'memory_limit': None,
-            # Probe timings must match the KubernetesConfig field defaults
-            # (deploy/target/kubernetes/kubernetes_config.jac) — this dict is
-            # deep-merged over jac.toml, so these values are what actually
-            # take effect when the user sets no probe keys.
             'readiness_initial_delay': 10,
             'readiness_period': 20,
             'liveness_initial_delay': 10,
@@ -206,10 +201,34 @@ impl JacScaleConfig.get_sso_config(self: JacScaleConfig) -> dict[str, any] {
                 FIREBASE_AUTH_PROJECT_ID_ENV,
                 firebase_config.get('project_id', '') or None
             )
-            or ''
+                or ''
         }
     };
 }
+
+def _mongodb_timeout_ms(configured: any) -> int {
+    import logging;
+    raw = os.environ.get('MONGODB_TIMEOUT_MS');
+    source = 'MONGODB_TIMEOUT_MS' if raw else 'jac.toml mongodb_timeout_ms';
+    value = raw or configured;
+    try {
+        parsed = int(value);
+    } except (TypeError, ValueError) {
+        parsed = 0;
+    }
+    if parsed > 0 {
+        return parsed;
+    }
+    fallback = DEFAULT_MONGODB_TIMEOUT_MS;
+    if raw or configured != fallback {
+        logging.getLogger(__name__).warning(
+            f"ignoring invalid {source}={value!r}; "
+            f"expected a positive integer, using {fallback}ms instead."
+        );
+    }
+    return fallback;
+}
+
 
 impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
@@ -217,6 +236,9 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     return {
         'type': db_config.get('type'),
         'mongodb_uri': os.environ.get('MONGODB_URI') or db_config.get('mongodb_uri'),
+        'mongodb_timeout_ms': _mongodb_timeout_ms(
+            db_config.get('mongodb_timeout_ms', DEFAULT_MONGODB_TIMEOUT_MS)
+        ),
         'redis_url': os.environ.get('REDIS_URL') or db_config.get('redis_url'),
         'project_id': resolve_firebase_project_id(
             FIRESTORE_PROJECT_ID_ENV, db_config.get('project_id')
@@ -391,15 +413,6 @@ impl JacScaleConfig.get_events_config(self: JacScaleConfig) -> dict[str, any] {
     };
 }
 
-"""Read a positive WebSocket limit, rejecting values that would wedge a socket.
-
-Every limit here is a divisor or a budget, and each has a value that silently
-breaks the connection rather than loosening it: `messages_per_second = 0` leaves
-the token bucket with nothing to refill it, so a socket is rate-limited forever
-after its first message; `max_message_bytes = 0` rejects every frame; a zero
-connection cap refuses every client. None of them mean "unlimited", so they are
-refused at load rather than at 3am. To effectively disable a limit, set it high.
-"""
 impl _ws_positive(ws_config: dict, key: str, fallback: (int | float)) -> float {
     raw = ws_config.get(key, fallback);
     if isinstance(raw, bool) or not isinstance(raw, (int, float, str)) {
@@ -427,7 +440,7 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
         backplane = str(backplane).lower();
     }
     ws_redis_url = ws_config.get('redis_url')
-    or self.get_database_config().get('redis_url');
+        or self.get_database_config().get('redis_url');
     return {
         'backplane': backplane,
         'redis_url': ws_redis_url,
@@ -547,13 +560,29 @@ impl JacScaleConfig.get_auth_config(self: JacScaleConfig) -> dict[str, Any] {
 
 impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
-    ms_config = config.get('microservices', {});
+    return normalize_microservices_config(config.get('microservices', {}));
+}
+
+
+impl normalize_microservices_config(
+    ms_config: dict[str, any], env_routes_fallback: bool = True
+) -> dict[str, any] {
+    if 'enabled' in ms_config and not _ms_enabled_deprecation_warned {
+        _ms_enabled_deprecation_warned = True;
+        import logging;
+        logging.getLogger(__name__).warning(
+            "jac.toml [scale.microservices] `enabled` is deprecated: declaring "
+            "[scale.microservices.routes] is what turns microservice mode on, "
+            "and a deployed fleet pod ignores this key. Delete it (remove the "
+            "routes table to run single-process); a future release drops it."
+        );
+    }
     client_config = ms_config.get('client', {});
     cors_config = ms_config.get('cors', {});
     rl_config = ms_config.get('rate_limit', {});
 
     routes: dict[str, any] = dict(ms_config.get('routes', {}));
-    if not routes {
+    if not routes and env_routes_fallback {
         import json;
         env_routes: str = os.environ.get('JAC_SV_ROUTES', '');
         if env_routes {
@@ -571,7 +600,8 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
     }
 
     raw_client_entry = client_config.get('entry', None);
-    if raw_client_entry is False {
+
+    if raw_client_entry is False or raw_client_entry == '' {
         resolved_client_entry: str = '';
     } elif raw_client_entry {
         resolved_client_entry: str = str(raw_client_entry);
@@ -619,17 +649,6 @@ impl JacScaleConfig.get_microservices_config(self: JacScaleConfig) -> dict[str, 
         'logs': dict(ms_config.get('logs', {})),
         'tracing': dict(ms_config.get('tracing', {}))
     };
-}
-
-impl JacScaleConfig.microservices_declared(self: JacScaleConfig) -> bool {
-    # The merged load() always carries a 'microservices' key from
-    # get_default_config (and callers may write merged routes back into the
-    # loaded doc), so "did the user write [scale.microservices]?" must be
-    # answered from the raw, unmerged plugin config in jac.toml.
-    declared = self.get_jac_config().get_plugin_config(self.get_plugin_name()).get(
-        'microservices'
-    );
-    return isinstance(declared, dict) and bool(declared);
 }
 
 impl JacScaleConfig.get_admin_config(self: JacScaleConfig) -> dict[str, any] {

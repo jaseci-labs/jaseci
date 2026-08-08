@@ -11,16 +11,10 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
 }
 import from jaclang.scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
 
-"""Build one htpasswd line for the RedisInsight dashboard's basic-auth secret.
-
-bcrypt is imported here rather than at module scope: it is only reachable
-through the optional dashboard branch, and a top-level import made merely
-importing the deploy target -- which every deploy and every --dry-run does --
-fail with 'No module named bcrypt'."""
 def _htpasswd_line(username: str, password: str) -> str {
     require_optional("bcrypt", "deploy.k8s");
     import bcrypt;
-    # nginx reads $2y$; bcrypt emits the equivalent $2b$.
+
     pw_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode(
         'utf-8'
     ).replace(
@@ -367,6 +361,10 @@ obj IngressDeployer {
         };
     }
 
+    def _domain_rules(http_block: dict, domain: str) -> list {
+        return [{'host': domain, 'http': http_block}, {'http': http_block}];
+    }
+
     def _wait_for_nginx_ready(
         app_name: str, namespace: str, apps_v1: any, max_wait: int = 180
     ) -> None {
@@ -436,16 +434,19 @@ obj IngressDeployer {
         }
 
         if self.k8s_config.shared_ingress {
-            main_rule: dict = {
-                'host': self.k8s_config.domain,
-                'http': {'paths': paths}
-            };
+            main_rules: list = [
+                {'host': self.k8s_config.domain, 'http': {'paths': paths}}
+            ];
+        } elif self.k8s_config.domain {
+            main_rules: list = self._domain_rules(
+                {'paths': paths}, self.k8s_config.domain
+            );
         } else {
-            main_rule: dict = {'http': {'paths': paths}};
+            main_rules: list = [{'http': {'paths': paths}}];
         }
 
         uses_nginx: bool = (not self.k8s_config.shared_ingress)
-        or (self.k8s_config.shared_ingress_class == 'nginx');
+            or (self.k8s_config.shared_ingress_class == 'nginx');
         ingress_annotations: dict = {};
         if uses_nginx {
             ingress_annotations = {
@@ -489,10 +490,11 @@ obj IngressDeployer {
         for (k, v) in self.k8s_config.shared_ingress_annotations.items() {
             ingress_annotations[str(k)] = str(v);
         }
-        main_spec: dict = {'ingressClassName': ingress_class, 'rules': [main_rule]};
+        main_spec: dict = {'ingressClassName': ingress_class, 'rules': main_rules};
 
         cert_manager_managed = (
-            'cert-manager.io/cluster-issuer' in self.k8s_config.shared_ingress_annotations
+            'cert-manager.io/cluster-issuer'
+                in self.k8s_config.shared_ingress_annotations
             or 'cert-manager.io/issuer' in self.k8s_config.shared_ingress_annotations
         );
 
@@ -597,12 +599,15 @@ obj IngressDeployer {
             ];
 
             if self.k8s_config.shared_ingress {
-                redis_rule: dict = {
-                    'host': self.k8s_config.domain,
-                    'http': {'paths': redis_paths}
-                };
+                redis_rules: list = [
+                    {'host': self.k8s_config.domain, 'http': {'paths': redis_paths}}
+                ];
+            } elif self.k8s_config.domain {
+                redis_rules: list = self._domain_rules(
+                    {'paths': redis_paths}, self.k8s_config.domain
+                );
             } else {
-                redis_rule: dict = {'http': {'paths': redis_paths}};
+                redis_rules: list = [{'http': {'paths': redis_paths}}];
             }
 
             redis_ingress = {
@@ -614,7 +619,7 @@ obj IngressDeployer {
                     'labels': {'app': app_name, 'managed': 'jac-scale'},
                     'annotations': redis_ingress_annotations
                 },
-                'spec': {'ingressClassName': ingress_class, 'rules': [redis_rule]}
+                'spec': {'ingressClassName': ingress_class, 'rules': redis_rules}
             };
             try {
                 networking_v1.patch_namespaced_ingress(
@@ -861,7 +866,7 @@ obj IngressDeployer {
         ann = ingress.metadata.annotations or {};
         domain = ann.get('jac-scale/domain', '') or self.k8s_config.domain;
         cert_email = ann.get('jac-scale/cert-email', '')
-        or self.k8s_config.cert_manager_email;
+            or self.k8s_config.cert_manager_email;
 
         if not domain {
             raise Exception(
@@ -892,12 +897,16 @@ obj IngressDeployer {
         );
         ingress_dict = api_client.sanitize_for_serialization(current_ingress);
         existing_rules = ingress_dict.get('spec', {}).get('rules', []);
-        updated_rules = [];
-        for rule in existing_rules {
-            rule['host'] = domain;
-            updated_rules.append(rule);
+
+        base_http = existing_rules[0].get('http', {'paths': []})
+            if existing_rules
+            else {'paths': []};
+
+        if self.k8s_config.shared_ingress {
+            tls_spec['rules'] = [{'host': domain, 'http': base_http}];
+        } else {
+            tls_spec['rules'] = self._domain_rules(base_http, domain);
         }
-        tls_spec['rules'] = updated_rules;
         networking_v1.patch_namespaced_ingress(
             name=ingress_name,
             namespace=namespace,
@@ -915,14 +924,17 @@ obj IngressDeployer {
                 current_redis_ingress
             );
             existing_redis_rules = redis_ingress_dict.get('spec', {}).get('rules', []);
-            updated_redis_rules = [];
-            for rule in existing_redis_rules {
-                rule['host'] = domain;
-                updated_redis_rules.append(rule);
+            redis_base_http = existing_redis_rules[0].get('http', {'paths': []})
+                if existing_redis_rules
+                else {'paths': []};
+            if self.k8s_config.shared_ingress {
+                redis_rules_patched = [{'host': domain, 'http': redis_base_http}];
+            } else {
+                redis_rules_patched = self._domain_rules(redis_base_http, domain);
             }
             redis_tls_spec = {
                 'tls': [{'hosts': [domain], 'secretName': tls_secret_name}],
-                'rules': updated_redis_rules
+                'rules': redis_rules_patched
             };
             networking_v1.patch_namespaced_ingress(
                 name=redis_ingress_name,

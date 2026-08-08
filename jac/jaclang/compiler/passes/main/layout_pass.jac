@@ -1,7 +1,7 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E5030, W5031, W5032 }
 
 glob LAYOUT_COMPATIBLE_PRIMITIVES: set[str] = {
@@ -84,6 +84,25 @@ def get_layout_registry(module: uni.Module, prog: any = None) -> LayoutRegistry 
     return module.gen.layout_registry or LayoutRegistry();
 }
 
+def is_enum_class_type(t: any) -> bool {
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _ClassType }
+    } except ImportError {
+        return False;
+    }
+    return isinstance(t, _ClassType)
+        and t._shared is not None
+        and t.shared.is_enum_class;
+}
+
+def enum_decl_of(t: any) -> (uni.Enum | None) {
+    if not is_enum_class_type(t) {
+        return None;
+    }
+    _scope = t.shared.symbol_table;
+    return _scope if isinstance(_scope, uni.Enum) else None;
+}
+
 obj LayoutRegistry {
     has layouts: dict[str, ArchetypeLayout] = {},
         class_parents: dict[str, list[str]] = {},
@@ -103,11 +122,13 @@ obj LayoutPass(Transform[uni.Module, uni.Module]) {
     has ir_in: uni.Module,
         prog: any,
         cancel_token: any = None,
-        registry: LayoutRegistry postinit;
+        registry: LayoutRegistry postinit,
+        isinstance_targets: set[str] postinit;
 
     def postinit -> None;
     def transform(ir_in: uni.Module) -> uni.Module;
     def _collect_archetypes(module: uni.Module) -> dict[str, uni.Archetype];
+    def _collect_isinstance_targets(module: uni.Module) -> None;
     def _build_hierarchy(archetypes: dict[str, uni.Archetype]) -> None;
     def _compute_c3_mro(class_name: str) -> list[str];
     def _topo_sort(arch_map: dict[str, uni.Archetype]) -> list[str];

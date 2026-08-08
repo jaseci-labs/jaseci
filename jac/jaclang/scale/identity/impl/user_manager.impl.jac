@@ -26,13 +26,27 @@ impl JacScaleUserManager.postinit -> None {
     db_config = get_scale_config().get_database_config();
     mongodb_uri = db_config.get('mongodb_uri');
 
+    use_mongo = False;
     if mongodb_uri is not None {
         import from jaclang.scale.persistence.db { get_mongo_client }
+        import from jaclang.scale.persistence.mongo_health {
+            mongo_reachable,
+            warn_mongo_unreachable
+        }
         client = get_mongo_client();
-        db = client['jac_db'];
-        self._identity_storage = MongoIdentityStorage(users_col=db['users']);
-        self._identity_storage.ensure_indexes();
-    } else {
+
+        if mongo_reachable(client) {
+            use_mongo = True;
+            db = client['jac_db'];
+            self._identity_storage = MongoIdentityStorage(users_col=db['users']);
+            self._identity_storage.ensure_indexes();
+        } else {
+            warn_mongo_unreachable(
+                mongodb_uri, db_config['mongodb_timeout_ms'], "local identity storage"
+            );
+        }
+    }
+    if not use_mongo {
         import os;
         base_for_data = os.environ.get('JAC_DATA_PATH', self.base_path);
         data_dir = os.path.join(base_for_data, '.jac', 'data');
@@ -120,10 +134,6 @@ impl JacScaleUserManager.get_root_id(user_id: str) -> str | None {
 }
 
 impl JacScaleUserManager.ensure_user_root(user_id: str) -> str | None {
-    # JIT provisioning for federated identity across microservice siblings:
-    # the caller has already validated the JWT signature, so a user_id this
-    # service has never seen is a user registered with the gateway (or a
-    # sibling) - materialize a local record + root rather than failing.
     if not user_id or user_id == '__system__' {
         return None;
     }

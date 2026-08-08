@@ -18,7 +18,11 @@ impl NaIRGenPass._native_archetypes(module: uni.Module) -> list[uni.Archetype] {
             result[aname] = arch;
         }
     }
-    return list(result.values());
+    return [
+        a
+        for a in result.values()
+        if not a.type_params
+    ];
 }
 
 impl NaIRGenPass._forward_declare_archetype_names(module: uni.Module) -> None {
@@ -67,7 +71,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
             for stmt in arch.body {
                 if isinstance(stmt, uni.Ability) {
                     if stmt.signature is not None
-                    and isinstance(stmt.signature, uni.FuncSignature) {
+                        and isinstance(stmt.signature, uni.FuncSignature) {
                         self._forward_declare_method(arch_name, stmt);
                     } elif stmt.signature is None and stmt.body is not None {
                         method_name = stmt.name_ref.sym_name if stmt.name_ref else None;
@@ -182,7 +186,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
             for stmt in arch.body {
                 if isinstance(stmt, uni.Ability) {
                     if stmt.signature is not None
-                    and isinstance(stmt.signature, uni.FuncSignature) {
+                        and isinstance(stmt.signature, uni.FuncSignature) {
                         self._codegen_method(arch_name, stmt);
                     } elif isinstance(stmt.signature, uni.EventSignature) {
                         self._codegen_event_method(arch_name, stmt);
@@ -231,8 +235,8 @@ impl NaIRGenPass._visit_nonprimary_ancestor_methods(
         }
         for stmt in ancestor_arch.body {
             if isinstance(stmt, uni.Ability)
-            and stmt.signature is not None
-            and isinstance(stmt.signature, uni.FuncSignature) {
+                and stmt.signature is not None
+                and isinstance(stmt.signature, uni.FuncSignature) {
                 method_name = stmt.name_ref.sym_name if stmt.name_ref else None;
                 if method_name is not None and method_name not in provided_methods {
                     full_name = f"{arch_name}.{method_name}";
@@ -265,8 +269,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
     field_index_map: dict[(str, int)] = {};
     field_type_map: dict[(str, ir.Type)] = {};
     field_default_map: dict[(str, object)] = {};
-
-    opaque_fields: set = set();
+    foreign_fields: set = set();
 
     if layout.vtable_ptr_slot is not None {
         field_types.append(ir.IntType(8).as_pointer().as_pointer());
@@ -276,8 +279,8 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
         self.osp_type_tag_field[arch_name] = layout.type_tag_slot;
     }
     if layout.reports_slot is not None {
-        self._emit_list_helpers("i64", ir.IntType(64));
-        _rep_lt = self.list_types.get("i64");
+        self._emit_list_helpers("jacval", self.jacval_type);
+        _rep_lt = self.list_types.get("jacval");
         if _rep_lt is not None {
             field_types.append(_rep_lt.as_pointer());
             field_index_map["reports"] = layout.reports_slot;
@@ -292,14 +295,42 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
         fname = finfo.name;
         var = finfo.decl_node;
         ftype = ir.IntType(64);
-        _is_opaque = False;
         if var is not None and var.type_tag is not None {
             if finfo.owner in self.clib_struct_names {
-                ftype = self._resolve_jac_type(var.type_tag);
+                _cf_fnty = False;
+                try {
+                    import from jaclang.compiler.type_system.types {
+                        FunctionType as _ClibFnType
+                    }
+                    _cf_fnty = isinstance(var?.type, _ClibFnType);
+                } except ImportError { }
+                if _cf_fnty {
+                    ftype = self._lower_function_type_raw(var.type);
+                } else {
+                    ftype = self._resolve_jac_type(var.type_tag);
+                }
             } else {
-                (ftype, _is_opaque) = self._try_resolve_field_type(var);
-                if _is_opaque {
-                    opaque_fields.add(fname);
+                ftype = self._resolve_field_type(var);
+                if self._foreign_optional_field(var?.type) {
+                    foreign_fields.add(fname);
+                }
+                if self._nogc_headerless()
+                    and self._hasvar_is_own(var)
+                    and isinstance(ftype, ir.PointerType) {
+                    _fpn = getattr(ftype.pointee, "name", "") or "";
+                    _fstruct = self.struct_types.get(_fpn);
+                    if _fstruct is not None
+                        and _fpn != arch_name
+                        and _fstruct?.elements is not None
+                        and self._arch_is_acyclic(_fpn)
+                        and not self._arch_is_osp_name(_fpn)
+                        and _fpn not in self.clib_vtable_structs {
+                        ftype = _fstruct;
+                        if arch_name not in self.struct_field_inline {
+                            self.struct_field_inline[arch_name] = set();
+                        }
+                        self.struct_field_inline[arch_name].add(fname);
+                    }
                 }
             }
 
@@ -315,7 +346,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
         field_index_map[fname] = finfo.index;
         field_type_map[fname] = ftype;
 
-        if var is not None and var.value is not None and not _is_opaque {
+        if var is not None and var.value is not None and fname not in foreign_fields {
             field_default_map[fname] = var.value;
         }
     }
@@ -330,9 +361,10 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
 
     struct_type.set_body(*field_types);
     self.struct_field_indices[arch_name] = field_index_map;
+    self.struct_field_order[arch_name] = [f.name for f in layout.fields];
     self.struct_field_types[arch_name] = field_type_map;
     self.struct_field_defaults[arch_name] = field_default_map;
-    self.struct_field_opaque[arch_name] = opaque_fields;
+    self.struct_field_foreign[arch_name] = foreign_fields;
 }
 
 impl NaIRGenPass._register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None {
@@ -386,7 +418,15 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     method_name = method.name_ref.sym_name if method.name_ref else "unnamed";
     full_name = f"{arch_name}.{method_name}";
 
+    if method.type_params {
+        self._generic_methods[full_name] = method;
+        self.has_native_code = True;
+        return;
+    }
     if full_name in self.method_funcs {
+        return;
+    }
+    if full_name in self._native_skipped_methods {
         return;
     }
     sig = method.signature;
@@ -396,8 +436,18 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     }
     _is_static = method.is_static;
 
+    _m_params = sig.get_parameters();
+    if (
+        not _is_static
+        and _m_params
+        and _m_params[0].name
+        and _m_params[0].name.value == "self"
+    ) {
+        _m_params = _m_params[1:];
+    }
+
     param_types: list[ir.Type] = [] if _is_static else [struct_type.as_pointer()];
-    for p in sig.get_parameters() {
+    for p in _m_params {
         param_types.append(
             self._resolve_jac_type(p) if p.type_tag is not None else ir.IntType(64)
         );
@@ -414,9 +464,10 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     if not _is_static {
         func.args[0].name = "self";
     }
-    for (i, p) in enumerate(sig.get_parameters()) {
+    for (i, p) in enumerate(_m_params) {
         func.args[i + _base].name = p.name.value if p.name else f"arg{i}";
     }
+    self._apply_ownership_param_attrs(func, _m_params, _base);
     self.method_funcs[full_name] = func;
     self.func_symtab[full_name] = func;
     if _is_static {
@@ -437,10 +488,14 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     saved_locals = self.local_vars;
     saved_param_vars = self.param_vars;
     saved_list_elem_struct = dict(self.var_list_elem_struct);
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
     self.var_list_elem_struct = {};
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
 
     saved_self_arch = self._self_arch;
     self._self_arch = arch_name;
@@ -448,6 +503,12 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
     );
+
+    _scan_body = ModuleCodegenPass.unwrap_body(method);
+    if _scan_body is not None {
+        _scan_owner = method.body if isinstance(method.body, uni.ImplDef) else method;
+        self._scan_closure_escapes(_scan_owner, _scan_body);
+    }
 
     _is_static = method.is_static;
     _base = 0;
@@ -459,15 +520,33 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     }
 
     sig = method.signature;
-    for (i, p) in enumerate(sig.get_parameters()) {
+    _body_params = sig.get_parameters();
+    if (
+        not _is_static
+        and _body_params
+        and _body_params[0].name
+        and _body_params[0].name.value == "self"
+    ) {
+        _body_params = _body_params[1:];
+    }
+    for (i, p) in enumerate(_body_params) {
         param_name = p.name.value if p.name else f"arg{i}";
         arg_val = func.args[i + _base];
+        if param_name in self.closure_cell_vars {
+            slot = self._emit_closure_cell(param_name, arg_val.type);
+            self.builder.store(arg_val, slot);
+            self.local_vars[param_name] = slot;
+            if isinstance(arg_val.type, ir.PointerType) {
+                self._emit_rc_retain(arg_val, op="param_cell", loc=full_name);
+            }
+            continue;
+        }
         alloca = self.builder.alloca(arg_val.type, name=param_name);
         self.builder.store(arg_val, alloca);
         self.local_vars[param_name] = alloca;
 
         if isinstance(arg_val.type, ir.PointerType)
-        and bool(p.name?.sym?.param_rebound) {
+            and bool(p.name?.sym?.param_rebound) {
             self._emit_rc_retain(arg_val, op="param_promote", loc=full_name);
         } else {
             self.param_vars.add(param_name);
@@ -475,7 +554,7 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     }
 
     _isolate = method_name not in ("init", "__init__", "postinit", "__post_init__")
-    and method_name not in self.vtable_method_indices.get(arch_name, {});
+        and method_name not in self.vtable_method_indices.get(arch_name, {});
     _err_mark = len(self.prog.errors_had) if _isolate else 0;
     _local_mark = len(self.errors_had) if _isolate else 0;
 
@@ -524,6 +603,8 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._self_arch = saved_self_arch;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
 
     if _isolate {
         self._demote_method_if_unlowerable(full_name, func, _err_mark, _local_mark);
@@ -537,15 +618,9 @@ impl NaIRGenPass._demote_method_if_unlowerable(
         return False;
     }
 
-    import os;
-    _warn = bool(os.environ.get("JAC_NATIVE_DEBUG", ""));
+    _warn = bool(self.prog._compile_options.native_debug);
 
-    _accel_quiet = False;
-    try {
-        import from jaclang.jac0core.native_accel { native_accel_warnings_suppressed }
-        _accel_quiet = native_accel_warnings_suppressed();
-    } except Exception { }
-    if not _warn and not _accel_quiet {
+    if not _warn {
         _warn = True;
         try {
             import from jaclang.project.config { get_config }
@@ -563,6 +638,13 @@ impl NaIRGenPass._demote_method_if_unlowerable(
             f"(un-lowerable): {_why}\n"
         );
     }
+    try {
+        import from jaclang.jac0core.compiler { na_census_seam }
+        na_census_seam(
+            self.ir_in.loc.mod_path,
+            f"{full_name}: " + str(self.prog.errors_had[err_mark]).split('\n')[0]
+        );
+    } except Exception { }
     del self.prog.errors_had[err_mark:];
     del self.errors_had[local_mark:];
     func.blocks.clear();
@@ -591,15 +673,25 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     saved_param_vars = self.param_vars;
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_self_arch = self._self_arch;
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
     self._self_arch = arch_name;
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
     self.var_list_elem_struct = {};
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
 
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
     );
+
+    _scan_body = ModuleCodegenPass.unwrap_body(method);
+    if _scan_body is not None {
+        _scan_owner = method.body if isinstance(method.body, uni.ImplDef) else method;
+        self._scan_closure_escapes(_scan_owner, _scan_body);
+    }
 
     self_alloca = self.builder.alloca(func.args[0].type, name="self");
     self.builder.store(func.args[0], self_alloca);
@@ -627,6 +719,8 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._self_arch = saved_self_arch;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
 }
 
 impl NaIRGenPass._trigger_member_structs(tag: (uni.UniNode | None)) -> list[str] {
@@ -644,9 +738,10 @@ impl NaIRGenPass._trigger_member_structs(tag: (uni.UniNode | None)) -> list[str]
     }
     for part in parts {
         if isinstance(part, uni.TupleVal)
-        or (
-            isinstance(part, uni.BinaryExpr) and getattr(part.op, "value", "") == "|"
-        ) {
+            or (
+                isinstance(part, uni.BinaryExpr)
+                and getattr(part.op, "value", "") == "|"
+            ) {
             for nm in self._trigger_member_structs(part) {
                 if nm not in out {
                     out.append(nm);
@@ -706,7 +801,7 @@ impl NaIRGenPass._union_layout_conflict(members: list[str]) -> (str | None) {
             }
             other_types = self.struct_field_types.get(other, {});
             if other_idx[fname] != base_idx[fname]
-            or base_types.get(fname) != other_types.get(fname) {
+                or base_types.get(fname) != other_types.get(fname) {
                 return fname;
             }
         }
@@ -758,14 +853,23 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     saved_param_vars = self.param_vars;
     saved_list_elem_struct = dict(self.var_list_elem_struct);
     saved_self_arch = self._self_arch;
+    saved_cell_vars = self.closure_cell_vars;
+    saved_cell_handles = self.closure_cell_handles;
     self._self_arch = arch_name;
     self._builder = ir.IRBuilder(block);
     self.local_vars = {};
     self.param_vars = set();
     self.var_list_elem_struct = {};
+    self.closure_cell_vars = set();
+    self.closure_cell_handles = {};
     self._attach_di_subprogram(
         func, full_name, method.loc.first_line if method.loc else 0
     );
+    _scan_body = ModuleCodegenPass.unwrap_body(method);
+    if _scan_body is not None {
+        _scan_owner = method.body if isinstance(method.body, uni.ImplDef) else method;
+        self._scan_closure_escapes(_scan_owner, _scan_body);
+    }
     self_alloca = self.builder.alloca(func.args[0].type, name="self");
     self.builder.store(func.args[0], self_alloca);
     self.local_vars["self"] = self_alloca;
@@ -806,6 +910,8 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self.param_vars = saved_param_vars;
     self.var_list_elem_struct = saved_list_elem_struct;
     self._self_arch = saved_self_arch;
+    self.closure_cell_vars = saved_cell_vars;
+    self.closure_cell_handles = saved_cell_handles;
 }
 
 impl NaIRGenPass._stack_alloc_target_ok(nd: uni.UniNode) -> bool {
@@ -822,15 +928,51 @@ impl NaIRGenPass._stack_alloc_target_ok(nd: uni.UniNode) -> bool {
 }
 
 impl NaIRGenPass._codegen_instantiation(
-    nd: (uni.FuncCall | uni.Name)
+    nd: (uni.FuncCall | uni.Name),
+    type_name_override: (str | None) = None,
+    ctor_params: (list | None) = None
 ) -> (ir.Value | None) {
     _is_call = isinstance(nd, uni.FuncCall);
-    type_name = self._get_name(nd.target if _is_call else nd);
+    type_name = type_name_override
+        if type_name_override is not None
+        else self._get_name(nd.target if _is_call else nd);
     if type_name is None or type_name not in self.struct_types {
         return None;
     }
     struct_type = self.struct_types[type_name];
     struct_ptr_type = struct_type.as_pointer();
+
+    params = ctor_params
+        if ctor_params is not None
+        else ((nd.params or []) if _is_call else []);
+    _has_init = (
+        f"{type_name}.init" in self.method_funcs
+        or f"{type_name}.__init__" in self.method_funcs
+    );
+    _pos_field_pairs: list = [];
+    if not _has_init {
+        _pos_args = [
+            p
+            for p in params
+            if not isinstance(p, uni.KWPair)
+        ];
+        if _pos_args {
+            _order = self.struct_field_order.get(type_name);
+            if _order is None or len(_pos_args) > len(_order) {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="constructor call",
+                    name=type_name,
+                    help_text=f"Positional arguments to '{type_name}' lower natively only up to its declared has-field count and only when its field layout is visible to this module."
+                );
+                return None;
+            }
+            for (_pi, _pv) in enumerate(_pos_args) {
+                _pos_field_pairs.append((_order[_pi], _pv));
+            }
+        }
+    }
 
     _vt_struct = type_name in self.clib_vtable_structs;
     _stack_ok = (
@@ -841,17 +983,21 @@ impl NaIRGenPass._codegen_instantiation(
         and not self._arch_has_vtable(type_name)
         and not self._arch_is_osp_name(type_name)
         and f"{type_name}.drop" not in self.func_symtab
+        and not self.struct_field_inline.get(type_name, None)
+        and not self.region_stack
     );
     _headerless = self._nogc_headerless() and not self._arch_is_osp_name(type_name);
     if _stack_ok and _headerless {
         obj_ptr = self._entry_alloca(struct_type, f"stk.{type_name}");
+        self.rc_stack_promotions += 1;
         _tgt_asgn = nd.find_parent_of_type(uni.Assignment);
         if _tgt_asgn is not None
-        and len(_tgt_asgn.target) == 1
-        and isinstance(_tgt_asgn.target[0], uni.Name) {
-            self.nogc_stack_vars.add(_tgt_asgn.target[0].sym_name);
+            and len(_tgt_asgn.target) == 1
+            and isinstance(_tgt_asgn.target[0], uni.Name) {
+            self.nogc_no_free_vars.add(_tgt_asgn.target[0].sym_name);
         }
     } elif _stack_ok {
+        self.rc_stack_promotions += 1;
         _i8 = ir.IntType(8);
         _i32s = ir.IntType(32);
         _i64s = ir.IntType(64);
@@ -888,7 +1034,7 @@ impl NaIRGenPass._codegen_instantiation(
         }
     } elif _vt_struct {
         obj_ptr = self._clib_alloc_vtable(type_name);
-    } elif _headerless {
+    } elif _headerless and not self.region_stack {
         null_ptr = ir.Constant(struct_ptr_type, None);
         size_gep = self.builder.gep(
             null_ptr, [ir.Constant(ir.IntType(32), 1)], name="sizeof.gep"
@@ -908,6 +1054,14 @@ impl NaIRGenPass._codegen_instantiation(
         size = self.builder.ptrtoint(size_gep, ir.IntType(64), name="sizeof");
         raw_ptr = self._region_alloc(size, name="region.obj");
         obj_ptr = self.builder.bitcast(raw_ptr, struct_ptr_type, name="obj.ptr");
+        if self._gc_mode() == "none" {
+            _rg_asgn = nd.find_parent_of_type(uni.Assignment);
+            if _rg_asgn is not None
+                and len(_rg_asgn.target) == 1
+                and isinstance(_rg_asgn.target[0], uni.Name) {
+                self.nogc_no_free_vars.add(_rg_asgn.target[0].sym_name);
+            }
+        }
         if self.rc_set_type_fn is not None {
             _obj_i8_r = self.builder.bitcast(
                 obj_ptr, ir.IntType(8).as_pointer(), name="obj.i8.rtag"
@@ -966,7 +1120,7 @@ impl NaIRGenPass._codegen_instantiation(
             _i64p_s = _i64_s.as_pointer();
             _raw_s = self.builder.bitcast(obj_ptr, _i8p_s, name="obj_raw_s");
             _dtor_slot_s = self.builder.gep(
-                _raw_s, [ir.Constant(_i64_s, -8)], name="obj_dtor_slot"
+                _raw_s, [ir.Constant(_i64_s, HDR_DTOR_OFF)], name="obj_dtor_slot"
             );
             _dtor_slot_i64_s = self.builder.bitcast(
                 _dtor_slot_s, _i64p_s, name="obj_dtor_i64p"
@@ -1027,7 +1181,7 @@ impl NaIRGenPass._codegen_instantiation(
 
     _rep_idx = self.osp_reports_field.get(type_name);
     if _rep_idx is not None {
-        _rep_h = self.list_helpers.get("i64");
+        _rep_h = self.list_helpers.get("jacval");
         if _rep_h is not None {
             _rep_list = self._rc_call_with_ctx(
                 _rep_h["new"], [], op="new", loc="", name="reports.init"
@@ -1049,98 +1203,109 @@ impl NaIRGenPass._codegen_instantiation(
     field_indices = self.struct_field_indices.get(type_name, {});
     field_types = self.struct_field_types.get(type_name, {});
     field_defaults = self.struct_field_defaults.get(type_name, {});
-    opaque_fields = self.struct_field_opaque.get(type_name, set());
+    foreign_fields = self.struct_field_foreign.get(type_name, set());
 
     set_fields: set[str] = set();
-    params = (nd.params or []) if _is_call else [];
+    _field_inits: list = list(_pos_field_pairs);
     for param in params {
         if isinstance(param, uni.KWPair) {
-            key_name = param.key.sym_name if param.key else None;
-            if key_name is None or key_name not in field_indices {
-                continue;
+            _kn = param.key.sym_name if param.key else None;
+            if _kn is not None {
+                _field_inits.append((_kn, param.value));
             }
-
-            if key_name in opaque_fields {
-                continue;
-            }
-            val = self._codegen_expr(param.value);
-            if val is None {
-                ftype_probe = field_types.get(key_name);
-                if ftype_probe is not None
-                and isinstance(ftype_probe, ir.PointerType) {
-                    for (dict_key, dtype) in self.dict_types.items() {
-                        if ftype_probe == dtype.as_pointer() {
-                            helpers = self.dict_helpers.get(dict_key);
+        }
+    }
+    for (key_name, init_expr) in _field_inits {
+        if key_name not in field_indices or key_name in set_fields {
+            continue;
+        }
+        if key_name in foreign_fields {
+            continue;
+        }
+        val = self._codegen_expr(init_expr);
+        if val is None {
+            ftype_probe = field_types.get(key_name);
+            if ftype_probe is not None and isinstance(ftype_probe, ir.PointerType) {
+                for (dict_key, dtype) in self.dict_types.items() {
+                    if ftype_probe == dtype.as_pointer() {
+                        helpers = self.dict_helpers.get(dict_key);
+                        if helpers is not None {
+                            val = self.builder.call(
+                                helpers["new"], [], name=f"dict.ctor.{key_name}"
+                            );
+                        }
+                        break;
+                    }
+                }
+                if val is None {
+                    for (elem_key, ltype) in self.list_types.items() {
+                        if ftype_probe == ltype.as_pointer() {
+                            helpers = self.list_helpers.get(elem_key);
                             if helpers is not None {
                                 val = self.builder.call(
-                                    helpers["new"], [], name=f"dict.ctor.{key_name}"
+                                    helpers["new"], [], name=f"list.ctor.{key_name}"
                                 );
                             }
                             break;
                         }
                     }
-                    if val is None {
-                        for (elem_key, ltype) in self.list_types.items() {
-                            if ftype_probe == ltype.as_pointer() {
-                                helpers = self.list_helpers.get(elem_key);
-                                if helpers is not None {
-                                    val = self.builder.call(
-                                        helpers["new"], [], name=f"list.ctor.{key_name}"
-                                    );
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-                if val is None {
-                    continue;
                 }
             }
-            idx = field_indices[key_name];
-            ftype = field_types[key_name];
-
-            _is_clib_cb = (
-                type_name in self.clib_vtable_structs
-                and isinstance(ftype, ir.PointerType)
-                and isinstance(ftype.pointee, ir.FunctionType)
-            );
-            if _is_clib_cb {
-                val = self._clib_coerce_callback(val, ftype);
-            } else {
-                val = self._coerce_type(val, ftype);
+            if val is None {
+                continue;
             }
+        }
+        idx = field_indices[key_name];
+        ftype = field_types[key_name];
 
-            if not _vt_struct {
-                self._emit_take_ref(
-                    val,
-                    op="ctor_field",
-                    loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
-                        if nd.loc
-                        else 0}"
-                );
-            }
-            field_ptr = self.builder.gep(
+        if key_name in self.struct_field_inline.get(type_name, set()) {
+            _inl_fp = self.builder.gep(
                 obj_ptr,
                 [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
                 name=f"field.{key_name}"
             );
-            self.builder.store(val, field_ptr);
+            self._store_inline_field(type_name, key_name, _inl_fp, val, False);
             set_fields.add(key_name);
+            continue;
         }
+
+        _is_clib_cb = (
+            type_name in self.clib_vtable_structs
+            and isinstance(ftype, ir.PointerType)
+            and isinstance(ftype.pointee, ir.FunctionType)
+        );
+        if _is_clib_cb {
+            val = self._clib_coerce_callback(val, ftype);
+        } else {
+            val = self._coerce_type(val, ftype);
+        }
+
+        if not _vt_struct {
+            self._emit_take_ref(
+                val,
+                op="ctor_field",
+                loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                    if nd.loc
+                    else 0}"
+            );
+        }
+        field_ptr = self.builder.gep(
+            obj_ptr,
+            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
+            name=f"field.{key_name}"
+        );
+        self.builder.store(val, field_ptr);
+        set_fields.add(key_name);
     }
 
     for (fname, default_expr) in field_defaults.items() {
-        if fname in opaque_fields {
-            continue;
-        }
         if fname not in set_fields {
             val = self._codegen_expr(default_expr);
 
             if val is None {
                 ftype_probe = field_types.get(fname);
                 if ftype_probe is not None
-                and isinstance(ftype_probe, ir.PointerType) {
+                    and isinstance(ftype_probe, ir.PointerType) {
                     for (dict_key, dtype) in self.dict_types.items() {
                         if ftype_probe == dtype.as_pointer() {
                             helpers = self.dict_helpers.get(dict_key);
@@ -1166,6 +1331,20 @@ impl NaIRGenPass._codegen_instantiation(
                         }
                     }
                 }
+            }
+            if val is not None
+                and fname in self.struct_field_inline.get(type_name, set()) {
+                _inl_fp = self.builder.gep(
+                    obj_ptr,
+                    [
+                        ir.Constant(ir.IntType(32), 0),
+                        ir.Constant(ir.IntType(32), field_indices[fname])
+                    ],
+                    name=f"field.{fname}"
+                );
+                self._store_inline_field(type_name, fname, _inl_fp, val, False);
+                set_fields.add(fname);
+                continue;
             }
             if val is not None {
                 idx = field_indices[fname];
@@ -1205,7 +1384,8 @@ impl NaIRGenPass._codegen_instantiation(
     for (fname, idx) in field_indices.items() {
         if fname not in set_fields {
             ftype = field_types[fname];
-            if isinstance(ftype, ir.PointerType) {
+            if isinstance(ftype, ir.PointerType)
+                or fname in self.struct_field_inline.get(type_name, set()) {
                 zero_val = ir.Constant(ftype, None);
             } else {
                 zero_val = ir.Constant(ftype, 0);
@@ -1316,6 +1496,41 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if method_name is None {
         return None;
     }
+    if method_name == "partition"
+        and (
+            self._type_key_of(trailer.target) == "Region"
+            or (target_name is not None and target_name in self.region_handle_vars)
+        ) {
+        self._emit_arena_helpers();
+        _pt_recv = self._codegen_expr(trailer.target);
+        if _pt_recv is None or self.region_partition_fn is None {
+            return None;
+        }
+        _pt_i8p = ir.IntType(8).as_pointer();
+        if _pt_recv.type != _pt_i8p {
+            _pt_recv = self.builder.bitcast(_pt_recv, _pt_i8p, name="part.hdl");
+        }
+        return self.builder.call(
+            self.region_partition_fn, [_pt_recv], name="region.part"
+        );
+    }
+    if (
+        method_name in ("get", "keys", "values", "items", "setdefault", "update", "pop")
+        and self._type_key_of(trailer.target) in ("any", "Any")
+    ) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="method",
+            name=f"{method_name} (on an `any` receiver)",
+            help_text=(
+                "Method calls on an `any`-typed dict are not lowered natively "
+                "yet; annotate the receiver with a concrete dict[...] type or "
+                "move this code to a @sv/Python context."
+            )
+        );
+        return None;
+    }
 
     if (
         target_name is not None
@@ -1329,6 +1544,24 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 _sfull = _cand;
                 break;
             }
+        }
+        if _sfull is not None
+            and (
+                _sfull in self._native_skipped_methods
+                or _sfull not in self.method_funcs
+            ) {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="method",
+                name=_sfull,
+                help_text=(
+                    f"'{method_name}' has no native lowering and was demoted "
+                    f"to its Python implementation; it cannot be called from "
+                    f"native code. Call it from a Python/@sv context instead."
+                )
+            );
+            return None;
         }
         if _sfull is not None {
             _sfunc = self.method_funcs[_sfull];
@@ -1430,7 +1663,25 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         and self?._native_stdlib_modules
         and "os" in self._native_stdlib_modules
     ) {
+        if method_name not in NATIVE_OSPATH_FUNCS {
+            self.emit(E5090, node_override=nd, kind="os.path member", name=method_name);
+            return None;
+        }
         return self._emit_ospath_call(method_name, nd);
+    }
+
+    if (
+        isinstance(trailer.target, uni.AtomTrailer)
+        and trailer.target.is_attr
+        and self._get_name(trailer.target.target) == "os"
+        and self._get_name(trailer.target.right) == "environ"
+        and self?._native_stdlib_modules
+        and "os" in self._native_stdlib_modules
+    ) {
+        _env_res = self._emit_os_environ_call(method_name, nd);
+        if _env_res is not None {
+            return _env_res;
+        }
     }
 
     if (
@@ -1490,17 +1741,46 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
 
     list_spec = self._list_spec_of(trailer.target);
+    if list_spec == "u8" and method_name in ("append", "extend") {
+        _ba_recv = self._codegen_expr(trailer.target);
+        if _ba_recv is not None {
+            _ba_res = self._dispatch_bytearray_method(method_name, _ba_recv, nd);
+            if _ba_res is not None {
+                return _ba_res;
+            }
+        }
+    }
     if list_spec is not None {
         list_val = self._codegen_expr(trailer.target);
         if list_val is not None {
             _shape_spec = self._infer_list_elem_type(list_val);
             elem_type_name = _shape_spec if _shape_spec is not None else list_spec;
             arg_vals = self._codegen_call_args(nd);
+            _orig_args = list(arg_vals);
+
+            _prep_idx = -1;
+            if method_name == "append" and arg_vals {
+                _prep_idx = 0;
+            } elif method_name == "insert" and len(arg_vals) > 1 {
+                _prep_idx = 1;
+            }
+            if _prep_idx >= 0 {
+                _prep_params = list(nd.params or []);
+                if _prep_idx < len(_prep_params) {
+                    _prep_e = _prep_params[_prep_idx];
+                    _prep_e = (
+                        _prep_e.value if isinstance(_prep_e, uni.KWPair) else _prep_e
+                    );
+                    arg_vals[_prep_idx] = self._nogc_elem_prep(
+                        _prep_e, arg_vals[_prep_idx]
+                    );
+                }
+            }
 
             _elem_struct = self.var_list_elem_struct.get(target_name);
             if _elem_struct is not None
-            and isinstance(_elem_struct, ir.PointerType)
-            and isinstance(_elem_struct.pointee, ir.LiteralStructType) {
+                and isinstance(_elem_struct, ir.PointerType)
+                and isinstance(_elem_struct.pointee, ir.LiteralStructType) {
                 _tidx = -1;
                 if method_name == "append" and arg_vals {
                     _tidx = 0;
@@ -1533,6 +1813,9 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
             self._clear_rc_ctx();
             if result is not None {
+                if method_name == "insert" {
+                    self._release_owned_args(_orig_args, op="list_method_arg");
+                }
                 return result;
             }
         }
@@ -1544,6 +1827,16 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         set_val = self._codegen_expr(trailer.target);
         if set_val is not None {
             arg_vals = self._codegen_call_args(nd);
+            if method_name == "add" and arg_vals {
+                _sprep_params = list(nd.params or []);
+                if _sprep_params {
+                    _sprep_e = _sprep_params[0];
+                    _sprep_e = (
+                        _sprep_e.value if isinstance(_sprep_e, uni.KWPair) else _sprep_e
+                    );
+                    arg_vals[0] = self._nogc_elem_prep(_sprep_e, arg_vals[0]);
+                }
+            }
             result = self._dispatch_primitive_method(
                 "set", method_name, set_val, arg_vals, elem_type_name
             );
@@ -1579,7 +1872,8 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
     if dict_type_key is not None {
         dict_val = self._codegen_expr(trailer.target);
-        if dict_val is not None {
+        dict_type_key = self._dict_key_reconcile(dict_type_key, dict_val);
+        if dict_val is not None and dict_type_key is not None {
             arg_vals = self._codegen_call_args(nd);
             result = self._dispatch_primitive_method(
                 "dict", method_name, dict_val, arg_vals, dict_type_key
@@ -1657,7 +1951,11 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
 
     if method_name in self._primitive_method_names("str") {
-        str_val = self._codegen_expr(trailer.target);
+        str_val = self._str_norm(self._codegen_expr(trailer.target));
+        if str_val is not None
+            and self._opt_payload_of(str_val.type) == ir.IntType(8).as_pointer() {
+            str_val = self._coerce_type(str_val, ir.IntType(8).as_pointer());
+        }
         if str_val is not None and str_val.type == ir.IntType(8).as_pointer() {
             arg_vals = self._codegen_call_args(nd);
             result = self._dispatch_primitive_method(
@@ -1704,6 +2002,32 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     }
 
     func = self._resolve_method(type_name, method_name);
+    _is_mono_method = False;
+    if func is None {
+        _gm_owner: (str | None) = None;
+        for _gm_cur in self._mro_of(type_name) {
+            if f"{_gm_cur}.{method_name}" in self._generic_methods {
+                _gm_owner = _gm_cur;
+                break;
+            }
+        }
+        if _gm_owner is not None {
+            _gm_errs = len(self.errors_had);
+            func = self._instantiate_generic_method(nd, _gm_owner, method_name);
+            if func is None {
+                if len(self.errors_had) == _gm_errs {
+                    self.emit(
+                        E5092,
+                        node_override=nd,
+                        kind="method",
+                        name=f"{_gm_owner}.{method_name}"
+                    );
+                }
+                return None;
+            }
+            _is_mono_method = True;
+        }
+    }
     _demoted = False;
     if func is None {
         if f"{type_name}.{method_name}" in self._native_skipped_methods {
@@ -1711,7 +2035,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         } else {
             _owner = self._resolve_method_owner(type_name, method_name);
             if _owner is not None
-            and f"{_owner}.{method_name}" in self._native_skipped_methods {
+                and f"{_owner}.{method_name}" in self._native_skipped_methods {
                 _demoted = True;
             }
         }
@@ -1739,6 +2063,7 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if obj_val is None {
         return None;
     }
+    obj_val = self._opt_unwrap_attr(obj_val);
 
     if isinstance(obj_val.type, ir.PointerType) {
         null_ptr = ir.Constant(obj_val.type, None);
@@ -1750,11 +2075,10 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         );
     }
 
-    args: list[ir.Value] = [obj_val] + self._codegen_bound_args(
-        nd, func, self_offset=1
-    );
+    args: list[ir.Value] = [obj_val]
+        + self._codegen_bound_args(nd, func, self_offset=1);
 
-    if self._arch_has_vtable(type_name) {
+    if self._arch_has_vtable(type_name) and not _is_mono_method {
         result = self._codegen_virtual_call(obj_val, method_name, args, type_name);
         if result is not None {
             if isinstance(func.return_value.type, ir.VoidType) {
@@ -1774,6 +2098,8 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         }
     }
     result = self.builder.call(func, coerced, name=f"call.{method_name}");
+
+    self._release_owned_args(coerced, op="call_arg");
 
     if isinstance(func.return_value.type, ir.VoidType) {
         return ir.Constant(ir.IntType(64), 0);
@@ -1868,6 +2194,21 @@ impl NaIRGenPass._emit_default_obj_repr(val: ir.Value, type_name: str) -> ir.Val
     return self._mark_owned(buf);
 }
 
+impl NaIRGenPass._opt_unwrap_attr(obj_val: ir.Value) -> ir.Value {
+    _ua_opt = self._opt_payload_of(obj_val.type);
+    if _ua_opt is None {
+        return obj_val;
+    }
+    _ua_tag = self.builder.extract_value(obj_val, 0, name="attr.opt.tag");
+    _ua_none = self.builder.icmp_signed(
+        "==", _ua_tag, ir.Constant(ir.IntType(8), 0), name="attr.opt.none"
+    );
+    self._emit_runtime_raise(
+        _ua_none, "AttributeError", "'NoneType' object has no attribute"
+    );
+    return self.builder.extract_value(obj_val, 1, name="attr.opt.val");
+}
+
 impl NaIRGenPass._codegen_field_access(
     obj_val: ir.Value, field_name: str, type_name: str
 ) -> (ir.Value | None) {
@@ -1875,6 +2216,7 @@ impl NaIRGenPass._codegen_field_access(
     if field_indices is None or field_name not in field_indices {
         return None;
     }
+    obj_val = self._opt_unwrap_attr(obj_val);
 
     if isinstance(obj_val.type, ir.IntType) and (type_name in self.struct_types) {
         obj_val = self.builder.inttoptr(
@@ -1884,8 +2226,8 @@ impl NaIRGenPass._codegen_field_access(
 
     target_struct = self.struct_types.get(type_name);
     if target_struct is not None
-    and isinstance(obj_val.type, ir.PointerType)
-    and obj_val.type.pointee is not target_struct {
+        and isinstance(obj_val.type, ir.PointerType)
+        and obj_val.type.pointee is not target_struct {
         obj_val = self.builder.bitcast(
             obj_val, target_struct.as_pointer(), name=f"narrow.{type_name}"
         );
@@ -1906,11 +2248,62 @@ impl NaIRGenPass._codegen_field_access(
         [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
         name=f"field.{field_name}.ptr"
     );
+    if field_name in self.struct_field_inline.get(type_name, set()) {
+        return field_ptr;
+    }
     return self.builder.load(field_ptr, name=f"field.{field_name}");
 }
 
+impl NaIRGenPass._hasvar_is_own(var: uni.UniNode) -> bool {
+    _tt = var?.type_tag;
+    if _tt is None {
+        return False;
+    }
+    if _tt.ownership == OwnershipKind.OWN {
+        return True;
+    }
+    _inner = _tt.tag;
+    return isinstance(_inner, uni.UnaryExpr) and _inner.ownership == OwnershipKind.OWN;
+}
+
+impl NaIRGenPass._store_inline_field(
+    type_name: str,
+    fname: str,
+    field_ptr: ir.Value,
+    value: (ir.Value | None),
+    drop_old: bool
+) -> None {
+    i8p = ir.IntType(8).as_pointer();
+    _ftype = self.struct_field_types.get(type_name, {}).get(fname);
+    _pname = getattr(_ftype, "name", "") or "";
+    if drop_old and _pname {
+        _dropf = self._emit_struct_drop_fields_fn(_pname);
+        if _dropf is not None {
+            self.builder.call(
+                _dropf, [self.builder.bitcast(field_ptr, i8p, name=f"inl.{fname}.old")]
+            );
+        }
+    }
+    if value is None {
+        return;
+    }
+    if isinstance(value.type, ir.PointerType) {
+        _src = self.builder.load(value, name=f"inl.{fname}.src");
+        self.builder.store(_src, field_ptr);
+        _free = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
+        self.builder.call(
+            _free, [self.builder.bitcast(value, i8p, name=f"inl.{fname}.shell")]
+        );
+    } else {
+        self.builder.store(value, field_ptr);
+    }
+}
+
 impl NaIRGenPass._codegen_field_aug_assign(
-    target: uni.AtomTrailer, rhs: ir.Value, aug_op: str
+    target: uni.AtomTrailer,
+    rhs: ir.Value,
+    aug_op: str,
+    rhs_node: (uni.Expr | None) = None
 ) -> (ir.Value | None) {
     field_name = self._get_name(target.right);
     if field_name is None {
@@ -1933,68 +2326,30 @@ impl NaIRGenPass._codegen_field_aug_assign(
         return None;
     }
 
+    scalar = self._apply_scalar_aug_op(current, rhs, aug_op, rhs_node);
+    if scalar is not None {
+        return scalar;
+    }
+
     coerced = self._coerce_type(rhs, current.type);
 
-    if aug_op == "+=" {
-        if isinstance(current.type, ir.IntType) {
-            return self.builder.add(current, coerced, name="field.add");
-        } elif isinstance(current.type, ir.DoubleType) {
-            return self.builder.fadd(current, coerced, name="field.fadd");
-        } elif isinstance(current.type, ir.PointerType) {
-            result = self._emit_binary_op(Tok.PLUS, current, coerced);
-            return result if result is not None else current;
-        }
-    } elif aug_op == "-=" {
-        if isinstance(current.type, ir.IntType) {
-            return self.builder.sub(current, coerced, name="field.sub");
-        } elif isinstance(current.type, ir.DoubleType) {
-            return self.builder.fsub(current, coerced, name="field.fsub");
-        }
-    } elif aug_op == "*=" {
-        if isinstance(current.type, ir.IntType) {
-            return self.builder.mul(current, coerced, name="field.mul");
-        } elif isinstance(current.type, ir.DoubleType) {
-            return self.builder.fmul(current, coerced, name="field.fmul");
-        }
-    } elif aug_op == "//=" {
-        if isinstance(current.type, ir.IntType) {
-            return self.builder.sdiv(current, coerced, name="field.sdiv");
-        }
-    } elif aug_op == "%=" {
-        if isinstance(current.type, ir.IntType) {
-            return self.builder.srem(current, coerced, name="field.srem");
-        }
-    } elif aug_op == "&=" {
-        if isinstance(current.type, ir.IntType) {
-            return self.builder.and_(current, coerced, name="field.and");
-        }
-    } elif aug_op == "|=" {
-        if isinstance(current.type, ir.IntType) {
-            return self.builder.or_(current, coerced, name="field.or");
-        }
-    } elif aug_op == "^=" {
-        if isinstance(current.type, ir.IntType) {
-            return self.builder.xor(current, coerced, name="field.xor");
-        }
-    } elif aug_op == "<<=" {
-        if isinstance(current.type, ir.IntType) {
-            return self.builder.shl(current, coerced, name="field.shl");
-        }
-    } elif aug_op == ">>=" {
-        if isinstance(current.type, ir.IntType) {
-            return self.builder.ashr(current, coerced, name="field.ashr");
-        }
+    if aug_op == "+=" and isinstance(current.type, ir.PointerType) {
+        result = self._emit_binary_op(Tok.PLUS, current, coerced);
+        return result if result is not None else current;
     }
 
     return coerced;
 }
 
 impl NaIRGenPass._codegen_field_assign(
-    target: uni.AtomTrailer, value: ir.Value
+    target: uni.AtomTrailer, value: ir.Value, skip_narrow_coerce: bool = False
 ) -> None {
     _fa_errs = len(self.errors_had);
     field_name = self._get_name(target.right);
     obj_val = self._codegen_expr(target.target);
+    if obj_val is not None {
+        obj_val = self._opt_unwrap_attr(obj_val);
+    }
     type_name: (str | None) = self._struct_name_of(target.target);
     if type_name is None and obj_val is not None {
         type_name = self._infer_type_name(obj_val);
@@ -2023,6 +2378,16 @@ impl NaIRGenPass._codegen_field_assign(
     idx = field_indices[field_name];
     ftype = field_types[field_name];
 
+    if field_name in self.struct_field_inline.get(type_name, set()) {
+        _inl_fp = self.builder.gep(
+            obj_val,
+            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
+            name=f"field.{field_name}.ptr"
+        );
+        self._store_inline_field(type_name, field_name, _inl_fp, value, True);
+        return;
+    }
+
     _vt_struct = type_name in self.clib_vtable_structs;
     _is_clib_cb = (
         _vt_struct
@@ -2031,7 +2396,7 @@ impl NaIRGenPass._codegen_field_assign(
     );
     if _is_clib_cb {
         value = self._clib_coerce_callback(value, ftype);
-    } else {
+    } elif not (skip_narrow_coerce and value.type != ftype) {
         value = self._coerce_type(value, ftype);
     }
     field_ptr = self.builder.gep(
@@ -2056,6 +2421,21 @@ impl NaIRGenPass._codegen_field_assign(
                 if target.loc
                 else 0}"
         );
+    }
+    _fs_opt = self._opt_payload_of(ftype);
+    if _fs_opt is not None and isinstance(_fs_opt, ir.PointerType) and not _vt_struct {
+        _fs_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{target.loc.first_line
+            if target.loc
+            else 0}";
+        _fs_new_pv = self.builder.extract_value(
+            value, 1, name=f"field.{field_name}.newpv"
+        );
+        self._emit_take_ref(_fs_new_pv, op="field_set", loc=_fs_loc);
+        _fs_old = self.builder.load(field_ptr, name=f"field.{field_name}.old");
+        _fs_old_pv = self.builder.extract_value(
+            _fs_old, 1, name=f"field.{field_name}.oldpv"
+        );
+        self._emit_rc_release_simple(_fs_old_pv, op="field_set", loc=_fs_loc);
     }
     self.builder.store(value, field_ptr);
 }

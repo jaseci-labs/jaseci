@@ -156,17 +156,15 @@ impl wait_for_pod_phase(
         }
         if (phase == 'Failed') {
             raise RuntimeError(
-                f"Sync pod '{pod_name}' entered Failed state." + describe_pod_status(
-                    core_v1, namespace, pod_name, pod
-                )
+                f"Sync pod '{pod_name}' entered Failed state."
+                    + describe_pod_status(core_v1, namespace, pod_name, pod)
             );
         }
         time.sleep(2);
     }
     raise TimeoutError(
-        f"Timed out while waiting for pod '{pod_name}' to reach phase {target_phases}." + describe_pod_status(
-            core_v1, namespace, pod_name, last_pod
-        )
+        f"Timed out while waiting for pod '{pod_name}' to reach phase {target_phases}."
+            + describe_pod_status(core_v1, namespace, pod_name, last_pod)
     );
 }
 
@@ -184,19 +182,18 @@ impl describe_pod_status(
             if (cond.status or '') != 'True' and cond.reason {
                 lines.append(
                     f"condition {cond.type}={cond.status} ({cond.reason}: {cond.message
-                    or ''})"
+                        or ''})"
                 );
             }
         }
-        container_states = (pod.status.init_container_statuses or []) + (
-            pod.status.container_statuses or []
-        );
+        container_states = (pod.status.init_container_statuses or [])
+            + (pod.status.container_statuses or []);
         for cs in container_states {
             waiting = cs.state.waiting if cs.state else None;
             if waiting and waiting.reason {
                 lines.append(
                     f"container '{cs.name}' waiting: {waiting.reason} ({waiting.message
-                    or ''})"
+                        or ''})"
                 );
             }
         }
@@ -215,7 +212,7 @@ impl describe_pod_status(
                 lines.append(
                     f"pvc '{claim_name}' phase={(pvc.status.phase or '?')} "
                     f"accessModes=[{modes}] storageClass={pvc.spec.storage_class_name
-                    or '(default)'}"
+                        or '(default)'}"
                 );
             } except Exception as exc {
                 lines.append(f"(could not read pvc '{claim_name}': {exc})");
@@ -486,9 +483,8 @@ impl check_pods_restarted(
                 continue;
             }
         }
-        statuses = (pod.status.init_container_statuses or []) + (
-            pod.status.container_statuses or []
-        );
+        statuses = (pod.status.init_container_statuses or [])
+            + (pod.status.container_statuses or []);
         if not statuses {
             continue;
         }
@@ -601,15 +597,14 @@ impl check_deployment_status(
             f"[warn] RS hash lookup failed, falling back to broad pod scan: {exc}"
         );
     }
-    # rs_hashes is resolved once up front so we don't hit AppsV1 on every retry.
-    # If it was captured before the new RS's revision annotation was stamped,
-    # the old RS would win the highest-revision comparison and this hoisted
-    # read would stay wrong for the whole loop. To avoid that sticking, a
-    # detected crash is re-verified against a freshly resolved hash set
-    # before the deploy is actually failed (see _refresh_rs_hashes below).
+
     for attempt in range(1, (max_retries + 1)) {
         try {
-            response = requests.get(url, timeout=10);
+            try {
+                response = requests.get(url, timeout=10);
+            } except SSLError {
+                response = requests.get(url, timeout=10, verify=False);
+            }
             if (response.status_code == 200) {
                 return (True, "Successful");
             }
@@ -646,9 +641,8 @@ impl check_deployment_status(
         );
         for p in diag_pods.items {
             console.print(
-                f"timeout diagnostics: pod {p.metadata.name}" + describe_pod_status(
-                    diag_v1, namespace, p.metadata.name, p
-                )
+                f"timeout diagnostics: pod {p.metadata.name}"
+                    + describe_pod_status(diag_v1, namespace, p.metadata.name, p)
             );
         }
     } except Exception as diag_err {
@@ -684,11 +678,6 @@ impl ensure_namespace_exists(namespace: str) -> None {
         return;
     }
     try {
-        try {
-            config.load_kube_config();
-        } except ConfigException {
-            config.load_incluster_config();
-        }
         core_v1 = client.CoreV1Api();
         existing_ns = core_v1.read_namespace(name=namespace);
         console.print(f"Namespace '{namespace}' already exists.");

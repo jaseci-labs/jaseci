@@ -371,6 +371,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="Add the key to the TypedDict definition, or index with a key "
          "declared on the type."
      ),
+     E1044 = _err(
+         "E1044",
+         Category.TYPE,
+         "Cast target is not a type: \"{type}\"",
+         help="The right-hand side of 'as' must be a type expression, e.g. "
+         "'int', 'list[int]', or 'int | None'."
+     ),
      E1050 = _err(
          "E1050",
          Category.TYPE,
@@ -592,6 +599,15 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " TypeScript declarations (or the matching @types/<package>), or relax"
          " the setting to \"warn\"."
      ),
+     E1121 = _err(
+         "E1121",
+         Category.TYPE,
+         "Possibly-None value of type \"{type}\" used where {required} is required",
+         help="Native code requires optionals to be narrowed before use at a"
+         " site that needs the unwrapped value. Guard the value first, e.g."
+         " `if x is not None { ... }`. Equality (`==`, `!=`) and `is None`"
+         " checks operate on the optional directly and need no narrowing."
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,
@@ -660,6 +676,61 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " be reassigned, have a field written, or be borrowed `&mut`. Take an `imm` as"
          " read-only, or use an `own`/managed binding if you need to mutate."
      ),
+     W1312 = _warn(
+         "W1312",
+         Category.LINT,
+         "Owned value '{name}' silently seals into managed storage",
+         help="Passing an owned binding to an unannotated parameter moves it across"
+         " the membrane: the callee receives a managed value and '{name}' is"
+         " consumed at a distance. Write managed({name}) at the call site to make"
+         " the seal explicit, or annotate the callee parameter `own` to take"
+         " ownership intentionally."
+     ),
+     E1311 = _err(
+         "E1311",
+         Category.SEMANTIC,
+         "Cannot freeze '{name}': the value may be aliased",
+         help="the `imm` operator needs a statically unique operand so the frozen"
+         " value can never be written through another handle: apply it to an `own`"
+         " binding (it is consumed) or to a fresh expression. Copy the value first,"
+         " or take ownership of it, before freezing."
+     ),
+     E1313 = _err(
+         "E1313",
+         Category.SEMANTIC,
+         "`flow for` does not allow {name}",
+         help="the body of a `flow for` runs as independent tasks over disjoint"
+         " elements, and the loop's closing brace is the join: control flow may not"
+         " cross it (`continue` skips one element; `break`/`return` cannot), the"
+         " collection must be lent (`&xs` or `&mut xs`) so disjointness is checkable,"
+         " and nesting `flow for` is not supported yet. Restructure the loop, or use"
+         " a plain `for` when sequential semantics are what you want."
+     ),
+     E1314 = _err(
+         "E1314",
+         Category.SEMANTIC,
+         "`partition(n)` does not allow {name}",
+         help="`partition(n)` is sugar for n per-child `partition()` calls: the"
+         " count must be an integer literal, the call must be unpacked as"
+         " `(a, b, ...) = r.partition(n)` with exactly n plain names, and the"
+         " receiver must be an owned `Region` handle. Each unpacked child is an"
+         " independently affine owned handle riding the same reabsorb/zombie"
+         " contract. Use the per-child call form for dynamic counts."
+     ),
+     E1315 = _err(
+         "E1315",
+         Category.SEMANTIC,
+         "A string view does not allow {name}",
+         help="in a nogc-enforced module a step-free string slice is a zero-copy"
+         " view into its base: it is usable locally and returnable only when it"
+         " derives from the function's single `&`/`imm` parameter (or a method's"
+         " `self`), so every caller knows which argument the result borrows."
+         " Views may not be stored into containers, fields, or module globals,"
+         " may not be bound `own`, and a function with two or more borrowable"
+         " parameters may not return one. Materialize an owned copy with a"
+         " stepped slice (`s[a:b:1]`) where the value must escape.",
+         blocks_codegen=True
+     ),
      W1310 = _warn(
          "W1310",
          Category.LINT,
@@ -720,7 +791,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SEMANTIC,
          "'{name}' has retaining or aliasing semantics not supported in a nogc-enforced module ({provenance})",
          help="This builtin or construct retains or aliases its heap arguments, which"
-         " the zero-RC contract cannot express yet. Use an owned-compatible"
+         " the zero-RC contract cannot express yet. Containers of str elements"
+         " are supported: fresh strings (f-strings, concats, slices, call"
+         " results) move into the container and named bindings or literals are"
+         " copied in; a borrowed or field-read str must be copied explicitly"
+         " (xs.append(f\"{{p}}\")). Containers of archetypes or nested"
+         " containers stay on the ownership roadmap: use an owned-compatible"
          " alternative, or move this code outside the enforced module.",
          blocks_codegen=True
      ),
@@ -756,6 +832,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "W1104",
          Category.IMPORT,
          "Use the lowercase 'any' keyword instead of importing 'Any' from typing"
+     ),
+     W1105 = _warn(
+         "W1105",
+         Category.IMPORT,
+         "Local module '{name}' shadows the npm package of the same name",
+         help="A bare module name resolves to the local Jac module first. Quote the name (import from \"{name}\") to import the npm package instead."
      ),
      W2001 = _warn("W2001", Category.SEMANTIC, "Name '{name}' may be undefined"),
      W2002 = _warn("W2002", Category.SEMANTIC, "Unreachable code detected"),
@@ -1026,6 +1108,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "another project.",
          help="Protected (`:protect`) names are visible only within their own project (the directory tree rooted at its jac.toml). Mark '{name}' `:pub` to export it as a library endpoint."
      ),
+     E2084 = _err(
+         "E2084",
+         Category.SEMANTIC,
+         "An expression without a trailing ';' is only treated as an "
+         "implicit return when it is the final statement of a function, "
+         "ability, or lambda body.",
+         help="Add ';' to discard the expression's value, or use an explicit `return` if the value should leave the enclosing function from this position."
+     ),
      W3001 = _warn(
          "W3001",
          Category.LINT,
@@ -1263,6 +1353,20 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Could not generate JavaScript for builtin '{name}': {error}"
      ),
+     E5017 = _err(
+         "E5017",
+         Category.CODEGEN,
+         "{construct} is not supported by client codegen",
+         help="This statement has no ECMAScript lowering yet, and without this error it would be silently dropped from the client bundle. Rewrite it using supported constructs, or move the logic to a server or native codespace.",
+         blocks_codegen=True
+     ),
+     E5018 = _err(
+         "E5018",
+         Category.CODEGEN,
+         "match pattern {construct} is not supported by client codegen",
+         help="This pattern shape has no ECMAScript lowering yet (e.g. a binding inside an or-pattern, a mapping rest-capture, or a class pattern whose field order cannot be resolved). Restructure the pattern or move the match to a server or native codespace.",
+         blocks_codegen=True
+     ),
      W5013 = _warn(
          "W5013",
          Category.CODEGEN,
@@ -1304,6 +1408,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "'{existing_module}' and '{new_module}'. "
          "Mark one as :priv or rename to avoid a runtime crash."
      ),
+     E5027 = _err(
+         "E5027",
+         Category.CODEGEN,
+         "Native module '{path}' was built with different compile options "
+         "(cached fingerprint {cached_fp}, current build {current_fp}); "
+         "refusing a mixed-options link.",
+         help="Every module in a native link must carry the same codegen options fingerprint (gc mode, nogc enforcement, target triple, opt level, debug gates). Rebuild the module under the current options, or scrub the stale native cache with `jac nacompile --scrub`."
+     ),
      E5030 = _err(
          "E5030",
          Category.CODEGEN,
@@ -1342,7 +1454,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5090",
          Category.CODEGEN,
          "Native pathway does not yet support {kind} '{name}'",
-         help="This Jac construct is supported on the @sv/Python pathway but is not implemented in the .na.jac native compiler yet. Move the code to a non-native context, or extend NaIRGenPass to handle this node type."
+         help="This Jac construct is supported on the @sv/Python pathway but is not implemented in the native compiler yet. Move the code to a non-native context, or extend NaIRGenPass to handle this node type."
      ),
      E5091 = _err(
          "E5091",
@@ -1356,12 +1468,71 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Native lowering failed for {kind} '{name}'",
          help="The construct is within the native capability set, but this specific shape (its types, values, or runtime bindings) could not be lowered by NaIRGenPass. Adjust the shape, add type annotations, or move the code to a non-native context. Statically-known unsupported constructs are reported as E5090 by the capability check instead."
      ),
+     E5096 = _err(
+         "E5096",
+         Category.CODEGEN,
+         "Client pathway does not yet support {kind}",
+         help="This Jac construct is supported on the server/Python pathway but has no ES lowering yet; previously it was dropped silently from the client bundle, which produced wrong behavior at runtime. Move the element to a server context (or restructure without the construct)."
+     ),
+     E5097 = _err(
+         "E5097",
+         Category.CODEGEN,
+         "Client pathway failed to lower {kind} in an expression position",
+         help="The ES backend produced no JavaScript for this expression, so without this error it would silently become 'undefined' in the client bundle and only misbehave at runtime in the browser. The expression's shape is outside what the client lowering handles; adjust the shape or move the code to a server context."
+     ),
+     E5094 = _err(
+         "E5094",
+         Category.CODEGEN,
+         "Graph query filter outside the closed sublanguage: {reason}",
+         help="Predicates inside [?...] on a graph reference must be "
+         "`field <op> value` with op one of ==, !=, <, <=, >, >=, in, "
+         "where the value is a scalar expression evaluated once at query "
+         "construction. Move anything else to a list comprehension over "
+         "the query result, where its object-space cost is visible.",
+         blocks_codegen=True
+     ),
+     E5095 = _err(
+         "E5095",
+         Category.CODEGEN,
+         "Invalid call to reserved intrinsic '{name}': {reason}",
+         help="Double-underscore names in the compiler's intrinsic registry are reserved: every call lowers to the registered intrinsic, whose signature is fixed by the registry. Match the registered arity and operand types; an invalid intrinsic call never falls back to a user definition or a default value."
+     ),
+     E5093 = _err(
+         "E5093",
+         Category.CODEGEN,
+         "Type '{type}' on {what} of '{name}' cannot cross the native->Python call boundary",
+         help="Native code calling a Python-context function marshals through a fixed ctypes callback table: int (c_int64), float (c_double), bool (c_bool), str (c_char_p), sized ints, plus None returns. Any other type would be reinterpreted as a raw c_int64 and produce garbage values at runtime. Use a supported primitive at the boundary, or move the callee into the native context. (Python calling INTO native code is unaffected: that direction goes through the native marshal bridge, which handles lists, structs, and enums.)"
+     ),
      E5080 = _err(
          "E5080",
          Category.CODEGEN,
          "Argument '{name}' for server function '{func}' is given both positionally and by keyword"
      ),
      E5081 = _err("E5081", Category.CODEGEN, "Unknown client framework '{framework}'"),
+     E5083 = _err(
+         "E5083",
+         Category.CODEGEN,
+         "na import targets collide on wasm artifact '{stem}.wasm': '{path}' vs '{other}'",
+         help="Every `na import` target emits /static/<stem>.wasm named by its file stem, and set_na_env / __na_bind address the module by that stem, so two different native modules with the same basename would overwrite each other's artifact and bind to the wrong exports. Rename one of the files."
+     ),
+     E5082 = _err(
+         "E5082",
+         Category.CODEGEN,
+         "Client code imports '{name}' from '{module}', but '{name}' has no client-side presence",
+         help="A plain import into client code can only reference client declarations; server `def:pub` endpoints bridge automatically over RPC. Make '{name}' a `def:pub` endpoint, mark it (or its module) client, or move it into client code."
+     ),
+     E5085 = _err(
+         "E5085",
+         Category.CODEGEN,
+         "Internal client codegen error: declaration(s) for {names} hoisted into scope '{scope}' were never emitted",
+         help="Client codegen queued a `let` for these variables in the scope that owns their symbols, but the scope's body was built without draining the queue, so the declarations would be silently dropped and their assignments would emit bare -- a strict-mode ReferenceError at runtime. Every body builder for a scope must drain pending hoists (see _prepend_hoisted / _build_block_statement) before the scope is popped. Please report this as a jac compiler bug."
+     ),
+     E5084 = _err(
+         "E5084",
+         Category.CODEGEN,
+         "Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module",
+         help="A bare import resolves to a local Jac module, a declared or installed npm package, or the client framework's own packages; '{module}' is none of these, so it stays on the server and the client bundle never binds '{name}' -- the page fails at runtime with a ReferenceError. Install or declare the npm package in [dependencies.npm] (or quote the module: `import from \"{module}\" {{ {name} }}`), or keep the use server-side behind a `def:pub` endpoint."
+     ),
      W6001 = _warn(
          "W6001",
          Category.SEMANTIC,
@@ -1385,6 +1556,30 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SEMANTIC,
          "Use of JS-specific property '.{prop}' — use '{alternative}' for cross-codespace portability",
          help="Use Jac common builtins instead of JS-specific properties."
+     ),
+     W6005 = _warn(
+         "W6005",
+         Category.CODEGEN,
+         "Client call to server endpoint '{func}' passes function-typed parameter '{param}' — functions cannot cross the RPC boundary",
+         help="A def:pub function in a server-placed module is an HTTP endpoint whose arguments serialize over the wire. Shared client-side logic should drop ':pub' so it is placed in the browser with its callers."
+     ),
+     W6006 = _warn(
+         "W6006",
+         Category.CODEGEN,
+         "Mutable glob '{name}' is emitted into both the server and the client — each side gets an independent copy (state fork)",
+         help="Dual emission duplicates state, not just code: server writes and client writes land in different copies. Home the glob with its writers by marking it (or its module) 'sv' or 'cl', or bridge reads through a def:pub accessor."
+     ),
+     W6007 = _warn(
+         "W6007",
+         Category.CODEGEN,
+         "Client code uses server-placed function '{name}' as a value — function values cannot cross the placement boundary",
+         help="A function reference that flows into client-side data (stored, returned, or passed along) needs client presence; only calls to def:pub endpoints bridge over RPC. Drop ':pub' so the function is pulled client-side, or restructure so the client stores data instead of the function."
+     ),
+     W6008 = _warn(
+         "W6008",
+         Category.CODEGEN,
+         "Definition of '{name}' collides with the reserved native intrinsic of the same name",
+         help="'{name}' is in the compiler's intrinsic registry, so native code always lowers calls to the registered intrinsic — this definition is never called from a native context. It stays callable as an ordinary function from non-native (Python/JS) contexts; rename it if that shadowing is not intended."
      ),
      E9001 = _err("E9001", Category.ICE, "ICE: Pass {pass_name} -- {details}"),
      E9002 = _err(

@@ -26,15 +26,18 @@ class JacScaleConfig(PluginConfigBase) {
     def get_emailer_config(self: JacScaleConfig) -> dict[str, any];
     def get_auth_config(self: JacScaleConfig) -> dict[str, any];
     def get_microservices_config(self: JacScaleConfig) -> dict[str, any];
-    """True when jac.toml genuinely declares a [scale.microservices] section."""
-    def microservices_declared(self: JacScaleConfig) -> bool;
 }
 
-glob _scale_config_instance: JacScaleConfig | None = None;
+def normalize_microservices_config(
+    ms_config: dict[str, any], env_routes_fallback: bool = True
+) -> dict[str, any];
+
+glob _scale_config_instance: JacScaleConfig | None = None,
+     DEFAULT_MONGODB_TIMEOUT_MS: int = 5000,
+     _ms_enabled_deprecation_warned: bool = False;
 
 def _ws_positive(ws_config: dict, key: str, fallback: (int | float)) -> float;
 def get_scale_config(project_dir: Path | None = None) -> JacScaleConfig;
 def reset_scale_config -> None;
 
-"""Resolve the bcrypt work factor from env override or config, clamped to bcrypt's valid 4..31 range."""
 def resolve_password_hash_rounds(configured_rounds: int) -> int;

@@ -109,24 +109,15 @@ impl Serializer._serialize_value(
         };
         if val.is_populated() {
             arch = val.archetype;
-            result['archetype'] = Serializer._type_info(arch, include_type) | Serializer._serialize_attrs(
-                arch, include_type, api_mode, ref_mode, _seen
-            );
+            result['archetype'] = Serializer._type_info(arch, include_type)
+                | Serializer._serialize_attrs(
+                    arch, include_type, api_mode, ref_mode, _seen
+                );
         }
         if isinstance(val, NodeAnchor) {
             result['edges'] = [str(e.id) for e in val.edges];
 
             result['version'] = val.version;
-
-            if val.topology_index_data is not None
-            and isinstance(val.archetype, Root) {
-                import from base64 { b64encode }
-                result['topology_index_data'] = b64encode(
-                    val.topology_index_data
-                ).decode(
-                    'ascii'
-                );
-            }
         }
         if isinstance(val, EdgeAnchor) {
             result |= {
@@ -178,9 +169,8 @@ impl Serializer._serialize_value(
                     else 'walker' if isinstance(val, WalkerArchetype) else 'archetype'
             };
         }
-        return result | Serializer._serialize_attrs(
-            val, include_type, api_mode, ref_mode, _seen
-        );
+        return result
+            | Serializer._serialize_attrs(val, include_type, api_mode, ref_mode, _seen);
     }
 
     if val?.__dict__ {
@@ -288,7 +278,11 @@ impl Serializer.deserialize(data: dict[str, object]) -> (object | None) {
             }
             return instance;
         } except Exception as e {
-            logger.error(f"Failed to deserialize {type_name}: {e}");
+            if Serializer._should_warn_once(
+                "deserialize-failed", f"{cls.__module__}.{type_name}:{type(e).__name__}"
+            ) {
+                logger.error(f"Failed to deserialize {type_name}: {e}");
+            }
         }
     }
     return None;
@@ -363,17 +357,18 @@ impl Serializer.repair(data: dict[str, object], cls: type) -> tuple {
     if repaired is data and not steps {
         return (data, []);
     }
+    cls_key = f"{cls.__module__}.{cls.__name__}";
     if mode == 'detect' {
-        if steps {
+        if steps and Serializer._should_warn_once("drift-detected", cls_key) {
             logger.info(
-                f"Serializer: drift detected on {cls.__module__}.{cls.__name__} "
+                f"Serializer: drift detected on {cls_key} "
                 f"(JAC_SCHEMA_REPAIR=detect; steps not applied: {steps})"
             );
         }
         return (data, []);
     }
-    if steps {
-        logger.info(f"Serializer: repaired {cls.__module__}.{cls.__name__}: {steps}");
+    if steps and Serializer._should_warn_once("repaired", cls_key) {
+        logger.info(f"Serializer: repaired {cls_key}: {steps}");
     }
 
     return (repaired, steps);
@@ -510,18 +505,67 @@ impl Serializer._get_class(module_name: str, class_name: str) -> (type | None) {
 
     if (aliased_key := Serializer._aliases.get(key)) {
         if (cls := Serializer._registry.get(aliased_key)) {
-            logger.info(f"Serializer: resolving aliased class {key} -> {aliased_key}");
+            if Serializer._should_warn_once("alias-resolved", key) {
+                logger.info(
+                    f"Serializer: resolving aliased class {key} -> {aliased_key}"
+                );
+            }
             return cls;
         }
 
-        logger.warning(
-            f"Serializer: alias {key} -> {aliased_key} has no registered "
-            "target; cannot resolve."
-        );
+        if Serializer._should_warn_once("alias-missing", key) {
+            logger.warning(
+                f"Serializer: alias {key} -> {aliased_key} has no registered "
+                "target; cannot resolve."
+            );
+        }
         return None;
     }
-    logger.warning(f"Refused to deserialize unregistered class: {key}");
+    if Serializer._should_warn_once("unregistered", key) {
+        logger.warning(f"Refused to deserialize unregistered class: {key}");
+    }
     return None;
+}
+
+impl Serializer._should_warn_once(scope: str, key: str) -> bool {
+    dedup_key = f"{scope}:{key}";
+    seen = Serializer._warned_class_keys;
+    if dedup_key in seen {
+        return False;
+    }
+    if Serializer._warn_dedup_saturated {
+        if logger.isEnabledFor(logging.DEBUG) {
+            logger.debug(
+                f"Serializer: warning suppressed (dedup cap reached): {dedup_key}"
+            );
+        }
+        return False;
+    }
+    with Serializer._warn_lock {
+        if dedup_key in seen {
+            return False;
+        }
+        if len(seen) >= _MAX_WARNED_CLASS_KEYS {
+            if not Serializer._warn_dedup_saturated {
+                Serializer._warn_dedup_saturated = True;
+                logger.warning(
+                    f"Serializer: warning dedup cache reached {_MAX_WARNED_CLASS_KEYS} "
+                    "distinct keys; further first-occurrence warnings are suppressed "
+                    "(enable DEBUG to still see suppressed keys)."
+                );
+            }
+            return False;
+        }
+        seen.add(dedup_key);
+        return True;
+    }
+}
+
+impl Serializer._reset_warn_cache -> None {
+    with Serializer._warn_lock {
+        Serializer._warned_class_keys.clear();
+        Serializer._warn_dedup_saturated = False;
+    }
 }
 
 impl Serializer._id_to_stub(anchor_cls: type, id_str: str) -> (Anchor | None) {
@@ -550,19 +594,26 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
 
         if (arch_data := data.get('archetype')) {
             if not isinstance(arch_data, dict) {
-                logger.warning(
-                    "Serializer: archetype field is not a dict "
-                    f"({type(arch_data).__name__}); dropping anchor."
-                );
+                if Serializer._should_warn_once(
+                    "archetype-not-dict",
+                    f"{data.get('__type__', 'anchor')}.{type(arch_data).__name__}"
+                ) {
+                    logger.warning(
+                        "Serializer: archetype field is not a dict "
+                        f"({type(arch_data).__name__}); dropping anchor."
+                    );
+                }
                 return None;
             }
             archetype = Serializer._deserialize_archetype(arch_data, anchor);
             if archetype is None {
-                logger.warning(
-                    "Serializer: archetype reconstruction failed for "
-                    f"{arch_data.get('__module__')}.{arch_data.get('__type__')}; "
-                    "dropping anchor (caller should quarantine)."
-                );
+                arch_key = f"{arch_data.get('__module__')}.{arch_data.get('__type__')}";
+                if Serializer._should_warn_once("archetype-failed", arch_key) {
+                    logger.warning(
+                        "Serializer: archetype reconstruction failed for "
+                        f"{arch_key}; dropping anchor (caller should quarantine)."
+                    );
+                }
                 return None;
             }
             anchor.archetype = archetype;
@@ -588,14 +639,6 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
             );
 
             anchor.version = data.get('version', 0);
-
-            anchor.topology_index_data = None;
-            if isinstance(anchor.__dict__.get('archetype'), Root) {
-                if (topo_b64 := data.get('topology_index_data')) {
-                    import from base64 { b64decode }
-                    anchor.topology_index_data = b64decode(topo_b64);
-                }
-            }
         }
         if isinstance(anchor, EdgeAnchor) {
             anchor.is_undirected = data.get('is_undirected', False);
@@ -611,7 +654,17 @@ impl Serializer._deserialize_anchor(data: dict[str, object]) -> (Anchor | None) 
         anchor.hash = Serializer._compute_hash(anchor);
         return anchor;
     } except Exception as e {
-        logger.error(f"Failed to deserialize anchor: {e}");
+        failed_arch = data.get('archetype');
+        arch_id = (
+            f"{failed_arch.get('__module__')}.{failed_arch.get('__type__')}"
+                if isinstance(failed_arch, dict)
+                else data.get('__type__', 'anchor')
+        );
+        if Serializer._should_warn_once(
+            "anchor-failed", f"{arch_id}:{type(e).__name__}"
+        ) {
+            logger.error(f"Failed to deserialize anchor: {e}");
+        }
         return None;
     }
 }
@@ -684,6 +737,7 @@ impl Serializer._deserialize_archetype(
             target = field_types[k];
             (coerced, ok) = Serializer.coerce(deser_v, target);
             if not ok {
+                field_key = f"{module_name}.{type_name}.{k}";
                 origin = get_origin(target);
                 args = get_args(target);
                 is_optional = (
@@ -705,36 +759,50 @@ impl Serializer._deserialize_archetype(
                         }
                     }
                     if not has_default {
-                        logger.warning(
-                            f"Serializer: {module_name}.{type_name}.{k}: stored None "
-                            f"on non-Optional field {target} and no class default "
-                            "available; cannot recover."
-                        );
+                        if Serializer._should_warn_once(
+                            "stored-none-no-default", field_key
+                        ) {
+                            logger.warning(
+                                f"Serializer: {module_name}.{type_name}.{k}: stored None "
+                                f"on non-Optional field {target} and no class default "
+                                "available; cannot recover."
+                            );
+                        }
                         return None;
                     }
-                    logger.warning(
-                        f"Serializer: {module_name}.{type_name}.{k}: stored None "
-                        f"on non-Optional field {target}; restored class default."
-                    );
+                    if Serializer._should_warn_once(
+                        "stored-none-defaulted", field_key
+                    ) {
+                        logger.warning(
+                            f"Serializer: {module_name}.{type_name}.{k}: stored None "
+                            f"on non-Optional field {target}; restored class default."
+                        );
+                    }
                     setattr(arch, k, recovered);
                     assigned.add(k);
                     continue;
                 }
-                logger.warning(
-                    f"Serializer: coercion fallback on {module_name}."
-                    f"{type_name}.{k}: stored={type(deser_v).__name__}, "
-                    f"target={target}; stored value kept as-is."
-                );
+                if Serializer._should_warn_once("coercion-fallback", field_key) {
+                    logger.warning(
+                        f"Serializer: coercion fallback on {module_name}."
+                        f"{type_name}.{k}: stored={type(deser_v).__name__}, "
+                        f"target={target}; stored value kept as-is."
+                    );
+                }
             }
             setattr(arch, k, coerced);
             assigned.add(k);
         }
         if dropped {
             if mode == 'repair' {
-                logger.info(
-                    f"Serializer: preserved unknown fields in attic on "
-                    f"{module_name}.{type_name}: {sorted(dropped)}"
-                );
+                if Serializer._should_warn_once(
+                    "attic-preserved", f"{module_name}.{type_name}"
+                ) {
+                    logger.info(
+                        f"Serializer: preserved unknown fields in attic on "
+                        f"{module_name}.{type_name}: {sorted(dropped)}"
+                    );
+                }
             } else {
                 logger.debug(
                     f"Serializer: dropped removed fields on {module_name}."
@@ -750,11 +818,15 @@ impl Serializer._deserialize_archetype(
             if fd.default_factory is not MISSING {
                 setattr(arch, fd.name, fd.default_factory());
             } elif fd.default is MISSING {
-                logger.warning(
-                    f"Serializer: {module_name}.{type_name}.{fd.name}: "
-                    "required field missing from stored data and no default "
-                    "available; attribute left unset."
-                );
+                if Serializer._should_warn_once(
+                    "required-missing", f"{module_name}.{type_name}.{fd.name}"
+                ) {
+                    logger.warning(
+                        f"Serializer: {module_name}.{type_name}.{fd.name}: "
+                        "required field missing from stored data and no default "
+                        "available; attribute left unset."
+                    );
+                }
             }
         }
         if attic {
@@ -766,7 +838,11 @@ impl Serializer._deserialize_archetype(
         setattr(arch, '__jac__', anchor);
         return arch;
     } except Exception as e {
-        logger.error(f"Failed to deserialize archetype {type_name}: {e}");
+        if Serializer._should_warn_once(
+            "archetype-error", f"{module_name}.{type_name}:{type(e).__name__}"
+        ) {
+            logger.error(f"Failed to deserialize archetype {type_name}: {e}");
+        }
         return None;
     }
 }

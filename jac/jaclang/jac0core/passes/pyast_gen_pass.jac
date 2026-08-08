@@ -23,7 +23,8 @@ import from jaclang.jac0core.diagnostics {
     E5005,
     E5006,
     E5007,
-    E5008
+    E5008,
+    E5094
 }
 
 glob T = TypeVar('T', bound=ast3.AST),
@@ -103,7 +104,10 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
     def postinit -> None;
     def enter_node(nd: uni.UniNode) -> None;
     def exit_node(nd: uni.UniNode) -> None;
-    def _gen_native_interop_stubs(nd: uni.NativeBlock) -> None;
+    def _gen_native_interop_stubs(nd: uni.UniNode) -> None;
+    def _native_import_registration_map -> dict;
+    def _top_level_bound_names(py_ast: object) -> list[str];
+    def _is_native_ext_module -> bool;
     def _native_test_shim_stmts(nd: uni.Test) -> list;
     def _generate_sv_to_sv_stubs(nd: uni.Import) -> bool;
     def _gen_py_sv_func_stub(
@@ -126,10 +130,13 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
     def jaclib_obj(obj_name: str) -> ast3.Name;
     def builtin_name(name: str) -> ast3.Name;
     def _is_edge_ref_target(target: uni.UniNode) -> bool;
+    def _cmp_op_str(op: object) -> (str | None);
+    def _query_filter_kws(fc: uni.FilterCompr, type_arg: str, preds_arg: str) -> list;
     def _add_preamble_once(key: str, nd: ast3.AST) -> None;
     def needs_enum_kind(kind: str) -> None;
     def _next_temp_name(prefix: str) -> str;
     def _py_name(nd: uni.AstSymbolNode) -> str;
+    def py_ctx(nd: uni.AstSymbolNode) -> ast3.expr_context;
     def _emit_jobj_ref(nd: uni.UnaryExpr) -> None;
     def _function_expr_from_def(
         func_def: (ast3.FunctionDef | ast3.AsyncFunctionDef),
@@ -164,9 +171,6 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
     def exit_global_vars(nd: uni.GlobalVars) -> None;
     def exit_test(nd: uni.Test) -> None;
     def exit_module_code(nd: uni.ModuleCode) -> None;
-    def exit_client_block(nd: uni.ClientBlock) -> None;
-    def exit_server_block(nd: uni.ServerBlock) -> None;
-    def exit_native_block(nd: uni.NativeBlock) -> None;
     def exit_py_inline_code(nd: uni.PyInlineCode) -> None;
     def exit_import(nd: uni.Import) -> None;
     def exit_module_path(nd: uni.ModulePath) -> None;
