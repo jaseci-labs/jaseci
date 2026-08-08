@@ -4515,6 +4515,7 @@ impl EsastGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
         self.reactive_vars.add(s.name);
         self._register_declaration(s.name);
     }
+    self._sync_converter_reactive_vars();
     if len(statements) == 1 {
         nd.gen.es_ast = statements[0];
     } elif len(statements) > 1 {
@@ -4553,6 +4554,7 @@ impl EsastGenPass.exit_ability(nd: uni.Ability) -> None {
     self.intent_session.pop_ability_scope();
     if self._reactive_vars_stack {
         self.reactive_vars = self._reactive_vars_stack.pop();
+        self._sync_converter_reactive_vars();
     }
 
     osp_info = self._osp_ability_info(nd);
@@ -5605,6 +5607,12 @@ impl EsastGenPass._build_osp_disconnect_call(
     );
 }
 
+impl EsastGenPass._sync_converter_reactive_vars -> None {
+    if self.converter is not None {
+        self.converter.reactive_vars = self.reactive_vars;
+    }
+}
+
 impl EsastGenPass.enter_ability(nd: uni.Ability) -> None {
     if isinstance(nd.body, uni.ImplDef) and (nd.body not in nd.kid) {
         nd.add_kids_right([nd.body], pos_update=False, parent_update=True);
@@ -5615,6 +5623,7 @@ impl EsastGenPass.enter_ability(nd: uni.Ability) -> None {
 
     self._reactive_vars_stack.append(self.reactive_vars);
     self.reactive_vars = set(self.reactive_vars);
+    self._sync_converter_reactive_vars();
 }
 
 impl EsastGenPass.exit_enum(nd: uni.Enum) -> None {
@@ -7716,8 +7725,7 @@ impl EsastGenPass.before_pass -> None {
         component_types=JSX_COMPONENT_TYPES,
         strict_arch_has=True,
         use_arch_has_dedup=False,
-        skip_existing_policy=SkipExistingPolicy.NONE,
-        reactive_vars=self.reactive_vars
+        skip_existing_policy=SkipExistingPolicy.NONE
     );
 
     self.scoped_styles = load_style_annex(

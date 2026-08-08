@@ -45,8 +45,7 @@ impl ComposeGenPass.before_pass -> None {
         component_types=COMPOSE_COMPONENT_TYPES,
         strict_arch_has=False,
         use_arch_has_dedup=True,
-        skip_existing_policy=SkipExistingPolicy.MODULE,
-        reactive_vars=self.reactive_vars
+        skip_existing_policy=SkipExistingPolicy.MODULE
     );
 }
 
@@ -105,7 +104,22 @@ def _intent_params_from_signature(
     return out;
 }
 
+impl ComposeGenPass._sync_lowerer_reactive_vars -> None {
+    names = self.collector.existing_reactive_names();
+    self.reactive_vars = names;
+    self.lowerer.reactive_vars = names;
+    if self.converter is not None {
+        self.converter.reactive_vars = names;
+    }
+}
+
 impl ComposeGenPass.enter_ability(nd: uni.Ability) -> None {
+    self._reactive_vars_stack.append(self.reactive_vars);
+    self.reactive_vars = set(self.reactive_vars);
+    self.lowerer.reactive_vars = self.reactive_vars;
+    if self.converter is not None {
+        self.converter.reactive_vars = self.reactive_vars;
+    }
     self._session().enter_ability(nd);
     name = component_name_from_ability(nd, COMPOSE_COMPONENT_TYPES);
     if name is not None and isinstance(nd.signature, uni.FuncSignature) {
@@ -118,17 +132,6 @@ impl ComposeGenPass.exit_arch_has(nd: uni.ArchHas) -> None {
     scan = self._session().scan_arch_has(nd);
     if scan is not None {
         self._session().adapter.apply_arch_has_scan(nd, scan);
-    }
-}
-
-impl ComposeGenPass._sync_lowerer_reactive_vars -> None {
-    names = self.collector.existing_reactive_names();
-    self.reactive_vars = names;
-    self._session().reactive_vars = names;
-    self.collector.reactive_vars = names;
-    self.lowerer.reactive_vars = names;
-    if self.converter is not None {
-        self.converter.reactive_vars = names;
     }
 }
 
@@ -157,6 +160,13 @@ impl ComposeGenPass.exit_ability(nd: uni.Ability) -> None {
     }
 
     self._session().pop_ability_scope();
+    if self._reactive_vars_stack {
+        self.reactive_vars = self._reactive_vars_stack.pop();
+        self.lowerer.reactive_vars = self.reactive_vars;
+        if self.converter is not None {
+            self.converter.reactive_vars = self.reactive_vars;
+        }
+    }
 }
 
 impl ComposeGenPass.exit_jsx_element(nd: uni.JsxElement) -> None {

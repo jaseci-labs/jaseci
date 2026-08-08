@@ -21,8 +21,6 @@ obj IntentSession {
         strict_arch_has: bool = False,
         use_arch_has_dedup: bool = True,
         skip_existing_policy: SkipExistingPolicy = SkipExistingPolicy.NONE,
-        reactive_vars: set[str] = set(),
-        reactive_vars_stack: list[set[str]] = [],
         _recorded_arch_has: set[int] = set();
 
     def enter_ability(nd: uni.Ability) -> None;
@@ -35,5 +33,4 @@ obj IntentSession {
     ) -> (IntentLeaf | None);
 
     def record_and_lower_effect(nd: uni.Ability) -> list[IntentLeaf];
-    def _sync_converter_reactive_vars -> None;
 }

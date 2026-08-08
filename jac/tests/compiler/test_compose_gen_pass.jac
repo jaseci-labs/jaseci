@@ -350,7 +350,7 @@ def:pub Counter() -> Composable {
         assert "val count = count + 1" not in screens;
         assert "val count = 0" not in screens;
         assert "val name = v" not in screens;
-        assert "count = count + 1" in screens;
+        assert "count = (count + 1)" in screens;
         assert "count = 0" in screens;
         assert "name = v" in screens;
         assert "var count by remember { mutableStateOf(0) }" in screens;

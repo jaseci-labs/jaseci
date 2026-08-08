@@ -4,19 +4,11 @@ import from jaclang.compiler.passes.ecmascript.intent.semantics {
     StateUpdate
 }
 
-impl IntentSession._sync_converter_reactive_vars -> None {
-    self.converter.reactive_vars = self.reactive_vars;
-}
-
 impl IntentSession.enter_ability(nd: uni.Ability) -> None {
     import from jaclang.compiler.passes.ecmascript.intent.detection {
         component_name_from_ability,
         screen_meta_for_component
     }
-    self.reactive_vars_stack.append(self.reactive_vars);
-    self.reactive_vars = set(self.reactive_vars);
-    self.collector.reactive_vars = self.reactive_vars;
-    self._sync_converter_reactive_vars();
     name = component_name_from_ability(nd, self.component_types);
     if name is not None and isinstance(nd.signature, uni.FuncSignature) {
         self.collector.enter_component(name);
@@ -31,15 +23,7 @@ impl IntentSession.enter_ability(nd: uni.Ability) -> None {
 }
 
 impl IntentSession.pop_ability_scope -> None {
-    if self.reactive_vars_stack {
-        self.reactive_vars = self.reactive_vars_stack.pop();
-        self.collector.reactive_vars = self.reactive_vars;
-        self._sync_converter_reactive_vars();
-    } else {
-        self.reactive_vars = set();
-        self.collector.reactive_vars = self.reactive_vars;
-        self.converter.reactive_vars = set();
-    }
+    return;
 }
 
 impl IntentSession.arch_has_skip_existing -> set[str] {
@@ -97,6 +81,9 @@ impl IntentSession.record_and_lower_effect(nd: uni.Ability) -> list[IntentLeaf] 
     body_stmts: list[IntentLeaf] = [];
     if inner {
         body_stmts = self.converter.convert_stmts(inner);
+        if self.pass_ref is not None and hasattr(self.pass_ref, '_prepend_hoisted') {
+            body_stmts = self.pass_ref._prepend_hoisted(nd, body_stmts);
+        }
     }
     deps: list[IntentLeaf] = [];
     if self.pass_ref is not None and hasattr(self.pass_ref, 'effect_deps') {

@@ -11,8 +11,7 @@ import from jaclang.compiler.passes.ecmascript.intent.model { IntentModule }
 
 obj IntentCollector {
     has _own_module: (IntentModule | None) = None,
-        _linked_module: (IntentModule | None) = None,
-        reactive_vars: set[str] = set();
+        _linked_module: (IntentModule | None) = None;
 
     def init(module: (IntentModule | None) = None) {
         if module is not None {
@@ -63,12 +62,10 @@ obj IntentCollector {
 
     def record_state_field(s: StateField) {
         self.module().current_component().state.append(s);
-        self.reactive_vars.add(s.name);
     }
 
     def record_ref_field(r: RefField) {
         self.module().current_component().refs.append(r);
-        self.reactive_vars.add(r.name);
     }
 
     def record_state_update(u: StateUpdate) {

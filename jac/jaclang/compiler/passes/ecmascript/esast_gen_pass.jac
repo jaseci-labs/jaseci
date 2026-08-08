@@ -191,8 +191,6 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         converter: (EsastLeafConverter | None) = None,
         reactive_vars: set[str] = set(),
         _reactive_vars_stack: list[set[str]] = [],
-        strict_arch_has: bool = True,
-        use_arch_has_dedup: bool = False,
         client_manifest: (ClientManifest | None) = None,
         jsx_processor: (EsJsxProcessor | None) = None,
         scoped_styles: (ScopedStyleSheet | None) = None,
@@ -238,6 +236,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def _prepend_hoisted(
         nd: uni.UniScopeNode, statements: list[es.Statement]
     ) -> list[es.Statement];
+    def _sync_converter_reactive_vars -> None;
 
     def _collect_body_stmts(body: Sequence[uni.UniNode]) -> list[es.Statement];
     def _strip_spawn_await(
