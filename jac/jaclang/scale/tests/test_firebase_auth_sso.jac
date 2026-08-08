@@ -108,9 +108,7 @@ def _teardown_user_manager(test_dir: str) {
 
 def _make_request(body: dict) -> Request {
     mock_request = unittest.mock.Mock(spec=Request);
-    mock_request.body = unittest.mock.AsyncMock(
-        return_value=json.dumps(body).encode('utf-8')
-    );
+    mock_request.body = json.dumps(body).encode('utf-8');
     return mock_request;
 }
 
