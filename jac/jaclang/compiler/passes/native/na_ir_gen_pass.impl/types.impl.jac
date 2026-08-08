@@ -9,7 +9,8 @@ impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
             FunctionType as _FunctionType,
             NeverType as _NeverType,
             AnyType as _AnyType,
-            TypeVarType as _TypeVarType
+            TypeVarType as _TypeVarType,
+            EnumMemberType as _EnumMemberType
         }
     } except ImportError {
         return None;
@@ -30,6 +31,8 @@ impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
         lowered = ir.VoidType();
     } elif isinstance(t, _AnyType) {
         lowered = self.jacval_type;
+    } elif isinstance(t, _EnumMemberType) {
+        lowered = self._lower_type(t.enum_class) if t.enum_class is not None else None;
     } elif isinstance(t, _ClassType) {
         lowered = self._lower_class_type(t);
     } elif isinstance(t, _UnionType) {
