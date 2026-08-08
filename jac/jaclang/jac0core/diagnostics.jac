@@ -1478,7 +1478,20 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5097",
          Category.CODEGEN,
          "Client pathway failed to lower {kind} in an expression position",
-         help="The ES backend produced no JavaScript for this expression, so without this error it would silently become 'undefined' in the client bundle and only misbehave at runtime in the browser. The expression's shape is outside what the client lowering handles; adjust the shape or move the code to a server context."
+         help="The ES backend produced no JavaScript for this expression, so without this error it would silently become 'undefined' in the browser. The expression's shape is outside what the client lowering handles; adjust the shape or move the code to a server context."
+     ),
+     E5098 = _err(
+         "E5098",
+         Category.CODEGEN,
+         "Multi-statement lambda '{name}' could not be hoisted into a valid scope",
+         help="On the Python (server) target, a multi-statement lambda lowers to a "
+         "helper `def` that must appear in the enclosing scope before any reference "
+         "to it is evaluated. This position is outside what the Python codegen can "
+         "place safely; rewrite the lambda as a named `def`, use a single-expression "
+         "body, or move the code to a statement position (assignment RHS, expression "
+         "statement). Without this error the module would compile but fail at runtime "
+         "with `NameError: name '{name}' is not defined`.",
+         blocks_codegen=True
      ),
      E5094 = _err(
          "E5094",

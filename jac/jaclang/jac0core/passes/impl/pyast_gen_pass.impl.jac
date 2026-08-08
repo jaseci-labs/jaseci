@@ -573,6 +573,18 @@ impl PyastGenPass._function_expr_from_def(
     return self.sync(ast3.Name(id=func_def.name, ctx=ast3.Load()), jac_node=jac_node);
 }
 
+impl PyastGenPass._report_leaked_hoisted_lambdas() -> None {
+    for func_def in self._hoisted_funcs {
+        jac_node: uni.UniNode = self.ir_out;
+        jac_link = getattr(func_def, 'jac_link', None);
+        if jac_link {
+            jac_node = jac_link[0];
+        }
+        self.emit(E5098, node_override=jac_node, name=func_def.name);
+    }
+    self._hoisted_funcs.clear();
+}
+
 impl PyastGenPass._get_sem_decorator(nd: uni.UniNode) -> (ast3.Call | None) {
     semstr: str = '';
     inner_semstr: dict[(str, str)] = {};
@@ -959,6 +971,7 @@ impl PyastGenPass.exit_module(nd: uni.Module) -> None {
             body_items.extend(stmts);
         }
     }
+    self._report_leaked_hoisted_lambdas();
     new_body = self._flatten_ast_list(body_items);
     nd.gen.py_ast = [
         self.sync(

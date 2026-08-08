@@ -595,3 +595,57 @@ with entry {
     assert b"abcd" in values , f"expected bytes b'abcd' in {values}";
     assert "abcd" in values , f"expected str 'abcd' in {values}";
 }
+
+test "multi-statement lambda signature fixtures do not leak hoists (no E5098)" {
+    for fixture in [
+        "lambda_decorator_arg.jac",
+        "lambda_default_arg.jac",
+        "lambda_has_default.jac",
+        "lambda_enum_decorator.jac"
+    ] {
+        prog = JacProgram();
+        prog.compile(file_path=os.path.join(LANG_FIXTURES, fixture));
+        leaked = [
+            str(e) for e in (prog.errors_had or []) if "E5098" in str(e)
+        ];
+        assert not leaked , (
+            f"{fixture} should not emit E5098 leaked-hoist diagnostic: {leaked}"
+        );
+    }
+}
+
+test "leaked multi-statement lambda hoists emit E5098" {
+    code = """with entry { x = 1; }""";
+    prog = JacProgram();
+    mod = prog.compile(file_path="leaked_lambda.jac", use_str=code);
+    pyast_pass = PyastGenPass(ir_in=mod, prog=prog);
+    entry_stmt = mod.body[0];
+    fake_def = pyast_pass.sync(
+        ast3.FunctionDef(
+            name='__jac_lambda_99',
+            args=ast3.arguments(
+                posonlyargs=[],
+                args=[],
+                kwonlyargs=[],
+                kw_defaults=[],
+                defaults=[]
+            ),
+            body=[pyast_pass.sync(ast3.Pass(), jac_node=entry_stmt)],
+            decorator_list=[],
+            returns=None,
+            type_params=[]
+        ),
+        jac_node=entry_stmt
+    );
+    pyast_pass._hoisted_funcs = [fake_def];
+    pyast_pass._report_leaked_hoisted_lambdas();
+    leaked = [
+        alrt
+        for alrt in (prog.errors_had or [])
+        if alrt.code is not None and alrt.code.code == "E5098"
+    ];
+    assert leaked , (
+        f"expected E5098 for leaked hoisted lambda, got: {prog.errors_had}"
+    );
+    assert not pyast_pass._hoisted_funcs , "leaked hoists should be cleared";
+}

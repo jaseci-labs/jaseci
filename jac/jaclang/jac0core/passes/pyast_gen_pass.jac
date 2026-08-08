@@ -24,7 +24,8 @@ import from jaclang.jac0core.diagnostics {
     E5006,
     E5007,
     E5008,
-    E5094
+    E5094,
+    E5098
 }
 
 glob T = TypeVar('T', bound=ast3.AST),
@@ -149,6 +150,8 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
         jac_node: uni.UniNode,
         filename_hint: str
     ) -> ast3.Name;
+
+    def _report_leaked_hoisted_lambdas() -> None;
 
     def _get_sem_decorator(nd: uni.UniNode) -> (ast3.Call | None);
     def py_ast_val(nd: uni.UniNode) -> ast3.AST;
