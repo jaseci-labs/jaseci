@@ -394,6 +394,7 @@ obj Parser {
     def parse_class_pattern_args(
         names: list[int], dot_unis: (list[int] | None) = None
     ) -> int;
+
     def parse_switch_stmt -> int;
     def parse_switch_case -> int;
     def parse_return_stmt -> int;

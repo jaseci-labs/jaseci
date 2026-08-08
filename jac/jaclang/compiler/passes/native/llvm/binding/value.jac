@@ -17,6 +17,7 @@ import from jaclang.compiler.passes.native.llvm.binding.common {
     _decode_string,
     _encode_string
 }
+
 class Linkage(`enum.IntEnum) {
     with entry {
         external = 0;
