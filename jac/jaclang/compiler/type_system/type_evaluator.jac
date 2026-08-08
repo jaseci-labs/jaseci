@@ -166,6 +166,7 @@ obj TypeEvaluator {
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
         _JAC_BUILTINS_STUB_FILE_PATH: str postinit,
+        _BUILTIN_OVERRIDES_STUB_FILE_PATH: str postinit,
         _DOM_TYPES_STUB_FILE_PATH: str postinit,
         _NA_BUILTINS_STUB_FILE_PATH: str postinit,
         _JS_GLOBALS_STUB_FILE_PATH: str postinit,
