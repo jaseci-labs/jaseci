@@ -1,10 +1,12 @@
-"""Torch-gated integration tests for GraphMend.
+"""Torch-gated integration tests for GraphMend [Defer] and --graphmend-scope.
 
 Confirm the *runtime* claim that the transformations defragment the FX graph:
 compile each fixture with and without ``--graphmend`` and count how many
 contiguous graphs TorchDynamo's backend actually receives. This is the paper's
-metric -- a data-dependent branch / validation guard / side-effect call splits
-the forward pass into multiple graphs; GraphMend collapses it back to one.
+metric -- a side-effect call splits the forward pass into multiple graphs;
+GraphMend collapses it back to one. The trap and predication integration tests
+live in ``test_graphmend_trap_integration.jac`` and
+``test_graphmend_where_integration.jac``.
 
 Graph count (via a counting backend) is used rather than
 ``explain().graph_break_count`` (which under-reports for small functions) or
@@ -81,63 +83,6 @@ def _assert_defragmented(fixture: str, fn_name: str, *args: object) -> None:
     )
 
 
-def test_data_dependent_return_defragmented():
-    a = torch.tensor([1.0, 2.0, 3.0])
-    b = torch.tensor([4.0, 5.0, 6.0])
-    _assert_defragmented("where_return.jac", "with_breaks", a, b)
-
-
-def test_data_dependent_assignment_defragmented():
-    x = torch.tensor([1.0, 2.0, 3.0])
-    y = torch.tensor([4.0, 5.0, 6.0])
-    _assert_defragmented("where_assign.jac", "f", x, y)
-
-
-def test_torch_cond_asymmetric_branches_defragmented():
-    """Asymmetric branches that call different functions -> torch.cond (one graph)."""
-    x = torch.randn(4)
-    y = torch.randn(4)
-    _assert_defragmented("cond_assign.jac", "f", x, y)
-
-
-def test_validation_guard_defragmented():
-    x = torch.tensor([1.0, 2.0, 3.0])
-    mask = torch.tensor([True, True, True])
-    _assert_defragmented("val_guard_all.jac", "f", x, mask)
-
-
-def test_nested_guard_in_branch_defragmented():
-    """A data-dependent branch containing a validation guard collapses to one
-    graph: trap-lowering (assert) composes with predication (torch.where).
-    """
-    x = torch.tensor([1.0, 2.0, 3.0])
-    y = torch.tensor([1.0, 2.0, 3.0])  # equal -> the re-gated assert holds
-    _assert_defragmented("nested_guard_in_branch.jac", "f", x, y)
-
-
-def test_nested_guard_preserves_conditional_assert_semantics():
-    """The hoisted assert is re-gated on the branch predicate: it must NOT fire
-    when the branch that held it is not taken, even if its check would fail.
-
-    Here x.sum() <= 0 selects the else branch, so the guard (x == y).all() --
-    which is False -- must be vacuously satisfied rather than raising.
-    """
-    src = _compile_src("nested_guard_in_branch.jac", True)
-    ns: dict = {}
-    orig_compile = torch.compile
-    torch.compile = lambda *a, **k: a[0] if a else (lambda f: f)
-    try:
-        exec(compile(src, "nested_guard_in_branch.jac", "exec"), ns)
-    finally:
-        torch.compile = orig_compile
-
-    x = torch.tensor([-1.0, -2.0, -3.0])  # sum < 0 -> else branch taken
-    y = torch.tensor([9.0, 9.0, 9.0])  # x != y, but guard must stay dormant
-    out = ns["f"](x, y)
-    # else branch: out = x * 3
-    assert torch.allclose(out, x * 3.0), "untaken-branch guard changed result"
-
-
 def test_print_side_effect_defragmented():
     x = torch.tensor([1.0, 2.0, 3.0])
     _assert_defragmented("side_effect.jac", "f", x)
@@ -191,53 +136,6 @@ def test_buffered_arg_is_snapshotted_against_later_mutation():
     assert "snap:" in out, f"deferred print did not run: {out!r}"
     assert "101" not in out, f"deferred print saw the post-mutation value: {out!r}"
     assert "1., 2., 3." in out, f"deferred print lost the snapshot value: {out!r}"
-
-
-def _exec_with_real_eager_compile(fixture: str) -> dict:
-    """Compile a fixture with GraphMend and exec it, with ``@torch.compile``
-    rebound to a REAL eager-backend compile (not identity). The graph-native
-    assert then fails asynchronously at the call boundary, where the injected
-    ``@__jac_trap_guard__`` decorator catches it -- exactly the production path."""
-    src = _compile_src(fixture, True)
-    ns: dict = {}
-    orig_compile = torch.compile
-
-    def eager_compile(*a: object, **k: object) -> object:
-        if a:
-            return orig_compile(a[0], backend="eager")
-        return lambda f: orig_compile(f, backend="eager")
-
-    torch.compile = eager_compile
-    try:
-        exec(compile(src, fixture, "exec"), ns)
-    finally:
-        torch.compile = orig_compile
-    return ns
-
-
-def test_trap_guard_restores_exception_type_and_message():
-    """A failing tensor-bool guard must surface as the ORIGINAL exception type
-    (ValueError) with the original message, not a raw RuntimeError -- restored by
-    the boundary trap-guard decorator after the graph-native assert fails."""
-    ns = _exec_with_real_eager_compile("val_guard_all.jac")
-    x = torch.tensor([1.0, 2.0, 3.0])
-    good = torch.tensor([True, True, True])
-    bad = torch.tensor([True, False, True])
-
-    torch._dynamo.reset()
-    # passing guard returns normally
-    out = ns["f"](x, good)
-    assert torch.allclose(out, torch.sin(torch.relu(x)) * 2.0)
-
-    torch._dynamo.reset()
-    raised = None
-    try:
-        ns["f"](x, bad)
-    except BaseException as e:  # noqa: BLE001
-        raised = e
-    assert type(raised) is ValueError, f"expected ValueError, got {raised!r}"
-    assert str(raised) == "mask must be all true", f"message lost: {raised!r}"
-    assert "GM-TRAP" not in str(raised), "internal trap marker leaked to the user"
 
 
 def _run_model_fixture(graphmend: bool) -> tuple[int, list]:
@@ -317,12 +215,12 @@ def test_scoped_import_transforms_imported_model(tmp_path: Path) -> None:
         "            return x * 3.0\n"
     )
     prog = Jac.get_program()
-    saved_en = getattr(prog, "_graphmend_enabled", False)
-    saved_scope = getattr(prog, "_graphmend_scope", None)
+    saved_en = prog.graphmend_enabled
+    saved_scope = prog.graphmend_scope
     sys.path.insert(0, str(tmp_path))
     try:
-        prog._graphmend_enabled = True
-        prog._graphmend_scope = ["scopedmodel"]
+        prog.graphmend_enabled = True
+        prog.graphmend_scope = ["scopedmodel"]
         sys.modules.pop("scopedmodel", None)
         sys.modules.pop("scopedmodel.net", None)
         net = importlib.import_module("scopedmodel.net")
@@ -335,8 +233,8 @@ def test_scoped_import_transforms_imported_model(tmp_path: Path) -> None:
         # torch itself (not in scope) must be unaffected
         assert hasattr(torch, "_dynamo")
     finally:
-        prog._graphmend_enabled = saved_en
-        prog._graphmend_scope = saved_scope
+        prog.graphmend_enabled = saved_en
+        prog.graphmend_scope = saved_scope
         sys.path.remove(str(tmp_path))
         sys.modules.pop("scopedmodel", None)
         sys.modules.pop("scopedmodel.net", None)
@@ -500,8 +398,7 @@ def test_trap_lowers_a_real_transformers_validation_guard() -> None:
         pytest.skip("transformers VITS source not present")
 
     prog = JacProgram()
-    prog._graphmend_enabled = True
-    prog._graphmend_scoped_compile = True
+    prog.graphmend_scoped_compile = True
     mod = prog.compile(
         file_path=str(src_path),
         options=CompileOptions(graphmend=True, type_check=False),

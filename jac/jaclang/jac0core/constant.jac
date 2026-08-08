@@ -127,7 +127,6 @@ enum GraphBreakKind {
 enum GraphMendHelper {
     EQ_ASSERT = '__jac_tensor_eq_assert__',
     TRAP_GUARD = '__jac_trap_guard__',
-    FLUSH_SE_BUFFER = '__jac_flush_se_buffer__',
     SE_EMIT = '__jac_se_emit__',
     SE_FLUSH = '__jac_se_flush__',
     SE_GUARD = '__jac_se_guard__',

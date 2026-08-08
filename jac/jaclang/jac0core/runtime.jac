@@ -465,7 +465,6 @@ class JacBuiltin {
     static def log_report(expr: any, custom: bool = False) -> None;
     static def tensor_eq_assert(a: any, b: any, msg: str) -> None;
     static def trap_guard(fn: any) -> any;
-    static def flush_se_buffer(buf: list) -> None;
     static def se_emit(callee: any, args: tuple, kwargs: dict) -> None;
     static def se_flush -> None;
     static def se_region_enter -> None;

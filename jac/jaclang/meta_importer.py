@@ -329,24 +329,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         excluded so the interception can never break the compiler or PyTorch
         itself. The flag check short-circuits, so non-GraphMend runs are unaffected.
         """
-        try:
-            from jaclang.jac0core.runtime import JacRuntime as Jac
-
-            program = Jac.get_program()
-            if not getattr(program, "graphmend_enabled", False):
-                return False
-            scope = getattr(program, "graphmend_scope", None) or []
-        except Exception:
-            return False
-        if not scope:
-            return False
-        top = fullname.split(".")[0]
-        if top in ("torch", "jaclang"):
-            return False
-        in_scope = any(
-            fullname == prefix or fullname.startswith(prefix + ".") for prefix in scope
-        )
-        return in_scope and os.path.isfile(py_file)
+        return _graphmend_scope_for(fullname, py_file)
 
     def _exec_py_source_fallback(self, module: ModuleType, file_path: str) -> bool:
         """Run a .py module from its original source via CPython's compiler.

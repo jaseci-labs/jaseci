@@ -882,14 +882,6 @@ impl JacBuiltin.log_report(expr: any, custom: bool = False) -> None {
     }
 }
 
-impl JacBuiltin.flush_se_buffer(buf: list) -> None {
-    for entry in buf {
-        (fn, args, kwargs) = entry;
-        fn(*args, **kwargs);
-    }
-    buf.clear();
-}
-
 impl JacBuiltin.se_emit(callee: any, args: tuple, kwargs: dict) -> None {
     if _gm_se_depth[0] > 0 {
         _gm_se_buffer.append((callee, args, kwargs));

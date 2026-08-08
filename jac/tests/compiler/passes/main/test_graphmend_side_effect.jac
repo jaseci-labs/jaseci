@@ -65,7 +65,11 @@ test "print is buffered and flushed via the runtime helper" {
     )
         in src;
     assert "__jac_se_flush__()" in src;
-    assert "__jac_se_emit__" in src;
+    assert (
+        "from jaclang.jac0core.jaclib import "
+        "__jac_se_emit__, __jac_se_flush__, __jac_se_guard__"
+    )
+        in src;
 }
 
 test "a compiled function gets the eager boundary guard" {

@@ -54,16 +54,24 @@ type analysis. It records a `GraphBreakKind` (declared in
 allowed to lower it. Detection breadth grows in lockstep with the transforms:
 a data-dependent conditional whose body is exactly one `raise` is tagged
 `VAL_GUARD` (consumed by `TrapLoweringPass`); any other data-dependent
-conditional is tagged `DYN_CTRL_FL` (consumed by `PredicateCtrlFlowPass`).
-The side-effect kind arrives with the deferral pass.
+conditional is tagged `DYN_CTRL_FL` (consumed by `PredicateCtrlFlowPass`);
+a `print` or logger-style call inside a compiled region is tagged
+`SIDE_EFFECT` (consumed by `DeferSideEffectPass`). Side-effect names are
+matched by `is_side_effect_name` in `torch_attr_table.jac`: the bare builtin
+`print`, plus any callee whose name contains a logging keyword. A name that
+resolves to a user-defined symbol is skipped, so a local function that
+happens to be called `print_stats` is never rewritten.
 
 ### Entry points
 
 A function or class is in scope when it is `@torch.compile`-decorated
-(matched via `has_torch_compile_decorator` in `torch_attr_table.jac`).
-Everything outside an entry point is left untouched. Call-site wrapping
-(`m = Model(); torch.compile(m)`) is resolved by the scoped-import work,
-which is also where whole-module treatment of imported model code lands.
+(matched via `has_torch_compile_decorator` in `torch_attr_table.jac`) or
+wrapped at a call site: `torch.compile(fn)`, `torch.compile(Model())`, and
+`m = Model(); torch.compile(m)` all resolve through the symbol table to the
+defining function or class, whose methods then count as in scope. A module
+imported under `--graphmend-scope` is treated as one whole compiled region
+(no local entry point required). Everything outside an entry point is left
+untouched.
 
 Decorators are matched structurally (a `torch` name with a trailing `compile`
 attribute), never by unparsing to text: Python-origin (`.py`) and Jac-origin
@@ -312,12 +320,105 @@ see the slot early, and an attribute callee bound to something other than a
 module-level dispatch table would not be seen by G5. The honest phrasing of
 the guarantee is therefore equivalence modulo private memoization state.
 
+## Deferred side effects: `DeferSideEffectPass`
+
+A side-effecting call inside a compiled region forces a graph break because
+it touches the Python runtime mid-graph. The pass defers such calls: the
+effect is captured as data while the graph runs and replayed, in original
+program order, after it. Two mechanisms exist because the two call shapes
+break for different reasons.
+
+`print(...)` is a plain global, so storing it in the graph is legal. The
+call is rewritten to `__jac_se_emit__(print, (args...), {kwargs})`, which
+appends a `(callee, args, kwargs)` triple to a process-global buffer.
+`list.append` is a side effect TorchDynamo tracks and replays, so the append
+costs no break; only the trailing `__jac_se_flush__()`, inserted before each
+`return` of the compiled entry (and at the end of a body that can fall off),
+touches the runtime, after all compute. The buffer is process-global rather
+than function-local so it outlives a frame that exits by raising, which is
+what lets the boundary guard below drain it.
+
+`logger.X(...)` cannot use that path: TorchDynamo cannot trace a
+`logging.Logger` method at all, even to store it, so buffering the bound
+method only relocates the break. The Logger therefore never enters the
+graph: at module load the bound method is registered to an integer slot
+(`_gm_log_slot_N = __jac_log_register__(logger.X)`, inserted after the
+top-level class holding the forward), and inside the forward only
+`__jac_log_emit__(slot, (args...), {kwargs})` appears, ints and constants
+that trace as a replayable append. A forward hook flushes the slot buffer
+after the graph executes. This mechanism applies only inside `forward`
+methods with a bare module-level receiver (not `self.`/`cls.`); anything
+else falls back to buffer plus flush.
+
+### Argument snapshotting
+
+Buffered values must be captured at the original call site, not at flush. A
+mutable positional argument is hoisted to `__gm_se_arg_N = <arg>` and buffered
+as `__gm_se_arg_N.clone() if hasattr(__gm_se_arg_N, 'clone') else
+__gm_se_arg_N`; the `hasattr` is resolved statically by Dynamo, so the clone
+is a native in-graph op for tensors and a no-op for everything else. A later
+in-place mutation therefore cannot corrupt the value the deferred call
+observes. Literals are immutable and buffered as-is. Logger arguments cross
+the opaque `log_emit` boundary and are constant-only by construction.
+
+### Exceptional exits
+
+Wrapping the body in `try`/`finally` is not usable: the flush is deliberately
+untraceable, and TorchDynamo answers an untraceable call inside a `finally`
+by abandoning the whole frame, one FX graph becomes zero, strictly worse than
+the break being removed. Each path instead closes the gap from outside the
+traced region. A `@torch.compile`-decorated function gets `@__jac_se_guard__`
+prepended above `torch.compile`, so its `try`/`finally` is eager code Dynamo
+never sees; the guard opens the region on entry and drains the global buffer
+on every exit, raising or not. An `nn.Module` compiled at a call site gets a
+`register_forward_pre_hook(__jac_se_region_open__)` /
+`register_forward_hook(__jac_log_flush_hook__, always_call=True)` pair
+injected after the `torch.compile(...)` assignment; `always_call=True` is
+what makes the hook fire when `forward` raises, so buffered calls are
+replayed before the exception propagates.
+
+### Helpers defer to the caller's region
+
+The runtime keeps a region depth, opened by the guard or the pre-hook.
+`se_emit` buffers only while the depth is non-zero and performs the call
+immediately otherwise. A helper inlined into a compiled caller therefore
+emits no flush of its own (one would split the caller's graph from the
+inside); its effects drain at the enclosing region's exit. The same helper
+called from ordinary Python emits at its original point. The module-exit
+sweep guards every compiled entry in a module that defers anything, not just
+entries containing a deferred call themselves, because the caller of a
+buffering helper is what must open the region.
+
+## Scoped imports: `--graphmend-scope`
+
+`--graphmend-scope pkg.a,pkg.b` (implies `--graphmend`) extends the
+transforms to imported `.py` model code, the shape real Hugging Face models
+take, where `torch.compile(model)` lives in the entry script and every break
+sits in imported modules. `JacMetaImporter.find_spec` claims a plain `.py`
+module when its dotted name falls under a scope prefix; the module compiles
+through the full GraphMend schedule as one whole compiled region.
+
+Not every import consults `sys.meta_path`: `trust_remote_code` models load
+via `spec_from_file_location` plus `exec_module`. Every such path still goes
+through `SourceFileLoader.get_code`, so `install_graphmend_loader_hook`
+wraps that instead. Compiling from source there also sidesteps
+`__pycache__`, so a `.pyc` written by a non-GraphMend run is never served to
+a GraphMend one.
+
+Safety properties: strictly opt-in (an empty scope claims nothing), `torch`
+and `jaclang` are hard-denylisted so the interception can never break the
+compiler or PyTorch itself, and a scoped `.py` the Jac compiler cannot
+handle falls back to CPython's own compiler and runs untransformed rather
+than failing the import.
+
 ## Evidence
 
-`tests/compiler/passes/main/test_graphmend_trap_lowering.jac` and
-`test_graphmend_ctrl_flow.jac` assert detection tags and the generated
+`tests/compiler/passes/main/test_graphmend_trap_lowering.jac`,
+`test_graphmend_ctrl_flow.jac`, `test_graphmend_side_effect.jac`, and
+`test_graphmend_py_support.jac` assert detection tags and the generated
 Python source for `.jac` and `.py` fixtures, including one decline test per
-legality condition above.
+legality condition above, the emitted runtime-helper imports, and the
+call-site entry-point resolution.
 `test_graphmend_trap_integration.jac` and
 `test_graphmend_where_integration.jac` (skipped without torch) drive the
 transformed code through a counting Dynamo backend and assert the paper's
@@ -327,3 +428,9 @@ failing guard under a real eager-backend compile surfaces as the original
 `ValueError` with the original message, with no marker text leaking to the
 user; the predication tests additionally check that a hoisted, re-gated
 assert stays dormant when its branch is not taken.
+`test_graphmend_integration.py` (skipped without torch) does the same for
+deferral: print and logger fixtures defragment to one graph, a buffered
+argument mutated in place after its call site still prints the pre-mutation
+snapshot, deferred output survives exceptional exits on both the guard and
+the `always_call` hook paths, and a package imported under
+`--graphmend-scope` is transformed while `torch` itself is not.
