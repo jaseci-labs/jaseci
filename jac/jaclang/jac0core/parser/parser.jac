@@ -111,6 +111,12 @@ import from jaclang.jac0core.unitree { AwaitExpr, CastExpr, ConcurrentExpr }
 import from jaclang.jac0core.unitree { EdgeOpRef, FilterCompr, AssignCompr }
 import from jaclang.jac0core.unitree { ConnectOp, DisconnectOp }
 import from jaclang.jac0core.unitree {
+    ElementStmt,
+    CodeBlockStmt,
+    ArchBlockStmt,
+    MatchPattern
+}
+import from jaclang.jac0core.unitree {
     MatchOr,
     MatchAs,
     MatchWild,
@@ -130,7 +136,14 @@ import from jaclang.jac0core.unitree {
     JsxSpreadAttribute,
     JsxNormalAttribute
 }
-import from jaclang.jac0core.unitree { JsxText, JsxExpression, JsxSlot, JsxComment }
+import from jaclang.jac0core.unitree {
+    JsxText,
+    JsxExpression,
+    JsxSlot,
+    JsxComment,
+    JsxChild,
+    ContextAwareNode
+}
 
 import from jaclang.jac0core.constant {
     Tokens as Tok,
@@ -370,7 +383,6 @@ obj Parser {
     def make_special_name(tok: Token) -> Name;
     def make_name_or_special(tok: Token) -> Name;
     def parse_access_tag -> SubTag | None;
-    def _make_literal(node_cls: type, name: str, tok: Token) -> object;
     def make_string(tok: Token) -> String;
     def make_string_from_value(value: str) -> String;
     def make_int(tok: Token) -> Int;
@@ -385,7 +397,7 @@ obj Parser {
     def parse_expression(allow_cast: bool = True) -> Expr;
     def _check_js_arrow_fault -> bool;
     def _recover_js_arrow_fault(left: Expr) -> Expr;
-    def _recover_removed_marker;
+    def _recover_removed_marker -> (ElementStmt | EmptyToken | None);
     def _recover_missing_connect_rhs -> bool;
     def _recover_misplaced_disconnect -> None;
     def parse_concurrent_expr(allow_cast: bool = True) -> Expr;
@@ -418,7 +430,7 @@ obj Parser {
     def parse_await_expr -> Expr;
     def parse_pipe_call -> Expr;
     def parse_atomic_chain -> Expr;
-    def _make_attr_from_keyword(name_tok: any);
+    def _make_attr_from_keyword(name_tok: Token) -> (Name | SpecialVarRef);
     def parse_index_slice -> IndexSlice;
     def parse_call_args(kid: list) -> list;
     def parse_call_arg -> Expr | KWPair;
@@ -430,6 +442,7 @@ obj Parser {
     def parse_builtin_type -> Expr | None;
     def parse_special_ref -> Expr | None;
     def parse_atom -> Expr;
+    def parse_tuple_item -> Expr | KWPair;
     def parse_paren_expr -> Expr;
     def parse_bracket_expr -> Expr;
     def _is_edge_ref_start -> bool;
@@ -450,39 +463,43 @@ obj Parser {
     def _consume_jsx_dynamic_close(close_kid: list);
     def parse_jsx_attributes -> list;
     def parse_jsx_children -> list;
-    def parse_jsx_child -> Expr | None;
-    def parse_element_stmt;
-    def _dispatch_decorated;
-    def _dispatch_async;
-    def parse_docstring_target;
+    def parse_jsx_child -> (Expr | JsxChild | None);
+    def parse_element_stmt -> (ElementStmt | EmptyToken | None);
+    def _dispatch_decorated -> ElementStmt;
+    def _dispatch_async -> (Ability | Archetype);
+    def _attach_doc(nd: ElementStmt, elem_doc: String) -> ElementStmt;
+    def parse_docstring_target -> ElementStmt;
     def parse_module_code -> ModuleCode;
     def parse_code_block_stmts -> list;
     def _apply_implicit_return(body: list) -> list;
     def parse_ctrl_stmt -> CtrlStmt | DisengageStmt | None;
-    def parse_statement;
+    def parse_statement -> (CodeBlockStmt | ElementStmt | None);
     def parse_if_stmt -> IfStmt;
     def parse_elif_stmt -> ElseIf;
     def parse_else_stmt -> ElseStmt;
     def parse_while_stmt -> WhileStmt;
     def parse_open_stmt -> OpenStmt;
     def parse_forever_stmt -> ForeverStmt;
-    def parse_for_stmt;
+    def parse_for_stmt -> (IterForStmt | InForStmt);
     def parse_try_stmt -> TryStmt;
     def parse_except_handler -> Except;
     def parse_with_stmt -> WithStmt;
     def parse_match_stmt -> MatchStmt;
     def parse_match_case -> MatchCase;
-    def parse_pattern;
-    def parse_or_pattern;
-    def parse_single_pattern;
+    def parse_pattern -> MatchPattern;
+    def parse_or_pattern -> MatchPattern;
+    def parse_single_pattern -> MatchPattern;
     def parse_literal_pattern -> MatchValue;
     def parse_expression_pattern -> MatchValue;
-    def parse_name_pattern;
-    def parse_sequence_pattern;
-    def parse_tuple_sequence_pattern;
-    def parse_mapping_pattern;
-    def parse_literal_for_mapping;
-    def parse_class_pattern_args(names: list, dot_unis: list | None = None);
+    def parse_name_pattern -> MatchPattern;
+    def parse_sequence_pattern -> MatchSequence;
+    def parse_tuple_sequence_pattern -> MatchSequence;
+    def parse_mapping_pattern -> MatchMapping;
+    def parse_literal_for_mapping -> (MatchValue | Name);
+    def parse_class_pattern_args(
+        names: list, dot_unis: list | None = None
+    ) -> MatchArch;
+
     def parse_switch_stmt -> SwitchStmt;
     def parse_switch_case -> SwitchCase;
     def parse_return_stmt -> ReturnStmt;
@@ -501,7 +518,10 @@ obj Parser {
     def parse_from_path -> tuple;
     def parse_import_items(kid: list, is_clib_import: bool) -> tuple;
     def parse_archetype -> Archetype;
-    def parse_archetype_member;
+    def parse_archetype_member -> (
+        ArchBlockStmt | CodeBlockStmt | ElementStmt | EmptyToken | None
+    );
+
     def _skip_semicolons;
     def _error_unexpected_member;
     def parse_has_stmt -> ArchHas;
