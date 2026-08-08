@@ -71,6 +71,7 @@ obj EnumLayout {
     has name: str,
         underlying: str = "i64",
         is_string_enum: bool = False,
+        is_class_form: bool = False,
         members: list[EnumMemberLayout] = [];
 }
 
@@ -95,19 +96,26 @@ def is_enum_class_type(t: any) -> bool {
         and t.shared.is_enum_class;
 }
 
-def enum_decl_of(t: any) -> (uni.Enum | None) {
+def enum_decl_of(t: any) -> (uni.Enum | uni.Archetype | None) {
     if not is_enum_class_type(t) {
         return None;
     }
     _scope = t.shared.symbol_table;
-    return _scope if isinstance(_scope, uni.Enum) else None;
+    if isinstance(_scope, uni.Enum) {
+        return _scope;
+    }
+    return _scope if class_form_enum_scalar(t) is not None else None;
+}
+
+def enum_value_type_of(t: any) -> (any | None) {
+    return t.shared.enum_value_type if is_enum_class_type(t) else None;
 }
 
 def class_form_enum_scalar(t: any) -> (str | None) {
     if not is_enum_class_type(t) {
         return None;
     }
-    if isinstance(t.shared.symbol_table, uni.Enum) {
+    if not isinstance(t.shared.symbol_table, uni.Archetype) {
         return None;
     }
     _vt = t.shared.enum_value_type;
@@ -116,6 +124,19 @@ def class_form_enum_scalar(t: any) -> (str | None) {
     }
     _vname = _vt.shared.class_name;
     return _vname if _vname in ("str", "int") else None;
+}
+
+def class_form_enum_decls(module: uni.Module) -> list[uni.Archetype] {
+    out: list[uni.Archetype] = [];
+    for nd in UniPass.get_all_sub_nodes(module, uni.Archetype) {
+        if nd.name is None {
+            continue;
+        }
+        if class_form_enum_scalar(nd.name.type) is not None {
+            out.append(nd);
+        }
+    }
+    return out;
 }
 
 def class_form_enum_literal(t: any, member: str) -> (str | int | None) {

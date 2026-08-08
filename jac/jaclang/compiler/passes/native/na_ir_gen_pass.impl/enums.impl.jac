@@ -1,21 +1,9 @@
-impl NaIRGenPass._class_form_enum_llvm(t: any) -> (ir.Type | None) {
-    import from jaclang.compiler.passes.main.layout_pass { class_form_enum_scalar }
-    _scalar = class_form_enum_scalar(t);
-    if _scalar is None {
-        return None;
-    }
-    if _scalar == "int" {
-        return ir.IntType(64);
-    }
-    return self.type_map.get("str", ir.IntType(8).as_pointer());
-}
-
 impl NaIRGenPass._class_form_enum_self_type(arch_name: str) -> (ir.Type | None) {
     _arch = self.arch_ast_map.get(arch_name);
     if _arch is None or not (_arch?.name) {
         return None;
     }
-    return self._class_form_enum_llvm(_arch.name.type);
+    return self._ensure_enum_lowered(_arch.name.type);
 }
 
 impl NaIRGenPass._codegen_class_form_enum_member(
@@ -33,33 +21,44 @@ impl NaIRGenPass._codegen_class_form_enum_member(
     return self._make_global_string(_lit, name_prefix=".cfenum");
 }
 
-impl NaIRGenPass._ensure_enum_lowered(t: any) -> bool {
+impl NaIRGenPass._ensure_enum_lowered(t: any) -> (ir.Type | None) {
     import from jaclang.compiler.passes.main.layout_pass {
         is_enum_class_type,
-        enum_decl_of
+        enum_decl_of,
+        enum_value_type_of,
+        class_form_enum_scalar
     }
     if not is_enum_class_type(t) {
-        return False;
+        return None;
     }
     _decl = enum_decl_of(t);
     if _decl is not None {
         self._codegen_enum(_decl);
     }
-    return True;
+    if class_form_enum_scalar(t) is not None {
+        return self._lower_type(enum_value_type_of(t));
+    }
+    return ir.IntType(64);
 }
 
-impl NaIRGenPass._codegen_enum(nd: uni.Enum) -> None {
+impl NaIRGenPass._codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None {
     enum_name = (nd).name.value if (nd).name else "unknown_enum";
 
     if enum_name in self.enum_types {
         return;
     }
-    self.enum_types[enum_name] = ir.IntType(64);
-    self.has_native_code = True;
 
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
     _owner_mod = nd.find_parent_of_type(uni.Module) or self.ir_in;
     lay = get_layout_registry(_owner_mod, self.prog).get_enum_layout(enum_name);
+
+    if isinstance(nd, uni.Archetype) or (lay is not None and lay.is_class_form) {
+        self.has_native_code = True;
+        return;
+    }
+
+    self.enum_types[enum_name] = ir.IntType(64);
+    self.has_native_code = True;
     if lay is None or not lay.members {
         return;
     }

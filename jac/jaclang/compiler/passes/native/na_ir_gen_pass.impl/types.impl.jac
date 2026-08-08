@@ -329,15 +329,12 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
         return self._ensure_bytearray_type();
     }
 
-    _cfe = self._class_form_enum_llvm(t);
-    if _cfe is not None {
-        return _cfe;
+    _enum_ty = self._ensure_enum_lowered(t);
+    if _enum_ty is not None {
+        return _enum_ty;
     }
     if cname in self.struct_types {
         return self.struct_types[cname].as_pointer();
-    }
-    if self._ensure_enum_lowered(t) {
-        return ir.IntType(64);
     }
     type_args = t.private.type_args or [];
 
