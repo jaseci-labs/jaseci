@@ -79,6 +79,7 @@ def _emit_async_boundary(a: any) -> str {
         f"{except_body}\n"
         "            }\n"
         "        }\n"
+        "    }\n"
     );
 }
 

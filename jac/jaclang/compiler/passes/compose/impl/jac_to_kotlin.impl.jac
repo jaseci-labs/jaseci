@@ -347,7 +347,13 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         if op_key and op_key in _JAC_ARITH_RT {
             return _jac_math_call(_JAC_ARITH_RT[op_key], left, right);
         }
-        op = _JAC_BINARY_OPS.get(op_key, '+') if op_key else '+';
+        if not op_key or op_key not in _JAC_BINARY_OPS {
+            self.diagnostics.append(
+                f"jac_to_kotlin: unsupported binary operator {op_key}"
+            );
+            return _unsupported(f"unsupported operator {op_key}");
+        }
+        op = _JAC_BINARY_OPS[op_key];
         infix_fun = op in _BINARY_INFIX_FUN;
         return kt.KtBinary(operator=op, left=left, right=right, infix_fun=infix_fun);
     }
@@ -378,7 +384,13 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
                 args=[]
             );
         }
-        op = _JAC_UNARY_OPS.get(op_key, '-') if op_key else '-';
+        if not op_key or op_key not in _JAC_UNARY_OPS {
+            self.diagnostics.append(
+                f"jac_to_kotlin: unsupported unary operator {op_key}"
+            );
+            return _unsupported(f"unsupported unary {op_key}");
+        }
+        op = _JAC_UNARY_OPS[op_key];
         return kt.KtUnary(operator=op, argument=arg, prefix=True);
     }
     if isinstance(nd, uni.CompareExpr) {
@@ -388,7 +400,13 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
             right_nd = nd.rights[i] if i < len(nd.rights or []) else None;
             right = self.convert_expr(right_nd);
             op_key = _op_name(op_tok);
-            op = _JAC_BINARY_OPS.get(op_key, '==') if op_key else '==';
+            if not op_key or op_key not in _JAC_BINARY_OPS {
+                self.diagnostics.append(
+                    f"jac_to_kotlin: unsupported comparison operator {op_key}"
+                );
+                return _unsupported(f"unsupported operator {op_key}");
+            }
+            op = _JAC_BINARY_OPS[op_key];
             infix_fun = op in _BINARY_INFIX_FUN;
             acc = kt.KtBinary(operator=op, left=acc, right=right, infix_fun=infix_fun);
         }

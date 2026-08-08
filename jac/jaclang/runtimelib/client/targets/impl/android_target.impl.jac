@@ -23,6 +23,7 @@ import from jaclang.runtimelib.client.targets.build_common {
 }
 import from jaclang.runtimelib.client.targets.client_dev_common {
     adb_install_apk,
+    adb_install_and_launch,
     adb_launch_activity,
     setup_android_port_reverse_common
 }

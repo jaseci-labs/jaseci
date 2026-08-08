@@ -1521,8 +1521,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "na import targets collide on wasm artifact '{stem}.wasm': '{path}' vs '{other}'",
          help="Every `na import` target emits /static/<stem>.wasm named by its file stem, and set_na_env / __na_bind address the module by that stem, so two different native modules with the same basename would overwrite each other's artifact and bind to the wrong exports. Rename one of the files."
      ),
-     E5085 = _err(
-         "E5085",
+     E5086 = _err(
+         "E5086",
          Category.CODEGEN,
          "Client framework 'compose' is the Android (Jetpack Compose) surface and cannot be lowered through the web/ES client",
          help="Compose codegen only runs under the Android target. To build for the web, remove `[client] framework = \"compose\"` (or the --client-framework compose override); to build the Compose app, use `jac start --client android`."

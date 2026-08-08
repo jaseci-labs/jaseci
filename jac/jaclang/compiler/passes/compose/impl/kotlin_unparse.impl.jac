@@ -105,6 +105,9 @@ impl KotlinCodeGenerator.gen_kt_this(nd: kt.KtThis) -> str {
 
 impl KotlinCodeGenerator.gen_kt_member_access(nd: kt.KtMemberAccess) -> str {
     receiver = self.generate(nd.object) if nd.object else '';
+    if isinstance(nd.object, kt.KtUnary) {
+        receiver = f"({receiver})";
+    }
     prop = self.generate(nd.property);
     safe = '?.' if nd.safe else '';
     if nd.computed {
@@ -143,7 +146,7 @@ impl KotlinCodeGenerator.gen_kt_call(nd: kt.KtCall) -> str {
 impl KotlinCodeGenerator.gen_kt_binary(nd: kt.KtBinary) -> str {
     left = self.generate(nd.left);
     right = self.generate(nd.right);
-    return f"{left} {nd.operator} {right}";
+    return f"({left} {nd.operator} {right})";
 }
 
 impl KotlinCodeGenerator.gen_kt_unary(nd: kt.KtUnary) -> str {
@@ -158,7 +161,7 @@ impl KotlinCodeGenerator.gen_kt_conditional(nd: kt.KtConditional) -> str {
     `test = self.generate(nd.test);
     consequent = self.generate(nd.consequent);
     alternate = self.generate(nd.alternate);
-    return f"if ({test}) {consequent} else {alternate}";
+    return f"(if ({test}) {consequent} else {alternate})";
 }
 
 impl KotlinCodeGenerator.gen_kt_assignment(nd: kt.KtAssignment) -> str {
