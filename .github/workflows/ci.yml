@@ -1443,6 +1443,11 @@ jobs:
             -p='[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]' \
             || echo "WARN: metrics-server patch failed"
 
+          # The provisioner deploys postgres:18; preload it so the DB pod
+          # never depends on runner egress.
+          docker pull postgres:18
+          kind load docker-image postgres:18 --name jac
+
       - name: Show cluster info
         run: |
           kubectl version
