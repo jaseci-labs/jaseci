@@ -341,6 +341,13 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
                 }
                 self.struct_field_enum_type[arch_name][fname] = ftag_name;
             }
+            _fek = self._elem_keys_of_annotation(var.type_tag.tag);
+            if _fek {
+                if arch_name not in self.struct_field_elem_keys {
+                    self.struct_field_elem_keys[arch_name] = {};
+                }
+                self.struct_field_elem_keys[arch_name][fname] = _fek;
+            }
         }
         field_types.append(ftype);
         field_index_map[fname] = finfo.index;

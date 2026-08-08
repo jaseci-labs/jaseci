@@ -194,7 +194,7 @@ impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {
         return "opt." + self._llvm_type_str(_opt_pt);
     }
     if self._str_desc_ty is not None and ty == self._str_desc_ty {
-        return "jacstr3" if len(list(self._str_desc_ty.elements)) == 3 else "jacstr2";
+        return self._str_desc_kind();
     }
     if isinstance(ty, ir.IntType) {
         if ty.width == 64 {
@@ -271,12 +271,13 @@ impl NaIRGenPass._export_native_layout -> None {
         NativeTupleLayout,
         NativeTestLayout
     }
-    layout = NativeModuleLayout();
+    layout = NativeModuleLayout(str_headerless=self._nogc_headerless());
 
     for (arch_name, field_indices) in self.struct_field_indices.items() {
         field_types = self.struct_field_types.get(arch_name, {});
         fields: list[NativeFieldInfo] = [];
         enum_types = self.struct_field_enum_type.get(arch_name, {});
+        elem_keys = self.struct_field_elem_keys.get(arch_name, {});
         for (fname, idx) in sorted(field_indices.items(), key=lambda (x) { x[1]; }) {
             ftype = field_types.get(fname);
             llvm_t = self._llvm_type_str(ftype) if ftype is not None else "i64";
@@ -301,7 +302,8 @@ impl NaIRGenPass._export_native_layout -> None {
                     enum_type=enum_types.get(fname),
                     is_func_ptr=is_fn_ptr,
                     func_param_types=fn_param_types,
-                    func_ret_type=fn_ret_type
+                    func_ret_type=fn_ret_type,
+                    elem_keys=elem_keys.get(fname)
                 )
             );
         }
