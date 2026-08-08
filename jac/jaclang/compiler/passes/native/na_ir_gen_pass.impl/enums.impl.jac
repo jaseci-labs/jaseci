@@ -42,12 +42,15 @@ impl NaIRGenPass._codegen_enum(nd: uni.Enum) -> None {
         self._build_enum_string_table(enum_name, entries);
     } else {
         name_entries: list = [];
+        int_entries: list = [];
         for m in lay.members {
             full_name = f"{enum_name}.{m.name}";
             self.enum_values[full_name] = ir.Constant(i64, m.int_value);
             self.enum_member_ordinal[full_name] = m.ordinal;
             name_entries.append((m.name, "", m.ordinal));
+            int_entries.append((m.int_value, m.ordinal));
         }
+        self.enum_int_values[enum_name] = int_entries;
         self._build_enum_string_table(enum_name, name_entries, with_values=False);
     }
 }
@@ -133,4 +136,76 @@ impl NaIRGenPass._codegen_enum_value_lookup(
         arr_global, [ir.Constant(i32, 0), idx], name=f"enum.{enum_name}.ptr"
     );
     return self.builder.load(ptr_ptr, name=f"enum.{enum_name}.str");
+}
+
+impl NaIRGenPass._enum_is_string_valued(enum_name: str) -> bool {
+    return enum_name in self.enum_string_values;
+}
+
+impl NaIRGenPass._enum_ordinal_fn(enum_name: str) -> (ir.Function | None) {
+    _cached = self.enum_ordinal_fns.get(enum_name);
+    if _cached is not None {
+        return _cached;
+    }
+    entries = self.enum_int_values.get(enum_name);
+    if not entries {
+        return None;
+    }
+    i64 = ir.IntType(64);
+    fn = ir.Function(
+        self.llvm_module, ir.FunctionType(i64, [i64]), name=f"__enum_ord.{enum_name}"
+    );
+    fn.linkage = "private";
+    fn.args[0].name = "val";
+    b = ir.IRBuilder(fn.append_basic_block("entry"));
+    seen: set = set();
+    ordered: list = [];
+    for (_iv, _ord) in entries {
+        if _iv in seen {
+            continue;
+        }
+        seen.add(_iv);
+        ordered.append((_iv, _ord));
+    }
+    acc: any = ir.Constant(i64, 0);
+    for (_iv, _ord) in ordered[::-1] {
+        _hit = b.icmp_signed(
+            "==", fn.args[0], ir.Constant(i64, _iv), name=f"eo.hit{_ord}"
+        );
+        acc = b.select(_hit, ir.Constant(i64, _ord), acc, name=f"eo.sel{_ord}");
+    }
+    b.ret(acc);
+    self.enum_ordinal_fns[enum_name] = fn;
+    return fn;
+}
+
+impl NaIRGenPass._codegen_enum_ordinal_of(
+    enum_name: str, runtime_val: ir.Value
+) -> (ir.Value | None) {
+    if self._enum_is_string_valued(enum_name) {
+        return runtime_val;
+    }
+    _fn = self._enum_ordinal_fn(enum_name);
+    if _fn is None {
+        return None;
+    }
+    i64 = ir.IntType(64);
+    _arg = runtime_val;
+    if isinstance(_arg.type, ir.IntType) and _arg.type.width != 64 {
+        _arg = self.builder.zext(_arg, i64, name="enum.ord.wide");
+    }
+    return self.builder.call(_fn, [_arg], name=f"enum.{enum_name}.ord");
+}
+
+impl NaIRGenPass._codegen_enum_attr_runtime(
+    enum_name: str, runtime_val: ir.Value, use_name: bool
+) -> (ir.Value | None) {
+    if not use_name and not self._enum_is_string_valued(enum_name) {
+        return runtime_val;
+    }
+    _ord = self._codegen_enum_ordinal_of(enum_name, runtime_val);
+    if _ord is None {
+        return None;
+    }
+    return self._codegen_enum_value_lookup(enum_name, _ord, use_name=use_name);
 }

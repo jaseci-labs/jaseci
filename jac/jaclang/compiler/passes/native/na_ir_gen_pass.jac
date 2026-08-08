@@ -128,6 +128,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         enum_value_arrays: dict[str, object] = {},
         enum_name_arrays: dict[str, object] = {},
         enum_member_ordinal: dict[str, int] = {},
+        enum_int_values: dict[str, list] = {},
+        enum_ordinal_fns: dict[str, object] = {},
         struct_field_enum_type: dict[str, dict] = {},
         loop_stack: list[tuple] = [],
         _str_count: int = 0,
@@ -563,6 +565,16 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _codegen_enum_value_lookup(
         enum_name: str, ordinal_val: ir.Value, use_name: bool = False
+    ) -> (ir.Value | None);
+
+    def _enum_is_string_valued(enum_name: str) -> bool;
+    def _enum_ordinal_fn(enum_name: str) -> (ir.Function | None);
+    def _codegen_enum_ordinal_of(
+        enum_name: str, runtime_val: ir.Value
+    ) -> (ir.Value | None);
+
+    def _codegen_enum_attr_runtime(
+        enum_name: str, runtime_val: ir.Value, use_name: bool
     ) -> (ir.Value | None);
 
     def _codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None);
