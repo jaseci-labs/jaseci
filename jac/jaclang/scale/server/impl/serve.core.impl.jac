@@ -194,15 +194,7 @@ impl JacAPIServerCore.start(
 ) -> None {
     self.introspector.load();
     if self.introspector.has_client_route('/docs') {
-        try {
-            self.server.app.router.routes = [
-                r
-                for r in self.server.app.router.routes
-                if getattr(r, 'path', '') not in ('/docs', '/redoc')
-            ];
-        } except Exception as e {
-            logger.debug(f"could not unmount built-in /docs: {e}");
-        }
+        self.server.app.docs_url = None;
     }
     self._ensure_sv_siblings();
 

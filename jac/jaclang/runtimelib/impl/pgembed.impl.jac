@@ -117,9 +117,16 @@ impl PgRuntime._sock_dir -> str {
 impl PgRuntime.ensure -> ConnInfo {
     with self._lock {
         if self.is_running() {
-            self._wait_ready();
-            self._ensure_database();
-            return self.conninfo();
+            try {
+                self._wait_ready();
+                self._ensure_database();
+                return self.conninfo();
+            } except Exception {
+                logger.info(
+                    'embedded postgres unreachable despite a live pidfile '
+                    '(mid-shutdown?); taking the locked start path'
+                );
+            }
         }
         import fcntl;
         os.makedirs(os.path.dirname(self.data_dir) or '.', exist_ok=True);

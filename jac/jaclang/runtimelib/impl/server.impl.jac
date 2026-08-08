@@ -1642,6 +1642,9 @@ impl JacAPIServer.build_app -> ServingApp {
     cl_route_prefix = config.serve.cl_route_prefix if config else 'cl';
     cl_route_path = f"/{cl_route_prefix}/";
     app = ServingApp(title=f"{self.module_name} API", version='1.0.0');
+    if server.introspector.has_client_route('/docs') {
+        app.docs_url = None;
+    }
     app.add_middleware(
         cors_middleware(
             allow_origins=['*'],
