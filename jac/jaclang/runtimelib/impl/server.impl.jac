@@ -2171,6 +2171,45 @@ impl JacAPIServer.build_app -> ServingApp {
         ],
         in_schema=True
     );
+
+    try {
+        _named_walkers = list(server.introspector.get_walkers());
+        _named_functions = list(server.introspector.get_functions());
+    } except Exception {
+        _named_walkers = [];
+        _named_functions = [];
+    }
+    for _w_name in _named_walkers {
+        def _mk_walker_ep(bound: str) -> Callable {
+            def _spawn_named(request: Request, node_id: str = '') -> any {
+                return _spawn_walker(request, bound, node_id);
+            }
+            return _spawn_named;
+        }
+        _named_walker = _mk_walker_ep(_w_name);
+        _ep(HTTPMethod.POST, f'/walker/{_w_name}', _named_walker, in_schema=True);
+        _ep(
+            HTTPMethod.POST,
+            f'/walker/{_w_name}/{{node_id}}',
+            _named_walker,
+            params=[APIParameter(name='node_id', kind=ParameterType.PATH)],
+            in_schema=True
+        );
+    }
+    for _f_name in _named_functions {
+        def _mk_function_ep(bound: str) -> Callable {
+            def _call_named(request: Request) -> any {
+                return _call_function(request, bound);
+            }
+            return _call_named;
+        }
+        _ep(
+            HTTPMethod.POST,
+            f'/function/{_f_name}',
+            _mk_function_ep(_f_name),
+            in_schema=True
+        );
+    }
     _ep(HTTPMethod.POST, '/cl/__error__', _client_error);
     _ep(
         HTTPMethod.POST,

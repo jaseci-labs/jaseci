@@ -577,7 +577,7 @@ test "requirements.txt carries the project's Python [dependencies]" {
         assert "rapidocr" in req_lines;
         assert "pillow12.0" not in req_lines;
         # The generated app's own fastapi pin wins over the project's.
-        assert "fastapi>=0.110" in req_lines;
+        assert "fastapi>=0.121" in req_lines;
         assert "fastapi>=0.100" not in req_lines;
         # Vendored packages must never become pip requirements, even when
         # the jac.toml key differs in case (BYLLM, Jaclang, ...).
@@ -822,7 +822,7 @@ test "@restspec functions get their declared paths mounted" {
         assert "add_api_route" in main_py;
         # The endpoint IR module (HTTPMethod's home) must be vendored so the
         # compiled module imports cleanly without jac-scale installed.
-        assert _backend(src, "jaclang.runtimelib.serving.endpoint.py").exists();
+        assert _backend(src, "jaclang/runtimelib/serving/endpoint.py").exists();
     }
 }
 

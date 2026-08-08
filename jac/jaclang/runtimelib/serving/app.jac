@@ -192,13 +192,13 @@ obj ServingApp {
             return JSONResponse(
                 content={'detail': he.detail}, status_code=he.status_code
             );
-        } except Exception {
+        } except Exception as exc {
             _logger.error(
                 f"Unhandled error for {request.method} {request.url.path}\n"
                     + traceback.format_exc()
             );
             return JSONResponse(
-                content={'detail': 'Internal Server Error'}, status_code=500
+                content={'error': f"{type(exc).__name__}: {exc}"}, status_code=500
             );
         }
     }
