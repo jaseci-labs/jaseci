@@ -1,11 +1,13 @@
 import json;
+import from abc { ABC }
 import from collections.abc { Callable }
 import from typing { Any }
 
+obj RawResponse(ABC) {
+}
+
 def is_raw_response(value: any) -> bool {
-    return hasattr(value, 'render')
-        and hasattr(value, 'status_code')
-        and hasattr(value, 'raw_headers');
+    return isinstance(value, RawResponse);
 }
 
 enum MessageType {

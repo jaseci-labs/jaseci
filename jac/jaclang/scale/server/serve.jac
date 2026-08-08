@@ -21,7 +21,7 @@ import from jaclang.scale.jserver.jserver {
 import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.server { JacAPIServer as JServer }
 import from jaclang.runtimelib.server { JsonValue }
-import from jaclang.runtimelib.transport { TransportResponse, Meta }
+import from jaclang.runtimelib.transport { TransportResponse, Meta, RawResponse }
 import from jaclang.scale.shared.utils { _extract_path_param_names }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.webhook.webhook { ApiKeyManager, WebhookUtils }
@@ -92,6 +92,8 @@ import from jaclang.scale.scheduler.scheduler_models {
     UpdateJobRequest
 }
 import from jaclang.scale.emailer.emailer { Emailer }
+
+glob _raw_response_wired: type = RawResponse.register(Response);
 
 glob _jwt_config = get_scale_config().get_jwt_config(),
      _sso_config = get_scale_config().get_sso_config(),
