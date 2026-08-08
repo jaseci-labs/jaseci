@@ -528,6 +528,26 @@ impl NaIRGenPass._aos_elem_of(type_expr: (uni.UniNode | None)) -> (str | None) {
     return _tn;
 }
 
+impl NaIRGenPass._resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type {
+    _ptb = type_expr?.type;
+    if _ptb is not None {
+        lowered = self._lower_type(_ptb);
+        if lowered is not None {
+            if self._str_desc_ty is not None and lowered == self._str_desc_ty {
+                lowered = ir.IntType(8).as_pointer();
+            }
+            return lowered;
+        }
+        if self._foreign_optional_field(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
+        if not self._type_base_is_unknown(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
+    }
+    return self._resolve_jac_type(type_expr);
+}
+
 impl NaIRGenPass._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
     if type_expr is None {
         return ir.IntType(64);
@@ -620,7 +640,16 @@ impl NaIRGenPass._foreign_optional_field(tb: any) -> bool {
     if len(_non_none) == len(_members) or not _non_none {
         return False;
     }
-    return all(isinstance(m, _FofUnknownType) for m in _non_none);
+    for m in _non_none {
+        if isinstance(m, _FofUnknownType) {
+            continue;
+        }
+        if isinstance(m, _FofClassType) and self._lower_type(m) is None {
+            continue;
+        }
+        return False;
+    }
+    return True;
 }
 
 impl NaIRGenPass._type_base_is_unknown(tb: any) -> bool {

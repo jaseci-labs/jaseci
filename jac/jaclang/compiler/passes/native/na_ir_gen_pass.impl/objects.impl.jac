@@ -449,11 +449,11 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     param_types: list[ir.Type] = [] if _is_static else [struct_type.as_pointer()];
     for p in _m_params {
         param_types.append(
-            self._resolve_jac_type(p) if p.type_tag is not None else ir.IntType(64)
+            self._resolve_sig_type(p) if p.type_tag is not None else ir.IntType(64)
         );
     }
 
-    ret_type = self._resolve_jac_type(sig.return_type);
+    ret_type = self._resolve_sig_type(sig.return_type);
     if isinstance(ret_type, ir.VoidType) {
         ;
     }

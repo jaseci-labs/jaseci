@@ -132,7 +132,6 @@ obj UniScopeNode(UniNode) {
         names_in_scope_overload: dict[(str, list[Symbol])] postinit,
         implicit_rebinds: dict[(str, Symbol)] postinit;
 
-    def postinit -> None;
     def _init_scope(name: str, parent_scope: (UniScopeNode | None) = None) -> None;
     static def get_python_scoping_nodes -> tuple[(type[UniScopeNode], ...)] {
         return (Module, Enum, Archetype, Ability, ImplDef, Test);
@@ -178,7 +177,6 @@ obj AstSymbolNode(UniNode) {
     has name_spec: NameAtom postinit,
         semstr: str postinit;
 
-    def postinit -> None;
     def _init_symbol(
         sym_name: str, name_spec: NameAtom, sym_category: SymbolType
     ) -> None;

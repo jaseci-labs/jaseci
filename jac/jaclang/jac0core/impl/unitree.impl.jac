@@ -380,10 +380,6 @@ impl Symbol.__repr__ -> str {
     return f"Symbol({self.sym_name}, {self.sym_type}, {self.access},{self.defn})";
 }
 
-impl UniScopeNode.postinit -> None {
-    ;
-}
-
 impl UniScopeNode._init_scope(
     name: str, parent_scope: (UniScopeNode | None) = None
 ) -> None {
@@ -638,10 +634,6 @@ impl UniScopeNode.__repr__ -> str {
         out += f"    {k}: {v}\n";
     }
     return out;
-}
-
-impl AstSymbolNode.postinit -> None {
-    ;
 }
 
 impl AstSymbolNode._init_symbol(
