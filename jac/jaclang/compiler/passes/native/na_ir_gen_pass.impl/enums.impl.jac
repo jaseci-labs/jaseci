@@ -159,3 +159,45 @@ impl NaIRGenPass._codegen_enum_value_lookup(
     );
     return self.builder.load(ptr_ptr, name=f"enum.{enum_name}.str");
 }
+
+impl NaIRGenPass._class_enum_member_str(cls_name: str, member: str) -> (str | None) {
+    _cache = self?._class_enum_str_cache;
+    if _cache is None {
+        _cache = {};
+        self._class_enum_str_cache = _cache;
+    }
+    _key = f"{cls_name}.{member}";
+    if _key in _cache {
+        return _cache[_key];
+    }
+    _mods: list = [self.ir_in];
+    for _fm in (self?._foreign_modules or []) {
+        _mods.append(_fm);
+    }
+    _found: (str | None) = None;
+    for _m in _mods {
+        for _arch in _m.get_all_sub_nodes(uni.Archetype) {
+            if (_arch.name.value if _arch.name else None) != cls_name {
+                continue;
+            }
+            for _asgn in _arch.get_all_sub_nodes(uni.Assignment) {
+                _tgt0 = _asgn.target[0]
+                    if _asgn.target and len(_asgn.target) > 0
+                    else None;
+                if isinstance(_tgt0, uni.Name)
+                    and _tgt0.value == member
+                    and isinstance(_asgn.value, (uni.String, uni.MultiString)) {
+                    _sv = _asgn.value.lit_value;
+                    if isinstance(_sv, str) {
+                        _found = _sv;
+                    }
+                }
+            }
+        }
+        if _found is not None {
+            break;
+        }
+    }
+    _cache[_key] = _found;
+    return _found;
+}

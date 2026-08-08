@@ -1500,6 +1500,23 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
             }
         }
+        if right_name is not None and (right_name == "value" or right_name == "name") {
+            _mt_tk = self._type_key_of(nd.target);
+            if _mt_tk is not None {
+                _mt_tk = _mt_tk.replace(" ", "");
+            }
+            if _mt_tk is not None and _mt_tk.startswith("type[") and "]." in _mt_tk {
+                _mt_cls = _mt_tk[5:_mt_tk.index("]")];
+                _mt_mem = _mt_tk.split("].", 1)[1];
+                if right_name == "name" {
+                    return self._make_global_string(_mt_mem);
+                }
+                _mt_val = self._class_enum_member_str(_mt_cls, _mt_mem);
+                if _mt_val is not None {
+                    return self._make_global_string(_mt_val);
+                }
+            }
+        }
         if target_name is not None and right_name is not None {
             if (
                 target_name == "sys"
@@ -1562,13 +1579,14 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 _real_cls = _tk_alias[5:-1];
                 _real_full = f"{_real_cls}.{right_name}";
                 if _real_full not in self.enum_values {
-                    _tgt_tb = nd.target?.type;
-                    if _tgt_tb is not None {
-                        self._ensure_enum_lowered(_tgt_tb);
-                    }
+                    self._codegen_enum_layout(_real_cls, None);
                 }
                 if _real_full in self.enum_values {
                     return self.enum_values[_real_full];
+                }
+                _cem = self._class_enum_member_str(_real_cls, right_name);
+                if _cem is not None {
+                    return self._make_global_string(_cem);
                 }
                 if _real_cls in self.struct_types
                     and _real_cls not in self.local_vars {
