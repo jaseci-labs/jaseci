@@ -44,10 +44,15 @@ impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
         }
         _had_none = len(_members) < len(t.types or []);
         if _members {
-            _mlow = self._lower_type(_members[0]);
-            if self._str_desc_ty is not None and _mlow == self._str_desc_ty {
-                _mlow = ir.IntType(8).as_pointer();
+            _mreprs: list = [];
+            for _m in _members {
+                _mr = self._lower_type(_m);
+                if self._str_desc_ty is not None and _mr == self._str_desc_ty {
+                    _mr = ir.IntType(8).as_pointer();
+                }
+                _mreprs.append(_mr);
             }
+            _mlow = self._unify_repr_lowering(_mreprs);
             if (
                 _had_none
                 and len(_members) == 1
@@ -66,6 +71,49 @@ impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
         self._lowered_type_cache[key] = lowered;
     }
     return lowered;
+}
+
+impl NaIRGenPass._unify_repr_lowering(reprs: list) -> (ir.Type | None) {
+    if not reprs {
+        return None;
+    }
+    _first = reprs[0];
+    _rest = reprs[1:];
+    if _first is None or not _rest {
+        return _first;
+    }
+    _shared = True;
+    _all_ptr = isinstance(_first, ir.PointerType);
+    for _r in _rest {
+        if _r is None {
+            return _first;
+        }
+        if _r != _first {
+            _shared = False;
+        }
+        if not isinstance(_r, ir.PointerType) {
+            _all_ptr = False;
+        }
+    }
+    if _shared or _all_ptr or not self?.jacval_type {
+        return _first;
+    }
+    return self.jacval_type;
+}
+
+impl NaIRGenPass._coerce_to_repr(val: ir.Value, target_type: ir.Type) -> ir.Value {
+    if val.type == target_type {
+        return val;
+    }
+    if isinstance(val.type, ir.PointerType)
+        and isinstance(target_type, ir.PointerType) {
+        _cast = self.builder.bitcast(val, target_type, name="repr.cast");
+        if self._is_owned(val) {
+            self._mark_owned(_cast);
+        }
+        return _cast;
+    }
+    return self._coerce_type(val, target_type);
 }
 
 impl NaIRGenPass._type_key_of(expr: (uni.UniNode | None)) -> (str | None) {
