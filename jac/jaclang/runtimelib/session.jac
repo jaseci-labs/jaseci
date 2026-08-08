@@ -32,7 +32,7 @@ obj Session {
         base_path: (str | None) = None,
         target_path: (str | None) = None,
         __mem__: dict[UUID, Anchor] postinit,
-        _dirty: set[UUID] postinit,
+        _dirty: dict[UUID, None] postinit,
         _deleted: set[UUID] postinit,
         _flushed_hash: dict[UUID, int] postinit,
         _on_commit: list[Callable] postinit,
@@ -80,7 +80,10 @@ obj Session {
     def flush(full: bool = False) -> None;
     def read_barrier -> None;
     def _ensure_txn -> None;
-    def _materialize(row: AnchorRow) -> (Anchor | None);
+    def _materialize(
+        row: AnchorRow, edge_ids: (list[UUID] | None) = None
+    ) -> (Anchor | None);
+
     def _serialize(anchor: Anchor) -> AnchorRow;
     def _fire_on_commit -> None;
     def _evict_uncommitted -> None;

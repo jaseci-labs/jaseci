@@ -48,6 +48,7 @@ obj Store {
     def rollback -> None abst;
     def in_txn -> bool abst;
     def load(ids: list[UUID]) -> dict[UUID, AnchorRow] abst;
+    def adjacency(ids: list[UUID]) -> dict[UUID, list[UUID]] abst;
     def load_versions(ids: list[UUID]) -> dict[UUID, int] abst;
     def upsert(rows_in: list[AnchorRow]) -> None abst;
     def delete(ids: list[UUID]) -> None abst;
@@ -89,6 +90,7 @@ obj PgStore(Store) {
     def rollback -> None;
     def in_txn -> bool;
     def load(ids: list[UUID]) -> dict[UUID, AnchorRow];
+    def adjacency(ids: list[UUID]) -> dict[UUID, list[UUID]];
     def load_versions(ids: list[UUID]) -> dict[UUID, int];
     def upsert(rows_in: list[AnchorRow]) -> None;
     def delete(ids: list[UUID]) -> None;

@@ -178,12 +178,7 @@ impl compile_query(q: GraphQuery, upto: int) -> CompiledQuery {
             nconds.append(f"{nd_alias}.id = ANY(CAST(:{key} AS uuid[]))");
         }
         joins.append(f"JOIN anchors {nd_alias} ON {' AND '.join(nconds)}");
-        src_alias = 's1' if n == 1 else f"n{n - 1}";
-        order.append(
-            f"(SELECT t.ord FROM jsonb_array_elements_text("
-            f"{src_alias}.props->'edges') WITH ORDINALITY AS t(eid, ord) "
-            f"WHERE t.eid = CAST({e}.id AS text) LIMIT 1) NULLS LAST"
-        );
+        order.append(f"{e}.seq");
         order.append(f"{e}.id");
         fid = f"{nd_alias}.id";
     }

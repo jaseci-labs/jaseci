@@ -521,7 +521,7 @@ test "walker purger" {
                 "E(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\n"
                 "E(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\nE(id=0)\nE(id=1)\n"
                 "125\n124"
-            );
+            ) , f"got: {output!r}";
         captured = capture_start();
         execution.enter(
             filename=os.path.join(FIXTURES, "graph_purger.jac"),
@@ -539,7 +539,7 @@ test "walker purger" {
             args=[]
         );
         output = capture_get(captured).strip();
-        assert output == "Root()\n1\n0";
+        assert output == "Root()\n1\n0" , f"got: {output!r}";
     } finally {
         Jac.set_base_path(_orig_base);
         shutil.rmtree(_tmpdir, ignore_errors=True);
@@ -1074,13 +1074,17 @@ test "run persistent reuse" {
             st = PgStore(conninfo=rt.ensure());
             st.begin(serializable=False);
             rows = st.rows(
-                "SELECT props FROM anchors WHERE id = CAST(:i AS uuid)",
+                "SELECT 1 FROM anchors WHERE id = CAST(:i AS uuid)",
                 {'i': "00000000-0000-0000-0000-000000000000"}
             );
             assert rows , "Root should be persisted to database";
-            props = rows[0][0];
-            root_data = props if isinstance(props, dict) else json.loads(str(props));
-            edges = len(root_data["edges"]);
+            edges = st.rows(
+                """
+                SELECT COUNT(*) FROM anchors
+                WHERE src = CAST(:i AS uuid) OR dst = CAST(:i AS uuid)
+                """,
+                {'i': "00000000-0000-0000-0000-000000000000"}
+            )[0][0];
             keys = st.rows("SELECT COUNT(*) FROM anchors", {})[0][0];
             st.commit();
             st.close();

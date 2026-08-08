@@ -80,9 +80,10 @@ impl ApiKeyManager.postinit -> None {
         }
     } else {
         logger.warning(
-            "Webhook API keys are stored in memory (no MongoDB configured). "
+            "Webhook API keys are stored in memory (no database available). "
             "Keys and revocations are NOT durable: every restart invalidates "
-            "all keys. Configure MongoDB for production webhook use."
+            "all keys. Ensure the shared database is reachable for "
+            "production webhook use."
         );
     }
 }

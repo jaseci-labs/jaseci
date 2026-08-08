@@ -18,9 +18,9 @@ obj PodCache {
         misses: int postinit;
 
     def postinit -> None;
-    def get(id: UUID, version: int) -> (Any | None);
-    def put(id: UUID, version: int, payload: Any) -> None;
-    def invalidate(id: UUID) -> None;
-    def invalidate_payload(payload: str) -> None;
+    def get(ns: str, id: UUID, version: int) -> (Any | None);
+    def put(ns: str, id: UUID, version: int, payload: Any) -> None;
+    def invalidate(ns: str, id: UUID) -> None;
+    def invalidate_payload(ns: str, payload: str) -> None;
     def clear -> None;
 }

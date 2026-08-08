@@ -83,7 +83,7 @@ def _is_serialization_conflict(e: Exception) -> bool {
     while cur is not None and seen < 8 {
         c: BaseException = cur;
         for arg in getattr(c, 'args', ()) {
-            if isinstance(arg, dict) and arg.get('C') == '40001' {
+            if isinstance(arg, dict) and arg.get('C') in ('40001', '40P01', '55P03') {
                 return True;
             }
         }
@@ -94,12 +94,36 @@ def _is_serialization_conflict(e: Exception) -> bool {
 }
 
 
+def _cache_ns(store: (Any | None)) -> str {
+    if isinstance(store, PgStore) {
+        info = store.conninfo;
+        return (f"{info.unix_socket_dir or info.host}:" f"{info.port}/{info.database}");
+    }
+    return '';
+}
+
+
+def _persist_hash(anchor: Anchor) -> int {
+    import from json { dumps }
+    import from jaclang.runtimelib.serializer { Serializer }
+    try {
+        data = Serializer.serialize(anchor, include_type=True);
+        if isinstance(data, dict) {
+            data.pop('edges', None);
+        }
+        return hash(dumps(data, sort_keys=True));
+    } except Exception {
+        return 0;
+    }
+}
+
+
 impl Session.postinit -> None {
     import threading;
     self._lock = threading.RLock();
     self._fetch_count = 0;
     self.__mem__ = {};
-    self._dirty = set();
+    self._dirty = {};
     self._deleted = set();
     self._flushed_hash = {};
     self._on_commit = [];
@@ -110,11 +134,12 @@ impl Session.postinit -> None {
         promos = promotions_for(self.base_path);
         if url {
             pgs = PgStore(conninfo=conninfo_from_url(url));
+            ns = _cache_ns(pgs);
             try {
                 pgs.listen(
                     INVALIDATION_CHANNEL,
                     lambda (payload: str) { _process_cache.invalidate_payload(
-                        payload
+                        ns, payload
                     ); }
                 );
             } except Exception as e {
@@ -169,7 +194,7 @@ impl Session.get(id: UUID) -> (Anchor | None) {
 impl Session.put(anchor: Anchor) -> None {
     with self._lock {
         self.__mem__[anchor.id] = anchor;
-        self._dirty.add(anchor.id);
+        self._dirty[anchor.id] = None;
         self._deleted.discard(anchor.id);
     }
 }
@@ -178,7 +203,7 @@ impl Session.put(anchor: Anchor) -> None {
 impl Session.delete(id: UUID) -> None {
     with self._lock {
         self.__mem__.pop(id, None);
-        self._dirty.discard(id);
+        self._dirty.pop(id, None);
         self._flushed_hash.pop(id, None);
         self._deleted.add(id);
     }
@@ -226,8 +251,10 @@ impl Session.get_roots -> Generator[Root, None, None] {
             for i in self.store.root_ids()
             if i not in seen and i not in self._deleted
         ];
-        for (rid, row) in self.store.load(remote).items() {
-            anchor = self._materialize(row);
+        root_rows = self.store.load(remote);
+        adj_map = self.store.adjacency(list(root_rows.keys())) if root_rows else {};
+        for (rid, row) in root_rows.items() {
+            anchor = self._materialize(row, edge_ids=adj_map.get(rid));
             if anchor is not None and isinstance(anchor.archetype, Root) {
                 yield anchor.archetype;
             }
@@ -279,7 +306,7 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
             if ver is None {
                 continue;
             }
-            props = _process_cache.get(i, ver);
+            props = _process_cache.get(_cache_ns(self.store), i, ver);
             if props is None {
                 still.append(i);
                 continue;
@@ -293,12 +320,19 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
                 still.append(i);
             }
         }
-        for (rid, row) in self.store.load(still).items() {
-            anchor = self._materialize(row);
+        loaded = self.store.load(still);
+        node_ids = [
+            rid
+            for (rid, row) in loaded.items()
+            if row.kind == 'NodeAnchor'
+        ];
+        adj_map = self.store.adjacency(node_ids) if node_ids else {};
+        for (rid, row) in loaded.items() {
+            anchor = self._materialize(row, edge_ids=adj_map.get(rid));
             if anchor is not None {
                 self._fetch_count += 1;
                 out[rid] = anchor;
-                _process_cache.put(rid, row.version, row.props);
+                _process_cache.put(_cache_ns(self.store), rid, row.version, row.props);
             }
         }
     }
@@ -309,13 +343,35 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
 impl Session.commit(anchor: (Anchor | None) = None) -> None {
     with self._lock {
         if self.store is not None {
-            self.flush(full=True);
-            self.store.commit();
+            attempt = 0;
+            while True {
+                try {
+                    self.flush(full=True);
+                    self.store.commit();
+                    break;
+                } except Exception as e {
+                    if not _is_serialization_conflict(e) or attempt >= MAX_RETRIES {
+                        raise;
+                    }
+                    attempt += 1;
+                    try {
+                        self.store.rollback();
+                    } except Exception { }
+                    for id in list(self._txn_changed) {
+                        if id in self.__mem__ {
+                            self._flushed_hash.pop(id, None);
+                            self._dirty[id] = None;
+                        } else {
+                            self._deleted.add(id);
+                        }
+                    }
+                }
+            }
             if self._txn_changed {
                 changed = list(self._txn_changed);
                 self._txn_changed.clear();
                 for id in changed {
-                    _process_cache.invalidate(id);
+                    _process_cache.invalidate(_cache_ns(self.store), id);
                 }
                 try {
                     for start in range(0, len(changed), 100) {
@@ -478,11 +534,11 @@ impl Session.flush(full: bool = False) -> None {
     }
     with self._lock {
         self._ensure_txn();
-        candidates: set[UUID];
+        candidates: list[UUID];
         if full {
-            candidates = set(self.__mem__.keys());
+            candidates = list(self.__mem__.keys());
         } else {
-            candidates = set(self._dirty);
+            candidates = list(self._dirty.keys());
         }
         rows: list[AnchorRow] = [];
         pending: list = [];
@@ -491,11 +547,7 @@ impl Session.flush(full: bool = False) -> None {
             if anchor is None or not anchor.persistent or not anchor.is_populated() {
                 continue;
             }
-            try {
-                h = Serializer._compute_hash(anchor);
-            } except Exception {
-                h = 0;
-            }
+            h = _persist_hash(anchor);
             if h != 0 and self._flushed_hash.get(id) == h and id not in self._dirty {
                 continue;
             }
@@ -565,7 +617,9 @@ impl Session._serialize(anchor: Anchor) -> AnchorRow {
 }
 
 
-impl Session._materialize(row: AnchorRow) -> (Anchor | None) {
+impl Session._materialize(
+    row: AnchorRow, edge_ids: (list[UUID] | None) = None
+) -> (Anchor | None) {
     import from jaclang.runtimelib.serializer { Serializer }
     existing = self.__mem__.get(row.id);
     if existing is not None and existing.is_populated() {
@@ -579,14 +633,29 @@ impl Session._materialize(row: AnchorRow) -> (Anchor | None) {
         return None;
     }
     anchor: Anchor = got;
-    self.__mem__[row.id] = anchor;
-    try {
-        h = Serializer._compute_hash(anchor);
-    } except Exception {
-        h = 0;
+    if isinstance(anchor, NodeAnchor) and self.store is not None {
+        adj = (
+            edge_ids
+                if edge_ids is not None
+                else self.store.adjacency([row.id]).get(row.id, [])
+        );
+        live = [
+            i
+            for i in adj
+            if i not in self._deleted
+        ];
+        edges = [];
+        for eid in live {
+            if (stub := Serializer._id_to_stub(EdgeAnchor, str(eid))) is not None
+                and isinstance(stub, EdgeAnchor) {
+                edges.append(stub);
+            }
+        }
+        anchor.edges = edges;
     }
-    self._flushed_hash[row.id] = h;
-    anchor.hash = h;
+    self.__mem__[row.id] = anchor;
+    self._flushed_hash[row.id] = _persist_hash(anchor);
+    anchor.hash = self._flushed_hash[row.id];
     return anchor;
 }
 
@@ -621,34 +690,10 @@ impl Session.run_request(body: Callable) -> Any {
 
 
 impl Session.close -> None {
-    attempt = 0;
-    while True {
-        try {
-            self.commit();
-            break;
-        } except Exception as e {
-            if (
-                self.store is not None
-                and _is_serialization_conflict(e)
-                and attempt < MAX_RETRIES
-            ) {
-                attempt += 1;
-                try {
-                    self.store.rollback();
-                } except Exception { }
-                for id in list(self._txn_changed) {
-                    if id in self.__mem__ {
-                        self._flushed_hash.pop(id, None);
-                        self._dirty.add(id);
-                    } else {
-                        self._deleted.add(id);
-                    }
-                }
-                continue;
-            }
-            logger.warning(f"commit on close failed: {type(e).__name__}: {e}");
-            break;
-        }
+    try {
+        self.commit();
+    } except Exception as e {
+        logger.warning(f"commit on close failed: {type(e).__name__}: {e}");
     }
     if self.store is not None {
         self.store.close();

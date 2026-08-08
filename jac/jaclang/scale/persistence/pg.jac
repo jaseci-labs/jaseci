@@ -27,18 +27,29 @@ def scale_db_url -> (str | None) {
 
 def shared_store -> (Any | None) {
     with _lock {
-        if 'store' in _holder {
+        import from jaclang.jac0core.runtime { JacRuntime }
+        url = scale_db_url();
+        key = url
+            or (
+                f"{JacRuntime.get_base_path_dir() or ''}"
+                f"::{JacRuntime.get_full_target_path() or ''}"
+            );
+        if _holder.get('key') == key and 'store' in _holder {
             return _holder['store'];
+        }
+        old_store: Any = _holder.pop('store', None);
+        if old_store is not None {
+            try {
+                old_store.close();
+            } except Exception { }
         }
         store: (Any | None) = None;
         try {
             import from jaclang.runtimelib.session { conninfo_from_url }
             import from jaclang.runtimelib.store { PgStore }
-            url = scale_db_url();
             if url {
                 store = PgStore(conninfo=conninfo_from_url(url));
             } else {
-                import from jaclang.jac0core.runtime { JacRuntime }
                 import from jaclang.runtimelib.pgembed { PgRuntime }
                 import from jaclang.runtimelib.session {
                     project_db_name,
@@ -60,9 +71,11 @@ def shared_store -> (Any | None) {
             }
         } except Exception as e {
             logger.warning(f"scale shared store unavailable: {e}");
+            _holder['key'] = key;
             _holder['store'] = None;
             return None;
         }
+        _holder['key'] = key;
         _holder['store'] = store;
         return store;
     }

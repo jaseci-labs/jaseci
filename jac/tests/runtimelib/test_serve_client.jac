@@ -1726,7 +1726,7 @@ test "serve sync skips write access check on unchanged anchors" {
         sess = cast(Session, ctx.mem);
         sess.__mem__[sys_root.id] = sys_root;
         sess._flushed_hash[sys_root.id] = sys_root.hash;
-        sess._dirty.discard(sys_root.id);
+        sess._dirty.pop(sys_root.id, None);
         # Capture logs
         logger = logging.getLogger("jaclang.jac0core.runtime");
         cap = capture_log_start(logger);

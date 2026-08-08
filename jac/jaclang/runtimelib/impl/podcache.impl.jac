@@ -6,24 +6,26 @@ impl PodCache.postinit -> None {
 }
 
 
-impl PodCache.get(id: UUID, version: int) -> (Any | None) {
+impl PodCache.get(ns: str, id: UUID, version: int) -> (Any | None) {
     with self._lock {
-        entry = self._rows.get(id);
+        key = (ns, id);
+        entry = self._rows.get(key);
         if entry is None or entry[0] != version {
             self.misses += 1;
             return None;
         }
-        self._rows.move_to_end(id);
+        self._rows.move_to_end(key);
         self.hits += 1;
         return entry[1];
     }
 }
 
 
-impl PodCache.put(id: UUID, version: int, payload: Any) -> None {
+impl PodCache.put(ns: str, id: UUID, version: int, payload: Any) -> None {
     with self._lock {
-        self._rows[id] = (version, payload);
-        self._rows.move_to_end(id);
+        key = (ns, id);
+        self._rows[key] = (version, payload);
+        self._rows.move_to_end(key);
         while len(self._rows) > self.capacity {
             self._rows.popitem(last=False);
         }
@@ -31,21 +33,21 @@ impl PodCache.put(id: UUID, version: int, payload: Any) -> None {
 }
 
 
-impl PodCache.invalidate(id: UUID) -> None {
+impl PodCache.invalidate(ns: str, id: UUID) -> None {
     with self._lock {
-        self._rows.pop(id, None);
+        self._rows.pop((ns, id), None);
     }
 }
 
 
-impl PodCache.invalidate_payload(payload: str) -> None {
+impl PodCache.invalidate_payload(ns: str, payload: str) -> None {
     for part in payload.split(',') {
         token = part.strip();
         if not token {
             continue;
         }
         try {
-            self.invalidate(UUID(token));
+            self.invalidate(ns, UUID(token));
         } except ValueError {
             logger.debug(f"PodCache: ignoring malformed invalidation {token!r}");
         }

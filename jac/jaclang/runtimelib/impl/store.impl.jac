@@ -12,7 +12,8 @@ glob _SCHEMA_SQL = [
         undirected     boolean NOT NULL DEFAULT false,
         props          jsonb NOT NULL DEFAULT '{}'::jsonb,
         format_version integer NOT NULL DEFAULT 1,
-        updated_at     timestamptz NOT NULL DEFAULT now()
+        updated_at     timestamptz NOT NULL DEFAULT now(),
+        seq            bigserial
     )
     """,
          """
@@ -170,6 +171,25 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
         for stmt in _SCHEMA_SQL {
             self._run(stmt, {});
         }
+        has_seq = bool(
+            self._run(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'anchors' AND column_name = 'seq'
+                """,
+                {}
+            )
+        );
+        if not has_seq {
+            self._run("SET lock_timeout = '5s'", {});
+            try {
+                self._run(
+                    'ALTER TABLE anchors ADD COLUMN IF NOT EXISTS seq bigserial', {}
+                );
+            } finally {
+                self._run('SET lock_timeout = DEFAULT', {});
+            }
+        }
         self._apply_promotions();
         self._property_graph_ddl();
         for (tname, ) in self._run('SELECT DISTINCT type_name FROM graph_types', {}) {
@@ -187,6 +207,9 @@ impl PgStore.begin(serializable: bool = True) -> None {
         level = 'SERIALIZABLE' if serializable else 'READ COMMITTED';
         self._run(f"BEGIN ISOLATION LEVEL {level}", {});
         self._in_txn = True;
+        try {
+            self._run("SET LOCAL lock_timeout = '10s'", {});
+        } except Exception { }
     }
 }
 
@@ -253,6 +276,34 @@ impl PgStore.load(ids: list[UUID]) -> dict[UUID, AnchorRow] {
             version=int(str(r[10]))
         );
         out[row.id] = row;
+    }
+    return out;
+}
+
+
+impl PgStore.adjacency(ids: list[UUID]) -> dict[UUID, list[UUID]] {
+    if not ids {
+        return {};
+    }
+    out: dict[UUID, list[UUID]] = {i: [] for i in ids};
+    rows = self._run(
+        """
+        SELECT id, src, dst FROM anchors
+        WHERE src = ANY(CAST(:ids AS uuid[])) OR dst = ANY(CAST(:ids AS uuid[]))
+        ORDER BY seq, id
+        """,
+        {'ids': [str(i) for i in ids]}
+    );
+    for r in rows {
+        eid = UUID(str(r[0]));
+        for endpoint in (r[1], r[2]) {
+            if endpoint is not None {
+                nid = UUID(str(endpoint));
+                if nid in out and eid not in out[nid] {
+                    out[nid].append(eid);
+                }
+            }
+        }
     }
     return out;
 }
