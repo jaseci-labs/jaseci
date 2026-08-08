@@ -5198,6 +5198,10 @@ impl NativeBuiltinEmitter.emit_list(
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     val = args[0];
+    _opt_pl = p._opt_payload_of(val.type);
+    if _opt_pl is not None {
+        val = b.extract_value(val, 1, name="l.opt.payload");
+    }
 
     for (sk, shelpers) in p.set_helpers.items() {
         stype = p.set_types.get(sk);

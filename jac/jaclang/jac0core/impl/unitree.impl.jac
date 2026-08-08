@@ -974,7 +974,12 @@ impl TypeParam.postinit -> None {
 
 
 impl TypeAlias.postinit -> None {
-    self.type_params = `list(self.type_params) if self.type_params else [];
+    _tp = self.type_params;
+    if _tp is not None {
+        self.type_params = `list(_tp);
+    } else {
+        self.type_params = [];
+    }
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -1306,8 +1311,18 @@ impl ModuleItem.resolve_relative_path -> str {
 }
 
 impl Archetype.postinit -> None {
-    self.base_classes = `list(self.base_classes) if self.base_classes else [];
-    self.type_params = `list(self.type_params) if self.type_params else [];
+    _bc = self.base_classes;
+    if _bc is not None {
+        self.base_classes = `list(_bc);
+    } else {
+        self.base_classes = [];
+    }
+    _tp = self.type_params;
+    if _tp is not None {
+        self.type_params = `list(_tp);
+    } else {
+        self.type_params = [];
+    }
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -1438,7 +1453,12 @@ impl SemDef.create_sem_name_node -> Name {
 }
 
 impl Enum.postinit -> None {
-    self.base_classes = `list(self.base_classes) if self.base_classes else [];
+    _bc = self.base_classes;
+    if _bc is not None {
+        self.base_classes = `list(_bc);
+    } else {
+        self.base_classes = [];
+    }
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -1588,7 +1608,12 @@ impl Ability.event_trigger_type_names -> (list[str] | None) {
 
 impl FuncSignature.postinit -> None {
     self.posonly_params = `list(self.posonly_params);
-    self.params = `list(self.params) if self.params else [];
+    _ps = self.params;
+    if _ps is not None {
+        self.params = `list(_ps);
+    } else {
+        self.params = [];
+    }
     self.kwonlyargs = `list(self.kwonlyargs);
     UniNode.postinit(self);
 }
@@ -1894,8 +1919,9 @@ impl BoolExpr.postinit -> None {
 
 
 impl LambdaExpr.postinit -> None {
-    if (isinstance(self.body, list) and not isinstance(self.body, Expr)) {
-        self.body = `list(self.body);
+    lam_body = self.body;
+    if isinstance(lam_body, list) {
+        self.body = `list(lam_body);
     }
     UniNode.postinit(self);
     Expr.postinit(self);
@@ -1988,7 +2014,12 @@ impl ListVal.postinit -> None {
 
 
 impl SetVal.postinit -> None {
-    self.values = `list(self.values) if self.values else [];
+    _vals = self.values;
+    if _vals is not None {
+        self.values = `list(_vals);
+    } else {
+        self.values = [];
+    }
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.SEQUENCE);
@@ -2083,7 +2114,12 @@ impl YieldExpr.postinit -> None {
 
 
 impl FuncCall.postinit -> None {
-    self.params = `list(self.params) if self.params else [];
+    _ps = self.params;
+    if _ps is not None {
+        self.params = `list(_ps);
+    } else {
+        self.params = [];
+    }
     self.callee_decl = None;
     UniNode.postinit(self);
     Expr.postinit(self);
@@ -2144,8 +2180,18 @@ impl AssignCompr.postinit -> None {
 
 
 impl JsxElement.postinit -> None {
-    self.attributes = `list(self.attributes) if self.attributes else [];
-    self.children = `list(self.children) if self.children else [];
+    _attrs = self.attributes;
+    if _attrs is not None {
+        self.attributes = `list(_attrs);
+    } else {
+        self.attributes = [];
+    }
+    _ch = self.children;
+    if _ch is not None {
+        self.children = `list(_ch);
+    } else {
+        self.children = [];
+    }
     UniNode.postinit(self);
     Expr.postinit(self);
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.OBJECT_ARCH);
@@ -2329,8 +2375,18 @@ impl MatchStar.postinit -> None {
 
 
 impl MatchArch.postinit -> None {
-    self.arg_patterns = `list(self.arg_patterns) if self.arg_patterns else None;
-    self.kw_patterns = `list(self.kw_patterns) if self.kw_patterns else None;
+    _ap = self.arg_patterns;
+    if _ap is not None {
+        self.arg_patterns = `list(_ap);
+    } else {
+        self.arg_patterns = None;
+    }
+    _kp = self.kw_patterns;
+    if _kp is not None {
+        self.kw_patterns = `list(_kp);
+    } else {
+        self.kw_patterns = None;
+    }
     UniNode.postinit(self);
 }
 
