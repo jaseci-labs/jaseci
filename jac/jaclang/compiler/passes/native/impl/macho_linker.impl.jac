@@ -603,10 +603,14 @@ impl MachOLinker._consolidate(
         if key in existing {
             ti = existing[key];
             tgt = self.sections[ti];
-            aligned = _align(len(tgt.data), max(ms.align, 1));
+
+            cur_logical = tgt.size if tgt.size > len(tgt.data) else len(tgt.data);
+            aligned = _align(cur_logical, max(ms.align, 1));
             new_data = bytearray(tgt.data);
-            new_data.extend(b"\x00" * (aligned - len(tgt.data)));
-            data_off = len(new_data);
+            if len(ms.data) > 0 {
+                new_data.extend(b"\x00" * (aligned - len(new_data)));
+            }
+            data_off = aligned;
             new_data.extend(ms.data);
             tgt.data = bytes(new_data);
             ms_logical = ms.size if ms.size > len(ms.data) else len(ms.data);
@@ -657,6 +661,17 @@ impl MachOLinker._consolidate(
             sym_remap[si] = ni;
         } else {
             keep_val = sym.n_value if (sym.n_type & N_TYPE_MASK) == 0x02 else 0;
+            if (sym.n_type & N_TYPE_MASK) == N_UNDF
+                and (sym.n_type & N_EXT) != 0
+                and sym.n_value > 0
+                and sym.name {
+                (_c_sz, _c_al) = self._commons.get(sym.name, (0, 0));
+                _sym_al = (sym.n_desc >> 8) & 0x0F;
+                self._commons[sym.name] = (
+                    sym.n_value if sym.n_value > _c_sz else _c_sz,
+                    _sym_al if _sym_al > _c_al else _c_al
+                );
+            }
             ni = len(self.symbols);
             self.symbols.append(
                 MachOSymbol(
@@ -693,6 +708,75 @@ impl MachOLinker._consolidate(
                 addend=r.addend
             )
         );
+    }
+}
+
+
+impl MachOLinker._allocate_commons -> None {
+    if not self._commons {
+        return;
+    }
+    already: set[str] = set();
+    for s in self.symbols {
+        if (s.n_type & N_TYPE_MASK) == N_SECT and s.name {
+            already.add(s.name);
+        }
+    }
+
+    target = -1;
+    for (i, sec) in enumerate(self.sections) {
+        if sec.segname == "__DATA" and sec.name == "__data" {
+            target = i;
+            break;
+        }
+    }
+    if target < 0 {
+        target = len(self.sections);
+        self.sections.append(
+            MachOSection(
+                name="__data",
+                segname="__DATA",
+                addr=0,
+                size=0,
+                data=b"",
+                align=3,
+                flags=0,
+                reserved1=0,
+                reserved2=0
+            )
+        );
+    }
+    sec = self.sections[target];
+    blob = bytearray(sec.data);
+
+    for name in sorted(self._commons.keys()) {
+        if name in already {
+            continue;
+        }
+        (size, align_log2) = self._commons[name];
+        align = 1 << align_log2 if align_log2 > 0 else 1;
+        if align < 1 {
+            align = 1;
+        }
+        start = _align(len(blob), align);
+        blob.extend(b"\x00" * (start - len(blob)));
+        off = len(blob);
+        blob.extend(b"\x00" * size);
+        self.symbols.append(
+            MachOSymbol(
+                name=name,
+                n_type=N_SECT | N_EXT,
+                n_sect=target + 1,
+                n_desc=0,
+                n_value=sec.addr + off
+            )
+        );
+        already.add(name);
+    }
+    sec.data = bytes(blob);
+    sec.size = len(blob);
+    if sec.align < 3 {
+        sec.align = 3;
     }
 }
 
@@ -2537,6 +2621,7 @@ impl MachOLinker.link(
         }
     }
     if archive_members {
+        linker._allocate_commons();
         linker._resolve_crossrefs();
     }
     exe_bytes = linker.build_shared_object() if shared else linker.build_executable();
