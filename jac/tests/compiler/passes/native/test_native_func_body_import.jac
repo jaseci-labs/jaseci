@@ -1,11 +1,11 @@
 """Function-body `import from` statements must lower on the native backend.
 
 Roadmap item N8c of jaseci-labs/jac#7967: module-level imports lower, but an
-`import from x { y }` written inside a function body raised
-"Native lowering failed for statement 'Import'" and then a cascade of
-"Native lowering failed for function ..." for every name the import bound. The
-body-scoped spelling is the house idiom for lazy and conditional imports, so it
-must lower rather than merely fail politely.
+import written inside a function body raised "Native lowering failed for
+statement 'Import'" and then a cascade of "Native lowering failed for ..." for
+every name the import bound. The body-scoped spelling is the house idiom for
+lazy and conditional imports, so it must lower rather than merely fail
+politely.
 
 Results are compared against the sv/bytecode run of the same fixture.
 """
@@ -58,11 +58,11 @@ test "function-body imports lower and agree with sv" {
     sv = sv_module("func_body_import");
     cases = [
         "floor_half",
-        "sqrt_floor",
+        "ceil_third",
         "conditional_import",
         "sibling_import",
-        "method_import",
-        "counter_from_lib"
+        "sibling_type_import",
+        "method_import"
     ];
     for name in cases {
         addr = eng.get_function_address(name);
