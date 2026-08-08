@@ -982,19 +982,7 @@ impl NaIRGenPass._opt_payload_of(t: ir.Type) -> (ir.Type | None) {
 }
 
 impl NaIRGenPass._narrowed_flow_type(nd: uni.UniNode) -> (any | None) {
-    if not isinstance(nd, uni.Expr) or nd.type is None {
-        return None;
-    }
-    try {
-        _te = self.prog.get_type_evaluator();
-        _sym = nd.sym if isinstance(nd, uni.Name) else None;
-        if _sym is not None {
-            return _te.get_narrowed_type(_sym, nd);
-        }
-        return _te.get_narrowed_type_for_expr(nd, nd.type, nd);
-    } except Exception {
-        return None;
-    }
+    return nd.type if isinstance(nd, uni.Expr) else None;
 }
 
 impl NaIRGenPass._narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool {
