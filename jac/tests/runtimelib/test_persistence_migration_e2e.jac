@@ -28,6 +28,16 @@ def _jac_enter(cwd: str, app_path: str, entrypoint: str) -> tuple {
 }
 
 
+"""Point subprocesses at the branch runtime, not a stale snapshot."""
+def _seed_dev_source(tmpdir: str, name: str) {
+    import jaclang;
+    src = str(Path(str(jaclang.__file__)).parent.parent);
+    (Path(tmpdir) / "jac.toml").write_text(
+        f'[project]\nname = "{name}"\n\n[dev]\njaclang_source = "{src}"\n'
+    );
+}
+
+
 glob V1_SOURCE = "node Person {\n"
      "    has name: str;\n"
      "    has age: int = 0;\n"
@@ -75,6 +85,7 @@ test "added field survives schema drift end-to-end" {
     with TemporaryDirectory() as raw_tmpdir {
         tmpdir = str(raw_tmpdir);
         app = Path(tmpdir) / "app.jac";
+        _seed_dev_source(tmpdir, "migration");
         # v1: create two persons.
         app.write_text(V1_SOURCE);
         (rc, _, err) = _jac_enter(tmpdir, str(app), "create");
@@ -124,6 +135,7 @@ test "removed field survives schema drift end-to-end" {
     with TemporaryDirectory() as raw_tmpdir {
         tmpdir = str(raw_tmpdir);
         app = Path(tmpdir) / "app.jac";
+        _seed_dev_source(tmpdir, "migration");
         app.write_text(V1_SOURCE);
         (rc, _, err) = _jac_enter(tmpdir, str(app), "create");
         assert rc == 0 , f"v1 create failed: {err}";
@@ -146,6 +158,7 @@ test "same-schema reruns do not drift or quarantine anything" {
     with TemporaryDirectory() as raw_tmpdir {
         tmpdir = str(raw_tmpdir);
         app = Path(tmpdir) / "app.jac";
+        _seed_dev_source(tmpdir, "migration");
         app.write_text(V1_SOURCE);
         (rc, _, err) = _jac_enter(tmpdir, str(app), "create");
         assert rc == 0 , f"create failed: {err}";

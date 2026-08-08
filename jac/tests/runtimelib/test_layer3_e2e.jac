@@ -30,6 +30,16 @@ def _jac_enter(cwd: str, app_path: str, entrypoint: str) -> tuple {
 }
 
 
+"""Point subprocesses at the branch runtime, not a stale snapshot."""
+def _seed_dev_source(tmpdir: str, name: str) {
+    import jaclang;
+    src = str(Path(str(jaclang.__file__)).parent.parent);
+    (Path(tmpdir) / "jac.toml").write_text(
+        f'[project]\nname = "{name}"\n\n[dev]\njaclang_source = "{src}"\n'
+    );
+}
+
+
 # --- Alias: class rename ----------------------------------------------------
 glob V1_RENAME = "node LegacyPerson {\n"
      "    has name: str;\n"
@@ -66,6 +76,7 @@ test "archetype_alias resolves a renamed class back to the new class" {
     with TemporaryDirectory() as raw_tmpdir {
         tmpdir = str(raw_tmpdir);
         app = Path(tmpdir) / "app.jac";
+        _seed_dev_source(tmpdir, "layer3");
         app.write_text(V1_RENAME);
         (rc, _, err) = _jac_enter(tmpdir, str(app), "create");
         assert rc == 0 , f"v1 create failed: {err}";
@@ -91,6 +102,7 @@ test "rename without alias quarantines the stored anchors (control)" {
     with TemporaryDirectory() as raw_tmpdir {
         tmpdir = str(raw_tmpdir);
         app = Path(tmpdir) / "app.jac";
+        _seed_dev_source(tmpdir, "layer3");
         app.write_text(V1_RENAME);
         (rc, _, err) = _jac_enter(tmpdir, str(app), "create");
         assert rc == 0 , f"v1 create failed: {err}";
@@ -168,6 +180,7 @@ test "field type int->str coerces on load without quarantine" {
     with TemporaryDirectory() as raw_tmpdir {
         tmpdir = str(raw_tmpdir);
         app = Path(tmpdir) / "app.jac";
+        _seed_dev_source(tmpdir, "layer3");
         app.write_text(V1_TYPED);
         (rc, _, err) = _jac_enter(tmpdir, str(app), "create");
         assert rc == 0 , f"v1 create failed: {err}";
