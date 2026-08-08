@@ -51,19 +51,8 @@ def _native_parse -> any {
                     fn.__jac_strtab_blob__ = blob_fn;
                 }
             }
-            if fn is not None {
-                _sc = _arena_from_native(
-                    fn("with entry { print(1); }", "__seal_selfcheck__.jac")[0], blob_fn
-                );
-                canary = materialize_module(
-                    _sc,
-                    Source(
-                        "with entry { print(1); }", mod_path="__seal_selfcheck__.jac"
-                    )
-                );
-                if canary.name != "__seal_selfcheck__" or len(canary.body) != 1 {
-                    fn = None;
-                }
+            if fn is not None and not _canary_ok(fn, blob_fn) {
+                fn = None;
             }
         }
     } except Exception {
@@ -85,6 +74,66 @@ def _split_strtab(blob: str) -> list[str] {
         i = j + 1 + ln;
     }
     return out;
+}
+
+
+glob _CANARY_SRC: str = (
+         "\"\"\"Canary module: exercises many token kinds.\"\"\"\n"
+         "import os;\n"
+         "glob G: int = 42, H: str = \"control-flow harness (Branch 4)\";\n"
+         "enum E { A = 1, B = 2 }\n"
+         "obj Canary {\n"
+         "    has a: int = 0, b: (str | None) = None, c: list[int] = [];\n"
+         "    def m(p: int = 3) -> int;\n"
+         "}\n"
+         "impl Canary.m(p: int = 3) -> int {\n"
+         "    if p > 1 and p < 10 or not p {\n"
+         "        for i in range(p) {\n"
+         "            self.a += i * 2 - 1;\n"
+         "        }\n"
+         "    } elif p == 0 {\n"
+         "        while self.a {\n"
+         "            self.a -= 1;\n"
+         "        }\n"
+         "    } else {\n"
+         "        try {\n"
+         "            self.b = f\"v={p} w={self.a}\";\n"
+         "        } except Exception as e {\n"
+         "            raise;\n"
+         "        }\n"
+         "    }\n"
+         "    return self.a if self.a else -1;\n"
+         "}\n"
+         "test canary_t { assert Canary(a=5).m(2) >= -1; }\n"
+         "with entry { print({\"k\": [1, 2.5, True, None]}); }\n"
+     );
+
+def _canary_ok(fn: any, blob_fn: any) -> bool {
+    try {
+        r = fn(_CANARY_SRC, "__seal_selfcheck__.jac");
+        native_mod = materialize_module(
+            _arena_from_native(r[0], blob_fn),
+            Source(_CANARY_SRC, mod_path="__seal_selfcheck__.jac")
+        );
+        (tokens, _c, _ld, _le) = na_lexer.tokenize_full(
+            _CANARY_SRC, "__seal_selfcheck__.jac"
+        );
+        pyp = Parser(
+            tokens=tokens, file_path="__seal_selfcheck__.jac", source_code=_CANARY_SRC
+        );
+        pyp.parse();
+        py_mod = materialize_module(
+            pyp.b, Source(_CANARY_SRC, mod_path="__seal_selfcheck__.jac")
+        );
+        return (
+            r[1] == pyp.error_count
+            and len(native_mod._in_mod_nodes) == len(py_mod._in_mod_nodes)
+            and native_mod.unparse(requires_format=False)
+                == py_mod.unparse(requires_format=False)
+        );
+    } except Exception {
+        return False;
+    }
 }
 
 
