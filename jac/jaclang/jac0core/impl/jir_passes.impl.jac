@@ -3,32 +3,42 @@ import sys;
 import zlib;
 
 impl JirWriter._is_lazy_decl(node: UniNode) -> bool {
-    import from jaclang.jac0core.unitree { Archetype, Ability, GlobalVars, ModuleCode }
-    # Everything with a heavy top-level subtree: classes, functions, module-level
-    # variable/type-alias declarations (GlobalVars) and free module statements
-    # (ModuleCode -- annotations and `if sys.version_info:` blocks, which
-    # dominate a typical stub's eager tier). Their module-scope symbols stay
-    # eager; only the bodies defer.
-    return isinstance(node, (Archetype, Ability, GlobalVars, ModuleCode));
+    import from jaclang.jac0core.unitree {
+        Archetype, Ability, GlobalVars, ModuleCode, ImplDef, Enum, Test
+    }
+    # Every top-level declaration with a heavy subtree: classes, functions,
+    # enums, tests, module-level variable/type-alias declarations (GlobalVars),
+    # free module statements (ModuleCode -- annotations and `if sys.version_info:`
+    # blocks that dominate a stub's eager tier), and inline `impl` blocks
+    # (ImplDef -- the method/function bodies that dominate an inline-impl `.jac`
+    # module). Their module-scope symbols stay eager; only the bodies defer.
+    return isinstance(
+        node, (Archetype, Ability, GlobalVars, ModuleCode, ImplDef, Enum, Test)
+    );
 }
 
 impl JirWriter.write_module(
     module: Module, sections: (dict[int, bytes] | None) = None
 ) -> bytes {
+    import os;
     import from jaclang.jac0core.jir {
         HEADER_FMT, HEADER_SIZE, MAGIC, FORMAT_VERSION, write_sections,
-        SEC_DECL_INDEX, SEC_DECL_BODIES, SEC_DECL_ENTRIES
+        SEC_DECL_INDEX, SEC_DECL_BODIES, SEC_DECL_ENTRIES, FLAG_CHUNKED
     }
     import from importlib.metadata { version as pkg_version }
 
     self._assign_ids(module);
     node_total = len(self._nodes);
 
-    # Partition top-level declarations into their own lazy chunks for stubs.
-    # Every top-level child's subtree owns a contiguous id range (post-order
+    # Partition top-level declarations into their own lazy chunks. Every
+    # top-level child's subtree owns a contiguous id range (post-order
     # `_assign_ids`), so a chunk is just an [lo, hi] id span; the Module node is
-    # the final id and always lands in the eager tier.
-    chunked = module.stub_only;
+    # the final id and always lands in the eager tier. Stubs are always chunked;
+    # `.jac` modules are chunked only under the opt-in JAC_LAZY_JAC (their bodies
+    # carry CFG/codegen state, so laziness there is experimental).
+    _jac_truthy: set = {'1', 'true', 'True', 'yes', 'on'};
+    jac_lazy = os.environ.get('JAC_LAZY_JAC', '') in _jac_truthy;
+    chunked = module.stub_only or jac_lazy;
     is_lazy_id = [False] * node_total;
     chunks: list[tuple[int, int, int]] = [];
     if chunked {
@@ -104,6 +114,9 @@ impl JirWriter.write_module(
     if module.stub_only {
         flags |= 1;
     }
+    if chunked {
+        flags |= FLAG_CHUNKED;
+    }
 
     header = struct.pack(
         HEADER_FMT,
@@ -156,6 +169,39 @@ impl JirWriter.write_module(
             for sym in sym_list {
                 for na in (list(sym.defn) + list(sym.uses)) {
                     _collect_entry(na);
+                }
+            }
+        }
+        # Any node referenced by a *structural* node-ref field (e.g.
+        # `ImplDef.decl_link` pointing at a nested member decl) from outside its
+        # chunk must also be an entry point, so the reference resolves to a typed
+        # cold shell instead of a dropped None during a partial hydration.
+        _ref_kinds: set = {
+            FieldKind.NODE_REF, FieldKind.NODE_LIST,
+            FieldKind.OPT_NODE_REF, FieldKind.OPT_NODE_LIST
+        };
+        for i in range(node_total) {
+            src_owner = id_chunk.get(i, -1);
+            node_i = self._nodes[i];
+            spec_i = IDX_TO_SPEC[NAME_TO_IDX[type(node_i).__name__]];
+            for fd in spec_i.fields {
+                if fd.kind not in _ref_kinds {
+                    continue;
+                }
+                val = getattr(node_i, fd.name, None);
+                if val is None {
+                    continue;
+                }
+                targets = list(val) if isinstance(val, (list, tuple)) else [val];
+                for t in targets {
+                    tid = self._node_ids.get(id(t));
+                    if tid is None {
+                        continue;
+                    }
+                    tgt_owner = id_chunk.get(tid, -1);
+                    if tgt_owner >= 0 and tgt_owner != src_owner {
+                        entry_sets[tgt_owner].add(tid);
+                    }
                 }
             }
         }
@@ -531,8 +577,12 @@ impl JirReader.read_module(data: bytes) -> (Module | None) {
         return None;
     }
 
-    if flags & 1 {
-        return self._read_module_chunked(data, ir_node_count);
+    import from jaclang.jac0core.jir { FLAG_CHUNKED }
+    # Bit 0 (stub_only) implies the chunked layout for back-compat with v19 stub
+    # caches written before FLAG_CHUNKED existed; `.jac` chunked caches set only
+    # FLAG_CHUNKED.
+    if (flags & 1) or (flags & FLAG_CHUNKED) {
+        return self._read_module_chunked(data, ir_node_count, bool(flags & 1));
     }
 
     try {
@@ -570,7 +620,9 @@ impl JirReader.read_module(data: bytes) -> (Module | None) {
     return None;
 }
 
-impl JirReader._read_module_chunked(data: bytes, ir_node_count: int) -> (Module | None) {
+impl JirReader._read_module_chunked(
+    data: bytes, ir_node_count: int, is_stub: bool
+) -> (Module | None) {
     import os;
     import from jaclang.jac0core.jir {
         HEADER_SIZE, SECTIONS_MAGIC, read_sections,
@@ -633,6 +685,14 @@ impl JirReader._read_module_chunked(data: bytes, ir_node_count: int) -> (Module 
 
     _truthy: set = {'0', 'false', 'False', 'no', 'off', ''};
     lazy_enabled = os.environ.get('JAC_LAZY_JIR', '1') not in _truthy;
+    if not is_stub {
+        # `.jac` chunked caches only read lazily under the explicit JAC_LAZY_JAC
+        # opt-in; otherwise (including when the flag was later turned off) they
+        # full-hydrate, so a stale chunked `.jac` cache can never trigger the
+        # lazy path unexpectedly. Stubs stay lazy under JAC_LAZY_JIR alone.
+        _jac_on: set = {'1', 'true', 'True', 'yes', 'on'};
+        lazy_enabled = lazy_enabled and (os.environ.get('JAC_LAZY_JAC', '') in _jac_on);
+    }
     if entries_bytes is None or not lazy_enabled {
         # Full hydrate: read strictly in global id order so each child (lower
         # post-order id) is materialized before its parent -- byte-for-byte

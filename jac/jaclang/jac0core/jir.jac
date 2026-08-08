@@ -27,7 +27,8 @@ glob MAGIC = b"JIR\x00",
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
-     FLAG_BOOTSTRAP: int = 0x04;
+     FLAG_BOOTSTRAP: int = 0x04,
+     FLAG_CHUNKED: int = 0x08;
 
 obj JirHeader {
     has magic: any = b"JIR\x00",

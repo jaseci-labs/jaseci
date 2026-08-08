@@ -180,7 +180,9 @@ obj JirReader {
     # in the compressed payload; per-declaration subtrees ride in SEC_DECL_BODIES,
     # indexed by SEC_DECL_INDEX. Phase 1 hydrates every chunk immediately (global
     # id-order read => byte-for-byte semantic parity with the legacy layout).
-    def _read_module_chunked(data: bytes, ir_node_count: int) -> (Module | None);
+    def _read_module_chunked(
+        data: bytes, ir_node_count: int, is_stub: bool
+    ) -> (Module | None);
     def _ensure_module_source -> Source;
     def _fix_one_func_signature(sig: object) -> None;
     def _init_caches -> None;
