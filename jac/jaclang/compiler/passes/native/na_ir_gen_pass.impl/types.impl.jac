@@ -2091,10 +2091,17 @@ impl NaIRGenPass._emit_optional_eq(
     return res;
 }
 
+impl NaIRGenPass._is_jacval_ty(t: ir.Type) -> bool {
+    if not self?.jacval_type {
+        return False;
+    }
+    return isinstance(t, ir.IdentifiedStructType) and t.name == self.jacval_type.name;
+}
+
 impl NaIRGenPass._emit_mixed_jacval_comparison(
     op: str, left: ir.Value, right: ir.Value
 ) -> (ir.Value | None) {
-    _left_boxed = left.type == self.jacval_type;
+    _left_boxed = self._is_jacval_ty(left.type);
     _peer = right.type if _left_boxed else left.type;
     if op in (Tok.EE, Tok.NE) {
         if _left_boxed {
@@ -2140,7 +2147,7 @@ impl NaIRGenPass._emit_comparison(
         return _jv_res;
     }
     if self?.jacval_type
-        and (left.type == self.jacval_type) != (right.type == self.jacval_type)
+        and self._is_jacval_ty(left.type) != self._is_jacval_ty(right.type)
         and self._opt_payload_of(left.type) is None
         and self._opt_payload_of(right.type) is None {
         return self._emit_mixed_jacval_comparison(op, left, right);
@@ -2793,14 +2800,8 @@ impl NaIRGenPass._emit_comparison(
             Tok.GTE: ">="
         };
         if op in icmp_map {
-            if isinstance(left.type, ir.IntType)
-                and isinstance(right.type, ir.IntType) {
-                if left.type.width < right.type.width {
-                    left = self.builder.sext(left, right.type, name="sext.l");
-                } elif right.type.width < left.type.width {
-                    right = self.builder.sext(right, left.type, name="sext.r");
-                }
-            } elif left.type != right.type {
+            if not isinstance(left.type, ir.IntType)
+                or not isinstance(right.type, ir.IntType) {
                 self.emit(
                     E5090,
                     kind="comparison",
@@ -2808,6 +2809,11 @@ impl NaIRGenPass._emit_comparison(
                     help_text="The two sides of this comparison lower to different native representations, so no integer comparison is well formed. Annotate the values (or the container they came from) so both sides agree."
                 );
                 return None;
+            }
+            if left.type.width < right.type.width {
+                left = self.builder.sext(left, right.type, name="sext.l");
+            } elif right.type.width < left.type.width {
+                right = self.builder.sext(right, left.type, name="sext.r");
             }
             return self.builder.icmp_signed(icmp_map[op], left, right, name="icmp");
         }
