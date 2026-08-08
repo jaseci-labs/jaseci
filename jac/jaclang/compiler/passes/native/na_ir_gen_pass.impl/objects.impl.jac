@@ -584,6 +584,10 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
         self._finalize_di_locations(func, method.loc.first_line if method.loc else 1);
     } except Exception as _codegen_exc {
         if not _isolate {
+            import sys;
+            sys.stderr.write(
+                f"error: native codegen raised in non-demotable {full_name}\n"
+            );
             raise;
         }
 

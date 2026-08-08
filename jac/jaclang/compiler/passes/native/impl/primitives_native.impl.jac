@@ -2589,6 +2589,9 @@ impl NativeListEmitter.emit_extend(
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     src = args[0];
+    if not isinstance(src.type, ir.PointerType) or src.type.is_opaque {
+        return None;
+    }
     src_len_ptr = b.gep(
         src, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ext.src.len.ptr"
     );

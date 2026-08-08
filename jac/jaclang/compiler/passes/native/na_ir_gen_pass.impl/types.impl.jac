@@ -126,7 +126,7 @@ impl NaIRGenPass._dict_key_of(expr: (uni.UniNode | None)) -> (str | None) {
 }
 
 impl NaIRGenPass._list_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
-    return self._spec_of(expr, ("list", "bytearray"), self.list_types);
+    return self._spec_of(expr, ("list", "bytearray", "Sequence"), self.list_types);
 }
 
 impl NaIRGenPass._spec_of(
@@ -342,7 +342,7 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
         return self._jac_iter_type.as_pointer();
     }
 
-    if cname == "list" {
+    if cname in ("list", "Sequence") {
         elem_llvm: ir.Type = ir.IntType(64);
         if type_args {
             _e = self._elem_storage_llvm(type_args[0]);

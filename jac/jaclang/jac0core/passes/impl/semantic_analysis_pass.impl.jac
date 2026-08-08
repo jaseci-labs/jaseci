@@ -57,7 +57,10 @@ impl SemanticAnalysisPass._check_archetype(
                 }
                 if (
                     isinstance(item.name_ref, uni.SpecialVarRef)
-                    and (item.name_ref.name == Tok.KW_POST_INIT)
+                    and (
+                        item.name_ref.name == Tok.KW_POST_INIT
+                        or item.name_ref.name == Tok.KW_INIT
+                    )
                 ) {
                     postinit_method = item;
                 }
