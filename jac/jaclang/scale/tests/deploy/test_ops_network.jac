@@ -95,7 +95,7 @@ test "ingress resolves host->service:port + LB; PVC claimants from pods" {
 
 test "register adds GET /admin/ops/network" {
     host = NetworkHost();
-    host.server = JFastApiServer();
+    host.server = NativeJServer();
     host.register_network_endpoints();
     eps = [
         e

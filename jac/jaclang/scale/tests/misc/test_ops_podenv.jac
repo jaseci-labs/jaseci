@@ -62,7 +62,7 @@ test "pod_env_entries reads literals + tags valueFrom source" {
 
 test "register adds GET /admin/ops/podenv" {
     host = PodEnvHost();
-    host.server = JFastApiServer();
+    host.server = NativeJServer();
     host.register_podenv_endpoints();
     eps = [
         e

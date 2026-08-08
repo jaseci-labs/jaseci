@@ -50,7 +50,7 @@ test "traces chain: all green -> ok; missing tracing extra -> first rung red" {
 
 test "register adds GET /admin/ops/health" {
     host = OpsHost();
-    host.server = JFastApiServer();
+    host.server = NativeJServer();
     host.register_ops_endpoints();
     eps = [
         e

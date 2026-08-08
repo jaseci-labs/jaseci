@@ -91,7 +91,7 @@ test "pod summary sums restarts + counts ready containers" {
 
 test "register adds GET /admin/ops/deploy" {
     host = DeployHost();
-    host.server = JFastApiServer();
+    host.server = NativeJServer();
     host.register_deploy_health_endpoints();
     eps = [
         e
