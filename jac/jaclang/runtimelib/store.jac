@@ -4,6 +4,9 @@ import threading;
 import from typing { Any }
 import from uuid { UUID }
 
+# In the compile closure on purpose: pgload resolves the wire client lazily.
+import from jaclang.runtimelib.pgwire { PgWireError }
+
 glob logger = logging.getLogger(__name__),
      SCHEMA_VERSION = 1,
      __all__ = ['AnchorRow', 'Store', 'PgStore', 'ConnInfo', 'SCHEMA_VERSION'];

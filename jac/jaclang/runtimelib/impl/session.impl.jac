@@ -475,7 +475,7 @@ impl Session.flush(full: bool = False) -> None {
         anchor.hash = h;
         arch = anchor.archetype;
         if arch is not None {
-            dirty_fields = arch?.__jac_dirty_fields__;
+            dirty_fields: Any = arch?.__jac_dirty_fields__;
             if dirty_fields {
                 try {
                     dirty_fields.clear();

@@ -1,7 +1,0 @@
-scramp/__init__.py,sha256=bePKTR7r6qITcQJbrzXrOLt-uy7oaQPWnsIYXJdS7GQ,291
-scramp/core.py,sha256=Q6xpB9BUK4PUoUFkY5CpkJAmBD-l1nbBnMDqvll7JsE,30618
-scramp/utils.py,sha256=cFhvACIAuadfl2pqcik2ELb1T4BJpGi4TVrDOiJ-kRw,1996
-scramp-1.4.16.dist-info/METADATA,sha256=lO7gA5mFh1RmqaHPTNqHExF2kAK3XwpOWo3b3hsXyRQ,21969
-scramp-1.4.16.dist-info/WHEEL,sha256=lCkmxWfQsSc9CfIClYeavTdQeEX2toPqufh9gI35EQA,87
-scramp-1.4.16.dist-info/licenses/LICENSE,sha256=JCmmOL2d8ElJXJ8VPcUExMXJ_aWAPZ-IQ-Ibr10rAKM,906
-scramp-1.4.16.dist-info/RECORD,,
