@@ -351,7 +351,8 @@ def _occ_policy -> tuple {
 
 impl ExecutionManager._finalize_call_response(
     call_state: CallState, result: any
-) -> dict[str, JsonValue] | Generator | AsyncGenerator {
+) -> dict[str, JsonValue] | Generator | AsyncGenerator | Response {
+    import from fastapi { Response }
     call_state.reports.put_nowait(call_state._sentinel);
     reports = await self.report_collector(call_state);
     await Jac.acommit();
@@ -360,6 +361,11 @@ impl ExecutionManager._finalize_call_response(
     }
     if isgenerator(reports) or isinstance(reports, AsyncGenerator) {
         return reports;
+    }
+    # FastAPI/Starlette Response (FileResponse, raw bytes, etc.) -- pass through
+    # verbatim; the body IS the response, so skip the envelope + serialization.
+    if isinstance(result, Response) {
+        return result;
     }
 
     envelope: dict[str, JsonValue] = {

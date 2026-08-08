@@ -27,6 +27,7 @@ import from jaclang { JacRuntime as Jac }
 import from jaclang.project.config { get_config }
 import from jaclang.runtimelib.scheduler { Scheduler }
 import from jaclang.jac0core.constant { Constants as Con }
+import from fastapi { Response }
 import type from jaclang.jac0core.constructs { Archetype, WalkerArchetype }
 
 glob JsonValue: TypeAlias = None
@@ -93,7 +94,7 @@ obj ExecutionManager {
     async def report_collector(call_state: CallState) -> dict[str, JsonValue];
     async def _finalize_call_response(
         call_state: CallState, result: any
-    ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
+    ) -> dict[str, JsonValue] | Generator | AsyncGenerator | Response;
 }
 
 obj ModuleIntrospector {
