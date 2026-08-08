@@ -24,9 +24,7 @@ def _ping -> dict {
 
 test "abrupt client disconnects are absorbed by the connection handler" {
     app = ServingApp();
-    app.add_endpoint(
-        JEndPoint(method=HTTPMethod.GET, path='/ping', callback=_ping)
-    );
+    app.add_endpoint(JEndPoint(method=HTTPMethod.GET, path='/ping', callback=_ping));
     server = ServingServer(app=app, host='127.0.0.1', port=0);
     stop = server.serve_background();
     try {
@@ -35,9 +33,7 @@ test "abrupt client disconnects are absorbed by the connection handler" {
                 ('127.0.0.1', server.bound_port), timeout=5
             );
             sock.setsockopt(
-                socket.SOL_SOCKET,
-                socket.SO_LINGER,
-                struct.pack('ii', 1, 0)
+                socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0)
             );
             sock.sendall(b"GET /ping HTTP/1.1\r\nHost: x\r\nConte");
             sock.close();

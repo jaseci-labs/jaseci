@@ -146,15 +146,35 @@ obj URL {
 obj UploadFile {
     has filename: str = '',
         content_type: str = 'application/octet-stream',
-        body: bytes = b'';
+        body: bytes = b'',
+        _stream: any = None;
 
-    def size -> int {
-        return len(self.body);
-    }
+    has size: int { getter; }
+    has file: any { getter; }
 
     async def read -> bytes {
         return self.body;
     }
+
+    async def seek(offset: int) {
+        self.file.seek(offset);
+    }
+
+    async def close {
+        self.file.close();
+    }
+}
+
+impl UploadFile.size.getter -> int {
+    return len(self.body);
+}
+
+impl UploadFile.file.getter -> any {
+    if self._stream is None {
+        import io;
+        self._stream = io.BytesIO(self.body);
+    }
+    return self._stream;
 }
 
 obj Request {

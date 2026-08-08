@@ -11,9 +11,15 @@ obj CompiledRoute {
         ws_endpoint: (WSEndPoint | None) = None,
         segments: list[RouteSegment] = [],
         catchall: (str | None) = None,
-        param_count: int = 0;
+        param_count: int = 0,
+        trailing_slash: bool = False;
 
-    def match(path_segments: list[str]) -> (dict[(str, str)] | None) {
+    def match(
+        path_segments: list[str], trailing_slash: bool = False
+    ) -> (dict[(str, str)] | None) {
+        if self.catchall is None and self.trailing_slash != trailing_slash {
+            return None;
+        }
         fixed = self.segments;
         if self.catchall is None and len(path_segments) != len(fixed) {
             return None;
@@ -41,6 +47,7 @@ obj CompiledRoute {
 
 def compile_route(path: str) -> CompiledRoute {
     route = CompiledRoute();
+    route.trailing_slash = len(path) > 1 and path.endswith('/');
     parts = [
         p
         for p in path.strip('/').split('/')
@@ -113,9 +120,10 @@ obj Router {
             for p in path.strip('/').split('/')
             if p != ''
         ];
+        trailing = len(path) > 1 and path.endswith('/');
         lookup = 'GET' if method.upper() == 'HEAD' else method.upper();
         for route in self.routes.get(lookup, []) {
-            params = route.match(segments);
+            params = route.match(segments, trailing);
             if params is not None and route.endpoint is not None {
                 return (route.endpoint, params, []);
             }
@@ -126,7 +134,7 @@ obj Router {
                 continue;
             }
             for route in bucket {
-                if route.match(segments) is not None {
+                if route.match(segments, trailing) is not None {
                     allowed.append(other_method);
                     break;
                 }
@@ -141,8 +149,9 @@ obj Router {
             for p in path.strip('/').split('/')
             if p != ''
         ];
+        trailing = len(path) > 1 and path.endswith('/');
         for route in self.ws_routes {
-            params = route.match(segments);
+            params = route.match(segments, trailing);
             if params is not None and route.ws_endpoint is not None {
                 return (route.ws_endpoint, params);
             }
