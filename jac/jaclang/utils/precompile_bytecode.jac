@@ -350,7 +350,12 @@ def seal_native_artifacts(
         lib_path = out_dir / _native_lib_filename(stem);
         transitive = list(manifest.native_transitive_sources) if manifest else [];
         (ok, err) = emit_shared_library(
-            str(ir.gen.llvm_ir), transitive, exports, str(lib_path)
+            str(ir.gen.llvm_ir),
+            transitive,
+            exports,
+            str(lib_path),
+            clib_paths=list(ir.gen._clib_paths or []),
+            clib_symbol_lib=dict(ir.gen._clib_symbol_lib or {})
         );
         if not ok {
             console.error(f"NATIVE SEAL: {rel}: {err}");
