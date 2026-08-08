@@ -146,14 +146,34 @@ obj JirReader {
         _module_source: (Source | None) = None,
         _pool: (_StringPool | None) = None,
         hydrated_node_count: int = 0,
+        _lazy: bool = False,
+        _eager_loading: bool = False,
+        _bodies: bytes = b"",
         _nodes: list[object] postinit,
+        _chunk_meta: list postinit,
+        _chunk_of: list postinit,
+        _hydrated_chunks: set postinit,
+        _link_buckets: dict postinit,
+        _applied_links: set postinit,
         _class_map: (dict[str, type] | None) = None,
         _uni_types: (tuple[type, ...] | None) = None,
         _enum_cache: (dict[str, dict[str, object]] | None) = None;
 
     def postinit {
         self._nodes = [];
+        self._chunk_meta = [];
+        self._chunk_of = [];
+        self._hydrated_chunks = set();
+        self._link_buckets = {};
+        self._applied_links = set();
     }
+
+    # Materialize one lazy declaration chunk (idempotent): read its subtree into
+    # the pre-allocated slots (reusing any cold-shell placeholders in place) and
+    # apply the links bucketed to it.
+    def hydrate_chunk(cidx: int) -> None;
+    def _apply_one_link(kind: int, a: int, b: int) -> None;
+    def _read_link_table_lazy(data: (bytes | memoryview), pos: int) -> int;
 
     def read_module(data: bytes) -> (Module | None);
     # v19 stub layout: eager tier (module shell + scopes + non-decl top-level) is

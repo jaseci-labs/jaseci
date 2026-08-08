@@ -12,7 +12,7 @@ impl JirWriter.write_module(
 ) -> bytes {
     import from jaclang.jac0core.jir {
         HEADER_FMT, HEADER_SIZE, MAGIC, FORMAT_VERSION, write_sections,
-        SEC_DECL_INDEX, SEC_DECL_BODIES
+        SEC_DECL_INDEX, SEC_DECL_BODIES, SEC_DECL_ENTRIES
     }
     import from importlib.metadata { version as pkg_version }
 
@@ -124,6 +124,48 @@ impl JirWriter.write_module(
     if chunked {
         sections[SEC_DECL_INDEX] = bytes(index_buf);
         sections[SEC_DECL_BODIES] = bytes(bodies);
+        # Entry points: for each chunk, the node ids referenced from outside it
+        # (its root, plus the module-scope symbol name atoms it contains) with
+        # their class index, so the lazy reader can pre-create typed cold-shell
+        # placeholders whose isinstance/type() are correct before hydration.
+        id_chunk: dict[int, int] = {};
+        entry_sets: list[set] = [];
+        for (ci, (name_id, lo, hi)) in enumerate(chunks) {
+            entry_sets.append({hi});
+            for i in range(lo, hi + 1) {
+                id_chunk[i] = ci;
+            }
+        }
+        def _collect_entry(na: object) -> None {
+            nid = self._node_ids.get(id(na));
+            if nid is not None and nid in id_chunk {
+                entry_sets[id_chunk[nid]].add(nid);
+            }
+        }
+        for sym in module.names_in_scope.values() {
+            for na in (list(sym.defn) + list(sym.uses)) {
+                _collect_entry(na);
+            }
+        }
+        for sym_list in module.names_in_scope_overload.values() {
+            for sym in sym_list {
+                for na in (list(sym.defn) + list(sym.uses)) {
+                    _collect_entry(na);
+                }
+            }
+        }
+        entries_buf = bytearray();
+        _write_varint(entries_buf, len(chunks));
+        for ci in range(len(chunks)) {
+            ids = sorted(entry_sets[ci]);
+            _write_varint(entries_buf, len(ids));
+            for gid in ids {
+                cname = type(self._nodes[gid]).__name__;
+                _write_varint(entries_buf, gid);
+                _write_varint(entries_buf, NAME_TO_IDX.get(cname, 0));
+            }
+        }
+        sections[SEC_DECL_ENTRIES] = bytes(entries_buf);
     }
     section_bytes = write_sections(sections);
     return header + compressed + section_bytes;
@@ -524,8 +566,10 @@ impl JirReader.read_module(data: bytes) -> (Module | None) {
 }
 
 impl JirReader._read_module_chunked(data: bytes, ir_node_count: int) -> (Module | None) {
+    import os;
     import from jaclang.jac0core.jir {
-        HEADER_SIZE, SECTIONS_MAGIC, read_sections, SEC_DECL_INDEX, SEC_DECL_BODIES
+        HEADER_SIZE, SECTIONS_MAGIC, read_sections,
+        SEC_DECL_INDEX, SEC_DECL_BODIES, SEC_DECL_ENTRIES
     }
     import from jaclang.jac0core.unitree { Module as ModuleCls }
 
@@ -543,8 +587,8 @@ impl JirReader._read_module_chunked(data: bytes, ir_node_count: int) -> (Module 
         self._init_caches();
     }
 
-    # The decl index and bodies trail the compressed eager payload as JIRX
-    # sections; zlib.decompress above ignores them.
+    # The decl index / bodies / entries trail the compressed eager payload as
+    # JIRX sections; zlib.decompress above ignores them.
     magic: any = SECTIONS_MAGIC;
     sec_pos = data.find(magic, HEADER_SIZE);
     sections: dict[int, bytes] = {};
@@ -553,6 +597,7 @@ impl JirReader._read_module_chunked(data: bytes, ir_node_count: int) -> (Module 
     }
     index_bytes = sections.get(SEC_DECL_INDEX);
     bodies = sections.get(SEC_DECL_BODIES) or bytes();
+    entries_bytes = sections.get(SEC_DECL_ENTRIES);
 
     # id -> owning chunk index, and per-chunk (lo, hi, offset, comp_len).
     chunk_of = [-1] * ir_node_count;
@@ -577,38 +622,201 @@ impl JirReader._read_module_chunked(data: bytes, ir_node_count: int) -> (Module 
     }
 
     self._nodes = [None] * ir_node_count;
+    self._bodies = bytes(bodies);
+    self._chunk_meta = chunk_ranges;
+    self._chunk_of = chunk_of;
 
-    # Phase 1: hydrate every node, reading in strict global id order so each
-    # child (which has a lower post-order id) is materialized before its parent.
-    chunk_bufs: dict[int, object] = {};
-    chunk_pos: dict[int, int] = {};
-    for gid in range(ir_node_count) {
-        c = chunk_of[gid];
-        if c < 0 {
-            pos = self._read_node(eager, pos, gid);
-        } else {
-            if c not in chunk_bufs {
-                (lo, hi, off, clen) = chunk_ranges[c];
-                chunk_bufs[c] = memoryview(
-                    zlib.decompress(bytes(bodies[off:off + clen]))
-                );
-                chunk_pos[c] = 0;
+    _truthy: set = {'0', 'false', 'False', 'no', 'off', ''};
+    lazy_enabled = os.environ.get('JAC_LAZY_JIR', '1') not in _truthy;
+    if entries_bytes is None or not lazy_enabled {
+        # Full hydrate: read strictly in global id order so each child (lower
+        # post-order id) is materialized before its parent -- byte-for-byte
+        # parity with the legacy layout.
+        chunk_bufs: dict[int, object] = {};
+        chunk_pos: dict[int, int] = {};
+        for gid in range(ir_node_count) {
+            c = chunk_of[gid];
+            if c < 0 {
+                pos = self._read_node(eager, pos, gid);
+            } else {
+                if c not in chunk_bufs {
+                    (lo, hi, off, clen) = chunk_ranges[c];
+                    chunk_bufs[c] = memoryview(
+                        zlib.decompress(bytes(bodies[off:off + clen]))
+                    );
+                    chunk_pos[c] = 0;
+                }
+                chunk_pos[c] = self._read_node(chunk_bufs[c], chunk_pos[c], gid);
             }
-            chunk_pos[c] = self._read_node(chunk_bufs[c], chunk_pos[c], gid);
+        }
+        pos = self._read_link_table(eager, pos);
+        last_node = self._nodes[-1] if self._nodes else None;
+        if isinstance(last_node, ModuleCls) {
+            if self._source_path {
+                last_node.source = self._ensure_module_source();
+            }
+            return last_node;
+        }
+        return None;
+    }
+
+    # ---- Lazy path: eager tier only; decl bodies hydrate on demand. ----
+    self._lazy = True;
+    self._eager_loading = True;
+
+    # Pre-create typed cold-shell placeholders for every externally-referenced
+    # chunk node (root + module-symbol name atoms). Their class is stored in the
+    # entry table so isinstance/type() are correct before hydration; any real
+    # attribute access routes through UniNode.__getattr__ -> hydrate_chunk.
+    (nchunks, epos) = _read_varint(entries_bytes, 0);
+    for cidx in range(nchunks) {
+        (n_entries, epos) = _read_varint(entries_bytes, epos);
+        for _ in range(n_entries) {
+            (gid, epos) = _read_varint(entries_bytes, epos);
+            (class_idx, epos) = _read_varint(entries_bytes, epos);
+            spec = IDX_TO_SPEC[class_idx];
+            cls = self._class_map[spec.class_name];
+            shell: any = cls.__new__(cls);
+            # Only the control keys: every other attribute is missing, so any
+            # real access routes through UniNode.__getattr__ and hydrates.
+            shell.__dict__ = {
+                '_jir_cold': True,
+                '_jir_gid': gid,
+                '_jir_chunk': cidx,
+                '_jir_loader': self
+            };
+            self._nodes[gid] = shell;
         }
     }
 
-    # The global link table follows the eager node stream in the payload.
-    pos = self._read_link_table(eager, pos);
+    # Read the eager nodes (everything not owned by a chunk), in id order.
+    for gid in range(ir_node_count) {
+        if chunk_of[gid] < 0 {
+            pos = self._read_node(eager, pos, gid);
+        }
+    }
+
+    # The global link table follows the eager stream. Apply links whose ends are
+    # already present (eager or cold shells); bucket the rest by owning chunk so
+    # they are applied when that chunk hydrates.
+    pos = self._read_link_table_lazy(eager, pos);
+
+    self._eager_loading = False;
 
     last_node = self._nodes[-1] if self._nodes else None;
-    if isinstance(last_node, ModuleCls) {
-        if self._source_path {
-            last_node.source = self._ensure_module_source();
-        }
-        return last_node;
+    if not isinstance(last_node, ModuleCls) {
+        return None;
     }
-    return None;
+    last_node.__dict__['_jir_loader'] = self;
+    if self._source_path {
+        last_node.source = self._ensure_module_source();
+    }
+    # Give the module a real loc (its last kid is a cold decl; this hydrates at
+    # most that one chunk) so downstream range queries never hit a missing attr.
+    try {
+        last_node.loc = self._CodeLocInfo(*last_node.resolve_tok_range());
+    } except Exception {
+        ;
+    }
+    return last_node;
+}
+
+impl JirReader._read_link_table_lazy(data: (bytes | memoryview), pos: int) -> int {
+    _N = len(self._nodes);
+    def _owner(nid: int) -> int {
+        if 0 <= nid and nid < _N {
+            return self._chunk_of[nid];
+        }
+        return -1;
+    }
+    def _route(kind: int, a: int, b: int) -> None {
+        # Links whose endpoints are both eager can be wired immediately. Any link
+        # touching a chunk is bucketed and applied when that chunk hydrates --
+        # never eagerly against a cold shell, whose dict is repopulated on
+        # hydration (which would drop an eagerly-set field and the applied-guard
+        # would then skip the re-apply).
+        (ca, cb) = (_owner(a), _owner(b));
+        if ca < 0 and cb < 0 {
+            self._apply_one_link(kind, a, b);
+            return;
+        }
+        if ca >= 0 {
+            self._link_buckets.setdefault(ca, []).append((kind, a, b));
+        }
+        if cb >= 0 and cb != ca {
+            self._link_buckets.setdefault(cb, []).append((kind, a, b));
+        }
+    }
+
+    (count, pos) = _read_varint(data, pos);
+    for _ in range(count) {
+        (scope_id, pos) = _read_varint(data, pos);
+        (parent_id, pos) = _read_varint(data, pos);
+        _route(0, scope_id, parent_id);
+    }
+    (count, pos) = _read_varint(data, pos);
+    for _ in range(count) {
+        (na_id, pos) = _read_varint(data, pos);
+        (name_of_id, pos) = _read_varint(data, pos);
+        _route(1, na_id, name_of_id);
+    }
+    return pos;
+}
+
+impl JirReader._apply_one_link(kind: int, a: int, b: int) -> None {
+    import from jaclang.jac0core.unitree { UniScopeNode, NameAtom, AstSymbolNode }
+    key = (kind, a, b);
+    if key in self._applied_links {
+        return;
+    }
+    node_a = self._resolve_node(a);
+    if node_a is None {
+        return;
+    }
+    if kind == 0 {
+        if not isinstance(node_a, UniScopeNode) {
+            self._applied_links.add(key);
+            return;
+        }
+        if b == EXTERNAL_REF {
+            node_a.parent_scope = None;
+            self._applied_links.add(key);
+            return;
+        }
+        parent = self._resolve_node(b);
+        if parent is not None and isinstance(parent, UniScopeNode) {
+            node_a.parent_scope = parent;
+            if node_a not in parent.kid_scope {
+                parent.kid_scope.append(node_a);
+            }
+            self._applied_links.add(key);
+        }
+    } else {
+        node_b = self._resolve_node(b);
+        if node_b is None {
+            return;
+        }
+        if isinstance(node_a, NameAtom) and isinstance(node_b, AstSymbolNode) {
+            node_a.name_of = node_b;
+        }
+        self._applied_links.add(key);
+    }
+}
+
+impl JirReader.hydrate_chunk(cidx: int) -> None {
+    if cidx in self._hydrated_chunks {
+        return;
+    }
+    self._hydrated_chunks.add(cidx);
+    (lo, hi, off, clen) = self._chunk_meta[cidx];
+    buf = memoryview(zlib.decompress(bytes(self._bodies[off:off + clen])));
+    cpos = 0;
+    for gid in range(lo, hi + 1) {
+        cpos = self._read_node(buf, cpos, gid);
+    }
+    for (kind, a, b) in self._link_buckets.get(cidx, []) {
+        self._apply_one_link(kind, a, b);
+    }
 }
 
 impl JirReader._ensure_module_source -> Source {
@@ -790,8 +998,24 @@ impl JirReader._read_node(data: (bytes | memoryview), pos: int, idx: int) -> int
     }
 
     cls = class_map[spec.class_name];
-    ir_node: any = cls.__new__(cls);
-    nd = ir_node.__dict__;
+    # Reuse a cold-shell placeholder in place so its object identity (already
+    # referenced by module.kid, symbols and name_of) is preserved through
+    # hydration; otherwise allocate a fresh node. Wiring set eagerly against the
+    # shell (parent, `_sym`) is preserved -- only the `_jir_*` control keys are
+    # dropped, and `parent` is restored after the generic reset below.
+    reused_parent: any = None;
+    existing = nodes[idx] if idx < len(nodes) else None;
+    if existing is not None and existing.__dict__.get('_jir_cold') {
+        ir_node: any = existing;
+        nd = ir_node.__dict__;
+        reused_parent = nd.get('parent');
+        for _k in ('_jir_cold', '_jir_gid', '_jir_chunk', '_jir_loader', '_jir_hydrating') {
+            nd.pop(_k, None);
+        }
+    } else {
+        ir_node: any = cls.__new__(cls);
+        nd = ir_node.__dict__;
+    }
 
     enum_cache = self._enum_cache;
     pool_get = pool.get;
@@ -896,7 +1120,7 @@ impl JirReader._read_node(data: (bytes | memoryview), pos: int, idx: int) -> int
         }
     }
     nd['kid'] = kids;
-    nd['parent'] = None;
+    nd['parent'] = reused_parent;
 
     nd['_UniNode__sub_node_tab'] = None;
     nd['_in_mod_nodes'] = [];
