@@ -18,9 +18,12 @@ impl JirWriter._is_lazy_decl(node: UniNode) -> bool {
 }
 
 impl JirWriter.write_module(
-    module: Module, sections: (dict[int, bytes] | None) = None
+    module: Module,
+    sections: (dict[int, bytes] | None) = None,
+    jac_lazy_dep: bool = False
 ) -> bytes {
     import os;
+    import from jaclang.jac0core.cache_paths { is_jac_lazy_eligible }
     import from jaclang.jac0core.jir {
         HEADER_FMT, HEADER_SIZE, MAGIC, FORMAT_VERSION, write_sections,
         SEC_DECL_INDEX, SEC_DECL_BODIES, SEC_DECL_ENTRIES, FLAG_CHUNKED
@@ -34,10 +37,19 @@ impl JirWriter.write_module(
     # top-level child's subtree owns a contiguous id range (post-order
     # `_assign_ids`), so a chunk is just an [lo, hi] id span; the Module node is
     # the final id and always lands in the eager tier. Stubs are always chunked;
-    # `.jac` modules are chunked only under the opt-in JAC_LAZY_JAC (their bodies
-    # carry CFG/codegen state, so laziness there is experimental).
+    # `.jac` modules are chunked only for eligible dependency modules under the
+    # opt-in JAC_LAZY_JAC (their bodies carry CFG/codegen state, so laziness
+    # there is experimental and scoped away from bootstrap/self-hosting).
     _jac_truthy: set = {'1', 'true', 'True', 'yes', 'on'};
-    jac_lazy = os.environ.get('JAC_LAZY_JAC', '') in _jac_truthy;
+    src_path = '';
+    if module?.source and module.source is not None {
+        src_path = module.source.loc.mod_path or '';
+    }
+    jac_lazy = (
+        jac_lazy_dep
+        and os.environ.get('JAC_LAZY_JAC', '') in _jac_truthy
+        and is_jac_lazy_eligible(src_path)
+    );
     chunked = module.stub_only or jac_lazy;
     is_lazy_id = [False] * node_total;
     chunks: list[tuple[int, int, int]] = [];
@@ -624,6 +636,7 @@ impl JirReader._read_module_chunked(
     data: bytes, ir_node_count: int, is_stub: bool
 ) -> (Module | None) {
     import os;
+    import from jaclang.jac0core.cache_paths { is_jac_lazy_eligible }
     import from jaclang.jac0core.jir {
         HEADER_SIZE, SECTIONS_MAGIC, read_sections,
         SEC_DECL_INDEX, SEC_DECL_BODIES, SEC_DECL_ENTRIES
@@ -687,11 +700,16 @@ impl JirReader._read_module_chunked(
     lazy_enabled = os.environ.get('JAC_LAZY_JIR', '1') not in _truthy;
     if not is_stub {
         # `.jac` chunked caches only read lazily under the explicit JAC_LAZY_JAC
-        # opt-in; otherwise (including when the flag was later turned off) they
+        # opt-in on eligible user dependency paths; otherwise (including when the
+        # flag was later turned off, or the module is bootstrap/self-hosting) they
         # full-hydrate, so a stale chunked `.jac` cache can never trigger the
         # lazy path unexpectedly. Stubs stay lazy under JAC_LAZY_JIR alone.
         _jac_on: set = {'1', 'true', 'True', 'yes', 'on'};
-        lazy_enabled = lazy_enabled and (os.environ.get('JAC_LAZY_JAC', '') in _jac_on);
+        lazy_enabled = (
+            lazy_enabled
+            and (os.environ.get('JAC_LAZY_JAC', '') in _jac_on)
+            and is_jac_lazy_eligible(self._source_path)
+        );
     }
     if entries_bytes is None or not lazy_enabled {
         # Full hydrate: read strictly in global id order so each child (lower
@@ -869,18 +887,36 @@ impl JirReader._apply_one_link(kind: int, a: int, b: int) -> None {
 }
 
 impl JirReader.hydrate_chunk(cidx: int) -> None {
-    if cidx in self._hydrated_chunks {
+    if cidx in self._hydrated_chunks or cidx in self._hydrating_chunks {
         return;
     }
-    self._hydrated_chunks.add(cidx);
-    (lo, hi, off, clen) = self._chunk_meta[cidx];
-    buf = memoryview(zlib.decompress(bytes(self._bodies[off:off + clen])));
-    cpos = 0;
-    for gid in range(lo, hi + 1) {
-        cpos = self._read_node(buf, cpos, gid);
+    self._hydrating_chunks.add(cidx);
+    try {
+        (lo, hi, off, clen) = self._chunk_meta[cidx];
+        buf = memoryview(zlib.decompress(bytes(self._bodies[off:off + clen])));
+        cpos = 0;
+        for gid in range(lo, hi + 1) {
+            cpos = self._read_node(buf, cpos, gid);
+        }
+        for (kind, a, b) in self._link_buckets.get(cidx, []) {
+            self._apply_one_link(kind, a, b);
+        }
+        self._hydrated_chunks.add(cidx);
+    } finally {
+        self._hydrating_chunks.discard(cidx);
     }
-    for (kind, a, b) in self._link_buckets.get(cidx, []) {
-        self._apply_one_link(kind, a, b);
+}
+
+impl JirReader._ensure_node_hydrated(node_id: int) -> None {
+    if not self._lazy or node_id < 0 or node_id >= len(self._nodes) {
+        return;
+    }
+    if self._nodes[node_id] is not None {
+        return;
+    }
+    cidx = self._chunk_of[node_id] if node_id < len(self._chunk_of) else -1;
+    if cidx >= 0 {
+        self.hydrate_chunk(cidx);
     }
 }
 
@@ -1107,14 +1143,24 @@ impl JirReader._read_node(data: (bytes | memoryview), pos: int, idx: int) -> int
             }
         } elif kind == FieldKind.NODE_REF {
             (nid, pos) = _read_varint(data, pos);
-            nd[fname] = nodes[nid] if nid < _SN else None;
+            if nid < _SN {
+                if self._lazy {
+                    self._ensure_node_hydrated(nid);
+                }
+                nd[fname] = nodes[nid] if nid < len(nodes) else None;
+            } else {
+                nd[fname] = None;
+            }
         } elif kind == FieldKind.NODE_LIST {
             (count, pos) = _read_varint(data, pos);
             items = [];
             for _ in range(count) {
                 (nid, pos) = _read_varint(data, pos);
                 if nid < _SN {
-                    n = nodes[nid];
+                    if self._lazy {
+                        self._ensure_node_hydrated(nid);
+                    }
+                    n = nodes[nid] if nid < len(nodes) else None;
                     if n is not None {
                         items.append(n);
                     }
@@ -1132,7 +1178,10 @@ impl JirReader._read_node(data: (bytes | memoryview), pos: int, idx: int) -> int
                 for _ in range(count) {
                     (nid, pos) = _read_varint(data, pos);
                     if nid < _SN {
-                        n = nodes[nid];
+                        if self._lazy {
+                            self._ensure_node_hydrated(nid);
+                        }
+                        n = nodes[nid] if nid < len(nodes) else None;
                         if n is not None {
                             items.append(n);
                         }
@@ -1147,7 +1196,14 @@ impl JirReader._read_node(data: (bytes | memoryview), pos: int, idx: int) -> int
                 nd[fname] = None;
             } else {
                 (nid, pos) = _read_varint(data, pos);
-                nd[fname] = nodes[nid] if nid < _SN else None;
+                if nid < _SN {
+                    if self._lazy {
+                        self._ensure_node_hydrated(nid);
+                    }
+                    nd[fname] = nodes[nid] if nid < len(nodes) else None;
+                } else {
+                    nd[fname] = None;
+                }
             }
         } elif kind == FieldKind.OPT_STRING {
             flag = data[pos];
@@ -1177,7 +1233,10 @@ impl JirReader._read_node(data: (bytes | memoryview), pos: int, idx: int) -> int
     kids = [];
     for cid in child_ids {
         if cid < _SN {
-            child = nodes[cid];
+            if self._lazy {
+                self._ensure_node_hydrated(cid);
+            }
+            child = nodes[cid] if cid < len(nodes) else None;
             if child is not None {
                 kids.append(child);
                 child.parent = ir_node;

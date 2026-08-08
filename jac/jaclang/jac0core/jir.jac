@@ -532,7 +532,10 @@ def read_module_jir_cache(source_path: str) -> (object | None) {
 # `mod` is uni.Module; typed `object` for the same bootstrap-safe, stdlib-only
 # reason as read_module_jir_cache above. Callers in jac0core always pass a Module.
 def write_module_jir_cache(
-    source_path: str, mod: object, extra_sections: (dict[int, bytes] | None) = None
+    source_path: str,
+    mod: object,
+    extra_sections: (dict[int, bytes] | None) = None,
+    jac_lazy_dep: bool = False
 ) -> bool {
     import from jaclang.jac0core.jir_passes { JirWriter }
 
@@ -562,7 +565,7 @@ def write_module_jir_cache(
         if bc is not None and SEC_BYTECODE not in sections {
             sections[SEC_BYTECODE] = bc;
         }
-        jir_bytes = writer.write_module(mod, sections=sections);
+        jir_bytes = writer.write_module(mod, sections=sections, jac_lazy_dep=jac_lazy_dep);
         tmp_path = cache_path.with_suffix(f'.{os.getpid()}.tmp');
         try {
             tmp_path.write_bytes(jir_bytes);

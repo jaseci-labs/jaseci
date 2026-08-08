@@ -225,7 +225,7 @@ impl JacProgram.load_dependency_module(
                 symtab_ir_only=True
             );
             if jir_cacheable_source_path(resolved_path) {
-                write_module_jir_cache(resolved_path, mod);
+                write_module_jir_cache(resolved_path, mod, jac_lazy_dep=True);
             }
         }
         target_hub[resolved_path] = mod;

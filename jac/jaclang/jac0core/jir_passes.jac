@@ -121,7 +121,9 @@ obj JirWriter {
     }
 
     def write_module(
-        module: Module, sections: (dict[int, bytes] | None) = None
+        module: Module,
+        sections: (dict[int, bytes] | None) = None,
+        jac_lazy_dep: bool = False
     ) -> bytes;
 
     # Returns True for top-level module children whose subtree is deferred into
@@ -153,6 +155,7 @@ obj JirReader {
         _chunk_meta: list postinit,
         _chunk_of: list postinit,
         _hydrated_chunks: set postinit,
+        _hydrating_chunks: set postinit,
         _link_buckets: dict postinit,
         _applied_links: set postinit,
         _class_map: (dict[str, type] | None) = None,
@@ -164,6 +167,7 @@ obj JirReader {
         self._chunk_meta = [];
         self._chunk_of = [];
         self._hydrated_chunks = set();
+        self._hydrating_chunks = set();
         self._link_buckets = {};
         self._applied_links = set();
     }
@@ -172,6 +176,7 @@ obj JirReader {
     # the pre-allocated slots (reusing any cold-shell placeholders in place) and
     # apply the links bucketed to it.
     def hydrate_chunk(cidx: int) -> None;
+    def _ensure_node_hydrated(node_id: int) -> None;
     def _apply_one_link(kind: int, a: int, b: int) -> None;
     def _read_link_table_lazy(data: (bytes | memoryview), pos: int) -> int;
 
