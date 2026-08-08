@@ -128,8 +128,6 @@ impl EmbeddedGateway.setup -> None {
         return await gw.dispatch(request);
     }
 
-    # The dispatcher terminates the chain, so it goes on first: middlewares
-    # added afterwards wrap it and therefore run in front of it.
     app.add_middleware(dispatcher);
     self.middleware.install(app);
 
