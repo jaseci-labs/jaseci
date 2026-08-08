@@ -344,6 +344,86 @@ def seal_demotion_report(
     return ("\n".join(lines), waived, stale);
 }
 
+def seal_abort_stubs(llvm_ir_text: str) -> list[str] {
+    import re;
+    name_re = re.compile(r'@(?:"([^"]+)"|([A-Za-z0-9_.$\-]+))\s*\(');
+    abort_re = re.compile(
+        r'^(?:tail\s+|musttail\s+|notail\s+)?call\s+void\s+@"?abort"?\s*\(\s*\)'
+    );
+    stubs: list[str] = [];
+    lines = llvm_ir_text.splitlines();
+    total = len(lines);
+    i = 0;
+    while i < total {
+        head = lines[i].strip();
+        i += 1;
+        if not head.startswith("define") {
+            continue;
+        }
+        matched = name_re.search(head);
+        if matched is None {
+            continue;
+        }
+        body: list[str] = [];
+        while i < total {
+            cur = lines[i].strip();
+            i += 1;
+            if cur == "}" {
+                break;
+            }
+            if cur and cur != "{" {
+                body.append(cur);
+            }
+        }
+        if (
+            len(body) == 3
+            and body[0].endswith(":")
+            and abort_re.match(body[1]) is not None
+            and body[2] == "unreachable"
+        ) {
+            stubs.append(matched.group(1) or matched.group(2));
+        }
+    }
+    return sorted(set(stubs));
+}
+
+def purge_native_ir_cache(root_src: str, deps: (list[str] | None) = None) -> int {
+    import glob as _glob;
+    import from jaclang.jac0core.jir { get_native_cache_dir }
+    base = os.path.dirname(os.path.abspath(root_src));
+    dirs: list[str] = [];
+    stems: list[str] = [];
+    for raw in [root_src] + list(deps or []) {
+        if not raw {
+            continue;
+        }
+        resolved = raw if os.path.isabs(raw) else os.path.join(base, raw);
+        stems.append(os.path.splitext(os.path.basename(resolved))[0]);
+        try {
+            cache_dir = str(get_native_cache_dir(resolved));
+            if cache_dir not in dirs {
+                dirs.append(cache_dir);
+            }
+        } except Exception { }
+    }
+    removed = 0;
+    for cache_dir in dirs {
+        for stem in sorted(set(stems)) {
+            for suffix in ("ir_cache", "ir_meta") {
+                for stale in _glob.glob(
+                    os.path.join(cache_dir, f"{stem}.*.{suffix}")
+                ) {
+                    try {
+                        os.remove(stale);
+                        removed += 1;
+                    } except OSError { }
+                }
+            }
+        }
+    }
+    return removed;
+}
+
 def seal_native_canary(lib_path: str, exports: list[str]) -> str {
     import ctypes;
     import traceback;
@@ -459,11 +539,16 @@ def seal_native_artifacts(
                     type_check=False,
                     force_codespace='native',
                     force_target_program=True,
-                    na_gc_mode='cycles'
+                    na_gc_mode='cycles',
+                    no_ir_cache=True
                 )
             );
         } finally {
             census = na_census_end();
+        }
+        closure_deps: list[str] = [];
+        if ir is not None and ir.gen.interop_manifest is not None {
+            closure_deps = list(ir.gen.interop_manifest.native_transitive_sources);
         }
         if prog.errors_had {
             for _err in prog.errors_had {
@@ -488,6 +573,7 @@ def seal_native_artifacts(
         );
         if demotion_error {
             console.error(demotion_error);
+            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         for name in waived {
@@ -503,10 +589,33 @@ def seal_native_artifacts(
                 "the stale entry from NATIVE_SEAL_DEMOTION_WAIVERS."
             );
         }
+        llvm_ir_text = str(ir.gen.llvm_ir);
+        allowed = set(
+            (NATIVE_SEAL_DEMOTION_WAIVERS if waivers is None else waivers).get(rel, ())
+        );
+        shipped_stubs = [
+            s
+            for s in seal_abort_stubs(llvm_ir_text)
+            if s not in allowed
+        ];
+        if shipped_stubs {
+            console.error(
+                f"NATIVE SEAL: {rel} would link {len(shipped_stubs)} abort "
+                f"stub(s) into its artifact: {', '.join(shipped_stubs)}. This is "
+                "read off the IR that actually ships, so it holds even when the "
+                "native census recorded nothing (a stale native IR cache serves "
+                "a demoted dependency without re-running codegen). The cached IR "
+                "for this closure has been purged; re-run the seal to recompile "
+                "it and get the per-method diagnostic."
+            );
+            purge_native_ir_cache(str(src), closure_deps);
+            return None;
+        }
         layout = ir.gen.native_layout;
         exports = sorted(layout.functions.keys());
         if not exports {
             console.error(f"NATIVE SEAL: {rel} exports no module functions");
+            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         triple = llvm.get_default_triple();
@@ -520,6 +629,7 @@ def seal_native_artifacts(
         );
         if not ok {
             console.error(f"NATIVE SEAL: {rel}: {err}");
+            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         canary = seal_native_canary(str(lib_path), exports);
@@ -531,6 +641,7 @@ def seal_native_artifacts(
                 "for the traceback."
             );
             lib_path.unlink(missing_ok=True);
+            purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
         layout_path = out_dir / f"{stem}.layout.json";
