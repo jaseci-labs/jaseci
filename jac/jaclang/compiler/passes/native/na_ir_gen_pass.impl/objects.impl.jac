@@ -1583,6 +1583,9 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 }
                 _sargs.append(_pv);
             }
+            for _fill in range(len(_sargs), len(_sfunc.args)) {
+                _sargs.append(self._default_arg_fallback(_sfunc.args[_fill].type));
+            }
             _sr = self.builder.call(_sfunc, _sargs, name=f"scall.{method_name}");
             if isinstance(_sfunc.return_value.type, ir.VoidType) {
                 return None;

@@ -533,6 +533,10 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         (mod_name, cur_base, parent_src) = wq[qi];
         qi += 1;
         (src_mod_str, full_path) = resolve_native_module(mod_name, cur_base);
+        if os.environ.get("JAC_NA_IMPORT_DEBUG") {
+            import sys as _dbg_sys;
+            _dbg_sys.stderr.write(f"NAIMPORT {mod_name} -> {full_path}\n");
+        }
         if src_mod_str is None or full_path is None {
             continue;
         }

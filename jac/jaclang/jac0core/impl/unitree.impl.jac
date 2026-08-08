@@ -244,10 +244,12 @@ impl UniNode.to_dict -> dict[(str, str)] {
 }
 
 impl UniNode.pp(depth: (int | None) = None) -> str {
+    import from jaclang.jac0core.treeprinter { print_ast_tree }
     return print_ast_tree(self, max_depth=depth);
 }
 
 impl UniNode.printgraph -> str {
+    import from jaclang.jac0core.treeprinter { printgraph_ast_tree }
     return printgraph_ast_tree(self);
 }
 
@@ -626,6 +628,7 @@ impl UniScopeNode.sym_pp(depth: (int | None) = None) -> str {
 }
 
 impl UniScopeNode.sym_printgraph -> str {
+    import from jaclang.jac0core.treeprinter { printgraph_symtab_tree }
     return printgraph_symtab_tree(self);
 }
 
@@ -912,6 +915,7 @@ impl Module.annexable_by.getter -> (str | None) {
     if self.stub_only {
         return None;
     }
+    import from jaclang.jac0core.bccache { discover_base_file }
     return discover_base_file(self.loc.mod_path);
 }
 
@@ -1202,6 +1206,7 @@ impl ModulePath.base_module_name.getter -> str {
 }
 
 impl ModulePath.resolve_relative_path(target_item: (str | None) = None) -> str {
+    import from jaclang.jac0core.modresolver { resolve_relative_path }
     bundled = self.native_bundled_path();
     if bundled is not None {
         return bundled;
@@ -1329,9 +1334,9 @@ impl Archetype.postinit -> None {
 
 impl Archetype._get_impl_resolved_body -> list {
     return `list(self.body)
-        if isinstance(self.body, Sequence)
+        if isinstance(self.body, list)
         else `list(self.body.body)
-            if (isinstance(self.body, ImplDef) and isinstance(self.body.body, Sequence))
+            if (isinstance(self.body, ImplDef) and isinstance(self.body.body, list))
             else [];
 }
 
@@ -1377,7 +1382,7 @@ impl Archetype.get_methods -> list[Ability] {
 }
 
 impl ImplDef.postinit -> None {
-    self.spec = `list(self.spec) if isinstance(self.spec, Sequence) else self.spec;
+    self.spec = `list(self.spec) if isinstance(self.spec, list) else self.spec;
     UniNode.postinit(self);
     AstSymbolNode._init_symbol(
         self,
@@ -1890,7 +1895,7 @@ impl BoolExpr.postinit -> None {
 
 
 impl LambdaExpr.postinit -> None {
-    if (isinstance(self.body, Sequence) and not isinstance(self.body, Expr)) {
+    if (isinstance(self.body, list) and not isinstance(self.body, Expr)) {
         self.body = `list(self.body);
     }
     UniNode.postinit(self);
@@ -1906,7 +1911,7 @@ impl LambdaExpr.tail_return_expr -> Expr | None {
     """Implicit return: a braced body consisting of a single expression
     statement returns that expression's value. Any other body (multiple
     statements, or a non-expression statement) uses an explicit `return`.""";
-    if not (isinstance(self.body, Sequence) and not isinstance(self.body, Expr)) {
+    if not (isinstance(self.body, list) and not isinstance(self.body, Expr)) {
         return None;
     }
     stmts = [
@@ -2654,7 +2659,8 @@ impl PythonModuleAst.init(ast: object, orig_src: Source) -> None {
 
 impl UniNode.gen.getter -> CodeGenTarget {
     if (self._gen is None) {
-        self._gen = CodeGenTarget();
+        import from jaclang.jac0core.codeinfo { CodeGenTarget as _CGT }
+        self._gen = _CGT();
     }
     return self._gen;
 }

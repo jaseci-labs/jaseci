@@ -1,9 +1,9 @@
 import os;
-import from collections.abc { Sequence }
+import type from collections.abc { Sequence }
 import from enum { IntEnum }
-import from jaclang.jac0core.bccache { discover_base_file }
 import type from jaclang.jac0core.passes.uni_pass { UniPass }
-import from jaclang.jac0core.codeinfo { CodeGenTarget, CodeLocInfo }
+import type from jaclang.jac0core.codeinfo { CodeGenTarget }
+import from jaclang.jac0core.srcloc { CodeLocInfo }
 import from jaclang.jac0core.constant {
     BUILTIN_CALLABLE_NAMES,
     DELIM_MAP,
@@ -19,15 +19,8 @@ import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.jac0core.constant { JacSemTokenModifier as SemTokMod }
 import from jaclang.jac0core.constant { JacSemTokenType as SemTokType }
 import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.modresolver { resolve_relative_path }
 import type from jaclang.compiler.type_system.types { TypeBase }
 
-import from jaclang.jac0core.treeprinter {
-    print_ast_tree,
-    print_symtab_tree,
-    printgraph_ast_tree,
-    printgraph_symtab_tree
-}
 
 obj UniNode {
     has kid: Sequence[UniNode] = [],

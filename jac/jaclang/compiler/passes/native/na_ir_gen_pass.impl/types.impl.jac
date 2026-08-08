@@ -143,6 +143,12 @@ impl NaIRGenPass._spec_of(
         }
     }
     if not matched {
+        import os as _so_os;
+        if _so_os.environ.get("JAC_NA_SPEC_DEBUG")
+            and ("Sequence" in tk or "UniNode" in tk) {
+            import sys as _so_sys;
+            _so_sys.stderr.write(f"SPECMISS {tk}\n");
+        }
         return None;
     }
     lowered = self._lower_type(expr.type);
@@ -996,6 +1002,17 @@ impl NaIRGenPass._opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None) {
 impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.Value {
     if val.type == target_type {
         return val;
+    }
+
+    if isinstance(val.type, ir.PointerType)
+        and isinstance(target_type, ir.PointerType) {
+        _src_nm = getattr(val.type.pointee, "name", "") or "";
+        _tgt_nm = getattr(target_type.pointee, "name", "") or "";
+        if _src_nm in self.struct_types and _tgt_nm in self.struct_types {
+            if _tgt_nm in self._mro_of(_src_nm) or _src_nm in self._mro_of(_tgt_nm) {
+                return self.builder.bitcast(val, target_type, name="hier.cast");
+            }
+        }
     }
 
     _sd = self._str_desc_ty;
