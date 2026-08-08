@@ -7,6 +7,7 @@ import from uuid { uuid4 }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.persistence.db { get_mongo_client }
 import from jaclang.scale.persistence.mongo_db { MongoDb }
+import from jaclang.scale.persistence.mongo_health { mongo_recently_down }
 
 glob _auth_token_store: (AuthTokenStore | None) = None,
      logger = logging.getLogger(__name__);

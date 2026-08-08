@@ -182,6 +182,8 @@ impl NodeAnchor.remove_edge(`edge: EdgeAnchor) -> None {
 impl EdgeAnchor.detach -> None {
     self.source.remove_edge(self);
     self.target.remove_edge(self);
+    import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
+    sv_forget_edge(self);
 }
 
 @cached_property

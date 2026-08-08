@@ -196,6 +196,8 @@ def compute_module_key(source_path: str) -> str {
     h.update(pins_digest(source_path).encode());
     import from jaclang.jac0core.service_cut { cut_digest }
     h.update(cut_digest(source_path).encode());
+    import from jaclang.jac0core.compile_options { effective_codegen_fingerprint }
+    h.update(effective_codegen_fingerprint().encode());
     h.update(compute_content_sha256(source_path).encode());
     for (rel, digest) in _related_files(source_path) {
         h.update(rel.encode());

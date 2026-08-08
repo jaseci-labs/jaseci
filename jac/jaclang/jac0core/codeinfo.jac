@@ -478,6 +478,8 @@ obj CodeGenTarget {
         native_layout: (NativeModuleLayout | None) = None,
         osp_model: (OspModel | None) = None,
         native_viols_reported: bool = False,
+        client_viols_reported: bool = False,
+        has_root_access: (bool | None) = None,
         nogc_enforced: bool = False,
         nogc_provenance: str = '',
         rc_last_use: dict[int, list[str]] = field(default_factory=`dict),

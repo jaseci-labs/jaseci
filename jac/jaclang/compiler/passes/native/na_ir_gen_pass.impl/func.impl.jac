@@ -1105,7 +1105,9 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     self.builder.call(
         memset_fn, [raw, ir.Constant(ir.IntType(32), 0), ir.Constant(i64, frame_size)]
     );
-    dtor_slot = self.builder.gep(raw, [ir.Constant(i64, -8)], name="gen.dtor.slot");
+    dtor_slot = self.builder.gep(
+        raw, [ir.Constant(i64, HDR_DTOR_OFF)], name="gen.dtor.slot"
+    );
     dtor_slot_p = self.builder.bitcast(dtor_slot, i64p, name="gen.dtor.p");
     self.builder.store(
         self.builder.ptrtoint(drop_fn, i64, name="gen.dtor.i64"), dtor_slot_p

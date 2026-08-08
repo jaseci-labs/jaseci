@@ -2250,6 +2250,8 @@ impl TieredMemory.close -> None {
 
     self.__mem__.clear();
     self.changes.clear();
+    import from jaclang.jac0core.osp_graph_sv { sv_store_closed }
+    sv_store_closed(self);
 }
 
 impl TieredMemory.`has(id: UUID) -> bool {
@@ -2439,6 +2441,10 @@ impl TieredMemory.abort -> None {
             }
         }
         if dirty {
+            if isinstance(anchor, EdgeAnchor) {
+                import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
+                sv_forget_edge(anchor);
+            }
             self.__mem__.pop(id, None);
             if self.l2 {
                 self.l2.invalidate(id);
@@ -2470,6 +2476,8 @@ impl TieredMemory.quarantine_ref(referrer: (Anchor | None), stub: Anchor) -> Non
             if e.id != stub.id
         ];
         if len(nanchor.edges) != before {
+            import from jaclang.jac0core.osp_graph_sv { sv_forget_by_id }
+            sv_forget_by_id(stub.id, self);
             if nanchor.persistent {
                 try {
                     self.changes.record_edge_delta(

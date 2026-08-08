@@ -307,6 +307,31 @@ test "hpa autoscaler build manifests produces correct dict" {
     assert result == expected;
 }
 
+test "hpa autoscaler build manifests applies behavior_overlay onto the default shape" {
+    spec = AutoscalerSpec(
+        scale_target_name="my-service-deployment",
+        autoscaler_name="my-service-hpa",
+        namespace="default",
+        min_replicas=1,
+        max_replicas=3,
+        triggers=[Trigger(type="cpu", metadata={"averageUtilization": "70"})],
+        behavior_overlay={
+            "scaleDown": {
+                "stabilizationWindowSeconds": 600,
+                "selectPolicy": "Min",
+                "policies": [{"type": "Pods", "value": 2, "periodSeconds": 300}]
+            }
+        }
+    );
+    result = HPAAutoscaler()._build_manifests(spec);
+    behavior = result["spec"]["behavior"];
+    assert behavior["scaleDown"]["stabilizationWindowSeconds"] == 600;
+    assert behavior["scaleDown"]["selectPolicy"] == "Min";
+    assert behavior["scaleDown"]["policies"]
+        == [{"type": "Pods", "value": 2, "periodSeconds": 300}];
+    assert behavior["scaleUp"]["stabilizationWindowSeconds"] == 60;
+}
+
 test "autoscaler factory creates keda autoscaler for engine=keda" {
     autoscaler = AutoscalerFactory.create("keda", {});
     assert isinstance(autoscaler, KEDAAutoscaler);

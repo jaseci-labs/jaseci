@@ -5,12 +5,13 @@ impl _trace_enabled -> bool {
 
 
 impl _build_view(mem: Memory, q: GraphQuery) -> _View {
+    import from jaclang.jac0core.osp_graph_sv { sv_edge_alive }
     view = _View();
     for anchor in list(mem.get_mem().values()) {
         if not isinstance(anchor, EdgeAnchor) or not anchor.is_populated() {
             continue;
         }
-        if not _edge_alive(anchor) {
+        if not sv_edge_alive(anchor, mem) {
             view.detached.add(anchor.id);
         } elif anchor.hash == 0 {
             view.fresh.append(anchor);
@@ -112,17 +113,37 @@ impl _page_rows(
 }
 
 
-impl _edge_alive(ea: EdgeAnchor) -> bool {
-    src = ea.source;
-    if src is None or not src.is_populated() {
-        return True;
+impl _acl_gated -> bool {
+    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    try {
+        jctx = JacRuntimeInterface.get_context();
+    } except Exception {
+        return False;
     }
-    for e in src.edges {
-        if e.id == ea.id {
-            return True;
+    ur = jctx?.user_root;
+    return ur is not None and ur != jctx.system_root;
+}
+
+
+impl _acl_read_ok(anchor: Anchor) -> bool {
+    import from jaclang.jac0core.archetype { AccessLevel }
+    import from jaclang.jac0core.runtime { JacRuntimeInterface }
+    level = JacRuntimeInterface.check_access_level(anchor);
+    return level.value > AccessLevel.NO_ACCESS.value;
+}
+
+
+impl _acl_keep(mem: Memory, view: _View, ids: list[UUID]) -> list[UUID] {
+    if not ids or not _acl_gated() {
+        return ids;
+    }
+    kept: list[UUID] = [];
+    for a in _materialize(mem, view, ids) {
+        if _acl_read_ok(a) {
+            kept.append(a.id);
         }
     }
-    return False;
+    return kept;
 }
 
 
@@ -357,6 +378,7 @@ impl _heal_sweep(
 impl _hop_once(
     mem: Memory, view: _View, cur: list[UUID], hop: QHop, hop_idx: int
 ) -> list[UUID] {
+    import from jaclang.jac0core.osp_graph_sv { sv_live_edges, sv_register_hydrated }
     cur_set = set(cur);
     view.epred_ok = set();
     local_pairs: list[tuple[UUID, UUID]] = [];
@@ -416,15 +438,17 @@ impl _hop_once(
         if engine_rows is not None {
             _heal_sweep(mem, view, nanch, all_eids);
         }
-        for stub in nanch.edges {
-            if stub.id in seen_eids
-                or not stub.is_populated()
-                or stub.id in view.detached
-                or stub.hash != 0 {
+        sv_register_hydrated(nanch, mem);
+        for lea in sv_live_edges(nanch, 3, None, True, mem) {
+            if not isinstance(lea, EdgeAnchor)
+                or lea.id in seen_eids
+                or not lea.is_populated()
+                or lea.id in view.detached
+                or lea.hash != 0 {
                 continue;
             }
-            seen_eids.add(stub.id);
-            live_edges.append(stub);
+            seen_eids.add(lea.id);
+            live_edges.append(lea);
         }
     }
     n_live = 0;
@@ -454,6 +478,7 @@ impl _hop_once(
         }
     }
     ids = _node_pred_keep(mem, view, ids, hop.preds);
+    ids = _acl_keep(mem, view, ids);
     want = hop.only_ids();
     if want is not None {
         ids = [
@@ -610,54 +635,33 @@ impl resolve_query_edges(mem: Memory, q: GraphQuery) -> list[Anchor] {
     hop = q.hops[-1];
     frontier = _materialize(mem, view, prefix_ids);
     cur_set = {a.id for a in frontier};
-    pool = mem.get_mem();
+    import from jaclang.jac0core.osp_graph_sv { sv_live_edges, sv_register_hydrated }
     candidates: list[EdgeAnchor] = [];
     seen: set[UUID] = set();
-    pending: list[UUID] = [];
     for n in frontier {
         if not isinstance(n, NodeAnchor) or not n.is_populated() {
             continue;
         }
-        for stub in n.edges {
-            if stub.id in seen {
+        sv_register_hydrated(n, mem, fetch_stubs=True);
+        for lea in sv_live_edges(n, 3, None, True, mem) {
+            if not isinstance(lea, EdgeAnchor)
+                or lea.id in seen
+                or not lea.is_populated() {
                 continue;
             }
-            seen.add(stub.id);
-            found = pool.get(stub.id) or view.live_edges.get(stub.id);
-            if found is None and stub.is_populated() {
-                found = stub;
-            }
-            if isinstance(found, EdgeAnchor) and found.is_populated() {
-                candidates.append(found);
-            } else {
-                pending.append(stub.id);
-            }
-        }
-    }
-    if pending {
-        import from jaclang.runtimelib.memory { TieredMemory }
-        fetched: dict[UUID, Anchor];
-        if isinstance(mem, TieredMemory) {
-            fetched = mem.batch_get(pending);
-        } else {
-            fetched = {
-                i: a
-                for i in pending
-                if (a := mem.get(i)) is not None
-            };
-        }
-        for i in pending {
-            fa = fetched.get(i);
-            if isinstance(fa, EdgeAnchor) and fa.is_populated() {
-                candidates.append(fa);
-            }
+            seen.add(lea.id);
+            candidates.append(lea);
         }
     }
     out: list[Anchor] = [];
     seen_nodes: set[UUID] = set();
     ewant = hop.only_ids();
+    gated = _acl_gated();
     for ea in candidates {
         if ea.archetype is None or ea.id in view.detached {
+            continue;
+        }
+        if gated and not _acl_read_ok(ea) {
             continue;
         }
         src = ea.source;
@@ -686,6 +690,9 @@ impl resolve_query_edges(mem: Memory, q: GraphQuery) -> list[Anchor] {
             continue;
         }
         other = tgt if src.id in cur_set else src;
+        if gated and not _acl_keep(mem, view, [other.id]) {
+            continue;
+        }
         if ewant is not None and other.id not in ewant {
             continue;
         }
