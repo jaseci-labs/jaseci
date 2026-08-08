@@ -153,7 +153,3 @@ def verify_password(password: str, stored: str) -> bool {
         return False;
     }
 }
-
-def new_token_secret -> str {
-    return secrets.token_urlsafe(48);
-}

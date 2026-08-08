@@ -7,6 +7,7 @@ import from jaclang.runtimelib.serving.coerce {
     bind_parameters,
     body_param_name,
     coerce_value,
+    get_callback_spec,
     filter_kwargs_for_callback
 }
 import from jaclang.runtimelib.serving.datatypes {
@@ -230,10 +231,11 @@ obj ServingApp {
             return JSONResponse(content={'detail': 'Not Found'}, status_code=404);
         }
         request.path_params = path_params;
+        spec = get_callback_spec(ep);
         body_json = _parse_request_body(request, ep);
         kwargs = bind_parameters(ep, request, body_json);
         if ep.request_model is not None {
-            body_name = body_param_name(ep.callback, kwargs);
+            body_name = body_param_name(spec, kwargs);
             if body_name is not None {
                 try {
                     kwargs[body_name] = coerce_value(
@@ -248,9 +250,9 @@ obj ServingApp {
                 }
             }
         }
-        kwargs = filter_kwargs_for_callback(ep.callback, kwargs, request);
+        kwargs = filter_kwargs_for_callback(spec, kwargs, request);
         callback_fn: any = ep.callback;
-        if inspect.iscoroutinefunction(callback_fn) {
+        if spec.is_async {
             result = await callback_fn(**kwargs);
         } else {
             def _call_sync -> any {

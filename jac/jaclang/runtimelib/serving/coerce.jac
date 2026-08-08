@@ -324,21 +324,60 @@ def bind_parameters(ep: JEndPoint, request: Request, body_json: any) -> dict[str
     return kwargs;
 }
 
-def body_param_name(callback: any, bound: dict[str, any]) -> (str | None) {
+obj CallbackSpec {
+    has names: set[str] = set(),
+        body_candidates: list[str] = [],
+        accepts_var_kw: bool = False,
+        wants_request: bool = False,
+        introspectable: bool = True,
+        is_async: bool = False;
+}
+
+def build_callback_spec(callback: any) -> CallbackSpec {
+    is_async = inspect.iscoroutinefunction(callback);
     try {
         sig = inspect.signature(callback);
     } except (TypeError, ValueError) {
-        return None;
+        return CallbackSpec(introspectable=False, is_async=is_async);
     }
+    names: set[str] = set();
+    body_candidates: list[str] = [];
+    accepts_var_kw = False;
     for (pname, param) in sig.parameters.items() {
-        if pname in ('self', 'request') or pname in bound {
+        if param.kind == inspect.Parameter.VAR_KEYWORD {
+            accepts_var_kw = True;
             continue;
         }
-        if param.kind
-            in (
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                inspect.Parameter.KEYWORD_ONLY
-            ) {
+        names.add(pname);
+        if pname not in ('self', 'request')
+            and param.kind
+                in (
+                    inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                    inspect.Parameter.KEYWORD_ONLY
+                ) {
+            body_candidates.append(pname);
+        }
+    }
+    return CallbackSpec(
+        names=names,
+        body_candidates=body_candidates,
+        accepts_var_kw=accepts_var_kw,
+        wants_request='request' in names,
+        introspectable=True,
+        is_async=is_async
+    );
+}
+
+def get_callback_spec(ep: JEndPoint) -> CallbackSpec {
+    if ep.callback_spec is None {
+        ep.callback_spec = build_callback_spec(ep.callback);
+    }
+    return ep.callback_spec;
+}
+
+def body_param_name(spec: CallbackSpec, bound: dict[str, any]) -> (str | None) {
+    for pname in spec.body_candidates {
+        if pname not in bound {
             return pname;
         }
     }
@@ -346,31 +385,20 @@ def body_param_name(callback: any, bound: dict[str, any]) -> (str | None) {
 }
 
 def filter_kwargs_for_callback(
-    callback: any, kwargs: dict[str, Any], request: Request
+    spec: CallbackSpec, kwargs: dict[str, Any], request: Request
 ) -> dict[str, Any] {
-    try {
-        sig = inspect.signature(callback);
-    } except (TypeError, ValueError) {
+    if not spec.introspectable {
         return kwargs;
     }
-    accepts_var_kw = False;
-    names: set[str] = set();
-    for (pname, param) in sig.parameters.items() {
-        if param.kind == inspect.Parameter.VAR_KEYWORD {
-            accepts_var_kw = True;
-        } else {
-            names.add(pname);
-        }
-    }
-    if 'request' in names and 'request' not in kwargs {
+    if spec.wants_request and 'request' not in kwargs {
         kwargs['request'] = request;
     }
-    if accepts_var_kw {
+    if spec.accepts_var_kw {
         return kwargs;
     }
     return {
         k: v
         for (k, v) in kwargs.items()
-        if k in names
+        if k in spec.names
     };
 }
