@@ -108,11 +108,7 @@ def _db_sql(data_dir: str, query: str) -> int {
 
 
 def _db_serve(data_dir: str, port: int) -> int {
-    serve_dir = (
-        data_dir
-        or os.environ.get('JAC_PGDATA')
-        or '/var/lib/jac/pgdata'
-    );
+    serve_dir = data_dir or os.environ.get('JAC_PGDATA') or '/var/lib/jac/pgdata';
     serve_port = int(os.environ.get('JAC_DB_PORT', str(port)));
     console.print(f"serving postgres from {serve_dir} on :{serve_port}");
     rt = _runtime_for(serve_dir, tcp=True, port=serve_port);
@@ -121,10 +117,7 @@ def _db_serve(data_dir: str, port: int) -> int {
 
 
 impl db(
-    action: str = "status",
-    query: str = "",
-    data_dir: str = "",
-    port: int = 5432
+    action: str = "status", query: str = "", data_dir: str = "", port: int = 5432
 ) -> int {
     if action == 'serve' {
         return _db_serve(data_dir, port);

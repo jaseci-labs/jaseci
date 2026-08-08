@@ -1,21 +1,3 @@
-"""Embedded Postgres supervisor: zero-config engine from laptop to pod.
-
-Resolution order for server binaries (first hit wins):
-  1. JAC_PG_DIST — path to an unpacked postgres distribution (bin/postgres)
-  2. a postgres on PATH whose major matches the pin
-  3. auto-download of the io.zonky.test portable binaries from Maven Central
-     (checksum-verified, cached under ~/.cache/jac/pg/dist)
-
-The pinned major is PG_MAJOR (19); JAC_PG_VERSION overrides. If the pinned
-major is unavailable from every source, the newest available major is used
-with a warning — zero-config must not break during the 19-beta window.
-
-Local mode: initdb + unix-socket-only server inside the data dir, started
-lazily via pg_ctl and reused across runs (stop with `jac db stop`). Pod mode
-(`jac db serve`): foreground TCP server with SIGTERM translated to fast
-shutdown and pg_isready-compatible health.
-"""
-
 import hashlib;
 import logging;
 import os;
@@ -48,7 +30,6 @@ def dist_cache_dir -> str;
 
 
 obj PgRuntime {
-    """Owns one postgres server for one data directory."""
     has data_dir: str,
         port: int = 0,
         tcp: bool = False,

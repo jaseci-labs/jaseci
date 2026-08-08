@@ -202,8 +202,6 @@ impl JacAPIServerCore.start(
 ) -> None {
     self.introspector.load();
     if self.introspector.has_client_route('/docs') {
-        # App-defined pages win over built-in convenience mounts: drop
-        # FastAPI's default swagger routes so the SPA serves its own /docs.
         try {
             self.server.app.router.routes = [
                 r

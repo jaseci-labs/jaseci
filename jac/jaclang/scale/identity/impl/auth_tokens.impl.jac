@@ -121,7 +121,9 @@ impl AuthTokenStore._find(token_hash: str, purpose: str) -> (dict[str, Any] | No
             doc = json.loads(got);
             return doc if doc.get('purpose') == purpose else None;
         } except Exception as e {
-            logger.warning(f"database find failed for auth token, using in-memory: {e}");
+            logger.warning(
+                f"database find failed for auth token, using in-memory: {e}"
+            );
         }
     }
     record = self._in_memory.get(token_hash);

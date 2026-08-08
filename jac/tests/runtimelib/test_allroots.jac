@@ -23,5 +23,3 @@ def _make_root -> NodeAnchor {
     anchor.persistent = True;
     return anchor;
 }
-
-

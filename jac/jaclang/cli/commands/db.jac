@@ -46,8 +46,5 @@ glob registry = get_registry();
     group="db"
 )
 def db(
-    action: str = "status",
-    query: str = "",
-    data_dir: str = "",
-    port: int = 5432
+    action: str = "status", query: str = "", data_dir: str = "", port: int = 5432
 ) -> int;

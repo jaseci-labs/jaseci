@@ -33,8 +33,7 @@ obj DatabaseProvisioner {
 
         if self.logger {
             self.logger.info(
-                f"Provisioning postgres for '{app_name}'",
-                {"namespace": namespace}
+                f"Provisioning postgres for '{app_name}'", {"namespace": namespace}
             );
         }
         self.k8s_target._deploy_databases(app_name, namespace, apps_v1, core_v1);

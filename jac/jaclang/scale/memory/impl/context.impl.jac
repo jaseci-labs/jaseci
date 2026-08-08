@@ -18,7 +18,6 @@ impl JScaleExecutionContext.init(self: JScaleExecutionContext) -> None {
     target = JacRuntime.get_full_target_path();
     url = scale_db_url();
     if url and not os.environ.get('JAC_DB_URL') {
-        # Session resolves JAC_DB_URL itself; config-sourced urls arrive here.
         import from jaclang.runtimelib.store { PgStore }
         store = PgStore(conninfo=conninfo_from_url(url));
         store.ensure_schema(promotions_for(base));

@@ -49,7 +49,10 @@ def _pg_data_dir(base_path: str, target_path: (str | None)) -> str {
 
 def _ancestry_of(arch: (object | None)) -> list[str] {
     import from jaclang.jac0core.constructs {
-        Archetype, NodeArchetype, EdgeArchetype, WalkerArchetype
+        Archetype,
+        NodeArchetype,
+        EdgeArchetype,
+        WalkerArchetype
     }
     if arch is None {
         return [];
@@ -97,12 +100,11 @@ impl Session.postinit -> None {
         if url {
             pgs = PgStore(conninfo=conninfo_from_url(url));
             try {
-                # Shared server: peers' commits evict our cache entries.
                 pgs.listen(
                     INVALIDATION_CHANNEL,
-                    lambda (payload: str) {
-                        _process_cache.invalidate_payload(payload);
-                    }
+                    lambda (payload: str) { _process_cache.invalidate_payload(
+                        payload
+                    ); }
                 );
             } except Exception as e {
                 logger.debug(f"cache invalidation listener skipped: {e}");
@@ -296,7 +298,6 @@ impl Session.commit(anchor: (Anchor | None) = None) -> None {
                 _process_cache.invalidate(id);
             }
             try {
-                # NOTIFY payloads cap at 8KB; chunk conservatively.
                 for start in range(0, len(changed), 100) {
                     self.store.notify(
                         INVALIDATION_CHANNEL,
@@ -450,7 +451,7 @@ impl Session.flush(full: bool = False) -> None {
         candidates = set(self._dirty);
         for (id, anchor) in self.__mem__.items() {
             arch = anchor.archetype;
-            if arch is not None and getattr(arch, '__jac_dirty_fields__', None) {
+            if arch is not None and arch?.__jac_dirty_fields__ {
                 candidates.add(id);
             }
         }
@@ -474,11 +475,11 @@ impl Session.flush(full: bool = False) -> None {
         anchor.hash = h;
         arch = anchor.archetype;
         if arch is not None {
-            dirty_fields = getattr(arch, '__jac_dirty_fields__', None);
+            dirty_fields = arch?.__jac_dirty_fields__;
             if dirty_fields {
                 try {
                     dirty_fields.clear();
-                } except Exception {}
+                } except Exception { }
             }
         }
     }
@@ -510,7 +511,7 @@ impl Session._serialize(anchor: Anchor) -> AnchorRow {
     if anchor.is_populated() and arch is not None {
         arch_type = type(arch).__name__;
         arch_module = type(arch).__module__;
-        fp = getattr(type(arch), '__jac_fingerprint__', None);
+        fp = type(arch)?.__jac_fingerprint__;
         fingerprint = fp if isinstance(fp, str) else '';
     }
     src: (UUID | None) = None;

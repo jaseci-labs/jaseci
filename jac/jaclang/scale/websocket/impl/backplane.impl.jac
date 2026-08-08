@@ -81,9 +81,8 @@ impl PgBackplane.publish(channel: str, message: dict) -> None {
     await self.start();
     payload = json.dumps(message);
     if len(payload.encode('utf-8')) > _NOTIFY_LIMIT {
-        # Spill oversized payloads to KV; notify a pointer.
         key = f"wsmsg:{_uuid.uuid4()}";
-        def _spill -> None {
+        def _spill {
             self._store.rows(
                 """
                 INSERT INTO kv_state (key, value, expires_at)
@@ -91,17 +90,13 @@ impl PgBackplane.publish(channel: str, message: dict) -> None {
                 """,
                 {'k': key, 'v': payload}
             );
-            self._store.notify(
-                self._pg_channel(channel), json.dumps({'__kv': key})
-            );
+            self._store.notify(self._pg_channel(channel), json.dumps({'__kv': key}));
         }
         await asyncio.to_thread(_spill);
     } else {
-        await asyncio.to_thread(
-            self._store.notify, self._pg_channel(channel), payload
-        );
+        await asyncio.to_thread(self._store.notify, self._pg_channel(channel), payload);
     }
-    # Local subscribers hear their own publishes without a round trip.
+
     await self._dispatch(channel, message);
 }
 

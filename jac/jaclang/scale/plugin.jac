@@ -7,7 +7,7 @@ import from jaclang.runtimelib.context { ExecutionContext }
 import from jaclang.runtimelib.server { JacAPIServer as JacServer }
 import from .config.config_loader { get_scale_config }
 import from .events.streams.postgres { PgEventStream }
-# Static-reachability anchors (see runtimelib/context.jac note).
+
 import from .persistence.pg { shared_store as _pg_anchor }
 import from .persistence.docdb { PgDocDb as _docdb_anchor }
 import from .state.pg_state_backend { PgStateBackend as _state_anchor }
@@ -48,7 +48,9 @@ def _scale_runtime_active -> bool {
         return True;
     }
     db = get_scale_config().get_database_config();
-    return bool(db.get("url") or db.get("postgres_url") or os.environ.get("JAC_DB_URL"));
+    return bool(
+        db.get("url") or db.get("postgres_url") or os.environ.get("JAC_DB_URL")
+    );
 }
 
 def scale_start(

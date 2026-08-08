@@ -4,7 +4,9 @@ impl pinned_major -> int {
         try {
             return int(override.split('.')[0]);
         } except ValueError {
-            logger.warning(f"JAC_PG_VERSION={override!r} is not a version; using {PG_MAJOR}");
+            logger.warning(
+                f"JAC_PG_VERSION={override!r} is not a version; using {PG_MAJOR}"
+            );
         }
     }
     return PG_MAJOR;
@@ -23,7 +25,14 @@ impl dist_cache_dir -> str {
 def _platform_slug -> (str | None) {
     sys_name = platform.system();
     mach = platform.machine().lower();
-    arch = {'x86_64': 'amd64', 'amd64': 'amd64', 'aarch64': 'arm64v8', 'arm64': 'arm64v8'}.get(mach);
+    arch = {
+        'x86_64': 'amd64',
+        'amd64': 'amd64',
+        'aarch64': 'arm64v8',
+        'arm64': 'arm64v8'
+    }.get(
+        mach
+    );
     if arch is None {
         return None;
     }
@@ -46,7 +55,7 @@ def _pg_major_of(bin_dir: str) -> (int | None) {
         out = subprocess.run(
             [postgres, '--version'], capture_output=True, text=True, timeout=10
         ).stdout;
-        # "postgres (PostgreSQL) 19beta2" / "... 18.4 (Ubuntu ...)"
+
         token = out.strip().split()[-1] if out.strip() else '';
         for part in out.strip().split() {
             if part[:1].isdigit() {
@@ -144,8 +153,16 @@ impl PgRuntime.stop -> None {
         }
         bin_dir = self._bin_dir or self._resolve_binaries();
         subprocess.run(
-            [os.path.join(bin_dir, 'pg_ctl'), 'stop', '-D', self.data_dir,
-             '-m', 'fast', '-t', '30'],
+            [
+                os.path.join(bin_dir, 'pg_ctl'),
+                'stop',
+                '-D',
+                self.data_dir,
+                '-m',
+                'fast',
+                '-t',
+                '30'
+            ],
             capture_output=True,
             text=True,
             timeout=60
@@ -196,7 +213,7 @@ impl PgRuntime._resolve_from_path -> (str | None) {
     if exe {
         candidates.append(os.path.dirname(os.path.realpath(exe)));
     }
-    # Debian/Ubuntu keep versioned installs off PATH; probe them too.
+
     for base in ['/usr/lib/postgresql', '/usr/pgsql', '/opt/homebrew/opt'] {
         if os.path.isdir(base) {
             for entry in sorted(os.listdir(base), reverse=True) {
@@ -223,7 +240,13 @@ impl PgRuntime._resolve_from_zonky -> (str | None) {
         return got;
     }
     versions = self._zonky_versions();
-    majors = sorted({int(v.split('.')[0]) for v in versions if v[:1].isdigit()});
+    majors = sorted(
+        {
+            int(v.split('.')[0])
+            for v in versions
+            if v[:1].isdigit()
+        }
+    );
     if not majors {
         return None;
     }
@@ -311,9 +334,7 @@ impl PgRuntime._download_zonky(major: int) -> (str | None) {
                 have.update(blk);
             }
         }
-        assert have.hexdigest() == want_sha , (
-            f"checksum mismatch for {jar_url}"
-        );
+        assert have.hexdigest() == want_sha , (f"checksum mismatch for {jar_url}");
         with zipfile.ZipFile(jar_path) as zf {
             txz: (str | None) = None;
             for n in zf.namelist() {
@@ -348,8 +369,18 @@ impl PgRuntime._initdb_if_needed(bin_dir: str) -> None {
     os.makedirs(self.data_dir, exist_ok=True);
     os.chmod(self.data_dir, 0o700);
     res = subprocess.run(
-        [os.path.join(bin_dir, 'initdb'), '-D', self.data_dir,
-         '-U', self.superuser, '-A', 'trust', '-E', 'UTF8', '--no-locale'],
+        [
+            os.path.join(bin_dir, 'initdb'),
+            '-D',
+            self.data_dir,
+            '-U',
+            self.superuser,
+            '-A',
+            'trust',
+            '-E',
+            'UTF8',
+            '--no-locale'
+        ],
         capture_output=True,
         text=True,
         timeout=120
@@ -369,8 +400,19 @@ impl PgRuntime._start(bin_dir: str) -> None {
     );
     log_path = os.path.join(self.data_dir, 'server.log');
     res = subprocess.run(
-        [os.path.join(bin_dir, 'pg_ctl'), 'start', '-D', self.data_dir,
-         '-o', opts, '-l', log_path, '-w', '-t', '60'],
+        [
+            os.path.join(bin_dir, 'pg_ctl'),
+            'start',
+            '-D',
+            self.data_dir,
+            '-o',
+            opts,
+            '-l',
+            log_path,
+            '-w',
+            '-t',
+            '60'
+        ],
         capture_output=True,
         text=True,
         timeout=90
@@ -381,7 +423,7 @@ impl PgRuntime._start(bin_dir: str) -> None {
             with open(log_path) as f {
                 tail = ''.join(f.readlines()[-15:]);
             }
-        } except OSError {}
+        } except OSError { }
         assert False , f"postgres failed to start: {res.stderr.strip()}\n{tail}";
     }
 }
@@ -440,18 +482,22 @@ impl PgRuntime.serve -> int {
     self._initdb_if_needed(bin_dir);
     os.makedirs(self._sock_dir(), exist_ok=True);
     argv = [
-        os.path.join(bin_dir, 'postgres'), '-D', self.data_dir,
-        '-p', str(self.port),
-        '-c', 'listen_addresses=*',
-        '-c', f"unix_socket_directories={self._sock_dir()}",
-        '-c', 'dynamic_shared_memory_type=posix'
+        os.path.join(bin_dir, 'postgres'),
+        '-D',
+        self.data_dir,
+        '-p',
+        str(self.port),
+        '-c',
+        'listen_addresses=*',
+        '-c',
+        f"unix_socket_directories={self._sock_dir()}",
+        '-c',
+        'dynamic_shared_memory_type=posix'
     ];
     proc = subprocess.Popen(argv);
     self._proc = proc;
 
-    def _forward(signum: int, frame: Any) -> None {
-        # k8s sends SIGTERM ("smart" to postgres, can hang on draining);
-        # translate to SIGINT = fast shutdown.
+    def _forward(signum: int, frame: Any) {
         proc.send_signal(int(signal.SIGINT));
     }
     signal.signal(int(signal.SIGTERM), _forward);

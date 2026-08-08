@@ -34,7 +34,7 @@ def _jac(cwd: str, args: list) -> tuple {
 
 """Point the tmp project at the source tree under test (launcher binaries
 otherwise serve their embedded jaclang snapshot for CLI dispatch)."""
-def _seed_project(tmpdir: str, name: str) -> None {
+def _seed_project(tmpdir: str, name: str) {
     import jaclang;
     src = str(Path(jaclang.__file__).parent.parent);
     (Path(tmpdir) / "jac.toml").write_text(
@@ -43,7 +43,7 @@ def _seed_project(tmpdir: str, name: str) -> None {
 }
 
 
-def _stop_db(cwd: str) -> None {
+def _stop_db(cwd: str) {
     _jac(cwd, ["db", "stop"]);
 }
 
@@ -89,8 +89,7 @@ test "db sql runs a statement against the project store" {
             assert rc == 0 , f"create failed: {err}";
             (rc, out, err) = _jac(
                 tmpdir,
-                ["db", "sql",
-                 "SELECT count(*) FROM anchors WHERE kind = 'NodeAnchor'"]
+                ["db", "sql", "SELECT count(*) FROM anchors WHERE kind = 'NodeAnchor'"]
             );
             assert rc == 0 , f"sql failed: {err}";
             assert "3" in out , f"expected 3 nodes in: {out!r}";

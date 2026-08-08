@@ -1,14 +1,3 @@
-"""Postgres-backed event stream: durable topics with consumer groups.
-
-Events append to jac_events; each (topic, group) tracks a cursor in
-jac_event_offsets. Claims take the cursor row FOR UPDATE SKIP LOCKED in a
-short transaction, handlers run outside it, and the cursor advances after
-success — at-least-once delivery, same contract the Redis-streams broker
-offered. Failed events honor RetryPolicy and land in <topic>.dlq. The
-broker owns a dedicated PgStore connection so its transactions never
-interleave with request Sessions.
-"""
-
 import json;
 import logging;
 import socket;
@@ -196,8 +185,7 @@ obj PgEventStream(EventStreamBroker) {
         }
     }
 
-    def ack(event: Event) -> None {}
-
+    def ack(event: Event) { }
     def _send_to_dlq(topic: str, event: Event, retry: RetryPolicy) {
         try {
             self.publish(topic + retry.dead_letter_suffix, event);
@@ -239,7 +227,6 @@ obj PgEventStream(EventStreamBroker) {
         pol = retry or self._default_retry;
         store = self._ensure_store();
         if start_from == 'latest' {
-            # First registration for the group starts at the stream head.
             store.rows(
                 """
                 INSERT INTO jac_event_offsets (topic, grp, last_id)
@@ -282,9 +269,7 @@ obj PgEventStream(EventStreamBroker) {
             ok = False;
         }
         return HealthStatus(
-            healthy=ok,
-            broker='postgres',
-            details={'consumer': self._consumer_name}
+            healthy=ok, broker='postgres', details={'consumer': self._consumer_name}
         );
     }
 }

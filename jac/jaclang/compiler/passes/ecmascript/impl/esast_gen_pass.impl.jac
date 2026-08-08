@@ -2018,16 +2018,11 @@ impl EsastGenPass.exit_assignment(nd: uni.Assignment) -> None {
         and not nd.aug_op
         and '_' not in self.reactive_vars
     ) {
-        # `_ = expr` is the discard idiom: evaluate for effect, bind nothing.
-        # Emitting a bare `_ = ...` assignment throws ReferenceError in
-        # strict-mode ES modules.
         discard_value = cast(
             es.Expression, value_expr or es.Identifier(name='undefined')
         );
         void_expr = self.sync_loc(
-            es.UnaryExpression(
-                operator='void', prefix=True, argument=discard_value
-            ),
+            es.UnaryExpression(operator='void', prefix=True, argument=discard_value),
             jac_node=nd
         );
         nd.gen.es_ast = self.sync_loc(

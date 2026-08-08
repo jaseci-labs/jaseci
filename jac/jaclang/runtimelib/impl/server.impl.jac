@@ -1247,9 +1247,6 @@ impl ModuleIntrospector.render_page(
     return Jac.render_page(self, function_name, args, username);
 }
 
-# True only when the app's client bundle explicitly defines a route for
-# this path — built-in convenience pages (/docs, /graph) must never shadow
-# an app-defined page.
 impl ModuleIntrospector.has_client_route(url_path: str) -> bool {
     if not self._spa_routes_loaded {
         self._spa_route_patterns = self._load_spa_routes();
@@ -1964,9 +1961,8 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 Jac.send_json(self, 200, {'status': 'ok'});
                 return;
             }
-            if (path == '/graph') and not server.introspector.has_client_route(
-                '/graph'
-            ) {
+            if (path == '/graph')
+                and not server.introspector.has_client_route('/graph') {
                 self._serve_graph_page();
                 return;
             }
@@ -1974,9 +1970,8 @@ impl JacAPIServer.create_handler -> type[BaseHTTPRequestHandler] {
                 self._serve_graph_data();
                 return;
             }
-            if (path == '/docs') and not server.introspector.has_client_route(
-                '/docs'
-            ) {
+            if (path == '/docs')
+                and not server.introspector.has_client_route('/docs') {
                 Jac.send_html(self, 200, _docs_html(server));
                 return;
             }

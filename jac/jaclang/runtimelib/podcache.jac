@@ -1,13 +1,3 @@
-"""Per-pod cache: payload hydration only, never truth.
-
-Cross-request LRU of deserialized anchor payloads keyed by id. Correctness
-invariant (epic #7945): topology, existence, and row versions always come
-from the Session's transaction snapshot; the cache is consulted only when
-the version observed inside the transaction matches the cached row's
-version. LISTEN/NOTIFY on the invalidation channel is eviction-only —
-a lost or late notification can never produce a stale read, only a refetch.
-"""
-
 import logging;
 import threading;
 import from collections { OrderedDict }

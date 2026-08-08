@@ -43,8 +43,6 @@ def _type_cond(alias: str, tname: str, params: dict, pfx: str) -> str {
 
 
 def _sql_type_of(v: any) -> str {
-    # to_jsonb is polymorphic; wire params arrive untyped, so every value
-    # gets an explicit cast matched to its Python type.
     if isinstance(v, bool) {
         return 'boolean';
     }
@@ -92,7 +90,6 @@ def _pred_cond(alias: str, p: QPred, params: dict, pfx: str) -> (str | None) {
         return f"{expr} = {rhs}";
     }
     if p.op == '!=' {
-        # Python semantics: a missing field still differs from the value.
         return f"({expr} IS NULL OR {expr} <> {rhs})";
     }
     op = {'<': '<', '<=': '<=', '>': '>', '>=': '>='}.get(p.op);
@@ -192,8 +189,7 @@ impl compile_query(q: GraphQuery, upto: int) -> CompiledQuery {
     }
     if n == 0 {
         out.sql = (
-            'SELECT f0.id, NULL FROM '
-            'unnest(CAST(:origin AS uuid[])) AS f0(id)'
+            'SELECT f0.id, NULL FROM ' 'unnest(CAST(:origin AS uuid[])) AS f0(id)'
         );
         out.params = params;
         return out;

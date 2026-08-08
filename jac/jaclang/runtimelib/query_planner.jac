@@ -1,22 +1,3 @@
-"""Graph query resolution over the pg-native Session (epic #7945).
-
-Two execution paths, split per origin:
-
-- persistent origins with a Store: the whole hop chain compiles to one SQL
-  statement (sqlcompile) executed on the Session's open transaction after
-  the read barrier — uncommitted attaches, detaches, and destroys are
-  visible because they are already IN the transaction, not simulated by an
-  overlay.
-- volatile origins (or storeless sessions): a direct walk of the live
-  anchor objects. Mixed chains cannot exist: persistence cascades on
-  attach, so a persistent frontier never reaches a volatile anchor.
-
-ACL (#7963 item 3): for a downscoped user every surfaced anchor passes
-check_access_level. The memory walk gates each hop's frontier; the SQL path
-gates the materialized results (per-hop gating inside the SQL statement
-awaits ACL pushdown).
-"""
-
 import logging;
 import from typing { Any }
 import from uuid { UUID }
@@ -37,9 +18,7 @@ def _sql_pairs(
 ) -> list[tuple[(UUID | None), (UUID | None)]];
 
 
-def _edge_pair_for(
-    e: EdgeAnchor, cur: Anchor, hop: QHop
-) -> (Anchor | None);
+def _edge_pair_for(e: EdgeAnchor, cur: Anchor, hop: QHop) -> (Anchor | None);
 
 
 def _walk_memory(

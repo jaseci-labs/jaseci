@@ -12,10 +12,7 @@ def _jac_client_plugin_dir -> Path {
     return Path(paths[0]);
 }
 
-# Compiled modules are read by concurrent dev servers and the Vite build;
-# a write interrupted mid-flight must never be observable as a truncated
-# module (it surfaces as "page is not exported" Vite failures).
-def _atomic_write_text(path: Any, text: str) -> None {
+def _atomic_write_text(path: Any, text: str) {
     import os;
     tmp = path.with_name(path.name + '.tmp');
     tmp.write_text(text, encoding='utf-8');

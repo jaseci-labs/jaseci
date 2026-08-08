@@ -1,16 +1,3 @@
-"""Postgres database provider for the kubernetes target (epic #7945).
-
-Three modes, selected by [plugins.scale.database] deploy_mode:
-  - 'image'    (default): official postgres image as a single-replica
-                StatefulSet + PVC, password in a Secret.
-  - 'embedded': the app's own jac image running `jac db serve` — one image
-                for everything, same engine as local dev.
-  - 'external': nothing is deployed; the configured url is injected as-is.
-
-Whatever the mode, app pods receive JAC_DB_URL and the runtime Session does
-the rest.
-"""
-
 import base64;
 import secrets as _pysecrets;
 import from typing { Any }
@@ -83,9 +70,7 @@ obj KubernetesPostgresProvider(DatabaseProvider) {
             };
         }
         password = _pysecrets.token_urlsafe(24);
-        url = (
-            f"postgresql://jac:{password}@{n['service']}:{PG_PORT}/jac"
-        );
+        url = f"postgresql://jac:{password}@{n['service']}:{PG_PORT}/jac";
         secret = {
             'apiVersion': 'v1',
             'kind': 'Secret',
@@ -106,8 +91,8 @@ obj KubernetesPostgresProvider(DatabaseProvider) {
         embedded = mode == 'embedded';
         image = (
             str(self.config.get('app_image') or self._db_cfg().get('app_image') or '')
-            if embedded
-            else str(self._db_cfg().get('postgres_image') or PG_IMAGE)
+                if embedded
+                else str(self._db_cfg().get('postgres_image') or PG_IMAGE)
         );
         container: dict[str, Any] = {
             'name': 'postgres',
@@ -184,10 +169,7 @@ obj KubernetesPostgresProvider(DatabaseProvider) {
                         'volumes': [
                             {
                                 'name': 'dshm',
-                                'emptyDir': {
-                                    'medium': 'Memory',
-                                    'sizeLimit': '256Mi'
-                                }
+                                'emptyDir': {'medium': 'Memory', 'sizeLimit': '256Mi'}
                             }
                         ]
                     }
@@ -200,8 +182,7 @@ obj KubernetesPostgresProvider(DatabaseProvider) {
                             'resources': {
                                 'requests': {
                                     'storage': str(
-                                        self._db_cfg().get('postgres_storage')
-                                        or '2Gi'
+                                        self._db_cfg().get('postgres_storage') or '2Gi'
                                     )
                                 }
                             }
@@ -232,7 +213,6 @@ obj KubernetesPostgresProvider(DatabaseProvider) {
     }
 
     def cleanup { }
-
     override def get_init_container(
         app_name: str, wait_image: str
     ) -> (dict[(str, Any)] | None) {

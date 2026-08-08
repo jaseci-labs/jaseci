@@ -297,7 +297,10 @@ def _postgres_ping_blocking -> tuple[bool, str] {
         import from jaclang.scale.persistence.pg { shared_store }
         store = shared_store();
         if store is None {
-            return (False, "no JAC_DB_URL / [plugins.scale.database] url and no embedded server");
+            return (
+                False,
+                "no JAC_DB_URL / [plugins.scale.database] url and no embedded server"
+            );
         }
         ok = store.is_available();
         return (

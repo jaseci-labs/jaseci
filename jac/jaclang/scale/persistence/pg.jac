@@ -1,12 +1,3 @@
-"""Process-shared Postgres access for scale side services.
-
-Request Sessions each own a transactional PgStore connection; side services
-(state KV, websocket backplane, event streams, schedulers) share ONE
-autocommit PgStore per process, resolved here. URL resolution order:
-JAC_DB_URL env, then [plugins.scale.database] url from config, then the
-project's embedded server.
-"""
-
 import logging;
 import os;
 import threading;
@@ -34,7 +25,6 @@ def scale_db_url -> (str | None) {
 }
 
 
-# One autocommit PgStore per process, or None when no db is reachable.
 def shared_store -> (Any | None) {
     with _lock {
         if 'store' in _holder {
@@ -53,13 +43,14 @@ def shared_store -> (Any | None) {
                 base = JacRuntime.get_base_path_dir();
                 if base {
                     import from jaclang.runtimelib.utils { get_name }
-                    name = get_name(
-                        target_path=JacRuntime.get_full_target_path()
-                    ) or 'main';
+                    name = get_name(target_path=JacRuntime.get_full_target_path())
+                        or 'main';
                     rt = PgRuntime(
                         data_dir=os.path.join(
                             os.environ.get('JAC_DATA_PATH') or base,
-                            '.jac', 'data', f"{name}-pg"
+                            '.jac',
+                            'data',
+                            f"{name}-pg"
                         )
                     );
                     store = PgStore(conninfo=rt.ensure());

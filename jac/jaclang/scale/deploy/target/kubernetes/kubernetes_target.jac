@@ -124,7 +124,6 @@ obj KubernetesTargetBase(DeploymentTarget) {
         );
         pg_result = pg_provider.deploy({});
         if pg_result['mode'] == 'external' {
-            # Nothing to run in-cluster; hand the configured url to app pods.
             self.env_list.append(
                 {'name': 'JAC_DB_URL', 'value': pg_result['connection_string']}
             );
@@ -173,9 +172,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
             core_v1, namespace, pg_pvc_name, self.k8s_config.postgres_storage_size
         );
         try {
-            core_v1.read_namespaced_service(
-                name=pg_service_name, namespace=namespace
-            );
+            core_v1.read_namespaced_service(name=pg_service_name, namespace=namespace);
         } except ApiException as e {
             if (e.status == 404) {
                 core_v1.create_namespaced_service(
@@ -417,10 +414,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
     def _destroy_database(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
         pg_name = f"{app_name}-postgres";
         delete_if_exists(
-            apps_v1.delete_namespaced_stateful_set,
-            pg_name,
-            namespace,
-            'StatefulSet'
+            apps_v1.delete_namespaced_stateful_set, pg_name, namespace, 'StatefulSet'
         );
         delete_if_exists(
             core_v1.delete_namespaced_service,

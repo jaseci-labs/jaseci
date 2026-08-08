@@ -25,11 +25,6 @@ obj MemoryBackplane(BaseBackplane) {
 }
 
 obj PgBackplane(BaseBackplane) {
-    """Cross-pod fanout over Postgres LISTEN/NOTIFY on the shared store.
-
-    Payloads above the NOTIFY limit spill to kv_state and travel as
-    pointers, so message size is unbounded while the wire stays tiny.
-    """
     has _store: Any = None,
         _loop: Any = None,
         _handlers: dict[str, list[Any]] = {},

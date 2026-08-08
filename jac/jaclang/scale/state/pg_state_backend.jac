@@ -1,9 +1,3 @@
-"""Postgres-backed shared state: KV with TTL, atomic counters, leases.
-
-Every operation is one autocommit statement on the process-shared store, so
-cross-pod semantics come from the database, not from client-side locking.
-"""
-
 import logging;
 import from typing { Any }
 import from jaclang.scale.state.state_backend { StateBackend }

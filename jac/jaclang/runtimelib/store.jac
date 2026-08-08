@@ -1,19 +1,3 @@
-"""Store: the single durable source of truth for the Jac graph.
-
-One Postgres database (embedded locally, provisioned at scale) holds nodes,
-edges, shared KV state, and quarantine records. Every Session owns exactly one
-Store transaction at a time; all graph reads and writes happen inside it, so
-read-your-writes, aborts, and conflict detection are the engine's job — the
-runtime never simulates them (epic #7945).
-
-Schema: a single `anchors` table holds nodes and edges (`kind` discriminates;
-edge rows carry src/dst/undirected, which doubles as the adjacency index), a
-`graph_types` ancestry table powers subtype dispatch, `kv_state` serves the
-shared key-value needs, and `quarantine` keeps dangling-ref forensics. Row
-versions are the engine's xmin, observed inside the transaction snapshot —
-the currency the PodCache trades in.
-"""
-
 import json;
 import logging;
 import threading;
@@ -26,7 +10,6 @@ glob logger = logging.getLogger(__name__),
 
 
 obj ConnInfo {
-    """Where and how to reach a Postgres server."""
     has host: str = '',
         port: int = 5432,
         user: str = 'jac',
@@ -39,13 +22,6 @@ obj ConnInfo {
 
 
 obj AnchorRow {
-    """Wire/row form of one anchor: identity + payload + snapshot version.
-
-    `version` is the row's xmin observed at read time: the cache may serve
-    `props` for an id only when the version seen inside the current
-    transaction matches (cache short-circuits hydration, never truth).
-    `ancestry` carries the archetype's MRO names for the dispatch table.
-    """
     has id: UUID,
         kind: str,
         arch_type: str = '',
@@ -62,13 +38,7 @@ obj AnchorRow {
 
 
 obj Store {
-    """Narrow engine contract. Implementations own connections and DDL.
-
-    All row-level methods run inside the currently open transaction; the
-    Session owns transaction lifecycle via begin/commit/rollback.
-    """
     def is_available -> bool abst;
-
     def server_version -> int abst;
     def ensure_schema(promotions: dict[str, list[str]]) -> None abst;
     def begin(serializable: bool = True) -> None abst;
@@ -86,19 +56,15 @@ obj Store {
     def kv_get(key: str) -> (str | None) abst;
     def kv_put(key: str, value: str) -> None abst;
     def kv_delete(key: str) -> None abst;
-    def quarantine(missing_id: UUID, referrer_id: (UUID | None), kind: str) -> None abst;
+    def quarantine(
+        missing_id: UUID, referrer_id: (UUID | None), kind: str
+    ) -> None abst;
     def notify(channel: str, payload: str) -> None abst;
     def close -> None abst;
 }
 
 
 obj PgStore(Store) {
-    """Postgres implementation over the vendored pure-python wire driver.
-
-    Two connection lanes: the transactional lane owned by begin/commit, and
-    a dedicated autocommit lane for LISTEN + out-of-band notifies
-    (notifications bypass transaction-mode pooling by design).
-    """
     has conninfo: ConnInfo,
         promotions: dict[str, list[str]] = {},
         _conn: (Any | None) postinit,

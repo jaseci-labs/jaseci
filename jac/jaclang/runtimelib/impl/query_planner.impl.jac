@@ -127,10 +127,7 @@ impl _walk_memory(
     origins: list[Anchor], q: GraphQuery, upto: int
 ) -> list[tuple[Anchor, (EdgeAnchor | None)]] {
     frontier: list[Anchor] = list(origins);
-    pairs: list[tuple[Anchor, (EdgeAnchor | None)]] = [
-        (a, None)
-        for a in origins
-    ];
+    pairs: list[tuple[Anchor, (EdgeAnchor | None)]] = [(a, None) for a in origins];
     gated = _acl_gated();
     for hop in q.hops[:upto] {
         nxt: list[tuple[Anchor, (EdgeAnchor | None)]] = [];
@@ -184,10 +181,7 @@ def _resolve_pairs(
     }
     pairs = _sql_pairs(mem, sql_ids, q, upto);
     if upto == 0 {
-        pairs = [
-            (i, None)
-            for i in sql_ids
-        ];
+        pairs = [(i, None) for i in sql_ids];
     }
     for (a, e) in _walk_memory(mem_origins, q, upto) {
         local[a.id] = a;
@@ -220,9 +214,7 @@ def _materialize_ids(
 }
 
 
-def _unique_nodes(
-    pairs: list[tuple[(UUID | None), (UUID | None)]]
-) -> list[UUID] {
+def _unique_nodes(pairs: list[tuple[(UUID | None), (UUID | None)]]) -> list[UUID] {
     seen: set[UUID] = set();
     out: list[UUID] = [];
     for (nid, _) in pairs {

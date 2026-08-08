@@ -1,5 +1,5 @@
 glob _SCHEMA_SQL = [
-    """
+         """
     CREATE TABLE IF NOT EXISTS anchors (
         id             uuid PRIMARY KEY,
         kind           text NOT NULL,
@@ -15,30 +15,30 @@ glob _SCHEMA_SQL = [
         updated_at     timestamptz NOT NULL DEFAULT now()
     )
     """,
-    """
+         """
     CREATE INDEX IF NOT EXISTS idx_anchors_src
         ON anchors (src, arch_type) WHERE src IS NOT NULL
     """,
-    """
+         """
     CREATE INDEX IF NOT EXISTS idx_anchors_dst
         ON anchors (dst, arch_type) WHERE dst IS NOT NULL
     """,
-    """
+         """
     CREATE INDEX IF NOT EXISTS idx_anchors_kind_type
         ON anchors (kind, arch_type)
     """,
-    """
+         """
     CREATE INDEX IF NOT EXISTS idx_anchors_root
         ON anchors (root_id) WHERE root_id IS NOT NULL
     """,
-    """
+         """
     CREATE TABLE IF NOT EXISTS graph_types (
         type_name text NOT NULL,
         ancestor  text NOT NULL,
         PRIMARY KEY (type_name, ancestor)
     )
     """,
-    """
+         """
     CREATE TABLE IF NOT EXISTS kv_state (
         key        text PRIMARY KEY,
         value      text NOT NULL,
@@ -46,7 +46,7 @@ glob _SCHEMA_SQL = [
         updated_at timestamptz NOT NULL DEFAULT now()
     )
     """,
-    """
+         """
     CREATE TABLE IF NOT EXISTS quarantine (
         missing_id  uuid NOT NULL,
         referrer_id uuid,
@@ -55,19 +55,17 @@ glob _SCHEMA_SQL = [
         PRIMARY KEY (missing_id, kind)
     )
     """
-];
+     ];
 
 
 impl ConnInfo.dsn -> str {
     if self.unix_socket_dir {
         return (
-            f"host={self.unix_socket_dir} user={self.user} "
-            f"dbname={self.database}"
+            f"host={self.unix_socket_dir} user={self.user} " f"dbname={self.database}"
         );
     }
     return (
-        f"host={self.host} port={self.port} user={self.user} "
-        f"dbname={self.database}"
+        f"host={self.host} port={self.port} user={self.user} " f"dbname={self.database}"
     );
 }
 
@@ -130,19 +128,15 @@ impl PgStore._side -> Any {
 
 
 impl PgStore._run(sql: str, params: dict) -> list {
-    # pg8000 connections are not thread-safe; side services share stores.
     with self._lock {
         conn: Any = self._main();
         try {
             return conn.run(sql, **params) or [];
         } except Exception {
-            # A failed statement poisons an open transaction (25P02 on every
-            # later command). Roll back so the session recovers, then let
-            # the original error surface.
             if self._in_txn {
                 try {
                     conn.run('ROLLBACK');
-                } except Exception {}
+                } except Exception { }
                 self._in_txn = False;
             }
             raise;
@@ -243,9 +237,7 @@ impl PgStore.load(ids: list[UUID]) -> dict[UUID, AnchorRow] {
     for r in rows {
         raw_props = r[9];
         props: dict = (
-            raw_props
-            if isinstance(raw_props, dict)
-            else json.loads(str(raw_props))
+            raw_props if isinstance(raw_props, dict) else json.loads(str(raw_props))
         );
         row = AnchorRow(
             id=UUID(str(r[0])),
@@ -373,8 +365,7 @@ impl PgStore.root_ids -> list[UUID] {
 
 impl PgStore.subtype_names(type_name: str) -> list[str] {
     rows = self._run(
-        'SELECT type_name FROM graph_types WHERE ancestor = :t',
-        {'t': type_name}
+        'SELECT type_name FROM graph_types WHERE ancestor = :t', {'t': type_name}
     );
     names = [str(r[0]) for r in rows];
     if type_name not in names {
@@ -436,7 +427,6 @@ impl PgStore.quarantine(
 
 
 impl PgStore.notify(channel: str, payload: str) -> None {
-    # Out-of-band lane: invalidations must reach peers even mid-transaction.
     conn: Any = self._side();
     conn.run('SELECT pg_notify(:c, :p)', c=channel, p=payload);
 }
@@ -527,7 +517,6 @@ impl PgStore._apply_promotions -> None {
 }
 
 
-# Developer-facing SQL/PGQ view over the same rows; PG >= 19 only.
 impl PgStore._property_graph_ddl -> None {
     if self.server_version() < 19 {
         return;
@@ -576,7 +565,7 @@ impl PgStore.close -> None {
             if c is not None {
                 try {
                     c.close();
-                } except Exception {}
+                } except Exception { }
             }
         }
         self._conn = None;

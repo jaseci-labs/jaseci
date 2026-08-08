@@ -27,9 +27,7 @@ impl ExecutionContext.postinit -> None {
         self.full_target_path = JacRuntime.get_full_target_path();
     }
 
-    self.mem = Session(
-        base_path=self.base_path_dir, target_path=self.full_target_path
-    );
+    self.mem = Session(base_path=self.base_path_dir, target_path=self.full_target_path);
 
     system_root = cast((NodeAnchor | None), self.mem.get(UUID(Con.SUPER_ROOT_UUID)));
 

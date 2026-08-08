@@ -52,9 +52,6 @@ def guard_route_name(module_name: str) {
 }
 
 
-# Fleet topology: declared routes are carve-outs; the entry module keeps
-# serving everything else. Without an implicit main service, functions that
-# live in the entry module have no home in a deployed fleet (#7945 QA).
 def ensure_main_service(
     routes: dict[str, str], service_files: dict[str, str], entry_file: str = ''
 ) -> None {

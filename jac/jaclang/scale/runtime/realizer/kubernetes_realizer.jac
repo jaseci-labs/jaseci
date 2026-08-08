@@ -32,9 +32,7 @@ obj KubernetesRealizer {
             routes: dict[str, str] = resolve_routes(self.ms_config);
             if routes {
                 service_files = resolve_service_files(self.ms_config, routes);
-                ensure_main_service(
-                    routes, service_files, os.path.basename(filename)
-                );
+                ensure_main_service(routes, service_files, os.path.basename(filename));
                 raw_cfg = get_scale_config().load();
                 raw_ms = raw_cfg.setdefault("microservices", {});
                 raw_ms["routes"] = routes;

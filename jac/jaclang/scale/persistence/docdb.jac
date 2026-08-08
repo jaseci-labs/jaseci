@@ -1,10 +1,3 @@
-"""Document-store adapter over Postgres jsonb (epic #7945).
-
-Drop-in replacement for the deleted Mongo `Db` facade used by side
-subsystems (scheduler jobs, webhook API keys): equality-dict filters,
-$set/$inc updates, skip/limit cursors — one jac_docs table, no Mongo.
-"""
-
 import json;
 import logging;
 import from typing { Any }
@@ -50,7 +43,7 @@ obj _Cursor {
 
 
 obj _ColShim {
-    def create_index(*args: Any, **kwargs: Any) -> None {}
+    def create_index(*args: Any, **kwargs: Any) { }
 }
 
 
@@ -65,8 +58,7 @@ obj PgDocDb {
         return _ColShim();
     }
 
-    def create_index(*args: Any, **kwargs: Any) -> None {}
-
+    def create_index(*args: Any, **kwargs: Any) { }
     def _match_sql(filter: dict, params: dict) -> str {
         conds: list[str] = [];
         n = 0;
@@ -84,7 +76,7 @@ obj PgDocDb {
         return (' AND ' + ' AND '.join(conds)) if conds else '';
     }
 
-    def insert_one(collection: str, doc: dict) -> None {
+    def insert_one(collection: str, doc: dict) {
         d = dict(doc);
         id = str(d.get('_id') or d.get('job_id') or d.get('id') or '');
         assert id , 'PgDocDb.insert_one needs an _id/job_id/id field';
@@ -98,7 +90,9 @@ obj PgDocDb {
         );
     }
 
-    def _load(collection: str, filter: dict, params_extra: (str | None) = None) -> list {
+    def _load(
+        collection: str, filter: dict, params_extra: (str | None) = None
+    ) -> list {
         params: dict = {'c': collection};
         cond = self._match_sql(filter, params);
         rows = self.store.rows(
@@ -114,7 +108,9 @@ obj PgDocDb {
         return out;
     }
 
-    def find(collection: str, filter: dict = {}, projection: (dict | None) = None) -> _Cursor {
+    def find(
+        collection: str, filter: dict = {}, projection: (dict | None) = None
+    ) -> _Cursor {
         return _Cursor(docs=self._load(collection, filter));
     }
 
@@ -172,7 +168,6 @@ obj PgDocDb {
 }
 
 
-# Shared-store document db, or None when no database is reachable.
 def open_doc_db -> (PgDocDb | None) {
     try {
         store = shared_store();

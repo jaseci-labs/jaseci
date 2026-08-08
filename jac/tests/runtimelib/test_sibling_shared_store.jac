@@ -19,7 +19,6 @@ import from tempfile { mkdtemp }
 import from uuid { UUID, uuid4 }
 
 
-
 """Insert a raw anchor row whose archetype class only a peer service has."""
 def _seed_foreign_anchor(db: str) -> str {
     anchor_id = str(uuid4());
@@ -110,4 +109,3 @@ test "non-sibling resolve_ref still heals a genuine dangler" {
     assert got is None;
     fake_ctx.mem.quarantine_ref.assert_called_once();
 }
-

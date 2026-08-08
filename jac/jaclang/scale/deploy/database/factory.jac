@@ -4,9 +4,7 @@ import from jaclang.scale.deploy.target.deployment_target { DeploymentTarget }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from enum { StrEnum }
 
-enum DatabaseType(StrEnum) {
-    POSTGRES = 'postgres'
-}
+enum DatabaseType(StrEnum) { POSTGRES = 'postgres' }
 
 def _resolve_uri(uri: (str | None), db_type: DatabaseType) -> str {
     if uri is not None {
