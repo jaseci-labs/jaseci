@@ -4,11 +4,16 @@ import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor }
 
 obj _SvStore {
     has h_of_id: dict[str, int] = {},
-        registered: set[str] = field(default_factory=`set);
+        registered: set[str] = field(default_factory=`set),
+        forgotten: set[str] = field(default_factory=`set),
+        region: int = 0;
 }
 
 glob _obj_of_h: list[(Anchor | None)] = [None],
+     _h_free: list[int] = [],
+     _next_region: list[int] = [1],
      _tag_of_cls: dict[(type, int)] = {},
+     _cls_of_tag_map: dict[(int, type)] = {},
      _fallback: _SvStore = _SvStore();
 
 def _mem_or_ctx(mem: any) -> any {
@@ -30,7 +35,8 @@ def _store_for(m: any) -> _SvStore {
     d = m.__dict__;
     st = d.get('_osp_sv_store');
     if st is None {
-        st = _SvStore();
+        st = _SvStore(region=_next_region[0]);
+        _next_region[0] += 1;
         d['_osp_sv_store'] = st;
     }
     return st;
@@ -40,8 +46,13 @@ def _mint(st: _SvStore, anchor: Anchor) -> int {
     key = str(anchor.id);
     h = st.h_of_id.get(key, 0);
     if h == 0 {
-        _obj_of_h.append(anchor);
-        h = len(_obj_of_h) - 1;
+        if _h_free {
+            h = _h_free.pop();
+            _obj_of_h[h] = anchor;
+        } else {
+            _obj_of_h.append(anchor);
+            h = len(_obj_of_h) - 1;
+        }
         st.h_of_id[key] = h;
         return h;
     }
@@ -62,15 +73,23 @@ def obj_of(h: int) -> (Anchor | None) {
     return _obj_of_h[h];
 }
 
-def tag_for(edge_a: EdgeAnchor) -> int {
-    cls = `type(edge_a.archetype);
+def tag_of_cls(cls: type) -> int {
     t = _tag_of_cls.get(cls);
     if t is None {
         import from jaclang.jac0core.osp_model { stable_osp_tag }
         t = stable_osp_tag(cls.__name__);
         _tag_of_cls[cls] = t;
+        _cls_of_tag_map[t] = cls;
     }
     return t;
+}
+
+def cls_of_tag(tag: int) -> (type | None) {
+    return _cls_of_tag_map.get(tag);
+}
+
+def tag_for(edge_a: EdgeAnchor) -> int {
+    return tag_of_cls(`type(edge_a.archetype));
 }
 
 def _resolve(cand: (Anchor | None), m: any) -> (Anchor | None) {
@@ -98,6 +117,7 @@ def sv_conn(
         _mint(st, edge_a);
         return;
     }
+    st.forgotten.discard(key);
     eh = _mint(st, edge_a);
     _graph.osp_conn(
         _mint(st, src_a),
@@ -105,8 +125,8 @@ def sv_conn(
         eh,
         1 if is_undirected else 0,
         tag_for(edge_a),
-        0,
-        0
+        st.region,
+        st.region
     );
     st.registered.add(key);
 }
@@ -180,32 +200,86 @@ def sv_candidate_edges_between(
     return out;
 }
 
-def sv_register_hydrated(node_a: NodeAnchor, mem: any = None) -> None {
+def _conn_hydrated(e: EdgeAnchor, m: any) -> None {
+    src_a = e.source;
+    tgt_a = e.target;
+    if src_a is None or tgt_a is None {
+        return;
+    }
+    sv_conn(src_a, tgt_a, e, e.is_undirected, m);
+}
+
+def sv_register_hydrated(
+    node_a: NodeAnchor, mem: any = None, fetch_stubs: bool = False
+) -> None {
     if not isinstance(node_a, NodeAnchor) or not node_a.is_populated() {
         return;
     }
     m = _mem_or_ctx(mem);
     _mint(_store_for(m), node_a);
+    pending: list[EdgeAnchor] = [];
     for e in list(node_a.edges) {
         if not e.is_populated() {
+            if fetch_stubs {
+                pending.append(e);
+            }
             continue;
         }
-        src_a = e.source;
-        tgt_a = e.target;
-        if src_a is None or tgt_a is None {
-            continue;
+        if isinstance(e, EdgeAnchor) {
+            _conn_hydrated(e, m);
         }
-        sv_conn(src_a, tgt_a, e, e.is_undirected, m);
+    }
+    if pending and m is not None {
+        batch = m?.batch_get;
+        fetched = batch([p.id for p in pending])
+            if batch is not None
+            else {p.id: m.get(p.id) for p in pending};
+        for p in pending {
+            fa = fetched.get(p.id);
+            if isinstance(fa, EdgeAnchor) and fa.is_populated() {
+                _conn_hydrated(fa, m);
+            }
+        }
     }
 }
 
-def sv_forget_edge(edge_a: EdgeAnchor, mem: any = None) {
-    m = _mem_or_ctx(mem);
-    st = _store_for(m);
-    key = str(edge_a.id);
+def sv_edge_alive(edge_a: EdgeAnchor, mem: any = None) -> bool {
+    st = _store_for(_mem_or_ctx(mem));
+    return str(edge_a.id) not in st.forgotten;
+}
+
+def sv_forget_by_id(anchor_id: any, mem: any = None) {
+    st = _store_for(_mem_or_ctx(mem));
+    key = str(anchor_id);
     st.registered.discard(key);
+    st.forgotten.add(key);
     h = st.h_of_id.get(key, 0);
     if h > 0 {
         _graph.osp_disconnect(h);
     }
+}
+
+def sv_forget_edge(edge_a: EdgeAnchor, mem: any = None) {
+    sv_forget_by_id(edge_a.id, mem);
+}
+
+def sv_store_closed(mem: any) -> int {
+    if mem is None {
+        return 0;
+    }
+    st = mem.__dict__.pop('_osp_sv_store', None);
+    if st is None {
+        return 0;
+    }
+    n = 0;
+    if st.region != 0 {
+        n = _graph.osp_region_died(st.region);
+    }
+    for h in st.h_of_id.values() {
+        if h > 0 and h < len(_obj_of_h) {
+            _obj_of_h[h] = None;
+            _h_free.append(h);
+        }
+    }
+    return n;
 }

@@ -445,12 +445,14 @@ impl JacContext.reset_graph(root_node: (Root | None) = None) -> int {
             for anchor in mem.get_mem().values()
         ];
     }
+    import from jaclang.jac0core.osp_graph_sv { sv_forget_by_id }
     for (aid, aroot) in candidates {
         if ((aid == ranchor.id) or (aroot != str(ranchor.id))) {
             continue;
         }
         deleted_ids.add(aid);
         mem.delete(aid);
+        sv_forget_by_id(aid, mem);
         deleted_count += 1;
     }
     ranchor.edges = [
@@ -999,7 +1001,6 @@ impl JacGraph.disconnect(
 ) -> bool {
     import from jaclang.jac0core.osp_graph_sv {
         sv_candidate_edges_between,
-        sv_forget_edge,
         sv_register_hydrated
     }
     disconnect_occurred = False;
@@ -1034,7 +1035,6 @@ impl JacGraph.disconnect(
                         JacRuntimeInterface.destroy([anchor])
                             if anchor.persistent
                             else anchor.detach();
-                        sv_forget_edge(anchor);
                         disconnect_occurred = True;
                     }
                 }
@@ -1138,7 +1138,6 @@ impl JacPersistence.save(`obj: (Archetype | Anchor)) -> None {
 impl JacPersistence.destroy(
     objs: Archetype | Anchor | list[(Archetype | Anchor)]
 ) -> None {
-    import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
     obj_list = objs if isinstance(objs, `list) else [objs];
     for `obj in obj_list {
         if not isinstance(`obj, (Archetype, Anchor)) {
@@ -1151,12 +1150,10 @@ impl JacPersistence.destroy(
                     for `edge in anchor.edges[:] {
                         `edge.detach();
                         JacRuntimeInterface.get_context().mem.delete(`edge.id);
-                        sv_forget_edge(`edge);
                     }
 
                 case EdgeAnchor():
                     anchor.detach();
-                    sv_forget_edge(anchor);
 
                 case _:
                     ;
