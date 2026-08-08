@@ -95,6 +95,9 @@ def _is_serialization_conflict(e: Exception) -> bool {
 }
 
 
+glob _schema_ready: set[str] = set();
+
+
 def _cache_ns(store: (Any | None)) -> str {
     if isinstance(store, PgStore) {
         info = store.conninfo;
@@ -159,7 +162,11 @@ impl Session.postinit -> None {
             self._runtime = rt;
             pgs = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
         }
-        pgs.ensure_schema(promos);
+        ns = _cache_ns(pgs);
+        if ns not in _schema_ready {
+            pgs.ensure_schema(promos);
+            _schema_ready.add(ns);
+        }
         self.store = pgs;
     }
 }

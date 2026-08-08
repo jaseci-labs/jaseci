@@ -202,30 +202,30 @@ impl PgStore.server_version -> int {
 impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
     with self._lock {
         self.promotions = dict(promotions);
-        for stmt in _SCHEMA_SQL {
-            self._run(stmt, {});
-        }
-        has_seq = bool(
-            self._run(
-                """
-                SELECT 1 FROM information_schema.columns
-                WHERE table_name = 'anchors' AND column_name = 'seq'
-                """,
-                {}
-            )
-        );
-        if not has_seq {
-            self._run("SET lock_timeout = '5s'", {});
-            try {
+        self._run("SET lock_timeout = '5s'", {});
+        try {
+            for stmt in _SCHEMA_SQL {
+                self._run(stmt, {});
+            }
+            has_seq = bool(
+                self._run(
+                    """
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'anchors' AND column_name = 'seq'
+                    """,
+                    {}
+                )
+            );
+            if not has_seq {
                 self._run(
                     'ALTER TABLE anchors ADD COLUMN IF NOT EXISTS seq bigserial', {}
                 );
-            } finally {
-                self._run('SET lock_timeout = DEFAULT', {});
             }
+            self._apply_promotions();
+            self._property_graph_ddl();
+        } finally {
+            self._run('SET lock_timeout = DEFAULT', {});
         }
-        self._apply_promotions();
-        self._property_graph_ddl();
         for (tname, ) in self._run('SELECT DISTINCT type_name FROM graph_types', {}) {
             self._known_types.add(str(tname));
         }
