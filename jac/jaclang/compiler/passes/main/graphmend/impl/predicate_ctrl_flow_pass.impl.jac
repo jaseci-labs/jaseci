@@ -1,6 +1,9 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, Tokens as Tok }
+import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    cond_materializes_scalar
+}
 
 impl PredicateCtrlFlowPass.before_pass -> None {
     self._enabled = self.prog._compile_options.graphmend;
@@ -16,7 +19,7 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if self.prog.graphmend_breaks.get(id(nd)) != GraphBreakKind.DYN_CTRL_FL {
         return;
     }
-    if self._pred_materializes_scalar(nd.condition) {
+    if cond_materializes_scalar(nd.condition) {
         return;
     }
     eb = nd.else_body;

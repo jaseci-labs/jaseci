@@ -308,11 +308,15 @@ alone is not sufficient; five conditions must hold:
   unreachable only in the varkwargs-validation form (`if rope_kwargs: raise`)
   when this call passes no unexpected keyword. Purity is transitive into
   local helpers; unresolvable calls are opaque and decline. A library call is
-  pure only when its leaf name is on the checked list of pure builtins, pure
-  tensor methods (`to`, `clone`, `detach`, ...) and pure `torch`/`math`
-  operations (tensor construction and elementwise math). Being rooted at
-  `torch` proves nothing on its own: `torch.save` writes a file and
-  `torch.manual_seed` mutates global RNG state, so both decline.
+  pure only when the call as a whole is checked, never its leaf name alone.
+  A `torch`/`math` call needs its leaf on the pure-operation list (tensor
+  construction and elementwise math): being rooted at `torch` proves nothing,
+  since `torch.save` writes a file and `torch.manual_seed` mutates global RNG
+  state. A pure tensor method (`to`, `float`, `double`, `clone`, `detach`)
+  needs a receiver that is itself a pure call, so
+  `torch.arange(...).float().to(device)` is accepted while `session.clone()`
+  or `store.get(k)` is not: those names are no-ops on a tensor and arbitrary
+  work on anything else. The consequence is stated under residuals below.
 
 ### Caveat: speculated memoization is a state change, not a no-op
 
@@ -329,6 +333,19 @@ a `__dict__` or `state_dict()` walk, a subclass in another file) can still
 see the slot early, and an attribute callee bound to something other than a
 module-level dispatch table would not be seen by G5. The honest phrasing of
 the guarantee is therefore equivalence modulo private memoization state.
+
+### Residual: dictionary reads inside a speculated initializer
+
+Requiring a pure receiver costs real coverage. A rope initializer of the
+`transformers` `_compute_longrope_parameters` shape reads its configuration
+with `config.rope_scaling.get("factor")`. That call is pure in fact, because
+the receiver is a plain dict, but nothing available to this pass proves it:
+the same expression shape covers `session.get(url)`. G5 therefore declines
+the whole initializer, and with it the predication of the branch that
+memoizes it. Accepting it would need the receiver's type, which means either
+type-checker results threaded into this pass or a narrow, explicitly
+documented assumption. Until then the break is left in place, which is the
+conservative direction.
 
 ## Evidence
 

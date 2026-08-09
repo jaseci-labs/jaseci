@@ -196,6 +196,14 @@ test "a setup writing a local live outside the region is declined" {
     assert "if seq_len > 8:" in src;
 }
 
+test "existence-guarded init calling a tensor-named method on an opaque receiver is declined" {
+    src = _pysrc("guard_opaque_method_init.jac", True);
+    # `config.store.clone()` matches the pure-tensor-method name list, but the
+    # receiver is not a pure call, so nothing proves the method is a no-op.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
 test "existence-guarded init calling an effectful torch API is declined" {
     src = _pysrc("guard_torch_effect_init.jac", True);
     # `torch.save` is rooted at torch but writes a file; purity is decided by

@@ -18,14 +18,7 @@ glob _PURE_BUILTINS: set[str] = {
          'getattr',
          'hasattr'
      },
-     _PURE_TENSOR_METHODS: set[str] = {
-         'to',
-         'float',
-         'double',
-         'clone',
-         'detach',
-         'get'
-     },
+     _PURE_TENSOR_METHODS: set[str] = {'to', 'float', 'double', 'clone', 'detach'},
      _PURE_TORCH_FNS: set[str] = {
          'arange',
          'as_tensor',
@@ -121,11 +114,9 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _guarded_by_varkw(r: uni.RaiseStmt, varkw: str, fn: uni.Ability) -> bool;
     def _mentions_name(e: (uni.Expr | None), nm: str) -> bool;
     def _pure_callee(t: (uni.Expr | None)) -> bool;
+    def _pure_receiver(recv: (uni.Expr | None)) -> bool;
     def _assignment_neutral(s: uni.Assignment, region: uni.IfStmt) -> bool;
     def _is_device_move(s: uni.Assignment) -> bool;
     def _all_local_targets(targets: Sequence[uni.Expr], region: uni.IfStmt) -> bool;
-    def _pred_materializes_scalar(cond: uni.Expr) -> bool;
-    def _uses_scalar_attr(e: uni.UniNode) -> bool;
-    def _trace_scalar(sym: uni.Symbol, visited: set[str], depth: int) -> bool;
     def _setup_writes(setups: Sequence[uni.CodeBlockStmt]) -> set[str];
 }

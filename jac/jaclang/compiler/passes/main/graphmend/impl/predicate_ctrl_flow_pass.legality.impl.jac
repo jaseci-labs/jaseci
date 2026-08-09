@@ -1,8 +1,5 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
-import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
-    is_scalar_torch_attr
-}
 
 impl PredicateCtrlFlowPass._setups_safe(
     setups: Sequence[uni.CodeBlockStmt], region: uni.IfStmt
@@ -391,9 +388,14 @@ impl PredicateCtrlFlowPass._pure_callee(t: (uni.Expr | None)) -> bool {
             return True;
         }
         return isinstance(t.right, uni.Name)
-            and (t.right.value in _PURE_TENSOR_METHODS);
+            and (t.right.value in _PURE_TENSOR_METHODS)
+            and self._pure_receiver(t.target);
     }
     return False;
+}
+
+impl PredicateCtrlFlowPass._pure_receiver(recv: (uni.Expr | None)) -> bool {
+    return isinstance(recv, uni.FuncCall) and self._pure_callee(recv.target);
 }
 
 impl PredicateCtrlFlowPass._assignment_neutral(
@@ -448,69 +450,6 @@ impl PredicateCtrlFlowPass._all_local_targets(
         }
     }
     return len(targets) > 0;
-}
-
-impl PredicateCtrlFlowPass._pred_materializes_scalar(cond: uni.Expr) -> bool {
-    if self._uses_scalar_attr(cond) {
-        return True;
-    }
-    st = cond.sym_tab;
-    if not st {
-        return False;
-    }
-    visited: set[str] = set();
-    for nm in cond.get_all_sub_nodes(uni.Name) {
-        sym = st.lookup(nm.value, deep=True);
-        if sym and self._trace_scalar(sym, visited, 0) {
-            return True;
-        }
-    }
-    return False;
-}
-
-impl PredicateCtrlFlowPass._uses_scalar_attr(e: uni.UniNode) -> bool {
-    for tr in e.get_all_sub_nodes(uni.AtomTrailer) {
-        if tr.is_attr and isinstance(tr.right, uni.Name) {
-            if is_scalar_torch_attr(tr.right.value) {
-                return True;
-            }
-        }
-    }
-    return False;
-}
-
-impl PredicateCtrlFlowPass._trace_scalar(
-    sym: uni.Symbol, visited: set[str], depth: int
-) -> bool {
-    if (depth > 10) or (sym.sym_name in visited) or (not sym.defn) {
-        return False;
-    }
-    visited.add(sym.sym_name);
-    cur: (uni.UniNode | None) = sym.defn[-1].parent;
-    while cur and (not isinstance(cur, uni.Assignment)) {
-        cur = cur.parent;
-    }
-    if not isinstance(cur, uni.Assignment) {
-        return False;
-    }
-    assign: uni.Assignment = cur;
-    if assign.value is None {
-        return False;
-    }
-    if self._uses_scalar_attr(assign.value) {
-        return True;
-    }
-    st = assign.sym_tab;
-    if not st {
-        return False;
-    }
-    for nm in assign.value.get_all_sub_nodes(uni.Name) {
-        dep = st.lookup(nm.value, deep=True);
-        if dep and self._trace_scalar(dep, visited, depth + 1) {
-            return True;
-        }
-    }
-    return False;
 }
 
 impl PredicateCtrlFlowPass._setup_writes(
