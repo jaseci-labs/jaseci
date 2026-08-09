@@ -174,7 +174,7 @@ test "shape mismatch trips the torch.equal precheck" {
 }
 
 """Raise a RuntimeError carrying `text` verbatim (trap-guard parse probe)."""
-def _raise_runtime(text: str) -> None {
+def _raise_runtime(text: str) {
     raise RuntimeError(text);
 }
 
