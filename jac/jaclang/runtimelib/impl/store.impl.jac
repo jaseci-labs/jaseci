@@ -130,12 +130,10 @@ impl SessionConflictError.init(
 
 
 def _app_identity -> str {
-    # jac:<pid>:<cmd> — the pid lets a later process judge liveness, the
-    # cmd tells a human what to stop. application_name caps at 63 bytes.
     import sys;
     cmd = 'embedded';
     try {
-        argv = list(getattr(sys, 'argv', None) or []);
+        argv = list(sys?.argv or []);
         if argv {
             cmd = os.path.basename(str(argv[0]) or '') or 'embedded';
             if cmd.startswith('jac') and len(argv) > 1 {
@@ -163,8 +161,6 @@ def _sqlstate(e: Exception) -> str {
 
 
 def _owner_alive(pid: (int | None)) -> bool {
-    # Only a definitive "no such process" counts as dead; anything
-    # ambiguous (no pid stamp, permission error) is treated as alive.
     if pid is None or pid <= 0 {
         return True;
     }
@@ -215,7 +211,8 @@ def _conn_dead(e: Exception) -> bool {
         return True;
     }
     for arg in getattr(e, 'args', ()) {
-        if isinstance(arg, dict) and arg.get('C') in ('08006', '08003', '57P01') {
+        if isinstance(arg, dict)
+            and arg.get('C') in ('08006', '08003', '57P01', '57P03') {
             return True;
         }
     }
@@ -225,7 +222,19 @@ def _conn_dead(e: Exception) -> bool {
 
 impl PgStore._run(sql: str, params: dict) -> list {
     with self._lock {
-        conn: Any = self._main();
+        conn: Any = None;
+        try {
+            conn = self._main();
+        } except Exception as e {
+            if not (_conn_dead(e) and self.ensure_cb is not None) {
+                raise;
+            }
+            self._conn = None;
+            try {
+                self.conninfo = self.ensure_cb();
+            } except Exception { }
+            conn = self._main();
+        }
         try {
             return conn.run(sql, **params) or [];
         } except Exception as e {
@@ -286,9 +295,6 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
         self.promotions = dict(promotions);
         fp = self._schema_fingerprint();
         if self._schema_stamp() == fp {
-            # Schema is current: plain reads only, so booting never competes
-            # for DDL locks with the long-lived transactions other jac
-            # processes hold by design.
             self._load_known_types();
             return;
         }
@@ -373,7 +379,7 @@ impl PgStore._schema_stamp -> (str | None) {
         return self.kv_get(SCHEMA_STAMP_KEY);
     } except PgWireError as e {
         if _sqlstate(e) == '42P01' {
-            return None;  # fresh database: kv_state does not exist yet
+            return None;
         }
         raise;
     }
@@ -421,8 +427,6 @@ impl PgStore._peer_sessions -> list[dict] {
 
 impl PgStore._reap_dead_sessions -> int {
     if not self.conninfo.unix_socket_dir {
-        # Remote database: peer pids belong to other hosts, so liveness
-        # cannot be judged here. Never terminate what can't be verified.
         return 0;
     }
     n = 0;

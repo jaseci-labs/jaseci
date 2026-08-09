@@ -18,8 +18,6 @@ import from jaclang.runtimelib.store { ConnInfo }
 glob logger = logging.getLogger(__name__),
      PG_MAJOR = 19,
      SOCK_PORT = 5432,
-     # Every jac process holds a session and a default `jac test` fans out
-     # 128 workers; 256 leaves interactive commands headroom beside that.
      PG_MAX_CONNECTIONS = 256,
      ZONKY_BASE = (
          'https://repo1.maven.org/maven2/io/zonky/test/postgres/'

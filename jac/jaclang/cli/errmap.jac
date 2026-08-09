@@ -1,13 +1,3 @@
-"""Map known runtime errors to actionable CLI messages.
-
-The runtime speaks SQLSTATE and typed exceptions; users need to know what
-happened and what to do next. humanize_error is the single translation
-point: it returns (message, hint) for errors the CLI knows how to explain,
-and None for everything else so the generic path (message + traceback)
-still applies. Internals tracebacks for mapped errors stay available
-behind JAC_DEBUG=1.
-"""
-
 import os;
 
 

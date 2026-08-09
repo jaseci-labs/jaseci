@@ -22,14 +22,6 @@ glob logger = logging.getLogger(__name__),
 
 
 class SessionConflictError(Exception) {
-    """The project database is held by another live jac process.
-
-    Raised instead of a raw lock timeout when schema DDL cannot proceed
-    because other sessions (each jac process keeps a long-lived transaction
-    open by design) hold conflicting locks and their owning processes are
-    still alive. `blockers` carries one dict per peer session as returned
-    by PgStore._peer_sessions.
-    """
     def init(
         self: SessionConflictError,
         database: str = '',

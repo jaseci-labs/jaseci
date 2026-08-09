@@ -56,8 +56,6 @@ impl project_db_name(base_path: str, target_path: (str | None)) -> str {
 
 
 impl takeover_project(base_path: str, target_path: (str | None) = None) -> int {
-    # Evict every other session on the project database, opening the store
-    # exactly the way Session.postinit would so the same database is hit.
     url = os.environ.get('JAC_DB_URL', '');
     if url {
         store = PgStore(conninfo=conninfo_from_url(url));
