@@ -363,7 +363,7 @@ obj NativeModuleLayout {
         list_elem_types: dict[(str, str)] = field(default_factory=`dict),
         tuples: dict[(str, NativeTupleLayout)] = field(default_factory=`dict),
         tests: list[NativeTestLayout] = field(default_factory=`list),
-        str_headerless: bool = False;
+        str_headerless: (bool | None) = None;
 }
 
 def _tuple_layout_to_dict(t: (NativeTupleLayout | None)) -> (dict | None) {

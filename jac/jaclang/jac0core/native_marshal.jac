@@ -63,13 +63,13 @@ class JacStrRet2(ctypes.Structure) {
     ];
 }
 
-def layout_str_headerless(layout: any) -> bool {
-    return bool(getattr(layout, "str_headerless", False));
+def layout_str_header_stamped(layout: any) -> bool {
+    return layout?.str_headerless is False;
 }
 
 
-def _stamped_str_len(addr: int, headerless: bool) -> (int | None) {
-    if headerless {
+def _stamped_str_len(addr: int, header_stamped: bool) -> (int | None) {
+    if not header_stamped {
         return None;
     }
     if ctypes.c_uint64.from_address(addr + HDR_RC_OFF).value != RC_SENTINEL {
@@ -86,11 +86,11 @@ def _stamped_str_len(addr: int, headerless: bool) -> (int | None) {
 }
 
 
-def native_str_len(addr: int, headerless: bool = False) -> int {
+def native_str_len(addr: int, header_stamped: bool = False) -> int {
     if not addr {
         return 0;
     }
-    stamped = _stamped_str_len(int(addr), headerless);
+    stamped = _stamped_str_len(int(addr), header_stamped);
     if stamped is not None {
         return stamped;
     }
@@ -98,12 +98,12 @@ def native_str_len(addr: int, headerless: bool = False) -> int {
 }
 
 
-def decode_native_str(addr: any, headerless: bool = False) -> str {
+def decode_native_str(addr: any, header_stamped: bool = False) -> str {
     if (addr is None or not addr) {
         return "";
     }
     _a = int(addr);
-    stamped = _stamped_str_len(_a, headerless);
+    stamped = _stamped_str_len(_a, header_stamped);
     if stamped is None {
         return ctypes.string_at(_a).decode("utf-8", errors="replace");
     }
@@ -147,13 +147,13 @@ class NativeJacVal(ctypes.Structure) {
 }
 
 
-def decode_jacval(tag: int, payload: int, headerless: bool = False) -> any {
+def decode_jacval(tag: int, payload: int, header_stamped: bool = False) -> any {
     if tag == 1 {
         import struct as _struct;
         return _struct.unpack("<d", _struct.pack("<q", payload))[0];
     }
     if tag == 2 {
-        return decode_native_str(payload, headerless);
+        return decode_native_str(payload, header_stamped);
     }
     if tag == 7 {
         return payload != 0;
@@ -165,13 +165,14 @@ def decode_jacval(tag: int, payload: int, headerless: bool = False) -> any {
 }
 
 
-def _decode_jacval_at(addr: any, slots: list, headerless: bool = False) -> list {
+def _decode_jacval_at(addr: any, slots: list, header_stamped: bool = False) -> list {
     if (not slots or not addr) {
         return [];
     }
     arr = (NativeJacVal * (max(slots) + 1)).from_address(addr);
     return [
-        decode_jacval(int(arr[s].tag), int(arr[s].payload), headerless) for s in slots
+        decode_jacval(int(arr[s].tag), int(arr[s].payload), header_stamped)
+        for s in slots
     ];
 }
 
@@ -326,7 +327,7 @@ def _decode_scalar_array(
     count: int,
     type_name: str,
     as_str: bool = False,
-    headerless: bool = False
+    header_stamped: bool = False
 ) -> list {
     if (count <= 0 or not addr) {
         return [];
@@ -339,7 +340,7 @@ def _decode_scalar_array(
     }
     ptrs = (ctypes.c_void_p * count).from_address(addr);
     if as_str {
-        return [decode_native_str(p, headerless) for p in ptrs];
+        return [decode_native_str(p, header_stamped) for p in ptrs];
     }
     if type_name == "bytes" {
         return [
@@ -356,7 +357,7 @@ def _decode_scalar_at(
     slots: list,
     type_name: str,
     as_str: bool = False,
-    headerless: bool = False
+    header_stamped: bool = False
 ) -> list {
     if (not slots or not addr) {
         return [];
@@ -371,7 +372,7 @@ def _decode_scalar_at(
     }
     ptrs = (ctypes.c_void_p * (max(slots) + 1)).from_address(addr);
     if as_str {
-        return [decode_native_str(ptrs[s], headerless) for s in slots];
+        return [decode_native_str(ptrs[s], header_stamped) for s in slots];
     }
     if type_name == "bytes" {
         return [
@@ -412,7 +413,7 @@ def _marshal_dict(
     if (ret_keys is None and func_layout is not None) {
         ret_keys = func_layout?.ret_elem_keys;
     }
-    _hl = layout_str_headerless(layout);
+    _hl = layout_str_header_stamped(layout);
     key_as_str = bool(
         key_name == "ptr" and ret_keys and len(ret_keys) == 2 and ret_keys[0] == "str"
     );
@@ -426,13 +427,13 @@ def _marshal_dict(
         if 0 <= int(s) and int(s) < cap
     ];
     dkeys = _decode_scalar_at(
-        nd.keys, slots, key_name, as_str=key_as_str, headerless=_hl
+        nd.keys, slots, key_name, as_str=key_as_str, header_stamped=_hl
     );
     if val_name == "jacval" {
-        dvals = _decode_jacval_at(nd.vals, slots, headerless=_hl);
+        dvals = _decode_jacval_at(nd.vals, slots, header_stamped=_hl);
     } else {
         dvals = _decode_scalar_at(
-            nd.vals, slots, val_name, as_str=val_as_str, headerless=_hl
+            nd.vals, slots, val_name, as_str=val_as_str, header_stamped=_hl
         );
     }
     return dict(zip(dkeys, dvals));
@@ -474,7 +475,7 @@ def _marshal_set(
             slots,
             elem_name,
             as_str=as_str,
-            headerless=layout_str_headerless(layout)
+            header_stamped=layout_str_header_stamped(layout)
         )
     );
 }
@@ -612,7 +613,7 @@ def marshal_value(
         return float(raw);
     }
     if llvm_type == "jacstr3" {
-        return decode_native_str(raw?.data, layout_str_headerless(layout));
+        return decode_native_str(raw?.data, layout_str_header_stamped(layout));
     }
     if llvm_type == "jacstr2" {
         _d = raw?.data;
@@ -630,7 +631,7 @@ def marshal_value(
         }
 
         if isinstance(raw, int) {
-            return decode_native_str(raw, layout_str_headerless(layout));
+            return decode_native_str(raw, layout_str_header_stamped(layout));
         }
         return str(raw);
     }

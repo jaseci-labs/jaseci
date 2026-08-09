@@ -125,6 +125,6 @@ def layout_from_dict(data: any) -> any {
         list_elem_types=dict(data.get("list_elem_types") or {}),
         tuples=tuples,
         tests=[],
-        str_headerless=bool(data.get("str_headerless", False))
+        str_headerless=data.get("str_headerless")
     );
 }

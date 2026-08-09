@@ -95,7 +95,7 @@ impl NativeStructView._resolve(name: str, raw: any) -> any {
     }
 
     if lt == "i8*" {
-        return decode_native_str(raw, layout_str_headerless(self.layout));
+        return decode_native_str(raw, layout_str_header_stamped(self.layout));
     }
 
     if (lt in ("i64", "i32") and finfo.enum_type) {
@@ -238,7 +238,7 @@ impl NativeListView.__getitem__(index: any) -> any {
     }
     if self.elem_key == "jacval" {
         return decode_jacval(
-            int(raw.tag), int(raw.payload), layout_str_headerless(self.layout)
+            int(raw.tag), int(raw.payload), layout_str_header_stamped(self.layout)
         );
     }
 
@@ -255,7 +255,7 @@ impl NativeListView.__getitem__(index: any) -> any {
     }
 
     if (self.elem_hint == "str" and self.elem_key == "ptr") {
-        return decode_native_str(raw, layout_str_headerless(self.layout));
+        return decode_native_str(raw, layout_str_header_stamped(self.layout));
     }
     return raw;
 }
