@@ -923,11 +923,33 @@ impl UnparsePass.exit_yield_expr(nd: uni.YieldExpr) -> None {
     nd.gen.jac = " ".join(parts);
 }
 
+impl UnparsePass._call_target_needs_parens(target: uni.Expr) -> bool {
+    # The call postfix `()` binds tighter than every compound operator in
+    # Jac, so a target whose top-level node is one of these would re-parse as a
+    # different tree when followed by `(args)` -- e.g. `a if c else b(10)` calls
+    # `b`, not the ternary; `a + b(10)` parses as `a + (b(10))`. Atom/postfix
+    # forms (names, attr/index chains, literals, comprehensions, nested calls)
+    # are self-delimiting and never need wrapping.
+    return isinstance(
+        target,
+        (
+            uni.LambdaExpr,
+            uni.IfElseExpr,
+            uni.BinaryExpr,
+            uni.BoolExpr,
+            uni.CompareExpr,
+            uni.UnaryExpr,
+            uni.AwaitExpr,
+
+        ),
+    );
+}
+
 impl UnparsePass.exit_func_call(nd: uni.FuncCall) -> None {
     is_gencompr = len(nd.params) == 1 and isinstance(nd.params[0], uni.GenCompr);
     params_str = self._comma_sep(nd.params);
     target_jac = nd.target.gen.jac;
-    if isinstance(nd.target, uni.LambdaExpr) {
+    if self._call_target_needs_parens(nd.target) {
         target_jac = "(" + target_jac + ")";
     }
     if is_gencompr {

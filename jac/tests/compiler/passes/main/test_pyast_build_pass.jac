@@ -46,6 +46,27 @@ glob FIXTURES = os.path.join(
          + "def tap(f, x):\n    return f(x)\n\n"
          + "def nested_lambda_call():\n"
          + "    assert tap(lambda x: x + 1, (lambda x: x + 1)(10)) == 11\n"
+     ),
+     PY2JAC_FSTRING_HASH_SOURCE = (
+         '"""Fixture for a hash inside an f-string (fmt regression)."""\n\n'
+         + "def greet(x):\n    return f\"a # b {x}\"\n"
+     ),
+     PY2JAC_COMPLEX_INF_SOURCE = (
+         '"""Fixture for an overflowed imaginary literal (isfinite guard)."""\n\n'
+         + "def inf_imag():\n    return 1e999j\n"
+     ),
+     PY2JAC_MATCH_COMPLEX_SOURCE = (
+         '"""Fixture for a complex literal in a match value pattern (E5044)."""\n\n'
+         + "def classify(x):\n"
+         + "    match x:\n"
+         + "        case 1 + 2j:\n"
+         + "            return \"complex\"\n"
+         + "        case _:\n"
+         + "            return \"other\"\n"
+     ),
+     PY2JAC_TERNARY_CALL_SOURCE = (
+         '"""Fixture for a ternary expression as a call target."""\n\n'
+         + "def pick(a, b, c):\n    return (a if c else b)(10)\n"
      );
 
 test "synced to latest py ast" {
@@ -381,6 +402,124 @@ test "py2jac lambda iife" {
 
     prog = JacProgram.jac_str_formatter(
         source_str=code, file_path="py2jac_lambda_iife.py", auto_lint=False
+    );
+    assert len(prog.errors_had) == 0 , (
+        f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+}
+
+"""Hash inside an f-string must survive the formatter intact (not escaped to \\#).
+
+A regression that re-adds `#` -> `\\#` escaping in unitree.fstring_escape_interior
+still re-parses cleanly (it is a wrong *value*, not a syntax error), so the
+zero-error round-trip used elsewhere does NOT guard it. Inspect the formatted
+text directly.
+"""
+test "py2jac fstring hash survives formatter" {
+    file_source = PY2JAC_FSTRING_HASH_SOURCE;
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(file_source),
+            orig_src=Source(file_source, "py2jac_fstring_hash.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse();
+
+    prog = JacProgram.jac_str_formatter(
+        source_str=code, file_path="py2jac_fstring_hash.py", auto_lint=False
+    );
+    assert len(prog.errors_had) == 0 , (
+        f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+
+    formatted = prog.mod.main.gen.jac;
+    assert "a # b" in formatted , (
+        f"Hash inside f-string must survive formatting in:\n{formatted}"
+    );
+    assert "\\#" not in formatted , (
+        f"Hash must not be escaped to backslash-hash in:\n{formatted}"
+    );
+}
+
+"""Overflowed imaginary literals (1e999j) must not crash; isfinite guard emits inf.
+
+Without the math.isfinite guard in _numeric_literal, the imaginary part of
+`1e999j` overflows to inf and `inf == int(inf)` raises OverflowError.
+"""
+test "py2jac complex inf imaginary" {
+    file_source = PY2JAC_COMPLEX_INF_SOURCE;
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(file_source),
+            orig_src=Source(file_source, "py2jac_complex_inf.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse();
+
+    assert "complex(0, inf)" in code , (
+        f"Expected 1e999j to fold to complex(0, inf) in:\n{code}"
+    );
+
+    prog = JacProgram.jac_str_formatter(
+        source_str=code, file_path="py2jac_complex_inf.py", auto_lint=False
+    );
+    assert len(prog.errors_had) == 0 , (
+        f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+}
+
+"""A complex literal in a match value pattern must emit E5044.
+
+`case 1 + 2j:` folds to a complex value; Jac has no complex literal syntax and
+would parse `complex(1, 2)` as a class pattern, so proc_match_value emits E5044.
+"""
+test "py2jac match complex value emits E5044" {
+    file_source = PY2JAC_MATCH_COMPLEX_SOURCE;
+    prog = JacProgram();
+    PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(file_source),
+            orig_src=Source(file_source, "py2jac_match_complex.py")
+        ),
+        prog=prog
+    );
+
+    assert any(
+        (e.code is not None and e.code.code == "E5044") for e in prog.errors_had
+    ) , (
+        f"Expected E5044 for complex match value; got "
+        f"{[e.code.code if e.code else None for e in prog.errors_had]}"
+    );
+}
+
+"""A ternary expression as a call target must be parenthesized.
+
+Generalizes the lambda-IIFE fix: `(a if c else b)(10)` must parenthesize the
+ternary, otherwise it re-parses as `a if c else b(10)` -- valid Jac that calls
+`b` instead of the chosen branch. The same rule now covers every compound
+expression kind (BinOp, BoolOp, Compare, Unary, Await) as a call target.
+"""
+test "py2jac ternary call target" {
+    file_source = PY2JAC_TERNARY_CALL_SOURCE;
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(file_source),
+            orig_src=Source(file_source, "py2jac_ternary_call.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse(
+        requires_format=False
+    );
+
+    assert "a if c else b(10)" not in code , (
+        f"Unparenthesized ternary call target in:\n{code}"
+    );
+    assert "(a if c else b)(10)" in code , (
+        f"Expected parenthesized ternary call target in:\n{code}"
+    );
+
+    prog = JacProgram.jac_str_formatter(
+        source_str=code, file_path="py2jac_ternary_call.py", auto_lint=False
     );
     assert len(prog.errors_had) == 0 , (
         f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
