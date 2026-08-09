@@ -2519,9 +2519,9 @@ impl String.lit_value.getter -> str {
     }
     if `any(
         (
-            self.value.startswith(prefix)
+            self.value.lower().startswith(prefix)
             and self.value[len(prefix):].startswith(("'", '"'))
-        ) for prefix in ['r', 'b', 'br', 'rb']
+        ) for prefix in ['r', 'b', 'u', 'br', 'rb']
     ) {
         return eval(self.value);
     } elif self.value.startswith(("'", '"')) {

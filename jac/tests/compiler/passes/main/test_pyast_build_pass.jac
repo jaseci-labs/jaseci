@@ -172,7 +172,7 @@ test "py implicit string concat lit value joins the literals" {
     src = (
         'M = (\n    "first part "\n    "second part"\n)\n'
         + 'S = "abc" "def"\nR = r"\\d" "x"\nU = u"uni" "code"\n'
-        + 'P = "he said \\"hi\\""\n'
+        + 'L = R"\\w"\nV = u"solo"\nP = "he said \\"hi\\""\n'
     );
     mod = PyastBuildPass(
         ir_in=PythonModuleAst(py_ast.parse(src), orig_src=Source(src, "concat.py")),
@@ -184,6 +184,8 @@ test "py implicit string concat lit value joins the literals" {
         "abcdef",
         "\\dx",
         "unicode",
+        "\\w",
+        "solo",
         'he said "hi"'
     ] {
         assert want in values , f"{want!r} missing from {values}";
