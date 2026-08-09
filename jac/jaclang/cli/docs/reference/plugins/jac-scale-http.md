@@ -353,6 +353,9 @@ The HTTP concerns stay on the declaration, so the body remains an ordinary
 
   ```jac
   import from jaclang.runtimelib.transport { BodyResponse, FileResponse }
+  import from pathlib { Path }
+
+  glob ICON_BYTES: bytes = Path("assets/icon.png").read_bytes();
 
   @restspec(method=HTTPMethod.GET, path="/photo.png")
   def:pub photo() -> FileResponse {

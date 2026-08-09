@@ -132,6 +132,9 @@ For binary payloads (images, PDFs, downloads), return Jac's framework-neutral `B
 ```jac
 import from jaclang.runtimelib.transport { BodyResponse, FileResponse }
 import from http { HTTPMethod }
+import from pathlib { Path }
+
+glob ICON_BYTES: bytes = Path("assets/icon.png").read_bytes();
 
 @restspec(method=HTTPMethod.GET, path="/photo.png")
 def:pub photo() -> FileResponse {
