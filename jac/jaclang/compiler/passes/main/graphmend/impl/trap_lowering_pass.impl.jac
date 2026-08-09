@@ -38,7 +38,9 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     wrap = self._enclosing_compiled_fn(nd);
     type_name = self._exception_type_name(rs) if (wrap is not None) else None;
     marked = (
-        self._marked_message(nd, msg, type_name) if (type_name is not None) else None
+        self._marked_message(nd, msg, type_name)
+            if ((type_name is not None) and (msg is not None))
+            else None
     );
     if marked is None {
         return;
@@ -50,7 +52,8 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         self._replace(nd, [self._eq_assert_stmt(nd, a, b, marked)]);
         self._mark_guard(wrap);
     } elif self._returns_tensor_bool(x) {
-        self._replace(nd, [self._assert_async_stmt(nd, x, marked)]);
+        self._need_helper(nd, GraphMendHelper.BOOL_ASSERT);
+        self._replace(nd, [self._bool_assert_stmt(nd, x, marked)]);
         self._mark_guard(wrap);
     }
 }
@@ -157,13 +160,27 @@ impl TrapLoweringPass._returns_tensor_bool(x: uni.Expr) -> bool {
     );
 }
 
-impl TrapLoweringPass._raise_message(rs: uni.RaiseStmt, at: uni.UniNode) -> uni.Expr {
+impl TrapLoweringPass._raise_message(
+    rs: uni.RaiseStmt, at: uni.UniNode
+) -> (uni.Expr | None) {
+    if rs.from_target is not None {
+        return None;
+    }
     cause = rs.cause;
     if isinstance(cause, uni.FuncCall) {
-        for p in (cause.params or []) {
-            if not isinstance(p, uni.KWPair) {
-                return p;
-            }
+        pos = [
+            p
+            for p in (cause.params or [])
+            if not isinstance(p, uni.KWPair)
+        ];
+        if len(pos) != len(cause.params or []) {
+            return None;
+        }
+        if len(pos) > 1 {
+            return None;
+        }
+        if len(pos) == 1 {
+            return pos[0];
         }
     }
     return self._str(at, '');
@@ -203,21 +220,13 @@ impl TrapLoweringPass._eq_assert_stmt(
     return self._call_stmt(call);
 }
 
-impl TrapLoweringPass._assert_async_stmt(
+impl TrapLoweringPass._bool_assert_stmt(
     at: uni.UniNode, x: uni.Expr, msg: uni.Expr
 ) -> uni.ExprStmt {
-    torch_nm = self._gen_name(at, 'torch');
-    assert_nm = self._gen_name(at, '_assert_async');
-    target = uni.AtomTrailer(
-        target=torch_nm,
-        right=assert_nm,
-        is_attr=True,
-        is_null_ok=False,
-        kid=[torch_nm, assert_nm]
-    );
+    helper = self._gen_name(at, '__jac_tensor_bool_assert__');
     params = [x, msg];
     call = uni.FuncCall(
-        target=target, params=params, genai_call=None, kid=[target] + params
+        target=helper, params=params, genai_call=None, kid=[helper] + params
     );
     return self._call_stmt(call);
 }

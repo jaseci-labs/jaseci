@@ -21,7 +21,7 @@ obj TrapLoweringPass(UniPass) {
     def exit_ability(nd: uni.Ability) -> None;
     def _torch_equal_args(x: uni.Expr) -> (tuple | None);
     def _returns_tensor_bool(x: uni.Expr) -> bool;
-    def _raise_message(rs: uni.RaiseStmt, at: uni.UniNode) -> uni.Expr;
+    def _raise_message(rs: uni.RaiseStmt, at: uni.UniNode) -> (uni.Expr | None);
     def _gen_name(at: uni.UniNode, value: str) -> uni.Name;
     def _str(at: uni.UniNode, text: str) -> uni.String;
     def _call_stmt(call: uni.FuncCall) -> uni.ExprStmt;
@@ -29,9 +29,6 @@ obj TrapLoweringPass(UniPass) {
         at: uni.UniNode, a: uni.Expr, b: uni.Expr, msg: uni.Expr
     ) -> uni.ExprStmt;
 
-    def _assert_async_stmt(
-        at: uni.UniNode, x: uni.Expr, msg: uni.Expr
-    ) -> uni.ExprStmt;
-
+    def _bool_assert_stmt(at: uni.UniNode, x: uni.Expr, msg: uni.Expr) -> uni.ExprStmt;
     def _replace(old: uni.UniNode, new_nodes: list) -> None;
 }

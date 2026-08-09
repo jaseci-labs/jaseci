@@ -108,7 +108,7 @@ and for a condition that is already a tensor boolean
 (`.all()` / `.any()` / `.allclose()`):
 
 ```python
-torch._assert_async(mask.all(), '[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')
+__jac_tensor_bool_assert__(mask.all(), '[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')
 ```
 
 ### Legality conditions
@@ -123,7 +123,15 @@ left unfixed is a soundness property, not a defect.
 2. `X` must be convertible to a tensor boolean. Two cases are accepted:
    `torch.equal(a, b)` (returns a Python bool, special-cased below) and calls
    already returning a tensor bool (`.all`, `.any`, `.allclose`). Anything
-   else declines.
+   else declines. The `.all`-family match is structural (by method name), so
+   the receiver's tensor-ness cannot be proven at compile time; the runtime
+   helper `tensor_bool_assert` establishes it instead. A tensor condition
+   goes to `torch._assert_async` (the `isinstance` check is static metadata
+   that Dynamo folds away, so the graph is unchanged); a non-tensor condition
+   falls back to the exact original guard semantics, raising the marked error
+   eagerly when falsy, which the boundary guard restores as usual. A
+   non-tensor receiver whose `.all()` happens to match therefore keeps its
+   behavior instead of crashing inside `torch._assert_async`.
 3. `torch.equal` is rebuilt by the runtime helper `tensor_eq_assert` as a
    tensor op with a static precheck: shapes and dtypes must match before
    evaluating `(a == b).all()`, else the assert condition is a constant
@@ -146,6 +154,13 @@ left unfixed is a soundness property, not a defect.
    after that method has already returned. Detection still tags all three --
    the decline belongs to the transform, not to the analysis.
 
+   Reconstructible also constrains the constructor call itself. The marker
+   carries exactly one string, so an exception built with more than one
+   positional argument (or any keyword argument) would come back with its
+   extra `args` silently truncated; the pass declines instead. Likewise a
+   `raise ... from cause` declines: the boundary guard re-raises `from None`,
+   so an explicit chain cannot be reconstructed at the call site.
+
 ### Exception-type preservation
 
 `torch._assert_async` raises `RuntimeError`, and a graph-native assertion
@@ -158,7 +173,11 @@ prepends the eager boundary decorator `@__jac_trap_guard__` to the function.
 The decorator catches the `RuntimeError` at the boundary, parses the marker,
 and re-raises the original exception type with the original message; unmarked
 `RuntimeError`s propagate unchanged, and unknown (non-builtin) types degrade
-to `RuntimeError` so no message is ever lost.
+to `RuntimeError` so no message is ever lost. Parsing is defensive: text that
+merely resembles a marker (a partial `[[GM-TRAP` with no terminator, or a
+missing closing tag) is not a trap, and the original error propagates
+untouched. The residual is a `RuntimeError` whose own text embeds a complete,
+well-formed marker; it would be restored as the exception the marker names.
 
 The marker is folded at compile time, not concatenated at runtime, so the
 assert stays a native torch op inside the graph. That also makes the marker
@@ -173,10 +192,10 @@ licence to weaken the contract now.
 
 ### Runtime support
 
-Two helpers back the transform, exported through `jaclib` and imported by the
-generated module preamble only when the pass actually used them
-(`__jac_tensor_eq_assert__`, `__jac_trap_guard__`). Both live on `JacBuiltin`
-in `jac0core/runtime.jac`.
+Three helpers back the transform, exported through `jaclib` and imported by
+the generated module preamble only when the pass actually used them
+(`__jac_tensor_eq_assert__`, `__jac_tensor_bool_assert__`,
+`__jac_trap_guard__`). All live on `JacBuiltin` in `jac0core/runtime.jac`.
 
 ## Evidence
 
