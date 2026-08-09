@@ -452,29 +452,24 @@ A user can have at most **one** identity of each non-SSO type (one username, one
 |------|-------------|
 | `password` | Bcrypt-hashed password |
 
-Passwords are hashed with [bcrypt](https://en.wikipedia.org/wiki/Bcrypt) (random salt per password). Plain-text passwords never leave the request handler.
+Passwords are hashed with [scrypt](https://en.wikipedia.org/wiki/Scrypt) (random salt per password, stdlib `hashlib.scrypt`). Plain-text passwords never leave the request handler.
 
-### Storage Backends
+### Storage
 
-The identity storage layer is backend-agnostic. jac-scale automatically selects the backend based on your database configuration:
-
-- **SQLite** (default) -- used when no `mongodb_uri` is configured. User data is stored in `.jac/data/users.db` relative to your project root using SQLAlchemy. Good for development and single-instance deployments.
-- **MongoDB** -- used when `mongodb_uri` is set (via `jac.toml` or `MONGODB_URI` environment variable). User data is stored in the `users` collection of the `jac_db` database. Required for multi-instance production deployments.
-
-Both backends implement the same `IdentityStorage` interface. Application code (endpoints, walkers, middleware) is completely unaware of which backend is in use.
+Identity data lives in the same Postgres database as the graph -- the embedded per-project server locally, or whatever `[scale.database].url` / `JAC_DB_URL` points at:
 
 ```toml
-# jac.toml -- use MongoDB
+# jac.toml -- use an external Postgres server
 [scale.database]
-mongodb_uri = "mongodb://localhost:27017"
+url = "postgresql://user:pass@host:5432/jac"
 ```
 
 ```bash
 # Or via environment variable
-export MONGODB_URI="mongodb://localhost:27017"
+export JAC_DB_URL="postgresql://user:pass@host:5432/jac"
 ```
 
-When no MongoDB URI is configured, SQLite is used automatically with no additional setup.
+With nothing configured, the embedded server provisions automatically with no additional setup. Serving without any reachable database fails loudly at startup rather than silently opening a second credential store.
 
 ### User Registration
 
