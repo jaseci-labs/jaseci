@@ -1574,11 +1574,10 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             if (right_name == "value" or right_name == "name") {
                 enum_name = self._enum_name_of(nd.target);
                 if enum_name is not None and enum_name in self.enum_types {
-                    ordinal_val = self._codegen_expr(nd.target);
-                    if ordinal_val is not None {
-                        use_name = right_name == "name";
-                        return self._codegen_enum_value_lookup(
-                            enum_name, ordinal_val, use_name=use_name
+                    member_val = self._codegen_expr(nd.target);
+                    if member_val is not None {
+                        return self._codegen_enum_attr_runtime(
+                            enum_name, member_val, right_name == "name"
                         );
                     }
                 }
