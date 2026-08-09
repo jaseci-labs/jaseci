@@ -120,18 +120,14 @@ left unfixed is a soundness property, not a defect.
 1. The tagged `IfStmt` body is exactly one `raise` statement, and the
    condition is a unary `not X`. Only then is "assert X must hold" the exact
    meaning of the original guard.
-2. `X` must be convertible to a tensor boolean. Two cases are accepted:
-   `torch.equal(a, b)` (returns a Python bool, special-cased below) and calls
-   already returning a tensor bool (`.all`, `.any`, `.allclose`). Anything
-   else declines. The `.all`-family match is structural (by method name), so
-   the receiver's tensor-ness cannot be proven at compile time; the runtime
-   helper `tensor_bool_assert` establishes it instead. A tensor condition
-   goes to `torch._assert_async` (the `isinstance` check is static metadata
-   that Dynamo folds away, so the graph is unchanged); a non-tensor condition
-   falls back to the exact original guard semantics, raising the marked error
-   eagerly when falsy, which the boundary guard restores as usual. A
-   non-tensor receiver whose `.all()` happens to match therefore keeps its
-   behavior instead of crashing inside `torch._assert_async`.
+2. `X` must be convertible to a tensor boolean: `torch.equal(a, b)` (a Python
+   bool, special-cased below) or a call already returning a tensor bool
+   (`.all`, `.any`, `.allclose`). Anything else declines. That match is
+   structural, by method name, so tensor-ness is established at runtime
+   instead: `tensor_bool_assert` sends a tensor to `torch._assert_async`
+   (Dynamo folds the `isinstance` check, leaving the graph unchanged), and for
+   a non-tensor receiver falls back to raising the marked error eagerly, which
+   the boundary guard restores as usual.
 3. `torch.equal` is rebuilt by the runtime helper `tensor_eq_assert` as a
    tensor op with a static precheck: shapes and dtypes must match before
    evaluating `(a == b).all()`, else the assert condition is a constant
@@ -140,32 +136,28 @@ left unfixed is a soundness property, not a defect.
    `torch.equal` reports as unequal, and the precheck itself is static
    metadata that adds no break.
 4. The original exception must be reconstructible at the call boundary, or the
-   guard is left intact. This needs three things at once: an enclosing
-   `@torch.compile`-decorated ability to carry the eager decorator, an
-   exception type that is a bare builtin name (an aliased or qualified type
-   such as `errors.ValidationError` cannot be resolved back from the marker,
-   so it declines rather than degrade to `RuntimeError`), and a message that
-   is a pure string literal. Three shapes
-   therefore decline. An f-string declines because a `MultiString` contributes
-   only its `String` parts to a literal value, so folding one would produce a
-   marker wrapped around an empty message -- the right exception type with its
-   diagnostic silently dropped. A runtime expression (concatenation,
-   `%`-formatting) declines because no marker can be built at all, which would
-   surface the failure as `RuntimeError` instead of the original type. A guard
-   inside a `@torch.compile`-decorated *class* declines for want of a boundary:
-   the method carries no decorator of its own, and an async assert can surface
-   after that method has already returned. Detection still tags all three --
-   the decline belongs to the transform, not to the analysis.
+   guard is left intact. Every one of the following must hold:
 
-   Reconstructible also constrains the constructor call itself: it must have
-   exactly one positional argument. The marker carries exactly one string, so
-   more than one argument (or any keyword argument) would come back with its
-   extra `args` silently truncated, and an argument-less raise (`raise
-   ValueError` or `raise ValueError()`) would come back as `ValueError('')`,
-   its observable `args` changed from `()` to `('',)`; both decline. Likewise
-   a `raise ... from cause` declines: the boundary guard re-raises
-   `from None`, so an explicit chain cannot be reconstructed at the call
-   site.
+   - **An enclosing `@torch.compile`-decorated ability** to carry the eager
+     decorator. A guard inside a decorated *class* has none of its own, and an
+     async assert can surface after its method has already returned.
+   - **A bare builtin exception name**, since the boundary resolves the marker
+     through `builtins`. An aliased or qualified type such as
+     `errors.ValidationError` would come back as `RuntimeError`.
+   - **Exactly one positional argument, no keywords, no `from cause`.** The
+     marker carries one string, so anything else loses state: extra arguments
+     are truncated, `raise ValueError()` would come back as `ValueError('')`
+     with `args` changed from `()` to `('',)`, and an explicit chain cannot be
+     rebuilt by a boundary that re-raises `from None`.
+   - **A message that is a pure string literal** not containing
+     `[[/GM-TRAP]]`. An f-string contributes only its `String` parts to
+     `lit_value`, so folding one would keep the exception type and silently
+     drop the diagnostic; a runtime expression (concatenation,
+     `%`-formatting) admits no marker at all; an embedded closing delimiter
+     would truncate the restored message.
+
+   Detection still tags these guards; the decline belongs to the transform,
+   not to the analysis.
 
 ### Exception-type preservation
 
@@ -177,18 +169,14 @@ string literal, the pass folds a self-describing marker into the message
 literal at compile time (`[[GM-TRAP ValueError]]msg[[/GM-TRAP]]`) and
 prepends the eager boundary decorator `@__jac_trap_guard__` to the function.
 The decorator catches the `RuntimeError` at the boundary, parses the marker,
-and re-raises the original exception type with the original message; unmarked
-`RuntimeError`s propagate unchanged. The pass only folds markers naming bare
-builtin exceptions, so the lookup always resolves; the decorator still
-validates the resolved name and falls back to `RuntimeError` as defense in
-depth against markers of foreign provenance. Parsing is defensive: text that
-merely resembles a marker (a partial `[[GM-TRAP` with no terminator, or a
-missing closing tag) is not a trap, and the original error propagates
-untouched. A literal message that itself contains the closing delimiter
-declines at compile time, since the parse would truncate it at the embedded
-delimiter; a lowered message therefore always restores exactly. The residual
-is a `RuntimeError` whose own text embeds a complete, well-formed marker; it
-would be restored as the exception the marker names.
+and re-raises the original exception type with the original message. Parsing
+is defensive: an unmarked `RuntimeError`, one whose marker has no terminator
+or no closing tag, or one naming something that is not an exception class,
+propagates unchanged rather than being reinterpreted. Because condition 4
+admits only bare builtin names and rejects messages containing the closing
+delimiter, a lowered guard always restores exactly. The residual is an
+unrelated `RuntimeError` whose own text embeds a complete, well-formed
+marker; it would be restored as the exception that marker names.
 
 The marker is folded at compile time, not concatenated at runtime, so the
 assert stays a native torch op inside the graph. That also makes the marker
