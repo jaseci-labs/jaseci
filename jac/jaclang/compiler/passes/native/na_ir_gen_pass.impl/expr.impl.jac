@@ -112,8 +112,7 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
             }
         }
 
-        if isinstance(_result.type, ir.PointerType)
-            or self._opt_ptr_payload_of(_result.type) is not None {
+        if isinstance(_result.type, ir.PointerType) {
             import from jaclang.compiler.passes.main.rc_facts_pass {
                 Ownership,
                 result_ownership
