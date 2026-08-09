@@ -192,7 +192,8 @@ obj PvcInjector(Injector) {
         raw = pack_jab(
             project_dir,
             self.provisioned_database,
-            getattr(self, "_pod_binary_bytes", b"")
+            getattr(self, "_seal_binary_bytes", b""),
+            getattr(self, "_pod_arch", "")
         );
         digest = content_address(raw);
         self._object_key = bundle_object_key(app_name, digest);
