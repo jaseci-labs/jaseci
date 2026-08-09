@@ -94,7 +94,11 @@ impl TrapLoweringPass._marked_message(
             }
         }
     }
-    text = "[[GM-TRAP " + type_name + "]]" + str(msg.lit_value) + "[[/GM-TRAP]]";
+    lit = str(msg.lit_value);
+    if "[[/GM-TRAP]]" in lit {
+        return None;
+    }
+    text = "[[GM-TRAP " + type_name + "]]" + lit + "[[/GM-TRAP]]";
     return self._str(at, text);
 }
 

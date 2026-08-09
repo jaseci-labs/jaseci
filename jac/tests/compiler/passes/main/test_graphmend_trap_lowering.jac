@@ -208,3 +208,13 @@ test "argument-less exception declines instead of gaining an empty arg" {
     assert "raise ValueError" in src;
     assert _break_count("guard_no_arg_msg.jac") == 2;
 }
+
+test "message containing the trap delimiter declines instead of truncating" {
+    # The runtime parse stops at the first close delimiter, so a literal
+    # message embedding [[/GM-TRAP]] would come back truncated at that point.
+    src = _pysrc("guard_marker_msg.jac", True);
+    assert "__jac_tensor_bool_assert__(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError" in src;
+    assert _break_count("guard_marker_msg.jac") == 1;
+}

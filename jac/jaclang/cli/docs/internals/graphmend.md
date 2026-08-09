@@ -179,8 +179,11 @@ and re-raises the original exception type with the original message; unmarked
 to `RuntimeError` so no message is ever lost. Parsing is defensive: text that
 merely resembles a marker (a partial `[[GM-TRAP` with no terminator, or a
 missing closing tag) is not a trap, and the original error propagates
-untouched. The residual is a `RuntimeError` whose own text embeds a complete,
-well-formed marker; it would be restored as the exception the marker names.
+untouched. A literal message that itself contains the closing delimiter
+declines at compile time, since the parse would truncate it at the embedded
+delimiter; a lowered message therefore always restores exactly. The residual
+is a `RuntimeError` whose own text embeds a complete, well-formed marker; it
+would be restored as the exception the marker names.
 
 The marker is folded at compile time, not concatenated at runtime, so the
 assert stays a native torch op inside the graph. That also makes the marker
