@@ -648,11 +648,6 @@ impl PyastBuildPass.proc_name(nd: py_ast.Name) -> uni.Name {
 }
 
 impl PyastBuildPass.proc_match_value(nd: py_ast.MatchValue) -> uni.MatchValue {
-    # Jac has no complex-literal syntax, so a complex value pattern (e.g.
-    # `case 1 + 2j:`) cannot be lowered: `complex(re, im)` parses as a class
-    # pattern and fails at runtime. Emit a diagnostic instead of silently
-    # emitting broken code. literal_eval accepts exactly the complex-literal
-    # forms and never a `complex(...)` call.
     try {
         folded = py_ast.literal_eval(nd.value);
     } except Exception {
@@ -2220,11 +2215,7 @@ impl PyastBuildPass._fstring_constant_content(
         return nd.value;
     }
     segment = self._get_source_segment(nd);
-    # A segment containing doubled braces ({{) never reaches this branch --
-    # _decode_str_escapes leaves braces untouched while the Python value has
-    # single braces -- so a brace-collapse step here would never fire; for the
-    # brace-free segments that do match, the raw source is already the correct
-    # semantic interior.
+
     if segment is not None and _decode_str_escapes(segment) == nd.value {
         return segment;
     }
@@ -2250,8 +2241,6 @@ impl PyastBuildPass._make_number_literal(
 }
 
 impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
-    # Guard against non-finite components (e.g. 1e999j -> inf): int(inf) raises
-    # OverflowError, so fall through to a FLOAT literal instead of crashing.
     if math.isfinite(n) and n == int(n) {
         return self._make_number_literal(nd, 'INT', str(int(n)), col_end=nd.col_offset);
     }
@@ -2272,19 +2261,47 @@ impl PyastBuildPass._emit_complex_call(
     );
 }
 
+impl PyastBuildPass._eval_complex_literal_ast(
+    nd: py_ast.AST
+) -> (complex | float | int | None) {
+    if isinstance(nd, py_ast.Constant) {
+        if isinstance(nd.value, (int, float, complex)) {
+            return nd.value;
+        }
+        return None;
+    }
+    if isinstance(nd, py_ast.UnaryOp) {
+        if isinstance(nd.op, py_ast.UAdd) {
+            return self._eval_complex_literal_ast(nd.operand);
+        }
+        if isinstance(nd.op, py_ast.USub) {
+            val = self._eval_complex_literal_ast(nd.operand);
+            if val is not None {
+                return -val;
+            }
+        }
+        return None;
+    }
+    if isinstance(nd, py_ast.BinOp) {
+        left = self._eval_complex_literal_ast(nd.left);
+        right = self._eval_complex_literal_ast(nd.right);
+        if (left is None) or (right is None) {
+            return None;
+        }
+        if isinstance(nd.op, py_ast.Add) {
+            return left + right;
+        }
+        if isinstance(nd.op, py_ast.Sub) {
+            return left - right;
+        }
+    }
+    return None;
+}
+
 impl PyastBuildPass._try_fold_complex_literal(
     nd: py_ast.BinOp
 ) -> (uni.FuncCall | None) {
-    # Fold complex-constant expressions (e.g. `1 + 2j`) by evaluating the
-    # *input* py-AST. ast.literal_eval accepts exactly Python's legal
-    # complex-literal forms (real +/- imag) and never accepts a `complex(...)`
-    # call, so this cannot fold or rewrite user code, nor break when `complex`
-    # is shadowed by a binding.
-    try {
-        value = py_ast.literal_eval(nd);
-    } except Exception {
-        return None;
-    }
+    value = self._eval_complex_literal_ast(nd);
     if isinstance(value, complex) {
         return self._emit_complex_call(nd, value.real, value.imag);
     }

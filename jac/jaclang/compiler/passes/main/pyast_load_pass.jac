@@ -30,19 +30,14 @@ obj PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]) {
     def _get_source_segment(nd: py_ast.AST) -> (str | None);
     def _strip_string_continuations(seg: str) -> str;
     def _fstring_constant_content(nd: py_ast.Constant, is_raw: bool) -> str;
-    def _fstring_semantic_interior(segment: str) -> str;
     def _make_number_literal(
         nd: py_ast.AST, token: str, value: str, col_end: int | None = None
     ) -> uni.Expr;
 
     def _numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr;
-    def _float_from_literal(expr: uni.Expr) -> (float | None);
-    def _complex_from_func_call(expr: uni.Expr) -> ((float, float) | None);
     def _emit_complex_call(nd: py_ast.AST, re: float, im: float) -> uni.FuncCall;
-    def _try_fold_complex_binop(
-        left: uni.Expr, op: uni.Token, right: uni.Expr, nd: py_ast.BinOp
-    ) -> (uni.FuncCall | None);
-
+    def _eval_complex_literal_ast(nd: py_ast.AST) -> (complex | float | int | None);
+    def _try_fold_complex_literal(nd: py_ast.BinOp) -> (uni.FuncCall | None);
     def nu(nd: T) -> T;
     def name_node(
         nd: py_ast.AST,
