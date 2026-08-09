@@ -116,3 +116,51 @@ test "an unsupported body-scoped import is still a clean E5090" {
         f"E5090 should carry the stdlib help: {[str(e) for e in prog.errors_had]}"
     );
 }
+
+# Widening guard. Seeing body-scoped imports must not widen what gets REGISTERED:
+# module-level imports keep the set they always had, and nested imports are
+# harvested only from elements placed in the native context. Without the second
+# half, an import nested in a server-placed element pulls its module -- and any
+# C library that module declares -- onto the native link line, so the artifact
+# fails to link anywhere that library is absent.
+test "nested imports are harvested only from native-context elements" {
+    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
+    import from jaclang.jac0core.constant { CodeContext }
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    prog = JacProgram();
+    # No forced codespace: the solver places this module's elements on the
+    # server, so its body-scoped import is server-context.
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "clib_ctx_gated_lib.jac"),
+        options=CompileOptions(type_check=False, no_cgen=True)
+    );
+    placements = [
+        stmt.code_context for stmt in ModuleCodegenPass.iter_context_stmts(ir)
+    ];
+    assert CodeContext.NATIVE not in placements , (
+        f"fixture no longer exercises server placement: {placements}"
+    );
+    assert len(ModuleCodegenPass.iter_nested_imports(ir)) == 1 , (
+        "fixture should carry exactly one body-scoped import"
+    );
+    assert ModuleCodegenPass.iter_nested_imports(ir, CodeContext.NATIVE) == [] , (
+        "a body-scoped import under a server-placed element must not be "
+        "harvested for native registration"
+    );
+}
+
+# The paired positive: when the enclosing element IS native, the body-scoped
+# import resolves its module and that module's declared C library does reach the
+# link set -- which is the transitive half of N8c actually working.
+test "a native-context body-scoped import contributes its module's clib" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "clib_ctx_gated_entry.jac"),
+        options=native_force_opts()
+    );
+    assert not prog.errors_had , f"Errors: {[str(e) for e in prog.errors_had]}";
+    assert any("libctxgated" in p for p in ir.gen._clib_paths) , (
+        f"transitive body-scoped import did not contribute its clib: "
+        f"{ir.gen._clib_paths}"
+    );
+}

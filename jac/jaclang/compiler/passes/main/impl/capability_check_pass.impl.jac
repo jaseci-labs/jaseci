@@ -199,7 +199,8 @@ impl native_capability_violations(mod: uni.Module) -> list {
     _base_dir = os.path.dirname(os.path.abspath(mod.loc.mod_path))
         if (mod?.loc and mod.loc.mod_path)
         else '.';
-    for stmt in ModuleCodegenPass.iter_all_imports(mod, CodeContext.NATIVE) {
+    for stmt in ModuleCodegenPass.iter_module_imports(mod, CodeContext.NATIVE)
+        + ModuleCodegenPass.iter_nested_imports(mod, CodeContext.NATIVE) {
         if stmt.clib_decls or not stmt.items {
             continue;
         }

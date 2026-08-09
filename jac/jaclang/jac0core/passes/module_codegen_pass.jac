@@ -55,18 +55,26 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
         return result;
     }
 
-    static def iter_all_imports(
+    static def iter_module_imports(
+        module: uni.Module, ctx: (CodeContext | None) = None
+    ) -> list[uni.Import] {
+        return [
+            stmt
+            for stmt in ModuleCodegenPass.iter_context_stmts(module, ctx)
+            if isinstance(stmt, uni.Import)
+        ];
+    }
+
+    static def iter_nested_imports(
         module: uni.Module, ctx: (CodeContext | None) = None
     ) -> list[uni.Import] {
         result: list[uni.Import] = [];
         seen: set[int] = set();
         for stmt in ModuleCodegenPass.iter_context_stmts(module, ctx) {
-            candidates: list = (
-                [stmt]
-                    if isinstance(stmt, uni.Import)
-                    else list(stmt.get_all_sub_nodes(typ=uni.Import))
-            );
-            for imp in candidates {
+            if isinstance(stmt, uni.Import) {
+                continue;
+            }
+            for imp in stmt.get_all_sub_nodes(typ=uni.Import) {
                 if id(imp) not in seen {
                     seen.add(id(imp));
                     result.append(imp);
