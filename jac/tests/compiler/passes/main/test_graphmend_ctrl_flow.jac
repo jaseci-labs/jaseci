@@ -266,8 +266,13 @@ test "nested guard in a data-dependent branch composes trap + predication" {
     assert "out.copy_(torch.where(__gm_cond_0," in src;
     # ...and the inner validation guard is lowered to a graph-native assert,
     # re-gated on the branch predicate so it only fires when the branch is taken.
-    assert "torch._assert_async(" in src;
-    assert "torch.logical_or(torch.logical_not(__gm_cond_0), (x == y).all())" in src;
+    assert "__jac_tensor_bool_assert__(" in src;
+    # as_tensor keeps the gate total: the .all() match is structural, so the
+    # check is not provably a tensor and torch.logical_or rejects a Python bool.
+    assert (
+        "torch.logical_or(torch.logical_not(__gm_cond_0), torch.as_tensor((x == y).all()))"
+        in src
+    );
     # no raw control flow / raise survives -- one contiguous graph.
     assert "raise ValueError" not in src;
     assert "if x.sum()" not in src;
@@ -277,7 +282,7 @@ test "nested guard in a data-dependent branch composes trap + predication" {
 test "nested-compound break preserved when graphmend disabled" {
     src = _pysrc("nested_guard_in_branch.jac", False);
     assert "torch.where(" not in src;
-    assert "torch._assert_async(" not in src;
+    assert "__jac_tensor_bool_assert__(" not in src;
     assert "raise ValueError('x and y must match')" in src;
     assert "if not (x == y).all():" in src;
 }

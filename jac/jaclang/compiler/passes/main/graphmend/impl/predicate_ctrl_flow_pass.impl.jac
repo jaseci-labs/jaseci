@@ -331,6 +331,9 @@ impl PredicateCtrlFlowPass._is_assert_async(stmt: uni.UniNode) -> bool {
         return False;
     }
     t = call.target;
+    if isinstance(t, uni.Name) and (t.value == '__jac_tensor_bool_assert__') {
+        return True;
+    }
     return (
         isinstance(t, uni.AtomTrailer)
         and isinstance(t.right, uni.Name)
@@ -381,7 +384,8 @@ impl PredicateCtrlFlowPass._gate_asserts(
         gate: uni.Expr = (
             self._torch_call(s, 'logical_not', [cref]) if taken_when_true else cref
         );
-        new_check = self._torch_call(s, 'logical_or', [gate, check]);
+        tensor_check = self._torch_call(s, 'as_tensor', [check]);
+        new_check = self._torch_call(s, 'logical_or', [gate, tensor_check]);
         new_params = [new_check] + list(call.params[1:]);
         new_call = uni.FuncCall(
             target=call.target,

@@ -3,9 +3,10 @@ that ALSO contains a tensor-bool validation guard (`if not ...: raise`).
 
 This requires two transformations to compose. TrapLoweringPass must run before
 PredicateCtrlFlowPass so the guard is first lowered to a graph-native
-`torch._assert_async` (removing the `raise`); predication can then hoist the
+`__jac_tensor_bool_assert__` (removing the `raise`); predication can then hoist the
 branch setups and merge the shared trailing call. The hoisted assert is re-gated
-onto the branch predicate (`torch.logical_or(torch.logical_not(cond), check)`)
+onto the branch predicate (`torch.logical_or(torch.logical_not(cond),
+torch.as_tensor(check))`)
 so it still only fires when the branch is taken -- preserving semantics."""
 import torch;
 
