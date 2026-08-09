@@ -213,6 +213,14 @@ test "a shadowed pure builtin in the initializer is declined" {
     assert "if seq_len > 8:" in src;
 }
 
+test "a recursive initializer helper is declined" {
+    src = _pysrc("guard_recursive_init.jac", True);
+    # Each helper body is clean, but the call graph has a cycle; termination
+    # of the speculated call is unprovable, so the hoist declines.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
 test "an initializer helper that writes an attribute is declined" {
     src = _pysrc("guard_helper_write.jac", True);
     # The helper neither raises nor calls anything impure, but it assigns

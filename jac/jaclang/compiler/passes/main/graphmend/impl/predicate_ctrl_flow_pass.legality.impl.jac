@@ -195,7 +195,7 @@ impl PredicateCtrlFlowPass._body_pure_nonraising(
 ) -> bool {
     marks = seen if seen is not None else set();
     if id(fn) in marks {
-        return True;
+        return False;
     }
     marks.add(id(fn));
     varkw = self._varkw_name(fn);

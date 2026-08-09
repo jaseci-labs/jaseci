@@ -346,7 +346,28 @@ alone is not sufficient; five conditions must hold:
   needs a receiver that is itself a pure call, so
   `torch.arange(...).float().to(device)` is accepted while `session.clone()`
   or `store.get(k)` is not: those names are no-ops on a tensor and arbitrary
-  work on anything else. The consequence is stated under residuals below.
+  work on anything else. Helper bodies must also be write-clean: assignments
+  may target bare local names only, and never a name that is also bound at
+  module scope, since `global x` lowers to a no-op in the IR and the
+  module-scope collision is the decidable proxy for a global write. A cycle
+  in the helper call graph declines outright: every body in the cycle is
+  still scanned, but termination of the speculated call is unprovable, and a
+  nonterminating speculation raises `RecursionError` on a path the original
+  never executed. The consequence of the receiver rule is stated under
+  residuals below.
+
+  Two assumptions in G5 are declared rather than proven, because no static
+  analysis of the source can discharge them. First, an allowlisted
+  `torch`/`math` operation is assumed non-raising for the argument values
+  the speculated call actually receives; `torch.arange(0, n, step)` raises
+  for `step == 0`, and value-level reachability is beyond a source-level
+  must-analysis. Second, the memoizing write is assumed to land in a plain
+  attribute slot: a class that intercepts it with a property setter or a
+  `__setattr__` override turns the write into a call this pass cannot see
+  from the module it compiles. Both assumptions hold for the transformers
+  rope idiom this analysis targets; a model that violates either can make
+  the untaken path raise or mutate. The scoped-import work, which sees whole
+  packages, can convert the setter assumption into a checked decline.
 
 ### Caveat: speculated memoization is a state change, not a no-op
 
