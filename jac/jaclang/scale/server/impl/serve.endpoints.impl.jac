@@ -392,7 +392,7 @@ impl JacAPIServerEndpoints.create_webhook_callback(
         }
 
         if not self.get_api_key_manager().check_rate_limit(
-            key_doc.get('_id', ''), rate_limit
+            key_doc.get('api_key_id', ''), rate_limit
         ) {
             return TransportResponse.fail(
                 code='RATE_LIMITED',

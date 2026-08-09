@@ -9,7 +9,6 @@ import from .config.config_loader { get_scale_config }
 import from .events.streams.postgres { PgEventStream }
 
 import from .persistence.pg { shared_store as _pg_anchor }
-import from .persistence.docdb { PgDocDb as _docdb_anchor }
 import from .state.pg_state_backend { PgStateBackend as _state_anchor }
 import from jaclang.runtimelib.server { UserManager }
 import from jaclang.runtimelib.storage { Storage }

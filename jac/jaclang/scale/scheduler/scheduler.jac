@@ -1,3 +1,4 @@
+import json;
 import logging;
 import datetime;
 import from typing { Any }
@@ -10,7 +11,7 @@ import from jaclang.scale._optdeps.apscheduler {
 }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.runtimelib.scheduler { Scheduler, ScheduleTrigger }
-import from jaclang.scale.persistence.docdb { open_doc_db }
+import from jaclang.scale.persistence.pg { open_docs_store }
 
 glob _jaclang_scale_scheduler: (JacScaleScheduler | None) = None,
      logger = logging.getLogger(__name__);
@@ -30,11 +31,10 @@ obj JobStore {
     def record_run(job_id: str, status: str, error: str | None = None) -> None;
 }
 
-obj MongoJobStore(JobStore) {
-    has _db: Any,
+obj PgJobStore(JobStore) {
+    has store: Any,
         _collection: str;
 
-    def postinit -> None;
     def insert(job: dict) -> str;
     def find_active(
         limit: int | None = None,
