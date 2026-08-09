@@ -390,6 +390,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _jac_optional_type(payload: ir.Type) -> ir.Type;
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None);
     def _opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None);
+    def _narrowed_flow_type(nd: uni.UniNode) -> (any | None);
+    def _narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool;
+    def _apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Value;
     def _scan_closure_escapes(nd: uni.UniNode, body: (list | tuple)) -> None;
     def _closure_sig_struct(fnty: ir.FunctionType) -> tuple;
     def _closure_struct_of(val_type: ir.Type) -> (str | None);

@@ -121,6 +121,12 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
                 self._mark_owned(_result);
             }
         }
+
+        _narrowed = self._apply_flow_narrowing(nd, _result);
+        if _narrowed is not _result {
+            _narrowed.jac_loc = _jac_loc;
+            _result = _narrowed;
+        }
     }
     return _result;
 }
