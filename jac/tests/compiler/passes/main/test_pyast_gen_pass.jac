@@ -624,7 +624,7 @@ test "leaked multi-statement lambda hoists emit E5098" {
     entry_stmt = mod.body[0];
     fake_def = pyast_pass.sync(
         ast3.FunctionDef(
-            name='__jac_lambda_99',
+            name='_jac_lambda_99',
             args=ast3.arguments(
                 posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]
             ),
@@ -635,7 +635,7 @@ test "leaked multi-statement lambda hoists emit E5098" {
         ),
         jac_node=entry_stmt
     );
-    pyast_pass._hoisted_funcs = [fake_def];
+    pyast_pass._hoist_frames = [[fake_def]];
     pyast_pass._report_leaked_hoisted_lambdas();
     leaked = [
         alrt
@@ -645,5 +645,6 @@ test "leaked multi-statement lambda hoists emit E5098" {
     assert leaked , (
         f"expected E5098 for leaked hoisted lambda, got: {prog.errors_had}"
     );
-    assert not pyast_pass._hoisted_funcs , "leaked hoists should be cleared";
+    assert not pyast_pass._hoist_frames
+        or all(len(f) == 0 for f in pyast_pass._hoist_frames) , "leaked hoists should be cleared";
 }

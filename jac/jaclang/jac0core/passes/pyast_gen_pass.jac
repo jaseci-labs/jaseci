@@ -86,7 +86,8 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
         builtin_imports: set[str] postinit,
         typing_imports: set[str] postinit,
         _temp_name_counter: int = 0,
-        _hoisted_funcs: list[ast3.FunctionDef | ast3.AsyncFunctionDef] = [],
+        _lambda_counter: int = 0,
+        _hoist_frames: list[list[ast3.FunctionDef | ast3.AsyncFunctionDef]] postinit,
         child_passes: list[PyastGenPass] postinit,
         preamble: list[ast3.AST] postinit,
         jsx_processor: PyJsxProcessor postinit;
@@ -149,6 +150,24 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
         filename_hint: str
     ) -> ast3.Name;
 
+    def _next_lambda_name -> str;
+    def _push_hoist_frame -> None;
+    def _hoist_lambda(func_def: (ast3.FunctionDef | ast3.AsyncFunctionDef)) -> None;
+    def _ancestor_is_one_of(
+        nd: (uni.UniNode | None), roots: list[uni.UniNode]
+    ) -> bool;
+
+    def _split_scope_hoists(
+        hoists: list[ast3.FunctionDef | ast3.AsyncFunctionDef],
+        sig_roots: list[uni.UniNode]
+    ) -> tuple[
+        (
+            list[ast3.FunctionDef | ast3.AsyncFunctionDef],
+            list[ast3.FunctionDef | ast3.AsyncFunctionDef]
+        )
+    ];
+
+    def _drain_module_hoists -> list[ast3.FunctionDef | ast3.AsyncFunctionDef];
     def _report_leaked_hoisted_lambdas -> None;
     def _get_sem_decorator(nd: uni.UniNode) -> (ast3.Call | None);
     def py_ast_val(nd: uni.UniNode) -> ast3.AST;
@@ -175,6 +194,7 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
     def exit_type_param(nd: uni.TypeParam) -> None;
     def exit_type_alias(nd: uni.TypeAlias) -> None;
     def exit_global_vars(nd: uni.GlobalVars) -> None;
+    def enter_test(nd: uni.Test) -> None;
     def exit_test(nd: uni.Test) -> None;
     def exit_module_code(nd: uni.ModuleCode) -> None;
     def exit_py_inline_code(nd: uni.PyInlineCode) -> None;
