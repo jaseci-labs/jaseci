@@ -128,6 +128,7 @@ impl JacCompiler.get_bytecode(
 ) -> (types.CodeType | None) {
     actual_program = self._resolve_program(full_target, target_program);
     (rebuild, no_precompile) = cache_mode();
+    symtab_only_recovery = False;
 
     if (
         (not rebuild)
@@ -137,6 +138,13 @@ impl JacCompiler.get_bytecode(
         actual_program.invalidate_module(full_target);
     }
     if (
+        (not rebuild)
+        and (full_target in actual_program.mod.hub)
+        and not actual_program.mod.hub[full_target].gen.py_bytecode
+    ) {
+        actual_program.invalidate_module(full_target);
+        symtab_only_recovery = True;
+    } elif (
         (not rebuild)
         and (full_target in actual_program.mod.hub)
         and actual_program.mod.hub[full_target].gen.py_bytecode
@@ -199,6 +207,8 @@ impl JacCompiler.get_bytecode(
                 }
             } else {
                 cache_path.unlink(missing_ok=True);
+                actual_program.invalidate_module(full_target);
+                symtab_only_recovery = True;
             }
         } except Exception {
             ;
@@ -246,7 +256,7 @@ impl JacCompiler.get_bytecode(
             sys.modules['jaclang.compiler.type_system.type_evaluator'], 'TypeEvaluator'
         )
     );
-    options = CompileOptions(type_check=can_typecheck);
+    options = CompileOptions(type_check=can_typecheck and not symtab_only_recovery);
     result: (uni.Module | None) = None;
     try {
         result = self.compile(
