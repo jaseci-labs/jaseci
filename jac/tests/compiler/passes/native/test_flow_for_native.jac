@@ -1,10 +1,9 @@
 """flow for runtime semantics (#7857 Phase C/D surface).
 
 Per-element body over lent collections with the join at the closing
-brace: element writes through `&mut` are visible after the join, output
-is deterministic and byte-identical across gc modes (execution is
-currently the same degenerate sequential lowering as native `flow`
-calls, so erasure holds by construction).
+brace: element writes through `&mut` are visible after the join.
+Post-join printing uses a plain `for` loop so stdout stays deterministic
+even when `--gc rc` fans the `flow for` body out over pthreads.
 """
 
 import os;

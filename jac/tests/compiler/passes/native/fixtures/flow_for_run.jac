@@ -6,22 +6,29 @@ obj P {
     has x: int = 0;
 }
 
+obj N {
+    has v: int = 0;
+}
+
 with entry {
     ps: list[P] = [P(x=1), P(x=2), P(x=3)];
     flow for m in &mut ps {
         m.x = m.x * 10;
     }
-    flow for m in &ps {
+    for m in ps {
         print(m.x);
     }
 }
 
-glob xs = [4, 5],
+glob nums = [N(v=4), N(v=5)],
      k = 2;
 
 with entry {
-    flow for v in &xs {
-        print(v * k);
+    flow for n in &mut nums {
+        n.v = n.v * k;
+    }
+    for n in nums {
+        print(n.v);
     }
     print("end");
 }
