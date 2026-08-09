@@ -130,6 +130,7 @@ obj CompileOptions {
             aot_mode=True,
             default_codespace='native',
             force_target_program=True,
+            no_ir_cache=self.no_ir_cache,
             na_gc_mode=self.na_gc_mode,
             nogc_enforce_all=self.nogc_enforce_all,
             nogc_enforce_modules=list(self.nogc_enforce_modules or []),
