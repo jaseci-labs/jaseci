@@ -483,7 +483,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _lower_function_type(t: any) -> ir.Type;
     def _type_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _enum_name_of(expr: (uni.UniNode | None)) -> (str | None);
-    def _ensure_enum_lowered(t: any) -> bool;
+    def _ensure_enum_lowered(t: any) -> (ir.Type | None);
+    def _class_form_enum_self_type(arch_name: str) -> (ir.Type | None);
+    def _codegen_class_form_enum_member(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _tuple_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _dict_key_of(expr: (uni.UniNode | None)) -> (str | None);
@@ -568,7 +570,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         base: ir.Value, exp: ir.Value, exp_node: (uni.Expr | None) = None
     ) -> ir.Value;
 
-    def _codegen_enum(nd: uni.Enum) -> None;
+    def _codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None;
     def _build_enum_string_table(
         enum_name: str, entries: list, with_values: bool = True
     ) -> None;
