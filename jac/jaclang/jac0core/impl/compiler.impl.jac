@@ -198,8 +198,6 @@ impl JacCompiler.get_bytecode(
                     return marshal.loads(bc);
                 }
             } else {
-                # Symtab-only JIR (no SEC_BYTECODE) is valid for type-checking but
-                # must not satisfy runtime import; drop it so full compile can run.
                 cache_path.unlink(missing_ok=True);
             }
         } except Exception {
@@ -238,7 +236,6 @@ impl JacCompiler.get_bytecode(
     }
     can_typecheck = (
         is_internal
-        and '/compiler/tests/' not in os.path.normpath(full_target).replace(os.sep, '/')
         and 'jaclang.compiler.passes.main.type_checker_pass' in sys.modules
         and 'jaclang.compiler.type_system.type_evaluator' in sys.modules
         and hasattr(
