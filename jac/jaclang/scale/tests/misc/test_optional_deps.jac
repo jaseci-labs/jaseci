@@ -14,20 +14,16 @@ test "require_optional does not raise for installed stdlib package" {
     require_optional("json", "serve");
 }
 
-test "require_optional does not raise for installed package" {
-    require_optional("sqlalchemy", "serve");
-}
-
 test "require_optional raises ImportError for missing package" {
     raised = False;
     try {
-        require_optional("nonexistent_package_xyz", "data.mongo");
+        require_optional("nonexistent_package_xyz", "storage.s3");
     } except ImportError as e {
         raised = True;
         assert "nonexistent_package_xyz" in str(e);
         # capability-oriented message sourced from the core registry; the old
         # jac-scale[...] extras taxonomy is gone.
-        assert "data.mongo" in str(e);
+        assert "storage.s3" in str(e);
         assert "jac install" in str(e);
         assert "jac-scale[" not in str(e);
     }
@@ -48,7 +44,6 @@ test "require_optional error names the capability, not a pip extra" {
 
 test "is_optional_available returns True for installed package" {
     assert is_optional_available("json") is True;
-    assert is_optional_available("sqlalchemy") is True;
 }
 
 test "is_optional_available returns False for missing package" {
@@ -178,7 +173,7 @@ test "deployment factory requires kubernetes for k8s target" {
 test "require_optional with empty package name raises" {
     raised = False;
     try {
-        require_optional("", "data.mongo");
+        require_optional("", "storage.s3");
     } except ImportError {
         raised = True;
     }

@@ -20,8 +20,7 @@ import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.sso.provider { SSOProvider, SSOUserInfo }
 import from jaclang.scale.identity.identity_storage {
     IdentityStorage,
-    PgIdentityStorage,
-    SqliteIdentityStorage
+    PgIdentityStorage
 }
 import from jaclang.jac0core.constant { Constants as Con }
 
