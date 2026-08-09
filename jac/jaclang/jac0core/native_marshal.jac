@@ -413,7 +413,7 @@ def _marshal_dict(
     if (ret_keys is None and func_layout is not None) {
         ret_keys = func_layout?.ret_elem_keys;
     }
-    _hl = layout_str_header_stamped(layout);
+    _hs = layout_str_header_stamped(layout);
     key_as_str = bool(
         key_name == "ptr" and ret_keys and len(ret_keys) == 2 and ret_keys[0] == "str"
     );
@@ -427,13 +427,13 @@ def _marshal_dict(
         if 0 <= int(s) and int(s) < cap
     ];
     dkeys = _decode_scalar_at(
-        nd.keys, slots, key_name, as_str=key_as_str, header_stamped=_hl
+        nd.keys, slots, key_name, as_str=key_as_str, header_stamped=_hs
     );
     if val_name == "jacval" {
-        dvals = _decode_jacval_at(nd.vals, slots, header_stamped=_hl);
+        dvals = _decode_jacval_at(nd.vals, slots, header_stamped=_hs);
     } else {
         dvals = _decode_scalar_at(
-            nd.vals, slots, val_name, as_str=val_as_str, header_stamped=_hl
+            nd.vals, slots, val_name, as_str=val_as_str, header_stamped=_hs
         );
     }
     return dict(zip(dkeys, dvals));
