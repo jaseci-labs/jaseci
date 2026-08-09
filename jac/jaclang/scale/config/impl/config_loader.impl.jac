@@ -18,11 +18,9 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'firebase': {'project_id': ''}
         },
         'database': {
-            'type': None,
-            'project_id': None,
             'url': None,
             'deploy_mode': 'image',
-            'postgres_image': 'postgres:18',
+            'postgres_image': 'postgres:19',
             'postgres_storage': '2Gi'
         },
         'websocket': {
@@ -38,7 +36,6 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'namespace': 'default',
             'container_port': 8000,
             'postgres_enabled': True,
-            'postgres_storage_size': '2Gi',
             'ingress_node_port': 30080,
             'ingress_limit_rps': 20,
             'ingress_limit_burst_multiplier': 5,
@@ -187,10 +184,9 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     config = self.load();
     db_config = config.get('database', {});
     return {
-        'type': db_config.get('type'),
         'url': os.environ.get('JAC_DB_URL') or db_config.get('url'),
         'deploy_mode': db_config.get('deploy_mode', 'image'),
-        'postgres_image': db_config.get('postgres_image', 'postgres:18'),
+        'postgres_image': db_config.get('postgres_image', 'postgres:19'),
         'postgres_storage': db_config.get('postgres_storage', '2Gi')
     };
 }

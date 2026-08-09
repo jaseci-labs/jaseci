@@ -3,8 +3,6 @@ import from jaclang.scale._optdeps.optional_deps {
     require_optional,
     is_optional_available
 }
-import from jaclang.scale._optdeps.pymongo { HAS_PYMONGO, MongoClient }
-import from jaclang.scale._optdeps.redis { HAS_REDIS, Redis }
 import from jaclang.scale._optdeps.prometheus { HAS_PROMETHEUS, Counter }
 import from jaclang.scale._optdeps.apscheduler { HAS_APSCHEDULER, BackgroundScheduler }
 import from jaclang.scale._optdeps.kubernetes { HAS_KUBERNETES, client as k8s_client }
@@ -51,8 +49,6 @@ test "is_optional_available returns False for missing package" {
 }
 
 test "HAS flags are booleans" {
-    assert isinstance(HAS_PYMONGO, bool);
-    assert isinstance(HAS_REDIS, bool);
     assert isinstance(HAS_PROMETHEUS, bool);
     assert isinstance(HAS_APSCHEDULER, bool);
     assert isinstance(HAS_KUBERNETES, bool);
@@ -60,28 +56,17 @@ test "HAS flags are booleans" {
 }
 
 test "HAS flags match is_optional_available" {
-    assert HAS_PYMONGO == is_optional_available("pymongo");
-    assert HAS_REDIS == is_optional_available("redis");
     assert HAS_PROMETHEUS == is_optional_available("prometheus_client");
     assert HAS_APSCHEDULER == is_optional_available("apscheduler");
     assert HAS_KUBERNETES == is_optional_available("kubernetes");
     assert HAS_GCS == is_optional_available("google.cloud.storage");
 }
 
-test "pymongo exports are real when installed" {
-    if HAS_PYMONGO {
-        assert MongoClient is not None;
-        assert callable(MongoClient);
-    } else {
-        assert MongoClient is None;
-    }
-}
-
-test "redis exports are real when installed" {
-    if HAS_REDIS {
-        assert Redis is not None;
-    } else {
-        assert Redis is None;
+test "retired database shims are gone (#8000)" {
+    import importlib.util;
+    for shim in ["pymongo", "redis", "firestore"] {
+        spec = importlib.util.find_spec(f"jaclang.scale._optdeps.{shim}");
+        assert spec is None , f"_optdeps.{shim} should have been deleted";
     }
 }
 
@@ -185,13 +170,9 @@ test "is_optional_available with empty string returns False" {
 }
 
 test "compat modules are always importable" {
-    import jaclang.scale._optdeps.pymongo;
-    import jaclang.scale._optdeps.redis;
     import jaclang.scale._optdeps.prometheus;
     import jaclang.scale._optdeps.apscheduler;
     import jaclang.scale._optdeps.kubernetes;
-    assert hasattr(jaclang.scale._optdeps.pymongo, "HAS_PYMONGO");
-    assert hasattr(jaclang.scale._optdeps.redis, "HAS_REDIS");
     assert hasattr(jaclang.scale._optdeps.prometheus, "HAS_PROMETHEUS");
     assert hasattr(jaclang.scale._optdeps.apscheduler, "HAS_APSCHEDULER");
     assert hasattr(jaclang.scale._optdeps.kubernetes, "HAS_KUBERNETES");

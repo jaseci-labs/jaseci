@@ -67,11 +67,6 @@ class JacScalePluginConfig {
                     "default": {},
                     "description": "Database connection configuration",
                     "nested": {
-                        "type": {
-                            "type": "string",
-                            "default": None,
-                            "description": "Optional database backend metadata (postgres)"
-                        },
                         "url": {
                             "type": "string",
                             "default": None,
@@ -84,7 +79,7 @@ class JacScalePluginConfig {
                         },
                         "postgres_image": {
                             "type": "string",
-                            "default": "postgres:18",
+                            "default": "postgres:19",
                             "description": "Image used in deploy_mode='image'."
                         },
                         "postgres_storage": {

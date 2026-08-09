@@ -181,7 +181,6 @@ obj PvcInjector(Injector) {
         storage_class: str = "",
         access_mode: str = "ReadWriteMany",
         loader_image: str = "busybox:1.36",
-        provisioned_database: str = "",
         _object_key: str = "",
         _bundle_bytes: bytes = b"";
 
@@ -196,7 +195,6 @@ obj PvcInjector(Injector) {
     def prepare(app_name: str, namespace: str, project_dir: str) {
         raw = pack_jab(
             project_dir,
-            self.provisioned_database,
             getattr(self, "_seal_binary_bytes", b""),
             getattr(self, "_pod_arch", "")
         );
