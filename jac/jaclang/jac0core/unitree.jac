@@ -1793,3 +1793,12 @@ def _decode_str_escapes(text: str) -> str {
     }
     return ''.join(out);
 }
+
+"""Escape semantic f-string interior for Jac source emission.
+
+FString String nodes store decoded semantic content (single braces).
+Unparse and doc IR must re-escape braces and ``#`` when emitting Jac text.
+"""
+def fstring_escape_interior(value: str) -> str {
+    return value.replace("{", "{{").replace("}", "}}").replace("#", "\\#");
+}

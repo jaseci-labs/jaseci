@@ -1251,8 +1251,6 @@ impl PyastBuildPass.proc_continue(nd: py_ast.Continue) -> uni.CtrlStmt {
 
 impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> uni.Expr {
     type_mapping = {
-        int: uni.Int,
-        float: uni.Float,
         str: uni.String,
         bytes: uni.String,
         bool: uni.Bool,
@@ -1261,8 +1259,12 @@ impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> uni.Expr {
     value_type = type(nd.value);
     if (value_type is complex) {
         return self._emit_complex_call(nd, nd.value.real, nd.value.imag);
+    } elif (value_type is int) {
+        return self._make_number_literal(nd, 'INT', str(nd.value));
+    } elif (value_type is float) {
+        return self._make_number_literal(nd, 'FLOAT', str(nd.value));
     } elif (value_type in type_mapping) {
-        if (value_type is None) {
+        if (value_type is type(None)) {
             token_type = 'NULL';
         } elif (value_type is str) {
             token_type = 'STRING';
@@ -2220,31 +2222,31 @@ impl PyastBuildPass._fstring_constant_content(
     return repr(nd.value)[1:-1];
 }
 
-impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
-    if n == int(n) {
-        return uni.Int(
-            orig_src=self.orig_src,
-            name='INT',
-            value=str(int(n)),
-            line=nd.lineno,
-            end_line=nd.end_lineno or nd.lineno,
-            col_start=nd.col_offset,
-            col_end=nd.col_offset,
-            pos_start=0,
-            pos_end=0
-        );
-    }
-    return uni.Float(
+impl PyastBuildPass._make_number_literal(
+    nd: py_ast.AST, token: str, value: str, col_end: int | None = None
+) -> uni.Expr {
+    node_type = uni.Int if token == 'INT' else uni.Float;
+    end_col = col_end if col_end is not None else (nd.col_offset + len(value));
+    return node_type(
         orig_src=self.orig_src,
-        name='FLOAT',
-        value=str(n),
+        name=token,
+        value=value,
         line=nd.lineno,
         end_line=nd.end_lineno or nd.lineno,
         col_start=nd.col_offset,
-        col_end=nd.col_offset,
+        col_end=end_col,
         pos_start=0,
         pos_end=0
     );
+}
+
+impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
+    if n == int(n) {
+        return self._make_number_literal(
+            nd, 'INT', str(int(n)), col_end=nd.col_offset
+        );
+    }
+    return self._make_number_literal(nd, 'FLOAT', str(n), col_end=nd.col_offset);
 }
 
 impl PyastBuildPass._float_from_literal(expr: uni.Expr) -> (float | None) {
@@ -2311,15 +2313,32 @@ impl PyastBuildPass._try_fold_complex_binop(
         return None;
     }
     left_num = self._float_from_literal(left);
+    right_num = self._float_from_literal(right);
+    left_parts = self._complex_from_func_call(left);
     right_parts = self._complex_from_func_call(right);
-    if (left_num is None) or (right_parts is None) {
-        return None;
+    if (left_num is not None) and (right_parts is not None) {
+        (c_re, c_im) = right_parts;
+        if op.value == '+' {
+            return self._emit_complex_call(nd, left_num + c_re, c_im);
+        }
+        return self._emit_complex_call(nd, left_num - c_re, -c_im);
     }
-    (c_re, c_im) = right_parts;
-    if op.value == '+' {
-        return self._emit_complex_call(nd, left_num + c_re, c_im);
+    if (left_parts is not None) and (right_num is not None) {
+        (c_re, c_im) = left_parts;
+        if op.value == '+' {
+            return self._emit_complex_call(nd, c_re + right_num, c_im);
+        }
+        return self._emit_complex_call(nd, c_re - right_num, c_im);
     }
-    return self._emit_complex_call(nd, left_num - c_re, -c_im);
+    if (left_parts is not None) and (right_parts is not None) {
+        (l_re, l_im) = left_parts;
+        (r_re, r_im) = right_parts;
+        if op.value == '+' {
+            return self._emit_complex_call(nd, l_re + r_re, l_im + r_im);
+        }
+        return self._emit_complex_call(nd, l_re - r_re, l_im - r_im);
+    }
+    return None;
 }
 
 impl PyastBuildPass._strip_string_continuations(seg: str) -> str {

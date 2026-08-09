@@ -292,8 +292,7 @@ impl DocIRGenPass.exit_special_var_ref(nd: uni.SpecialVarRef) -> None {
 
 impl DocIRGenPass.exit_string(nd: uni.String) -> None {
     if nd.parent and isinstance(nd.parent, uni.FString) {
-        escaped = nd.value.replace("{", "{{").replace("}", "}}").replace("#", "\\#");
-        nd.gen.doc_ir = self.text(escaped, source_token=nd);
+        nd.gen.doc_ir = self.text(fstring_escape_interior(nd.value), source_token=nd);
         return;
     }
     nd.gen.doc_ir = self.text(nd.value, source_token=nd);

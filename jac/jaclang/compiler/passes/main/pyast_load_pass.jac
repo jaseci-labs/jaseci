@@ -30,6 +30,9 @@ obj PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]) {
     def _strip_string_continuations(seg: str) -> str;
     def _fstring_constant_content(nd: py_ast.Constant, is_raw: bool) -> str;
     def _fstring_semantic_interior(segment: str) -> str;
+    def _make_number_literal(
+        nd: py_ast.AST, token: str, value: str, col_end: int | None = None
+    ) -> uni.Expr;
     def _numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr;
     def _float_from_literal(expr: uni.Expr) -> (float | None);
     def _complex_from_func_call(expr: uni.Expr) -> ((float, float) | None);

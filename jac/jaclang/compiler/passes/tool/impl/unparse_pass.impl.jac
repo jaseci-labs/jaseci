@@ -53,8 +53,7 @@ impl UnparsePass.exit_name(nd: uni.Name) -> None {
 
 impl UnparsePass.exit_string(nd: uni.String) -> None {
     if nd.parent and isinstance(nd.parent, uni.FString) {
-        escaped = nd.value.replace("{", "{{").replace("}", "}}");
-        nd.gen.jac = escaped.replace("#", "\\#");
+        nd.gen.jac = fstring_escape_interior(nd.value);
     } else {
         nd.gen.jac = nd.value;
     }

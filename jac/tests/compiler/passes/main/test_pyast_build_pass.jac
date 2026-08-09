@@ -200,12 +200,78 @@ test "py2jac complex literals" {
     assert "complex(1, 2)" in code , f"Expected 1+2j as complex(1, 2) in:\n{code}";
     assert "complex(-1, -2)" in code , f"Expected -1-2j as complex(-1, -2) in:\n{code}";
     assert "complex(3, 0)" in code , f"Expected 3+0j as complex(3, 0) in:\n{code}";
+    assert "complex(1, 2)" in code , f"Expected 2j+1 as complex(1, 2) in:\n{code}";
+    assert "complex(4, 2)" in code , f"Expected 1+2j+3 as complex(4, 2) in:\n{code}";
+    assert "complex(-1, 2)" in code , f"Expected 2j-1 as complex(-1, 2) in:\n{code}";
+    assert "complex(0, 2) + 1" not in code , (
+        f"Reversed complex add must fold, got native-broken binop in:\n{code}"
+    );
+    assert "complex(1, 2) + 3" not in code , (
+        f"Nested complex add must fold, got native-broken binop in:\n{code}"
+    );
 
     prog = JacProgram.jac_str_formatter(
         source_str=code, file_path="py2jac_complex.py", auto_lint=False
     );
     assert len(prog.errors_had) == 0 , (
         f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+}
+
+"""None constants must emit NULL token, not NONETYPE."""
+test "py2jac null constant" {
+    source = "def f() -> None:\n    return None\n";
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(source), orig_src=Source(source, "py2jac_null.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse();
+    assert "return None" in code , f"Expected None literal in:\n{code}";
+    prog = JacProgram.jac_str_formatter(
+        source_str=code, file_path="py2jac_null.py", auto_lint=False
+    );
+    assert len(prog.errors_had) == 0 , (
+        f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+}
+
+"""Complex py2jac output must lower to native without E1055 overload errors."""
+test "py2jac complex literals native lowering" {
+    import pytest;
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.jac0core.compiler { native_pipeline_available }
+    (pipeline_ok, pipeline_reason) = native_pipeline_available();
+    if not pipeline_ok {
+        pytest.skip(pipeline_reason);
+    }
+    with open(os.path.join(FIXTURES, "py2jac_complex.py")) as f {
+        file_source = f.read();
+    }
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(file_source),
+            orig_src=Source(file_source, "py2jac_complex.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse();
+    prog = JacProgram();
+    mod = prog.compile(
+        file_path="py2jac_complex.jac",
+        use_str=code,
+        options=CompileOptions(
+            type_check=False,
+            force_codespace='native',
+            force_target_program=True,
+            skip_native_engine=True
+        )
+    );
+    assert not prog.errors_had , (
+        f"Native lowering errors: {[e.pretty_print() for e in prog.errors_had]}\n"
+            f"code:\n{code}"
+    );
+    assert mod.gen.llvm_ir is not None , (
+        "Expected native IR for folded complex literals"
     );
 }
 

@@ -14,3 +14,12 @@ def negative_complex():
 
 def complex_real_only():
     return 3 + 0j
+
+def reversed_add_complex():
+    return 2j + 1
+
+def nested_add_complex():
+    return 1 + 2j + 3
+
+def reversed_sub_complex():
+    return 2j - 1
