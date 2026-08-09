@@ -213,6 +213,14 @@ test "a shadowed pure builtin in the initializer is declined" {
     assert "if seq_len > 8:" in src;
 }
 
+test "a device move whose target the region never consumes is declined" {
+    src = _pysrc("where_unused_device_move.jac", True);
+    # The move license exists to put a value consumed by the merged call on
+    # the right device; an unconsumed target is a bare attribute mutation.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
 test "a recursive initializer helper is declined" {
     src = _pysrc("guard_recursive_init.jac", True);
     # Each helper body is clean, but the call graph has a cycle; termination

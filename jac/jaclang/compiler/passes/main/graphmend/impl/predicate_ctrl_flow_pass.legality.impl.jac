@@ -583,7 +583,7 @@ impl PredicateCtrlFlowPass._assignment_neutral(
     s: uni.Assignment, region: uni.IfStmt
 ) -> bool {
     if self._is_device_move(s) {
-        return True;
+        return self._move_consumed(s, region);
     }
     return (
         (s.value is not None)
@@ -607,6 +607,21 @@ impl PredicateCtrlFlowPass._is_device_move(s: uni.Assignment) -> bool {
     }
     recv = v.target.target;
     return (recv.unparse().replace(' ', '') == s.target[0].unparse().replace(' ', ''));
+}
+
+impl PredicateCtrlFlowPass._move_consumed(
+    s: uni.Assignment, region: uni.IfStmt
+) -> bool {
+    tgt = s.target[0].unparse().replace(' ', '');
+    for at in region.get_all_sub_nodes(uni.AtomTrailer) {
+        if self._within(at, s) {
+            continue;
+        }
+        if at.unparse().replace(' ', '') == tgt {
+            return True;
+        }
+    }
+    return False;
 }
 
 impl PredicateCtrlFlowPass._all_local_targets(

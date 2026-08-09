@@ -298,7 +298,15 @@ The licensed forms:
   branches would leave the second write standing for both, so the merged call
   would read the untaken branch's operand.
 - An idempotent device move `x = x.to(...)` where the target is textually the
-  receiver. Re-running it is a no-op.
+  receiver AND the region consumes the moved value afterwards. Re-running it
+  is a value no-op, and the consumption requirement is what earns the
+  license: the move exists to put an operand of the merged call on the right
+  device, which is also what makes the merged `torch.where` same-device
+  legal. A move whose target feeds nothing in the region is a bare attribute
+  mutation and declines. One residual joins the declared memoization family:
+  on executions that select the other branch, the moved attribute's device
+  placement (and object identity) advances earlier than the original
+  program's, while its values stay identical.
 - A lowered validation assert (`torch._assert_async(...)` produced by
   `TrapLoweringPass`). It is hoisted but re-gated on the branch predicate so
   it cannot fire on the untaken path: the check `C` becomes
