@@ -101,6 +101,8 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _signature_accepts(fn: uni.Ability, c: uni.FuncCall) -> bool;
     def _module_fn(mod: uni.Module, name: str) -> (uni.Ability | None);
     def _dispatch_table_fns(mod: uni.Module) -> list[uni.Ability];
+    def _impure_writes(fn: uni.Ability, mod: (uni.Module | None)) -> bool;
+    def _module_scope_names(mod: uni.Module) -> set[str];
     def _body_pure_nonraising(
         fn: uni.Ability,
         c: uni.FuncCall,

@@ -210,6 +210,9 @@ impl PredicateCtrlFlowPass._body_pure_nonraising(
         }
     }
     mod = fn.find_parent_of_type(uni.Module);
+    if self._impure_writes(fn, mod) {
+        return False;
+    }
     for call in fn.get_all_sub_nodes(uni.FuncCall) {
         if id(call) in raise_calls {
             continue;
@@ -230,6 +233,44 @@ impl PredicateCtrlFlowPass._body_pure_nonraising(
         }
     }
     return True;
+}
+
+impl PredicateCtrlFlowPass._impure_writes(
+    fn: uni.Ability, mod: (uni.Module | None)
+) -> bool {
+    outside = self._module_scope_names(mod) if mod is not None else set();
+    for a in fn.get_all_sub_nodes(uni.Assignment) {
+        for t in (a.target or []) {
+            targets = list(t.values) if isinstance(t, uni.TupleVal) else [t];
+            for tg in targets {
+                if not isinstance(tg, uni.Name) {
+                    return True;
+                }
+                if tg.value in outside {
+                    return True;
+                }
+            }
+        }
+    }
+    return False;
+}
+
+impl PredicateCtrlFlowPass._module_scope_names(mod: uni.Module) -> set[str] {
+    out: set[str] = set();
+    for a in mod.get_all_sub_nodes(uni.Assignment) {
+        if a.find_parent_of_type(uni.Ability) is not None {
+            continue;
+        }
+        for t in (a.target or []) {
+            targets = list(t.values) if isinstance(t, uni.TupleVal) else [t];
+            for tg in targets {
+                if isinstance(tg, uni.Name) {
+                    out.add(tg.value);
+                }
+            }
+        }
+    }
+    return out;
 }
 
 impl PredicateCtrlFlowPass._callsite_ctx(
