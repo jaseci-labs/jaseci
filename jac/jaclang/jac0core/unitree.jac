@@ -1733,41 +1733,11 @@ glob _STR_LIT_RE = re.compile(_STR_LIT_PAT);
 
 glob _STR_RUN_RE = re.compile(r'(?:[\s\\]*' + _STR_LIT_PAT + r')+[\s\\]*');
 
-def _split_adjacent_literals(text: str) -> list[str] {
+def _is_adjacent_literal_run(text: str) -> bool {
     if ((text.count('"') + text.count("'")) <= 2 or not _STR_RUN_RE.fullmatch(text)) {
-        return [];
+        return False;
     }
-    parts = _STR_LIT_RE.findall(text);
-    return parts if (len(parts) > 1) else [];
-}
-
-def _decode_one_literal(seg: str) -> str | bytes {
-    quote_at = 0;
-    while (quote_at < len(seg) and seg[quote_at] != '"' and seg[quote_at] != "'") {
-        quote_at += 1;
-    }
-    if (quote_at >= len(seg)) {
-        return seg;
-    }
-    if (quote_at > 0) {
-        if (set(seg[:quote_at].lower()) <= {'r', 'b', 'u'}) {
-            return eval(seg);
-        }
-        return seg;
-    }
-    inner = seg;
-    if (
-        (len(inner) >= 6)
-        and (
-            (inner.startswith('"""') and inner.endswith('"""'))
-            or (inner.startswith("'''") and inner.endswith("'''"))
-        )
-    ) {
-        inner = inner[3:-3];
-    } else {
-        inner = inner[1:-1];
-    }
-    return _decode_str_escapes(inner);
+    return (len(_STR_LIT_RE.findall(text)) > 1);
 }
 
 def _decode_str_escapes(text: str) -> str {

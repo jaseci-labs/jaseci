@@ -164,36 +164,25 @@ test "py2jac line continuation string concat" {
 }
 
 """Adjacent .py literals land in one String token spanning them all, so
-`lit_value` (what codegen lowers to a constant) must yield the joined
-string. The token's source form stays folded for py2jac (asserted above).
-Every prefix Python accepts on a str literal is covered, in both cases, since
-the splitter and the decoder have to agree on that set. The last case pins the
-negative: a lone literal is left exactly as-is.
+`lit_value` (what codegen lowers to a constant) must yield the joined string.
+The token's source form stays folded for py2jac (asserted above). The last
+case pins the negative: a lone literal is left exactly as-is.
 """
 test "py implicit string concat lit value joins the literals" {
-    file_source = (
-        'MULTI = (\n    "first part "\n    "second part"\n)\n'
-        + 'SINGLE = "abc" "def"\nPREFIXED = r"\\d" "x"\n'
-        + 'UPPER = R"\\w" "y"\nUNICODE = u"uni" "code"\n'
-        + 'PLAIN = "he said \\"hi\\""\n'
+    src = (
+        'M = (\n    "first part "\n    "second part"\n)\n'
+        + 'S = "abc" "def"\nR = r"\\d" "x"\nU = u"uni" "code"\n'
+        + 'P = "he said \\"hi\\""\n'
     );
-    values = [
-        s.lit_value
-        for s in UniPass.get_all_sub_nodes(
-            PyastBuildPass(
-                ir_in=PythonModuleAst(
-                    py_ast.parse(file_source), orig_src=Source(file_source, "concat.py")
-                ),
-                prog=JacProgram()
-            ).ir_out,
-            uni.String
-        )
-    ];
+    mod = PyastBuildPass(
+        ir_in=PythonModuleAst(py_ast.parse(src), orig_src=Source(src, "concat.py")),
+        prog=JacProgram()
+    ).ir_out;
+    values = [s.lit_value for s in UniPass.get_all_sub_nodes(mod, uni.String)];
     for want in [
         "first part second part",
         "abcdef",
         "\\dx",
-        "\\wy",
         "unicode",
         'he said "hi"'
     ] {

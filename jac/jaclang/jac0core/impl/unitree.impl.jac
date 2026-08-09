@@ -2514,15 +2514,33 @@ impl String.lit_value.getter -> str {
         }
         return _decode_str_escapes(self.value);
     }
-    adjacent = _split_adjacent_literals(self.value);
-    if adjacent {
-        decoded = [_decode_one_literal(part) for part in adjacent];
-        if (decoded and isinstance(decoded[0], `bytes)) {
-            return b"".join(decoded);
-        }
-        return "".join(decoded);
+    if _is_adjacent_literal_run(self.value) {
+        return eval('(' + self.value + ')');
     }
-    return _decode_one_literal(self.value);
+    if `any(
+        (
+            self.value.startswith(prefix)
+            and self.value[len(prefix):].startswith(("'", '"'))
+        ) for prefix in ['r', 'b', 'br', 'rb']
+    ) {
+        return eval(self.value);
+    } elif self.value.startswith(("'", '"')) {
+        inner = self.value;
+        if (
+            (len(inner) >= 6)
+            and (
+                (inner.startswith('"""') and inner.endswith('"""'))
+                or (inner.startswith("'''") and inner.endswith("'''"))
+            )
+        ) {
+            inner = inner[3:-3];
+        } else {
+            inner = inner[1:-1];
+        }
+        return _decode_str_escapes(inner);
+    } else {
+        return self.value;
+    }
 }
 
 impl Bool.lit_value.getter -> bool {
