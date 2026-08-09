@@ -1,16 +1,23 @@
-"""Coercion routing at the three unrouted native seams (N2).
+"""Coercion routing at optional-typed call and assignment seams (N2).
 
 `_coerce_type` already implements optional wrapping and checked
-unwrapping, but only local stores and decorated calls routed through it.
-This fixture pins the three seams that did not:
+unwrapping. Three use sites did not route through it, and the functions
+that pin them are:
 
-1. method call arguments, in both directions (a plain value into a
-   `T | None` parameter, and a narrowed `T | None` value into a `T`
-   parameter);
-2. method receivers, i.e. the idiomatic
-   `x: list[int] | None = None; x = []; x.append(1);` shape;
-3. tuple-unpack assignment stores, where a target's declared type needs a
-   wrap or an unwrap.
+1. `arg_unwrap_container`, `arg_unwrap_str`, `arg_join_unwrap` -- method
+   call arguments on the primitive dispatch path, where a narrowed
+   `T | None` argument used to reach an emitter that expects the payload;
+2. `opt_list_receiver`, `opt_list_receiver_guarded` -- method receivers,
+   i.e. the idiomatic `x: list[int] | None = None; x = []; x.append(1);`
+   shape;
+3. `unpack_wrap`, `unpack_unwrap` -- tuple-unpack assignment stores, where
+   a target's declared type needs a wrap or an unwrap.
+
+The remaining functions cover neighbouring coercions that already worked
+and are kept as native-vs-sv congruence guards: `arg_wrap`,
+`arg_wrap_none` and `arg_unwrap` call methods on a user obj, whose
+arguments are coerced against the callee's declared LLVM signature, and
+`arg_wrap_elem` leans on the list emitter's own element-type coercion.
 
 Every function returns an int so the native result can be compared
 against the same source run through the sv/bytecode pathway.
@@ -64,6 +71,47 @@ def arg_unwrap_container(flag: int) -> int {
     }
     out.extend(src);
     return len(out) * 100 + out[1] * 10 + out[3];
+}
+
+def arg_unwrap_str(flag: int) -> int {
+    t: str | None = None;
+    if flag > 0 {
+        t = "abc";
+    }
+    if t is None {
+        return -1;
+    }
+    s = "abcdef";
+    if s.startswith(t) {
+        return 1;
+    }
+    return 0;
+}
+
+def arg_join_unwrap(flag: int) -> int {
+    parts: list[str] | None = None;
+    if flag > 0 {
+        parts = ["ab", "cd"];
+    }
+    if parts is None {
+        return -1;
+    }
+    return len("-".join(parts));
+}
+
+def arg_wrap_elem(n: int) -> int {
+    xs: list[str | None] = [];
+    t: str = "abc";
+    xs.append(t);
+    xs.append(None);
+    v = xs[0];
+    if v is None {
+        return -1;
+    }
+    if xs[1] is not None {
+        return -2;
+    }
+    return len(v) * 10 + n;
 }
 
 def opt_list_receiver(n: int) -> int {

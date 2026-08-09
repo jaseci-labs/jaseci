@@ -1,10 +1,21 @@
-"""Congruence tests for coercion routing at three native seams (N2).
+"""Congruence tests for optional coercion at call and assignment seams (N2).
 
 `NaIRGenPass._coerce_type` implements optional wrapping and checked
-unwrapping, but call arguments, call receivers, and tuple-unpack stores
-did not route through it. Each test below writes the idiomatic jac that
-those seams used to reject and asserts the native result equals the
-result of the same fixture run through the sv/bytecode pathway.
+unwrapping. Three use sites did not route through it: method call
+arguments on the primitive dispatch path, method receivers, and
+tuple-unpack stores. The tests whose names begin "primitive call
+argument", "call receiver" and "unpack store" write the idiomatic jac
+those seams used to reject.
+
+The tests named "user obj call argument" and "primitive call argument:
+element wrap" pin coercions that already worked before that fix -- the
+first through the coercion loop against the callee's declared LLVM
+signature, the second through the list emitter's own element-type
+coercion. They are kept because they are cheap native-vs-sv congruence
+coverage, not because they pin the new routing.
+
+Every test asserts the native result equals the result of the same
+fixture run through the sv/bytecode pathway.
 """
 
 import ctypes;
@@ -48,7 +59,7 @@ def sv_module -> object {
     )[0];
 }
 
-test "call argument: a plain value wraps into an optional parameter" {
+test "user obj call argument: a plain value wraps into an optional parameter" {
     (eng, _) = compile_native("coercion_routing.jac");
     sv = sv_module();
     f = get_func(eng, "arg_wrap", ctypes.c_int64, ctypes.c_int64);
@@ -60,7 +71,7 @@ test "call argument: a plain value wraps into an optional parameter" {
     assert f(3) == 13 , "base 10 + 3 through the int|None parameter";
 }
 
-test "call argument: an explicit None reaches an optional parameter" {
+test "user obj call argument: an explicit None reaches an optional parameter" {
     (eng, _) = compile_native("coercion_routing.jac");
     sv = sv_module();
     f = get_func(eng, "arg_wrap_none", ctypes.c_int64);
@@ -68,7 +79,7 @@ test "call argument: an explicit None reaches an optional parameter" {
     assert f() == -1 , "None selects the None branch";
 }
 
-test "call argument: a narrowed optional unwraps into a plain parameter" {
+test "user obj call argument: a narrowed optional unwraps into a plain parameter" {
     (eng, _) = compile_native("coercion_routing.jac");
     sv = sv_module();
     f = get_func(eng, "arg_unwrap", ctypes.c_int64, ctypes.c_int64);
@@ -81,7 +92,7 @@ test "call argument: a narrowed optional unwraps into a plain parameter" {
     assert f(0) == -1 , "the None branch still wins";
 }
 
-test "call argument: a narrowed optional container unwraps for a method arg" {
+test "primitive call argument: a narrowed optional list unwraps for extend" {
     (eng, _) = compile_native("coercion_routing.jac");
     sv = sv_module();
     f = get_func(eng, "arg_unwrap_container", ctypes.c_int64, ctypes.c_int64);
@@ -93,6 +104,45 @@ test "call argument: a narrowed optional container unwraps for a method arg" {
     }
     assert f(1) == 446 , "extend copies all three elements";
     assert f(0) == 1 , "the None guard returns the untouched length";
+}
+
+test "primitive call argument: a narrowed optional str unwraps for startswith" {
+    (eng, _) = compile_native("coercion_routing.jac");
+    sv = sv_module();
+    f = get_func(eng, "arg_unwrap_str", ctypes.c_int64, ctypes.c_int64);
+    for flag in [1, 0] {
+        assert f(flag) == sv.arg_unwrap_str(flag) , (
+            f"arg_unwrap_str({flag}): native {f(flag)} != sv {sv.arg_unwrap_str(flag)}"
+        );
+    }
+    assert f(1) == 1 , "'abcdef'.startswith('abc') after the unwrap";
+    assert f(0) == -1 , "the None guard returns early";
+}
+
+test "primitive call argument: a narrowed optional list unwraps for str.join" {
+    (eng, _) = compile_native("coercion_routing.jac");
+    sv = sv_module();
+    f = get_func(eng, "arg_join_unwrap", ctypes.c_int64, ctypes.c_int64);
+    for flag in [1, 0] {
+        assert f(flag) == sv.arg_join_unwrap(flag) , (
+            f"arg_join_unwrap({flag}): native {f(flag)} != "
+            f"sv {sv.arg_join_unwrap(flag)}"
+        );
+    }
+    assert f(1) == 5 , "len('ab-cd') after the unwrap";
+    assert f(0) == -1 , "the None guard returns early";
+}
+
+test "primitive call argument: element wrap into an optional-element list" {
+    (eng, _) = compile_native("coercion_routing.jac");
+    sv = sv_module();
+    f = get_func(eng, "arg_wrap_elem", ctypes.c_int64, ctypes.c_int64);
+    for n in [2, 5] {
+        assert f(n) == sv.arg_wrap_elem(n) , (
+            f"arg_wrap_elem({n}): native {f(n)} != sv {sv.arg_wrap_elem(n)}"
+        );
+    }
+    assert f(2) == 32 , "a plain str wraps into the list's str|None element slot";
 }
 
 test "call receiver: an optional list receiver unwraps for append" {
