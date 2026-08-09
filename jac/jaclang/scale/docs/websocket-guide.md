@@ -212,11 +212,14 @@ Tune limits and the broadcast backplane under `[scale.websocket]` in `jac.toml`:
 max_connections_per_target = 5000   # live connections allowed per target
 max_connections_per_user = 10       # live connections allowed per authenticated user
 max_anonymous_per_target = 100      # live connections allowed per target, unauthenticated
-max_message_bytes = 65536           # per-frame size cap, in wire bytes
+max_message_bytes = 65536           # message size cap, enforced during frame reassembly
 messages_per_second = 20            # per-connection token-bucket rate limit
 target_timeout_seconds = 30         # per-message execution timeout
 backplane = "pg"                    # "memory" or "pg"
+allowed_origins = []                # cross-origin upgrade allowlist (see below)
 ```
+
+`allowed_origins` controls browser cross-origin upgrades: the default `[]` refuses any `Origin` that does not match the request's `Host` (non-browser clients, which send no Origin, always pass). List origins explicitly (`["https://app.example.com"]`) or use `["*"]` to allow any. `max_message_bytes` is enforced while fragments reassemble, before authentication, so an oversized message closes with `1009` without ever being buffered whole.
 
 `backplane` selects broadcast fan-out:
 

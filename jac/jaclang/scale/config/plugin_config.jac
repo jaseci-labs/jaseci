@@ -364,6 +364,11 @@ class JacScalePluginConfig {
                             "default": None,
                             "description": "Broadcast backplane: 'memory' (single-pod, in-process fan-out) or 'pg' (cross-pod fan-out over Postgres LISTEN/NOTIFY). Unset auto-selects 'pg' when a scale database resolves, else 'memory'."
                         },
+                        "allowed_origins": {
+                            "type": "list",
+                            "default": [],
+                            "description": "Origins allowed to open cross-origin WebSocket upgrades. Default [] refuses cross-origin browsers (same-origin and non-browser clients always pass); list origins explicitly or use [\"*\"] to allow any."
+                        },
                         "max_message_bytes": {
                             "type": "int",
                             "default": 65536,
