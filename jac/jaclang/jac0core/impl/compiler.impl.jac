@@ -244,19 +244,7 @@ impl JacCompiler.get_bytecode(
         setup_progress.on_internal_compile(full_target);
         self._internal_bytecode_depth += 1;
     }
-    can_typecheck = (
-        is_internal
-        and 'jaclang.compiler.passes.main.type_checker_pass' in sys.modules
-        and 'jaclang.compiler.type_system.type_evaluator' in sys.modules
-        and hasattr(
-            sys.modules['jaclang.compiler.passes.main.type_checker_pass'],
-            'TypeCheckPass'
-        )
-        and hasattr(
-            sys.modules['jaclang.compiler.type_system.type_evaluator'], 'TypeEvaluator'
-        )
-    );
-    options = CompileOptions(type_check=can_typecheck and not symtab_only_recovery);
+    options = CompileOptions(type_check=False);
     result: (uni.Module | None) = None;
     try {
         result = self.compile(
