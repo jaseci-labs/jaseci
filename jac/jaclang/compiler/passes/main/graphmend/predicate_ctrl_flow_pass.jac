@@ -123,6 +123,7 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _guarded_by_varkw(r: uni.RaiseStmt, varkw: str, fn: uni.Ability) -> bool;
     def _mentions_name(e: (uni.Expr | None), nm: str) -> bool;
     def _pure_callee(t: (uni.Expr | None)) -> bool;
+    def _pure_root(base: uni.Name) -> bool;
     def _pure_receiver(recv: (uni.Expr | None)) -> bool;
     def _assignment_neutral(s: uni.Assignment, region: uni.IfStmt) -> bool;
     def _is_device_move(s: uni.Assignment) -> bool;

@@ -205,6 +205,14 @@ test "differing common-call arguments containing calls are declined" {
     assert "if seq_len > 8:" in src;
 }
 
+test "a shadowed torch root in the initializer is declined" {
+    src = _pysrc("guard_shadowed_torch.jac", True);
+    # `import fake as torch` rebinds the root; the allowlisted leaf name
+    # proves nothing without a genuine `import torch` binding.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
 test "a shadowed pure builtin in the initializer is declined" {
     src = _pysrc("guard_shadowed_len.jac", True);
     # `len` is on the pure-builtin list by spelling, but the module rebinds

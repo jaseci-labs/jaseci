@@ -566,7 +566,7 @@ impl PredicateCtrlFlowPass._pure_callee(t: (uni.Expr | None)) -> bool {
             and (base.value in {'torch', 'math'})
             and isinstance(t.right, uni.Name)
             and (t.right.value in _PURE_TORCH_FNS) {
-            return True;
+            return self._pure_root(base);
         }
         return isinstance(t.right, uni.Name)
             and (t.right.value in _PURE_TENSOR_METHODS)
@@ -577,6 +577,18 @@ impl PredicateCtrlFlowPass._pure_callee(t: (uni.Expr | None)) -> bool {
 
 impl PredicateCtrlFlowPass._pure_receiver(recv: (uni.Expr | None)) -> bool {
     return isinstance(recv, uni.FuncCall) and self._pure_callee(recv.target);
+}
+
+impl PredicateCtrlFlowPass._pure_root(base: uni.Name) -> bool {
+    sym = base.sym;
+    if (sym is None) or (sym.decl is None) {
+        return False;
+    }
+    mp = sym.decl.find_parent_of_type(uni.ModulePath);
+    if mp is None {
+        return False;
+    }
+    return mp.dot_path_str == base.value;
 }
 
 impl PredicateCtrlFlowPass._assignment_neutral(
