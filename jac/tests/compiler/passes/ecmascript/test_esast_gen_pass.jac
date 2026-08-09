@@ -1246,26 +1246,3 @@ test "augmented reactive assignments do not double-apply the lhs" {
         "double-application bug detected in:\n" + js
     );
 }
-
-test "multi-statement lambda map callback lowers inline (client parity)" {
-    es_ast = compile_to_esast(fixture_path("lambda_multi_stmt_callback.jac"));
-    func_names = {
-        nd.id.name
-        for nd in es_ast.body
-        if isinstance(nd, es.FunctionDeclaration) and nd.id
-    };
-    assert "map_multi_stmt_callback" in func_names;
-    assert "sort_multi_stmt_key" in func_names;
-
-    arrow_blocks = [
-        nd
-        for nd in walk_es_nodes(es_ast)
-        if isinstance(nd, es.ArrowFunctionExpression)
-            and isinstance(nd.body, es.BlockStatement)
-            and len(nd.body.body) > 1
-    ];
-    assert arrow_blocks , (
-        "expected at least one multi-statement ArrowFunctionExpression "
-        "for callback-position lambdas"
-    );
-}

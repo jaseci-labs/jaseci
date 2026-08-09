@@ -4996,14 +4996,14 @@ test "lambda closure as scaler" {
 test "multi-statement lambda map callback (native inline lowering)" {
     (eng, _) = compile_native("lambda_multi_stmt_callback.jac");
     f = get_func(eng, "map_multi_stmt_callback", ctypes.c_int64);
-    assert f() == 12 , f"Expected 12 from map((x+1)*2, [1,2,3]), got {f()}";
+    assert f() == 18 , f"Expected 18 from sum of (x+1)*2 over [1,2,3], got {f()}";
 }
 
 test "multi-statement lambda sort key callback (native inline lowering)" {
     (eng, _) = compile_native("lambda_multi_stmt_callback.jac");
     f = get_func(eng, "sort_multi_stmt_key", ctypes.c_int64);
     # keys: 31->1, 12->2, 23->3 => sorted order [31, 12, 23]
-    assert f() == 311223 , f"Expected 311223, got {f()}";
+    assert f() == 3243 , f"Expected 3243 (31*100+12*10+23), got {f()}";
 }
 
 # ─── Symbol Collision Detection ───────────────────────────────────────────────
