@@ -161,6 +161,42 @@ test "un-inferable elem type: tagged elements still compare congruently" {
     }
 }
 
+test "un-inferable elem type: ordering a tagged element checks its tag at runtime" {
+    eng = native_engine("container_elem_unknown.jac");
+    sv = sv_funcs("container_elem_unknown.jac");
+    # Ordering has no congruent answer the way equality does: boxing both sides
+    # makes a tag mismatch compare unequal, which is what sv does for `==`, but
+    # `"seven" < 9` has no order at all. CPython raises TypeError, so native
+    # must raise TypeError too rather than ordering on the payload bits.
+    for fn in [
+        "mixed_ord_str_vs_int",
+        "mixed_ord_str_vs_float",
+        "mixed_ord_int_vs_int",
+        "mixed_ord_int_vs_float",
+        "mixed_ord_float_vs_int",
+        "mixed_ord_float_vs_int_false"
+    ] {
+        na_v = native_call(eng, fn);
+        sv_v = int(sv[fn]());
+        assert na_v == sv_v , f"native {fn}() == {na_v} but sv gives {sv_v}";
+    }
+    # -1 is the `except TypeError` arm of the fixture, so agreeing on -1 pins
+    # the exception TYPE on both pathways, not merely that something raised.
+    assert native_call(eng, "mixed_ord_str_vs_int") == -1 , (
+        "ordering a str-tagged element against an int must raise TypeError"
+    );
+    assert native_call(eng, "mixed_ord_str_vs_float") == -1 , (
+        "ordering a str-tagged element against a float must raise TypeError"
+    );
+    # The numerically-tagged cases must stay green: the tag check may not tax
+    # the ordering that legitimately works.
+    assert native_call(eng, "mixed_ord_int_vs_int") == 1 , "7 < 9";
+    assert native_call(eng, "mixed_ord_int_vs_float") == 1 , "7 < 9.5";
+    # A float-tagged payload must be read as a double, not as its raw bits.
+    assert native_call(eng, "mixed_ord_float_vs_int") == 1 , "2.5 < 9";
+    assert native_call(eng, "mixed_ord_float_vs_int_false") == 0 , "not 20.5 < 9";
+}
+
 test "un-inferable elem type: an unorderable mixed comparison is refused, not guessed" {
     prog = compile_na_inline(
         "order_str",
