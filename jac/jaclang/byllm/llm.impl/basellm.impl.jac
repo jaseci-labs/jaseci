@@ -1904,6 +1904,13 @@ impl BaseLLM._invoke_streaming(
                     }
                 }
 
+                if mt_run._stream_reset_count != _seen_resets {
+                    _seen_resets = mt_run._stream_reset_count;
+                    yield StreamEvent(
+                        event_type="stream_reset",
+                        data={"scope": "thought", "iteration": iter_count}
+                    );
+                }
                 while mt_run._tool_arg_deltas {
                     _d = mt_run._tool_arg_deltas.pop(0);
                     yield StreamEvent(

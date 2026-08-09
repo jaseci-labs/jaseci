@@ -416,3 +416,68 @@ test "a transient retry still delivers the replacement stream's deltas" {
         d.data for d in deltas
     ]}";
 }
+
+
+test "a reset is announced before deltas that only surface at flush" {
+    # The replacement stream carries NO prose and only unnamed, sub-threshold
+    # fragments, so nothing publishes during the token loop and the deltas
+    # appear only when the dispatcher flushes after it. The consumer must still
+    # announce the reset first, or a UI concatenates these arguments onto the
+    # stale text it already showed for the failed attempt.
+    body = '{"path": "a.jac"}';
+
+    llm = Model(model_name="gpt-4o");
+    mt = _runtime([read_file]);
+    turns = [0];
+
+    def _stream(params: dict) -> any {
+        turns[0] += 1;
+        if turns[0] == 1 {
+            raise litellm.APIConnectionError(
+                message="dropped", llm_provider="openai", model="gpt-4o"
+            );
+        }
+        if turns[0] == 2 {
+            out: list = [];
+            for frag in _fragments(body, 4) {
+                out.append(_arg_chunk(0, frag));
+            }
+            return out;
+        }
+        return [_text_chunk("finished")];
+    }
+
+    def _rebuild(seen: list) -> dict {
+        if turns[0] == 2 {
+            return _rebuilt_one("c1", "read_file", body);
+        }
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "finished",
+                        "tool_calls": []
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            "model": "gpt-4o",
+            "usage": {}
+        };
+    }
+
+    events: list = [];
+    with mock.patch.object(llm, "model_call_with_stream", _stream), mock.patch.object(
+        _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild
+    ) {
+        for ev in llm._invoke_streaming(mt) {
+            events.append(ev);
+        }
+    }
+
+    kinds = [e.event_type for e in events];
+    assert "tool_call_delta" in kinds , f"the flushed deltas never reached the caller: {kinds}";
+    assert "stream_reset" in kinds , f"the retry was never announced: {kinds}";
+    assert kinds.index("stream_reset") < kinds.index("tool_call_delta") , f"reset must precede the replacement deltas, got {kinds}";
+}
