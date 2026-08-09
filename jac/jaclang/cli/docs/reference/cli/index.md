@@ -125,7 +125,7 @@ Execute a Jac file, a prebuilt `.jab` artifact, or (with no filename) run the cu
 **Note:** `jac <file>` is shorthand for `jac run <file>` - both work identically.
 
 ```bash
-jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-g] [--graphmend] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [filename] [args ...]
+jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-g] [--graphmend] [--graphmend-scope GRAPHMEND_SCOPE] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [filename] [args ...]
 ```
 
 | Option | Description | Default |
@@ -135,6 +135,7 @@ jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-g] [--graphmend]
 | `-m, --main` | Treat module as `__main__` | `True` |
 | `-c, --cache` | Enable compilation cache | `True` |
 | `-g, --graphmend` | Apply [GraphMend](../../internals/graphmend.md) passes to eliminate PyTorch 2 FX graph breaks (experimental) | `False` |
+| `--graphmend-scope` | Comma-separated module prefixes whose imported `.py` code GraphMend should also transform (implies `--graphmend`) | `""` |
 | `-e, --diagnostics` | Diagnostic verbosity: `error`, `all`, or `none` | `error` |
 | `--profile` | Configuration profile to load (e.g. prod, staging) | `""` |
 | `--entry` | Run a specific entrypoint (function/walker) instead of the module's `with entry` block | None |

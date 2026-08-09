@@ -11,6 +11,9 @@ obj TrapLoweringPass(UniPass) {
     def before_pass -> None;
     def _need_helper(at: uni.UniNode, helper: GraphMendHelper) -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
+    def exit_assignment(nd: uni.Assignment) -> None;
+    def _boundary_attach_stmt(at: uni.UniNode, name: str) -> uni.Assignment;
+    def _insert_after(stmt: uni.UniNode, new_stmt: uni.UniNode) -> None;
     def _enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | None);
     def _exception_type_name(rs: uni.RaiseStmt) -> (str | None);
     def _marked_message(

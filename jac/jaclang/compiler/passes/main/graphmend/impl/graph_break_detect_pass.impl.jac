@@ -14,6 +14,10 @@ impl GraphBreakDetectPass.before_pass -> None {
         self.prune_signal = True;
         return;
     }
+    self._whole_module = self.prog.graphmend_scoped_compile;
+    if self._whole_module {
+        return;
+    }
     self._entry_ids = self._collect_entry_points();
     if not self._entry_ids {
         self._enabled = False;
@@ -112,6 +116,9 @@ impl GraphBreakDetectPass._var_assignment(
 }
 
 impl GraphBreakDetectPass._in_torch_compiled_scope(nd: uni.UniNode) -> bool {
+    if self._whole_module {
+        return True;
+    }
     cur = nd.parent;
     while cur {
         if id(cur) in self._entry_ids {

@@ -5,6 +5,61 @@ import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     is_torch_attr_target
 }
 
+impl TrapLoweringPass.exit_assignment(nd: uni.Assignment) -> None {
+    if (not self._enabled) or (not self.prog.graphmend_scope) {
+        return;
+    }
+    value = nd.value;
+    if (
+        (not isinstance(value, uni.FuncCall))
+        or (not is_torch_attr_target(value.target, 'compile'))
+    ) {
+        return;
+    }
+    if (not nd.target) or (len(nd.target) != 1) {
+        return;
+    }
+    tgt = nd.target[0];
+    if not isinstance(tgt, uni.Name) {
+        return;
+    }
+    self._need_helper(nd, GraphMendHelper.TRAP_GUARD);
+    self._insert_after(nd, self._boundary_attach_stmt(nd, tgt.value));
+}
+
+impl TrapLoweringPass._boundary_attach_stmt(
+    at: uni.UniNode, name: str
+) -> uni.Assignment {
+    store = self._gen_name(at, name);
+    store.expr_ctx = uni.ExprCtx.STORE;
+    guard = self._gen_name(at, '__jac_trap_guard__');
+    arg = self._gen_name(at, name);
+    call = uni.FuncCall(target=guard, params=[arg], genai_call=None, kid=[guard, arg]);
+    return uni.Assignment(
+        target=[store], value=call, type_tag=None, mutable=True, kid=[store, call]
+    );
+}
+
+impl TrapLoweringPass._insert_after(stmt: uni.UniNode, new_stmt: uni.UniNode) -> None {
+    parent = stmt.parent;
+    if parent is None {
+        return;
+    }
+    holder: any = parent;
+    body = holder?.body;
+    if isinstance(body, list) and (stmt in body) {
+        i = body.index(stmt);
+        setattr(holder, 'body', body[:(i + 1)] + [new_stmt] + body[(i + 1):]);
+    }
+    if stmt in parent.kid {
+        j = parent.kid.index(stmt);
+        parent.set_kids(
+            list(parent.kid[:(j + 1)]) + [new_stmt] + list(parent.kid[(j + 1):])
+        );
+    }
+    new_stmt.parent = parent;
+}
+
 impl TrapLoweringPass.before_pass -> None {
     self._enabled = self.prog._compile_options.graphmend;
     if not self._enabled {
@@ -36,7 +91,8 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     x = cond.operand;
     msg = self._raise_message(rs, nd);
     wrap = self._enclosing_compiled_fn(nd);
-    type_name = self._exception_type_name(rs) if (wrap is not None) else None;
+    covered = (wrap is not None) or self.prog.graphmend_scoped_compile;
+    type_name = self._exception_type_name(rs) if covered else None;
     marked = (
         self._marked_message(nd, msg, type_name) if (type_name is not None) else None
     );

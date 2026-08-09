@@ -1688,6 +1688,12 @@ def _command_routes -> list[CommandMeta] {
                     short='g'
                 ),
                 ArgMeta(
+                    name='graphmend_scope',
+                    default='',
+                    help="Comma-separated module prefixes whose imported .py code GraphMend should also transform (e.g. 'transformers.models.phi3'). Implies --graphmend.",
+                    short=''
+                ),
+                ArgMeta(
                     name='profile',
                     default='',
                     help='Configuration profile to load (e.g. prod, staging)',

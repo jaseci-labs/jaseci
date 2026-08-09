@@ -959,6 +959,12 @@ impl JacBuiltin.tensor_eq_assert(a: any, b: any, msg: str) -> None {
 impl JacBuiltin.trap_guard(fn: any) -> any {
     import functools;
     import builtins;
+    if hasattr(fn, 'forward') {
+        if not getattr(fn.forward, '_jac_trap_boundary', False) {
+            setattr(fn, 'forward', JacBuiltin.trap_guard(fn.forward));
+        }
+        return fn;
+    }
     @functools.wraps(fn)
     def _gm_trap_wrapper(*args: any, **kwargs: any) -> any {
         try {
@@ -978,6 +984,7 @@ impl JacBuiltin.trap_guard(fn: any) -> any {
             raise exc_cls(msg) from None;
         }
     }
+    setattr(_gm_trap_wrapper, '_jac_trap_boundary', True);
     return _gm_trap_wrapper;
 }
 

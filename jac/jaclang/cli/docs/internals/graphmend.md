@@ -12,14 +12,15 @@ dataflow, before Python code generation, so only the Python lowering target is
 affected. The JS and native backends see the original tree.
 
 This page is the specification and legality argument for the passes that have
-landed. It currently covers detection, trap lowering, predication
-(`torch.where` / `torch.cond`) and side-effect deferral; the scoped-import
-work extends this page when it lands.
+landed: detection, trap lowering, predication (`torch.where` / `torch.cond`),
+side-effect deferral, and the scoped-import path that extends the transforms
+to imported `.py` model code.
 
 ## Activation and plumbing
 
 - `jac run -g model.py` (or `model.jac`) sets `graphmend_enabled` on the
-  active `JacProgram`.
+  active `JacProgram`. `--graphmend-scope pkg.a,pkg.b` additionally fills
+  `graphmend_scope` with module prefixes and implies `--graphmend`.
 - `JacCompiler.get_bytecode` translates that into
   `CompileOptions(graphmend=True)` for user modules. Internal `jaclang.*`
   modules are exempt: they contain no `torch.compile` entry points, so their
@@ -71,9 +72,9 @@ wrapped at a call site: `torch.compile(fn)`, `torch.compile(Model())`, and
 `m = Model(); torch.compile(m)` all resolve through the symbol table to the
 defining function or class, whose methods then count as in scope. Call-site
 resolution landed with the deferral pass, whose forward-hook mechanism only
-applies to models wrapped at a call site. Everything outside an entry point
-is left untouched; whole-module treatment of imported model code arrives
-with the scoped-import work.
+applies to models wrapped at a call site. A module imported under
+`--graphmend-scope` is treated as one whole compiled region (no local entry
+point required). Everything outside an entry point is left untouched.
 
 Decorators are matched structurally (a `torch` name with a trailing `compile`
 attribute), never by unparsing to text: Python-origin (`.py`) and Jac-origin
@@ -180,12 +181,24 @@ The marker is folded at compile time, not concatenated at runtime, so the
 assert stays a native torch op inside the graph. That also makes the marker
 the limit of what can be preserved: a runtime concat to rebuild a dynamic
 message would reintroduce the break it is trying to remove, so there is no
-fallback. When the marker cannot be built -- a non-literal message, or an
-entry point compiled at a call site with nothing to decorate -- the pass
-declines under condition 4 rather than lowering a guard whose exception
-contract it cannot honor. Widening this is a coverage question for later
-passes (call-site entry resolution lands with the scoped-import PR), not a
-licence to weaken the contract now.
+fallback. A non-literal message (an f-string that formats a tensor, say)
+therefore always declines: evaluating it on every call inside the graph
+would itself force the break the lowering is trying to remove.
+
+The decorator is not the only boundary shape. A module imported under
+`--graphmend-scope` has no decorated function, so the boundary moves to the
+entry script instead: every `x = torch.compile(...)` call-site assignment
+there gets `x = __jac_trap_guard__(x)` injected after it. For an
+`nn.Module`, the runtime helper attaches in place by wrapping `forward` on
+the instance (idempotently), which keeps hooks, `state_dict` and every other
+module surface intact; for a plain callable it returns the usual wrapper.
+Guards inside scoped modules may then lower with the marker and no local
+decorator, since any execution reached through the wrapped entry passes the
+eager boundary on the way out. The residual is stated rather than hidden: a
+transformed scoped function invoked from outside every wrapped entry (an
+eager side path the compiler never saw) surfaces the degraded
+`RuntimeError`. Guards in call-site-wrapped code OUTSIDE a scoped module
+still decline; extending the attach to that case is a possible follow-up.
 
 ### Runtime support
 
@@ -391,14 +404,48 @@ sweep guards every compiled entry in a module that defers anything, not just
 entries containing a deferred call themselves, because the caller of a
 buffering helper is what must open the region.
 
+## Scoped imports: `--graphmend-scope`
+
+`--graphmend-scope pkg.a,pkg.b` (implies `--graphmend`) extends the
+transforms to imported `.py` model code, the shape real Hugging Face models
+take, where `torch.compile(model)` lives in the entry script and every break
+sits in imported modules. `JacMetaImporter.find_spec` claims a plain `.py`
+module when its dotted name falls under a scope prefix; the module compiles
+through the full GraphMend schedule as one whole compiled region.
+
+Not every import consults `sys.meta_path`: `trust_remote_code` models load
+via `spec_from_file_location` plus `exec_module`. Every such path still goes
+through `SourceFileLoader.get_code`, so `install_graphmend_loader_hook`
+(installed at `jaclang` import time, idempotent, inert without an active
+scope) wraps that instead. Compiling from source there also sidesteps
+`__pycache__`, so a `.pyc` written by a non-GraphMend run is never served to
+a GraphMend one.
+
+Safety properties: strictly opt-in (an empty scope claims nothing), `torch`
+and `jaclang` are hard-denylisted so the interception can never break the
+compiler or PyTorch itself, and a scoped `.py` the Jac compiler cannot
+handle falls back to CPython's own compiler and runs untransformed rather
+than failing the import.
+
+All three transforms apply inside a scoped region. Predication and deferral
+need no boundary. Trap lowering does, and a scoped module has no decorated
+entry to carry it, so the boundary is attached at the entry script's
+`torch.compile` call sites instead (see the trap section's
+exception-preservation discussion): the pass injects
+`x = __jac_trap_guard__(x)` after each compile assignment whenever a scope
+is configured, and the runtime wraps a module's `forward` in place. Guards
+with non-literal messages still decline, and a scoped function reached
+without passing any wrapped entry surfaces the degraded `RuntimeError`; both
+are the conservative outcome, not an error.
+
 ## Evidence
 
 `tests/compiler/passes/main/test_graphmend_trap_lowering.jac`,
 `test_graphmend_ctrl_flow.jac`, `test_graphmend_side_effect.jac`, and
 `test_graphmend_py_support.jac` assert detection tags and the generated
 Python source for `.jac` and `.py` fixtures, including one decline test per
-legality condition above, the emitted runtime-helper imports, and the
-call-site entry-point resolution.
+legality condition above, the emitted runtime-helper imports, the call-site
+entry-point resolution, and whole-region scoped compilation.
 `test_graphmend_trap_integration.jac` and
 `test_graphmend_where_integration.jac` (skipped without torch) drive the
 transformed code through a counting Dynamo backend and assert the paper's
@@ -413,3 +460,12 @@ for deferral: print and logger fixtures defragment to one graph, a buffered
 argument mutated in place after its call site still prints the pre-mutation
 snapshot, and deferred output survives exceptional exits on both the
 boundary-guard and the `always_call` hook paths.
+`test_graphmend_scope_integration.jac` (skipped without torch) imports a
+generated package under `--graphmend-scope` and asserts the executed
+bytecode was transformed while `torch` itself was not, and that a failing
+validation guard inside the scoped module surfaces as the original
+`ValueError` with the original message through the boundary attached at the
+entry's `torch.compile` call site. The scoped guard evidence includes the
+discriminant guard vendored from transformers v4.52.4 VITS (the paper's
+real-model trap case; transformers 5.x rewrote it upstream), which lowers
+under a literal message and declines under the verbatim f-string message.
