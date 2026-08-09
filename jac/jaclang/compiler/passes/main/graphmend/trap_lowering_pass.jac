@@ -1,8 +1,22 @@
+import builtins;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphMendHelper }
 import from jaclang.jac0core.passes { UniPass }
 
 glob _TENSOR_BOOL_OPS: set[str] = {'all', 'any', 'allclose'};
+
+def _builtin_exc_names -> frozenset[str] {
+    names: list[str] = [];
+    for n in dir(builtins) {
+        val = getattr(builtins, n);
+        if isinstance(val, type) and issubclass(val, BaseException) {
+            names.append(n);
+        }
+    }
+    return frozenset(names);
+}
+
+glob _BUILTIN_EXCS: frozenset[str] = _builtin_exc_names();
 
 obj TrapLoweringPass(UniPass) {
     has _enabled: bool = False,

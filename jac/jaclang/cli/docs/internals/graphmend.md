@@ -141,8 +141,11 @@ left unfixed is a soundness property, not a defect.
    metadata that adds no break.
 4. The original exception must be reconstructible at the call boundary, or the
    guard is left intact. This needs three things at once: an enclosing
-   `@torch.compile`-decorated ability to carry the eager decorator, a named
-   exception type, and a message that is a pure string literal. Three shapes
+   `@torch.compile`-decorated ability to carry the eager decorator, an
+   exception type that is a bare builtin name (an aliased or qualified type
+   such as `errors.ValidationError` cannot be resolved back from the marker,
+   so it declines rather than degrade to `RuntimeError`), and a message that
+   is a pure string literal. Three shapes
    therefore decline. An f-string declines because a `MultiString` contributes
    only its `String` parts to a literal value, so folding one would produce a
    marker wrapped around an empty message -- the right exception type with its
@@ -175,8 +178,10 @@ literal at compile time (`[[GM-TRAP ValueError]]msg[[/GM-TRAP]]`) and
 prepends the eager boundary decorator `@__jac_trap_guard__` to the function.
 The decorator catches the `RuntimeError` at the boundary, parses the marker,
 and re-raises the original exception type with the original message; unmarked
-`RuntimeError`s propagate unchanged, and unknown (non-builtin) types degrade
-to `RuntimeError` so no message is ever lost. Parsing is defensive: text that
+`RuntimeError`s propagate unchanged. The pass only folds markers naming bare
+builtin exceptions, so the lookup always resolves; the decorator still
+validates the resolved name and falls back to `RuntimeError` as defense in
+depth against markers of foreign provenance. Parsing is defensive: text that
 merely resembles a marker (a partial `[[GM-TRAP` with no terminator, or a
 missing closing tag) is not a trap, and the original error propagates
 untouched. A literal message that itself contains the closing delimiter

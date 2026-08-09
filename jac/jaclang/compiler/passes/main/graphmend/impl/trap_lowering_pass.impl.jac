@@ -72,11 +72,8 @@ impl TrapLoweringPass._exception_type_name(rs: uni.RaiseStmt) -> (str | None) {
         return None;
     }
     target = cause.target if isinstance(cause, uni.FuncCall) else cause;
-    if isinstance(target, uni.Name) {
+    if isinstance(target, uni.Name) and (target.value in _BUILTIN_EXCS) {
         return target.value;
-    }
-    if isinstance(target, uni.AtomTrailer) and isinstance(target.right, uni.Name) {
-        return target.right.value;
     }
     return None;
 }

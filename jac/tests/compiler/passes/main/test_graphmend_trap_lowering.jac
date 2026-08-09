@@ -218,3 +218,16 @@ test "message containing the trap delimiter declines instead of truncating" {
     assert "raise ValueError" in src;
     assert _break_count("guard_marker_msg.jac") == 1;
 }
+
+test "non-builtin exception type declines instead of degrading its type" {
+    # The boundary guard restores the type by looking the marker name up in
+    # builtins, so an aliased (MaskError = RuntimeError) or qualified
+    # (torch.MaskError) exception would come back as a bare RuntimeError:
+    # an observable type change. Only bare builtin exception names lower.
+    src = _pysrc("guard_custom_exc.jac", True);
+    assert "__jac_tensor_bool_assert__(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise MaskError" in src;
+    assert "raise torch.MaskError" in src;
+    assert _break_count("guard_custom_exc.jac") == 2;
+}
