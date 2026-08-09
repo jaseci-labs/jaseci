@@ -613,8 +613,9 @@ impl start(
             mach.close();
             return 1;
         } finally {
-            if server?.server and server.server {
-                server.server.server_close();
+            svr = server?.server;
+            if svr and hasattr(svr, 'server_close') {
+                svr.server_close();
             }
         }
         mach.close();

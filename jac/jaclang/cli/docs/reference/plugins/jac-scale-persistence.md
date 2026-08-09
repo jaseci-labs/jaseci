@@ -384,7 +384,7 @@ Graph persistence is **Postgres-native** and there is exactly one stack:
 |----------|---------|-------------|
 | `url` | `null` | Postgres connection URL (`postgresql://user:pass@host:port/db`). Also honored via `JAC_DB_URL`. When set, in-cluster provisioning is skipped (external mode). |
 | `deploy_mode` | `"image"` | How the k8s target runs Postgres: `"image"` (official postgres image), `"embedded"` (the app's jac image running `jac db serve`), or implicit external when `url` is set. |
-| `postgres_image` | `"postgres:19"` | Image used in `deploy_mode = "image"`. |
+| `postgres_image` | `"postgres:18"` | Image used in `deploy_mode = "image"`. |
 | `postgres_storage` | `"2Gi"` | PVC size for the provisioned StatefulSet. |
 
 | `jac.toml` key (`[scale.kubernetes]`) | Default | Description |
@@ -395,7 +395,7 @@ Credentials are never hardcoded in pod specs: the provisioned password lives in 
 
 ### Consistency model
 
-There is no cache tier and no cross-pod invalidation protocol to configure: each request reads and writes inside one `SERIALIZABLE` Postgres transaction, and **the transaction is the single source of truth**. Racing requests converge via abort-and-replay; see [Persistence -> Concurrent writes](../persistence.md#concurrent-writes-transactions-and-convergence). Cross-pod signaling (WebSocket broadcasts, event delivery) rides Postgres `LISTEN`/`NOTIFY` on the same database.
+There is no cache tier and no cross-pod invalidation protocol to configure: each request reads and writes inside one `SERIALIZABLE` Postgres transaction, and **the transaction is the single source of truth**. Racing requests converge via abort-and-replay; see [Persistence -> Concurrent writes](../persistence.md#concurrent-writes-check-then-create-and-convergence). Cross-pod signaling (WebSocket broadcasts, event delivery) rides Postgres `LISTEN`/`NOTIFY` on the same database.
 
 The admin dashboard's Ops page (`/admin/ops`) renders a Postgres health card driven by a live `SELECT 1` probe, so a database incident is visible without kubectl.
 

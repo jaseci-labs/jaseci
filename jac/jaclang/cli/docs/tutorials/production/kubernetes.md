@@ -170,7 +170,7 @@ ingress_node_port = 30080
 | Key | Description | Default |
 |----------|-------------|---------|
 | `[scale.kubernetes]` `postgres_enabled` | Provision the Postgres StatefulSet | `true` |
-| `[scale.database]` `postgres_image` | Image used for the StatefulSet | `postgres:19` |
+| `[scale.database]` `postgres_image` | Image used for the StatefulSet | `postgres:18` |
 | `[scale.database]` `postgres_storage` | Postgres data PVC size | `2Gi` |
 
 To use an external database instead of the auto-provisioned one, set the URL under `[scale.database]` (the `JAC_DB_URL` environment variable overrides it at runtime, and disables in-cluster provisioning):

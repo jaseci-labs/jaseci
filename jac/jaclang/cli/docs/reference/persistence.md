@@ -34,7 +34,7 @@ Anchors live in an `anchors` table with `jsonb` payloads; the same database also
 
 ---
 
-## Concurrent writes: transactions and convergence
+## Concurrent writes: check-then-create and convergence
 
 A common walker pattern is *find-or-create*: look something up, create it only if it's missing.
 

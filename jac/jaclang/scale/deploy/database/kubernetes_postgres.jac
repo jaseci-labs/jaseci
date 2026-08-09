@@ -5,7 +5,7 @@ import from jaclang.scale.deploy.target.deployment_target { DeploymentTarget }
 import from jaclang.scale.config.config_loader { get_scale_config }
 
 glob PG_PORT = 5432,
-     PG_IMAGE = 'postgres:19';
+     PG_IMAGE = 'postgres:18';
 
 
 obj KubernetesPostgresProvider {

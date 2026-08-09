@@ -79,7 +79,7 @@ class JacScalePluginConfig {
                         },
                         "postgres_image": {
                             "type": "string",
-                            "default": "postgres:19",
+                            "default": "postgres:18",
                             "description": "Image used in deploy_mode='image'."
                         },
                         "postgres_storage": {

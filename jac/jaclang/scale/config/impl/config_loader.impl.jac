@@ -20,7 +20,7 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         'database': {
             'url': None,
             'deploy_mode': 'image',
-            'postgres_image': 'postgres:19',
+            'postgres_image': 'postgres:18',
             'postgres_storage': '2Gi'
         },
         'websocket': {
@@ -187,7 +187,7 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     return {
         'url': os.environ.get('JAC_DB_URL') or db_config.get('url'),
         'deploy_mode': db_config.get('deploy_mode', 'image'),
-        'postgres_image': db_config.get('postgres_image', 'postgres:19'),
+        'postgres_image': db_config.get('postgres_image', 'postgres:18'),
         'postgres_storage': db_config.get('postgres_storage', '2Gi')
     };
 }
