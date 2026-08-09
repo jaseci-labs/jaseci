@@ -148,6 +148,11 @@ impl PredicateCtrlFlowPass._merge_common_call(
     if not diff {
         return;
     }
+    for i in diff {
+        if self._has_call(a_pos[i]) or self._has_call(b_pos[i]) {
+            return;
+        }
+    }
     for s in (list(true_setups) + list(false_setups)) {
         if self._is_eq_assert(s) {
             return;

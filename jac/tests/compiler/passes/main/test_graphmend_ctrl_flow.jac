@@ -196,6 +196,23 @@ test "a setup writing a local live outside the region is declined" {
     assert "if seq_len > 8:" in src;
 }
 
+test "differing common-call arguments containing calls are declined" {
+    src = _pysrc("merge_arg_calls.jac", True);
+    # torch.where evaluates both operands; merging call-bearing arguments
+    # would run the untaken branch's call. Same rule as call_vs_literal,
+    # applied to the common-call merge path.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "a shadowed pure builtin in the initializer is declined" {
+    src = _pysrc("guard_shadowed_len.jac", True);
+    # `len` is on the pure-builtin list by spelling, but the module rebinds
+    # it to an effectful function; the binding is the proof, not the name.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
 test "config read proven by a constructor invariant licenses the hoist" {
     src = _pysrc("guard_config_get.jac", True);
     # `config.rope_scaling.get("factor")` is on no purity list; the fact pass

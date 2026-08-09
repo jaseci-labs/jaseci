@@ -514,7 +514,7 @@ impl PredicateCtrlFlowPass._pure_callee(t: (uni.Expr | None)) -> bool {
         return False;
     }
     if isinstance(t, uni.Name) {
-        return t.value in _PURE_BUILTINS;
+        return (t.value in _PURE_BUILTINS) and (t.sym is None);
     }
     if isinstance(t, uni.AtomTrailer) {
         base = t.target;
