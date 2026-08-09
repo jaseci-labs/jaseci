@@ -2203,11 +2203,6 @@ impl PyastBuildPass._fstring_semantic_interior(segment: str) -> str {
 impl PyastBuildPass._fstring_constant_content(
     nd: py_ast.Constant, is_raw: bool
 ) -> str {
-    # FString interior String.value always stores semantic content: literal
-    # characters with Python escape sequences, never source-doubled braces.
-    # Unparse doubles braces when the parent is FString; lit_value decodes
-    # escapes from value. Trust a source segment only when it decodes to
-    # nd.value, then strip doubled braces; otherwise derive from value.
     if is_raw {
         segment = self._get_source_segment(nd);
         if segment is not None and segment == nd.value {
@@ -2242,9 +2237,7 @@ impl PyastBuildPass._make_number_literal(
 
 impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
     if n == int(n) {
-        return self._make_number_literal(
-            nd, 'INT', str(int(n)), col_end=nd.col_offset
-        );
+        return self._make_number_literal(nd, 'INT', str(int(n)), col_end=nd.col_offset);
     }
     return self._make_number_literal(nd, 'FLOAT', str(n), col_end=nd.col_offset);
 }
@@ -2274,9 +2267,7 @@ impl PyastBuildPass._float_from_literal(expr: uni.Expr) -> (float | None) {
     return None;
 }
 
-impl PyastBuildPass._complex_from_func_call(
-    expr: uni.Expr
-) -> ((float, float) | None) {
+impl PyastBuildPass._complex_from_func_call(expr: uni.Expr) -> ((float, float) | None) {
     if (
         isinstance(expr, uni.FuncCall)
         and isinstance(expr.target, uni.Name)

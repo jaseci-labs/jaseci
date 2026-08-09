@@ -33,6 +33,7 @@ obj PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]) {
     def _make_number_literal(
         nd: py_ast.AST, token: str, value: str, col_end: int | None = None
     ) -> uni.Expr;
+
     def _numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr;
     def _float_from_literal(expr: uni.Expr) -> (float | None);
     def _complex_from_func_call(expr: uni.Expr) -> ((float, float) | None);
@@ -40,6 +41,7 @@ obj PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]) {
     def _try_fold_complex_binop(
         left: uni.Expr, op: uni.Token, right: uni.Expr, nd: py_ast.BinOp
     ) -> (uni.FuncCall | None);
+
     def nu(nd: T) -> T;
     def name_node(
         nd: py_ast.AST,
@@ -79,7 +81,10 @@ obj PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]) {
     def proc_assert(nd: py_ast.Assert) -> uni.AssertStmt;
     def proc_attribute(nd: py_ast.Attribute) -> uni.AtomTrailer;
     def proc_await(nd: py_ast.Await) -> uni.AwaitExpr;
-    def proc_bin_op(nd: py_ast.BinOp) -> (uni.AtomUnit | uni.BinaryExpr | uni.FuncCall);
+    def proc_bin_op(
+        nd: py_ast.BinOp
+    ) -> (uni.AtomUnit | uni.BinaryExpr | uni.FuncCall);
+
     def proc_unary_op(nd: py_ast.UnaryOp) -> uni.UnaryExpr;
     def proc_bool_op(nd: py_ast.BoolOp) -> uni.AtomUnit;
     def proc_break(nd: py_ast.Break) -> uni.CtrlStmt;

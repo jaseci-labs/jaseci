@@ -17,6 +17,35 @@ import from jaclang.jac0core.unitree { PythonModuleAst, Source }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
+     ),
+     PY2JAC_COMPLEX_SOURCE = (
+         '"""Fixture for py2jac complex literal conversion."""\n\n'
+         + "def bare_j():\n    return 1j\n\n"
+         + "def bare_float_j():\n    return 2.0j\n\n"
+         + "def add_complex():\n    return 1 + 2j\n\n"
+         + "def negative_complex():\n    return -1 - 2j\n\n"
+         + "def complex_real_only():\n    return 3 + 0j\n\n"
+         + "def reversed_add_complex():\n    return 2j + 1\n\n"
+         + "def nested_add_complex():\n    return 1 + 2j + 3\n\n"
+         + "def reversed_sub_complex():\n    return 2j - 1\n"
+     ),
+     PY2JAC_FSTRING_ADJACENT_MULTILINE_SOURCE = (
+         '"""Fixture for adjacent f-strings split across lines inside parens."""\n\n'
+         + "def welcome():\n    return (\n"
+         + '        f"Welcome "\n'
+         + '        f"aboard"\n'
+         + "    )\n"
+     ),
+     PY2JAC_FSTRING_ADJACENT_SINGLELINE_SOURCE = (
+         '"""Fixture for single-line adjacent f-strings with mixed quotes."""\n\n'
+         + "def adjacent():\n    return f'A' f\"B\"\n"
+     ),
+     PY2JAC_LAMBDA_IIFE_SOURCE = (
+         '"""Fixture for immediately-invoked lambda expressions."""\n\n'
+         + "def iife():\n    return (lambda x: x + 1)(10)\n\n"
+         + "def tap(f, x):\n    return f(x)\n\n"
+         + "def nested_lambda_call():\n"
+         + "    assert tap(lambda x: x + 1, (lambda x: x + 1)(10)) == 11\n"
      );
 
 test "synced to latest py ast" {
@@ -184,13 +213,10 @@ test "py2jac binop operator precedence" {
 
 """Complex number literals must emit complex(re, im) instead of ICE."""
 test "py2jac complex literals" {
-    with open(os.path.join(FIXTURES, "py2jac_complex.py")) as f {
-        file_source = f.read();
-    }
+    file_source = PY2JAC_COMPLEX_SOURCE;
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
-            py_ast.parse(file_source),
-            orig_src=Source(file_source, "py2jac_complex.py")
+            py_ast.parse(file_source), orig_src=Source(file_source, "py2jac_complex.py")
         ),
         prog=JacProgram()
     ).ir_out.unparse();
@@ -245,13 +271,10 @@ test "py2jac complex literals native lowering" {
     if not pipeline_ok {
         pytest.skip(pipeline_reason);
     }
-    with open(os.path.join(FIXTURES, "py2jac_complex.py")) as f {
-        file_source = f.read();
-    }
+    file_source = PY2JAC_COMPLEX_SOURCE;
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
-            py_ast.parse(file_source),
-            orig_src=Source(file_source, "py2jac_complex.py")
+            py_ast.parse(file_source), orig_src=Source(file_source, "py2jac_complex.py")
         ),
         prog=JacProgram()
     ).ir_out.unparse();
@@ -268,7 +291,7 @@ test "py2jac complex literals native lowering" {
     );
     assert not prog.errors_had , (
         f"Native lowering errors: {[e.pretty_print() for e in prog.errors_had]}\n"
-            f"code:\n{code}"
+        f"code:\n{code}"
     );
     assert mod.gen.llvm_ir is not None , (
         "Expected native IR for folded complex literals"
@@ -277,16 +300,16 @@ test "py2jac complex literals native lowering" {
 
 """Adjacent f-strings folded by Python must emit valid Jac f-strings."""
 test "py2jac fstring adjacent multiline" {
-    with open(os.path.join(FIXTURES, "py2jac_fstring_adjacent_multiline.py")) as f {
-        file_source = f.read();
-    }
+    file_source = PY2JAC_FSTRING_ADJACENT_MULTILINE_SOURCE;
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source),
             orig_src=Source(file_source, "py2jac_fstring_adjacent_multiline.py")
         ),
         prog=JacProgram()
-    ).ir_out.unparse(requires_format=False);
+    ).ir_out.unparse(
+        requires_format=False
+    );
 
     assert 'f"A' not in code or 'f"Welcome aboard"' in code , (
         f"Mangled adjacent f-string quotes in:\n{code}"
@@ -310,16 +333,16 @@ test "py2jac fstring adjacent multiline" {
 
 """Single-line adjacent f-strings with mixed quotes must not mangle output."""
 test "py2jac fstring adjacent singleline" {
-    with open(os.path.join(FIXTURES, "py2jac_fstring_adjacent_singleline.py")) as f {
-        file_source = f.read();
-    }
+    file_source = PY2JAC_FSTRING_ADJACENT_SINGLELINE_SOURCE;
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source),
             orig_src=Source(file_source, "py2jac_fstring_adjacent_singleline.py")
         ),
         prog=JacProgram()
-    ).ir_out.unparse(requires_format=False);
+    ).ir_out.unparse(
+        requires_format=False
+    );
 
     assert 'f"""A\' f"B"""' not in code , f"Mangled single-line f-string in:\n{code}";
 
@@ -338,16 +361,16 @@ test "py2jac fstring adjacent singleline" {
 
 """Immediately-invoked lambda expressions must parenthesize the call target."""
 test "py2jac lambda iife" {
-    with open(os.path.join(FIXTURES, "py2jac_lambda_iife.py")) as f {
-        file_source = f.read();
-    }
+    file_source = PY2JAC_LAMBDA_IIFE_SOURCE;
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source),
             orig_src=Source(file_source, "py2jac_lambda_iife.py")
         ),
         prog=JacProgram()
-    ).ir_out.unparse(requires_format=False);
+    ).ir_out.unparse(
+        requires_format=False
+    );
 
     assert "lambda (x: Any) { (x + 1); }(10)" not in code , (
         f"Unparenthesized lambda call target in:\n{code}"
