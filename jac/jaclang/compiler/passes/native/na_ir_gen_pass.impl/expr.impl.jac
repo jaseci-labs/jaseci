@@ -1404,16 +1404,12 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
     self.builder.position_at_end(then_bb);
     then_val = self._codegen_expr(nd.value);
     then_end_bb = self.builder.block;
-    if not self.builder.block.is_terminated {
-        self.builder.branch(merge_bb);
-    }
+    then_open = not self.builder.block.is_terminated;
 
     self.builder.position_at_end(else_bb);
     else_val = self._codegen_expr(nd.else_value);
     else_end_bb = self.builder.block;
-    if not self.builder.block.is_terminated {
-        self.builder.branch(merge_bb);
-    }
+    else_open = not self.builder.block.is_terminated;
 
     if then_val is not None and else_val is not None {
         if then_val.type != else_val.type
@@ -1421,13 +1417,13 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
             and (
                 then_val.type == self._str_desc_ty or else_val.type == self._str_desc_ty
             ) {
-            if then_val.type != self._str_desc_ty {
-                self.builder.position_before(then_end_bb.terminator);
+            if then_val.type != self._str_desc_ty and then_open {
+                self.builder.position_at_end(then_end_bb);
                 then_val = self._coerce_type(then_val, self._str_desc_ty);
                 then_end_bb = self.builder.block;
             }
-            if else_val.type != self._str_desc_ty {
-                self.builder.position_before(else_end_bb.terminator);
+            if else_val.type != self._str_desc_ty and else_open {
+                self.builder.position_at_end(else_end_bb);
                 else_val = self._coerce_type(else_val, self._str_desc_ty);
                 else_end_bb = self.builder.block;
             }
@@ -1435,40 +1431,63 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
         if then_val.type != else_val.type {
             if isinstance(then_val.type, ir.DoubleType)
                 or isinstance(else_val.type, ir.DoubleType) {
-                if isinstance(then_val.type, ir.IntType) {
-                    self.builder.position_before(then_end_bb.terminator);
+                if isinstance(then_val.type, ir.IntType) and then_open {
+                    self.builder.position_at_end(then_end_bb);
                     then_val = self.builder.sitofp(
                         then_val, ir.DoubleType(), name="ternary.cast"
                     );
                 }
-                if isinstance(else_val.type, ir.IntType) {
-                    self.builder.position_before(else_end_bb.terminator);
+                if isinstance(else_val.type, ir.IntType) and else_open {
+                    self.builder.position_at_end(else_end_bb);
                     else_val = self.builder.sitofp(
                         else_val, ir.DoubleType(), name="ternary.cast"
                     );
                 }
             } elif isinstance(then_val.type, ir.IntType)
                 and isinstance(else_val.type, ir.IntType) {
-                if then_val.type.width > else_val.type.width {
-                    self.builder.position_before(else_end_bb.terminator);
+                if then_val.type.width > else_val.type.width and else_open {
+                    self.builder.position_at_end(else_end_bb);
                     else_val = self.builder.zext(
                         else_val, then_val.type, name="ternary.widen"
                     );
-                } else {
-                    self.builder.position_before(then_end_bb.terminator);
+                } elif then_val.type.width <= else_val.type.width and then_open {
+                    self.builder.position_at_end(then_end_bb);
                     then_val = self.builder.zext(
                         then_val, else_val.type, name="ternary.widen"
                     );
                 }
             }
         }
-        self.builder.position_at_end(merge_bb);
-        phi = self.builder.phi(then_val.type, name="ternary.result");
-        phi.add_incoming(then_val, then_end_bb);
-        phi.add_incoming(else_val, else_end_bb);
-        return phi;
+        if then_val.type != else_val.type {
+            _uni_ty = self._unify_repr_lowering([then_val.type, else_val.type]);
+            if _uni_ty is not None and then_val.type != _uni_ty and then_open {
+                self.builder.position_at_end(then_end_bb);
+                then_val = self._coerce_to_repr(then_val, _uni_ty);
+                then_end_bb = self.builder.block;
+            }
+            if _uni_ty is not None and else_val.type != _uni_ty and else_open {
+                self.builder.position_at_end(else_end_bb);
+                else_val = self._coerce_to_repr(else_val, _uni_ty);
+                else_end_bb = self.builder.block;
+            }
+        }
     }
-    return None;
+    if then_open {
+        self.builder.position_at_end(then_end_bb);
+        self.builder.branch(merge_bb);
+    }
+    if else_open {
+        self.builder.position_at_end(else_end_bb);
+        self.builder.branch(merge_bb);
+    }
+    self.builder.position_at_end(merge_bb);
+    if then_val is None or else_val is None {
+        return None;
+    }
+    phi = self.builder.phi(then_val.type, name="ternary.result");
+    phi.add_incoming(then_val, then_end_bb);
+    phi.add_incoming(else_val, else_end_bb);
+    return phi;
 }
 
 impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None) {
