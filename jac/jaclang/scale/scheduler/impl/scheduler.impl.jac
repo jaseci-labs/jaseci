@@ -82,6 +82,16 @@ def _doc_row(raw: Any) -> dict {
     return raw if isinstance(raw, dict) else json.loads(str(raw));
 }
 
+def _fire_lease_ttl(spec: TriggerSpec) -> int {
+    if spec.trigger == 'interval' and spec.interval {
+        return max(1, min(300, int(float(spec.interval) * 0.8)));
+    }
+    if spec.trigger == 'cron' {
+        return 45;
+    }
+    return 300;
+}
+
 def _where_sql(where: dict | None, params: dict) -> str {
     sql = '';
     n = 0;
@@ -373,6 +383,7 @@ impl JacScaleScheduler.setup(system_user_id: str, server: Any | None = None) -> 
             "Enable the 'scheduler' capability and run 'jac install'."
         );
     }
+    self._start_jobs_listener();
 }
 
 impl JacScaleScheduler.start -> None {
@@ -556,6 +567,7 @@ impl JacScaleScheduler.create_job(
         raise;
     }
 
+    self._notify_jobs_changed(persisted_id);
     logger.debug(f"Created dynamic job: {name} (id={persisted_id})");
     return job_data;
 }
@@ -599,6 +611,7 @@ impl JacScaleScheduler.update_job(
             job_id=job_id, name=name, spec=spec, user_id=user_id, is_walker=is_walker
         );
     }
+    self._notify_jobs_changed(job_id);
 
     updated = dict(existing);
     updated.update(updates);
@@ -620,6 +633,9 @@ impl JacScaleScheduler.delete_job(job_id: str, acting_as: str | None = None) -> 
             );
         }
         logger.debug(f"Deleted dynamic job id={job_id}");
+    }
+    if result {
+        self._notify_jobs_changed(job_id);
     }
     return result;
 }
@@ -705,6 +721,85 @@ impl JacScaleScheduler._mark_failed(job_id: str | None, reason: str) -> None {
     }
 }
 
+impl JacScaleScheduler._acquire_fire_lease(job_id: str, spec: TriggerSpec) -> bool {
+    store = self._store;
+    if not isinstance(store, PgJobStore) {
+        return True;
+    }
+    import from jaclang.scale.state.pg_state_backend { PgStateBackend }
+    try {
+        return PgStateBackend(store=store.store).acquire_lock(
+            f"sched:{job_id}", _fire_lease_ttl(spec)
+        );
+    } except Exception as e {
+        logger.warning(f"fire-lease check failed for job {job_id}: {e}; firing anyway");
+        return True;
+    }
+}
+
+impl JacScaleScheduler._notify_jobs_changed(job_id: str) -> None {
+    store = self._store;
+    if not isinstance(store, PgJobStore) {
+        return;
+    }
+    try {
+        store.store.notify(JOBS_CHANGED_CHANNEL, job_id);
+    } except Exception as e {
+        logger.warning(
+            f"jobs-changed notify failed for {job_id}: {e}; other pods "
+            "reconcile this job on their next restart"
+        );
+    }
+}
+
+impl JacScaleScheduler._start_jobs_listener -> None {
+    store = self._store;
+    if not isinstance(store, PgJobStore) or self._apscheduler is None {
+        return;
+    }
+    def _cb(payload: str) {
+        self._on_jobs_changed(payload);
+    }
+    try {
+        store.store.listen(JOBS_CHANGED_CHANNEL, _cb);
+        logger.debug("jobs-changed listener registered");
+    } except Exception as e {
+        logger.warning(f"could not register jobs-changed listener: {e}");
+    }
+}
+
+impl JacScaleScheduler._on_jobs_changed(payload: str) -> None {
+    job_id = str(payload or '').strip();
+    if not job_id or self._apscheduler is None or self._store is None {
+        return;
+    }
+    try {
+        job = self._store.find_active_one(job_id);
+    } except Exception as e {
+        logger.warning(f"jobs-changed reconcile failed for {job_id}: {e}");
+        return;
+    }
+    if job is None {
+        try {
+            self._apscheduler.remove_job(job_id);
+            logger.debug(f"jobs-changed: removed local schedule for {job_id}");
+        } except Exception { }
+        return;
+    }
+    try {
+        self._schedule_apscheduler_job(
+            job_id=job_id,
+            name=str(job.get('name', '')),
+            spec=TriggerSpec.from_dict(job),
+            user_id=str(job.get('created_by', self._system_user_id)),
+            is_walker=bool(job.get('is_walker', True))
+        );
+        logger.debug(f"jobs-changed: reconciled local schedule for {job_id}");
+    } except Exception as e {
+        logger.warning(f"jobs-changed re-schedule failed for {job_id}: {e}");
+    }
+}
+
 impl JacScaleScheduler._schedule_apscheduler_job(
     job_id: str, name: str, spec: TriggerSpec, user_id: str, is_walker: bool = True
 ) -> None {
@@ -713,6 +808,10 @@ impl JacScaleScheduler._schedule_apscheduler_job(
     }
 
     def job_func {
+        if not self._acquire_fire_lease(job_id, spec) {
+            logger.debug(f"job {job_id} already fired on another pod; skipping");
+            return;
+        }
         if user_id != self._system_user_id and self._server is not None {
             if not self._user_is_live(user_id) {
                 logger.warning(
