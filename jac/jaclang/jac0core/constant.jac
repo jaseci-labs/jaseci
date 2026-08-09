@@ -122,7 +122,6 @@ enum GraphBreakKind { VAL_GUARD = 'val_guard' }
 
 enum GraphMendHelper {
     EQ_ASSERT = '__jac_tensor_eq_assert__',
-    BOOL_ASSERT = '__jac_tensor_bool_assert__',
     TRAP_GUARD = '__jac_trap_guard__'
 }
 

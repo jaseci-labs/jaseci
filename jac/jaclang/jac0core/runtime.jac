@@ -440,7 +440,6 @@ class JacBuiltin {
 
     static def log_report(expr: any, custom: bool = False) -> None;
     static def tensor_eq_assert(a: any, b: any, msg: str) -> None;
-    static def tensor_bool_assert(cond: any, msg: str) -> None;
     static def trap_guard(fn: any) -> any;
     static def safe_subscript(`obj: any, key: any) -> any;
     static def get_console -> ConsoleImpl;

@@ -108,7 +108,7 @@ and for a condition that is already a tensor boolean
 (`.all()` / `.any()` / `.allclose()`):
 
 ```python
-__jac_tensor_bool_assert__(mask.all(), '[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')
+torch._assert_async(mask.all(), '[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')
 ```
 
 ### Legality conditions
@@ -122,12 +122,16 @@ left unfixed is a soundness property, not a defect.
    meaning of the original guard.
 2. `X` must be convertible to a tensor boolean: `torch.equal(a, b)` (a Python
    bool, special-cased below) or a call already returning a tensor bool
-   (`.all`, `.any`, `.allclose`). Anything else declines. That match is
-   structural, by method name, so tensor-ness is established at runtime
-   instead: `tensor_bool_assert` sends a tensor to `torch._assert_async`
-   (Dynamo folds the `isinstance` check, leaving the graph unchanged), and for
-   a non-tensor receiver falls back to raising the marked error eagerly, which
-   the boundary guard restores as usual.
+   (`.all`, `.any`, `.allclose`). The `.all`-form match is structural, by
+   method name, so it proves nothing about the receiver, and a duck-typed
+   receiver returning a Python bool would turn the graph-native assert into a
+   type error. Tensor-ness must therefore be established statically: the
+   receiver (or, for a comparison or arithmetic expression, at least one
+   operand, since tensor operands make the result a tensor) must trace to a
+   parameter annotated `torch.Tensor`. When it does, the guard lowers to
+   `torch._assert_async` directly; when it does not, the guard declines and
+   keeps its original Python semantics. Nothing is checked or dispatched at
+   runtime.
 3. `torch.equal` is rebuilt by the runtime helper `tensor_eq_assert` as a
    tensor op with a static precheck: shapes and dtypes must match before
    evaluating `(a == b).all()`, else the assert condition is a constant
@@ -191,10 +195,12 @@ licence to weaken the contract now.
 
 ### Runtime support
 
-Three helpers back the transform, exported through `jaclib` and imported by
+Two helpers back the transform, exported through `jaclib` and imported by
 the generated module preamble only when the pass actually used them
-(`__jac_tensor_eq_assert__`, `__jac_tensor_bool_assert__`,
-`__jac_trap_guard__`). All live on `JacBuiltin` in `jac0core/runtime.jac`.
+(`__jac_tensor_eq_assert__`, `__jac_trap_guard__`). Both live on `JacBuiltin`
+in `jac0core/runtime.jac`. The tensor-bool form needs no helper: its
+receiver's tensor-ness is proven at compile time, so the pass emits
+`torch._assert_async` directly.
 
 ## Evidence
 

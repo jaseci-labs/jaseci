@@ -188,12 +188,11 @@ obj FakeMask {
 }
 
 test "non-tensor guard condition keeps its original exception contract" {
-    # The lowering accepts `.all()` by shape, so the receiver's tensor-ness is
-    # only established at runtime: __jac_tensor_bool_assert__ must fall back to
-    # exact guard semantics (raise the marked error eagerly) for a non-tensor
-    # condition instead of feeding it to torch._assert_async.
+    # The `.all()` match is structural; with `mask: any` there is no static
+    # proof of tensor-ness, so the lowering DECLINES and the original guard
+    # runs unchanged: a duck-typed receiver keeps its exact Python semantics.
     torch = _torch();
-    ns = _exec_gm("val_guard_all.jac", True, False);
+    ns = _exec_gm("guard_unproven_receiver.jac", True, False);
     x = torch.tensor([1.0, 2.0, 3.0]);
     out = ns["f"](x, FakeMask(value=True));
     assert torch.allclose(out, torch.sin(torch.relu(x)) * 2.0);
