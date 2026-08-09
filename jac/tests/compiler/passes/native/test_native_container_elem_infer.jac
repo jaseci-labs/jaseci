@@ -197,6 +197,31 @@ test "un-inferable elem type: ordering a tagged element checks its tag at runtim
     assert native_call(eng, "mixed_ord_float_vs_int_false") == 0 , "not 20.5 < 9";
 }
 
+test "un-inferable elem type: equality against an unboxable peer is refused" {
+    # The equality branch boxes the unboxed peer, but _box_to_jacval only
+    # represents scalars and pointers. An aggregate peer -- here a by-value
+    # tuple literal -- has no tagged representation, and its old catch-all
+    # stored tag=0/payload=0, so `x[0] == (1, 2)` compared a real element
+    # against a null-ish tagged value and could answer True for `0 == (0, 0)`.
+    # The guard is now symmetric with the ordering branch: unboxable -> E5090.
+    prog = compile_na_inline(
+        "eq_tuple",
+        "def f -> int {\n"
+            + "    x = [];\n"
+            + "    x.append(7);\n"
+            + "    x.append(\"seven\");\n"
+            + "    if x[0] == (1, 2) {\n"
+            + "        return 1;\n"
+            + "    }\n"
+            + "    return 0;\n"
+            + "}\n"
+    );
+    assert has_error_code(prog, "E5090") , (
+        "expected E5090 for equality between a tagged element and an unboxable "
+        + f"aggregate peer, got {[str(e) for e in prog.errors_had]}"
+    );
+}
+
 test "un-inferable elem type: an unorderable mixed comparison is refused, not guessed" {
     prog = compile_na_inline(
         "order_str",

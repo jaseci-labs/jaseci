@@ -2098,6 +2098,21 @@ impl NaIRGenPass._is_jacval_ty(t: ir.Type) -> bool {
     return isinstance(t, ir.IdentifiedStructType) and t.name == self.jacval_type.name;
 }
 
+impl NaIRGenPass._is_jacval_boxable(t: ir.Type) -> bool {
+    if self._is_jacval_ty(t) {
+        return True;
+    }
+    if isinstance(t, (ir.IntType, ir.DoubleType, ir.PointerType)) {
+        return True;
+    }
+    _sd = self._str_desc_ty;
+    return (
+        _sd is not None
+        and isinstance(t, ir.IdentifiedStructType)
+        and t.name == _sd.name
+    );
+}
+
 impl NaIRGenPass._emit_jacval_ordering(
     op: str, jv: ir.Value, peer: ir.Value, jv_on_left: bool
 ) -> (ir.Value | None) {
@@ -2156,7 +2171,7 @@ impl NaIRGenPass._emit_mixed_jacval_comparison(
 ) -> (ir.Value | None) {
     _left_boxed = self._is_jacval_ty(left.type);
     _peer = right.type if _left_boxed else left.type;
-    if op in (Tok.EE, Tok.NE) {
+    if op in (Tok.EE, Tok.NE) and self._is_jacval_boxable(_peer) {
         if _left_boxed {
             right = self._coerce_type(right, self.jacval_type);
         } else {
