@@ -358,18 +358,34 @@ see the slot early, and an attribute callee bound to something other than a
 module-level dispatch table would not be seen by G5. The honest phrasing of
 the guarantee is therefore equivalence modulo private memoization state.
 
-### Residual: dictionary reads inside a speculated initializer
+### Configuration reads: proving `.get` from a constructor invariant
 
-Requiring a pure receiver costs real coverage. A rope initializer of the
-`transformers` `_compute_longrope_parameters` shape reads its configuration
-with `config.rope_scaling.get("factor")`. That call is pure in fact, because
-the receiver is a plain dict, but nothing available to this pass proves it:
-the same expression shape covers `session.get(url)`. G5 therefore declines
-the whole initializer, and with it the predication of the branch that
-memoizes it. Accepting it would need the receiver's type, which means either
-type-checker results threaded into this pass or a narrow, explicitly
-documented assumption. Until then the break is left in place, which is the
-conservative direction.
+Requiring a pure receiver would cost real coverage on its own. A rope
+initializer of the `transformers` `_compute_longrope_parameters` shape reads
+its configuration with `config.rope_scaling.get("factor")`. That call is pure
+in fact, because the receiver is a plain dict, but no purity list can say so:
+the same expression shape covers `session.get(url)`.
+
+The proof comes from the source instead. Before the pass runs, a fact
+collector (`graphmend/scope_facts.jac`) scans every module the program has
+read and records three tables on `JacProgram`: which classes apply which
+decorator to a method, which `__init__` parameters with class annotations are
+stored onto `self`, and which attributes a class's construction path forces
+to be a dict, i.e. an `if not isinstance(self.attr, dict): raise` reachable
+from `__init__` (directly or through a helper `__init__` calls, transformers'
+`_rope_scaling_validation` idiom). At a speculated call site the pass then
+types each argument, from the call-site annotation or through the stored
+attribute types, and accepts `param.attr.get(...)` only when every candidate
+class for `param` carries the dict invariant on `attr`. `LooseConfig`-style
+classes that never validate the attribute stay opaque and decline.
+
+Two residuals, stated rather than papered over. The transformers validator
+permits `None` (`if self.rope_scaling is None: return`), recorded as
+`dict_or_none`: a speculated `.get` on a None-config model raises
+`AttributeError` on a path the original never executed, the same class of
+residual as an initializer that raises for branch-specific arguments. And the
+fact tables key on bare class names; module-qualified keys arrive with the
+scoped-import work, where whole packages enter the analysis.
 
 ## Evidence
 

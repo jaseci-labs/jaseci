@@ -1,6 +1,7 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, Tokens as Tok }
+import from jaclang.compiler.passes.main.graphmend.scope_facts { collect_scope_facts }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     cond_materializes_scalar
 }
@@ -9,6 +10,15 @@ impl PredicateCtrlFlowPass.before_pass -> None {
     self._enabled = self.prog._compile_options.graphmend;
     if not self._enabled {
         self.prune_signal = True;
+        return;
+    }
+    for m in ([self.ir_in] + list(self.prog.mod.hub.values())) {
+        collect_scope_facts(
+            m,
+            self.prog.graphmend_decor_classes,
+            self.prog.graphmend_attr_types,
+            self.prog.graphmend_dict_attrs
+        );
     }
 }
 
@@ -331,9 +341,6 @@ impl PredicateCtrlFlowPass._is_assert_async(stmt: uni.UniNode) -> bool {
         return False;
     }
     t = call.target;
-    if isinstance(t, uni.Name) and (t.value == '__jac_tensor_bool_assert__') {
-        return True;
-    }
     return (
         isinstance(t, uni.AtomTrailer)
         and isinstance(t.right, uni.Name)
@@ -384,8 +391,7 @@ impl PredicateCtrlFlowPass._gate_asserts(
         gate: uni.Expr = (
             self._torch_call(s, 'logical_not', [cref]) if taken_when_true else cref
         );
-        tensor_check = self._torch_call(s, 'as_tensor', [check]);
-        new_check = self._torch_call(s, 'logical_or', [gate, tensor_check]);
+        new_check = self._torch_call(s, 'logical_or', [gate, check]);
         new_params = [new_check] + list(call.params[1:]);
         new_call = uni.FuncCall(
             target=call.target,

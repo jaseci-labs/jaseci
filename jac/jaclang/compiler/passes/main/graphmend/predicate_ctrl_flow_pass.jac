@@ -102,9 +102,16 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _module_fn(mod: uni.Module, name: str) -> (uni.Ability | None);
     def _dispatch_table_fns(mod: uni.Module) -> list[uni.Ability];
     def _body_pure_nonraising(
-        fn: uni.Ability, c: uni.FuncCall, seen: (set[int] | None) = None
+        fn: uni.Ability,
+        c: uni.FuncCall,
+        seen: (set[int] | None) = None,
+        ctx: (dict[str, list[str]] | None) = None
     ) -> bool;
 
+    def _callsite_ctx(fn: uni.Ability, c: uni.FuncCall) -> dict[str, list[str]];
+    def _arg_classes(arg: uni.Expr, c: uni.FuncCall) -> list[str];
+    def _self_classes(c: uni.FuncCall) -> list[str];
+    def _ctx_dict_get(call: uni.FuncCall, ctx: dict[str, list[str]]) -> bool;
     def _hasattr_key(c: uni.Expr) -> (tuple[str, str] | None);
     def _writes_attr(s: uni.Assignment, recv: str, key: str) -> bool;
     def _attr_confined(region: uni.IfStmt, key: str) -> bool;

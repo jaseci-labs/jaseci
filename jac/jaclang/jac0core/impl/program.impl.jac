@@ -12,6 +12,9 @@ impl JacProgram.init(
     self.graphmend_enabled: bool = False;
     self.graphmend_breaks: dict[int, GraphBreakKind] = {};
     self.graphmend_helpers: dict[int, set[GraphMendHelper]] = {};
+    self.graphmend_decor_classes: dict[str, list[str]] = {};
+    self.graphmend_attr_types: dict[str, dict[str, str]] = {};
+    self.graphmend_dict_attrs: dict[str, dict[str, str]] = {};
     self._native_cache: dict = {};
 
     self._hub_cache_times: dict[str, float] = {};

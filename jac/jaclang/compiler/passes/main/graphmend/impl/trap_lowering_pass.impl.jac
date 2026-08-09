@@ -248,6 +248,9 @@ impl TrapLoweringPass._tensor_receiver_provable(
 }
 
 impl TrapLoweringPass._tensor_expr_provable(e: uni.Expr, site: uni.UniNode) -> bool {
+    if isinstance(e, uni.AtomUnit) and isinstance(e.value, uni.Expr) {
+        return self._tensor_expr_provable(e.value, site);
+    }
     if isinstance(e, uni.Name) {
         return self._param_is_tensor(e.value, site);
     }
