@@ -136,10 +136,18 @@ left unfixed is a soundness property, not a defect.
 1. The tagged `IfStmt` body is exactly one `raise` statement, and the
    condition is a unary `not X`. Only then is "assert X must hold" the exact
    meaning of the original guard.
-2. `X` must be convertible to a tensor boolean. Two cases are accepted:
-   `torch.equal(a, b)` (returns a Python bool, special-cased below) and calls
-   already returning a tensor bool (`.all`, `.any`, `.allclose`). Anything
-   else declines.
+2. `X` must be convertible to a tensor boolean: `torch.equal(a, b)` (a Python
+   bool, special-cased below) or a call already returning a tensor bool
+   (`.all`, `.any`, `.allclose`). The `.all`-form match is structural, by
+   method name, so it proves nothing about the receiver, and a duck-typed
+   receiver returning a Python bool would turn the graph-native assert into a
+   type error. Tensor-ness must therefore be established statically: the
+   receiver (or, for a comparison or arithmetic expression, at least one
+   operand, since tensor operands make the result a tensor) must trace to a
+   parameter annotated `torch.Tensor`. When it does, the guard lowers to
+   `torch._assert_async` directly; when it does not, the guard declines and
+   keeps its original Python semantics. Nothing is checked or dispatched at
+   runtime.
 3. `torch.equal` is rebuilt by the runtime helper `tensor_eq_assert` as a
    tensor op with a static precheck: shapes and dtypes must match before
    evaluating `(a == b).all()`, else the assert condition is a constant
@@ -148,19 +156,28 @@ left unfixed is a soundness property, not a defect.
    `torch.equal` reports as unequal, and the precheck itself is static
    metadata that adds no break.
 4. The original exception must be reconstructible at the call boundary, or the
-   guard is left intact. This needs three things at once: an enclosing
-   `@torch.compile`-decorated ability to carry the eager decorator, a named
-   exception type, and a message that is a pure string literal. Three shapes
-   therefore decline. An f-string declines because a `MultiString` contributes
-   only its `String` parts to a literal value, so folding one would produce a
-   marker wrapped around an empty message -- the right exception type with its
-   diagnostic silently dropped. A runtime expression (concatenation,
-   `%`-formatting) declines because no marker can be built at all, which would
-   surface the failure as `RuntimeError` instead of the original type. A guard
-   inside a `@torch.compile`-decorated *class* declines for want of a boundary:
-   the method carries no decorator of its own, and an async assert can surface
-   after that method has already returned. Detection still tags all three --
-   the decline belongs to the transform, not to the analysis.
+   guard is left intact. Every one of the following must hold:
+
+   - **An enclosing `@torch.compile`-decorated ability** to carry the eager
+     decorator. A guard inside a decorated *class* has none of its own, and an
+     async assert can surface after its method has already returned.
+   - **A bare builtin exception name**, since the boundary resolves the marker
+     through `builtins`. An aliased or qualified type such as
+     `errors.ValidationError` would come back as `RuntimeError`.
+   - **Exactly one positional argument, no keywords, no `from cause`.** The
+     marker carries one string, so anything else loses state: extra arguments
+     are truncated, `raise ValueError()` would come back as `ValueError('')`
+     with `args` changed from `()` to `('',)`, and an explicit chain cannot be
+     rebuilt by a boundary that re-raises `from None`.
+   - **A message that is a pure string literal** not containing
+     `[[/GM-TRAP]]`. An f-string contributes only its `String` parts to
+     `lit_value`, so folding one would keep the exception type and silently
+     drop the diagnostic; a runtime expression (concatenation,
+     `%`-formatting) admits no marker at all; an embedded closing delimiter
+     would truncate the restored message.
+
+   Detection still tags these guards; the decline belongs to the transform,
+   not to the analysis.
 
 ### Exception-type preservation
 
@@ -172,9 +189,14 @@ string literal, the pass folds a self-describing marker into the message
 literal at compile time (`[[GM-TRAP ValueError]]msg[[/GM-TRAP]]`) and
 prepends the eager boundary decorator `@__jac_trap_guard__` to the function.
 The decorator catches the `RuntimeError` at the boundary, parses the marker,
-and re-raises the original exception type with the original message; unmarked
-`RuntimeError`s propagate unchanged, and unknown (non-builtin) types degrade
-to `RuntimeError` so no message is ever lost.
+and re-raises the original exception type with the original message. Parsing
+is defensive: an unmarked `RuntimeError`, one whose marker has no terminator
+or no closing tag, or one naming something that is not an exception class,
+propagates unchanged rather than being reinterpreted. Because condition 4
+admits only bare builtin names and rejects messages containing the closing
+delimiter, a lowered guard always restores exactly. The residual is an
+unrelated `RuntimeError` whose own text embeds a complete, well-formed
+marker; it would be restored as the exception that marker names.
 
 The marker is folded at compile time, not concatenated at runtime, so the
 assert stays a native torch op inside the graph. That also makes the marker
@@ -189,10 +211,12 @@ licence to weaken the contract now.
 
 ### Runtime support
 
-Two helpers back the transform, exported through `jaclib` and imported by the
-generated module preamble only when the pass actually used them
+Two helpers back the transform, exported through `jaclib` and imported by
+the generated module preamble only when the pass actually used them
 (`__jac_tensor_eq_assert__`, `__jac_trap_guard__`). Both live on `JacBuiltin`
-in `jac0core/runtime.jac`.
+in `jac0core/runtime.jac`. The tensor-bool form needs no helper: its
+receiver's tensor-ness is proven at compile time, so the pass emits
+`torch._assert_async` directly.
 
 ## Predication: `PredicateCtrlFlowPass`
 
@@ -202,6 +226,13 @@ pass rewrites the branch into a single graph-native selection so both paths
 stay inside one FX graph. It fires only when both branches produce the same
 output, so the rewrite is provably semantics-preserving; anything more
 complex (differing targets, elif chains, a missing `else`) is left intact.
+
+The predicate must also be a tensor. `torch.where` rejects a Python `bool`
+condition, so a branch whose predicate materializes a scalar (`.item()`,
+`.tolist()`, `torch.equal`, `torch.allclose`, named inline or reached through
+the use-def chain that tagged the branch) is declined. Nothing is lost by
+that: the materializing call is itself the break, and predication cannot
+remove it. Such a branch stays tagged `DYN_CTRL_FL` and unrewritten.
 
 ### Reconciliation shapes
 
@@ -262,8 +293,14 @@ rewrite:
 
 The licensed forms:
 
-- A pure write to bare local names whose value contains no call. The value is
-  recomputed, nothing escapes.
+- A pure write to bare local names whose value contains no call, and whose
+  target is confined to the region: the name appears nowhere else in the
+  enclosing function, and the two branches do not write the same target.
+  Without both conditions the write is not neutral, it is just invisible at
+  the assignment itself. A name read after the branch would carry the taken
+  path's value onto runs that took the other one, and a name written by both
+  branches would leave the second write standing for both, so the merged call
+  would read the untaken branch's operand.
 - An idempotent device move `x = x.to(...)` where the target is textually the
   receiver. Re-running it is a no-op.
 - A lowered validation assert (`torch._assert_async(...)` produced by
@@ -304,7 +341,16 @@ alone is not sufficient; five conditions must hold:
   must clear the purity check. A `raise` inside a candidate counts as
   unreachable only in the varkwargs-validation form (`if rope_kwargs: raise`)
   when this call passes no unexpected keyword. Purity is transitive into
-  local helpers; unresolvable calls are opaque and decline.
+  local helpers; unresolvable calls are opaque and decline. A library call is
+  pure only when the call as a whole is checked, never its leaf name alone.
+  A `torch`/`math` call needs its leaf on the pure-operation list (tensor
+  construction and elementwise math): being rooted at `torch` proves nothing,
+  since `torch.save` writes a file and `torch.manual_seed` mutates global RNG
+  state. A pure tensor method (`to`, `float`, `double`, `clone`, `detach`)
+  needs a receiver that is itself a pure call, so
+  `torch.arange(...).float().to(device)` is accepted while `session.clone()`
+  or `store.get(k)` is not: those names are no-ops on a tensor and arbitrary
+  work on anything else. The consequence is stated under residuals below.
 
 ### Caveat: speculated memoization is a state change, not a no-op
 
@@ -321,6 +367,35 @@ a `__dict__` or `state_dict()` walk, a subclass in another file) can still
 see the slot early, and an attribute callee bound to something other than a
 module-level dispatch table would not be seen by G5. The honest phrasing of
 the guarantee is therefore equivalence modulo private memoization state.
+
+### Configuration reads: proving `.get` from a constructor invariant
+
+Requiring a pure receiver would cost real coverage on its own. A rope
+initializer of the `transformers` `_compute_longrope_parameters` shape reads
+its configuration with `config.rope_scaling.get("factor")`. That call is pure
+in fact, because the receiver is a plain dict, but no purity list can say so:
+the same expression shape covers `session.get(url)`.
+
+The proof comes from the source instead. Before the pass runs, a fact
+collector (`graphmend/scope_facts.jac`) scans every module the program has
+read and records three tables on `JacProgram`: which classes apply which
+decorator to a method, which `__init__` parameters with class annotations are
+stored onto `self`, and which attributes a class's construction path forces
+to be a dict, i.e. an `if not isinstance(self.attr, dict): raise` reachable
+from `__init__` (directly or through a helper `__init__` calls, transformers'
+`_rope_scaling_validation` idiom). At a speculated call site the pass then
+types each argument, from the call-site annotation or through the stored
+attribute types, and accepts `param.attr.get(...)` only when every candidate
+class for `param` carries the dict invariant on `attr`. `LooseConfig`-style
+classes that never validate the attribute stay opaque and decline.
+
+Two residuals, stated rather than papered over. The transformers validator
+permits `None` (`if self.rope_scaling is None: return`), recorded as
+`dict_or_none`: a speculated `.get` on a None-config model raises
+`AttributeError` on a path the original never executed, the same class of
+residual as an initializer that raises for branch-specific arguments. And the
+fact tables key on bare class names; module-qualified keys arrive with the
+scoped-import work, where whole packages enter the analysis.
 
 ## Deferred side effects: `DeferSideEffectPass`
 

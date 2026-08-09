@@ -9,7 +9,7 @@ import from pathlib { Path }
 import from urllib.request { urlopen }
 import from urllib.error { HTTPError }
 import from jaclang.scale.injector.bundle { TOOLCHAIN_SUBDIR }
-import from jaclang.runtimelib.utils { release_arch, host_arch }
+import from jaclang.runtimelib.utils { release_arch, host_arch, host_os }
 
 glob logger = logging.getLogger(__name__);
 
@@ -281,9 +281,25 @@ def reset_deploy_version_cache {
 }
 
 
-def download_release_binary(channel: str, arch: str, version: str = "") -> bytes {
+def host_seal_platform -> str {
+    plat = host_os();
+    if plat in ("linux", "macos") {
+        return plat;
+    }
+    raise RuntimeError(
+        f"Deploying from a {plat} host is not supported: sealing the app "
+        f"runs a host-runnable jac release binary, and {GH_REPO} publishes "
+        "linux and macos binaries only. Deploy from Linux or macOS (WSL2 "
+        "works on Windows)."
+    );
+}
+
+
+def download_release_binary(
+    channel: str, arch: str, version: str = "", plat: str = "linux"
+) -> bytes {
     repo = GH_REPO;
-    suffix = f"-linux-{arch}";
+    suffix = f"-{plat}-{arch}";
     binary_url = "";
     checksum_url = "";
 
@@ -350,7 +366,7 @@ def download_release_binary(channel: str, arch: str, version: str = "") -> bytes
         return _fetch_verified_asset(
             binary_url,
             checksum_url,
-            _binary_cache_path(channel, arch),
+            _binary_cache_path(channel, arch, plat),
             f"{channel} jac binary"
         );
     } except HTTPError as e {
@@ -498,8 +514,8 @@ def _scale_cache_root -> Path {
 }
 
 
-def _binary_cache_path(channel: str, arch: str) -> Path {
-    return _scale_cache_root() / f"jac-{channel}-linux-{arch}";
+def _binary_cache_path(channel: str, arch: str, plat: str = "linux") -> Path {
+    return _scale_cache_root() / f"jac-{channel}-{plat}-{arch}";
 }
 
 

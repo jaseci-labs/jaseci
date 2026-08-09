@@ -32,7 +32,7 @@ impl PredicateCtrlFlowPass._effect_neutral(s: uni.UniNode, region: uni.IfStmt) -
         return True;
     }
     if isinstance(s, uni.Assignment) {
-        return self._assignment_neutral(s);
+        return self._assignment_neutral(s, region);
     }
     return False;
 }
@@ -63,7 +63,7 @@ impl PredicateCtrlFlowPass._is_existence_guard(
             memoized = True;
             continue;
         }
-        if not self._assignment_neutral(st) {
+        if not self._assignment_neutral(st, region) {
             return False;
         }
     }
@@ -97,7 +97,10 @@ impl PredicateCtrlFlowPass._call_speculatable(c: uni.FuncCall) -> bool {
     t = c.target;
     if isinstance(t, uni.Name) {
         fn = self._module_fn(mod, t.value);
-        return (fn is not None) and self._body_pure_nonraising(fn, c);
+        if fn is None {
+            return False;
+        }
+        return self._body_pure_nonraising(fn, c, None, self._callsite_ctx(fn, c));
     }
     if isinstance(t, uni.AtomTrailer) and isinstance(t.right, uni.Name) {
         cands = [
@@ -109,7 +112,7 @@ impl PredicateCtrlFlowPass._call_speculatable(c: uni.FuncCall) -> bool {
             return False;
         }
         for fn in cands {
-            if not self._body_pure_nonraising(fn, c) {
+            if not self._body_pure_nonraising(fn, c, None, self._callsite_ctx(fn, c)) {
                 return False;
             }
         }
@@ -185,7 +188,10 @@ impl PredicateCtrlFlowPass._dispatch_table_fns(mod: uni.Module) -> list[uni.Abil
 }
 
 impl PredicateCtrlFlowPass._body_pure_nonraising(
-    fn: uni.Ability, c: uni.FuncCall, seen: (set[int] | None) = None
+    fn: uni.Ability,
+    c: uni.FuncCall,
+    seen: (set[int] | None) = None,
+    ctx: (dict[str, list[str]] | None) = None
 ) -> bool {
     marks = seen if seen is not None else set();
     if id(fn) in marks {
@@ -211,12 +217,146 @@ impl PredicateCtrlFlowPass._body_pure_nonraising(
         if self._pure_callee(call.target) {
             continue;
         }
+        if (ctx is not None) and self._ctx_dict_get(call, ctx) {
+            continue;
+        }
         t = call.target;
         local = None;
         if isinstance(t, uni.Name) and (mod is not None) {
             local = self._module_fn(mod, t.value);
         }
         if (local is None) or (not self._body_pure_nonraising(local, call, marks)) {
+            return False;
+        }
+    }
+    return True;
+}
+
+impl PredicateCtrlFlowPass._callsite_ctx(
+    fn: uni.Ability, c: uni.FuncCall
+) -> dict[str, list[str]] {
+    sig = fn.signature;
+    if (sig is None) or (not isinstance(sig, uni.FuncSignature)) {
+        return {};
+    }
+    pnames: list[str] = [];
+    for p in (sig.get_parameters() or []) {
+        if p?.name is not None {
+            pnames.append(p.name.value);
+        }
+    }
+    ctx: dict[str, list[str]] = {};
+    i = 0;
+    for prm in (c.params or []) {
+        if isinstance(prm, uni.KWPair) {
+            continue;
+        }
+        if i >= len(pnames) {
+            break;
+        }
+        classes = self._arg_classes(prm, c);
+        if classes {
+            ctx[pnames[i]] = classes;
+        }
+        i += 1;
+    }
+    return ctx;
+}
+
+impl PredicateCtrlFlowPass._arg_classes(arg: uni.Expr, c: uni.FuncCall) -> list[str] {
+    if isinstance(arg, uni.Name) {
+        site = c.find_parent_of_type(uni.Ability);
+        if site is None {
+            return [];
+        }
+        sig = site.signature;
+        if not isinstance(sig, uni.FuncSignature) {
+            return [];
+        }
+        for p in (sig.get_parameters() or []) {
+            if (p?.name is None) or (p.name.value != arg.value) {
+                continue;
+            }
+            ann = p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
+            if isinstance(ann, uni.Name) {
+                return [ann.value];
+            }
+            return [];
+        }
+        return [];
+    }
+    if not (
+        isinstance(arg, uni.AtomTrailer)
+        and isinstance(arg.right, uni.Name)
+        and isinstance(arg.target, uni.Name)
+        and (arg.target.value == 'self')
+    ) {
+        return [];
+    }
+    out: list[str] = [];
+    for k in self._self_classes(c) {
+        t = self.prog.graphmend_attr_types.get(k, {}).get(arg.right.value);
+        if t is None {
+            return [];
+        }
+        if t not in out {
+            out.append(t);
+        }
+    }
+    return out;
+}
+
+impl PredicateCtrlFlowPass._self_classes(c: uni.FuncCall) -> list[str] {
+    inner = c.find_parent_of_type(uni.Ability);
+    if inner is None {
+        return [];
+    }
+    outer: uni.Ability = inner;
+    cur = outer.find_parent_of_type(uni.Ability);
+    while cur is not None {
+        outer = cur;
+        cur = outer.find_parent_of_type(uni.Ability);
+    }
+    if outer is inner {
+        return [];
+    }
+    sig = inner.signature;
+    if not isinstance(sig, uni.FuncSignature) {
+        return [];
+    }
+    params = sig.get_parameters() or [];
+    if (not params) or (params[0]?.name is None) or (params[0].name.value != 'self') {
+        return [];
+    }
+    return list(self.prog.graphmend_decor_classes.get(outer.sym_name, []));
+}
+
+impl PredicateCtrlFlowPass._ctx_dict_get(
+    call: uni.FuncCall, ctx: dict[str, list[str]]
+) -> bool {
+    t = call.target;
+    if not (
+        isinstance(t, uni.AtomTrailer)
+        and isinstance(t.right, uni.Name)
+        and (t.right.value == 'get')
+    ) {
+        return False;
+    }
+    recv = t.target;
+    if not (
+        isinstance(recv, uni.AtomTrailer)
+        and isinstance(recv.right, uni.Name)
+        and isinstance(recv.target, uni.Name)
+    ) {
+        return False;
+    }
+    classes = ctx.get(recv.target.value, []);
+    if not classes {
+        return False;
+    }
+    for k in classes {
+        kind = self.prog.graphmend_dict_attrs.get(k, {}).get(recv.right.value);
+        if kind not in ('dict', 'dict_or_none') {
             return False;
         }
     }
@@ -381,23 +521,33 @@ impl PredicateCtrlFlowPass._pure_callee(t: (uni.Expr | None)) -> bool {
         while isinstance(base, uni.AtomTrailer) {
             base = base.target;
         }
-        if isinstance(base, uni.Name) and (base.value in {'torch', 'math'}) {
+        if isinstance(base, uni.Name)
+            and (base.value in {'torch', 'math'})
+            and isinstance(t.right, uni.Name)
+            and (t.right.value in _PURE_TORCH_FNS) {
             return True;
         }
         return isinstance(t.right, uni.Name)
-            and (t.right.value in _PURE_TENSOR_METHODS);
+            and (t.right.value in _PURE_TENSOR_METHODS)
+            and self._pure_receiver(t.target);
     }
     return False;
 }
 
-impl PredicateCtrlFlowPass._assignment_neutral(s: uni.Assignment) -> bool {
+impl PredicateCtrlFlowPass._pure_receiver(recv: (uni.Expr | None)) -> bool {
+    return isinstance(recv, uni.FuncCall) and self._pure_callee(recv.target);
+}
+
+impl PredicateCtrlFlowPass._assignment_neutral(
+    s: uni.Assignment, region: uni.IfStmt
+) -> bool {
     if self._is_device_move(s) {
         return True;
     }
     return (
         (s.value is not None)
         and (not self._has_call(s.value))
-        and self._all_local_targets(s.target)
+        and self._all_local_targets(s.target, region)
     );
 }
 
@@ -418,11 +568,42 @@ impl PredicateCtrlFlowPass._is_device_move(s: uni.Assignment) -> bool {
     return (recv.unparse().replace(' ', '') == s.target[0].unparse().replace(' ', ''));
 }
 
-impl PredicateCtrlFlowPass._all_local_targets(targets: Sequence[uni.Expr]) -> bool {
+impl PredicateCtrlFlowPass._all_local_targets(
+    targets: Sequence[uni.Expr], region: uni.IfStmt
+) -> bool {
+    scope: (uni.UniNode | None) = region.find_parent_of_type(uni.Ability);
+    if scope is None {
+        scope = region.find_parent_of_type(uni.Module);
+    }
+    if scope is None {
+        return False;
+    }
     for t in targets {
         if not isinstance(t, uni.Name) {
             return False;
         }
+        tgt: uni.Name = t;
+        for n in scope.get_all_sub_nodes(uni.Name) {
+            if (n.value == tgt.value) and (not self._within(n, region)) {
+                return False;
+            }
+        }
     }
     return len(targets) > 0;
+}
+
+impl PredicateCtrlFlowPass._setup_writes(
+    setups: Sequence[uni.CodeBlockStmt]
+) -> set[str] {
+    out: set[str] = set();
+    for s in setups {
+        assigns = [s] if isinstance(s, uni.Assignment) else [];
+        assigns = assigns + list(s.get_all_sub_nodes(uni.Assignment));
+        for a in assigns {
+            for t in (a.target or []) {
+                out.add(t.unparse().replace(' ', ''));
+            }
+        }
+    }
+    return out;
 }

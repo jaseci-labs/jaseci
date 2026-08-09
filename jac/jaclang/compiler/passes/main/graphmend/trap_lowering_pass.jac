@@ -21,7 +21,11 @@ obj TrapLoweringPass(UniPass) {
     def exit_ability(nd: uni.Ability) -> None;
     def _torch_equal_args(x: uni.Expr) -> (tuple | None);
     def _returns_tensor_bool(x: uni.Expr) -> bool;
-    def _raise_message(rs: uni.RaiseStmt, at: uni.UniNode) -> uni.Expr;
+    def _tensor_receiver_provable(x: uni.Expr, site: uni.UniNode) -> bool;
+    def _tensor_expr_provable(e: uni.Expr, site: uni.UniNode) -> bool;
+    def _param_is_tensor(name: str, site: uni.UniNode) -> bool;
+    def _binds_torch_tensor(ann: uni.Name) -> bool;
+    def _raise_message(rs: uni.RaiseStmt) -> (uni.Expr | None);
     def _gen_name(at: uni.UniNode, value: str) -> uni.Name;
     def _str(at: uni.UniNode, text: str) -> uni.String;
     def _call_stmt(call: uni.FuncCall) -> uni.ExprStmt;

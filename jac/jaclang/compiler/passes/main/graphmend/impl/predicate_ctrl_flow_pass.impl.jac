@@ -1,11 +1,24 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, Tokens as Tok }
+import from jaclang.compiler.passes.main.graphmend.scope_facts { collect_scope_facts }
+import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    cond_materializes_scalar
+}
 
 impl PredicateCtrlFlowPass.before_pass -> None {
     self._enabled = self.prog._compile_options.graphmend;
     if not self._enabled {
         self.prune_signal = True;
+        return;
+    }
+    for m in ([self.ir_in] + list(self.prog.mod.hub.values())) {
+        collect_scope_facts(
+            m,
+            self.prog.graphmend_decor_classes,
+            self.prog.graphmend_attr_types,
+            self.prog.graphmend_dict_attrs
+        );
     }
 }
 
@@ -14,6 +27,9 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         return;
     }
     if self.prog.graphmend_breaks.get(id(nd)) != GraphBreakKind.DYN_CTRL_FL {
+        return;
+    }
+    if cond_materializes_scalar(nd.condition) {
         return;
     }
     eb = nd.else_body;
@@ -52,7 +68,9 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     a_last = tb[-1];
     b_last = fb[-1];
     if isinstance(a_last, uni.ExprStmt) and isinstance(b_last, uni.ExprStmt) {
-        if self._setups_safe(tb[:-1], nd) and self._setups_safe(fb[:-1], nd) {
+        if self._setups_safe(tb[:-1], nd)
+            and self._setups_safe(fb[:-1], nd)
+            and (not (self._setup_writes(tb[:-1]) & self._setup_writes(fb[:-1]))) {
             self._merge_common_call(nd, a_last.expr, b_last.expr, tb[:-1], fb[:-1]);
         }
     }
