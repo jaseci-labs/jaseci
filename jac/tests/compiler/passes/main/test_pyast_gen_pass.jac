@@ -598,7 +598,7 @@ with entry {
 
 test "multi-statement lambda in test body call arg is hoisted before use" {
     code = """
-def _call(fn: callable) {
+def _call(fn: Callable[[], None]) {
     fn();
 }
 test \"demo\" {
