@@ -47,6 +47,7 @@ obj Session {
     def is_available -> bool;
     def get(id: UUID) -> (Anchor | None);
     def put(anchor: Anchor) -> None;
+    def mark_dirty(anchor: Anchor) -> None;
     def delete(id: UUID) -> None;
     def close -> None;
     def `has(id: UUID) -> bool;

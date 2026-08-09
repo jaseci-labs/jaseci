@@ -213,6 +213,13 @@ impl Session.put(anchor: Anchor) -> None {
 }
 
 
+impl Session.mark_dirty(anchor: Anchor) -> None {
+    if anchor.id in self.__mem__ {
+        self._dirty[anchor.id] = None;
+    }
+}
+
+
 impl Session.delete(id: UUID) -> None {
     with self._lock {
         self.__mem__.pop(id, None);
@@ -566,14 +573,14 @@ impl Session.read_barrier -> None {
     }
     try {
         self._ensure_txn();
-        self.flush(full=True);
+        self.flush();
     } except Exception as e {
         if not _is_serialization_conflict(e) {
             raise;
         }
         self._recover_conflict();
         self._ensure_txn();
-        self.flush(full=True);
+        self.flush();
     }
 }
 

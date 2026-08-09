@@ -10,7 +10,7 @@ import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from uuid { UUID }
-import from jaclang.jac0core.archetype { EdgeAnchor, NodeAnchor, Root }
+import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
 import from jaclang.jac0core.graph_query { GraphQuery, QHop }
 import from jaclang.jac0core.runtime { JacRuntime }
 import from jaclang.runtimelib.context { ExecutionContext }
@@ -190,6 +190,70 @@ test "persistence across sessions: same base path reopens the graph" {
         } finally {
             JacRuntime.exec_ctx = old;
             ctx2.close();
+        }
+    }
+}
+
+
+test "field mutation lands in the dirty set without a full-session sweep" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx;
+        try {
+            ranch = _root(ctx);
+            it = _attach(ctx, ranch, "x");
+            ctx.mem.commit();
+            assert it.id not in ctx.mem._dirty;
+
+            arch = it.archetype;
+            assert isinstance(arch, SItem);
+            arch.tag = "mutated";
+            assert it.id in ctx.mem._dirty , (
+                "plain field writes must mark the anchor dirty so read "
+                "barriers can flush O(dirty) instead of rehashing the session"
+            );
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx.close();
+        }
+    }
+}
+
+
+test "read barrier hashes only dirty anchors, not the whole session" {
+    import jaclang.runtimelib.session;
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx;
+        smod = jaclang.runtimelib.session;
+        orig = smod._persist_hash;
+        calls: list = [];
+        def counting_hash(anchor: Anchor) -> int {
+            calls.append(1);
+            return orig(anchor);
+        }
+        try {
+            ranch = _root(ctx);
+            items = [_attach(ctx, ranch, f"i{n}") for n in range(5)];
+            ctx.mem.commit();
+
+            smod._persist_hash = counting_hash;
+            ctx.mem.read_barrier();
+            assert len(calls) == 0 ,
+                f"clean session: read barrier must hash nothing, hashed {len(calls)}";
+
+            arch0 = items[0].archetype;
+            assert isinstance(arch0, SItem);
+            arch0.tag = "touched";
+            ctx.mem.read_barrier();
+            assert len(calls) == 1 ,
+                f"one dirty anchor: read barrier must hash exactly it, hashed {len(calls)}";
+        } finally {
+            smod._persist_hash = orig;
+            JacRuntime.exec_ctx = old;
+            ctx.close();
         }
     }
 }
