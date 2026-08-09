@@ -160,6 +160,15 @@ def _sqlstate(e: Exception) -> str {
 }
 
 
+def _parse_pid(raw: str) -> (int | None) {
+    try {
+        return int(raw);
+    } except ValueError {
+        return None;
+    }
+}
+
+
 def _owner_alive(pid: (int | None)) -> bool {
     if pid is None or pid <= 0 {
         return True;
@@ -402,11 +411,7 @@ impl PgStore._peer_sessions -> list[dict] {
         cmd = '';
         parts = app_s.split(':', 2);
         if len(parts) == 3 and parts[0] == 'jac' {
-            try {
-                owner = int(parts[1]);
-            } except ValueError {
-                owner = None;
-            }
+            owner = _parse_pid(parts[1]);
             cmd = parts[2];
         }
         out.append(
