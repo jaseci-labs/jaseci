@@ -99,9 +99,7 @@ impl PgStore.postinit -> None {
 
 
 impl SessionConflictError.init(
-    self: SessionConflictError,
-    database: str = '',
-    blockers: (list[dict] | None) = None
+    self: SessionConflictError, database: str = '', blockers: (list[dict] | None) = None
 ) -> None {
     self.database = database;
     self.blockers = list(blockers or []);
@@ -109,8 +107,9 @@ impl SessionConflictError.init(
     for b in self.blockers {
         owner = b.get('owner_pid');
         who = (
-            f"pid {owner}" if owner is not None
-            else f"backend {b.get('backend_pid', '?')}"
+            f"pid {owner}"
+                if owner is not None
+                else f"backend {b.get('backend_pid', '?')}"
         );
         cmd = str(b.get('cmd') or '');
         if cmd {
@@ -301,8 +300,7 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
             }
             if self._reap_dead_sessions() == 0 {
                 raise SessionConflictError(
-                    database=self.conninfo.database,
-                    blockers=self._live_blockers()
+                    database=self.conninfo.database, blockers=self._live_blockers()
                 ) from e;
             }
             try {
@@ -312,8 +310,7 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
                     raise;
                 }
                 raise SessionConflictError(
-                    database=self.conninfo.database,
-                    blockers=self._live_blockers()
+                    database=self.conninfo.database, blockers=self._live_blockers()
                 ) from e2;
             }
         }
@@ -339,9 +336,7 @@ impl PgStore._apply_schema_ddl -> None {
             )
         );
         if not has_seq {
-            self._run(
-                'ALTER TABLE anchors ADD COLUMN IF NOT EXISTS seq bigserial', {}
-            );
+            self._run('ALTER TABLE anchors ADD COLUMN IF NOT EXISTS seq bigserial', {});
         }
         self._apply_promotions();
         self._property_graph_ddl();
@@ -434,9 +429,7 @@ impl PgStore._reap_dead_sessions -> int {
     for p in self._peer_sessions() {
         if p['owner_pid'] is not None and not p['owner_alive'] {
             try {
-                self._run(
-                    'SELECT pg_terminate_backend(:p)', {'p': p['backend_pid']}
-                );
+                self._run('SELECT pg_terminate_backend(:p)', {'p': p['backend_pid']});
                 n += 1;
             } except Exception as e {
                 logger.warning(f"failed to reap backend {p['backend_pid']}: {e}");
@@ -451,8 +444,16 @@ impl PgStore._reap_dead_sessions -> int {
 
 
 impl PgStore._live_blockers -> list[dict] {
-    peers = [p for p in self._peer_sessions() if p['owner_alive']];
-    held = [p for p in peers if 'idle in transaction' in p['state']];
+    peers = [
+        p
+        for p in self._peer_sessions()
+        if p['owner_alive']
+    ];
+    held = [
+        p
+        for p in peers
+        if 'idle in transaction' in p['state']
+    ];
     return held or peers;
 }
 

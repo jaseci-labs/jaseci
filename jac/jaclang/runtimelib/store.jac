@@ -30,7 +30,6 @@ class SessionConflictError(Exception) {
     still alive. `blockers` carries one dict per peer session as returned
     by PgStore._peer_sessions.
     """
-
     def init(
         self: SessionConflictError,
         database: str = '',

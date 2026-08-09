@@ -35,9 +35,7 @@ glob STAMP_KEY = 'schema_fingerprint';
 
 def _mk_store(td: str) -> tuple {
     target = str(Path(td) / 'app.jac');
-    rt = PgRuntime(
-        data_dir=shared_pg_data_dir(), database=project_db_name(td, target)
-    );
+    rt = PgRuntime(data_dir=shared_pg_data_dir(), database=project_db_name(td, target));
     info = rt.ensure();
     return (PgStore(conninfo=info, ensure_cb=rt.ensure), info, target);
 }

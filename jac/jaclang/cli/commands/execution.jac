@@ -309,7 +309,10 @@ def enter(
         ("jac start --profile prod", "Start with production profile"),
         ("jac start --client mobile", "Run the mobile client dev server"),
         ("jac start --scale", "Deploy to a platform target instead of serving locally"),
-        ("jac start --takeover", "Evict a stuck session holding this project's database"),
+        (
+            "jac start --takeover",
+            "Evict a stuck session holding this project's database"
+        ),
 
     ],
     group="execution"

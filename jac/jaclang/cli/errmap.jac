@@ -44,8 +44,7 @@ def humanize_error(e: Exception) -> (tuple[str, (str | None)] | None) {
         code = _sqlstate(e);
         if code == '55P03' {
             return (
-                'Timed out waiting for a database lock held by another'
-                ' session.',
+                'Timed out waiting for a database lock held by another' ' session.',
                 'Another jac process may be using this project. Stop it, or'
                 ' rerun with --takeover to evict its database session.'
             );
