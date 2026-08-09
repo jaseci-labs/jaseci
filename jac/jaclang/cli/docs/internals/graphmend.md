@@ -154,12 +154,15 @@ left unfixed is a soundness property, not a defect.
    after that method has already returned. Detection still tags all three --
    the decline belongs to the transform, not to the analysis.
 
-   Reconstructible also constrains the constructor call itself. The marker
-   carries exactly one string, so an exception built with more than one
-   positional argument (or any keyword argument) would come back with its
-   extra `args` silently truncated; the pass declines instead. Likewise a
-   `raise ... from cause` declines: the boundary guard re-raises `from None`,
-   so an explicit chain cannot be reconstructed at the call site.
+   Reconstructible also constrains the constructor call itself: it must have
+   exactly one positional argument. The marker carries exactly one string, so
+   more than one argument (or any keyword argument) would come back with its
+   extra `args` silently truncated, and an argument-less raise (`raise
+   ValueError` or `raise ValueError()`) would come back as `ValueError('')`,
+   its observable `args` changed from `()` to `('',)`; both decline. Likewise
+   a `raise ... from cause` declines: the boundary guard re-raises
+   `from None`, so an explicit chain cannot be reconstructed at the call
+   site.
 
 ### Exception-type preservation
 

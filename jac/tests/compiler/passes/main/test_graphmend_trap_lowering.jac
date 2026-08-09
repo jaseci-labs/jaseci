@@ -197,3 +197,14 @@ test "raise-from guard declines instead of dropping the chained cause" {
     assert "from upstream" in src;
     assert _break_count("guard_raise_from.jac") == 1;
 }
+
+test "argument-less exception declines instead of gaining an empty arg" {
+    # Reconstructing `raise ValueError` or `raise ValueError()` from a marker
+    # yields ValueError('') whose args is ('',) where the original had ():
+    # an observable contract change, so both shapes decline.
+    src = _pysrc("guard_no_arg_msg.jac", True);
+    assert "__jac_tensor_bool_assert__(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError" in src;
+    assert _break_count("guard_no_arg_msg.jac") == 2;
+}

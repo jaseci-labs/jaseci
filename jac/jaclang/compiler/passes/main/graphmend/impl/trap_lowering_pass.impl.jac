@@ -34,7 +34,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         return;
     }
     x = cond.operand;
-    msg = self._raise_message(rs, nd);
+    msg = self._raise_message(rs);
     wrap = self._enclosing_compiled_fn(nd);
     type_name = self._exception_type_name(rs) if (wrap is not None) else None;
     marked = (
@@ -160,30 +160,23 @@ impl TrapLoweringPass._returns_tensor_bool(x: uni.Expr) -> bool {
     );
 }
 
-impl TrapLoweringPass._raise_message(
-    rs: uni.RaiseStmt, at: uni.UniNode
-) -> (uni.Expr | None) {
+impl TrapLoweringPass._raise_message(rs: uni.RaiseStmt) -> (uni.Expr | None) {
     if rs.from_target is not None {
         return None;
     }
     cause = rs.cause;
-    if isinstance(cause, uni.FuncCall) {
-        pos = [
-            p
-            for p in (cause.params or [])
-            if not isinstance(p, uni.KWPair)
-        ];
-        if len(pos) != len(cause.params or []) {
-            return None;
-        }
-        if len(pos) > 1 {
-            return None;
-        }
-        if len(pos) == 1 {
-            return pos[0];
-        }
+    if not isinstance(cause, uni.FuncCall) {
+        return None;
     }
-    return self._str(at, '');
+    pos = [
+        p
+        for p in (cause.params or [])
+        if not isinstance(p, uni.KWPair)
+    ];
+    if (len(pos) != 1) or (len(pos) != len(cause.params or [])) {
+        return None;
+    }
+    return pos[0];
 }
 
 impl TrapLoweringPass._gen_name(at: uni.UniNode, value: str) -> uni.Name {
