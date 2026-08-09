@@ -366,6 +366,9 @@ def get_py_code_gen(
         import from jaclang.compiler.passes.main.graphmend.predicate_ctrl_flow_pass {
             PredicateCtrlFlowPass
         }
+        import from jaclang.compiler.passes.main.graphmend.defer_side_effect_pass {
+            DeferSideEffectPass
+        }
 
         passes: list[type[Transform[uni.Module, uni.Module]]] = [EsastGenPass];
         if native {
@@ -403,6 +406,7 @@ def get_py_code_gen(
                 GraphBreakDetectPass,
                 TrapLoweringPass,
                 PredicateCtrlFlowPass,
+                DeferSideEffectPass,
                 PyastGenPass,
                 PyJacAstLinkPass,
                 PyBytecodeGenPass
