@@ -1064,16 +1064,120 @@ impl NaIRGenPass._narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool {
     return False;
 }
 
+impl NaIRGenPass._narrowing_stable_in_loops(nd: uni.UniNode, name: str) -> bool {
+    _cur: (uni.UniNode | None) = nd;
+    _child: (uni.UniNode | None) = None;
+    while _cur is not None {
+        if isinstance(_cur, (uni.Ability, uni.Module, uni.LambdaExpr)) {
+            return True;
+        }
+        if isinstance(
+            _cur, (uni.WhileStmt, uni.ForeverStmt, uni.InForStmt, uni.IterForStmt)
+        )
+            and self._loop_rebinds_name(_cur, name)
+            and not self._body_assigns_before(_cur, _child, name) {
+            return False;
+        }
+        _child = _cur;
+        _cur = _cur.parent;
+    }
+    return True;
+}
+
+impl NaIRGenPass._loop_rebinds_name(loop: uni.UniNode, name: str) -> bool {
+    _key = (id(loop), name);
+    _hit = self._loop_rebind_memo.get(_key);
+    if _hit is not None {
+        return _hit;
+    }
+    _found = False;
+    for _asn in loop.get_all_sub_nodes(uni.Assignment) {
+        for _t in (_asn.target or []) {
+            for _tn in (
+                [_t] if isinstance(_t, uni.Name) else _t.get_all_sub_nodes(uni.Name)
+            ) {
+                if _tn.value == name {
+                    _found = True;
+                    break;
+                }
+            }
+            if _found {
+                break;
+            }
+        }
+        if _found {
+            break;
+        }
+    }
+    if not _found {
+        for _b in loop.get_all_sub_nodes(uni.BinaryExpr) {
+            if isinstance(_b.op, uni.Token)
+                and _b.op.name == Tok.WALRUS_EQ
+                and isinstance(_b.left, uni.Name)
+                and _b.left.value == name {
+                _found = True;
+                break;
+            }
+        }
+    }
+    self._loop_rebind_memo[_key] = _found;
+    return _found;
+}
+
+impl NaIRGenPass._body_assigns_before(
+    loop: uni.UniNode, child: (uni.UniNode | None), name: str
+) -> bool {
+    if isinstance(loop, (uni.InForStmt, uni.IterForStmt)) {
+        for _tn in (loop.target.get_all_sub_nodes(uni.Name) if loop?.target else []) {
+            if _tn.value == name {
+                return True;
+            }
+        }
+    }
+    _body = loop?.body;
+    if child is None or not isinstance(_body, (list, tuple)) {
+        return False;
+    }
+    _idx = -1;
+    for (_i, _stmt) in enumerate(_body) {
+        if _stmt is child {
+            _idx = _i;
+            break;
+        }
+    }
+    if _idx < 0 {
+        return False;
+    }
+    for _stmt in _body[:_idx] {
+        if not isinstance(_stmt, uni.Assignment) {
+            continue;
+        }
+        for _t in (_stmt.target or []) {
+            if isinstance(_t, uni.Name) and _t.value == name {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
 impl NaIRGenPass._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Value {
     _src_opt = self._opt_payload_of(val.type);
     _is_jv = bool(self?.jacval_type) and val.type == self.jacval_type;
     if _src_opt is None and not _is_jv {
         return val;
     }
-    if not isinstance(nd, (uni.Name, uni.AtomTrailer)) {
+    if not isinstance(nd, uni.Name) {
+        return val;
+    }
+    _nm = nd.value;
+    if _nm not in self.local_vars or _nm in self.closure_cell_vars {
         return val;
     }
     if self._narrowing_blocked_by_none_test(nd) {
+        return val;
+    }
+    if not self._narrowing_stable_in_loops(nd, _nm) {
         return val;
     }
     _nt = self._narrowed_flow_type(nd);
