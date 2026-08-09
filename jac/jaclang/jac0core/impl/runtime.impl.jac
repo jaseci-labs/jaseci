@@ -1508,11 +1508,15 @@ impl JacLLM.default_llm -> LLMModel {
     return instance;
 }
 
-impl JacLLM.add_mtir_to_map(scope: str, mtir: Info) -> None {
+impl JacLLM.add_mtir_to_map(mod_path: str, scope: str, mtir: Info) -> None {
     if (JacRuntime.program is None) {
         raise AttributeError('JacRuntime.program is not initialized');
     }
-    JacRuntime.program.mtir_map[scope] = mtir;
+    prog = JacRuntime.program;
+    prog.mtir_map[scope] = mtir;
+    import from jaclang.jac0core.jir { mtir_module_key }
+    key = mtir_module_key(mod_path);
+    prog.mtir_by_module.setdefault(key, {})[scope] = mtir;
 }
 
 impl JacLLM.get_mtir_from_map(scope: str) -> (Info | None) {

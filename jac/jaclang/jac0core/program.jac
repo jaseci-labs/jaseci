@@ -19,6 +19,7 @@ class JacProgram {
     has mod: uni.ProgramModule,
         py_raise_map: dict[(str, str)],
         mtir_map: dict[(str, Info)],
+        mtir_by_module: dict[str, dict[(str, Info)]],
         errors_had: list[Alert],
         warnings_had: list[Alert],
         type_evaluator: TypeEvaluator | None,

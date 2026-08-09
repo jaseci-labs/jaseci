@@ -4,6 +4,7 @@ import struct;
 import sys;
 import zlib;
 import from pathlib { Path }
+import from jaclang.jac0core.mtp { Info }
 
 glob MAGIC = b"JIR\x00",
      FORMAT_VERSION: int = 18,
@@ -178,6 +179,53 @@ def schema_digest -> str {
     return _SCHEMA_DIGEST_CACHE[0];
 }
 
+def mtir_module_stem(source_path: str) -> str {
+    import from jaclang.jac0core.ext_registry { STEM_REKEY_SUFFIXES }
+    stem = Path(source_path).stem;
+    for suf in STEM_REKEY_SUFFIXES {
+        if stem.endswith(suf) {
+            return stem[:-len(suf)];
+        }
+    }
+    return stem;
+}
+
+def mtir_module_key(source_path: str) -> str {
+    real = os.path.realpath(source_path);
+    return os.path.join(os.path.dirname(real), mtir_module_stem(source_path));
+}
+
+def mtir_for_module(
+    mtir_by_module: dict[str, dict[(str, Info)]], source_path: str
+) -> dict[(str, Info)] {
+    return mtir_by_module.get(mtir_module_key(source_path), {});
+}
+
+def mtir_for_compiled_module(
+    primary: any, fallback: any, source_path: str
+) -> dict[(str, Info)] {
+    slice = mtir_for_module(primary.mtir_by_module, source_path);
+    if not slice and primary is not fallback {
+        slice = mtir_for_module(fallback.mtir_by_module, source_path);
+    }
+    return slice;
+}
+
+def store_module_mtir(prog: any, source_path: str, module_mtir: dict[(str, Info)]) {
+    key = mtir_module_key(source_path);
+    prog.mtir_by_module[key] = module_mtir;
+    prog.mtir_map.update(module_mtir);
+}
+
+def find_sections(data: (bytes | memoryview)) -> dict[int, bytes] {
+    magic: any = SECTIONS_MAGIC;
+    pos = data.find(magic, HEADER_SIZE);
+    if pos < 0 {
+        return {};
+    }
+    return read_sections(data, pos + len(magic));
+}
+
 def compute_module_key(source_path: str) -> str {
     import from importlib.metadata { version as pkg_version }
     try {
@@ -208,13 +256,7 @@ def compute_module_key(source_path: str) -> str {
 
 def read_modkey(data: bytes) -> (str | None) {
     try {
-        magic: any = SECTIONS_MAGIC;
-        pos = data.find(magic, HEADER_SIZE);
-        if pos < 0 {
-            return None;
-        }
-        sections = read_sections(data, pos + len(magic));
-        key_bytes = sections.get(SEC_MODKEY);
+        key_bytes = find_sections(data).get(SEC_MODKEY);
         return key_bytes.decode('utf-8') if key_bytes is not None else None;
     } except Exception {
         return None;
@@ -373,13 +415,7 @@ def read_sections(data: (bytes | memoryview), start_pos: int) -> dict[int, bytes
 
 def read_bytecode_only(data: bytes) -> (bytes | None) {
     try {
-        magic_bytes: any = SECTIONS_MAGIC;
-        pos = data.find(magic_bytes, HEADER_SIZE);
-        if pos < 0 {
-            return None;
-        }
-        sections = read_sections(data, pos + len(magic_bytes));
-        return sections.get(SEC_BYTECODE);
+        return find_sections(data).get(SEC_BYTECODE);
     } except Exception {
         return None;
     }
@@ -423,13 +459,7 @@ def write_precompiled_jir(
 
 def read_debug_source(data: bytes) -> (str | None) {
     try {
-        magic_bytes: any = SECTIONS_MAGIC;
-        pos = data.find(magic_bytes, HEADER_SIZE);
-        if pos < 0 {
-            return None;
-        }
-        sections = read_sections(data, pos + len(magic_bytes));
-        src = sections.get(SEC_DEBUG_SRC);
+        src = find_sections(data).get(SEC_DEBUG_SRC);
         return zlib.decompress(src).decode('utf-8') if src is not None else None;
     } except Exception {
         return None;

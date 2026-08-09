@@ -166,7 +166,8 @@ impl JacCompiler.get_bytecode(
                     self._restore_sections(
                         full_target,
                         actual_program,
-                        read_sections(sealed_data, sp0 + len(magic0))
+                        read_sections(sealed_data, sp0 + len(magic0)),
+                        target_program
                     );
                 }
                 return marshal.loads(
@@ -187,7 +188,9 @@ impl JacCompiler.get_bytecode(
                 _had_native_secs = False;
                 if sec_pos >= 0 {
                     secs = read_sections(jir_data, sec_pos + len(magic_bytes));
-                    self._restore_sections(full_target, actual_program, secs);
+                    self._restore_sections(
+                        full_target, actual_program, secs, target_program
+                    );
                     _had_native_secs = SEC_NATIVE_OBJ in secs or SEC_LLVM_IR in secs;
                 }
                 if (
@@ -259,9 +262,12 @@ impl JacCompiler.get_bytecode(
                 sections: dict[int, bytes] = {};
                 sections[SEC_BYTECODE] = result.gen.py_bytecode;
                 sections[SEC_MODKEY] = compute_module_key(full_target).encode('utf-8');
-                if actual_program.mtir_map {
+                module_mtir = mtir_for_compiled_module(
+                    actual_program, target_program, full_target
+                );
+                if module_mtir {
                     sections[SEC_MTIR] = pickle.dumps(
-                        actual_program.mtir_map, int(pickle.HIGHEST_PROTOCOL)
+                        module_mtir, int(pickle.HIGHEST_PROTOCOL)
                     );
                 }
 
@@ -445,14 +451,20 @@ impl JacCompiler._load_native_from_bitcode(
 }
 
 impl JacCompiler._restore_sections(
-    full_target: str, actual_program: JacProgram, secs: dict[int, bytes]
+    full_target: str,
+    actual_program: JacProgram,
+    secs: dict[int, bytes],
+    mtir_fallback: (JacProgram | None) = None
 ) -> None {
     import pickle;
     mtir_bytes = secs.get(SEC_MTIR);
     if mtir_bytes is not None {
         try {
             mtir_map = pickle.loads(mtir_bytes);
-            actual_program.mtir_map.update(mtir_map);
+            store_module_mtir(actual_program, full_target, mtir_map);
+            if mtir_fallback is not None and mtir_fallback is not actual_program {
+                store_module_mtir(mtir_fallback, full_target, mtir_map);
+            }
         } except Exception {
             ;
         }

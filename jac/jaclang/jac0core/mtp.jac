@@ -114,6 +114,7 @@ def fetch_mtir(func: Callable) -> Info | None {
     import sys;
     import from pathlib { Path }
     import from jaclang.jac0core.runtime { JacRuntime }
+    import from jaclang.jac0core.jir { mtir_module_stem }
     module_name = None;
     try {
         module_name = getattr(func, "__module__");
@@ -125,14 +126,7 @@ def fetch_mtir(func: Callable) -> Info | None {
         main_mod = sys.modules.get("__main__");
         main_file = main_mod?.__file__ if main_mod else None;
         if main_file {
-            stem = Path(main_file).stem;
-
-            if stem.endswith(".impl") {
-                stem = stem[:-5];
-            } elif stem.endswith(".cl") {
-                stem = stem[:-3];
-            }
-            module = stem;
+            module = mtir_module_stem(main_file);
         } else {
             module = Path(sys.argv[0]).stem if sys.argv and sys.argv[0] else "__main__";
         }

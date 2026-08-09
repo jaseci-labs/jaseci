@@ -4,6 +4,7 @@ impl JacProgram.init(
     self.mod: uni.ProgramModule = main_mod or uni.ProgramModule();
     self.py_raise_map: dict[(str, str)] = {};
     self.mtir_map: dict[(str, Info)] = {};
+    self.mtir_by_module: dict[str, dict[(str, Info)]] = {};
     self.errors_had: list[Alert] = [];
     self.warnings_had: list[Alert] = [];
     self.type_evaluator: (TypeEvaluator | None) = None;

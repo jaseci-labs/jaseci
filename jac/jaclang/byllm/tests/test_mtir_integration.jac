@@ -305,6 +305,156 @@ test "mtir roundtrip via jir cache" {
     shutil.rmtree(str(tmp_path), ignore_errors=True);
 }
 
+test "jir cache stores per module mtir only" {
+    import pickle;
+    import shutil;
+    import from jaclang.jac0core.compiler { JacCompiler }
+    import from jaclang.jac0core.jir {
+        get_module_cache_path,
+        find_sections,
+        SEC_MTIR,
+        mtir_module_stem,
+        mtir_for_module
+    }
+
+    tmp_path = Path(tempfile.mkdtemp());
+    heavy_file = tmp_path / "heavy.jac";
+    plain_file = tmp_path / "plain.jac";
+    shutil.copy(fixture_path("basic_compile.jac"), str(heavy_file));
+    plain_file.write_text("glob x = 1;\n");
+
+    assert JacRuntime.program is not None;
+    prog = JacRuntime.program;
+    compiler = JacCompiler();
+    heavy_path = str(heavy_file);
+    plain_path = str(plain_file);
+
+    try {
+        assert compiler.get_bytecode(heavy_path, prog) is not None;
+        assert compiler.get_bytecode(plain_path, prog) is not None;
+
+        heavy_cache = get_module_cache_path(heavy_path);
+        plain_cache = get_module_cache_path(plain_path);
+        assert heavy_cache.exists() , "heavy.jac JIR cache should exist";
+        assert plain_cache.exists() , "plain.jac JIR cache should exist";
+
+        plain_secs = find_sections(plain_cache.read_bytes());
+        assert SEC_MTIR not in plain_secs , (
+            "plain.jac should not cache program-wide MTIR when it has no by llm"
+        );
+
+        heavy_secs = find_sections(heavy_cache.read_bytes());
+        assert SEC_MTIR in heavy_secs , "heavy.jac should cache its own MTIR";
+        heavy_mtir = pickle.loads(heavy_secs[SEC_MTIR]);
+
+        heavy_stem = mtir_module_stem(heavy_path);
+        dot = heavy_stem + ".";
+        for key in heavy_mtir {
+            assert key == heavy_stem or key.startswith(dot) , (
+                f"Unexpected MTIR key '{key}' in heavy.jac cache"
+            );
+        }
+
+        expected_count = len(mtir_for_module(prog.mtir_by_module, heavy_path));
+        assert len(heavy_mtir) == expected_count , (
+            f"heavy.jac cache should store only its module MTIR "
+            f"({expected_count} keys), got {len(heavy_mtir)}"
+        );
+        assert len(heavy_mtir) > 0 , "heavy.jac should have MTIR entries";
+    } finally {
+        for src in [heavy_path, plain_path] {
+            cache_path = get_module_cache_path(src);
+            if cache_path.exists() {
+                cache_path.unlink();
+            }
+        }
+        shutil.rmtree(str(tmp_path), ignore_errors=True);
+    }
+}
+
+test "same-stem modules in different dirs keep mtir isolated" {
+    # Regression guard for the collision class where pkg_a/utils.jac and
+    # pkg_b/utils.jac share the stem "utils". The per-module mtir_by_module key
+    # (dirname + stem) must keep their slices distinct so one module's cache
+    # never carries the other's MTIR.
+    import pickle;
+    import shutil;
+    import from jaclang.jac0core.compiler { JacCompiler }
+    import from jaclang.jac0core.jir {
+        get_module_cache_path,
+        find_sections,
+        mtir_module_key,
+        mtir_for_module,
+        SEC_MTIR
+    }
+
+    tmp_path = Path(tempfile.mkdtemp());
+    dir_a = tmp_path / "pkg_a";
+    dir_b = tmp_path / "pkg_b";
+    dir_a.mkdir();
+    dir_b.mkdir();
+    file_a = dir_a / "utils.jac";
+    file_b = dir_b / "utils.jac";
+    # Same stem, distinct by-llm function names so cross-contamination is
+    # detectable.
+    src = fixture_path("basic_compile.jac");
+    text_a = Path(src).read_text().replace("generate_person", "gen_a");
+    text_b = Path(src).read_text().replace("generate_person", "gen_b");
+    file_a.write_text(text_a);
+    file_b.write_text(text_b);
+
+    assert JacRuntime.program is not None;
+    prog = JacRuntime.program;
+    compiler = JacCompiler();
+    path_a = str(file_a);
+    path_b = str(file_b);
+
+    try {
+        assert compiler.get_bytecode(path_a, prog) is not None;
+        assert compiler.get_bytecode(path_b, prog) is not None;
+
+        # Distinct collision-free keys despite the shared stem.
+        assert mtir_module_key(path_a) != mtir_module_key(path_b);
+
+        slice_a = mtir_for_module(prog.mtir_by_module, path_a);
+        slice_b = mtir_for_module(prog.mtir_by_module, path_b);
+        a_keys = list(slice_a.keys());
+        b_keys = list(slice_b.keys());
+        assert any("gen_a" in k for k in a_keys) , "pkg_a slice missing gen_a";
+        assert any("gen_b" in k for k in b_keys) , "pkg_b slice missing gen_b";
+        assert not any("gen_b" in k for k in a_keys) , (
+            "pkg_a slice leaked pkg_b MTIR"
+        );
+        assert not any("gen_a" in k for k in b_keys) , (
+            "pkg_b slice leaked pkg_a MTIR"
+        );
+
+        # Each module's JIR cache carries only its own slice.
+        cache_a = pickle.loads(
+            find_sections(get_module_cache_path(path_a).read_bytes())[SEC_MTIR]
+        );
+        cache_b = pickle.loads(
+            find_sections(get_module_cache_path(path_b).read_bytes())[SEC_MTIR]
+        );
+        assert any("gen_a" in k for k in cache_a);
+        assert not any("gen_b" in k for k in cache_a) , (
+            "pkg_a JIR cache leaked pkg_b MTIR"
+        );
+        assert any("gen_b" in k for k in cache_b);
+        assert not any("gen_a" in k for k in cache_b) , (
+            "pkg_b JIR cache leaked pkg_a MTIR"
+        );
+    } finally {
+        for src_path in [path_a, path_b] {
+            cache_path = get_module_cache_path(src_path);
+            if cache_path.exists() {
+                cache_path.unlink();
+            }
+        }
+        shutil.rmtree(str(tmp_path), ignore_errors=True);
+    }
+}
+
 # =============================================================================
 # Fixture Compilation Test
 # =============================================================================

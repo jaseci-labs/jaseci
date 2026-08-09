@@ -329,22 +329,12 @@ impl MTIRGenPass._extract_method_info(
 }
 
 impl MTIRGenPass._get_scope_str(nd: uni.UniScopeNode) -> str {
-    import from jaclang.jac0core.ext_registry { STEM_REKEY_SUFFIXES }
+    import from jaclang.jac0core.jir { mtir_module_stem }
 
     if isinstance(nd, uni.Module) {
         mod_path = nd.loc.mod_path;
         if mod_path {
-            path = Path(mod_path);
-
-            stem = path.stem;
-
-            for suf in STEM_REKEY_SUFFIXES {
-                if stem.endswith(suf) {
-                    stem = stem[:-len(suf)];
-                    break;
-                }
-            }
-            return stem;
+            return mtir_module_stem(mod_path);
         }
 
         return nd.scope_name;
@@ -445,7 +435,7 @@ impl MTIRGenPass._process_ability(nd: uni.Ability) -> None {
         func_info = self._extract_function_info(nd=nd);
     }
     scope = self._get_scope_str(nd);
-    Jac.add_mtir_to_map(scope, func_info);
+    Jac.add_mtir_to_map(nd.loc.mod_path, scope, func_info);
 }
 
 impl MTIRGenPass._collect_routing_archetypes(ir_in: uni.Module) -> list[uni.Archetype] {
@@ -587,5 +577,5 @@ impl MTIRGenPass._register_archetype_light(nd: uni.Archetype) -> None {
         base_classes=[],
         methods=methods
     );
-    Jac.add_mtir_to_map(self._get_scope_str(nd), class_info);
+    Jac.add_mtir_to_map(nd.loc.mod_path, self._get_scope_str(nd), class_info);
 }

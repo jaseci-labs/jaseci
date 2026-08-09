@@ -370,7 +370,7 @@ class JacLLM {
     static def `by(model: LLMModel) -> Callable;
     static def by_operator(lhs: any, rhs: any) -> any;
     static def default_llm -> LLMModel;
-    static def add_mtir_to_map(scope: str, mtir: Info) -> None;
+    static def add_mtir_to_map(mod_path: str, scope: str, mtir: Info) -> None;
     static def get_mtir_from_map(scope: str) -> (Info | None);
 }
 

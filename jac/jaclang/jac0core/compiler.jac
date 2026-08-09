@@ -20,6 +20,10 @@ import from jaclang.jac0core.jir {
     is_module_cache_valid,
     jir_matches_source,
     compute_module_key,
+    mtir_for_module,
+    mtir_for_compiled_module,
+    mtir_module_key,
+    store_module_mtir,
     cache_mode,
     read_bytecode_only,
     read_sections,
@@ -985,7 +989,10 @@ obj JacCompiler {
     ) -> None;
 
     def _restore_sections(
-        full_target: str, actual_program: JacProgram, secs: dict[int, bytes]
+        full_target: str,
+        actual_program: JacProgram,
+        secs: dict[int, bytes],
+        mtir_fallback: (JacProgram | None) = None
     ) -> None;
 
     def _get_precompiled_jir_bytecode(
