@@ -3192,3 +3192,19 @@ test "match lowers to a guarded if-chain with full pattern coverage (#7881)" {
         );
     }
 }
+
+test "obj postinit is invoked by the generated constructor" {
+    js_code = compile_fixture_to_js("postinit_obj.jac", FIXTURES);
+    # the method must exist AND the constructor must call it — an emitted
+    # but never-invoked __post_init__ leaves dataclass semantics broken in
+    # the browser while Python runs it automatically.
+    assert "__post_init__()" in js_code;
+    assert "this.__post_init__();" in js_code , (
+        "constructor must call __post_init__ (postinit was silently dead client-side)"
+    );
+    # a fields-less archetype with postinit still needs a constructor
+    assert js_code.count("this.__post_init__();") >= 2 , (
+        "postinit-only archetype (no has fields) must also get the call"
+    );
+    assert_balanced_syntax(js_code, "postinit_obj.jac");
+}
