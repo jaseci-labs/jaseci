@@ -134,7 +134,11 @@ left unfixed is a soundness property, not a defect.
    type error. Tensor-ness must therefore be established statically: the
    receiver (or, for a comparison or arithmetic expression, at least one
    operand, since tensor operands make the result a tensor) must trace to a
-   parameter annotated `torch.Tensor`. When it does, the guard lowers to
+   parameter whose annotation provably denotes the torch tensor class: either
+   qualified `torch.Tensor`, or a bare name whose symbol binds at a
+   `from torch import Tensor` item (aliased or not). The spelling `Tensor`
+   alone proves nothing; a same-named class from another library declines the
+   proof through its binding. When the proof holds, the guard lowers to
    `torch._assert_async` directly; when it does not, the guard declines and
    keeps its original Python semantics. Nothing is checked or dispatched at
    runtime.
@@ -151,9 +155,11 @@ left unfixed is a soundness property, not a defect.
    - **An enclosing `@torch.compile`-decorated ability** to carry the eager
      decorator. A guard inside a decorated *class* has none of its own, and an
      async assert can surface after its method has already returned.
-   - **A bare builtin exception name**, since the boundary resolves the marker
-     through `builtins`. An aliased or qualified type such as
-     `errors.ValidationError` would come back as `RuntimeError`.
+   - **A bare, unshadowed builtin exception name**, since the boundary
+     resolves the marker through `builtins`. An aliased or qualified type such
+     as `errors.ValidationError` would come back as `RuntimeError`, and a name
+     the source rebinds (a resolved symbol at the raise site) no longer
+     denotes the builtin the boundary would reconstruct, so both decline.
    - **Exactly one positional argument, no keywords, no `from cause`.** The
      marker carries one string, so anything else loses state: extra arguments
      are truncated, `raise ValueError()` would come back as `ValueError('')`

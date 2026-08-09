@@ -232,6 +232,42 @@ test "message containing the trap delimiter declines instead of truncating" {
     assert _break_count("guard_marker_msg.jac") == 1;
 }
 
+test "shadowed builtin exception name declines instead of switching class" {
+    # `glob ValueError = RuntimeError` binds the name locally, so the raise no
+    # longer selects the builtin the boundary guard would reconstruct. The
+    # binding (Name.sym) is the proof; the spelling alone approves nothing.
+    src = _pysrc("guard_shadowed_exc.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError('bad mask')" in src;
+    assert _break_count("guard_shadowed_exc.jac") == 1;
+}
+
+test "bare Tensor annotation bound by a torch import lowers" {
+    # `from torch import Tensor` proves the bare-name annotation through its
+    # binding, so this is equivalent to the qualified torch.Tensor proof.
+    src = _pysrc("val_guard_tensor_import.jac", True);
+    assert (
+        "torch._assert_async(mask.all(), "
+        "'[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')"
+        in src
+    );
+    assert "@__jac_trap_guard__" in src;
+    assert "raise ValueError" not in src;
+}
+
+test "bare Tensor annotation from a non-torch import declines" {
+    # Same spelling, different binding: `from mylib import Tensor` disproves
+    # the receiver, so lowering would feed a non-torch value to
+    # torch._assert_async. The guard keeps its original semantics.
+    src = _pysrc("guard_foreign_tensor.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "if not mask.all()" in src;
+    assert "raise ValueError('mask must be all true')" in src;
+    assert _break_count("guard_foreign_tensor.jac") == 1;
+}
+
 test "non-builtin exception type declines instead of degrading its type" {
     # The boundary guard restores the type by looking the marker name up in
     # builtins, so an aliased (MaskError = RuntimeError) or qualified
