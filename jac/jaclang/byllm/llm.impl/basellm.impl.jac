@@ -1874,7 +1874,6 @@ impl BaseLLM._invoke_streaming(
                 for _tok in self.dispatch_streaming_with_tools(mt_run, _stream_out) {
                     if mt_run._stream_reset_count != _seen_resets {
                         _seen_resets = mt_run._stream_reset_count;
-                        mt_run._tool_arg_deltas = [];
                         yield StreamEvent(
                             event_type="stream_reset",
                             data={"scope": "thought", "iteration": iter_count}

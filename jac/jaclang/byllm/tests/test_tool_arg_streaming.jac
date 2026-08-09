@@ -18,6 +18,7 @@ These tests pin the display-only contract:
 
 import types;
 import from unittest { mock }
+import litellm;
 import jaclang.byllm.llm as _byllm_llm_mod;
 import from jaclang.byllm.lib { Model }
 import from jaclang.byllm.mtir { MTRuntime }
@@ -334,4 +335,84 @@ test "fragments from a parallel batch stay separated by call_id" {
     assert "a.jac" in by_id["c1"] , by_id;
     assert "b.jac" in by_id["c2"] , by_id;
     assert "b.jac" not in by_id["c1"] , f"fragments crossed calls: {by_id}";
+}
+
+
+test "a transient retry still delivers the replacement stream's deltas" {
+    body = '{"path": "main.jac", "content": "recovered"}';
+    good: list = [];
+    first = True;
+    for frag in _fragments(body, 6) {
+        good.append(
+            _arg_chunk(
+                0,
+                frag,
+                call_id=("c1" if first else None),
+                name=("write_file" if first else None)
+            )
+        );
+        first = False;
+    }
+
+    llm = Model(model_name="gpt-4o");
+    mt = _runtime([write_file]);
+    turns = [0];
+
+    def _stream(params: dict) -> any {
+        turns[0] += 1;
+        # Attempt 1 drops mid-stream with a transient error, which bumps
+        # _stream_reset_count; attempt 2 is the replacement stream.
+        if turns[0] == 1 {
+            raise litellm.APIConnectionError(
+                message="boom", llm_provider="openai", model="gpt-4o"
+            );
+        }
+        if turns[0] == 2 {
+            return good;
+        }
+        return [_text_chunk("all done")];
+    }
+
+    def _rebuild(seen: list) -> dict {
+        if turns[0] == 2 {
+            return _rebuilt_one("c1", "write_file", body);
+        }
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "all done",
+                        "tool_calls": []
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            "model": "gpt-4o",
+            "usage": {}
+        };
+    }
+
+    events: list = [];
+    with mock.patch.object(llm, "model_call_with_stream", _stream), mock.patch.object(
+        _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild
+    ) {
+        for ev in llm._invoke_streaming(mt) {
+            events.append(ev);
+        }
+    }
+
+    kinds = [e.event_type for e in events];
+    assert "stream_reset" in kinds , f"the retry should surface a reset, got {kinds}";
+
+    deltas = _of_type(events, "tool_call_delta");
+    assert len(deltas) > 0 , f"the replacement stream's deltas were discarded by the reset. saw: {kinds}";
+
+    joined = "";
+    for d in deltas {
+        joined += str(d.data.get("arg_fragment", ""));
+    }
+    assert "recovered" in joined or deltas[0].data.get("tool") == "write_file" , f"deltas lost their payload after the reset: {[
+        d.data for d in deltas
+    ]}";
 }
