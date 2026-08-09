@@ -101,21 +101,6 @@ impl NaIRGenPass._unify_repr_lowering(reprs: list) -> (ir.Type | None) {
     return self.jacval_type;
 }
 
-impl NaIRGenPass._coerce_to_repr(val: ir.Value, target_type: ir.Type) -> ir.Value {
-    if val.type == target_type {
-        return val;
-    }
-    if isinstance(val.type, ir.PointerType)
-        and isinstance(target_type, ir.PointerType) {
-        _cast = self.builder.bitcast(val, target_type, name="repr.cast");
-        if self._is_owned(val) {
-            self._mark_owned(_cast);
-        }
-        return _cast;
-    }
-    return self._coerce_type(val, target_type);
-}
-
 impl NaIRGenPass._type_key_of(expr: (uni.UniNode | None)) -> (str | None) {
     if not isinstance(expr, uni.Expr) or expr.type is None {
         return None;
@@ -1997,6 +1982,17 @@ impl NaIRGenPass._emit_binary_op(
             self.builder.store(ri, self.builder.gep(ptr, [z0, z1], name="c.res.ip"));
             return ptr;
         }
+    }
+
+    if self?.jacval_type
+        and (left.type == self.jacval_type or right.type == self.jacval_type) {
+        self.emit(
+            E5092,
+            node_override=self.cur_node,
+            kind="binary operator",
+            name=f"{op} on a tagged `any` operand"
+        );
+        return None;
     }
 
     is_float = isinstance(left.type, (ir.DoubleType, ir.FloatType))

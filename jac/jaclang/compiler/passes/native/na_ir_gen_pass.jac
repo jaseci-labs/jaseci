@@ -485,7 +485,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.Type;
     def _lower_type(t: any) -> (ir.Type | None);
     def _unify_repr_lowering(reprs: list) -> (ir.Type | None);
-    def _coerce_to_repr(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _lower_class_type(t: any) -> (ir.Type | None);
     def _lower_function_type(t: any) -> ir.Type;
     def _type_key_of(expr: (uni.UniNode | None)) -> (str | None);

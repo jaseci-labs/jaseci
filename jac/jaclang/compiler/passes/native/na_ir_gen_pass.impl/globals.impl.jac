@@ -196,6 +196,9 @@ impl NaIRGenPass._codegen_const_expr(
     nd: uni.UniNode, target_type: ir.Type
 ) -> (ir.Constant | None) {
     import from jaclang.jac0core.const_fold { fold_const }
+    if not isinstance(target_type, (ir.IntType, ir.DoubleType, ir.FloatType)) {
+        return None;
+    }
     (ok, v) = fold_const(nd);
     if not ok {
         return None;
