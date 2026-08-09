@@ -1,0 +1,70 @@
+"""Map known runtime errors to actionable CLI messages.
+
+The runtime speaks SQLSTATE and typed exceptions; users need to know what
+happened and what to do next. humanize_error is the single translation
+point: it returns (message, hint) for errors the CLI knows how to explain,
+and None for everything else so the generic path (message + traceback)
+still applies. Internals tracebacks for mapped errors stay available
+behind JAC_DEBUG=1.
+"""
+
+import os;
+
+
+glob __all__ = ['humanize_error', 'show_tracebacks'];
+
+
+def show_tracebacks -> bool {
+    return os.environ.get('JAC_DEBUG', '').lower() not in ('', '0', 'false');
+}
+
+
+def _sqlstate(e: Exception) -> str {
+    for arg in getattr(e, 'args', ()) {
+        if isinstance(arg, dict) and 'C' in arg {
+            return str(arg.get('C') or '');
+        }
+    }
+    return '';
+}
+
+
+def humanize_error(e: Exception) -> (tuple[str, (str | None)] | None) {
+    import from jaclang.runtimelib.store { SessionConflictError }
+    import from jaclang.runtimelib.pgwire { PgWireError }
+
+    if isinstance(e, SessionConflictError) {
+        return (
+            f"This project's database is in use: {e}",
+            'Stop the other process (Ctrl+C in its terminal, or kill <pid>),'
+            ' or rerun with --takeover to evict its database session.'
+        );
+    }
+    if isinstance(e, PgWireError) {
+        code = _sqlstate(e);
+        if code == '55P03' {
+            return (
+                'Timed out waiting for a database lock held by another'
+                ' session.',
+                'Another jac process may be using this project. Stop it, or'
+                ' rerun with --takeover to evict its database session.'
+            );
+        }
+        if code == '53300' {
+            return (
+                'The Jac database is out of connections.',
+                'A `jac test` run with the default worker fan-out can exhaust'
+                ' the pool; set JAC_TEST_JOBS to a small number (e.g. 4) or'
+                ' stop the other workload, then retry. If limits were raised'
+                ' recently, restart the embedded Postgres to pick them up.'
+            );
+        }
+        if code in ('08006', '08003') {
+            return (
+                'Lost the connection to the Jac database mid-operation.',
+                'Retry the command; the embedded server restarts on next use.'
+            );
+        }
+    }
+    return None;
+}
