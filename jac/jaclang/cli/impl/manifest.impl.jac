@@ -1833,6 +1833,10 @@ def _command_routes -> list[CommandMeta] {
                 (
                     'jac start --scale',
                     'Deploy to a platform target instead of serving locally'
+                ),
+                (
+                    'jac start --takeover',
+                    "Evict a stuck session holding this project's database"
                 )
             ],
             args=[
@@ -1952,6 +1956,13 @@ def _command_routes -> list[CommandMeta] {
                     typ='bool',
                     default=False,
                     help='With --dry-run: dump the raw YAML stream',
+                    short=''
+                ),
+                ArgMeta(
+                    name='takeover',
+                    typ='bool',
+                    default=False,
+                    help="Evict any other session holding this project's database before starting (use when a previous jac process is stuck)",
                     short=''
                 ),
 

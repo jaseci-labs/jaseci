@@ -295,6 +295,16 @@ def enter(
             help="With --dry-run: dump the raw YAML stream",
             short=""
         ),
+        Arg.create(
+            "takeover",
+            typ=bool,
+            default=False,
+            help=(
+                "Evict any other session holding this project's database "
+                "before starting (use when a previous jac process is stuck)"
+            ),
+            short=""
+        ),
 
     ],
     examples=[
@@ -307,6 +317,10 @@ def enter(
         ("jac start --profile prod", "Start with production profile"),
         ("jac start --client mobile", "Run the mobile client dev server"),
         ("jac start --scale", "Deploy to a platform target instead of serving locally"),
+        (
+            "jac start --takeover",
+            "Evict a stuck session holding this project's database"
+        ),
 
     ],
     group="execution"
@@ -326,7 +340,8 @@ def start(
     target: str = "kubernetes",
     enable_tls: bool = False,
     dry_run: bool = False,
-    show_yaml: bool = False
+    show_yaml: bool = False,
+    takeover: bool = False
 ) -> int;
 
 def debug(filename: str, main: bool = True, cache: bool = False) -> int;
