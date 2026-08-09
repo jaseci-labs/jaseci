@@ -241,15 +241,17 @@ test "read barrier hashes only dirty anchors, not the whole session" {
 
             smod._persist_hash = counting_hash;
             ctx.mem.read_barrier();
-            assert len(calls) == 0 ,
-                f"clean session: read barrier must hash nothing, hashed {len(calls)}";
+            assert len(calls) == 0 , f"clean session: read barrier must hash nothing, hashed {len(
+                calls
+            )}";
 
             arch0 = items[0].archetype;
             assert isinstance(arch0, SItem);
             arch0.tag = "touched";
             ctx.mem.read_barrier();
-            assert len(calls) == 1 ,
-                f"one dirty anchor: read barrier must hash exactly it, hashed {len(calls)}";
+            assert len(calls) == 1 , f"one dirty anchor: read barrier must hash exactly it, hashed {len(
+                calls
+            )}";
         } finally {
             smod._persist_hash = orig;
             JacRuntime.exec_ctx = old;

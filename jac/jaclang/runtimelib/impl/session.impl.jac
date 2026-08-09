@@ -98,7 +98,7 @@ def _is_serialization_conflict(e: Exception) -> bool {
 glob _schema_ready: set[str] = set();
 
 
-def _cache_ns(store: (Any | None)) -> str {
+def _store_ns(store: (Any | None)) -> str {
     if isinstance(store, PgStore) {
         info = store.conninfo;
         return (f"{info.unix_socket_dir or info.host}:" f"{info.port}/{info.database}");
@@ -143,17 +143,6 @@ impl Session.postinit -> None {
         promos = promotions_for(self.base_path);
         if url {
             pgs = PgStore(conninfo=conninfo_from_url(url));
-            ns = _cache_ns(pgs);
-            try {
-                pgs.listen(
-                    INVALIDATION_CHANNEL,
-                    lambda (payload: str) { _process_cache.invalidate_payload(
-                        ns, payload
-                    ); }
-                );
-            } except Exception as e {
-                logger.debug(f"cache invalidation listener skipped: {e}");
-            }
         } else {
             rt = PgRuntime(
                 data_dir=shared_pg_data_dir(),
@@ -162,7 +151,7 @@ impl Session.postinit -> None {
             self._runtime = rt;
             pgs = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
         }
-        ns = _cache_ns(pgs);
+        ns = _store_ns(pgs);
         if ns not in _schema_ready {
             pgs.ensure_schema(promos);
             _schema_ready.add(ns);
@@ -280,10 +269,9 @@ impl Session.get_roots -> Generator[Root, None, None] {
             for i in self.store.root_ids()
             if i not in seen and i not in self._deleted
         ];
-        root_rows = self.store.load(remote);
-        adj_map = self.store.adjacency(list(root_rows.keys())) if root_rows else {};
+        root_rows = self.store.load_full(remote);
         for (rid, row) in root_rows.items() {
-            anchor = self._materialize(row, edge_ids=adj_map.get(rid));
+            anchor = self._materialize(row, edge_ids=row.adjacency);
             if anchor is not None and isinstance(anchor.archetype, Root) {
                 yield anchor.archetype;
             }
@@ -330,45 +318,14 @@ impl Session.batch_get(ids: list[UUID]) -> dict[UUID, Anchor] {
         for attempt in range(2) {
             try {
                 self.read_barrier();
-                versions = self.store.load_versions(missing);
-                still: list[UUID] = [];
-                for i in missing {
-                    ver = versions.get(i);
-                    if ver is None {
-                        continue;
-                    }
-                    props = _process_cache.get(_cache_ns(self.store), i, ver);
-                    if props is None {
-                        still.append(i);
-                        continue;
-                    }
-                    anchor = self._materialize(
-                        AnchorRow(id=i, kind='', props=props, version=ver)
-                    );
-                    if anchor is not None {
-                        out[i] = anchor;
-                    } else {
-                        still.append(i);
-                    }
-                }
-                loaded = self.store.load(still);
-                node_ids = [
-                    rid
-                    for (rid, row) in loaded.items()
-                    if row.kind == 'NodeAnchor'
-                ];
-                adj_map = self.store.adjacency(node_ids) if node_ids else {};
+                loaded = self.store.load_full(missing);
                 for (rid, row) in loaded.items() {
-                    anchor = self._materialize(row, edge_ids=adj_map.get(rid));
+                    anchor = self._materialize(row, edge_ids=row.adjacency);
                     if anchor is not None {
                         self._fetch_count += 1;
                         out[rid] = anchor;
-                        _process_cache.put(
-                            _cache_ns(self.store), rid, row.version, row.props
-                        );
                     }
                 }
-
                 break;
             } except Exception as e {
                 if attempt == 1 or not _is_serialization_conflict(e) {
@@ -399,23 +356,7 @@ impl Session.commit(anchor: (Anchor | None) = None) -> None {
                     self._recover_conflict();
                 }
             }
-            if self._txn_changed {
-                changed = list(self._txn_changed);
-                self._txn_changed.clear();
-                for id in changed {
-                    _process_cache.invalidate(_cache_ns(self.store), id);
-                }
-                try {
-                    for start in range(0, len(changed), 100) {
-                        self.store.notify(
-                            INVALIDATION_CHANNEL,
-                            ','.join(str(i) for i in changed[start:start + 100])
-                        );
-                    }
-                } except Exception as e {
-                    logger.debug(f"cache invalidation notify skipped: {e}");
-                }
-            }
+            self._txn_changed.clear();
         } else {
             self._dirty.clear();
             self._deleted.clear();
@@ -699,11 +640,7 @@ impl Session._materialize(
     }
     anchor: Anchor = got;
     if isinstance(anchor, NodeAnchor) and self.store is not None {
-        adj = (
-            edge_ids
-                if edge_ids is not None
-                else self.store.adjacency([row.id]).get(row.id, [])
-        );
+        adj = edge_ids if edge_ids is not None else [];
         live = [
             i
             for i in adj

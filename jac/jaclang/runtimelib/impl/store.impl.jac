@@ -278,16 +278,20 @@ impl PgStore.in_txn -> bool {
 }
 
 
-impl PgStore.load(ids: list[UUID]) -> dict[UUID, AnchorRow] {
+impl PgStore.load_full(ids: list[UUID]) -> dict[UUID, AnchorRow] {
     if not ids {
         return {};
     }
     out: dict[UUID, AnchorRow] = {};
     rows = self._run(
         """
-        SELECT id, kind, arch_type, arch_module, fingerprint, root_id,
-               src, dst, undirected, props, xmin::text
-        FROM anchors WHERE id = ANY(CAST(:ids AS uuid[]))
+        SELECT a.id, a.kind, a.arch_type, a.arch_module, a.fingerprint,
+               a.root_id, a.src, a.dst, a.undirected, a.props, a.xmin::text,
+               CASE WHEN a.kind = 'NodeAnchor' THEN
+                   (SELECT string_agg(e.id::text, ',' ORDER BY e.seq, e.id)
+                      FROM anchors e WHERE e.src = a.id OR e.dst = a.id)
+               END
+        FROM anchors a WHERE a.id = ANY(CAST(:ids AS uuid[]))
         """,
         {'ids': [str(i) for i in ids]}
     );
@@ -296,6 +300,19 @@ impl PgStore.load(ids: list[UUID]) -> dict[UUID, AnchorRow] {
         props: dict = (
             raw_props if isinstance(raw_props, dict) else json.loads(str(raw_props))
         );
+        adjacency: (list[UUID] | None) = None;
+        if str(r[1]) == 'NodeAnchor' {
+            adjacency = [];
+            if r[11] {
+                seen_e: set[str] = set();
+                for tok in str(r[11]).split(',') {
+                    if tok and tok not in seen_e {
+                        seen_e.add(tok);
+                        adjacency.append(UUID(tok));
+                    }
+                }
+            }
+        }
         row = AnchorRow(
             id=UUID(str(r[0])),
             kind=str(r[1]),
@@ -307,7 +324,8 @@ impl PgStore.load(ids: list[UUID]) -> dict[UUID, AnchorRow] {
             src=UUID(str(r[6])) if r[6] else None,
             dst=UUID(str(r[7])) if r[7] else None,
             undirected=bool(r[8]),
-            version=int(str(r[10]))
+            version=int(str(r[10])),
+            adjacency=adjacency
         );
         out[row.id] = row;
     }
@@ -315,61 +333,45 @@ impl PgStore.load(ids: list[UUID]) -> dict[UUID, AnchorRow] {
 }
 
 
-impl PgStore.adjacency(ids: list[UUID]) -> dict[UUID, list[UUID]] {
-    if not ids {
-        return {};
-    }
-    out: dict[UUID, list[UUID]] = {i: [] for i in ids};
-    rows = self._run(
-        """
-        SELECT id, src, dst FROM anchors
-        WHERE src = ANY(CAST(:ids AS uuid[])) OR dst = ANY(CAST(:ids AS uuid[]))
-        ORDER BY seq, id
-        """,
-        {'ids': [str(i) for i in ids]}
-    );
-    for r in rows {
-        eid = UUID(str(r[0]));
-        for endpoint in (r[1], r[2]) {
-            if endpoint is not None {
-                nid = UUID(str(endpoint));
-                if nid in out and eid not in out[nid] {
-                    out[nid].append(eid);
-                }
-            }
-        }
-    }
-    return out;
-}
-
-
-impl PgStore.load_versions(ids: list[UUID]) -> dict[UUID, int] {
-    if not ids {
-        return {};
-    }
-    rows = self._run(
-        'SELECT id, xmin::text FROM anchors WHERE id = ANY(CAST(:ids AS uuid[]))',
-        {'ids': [str(i) for i in ids]}
-    );
-    return {UUID(str(r[0])): int(str(r[1])) for r in rows};
-}
-
-
 impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
     if not rows_in {
         return;
     }
-    for row in rows_in {
+    by_id: dict[UUID, AnchorRow] = {row.id: row for row in rows_in};
+    rows = list(by_id.values());
+    chunk = 200;
+    for start in range(0, len(rows), chunk) {
+        batch = rows[start:start + chunk];
+        values: list[str] = [];
+        params: dict = {};
+        for (i, row) in enumerate(batch) {
+            values.append(
+                f"(CAST(:id{i} AS uuid), :kind{i}, :arch_type{i}, "
+                f":arch_module{i}, :fp{i}, CAST(:root_id{i} AS uuid), "
+                f"CAST(:src{i} AS uuid), CAST(:dst{i} AS uuid), "
+                f":undirected{i}, CAST(:props{i} AS jsonb), :fv{i}, now())"
+            );
+            params[f"id{i}"] = str(row.id);
+            params[f"kind{i}"] = row.kind;
+            params[f"arch_type{i}"] = row.arch_type;
+            params[f"arch_module{i}"] = row.arch_module;
+            params[f"fp{i}"] = row.fingerprint;
+            params[f"root_id{i}"] = str(row.root_id) if row.root_id else None;
+            params[f"src{i}"] = str(row.src) if row.src else None;
+            params[f"dst{i}"] = str(row.dst) if row.dst else None;
+            params[f"undirected{i}"] = row.undirected;
+            params[f"props{i}"] = json.dumps(row.props, default=_jsonable);
+            params[f"fv{i}"] = SCHEMA_VERSION;
+        }
         self._run(
             """
             INSERT INTO anchors
                 (id, kind, arch_type, arch_module, fingerprint, root_id,
                  src, dst, undirected, props, format_version, updated_at)
             VALUES
-                (CAST(:id AS uuid), :kind, :arch_type, :arch_module, :fp,
-                 CAST(:root_id AS uuid), CAST(:src AS uuid),
-                 CAST(:dst AS uuid), :undirected, CAST(:props AS jsonb),
-                 :fv, now())
+            """
+                + ',\n'.join(values)
+                + """
             ON CONFLICT (id) DO UPDATE SET
                 kind = EXCLUDED.kind,
                 arch_type = EXCLUDED.arch_type,
@@ -383,31 +385,37 @@ impl PgStore.upsert(rows_in: list[AnchorRow]) -> None {
                 format_version = EXCLUDED.format_version,
                 updated_at = now()
             """,
-            {
-                'id': str(row.id),
-                'kind': row.kind,
-                'arch_type': row.arch_type,
-                'arch_module': row.arch_module,
-                'fp': row.fingerprint,
-                'root_id': str(row.root_id) if row.root_id else None,
-                'src': str(row.src) if row.src else None,
-                'dst': str(row.dst) if row.dst else None,
-                'undirected': row.undirected,
-                'props': json.dumps(row.props, default=_jsonable),
-                'fv': SCHEMA_VERSION
-            }
+            params
         );
+    }
+    pairs: list[tuple[str, str]] = [];
+    seen_pairs: set[tuple[str, str]] = set();
+    for row in rows {
         if row.arch_type and row.arch_type not in self._known_types {
             for anc in (row.ancestry or [row.arch_type]) {
-                self._run(
-                    """
-                    INSERT INTO graph_types (type_name, ancestor)
-                    VALUES (:t, :a) ON CONFLICT DO NOTHING
-                    """,
-                    {'t': row.arch_type, 'a': anc}
-                );
+                if (row.arch_type, anc) not in seen_pairs {
+                    seen_pairs.add((row.arch_type, anc));
+                    pairs.append((row.arch_type, anc));
+                }
             }
-            self._known_types.add(row.arch_type);
+        }
+    }
+    if pairs {
+        tvals: list[str] = [];
+        tparams: dict = {};
+        for (i, pair) in enumerate(pairs) {
+            tvals.append(f"(:t{i}, :a{i})");
+            tparams[f"t{i}"] = pair[0];
+            tparams[f"a{i}"] = pair[1];
+        }
+        self._run(
+            'INSERT INTO graph_types (type_name, ancestor) VALUES '
+                + ', '.join(tvals)
+                + ' ON CONFLICT DO NOTHING',
+            tparams
+        );
+        for pair in pairs {
+            self._known_types.add(pair[0]);
         }
     }
 }

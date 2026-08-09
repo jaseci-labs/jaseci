@@ -306,11 +306,14 @@ impl PgWireConnection._scram_auth(payload: bytes) -> None {
 }
 
 
+def _frame(msg_type: str, payload: bytes) -> bytes {
+    return msg_type.encode('ascii') + struct.pack(_INT32, len(payload) + 4) + payload;
+}
+
+
 impl PgWireConnection._send(msg_type: str, payload: bytes) -> None {
     sock: Any = self._sock;
-    sock.sendall(
-        msg_type.encode('ascii') + struct.pack(_INT32, len(payload) + 4) + payload
-    );
+    sock.sendall(_frame(msg_type, payload));
 }
 
 
@@ -366,9 +369,6 @@ impl PgWireConnection._handle_async(msg_type: str, payload: bytes) -> bool {
 impl PgWireConnection.run(sql: str, **params: any) -> list {
     assert not self._closed , 'connection is closed';
     (pos_sql, args) = _named_to_positional(sql, params);
-    self._send(
-        'P', b'\x00' + pos_sql.encode('utf-8') + b'\x00' + struct.pack(_INT16, 0)
-    );
     bind = b'\x00\x00' + struct.pack(_INT16, 0) + struct.pack(_INT16, len(args));
     for a in args {
         enc = _encode_param(a);
@@ -379,10 +379,16 @@ impl PgWireConnection.run(sql: str, **params: any) -> list {
         }
     }
     bind += struct.pack(_INT16, 0);
-    self._send('B', bind);
-    self._send('D', b'P\x00');
-    self._send('E', b'\x00' + struct.pack(_INT32, 0));
-    self._send('S', b'');
+    sock: Any = self._sock;
+    sock.sendall(
+        _frame(
+            'P', b'\x00' + pos_sql.encode('utf-8') + b'\x00' + struct.pack(_INT16, 0)
+        )
+            + _frame('B', bind)
+            + _frame('D', b'P\x00')
+            + _frame('E', b'\x00' + struct.pack(_INT32, 0))
+            + _frame('S', b'')
+    );
 
     rows: list = [];
     oids: list[int] = [];

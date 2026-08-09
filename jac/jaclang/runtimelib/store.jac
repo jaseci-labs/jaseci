@@ -35,7 +35,8 @@ obj AnchorRow {
         dst: (UUID | None) = None,
         undirected: bool = False,
         ancestry: list[str] = [],
-        version: int = 0;
+        version: int = 0,
+        adjacency: (list[UUID] | None) = None;
 }
 
 
@@ -47,9 +48,7 @@ obj Store {
     def commit -> None abst;
     def rollback -> None abst;
     def in_txn -> bool abst;
-    def load(ids: list[UUID]) -> dict[UUID, AnchorRow] abst;
-    def adjacency(ids: list[UUID]) -> dict[UUID, list[UUID]] abst;
-    def load_versions(ids: list[UUID]) -> dict[UUID, int] abst;
+    def load_full(ids: list[UUID]) -> dict[UUID, AnchorRow] abst;
     def upsert(rows_in: list[AnchorRow]) -> None abst;
     def delete(ids: list[UUID]) -> None abst;
     def existing(ids: list[UUID]) -> set[UUID] abst;
@@ -90,9 +89,7 @@ obj PgStore(Store) {
     def commit -> None;
     def rollback -> None;
     def in_txn -> bool;
-    def load(ids: list[UUID]) -> dict[UUID, AnchorRow];
-    def adjacency(ids: list[UUID]) -> dict[UUID, list[UUID]];
-    def load_versions(ids: list[UUID]) -> dict[UUID, int];
+    def load_full(ids: list[UUID]) -> dict[UUID, AnchorRow];
     def upsert(rows_in: list[AnchorRow]) -> None;
     def delete(ids: list[UUID]) -> None;
     def existing(ids: list[UUID]) -> set[UUID];
