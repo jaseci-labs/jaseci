@@ -1795,5 +1795,5 @@ def _decode_str_escapes(text: str) -> str {
 }
 
 def fstring_escape_interior(value: str) -> str {
-    return value.replace("{", "{{").replace("}", "}}").replace("#", "\\#");
+    return value.replace("{", "{{").replace("}", "}}");
 }

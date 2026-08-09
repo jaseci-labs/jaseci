@@ -648,6 +648,19 @@ impl PyastBuildPass.proc_name(nd: py_ast.Name) -> uni.Name {
 }
 
 impl PyastBuildPass.proc_match_value(nd: py_ast.MatchValue) -> uni.MatchValue {
+    # Jac has no complex-literal syntax, so a complex value pattern (e.g.
+    # `case 1 + 2j:`) cannot be lowered: `complex(re, im)` parses as a class
+    # pattern and fails at runtime. Emit a diagnostic instead of silently
+    # emitting broken code. literal_eval accepts exactly the complex-literal
+    # forms and never a `complex(...)` call.
+    try {
+        folded = py_ast.literal_eval(nd.value);
+    } except Exception {
+        folded = None;
+    }
+    if isinstance(folded, complex) {
+        self.emit(E5044);
+    }
     value = self.convert(nd.value);
     if isinstance(value, uni.Expr) {
         return uni.MatchValue(value=value, kid=[value]);
@@ -1414,6 +1427,10 @@ impl PyastBuildPass.proc_unary_op(nd: py_ast.UnaryOp) -> uni.UnaryExpr {
 impl PyastBuildPass.proc_bin_op(
     nd: py_ast.BinOp
 ) -> (uni.AtomUnit | uni.BinaryExpr | uni.FuncCall) {
+    folded = self._try_fold_complex_literal(nd);
+    if folded is not None {
+        return folded;
+    }
     left = self.convert(nd.left);
     op = self.convert(nd.op);
     right = self.convert(nd.right);
@@ -1422,10 +1439,6 @@ impl PyastBuildPass.proc_bin_op(
         and isinstance(op, uni.Token)
         and isinstance(right, uni.Expr)
     ) {
-        folded = self._try_fold_complex_binop(left, op, right, nd);
-        if folded is not None {
-            return folded;
-        }
         unwrapped_left = left;
         if (
             isinstance(left, uni.AtomUnit)
@@ -2196,10 +2209,6 @@ impl PyastBuildPass._get_source_segment(nd: py_ast.AST) -> (str | None) {
     return ''.join(result_lines);
 }
 
-impl PyastBuildPass._fstring_semantic_interior(segment: str) -> str {
-    return segment.replace('{{', '{').replace('}}', '}');
-}
-
 impl PyastBuildPass._fstring_constant_content(
     nd: py_ast.Constant, is_raw: bool
 ) -> str {
@@ -2211,8 +2220,13 @@ impl PyastBuildPass._fstring_constant_content(
         return nd.value;
     }
     segment = self._get_source_segment(nd);
+    # A segment containing doubled braces ({{) never reaches this branch --
+    # _decode_str_escapes leaves braces untouched while the Python value has
+    # single braces -- so a brace-collapse step here would never fire; for the
+    # brace-free segments that do match, the raw source is already the correct
+    # semantic interior.
     if segment is not None and _decode_str_escapes(segment) == nd.value {
-        return self._fstring_semantic_interior(segment);
+        return segment;
     }
     return repr(nd.value)[1:-1];
 }
@@ -2236,51 +2250,12 @@ impl PyastBuildPass._make_number_literal(
 }
 
 impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
-    if n == int(n) {
+    # Guard against non-finite components (e.g. 1e999j -> inf): int(inf) raises
+    # OverflowError, so fall through to a FLOAT literal instead of crashing.
+    if math.isfinite(n) and n == int(n) {
         return self._make_number_literal(nd, 'INT', str(int(n)), col_end=nd.col_offset);
     }
     return self._make_number_literal(nd, 'FLOAT', str(n), col_end=nd.col_offset);
-}
-
-impl PyastBuildPass._float_from_literal(expr: uni.Expr) -> (float | None) {
-    if isinstance(expr, uni.Int) {
-        return float(expr.lit_value);
-    }
-    if isinstance(expr, uni.Float) {
-        return float(expr.value);
-    }
-    if (
-        isinstance(expr, uni.UnaryExpr)
-        and isinstance(expr.op, uni.Token)
-        and isinstance(expr.operand, uni.Expr)
-    ) {
-        val = self._float_from_literal(expr.operand);
-        if val is not None {
-            if (expr.op.value == '-') {
-                return -val;
-            }
-            if (expr.op.value == '+') {
-                return val;
-            }
-        }
-    }
-    return None;
-}
-
-impl PyastBuildPass._complex_from_func_call(expr: uni.Expr) -> ((float, float) | None) {
-    if (
-        isinstance(expr, uni.FuncCall)
-        and isinstance(expr.target, uni.Name)
-        and (expr.target.value == 'complex')
-        and (len(expr.params) == 2)
-    ) {
-        re = self._float_from_literal(expr.params[0]);
-        im = self._float_from_literal(expr.params[1]);
-        if (re is not None) and (im is not None) {
-            return (re, im);
-        }
-    }
-    return None;
 }
 
 impl PyastBuildPass._emit_complex_call(
@@ -2297,37 +2272,21 @@ impl PyastBuildPass._emit_complex_call(
     );
 }
 
-impl PyastBuildPass._try_fold_complex_binop(
-    left: uni.Expr, op: uni.Token, right: uni.Expr, nd: py_ast.BinOp
+impl PyastBuildPass._try_fold_complex_literal(
+    nd: py_ast.BinOp
 ) -> (uni.FuncCall | None) {
-    if op.value not in ['+', '-'] {
+    # Fold complex-constant expressions (e.g. `1 + 2j`) by evaluating the
+    # *input* py-AST. ast.literal_eval accepts exactly Python's legal
+    # complex-literal forms (real +/- imag) and never accepts a `complex(...)`
+    # call, so this cannot fold or rewrite user code, nor break when `complex`
+    # is shadowed by a binding.
+    try {
+        value = py_ast.literal_eval(nd);
+    } except Exception {
         return None;
     }
-    left_num = self._float_from_literal(left);
-    right_num = self._float_from_literal(right);
-    left_parts = self._complex_from_func_call(left);
-    right_parts = self._complex_from_func_call(right);
-    if (left_num is not None) and (right_parts is not None) {
-        (c_re, c_im) = right_parts;
-        if op.value == '+' {
-            return self._emit_complex_call(nd, left_num + c_re, c_im);
-        }
-        return self._emit_complex_call(nd, left_num - c_re, -c_im);
-    }
-    if (left_parts is not None) and (right_num is not None) {
-        (c_re, c_im) = left_parts;
-        if op.value == '+' {
-            return self._emit_complex_call(nd, c_re + right_num, c_im);
-        }
-        return self._emit_complex_call(nd, c_re - right_num, c_im);
-    }
-    if (left_parts is not None) and (right_parts is not None) {
-        (l_re, l_im) = left_parts;
-        (r_re, r_im) = right_parts;
-        if op.value == '+' {
-            return self._emit_complex_call(nd, l_re + r_re, l_im + r_im);
-        }
-        return self._emit_complex_call(nd, l_re - r_re, l_im - r_im);
+    if isinstance(value, complex) {
+        return self._emit_complex_call(nd, value.real, value.imag);
     }
     return None;
 }

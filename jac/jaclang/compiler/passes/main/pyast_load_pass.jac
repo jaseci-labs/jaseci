@@ -1,4 +1,5 @@
 import ast as py_ast;
+import math;
 import os;
 import re;
 import from collections.abc { Sequence }
@@ -7,7 +8,7 @@ import from typing { TypeAlias, TypeVar, cast }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.unitree { _decode_str_escapes }
 import from jaclang.jac0core.constant { Tokens as Tok, RESERVED_IDENT_NAMES }
-import from jaclang.jac0core.diagnostics { E5041, E5042 }
+import from jaclang.jac0core.diagnostics { E5041, E5042, E5044 }
 import from jaclang.jac0core.passes.transform { Transform }
 import type from jaclang.jac0core.program { JacProgram }
 
