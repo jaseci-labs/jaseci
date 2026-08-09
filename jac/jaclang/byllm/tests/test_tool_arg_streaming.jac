@@ -87,7 +87,7 @@ def _runtime(tools: list) -> MTRuntime {
         resp_type=str,
         stream=True,
         tools=wrapped,
-        call_params={},
+        call_params={"stream_tool_args": True},
         mtir=None
     );
 }
@@ -480,4 +480,87 @@ test "a reset is announced before deltas that only surface at flush" {
     assert "tool_call_delta" in kinds , f"the flushed deltas never reached the caller: {kinds}";
     assert "stream_reset" in kinds , f"the retry was never announced: {kinds}";
     assert kinds.index("stream_reset") < kinds.index("tool_call_delta") , f"reset must precede the replacement deltas, got {kinds}";
+}
+
+
+test "tool-argument streaming is off unless it is turned on" {
+    # The feature ships disabled. Without `stream_tool_args` (or the jac.toml
+    # `[byllm.tool_stream] enabled` setting) a caller sees exactly what it saw
+    # before: prose, then one terminal tool_call.
+    body = '{"path": "main.jac", "content": "' + ("q" * 300) + '"}';
+    script: list = [_text_chunk("Working. ")];
+    first = True;
+    for frag in _fragments(body) {
+        script.append(
+            _arg_chunk(
+                0,
+                frag,
+                call_id=("c1" if first else None),
+                name=("write_file" if first else None)
+            )
+        );
+        first = False;
+    }
+
+    llm = Model(model_name="gpt-4o");
+    wrapped = [Tool(func=write_file)];
+    wrapped.append(Tool.make_finish_tool(str));
+    mt = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="s"),
+            Message(role=MessageRole.USER, content="u")
+        ],
+        resp_type=str,
+        stream=True,
+        tools=wrapped,
+        call_params={},
+        mtir=None
+    );
+
+    turns = [0];
+
+    def _stream(params: dict) -> any {
+        turns[0] += 1;
+        if turns[0] == 1 {
+            return script;
+        }
+        return [_text_chunk("all done")];
+    }
+
+    def _rebuild(seen: list) -> dict {
+        if turns[0] == 1 {
+            return _rebuilt_one("c1", "write_file", body);
+        }
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "role": "assistant",
+                        "content": "all done",
+                        "tool_calls": []
+                    },
+                    "finish_reason": "stop"
+                }
+            ],
+            "model": "gpt-4o",
+            "usage": {}
+        };
+    }
+
+    events: list = [];
+    with mock.patch.object(llm, "model_call_with_stream", _stream), mock.patch.object(
+        _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild
+    ) {
+        for ev in llm._invoke_streaming(mt) {
+            events.append(ev);
+        }
+    }
+
+    kinds = [e.event_type for e in events];
+    assert len(_of_type(events, "tool_call_delta")) == 0 , f"deltas leaked while the feature was disabled: {kinds}";
+
+    # The pre-existing behaviour must be intact: the tool still runs correctly.
+    calls = _of_type(events, "tool_call");
+    assert len(calls) >= 1 , f"the tool call disappeared: {kinds}";
+    assert calls[0].data.get("args", {}).get("path") == "main.jac" , calls[0].data;
 }

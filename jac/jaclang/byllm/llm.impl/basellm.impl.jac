@@ -119,6 +119,19 @@ obj _ToolDeltaCoalescer {
 }
 
 
+def _should_stream_tool_args(mt_run: MTRuntime) -> bool {
+    per_call = mt_run.call_params.get("stream_tool_args");
+    if per_call is True {
+        return True;
+    }
+    if per_call is False {
+        return False;
+    }
+
+    return get_byllm_config().get_tool_stream_config().get("enabled", False);
+}
+
+
 def _should_parallelize(mt_run: MTRuntime) -> bool {
     per_call = mt_run.call_params.get("parallelize");
     if per_call is True {
@@ -1457,13 +1470,16 @@ impl BaseLLM.dispatch_streaming_with_tools(
         content_buf = "";
 
         mt_run._tool_arg_deltas = [];
+        stream_args = _should_stream_tool_args(mt_run);
         coalescer = _ToolDeltaCoalescer(out=mt_run._tool_arg_deltas);
         try {
             for chunk in self.model_call_with_stream(params) {
                 chunks.append(chunk);
                 pending_before = len(mt_run._tool_arg_deltas);
-                for _frag in _tool_call_fragments(chunk) {
-                    coalescer.observe(_frag);
+                if stream_args {
+                    for _frag in _tool_call_fragments(chunk) {
+                        coalescer.observe(_frag);
+                    }
                 }
                 delta_content = "";
                 if chunk?.choices and chunk?.choices?[0]?.delta {
@@ -1482,7 +1498,9 @@ impl BaseLLM.dispatch_streaming_with_tools(
                     yield "";
                 }
             }
-            coalescer.flush();
+            if stream_args {
+                coalescer.flush();
+            }
             break;
         } except NotImplementedError {
             no_stream = True;
