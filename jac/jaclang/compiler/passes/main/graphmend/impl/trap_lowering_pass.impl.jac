@@ -168,12 +168,13 @@ impl TrapLoweringPass._raise_message(rs: uni.RaiseStmt) -> (uni.Expr | None) {
     if not isinstance(cause, uni.FuncCall) {
         return None;
     }
+    call: uni.FuncCall = cause;
     pos = [
         p
-        for p in (cause.params or [])
+        for p in (call.params or [])
         if not isinstance(p, uni.KWPair)
     ];
-    if (len(pos) != 1) or (len(pos) != len(cause.params or [])) {
+    if (len(pos) != 1) or (len(pos) != len(call.params or [])) {
         return None;
     }
     return pos[0];
