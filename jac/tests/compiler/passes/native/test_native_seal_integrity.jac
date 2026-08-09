@@ -301,7 +301,9 @@ test "a demotion one hop out cannot hide behind a warm native IR cache" {
 test "waiving that exact method seals and says so; waiving another does not" {
     (arts, err, tmp) = _seal(
         "seal_demoted_method.jac",
-        waivers={"seal_demoted_method.jac": ("Gauge.unlowerable", )}
+        waivers={
+            "seal_demoted_method.jac": ("seal_demoted_method.jac::Gauge.unlowerable", )
+        }
     );
     try {
         assert arts is not None , f"a waived demotion still failed the seal:\n{err}";
@@ -318,7 +320,8 @@ test "waiving that exact method seals and says so; waiving another does not" {
     }
 
     (other, err2, tmp2) = _seal(
-        "seal_demoted_method.jac", waivers={"seal_demoted_method.jac": ("Gauge.good", )}
+        "seal_demoted_method.jac",
+        waivers={"seal_demoted_method.jac": ("seal_demoted_method.jac::Gauge.good", )}
     );
     try {
         assert other is None , (
@@ -332,9 +335,74 @@ test "waiving that exact method seals and says so; waiving another does not" {
 }
 
 
+test "a waiver names one module's method and cannot silence another's" {
+    # Two modules in one sealed closure demoting the *same* Type.method name.
+    # Driven through seal_demotion_report directly with a census built to the
+    # shape na_census_seam writes, because two modules defining the same symbol
+    # could not link into one artifact anyway -- the property under test is that
+    # a waiver carries module identity, independent of that.
+    census = {
+        str(FIXTURES / "seal_xmod_dep.jac"): {
+            "outcome": "native",
+            "code": "",
+            "detail": "",
+            "seams": ["Meter.unlowerable: Native lowering failed for 'eval'"]
+        },
+        str(FIXTURES / "seal_clean.jac"): {
+            "outcome": "native",
+            "code": "",
+            "detail": "",
+            "seams": ["Meter.unlowerable: Native lowering failed for 'eval'"]
+        }
+    };
+
+    (err, waived, stale) = pb.seal_demotion_report(
+        "root.jac",
+        census,
+        {"root.jac": ("seal_xmod_dep.jac::Meter.unlowerable", )},
+        FIXTURES
+    );
+    assert err , (
+        "waiving seal_xmod_dep's Meter.unlowerable silenced seal_clean's "
+        "identically named method too; the waiver lost module identity"
+    );
+    assert "seal_clean.jac::Meter.unlowerable" in err , (
+        f"the unwaived module's demotion is not named:\n{err}"
+    );
+    assert "seal_xmod_dep.jac::Meter.unlowerable" not in err.split("Fix the")[0] , (
+        f"the waived module's demotion is still reported as offending:\n{err}"
+    );
+    assert waived == ["seal_xmod_dep.jac::Meter.unlowerable"] , waived;
+    assert stale == [] , stale;
+
+    # Waiving both, by module, clears the seal.
+    (err2, waived2, stale2) = pb.seal_demotion_report(
+        "root.jac",
+        census,
+        {
+            "root.jac": (
+                "seal_xmod_dep.jac::Meter.unlowerable",
+                "seal_clean.jac::Meter.unlowerable"
+            )
+        },
+        FIXTURES
+    );
+    assert err2 == "" , f"both demotions waived by module but still refused:\n{err2}";
+    assert len(waived2) == 2 , waived2;
+
+    # A bare, unqualified name waives nothing: the module half is required.
+    (err3, waived3, _stale3) = pb.seal_demotion_report(
+        "root.jac", census, {"root.jac": ("Meter.unlowerable", )}, FIXTURES
+    );
+    assert err3 , "an unqualified waiver silenced a demotion";
+    assert waived3 == [] , waived3;
+}
+
+
 test "a waiver that matches no demotion is reported as stale" {
     (arts, err, tmp) = _seal(
-        "seal_clean.jac", waivers={"seal_clean.jac": ("Counter.retired", )}
+        "seal_clean.jac",
+        waivers={"seal_clean.jac": ("seal_clean.jac::Counter.retired", )}
     );
     try {
         assert arts is not None , f"a stale waiver must not fail a clean seal:\n{err}";

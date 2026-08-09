@@ -271,27 +271,37 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 glob NATIVE_SEAL_MODULES: tuple = ("jac0core/parser/lexer.jac", ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {};
 
-def _seal_demotions(census: dict) -> list[tuple[str, str]] {
-    found: list[tuple[str, str]] = [];
+def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
+    if pkg_path is not None {
+        try {
+            return Path(path).resolve().relative_to(
+                Path(pkg_path).resolve()
+            ).as_posix();
+        } except ValueError { }
+    }
+    return os.path.basename(path);
+}
+
+def _seal_demotions(
+    census: dict, pkg_path: (Path | None) = None
+) -> list[tuple[str, str, str]] {
+    found: list[tuple[str, str, str]] = [];
     for (path, rec) in sorted(census.items()) {
-        where = os.path.basename(path);
+        where = _seal_module_label(path, pkg_path);
         for seam in (rec.get("seams") or []) {
             text = str(seam);
             (name, sep, why) = text.partition(": ");
-            if not sep {
-                found.append((text, where));
-            } elif where in why {
-                found.append((name, why));
-            } else {
-                found.append((name, f"{where}: {why}"));
-            }
+            bare = name if sep else text;
+            reason = why if sep else text;
+            found.append((f"{where}::{bare}", bare, f"{where}: {reason}"));
         }
         if rec.get("outcome") == "demoted" {
             code = rec.get("code") or "?";
             detail = rec.get("detail") or "";
             found.append(
                 (
-                    f"<module {where}>",
+                    f"{where}::<module>",
+                    "<module>",
                     f"{where}: whole module demoted [{code}] {detail}"
                 )
             );
@@ -300,17 +310,26 @@ def _seal_demotions(census: dict) -> list[tuple[str, str]] {
     return found;
 }
 
-def seal_demotion_report(
-    rel: str, census: dict, waivers: (dict | None) = None
-) -> tuple[str, list[str], list[str]] {
+def seal_waiver_names(rel: str, waivers: (dict | None) = None) -> tuple[set, set] {
     table = NATIVE_SEAL_DEMOTION_WAIVERS if waivers is None else waivers;
-    allowed = set(table.get(rel, ()));
-    found = _seal_demotions(census);
-    names = {n for (n, _why) in found};
+    qualified = set(table.get(rel, ()));
+    bare = {q.split("::")[-1] for q in qualified};
+    return (qualified, bare);
+}
+
+def seal_demotion_report(
+    rel: str,
+    census: dict,
+    waivers: (dict | None) = None,
+    pkg_path: (Path | None) = None
+) -> tuple[str, list[str], list[str]] {
+    (allowed, _bare) = seal_waiver_names(rel, waivers);
+    found = _seal_demotions(census, pkg_path);
+    names = {q for (q, _b, _why) in found};
     offending = [
-        (n, why)
-        for (n, why) in found
-        if n not in allowed
+        (q, why)
+        for (q, _b, why) in found
+        if q not in allowed
     ];
     waived = sorted(
         n
@@ -336,10 +355,13 @@ def seal_demotion_report(
     }
     lines.append(
         "  Fix the native lowering, or waive a knowingly-unreachable method by "
-        "naming it in NATIVE_SEAL_DEMOTION_WAIVERS[\""
+        "adding its exact <module>::<Type>.<method> name above to "
+        "NATIVE_SEAL_DEMOTION_WAIVERS[\""
             + rel
-            + "\"] in jaclang/utils/precompile_bytecode.jac. Set JAC_NA_DEBUG=1 "
-            + "to print the full diagnostic behind each demotion."
+            + "\"] in jaclang/utils/precompile_bytecode.jac. The module half is "
+            + "required: a bare method name would also waive a same-named "
+            + "method demoting in a different module of the closure. Set "
+            + "JAC_NA_DEBUG=1 to print the full diagnostic behind each demotion."
     );
     return ("\n".join(lines), waived, stale);
 }
@@ -572,7 +594,7 @@ def seal_native_artifacts(
             return None;
         }
         (demotion_error, waived, stale_waivers) = seal_demotion_report(
-            rel, census, waivers
+            rel, census, waivers, pkg_path
         );
         if demotion_error {
             console.error(demotion_error);
@@ -593,13 +615,12 @@ def seal_native_artifacts(
             );
         }
         llvm_ir_text = str(ir.gen.llvm_ir);
-        allowed = set(
-            (NATIVE_SEAL_DEMOTION_WAIVERS if waivers is None else waivers).get(rel, ())
-        );
+
+        (_qualified, allowed_bare) = seal_waiver_names(rel, waivers);
         shipped_stubs = [
             s
             for s in seal_abort_stubs(llvm_ir_text)
-            if s not in allowed
+            if s not in allowed_bare
         ];
         if shipped_stubs {
             console.error(

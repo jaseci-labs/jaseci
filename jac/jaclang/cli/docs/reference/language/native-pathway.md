@@ -991,6 +991,8 @@ The verdict must not depend on how warm the build cache is, so the gate is layer
 
 Before an artifact is written into `MANIFEST.json` it must also pass a load canary: the seal `dlopen`s the freshly linked library, checks that every export the layout advertises is really in it, runs `__jac_shared_init`, and calls a known-good runtime export. An artifact that cannot be loaded and called is deleted and the seal fails. The canary proves the artifact loads; it cannot prove the artifact is free of abort stubs, because an `abort()`-bodied function still resolves through `dlsym` and is never called. That is the scan's job.
 
+The canary's probe string is deliberately **not** released. `jac_release` reaches `__rc_release_simple`, which drops the refcount and, at zero, runs the type-tagged destructor and removes the object from the cycle collector's live list. Under the `cycles` GC mode the seal builds with, that machinery is set up for the module's own execution, not for a foreign `ctypes` caller that has only run `__jac_shared_init`: calling it on the sealed lexer segfaults at address 0 inside the artifact. One probe allocation per artifact, in a build step that exits moments later, is the cheaper of the two.
+
 ### Bytecode Cache
 
 The Jac compiler caches compiled bytecode at `~/Library/Caches/jac/bytecode/` (macOS) or `~/.cache/jac/bytecode/` (Linux). When modifying the compiler itself, clear this cache to ensure changes take effect:
