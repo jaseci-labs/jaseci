@@ -256,10 +256,20 @@ selection exists for it), as does a branch pair mixing a call with a literal
 
 `torch.where` is an ordinary call, so both operands are evaluated regardless
 of the predicate. For symmetric values (bare names, pure arithmetic) that is
-harmless and is what the pass emits. When a branch value contains a function
-call, evaluating both sides would run a call the original program did not
-run, which is not merely wasteful: it is unsound whenever that call is only
-valid under its own predicate. For that shape the pass emits `torch.cond`,
+harmless and is what the pass emits. "Harmless" carries the transform's one
+foundational assumption, declared here alongside G5's: a hoisted call-free
+value expression is assumed total, i.e. non-raising, for the operand values
+executions actually reach. Tensor arithmetic satisfies this by construction
+(a zero divisor yields `inf`/`nan`, not an exception); a Python-scalar
+division or subscript in a branch value can raise on an execution that
+originally took the other branch. Declining those shapes would decline
+ordinary tensor arithmetic wholesale, since operand scalarity is not
+statically decidable, so the assumption is stated rather than enforced.
+Selecting between branch values without evaluating both is what `torch.cond`
+provides, and shapes that need that isolation get it: when a branch value
+contains a function call, evaluating both sides would run a call the
+original program did not run, which is not merely wasteful: it is unsound
+whenever that call is only valid under its own predicate. For that shape the pass emits `torch.cond`,
 whose lambda branches execute only the selected path:
 
 ```python
