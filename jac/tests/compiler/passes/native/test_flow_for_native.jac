@@ -1,10 +1,10 @@
 """flow for runtime semantics (#7857 Phase C/D surface).
 
 Per-element body over lent collections with the join at the closing
-brace: element writes through `&mut` are visible after the join, output
-is deterministic and byte-identical across gc modes (execution is
-currently the same degenerate sequential lowering as native `flow`
-calls, so erasure holds by construction).
+brace: element writes through `&mut` are visible after the join, and
+reduction accumulators combine at the join. Output is deterministic and
+byte-identical across gc modes and thread widths (no ordered side effects
+inside the parallel body).
 """
 
 import os;
@@ -39,7 +39,7 @@ test "flow for output is byte-identical across gc modes" {
             assert ran.returncode == 0 , f"{mode}: {ran.stderr}";
             outs[mode] = ran.stdout;
         }
-        assert outs["rc"] == "10\n20\n30\n8\n10\nend\n" , outs["rc"];
+        assert outs["rc"] == "10\n20\n30\n18\nend\n" , outs["rc"];
         assert outs["none"] == outs["rc"] , outs["none"];
         assert outs["cycles"] == outs["rc"] , outs["cycles"];
     }

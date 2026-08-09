@@ -1,6 +1,6 @@
 """flow for runtime semantics: per-element body over lent collections,
 join at the closing brace; deterministic output, identical across
-backends and gc modes."""
+backends, gc modes, and parallel thread widths."""
 
 obj P {
     has x: int = 0;
@@ -20,8 +20,10 @@ glob xs = [4, 5],
      k = 2;
 
 with entry {
+    line_sum = 0;
     flow for v in &xs {
-        print(v * k);
+        line_sum += v * k;
     }
+    print(line_sum);
     print("end");
 }
