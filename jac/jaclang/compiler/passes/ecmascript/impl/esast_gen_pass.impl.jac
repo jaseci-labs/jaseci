@@ -4551,7 +4551,6 @@ impl EsastGenPass.exit_ability(nd: uni.Ability) -> None {
         self._view_stack.pop();
     }
 
-    self.intent_session.pop_ability_scope();
     if self._reactive_vars_stack {
         self.reactive_vars = self._reactive_vars_stack.pop();
         self._sync_converter_reactive_vars();

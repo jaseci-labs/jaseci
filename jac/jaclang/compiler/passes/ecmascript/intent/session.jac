@@ -24,7 +24,6 @@ obj IntentSession {
         _recorded_arch_has: set[int] = set();
 
     def enter_ability(nd: uni.Ability) -> None;
-    def pop_ability_scope -> None;
     def arch_has_skip_existing -> set[str];
     def scan_arch_has(nd: uni.ArchHas) -> (ArchHasScanResult | None);
     def scan_state_update(nd: uni.Assignment) -> (StateUpdate | None);

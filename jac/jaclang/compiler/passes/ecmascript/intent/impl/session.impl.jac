@@ -22,10 +22,6 @@ impl IntentSession.enter_ability(nd: uni.Ability) -> None {
     }
 }
 
-impl IntentSession.pop_ability_scope -> None {
-    return;
-}
-
 impl IntentSession.arch_has_skip_existing -> set[str] {
     if self.skip_existing_policy == SkipExistingPolicy.MODULE {
         return self.collector.existing_reactive_names();

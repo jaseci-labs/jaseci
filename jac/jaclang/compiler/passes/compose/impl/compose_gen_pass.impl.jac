@@ -104,22 +104,22 @@ def _intent_params_from_signature(
     return out;
 }
 
-impl ComposeGenPass._sync_lowerer_reactive_vars -> None {
-    names = self.collector.existing_reactive_names();
-    self.reactive_vars = names;
-    self.lowerer.reactive_vars = names;
+impl ComposeGenPass._propagate_reactive_vars -> None {
+    self.lowerer.reactive_vars = self.reactive_vars;
     if self.converter is not None {
-        self.converter.reactive_vars = names;
+        self.converter.reactive_vars = self.reactive_vars;
     }
+}
+
+impl ComposeGenPass._sync_lowerer_reactive_vars -> None {
+    self.reactive_vars = self.collector.existing_reactive_names();
+    self._propagate_reactive_vars();
 }
 
 impl ComposeGenPass.enter_ability(nd: uni.Ability) -> None {
     self._reactive_vars_stack.append(self.reactive_vars);
     self.reactive_vars = set(self.reactive_vars);
-    self.lowerer.reactive_vars = self.reactive_vars;
-    if self.converter is not None {
-        self.converter.reactive_vars = self.reactive_vars;
-    }
+    self._propagate_reactive_vars();
     self._session().enter_ability(nd);
     name = component_name_from_ability(nd, COMPOSE_COMPONENT_TYPES);
     if name is not None and isinstance(nd.signature, uni.FuncSignature) {
@@ -159,13 +159,9 @@ impl ComposeGenPass.exit_ability(nd: uni.Ability) -> None {
         }
     }
 
-    self._session().pop_ability_scope();
     if self._reactive_vars_stack {
         self.reactive_vars = self._reactive_vars_stack.pop();
-        self.lowerer.reactive_vars = self.reactive_vars;
-        if self.converter is not None {
-            self.converter.reactive_vars = self.reactive_vars;
-        }
+        self._propagate_reactive_vars();
     }
 }
 
