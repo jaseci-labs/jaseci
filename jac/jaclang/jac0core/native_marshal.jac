@@ -68,7 +68,7 @@ def layout_str_header_stamped(layout: any) -> bool {
 }
 
 
-def _stamped_str_len(addr: int, header_stamped: bool) -> (int | None) {
+def native_stamped_str_len(addr: int, header_stamped: bool) -> (int | None) {
     if not header_stamped {
         return None;
     }
@@ -86,24 +86,12 @@ def _stamped_str_len(addr: int, header_stamped: bool) -> (int | None) {
 }
 
 
-def native_str_len(addr: int, header_stamped: bool = False) -> int {
-    if not addr {
-        return 0;
-    }
-    stamped = _stamped_str_len(int(addr), header_stamped);
-    if stamped is not None {
-        return stamped;
-    }
-    return len(ctypes.string_at(int(addr)));
-}
-
-
 def decode_native_str(addr: any, header_stamped: bool = False) -> str {
     if (addr is None or not addr) {
         return "";
     }
     _a = int(addr);
-    stamped = _stamped_str_len(_a, header_stamped);
+    stamped = native_stamped_str_len(_a, header_stamped);
     if stamped is None {
         return ctypes.string_at(_a).decode("utf-8", errors="replace");
     }

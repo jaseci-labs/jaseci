@@ -1,11 +1,18 @@
 """Test fixture pinning FFI decode of native `list[str]` values.
 
 Exercises the string cases the marshal layer has to survive: an empty list,
-empty strings, multi-byte UTF-8, static string literals (whose length rides
-the RC sentinel) next to heap strings (whose length rides the header magic),
-slices whose payload is not NUL bounded, a string carrying an interior NUL,
-a long list, and a `list[str]` held as an object field rather than returned
+empty strings, multi-byte UTF-8, slices whose payload is not NUL bounded, a
+long list, and a `list[str]` held as an object field rather than returned
 directly.
+
+Strings reach the marshal layer two ways and both are represented here, since
+their lengths are stamped behind different markers. `make_literals` and
+`make_interior_nul` return compile-time literals, emitted as static constants
+whose length rides the RC sentinel. `make_long`, `make_heap_nul` and the
+`"x" * 64` element of `make_literals` are built at runtime, so they are heap
+allocations from `__jac_str_new` whose length rides the header magic. Each
+family carries an interior-NUL case, which is what separates reading the
+stamped length from calling `strlen`.
 """
 
 obj Bag {
@@ -35,6 +42,16 @@ def make_interior_nul -> list[str] {
     out: list[str] = [];
     out.append("a\x00b");
     out.append("plain");
+    return out;
+}
+
+def make_heap_nul -> list[str] {
+    out: list[str] = [];
+    i = 0;
+    while i < 2 {
+        out.append("a\x00b" + str(i));
+        i = i + 1;
+    }
     return out;
 }
 

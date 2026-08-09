@@ -170,12 +170,14 @@ test "dict[str, str] decodes congruently with sv" {
     assert got == expected , f"{got!r} != {expected!r}";
 }
 
-test "native_str_len reads static literals through the RC sentinel" {
-    import from jaclang.jac0core.native_marshal { native_str_len }
+test "static literals stamp their length behind the RC sentinel" {
+    import from jaclang.jac0core.native_marshal {
+        decode_native_str,
+        native_stamped_str_len
+    }
     (na, sv) = (native_fns(), sv_fns());
-    view = na["make_interior_nul"]();
     expected = sv["make_interior_nul"]();
-    ptrs = elem_ptrs(view);
+    ptrs = elem_ptrs(na["make_interior_nul"]());
     for (p, want) in zip(ptrs, expected) {
         (is_sentinel, is_magic, has_tag, tagged) = hdr_marks(p);
         assert is_sentinel and not is_magic , (
@@ -183,57 +185,75 @@ test "native_str_len reads static literals through the RC sentinel" {
         );
         assert has_tag , "static literal carries no length tag";
         assert tagged == len(want.encode("utf-8"));
-        assert native_str_len(p, True) == len(want.encode("utf-8"));
+        assert native_stamped_str_len(p, True) == len(want.encode("utf-8"));
+        assert decode_native_str(p, True) == want;
     }
     # the discriminator: strlen stops at the interior NUL, the stamp does not
     assert len(ctypes.string_at(ptrs[0])) == 1;
-    assert native_str_len(ptrs[0], True) == 3;
-    # multi-byte literals report byte length, not code-point count
-    lit = na["make_literals"]();
-    lit_ptrs = elem_ptrs(lit);
+    assert native_stamped_str_len(ptrs[0], True) == 3;
+    # multi-byte literals stamp byte length, not code-point count
+    lit_ptrs = elem_ptrs(na["make_literals"]());
     for (p, want) in zip(lit_ptrs[0:4], sv["make_literals"]()[0:4]) {
         assert hdr_marks(p)[0] , "literal element left the sentinel path";
-        assert native_str_len(p, True) == len(want.encode("utf-8"));
+        assert native_stamped_str_len(p, True) == len(want.encode("utf-8"));
     }
-    assert native_str_len(lit_ptrs[3], True) == 9;
+    assert native_stamped_str_len(lit_ptrs[3], True) == 9;
 }
 
-test "native_str_len reads heap strings through the header magic" {
-    import from jaclang.jac0core.native_marshal { native_str_len }
+test "heap strings stamp their length behind the header magic" {
+    import from jaclang.jac0core.native_marshal {
+        decode_native_str,
+        native_stamped_str_len
+    }
     (na, sv) = (native_fns(), sv_fns());
-    view = na["make_long"](3);
-    for (p, want) in zip(elem_ptrs(view), sv["make_long"](3)) {
+    for (p, want) in zip(elem_ptrs(na["make_long"](3)), sv["make_long"](3)) {
         (is_sentinel, is_magic, has_tag, tagged) = hdr_marks(p);
         assert is_magic and not is_sentinel , (
             f"expected the heap-string path, got {hdr_marks(p)}"
         );
         assert has_tag and tagged == len(want.encode("utf-8"));
-        assert native_str_len(p, True) == len(want.encode("utf-8"));
+        assert native_stamped_str_len(p, True) == len(want.encode("utf-8"));
+        assert decode_native_str(p, True) == want;
     }
-    # a runtime-built literal ("x" * 64) is heap, not static
+    # a runtime-built literal ("x" * 64) is a heap allocation, not a constant
     built = elem_ptrs(na["make_literals"]())[4];
     assert hdr_marks(built)[1] and not hdr_marks(built)[0];
-    assert native_str_len(built, True) == 64;
+    assert native_stamped_str_len(built, True) == 64;
+    # and the same strlen discriminator on the magic path: a heap string built
+    # at runtime around an interior NUL
+    heap = sv["make_heap_nul"]();
+    assert heap[0] == "a\x00b0" , f"sv reference changed: {heap!r}";
+    for (p, want) in zip(elem_ptrs(na["make_heap_nul"]()), heap) {
+        assert hdr_marks(p)[1] and not hdr_marks(p)[0] , (
+            f"expected the heap-string path, got {hdr_marks(p)}"
+        );
+        assert len(ctypes.string_at(p)) == 1 , "strlen should stop at the NUL";
+        assert native_stamped_str_len(p, True) == 4;
+        assert decode_native_str(p, True) == want;
+    }
+    assert list(na["make_heap_nul"]()) == heap;
 }
 
-test "native_str_len falls back to strlen with no stamped length" {
-    import from jaclang.jac0core.native_marshal { decode_native_str, native_str_len }
-    assert native_str_len(0) == 0;
+test "no stamped length falls back to strlen" {
+    import from jaclang.jac0core.native_marshal {
+        decode_native_str,
+        native_stamped_str_len
+    }
     assert decode_native_str(0) == "";
     # neither marker present: the bytes before the payload are not a header
     (buf, addr) = scratch_str(b"hello");
     assert hdr_marks(addr) == (False, False, 0, 0);
-    assert native_str_len(addr, True) == 5;
+    assert native_stamped_str_len(addr, True) is None;
     assert decode_native_str(addr, True) == "hello";
     # marker present but the dtor slot holds a real pointer, not a length tag
     poke_u64(addr, HDR_RC_OFF, RC_SENTINEL);
     poke_u64(addr, HDR_DTOR_OFF, 0);
     assert hdr_marks(addr)[0] and not hdr_marks(addr)[2];
-    assert native_str_len(addr, True) == 5;
+    assert native_stamped_str_len(addr, True) is None;
     assert decode_native_str(addr, True) == "hello";
-    # and with the tag written the header wins over strlen
+    # and with the tag written the stamped length wins over strlen
     poke_u64(addr, HDR_DTOR_OFF, str_len_tag(3));
-    assert native_str_len(addr, True) == 3;
+    assert native_stamped_str_len(addr, True) == 3;
     assert decode_native_str(addr, True) == "hel";
 }
 
@@ -242,7 +262,7 @@ test "a layout that never states str_headerless reads no header" {
     import from jaclang.jac0core.native_marshal {
         decode_native_str,
         layout_str_header_stamped,
-        native_str_len
+        native_stamped_str_len
     }
     # A sealed artifact predating the str_headerless key. Under --gc none its
     # strings are genuinely headerless, so trusting a headerful default would
@@ -255,22 +275,22 @@ test "a layout that never states str_headerless reads no header" {
     (buf, addr) = scratch_str(b"hello");
     poke_u64(addr, HDR_RC_OFF, RC_SENTINEL);
     poke_u64(addr, HDR_DTOR_OFF, str_len_tag(200));
-    assert native_str_len(addr, layout_str_header_stamped(legacy)) == 5;
+    assert native_stamped_str_len(addr, layout_str_header_stamped(legacy)) is None;
     assert decode_native_str(addr, layout_str_header_stamped(legacy)) == "hello";
     # the default argument is the same conservative choice
-    assert native_str_len(addr) == 5;
     assert decode_native_str(addr) == "hello";
     # an artifact that does state it keeps the stamped read
     headerful = layout_from_dict(
         {"abi_version": NATIVE_ABI_VERSION, "str_headerless": False}
     );
     assert layout_str_header_stamped(headerful) == True;
-    assert native_str_len(addr, layout_str_header_stamped(headerful)) == 200;
+    assert native_stamped_str_len(addr, layout_str_header_stamped(headerful)) == 200;
     nogc = layout_from_dict(
         {"abi_version": NATIVE_ABI_VERSION, "str_headerless": True}
     );
     assert layout_str_header_stamped(nogc) == False;
-    assert native_str_len(addr, layout_str_header_stamped(nogc)) == 5;
+    assert native_stamped_str_len(addr, layout_str_header_stamped(nogc)) is None;
+    assert decode_native_str(addr, layout_str_header_stamped(nogc)) == "hello";
 }
 
 test "the jit layout states its header mode" {
