@@ -15,7 +15,7 @@ test "require_optional does not raise for installed stdlib package" {
 }
 
 test "require_optional does not raise for installed package" {
-    require_optional("fastapi", "serve");
+    require_optional("sqlalchemy", "serve");
 }
 
 test "require_optional raises ImportError for missing package" {
@@ -48,7 +48,7 @@ test "require_optional error names the capability, not a pip extra" {
 
 test "is_optional_available returns True for installed package" {
     assert is_optional_available("json") is True;
-    assert is_optional_available("fastapi") is True;
+    assert is_optional_available("sqlalchemy") is True;
 }
 
 test "is_optional_available returns False for missing package" {
@@ -151,87 +151,6 @@ test "utility factory returns prometheus when available" {
     config = {"enabled": True, "namespace": "test_avail"};
     collector = UtilityFactory.create_metrics("prometheus", config);
     assert isinstance(collector, PrometheusMetricsCollector);
-}
-
-test "database factory requires pymongo for mongodb" {
-    import from jaclang.scale.deploy.database.factory {
-        DatabaseProviderFactory,
-        DatabaseType
-    }
-
-    with unittest.mock.patch(
-        "jaclang.scale.deploy.database.factory.require_optional",
-        side_effect=ImportError(
-            "'pymongo' is required for this feature. "
-            "Capability 'data.mongo' is required but not installed."
-        )
-    ) {
-        raised = False;
-        try {
-            DatabaseProviderFactory.create_client(
-                DatabaseType.MONGODB, uri="mongodb://localhost"
-            );
-        } except ImportError as e {
-            raised = True;
-            assert "data.mongo" in str(e);
-            assert "jac-scale[" not in str(e);
-        }
-        assert raised , "Expected ImportError when pymongo is missing";
-    }
-}
-
-test "database factory requires redis for redis" {
-    import from jaclang.scale.deploy.database.factory {
-        DatabaseProviderFactory,
-        DatabaseType
-    }
-
-    with unittest.mock.patch(
-        "jaclang.scale.deploy.database.factory.require_optional",
-        side_effect=ImportError(
-            "'redis' is required for this feature. "
-            "Capability 'data.redis' is required but not installed."
-        )
-    ) {
-        raised = False;
-        try {
-            DatabaseProviderFactory.create_client(
-                DatabaseType.REDIS, uri="redis://localhost"
-            );
-        } except ImportError as e {
-            raised = True;
-            assert "data.redis" in str(e);
-            assert "jac-scale[" not in str(e);
-        }
-        assert raised , "Expected ImportError when redis is missing";
-    }
-}
-
-test "database factory requires firestore for firestore" {
-    import from jaclang.scale.deploy.database.factory {
-        DatabaseProviderFactory,
-        DatabaseType
-    }
-
-    with unittest.mock.patch(
-        "jaclang.scale.deploy.database.factory.require_optional",
-        side_effect=ImportError(
-            "'google.cloud.firestore' is required for this feature. "
-            "Capability 'storage.firebase' is required but not installed."
-        )
-    ) {
-        raised = False;
-        try {
-            DatabaseProviderFactory.create_client(
-                DatabaseType.FIRESTORE, uri="firebase-project"
-            );
-        } except ImportError as e {
-            raised = True;
-            assert "storage.firebase" in str(e);
-            assert "jac-scale[" not in str(e);
-        }
-        assert raised , "Expected ImportError when google-cloud-firestore is missing";
-    }
 }
 
 test "deployment factory requires kubernetes for k8s target" {

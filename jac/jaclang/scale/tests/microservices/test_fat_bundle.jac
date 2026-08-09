@@ -7,7 +7,8 @@ import from jaclang.scale.injector.bundle {
     content_address,
     fat_bundle_enabled,
     fat_bundle_setting,
-    pack_jab
+    pack_jab,
+    _pod_wheel_platform
 }
 
 
@@ -41,6 +42,13 @@ def _member(raw: bytes, name: str) -> bytes {
     with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar {
         return tar.extractfile(name).read();
     }
+}
+
+
+test "a deploy pins vendored wheels to a manylinux tag for the node arch" {
+    assert _pod_wheel_platform("") == "";
+    assert _pod_wheel_platform("aarch64") == "manylinux_2_36_aarch64";
+    assert _pod_wheel_platform("x86_64") == "manylinux_2_36_x86_64";
 }
 
 
