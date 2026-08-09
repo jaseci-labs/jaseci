@@ -1,5 +1,6 @@
 """Validation guard between tensor ops: a tensor-bool guard (.all()) lowers to
-torch._assert_async, keeping the forward pass a single contiguous FX graph."""
+the tensor-bool assert helper, keeping the forward pass a single contiguous FX
+graph."""
 import torch;
 
 @torch.compile()

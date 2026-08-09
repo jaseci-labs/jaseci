@@ -52,6 +52,7 @@ glob __all__ = [
          'thread_run',
          'thread_wait',
          '__jac_tensor_eq_assert__',
+         '__jac_tensor_bool_assert__',
          '__jac_trap_guard__'
      ],
      connect = JacRuntimeInterface.connect,
@@ -85,4 +86,5 @@ glob __all__ = [
      thread_run = JacRuntimeInterface.thread_run,
      thread_wait = JacRuntimeInterface.thread_wait,
      __jac_tensor_eq_assert__ = JacRuntimeInterface.tensor_eq_assert,
+     __jac_tensor_bool_assert__ = JacRuntimeInterface.tensor_bool_assert,
      __jac_trap_guard__ = JacRuntimeInterface.trap_guard;
