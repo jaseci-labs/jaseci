@@ -583,7 +583,7 @@ impl PredicateCtrlFlowPass._assignment_neutral(
     s: uni.Assignment, region: uni.IfStmt
 ) -> bool {
     if self._is_device_move(s) {
-        return self._move_consumed(s, region);
+        return self._move_consumed(s, region) and self._consumers_harmless(s, region);
     }
     return (
         (s.value is not None)
@@ -622,6 +622,64 @@ impl PredicateCtrlFlowPass._move_consumed(
         }
     }
     return False;
+}
+
+impl PredicateCtrlFlowPass._consumers_harmless(
+    s: uni.Assignment, region: uni.IfStmt
+) -> bool {
+    tgt = s.target[0].unparse().replace(' ', '');
+    mod = region.find_parent_of_type(uni.Module);
+    if mod is None {
+        return False;
+    }
+    region_ab = region.find_parent_of_type(uni.Ability);
+    checked: set[int] = set();
+    for at in mod.get_all_sub_nodes(uni.AtomTrailer) {
+        if at.unparse().replace(' ', '') != tgt {
+            continue;
+        }
+        if self._within(at, region) {
+            continue;
+        }
+        ab = at.find_parent_of_type(uni.Ability);
+        if (ab is None) or (ab is region_ab) {
+            return False;
+        }
+        if id(ab) in checked {
+            continue;
+        }
+        checked.add(id(ab));
+        if not self._normalizes_first(ab, tgt) {
+            return False;
+        }
+    }
+    return True;
+}
+
+impl PredicateCtrlFlowPass._normalizes_first(ab: uni.Ability, tgt: str) -> bool {
+    first: (uni.AtomTrailer | None) = None;
+    for at in ab.get_all_sub_nodes(uni.AtomTrailer) {
+        if at.unparse().replace(' ', '') != tgt {
+            continue;
+        }
+        if first is None
+            or (at.loc.first_line, at.loc.col_start)
+                < (first.loc.first_line, first.loc.col_start) {
+            first = at;
+        }
+    }
+    if first is None {
+        return True;
+    }
+    cur: (uni.UniNode | None) = first;
+    while (cur is not None) and (not isinstance(cur, uni.Assignment)) {
+        cur = cur.parent;
+    }
+    if not isinstance(cur, uni.Assignment) {
+        return False;
+    }
+    a: uni.Assignment = cur;
+    return self._is_device_move(a) and (a.target[0].unparse().replace(' ', '') == tgt);
 }
 
 impl PredicateCtrlFlowPass._all_local_targets(

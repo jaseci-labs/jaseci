@@ -213,6 +213,22 @@ test "a shadowed pure builtin in the initializer is declined" {
     assert "if seq_len > 8:" in src;
 }
 
+test "a device move whose consumers all normalize first is licensed" {
+    src = _pysrc("where_device_move_shared.jac", True);
+    # The other function's first mention of the attribute is the same
+    # normalizing move, so no consumer can observe the hoisted placement.
+    assert "register_buffer('inv_freq', torch.where(" in src;
+    assert "if seq_len > 8:" not in src;
+}
+
+test "a device move with a raw reader elsewhere is declined" {
+    src = _pysrc("where_raw_consumer.jac", True);
+    # `peek` reads the attribute without normalizing, so it can observe the
+    # placement change on originally-untaken executions.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
 test "a device move whose target the region never consumes is declined" {
     src = _pysrc("where_unused_device_move.jac", True);
     # The move license exists to put a value consumed by the merged call on

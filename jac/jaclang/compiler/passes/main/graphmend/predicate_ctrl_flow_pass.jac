@@ -127,6 +127,8 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _assignment_neutral(s: uni.Assignment, region: uni.IfStmt) -> bool;
     def _is_device_move(s: uni.Assignment) -> bool;
     def _move_consumed(s: uni.Assignment, region: uni.IfStmt) -> bool;
+    def _consumers_harmless(s: uni.Assignment, region: uni.IfStmt) -> bool;
+    def _normalizes_first(ab: uni.Ability, tgt: str) -> bool;
     def _all_local_targets(targets: Sequence[uni.Expr], region: uni.IfStmt) -> bool;
     def _setup_writes(setups: Sequence[uni.CodeBlockStmt]) -> set[str];
 }
