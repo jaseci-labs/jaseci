@@ -249,11 +249,7 @@ impl JacAPIServerEndpoints.create_function_callback(
         BodyResponse,
         FileResponse as TransportFileResponse
     }
-    import from jaclang.runtimelib.serving.datatypes {
-        Request,
-        Response,
-        FileResponse
-    }
+    import from jaclang.runtimelib.serving.datatypes { Request, Response, FileResponse }
     requires_auth = self.introspector.is_auth_required_for_function(func_name);
 
     func_spec = self.get_functions()[func_name].restspec
