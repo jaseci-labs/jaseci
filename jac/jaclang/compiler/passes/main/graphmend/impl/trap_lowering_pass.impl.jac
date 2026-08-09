@@ -1,3 +1,4 @@
+import builtins;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
@@ -72,7 +73,11 @@ impl TrapLoweringPass._exception_type_name(rs: uni.RaiseStmt) -> (str | None) {
         return None;
     }
     target = cause.target if isinstance(cause, uni.FuncCall) else cause;
-    if isinstance(target, uni.Name) and (target.value in _BUILTIN_EXCS) {
+    if not isinstance(target, uni.Name) {
+        return None;
+    }
+    cls = getattr(builtins, target.value, None);
+    if isinstance(cls, type) and issubclass(cls, BaseException) {
         return target.value;
     }
     return None;
