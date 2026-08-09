@@ -359,10 +359,52 @@ class JacScalePluginConfig {
                         }
                     }
                 },
+                "websocket": {
+                    "type": "dict",
+                    "default": {},
+                    "description": "WebSocket serving limits and the cross-pod broadcast backplane",
+                    "nested": {
+                        "backplane": {
+                            "type": "string",
+                            "default": None,
+                            "description": "Broadcast backplane: 'memory' (single-pod, in-process fan-out) or 'pg' (cross-pod fan-out over Postgres LISTEN/NOTIFY). Unset auto-selects 'pg' when a scale database resolves, else 'memory'."
+                        },
+                        "max_message_bytes": {
+                            "type": "int",
+                            "default": 65536,
+                            "description": "Maximum decoded inbound WebSocket message size in bytes; larger messages are rejected and the connection closed."
+                        },
+                        "max_connections_per_target": {
+                            "type": "int",
+                            "default": 5000,
+                            "description": "Maximum concurrent connections per WebSocket target (walker or function endpoint)."
+                        },
+                        "max_connections_per_user": {
+                            "type": "int",
+                            "default": 10,
+                            "description": "Maximum concurrent WebSocket connections per authenticated user."
+                        },
+                        "max_anonymous_per_target": {
+                            "type": "int",
+                            "default": 100,
+                            "description": "Maximum concurrent anonymous (unauthenticated) connections per target."
+                        },
+                        "target_timeout_seconds": {
+                            "type": "float",
+                            "default": 30,
+                            "description": "Per-invocation timeout in seconds for the walker/function handling a WebSocket message."
+                        },
+                        "messages_per_second": {
+                            "type": "float",
+                            "default": 20,
+                            "description": "Per-connection inbound message rate limit (token bucket refill rate)."
+                        }
+                    }
+                },
                 "events": {
                     "type": "dict",
                     "default": {},
-                    "description": "Event-streaming broker configuration. Off by default. When enabled, jac-scale exposes publish() / @subscribe via the active broker (RedisBroker if a redis URL resolves, otherwise LocalBroker in-memory).",
+                    "description": "Event-streaming broker configuration. Off by default. When enabled, jac-scale exposes publish() / @subscribe via the active stream (PostgresEventStream when a database URL resolves, otherwise LocalEventStream in-memory).",
                     "nested": {
                         "enabled": {
                             "type": "bool",
