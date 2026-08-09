@@ -114,11 +114,16 @@ test "common call merges multiple differing args, preserves kwargs" {
     assert "if " not in src;
 }
 
-test "item() dynamic signal in return branch becomes torch.where" {
-    src = _pysrc("where_item_return.jac", True);
-    assert "x.item() > 5" in src;
-    assert "return torch.where(" in src;
-    assert "if " not in src;
+test "a scalar-materializing predicate is declined (soundness)" {
+    # `.item()` yields a Python bool, and `torch.where` rejects a non-tensor
+    # condition, so predicating this branch would replace a working graph
+    # break with a TypeError. Detection still tags both shapes -- the direct
+    # one and the one reached only through the use-def trace.
+    src = _pysrc("scalar_predicate.jac", True);
+    assert "torch.where(" not in src;
+    assert "if x.item() > 5:" in src;
+    assert "if hits > 5:" in src;
+    assert _break_kinds("scalar_predicate.jac") == ["dyn_ctrl_fl", "dyn_ctrl_fl"];
 }
 
 test "asymmetric call branches become torch.cond (runs one branch)" {
@@ -173,6 +178,30 @@ test "non-idempotent observable setup write is declined (soundness)" {
     assert "torch.where(" not in src;
     assert "if seq_len > 8:" in src;
     assert "self_obj.calls = self_obj.calls + 1" in src;
+}
+
+test "setups writing the same bare local in both branches are declined" {
+    src = _pysrc("where_local_clobber.jac", True);
+    # Hoisting both `scale` writes leaves the else-branch value in place for
+    # the merged call, so the true path would read the wrong operand.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "a setup writing a local live outside the region is declined" {
+    src = _pysrc("where_local_escape.jac", True);
+    # `scale` is read after the branch, so hoisting the true-branch write
+    # changes what the else path returns.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "existence-guarded init calling an effectful torch API is declined" {
+    src = _pysrc("guard_torch_effect_init.jac", True);
+    # `torch.save` is rooted at torch but writes a file; purity is decided by
+    # the checked pure-op list, not by the root module.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
 }
 
 test "hasattr guard whose key is not the memoized attribute is declined" {

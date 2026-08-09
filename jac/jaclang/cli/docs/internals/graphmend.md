@@ -193,6 +193,13 @@ stay inside one FX graph. It fires only when both branches produce the same
 output, so the rewrite is provably semantics-preserving; anything more
 complex (differing targets, elif chains, a missing `else`) is left intact.
 
+The predicate must also be a tensor. `torch.where` rejects a Python `bool`
+condition, so a branch whose predicate materializes a scalar (`.item()`,
+`.tolist()`, `torch.equal`, `torch.allclose`, named inline or reached through
+the use-def chain that tagged the branch) is declined. Nothing is lost by
+that: the materializing call is itself the break, and predication cannot
+remove it. Such a branch stays tagged `DYN_CTRL_FL` and unrewritten.
+
 ### Reconciliation shapes
 
 Three shapes are accepted, matched on the final statement of each branch:
@@ -252,8 +259,14 @@ rewrite:
 
 The licensed forms:
 
-- A pure write to bare local names whose value contains no call. The value is
-  recomputed, nothing escapes.
+- A pure write to bare local names whose value contains no call, and whose
+  target is confined to the region: the name appears nowhere else in the
+  enclosing function, and the two branches do not write the same target.
+  Without both conditions the write is not neutral, it is just invisible at
+  the assignment itself. A name read after the branch would carry the taken
+  path's value onto runs that took the other one, and a name written by both
+  branches would leave the second write standing for both, so the merged call
+  would read the untaken branch's operand.
 - An idempotent device move `x = x.to(...)` where the target is textually the
   receiver. Re-running it is a no-op.
 - A lowered validation assert (`torch._assert_async(...)` produced by
@@ -294,7 +307,12 @@ alone is not sufficient; five conditions must hold:
   must clear the purity check. A `raise` inside a candidate counts as
   unreachable only in the varkwargs-validation form (`if rope_kwargs: raise`)
   when this call passes no unexpected keyword. Purity is transitive into
-  local helpers; unresolvable calls are opaque and decline.
+  local helpers; unresolvable calls are opaque and decline. A library call is
+  pure only when its leaf name is on the checked list of pure builtins, pure
+  tensor methods (`to`, `clone`, `detach`, ...) and pure `torch`/`math`
+  operations (tensor construction and elementwise math). Being rooted at
+  `torch` proves nothing on its own: `torch.save` writes a file and
+  `torch.manual_seed` mutates global RNG state, so both decline.
 
 ### Caveat: speculated memoization is a state change, not a no-op
 

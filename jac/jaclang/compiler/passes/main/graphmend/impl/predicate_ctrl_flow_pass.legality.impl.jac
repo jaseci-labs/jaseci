@@ -1,5 +1,8 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    is_scalar_torch_attr
+}
 
 impl PredicateCtrlFlowPass._setups_safe(
     setups: Sequence[uni.CodeBlockStmt], region: uni.IfStmt
@@ -32,7 +35,7 @@ impl PredicateCtrlFlowPass._effect_neutral(s: uni.UniNode, region: uni.IfStmt) -
         return True;
     }
     if isinstance(s, uni.Assignment) {
-        return self._assignment_neutral(s);
+        return self._assignment_neutral(s, region);
     }
     return False;
 }
@@ -63,7 +66,7 @@ impl PredicateCtrlFlowPass._is_existence_guard(
             memoized = True;
             continue;
         }
-        if not self._assignment_neutral(st) {
+        if not self._assignment_neutral(st, region) {
             return False;
         }
     }
@@ -381,7 +384,10 @@ impl PredicateCtrlFlowPass._pure_callee(t: (uni.Expr | None)) -> bool {
         while isinstance(base, uni.AtomTrailer) {
             base = base.target;
         }
-        if isinstance(base, uni.Name) and (base.value in {'torch', 'math'}) {
+        if isinstance(base, uni.Name)
+            and (base.value in {'torch', 'math'})
+            and isinstance(t.right, uni.Name)
+            and (t.right.value in _PURE_TORCH_FNS) {
             return True;
         }
         return isinstance(t.right, uni.Name)
@@ -390,14 +396,16 @@ impl PredicateCtrlFlowPass._pure_callee(t: (uni.Expr | None)) -> bool {
     return False;
 }
 
-impl PredicateCtrlFlowPass._assignment_neutral(s: uni.Assignment) -> bool {
+impl PredicateCtrlFlowPass._assignment_neutral(
+    s: uni.Assignment, region: uni.IfStmt
+) -> bool {
     if self._is_device_move(s) {
         return True;
     }
     return (
         (s.value is not None)
         and (not self._has_call(s.value))
-        and self._all_local_targets(s.target)
+        and self._all_local_targets(s.target, region)
     );
 }
 
@@ -418,11 +426,105 @@ impl PredicateCtrlFlowPass._is_device_move(s: uni.Assignment) -> bool {
     return (recv.unparse().replace(' ', '') == s.target[0].unparse().replace(' ', ''));
 }
 
-impl PredicateCtrlFlowPass._all_local_targets(targets: Sequence[uni.Expr]) -> bool {
+impl PredicateCtrlFlowPass._all_local_targets(
+    targets: Sequence[uni.Expr], region: uni.IfStmt
+) -> bool {
+    scope: (uni.UniNode | None) = region.find_parent_of_type(uni.Ability);
+    if scope is None {
+        scope = region.find_parent_of_type(uni.Module);
+    }
+    if scope is None {
+        return False;
+    }
     for t in targets {
         if not isinstance(t, uni.Name) {
             return False;
         }
+        tgt: uni.Name = t;
+        for n in scope.get_all_sub_nodes(uni.Name) {
+            if (n.value == tgt.value) and (not self._within(n, region)) {
+                return False;
+            }
+        }
     }
     return len(targets) > 0;
+}
+
+impl PredicateCtrlFlowPass._pred_materializes_scalar(cond: uni.Expr) -> bool {
+    if self._uses_scalar_attr(cond) {
+        return True;
+    }
+    st = cond.sym_tab;
+    if not st {
+        return False;
+    }
+    visited: set[str] = set();
+    for nm in cond.get_all_sub_nodes(uni.Name) {
+        sym = st.lookup(nm.value, deep=True);
+        if sym and self._trace_scalar(sym, visited, 0) {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl PredicateCtrlFlowPass._uses_scalar_attr(e: uni.UniNode) -> bool {
+    for tr in e.get_all_sub_nodes(uni.AtomTrailer) {
+        if tr.is_attr and isinstance(tr.right, uni.Name) {
+            if is_scalar_torch_attr(tr.right.value) {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+impl PredicateCtrlFlowPass._trace_scalar(
+    sym: uni.Symbol, visited: set[str], depth: int
+) -> bool {
+    if (depth > 10) or (sym.sym_name in visited) or (not sym.defn) {
+        return False;
+    }
+    visited.add(sym.sym_name);
+    cur: (uni.UniNode | None) = sym.defn[-1].parent;
+    while cur and (not isinstance(cur, uni.Assignment)) {
+        cur = cur.parent;
+    }
+    if not isinstance(cur, uni.Assignment) {
+        return False;
+    }
+    assign: uni.Assignment = cur;
+    if assign.value is None {
+        return False;
+    }
+    if self._uses_scalar_attr(assign.value) {
+        return True;
+    }
+    st = assign.sym_tab;
+    if not st {
+        return False;
+    }
+    for nm in assign.value.get_all_sub_nodes(uni.Name) {
+        dep = st.lookup(nm.value, deep=True);
+        if dep and self._trace_scalar(dep, visited, depth + 1) {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl PredicateCtrlFlowPass._setup_writes(
+    setups: Sequence[uni.CodeBlockStmt]
+) -> set[str] {
+    out: set[str] = set();
+    for s in setups {
+        assigns = [s] if isinstance(s, uni.Assignment) else [];
+        assigns = assigns + list(s.get_all_sub_nodes(uni.Assignment));
+        for a in assigns {
+            for t in (a.target or []) {
+                out.add(t.unparse().replace(' ', ''));
+            }
+        }
+    }
+    return out;
 }

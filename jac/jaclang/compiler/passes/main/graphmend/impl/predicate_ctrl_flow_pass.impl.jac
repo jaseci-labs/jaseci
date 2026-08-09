@@ -16,6 +16,9 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if self.prog.graphmend_breaks.get(id(nd)) != GraphBreakKind.DYN_CTRL_FL {
         return;
     }
+    if self._pred_materializes_scalar(nd.condition) {
+        return;
+    }
     eb = nd.else_body;
     if (eb is None) or (not isinstance(eb, uni.ElseStmt)) {
         return;
@@ -52,7 +55,9 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     a_last = tb[-1];
     b_last = fb[-1];
     if isinstance(a_last, uni.ExprStmt) and isinstance(b_last, uni.ExprStmt) {
-        if self._setups_safe(tb[:-1], nd) and self._setups_safe(fb[:-1], nd) {
+        if self._setups_safe(tb[:-1], nd)
+            and self._setups_safe(fb[:-1], nd)
+            and (not (self._setup_writes(tb[:-1]) & self._setup_writes(fb[:-1]))) {
             self._merge_common_call(nd, a_last.expr, b_last.expr, tb[:-1], fb[:-1]);
         }
     }

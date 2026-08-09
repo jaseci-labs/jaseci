@@ -17,10 +17,15 @@ glob DYNAMIC_TORCH_ATTRS: set[str] = {
          'equal',
          'allclose',
          'unique'
-     };
+     },
+     SCALAR_TORCH_ATTRS: set[str] = {'item', 'tolist', 'equal', 'allclose'};
 
 def is_dynamic_torch_attr(attr: str) -> bool {
     return attr in DYNAMIC_TORCH_ATTRS;
+}
+
+def is_scalar_torch_attr(attr: str) -> bool {
+    return attr in SCALAR_TORCH_ATTRS;
 }
 
 def is_torch_attr_target(target: (uni.Expr | None), attr: str) -> bool {
