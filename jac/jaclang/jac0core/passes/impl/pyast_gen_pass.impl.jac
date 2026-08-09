@@ -1114,6 +1114,27 @@ impl PyastGenPass.exit_test(nd: uni.Test) -> None {
             *body_stmts[insert_at:]
         ];
     }
+    scope_frame = self._hoist_frames.pop() if self._hoist_frames else [];
+    if not self._hoist_frames {
+        self._hoist_frames = [[]];
+    }
+    test_sig_roots: list[uni.UniNode] = [];
+    if nd.decorators {
+        for d in nd.decorators {
+            if d {
+                test_sig_roots.append(d);
+            }
+        }
+    }
+    (test_body_hoists, test_enclosing_hoists) = self._split_scope_hoists(
+        scope_frame, test_sig_roots
+    );
+    if test_enclosing_hoists {
+        self._hoist_frames[-1].extend(test_enclosing_hoists);
+    }
+    if test_body_hoists {
+        body_stmts = [*test_body_hoists, *body_stmts];
+    }
     func = self.sync(
         ast3.FunctionDef(
             name=test_name,
@@ -1173,28 +1194,6 @@ impl PyastGenPass.exit_test(nd: uni.Test) -> None {
                 )
             )
         );
-    }
-
-    scope_frame = self._hoist_frames.pop() if self._hoist_frames else [];
-    if not self._hoist_frames {
-        self._hoist_frames = [[]];
-    }
-    test_sig_roots: list[uni.UniNode] = [];
-    if nd.decorators {
-        for d in nd.decorators {
-            if d {
-                test_sig_roots.append(d);
-            }
-        }
-    }
-    (test_body_hoists, test_enclosing_hoists) = self._split_scope_hoists(
-        scope_frame, test_sig_roots
-    );
-    if test_enclosing_hoists {
-        self._hoist_frames[-1].extend(test_enclosing_hoists);
-    }
-    if test_body_hoists {
-        body_stmts = [*test_body_hoists, *body_stmts];
     }
     nd.gen.py_ast = [func];
 }

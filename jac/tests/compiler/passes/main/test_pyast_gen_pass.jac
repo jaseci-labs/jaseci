@@ -596,6 +596,36 @@ with entry {
     assert "abcd" in values , f"expected str 'abcd' in {values}";
 }
 
+test "multi-statement lambda in test body call arg is hoisted before use" {
+    code = """
+def _call(fn: callable) {
+    fn();
+}
+test \"demo\" {
+    _call(
+        lambda {
+            x = 1;
+            x;
+        }
+    );
+}
+""";
+    prog = JacProgram();
+    mod = prog.compile(file_path="lambda_test_body_hoist.jac", use_str=code);
+    assert not prog.errors_had , (
+        f"test-body lambda hoist should compile cleanly: {prog.errors_had}"
+    );
+    py = mod.gen.py or "";
+    assert "def _jac_lambda_1():" in py , (
+        f"expected hoisted lambda def in generated python: {py}"
+    );
+    idx_def = py.find("def _jac_lambda_1():");
+    idx_use = py.find("_call(_jac_lambda_1)");
+    assert idx_def >= 0 and idx_use > idx_def , (
+        f"hoisted lambda must be defined before call site: def@{idx_def} use@{idx_use}"
+    );
+}
+
 test "multi-statement lambda signature fixtures do not leak hoists (no E5098)" {
     for fixture in [
         "lambda_decorator_arg.jac",
