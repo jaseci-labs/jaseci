@@ -977,9 +977,11 @@ A demotion is only a speed cost while Python is still there to catch it. In a se
 
 ```jac
 glob NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
-    "jac0core/parser/lexer.jac": ("Lexer.debug_dump", )
+    "jac0core/parser/lexer.jac": ("jac0core/parser/lexer.jac::Lexer.debug_dump", )
 };
 ```
+
+The key is the sealed module; each entry is `<module>::<Type>.<method>`, where the module is the one that actually demoted, given relative to the package root. The module half is required rather than cosmetic: a demotion one hop out in the closure can share a `Type.method` name with one in another module, and a bare name would waive both. The refusal diagnostic prints the exact string to paste in.
 
 Each waived method is announced on every seal, and a waiver that no longer matches a real demotion is reported as stale.
 
