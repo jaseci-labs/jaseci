@@ -889,17 +889,6 @@ impl JacBuiltin.tensor_eq_assert(a: any, b: any, msg: str) -> None {
     torch._assert_async(cond, msg);
 }
 
-impl JacBuiltin.tensor_bool_assert(cond: any, msg: str) -> None {
-    import torch;
-    if not isinstance(cond, torch.Tensor) {
-        if not cond {
-            raise RuntimeError(msg);
-        }
-        return;
-    }
-    torch._assert_async(cond, msg);
-}
-
 impl JacBuiltin.trap_guard(fn: any) -> any {
     import functools;
     import builtins;
