@@ -38,7 +38,12 @@ obj MTRuntime {
         _conversation_list: object = None,
         _final_output: object = None,
         _has_final_output: bool = False,
-        _stream_reset_count: int = 0;
+        _stream_reset_count: int = 0,
+        # Coalesced tool-argument fragments staged by the streaming dispatcher
+        # and drained by _invoke_streaming into `tool_call_delta` events. This
+        # is a display channel only: execution still uses the call rebuilt by
+        # `stream_chunk_builder` (jaseci-labs/jac#7997).
+        _tool_arg_deltas: list[dict] = [];
 
     static def factory(mtir: MTIR) -> MTRuntime;
     def add_message(message: MessageType) -> None;

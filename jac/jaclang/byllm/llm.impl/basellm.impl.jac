@@ -1,3 +1,141 @@
+"""Read tool-call argument fragments out of one streaming chunk.
+
+litellm delivers them on `delta.tool_calls[]`, where only the FIRST fragment of
+a given `index` carries `id` and `function.name`; later fragments carry just
+more `arguments` text. Shape varies by provider, so every access is defensive:
+a chunk we cannot read yields nothing rather than breaking the stream."""
+def _tool_call_fragments(chunk: object) -> list[dict] {
+    raw: object = None;
+    try {
+        if chunk?.choices and chunk?.choices?[0]?.delta {
+            raw = chunk.choices[0].delta?.tool_calls;
+        } elif isinstance(chunk, dict) {
+            _choices = chunk.get("choices") or [];
+            if _choices {
+                raw = (_choices[0].get("delta") or {}).get("tool_calls");
+            }
+        }
+    } except Exception {
+        return [];
+    }
+    if not raw {
+        return [];
+    }
+    out: list[dict] = [];
+    for (pos, tc) in enumerate(raw) {
+        try {
+            if isinstance(tc, dict) {
+                fn = tc.get("function") or {};
+                idx = tc.get("index");
+                out.append(
+                    {
+                        "index": int(idx) if idx is not None else pos,
+                        "id": tc.get("id") or "",
+                        "name": (fn.get("name") if isinstance(fn, dict) else "") or "",
+                        "fragment": (
+                            fn.get("arguments") if isinstance(fn, dict) else ""
+                        ) or ""
+                    }
+                );
+            } else {
+                idx = tc?.index;
+                out.append(
+                    {
+                        "index": int(idx) if idx is not None else pos,
+                        "id": tc?.id or "",
+                        "name": tc?.function?.name or "",
+                        "fragment": tc?.function?.arguments or ""
+                    }
+                );
+            }
+        } except Exception {
+            continue;
+        }
+    }
+    return out;
+}
+
+
+"""Accumulates argument fragments per tool call and decides when to publish.
+
+Coalescing is part of the contract, not an optimisation: a provider can split
+one argument into hundreds of fragments, and a consumer that forwards each one
+over a network would trade a frozen UI for a flooded one. A batch is published
+when it grows past `_TOOL_DELTA_MIN_CHARS` or `_TOOL_DELTA_MIN_INTERVAL_S`
+elapses, and the tool NAME publishes immediately because that alone is what
+lets a UI say "Writing main.jac" while the body is still generating."""
+obj _ToolDeltaCoalescer {
+    has out: list[dict],
+        state: dict = {};
+
+    def observe(frag: dict) -> None {
+        idx = frag.get("index", 0);
+        st = self.state.get(idx);
+        if st is None {
+            st = {
+                "call_id": "",
+                "tool": "",
+                "buf": "",
+                "last": time.time(),
+                "sent": 0,
+                "announced": False
+            };
+            self.state[idx] = st;
+        }
+        if frag.get("id") {
+            st["call_id"] = str(frag["id"]);
+        }
+        if frag.get("name") {
+            st["tool"] = str(frag["name"]);
+        }
+        st["buf"] += str(frag.get("fragment") or "");
+
+        # The tool name is the highest-value, lowest-volume signal: publish it
+        # the moment it is known, without waiting for the size/time threshold.
+        if st["tool"] and not st["announced"] {
+            st["announced"] = True;
+            self._publish(idx, st);
+            return;
+        }
+        if st["sent"] >= _TOOL_DELTA_MAX_PER_CALL {
+            return;
+        }
+        if len(st["buf"]) >= _TOOL_DELTA_MIN_CHARS
+            or (time.time() - st["last"]) >= _TOOL_DELTA_MIN_INTERVAL_S {
+            self._publish(idx, st);
+        }
+    }
+
+    """Publish whatever has accumulated for one call, if anything has."""
+    def _publish(idx: int, st: dict) -> None {
+        if not st["buf"] and st["sent"] > 0 {
+            return;
+        }
+        self.out.append(
+            {
+                "call_id": st["call_id"],
+                "tool": st["tool"],
+                "arg_fragment": st["buf"],
+                "index": idx
+            }
+        );
+        st["buf"] = "";
+        st["last"] = time.time();
+        st["sent"] = st["sent"] + 1;
+    }
+
+    """Flush any tail left under the thresholds when the stream ends."""
+    def flush -> None {
+        for idx in list(self.state.keys()) {
+            st = self.state[idx];
+            if st["buf"] and st["sent"] < _TOOL_DELTA_MAX_PER_CALL {
+                self._publish(idx, st);
+            }
+        }
+    }
+}
+
+
 def _should_parallelize(mt_run: MTRuntime) -> bool {
     per_call = mt_run.call_params.get("parallelize");
     if per_call is True {
@@ -1334,9 +1472,18 @@ impl BaseLLM.dispatch_streaming_with_tools(
     while True {
         chunks = [];
         content_buf = "";
+        # Display-only: fragments are staged for the caller while the call is
+        # still generating. Execution below still uses stream_chunk_builder, so
+        # a partial or malformed fragment can never reach a tool.
+        mt_run._tool_arg_deltas = [];
+        coalescer = _ToolDeltaCoalescer(out=mt_run._tool_arg_deltas);
         try {
             for chunk in self.model_call_with_stream(params) {
                 chunks.append(chunk);
+                pending_before = len(mt_run._tool_arg_deltas);
+                for _frag in _tool_call_fragments(chunk) {
+                    coalescer.observe(_frag);
+                }
                 delta_content = "";
                 if chunk?.choices and chunk?.choices?[0]?.delta {
                     delta_content = chunk.choices[0].delta?.content or "";
@@ -1350,8 +1497,14 @@ impl BaseLLM.dispatch_streaming_with_tools(
                 if delta_content {
                     content_buf += str(delta_content);
                     yield str(delta_content);
+                } elif len(mt_run._tool_arg_deltas) > pending_before {
+                    # No prose this chunk, but deltas are waiting. The consumer
+                    # only runs its loop body on a yield, and it discards empty
+                    # tokens, so this hands over control without adding events.
+                    yield "";
                 }
             }
+            coalescer.flush();
             break;
         } except NotImplementedError {
             no_stream = True;
@@ -1743,9 +1896,23 @@ impl BaseLLM._invoke_streaming(
                 for _tok in self.dispatch_streaming_with_tools(mt_run, _stream_out) {
                     if mt_run._stream_reset_count != _seen_resets {
                         _seen_resets = mt_run._stream_reset_count;
+                        mt_run._tool_arg_deltas = [];
                         yield StreamEvent(
                             event_type="stream_reset",
                             data={"scope": "thought", "iteration": iter_count}
+                        );
+                    }
+                    while mt_run._tool_arg_deltas {
+                        _d = mt_run._tool_arg_deltas.pop(0);
+                        yield StreamEvent(
+                            event_type="tool_call_delta",
+                            data={
+                                "call_id": _d.get("call_id", ""),
+                                "tool": _d.get("tool", ""),
+                                "arg_fragment": _d.get("arg_fragment", ""),
+                                "index": _d.get("index", 0),
+                                "iteration": iter_count
+                            }
                         );
                     }
                     if _tok {
@@ -1758,6 +1925,21 @@ impl BaseLLM._invoke_streaming(
                             }
                         );
                     }
+                }
+                # The tail flushed after the final chunk, so drain it before the
+                # terminal tool_call events are emitted below.
+                while mt_run._tool_arg_deltas {
+                    _d = mt_run._tool_arg_deltas.pop(0);
+                    yield StreamEvent(
+                        event_type="tool_call_delta",
+                        data={
+                            "call_id": _d.get("call_id", ""),
+                            "tool": _d.get("tool", ""),
+                            "arg_fragment": _d.get("arg_fragment", ""),
+                            "index": _d.get("index", 0),
+                            "iteration": iter_count
+                        }
+                    );
                 }
                 resp = _stream_out[0];
             } except litellm.exceptions.ContextWindowExceededError {
