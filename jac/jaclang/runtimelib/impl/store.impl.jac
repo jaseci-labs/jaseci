@@ -98,6 +98,88 @@ impl PgStore.postinit -> None {
 }
 
 
+impl SessionConflictError.init(
+    self: SessionConflictError,
+    database: str = '',
+    blockers: (list[dict] | None) = None
+) -> None {
+    self.database = database;
+    self.blockers = list(blockers or []);
+    parts: list[str] = [];
+    for b in self.blockers {
+        owner = b.get('owner_pid');
+        who = (
+            f"pid {owner}" if owner is not None
+            else f"backend {b.get('backend_pid', '?')}"
+        );
+        cmd = str(b.get('cmd') or '');
+        if cmd {
+            who = f"{who} (jac {cmd})";
+        }
+        started = str(b.get('started') or '');
+        if started {
+            who = f"{who} since {started}";
+        }
+        parts.append(who);
+    }
+    detail = '; '.join(parts) if parts else 'an unidentified session';
+    super.__init__(
+        f"project database '{database}' is held by another live jac"
+        f" process: {detail}"
+    );
+}
+
+
+def _app_identity -> str {
+    # jac:<pid>:<cmd> — the pid lets a later process judge liveness, the
+    # cmd tells a human what to stop. application_name caps at 63 bytes.
+    import sys;
+    cmd = 'embedded';
+    try {
+        argv = list(getattr(sys, 'argv', None) or []);
+        if argv {
+            cmd = os.path.basename(str(argv[0]) or '') or 'embedded';
+            if cmd.startswith('jac') and len(argv) > 1 {
+                sub = str(argv[1]);
+                if sub and not sub.startswith('-') {
+                    cmd = sub;
+                }
+            }
+        }
+    } except Exception {
+        cmd = 'unknown';
+    }
+    return f"jac:{os.getpid()}:{cmd}"[:63];
+}
+
+
+def _sqlstate(e: Exception) -> str {
+    for arg in getattr(e, 'args', ()) {
+        if isinstance(arg, dict) and 'C' in arg {
+            return str(arg.get('C') or '');
+        }
+    }
+    return '';
+}
+
+
+def _owner_alive(pid: (int | None)) -> bool {
+    # Only a definitive "no such process" counts as dead; anything
+    # ambiguous (no pid stamp, permission error) is treated as alive.
+    if pid is None or pid <= 0 {
+        return True;
+    }
+    try {
+        os.kill(pid, 0);
+        return True;
+    } except ProcessLookupError {
+        return False;
+    } except Exception {
+        return True;
+    }
+}
+
+
 impl PgStore._connect -> Any {
     import from jaclang.vendor.pgload { connect as pg_connect }
     info = self.conninfo;
@@ -107,7 +189,8 @@ impl PgStore._connect -> Any {
         port=info.port,
         unix_socket_dir=info.unix_socket_dir,
         database=info.database,
-        password=(info.password or None)
+        password=(info.password or None),
+        startup_params={'application_name': _app_identity()}
     );
 }
 
@@ -202,34 +285,189 @@ impl PgStore.server_version -> int {
 impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
     with self._lock {
         self.promotions = dict(promotions);
-        self._run("SET lock_timeout = '5s'", {});
-        try {
-            for stmt in _SCHEMA_SQL {
-                self._run(stmt, {});
-            }
-            has_seq = bool(
-                self._run(
-                    """
-                    SELECT 1 FROM information_schema.columns
-                    WHERE table_name = 'anchors' AND column_name = 'seq'
-                    """,
-                    {}
-                )
-            );
-            if not has_seq {
-                self._run(
-                    'ALTER TABLE anchors ADD COLUMN IF NOT EXISTS seq bigserial', {}
-                );
-            }
-            self._apply_promotions();
-            self._property_graph_ddl();
-        } finally {
-            self._run('SET lock_timeout = DEFAULT', {});
+        fp = self._schema_fingerprint();
+        if self._schema_stamp() == fp {
+            # Schema is current: plain reads only, so booting never competes
+            # for DDL locks with the long-lived transactions other jac
+            # processes hold by design.
+            self._load_known_types();
+            return;
         }
-        for (tname, ) in self._run('SELECT DISTINCT type_name FROM graph_types', {}) {
-            self._known_types.add(str(tname));
+        try {
+            self._apply_schema_ddl();
+        } except PgWireError as e {
+            if _sqlstate(e) != '55P03' {
+                raise;
+            }
+            if self._reap_dead_sessions() == 0 {
+                raise SessionConflictError(
+                    database=self.conninfo.database,
+                    blockers=self._live_blockers()
+                ) from e;
+            }
+            try {
+                self._apply_schema_ddl();
+            } except PgWireError as e2 {
+                if _sqlstate(e2) != '55P03' {
+                    raise;
+                }
+                raise SessionConflictError(
+                    database=self.conninfo.database,
+                    blockers=self._live_blockers()
+                ) from e2;
+            }
+        }
+        self.kv_put(SCHEMA_STAMP_KEY, fp);
+        self._load_known_types();
+    }
+}
+
+
+impl PgStore._apply_schema_ddl -> None {
+    self._run("SET lock_timeout = '5s'", {});
+    try {
+        for stmt in _SCHEMA_SQL {
+            self._run(stmt, {});
+        }
+        has_seq = bool(
+            self._run(
+                """
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'anchors' AND column_name = 'seq'
+                """,
+                {}
+            )
+        );
+        if not has_seq {
+            self._run(
+                'ALTER TABLE anchors ADD COLUMN IF NOT EXISTS seq bigserial', {}
+            );
+        }
+        self._apply_promotions();
+        self._property_graph_ddl();
+    } finally {
+        self._run('SET lock_timeout = DEFAULT', {});
+    }
+}
+
+
+impl PgStore._load_known_types -> None {
+    for (tname, ) in self._run('SELECT DISTINCT type_name FROM graph_types', {}) {
+        self._known_types.add(str(tname));
+    }
+}
+
+
+impl PgStore._schema_fingerprint -> str {
+    import hashlib;
+    h = hashlib.sha256();
+    h.update(str(SCHEMA_VERSION).encode());
+    h.update(str(self.server_version()).encode());
+    for stmt in _SCHEMA_SQL {
+        h.update(stmt.encode());
+    }
+    for col in sorted(self._promotion_columns()) {
+        h.update(str(col).encode());
+    }
+    return f"{SCHEMA_VERSION}:{h.hexdigest()[:24]}";
+}
+
+
+impl PgStore._schema_stamp -> (str | None) {
+    try {
+        return self.kv_get(SCHEMA_STAMP_KEY);
+    } except PgWireError as e {
+        if _sqlstate(e) == '42P01' {
+            return None;  # fresh database: kv_state does not exist yet
+        }
+        raise;
+    }
+}
+
+
+impl PgStore._peer_sessions -> list[dict] {
+    rows = self._run(
+        """
+        SELECT pid, application_name, state, backend_start::text
+        FROM pg_stat_activity
+        WHERE datname = current_database() AND pid <> pg_backend_pid()
+        """,
+        {}
+    );
+    out: list[dict] = [];
+    for (pid, app, state, started) in rows {
+        app_s = str(app or '');
+        owner: (int | None) = None;
+        cmd = '';
+        parts = app_s.split(':', 2);
+        if len(parts) == 3 and parts[0] == 'jac' {
+            try {
+                owner = int(parts[1]);
+            } except ValueError {
+                owner = None;
+            }
+            cmd = parts[2];
+        }
+        out.append(
+            {
+                'backend_pid': int(pid),
+                'app': app_s,
+                'state': str(state or ''),
+                'started': str(started or ''),
+                'owner_pid': owner,
+                'cmd': cmd,
+                'owner_alive': _owner_alive(owner)
+            }
+        );
+    }
+    return out;
+}
+
+
+impl PgStore._reap_dead_sessions -> int {
+    if not self.conninfo.unix_socket_dir {
+        # Remote database: peer pids belong to other hosts, so liveness
+        # cannot be judged here. Never terminate what can't be verified.
+        return 0;
+    }
+    n = 0;
+    for p in self._peer_sessions() {
+        if p['owner_pid'] is not None and not p['owner_alive'] {
+            try {
+                self._run(
+                    'SELECT pg_terminate_backend(:p)', {'p': p['backend_pid']}
+                );
+                n += 1;
+            } except Exception as e {
+                logger.warning(f"failed to reap backend {p['backend_pid']}: {e}");
+            }
         }
     }
+    if n {
+        logger.info(f"reaped {n} database session(s) left by dead process(es)");
+    }
+    return n;
+}
+
+
+impl PgStore._live_blockers -> list[dict] {
+    peers = [p for p in self._peer_sessions() if p['owner_alive']];
+    held = [p for p in peers if 'idle in transaction' in p['state']];
+    return held or peers;
+}
+
+
+impl PgStore.takeover -> int {
+    n = 0;
+    for p in self._peer_sessions() {
+        try {
+            self._run('SELECT pg_terminate_backend(:p)', {'p': p['backend_pid']});
+            n += 1;
+        } except Exception as e {
+            logger.warning(f"takeover failed for backend {p['backend_pid']}: {e}");
+        }
+    }
+    return n;
 }
 
 

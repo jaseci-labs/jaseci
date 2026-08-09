@@ -444,15 +444,20 @@ impl PgRuntime._initdb_if_needed(bin_dir: str) -> None {
 }
 
 
-impl PgRuntime._start(bin_dir: str) -> None {
-    os.makedirs(self._sock_dir(), exist_ok=True);
+impl PgRuntime._server_opts -> str {
     listen = "-c listen_addresses=127.0.0.1" if self.tcp else "-c listen_addresses=''";
-    opts = (
+    return (
         f"-p {self.port} {listen} "
         f"-c unix_socket_directories='{self._sock_dir()}' "
         "-c dynamic_shared_memory_type=posix "
-        "-c max_connections=64"
+        f"-c max_connections={PG_MAX_CONNECTIONS}"
     );
+}
+
+
+impl PgRuntime._start(bin_dir: str) -> None {
+    os.makedirs(self._sock_dir(), exist_ok=True);
+    opts = self._server_opts();
     log_path = os.path.join(self.data_dir, 'server.log');
     res = subprocess.run(
         [

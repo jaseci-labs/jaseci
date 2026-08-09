@@ -1,5 +1,6 @@
 import json;
 import logging;
+import os;
 import threading;
 import from typing { Any }
 import from uuid { UUID }
@@ -8,7 +9,34 @@ import from jaclang.runtimelib.pgwire { PgWireError }
 
 glob logger = logging.getLogger(__name__),
      SCHEMA_VERSION = 1,
-     __all__ = ['AnchorRow', 'Store', 'PgStore', 'ConnInfo', 'SCHEMA_VERSION'];
+     SCHEMA_STAMP_KEY = 'schema_fingerprint',
+     __all__ = [
+         'AnchorRow',
+         'Store',
+         'PgStore',
+         'ConnInfo',
+         'SCHEMA_VERSION',
+         'SCHEMA_STAMP_KEY',
+         'SessionConflictError'
+     ];
+
+
+class SessionConflictError(Exception) {
+    """The project database is held by another live jac process.
+
+    Raised instead of a raw lock timeout when schema DDL cannot proceed
+    because other sessions (each jac process keeps a long-lived transaction
+    open by design) hold conflicting locks and their owning processes are
+    still alive. `blockers` carries one dict per peer session as returned
+    by PgStore._peer_sessions.
+    """
+
+    def init(
+        self: SessionConflictError,
+        database: str = '',
+        blockers: (list[dict] | None) = None
+    ) -> None;
+}
 
 
 obj ConnInfo {
@@ -85,6 +113,7 @@ obj PgStore(Store) {
     def is_available -> bool;
     def server_version -> int;
     def ensure_schema(promotions: dict[str, list[str]]) -> None;
+    def takeover -> int;
     def begin(serializable: bool = True) -> None;
     def commit -> None;
     def rollback -> None;
@@ -111,4 +140,11 @@ obj PgStore(Store) {
     def _apply_promotions -> None;
     def _property_graph_ddl -> None;
     def _listen_loop -> None;
+    def _schema_fingerprint -> str;
+    def _schema_stamp -> (str | None);
+    def _apply_schema_ddl -> None;
+    def _load_known_types -> None;
+    def _peer_sessions -> list[dict];
+    def _reap_dead_sessions -> int;
+    def _live_blockers -> list[dict];
 }

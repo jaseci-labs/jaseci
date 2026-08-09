@@ -18,11 +18,20 @@ import from jaclang.runtimelib.store { ConnInfo }
 glob logger = logging.getLogger(__name__),
      PG_MAJOR = 19,
      SOCK_PORT = 5432,
+     # Every jac process holds a session and a default `jac test` fans out
+     # 128 workers; 256 leaves interactive commands headroom beside that.
+     PG_MAX_CONNECTIONS = 256,
      ZONKY_BASE = (
          'https://repo1.maven.org/maven2/io/zonky/test/postgres/'
          'embedded-postgres-binaries-'
      ),
-     __all__ = ['PgRuntime', 'PG_MAJOR', 'pinned_major', 'dist_cache_dir'];
+     __all__ = [
+         'PgRuntime',
+         'PG_MAJOR',
+         'PG_MAX_CONNECTIONS',
+         'pinned_major',
+         'dist_cache_dir'
+     ];
 
 
 def pinned_major -> int;
@@ -57,6 +66,7 @@ obj PgRuntime {
 
     def _zonky_versions -> list[str];
     def _initdb_if_needed(bin_dir: str) -> None;
+    def _server_opts -> str;
     def _start(bin_dir: str) -> None;
     def _wait_ready(timeout: float = 60.0) -> None;
     def _ensure_database -> None;
