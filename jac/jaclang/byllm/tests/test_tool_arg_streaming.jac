@@ -37,10 +37,7 @@ def read_file(path: str) -> str {
 """One streaming chunk carrying a tool-call argument fragment, shaped the way
 litellm delivers them."""
 def _arg_chunk(
-    index: int,
-    fragment: str,
-    call_id: (str | None) = None,
-    name: (str | None) = None
+    index: int, fragment: str, call_id: (str | None) = None, name: (str | None) = None
 ) -> any {
     fn = types.SimpleNamespace(name=name, arguments=fragment);
     tc = types.SimpleNamespace(index=index, id=call_id, type="function", function=fn);
@@ -121,7 +118,9 @@ def _events_for(chunk_script: list, rebuilt: dict, tools: list) -> list {
             "choices": [
                 {
                     "message": {
-                        "role": "assistant", "content": "all done", "tool_calls": []
+                        "role": "assistant",
+                        "content": "all done",
+                        "tool_calls": []
                     },
                     "finish_reason": "stop"
                 }
@@ -163,7 +162,11 @@ def _rebuilt_one(call_id: str, name: str, arguments: str) -> dict {
 
 
 def _of_type(events: list, kind: str) -> list {
-    return [e for e in events if e.event_type == kind];
+    return [
+        e
+        for e in events
+        if e.event_type == kind
+    ];
 }
 
 
@@ -174,7 +177,9 @@ test "argument fragments surface as tool_call_delta before the terminal tool_cal
     for frag in _fragments(body) {
         script.append(
             _arg_chunk(
-                0, frag, call_id=("c1" if first else None),
+                0,
+                frag,
+                call_id=("c1" if first else None),
                 name=("write_file" if first else None)
             )
         );
@@ -185,13 +190,11 @@ test "argument fragments surface as tool_call_delta before the terminal tool_cal
     kinds = [e.event_type for e in events];
 
     deltas = _of_type(events, "tool_call_delta");
-    assert len(deltas) > 0 ,
-        f"no tool_call_delta emitted; the fragments were discarded. saw: {kinds}";
+    assert len(deltas) > 0 , f"no tool_call_delta emitted; the fragments were discarded. saw: {kinds}";
 
     first_delta = kinds.index("tool_call_delta");
     first_call = kinds.index("tool_call");
-    assert first_delta < first_call ,
-        f"deltas must precede the terminal tool_call, got {kinds}";
+    assert first_delta < first_call , f"deltas must precede the terminal tool_call, got {kinds}";
 }
 
 
@@ -202,7 +205,9 @@ test "the tool name reaches the caller early, not only at the end" {
     for frag in _fragments(body) {
         script.append(
             _arg_chunk(
-                0, frag, call_id=("c1" if first else None),
+                0,
+                frag,
+                call_id=("c1" if first else None),
                 name=("write_file" if first else None)
             )
         );
@@ -212,8 +217,9 @@ test "the tool name reaches the caller early, not only at the end" {
     events = _events_for(script, _rebuilt_one("c1", "write_file", body), [write_file]);
     deltas = _of_type(events, "tool_call_delta");
     assert len(deltas) > 0 , "no tool_call_delta emitted";
-    assert deltas[0].data.get("tool") == "write_file" ,
-        f"first delta should name the tool, got {deltas[0].data}";
+    assert deltas[0].data.get("tool") == "write_file" , f"first delta should name the tool, got {deltas[
+        0
+    ].data}";
 }
 
 
@@ -225,7 +231,9 @@ test "emission is coalesced so a large argument cannot flood the consumer" {
     for frag in _fragments(body, 2) {
         script.append(
             _arg_chunk(
-                0, frag, call_id=("c1" if first else None),
+                0,
+                frag,
+                call_id=("c1" if first else None),
                 name=("write_file" if first else None)
             )
         );
@@ -237,8 +245,9 @@ test "emission is coalesced so a large argument cannot flood the consumer" {
     deltas = _of_type(events, "tool_call_delta");
 
     assert len(deltas) > 0 , "no tool_call_delta emitted";
-    assert len(deltas) < produced / 4 ,
-        f"expected coalescing, got {len(deltas)} events for {produced} fragments";
+    assert len(deltas) < produced / 4 , f"expected coalescing, got {len(
+        deltas
+    )} events for {produced} fragments";
 }
 
 
@@ -249,7 +258,9 @@ test "the executed tool call is unchanged by streaming the fragments" {
     for frag in _fragments(body, 5) {
         script.append(
             _arg_chunk(
-                0, frag, call_id=("c1" if first else None),
+                0,
+                frag,
+                call_id=("c1" if first else None),
                 name=("write_file" if first else None)
             )
         );
@@ -261,12 +272,15 @@ test "the executed tool call is unchanged by streaming the fragments" {
     assert len(calls) >= 1 , "no tool_call emitted";
     assert calls[0].data.get("tool") == "write_file" , calls[0].data;
     assert calls[0].data.get("args", {}).get("path") == "main.jac" , calls[0].data;
-    assert calls[0].data.get("args", {}).get("content") == "hello world" , calls[0].data;
+    assert calls[0].data.get("args", {}).get("content") == "hello world" , calls[
+        0
+    ].data;
 
     results = _of_type(events, "tool_result");
     assert len(results) >= 1 , "the tool did not execute";
-    assert "wrote 11 chars to main.jac" in str(results[0].data.get("result", "")) ,
-        results[0].data;
+    assert "wrote 11 chars to main.jac" in str(results[0].data.get("result", "")) , results[
+        0
+    ].data;
 }
 
 
@@ -294,7 +308,9 @@ test "fragments from a parallel batch stay separated by call_id" {
         "choices": [
             {
                 "message": {
-                    "role": "assistant", "content": "", "tool_calls": [tc_a, tc_b]
+                    "role": "assistant",
+                    "content": "",
+                    "tool_calls": [tc_a, tc_b]
                 },
                 "finish_reason": "tool_calls"
             }
@@ -312,8 +328,9 @@ test "fragments from a parallel batch stay separated by call_id" {
         cid = d.data.get("call_id", "");
         by_id[cid] = by_id.get(cid, "") + str(d.data.get("arg_fragment", ""));
     }
-    assert "c1" in by_id and "c2" in by_id ,
-        f"both calls should stream under their own id, got {list(by_id.keys())}";
+    assert "c1" in by_id and "c2" in by_id , f"both calls should stream under their own id, got {list(
+        by_id.keys()
+    )}";
     assert "a.jac" in by_id["c1"] , by_id;
     assert "b.jac" in by_id["c2"] , by_id;
     assert "b.jac" not in by_id["c1"] , f"fragments crossed calls: {by_id}";

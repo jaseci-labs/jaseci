@@ -1,9 +1,3 @@
-"""Read tool-call argument fragments out of one streaming chunk.
-
-litellm delivers them on `delta.tool_calls[]`, where only the FIRST fragment of
-a given `index` carries `id` and `function.name`; later fragments carry just
-more `arguments` text. Shape varies by provider, so every access is defensive:
-a chunk we cannot read yields nothing rather than breaking the stream."""
 def _tool_call_fragments(chunk: object) -> list[dict] {
     raw: object = None;
     try {
@@ -34,7 +28,8 @@ def _tool_call_fragments(chunk: object) -> list[dict] {
                         "name": (fn.get("name") if isinstance(fn, dict) else "") or "",
                         "fragment": (
                             fn.get("arguments") if isinstance(fn, dict) else ""
-                        ) or ""
+                        )
+                            or ""
                     }
                 );
             } else {
@@ -56,14 +51,6 @@ def _tool_call_fragments(chunk: object) -> list[dict] {
 }
 
 
-"""Accumulates argument fragments per tool call and decides when to publish.
-
-Coalescing is part of the contract, not an optimisation: a provider can split
-one argument into hundreds of fragments, and a consumer that forwards each one
-over a network would trade a frozen UI for a flooded one. A batch is published
-when it grows past `_TOOL_DELTA_MIN_CHARS` or `_TOOL_DELTA_MIN_INTERVAL_S`
-elapses, and the tool NAME publishes immediately because that alone is what
-lets a UI say "Writing main.jac" while the body is still generating."""
 obj _ToolDeltaCoalescer {
     has out: list[dict],
         state: dict = {};
@@ -90,8 +77,6 @@ obj _ToolDeltaCoalescer {
         }
         st["buf"] += str(frag.get("fragment") or "");
 
-        # The tool name is the highest-value, lowest-volume signal: publish it
-        # the moment it is known, without waiting for the size/time threshold.
         if st["tool"] and not st["announced"] {
             st["announced"] = True;
             self._publish(idx, st);
@@ -106,7 +91,6 @@ obj _ToolDeltaCoalescer {
         }
     }
 
-    """Publish whatever has accumulated for one call, if anything has."""
     def _publish(idx: int, st: dict) -> None {
         if not st["buf"] and st["sent"] > 0 {
             return;
@@ -124,8 +108,7 @@ obj _ToolDeltaCoalescer {
         st["sent"] = st["sent"] + 1;
     }
 
-    """Flush any tail left under the thresholds when the stream ends."""
-    def flush -> None {
+    def flush {
         for idx in list(self.state.keys()) {
             st = self.state[idx];
             if st["buf"] and st["sent"] < _TOOL_DELTA_MAX_PER_CALL {
@@ -1472,9 +1455,7 @@ impl BaseLLM.dispatch_streaming_with_tools(
     while True {
         chunks = [];
         content_buf = "";
-        # Display-only: fragments are staged for the caller while the call is
-        # still generating. Execution below still uses stream_chunk_builder, so
-        # a partial or malformed fragment can never reach a tool.
+
         mt_run._tool_arg_deltas = [];
         coalescer = _ToolDeltaCoalescer(out=mt_run._tool_arg_deltas);
         try {
@@ -1498,9 +1479,6 @@ impl BaseLLM.dispatch_streaming_with_tools(
                     content_buf += str(delta_content);
                     yield str(delta_content);
                 } elif len(mt_run._tool_arg_deltas) > pending_before {
-                    # No prose this chunk, but deltas are waiting. The consumer
-                    # only runs its loop body on a yield, and it discards empty
-                    # tokens, so this hands over control without adding events.
                     yield "";
                 }
             }
@@ -1926,8 +1904,7 @@ impl BaseLLM._invoke_streaming(
                         );
                     }
                 }
-                # The tail flushed after the final chunk, so drain it before the
-                # terminal tool_call events are emitted below.
+
                 while mt_run._tool_arg_deltas {
                     _d = mt_run._tool_arg_deltas.pop(0);
                     yield StreamEvent(
