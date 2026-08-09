@@ -166,12 +166,15 @@ test "py2jac line continuation string concat" {
 """Adjacent .py literals land in one String token spanning them all, so
 `lit_value` (what codegen lowers to a constant) must yield the joined
 string. The token's source form stays folded for py2jac (asserted above).
-The last case pins the negative: a lone literal is left exactly as-is.
+Every prefix Python accepts on a str literal is covered, in both cases, since
+the splitter and the decoder have to agree on that set. The last case pins the
+negative: a lone literal is left exactly as-is.
 """
 test "py implicit string concat lit value joins the literals" {
     file_source = (
         'MULTI = (\n    "first part "\n    "second part"\n)\n'
         + 'SINGLE = "abc" "def"\nPREFIXED = r"\\d" "x"\n'
+        + 'UPPER = R"\\w" "y"\nUNICODE = u"uni" "code"\n'
         + 'PLAIN = "he said \\"hi\\""\n'
     );
     values = [
@@ -186,7 +189,14 @@ test "py implicit string concat lit value joins the literals" {
             uni.String
         )
     ];
-    for want in ["first part second part", "abcdef", "\\dx", 'he said "hi"'] {
+    for want in [
+        "first part second part",
+        "abcdef",
+        "\\dx",
+        "\\wy",
+        "unicode",
+        'he said "hi"'
+    ] {
         assert want in values , f"{want!r} missing from {values}";
     }
 }

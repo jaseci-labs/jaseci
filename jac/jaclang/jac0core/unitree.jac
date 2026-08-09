@@ -1727,7 +1727,7 @@ glob _HEX_DIGITS: str = '0123456789abcdefABCDEF',
          'v': '\x0b'
      };
 
-glob _STR_LIT_PAT = r'[rRbBuUfF]{0,2}(?:[\x22]{3}(?:\\[\s\S]|(?![\x22]{3})[\s\S])*[\x22]{3}|[\x27]{3}(?:\\[\s\S]|(?![\x27]{3})[\s\S])*[\x27]{3}|\x22(?:\\[\s\S]|[^\x22\\])*\x22|\x27(?:\\[\s\S]|[^\x27\\])*\x27)';
+glob _STR_LIT_PAT = r'[rRbBuU]{0,2}(?:[\x22]{3}(?:\\[\s\S]|(?![\x22]{3})[\s\S])*[\x22]{3}|[\x27]{3}(?:\\[\s\S]|(?![\x27]{3})[\s\S])*[\x27]{3}|\x22(?:\\[\s\S]|[^\x22\\])*\x22|\x27(?:\\[\s\S]|[^\x27\\])*\x27)';
 
 glob _STR_LIT_RE = re.compile(_STR_LIT_PAT);
 
@@ -1742,28 +1742,32 @@ def _split_adjacent_literals(text: str) -> list[str] {
 }
 
 def _decode_one_literal(seg: str) -> str | bytes {
-    if `any(
-        (seg.startswith(prefix) and seg[len(prefix):].startswith(("'", '"')))
-        for prefix in ['r', 'b', 'br', 'rb']
-    ) {
-        return eval(seg);
-    } elif seg.startswith(("'", '"')) {
-        inner = seg;
-        if (
-            (len(inner) >= 6)
-            and (
-                (inner.startswith('"""') and inner.endswith('"""'))
-                or (inner.startswith("'''") and inner.endswith("'''"))
-            )
-        ) {
-            inner = inner[3:-3];
-        } else {
-            inner = inner[1:-1];
-        }
-        return _decode_str_escapes(inner);
-    } else {
+    quote_at = 0;
+    while (quote_at < len(seg) and seg[quote_at] != '"' and seg[quote_at] != "'") {
+        quote_at += 1;
+    }
+    if (quote_at >= len(seg)) {
         return seg;
     }
+    if (quote_at > 0) {
+        if (set(seg[:quote_at].lower()) <= {'r', 'b', 'u'}) {
+            return eval(seg);
+        }
+        return seg;
+    }
+    inner = seg;
+    if (
+        (len(inner) >= 6)
+        and (
+            (inner.startswith('"""') and inner.endswith('"""'))
+            or (inner.startswith("'''") and inner.endswith("'''"))
+        )
+    ) {
+        inner = inner[3:-3];
+    } else {
+        inner = inner[1:-1];
+    }
+    return _decode_str_escapes(inner);
 }
 
 def _decode_str_escapes(text: str) -> str {
