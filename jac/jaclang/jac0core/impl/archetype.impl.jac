@@ -223,7 +223,7 @@ impl Archetype.__setattr__(name: str, value: any) -> None {
     import from jaclang.jac0core.runtime { JacRuntime }
     ctx = JacRuntime.exec_ctx;
     if ctx is not None {
-        md = getattr(ctx.mem, 'mark_dirty', None);
+        md = ctx.mem?.mark_dirty;
         if md is not None {
             md(an);
         }
