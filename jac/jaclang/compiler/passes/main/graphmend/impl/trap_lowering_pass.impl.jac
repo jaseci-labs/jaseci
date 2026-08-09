@@ -75,6 +75,9 @@ impl TrapLoweringPass._exception_type_name(rs: uni.RaiseStmt) -> (str | None) {
     if not isinstance(target, uni.Name) {
         return None;
     }
+    if target.sym is not None {
+        return None;
+    }
     cls = getattr(builtins, target.value, None);
     if isinstance(cls, type) and issubclass(cls, BaseException) {
         return target.value;
@@ -283,12 +286,25 @@ impl TrapLoweringPass._param_is_tensor(name: str, site: uni.UniNode) -> bool {
             continue;
         }
         ann = p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
-        if isinstance(ann, uni.Name) and (ann.value == 'Tensor') {
-            return True;
+        if isinstance(ann, uni.Name) {
+            return self._binds_torch_tensor(ann);
         }
         return is_torch_attr_target(ann, 'Tensor');
     }
     return False;
+}
+
+impl TrapLoweringPass._binds_torch_tensor(ann: uni.Name) -> bool {
+    decl = ann.sym.decl if (ann.sym is not None) else None;
+    mi = decl.find_parent_of_type(uni.ModuleItem) if (decl is not None) else None;
+    if mi is None {
+        return False;
+    }
+    if not (isinstance(mi.name, uni.Name) and (mi.name.value == 'Tensor')) {
+        return False;
+    }
+    mp = mi.parent.from_loc if isinstance(mi.parent, uni.Import) else None;
+    return (mp is not None) and (mp.dot_path_str == 'torch');
 }
 
 impl TrapLoweringPass._replace(old: uni.UniNode, new_nodes: list) -> None {
