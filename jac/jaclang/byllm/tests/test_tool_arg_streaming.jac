@@ -1,28 +1,30 @@
-"""Tool-argument fragments must reach the caller while they are still being
-generated (jaseci-labs/jac#7997).
+"""Tool-argument streaming: `tool_call_delta` (jaseci-labs/jac#7997).
 
-litellm already delivers argument deltas in
-`chunk.choices[0].delta.tool_calls[].function.arguments`, but
-`dispatch_streaming_with_tools` reads only `delta.content` and reconstructs the
-call with `stream_chunk_builder` at the end. A caller therefore learns a tool is
-being invoked only once every argument is complete, which is what leaves an
-agent UI frozen for the whole time a large file body is generated.
+litellm delivers tool-call argument fragments during streaming, in
+`chunk.choices[0].delta.tool_calls[].function.arguments`. byllm used to read
+only `delta.content` and rebuild the call at the end, so a caller learned a
+tool was being invoked only once every argument had been generated.
 
-These tests pin the display-only contract:
-  * fragments surface as `tool_call_delta` BEFORE the terminal `tool_call`
-  * the tool NAME arrives early, since that alone carries most of the value
-  * emission is coalesced, so one big argument cannot flood a consumer
-  * the executed call is byte-identical to the non-streaming reconstruction
-  * ordering and `call_id` isolation hold across a parallel batch
+The feature is display-only and opt-in. Each test below pins ONE invariant:
+
+  1. off unless enabled, and the tool still runs
+  2. deltas precede the call, and the first one names the tool
+  3. coalescing bounds a pathological provider
+  4. the executed call is byte-identical to the rebuilt one
+  5. a parallel batch keeps its calls separate
+  6. a retry announces the reset before the replacement's deltas, on BOTH
+     drain paths (during the token loop, and from the end-of-stream flush)
 """
 
+import litellm;
 import types;
 import from unittest { mock }
-import litellm;
 import jaclang.byllm.llm as _byllm_llm_mod;
 import from jaclang.byllm.lib { Model }
 import from jaclang.byllm.mtir { MTRuntime }
 import from jaclang.byllm.types { Message, MessageRole, Tool }
+
+glob RETRY: str = "__retry__";
 
 
 def write_file(path: str, content: str) -> str {
@@ -31,22 +33,32 @@ def write_file(path: str, content: str) -> str {
 
 
 def read_file(path: str) -> str {
-    return f"contents of {path}";
+    return f"read {path}";
 }
 
 
-"""One streaming chunk carrying a tool-call argument fragment, shaped the way
-litellm delivers them."""
-def _arg_chunk(
-    index: int, fragment: str, call_id: (str | None) = None, name: (str | None) = None
+"""One streaming chunk. Prose when `content` is set, otherwise a tool-argument
+fragment. Only a call's FIRST fragment carries `id` and `name`, as litellm
+delivers them."""
+def _chunk(
+    content: str = "", frag: str = "", call_id: str = "", name: str = "", index: int = 0
 ) -> any {
-    fn = types.SimpleNamespace(name=name, arguments=fragment);
-    tc = types.SimpleNamespace(index=index, id=call_id, type="function", function=fn);
+    calls = None;
+    if not content {
+        fn = types.SimpleNamespace(name=(name or None), arguments=frag);
+        calls = [
+            types.SimpleNamespace(
+                index=index, id=(call_id or None), type="function", function=fn
+            )
+        ];
+    }
     return types.SimpleNamespace(
         usage=None,
         choices=[
             types.SimpleNamespace(
-                delta=types.SimpleNamespace(content=None, tool_calls=[tc]),
+                delta=types.SimpleNamespace(
+                    content=(content or None), tool_calls=calls
+                ),
                 finish_reason=None
             )
         ]
@@ -54,32 +66,72 @@ def _arg_chunk(
 }
 
 
-"""A plain prose chunk (the `thought` channel)."""
-def _text_chunk(text: str) -> any {
-    return types.SimpleNamespace(
-        usage=None,
-        choices=[
-            types.SimpleNamespace(
-                delta=types.SimpleNamespace(content=text, tool_calls=None),
-                finish_reason=None
+"""Split `args` into `size`-char fragments and wrap them as one call's chunks."""
+def _frags(args: str, tool: str, call_id: str, size: int = 12, index: int = 0) -> list {
+    out: list = [];
+    for i in range(0, len(args), size) {
+        first = i == 0;
+        out.append(
+            _chunk(
+                frag=args[i:i + size],
+                call_id=(call_id if first else ""),
+                name=(tool if first else ""),
+                index=index
             )
-        ]
-    );
+        );
+    }
+    return out;
 }
 
 
-"""Split `text` into `n`-character fragments, the way a provider streams JSON."""
-def _fragments(text: str, n: int = 12) -> list[str] {
-    return [text[i:i + n] for i in range(0, len(text), n)];
+"""What `stream_chunk_builder` would return for `calls`, each (id, name, args)."""
+def _rebuilt(calls: list) -> dict {
+    tcs = [
+        types.SimpleNamespace(
+            id=c[0],
+            type="function",
+            function=types.SimpleNamespace(name=c[1], arguments=c[2])
+        ) for c in calls
+    ];
+    return {
+        "choices": [
+            {
+                "message": {"role": "assistant", "content": "", "tool_calls": tcs},
+                "finish_reason": "tool_calls"
+            }
+        ],
+        "model": "gpt-4o",
+        "usage": {}
+    };
 }
 
 
-def _runtime(tools: list) -> MTRuntime {
-    # MTRuntime expects wrapped Tool objects plus a finish tool; MTIR builds
-    # both for a real call, so a hand-made runtime has to do the same.
+def _plain(text: str) -> dict {
+    return {
+        "choices": [
+            {
+                "message": {"role": "assistant", "content": text, "tool_calls": []},
+                "finish_reason": "stop"
+            }
+        ],
+        "model": "gpt-4o",
+        "usage": {}
+    };
+}
+
+
+"""Drive `_invoke_streaming` over scripted turns and collect the events.
+
+`turns` is one entry per LLM round: a list of chunks, or RETRY to drop the
+stream with a transient error. `rebuilts` is parallel to it (None where a turn
+retries). Any turn past the end answers in plain text so the ReAct loop ends.
+`enabled` False means the caller never opts in, i.e. the shipped default.
+"""
+def _run(turns: list, rebuilts: list, tools: list, enabled: bool = True) -> list {
+    llm = Model(model_name="gpt-4o");
     wrapped = [Tool(func=t) for t in tools];
     wrapped.append(Tool.make_finish_tool(str));
-    return MTRuntime(
+    mt = MTRuntime(
         messages=[
             Message(role=MessageRole.SYSTEM, content="s"),
             Message(role=MessageRole.USER, content="u")
@@ -87,48 +139,31 @@ def _runtime(tools: list) -> MTRuntime {
         resp_type=str,
         stream=True,
         tools=wrapped,
-        call_params={"stream_tool_args": True},
+        call_params=({"stream_tool_args": True} if enabled else {}),
         mtir=None
     );
-}
-
-
-"""Drive `_invoke_streaming` over a scripted chunk sequence and collect events.
-
-`rebuilt` is what `stream_chunk_builder` would return, i.e. the fully assembled
-message. The second LLM turn returns a plain reply so the ReAct loop terminates.
-"""
-def _events_for(chunk_script: list, rebuilt: dict, tools: list) -> list {
-    llm = Model(model_name="gpt-4o");
-    mt = _runtime(tools);
-    turns = [0];
+    at = [0];
 
     def _stream(params: dict) -> any {
-        turns[0] += 1;
-        if turns[0] == 1 {
-            return chunk_script;
+        i = at[0];
+        at[0] += 1;
+        if i >= len(turns) {
+            return [_chunk(content="all done")];
         }
-        return [_text_chunk("all done")];
+        if turns[i] == RETRY {
+            raise litellm.APIConnectionError(
+                message="dropped", llm_provider="openai", model="gpt-4o"
+            );
+        }
+        return turns[i];
     }
 
     def _rebuild(seen: list) -> dict {
-        if turns[0] == 1 {
-            return rebuilt;
+        i = at[0] - 1;
+        if i < len(rebuilts) and rebuilts[i] is not None {
+            return rebuilts[i];
         }
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "role": "assistant",
-                        "content": "all done",
-                        "tool_calls": []
-                    },
-                    "finish_reason": "stop"
-                }
-            ],
-            "model": "gpt-4o",
-            "usage": {}
-        };
+        return _plain("all done");
     }
 
     events: list = [];
@@ -143,26 +178,12 @@ def _events_for(chunk_script: list, rebuilt: dict, tools: list) -> list {
 }
 
 
-def _rebuilt_one(call_id: str, name: str, arguments: str) -> dict {
-    tc = types.SimpleNamespace(
-        id=call_id,
-        type="function",
-        function=types.SimpleNamespace(name=name, arguments=arguments)
-    );
-    return {
-        "choices": [
-            {
-                "message": {"role": "assistant", "content": "", "tool_calls": [tc]},
-                "finish_reason": "tool_calls"
-            }
-        ],
-        "model": "gpt-4o",
-        "usage": {}
-    };
+def _kinds(events: list) -> list {
+    return [e.event_type for e in events];
 }
 
 
-def _of_type(events: list, kind: str) -> list {
+def _of(events: list, kind: str) -> list {
     return [
         e
         for e in events
@@ -171,396 +192,128 @@ def _of_type(events: list, kind: str) -> list {
 }
 
 
-test "argument fragments surface as tool_call_delta before the terminal tool_call" {
-    body = '{"path": "main.jac", "content": "' + ("x" * 600) + '"}';
-    script = [_text_chunk("Writing the entry point. ")];
-    first = True;
-    for frag in _fragments(body) {
-        script.append(
-            _arg_chunk(
-                0,
-                frag,
-                call_id=("c1" if first else None),
-                name=("write_file" if first else None)
-            )
-        );
-        first = False;
-    }
+glob BODY: str = '{"path": "main.jac", "content": "' + ("x" * 400) + '"}';
 
-    events = _events_for(script, _rebuilt_one("c1", "write_file", body), [write_file]);
-    kinds = [e.event_type for e in events];
 
-    deltas = _of_type(events, "tool_call_delta");
-    assert len(deltas) > 0 , f"no tool_call_delta emitted; the fragments were discarded. saw: {kinds}";
+test "streaming is off until it is enabled, and the call still runs" {
+    events = _run(
+        [_frags(BODY, "write_file", "c1")],
+        [_rebuilt([("c1", "write_file", BODY)])],
+        [write_file],
+        enabled=False
+    );
 
-    first_delta = kinds.index("tool_call_delta");
-    first_call = kinds.index("tool_call");
-    assert first_delta < first_call , f"deltas must precede the terminal tool_call, got {kinds}";
+    assert len(_of(events, "tool_call_delta")) == 0 , f"deltas leaked while disabled: {_kinds(
+        events
+    )}";
+    calls = _of(events, "tool_call");
+    assert len(calls) >= 1 , f"the tool call vanished: {_kinds(events)}";
+    assert calls[0].data.get("args", {}).get("path") == "main.jac" , calls[0].data;
 }
 
 
-test "the tool name reaches the caller early, not only at the end" {
-    body = '{"path": "main.jac", "content": "' + ("y" * 400) + '"}';
-    script: list = [];
-    first = True;
-    for frag in _fragments(body) {
-        script.append(
-            _arg_chunk(
-                0,
-                frag,
-                call_id=("c1" if first else None),
-                name=("write_file" if first else None)
-            )
-        );
-        first = False;
-    }
+test "deltas precede the call and the first one names the tool" {
+    events = _run(
+        [[_chunk(content="Writing it. ")] + _frags(BODY, "write_file", "c1")],
+        [_rebuilt([("c1", "write_file", BODY)])],
+        [write_file]
+    );
+    kinds = _kinds(events);
 
-    events = _events_for(script, _rebuilt_one("c1", "write_file", body), [write_file]);
-    deltas = _of_type(events, "tool_call_delta");
-    assert len(deltas) > 0 , "no tool_call_delta emitted";
-    assert deltas[0].data.get("tool") == "write_file" , f"first delta should name the tool, got {deltas[
+    deltas = _of(events, "tool_call_delta");
+    assert len(deltas) > 0 , f"no deltas emitted: {kinds}";
+    assert kinds.index("tool_call_delta") < kinds.index("tool_call") , f"deltas must precede the call: {kinds}";
+    assert deltas[0].data.get("tool") == "write_file" , f"the first delta must name the tool: {deltas[
         0
     ].data}";
 }
 
 
-test "emission is coalesced so a large argument cannot flood the consumer" {
-    body = '{"path": "main.jac", "content": "' + ("z" * 4000) + '"}';
-    script: list = [];
-    first = True;
-    # 2-char fragments: a deliberately pathological provider.
-    for frag in _fragments(body, 2) {
-        script.append(
-            _arg_chunk(
-                0,
-                frag,
-                call_id=("c1" if first else None),
-                name=("write_file" if first else None)
-            )
-        );
-        first = False;
-    }
-    produced = len(_fragments(body, 2));
+test "coalescing bounds a provider that fragments pathologically" {
+    sent = len(range(0, len(BODY), 2));
+    events = _run(
+        [_frags(BODY, "write_file", "c1", size=2)],
+        [_rebuilt([("c1", "write_file", BODY)])],
+        [write_file]
+    );
 
-    events = _events_for(script, _rebuilt_one("c1", "write_file", body), [write_file]);
-    deltas = _of_type(events, "tool_call_delta");
-
-    assert len(deltas) > 0 , "no tool_call_delta emitted";
-    assert len(deltas) < produced / 4 , f"expected coalescing, got {len(
-        deltas
-    )} events for {produced} fragments";
+    deltas = _of(events, "tool_call_delta");
+    assert len(deltas) > 0 , "no deltas emitted";
+    assert len(deltas) < sent / 4 , f"expected coalescing, got {len(deltas)} events for {sent} fragments";
 }
 
 
-test "the executed tool call is unchanged by streaming the fragments" {
+test "the executed call is byte-identical to the rebuilt one" {
     body = '{"path": "main.jac", "content": "hello world"}';
-    script: list = [];
-    first = True;
-    for frag in _fragments(body, 5) {
-        script.append(
-            _arg_chunk(
-                0,
-                frag,
-                call_id=("c1" if first else None),
-                name=("write_file" if first else None)
-            )
-        );
-        first = False;
-    }
+    events = _run(
+        [_frags(body, "write_file", "c1", size=5)],
+        [_rebuilt([("c1", "write_file", body)])],
+        [write_file]
+    );
 
-    events = _events_for(script, _rebuilt_one("c1", "write_file", body), [write_file]);
-    calls = _of_type(events, "tool_call");
-    assert len(calls) >= 1 , "no tool_call emitted";
-    assert calls[0].data.get("tool") == "write_file" , calls[0].data;
-    assert calls[0].data.get("args", {}).get("path") == "main.jac" , calls[0].data;
+    calls = _of(events, "tool_call");
     assert calls[0].data.get("args", {}).get("content") == "hello world" , calls[
         0
     ].data;
-
-    results = _of_type(events, "tool_result");
-    assert len(results) >= 1 , "the tool did not execute";
+    results = _of(events, "tool_result");
     assert "wrote 11 chars to main.jac" in str(results[0].data.get("result", "")) , results[
         0
     ].data;
 }
 
 
-test "fragments from a parallel batch stay separated by call_id" {
-    a_body = '{"path": "a.jac", "content": "aaa"}';
-    b_body = '{"path": "b.jac"}';
-    script: list = [
-        _arg_chunk(0, a_body[:10], call_id="c1", name="write_file"),
-        _arg_chunk(1, b_body[:8], call_id="c2", name="read_file"),
-        _arg_chunk(0, a_body[10:]),
-        _arg_chunk(1, b_body[8:])
+test "a parallel batch keeps its calls separate" {
+    a = '{"path": "a.jac", "content": "aaa"}';
+    b = '{"path": "b.jac"}';
+    events = _run(
+        [
+            _frags(a, "write_file", "c1", size=10, index=0)
+                + _frags(b, "read_file", "c2", size=8, index=1)
+        ],
+        [_rebuilt([("c1", "write_file", a), ("c2", "read_file", b)])],
+        [write_file, read_file]
+    );
+
+    joined: dict = {};
+    for d in _of(events, "tool_call_delta") {
+        cid = d.data.get("call_id", "");
+        joined[cid] = joined.get(cid, "") + str(d.data.get("arg_fragment", ""));
+    }
+    assert "c1" in joined and "c2" in joined , f"both calls should stream under their own id: {list(
+        joined.keys()
+    )}";
+    assert "a.jac" in joined["c1"] and "b.jac" in joined["c2"] , joined;
+    assert "b.jac" not in joined["c1"] , f"fragments crossed calls: {joined}";
+}
+
+
+test "a retry announces the reset before the replacement's deltas" {
+    # Both drain paths must hold the invariant. The "loop" replacement is long
+    # and named, so it publishes while the token loop runs. The "flush" one is
+    # short and unnamed, so no threshold trips and its deltas exist only because
+    # the dispatcher flushes after the loop ends.
+    short = '{"path": "a.jac"}';
+    cases = [
+        (
+            "loop",
+            _frags(BODY, "write_file", "c1"),
+            _rebuilt([("c1", "write_file", BODY)]),
+            [write_file]
+        ),
+        (
+            "flush",
+            [_chunk(frag=short[i:i + 4]) for i in range(0, len(short), 4)],
+            _rebuilt([("c1", "read_file", short)]),
+            [read_file]
+        )
     ];
 
-    tc_a = types.SimpleNamespace(
-        id="c1",
-        type="function",
-        function=types.SimpleNamespace(name="write_file", arguments=a_body)
-    );
-    tc_b = types.SimpleNamespace(
-        id="c2",
-        type="function",
-        function=types.SimpleNamespace(name="read_file", arguments=b_body)
-    );
-    rebuilt = {
-        "choices": [
-            {
-                "message": {
-                    "role": "assistant",
-                    "content": "",
-                    "tool_calls": [tc_a, tc_b]
-                },
-                "finish_reason": "tool_calls"
-            }
-        ],
-        "model": "gpt-4o",
-        "usage": {}
-    };
+    for (label, replacement, rebuilt, tools) in cases {
+        events = _run([RETRY, replacement], [None, rebuilt], tools);
+        kinds = _kinds(events);
 
-    events = _events_for(script, rebuilt, [write_file, read_file]);
-    deltas = _of_type(events, "tool_call_delta");
-    assert len(deltas) > 0 , "no tool_call_delta emitted";
-
-    by_id: dict = {};
-    for d in deltas {
-        cid = d.data.get("call_id", "");
-        by_id[cid] = by_id.get(cid, "") + str(d.data.get("arg_fragment", ""));
+        assert "tool_call_delta" in kinds , f"[{label}] the replacement's deltas were lost: {kinds}";
+        assert "stream_reset" in kinds , f"[{label}] the retry was never announced: {kinds}";
+        assert kinds.index("stream_reset") < kinds.index("tool_call_delta") , f"[{label}] reset must precede the replacement's deltas: {kinds}";
     }
-    assert "c1" in by_id and "c2" in by_id , f"both calls should stream under their own id, got {list(
-        by_id.keys()
-    )}";
-    assert "a.jac" in by_id["c1"] , by_id;
-    assert "b.jac" in by_id["c2"] , by_id;
-    assert "b.jac" not in by_id["c1"] , f"fragments crossed calls: {by_id}";
-}
-
-
-test "a transient retry still delivers the replacement stream's deltas" {
-    body = '{"path": "main.jac", "content": "recovered"}';
-    good: list = [];
-    first = True;
-    for frag in _fragments(body, 6) {
-        good.append(
-            _arg_chunk(
-                0,
-                frag,
-                call_id=("c1" if first else None),
-                name=("write_file" if first else None)
-            )
-        );
-        first = False;
-    }
-
-    llm = Model(model_name="gpt-4o");
-    mt = _runtime([write_file]);
-    turns = [0];
-
-    def _stream(params: dict) -> any {
-        turns[0] += 1;
-        # Attempt 1 drops mid-stream with a transient error, which bumps
-        # _stream_reset_count; attempt 2 is the replacement stream.
-        if turns[0] == 1 {
-            raise litellm.APIConnectionError(
-                message="boom", llm_provider="openai", model="gpt-4o"
-            );
-        }
-        if turns[0] == 2 {
-            return good;
-        }
-        return [_text_chunk("all done")];
-    }
-
-    def _rebuild(seen: list) -> dict {
-        if turns[0] == 2 {
-            return _rebuilt_one("c1", "write_file", body);
-        }
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "role": "assistant",
-                        "content": "all done",
-                        "tool_calls": []
-                    },
-                    "finish_reason": "stop"
-                }
-            ],
-            "model": "gpt-4o",
-            "usage": {}
-        };
-    }
-
-    events: list = [];
-    with mock.patch.object(llm, "model_call_with_stream", _stream), mock.patch.object(
-        _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild
-    ) {
-        for ev in llm._invoke_streaming(mt) {
-            events.append(ev);
-        }
-    }
-
-    kinds = [e.event_type for e in events];
-    assert "stream_reset" in kinds , f"the retry should surface a reset, got {kinds}";
-
-    deltas = _of_type(events, "tool_call_delta");
-    assert len(deltas) > 0 , f"the replacement stream's deltas were discarded by the reset. saw: {kinds}";
-
-    joined = "";
-    for d in deltas {
-        joined += str(d.data.get("arg_fragment", ""));
-    }
-    assert "recovered" in joined or deltas[0].data.get("tool") == "write_file" , f"deltas lost their payload after the reset: {[
-        d.data for d in deltas
-    ]}";
-}
-
-
-test "a reset is announced before deltas that only surface at flush" {
-    # The replacement stream carries NO prose and only unnamed, sub-threshold
-    # fragments, so nothing publishes during the token loop and the deltas
-    # appear only when the dispatcher flushes after it. The consumer must still
-    # announce the reset first, or a UI concatenates these arguments onto the
-    # stale text it already showed for the failed attempt.
-    body = '{"path": "a.jac"}';
-
-    llm = Model(model_name="gpt-4o");
-    mt = _runtime([read_file]);
-    turns = [0];
-
-    def _stream(params: dict) -> any {
-        turns[0] += 1;
-        if turns[0] == 1 {
-            raise litellm.APIConnectionError(
-                message="dropped", llm_provider="openai", model="gpt-4o"
-            );
-        }
-        if turns[0] == 2 {
-            out: list = [];
-            for frag in _fragments(body, 4) {
-                out.append(_arg_chunk(0, frag));
-            }
-            return out;
-        }
-        return [_text_chunk("finished")];
-    }
-
-    def _rebuild(seen: list) -> dict {
-        if turns[0] == 2 {
-            return _rebuilt_one("c1", "read_file", body);
-        }
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "role": "assistant",
-                        "content": "finished",
-                        "tool_calls": []
-                    },
-                    "finish_reason": "stop"
-                }
-            ],
-            "model": "gpt-4o",
-            "usage": {}
-        };
-    }
-
-    events: list = [];
-    with mock.patch.object(llm, "model_call_with_stream", _stream), mock.patch.object(
-        _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild
-    ) {
-        for ev in llm._invoke_streaming(mt) {
-            events.append(ev);
-        }
-    }
-
-    kinds = [e.event_type for e in events];
-    assert "tool_call_delta" in kinds , f"the flushed deltas never reached the caller: {kinds}";
-    assert "stream_reset" in kinds , f"the retry was never announced: {kinds}";
-    assert kinds.index("stream_reset") < kinds.index("tool_call_delta") , f"reset must precede the replacement deltas, got {kinds}";
-}
-
-
-test "tool-argument streaming is off unless it is turned on" {
-    # The feature ships disabled. Without `stream_tool_args` (or the jac.toml
-    # `[byllm.tool_stream] enabled` setting) a caller sees exactly what it saw
-    # before: prose, then one terminal tool_call.
-    body = '{"path": "main.jac", "content": "' + ("q" * 300) + '"}';
-    script: list = [_text_chunk("Working. ")];
-    first = True;
-    for frag in _fragments(body) {
-        script.append(
-            _arg_chunk(
-                0,
-                frag,
-                call_id=("c1" if first else None),
-                name=("write_file" if first else None)
-            )
-        );
-        first = False;
-    }
-
-    llm = Model(model_name="gpt-4o");
-    wrapped = [Tool(func=write_file)];
-    wrapped.append(Tool.make_finish_tool(str));
-    mt = MTRuntime(
-        messages=[
-            Message(role=MessageRole.SYSTEM, content="s"),
-            Message(role=MessageRole.USER, content="u")
-        ],
-        resp_type=str,
-        stream=True,
-        tools=wrapped,
-        call_params={},
-        mtir=None
-    );
-
-    turns = [0];
-
-    def _stream(params: dict) -> any {
-        turns[0] += 1;
-        if turns[0] == 1 {
-            return script;
-        }
-        return [_text_chunk("all done")];
-    }
-
-    def _rebuild(seen: list) -> dict {
-        if turns[0] == 1 {
-            return _rebuilt_one("c1", "write_file", body);
-        }
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "role": "assistant",
-                        "content": "all done",
-                        "tool_calls": []
-                    },
-                    "finish_reason": "stop"
-                }
-            ],
-            "model": "gpt-4o",
-            "usage": {}
-        };
-    }
-
-    events: list = [];
-    with mock.patch.object(llm, "model_call_with_stream", _stream), mock.patch.object(
-        _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild
-    ) {
-        for ev in llm._invoke_streaming(mt) {
-            events.append(ev);
-        }
-    }
-
-    kinds = [e.event_type for e in events];
-    assert len(_of_type(events, "tool_call_delta")) == 0 , f"deltas leaked while the feature was disabled: {kinds}";
-
-    # The pre-existing behaviour must be intact: the tool still runs correctly.
-    calls = _of_type(events, "tool_call");
-    assert len(calls) >= 1 , f"the tool call disappeared: {kinds}";
-    assert calls[0].data.get("args", {}).get("path") == "main.jac" , calls[0].data;
 }
