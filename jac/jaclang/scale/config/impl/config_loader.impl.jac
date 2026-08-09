@@ -398,16 +398,16 @@ impl reset_scale_config -> None {
 impl resolve_password_hash_cost(configured_cost: int) -> int {
     env_val = os.environ.get('JAC_SCALE_PASSWORD_HASH_COST');
     if not env_val {
-        return max(10, min(17, configured_cost));
+        return max(10, min(15, configured_cost));
     }
     try {
         cost = int(env_val);
     } except ValueError as e {
         raise ValueError(
-            f"JAC_SCALE_PASSWORD_HASH_COST must be an integer in 10..17, got: {env_val!r}"
+            f"JAC_SCALE_PASSWORD_HASH_COST must be an integer in 10..15, got: {env_val!r}"
         ) from e;
     }
-    return max(10, min(17, cost));
+    return max(10, min(15, cost));
 }
 
 impl JacScaleConfig.get_telemetry_config(self: JacScaleConfig) -> dict[str, any] {

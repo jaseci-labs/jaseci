@@ -1,7 +1,8 @@
 import json;
 import from jaclang.runtimelib.serving.authcrypt {
     hash_password as _scrypt_hash,
-    verify_password as _scrypt_verify
+    verify_password as _scrypt_verify,
+    is_prescrypt_hash as _is_prescrypt
 }
 import uuid;
 import from datetime { datetime, UTC }
@@ -47,6 +48,7 @@ obj IdentityStorage {
     ) -> dict[str, str];
 
     def reset_password(user_id: str, new_password: str) -> dict[str, str];
+    def expire_legacy_credentials(user_id: (str | None) = None) -> list[str];
     def get_root_id(user_id: str) -> str | None;
     def get_username(user_id: str) -> str | None;
     def update_user_fields(user_id: str, fields: dict[str, any]) -> bool;

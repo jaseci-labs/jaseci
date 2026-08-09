@@ -109,6 +109,8 @@ obj JacScaleUserManager(UserManager) {
         user_id: str, requires_reset: bool
     ) -> dict[str, str];
 
+    def expire_legacy_credentials(username: (str | None) = None) -> dict[str, any];
+
     def is_password_required(user_id: str) -> bool;
     def bootstrap_admin_user -> dict[str, str];
     def list_all_users(limit: int = 100, offset: int = 0) -> list[dict[str, any]];

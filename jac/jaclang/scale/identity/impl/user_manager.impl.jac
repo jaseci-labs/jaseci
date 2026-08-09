@@ -611,6 +611,21 @@ impl JacScaleUserManager.set_requires_password_reset(
     return {'message': 'Password reset requirement updated', 'user_id': user_id};
 }
 
+impl JacScaleUserManager.expire_legacy_credentials(
+    username: (str | None) = None
+) -> dict[str, any] {
+    target_id: (str | None) = None;
+    if username is not None {
+        user = self.get_user(username);
+        if not user {
+            return {'error': 'User not found'};
+        }
+        target_id = str(user.get('user_id', username));
+    }
+    expired = self._identity_storage.expire_legacy_credentials(target_id);
+    return {'expired_user_ids': expired, 'count': len(expired)};
+}
+
 impl JacScaleUserManager.is_password_required(user_id: str) -> bool {
     user = self._identity_storage.get_user_by_id(user_id);
     if not user {
