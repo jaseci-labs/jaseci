@@ -209,8 +209,8 @@ test "non-tensor guard condition keeps its original exception contract" {
 
 test "partial trap-marker text propagates unchanged" {
     # An unrelated RuntimeError that happens to contain marker-like text must
-    # come out of the boundary guard exactly as it went in -- not IndexError,
-    # not a mis-restored exception.
+    # come out of the boundary guard exactly as it went in: not an IndexError
+    # from an unchecked split, and not a mis-restored exception.
     wrapped = __jac_trap_guard__(_raise_runtime);
     for text in ["dynamo says [[GM-TRAP oops", "[[GM-TRAP ValueError]]never closed"] {
         raised = None;
