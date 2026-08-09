@@ -1502,6 +1502,9 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
     if not isinstance(val.type, ir.PointerType)
         and isinstance(target_type, ir.PointerType) {
         if target_type?.pointee and target_type.pointee == val.type {
+            if isinstance(val.type, ir.LiteralStructType) {
+                return self._box_value_tuple(val);
+            }
             null_ptr = ir.Constant(target_type, None);
             size_gep = self.builder.gep(
                 null_ptr, [ir.Constant(ir.IntType(32), 1)], name="clib.sizeof.gep"
