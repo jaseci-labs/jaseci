@@ -1,9 +1,8 @@
-"""The rebuttal's harmlessness analysis, positive case: the moved attribute
-has a consumer in another function, but that consumer's FIRST mention of the
-attribute is the same normalizing device move, so it re-establishes device
-placement before every read and cannot observe the hoisted move. Mirrors
-`dynamic_frequency_update` sharing `original_inv_freq` with the longrope
-path in transformers. The hoist is licensed."""
+"""Consumer analysis, positive case: the moved attribute has a consumer in
+another function, but that consumer's FIRST mention of the attribute is the
+same normalizing device move, so it re-establishes device placement before
+every read and cannot observe the hoisted move. This is the common shape of
+shared rotary-embedding caches in model code. The hoist is licensed."""
 import torch;
 
 @torch.compile()

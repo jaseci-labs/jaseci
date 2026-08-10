@@ -1,5 +1,5 @@
 """Data-dependent control flow where both branches make the same call with a
-differing argument (paper Fig. 4 / Phi-4 register_buffer reconciliation)."""
+differing argument, the shared-trailing-call reconciliation shape."""
 import torch;
 
 @torch.compile()

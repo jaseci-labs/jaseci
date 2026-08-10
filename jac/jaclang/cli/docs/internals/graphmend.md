@@ -48,7 +48,7 @@ this page when it lands.
 
 ## Detection: `GraphBreakDetectPass`
 
-Detection implements the paper's Dynamo entry-point analysis plus graph-break
+Detection combines a Dynamo entry-point analysis with graph-break
 type analysis. It records a `GraphBreakKind` (declared in
 `jac0core/constant.jac`) per break site; each kind names the single transform
 allowed to lower it. Detection breadth grows in lockstep with the transforms:
@@ -452,7 +452,7 @@ Python source for `.jac` and `.py` fixtures, including one decline test per
 legality condition above.
 `test_graphmend_trap_integration.jac` and
 `test_graphmend_where_integration.jac` (skipped without torch) drive the
-transformed code through a counting Dynamo backend and assert the paper's
+transformed code through a counting Dynamo backend and assert the headline
 metric directly: each fixture fragments into two or more graphs without
 GraphMend and exactly one with it. The trap tests additionally check that a
 failing guard under a real eager-backend compile surfaces as the original

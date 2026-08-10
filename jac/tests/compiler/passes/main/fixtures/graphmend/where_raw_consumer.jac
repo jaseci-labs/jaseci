@@ -1,4 +1,4 @@
-"""The rebuttal's harmlessness analysis, negative case: another function
+"""Consumer analysis, negative case: another function
 reads the moved attribute WITHOUT normalizing its device first, so it can
 observe the placement change the hoisted move makes on executions that took
 the other branch. Must DECLINE."""
