@@ -73,7 +73,7 @@ test "uow: read-only transactions take zero SIREAD predicate locks" {
         store = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
         try {
             store.ensure_schema({});
-            store.begin(serializable=False, read_only=True);
+            store.begin(read_only=True);  # read_only wins over the serializable default
             store.rows('SELECT count(*) FROM anchors', {});
             si = store.rows(
                 "SELECT count(*) FROM pg_locks"

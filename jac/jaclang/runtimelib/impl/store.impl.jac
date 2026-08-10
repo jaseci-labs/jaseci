@@ -486,10 +486,10 @@ impl PgStore.begin(serializable: bool = True, read_only: bool = False) -> None {
         if self._in_txn {
             return;
         }
-        if serializable {
-            level = 'SERIALIZABLE';
-        } elif read_only {
+        if read_only {
             level = 'REPEATABLE READ';
+        } elif serializable {
+            level = 'SERIALIZABLE';
         } else {
             level = 'READ COMMITTED';
         }
