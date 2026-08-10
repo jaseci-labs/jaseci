@@ -10,6 +10,7 @@ for sealing the parser outside darwin.
 
 import json;
 import os;
+import pytest;
 import tempfile;
 import jaclang;
 import from pathlib { Path }
@@ -33,6 +34,14 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      _ARTIFACT_MEMO: list = [];
 
 def _build_binding -> tuple {
+    if "/.cache/jac/rt/"
+        in str(Path(jaclang.__file__).resolve()).replace(os.sep, "/") {
+        pytest.skip(
+            "sealed-payload runtime: the parser seal is gated in source "
+            "environments (dev lanes, macOS, build time), not from inside "
+            "an installed payload"
+        );
+    }
     if _ARTIFACT_MEMO {
         return _ARTIFACT_MEMO[0];
     }
