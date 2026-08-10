@@ -549,11 +549,7 @@ def seal_native_artifacts(
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
     pkg_name = pkg_path.name;
-    triple = llvm.get_default_triple();
     for rel in (NATIVE_SEAL_MODULES if modules is None else modules) {
-        if rel == "jac0core/parser/parser.jac" and "darwin" not in triple {
-            continue;
-        }
         src = pkg_path / rel;
         if not src.is_file() {
             console.error(f"NATIVE SEAL: missing source {src}");
