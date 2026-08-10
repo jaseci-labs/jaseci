@@ -2515,17 +2515,12 @@ If `MainContent` throws an error, only that boundary's fallback is shown, while 
 
 ## Memory & Persistence
 
-### Memory Hierarchy
+### The Session
 
-| Tier | Type | Implementation |
-|------|------|----------------|
-| L1 | Volatile | VolatileMemory (in-process) |
-| L2 | Cache | LocalCacheMemory (TTL-based) |
-| L3 | Persistent | SqliteMemory (default) |
-
-### TieredMemory
-
-Automatic read-through caching and write-through persistence:
+Each unit of work runs against a `Session`: an in-memory view of the graph
+backed by the project's Postgres store (embedded locally, external via
+`JAC_DB_URL`). Reads materialize anchors into the session; writes commit in
+one serializable transaction at the end of the unit of work.
 
 ```jac
 # Objects are automatically persisted
