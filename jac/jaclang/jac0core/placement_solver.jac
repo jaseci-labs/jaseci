@@ -129,6 +129,16 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
         _is_demoted_native,
         native_pipeline_available
     }
+
+    try {
+        import from jaclang.project.config { get_config }
+        _cfg = get_config();
+        if (_cfg is not None and getattr(_cfg?.project, 'kind', '') == 'web-app') {
+            return (False, "web-app project: native is opt-in");
+        }
+    } except Exception {
+        ;
+    }
     (env_ok, env_reason) = native_pipeline_available();
     if not env_ok {
         return (False, env_reason);

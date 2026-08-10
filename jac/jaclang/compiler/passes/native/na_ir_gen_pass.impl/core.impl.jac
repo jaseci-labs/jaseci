@@ -484,12 +484,14 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         for _s in ModuleCodegenPass.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
     };
     _has_native_code: bool = len(_native_ids) > 0;
+    _nested_native = ModuleCodegenPass.iter_nested_imports(
+        self.ir_in, CodeContext.NATIVE
+    );
+    for _nested_imp in _nested_native {
+        _native_ids.add(id(_nested_imp));
+    }
     wq: list = [];
-    for imp in [
-        s
-        for s in ModuleCodegenPass.iter_context_stmts(self.ir_in)
-        if isinstance(s, uni.Import)
-    ] {
+    for imp in ModuleCodegenPass.iter_module_imports(self.ir_in) + _nested_native {
         mod_name = self._extract_import_module_name(imp);
         if not mod_name {
             continue;
@@ -571,11 +573,8 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         imported_mods.append((src_mod_str, imported_mod));
 
         sub_base = os.path.dirname(os.path.abspath(full_path));
-        for sub_imp in [
-            s
-            for s in ModuleCodegenPass.iter_context_stmts(imported_mod)
-            if isinstance(s, uni.Import)
-        ] {
+        for sub_imp in ModuleCodegenPass.iter_module_imports(imported_mod)
+            + ModuleCodegenPass.iter_nested_imports(imported_mod, CodeContext.NATIVE) {
             sub_name = self._extract_import_module_name(sub_imp);
             if sub_name {
                 wq.append((sub_name, sub_base, src_mod_str));
@@ -970,11 +969,8 @@ impl NaIRGenPass._forward_declare_imported_ability(nd: uni.Ability) -> None {
 }
 
 impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
-    imports = [
-        s
-        for s in ModuleCodegenPass.iter_context_stmts(module)
-        if isinstance(s, uni.Import)
-    ];
+    imports = ModuleCodegenPass.iter_module_imports(module)
+        + ModuleCodegenPass.iter_nested_imports(module, CodeContext.NATIVE);
     for stmt in imports {
         if not stmt.clib_decls {
             if stmt.items {
@@ -1230,7 +1226,8 @@ impl NaIRGenPass._dispatch_builtin(
     args: list[ir.Value],
     kwargs: (dict | None) = None,
     kw_node: (uni.UniNode | None) = None,
-    type_key: str = ""
+    type_key: str = "",
+    arg_nodes: (list | None) = None
 ) -> (ir.Value | None) {
     args = [self._str_norm(_a) for _a in args];
     self._ensure_emitters();
@@ -1255,7 +1252,10 @@ impl NaIRGenPass._dispatch_builtin(
         return None;
     }
     _ctx = self._native_emit_ctx_class(
-        pass_ref=self, type_key=type_key, call_kwargs=(kwargs or {})
+        pass_ref=self,
+        type_key=type_key,
+        call_kwargs=(kwargs or {}),
+        arg_nodes=(arg_nodes or [])
     );
     return _emit_fn(_ctx, args);
 }
