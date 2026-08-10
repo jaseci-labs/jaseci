@@ -134,7 +134,7 @@ jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-g] [--graphmend]
 | `-s, --show` | Print the resolved project run-plan (kind, action, equivalent command) without executing | `False` |
 | `-m, --main` | Treat module as `__main__` | `True` |
 | `-c, --cache` | Enable compilation cache | `True` |
-| `-g, --graphmend` | Apply [GraphMend](../../internals/graphmend.md) passes to eliminate PyTorch 2 FX graph breaks (experimental) | `False` |
+| `-g, --graphmend` | Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental) | `False` |
 | `-e, --diagnostics` | Diagnostic verbosity: `error`, `all`, or `none` | `error` |
 | `--profile` | Configuration profile to load (e.g. prod, staging) | `""` |
 | `--entry` | Run a specific entrypoint (function/walker) instead of the module's `with entry` block | None |

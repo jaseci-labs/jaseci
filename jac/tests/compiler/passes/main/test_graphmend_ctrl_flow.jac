@@ -206,7 +206,7 @@ test "differing common-call arguments containing calls are declined" {
 }
 
 test "a shadowed torch root in the initializer is declined" {
-    src = _pysrc("guard_shadowed_torch.jac", True);
+    src = _pysrc("guard_shadowed_torch_root.jac", True);
     # `import fake as torch` rebinds the root; the allowlisted leaf name
     # proves nothing without a genuine `import torch` binding.
     assert "torch.where(" not in src;
