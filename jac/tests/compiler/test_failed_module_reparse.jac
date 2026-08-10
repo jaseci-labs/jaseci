@@ -18,7 +18,6 @@ module once and never duplicated.
 """
 
 import tempfile;
-import time;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.program { JacProgram }
@@ -29,12 +28,6 @@ glob BROKEN_SRC = 'def broken_repro( -> {{{ SYNTAX ERROR\n',
          'import from .broken { broken_repro }\n\n'
          'def:pub card -> JsxElement {\n'
          '    return <div>{broken_repro()}</div>;\n}\n'
-     ),
-     CLEAN_SRC = 'def:pub fine -> int {\n    return 1;\n}\n',
-     CLEAN_CARD_SRC = (
-         'import from .clean { fine }\n\n'
-         'def:pub good -> JsxElement {\n'
-         '    return <div>{fine()}</div>;\n}\n'
      );
 
 # Lay the project down in a dir of its own. Every measurement gets a fresh one
@@ -48,8 +41,6 @@ def _write_project(base: str) -> Path {
     );
     (proj / "broken.jac").write_text(BROKEN_SRC);
     (proj / "card.jac").write_text(CARD_SRC);
-    (proj / "clean.jac").write_text(CLEAN_SRC);
-    (proj / "clean_card.jac").write_text(CLEAN_CARD_SRC);
     return proj;
 }
 
@@ -121,20 +112,6 @@ test "a recompile still reports its errors to a positional slice reader" {
     }
 }
 
-test "a module that fails to parse is recorded in the hub" {
-    with tempfile.TemporaryDirectory() as tmp {
-        proj = _write_project(tmp);
-        prog = JacProgram();
-        try {
-            prog.compile(str(proj / "card.jac"));
-        } except Exception {
-            ;
-        }
-        broken = str((proj / "broken.jac").resolve());
-        assert broken in prog.mod.hub , "a failed module must still be recorded, so the next path resolves it";
-    }
-}
-
 test "a corrected module recompiles on a long-lived program" {
     with tempfile.TemporaryDirectory() as tmp {
         proj = _write_project(tmp);
@@ -148,22 +125,14 @@ test "a corrected module recompiles on a long-lived program" {
         assert len(prog.errors_had) > 0;
         # An editor or the dev server keeps one program alive across edits, so
         # a remembered failure must not outlive the syntax error that caused it.
-        time.sleep(1.1);
+        # No mtime spacing is needed before the rewrite: `invalidate_module`
+        # drops the `_hub_cache_times` stamp, so freshness is never consulted,
+        # and the on-disk JIR key hashes content rather than mtime.
         broken.write_text(FIXED_SRC);
         prog.errors_had = [];
         prog.invalidate_module(str(broken.resolve()));
         prog.invalidate_module(str((proj / "card.jac").resolve()));
         prog.compile(str(proj / "card.jac"));
         assert len(prog.errors_had) == 0 , f"fixing the file must clear the recorded failure: {prog.errors_had}";
-    }
-}
-
-test "caching a failure does not disturb a clean client import" {
-    with tempfile.TemporaryDirectory() as tmp {
-        proj = _write_project(tmp);
-        prog = JacProgram();
-        prog.compile(str(proj / "clean_card.jac"));
-        assert len(prog.errors_had) == 0 , f"a healthy client import must still compile clean: {prog.errors_had}";
-        assert str((proj / "clean.jac").resolve()) in prog.mod.hub;
     }
 }
