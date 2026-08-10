@@ -167,7 +167,23 @@ test "a scalar-materializing predicate is declined (soundness)" {
     assert "torch.where(" not in src;
     assert "if x.item() > 5:" in src;
     assert "if hits > 5:" in src;
-    assert _break_kinds("scalar_predicate.jac") == ["dyn_ctrl_fl", "dyn_ctrl_fl"];
+    # A bare alias is still a use-def edge, and the sibling `.sum()` licenses
+    # detection on its own, so only the chain can spot the scalar.
+    assert "if x.sum() > 0 and same > 5:" in src;
+    assert _break_kinds("scalar_predicate.jac") == [
+        "dyn_ctrl_fl", "dyn_ctrl_fl", "dyn_ctrl_fl"
+    ];
+}
+
+test "a scalar past the trace bound declines rather than slipping through" {
+    # The two queries share the bound but not a safe answer when it runs out:
+    # detection must fail closed (do not rewrite), the scalar query must
+    # decline. Only that polarity keeps the out-of-reach `.item()` from
+    # reaching torch.where as a Python bool.
+    src = _pysrc("scalar_past_trace_bound.jac", True);
+    assert "torch.where(" not in src;
+    assert "if x.sum() > 0 and a11 > 5:" in src;
+    assert _break_kinds("scalar_past_trace_bound.jac") == ["dyn_ctrl_fl"];
 }
 
 test "asymmetric call branches become torch.cond (runs one branch)" {

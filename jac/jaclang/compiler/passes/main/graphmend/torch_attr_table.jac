@@ -21,14 +21,14 @@ glob DYNAMIC_TORCH_ATTRS: set[str] = {
      SCALAR_TORCH_ATTRS: set[str] = {'item', 'tolist', 'equal', 'allclose'};
 
 def cond_is_data_dependent(cond: uni.Expr) -> bool {
-    return cond_traces_attr(cond, DYNAMIC_TORCH_ATTRS);
+    return cond_traces_attr(cond, DYNAMIC_TORCH_ATTRS, False);
 }
 
 def cond_materializes_scalar(cond: uni.Expr) -> bool {
-    return cond_traces_attr(cond, SCALAR_TORCH_ATTRS);
+    return cond_traces_attr(cond, SCALAR_TORCH_ATTRS, True);
 }
 
-def cond_traces_attr(cond: uni.Expr, attrs: set[str]) -> bool {
+def cond_traces_attr(cond: uni.Expr, attrs: set[str], on_exhaust: bool) -> bool {
     if expr_uses_attr(cond, attrs) {
         return True;
     }
@@ -39,7 +39,7 @@ def cond_traces_attr(cond: uni.Expr, attrs: set[str]) -> bool {
     visited: set[str] = set();
     for nm in cond.get_all_sub_nodes(uni.Name) {
         sym = st.lookup(nm.value, deep=True);
-        if sym and trace_symbol_attr(sym, attrs, visited, 0) {
+        if sym and trace_symbol_attr(sym, attrs, visited, 0, on_exhaust) {
             return True;
         }
     }
@@ -58,9 +58,12 @@ def expr_uses_attr(expr: uni.UniNode, attrs: set[str]) -> bool {
 }
 
 def trace_symbol_attr(
-    sym: uni.Symbol, attrs: set[str], visited: set[str], depth: int
+    sym: uni.Symbol, attrs: set[str], visited: set[str], depth: int, on_exhaust: bool
 ) -> bool {
-    if (depth > 10) or (sym.sym_name in visited) {
+    if depth > 10 {
+        return on_exhaust;
+    }
+    if sym.sym_name in visited {
         return False;
     }
     visited.add(sym.sym_name);
@@ -75,10 +78,14 @@ def trace_symbol_attr(
     if not st {
         return False;
     }
-    for nm in assign.value.get_all_sub_nodes(uni.Name) {
+    deps = list(assign.value.get_all_sub_nodes(uni.Name));
+    if isinstance(assign.value, uni.Name) {
+        deps.append(assign.value);
+    }
+    for nm in deps {
         dep = st.lookup(nm.value, deep=True);
         if dep and (dep.sym_name not in visited) {
-            if trace_symbol_attr(dep, attrs, visited, depth + 1) {
+            if trace_symbol_attr(dep, attrs, visited, depth + 1, on_exhaust) {
                 return True;
             }
         }
