@@ -419,3 +419,20 @@ test "graphmend options survive every jac run mode" {
     assert rc_debug == 1;
     _cleanup();
 }
+
+test "a serve plan refuses graphmend instead of dropping it" {
+    d = _mk_project("kind = \"service\"\nentry-point = \"api.sv.jac\"\n", "api.sv.jac");
+    old = os.getcwd();
+    os.chdir(d);
+    captured = io.StringIO();
+    sys.stderr = captured;
+    try {
+        rc = execution.run(filename="", graphmend=True);
+    } finally {
+        sys.stderr = sys.__stderr__;
+        os.chdir(old);
+    }
+    assert rc == 1;
+    assert "cannot be combined" in captured.getvalue();
+    _cleanup();
+}

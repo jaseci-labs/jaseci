@@ -97,6 +97,12 @@ def _execute_plan(
             graphmend_scope=graphmend_scope
         );
     }
+    if graphmend or graphmend_scope.strip() {
+        console.error(
+            f"--graphmend cannot be combined with a '{plan.action}' run plan."
+        );
+        return 1;
+    }
     if plan.action == "serve" {
         return start(
             filename=plan.entry_path,
