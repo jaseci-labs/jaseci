@@ -123,10 +123,7 @@ impl JacProgram.transitive_dependents(self: JacProgram, target_path: str) -> set
 }
 
 impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None {
-    import from jaclang.jac0core.jir {
-        mtir_for_module,
-        mtir_module_key,
-    }
+    import from jaclang.jac0core.jir { mtir_for_module, mtir_module_key, }
 
     if resolved_path in self.mod.hub {
         del (self.mod.hub[resolved_path], );
