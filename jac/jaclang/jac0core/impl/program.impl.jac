@@ -123,6 +123,11 @@ impl JacProgram.transitive_dependents(self: JacProgram, target_path: str) -> set
 }
 
 impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None {
+    import from jaclang.jac0core.jir {
+        mtir_for_module,
+        mtir_module_key,
+    }
+
     if resolved_path in self.mod.hub {
         del (self.mod.hub[resolved_path], );
     }
@@ -136,6 +141,15 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
 
     if resolved_path in self._placement_summaries {
         del (self._placement_summaries[resolved_path], );
+    }
+
+    module_mtir = mtir_for_module(self.mtir_by_module, resolved_path);
+    for scope in module_mtir {
+        self.mtir_map.pop(scope, None);
+    }
+    mod_key = mtir_module_key(resolved_path);
+    if mod_key in self.mtir_by_module {
+        del (self.mtir_by_module[mod_key], );
     }
 
     te = self.type_evaluator;

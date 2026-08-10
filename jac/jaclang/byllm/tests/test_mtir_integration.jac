@@ -455,6 +455,70 @@ test "same-stem modules in different dirs keep mtir isolated" {
     }
 }
 
+test "invalidate module clears stale mtir" {
+    import shutil;
+    import from jaclang.jac0core.compiler { JacCompiler }
+    import from jaclang.jac0core.jir {
+        get_module_cache_path,
+        mtir_for_module,
+        mtir_module_key,
+    }
+
+    tmp_path = Path(tempfile.mkdtemp());
+    jac_file = tmp_path / "stale_mtir.jac";
+    shutil.copy(fixture_path("basic_compile.jac"), str(jac_file));
+    path = str(jac_file.resolve());
+    plain_content = "glob x = 1;\n";
+
+    assert JacRuntime.program is not None;
+    prog = JacRuntime.program;
+    compiler = JacCompiler();
+
+    try {
+        assert compiler.get_bytecode(path, prog) is not None;
+        module_mtir = mtir_for_module(prog.mtir_by_module, path);
+        assert len(module_mtir) > 0 , "by llm compile should populate module MTIR";
+
+        scopes_before = list(module_mtir.keys());
+        for scope in scopes_before {
+            assert scope in prog.mtir_map , (
+                f"MTIR scope {scope} should be in mtir_map before invalidation"
+            );
+        }
+
+        mod_key = mtir_module_key(path);
+        prog.invalidate_module(path);
+
+        assert mod_key not in prog.mtir_by_module , (
+            "mtir_by_module slice should be removed on invalidation"
+        );
+        for scope in scopes_before {
+            assert scope not in prog.mtir_map , (
+                f"Stale MTIR key {scope} should be cleared on invalidation"
+            );
+        }
+
+        jac_file.write_text(plain_content);
+        assert compiler.get_bytecode(path, prog) is not None;
+
+        module_mtir_after = mtir_for_module(prog.mtir_by_module, path);
+        assert len(module_mtir_after) == 0 , (
+            "Recompile without by llm should not restore stale MTIR"
+        );
+        for scope in scopes_before {
+            assert scope not in prog.mtir_map , (
+                f"Stale MTIR key {scope} should stay gone after plain recompile"
+            );
+        }
+    } finally {
+        cache_path = get_module_cache_path(path);
+        if cache_path.exists() {
+            cache_path.unlink();
+        }
+        shutil.rmtree(str(tmp_path), ignore_errors=True);
+    }
+}
+
 # =============================================================================
 # Fixture Compilation Test
 # =============================================================================
