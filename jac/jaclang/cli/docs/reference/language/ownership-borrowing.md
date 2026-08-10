@@ -517,6 +517,13 @@ the Python backend and wasm, so post-join state is byte-identical
 everywhere by the disjointness rule. A named follow-up: the chunked
 form (`&mut xs.chunks(n)`), which waits on container views.
 
+Post-join *state* is what the rule pins. Side effects raised from
+inside the body -- a `print`, a log line -- are ordered against the
+join, never against each other: one region's output all lands before
+the next region's, but the interleaving within a region is unspecified
+wherever the fan-out is live. Code that needs an ordered stream should
+write elements through the `&mut` lend and emit after the join.
+
 ### The reduction idiom
 
 An accumulator write in a `flow for` body is E1308 -- except in the

@@ -121,6 +121,12 @@ impl NaIRGenPass._codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None) {
                 self._mark_owned(_result);
             }
         }
+
+        _narrowed = self._apply_flow_narrowing(nd, _result);
+        if _narrowed is not _result {
+            _narrowed.jac_loc = _jac_loc;
+            _result = _narrowed;
+        }
     }
     return _result;
 }
@@ -544,7 +550,12 @@ impl NaIRGenPass._codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None) {
     if left is None or right is None {
         return None;
     }
-    result = self._emit_binary_op(op, left, right);
+    result: (ir.Value | None);
+    if op == Tok.STAR_POW {
+        result = self._codegen_pow(left, right, nd.right);
+    } else {
+        result = self._emit_binary_op(op, left, right);
+    }
 
     if result is not None {
         i8p = ir.IntType(8).as_pointer();
@@ -1393,16 +1404,12 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
     self.builder.position_at_end(then_bb);
     then_val = self._codegen_expr(nd.value);
     then_end_bb = self.builder.block;
-    if not self.builder.block.is_terminated {
-        self.builder.branch(merge_bb);
-    }
+    then_open = not self.builder.block.is_terminated;
 
     self.builder.position_at_end(else_bb);
     else_val = self._codegen_expr(nd.else_value);
     else_end_bb = self.builder.block;
-    if not self.builder.block.is_terminated {
-        self.builder.branch(merge_bb);
-    }
+    else_open = not self.builder.block.is_terminated;
 
     if then_val is not None and else_val is not None {
         if then_val.type != else_val.type
@@ -1410,13 +1417,13 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
             and (
                 then_val.type == self._str_desc_ty or else_val.type == self._str_desc_ty
             ) {
-            if then_val.type != self._str_desc_ty {
-                self.builder.position_before(then_end_bb.terminator);
+            if then_val.type != self._str_desc_ty and then_open {
+                self.builder.position_at_end(then_end_bb);
                 then_val = self._coerce_type(then_val, self._str_desc_ty);
                 then_end_bb = self.builder.block;
             }
-            if else_val.type != self._str_desc_ty {
-                self.builder.position_before(else_end_bb.terminator);
+            if else_val.type != self._str_desc_ty and else_open {
+                self.builder.position_at_end(else_end_bb);
                 else_val = self._coerce_type(else_val, self._str_desc_ty);
                 else_end_bb = self.builder.block;
             }
@@ -1424,40 +1431,63 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
         if then_val.type != else_val.type {
             if isinstance(then_val.type, ir.DoubleType)
                 or isinstance(else_val.type, ir.DoubleType) {
-                if isinstance(then_val.type, ir.IntType) {
-                    self.builder.position_before(then_end_bb.terminator);
+                if isinstance(then_val.type, ir.IntType) and then_open {
+                    self.builder.position_at_end(then_end_bb);
                     then_val = self.builder.sitofp(
                         then_val, ir.DoubleType(), name="ternary.cast"
                     );
                 }
-                if isinstance(else_val.type, ir.IntType) {
-                    self.builder.position_before(else_end_bb.terminator);
+                if isinstance(else_val.type, ir.IntType) and else_open {
+                    self.builder.position_at_end(else_end_bb);
                     else_val = self.builder.sitofp(
                         else_val, ir.DoubleType(), name="ternary.cast"
                     );
                 }
             } elif isinstance(then_val.type, ir.IntType)
                 and isinstance(else_val.type, ir.IntType) {
-                if then_val.type.width > else_val.type.width {
-                    self.builder.position_before(else_end_bb.terminator);
+                if then_val.type.width > else_val.type.width and else_open {
+                    self.builder.position_at_end(else_end_bb);
                     else_val = self.builder.zext(
                         else_val, then_val.type, name="ternary.widen"
                     );
-                } else {
-                    self.builder.position_before(then_end_bb.terminator);
+                } elif then_val.type.width <= else_val.type.width and then_open {
+                    self.builder.position_at_end(then_end_bb);
                     then_val = self.builder.zext(
                         then_val, else_val.type, name="ternary.widen"
                     );
                 }
             }
         }
-        self.builder.position_at_end(merge_bb);
-        phi = self.builder.phi(then_val.type, name="ternary.result");
-        phi.add_incoming(then_val, then_end_bb);
-        phi.add_incoming(else_val, else_end_bb);
-        return phi;
+        if then_val.type != else_val.type {
+            _uni_ty = self._unify_repr_lowering([then_val.type, else_val.type]);
+            if _uni_ty is not None and then_val.type != _uni_ty and then_open {
+                self.builder.position_at_end(then_end_bb);
+                then_val = self._coerce_type(then_val, _uni_ty);
+                then_end_bb = self.builder.block;
+            }
+            if _uni_ty is not None and else_val.type != _uni_ty and else_open {
+                self.builder.position_at_end(else_end_bb);
+                else_val = self._coerce_type(else_val, _uni_ty);
+                else_end_bb = self.builder.block;
+            }
+        }
     }
-    return None;
+    if then_open {
+        self.builder.position_at_end(then_end_bb);
+        self.builder.branch(merge_bb);
+    }
+    if else_open {
+        self.builder.position_at_end(else_end_bb);
+        self.builder.branch(merge_bb);
+    }
+    self.builder.position_at_end(merge_bb);
+    if then_val is None or else_val is None {
+        return None;
+    }
+    phi = self.builder.phi(then_val.type, name="ternary.result");
+    phi.add_incoming(then_val, then_end_bb);
+    phi.add_incoming(else_val, else_end_bb);
+    return phi;
 }
 
 impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None) {
@@ -1471,6 +1501,34 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
         _cls_name = self._codegen_class_name(nd);
         if _cls_name is not None {
             return _cls_name;
+        }
+
+        _cf_member = self._codegen_class_form_enum_member(nd);
+        if _cf_member is not None {
+            return _cf_member;
+        }
+
+        if right_name == "value" or right_name == "name" {
+            import from jaclang.compiler.passes.main.layout_pass {
+                class_form_enum_member,
+                class_form_enum_scalar
+            }
+            _cf_owner = class_form_enum_member(
+                nd.target.type if isinstance(nd.target, uni.Expr) else None
+            );
+            if _cf_owner is not None {
+                if right_name == "value" {
+                    return self._codegen_class_form_enum_member(nd.target);
+                }
+                return self._make_global_string(
+                    _cf_owner[2], name_prefix=".cfenum.name"
+                );
+            }
+            if right_name == "value"
+                and isinstance(nd.target, uni.Expr)
+                and class_form_enum_scalar(nd.target.type) is not None {
+                return self._codegen_expr(nd.target);
+            }
         }
 
         if (right_name == "value" or right_name == "name")
@@ -1569,11 +1627,10 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             if (right_name == "value" or right_name == "name") {
                 enum_name = self._enum_name_of(nd.target);
                 if enum_name is not None and enum_name in self.enum_types {
-                    ordinal_val = self._codegen_expr(nd.target);
-                    if ordinal_val is not None {
-                        use_name = right_name == "name";
-                        return self._codegen_enum_value_lookup(
-                            enum_name, ordinal_val, use_name=use_name
+                    member_val = self._codegen_expr(nd.target);
+                    if member_val is not None {
+                        return self._codegen_enum_attr_runtime(
+                            enum_name, member_val, right_name == "name"
                         );
                     }
                 }

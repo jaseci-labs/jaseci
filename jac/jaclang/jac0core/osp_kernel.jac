@@ -24,7 +24,8 @@ obj WalkScope {
         ignores: list[int],
         reports: list[any],
         disengaged: bool = False,
-        next_head: int = 0;
+        next_head: int = 0,
+        nested: bool = False;
 }
 
 obj OspRuntime {
@@ -198,7 +199,14 @@ def _visit_recursive(
 }
 
 def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list[int]) -> any {
-    scope = WalkScope(wlk=wlk, path=[], next=`list(starts), ignores=[], reports=[]);
+    scope = WalkScope(
+        wlk=wlk,
+        path=[],
+        next=`list(starts),
+        ignores=[],
+        reports=[],
+        nested=(len(_walk_stack) > 0)
+    );
     _walk_stack.append(scope);
     ok = False;
     try {
@@ -224,6 +232,12 @@ def osp_spawn(rt: OspRuntime, wlk: any, wdesc: WalkerDesc, starts: list[int]) ->
         ok = True;
     } finally {
         _walk_stack.pop();
+        if scope.nested and _walk_stack {
+            outer = _walk_stack[-1];
+            for r in scope.reports {
+                outer.reports.append(r);
+            }
+        }
         rt.on_complete(scope, ok);
     }
     return wlk;

@@ -71,6 +71,31 @@ obj KubernetesTarget(KubernetesTargetBase) {
             );
         }
 
+        if not self.dry_run {
+            self._emit("runtime", "start", "Resolving the pod jac runtime");
+            try {
+                import from jaclang.scale.config.dev_config { resolve_dev_channel }
+                import from jaclang.scale.injector.binary {
+                    node_arch,
+                    preflight_pod_runtime
+                }
+                self._load_cluster_config();
+                pinned = preflight_pod_runtime(
+                    app_config.code_folder,
+                    resolve_dev_channel(app_config.code_folder).value,
+                    node_arch()
+                );
+            } except Exception as e {
+                self._emit("runtime", "error", str(e));
+                return DeploymentResult(success=False, message=str(e));
+            }
+            self._emit(
+                "runtime",
+                "ok",
+                f"Pod runtime jac {pinned}" if pinned else "Pod runtime resolved"
+            );
+        }
+
         self._emit("provision", "start", "Provisioning backends");
         try {
             self._deploy_context = DatabaseProvisioner(
@@ -372,9 +397,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         fleet_apps: set = set(app_labels);
 
         app_name = str(self.k8s_config.app_name or "");
-        companion_apps: set = (
-            {f"{app_name}-redis", f"{app_name}-mongodb"} if app_name else set()
-        );
+        companion_apps: set = {f"{app_name}-postgres"} if app_name else set();
         pod_selector = "app in ({})".format(", ".join(app_labels))
             if app_labels
             else None;
@@ -950,7 +973,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
                     scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
                     scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
-                    triggers=triggers
+                    triggers=triggers,
+                    behavior_overlay=cfg.get("behavior", {})
                 )
             );
 
