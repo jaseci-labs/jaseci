@@ -24,7 +24,7 @@ def normalize_rollout_timeout(value: any) -> int {
     } except (TypeError, ValueError) {
         (seconds, is_whole) = (0, False);
     }
-    if seconds < 1 or not is_whole {
+    if isinstance(value, bool) or seconds < 1 or not is_whole {
         raise ValueError(
             f"invalid rollout timeout '{value}': expected a positive whole "
             "number of seconds"
