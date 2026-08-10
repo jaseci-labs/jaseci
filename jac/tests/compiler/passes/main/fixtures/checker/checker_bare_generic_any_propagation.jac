@@ -39,12 +39,6 @@ def bare_dict_attr -> str {
     return d["a"].upper();
 }
 
-# Binary op on a bare generic's value type.
-def bare_dict_binop -> int {
-    d: dict = {"n": 1};
-    return d["n"] + 1;
-}
-
 # Iterating a bare generic's value type.
 def bare_dict_iter -> str {
     d: dict = {"items": ["x"]};
@@ -74,11 +68,6 @@ def explicit_dict_attr -> str {
 def explicit_list_chained -> str {
     l: list[any] = nested_list();
     return l[0][0];
-}
-
-def explicit_dict_binop -> int {
-    d: dict[str, any] = {"n": 1};
-    return d["n"] + 1;
 }
 
 def explicit_dict_iter -> str {

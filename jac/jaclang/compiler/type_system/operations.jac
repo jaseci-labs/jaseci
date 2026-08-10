@@ -281,16 +281,11 @@ def get_type_of_binary_operation(
         }
     }
 
-    if left_type.is_any_instance() or right_type.is_any_instance() {
-        if not (isinstance(expr.op, uni.Token) and expr.op.name == Tok.BW_OR) {
-            if evaluator.prefetch and evaluator.prefetch.any_class {
-                return evaluator._convert_to_instance(evaluator.prefetch.any_class);
-            }
-            return jtypes.AnyType();
-        }
-    }
-
-    if left_type.is_any_type() or right_type.is_any_type() {
+    _l_anycls = evaluator.is_explicit_any(left_type);
+    _r_anycls = evaluator.is_explicit_any(right_type);
+    if (
+        left_type.is_any_type() or right_type.is_any_type() or (_l_anycls and _r_anycls)
+    ) {
         if not (isinstance(expr.op, uni.Token) and expr.op.name == Tok.BW_OR) {
             return jtypes.UnknownType();
         }
