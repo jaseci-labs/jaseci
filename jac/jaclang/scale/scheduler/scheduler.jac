@@ -1,3 +1,4 @@
+import json;
 import logging;
 import datetime;
 import from typing { Any }
@@ -10,9 +11,10 @@ import from jaclang.scale._optdeps.apscheduler {
 }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.runtimelib.scheduler { Scheduler, ScheduleTrigger }
-import from jaclang.scale.persistence.docdb { open_doc_db }
+import from jaclang.scale.persistence.pg { open_docs_store }
 
 glob _jaclang_scale_scheduler: (JacScaleScheduler | None) = None,
+     JOBS_CHANGED_CHANNEL: str = 'jac_jobs_changed',
      logger = logging.getLogger(__name__);
 
 obj JobStore {
@@ -30,11 +32,10 @@ obj JobStore {
     def record_run(job_id: str, status: str, error: str | None = None) -> None;
 }
 
-obj MongoJobStore(JobStore) {
-    has _db: Any,
+obj PgJobStore(JobStore) {
+    has store: Any,
         _collection: str;
 
-    def postinit -> None;
     def insert(job: dict) -> str;
     def find_active(
         limit: int | None = None,
@@ -114,6 +115,10 @@ obj JacScaleScheduler {
     ) -> (dict | None);
 
     def delete_job(job_id: str, acting_as: str | None = None) -> bool;
+    def _acquire_fire_lease(job_id: str, spec: TriggerSpec) -> bool;
+    def _notify_jobs_changed(job_id: str) -> None;
+    def _start_jobs_listener -> None;
+    def _on_jobs_changed(payload: str) -> None;
     def _execute_task(
         name: str, user_id: str, is_walker: bool, job_id: str | None = None
     ) -> None;

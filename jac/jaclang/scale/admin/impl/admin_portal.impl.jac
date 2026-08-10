@@ -280,6 +280,39 @@ impl JacAPIServerAdmin.register_admin_endpoints -> None {
             description='Delete a user (admin only)'
         )
     );
+    async def expire_legacy_credentials_handler(
+        request: Request, username: str | None = None
+    ) -> TransportResponse {
+        authorization = request.headers.get('Authorization');
+        return self.admin_expire_legacy_credentials(username, authorization);
+    }
+    self.server.add_endpoint(
+        JEndPoint(
+            method=HTTPMethod.POST,
+            path='/admin/users/expire-legacy-credentials',
+            callback=expire_legacy_credentials_handler,
+            parameters=[
+                APIParameter(
+                    name='username',
+                    data_type='string',
+                    required=False,
+                    default_value=None,
+                    description='Limit to one user; omit to sweep every account',
+                    kind=ParameterType.BODY
+                )
+            ],
+            response_model=None,
+            tags=['Admin'],
+            summary='Expire pre-scrypt credentials',
+            description=(
+                'Flag accounts whose stored password hash predates the 0.36 '
+                'scrypt migration (bcrypt format) as requiring a password '
+                'reset, so operators can drive the reset flow instead of '
+                'users silently failing to log in. Bulk by default; pass '
+                'username to target one account (admin only).'
+            )
+        )
+    );
 
     async def list_sso_providers_handler(request: Request) -> TransportResponse {
         authorization = request.headers.get('Authorization');
@@ -776,6 +809,26 @@ impl JacAPIServerAdmin.admin_update_user(
     return TransportResponse.success(
         data={'message': 'User updated', 'updates': updates, 'username': username},
         meta=Meta(extra={'http_status': 200})
+    );
+}
+
+impl JacAPIServerAdmin.admin_expire_legacy_credentials(
+    username: str | None = None, Authorization: str | None = None
+) -> TransportResponse {
+    error = self.require_admin(Authorization);
+    if error {
+        return error;
+    }
+    result = self.user_manager.expire_legacy_credentials(username);
+    if 'error' in result {
+        return TransportResponse.fail(
+            code='NOT_FOUND',
+            message=str(result.get('error', 'User not found')),
+            meta=Meta(extra={'http_status': 404})
+        );
+    }
+    return TransportResponse.success(
+        data=result, meta=Meta(extra={'http_status': 200})
     );
 }
 

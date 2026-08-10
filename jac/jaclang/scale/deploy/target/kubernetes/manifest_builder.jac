@@ -160,9 +160,6 @@ obj ManifestBuilder {
             k8s_safe_name(self.k8s_config.app_name),
             self.k8s_config.namespace,
             proj,
-            provisioned_database=(
-                "postgres" if self.k8s_config.postgres_enabled else ""
-            ),
             dry_run=self.dry_run,
             access_mode=self.k8s_config.bundle_access_mode
         );
