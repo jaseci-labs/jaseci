@@ -19,3 +19,11 @@ cl {
         return <ClientApp/>;
     }
 }
+
+
+import from shared.models { qty_label }
+
+
+def:pub cart_label(qty: int) -> str {
+    return qty_label(qty);
+}

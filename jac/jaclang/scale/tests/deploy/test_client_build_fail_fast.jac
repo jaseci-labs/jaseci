@@ -38,6 +38,60 @@ def _project(entry_source: str) -> str {
 }
 
 
+"""A counting `jac` stand-in: fails with a canned install-failure message for
+the first `fail_first` build invocations, then hands off to the real binary.
+Every other subcommand (the dependency install that precedes the build) passes
+straight through, so the counter tracks build attempts alone. Uses the
+codebase's own JAC_EXECUTABLE substitution seam, not a mock."""
+def _counting_jac(tmp: str, fail_first: int, failure_text: str) -> tuple {
+    counter = os.path.join(tmp, "attempts");
+    real_jac = jac_executable();
+    script = os.path.join(tmp, "counting-jac.sh");
+    with open(script, "w", encoding="utf-8") as f {
+        f.write(
+            "#!/bin/sh\n"
+                + f'if [ "$1" != "build" ]; then exec "{real_jac}" "$@"; fi\n'
+                + f'count_file="{counter}"\n'
+                + 'n=$(cat "$count_file" 2>/dev/null || echo 0)\n'
+                + "n=$((n+1))\n"
+                + 'printf %s "$n" > "$count_file"\n'
+                + f'if [ "$n" -le {fail_first} ]; then\n'
+                + f'  echo "{failure_text}" >&2\n'
+                + "  exit 1\n"
+                + "fi\n"
+                + f'exec "{real_jac}" "$@"\n'
+        );
+    }
+    os.chmod(script, 0o755);
+    return (script, counter);
+}
+
+
+def _attempts(counter: str) -> int {
+    if not os.path.isfile(counter) {
+        return 0;
+    }
+    with open(counter, encoding="utf-8") as f {
+        return int(f.read().strip() or "0");
+    }
+}
+
+
+def _web_app_project(tmp: str) -> str {
+    created = subprocess.run(
+        [jac_executable(), "create", "app", "--kind", "web-app"],
+        cwd=tmp,
+        capture_output=True,
+        text=True,
+        timeout=300
+    );
+    assert created.returncode == 0 , (
+        f"jac create failed: {created.stdout}\n{created.stderr}"
+    );
+    return os.path.join(tmp, "app");
+}
+
+
 test "a failing client build aborts the deploy with the build error" {
     project_dir = _project("with entry { this does not parse ((( }\n");
     raised = None;
