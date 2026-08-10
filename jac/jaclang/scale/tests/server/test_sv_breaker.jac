@@ -342,6 +342,43 @@ test "a call that trips the breaker abandons its remaining retries" {
 }
 
 
+test "a breaker opened during the backoff sleep suppresses the retry" {
+    import time;
+
+    mod = "breaker_open_during_backoff_test";
+    _breaker_reset(mod);
+    calls: list = [];
+    original_post = _install_failing_transport("post_stream_aware_sync", calls);
+    original_sleep = time.sleep;
+
+    def tripping_sleep(_seconds: float) {
+        _trip_breaker(mod);
+    }
+    time.sleep = tripping_sleep;
+
+    try {
+        sv_client.register(mod, "http://demo.invalid");
+        raised_msg = "";
+        try {
+            JacScalePlugin.sv_service_call(mod, "ping", {});
+        } except RuntimeError as e {
+            raised_msg = str(e);
+        }
+
+        assert len(calls) == 1 , (
+            "a retry must not be sent once the breaker opens mid-backoff, "
+            + f"sent {len(calls)}"
+        );
+        assert "failed after 1 attempts" in raised_msg;
+    } finally {
+        time.sleep = original_sleep;
+        sv_http.post_stream_aware_sync = original_post;
+        sv_client.unregister(mod);
+        _breaker_reset(mod);
+    }
+}
+
+
 test "application error envelope does NOT trip the breaker" {
     mod = "breaker_app_err_test";
     _breaker_reset(mod);

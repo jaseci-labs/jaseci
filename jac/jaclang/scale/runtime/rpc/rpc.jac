@@ -53,11 +53,11 @@ def _send_with_retries(module_name: str, kind: str, label: str, send: any) -> an
 
     for attempt in range(_SV_MAX_ATTEMPTS) {
         if attempt > 0 {
+            time.sleep(backoff);
+            backoff = backoff * 2.0;
             if breaker_should_skip(module_name) {
                 break;
             }
-            time.sleep(backoff);
-            backoff = backoff * 2.0;
         }
         attempts += 1;
         try {
