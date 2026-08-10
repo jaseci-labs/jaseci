@@ -597,8 +597,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None;
     def _codegen_enum_layout(enum_name: str, owner: (uni.Module | None)) -> None;
-    def _class_enum_member_str(cls_name: str, member: str) -> (str | None);
-    def _class_enum_member_int(cls_name: str, member: str) -> (int | None);
     def _build_enum_string_table(
         enum_name: str, entries: list, with_values: bool = True
     ) -> None;

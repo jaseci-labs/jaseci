@@ -1593,10 +1593,6 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 if right_name == "name" {
                     return self._make_global_string(_mt_mem);
                 }
-                _mt_val = self._class_enum_member_str(_mt_cls, _mt_mem);
-                if _mt_val is not None {
-                    return self._make_global_string(_mt_val);
-                }
             }
         }
         if target_name is not None and right_name is not None {
@@ -1665,14 +1661,6 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
                 if _real_full in self.enum_values {
                     return self.enum_values[_real_full];
-                }
-                _cem = self._class_enum_member_str(_real_cls, right_name);
-                if _cem is not None {
-                    return self._make_global_string(_cem);
-                }
-                _cei = self._class_enum_member_int(_real_cls, right_name);
-                if _cei is not None {
-                    return ir.Constant(ir.IntType(64), _cei);
                 }
                 if _real_cls in self.struct_types
                     and _real_cls not in self.local_vars {
