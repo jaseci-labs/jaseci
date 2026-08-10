@@ -1,8 +1,5 @@
 import os;
 
-# Single source of truth for every path segment the gateway owns. The
-# dispatch tables and builtin-prefix tuples are derived from these sets;
-# add a new builtin here, never in a consumer.
 glob GATEWAY_API_SEGMENTS: tuple = (
          "walker",
          "function",
@@ -13,32 +10,22 @@ glob GATEWAY_API_SEGMENTS: tuple = (
          "ws",
          "jobs",
          "graph"
-     );
-
-# API segments the gateway also answers as a bare path with no member suffix.
-glob GATEWAY_BARE_API_SEGMENTS: tuple = ("user", "graph", "jobs");
-
-# Client-bundle prefix: gateway-intercepted, but never a service member segment.
-glob GATEWAY_CLIENT_SEGMENT: str = "cl";
-
-glob GATEWAY_WELLKNOWN_SEGMENTS: tuple = (
+     ),
+     GATEWAY_BARE_API_SEGMENTS: tuple = ("user", "graph", "jobs"),
+     GATEWAY_CLIENT_SEGMENT: str = "cl",
+     GATEWAY_WELLKNOWN_SEGMENTS: tuple = (
          "health",
          "healthz",
          "metrics",
          "openapi.json",
          "docs"
-     );
-
-glob _RESERVED_SEGMENTS: set[str] = (
+     ),
+     _RESERVED_SEGMENTS: set[str] = (
          set(GATEWAY_API_SEGMENTS)
          | set(GATEWAY_WELLKNOWN_SEGMENTS)
          | {GATEWAY_CLIENT_SEGMENT, "api", "admin", "static"}
-     );
-
-# Path prefixes the gateway actually intercepts. Unlike _RESERVED_SEGMENTS
-# this excludes name-only reservations such as 'api' and 'static': a service
-# may live under /api/cart, it just may not be NAMED api.
-glob _GATEWAY_OWNED_PREFIX_SEGMENTS: set[str] = (
+     ),
+     _GATEWAY_OWNED_PREFIX_SEGMENTS: set[str] = (
          set(GATEWAY_API_SEGMENTS)
          | set(GATEWAY_WELLKNOWN_SEGMENTS)
          | {GATEWAY_CLIENT_SEGMENT, "admin"}
@@ -124,8 +111,6 @@ def resolve_routes(ms_config: dict[str, any]) -> dict[str, str] {
         if not prefix_str {
             prefix_str = derive_route_prefix(name_str);
         } else {
-            # Canonical form: leading slash, no trailing slash, so '/shop'
-            # and '/shop/' cannot register as two distinct owners.
             prefix_str = "/" + prefix_str.strip("/");
         }
         guard_route_prefix(name_str, prefix_str);
