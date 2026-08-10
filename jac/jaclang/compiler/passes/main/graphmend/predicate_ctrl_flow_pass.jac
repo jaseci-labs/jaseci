@@ -74,6 +74,7 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _unfixable_call_literal(true_e: uni.Expr, false_e: uni.Expr) -> bool;
     def _has_call(e: uni.UniNode) -> bool;
     def _has_none(a: uni.Expr, b: uni.Expr) -> bool;
+    def _provably_non_tensor(e: uni.Expr) -> bool;
     def _same_lhs(a: uni.Assignment, b: uni.Assignment) -> (uni.Name | None);
     def _split_params(params: any) -> tuple[list[uni.Expr], dict[str, uni.KWPair]];
     def _gen_name(at: uni.UniNode, value: str, store: bool) -> uni.Name;

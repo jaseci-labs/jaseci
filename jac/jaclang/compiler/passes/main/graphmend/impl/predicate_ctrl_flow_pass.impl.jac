@@ -74,6 +74,9 @@ impl PredicateCtrlFlowPass._rewrite_assignment(
     if self._unfixable_call_literal(true_e, false_e) {
         return;
     }
+    if self._provably_non_tensor(true_e) or self._provably_non_tensor(false_e) {
+        return;
+    }
     if self._use_cond(true_e, false_e) {
         (stmts, c_ref) = self._hoist_cond(nd, nd.condition);
         cond_call = self._make_cond(nd, c_ref, true_e, false_e);
@@ -89,6 +92,9 @@ impl PredicateCtrlFlowPass._rewrite_return(
     nd: uni.IfStmt, true_e: uni.Expr, false_e: uni.Expr
 ) -> None {
     if self._unfixable_call_literal(true_e, false_e) {
+        return;
+    }
+    if self._provably_non_tensor(true_e) or self._provably_non_tensor(false_e) {
         return;
     }
     if self._use_cond(true_e, false_e) {
@@ -143,6 +149,9 @@ impl PredicateCtrlFlowPass._merge_common_call(
         if self._has_call(a_pos[i]) or self._has_call(b_pos[i]) {
             return;
         }
+        if self._provably_non_tensor(a_pos[i]) or self._provably_non_tensor(b_pos[i]) {
+            return;
+        }
     }
     for s in (list(true_setups) + list(false_setups)) {
         if self._is_eq_assert(s) {
@@ -195,6 +204,33 @@ impl PredicateCtrlFlowPass._has_call(e: uni.UniNode) -> bool {
 
 impl PredicateCtrlFlowPass._has_none(a: uni.Expr, b: uni.Expr) -> bool {
     return isinstance(a, uni.Null) or isinstance(b, uni.Null);
+}
+
+impl PredicateCtrlFlowPass._provably_non_tensor(e: uni.Expr) -> bool {
+    if isinstance(e, uni.AtomUnit) {
+        inner = e.value;
+        return isinstance(inner, uni.Expr) and self._provably_non_tensor(inner);
+    }
+    if isinstance(
+        e,
+        (
+            uni.String,
+            uni.MultiString,
+            uni.FString,
+            uni.ListVal,
+            uni.SetVal,
+            uni.TupleVal,
+            uni.DictVal,
+            uni.ListCompr,
+            uni.DictCompr
+        )
+    ) {
+        return True;
+    }
+    if isinstance(e, uni.BinaryExpr) {
+        return self._provably_non_tensor(e.left) or self._provably_non_tensor(e.right);
+    }
+    return False;
 }
 
 impl PredicateCtrlFlowPass._same_lhs(

@@ -435,6 +435,17 @@ test "a call paired with a literal branch value is declined" {
     assert "__gm_true_0 = side_effecting" not in src;
 }
 
+test "provably non-tensor branch values are declined" {
+    src = _pysrc("where_nontensor_branch.jac", True);
+    # torch.where cannot select a string or a container: rewriting would trade
+    # a working conditional for a runtime TypeError, so both shapes decline.
+    assert "torch.where(" not in src;
+    assert "torch.cond(" not in src;
+    assert "y = 'big'" in src;
+    assert "return [x, 1]" in src;
+    assert "dyn_ctrl_fl" in _break_kinds("where_nontensor_branch.jac");
+}
+
 test "existence-guarded init with an impure initializer is declined" {
     src = _pysrc("guard_impure_init.jac", True);
     # The attribute callee cannot be pinned to one table entry, so every
