@@ -134,7 +134,18 @@ obj KubernetesTargetBase(DeploymentTarget) {
             return;
         }
         if not self.k8s_config.postgres_enabled {
-            delete_k8s_secret(core_v1, namespace, f"{app_name}-postgres-secret");
+            secret_name = f"{app_name}-postgres-secret";
+            try {
+                delete_k8s_secret(core_v1, namespace, secret_name);
+            } except ApiException as e {
+                if self.logger {
+                    self.logger.warn(
+                        f"Could not remove the stale database secret "
+                        f"'{secret_name}' (status {e.status}); delete it "
+                        f"manually from namespace '{namespace}'"
+                    );
+                }
+            }
             return;
         }
         pg_name = f"{app_name}-postgres";

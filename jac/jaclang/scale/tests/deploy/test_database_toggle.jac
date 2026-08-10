@@ -148,6 +148,23 @@ def _not_found(*args: any, **kwargs: any) {
 }
 
 
+test "a forbidden secret cleanup does not fail a disabled-database deploy" {
+    target = _target(False, "");
+    apps_v1 = unittest.mock.MagicMock();
+    core_v1 = unittest.mock.MagicMock();
+
+    def _forbidden(*args: any, **kwargs: any) {
+        raise ApiException(status=403);
+    }
+    core_v1.delete_namespaced_secret.side_effect = _forbidden;
+
+    target._deploy_databases("dbapp", "db-ns", apps_v1, core_v1);
+
+    assert target.env_list == [];
+    apps_v1.create_namespaced_stateful_set.assert_not_called();
+}
+
+
 test "default mode provisions the postgres statefulset and wires its secret" {
     target = _target(True, "");
     apps_v1 = unittest.mock.MagicMock();
