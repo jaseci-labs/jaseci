@@ -558,6 +558,16 @@ obj NaIRGenPass(ModuleCodegenPass) {
         op: str, left: ir.Value, right: ir.Value, is_float: bool
     ) -> (ir.Value | None);
 
+    def _is_jacval_ty(t: ir.Type) -> bool;
+    def _is_jacval_boxable(t: ir.Type) -> bool;
+    def _emit_jacval_ordering(
+        op: str, jv: ir.Value, peer: ir.Value, jv_on_left: bool
+    ) -> (ir.Value | None);
+
+    def _emit_mixed_jacval_comparison(
+        op: str, left: ir.Value, right: ir.Value
+    ) -> (ir.Value | None);
+
     def _emit_optional_eq(
         op: str, left: ir.Value, right: ir.Value, is_float: bool
     ) -> (ir.Value | None);
