@@ -245,6 +245,9 @@ impl PredicateCtrlFlowPass._impure_writes(
     fn: uni.Ability, mod: (uni.Module | None)
 ) -> bool {
     outside = self._module_scope_names(mod) if mod is not None else set();
+    if fn.get_all_sub_nodes(uni.DeleteStmt) {
+        return True;
+    }
     for a in fn.get_all_sub_nodes(uni.Assignment) {
         for t in (a.target or []) {
             targets = list(t.values) if isinstance(t, uni.TupleVal) else [t];

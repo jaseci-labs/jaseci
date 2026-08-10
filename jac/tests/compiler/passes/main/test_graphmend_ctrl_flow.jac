@@ -346,6 +346,14 @@ test "an initializer helper that writes an attribute is declined" {
     assert "if seq_len > 8:" in src;
 }
 
+test "an initializer helper that deletes an attribute is declined" {
+    src = _pysrc("guard_helper_delete.jac", True);
+    # A delete is a write the assignment walk cannot see, so it needs its own
+    # check; without one the helper reads as pure and the hoist proceeds.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
 test "config read proven by a constructor invariant licenses the hoist" {
     src = _pysrc("guard_config_get.jac", True);
     # `config.rope_scaling.get("factor")` is on no purity list; the fact pass
