@@ -184,8 +184,8 @@ def install_graphmend_loader_hook() -> None:
     ``--graphmend`` run, the same variant-collision the JIR cache avoids by
     keying on 'gm'/'gm-scope'.
 
-    Idempotent, and a no-op unless --graphmend is active with a scope that names
-    the module, so a normal run pays one attribute lookup per source import.
+    Idempotent, and installed only when --graphmend-scope is configured (from
+    ``_apply_graphmend``), so runs without a scope never pay for the patch.
     """
     loader = importlib.machinery.SourceFileLoader
     if getattr(loader, "_jac_graphmend_hooked", False):
@@ -199,13 +199,14 @@ def install_graphmend_loader_hook() -> None:
                 from jaclang.jac0core.runtime import JacRuntime as Jac
 
                 program = Jac.get_program()
+                prev = program.graphmend_scoped_compile
                 program.graphmend_scoped_compile = True
                 try:
                     codeobj = Jac.get_compiler().get_bytecode(
                         full_target=path, target_program=program
                     )
                 finally:
-                    program.graphmend_scoped_compile = False
+                    program.graphmend_scoped_compile = prev
                 if codeobj is not None:
                     return codeobj
             except Exception:
@@ -434,6 +435,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         # --graphmend-scope, so it treats the whole module as a compiled region
         # (the torch.compile entry is in the user's script, not here).
         scoped = is_py and self._graphmend_scoped_py(module.__name__, file_path)
+        prev_scoped = program.graphmend_scoped_compile
         if scoped:
             program.graphmend_scoped_compile = True
         try:
@@ -450,7 +452,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             raise
         finally:
             if scoped:
-                program.graphmend_scoped_compile = False
+                program.graphmend_scoped_compile = prev_scoped
         if not codeobj:
             if is_pkg:
                 # Empty package is OK - just register it
