@@ -1,4 +1,4 @@
-"""G5 with a provable configuration read: the initializer calls
+"""A provable configuration read: the initializer calls
 `config.rope_scaling.get("factor")`, which no purity list covers -- but the
 `RopeConfig` constructor raises unless `rope_scaling` is a dict (or None,
 transformers' `_rope_scaling_validation` idiom, here inlined), so the fact

@@ -280,3 +280,14 @@ test "non-builtin exception type declines instead of degrading its type" {
     assert "raise torch.MaskError" in src;
     assert _break_count("guard_custom_exc.jac") == 2;
 }
+
+test "shadowed torch name declines instead of binding the assert to a local" {
+    # The receiver is provable via `Tensor`, but a parameter named `torch`
+    # captures the emitted `torch._assert_async`, which would raise
+    # AttributeError or silently skip the check. Proving the module by its
+    # import binding, not by the spelling `torch`, is what declines it.
+    src = _pysrc("guard_shadowed_torch.jac", True);
+    assert "_assert_async(" not in src;
+    assert "raise ValueError('mask must be all true')" in src;
+    assert _break_count("guard_shadowed_torch.jac") == 1;
+}

@@ -55,6 +55,25 @@ impl project_db_name(base_path: str, target_path: (str | None)) -> str {
 }
 
 
+impl takeover_project(base_path: str, target_path: (str | None) = None) -> int {
+    url = os.environ.get('JAC_DB_URL', '');
+    if url {
+        store = PgStore(conninfo=conninfo_from_url(url));
+    } else {
+        rt = PgRuntime(
+            data_dir=shared_pg_data_dir(),
+            database=project_db_name(base_path, target_path)
+        );
+        store = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
+    }
+    try {
+        return store.takeover();
+    } finally {
+        store.close();
+    }
+}
+
+
 def _ancestry_of(arch: (object | None)) -> list[str] {
     import from jaclang.jac0core.constructs {
         Archetype,

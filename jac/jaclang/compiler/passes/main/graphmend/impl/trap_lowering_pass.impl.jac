@@ -46,6 +46,9 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if marked is None {
         return;
     }
+    if not self._torch_binds_module(nd) {
+        return;
+    }
     eq = self._torch_equal_args(x);
     if eq is not None {
         (a, b) = eq;
@@ -75,9 +78,6 @@ impl TrapLoweringPass._exception_type_name(rs: uni.RaiseStmt) -> (str | None) {
     if not isinstance(target, uni.Name) {
         return None;
     }
-    # A resolved symbol means the name is locally bound (a shadow of the
-    # builtin), so it no longer denotes the class the boundary guard would
-    # reconstruct from builtins.
     if target.sym is not None {
         return None;
     }
@@ -300,11 +300,17 @@ impl TrapLoweringPass._param_is_tensor(name: str, site: uni.UniNode) -> bool {
     return False;
 }
 
+impl TrapLoweringPass._torch_binds_module(site: uni.UniNode) -> bool {
+    sym = site.sym_tab.lookup('torch');
+    decl = sym.decl if (sym is not None) else None;
+    mp = decl.find_parent_of_type(uni.ModulePath) if (decl is not None) else None;
+    if (mp is None) or mp.is_import_from or (mp.alias is not None) {
+        return False;
+    }
+    return mp.dot_path_str == 'torch';
+}
+
 impl TrapLoweringPass._binds_torch_tensor(ann: uni.Name) -> bool {
-    # The spelling `Tensor` proves nothing; the proof is the binding: the
-    # annotation's symbol must declare at a `from torch import Tensor` item
-    # (aliased or not). `dot_path_str` keeps leading dots, so a relative
-    # `.torch` cannot match.
     decl = ann.sym.decl if (ann.sym is not None) else None;
     mi = decl.find_parent_of_type(uni.ModuleItem) if (decl is not None) else None;
     if mi is None {

@@ -1,51 +1,182 @@
+import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
+import type from jaclang.jac0core.program { JacProgram }
 
-def collect_scope_facts(
-    mod: uni.Module,
-    decor_classes: dict[str, list[str]],
-    attr_types: dict[str, dict[str, str]],
-    dict_attrs: dict[str, dict[str, str]]
-) {
+def find_class(
+    mod: uni.Module, name: str, prog: JacProgram, seen: set[str]
+) -> (uni.Archetype | None) {
     for arch in mod.get_all_sub_nodes(uni.Archetype) {
-        cls = arch.sym_name;
-        if not cls {
+        if arch.sym_name == name {
+            return arch;
+        }
+    }
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if imp.from_loc is None {
             continue;
         }
-        _collect_decorators(arch, cls, decor_classes);
-        ctor = _class_init(arch);
-        if ctor is None {
+        target = _import_target(imp, name);
+        if target is None {
             continue;
         }
-        _collect_attr_types(ctor, cls, attr_types);
-        for ab in _init_reachable(arch, ctor) {
-            _collect_dict_invariants(ab, cls, dict_attrs);
+        m2 = materialize_module(prog, imp.from_loc, seen);
+        if m2 is None {
+            continue;
         }
+        got = find_class(m2, target, prog, seen);
+        if got is not None {
+            return got;
+        }
+    }
+    return None;
+}
+
+def _import_target(imp: uni.Import, name: str) -> (str | None) {
+    for item in imp.items {
+        if not isinstance(item, uni.ModuleItem) {
+            continue;
+        }
+        if not isinstance(item.name, uni.Name) {
+            continue;
+        }
+        local = item.alias.value if (item.alias is not None) else item.name.value;
+        if local == name {
+            return item.name.value;
+        }
+    }
+    return None;
+}
+
+def materialize_module(
+    prog: JacProgram, mp: uni.ModulePath, seen: set[str]
+) -> (uni.Module | None) {
+    try {
+        path = str(Path(mp.resolve_relative_path()).resolve());
+    } except Exception {
+        return None;
+    }
+    if not (path.endswith('.py') or path.endswith('.jac')) {
+        return None;
+    }
+    if path in seen {
+        return prog.mod.hub.get(path);
+    }
+    seen.add(path);
+    existing = prog.mod.hub.get(path);
+    if existing is not None {
+        return existing;
+    }
+    try {
+        return prog.compile(file_path=path, no_cgen=True, type_check=False);
+    } except Exception {
+        return None;
     }
 }
 
-def _collect_decorators(
-    arch: uni.Archetype, cls: str, decor_classes: dict[str, list[str]]
-) {
-    for ab in arch.get_all_sub_nodes(uni.Ability) {
-        for dec in (ab.decorators or []) {
-            base = dec.target if isinstance(dec, uni.FuncCall) else dec;
-            if isinstance(base, uni.Name) {
-                bucket = decor_classes.setdefault(base.value, []);
-                if cls not in bucket {
-                    bucket.append(cls);
-                }
+def wrapping_classes(
+    prog: JacProgram, current: uni.Module, decorator: str
+) -> list[uni.Archetype] {
+    out: list[uni.Archetype] = [];
+    ids: set[int] = set();
+    mods: list[uni.Module] = [current];
+    for m in prog.mod.hub.values() {
+        if m is not current {
+            mods.append(m);
+        }
+    }
+    for m in mods {
+        for arch in m.get_all_sub_nodes(uni.Archetype) {
+            if (id(arch) not in ids) and _decorated_with(arch, decorator) {
+                ids.add(id(arch));
+                out.append(arch);
             }
         }
     }
+    return out;
 }
 
-def _class_init(arch: uni.Archetype) -> (uni.Ability | None) {
+def _decorated_with(arch: uni.Archetype, decorator: str) -> bool {
+    for ab in arch.get_all_sub_nodes(uni.Ability) {
+        for dec in (ab.decorators or []) {
+            base = dec.target if isinstance(dec, uni.FuncCall) else dec;
+            if isinstance(base, uni.Name) and (base.value == decorator) {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+def class_init(arch: uni.Archetype) -> (uni.Ability | None) {
     for ab in arch.get_all_sub_nodes(uni.Ability) {
         if ab.sym_name == '__init__' {
             return ab;
         }
     }
     return None;
+}
+
+def attr_annotation(arch: uni.Archetype, attr: str) -> (str | None) {
+    ctor = class_init(arch);
+    if ctor is None {
+        return None;
+    }
+    params: dict[str, str] = {};
+    sig = ctor.signature;
+    if isinstance(sig, uni.FuncSignature) {
+        for p in (sig.get_parameters() or []) {
+            if p?.name is None {
+                continue;
+            }
+            ann = p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
+            if isinstance(ann, uni.Name) {
+                params[p.name.value] = ann.value;
+            }
+        }
+    }
+    if not params {
+        return None;
+    }
+    for a in ctor.get_all_sub_nodes(uni.Assignment) {
+        if (len(a.target) != 1) or (not isinstance(a.value, uni.Name)) {
+            continue;
+        }
+        t = a.target[0];
+        if (
+            isinstance(t, uni.AtomTrailer)
+            and isinstance(t.right, uni.Name)
+            and isinstance(t.target, uni.Name)
+            and (t.target.value == 'self')
+            and (t.right.value == attr)
+            and (a.value.value in params)
+        ) {
+            return params[a.value.value];
+        }
+    }
+    return None;
+}
+
+def attr_dict_kind(arch: uni.Archetype, attr: str) -> (str | None) {
+    ctor = class_init(arch);
+    if ctor is None {
+        return None;
+    }
+    is_dict = False;
+    or_none = False;
+    for ab in _init_reachable(arch, ctor) {
+        for stmt in ab.get_all_sub_nodes(uni.IfStmt) {
+            if _body_raises(stmt) and (_negated_dict_isinstance_attr(stmt) == attr) {
+                is_dict = True;
+            }
+            if _body_is_only_return(stmt)
+                and (_is_none_check_attr(stmt.condition) == attr) {
+                or_none = True;
+            }
+        }
+    }
+    if not is_dict {
+        return None;
+    }
+    return 'dict_or_none' if or_none else 'dict';
 }
 
 def _init_reachable(arch: uni.Archetype, ctor: uni.Ability) -> list[uni.Ability] {
@@ -68,66 +199,6 @@ def _init_reachable(arch: uni.Archetype, ctor: uni.Ability) -> list[uni.Ability]
         }
     }
     return out;
-}
-
-def _collect_attr_types(
-    ctor: uni.Ability, cls: str, attr_types: dict[str, dict[str, str]]
-) {
-    params: dict[str, str] = {};
-    sig = ctor.signature;
-    if isinstance(sig, uni.FuncSignature) {
-        for p in (sig.get_parameters() or []) {
-            if p?.name is None {
-                continue;
-            }
-            ann = p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
-            if isinstance(ann, uni.Name) {
-                params[p.name.value] = ann.value;
-            }
-        }
-    }
-    if not params {
-        return;
-    }
-    for a in ctor.get_all_sub_nodes(uni.Assignment) {
-        if (len(a.target) != 1) or (not isinstance(a.value, uni.Name)) {
-            continue;
-        }
-        t = a.target[0];
-        if (
-            isinstance(t, uni.AtomTrailer)
-            and isinstance(t.right, uni.Name)
-            and isinstance(t.target, uni.Name)
-            and (t.target.value == 'self')
-            and (a.value.value in params)
-        ) {
-            attr_types.setdefault(cls, {})[t.right.value] = params[a.value.value];
-        }
-    }
-}
-
-def _collect_dict_invariants(
-    ab: uni.Ability, cls: str, dict_attrs: dict[str, dict[str, str]]
-) {
-    for stmt in ab.get_all_sub_nodes(uni.IfStmt) {
-        if not _body_raises(stmt) {
-            continue;
-        }
-        attr = _negated_dict_isinstance_attr(stmt);
-        if attr is None {
-            continue;
-        }
-        dict_attrs.setdefault(cls, {})[attr] = 'dict';
-    }
-    for stmt in ab.get_all_sub_nodes(uni.IfStmt) {
-        if not _body_is_only_return(stmt) {
-            continue;
-        }
-        attr = _is_none_check_attr(stmt.condition);
-        if (attr is not None) and (dict_attrs.get(cls, {}).get(attr) == 'dict') {
-            dict_attrs[cls][attr] = 'dict_or_none';
-        }
-    }
 }
 
 def _body_raises(stmt: uni.IfStmt) -> bool {

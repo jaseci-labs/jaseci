@@ -1,7 +1,7 @@
 """Soundness: an existence-guarded init whose initializer is NOT pure.
 
-Same shape as where_multi_stmt.jac (the Phi-4 case), but one entry in the
-dispatch table performs I/O. Hoisting runs the initializer on executions where
+Same shape as where_multi_stmt.jac, but one entry in the dispatch table
+performs I/O. Hoisting runs the initializer on executions where
 the original never would, so speculating a side-effecting callee would make that
 effect happen on those runs. Since the attribute callee cannot be resolved to a
 single table entry, EVERY signature-compatible candidate must be clean -- one
