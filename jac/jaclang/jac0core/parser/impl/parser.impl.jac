@@ -271,8 +271,8 @@ impl Parser.expect_name -> LexToken {
 }
 
 impl Parser.make_uni_token(tok: LexToken) -> int {
-    tok_name: str = TOKEN_KIND_TO_TOK[tok.kind.value]
-        if tok.kind.value in TOKEN_KIND_TO_TOK
+    tok_name: str = TOKEN_KIND_TO_TOK[tok.kind]
+        if tok.kind in TOKEN_KIND_TO_TOK
         else tok.kind.value;
     return self.b.mk_token(
         name=tok_name,
@@ -310,8 +310,8 @@ impl Parser.make_name(tok: LexToken, is_enum_stmt: bool = False) -> int {
 }
 
 impl Parser.make_special_name(tok: LexToken) -> int {
-    tok_name: str = TOKEN_KIND_TO_TOK[tok.kind.value]
-        if tok.kind.value in TOKEN_KIND_TO_TOK
+    tok_name: str = TOKEN_KIND_TO_TOK[tok.kind]
+        if tok.kind in TOKEN_KIND_TO_TOK
         else tok.kind.value;
     return self.b.mk_name(
         name=tok_name,
@@ -1864,8 +1864,8 @@ impl Parser.parse_builtin_type -> int {
             TokenKind.TYP_F32,
             TokenKind.TYP_F64
         );
-        builtin_name: str = TOKEN_KIND_TO_TOK[tok.kind.value]
-            if tok.kind.value in TOKEN_KIND_TO_TOK
+        builtin_name: str = TOKEN_KIND_TO_TOK[tok.kind]
+            if tok.kind in TOKEN_KIND_TO_TOK
             else tok.kind.value;
         return self.b.mk_builtin_type(
             name=builtin_name,
