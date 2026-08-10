@@ -906,7 +906,7 @@ impl JacBuiltin.se_region_exit -> None {
 }
 
 impl JacBuiltin.se_flush -> None {
-    pending = list(_gm_se_buffer);
+    pending: list[tuple] = list(_gm_se_buffer);
     _gm_se_buffer.clear();
     for entry in pending {
         (fn, args, kwargs) = entry;
@@ -941,11 +941,12 @@ impl JacBuiltin.log_emit(slot: int, args: tuple, kwargs: dict) -> None {
 impl JacBuiltin.log_flush_hook(module: any, inputs: any, output: any) -> any {
     JacBuiltin.se_region_exit();
     JacBuiltin.se_flush();
-    for entry in _gm_log_buffer {
+    pending: list[tuple] = list(_gm_log_buffer);
+    _gm_log_buffer.clear();
+    for entry in pending {
         (slot, args, kwargs) = entry;
         _gm_log_registry[slot](*args, **kwargs);
     }
-    _gm_log_buffer.clear();
     return output;
 }
 

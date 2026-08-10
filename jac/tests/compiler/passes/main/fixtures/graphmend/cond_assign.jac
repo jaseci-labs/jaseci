@@ -1,7 +1,8 @@
-"""Asymmetric data-dependent branches whose values call different functions.
+"""Asymmetric data-dependent branches whose values contain calls.
 
-`torch.where` would run BOTH calls; GraphMend emits `torch.cond` so only the
-selected branch executes."""
+`torch.where` would run BOTH calls, and `torch.cond` requires branch callees
+proven pure and capturable, which the analysis does not yet validate; the
+conditional must stay intact."""
 import torch;
 
 @torch.compile()
