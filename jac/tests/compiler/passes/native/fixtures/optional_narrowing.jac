@@ -8,13 +8,20 @@ payload) lower differently, so both are pinned here, along with the
 plain truthiness, `!= None`, an early `continue`, an early `raise`, and
 `isinstance` narrowing of a boxed union.
 
-The functions from `redundant_guard` down are the negative half. A rebind and
-a loop back-edge both re-widen the value, so the tag must still be read there;
-None must never be read as a payload. A redundant `is None` on an
-already-proven value must still compile to a tag read rather than a comparison
-against the bare payload -- for a float payload that comparison becomes
-`fcmp une x, 0.0` and calls a non-zero float None. Truthiness of an
-already-proven container must stay `len > 0`.
+The functions from `redundant_guard` down are the negative half, where the
+proof does not hold and the tag must still be read. A syntactic rebind
+re-widens. A redundant `is None` on an already-proven value must compile to a
+tag read rather than a comparison against the bare payload -- for a float
+payload that comparison becomes `fcmp une x, 0.0` and calls a non-zero float
+None. Truthiness of an already-proven container must stay `len > 0`.
+
+The last three pin holes the checker's proof does not cover, so narrowing has
+to decline: `callee_rebinds_attr` (the callee sets the attribute to None, which
+the intra-procedural walk cannot see), `back_edge_rewiden` (the loop body
+rebinds after the use, and the walk skips back edges at loop headers), and
+`match_narrowed_subject` (a `case None` arm over a subject whose lowered type
+cannot represent None). sv raises TypeError on the first two, so native must
+keep its checked unwrap there rather than read a payload.
 """
 
 def make(n: int) -> list[int] | None {
@@ -207,7 +214,7 @@ def truthy_after_guard(n: int) -> int {
     return -2;
 }
 
-def loop_rewiden(n: int) -> int {
+def loop_fresh_each_iter(n: int) -> int {
     total = 0;
     i = 0;
     while i < 4 {
@@ -220,4 +227,54 @@ def loop_rewiden(n: int) -> int {
         i += 1;
     }
     return total;
+}
+
+obj Holder {
+    has slot: int | None = 0;
+}
+
+def drop_slot(h: Holder) {
+    h.slot = None;
+}
+
+def callee_rebinds_attr(k: int) -> int {
+    h = Holder(slot=0);
+    if h.slot is None {
+        return -1;
+    }
+    if k > 0 {
+        drop_slot(h);
+    }
+    return h.slot + 1;
+}
+
+def back_edge_rewiden(n: int) -> int {
+    v = pick(n);
+    if v is None {
+        return -1;
+    }
+    total = 0;
+    i = 0;
+    while i < 2 {
+        total = total + v;
+        v = pick(n - 5);
+        i += 1;
+    }
+    return total;
+}
+
+def match_narrowed_subject(n: int) -> int {
+    x = pick_float(n);
+    if x is None {
+        return -1;
+    }
+    y = x;
+    match y {
+        case None:
+            return -2;
+
+        case _:
+            return 5;
+
+    }
 }
