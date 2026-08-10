@@ -197,10 +197,11 @@ impl TrapLoweringPass._gen_name(at: uni.UniNode, value: str) -> uni.Name {
 }
 
 impl TrapLoweringPass._str(at: uni.UniNode, text: str) -> uni.String {
+    esc = text.encode('unicode_escape').decode('ascii').replace('"', '\\"');
     return uni.String(
         orig_src=at.loc.orig_src,
         name='STRING',
-        value=f'"{text}"',
+        value=f'"{esc}"',
         line=at.loc.first_line,
         end_line=at.loc.last_line,
         col_start=at.loc.col_start,

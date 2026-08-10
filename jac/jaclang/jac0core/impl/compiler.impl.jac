@@ -131,6 +131,10 @@ impl JacCompiler.get_bytecode(
         actual_program is not self._internal_program
         and target_program.graphmend_enabled
     );
+    if gm_active {
+        actual_program.graphmend_breaks.clear();
+        actual_program.graphmend_helpers.clear();
+    }
     (rebuild, no_precompile) = cache_mode();
     symtab_only_recovery = False;
 

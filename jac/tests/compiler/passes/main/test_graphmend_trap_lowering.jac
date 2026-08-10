@@ -115,6 +115,29 @@ test "tensor-bool guard without a receiver proof is declined" {
     assert _break_count("guard_unproven_receiver.jac") == 1;
 }
 
+test "escaped message literal round-trips through the trap marker" {
+    # The marker embeds the DECODED message, so the emitted literal must
+    # re-escape it or the string pipeline decodes it a second time and a
+    # backslash-n becomes a real newline in the restored exception.
+    prog = JacProgram();
+    mod = prog.compile(
+        file_path=os.path.join(FIXTURES, "val_guard_escaped_msg.jac"),
+        options=CompileOptions(graphmend=True, type_check=False)
+    );
+    pa = mod.gen.py_ast;
+    mod_ast = pa[0] if isinstance(pa, list) else pa;
+    marker: (str | None) = None;
+    for n in ast.walk(mod_ast) {
+        if isinstance(n, ast.Constant)
+            and isinstance(n.value, str)
+            and ("GM-TRAP" in n.value) {
+            marker = n.value;
+        }
+    }
+    expected = '[[GM-TRAP ValueError]]bad mask C:\\new "q"\tend[[/GM-TRAP]]';
+    assert marker == expected , f"marker mangled: {repr(marker)}";
+}
+
 test "py source: proven tensor-bool guard lowers to a direct assert" {
     # The .py front-end (PyastBuildPass) produces UniIR whose nodes unparse
     # differently from .jac-origin nodes, so the trap pattern must match
