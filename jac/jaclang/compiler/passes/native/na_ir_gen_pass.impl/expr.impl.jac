@@ -1456,21 +1456,6 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
                         then_val, else_val.type, name="ternary.widen"
                     );
                 }
-            } elif self._opt_payload_of(then_val.type) is not None {
-                self.builder.position_before(else_end_bb.terminator);
-                else_val = self._coerce_type(else_val, then_val.type);
-                else_end_bb = self.builder.block;
-            } elif self._opt_payload_of(else_val.type) is not None {
-                self.builder.position_before(then_end_bb.terminator);
-                then_val = self._coerce_type(then_val, else_val.type);
-                then_end_bb = self.builder.block;
-            } elif isinstance(then_val.type, ir.PointerType)
-                and isinstance(else_val.type, ir.PointerType) {
-                self.builder.position_before(else_end_bb.terminator);
-                else_val = self.builder.bitcast(
-                    else_val, then_val.type, name="ternary.ptr"
-                );
-                else_end_bb = self.builder.block;
             }
         }
         if then_val.type != else_val.type {
