@@ -345,37 +345,6 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                 raise ImportError(f"{file_path} failed to compile:\n{details}")
             raise ImportError(f"No bytecode found for {file_path}")
 
-        # MTIR is generated keyed by file stem (jir.mtir_module_stem) and isolated
-        # per module in mtir_by_module (keyed by jir.mtir_module_key, a
-        # dirname+stem identity). On import, re-key this module's slice to the
-        # fullname so byllm lookups by func.__module__ resolve; __main__ resolves
-        # back to its stem at lookup time (fetch_mtir). Sourcing from
-        # mtir_by_module (not a stem-prefix filter over the flat mtir_map) keeps
-        # same-stem modules in different directories distinct.
-        fullname = module.__name__
-        if fullname and fullname != "__main__":
-            from jaclang.jac0core.jir import mtir_module_key, mtir_module_stem
-            stem = mtir_module_stem(file_path)
-            if fullname != stem:
-                mod_key = mtir_module_key(file_path)
-                module_mtir = program.mtir_by_module.get(mod_key, {})
-                if not module_mtir:
-                    internal = getattr(compiler, "internal_program", None)
-                    if internal is not None and internal is not program:
-                        module_mtir = internal.mtir_by_module.get(mod_key, {})
-                prefix = stem + "."
-                renamed = {}
-                for key, info in module_mtir.items():
-                    if key == stem:
-                        new_key = fullname
-                    elif key.startswith(prefix):
-                        new_key = fullname + "." + key[len(prefix):]
-                    else:
-                        new_key = key
-                    program.mtir_map.pop(key, None)
-                    renamed[new_key] = info
-                program.mtir_map.update(renamed)
-
         # Inject native interop infrastructure if needed (sv↔na interop)
         native_engine, interop_py_funcs = compiler.get_native_interop_setup(
             file_path, program

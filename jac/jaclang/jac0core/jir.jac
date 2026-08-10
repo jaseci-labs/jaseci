@@ -214,7 +214,6 @@ def mtir_for_compiled_module(
 def store_module_mtir(prog: any, source_path: str, module_mtir: dict[(str, Info)]) {
     key = mtir_module_key(source_path);
     prog.mtir_by_module[key] = module_mtir;
-    prog.mtir_map.update(module_mtir);
 }
 
 def find_sections(data: (bytes | memoryview)) -> dict[int, bytes] {

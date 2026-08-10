@@ -111,36 +111,62 @@ def type_to_str(t: object) -> str {
 }
 
 def fetch_mtir(func: Callable) -> Info | None {
+    # MTIR is keyed by filesystem identity (jir.mtir_module_key), so the same
+    # resolution serves __main__ and every imported module: derive the owning
+    # source file from func.__module__, fetch that module's slice from
+    # mtir_by_module, then index it by "<stem>.<qualname>". A module with no
+    # backing file (builtin/extension/frozen/namespace pkg) has no by-LLM MTIR.
     import sys;
-    import from pathlib { Path }
     import from jaclang.jac0core.runtime { JacRuntime }
-    import from jaclang.jac0core.jir { mtir_module_stem }
-    module_name = None;
-    try {
-        module_name = getattr(func, "__module__");
-    } except AttributeError {
-        module_name = None;
-    }
+    import from jaclang.jac0core.jir { mtir_module_key, mtir_module_stem }
 
-    if module_name and module_name == "__main__" {
+    module_name = getattr(func, "__module__", None);
+
+    path = None;
+    if module_name == "__main__" or module_name is None {
         main_mod = sys.modules.get("__main__");
-        main_file = main_mod?.__file__ if main_mod else None;
-        if main_file {
-            module = mtir_module_stem(main_file);
-        } else {
-            module = Path(sys.argv[0]).stem if sys.argv and sys.argv[0] else "__main__";
+        if main_mod {
+            path = getattr(main_mod, "__file__", None);
         }
-    } elif module_name {
-        module = module_name;
+        if path is None and sys.argv and sys.argv[0] {
+            path = sys.argv[0];
+        }
     } else {
-        module = "__main__";
+        mod = sys.modules.get(module_name);
+        if mod {
+            path = getattr(mod, "__file__", None);
+        }
     }
-
-    try {
-        qualname = func.__qualname__;
-        current_scope = ".".join([module, qualname]);
-        return JacRuntime.get_mtir_from_map(current_scope);
-    } except (KeyError, AttributeError) {
+    if path is None {
         return None;
     }
+
+    prog = JacRuntime.program;
+    if prog is None {
+        return None;
+    }
+
+    key = mtir_module_key(path);
+    slice = prog.mtir_by_module.get(key);
+    if slice is None {
+        # Fallback: jaclang-tree modules compile into the internal program.
+        try {
+            internal = prog._get_compiler().internal_program;
+        } except Exception {
+            internal = None;
+        }
+        if internal is not None and internal is not prog {
+            slice = internal.mtir_by_module.get(key);
+        }
+    }
+    if slice is None {
+        return None;
+    }
+
+    qualname = getattr(func, "__qualname__", None);
+    if qualname is None {
+        return None;
+    }
+    scope = mtir_module_stem(path) + "." + qualname;
+    return slice.get(scope);
 }

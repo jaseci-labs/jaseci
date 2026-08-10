@@ -3,7 +3,6 @@ impl JacProgram.init(
 ) -> None {
     self.mod: uni.ProgramModule = main_mod or uni.ProgramModule();
     self.py_raise_map: dict[(str, str)] = {};
-    self.mtir_map: dict[(str, Info)] = {};
     self.mtir_by_module: dict[str, dict[(str, Info)]] = {};
     self.errors_had: list[Alert] = [];
     self.warnings_had: list[Alert] = [];
@@ -123,7 +122,7 @@ impl JacProgram.transitive_dependents(self: JacProgram, target_path: str) -> set
 }
 
 impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None {
-    import from jaclang.jac0core.jir { mtir_for_module, mtir_module_key, }
+    import from jaclang.jac0core.jir { mtir_module_key, }
 
     if resolved_path in self.mod.hub {
         del (self.mod.hub[resolved_path], );
@@ -140,10 +139,6 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
         del (self._placement_summaries[resolved_path], );
     }
 
-    module_mtir = mtir_for_module(self.mtir_by_module, resolved_path);
-    for scope in module_mtir {
-        self.mtir_map.pop(scope, None);
-    }
     mod_key = mtir_module_key(resolved_path);
     if mod_key in self.mtir_by_module {
         del (self.mtir_by_module[mod_key], );

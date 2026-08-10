@@ -1513,20 +1513,9 @@ impl JacLLM.add_mtir_to_map(mod_path: str, scope: str, mtir: Info) -> None {
         raise AttributeError('JacRuntime.program is not initialized');
     }
     prog = JacRuntime.program;
-    prog.mtir_map[scope] = mtir;
     import from jaclang.jac0core.jir { mtir_module_key }
     key = mtir_module_key(mod_path);
     prog.mtir_by_module.setdefault(key, {})[scope] = mtir;
-}
-
-impl JacLLM.get_mtir_from_map(scope: str) -> (Info | None) {
-    if (JacRuntime.program is None) {
-        raise AttributeError('JacRuntime.program is not initialized');
-    }
-    if (scope not in JacRuntime.program.mtir_map) {
-        raise KeyError(f"MTIR not found for scope {scope}");
-    }
-    return JacRuntime.program.mtir_map[scope];
 }
 
 impl JacContext.create_j_context(

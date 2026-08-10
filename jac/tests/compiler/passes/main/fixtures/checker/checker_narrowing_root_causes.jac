@@ -88,7 +88,7 @@ def use_program(p: Program) -> dict[str, str] {
 # narrow x from T|None to T on subsequent lines. Currently it doesn't,
 # causing false positive E1099 errors on attribute access.
 #
-# Mirrors: runtime.impl.jac lines 1964-1978 (JacRuntime.program.mtir_map)
+# Mirrors: runtime.impl.jac (JacRuntime.program.mtir_by_module access)
 # ============================================================================
 
 # --- ok_ functions: baseline patterns that work ---

@@ -3879,7 +3879,7 @@ After `if obj.attr is None { raise ...; }`, obj.attr should be narrowed from
 T|None to T. Currently the type checker doesn't narrow through raise, so
 subsequent attribute access on obj.attr produces false positive E1099 errors.
 
-Mirrors: runtime.impl.jac lines 1964-1978 (JacRuntime.program.mtir_map after
+Mirrors: runtime.impl.jac (JacRuntime.program.mtir_by_module access after
 raise on None check).
 """
 test "root_cause_1_raise_does_not_narrow" {

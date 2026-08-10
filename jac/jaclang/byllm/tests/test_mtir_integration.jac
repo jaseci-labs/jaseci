@@ -40,6 +40,24 @@ def fixture_path(fixture: str) -> str {
     return os.path.abspath(file_path);
 }
 
+"""Flatten every per-module MTIR slice into one {scope: info} view for tests.
+
+Production never builds this: fetch_mtir resolves a single module's slice
+directly from mtir_by_module. This helper only stands in for the removed flat
+mtir_map in tests that scan scopes program-wide.
+"""
+def all_mtir() -> dict {
+    prog = JacRuntime.program;
+    if prog is None {
+        return {};
+    }
+    out: dict = {};
+    for slice in prog.mtir_by_module.values() {
+        out.update(slice);
+    }
+    return out;
+}
+
 # =============================================================================
 # Schema Generation Data Structure Tests
 # =============================================================================
@@ -153,7 +171,7 @@ test "tool extraction from compiled code" {
     assert not prog.errors_had;
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     func_with_tools = None;
     for (scope, info) in mtir_map.items() {
@@ -188,7 +206,7 @@ test "method tool in class" {
     assert not prog.errors_had;
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     method_scope = None;
     for scope in mtir_map {
@@ -479,24 +497,14 @@ test "invalidate module clears stale mtir" {
         module_mtir = mtir_for_module(prog.mtir_by_module, path);
         assert len(module_mtir) > 0 , "by llm compile should populate module MTIR";
 
-        scopes_before = list(module_mtir.keys());
-        for scope in scopes_before {
-            assert scope in prog.mtir_map , (
-                f"MTIR scope {scope} should be in mtir_map before invalidation"
-            );
-        }
-
         mod_key = mtir_module_key(path);
         prog.invalidate_module(path);
 
+        # Single source of truth: the slice is gone, so the scope is gone.
+        # (No second map to keep in sync — cleanup key == storage key.)
         assert mod_key not in prog.mtir_by_module , (
             "mtir_by_module slice should be removed on invalidation"
         );
-        for scope in scopes_before {
-            assert scope not in prog.mtir_map , (
-                f"Stale MTIR key {scope} should be cleared on invalidation"
-            );
-        }
 
         jac_file.write_text(plain_content);
         assert compiler.get_bytecode(path, prog) is not None;
@@ -505,11 +513,6 @@ test "invalidate module clears stale mtir" {
         assert len(module_mtir_after) == 0 , (
             "Recompile without by llm should not restore stale MTIR"
         );
-        for scope in scopes_before {
-            assert scope not in prog.mtir_map , (
-                f"Stale MTIR key {scope} should stay gone after plain recompile"
-            );
-        }
     } finally {
         cache_path = get_module_cache_path(path);
         if cache_path.exists() {
@@ -528,7 +531,7 @@ test "basic fixture compiles" {
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
     assert len(mtir_map) > 0 , "MTIR map should have entries";
 
     found_generate_person = False;
@@ -552,7 +555,7 @@ test "scope name with trailing a" {
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     scopes_with_generate_data = [
         scope
@@ -584,7 +587,7 @@ test "scope name with trailing c" {
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     scopes_with_get_basic = [
         scope
@@ -614,7 +617,7 @@ test "scope name with trailing j" {
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     scopes_with_create_proj = [
         scope
@@ -650,7 +653,7 @@ test "all stored scopes are retrievable" {
         assert not prog.errors_had , f"Compilation errors for {fixture_name}: {prog.errors_had}";
 
         assert JacRuntime.program is not None;
-        mtir_map = JacRuntime.program.mtir_map;
+        mtir_map = all_mtir();
 
         expected_scope_pattern = f"{module_name}.{func_name}";
 
@@ -755,7 +758,7 @@ test "enum with int values extraction" {
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     func_scope = None;
     for scope in mtir_map {
@@ -806,7 +809,7 @@ test "enum with string values extraction" {
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     func_scope = None;
     for scope in mtir_map {
@@ -854,7 +857,7 @@ test "enum without values extraction" {
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     func_scope = None;
     for scope in mtir_map {
@@ -891,7 +894,7 @@ test "enum semstrings are extracted" {
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     func_scope = None;
     for scope in mtir_map {
@@ -1004,7 +1007,7 @@ test "same function name different files resolve distinctly" {
     }
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     process_data_scopes = [
         scope
@@ -1039,8 +1042,14 @@ test "same function name different files resolve distinctly" {
     assert beta_info.return_type.name == "BetaResult";
 }
 
-test "submodule MTIR keyed by import fullname" {
-    # Force re-execution so our exec_module rename fires against the fresh program.
+test "imported packaged module resolves via fetch_mtir" {
+    # Was: assert the import rekey produced fullname keys in a flat mtir_map.
+    # Now: the flat map and rekey are gone. fetch_mtir resolves an imported
+    # packaged module's by-LLM function through filesystem identity alone
+    # (mtir_module_key of the module's __file__), proving cleanup key ==
+    # storage key == lookup key with no key-space bridge to maintain.
+    import from jaclang.jac0core.mtp { fetch_mtir }
+
     for name in [
         "scope_main",
         "scope_dir.module_alpha",
@@ -1052,22 +1061,29 @@ test "submodule MTIR keyed by import fullname" {
 
     captured_output = io.StringIO();
     sys.stdout = captured_output;
-
     try {
         jac_import("scope_main", base_path=FIXTURE_DIR + "/");
     } finally {
         sys.stdout = sys.__stdout__;
     }
 
-    assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    alpha_mod = sys.modules.get("scope_dir.module_alpha");
+    beta_mod = sys.modules.get("scope_dir.module_beta");
+    assert alpha_mod is not None , "scope_dir.module_alpha should be imported";
+    assert beta_mod is not None , "scope_dir.module_beta should be imported";
 
-    assert "scope_dir.module_alpha.process_data" in mtir_map , f"Expected fullname-keyed MTIR entry for module_alpha. Keys: {list(
-        mtir_map.keys()
-    )}";
-    assert "scope_dir.module_beta.process_data" in mtir_map , f"Expected fullname-keyed MTIR entry for module_beta. Keys: {list(
-        mtir_map.keys()
-    )}";
+    alpha_fn = getattr(alpha_mod, "process_data", None);
+    beta_fn = getattr(beta_mod, "process_data", None);
+    assert alpha_fn is not None and beta_fn is not None;
+
+    alpha_info = fetch_mtir(alpha_fn);
+    beta_info = fetch_mtir(beta_fn);
+    assert alpha_info is not None , "fetch_mtir should resolve module_alpha.process_data";
+    assert beta_info is not None , "fetch_mtir should resolve module_beta.process_data";
+    assert isinstance(alpha_info, FunctionInfo);
+    assert isinstance(beta_info, FunctionInfo);
+    assert alpha_info.return_type.name == "AlphaResult";
+    assert beta_info.return_type.name == "BetaResult";
 }
 
 test "runtime scope resolution matches compile time" {
@@ -1077,7 +1093,7 @@ test "runtime scope resolution matches compile time" {
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     expected_stem = Path(fixture).stem;
 
@@ -1106,12 +1122,54 @@ test "scope portable across paths" {
     assert not prog.errors_had;
 
     assert JacRuntime.program is not None;
-    mtir_map = JacRuntime.program.mtir_map;
+    mtir_map = all_mtir();
 
     for scope in mtir_map {
         assert not scope.startswith("/") , f"Scope '{scope}' should not start with absolute path";
         assert ":\\" not in scope and ":/" not in scope , f"Scope '{scope}' should not contain Windows drive letters";
         module_part = scope.split(".")[0];
         assert "/" not in module_part and "\\" not in module_part , f"Module part '{module_part}' should not contain path separators";
+    }
+}
+
+test "invalidate module makes runtime lookup return None" {
+    # Regression for the dual-map desync: invalidating a module must clear its
+    # MTIR from the single store so the runtime lookup (fetch_mtir) returns
+    # None. One store keyed by filesystem identity means cleanup key ==
+    # storage key == lookup-resolved key, so a stale lookup is impossible.
+    import shutil;
+    import from jaclang.jac0core.jir { get_module_cache_path }
+    import from jaclang.jac0core.mtp { fetch_mtir }
+
+    tmp_path = Path(tempfile.mkdtemp());
+    mod_file = tmp_path / "leaked.jac";
+    shutil.copy(fixture_path("basic_compile.jac"), str(mod_file));
+    mod_path = str(mod_file.resolve());
+
+    assert JacRuntime.program is not None;
+    prog = JacRuntime.program;
+    try {
+        jac_import("leaked", base_path=str(tmp_path) + "/");
+        leaked_mod = sys.modules.get("leaked");
+        assert leaked_mod is not None , "leaked module should execute on import";
+
+        fn = getattr(leaked_mod, "generate_person", None);
+        assert fn is not None , "leaked module should expose generate_person";
+        assert fetch_mtir(fn) is not None , (
+            "fetch_mtir should resolve before invalidation"
+        );
+
+        prog.invalidate_module(mod_path);
+
+        assert fetch_mtir(fn) is None , (
+            "fetch_mtir must return None once the module's MTIR is invalidated"
+        );
+    } finally {
+        sys.modules.pop("leaked", None);
+        cache_path = get_module_cache_path(mod_path);
+        if cache_path.exists() {
+            cache_path.unlink();
+        }
+        shutil.rmtree(str(tmp_path), ignore_errors=True);
     }
 }
