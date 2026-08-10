@@ -14,13 +14,11 @@ import from jaclang.jac0core.program { JacProgram }
 import from tests.support { JAC_ROOT, TESTS_DIR }
 
 glob FIXTURE = os.path.join(
-    TESTS_DIR, "compiler", "fixtures", "jac_lazy_dep", "lib.jac"
-);
+         TESTS_DIR, "compiler", "fixtures", "jac_lazy_dep", "lib.jac"
+     );
 
 def _jir_flags(blob: bytes) -> int {
-    (_, _, _, _, _, _, _, _, flags) = struct.unpack(
-        HEADER_FMT, blob[:HEADER_SIZE]
-    );
+    (_, _, _, _, _, _, _, _, flags) = struct.unpack(HEADER_FMT, blob[:HEADER_SIZE]);
     return flags;
 }
 
@@ -103,7 +101,10 @@ test "user dep cache chunks under JAC_LAZY_JAC with lazy parity" {
         eager = lazy_reader.hydrated_node_count;
         assert eager < total // 4 , (
             "lazy eager tier should be well under full module ("
-                + str(eager) + " / " + str(total) + ")"
+            + str(eager)
+            + " / "
+            + str(total)
+            + ")"
         );
         assert sorted(lazy_mod.names_in_scope.keys()) == ref_syms;
 
@@ -142,9 +143,7 @@ test "ineligible source path full-hydrates a chunked .jac cache" {
         assert (_jir_flags(blob) & FLAG_CHUNKED) != 0;
 
         # Same chunked bytes, but reader treats jaclang paths as ineligible.
-        internal_path = os.path.join(
-            JAC_ROOT, "jaclang", "jac0core", "constant.jac"
-        );
+        internal_path = os.path.join(JAC_ROOT, "jaclang", "jac0core", "constant.jac");
         reader = JirReader(_source_path=internal_path);
         full = reader.read_module(blob);
         assert full is not None;

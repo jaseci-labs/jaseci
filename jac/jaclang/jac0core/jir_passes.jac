@@ -129,7 +129,7 @@ obj JirWriter {
     # Returns True for top-level module children whose subtree is deferred into
     # its own JIR chunk (lazy tier): class (Archetype) and function (Ability)
     # declarations, which dominate a stub's node count.
-    def _is_lazy_decl(node: UniNode) -> bool;
+    def _is_lazy_decl(nd: UniNode) -> bool;
     def _assign_ids(ir_node: UniNode) -> int;
     def _get_node_id(ir_node: (UniNode | None)) -> int;
     def _write_node(buf: bytearray, ir_node: UniNode) -> None;

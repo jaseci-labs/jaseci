@@ -463,8 +463,7 @@ test "lazy jir hydrates stub declarations on demand" {
         full_reader = JirReader(_source_path=resolved);
         full_mod = full_reader.read_module(blob);
         assert full_mod is not None;
-        assert full_reader.hydrated_node_count == total ,
-            "full-hydrate read must materialize every node";
+        assert full_reader.hydrated_node_count == total , "full-hydrate read must materialize every node";
         ref_syms = sorted(full_mod.names_in_scope.keys());
 
         # Lazy read: eager tier only.
@@ -476,21 +475,20 @@ test "lazy jir hydrates stub declarations on demand" {
         # With classes, functions and module-level statements all deferred, the
         # eager tier (imports + module scope overlay) is a small fraction of a
         # real stub -- empirically ~5% for builtins.pyi.
-        assert eager < total // 8 ,
-            "lazy eager tier should be a small fraction of the stub ("
-                + str(eager) + " / " + str(total) + ")";
+        assert eager < total // 8 , "lazy eager tier should be a small fraction of the stub ("
+            + str(eager)
+            + " / "
+            + str(total)
+            + ")";
 
         # The full symbol table is available without hydrating any body.
-        assert sorted(lazy_mod.names_in_scope.keys()) == ref_syms ,
-            "lazy symbol table must match full hydrate";
-        assert lazy_reader.hydrated_node_count == eager ,
-            "listing symbols must not hydrate declaration bodies";
+        assert sorted(lazy_mod.names_in_scope.keys()) == ref_syms , "lazy symbol table must match full hydrate";
+        assert lazy_reader.hydrated_node_count == eager , "listing symbols must not hydrate declaration bodies";
 
         # Typed cold shells: module.kid classes are the right node type before
         # any hydration.
         assert [type(k).__name__ for k in lazy_mod.kid]
-            == [type(k).__name__ for k in full_mod.kid] ,
-            "lazy kid node types must match full hydrate";
+            == [type(k).__name__ for k in full_mod.kid] , "lazy kid node types must match full hydrate";
 
         # Touch one class: only its subtree hydrates, and its members match.
         target = None;
@@ -508,11 +506,9 @@ test "lazy jir hydrates stub declarations on demand" {
         assert type(lazy_arch).__name__ == "Archetype";
         touched = lazy_reader.hydrated_node_count;
         assert touched > before , "touching a class should hydrate its chunk";
-        assert touched < total ,
-            "touching one class must not hydrate the whole module";
+        assert touched < total , "touching one class must not hydrate the whole module";
         assert sorted(lazy_arch.names_in_scope.keys())
-            == sorted(full_arch.names_in_scope.keys()) ,
-            "hydrated class members must match full hydrate";
+            == sorted(full_arch.names_in_scope.keys()) , "hydrated class members must match full hydrate";
         # Parent chain / scope link restored through in-place hydration.
         assert lazy_arch.parent is lazy_mod;
         assert lazy_arch.parent_scope is lazy_mod;

@@ -183,11 +183,7 @@ def schema_digest -> str {
     return _SCHEMA_DIGEST_CACHE[0];
 }
 
-# Update `h` with the compiler-identity digest prefix shared by every module key:
-# jaclang version, Python version, JIR FORMAT_VERSION, and the IR schema digest.
-# IR shape changes per compiler version, so this prefix is the cache-key
-# correctness contract; both stub and full module keys start from it.
-def _update_compiler_identity(h: _hashlib.HASH) -> None {
+def _update_compiler_identity(h: _hashlib.HASH) {
     import from importlib.metadata { version as pkg_version }
     try {
         jac_ver = pkg_version('jaclang');
@@ -477,12 +473,7 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
                 }
             }
         }
-        # Perf tradeoff: a still-fresh mtime short-circuits to True without
-        # recomputing the module key. This avoids hashing large stubs on every
-        # LSP keystroke, at the cost of a schema-drift window: a schema change
-        # shipped without a FORMAT_VERSION bump (and with preserved mtimes) can
-        # serve stale IR until the cache file is regenerated. FORMAT_VERSION
-        # bumps and the content-hash fallback below cover normal invalidation.
+
         if fresh {
             return True;
         }
@@ -493,9 +484,6 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
     }
 }
 
-# Runtime value is uni.Module | None (the result of JirReader.read_module).
-# Typed `object` because jir.jac keeps a stdlib-only top-level import set to
-# stay bootstrap-safe, so it cannot import uni.Module for the signature.
 def read_module_jir_cache(source_path: str) -> (object | None) {
     import from jaclang.jac0core.jir_passes { JirReader }
     import traceback;
@@ -529,8 +517,6 @@ def read_module_jir_cache(source_path: str) -> (object | None) {
     }
 }
 
-# `mod` is uni.Module; typed `object` for the same bootstrap-safe, stdlib-only
-# reason as read_module_jir_cache above. Callers in jac0core always pass a Module.
 def write_module_jir_cache(
     source_path: str,
     mod: object,
@@ -565,7 +551,9 @@ def write_module_jir_cache(
         if bc is not None and SEC_BYTECODE not in sections {
             sections[SEC_BYTECODE] = bc;
         }
-        jir_bytes = writer.write_module(mod, sections=sections, jac_lazy_dep=jac_lazy_dep);
+        jir_bytes = writer.write_module(
+            mod, sections=sections, jac_lazy_dep=jac_lazy_dep
+        );
         tmp_path = cache_path.with_suffix(f'.{os.getpid()}.tmp');
         try {
             tmp_path.write_bytes(jir_bytes);

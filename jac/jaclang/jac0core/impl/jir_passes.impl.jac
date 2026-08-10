@@ -2,7 +2,7 @@ import struct;
 import sys;
 import zlib;
 
-impl JirWriter._is_lazy_decl(node: UniNode) -> bool {
+impl JirWriter._is_lazy_decl(nd: UniNode) -> bool {
     import from jaclang.jac0core.unitree {
         Archetype, Ability, GlobalVars, ModuleCode, ImplDef, Enum, Test
     }
@@ -13,7 +13,7 @@ impl JirWriter._is_lazy_decl(node: UniNode) -> bool {
     # (ImplDef -- the method/function bodies that dominate an inline-impl `.jac`
     # module). Their module-scope symbols stay eager; only the bodies defer.
     return isinstance(
-        node, (Archetype, Ability, GlobalVars, ModuleCode, ImplDef, Enum, Test)
+        nd, (Archetype, Ability, GlobalVars, ModuleCode, ImplDef, Enum, Test)
     );
 }
 

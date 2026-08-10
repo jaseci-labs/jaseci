@@ -209,10 +209,6 @@ impl JacProgram.load_dependency_module(
             ).ir_out;
             SymTabBuildPass(ir_in=mod, prog=self);
             mod.stub_only = True;
-            # Only cache when built straight from the on-disk file (use_str is
-            # None), so the cached module matches the key's content hash. When
-            # use_str patches the source (e.g. builtins.pyi chunk extension), the
-            # module would otherwise be written under the unpatched file's key.
             if use_str is None and jir_cacheable_source_path(resolved_path) {
                 write_module_jir_cache(resolved_path, mod);
             }

@@ -9,10 +9,6 @@ impl UniNode.postinit -> None {
 
 
 impl UniNode.__getattr__(name: str) -> object {
-    # Lazy-JIR cold shells carry only `_jir_*` control keys; a real attribute
-    # miss on one hydrates its declaration chunk (which repopulates this same
-    # object in place) and retries. For every ordinary node this is the normal
-    # missing-attribute path and raises AttributeError, exactly as before.
     d = self.__dict__;
     if not d.get('_jir_cold') {
         raise AttributeError(name);
@@ -28,7 +24,7 @@ impl UniNode.__getattr__(name: str) -> object {
         d.pop('_jir_hydrating', None);
     }
     try {
-        return `object.__getattribute__(self, name);
+        return object.__getattribute__(self, name);
     } except AttributeError {
         raise AttributeError(name);
     }
