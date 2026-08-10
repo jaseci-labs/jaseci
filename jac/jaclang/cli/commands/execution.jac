@@ -174,7 +174,9 @@ def enter(
     args: list = [],
     main: bool = True,
     `root: str = "",
-    nd: str = ""
+    nd: str = "",
+    graphmend: bool = False,
+    graphmend_scope: str = ""
 ) -> int;
 
 @registry.command(

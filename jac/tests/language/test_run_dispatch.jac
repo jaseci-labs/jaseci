@@ -393,3 +393,29 @@ test "unknown explicit kind is reported by jac run" {
     assert "Unknown" in err and "banana" in err;
     _cleanup();
 }
+
+test "graphmend options survive every jac run mode" {
+    # Each mode installs its own context, so each binds the options itself.
+    # --debug compiles through a separate program and refuses instead.
+    body = "import from jaclang.jac0core.runtime { JacRuntime as Jac }\n"
+        + "with entry { print(f\"GM={Jac.get_program().graphmend_enabled}\"); }";
+    d = _mk_project("kind = \"cli\"\n", "main.jac", body);
+    old = os.getcwd();
+    os.chdir(d);
+    captured = io.StringIO();
+    sys.stdout = captured;
+    try {
+        rc_project = execution.run(filename="", graphmend_scope="mypkg");
+        rc_file = execution.run(filename="main.jac", graphmend=True);
+        rc_entry = execution.run(filename="", graphmend=True);
+        rc_debug = execution.run(filename="main.jac", debug_mode=True, graphmend=True);
+    } finally {
+        sys.stdout = sys.__stdout__;
+        os.chdir(old);
+    }
+    out = captured.getvalue();
+    assert rc_project == 0 and rc_file == 0 and rc_entry == 0;
+    assert out.count("GM=True") == 3 , f"expected 3 enabled runs, got: {out}";
+    assert rc_debug == 1;
+    _cleanup();
+}

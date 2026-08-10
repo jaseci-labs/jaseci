@@ -78,7 +78,13 @@ def _print_plan(plan: RunPlan) {
 }
 
 def _execute_plan(
-    plan: RunPlan, main: bool, cache: bool, diagnostics: str, args: list
+    plan: RunPlan,
+    main: bool,
+    cache: bool,
+    diagnostics: str,
+    args: list,
+    graphmend: bool = False,
+    graphmend_scope: str = ""
 ) -> int {
     if plan.action == "execute" {
         return run(
@@ -86,7 +92,9 @@ def _execute_plan(
             main=main,
             cache=cache,
             diagnostics=diagnostics,
-            args=args
+            args=args,
+            graphmend=graphmend,
+            graphmend_scope=graphmend_scope
         );
     }
     if plan.action == "serve" {
@@ -212,8 +220,27 @@ def _jab_native_bin(img_root: object, entry_rel: str) -> (str | None) {
     return None;
 }
 
+def _apply_graphmend(graphmend: bool, graphmend_scope: str) {
+    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    gm_scope: list[str] = [];
+    for part in graphmend_scope.split(',') {
+        stripped = part.strip();
+        if stripped {
+            gm_scope.append(stripped);
+        }
+    }
+    Jac.get_program().graphmend_enabled = graphmend or bool(gm_scope);
+    Jac.get_program().graphmend_scope = gm_scope;
+}
+
 def _run_project(
-    show: bool, main: bool, cache: bool, diagnostics: str, args: list
+    show: bool,
+    main: bool,
+    cache: bool,
+    diagnostics: str,
+    args: list,
+    graphmend: bool = False,
+    graphmend_scope: str = ""
 ) -> int {
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
@@ -255,7 +282,13 @@ def _run_project(
         return 0;
     }
     return _execute_plan(
-        plan, main=main, cache=cache, diagnostics=diagnostics, args=args
+        plan,
+        main=main,
+        cache=cache,
+        diagnostics=diagnostics,
+        args=args,
+        graphmend=graphmend,
+        graphmend_scope=graphmend_scope
     );
 }
 
@@ -281,6 +314,10 @@ impl run(
             console.error("jac run --debug needs a file.");
             return 1;
         }
+        if graphmend or graphmend_scope.strip() {
+            console.error("jac run --debug cannot be combined with --graphmend.");
+            return 1;
+        }
         return debug(filename=filename, main=main, cache=cache);
     }
     if entry_name {
@@ -288,11 +325,19 @@ impl run(
             console.error("jac run --entry needs a file.");
             return 1;
         }
-        return enter(filename, entry_name, args, main, root_id, nd);
+        return enter(
+            filename, entry_name, args, main, root_id, nd, graphmend, graphmend_scope
+        );
     }
     if not filename {
         return _run_project(
-            show=show, main=main, cache=cache, diagnostics=diagnostics, args=args
+            show=show,
+            main=main,
+            cache=cache,
+            diagnostics=diagnostics,
+            args=args,
+            graphmend=graphmend,
+            graphmend_scope=graphmend_scope
         );
     }
     if filename.endswith(".jab") {
@@ -325,15 +370,7 @@ impl run(
     sys.argv = [filename] + list(args);
     (base, mod, mach) = _proc_file(filename);
     lng = filename.split('.')[-1];
-    gm_scope: list[str] = [];
-    for part in graphmend_scope.split(',') {
-        stripped = part.strip();
-        if stripped {
-            gm_scope.append(stripped);
-        }
-    }
-    Jac.get_program().graphmend_enabled = graphmend or bool(gm_scope);
-    Jac.get_program().graphmend_scope = gm_scope;
+    _apply_graphmend(graphmend, graphmend_scope);
     try {
         if filename.endswith('.jac') {
             native_executed = False;
@@ -451,7 +488,9 @@ impl enter(
     args: list = [],
     main: bool = True,
     `root: str = '',
-    nd: str = ''
+    nd: str = '',
+    graphmend: bool = False,
+    graphmend_scope: str = ''
 ) -> int {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.jac0core.constructs { WalkerArchetype }
@@ -464,6 +503,7 @@ impl enter(
     }
     _discover_config_from_file(filename);
     (base, mod, mach) = _proc_file(filename);
+    _apply_graphmend(graphmend, graphmend_scope);
 
     if `root {
         mach.set_user_root(`root);
