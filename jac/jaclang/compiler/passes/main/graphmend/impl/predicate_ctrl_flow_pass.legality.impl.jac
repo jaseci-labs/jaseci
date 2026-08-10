@@ -4,6 +4,7 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts {
     attr_annotation,
     attr_dict_kind,
     find_class,
+    module_imports_plain,
     wrapping_classes
 }
 
@@ -222,6 +223,12 @@ impl PredicateCtrlFlowPass._body_pure_nonraising(
             continue;
         }
         t = call.target;
+        if isinstance(t, uni.AtomTrailer)
+            and isinstance(t.right, uni.Name)
+            and (t.right.value in _PURE_TENSOR_METHODS)
+            and isinstance(t.target, uni.FuncCall) {
+            continue;
+        }
         local = None;
         if isinstance(t, uni.Name) and (mod is not None) {
             local = self._module_fn(mod, t.value);
@@ -230,6 +237,7 @@ impl PredicateCtrlFlowPass._body_pure_nonraising(
             return False;
         }
     }
+    marks.discard(id(fn));
     return True;
 }
 
@@ -599,14 +607,21 @@ impl PredicateCtrlFlowPass._pure_receiver(recv: (uni.Expr | None)) -> bool {
 
 impl PredicateCtrlFlowPass._pure_root(base: uni.Name) -> bool {
     sym = base.sym;
-    if (sym is None) or (sym.decl is None) {
+    if sym is not None {
+        if sym.decl is None {
+            return False;
+        }
+        mp = sym.decl.find_parent_of_type(uni.ModulePath);
+        if mp is None {
+            return False;
+        }
+        return mp.dot_path_str == base.value;
+    }
+    mod = base.find_parent_of_type(uni.Module);
+    if mod is None {
         return False;
     }
-    mp = sym.decl.find_parent_of_type(uni.ModulePath);
-    if mp is None {
-        return False;
-    }
-    return mp.dot_path_str == base.value;
+    return module_imports_plain(mod, base.value);
 }
 
 impl PredicateCtrlFlowPass._assignment_neutral(

@@ -70,6 +70,50 @@ def _py_fixture_src(gm: bool) -> str {
     }
 }
 
+"""A model whose torch import sits behind an availability guard, the
+transformers idiom; written to a temp file at test time."""
+glob PY_GUARDED_IMPORT_SRC = '''
+def _avail():
+    return True
+
+
+if _avail():
+    import torch
+
+
+def _compute_long(config, device, **rope_kwargs):
+    if len(rope_kwargs) > 0:
+        raise ValueError("Unexpected arguments: `**rope_kwargs` should be unset")
+    return torch.arange(0, 8).float().to(device)
+
+
+ROPE_INIT_FUNCTIONS = {"long": _compute_long}
+
+
+@torch.compile()
+def update(self_obj, position_ids, device):
+    seq_len = torch.max(position_ids) + 1
+    if seq_len > 8:
+        if not hasattr(self_obj, "long_inv_freq"):
+            self_obj.long_inv_freq = self_obj.rope_init_fn(self_obj.config, device)
+        self_obj.register_buffer("inv_freq", self_obj.long_inv_freq, persistent=False)
+    else:
+        self_obj.original_inv_freq = self_obj.original_inv_freq.to(device)
+        self_obj.register_buffer("inv_freq", self_obj.original_inv_freq, persistent=False)
+    return self_obj.inv_freq
+''';
+
+"""Write a .py model to a temp file and return its generated Python source."""
+def _compile_path_of_py(src: str, name: str) -> str {
+    with tempfile.TemporaryDirectory() as tmp {
+        path = os.path.join(tmp, name);
+        with open(path, "w") as fh {
+            fh.write(src);
+        }
+        return _compile_path(path, True);
+    }
+}
+
 test "return branches become torch.where" {
     src = _pysrc("where_return.jac", True);
     assert "torch.where(" in src;
@@ -251,6 +295,24 @@ test "a device move whose target the region never consumes is declined" {
     # the right device; an unconsumed target is a bare attribute mutation.
     assert "torch.where(" not in src;
     assert "if seq_len > 8:" in src;
+}
+
+test "a twice-called helper is a diamond, not a cycle, and stays licensed" {
+    src = _pysrc("guard_diamond_init.jac", True);
+    # The sub-helper is proven once per call site (floor and ceil bounds);
+    # only a helper still on the recursion stack declines. The initializer
+    # also exercises floor/ceil and a tensor method on a local call's result.
+    assert "register_buffer('inv_freq', torch.where(" in src;
+    assert "if seq_len > 8:" not in src;
+}
+
+test "py source: a guard-imported torch root still proves" {
+    # Model code imports torch behind an availability guard, which leaves the
+    # name without a symbol binding; the proof falls back to the module's
+    # plain import statement, and module-level rebinding still declines.
+    src = _compile_path_of_py(PY_GUARDED_IMPORT_SRC, "py_guarded_import.py");
+    assert "register_buffer('inv_freq', torch.where(" in src;
+    assert "if seq_len > 8:" not in src;
 }
 
 test "a recursive initializer helper is declined" {
