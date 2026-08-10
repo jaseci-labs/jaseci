@@ -689,6 +689,21 @@ impl NaIRGenPass._emit_new(nd: uni.FuncCall) -> (ir.Value | None) {
     );
 }
 
+impl NaIRGenPass._qualified_builtin_name(target: uni.Expr) -> (str | None) {
+    if not isinstance(target, uni.AtomTrailer) or not target.is_attr {
+        return None;
+    }
+    if isinstance(target.target, uni.AtomTrailer) {
+        return None;
+    }
+    mod_name = self._get_name(target.target);
+    attr_name = self._get_name(target.right);
+    if mod_name == "builtins" and attr_name is not None {
+        return attr_name;
+    }
+    return None;
+}
+
 impl NaIRGenPass._native_module_call_target(nd: uni.FuncCall) -> (tuple | None) {
     trailer = nd.target;
     if not isinstance(trailer, uni.AtomTrailer) or not trailer.is_attr {
@@ -841,7 +856,11 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     _call_kind = nd.call_kind;
 
     _mod_qual: (str | None) = None;
-    if _call_kind == "method" {
+    _qualified_builtin = self._qualified_builtin_name(nd.target);
+    if _qualified_builtin is not None {
+        func_name = _qualified_builtin;
+        _call_kind = "builtin";
+    } elif _call_kind == "method" {
         _mod_fn = self._native_module_call_target(nd);
         if _mod_fn is None {
             return self._codegen_method_call(nd);

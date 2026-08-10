@@ -2241,8 +2241,55 @@ impl PyastBuildPass._make_number_literal(
     );
 }
 
+impl PyastBuildPass._emit_float_call(nd: py_ast.AST, arg: str) -> uni.FuncCall {
+    func = self.name_node(nd, 'float');
+    arg_lit = uni.String(
+        orig_src=self.orig_src,
+        name='STRING',
+        value=f"'{arg}'",
+        line=nd.lineno,
+        end_line=nd.end_lineno or nd.lineno,
+        col_start=nd.col_offset,
+        col_end=nd.col_offset,
+        pos_start=0,
+        pos_end=0
+    );
+    return uni.FuncCall(
+        target=func,
+        params=[arg_lit],
+        genai_call=None,
+        kid=[func, arg_lit]
+    );
+}
+
+impl PyastBuildPass._builtin_attr_ref(nd: py_ast.AST, attr: str) -> uni.AtomTrailer {
+    mod = self.name_node(nd, 'builtins');
+    name = self.name_node(
+        nd,
+        attr,
+        col_start=nd.col_offset,
+        col_end=nd.col_offset + len(attr)
+    );
+    return uni.AtomTrailer(
+        target=mod,
+        right=name,
+        is_attr=True,
+        is_null_ok=False,
+        kid=[mod, name]
+    );
+}
+
 impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
-    if math.isfinite(n) and n == int(n) {
+    if not math.isfinite(n) {
+        if math.isnan(n) {
+            return self._emit_float_call(nd, 'nan');
+        }
+        if n > 0 {
+            return self._emit_float_call(nd, 'inf');
+        }
+        return self._emit_float_call(nd, '-inf');
+    }
+    if n == int(n) {
         return self._make_number_literal(nd, 'INT', str(int(n)), col_end=nd.col_offset);
     }
     return self._make_number_literal(nd, 'FLOAT', str(n), col_end=nd.col_offset);
@@ -2251,7 +2298,7 @@ impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
 impl PyastBuildPass._emit_complex_call(
     nd: py_ast.AST, re: float, im: float
 ) -> uni.FuncCall {
-    func = self.name_node(nd, 'complex');
+    func = self._builtin_attr_ref(nd, 'complex');
     real_lit = self._numeric_literal(nd, re);
     imag_lit = self._numeric_literal(nd, im);
     return uni.FuncCall(
@@ -2265,6 +2312,15 @@ impl PyastBuildPass._emit_complex_call(
 impl PyastBuildPass._eval_complex_literal_ast(
     nd: py_ast.AST
 ) -> (complex | float | int | None) {
+    lit_val: (complex | float | int | None) = None;
+    try {
+        lit_val = py_ast.literal_eval(nd);
+    } except Exception {
+        lit_val = None;
+    }
+    if lit_val is not None {
+        return lit_val;
+    }
     if isinstance(nd, py_ast.Constant) {
         if isinstance(nd.value, (int, float, complex)) {
             return nd.value;

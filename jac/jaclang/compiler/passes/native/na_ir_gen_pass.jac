@@ -361,6 +361,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _native_module_call_target(nd: uni.FuncCall) -> (tuple | None);
+    def _qualified_builtin_name(target: uni.Expr) -> (str | None);
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
 

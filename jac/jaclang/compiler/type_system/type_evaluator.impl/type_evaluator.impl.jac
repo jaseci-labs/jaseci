@@ -636,6 +636,22 @@ impl TypeEvaluator._get_type_of_expression_core(
             }
 
             if expr.is_attr {
+                if (
+                    isinstance(expr.target, uni.Name)
+                    and expr.target.value == "builtins"
+                    and isinstance(expr.right, uni.Name)
+                ) {
+                    member_sym = self.builtins_module.names_in_scope.get(
+                        expr.right.value
+                    );
+                    if member_sym is not None {
+                        member_sym.add_use(expr.right);
+                        sym_type = self.get_type_of_symbol(member_sym);
+                        expr.right.type = sym_type;
+                        return sym_type;
+                    }
+                }
+
                 if isinstance(base_type, types.UnknownType) {
                     assert isinstance(expr.right, uni.Name);
 

@@ -242,18 +242,18 @@ test "py2jac complex literals" {
         prog=JacProgram()
     ).ir_out.unparse();
 
-    assert "complex(0, 1)" in code , f"Expected bare 1j as complex(0, 1) in:\n{code}";
-    assert "complex(0, 2)" in code , f"Expected 2.0j conversion in:\n{code}";
-    assert "complex(1, 2)" in code , f"Expected 1+2j as complex(1, 2) in:\n{code}";
-    assert "complex(-1, -2)" in code , f"Expected -1-2j as complex(-1, -2) in:\n{code}";
-    assert "complex(3, 0)" in code , f"Expected 3+0j as complex(3, 0) in:\n{code}";
-    assert "complex(1, 2)" in code , f"Expected 2j+1 as complex(1, 2) in:\n{code}";
-    assert "complex(4, 2)" in code , f"Expected 1+2j+3 as complex(4, 2) in:\n{code}";
-    assert "complex(-1, 2)" in code , f"Expected 2j-1 as complex(-1, 2) in:\n{code}";
-    assert "complex(0, 2) + 1" not in code , (
+    assert "builtins.complex(0, 1)" in code , f"Expected bare 1j as builtins.complex(0, 1) in:\n{code}";
+    assert "builtins.complex(0, 2)" in code , f"Expected 2.0j conversion in:\n{code}";
+    assert "builtins.complex(1, 2)" in code , f"Expected 1+2j as builtins.complex(1, 2) in:\n{code}";
+    assert "builtins.complex(-1, -2)" in code , f"Expected -1-2j as builtins.complex(-1, -2) in:\n{code}";
+    assert "builtins.complex(3, 0)" in code , f"Expected 3+0j as builtins.complex(3, 0) in:\n{code}";
+    assert "builtins.complex(1, 2)" in code , f"Expected 2j+1 as builtins.complex(1, 2) in:\n{code}";
+    assert "builtins.complex(4, 2)" in code , f"Expected 1+2j+3 as builtins.complex(4, 2) in:\n{code}";
+    assert "builtins.complex(-1, 2)" in code , f"Expected 2j-1 as builtins.complex(-1, 2) in:\n{code}";
+    assert "builtins.complex(0, 2) + 1" not in code , (
         f"Reversed complex add must fold, got native-broken binop in:\n{code}"
     );
-    assert "complex(1, 2) + 3" not in code , (
+    assert "builtins.complex(1, 2) + 3" not in code , (
         f"Nested complex add must fold, got native-broken binop in:\n{code}"
     );
 
@@ -456,8 +456,8 @@ test "py2jac complex inf imaginary" {
         prog=JacProgram()
     ).ir_out.unparse();
 
-    assert "complex(0, inf)" in code , (
-        f"Expected 1e999j to fold to complex(0, inf) in:\n{code}"
+    assert "builtins.complex(0, float('inf'))" in code , (
+        f"Expected 1e999j to fold to builtins.complex(0, float('inf')) in:\n{code}"
     );
 
     prog = JacProgram.jac_str_formatter(
