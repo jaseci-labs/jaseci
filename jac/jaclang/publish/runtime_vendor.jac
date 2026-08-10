@@ -233,6 +233,21 @@ def build_runtime_closure(
         }
         return False;
     }
+    bad_seeds: list[str] = [];
+    for s in (extra_seeds or []) {
+        seed = str(s);
+        if _deny(seed) or (_module_to_file(pkg_root, seed) is None) {
+            bad_seeds.append(seed);
+        }
+    }
+    if bad_seeds {
+        raise ValueError(
+            "runtime vendor: requested seed module(s) do not resolve to a "
+            "vendorable module: "
+                + ", ".join(sorted(bad_seeds))
+                + "."
+        );
+    }
     for code in user_codes {
         for imp in scan_jaclang_imports(str(code)) {
             if not _deny(imp) {

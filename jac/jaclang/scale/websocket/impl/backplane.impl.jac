@@ -1,6 +1,7 @@
 import uuid as _uuid;
 
-glob _NOTIFY_LIMIT = 7000;
+glob _NOTIFY_LIMIT = 7000,
+     _SPILL_TTL_SECONDS = 60;
 
 
 impl MemoryBackplane.start{
@@ -83,21 +84,13 @@ impl PgBackplane.publish(channel: str, message: dict) -> None {
     if len(payload.encode('utf-8')) > _NOTIFY_LIMIT {
         key = f"wsmsg:{_uuid.uuid4()}";
         def _spill {
-            self._store.rows(
-                """
-                INSERT INTO kv_state (key, value, expires_at)
-                VALUES (:k, :v, now() + interval '5 minutes')
-                """,
-                {'k': key, 'v': payload}
-            );
+            self._store.kv_put_ttl(key, payload, _SPILL_TTL_SECONDS);
             self._store.notify(self._pg_channel(channel), json.dumps({'__kv': key}));
         }
         await asyncio.to_thread(_spill);
     } else {
         await asyncio.to_thread(self._store.notify, self._pg_channel(channel), payload);
     }
-
-    await self._dispatch(channel, message);
 }
 
 
@@ -108,8 +101,13 @@ impl PgBackplane._on_notify(channel: str, payload: str) -> None {
     try {
         data = json.loads(payload);
         if isinstance(data, dict) and '__kv' in data {
-            got = self._store.kv_get(str(data['__kv']));
+            key = str(data['__kv']);
+            got = self._store.kv_get(key);
             if got is None {
+                logger.warning(
+                    f"PgBackplane: spilled payload {key} missing on {channel}; "
+                    "dropping broadcast"
+                );
                 return;
             }
             data = json.loads(got);

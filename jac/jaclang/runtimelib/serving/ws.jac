@@ -95,6 +95,7 @@ obj WebSocket {
         accepted: bool = False,
         closed: bool = False,
         close_code: int = 1000,
+        max_message_bytes: int = MAX_FRAME_BYTES,
         is_client_side: bool = False;
 
     async def accept {
@@ -117,6 +118,13 @@ obj WebSocket {
     async def close(code: int = 1000, reason: str = '') {
         if self.closed {
             return;
+        }
+        if not self.accepted and not self.is_client_side and code != 1000 {
+            try {
+                await self.accept();
+            } except Exception {
+                ;
+            }
         }
         self.closed = True;
         self.close_code = code;
@@ -171,7 +179,29 @@ obj WebSocket {
         );
     }
 
+    async def _on_close_frame(frame: WSFrame) {
+        code = 1000;
+        if len(frame.payload) >= 2 {
+            code = struct.unpack('!H', frame.payload[:2])[0];
+        }
+        if not self.closed {
+            self.closed = True;
+            self.close_code = code;
+            try {
+                self.writer.write(
+                    encode_frame(OP_CLOSE, frame.payload[:2], mask=self.is_client_side)
+                );
+                await self.writer.drain();
+                self.writer.close();
+            } except Exception {
+                ;
+            }
+        }
+        raise WebSocketDisconnect(code=code);
+    }
+
     async def _next_message_frame -> WSFrame {
+        cap = self.max_message_bytes or MAX_FRAME_BYTES;
         while True {
             frame = await read_frame(self.reader, require_mask=not self.is_client_side);
             if frame.opcode == OP_PING {
@@ -182,33 +212,30 @@ obj WebSocket {
                 continue;
             }
             if frame.opcode == OP_CLOSE {
-                code = 1000;
-                if len(frame.payload) >= 2 {
-                    code = struct.unpack('!H', frame.payload[:2])[0];
-                }
-                if not self.closed {
-                    self.closed = True;
-                    self.close_code = code;
-                    try {
-                        self.writer.write(
-                            encode_frame(
-                                OP_CLOSE, frame.payload[:2], mask=self.is_client_side
-                            )
-                        );
-                        await self.writer.drain();
-                        self.writer.close();
-                    } except Exception {
-                        ;
-                    }
-                }
-                raise WebSocketDisconnect(code=code);
+                await self._on_close_frame(frame);
+            }
+            if len(frame.payload) > cap {
+                raise WebSocketDisconnect(code=1009);
             }
             while not frame.fin {
                 cont = await read_frame(
                     self.reader, require_mask=not self.is_client_side
                 );
+                if cont.opcode == OP_PING {
+                    await self._send_raw(OP_PONG, cont.payload);
+                    continue;
+                }
+                if cont.opcode == OP_PONG {
+                    continue;
+                }
+                if cont.opcode == OP_CLOSE {
+                    await self._on_close_frame(cont);
+                }
                 if cont.opcode != OP_CONT {
                     raise WebSocketDisconnect(code=1002);
+                }
+                if len(frame.payload) + len(cont.payload) > cap {
+                    raise WebSocketDisconnect(code=1009);
                 }
                 frame = WSFrame(
                     fin=cont.fin,
@@ -224,6 +251,9 @@ obj WebSocket {
         try {
             frame = await self._next_message_frame();
         } except WebSocketDisconnect as d {
+            if not self.closed and d.code in (1002, 1009) {
+                await self.close(d.code);
+            }
             return {'type': 'websocket.disconnect', 'code': d.code};
         } except (asyncio.IncompleteReadError, ConnectionError, OSError) {
             self.closed = True;

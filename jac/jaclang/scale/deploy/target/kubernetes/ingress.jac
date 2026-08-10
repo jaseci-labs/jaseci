@@ -1,7 +1,6 @@
 import time;
 import subprocess;
 import from jaclang.scale._optdeps.kubernetes { client, ApiException }
-import from jaclang.scale._optdeps.optional_deps { require_optional }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
@@ -10,18 +9,6 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     delete_if_exists
 }
 import from jaclang.scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
-
-def _htpasswd_line(username: str, password: str) -> str {
-    require_optional("bcrypt", "deploy.k8s");
-    import bcrypt;
-
-    pw_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode(
-        'utf-8'
-    ).replace(
-        '$2b$', '$2y$'
-    );
-    return f"{username}:{pw_hash}";
-}
 
 obj IngressDeployer {
     has k8s_config: KubernetesConfig,

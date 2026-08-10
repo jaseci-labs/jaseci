@@ -23,24 +23,17 @@ impl JacScaleUserManager.postinit -> None {
         }
     }
 
-    import os;
-
-    store: Any = None;
-    try {
-        import from jaclang.scale.persistence.pg { shared_store }
-        store = shared_store();
-    } except Exception {
-        store = None;
+    import from jaclang.scale.persistence.pg { shared_store }
+    store = shared_store();
+    if store is None {
+        raise RuntimeError(
+            'identity storage requires a reachable Postgres database: no '
+            '[scale.database] url / JAC_DB_URL resolved and the embedded '
+            'server could not be provisioned. Refusing to fall back to a '
+            'second credential store; fix the database and restart.'
+        );
     }
-    if store is not None {
-        self._identity_storage = PgIdentityStorage(store=store);
-    } else {
-        base_for_data = os.environ.get('JAC_DATA_PATH', self.base_path);
-        data_dir = os.path.join(base_for_data, '.jac', 'data');
-        os.makedirs(data_dir, exist_ok=True);
-        db_path = os.path.join(data_dir, 'users.db');
-        self._identity_storage = SqliteIdentityStorage(db_path=db_path);
-    }
+    self._identity_storage = PgIdentityStorage(store=store);
 }
 
 impl JacScaleUserManager.create_user(username: str, password: str) -> dict[str, any] {
@@ -616,6 +609,21 @@ impl JacScaleUserManager.set_requires_password_reset(
         return {'error': 'User not found'};
     }
     return {'message': 'Password reset requirement updated', 'user_id': user_id};
+}
+
+impl JacScaleUserManager.expire_legacy_credentials(
+    username: (str | None) = None
+) -> dict[str, any] {
+    target_id: (str | None) = None;
+    if username is not None {
+        user = self.get_user(username);
+        if not user {
+            return {'error': 'User not found'};
+        }
+        target_id = str(user.get('user_id', username));
+    }
+    expired = self._identity_storage.expire_legacy_credentials(target_id);
+    return {'expired_user_ids': expired, 'count': len(expired)};
 }
 
 impl JacScaleUserManager.is_password_required(user_id: str) -> bool {

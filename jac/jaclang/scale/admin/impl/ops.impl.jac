@@ -405,7 +405,7 @@ impl JacAPIServerOps.register_ops_endpoints -> None {
             parameters=[],
             response_model=None,
             tags=["Operations"],
-            summary="Signal self-check (traces/logs/metrics/mongo/redis/admin)",
+            summary="Signal self-check (traces/logs/metrics/postgres/admin)",
             description=(
                 "Per signal a {status, chain[]} where each chain step is "
                 "{name, ok, detail}, evaluated short-circuit so the first "
