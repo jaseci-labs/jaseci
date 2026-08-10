@@ -14,6 +14,8 @@ The feature is display-only and opt-in. Each test below pins ONE invariant:
   5. a parallel batch keeps its calls separate
   6. a retry announces the reset before the replacement's deltas, on BOTH
      drain paths (during the token loop, and from the end-of-stream flush)
+  7. an abandoned stream is announced even when byllm's retry counter never
+     moves, as with emergency context compaction
 """
 
 import litellm;
@@ -316,4 +318,64 @@ test "a retry announces the reset before the replacement's deltas" {
         assert "stream_reset" in kinds , f"[{label}] the retry was never announced: {kinds}";
         assert kinds.index("stream_reset") < kinds.index("tool_call_delta") , f"[{label}] reset must precede the replacement's deltas: {kinds}";
     }
+}
+
+
+test "an abandoned stream is announced when compaction discards it" {
+    # Emergency compaction discards a stream that may already have published
+    # deltas, and it never increments _stream_reset_count, so no counter-based
+    # guard can see it. Without an announcement a consumer keeps showing the
+    # abandoned fragments.
+    body = '{"path": "a.jac", "content": "' + ("a" * 200) + '"}';
+
+    llm = Model(model_name="gpt-4o");
+    wrapped = [Tool(func=write_file)];
+    wrapped.append(Tool.make_finish_tool(str));
+    mt = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="s"),
+            Message(role=MessageRole.USER, content="u")
+        ],
+        resp_type=str,
+        stream=True,
+        tools=wrapped,
+        call_params={"stream_tool_args": True},
+        mtir=None
+    );
+
+    def _stream(params: dict) -> any {
+        # Publish deltas, then blow the context window mid-stream. This is not
+        # a transient error, so byllm does not retry and the counter never moves.
+        def overflow -> any {
+            for ch in _frags(body, "write_file", "c1") {
+                yield ch;
+            }
+            raise litellm.exceptions.ContextWindowExceededError(
+                message="too long", model="gpt-4o", llm_provider="openai"
+            );
+        }
+        return overflow();
+    }
+
+    def _no_stream(mt_arg: any) -> any {
+        return _byllm_llm_mod.CompletionResult(output="done", tool_calls=[], usage={});
+    }
+
+    events: list = [];
+    with mock.patch.object(llm, "model_call_with_stream", _stream), mock.patch.object(
+        llm, "dispatch_no_streaming", _no_stream
+    ) {
+        try {
+            for ev in llm._invoke_streaming(mt) {
+                events.append(ev);
+            }
+        } except Exception {
+            ;
+        }
+    }
+
+    kinds = _kinds(events);
+    assert len(_of(events, "tool_call_delta")) > 0 , f"the scenario published no deltas to abandon: {kinds}";
+    assert "stream_reset" in kinds , f"compaction discarded a stream without announcing it: {kinds}";
+    assert kinds.index("tool_call_delta") < kinds.index("stream_reset") , f"the reset must follow the deltas it abandons: {kinds}";
 }

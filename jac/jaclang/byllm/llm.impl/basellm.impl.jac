@@ -1888,6 +1888,7 @@ impl BaseLLM._invoke_streaming(
             _llm_t0 = _time.time();
             try {
                 _stream_out: list[CompletionResult] = [];
+                _emitted_deltas = False;
                 _seen_resets = mt_run._stream_reset_count;
                 for _tok in self.dispatch_streaming_with_tools(mt_run, _stream_out) {
                     if mt_run._stream_reset_count != _seen_resets {
@@ -1899,6 +1900,7 @@ impl BaseLLM._invoke_streaming(
                     }
                     while mt_run._tool_arg_deltas {
                         _d = mt_run._tool_arg_deltas.pop(0);
+                        _emitted_deltas = True;
                         yield StreamEvent(
                             event_type="tool_call_delta",
                             data={
@@ -1931,6 +1933,7 @@ impl BaseLLM._invoke_streaming(
                 }
                 while mt_run._tool_arg_deltas {
                     _d = mt_run._tool_arg_deltas.pop(0);
+                    _emitted_deltas = True;
                     yield StreamEvent(
                         event_type="tool_call_delta",
                         data={
@@ -1944,6 +1947,14 @@ impl BaseLLM._invoke_streaming(
                 }
                 resp = _stream_out[0];
             } except litellm.exceptions.ContextWindowExceededError {
+                if _emitted_deltas {
+                    _emitted_deltas = False;
+                    yield StreamEvent(
+                        event_type="stream_reset",
+                        data={"scope": "thought", "iteration": iter_count}
+                    );
+                }
+                mt_run._tool_arg_deltas = [];
                 resp = self._emergency_compact_retry(mt_run, just_compacted, _cp);
                 just_compacted = True;
             } except OutputConversionError {

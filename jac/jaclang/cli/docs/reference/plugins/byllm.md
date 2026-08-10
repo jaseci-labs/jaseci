@@ -1438,69 +1438,28 @@ With `logging=True`, the user sees the first `tool_call` event after just one LL
 
 ### Streaming Tool Arguments
 
-A `tool_call` event is emitted only once the model has finished generating every
-argument. For a tool whose argument is large, such as a file body, that means the caller
-has nothing to show for the whole time it is being written. `tool_call_delta` surfaces
-those arguments while they are still arriving, so a UI can say which file is being
-written instead of going quiet.
-
-This is **disabled by default**. Enable it for a project in `jac.toml`:
+A `tool_call` event is emitted only once every argument has been generated, so for a
+large argument such as a file body the caller has nothing to show while it is written.
+`tool_call_delta` surfaces those arguments as they arrive. It is **disabled by default**:
 
 ```toml
 [byllm.tool_stream]
-enabled = true
+enabled = true          # optional: min_chars, min_interval, max_per_call
 ```
 
-Or for a single call:
+Or per call with `stream_tool_args=True`, or one run with `BYLLM_STREAM_TOOL_ARGS=1`.
 
 ```jac
-def build(task: str) -> str by llm(
-    tools=[write_file], stream=True, logging=True, stream_tool_args=True
-);
-```
-
-Or for one run, with `BYLLM_STREAM_TOOL_ARGS=1`.
-
-```jac
-with entry {
-    for event in build("create the inventory model") {
-        if event.event_type == "tool_call_delta" {
-            # The tool name arrives with the first delta, before the body.
-            if event.data["tool"] {
-                print(f"\nWriting with {event.data['tool']}...");
-            }
-            print(event.data["arg_fragment"], end="", flush=True);
-        } elif event.event_type == "tool_call" {
-            print(f"\nRunning {event.data['tool']}");
-        }
-    }
+if event.event_type == "tool_call_delta" {
+    if event.data["tool"] { print(f"Writing with {event.data['tool']}..."); }
+    print(event.data["arg_fragment"], end="", flush=True);
 }
 ```
 
-**It is display only.** The tool still executes exactly once, with the complete arguments
-reassembled after the stream ends, so a partial or malformed fragment can never reach a
-tool. Treat `arg_fragment` as text to show, never as JSON to parse: mid-stream it is
-incomplete by definition.
-
-**Fragments are coalesced.** A provider may split one argument into hundreds of
-fragments, so byLLM batches them rather than emitting one event each. The tool name is
-published as soon as it is known, because that alone is what lets a UI name the file.
-Tune the bounds if needed:
-
-```toml
-[byllm.tool_stream]
-enabled = true
-min_chars = 48        # publish once this much has accumulated
-min_interval = 0.15   # or once this many seconds have passed
-max_per_call = 200    # hard cap on events for one call
-```
-
-**On a retry.** If a stream drops and byLLM retries, a `stream_reset` event is emitted
-before any delta belonging to the replacement stream. A consumer should discard what it
-has shown for that call when it sees one.
-
-Consumers that do not handle `tool_call_delta` are unaffected: it is an additional event,
-and the ordering and payloads of `tool_call` and `tool_result` are unchanged.
+Display only: the tool still runs once with the complete arguments, so a partial
+fragment can never reach it. Show `arg_fragment` as text, never parse it, since
+mid-stream it is incomplete. Fragments are coalesced, and a `stream_reset` precedes any
+delta from a stream that replaced an abandoned one.
 
 ### `StreamEvent` Reference
 
