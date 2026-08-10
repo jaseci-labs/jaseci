@@ -1,35 +1,3 @@
-impl NaIRGenPass._codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value {
-    i64 = ir.IntType(64);
-    func = self.builder.function;
-
-    result_alloca = self._entry_alloca(i64, "pow.result");
-    counter_alloca = self._entry_alloca(i64, "pow.counter");
-    self.builder.store(ir.Constant(i64, 1), result_alloca);
-    self.builder.store(ir.Constant(i64, 0), counter_alloca);
-
-    cond_bb = func.append_basic_block(name="pow.cond");
-    body_bb = func.append_basic_block(name="pow.body");
-    end_bb = func.append_basic_block(name="pow.end");
-    self.builder.branch(cond_bb);
-
-    self.builder.position_at_end(cond_bb);
-    counter = self.builder.load(counter_alloca, name="pow.i");
-    cmp = self.builder.icmp_signed("<", counter, exp, name="pow.cmp");
-    self.builder.cbranch(cmp, body_bb, end_bb);
-
-    self.builder.position_at_end(body_bb);
-    cur_result = self.builder.load(result_alloca, name="pow.cur");
-    new_result = self.builder.mul(cur_result, base, name="pow.mul");
-    self.builder.store(new_result, result_alloca);
-    cur_counter = self.builder.load(counter_alloca, name="pow.ci");
-    next_counter = self.builder.add(cur_counter, ir.Constant(i64, 1), name="pow.inc");
-    self.builder.store(next_counter, counter_alloca);
-    self.builder.branch(cond_bb);
-
-    self.builder.position_at_end(end_bb);
-    return self.builder.load(result_alloca, name="pow.final");
-}
-
 impl NaIRGenPass._dict_key_spec(key_type: ir.Type) -> tuple {
     if isinstance(key_type, ir.DoubleType) {
         return ("f64", 0);
@@ -296,6 +264,7 @@ impl NaIRGenPass._box_to_jacval(value: ir.Value) -> ir.Value {
         }
         b.store(payload, payload_ptr);
     } else {
+        self.emit(E5092, kind="expression", name=f"`any` box of {value.type}");
         b.store(ir.Constant(i8, 0), tag_ptr);
         b.store(ir.Constant(i64, 0), payload_ptr);
     }

@@ -128,6 +128,7 @@ impl JacCompiler.get_bytecode(
 ) -> (types.CodeType | None) {
     actual_program = self._resolve_program(full_target, target_program);
     (rebuild, no_precompile) = cache_mode();
+    symtab_only_recovery = False;
 
     if (
         (not rebuild)
@@ -137,6 +138,13 @@ impl JacCompiler.get_bytecode(
         actual_program.invalidate_module(full_target);
     }
     if (
+        (not rebuild)
+        and (full_target in actual_program.mod.hub)
+        and not actual_program.mod.hub[full_target].gen.py_bytecode
+    ) {
+        actual_program.invalidate_module(full_target);
+        symtab_only_recovery = True;
+    } elif (
         (not rebuild)
         and (full_target in actual_program.mod.hub)
         and actual_program.mod.hub[full_target].gen.py_bytecode
@@ -197,6 +205,10 @@ impl JacCompiler.get_bytecode(
                 } else {
                     return marshal.loads(bc);
                 }
+            } else {
+                cache_path.unlink(missing_ok=True);
+                actual_program.invalidate_module(full_target);
+                symtab_only_recovery = True;
             }
         } except Exception {
             ;
@@ -232,19 +244,7 @@ impl JacCompiler.get_bytecode(
         setup_progress.on_internal_compile(full_target);
         self._internal_bytecode_depth += 1;
     }
-    can_typecheck = (
-        is_internal
-        and 'jaclang.compiler.passes.main.type_checker_pass' in sys.modules
-        and 'jaclang.compiler.type_system.type_evaluator' in sys.modules
-        and hasattr(
-            sys.modules['jaclang.compiler.passes.main.type_checker_pass'],
-            'TypeCheckPass'
-        )
-        and hasattr(
-            sys.modules['jaclang.compiler.type_system.type_evaluator'], 'TypeEvaluator'
-        )
-    );
-    options = CompileOptions(type_check=can_typecheck);
+    options = CompileOptions(type_check=False);
     result: (uni.Module | None) = None;
     try {
         result = self.compile(
@@ -253,7 +253,6 @@ impl JacCompiler.get_bytecode(
         if result.gen.py_bytecode {
             actual_program.hub_cache_stamp(full_target);
             try {
-                import from jaclang.jac0core.jir_passes { JirWriter }
                 import pickle;
                 import json;
                 import zlib;
@@ -296,18 +295,8 @@ impl JacCompiler.get_bytecode(
                 } except Exception {
                     ;
                 }
-                writer = JirWriter();
-                jir_bytes = writer.write_module(result, sections=sections);
-                cache_path.parent.mkdir(parents=True, exist_ok=True);
-
-                import os as _os;
-                tmp_path = cache_path.with_suffix(f'.{_os.getpid()}.tmp');
-                try {
-                    tmp_path.write_bytes(jir_bytes);
-                    tmp_path.rename(cache_path);
-                } finally {
-                    tmp_path.unlink(missing_ok=True);
-                }
+                import from jaclang.jac0core.jir { write_module_jir_cache }
+                write_module_jir_cache(full_target, result, extra_sections=sections);
             } except Exception {
                 ;
             }

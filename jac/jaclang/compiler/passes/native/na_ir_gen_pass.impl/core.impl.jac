@@ -194,7 +194,7 @@ impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {
         return "opt." + self._llvm_type_str(_opt_pt);
     }
     if self._str_desc_ty is not None and ty == self._str_desc_ty {
-        return "jacstr3" if len(list(self._str_desc_ty.elements)) == 3 else "jacstr2";
+        return self._str_desc_kind();
     }
     if isinstance(ty, ir.IntType) {
         if ty.width == 64 {
@@ -271,12 +271,13 @@ impl NaIRGenPass._export_native_layout -> None {
         NativeTupleLayout,
         NativeTestLayout
     }
-    layout = NativeModuleLayout();
+    layout = NativeModuleLayout(str_headerless=self._nogc_headerless());
 
     for (arch_name, field_indices) in self.struct_field_indices.items() {
         field_types = self.struct_field_types.get(arch_name, {});
         fields: list[NativeFieldInfo] = [];
         enum_types = self.struct_field_enum_type.get(arch_name, {});
+        elem_keys = self.struct_field_elem_keys.get(arch_name, {});
         for (fname, idx) in sorted(field_indices.items(), key=lambda (x) { x[1]; }) {
             ftype = field_types.get(fname);
             llvm_t = self._llvm_type_str(ftype) if ftype is not None else "i64";
@@ -301,7 +302,8 @@ impl NaIRGenPass._export_native_layout -> None {
                     enum_type=enum_types.get(fname),
                     is_func_ptr=is_fn_ptr,
                     func_param_types=fn_param_types,
-                    func_ret_type=fn_ret_type
+                    func_ret_type=fn_ret_type,
+                    elem_keys=elem_keys.get(fname)
                 )
             );
         }
@@ -487,12 +489,14 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         for _s in ModuleCodegenPass.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
     };
     _has_native_code: bool = len(_native_ids) > 0;
+    _nested_native = ModuleCodegenPass.iter_nested_imports(
+        self.ir_in, CodeContext.NATIVE
+    );
+    for _nested_imp in _nested_native {
+        _native_ids.add(id(_nested_imp));
+    }
     wq: list = [];
-    for imp in [
-        s
-        for s in ModuleCodegenPass.iter_context_stmts(self.ir_in)
-        if isinstance(s, uni.Import)
-    ] {
+    for imp in ModuleCodegenPass.iter_module_imports(self.ir_in) + _nested_native {
         mod_name = self._extract_import_module_name(imp);
         if not mod_name {
             continue;
@@ -574,11 +578,8 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         imported_mods.append((src_mod_str, imported_mod));
 
         sub_base = os.path.dirname(os.path.abspath(full_path));
-        for sub_imp in [
-            s
-            for s in ModuleCodegenPass.iter_context_stmts(imported_mod)
-            if isinstance(s, uni.Import)
-        ] {
+        for sub_imp in ModuleCodegenPass.iter_module_imports(imported_mod)
+            + ModuleCodegenPass.iter_nested_imports(imported_mod, CodeContext.NATIVE) {
             sub_name = self._extract_import_module_name(sub_imp);
             if sub_name {
                 wq.append((sub_name, sub_base, src_mod_str));
@@ -989,11 +990,8 @@ impl NaIRGenPass._forward_declare_imported_ability(nd: uni.Ability) -> None {
 }
 
 impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
-    imports = [
-        s
-        for s in ModuleCodegenPass.iter_context_stmts(module)
-        if isinstance(s, uni.Import)
-    ];
+    imports = ModuleCodegenPass.iter_module_imports(module)
+        + ModuleCodegenPass.iter_nested_imports(module, CodeContext.NATIVE);
     for stmt in imports {
         if not stmt.clib_decls {
             if stmt.items {
@@ -1249,7 +1247,8 @@ impl NaIRGenPass._dispatch_builtin(
     args: list[ir.Value],
     kwargs: (dict | None) = None,
     kw_node: (uni.UniNode | None) = None,
-    type_key: str = ""
+    type_key: str = "",
+    arg_nodes: (list | None) = None
 ) -> (ir.Value | None) {
     args = [self._str_norm(_a) for _a in args];
     self._ensure_emitters();
@@ -1274,7 +1273,10 @@ impl NaIRGenPass._dispatch_builtin(
         return None;
     }
     _ctx = self._native_emit_ctx_class(
-        pass_ref=self, type_key=type_key, call_kwargs=(kwargs or {})
+        pass_ref=self,
+        type_key=type_key,
+        call_kwargs=(kwargs or {}),
+        arg_nodes=(arg_nodes or [])
     );
     return _emit_fn(_ctx, args);
 }

@@ -233,9 +233,9 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
                 }
             }
         }
-    } elif isinstance(nd, uni.Semi) { } elif isinstance(nd, uni.PyInlineCode) { } elif isinstance(
-        nd, uni.VisitStmt
-    ) {
+    } elif isinstance(nd, uni.Semi) { } elif isinstance(nd, uni.Import) { } elif isinstance(
+        nd, uni.PyInlineCode
+    ) { } elif isinstance(nd, uni.VisitStmt) {
         self._codegen_visit(nd);
     } elif isinstance(nd, uni.DisengageStmt) {
         self._codegen_disengage(nd);
@@ -349,6 +349,22 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
             ) {
                 self._emit_rc_retain(
                     val,
+                    op="return",
+                    loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                        if nd.loc
+                        else 0}"
+                );
+                self._mark_owned(val);
+            }
+            if (
+                skip_var is None
+                and self._opt_ptr_payload_of(val.type) is not None
+                and not self._nogc_headerless()
+                and self._gc_mode() != "none"
+                and not self._opt_result_owned(val, nd.expr)
+            ) {
+                self._emit_rc_retain(
+                    self.builder.extract_value(val, 1, name="ret.opt.pv"),
                     op="return",
                     loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
                         if nd.loc
@@ -1202,6 +1218,16 @@ impl NaIRGenPass._match_arch_cond(
 impl NaIRGenPass._match_value_eq(
     subj: ir.Value, value_node: uni.UniNode
 ) -> (ir.Value | None) {
+    _mv = value_node.expr if isinstance(value_node, uni.CfgExpr) else value_node;
+    if isinstance(_mv, uni.AtomUnit) {
+        _mv = _mv.value;
+    }
+    if isinstance(_mv, uni.Null)
+        and self._opt_payload_of(subj.type) is None
+        and not isinstance(subj.type, ir.PointerType)
+        and not (bool(self?.jacval_type) and subj.type == self.jacval_type) {
+        return ir.Constant(ir.IntType(1), 0);
+    }
     pat = self._codegen_expr(value_node);
     if pat is None {
         return None;
@@ -1451,7 +1477,7 @@ impl NaIRGenPass._bind_match_arch(
 }
 
 impl NaIRGenPass._apply_scalar_aug_op(
-    current: ir.Value, rhs: ir.Value, aug_op: str
+    current: ir.Value, rhs: ir.Value, aug_op: str, rhs_node: (uni.Expr | None) = None
 ) -> (ir.Value | None) {
     current = self._str_norm(current);
     rhs = self._str_norm(rhs);
@@ -1477,6 +1503,9 @@ impl NaIRGenPass._apply_scalar_aug_op(
     }
     if aug_op == "/=" and isinstance(current.type, ir.IntType) {
         return None;
+    }
+    if aug_op == "**=" {
+        return self._codegen_pow(current, rhs, rhs_node);
     }
     coerced = self._coerce_type(rhs, current.type);
     result = self._emit_binary_op(op_toks[aug_op], current, coerced);
@@ -1566,10 +1595,14 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
             if nd.aug_op is not None {
                 _faug_errs = len(self.errors_had);
                 field_val = self._codegen_field_aug_assign(
-                    target_expr, value, nd.aug_op.value
+                    target_expr, value, nd.aug_op.value, nd.value
                 );
                 if field_val is not None {
-                    self._codegen_field_assign(target_expr, field_val);
+                    self._codegen_field_assign(
+                        target_expr,
+                        field_val,
+                        skip_narrow_coerce=(nd.aug_op.value == "**=")
+                    );
                 } elif len(self.errors_had) == _faug_errs {
                     self.emit(
                         E5092,
@@ -1690,7 +1723,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                     store_val = None;
                                     if cur_elem is not None {
                                         store_val = self._apply_scalar_aug_op(
-                                            cur_elem, value, nd.aug_op.value
+                                            cur_elem, value, nd.aug_op.value, nd.value
                                         );
                                     }
                                 }
@@ -1724,7 +1757,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                     store_val = None;
                                     if cur_elem is not None {
                                         store_val = self._apply_scalar_aug_op(
-                                            cur_elem, value, nd.aug_op.value
+                                            cur_elem, value, nd.aug_op.value, nd.value
                                         );
                                     }
                                 }
@@ -1904,9 +1937,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                             "ZeroDivisionError",
                             "integer division or modulo by zero"
                         );
-                        value = self.builder.sdiv(
-                            current, coerced, name=f"{var_name}.div"
-                        );
+                        (q, _) = self._codegen_int_floor_divmod(current, coerced);
+                        value = q;
                     } else {
                         fzero = ir.Constant(ir.DoubleType(), 0.0);
                         is_zero = self.builder.fcmp_ordered(
@@ -1915,9 +1947,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         self._emit_runtime_raise(
                             is_zero, "ZeroDivisionError", "float division by zero"
                         );
-                        value = self.builder.fdiv(
-                            current, coerced, name=f"{var_name}.fdiv"
-                        );
+                        value = self._codegen_float_floor_div(current, coerced);
                     }
                 } elif aug_op_val == "%=" {
                     if isinstance(current.type, ir.IntType) {
@@ -1930,9 +1960,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                             "ZeroDivisionError",
                             "integer division or modulo by zero"
                         );
-                        value = self.builder.srem(
-                            current, coerced, name=f"{var_name}.mod"
-                        );
+                        (_, r) = self._codegen_int_floor_divmod(current, coerced);
+                        value = r;
                     } else {
                         fzero = ir.Constant(ir.DoubleType(), 0.0);
                         is_zero = self.builder.fcmp_ordered(
@@ -1941,9 +1970,7 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         self._emit_runtime_raise(
                             is_zero, "ZeroDivisionError", "float modulo by zero"
                         );
-                        value = self.builder.frem(
-                            current, coerced, name=f"{var_name}.fmod"
-                        );
+                        value = self._codegen_float_floor_mod(current, coerced);
                     }
                 } elif aug_op_val == "&=" {
                     if isinstance(current.type, ir.IntType) {
@@ -2120,12 +2147,21 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         );
                     }
                 } elif aug_op_val == "**=" {
-                    if isinstance(current.type, ir.IntType) {
-                        value = self._codegen_int_pow(current, coerced);
+                    pow_res = self._apply_scalar_aug_op(
+                        current, value, "**=", nd.value
+                    );
+                    if pow_res is not None {
+                        value = pow_res;
                     }
                 }
             }
-            coerced = self._coerce_type(value, alloca.type.pointee);
+            if nd.aug_op is not None
+                and nd.aug_op.value == "**="
+                and value.type != alloca.type.pointee {
+                coerced = value;
+            } else {
+                coerced = self._coerce_type(value, alloca.type.pointee);
+            }
 
             _is_raw_int_ptr = getattr(coerced, 'opname', '') == 'inttoptr';
             self._register_region_handle_var(nd, var_name);
@@ -2256,7 +2292,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 _opt_re_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
                     if nd.loc
                     else 0}";
-                if not self._is_owned(value) and not self._can_native_move_lower(nd) {
+                _opt_re_owned = self._opt_result_owned(value, nd.value);
+                if not _opt_re_owned and not self._can_native_move_lower(nd) {
                     _opt_re_pv = self.builder.extract_value(
                         coerced, 1, name=f"{var_name}.opt.newpv"
                     );
@@ -2740,7 +2777,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 _opt_asg_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
                     if nd.loc
                     else 0}";
-                if not self._is_owned(value) and not self._can_native_move_lower(nd) {
+                if not self._opt_result_owned(value, nd.value)
+                    and not self._can_native_move_lower(nd) {
                     _opt_new_pv = self.builder.extract_value(
                         value, 1, name=f"{var_name}.opt.newpv"
                     );

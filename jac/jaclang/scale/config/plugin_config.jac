@@ -67,50 +67,25 @@ class JacScalePluginConfig {
                     "default": {},
                     "description": "Database connection configuration",
                     "nested": {
-                        "type": {
+                        "url": {
                             "type": "string",
                             "default": None,
-                            "description": "Optional default database backend metadata (e.g. mongodb, redis, firestore)"
+                            "description": "Postgres connection URL (postgresql://user:pass@host:port/db). Also honored via the JAC_DB_URL env var. When set, in-cluster provisioning is skipped (external mode)."
                         },
-                        "mongodb_uri": {
+                        "deploy_mode": {
                             "type": "string",
-                            "default": None,
-                            "description": "MongoDB connection URI"
+                            "default": "image",
+                            "description": "How the k8s target runs Postgres: 'image' (official postgres image), 'embedded' (the app's jac image running `jac db serve`), or implicit 'external' when url is set."
                         },
-                        "redis_url": {
+                        "postgres_image": {
                             "type": "string",
-                            "default": None,
-                            "description": "Redis connection URL"
+                            "default": "postgres:18",
+                            "description": "Image used in deploy_mode='image'."
                         },
-                        "project_id": {
+                        "postgres_storage": {
                             "type": "string",
-                            "default": None,
-                            "description": "Firestore project ID (or set FIRESTORE_PROJECT_ID / FIREBASE_PROJECT_ID)"
-                        },
-                        "shelf_db_path": {
-                            "type": "string",
-                            "default": ".jac/data/anchor_store.db",
-                            "description": "File-based storage path for ShelfDB fallback"
-                        },
-                        "redis_cpu_request": {
-                            "type": "string",
-                            "default": "100m",
-                            "description": "K8s CPU request for the jac-scale provisioned Redis pod. Used verbatim in the Deployment, so it must be a valid Kubernetes quantity, e.g. 100m or 1."
-                        },
-                        "redis_cpu_limit": {
-                            "type": "string",
-                            "default": "500m",
-                            "description": "K8s CPU limit for the jac-scale provisioned Redis pod. Used verbatim in the Deployment, so it must be a valid Kubernetes quantity, e.g. 500m or 1."
-                        },
-                        "redis_memory_request": {
-                            "type": "string",
-                            "default": "128Mi",
-                            "description": "K8s memory request (scheduling reservation) for the jac-scale provisioned Redis pod. Used verbatim in the Deployment, so it must be a valid Kubernetes quantity, e.g. 128Mi or 512Mi (not 128mb). Raise it alongside redis_memory_limit for a cache whose working set is large enough that eviction under node memory pressure would hurt."
-                        },
-                        "redis_memory_limit": {
-                            "type": "string",
-                            "default": "1Gi",
-                            "description": "K8s memory limit (cgroup) for the jac-scale provisioned Redis pod. Used verbatim in the Deployment, so it must be a valid Kubernetes quantity, e.g. 1Gi or 512Mi (not 1gb, which the API server rejects at apply time). Must exceed redis_max_memory with headroom for BGSAVE fork copy-on-write, fragmentation, and buffers, or the pod is OOMKilled."
+                            "default": "2Gi",
+                            "description": "PVC size for the provisioned Postgres StatefulSet. Must be a valid Kubernetes quantity, e.g. 2Gi."
                         }
                     }
                 },
@@ -134,15 +109,10 @@ class JacScalePluginConfig {
                             "default": 8000,
                             "description": "Container port for the application"
                         },
-                        "mongodb_enabled": {
+                        "postgres_enabled": {
                             "type": "bool",
                             "default": True,
-                            "description": "Enable MongoDB deployment in Kubernetes"
-                        },
-                        "redis_enabled": {
-                            "type": "bool",
-                            "default": True,
-                            "description": "Enable Redis deployment in Kubernetes"
+                            "description": "Provision Postgres in Kubernetes (disable when using an external database url)"
                         },
                         "autoscaler_engine": {
                             "type": "string",
@@ -257,7 +227,7 @@ class JacScalePluginConfig {
                         "drain_timeout_seconds": {
                             "type": "float",
                             "default": 10.0,
-                            "description": "Graceful shutdown window (seconds). On SIGTERM, gateway + services flip a drain flag (503s on new requests) and wait up to this many seconds for in-flight requests to finish before uvicorn force-closes. Mirrors K8s `terminationGracePeriodSeconds`."
+                            "description": "Graceful shutdown window (seconds). On SIGTERM, gateway + services flip a drain flag (503s on new requests) and wait up to this many seconds for in-flight requests to finish before the server force-closes; the serving core mirrors K8s `terminationGracePeriodSeconds`."
                         },
                         "http_forward_timeout": {
                             "type": "float",
@@ -384,10 +354,57 @@ class JacScalePluginConfig {
                         }
                     }
                 },
+                "websocket": {
+                    "type": "dict",
+                    "default": {},
+                    "description": "WebSocket serving limits and the cross-pod broadcast backplane",
+                    "nested": {
+                        "backplane": {
+                            "type": "string",
+                            "default": None,
+                            "description": "Broadcast backplane: 'memory' (single-pod, in-process fan-out) or 'pg' (cross-pod fan-out over Postgres LISTEN/NOTIFY). Unset auto-selects 'pg' when a scale database resolves, else 'memory'."
+                        },
+                        "allowed_origins": {
+                            "type": "list",
+                            "default": [],
+                            "description": "Origins allowed to open cross-origin WebSocket upgrades. Default [] refuses cross-origin browsers (same-origin and non-browser clients always pass); list origins explicitly or use [\"*\"] to allow any."
+                        },
+                        "max_message_bytes": {
+                            "type": "int",
+                            "default": 65536,
+                            "description": "Maximum decoded inbound WebSocket message size in bytes; larger messages are rejected and the connection closed."
+                        },
+                        "max_connections_per_target": {
+                            "type": "int",
+                            "default": 5000,
+                            "description": "Maximum concurrent connections per WebSocket target (walker or function endpoint)."
+                        },
+                        "max_connections_per_user": {
+                            "type": "int",
+                            "default": 10,
+                            "description": "Maximum concurrent WebSocket connections per authenticated user."
+                        },
+                        "max_anonymous_per_target": {
+                            "type": "int",
+                            "default": 100,
+                            "description": "Maximum concurrent anonymous (unauthenticated) connections per target."
+                        },
+                        "target_timeout_seconds": {
+                            "type": "float",
+                            "default": 30,
+                            "description": "Per-invocation timeout in seconds for the walker/function handling a WebSocket message."
+                        },
+                        "messages_per_second": {
+                            "type": "float",
+                            "default": 20,
+                            "description": "Per-connection inbound message rate limit (token bucket refill rate)."
+                        }
+                    }
+                },
                 "events": {
                     "type": "dict",
                     "default": {},
-                    "description": "Event-streaming broker configuration. Off by default. When enabled, jac-scale exposes publish() / @subscribe via the active broker (RedisBroker if a redis URL resolves, otherwise LocalBroker in-memory).",
+                    "description": "Event-streaming broker configuration. Off by default. When enabled, jac-scale exposes publish() / @subscribe via the active stream (PostgresEventStream when a database URL resolves, otherwise LocalEventStream in-memory).",
                     "nested": {
                         "enabled": {
                             "type": "bool",
@@ -397,7 +414,7 @@ class JacScalePluginConfig {
                         "url": {
                             "type": "string",
                             "default": None,
-                            "description": "Redis connection URL. If unset, falls back to [scale.database].redis_url. If neither is set or `redis` extra is missing, LocalBroker (in-memory) is used."
+                            "description": "Postgres connection URL for the event stream. If unset, falls back to [scale.database].url / JAC_DB_URL. With no database, LocalEventStream (in-memory) is used."
                         },
                         "consumer_group": {
                             "type": "string",

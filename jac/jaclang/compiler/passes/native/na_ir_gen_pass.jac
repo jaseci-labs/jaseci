@@ -14,6 +14,20 @@ import from jaclang.jac0core.diagnostics {
     E9002
 }
 import from jaclang.jac0core.osp_model { OspAnalysis, OspModel, stable_osp_tag }
+import from jaclang.jac0core.codeinfo {
+    HDR_ALLOC_ID_OFF,
+    HDR_DTOR_OFF,
+    HDR_MAGIC,
+    HDR_MAGIC_SHIFT_BASE,
+    HDR_RC_OFF,
+    HDR_TAG_OFF,
+    HDR_TOTAL,
+    JACSTR_DESC_FIELDS,
+    RC_SENTINEL,
+    STR_LEN_TAG_BIT,
+    STR_LEN_TAG_SHIFT,
+    str_len_tag
+}
 
 import from jaclang.compiler.passes.main.layout_pass { VTABLE_HEADER_SLOTS }
 
@@ -67,15 +81,7 @@ glob NATIVE_RANDOM_FUNCS: set[str] = {
 
 glob NATIVE_STRUCT_FUNCS: set[str] = {"pack", "unpack", "calcsize", "pack_into", };
 
-glob RC_SENTINEL: int = 0x7FFFFFFFFFFFFFFF;
-
 glob NA_DEBUG_TRACE: bool = False;
-
-glob HDR_ALLOC_ID_OFF: int = -32,
-     HDR_TAG_OFF: int = -24,
-     HDR_RC_OFF: int = -16,
-     HDR_DTOR_OFF: int = -8,
-     HDR_TOTAL: int = 32;
 
 glob RC_COLOR_BLACK: int = 0,
      RC_COLOR_WHITE: int = 1,
@@ -91,9 +97,6 @@ glob LIVE_NODE_ID_OFF: int = 0,
      LIVE_NODE_RC_OFF: int = 24,
      LIVE_NODE_NEXT_OFF: int = 32,
      LIVE_NODE_SIZE: int = 40;
-
-glob HDR_MAGIC: int = 44061,
-     HDR_MAGIC_SHIFT_BASE: int = 44061 * 4294967296;
 
 obj NaIRGenPass(ModuleCodegenPass) {
     has llvm_module: ir.Module postinit,
@@ -130,7 +133,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         enum_value_arrays: dict[str, object] = {},
         enum_name_arrays: dict[str, object] = {},
         enum_member_ordinal: dict[str, int] = {},
+        enum_int_values: dict[str, list] = {},
+        enum_ordinal_fns: dict[str, object] = {},
         struct_field_enum_type: dict[str, dict] = {},
+        struct_field_elem_keys: dict[str, dict] = {},
         loop_stack: list[tuple] = [],
         _str_count: int = 0,
         struct_types: dict[str, object] = {},
@@ -251,6 +257,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         rc_stack_promotions: int = 0,
         struct_trace_fns: dict[str, ir.Function] = {},
         struct_release_fns: dict[str, ir.Function] = {},
+        tuple_release_fns: dict[str, ir.Function] = {},
+        tuple_trace_fns: dict[str, ir.Function] = {},
         struct_drop_fns: dict[str, ir.Function] = {},
         container_drop_fns: dict[str, ir.Function] = {},
         container_layouts: dict[str, dict] = {},
@@ -387,11 +395,21 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _closure_cell_structs: dict[str, str] = {},
         closure_thunks: dict[str, ir.Function] = {},
         _closure_uid: int = 0,
-        _opt_struct_types: dict[str, ir.Type] = {};
+        _opt_struct_types: dict[str, ir.Type] = {},
+        _loop_rebind_memo: dict[tuple, bool] = {};
 
     def _jac_optional_type(payload: ir.Type) -> ir.Type;
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None);
     def _opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None);
+    def _narrowed_flow_type(nd: uni.UniNode) -> (any | None);
+    def _narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool;
+    def _narrowing_stable_in_loops(nd: uni.UniNode, name: str) -> bool;
+    def _loop_rebinds_name(loop: uni.UniNode, name: str) -> bool;
+    def _body_assigns_before(
+        loop: uni.UniNode, child: (uni.UniNode | None), name: str
+    ) -> bool;
+
+    def _apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Value;
     def _scan_closure_escapes(nd: uni.UniNode, body: (list | tuple)) -> None;
     def _closure_sig_struct(fnty: ir.FunctionType) -> tuple;
     def _closure_struct_of(val_type: ir.Type) -> (str | None);
@@ -477,11 +495,14 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _type_base_is_unknown(tb: any) -> bool;
     def _emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.Type;
     def _lower_type(t: any) -> (ir.Type | None);
+    def _unify_repr_lowering(reprs: list) -> (ir.Type | None);
     def _lower_class_type(t: any) -> (ir.Type | None);
     def _lower_function_type(t: any) -> ir.Type;
     def _type_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _enum_name_of(expr: (uni.UniNode | None)) -> (str | None);
-    def _ensure_enum_lowered(t: any) -> bool;
+    def _ensure_enum_lowered(t: any) -> (ir.Type | None);
+    def _class_form_enum_self_type(arch_name: str) -> (ir.Type | None);
+    def _codegen_class_form_enum_member(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _tuple_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _dict_key_of(expr: (uni.UniNode | None)) -> (str | None);
@@ -503,6 +524,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
     def _arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None);
     def _codegen_call_args(nd: uni.FuncCall) -> list;
+    def _coerce_narrowed_arg(
+        nd: (uni.UniNode | None), val: (ir.Value | None)
+    ) -> (ir.Value | None);
+
+    def _codegen_receiver(nd: (uni.UniNode | None)) -> (ir.Value | None);
     def _emit_take_ref(value: ir.Value, op: str, loc: str = "") -> None;
     def _codegen_bound_args(
         nd: uni.FuncCall, func: ir.Function, self_offset: int = 0
@@ -537,6 +563,16 @@ obj NaIRGenPass(ModuleCodegenPass) {
         op: str, left: ir.Value, right: ir.Value, is_float: bool
     ) -> (ir.Value | None);
 
+    def _is_jacval_ty(t: ir.Type) -> bool;
+    def _is_jacval_boxable(t: ir.Type) -> bool;
+    def _emit_jacval_ordering(
+        op: str, jv: ir.Value, peer: ir.Value, jv_on_left: bool
+    ) -> (ir.Value | None);
+
+    def _emit_mixed_jacval_comparison(
+        op: str, left: ir.Value, right: ir.Value
+    ) -> (ir.Value | None);
+
     def _emit_optional_eq(
         op: str, left: ir.Value, right: ir.Value, is_float: bool
     ) -> (ir.Value | None);
@@ -545,7 +581,23 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _opt_membership_operand(left: ir.Value, slot_type: ir.Type) -> tuple;
     def _opt_unwrap_attr(obj_val: ir.Value) -> ir.Value;
     def _codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
-    def _codegen_enum(nd: uni.Enum) -> None;
+    def _codegen_int_floor_divmod(
+        left: ir.Value, right: ir.Value
+    ) -> tuple[(ir.Value, ir.Value)];
+
+    def _codegen_float_floor_div(left: ir.Value, right: ir.Value) -> ir.Value;
+    def _codegen_float_floor_mod(left: ir.Value, right: ir.Value) -> ir.Value;
+    def _equalize_int_pow_operands(
+        base: ir.Value, exp: ir.Value
+    ) -> tuple[(ir.Value, ir.Value)];
+
+    def _emit_float_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
+    def _emit_pow_zero_guard(base: ir.Value) -> None;
+    def _codegen_pow(
+        base: ir.Value, exp: ir.Value, exp_node: (uni.Expr | None) = None
+    ) -> ir.Value;
+
+    def _codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None;
     def _codegen_enum_layout(enum_name: str, owner: (uni.Module | None)) -> None;
     def _class_enum_member_str(cls_name: str, member: str) -> (str | None);
     def _class_enum_member_int(cls_name: str, member: str) -> (int | None);
@@ -556,6 +608,16 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _wrap_enum_str(raw: (ir.Value | None)) -> (ir.Value | None);
     def _codegen_enum_value_lookup(
         enum_name: str, ordinal_val: ir.Value, use_name: bool = False
+    ) -> (ir.Value | None);
+
+    def _enum_is_string_valued(enum_name: str) -> bool;
+    def _enum_ordinal_fn(enum_name: str) -> (ir.Function | None);
+    def _codegen_enum_ordinal_of(
+        enum_name: str, runtime_val: ir.Value
+    ) -> (ir.Value | None);
+
+    def _codegen_enum_attr_runtime(
+        enum_name: str, runtime_val: ir.Value, use_name: bool
     ) -> (ir.Value | None);
 
     def _codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None);
@@ -780,14 +842,23 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _codegen_field_aug_assign(
-        target: uni.AtomTrailer, rhs: ir.Value, aug_op: str
+        target: uni.AtomTrailer,
+        rhs: ir.Value,
+        aug_op: str,
+        rhs_node: (uni.Expr | None) = None
     ) -> (ir.Value | None);
+
+    def _codegen_field_assign(
+        target: uni.AtomTrailer, value: ir.Value, skip_narrow_coerce: bool = False
+    ) -> None;
 
     def _apply_scalar_aug_op(
-        current: ir.Value, rhs: ir.Value, aug_op: str
+        current: ir.Value,
+        rhs: ir.Value,
+        aug_op: str,
+        rhs_node: (uni.Expr | None) = None
     ) -> (ir.Value | None);
 
-    def _codegen_field_assign(target: uni.AtomTrailer, value: ir.Value) -> None;
     def _emit_key_comparison(
         b: ir.IRBuilder,
         key_type: ir.Type,
@@ -997,6 +1068,17 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_struct_size(struct_type: ir.LiteralStructType) -> int;
     def _sizeof_llvm(ty: ir.Type) -> ir.Value;
     def _box_value_tuple(val: ir.Value, loc: str = "") -> ir.Value;
+    def _rc_slot_ref(val: ir.Value) -> (ir.Value | None);
+    def _tuple_managed_fields(struct_type: ir.LiteralStructType) -> list;
+    def _tuple_box_release_fn(
+        struct_type: ir.LiteralStructType
+    ) -> (ir.Function | None);
+
+    def _tuple_box_trace_fn(struct_type: ir.LiteralStructType) -> (ir.Function | None);
+    def _emit_tuple_box_lifecycle(
+        raw: ir.Value, struct_type: ir.LiteralStructType
+    ) -> None;
+
     def _coerce_tuple_to_struct(val: ir.Value, target_struct: ir.Type) -> ir.Value;
     def _codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None);
     def _codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None);
@@ -1200,6 +1282,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _llvm_type_str(ty: ir.Type) -> str;
     def _export_native_layout -> None;
     def _normalize_type_key(key: str) -> str;
+    def _elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | None);
     def _record_ret_facts(name: str, sig: uni.FuncSignature) -> None;
     def _ret_tuple_hints(fname: str, ret_tuple: any) -> (list | None);
     def _ensure_emitters -> None;
@@ -1219,7 +1302,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         args: list[ir.Value],
         kwargs: (dict | None) = None,
         kw_node: (uni.UniNode | None) = None,
-        type_key: str = ""
+        type_key: str = "",
+        arg_nodes: (list | None) = None
     ) -> (ir.Value | None);
 
     def _split_call_kwargs(nd: uni.FuncCall) -> dict;
@@ -1256,6 +1340,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None);
     def _flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | None);
     def _str_desc_type -> ir.Type;
+    def _str_desc_kind -> str;
     def _str_norm(val: ir.Value | None) -> (ir.Value | None);
     def _str_arg(val: ir.Value | None) -> (ir.Value | None);
     def _emit_str_desc_helpers -> None;
@@ -1376,6 +1461,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _mark_owned(val: ir.Value) -> ir.Value;
     def _is_owned(val: ir.Value) -> bool;
+    def _opt_result_owned(val: ir.Value, expr: object) -> bool;
     def _can_native_move_lower(nd: object) -> bool;
     def _release_owned_operands(
         left_orig: ir.Value, right_orig: ir.Value, op: str = ""
@@ -1455,6 +1541,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> None;
 
     def _emit_glob_init_func -> None;
+    def _na_debug_on -> bool;
     def _attach_di_subprogram(func: ir.Function, name: str, line: int) -> None;
     def _finalize_di_locations(func: ir.Function, fallback_line: int) -> None;
     def post_transform -> None;

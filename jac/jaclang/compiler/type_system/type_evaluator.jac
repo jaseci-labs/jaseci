@@ -166,6 +166,7 @@ obj TypeEvaluator {
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
         _JAC_BUILTINS_STUB_FILE_PATH: str postinit,
+        _BUILTIN_OVERRIDES_STUB_FILE_PATH: str postinit,
         _DOM_TYPES_STUB_FILE_PATH: str postinit,
         _NA_BUILTINS_STUB_FILE_PATH: str postinit,
         _JS_GLOBALS_STUB_FILE_PATH: str postinit,
@@ -216,7 +217,6 @@ obj TypeEvaluator {
     ) -> uni.Module;
 
     def _resolve_importer_path(ast_node: uni.UniNode) -> (str | None);
-    def _try_read_jir_cache(resolved_path: str) -> (uni.Module | None);
     def forget_module(resolved_path: str) -> None;
     def _resolve_from_path(from_mod: uni.ModulePath) -> Path;
     def _resolve_client_npm_module(node_: uni.ModulePath) -> (str | None);
