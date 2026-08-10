@@ -1450,9 +1450,15 @@ enabled = true          # optional: min_chars, min_interval, max_per_call
 Or per call with `stream_tool_args=True`, or one run with `BYLLM_STREAM_TOOL_ARGS=1`.
 
 ```jac
-if event.event_type == "tool_call_delta" {
-    if event.data["tool"] { print(f"Writing with {event.data['tool']}..."); }
-    print(event.data["arg_fragment"], end="", flush=True);
+with entry {
+    for event in build("create the inventory model") {
+        if event.event_type == "tool_call_delta" {
+            if event.data["tool"] {
+                print(f"Writing with {event.data['tool']}...");
+            }
+            print(event.data["arg_fragment"]);
+        }
+    }
 }
 ```
 
