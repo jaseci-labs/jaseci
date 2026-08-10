@@ -170,9 +170,8 @@ test "a scalar-materializing predicate is declined (soundness)" {
     # A bare alias is still a use-def edge, and the sibling `.sum()` licenses
     # detection on its own, so only the chain can spot the scalar.
     assert "if x.sum() > 0 and same > 5:" in src;
-    assert _break_kinds("scalar_predicate.jac") == [
-        "dyn_ctrl_fl", "dyn_ctrl_fl", "dyn_ctrl_fl"
-    ];
+    assert _break_kinds("scalar_predicate.jac")
+        == ["dyn_ctrl_fl", "dyn_ctrl_fl", "dyn_ctrl_fl"];
 }
 
 test "a scalar past the trace bound declines rather than slipping through" {
