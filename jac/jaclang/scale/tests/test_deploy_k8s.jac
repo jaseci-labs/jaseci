@@ -714,6 +714,7 @@ test "an unusable rollout wait setting in jac.toml fails the config load" {
         ("rollout_wait = \"\"", "''"),
         ("rollout_timeout = 0", "0"),
         ("rollout_timeout = 30.5", "30.5"),
+        ("rollout_timeout = true", "True"),
         ("rollout_timeout = \"soon\"", "soon")
     ] {
         caught = None;
