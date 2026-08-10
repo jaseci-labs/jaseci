@@ -4,14 +4,15 @@ import zlib;
 
 impl JirWriter._is_lazy_decl(nd: UniNode) -> bool {
     import from jaclang.jac0core.unitree {
-        Archetype, Ability, GlobalVars, ModuleCode, ImplDef, Enum, Test
+        Archetype,
+        Ability,
+        GlobalVars,
+        ModuleCode,
+        ImplDef,
+        Enum,
+        Test
     }
-    # Every top-level declaration with a heavy subtree: classes, functions,
-    # enums, tests, module-level variable/type-alias declarations (GlobalVars),
-    # free module statements (ModuleCode -- annotations and `if sys.version_info:`
-    # blocks that dominate a stub's eager tier), and inline `impl` blocks
-    # (ImplDef -- the method/function bodies that dominate an inline-impl `.jac`
-    # module). Their module-scope symbols stay eager; only the bodies defer.
+
     return isinstance(
         nd, (Archetype, Ability, GlobalVars, ModuleCode, ImplDef, Enum, Test)
     );
@@ -25,21 +26,21 @@ impl JirWriter.write_module(
     import os;
     import from jaclang.jac0core.cache_paths { is_jac_lazy_eligible }
     import from jaclang.jac0core.jir {
-        HEADER_FMT, HEADER_SIZE, MAGIC, FORMAT_VERSION, write_sections,
-        SEC_DECL_INDEX, SEC_DECL_BODIES, SEC_DECL_ENTRIES, FLAG_CHUNKED
+        HEADER_FMT,
+        HEADER_SIZE,
+        MAGIC,
+        FORMAT_VERSION,
+        write_sections,
+        SEC_DECL_INDEX,
+        SEC_DECL_BODIES,
+        SEC_DECL_ENTRIES,
+        FLAG_CHUNKED
     }
     import from importlib.metadata { version as pkg_version }
 
     self._assign_ids(module);
     node_total = len(self._nodes);
 
-    # Partition top-level declarations into their own lazy chunks. Every
-    # top-level child's subtree owns a contiguous id range (post-order
-    # `_assign_ids`), so a chunk is just an [lo, hi] id span; the Module node is
-    # the final id and always lands in the eager tier. Stubs are always chunked;
-    # `.jac` modules are chunked only for eligible dependency modules under the
-    # opt-in JAC_LAZY_JAC (their bodies carry CFG/codegen state, so laziness
-    # there is experimental and scoped away from bootstrap/self-hosting).
     _jac_truthy: set = {'1', 'true', 'True', 'yes', 'on'};
     src_path = '';
     if module?.source and module.source is not None {
@@ -69,7 +70,6 @@ impl JirWriter.write_module(
         }
     }
 
-    # Eager node stream (everything not deferred), in ascending id order.
     ir_buf = bytearray();
     for i in range(node_total) {
         if not is_lazy_id[i] {
@@ -77,7 +77,6 @@ impl JirWriter.write_module(
         }
     }
 
-    # Lazy declaration bodies, each an independently zlib-compressed subtree.
     bodies = bytearray();
     index_buf = bytearray();
     if chunked {
@@ -98,9 +97,6 @@ impl JirWriter.write_module(
         }
     }
 
-    # Links (parent_scope / name_of) are collected as a side effect of writing
-    # nodes, so the global link table is finalized only now, after both the
-    # eager stream and every chunk have been serialized.
     link_buf = bytearray();
     self._write_link_table(link_buf);
 
@@ -143,9 +139,6 @@ impl JirWriter.write_module(
         flags
     );
 
-    # The eager payload (string pool + eager nodes + global link table) is a
-    # single zlib stream; the reader ignores trailing bytes, so the JIRX
-    # sections (which carry the decl index/bodies) follow it verbatim.
     payload = pool_bytes + bytes(ir_buf) + bytes(link_buf);
     compressed = zlib.compress(payload, 6);
     if sections is None {
@@ -154,10 +147,7 @@ impl JirWriter.write_module(
     if chunked {
         sections[SEC_DECL_INDEX] = bytes(index_buf);
         sections[SEC_DECL_BODIES] = bytes(bodies);
-        # Entry points: for each chunk, the node ids referenced from outside it
-        # (its root, plus the module-scope symbol name atoms it contains) with
-        # their class index, so the lazy reader can pre-create typed cold-shell
-        # placeholders whose isinstance/type() are correct before hydration.
+
         id_chunk: dict[int, int] = {};
         entry_sets: list[set] = [];
         for (ci, (name_id, lo, hi)) in enumerate(chunks) {
@@ -166,7 +156,7 @@ impl JirWriter.write_module(
                 id_chunk[i] = ci;
             }
         }
-        def _collect_entry(na: object) -> None {
+        def _collect_entry(na: object) {
             nid = self._node_ids.get(id(na));
             if nid is not None and nid in id_chunk {
                 entry_sets[id_chunk[nid]].add(nid);
@@ -184,13 +174,12 @@ impl JirWriter.write_module(
                 }
             }
         }
-        # Any node referenced by a *structural* node-ref field (e.g.
-        # `ImplDef.decl_link` pointing at a nested member decl) from outside its
-        # chunk must also be an entry point, so the reference resolves to a typed
-        # cold shell instead of a dropped None during a partial hydration.
+
         _ref_kinds: set = {
-            FieldKind.NODE_REF, FieldKind.NODE_LIST,
-            FieldKind.OPT_NODE_REF, FieldKind.OPT_NODE_LIST
+            FieldKind.NODE_REF,
+            FieldKind.NODE_LIST,
+            FieldKind.OPT_NODE_REF,
+            FieldKind.OPT_NODE_LIST
         };
         for i in range(node_total) {
             src_owner = id_chunk.get(i, -1);
@@ -590,9 +579,7 @@ impl JirReader.read_module(data: bytes) -> (Module | None) {
     }
 
     import from jaclang.jac0core.jir { FLAG_CHUNKED }
-    # Bit 0 (stub_only) implies the chunked layout for back-compat with v19 stub
-    # caches written before FLAG_CHUNKED existed; `.jac` chunked caches set only
-    # FLAG_CHUNKED.
+
     if (flags & 1) or (flags & FLAG_CHUNKED) {
         return self._read_module_chunked(data, ir_node_count, bool(flags & 1));
     }
@@ -638,8 +625,12 @@ impl JirReader._read_module_chunked(
     import os;
     import from jaclang.jac0core.cache_paths { is_jac_lazy_eligible }
     import from jaclang.jac0core.jir {
-        HEADER_SIZE, SECTIONS_MAGIC, read_sections,
-        SEC_DECL_INDEX, SEC_DECL_BODIES, SEC_DECL_ENTRIES
+        HEADER_SIZE,
+        SECTIONS_MAGIC,
+        read_sections,
+        SEC_DECL_INDEX,
+        SEC_DECL_BODIES,
+        SEC_DECL_ENTRIES
     }
     import from jaclang.jac0core.unitree { Module as ModuleCls }
 
@@ -657,8 +648,6 @@ impl JirReader._read_module_chunked(
         self._init_caches();
     }
 
-    # The decl index / bodies / entries trail the compressed eager payload as
-    # JIRX sections; zlib.decompress above ignores them.
     magic: any = SECTIONS_MAGIC;
     sec_pos = data.find(magic, HEADER_SIZE);
     sections: dict[int, bytes] = {};
@@ -669,7 +658,6 @@ impl JirReader._read_module_chunked(
     bodies = sections.get(SEC_DECL_BODIES) or bytes();
     entries_bytes = sections.get(SEC_DECL_ENTRIES);
 
-    # id -> owning chunk index, and per-chunk (lo, hi, offset, comp_len).
     chunk_of = [-1] * ir_node_count;
     chunk_ranges: list[tuple[int, int, int, int]] = [];
     if index_bytes is not None {
@@ -699,11 +687,6 @@ impl JirReader._read_module_chunked(
     _truthy: set = {'0', 'false', 'False', 'no', 'off', ''};
     lazy_enabled = os.environ.get('JAC_LAZY_JIR', '1') not in _truthy;
     if not is_stub {
-        # `.jac` chunked caches only read lazily under the explicit JAC_LAZY_JAC
-        # opt-in on eligible user dependency paths; otherwise (including when the
-        # flag was later turned off, or the module is bootstrap/self-hosting) they
-        # full-hydrate, so a stale chunked `.jac` cache can never trigger the
-        # lazy path unexpectedly. Stubs stay lazy under JAC_LAZY_JIR alone.
         _jac_on: set = {'1', 'true', 'True', 'yes', 'on'};
         lazy_enabled = (
             lazy_enabled
@@ -712,9 +695,6 @@ impl JirReader._read_module_chunked(
         );
     }
     if entries_bytes is None or not lazy_enabled {
-        # Full hydrate: read strictly in global id order so each child (lower
-        # post-order id) is materialized before its parent -- byte-for-byte
-        # parity with the legacy layout.
         chunk_bufs: dict[int, object] = {};
         chunk_pos: dict[int, int] = {};
         for gid in range(ir_node_count) {
@@ -743,14 +723,9 @@ impl JirReader._read_module_chunked(
         return None;
     }
 
-    # ---- Lazy path: eager tier only; decl bodies hydrate on demand. ----
     self._lazy = True;
     self._eager_loading = True;
 
-    # Pre-create typed cold-shell placeholders for every externally-referenced
-    # chunk node (root + module-symbol name atoms). Their class is stored in the
-    # entry table so isinstance/type() are correct before hydration; any real
-    # attribute access routes through UniNode.__getattr__ -> hydrate_chunk.
     (nchunks, epos) = _read_varint(entries_bytes, 0);
     for cidx in range(nchunks) {
         (n_entries, epos) = _read_varint(entries_bytes, epos);
@@ -760,8 +735,7 @@ impl JirReader._read_module_chunked(
             spec = IDX_TO_SPEC[class_idx];
             cls = self._class_map[spec.class_name];
             shell: any = cls.__new__(cls);
-            # Only the control keys: every other attribute is missing, so any
-            # real access routes through UniNode.__getattr__ and hydrates.
+
             shell.__dict__ = {
                 '_jir_cold': True,
                 '_jir_gid': gid,
@@ -772,16 +746,12 @@ impl JirReader._read_module_chunked(
         }
     }
 
-    # Read the eager nodes (everything not owned by a chunk), in id order.
     for gid in range(ir_node_count) {
         if chunk_of[gid] < 0 {
             pos = self._read_node(eager, pos, gid);
         }
     }
 
-    # The global link table follows the eager stream. Apply links whose ends are
-    # already present (eager or cold shells); bucket the rest by owning chunk so
-    # they are applied when that chunk hydrates.
     pos = self._read_link_table_lazy(eager, pos);
 
     self._eager_loading = False;
@@ -794,8 +764,7 @@ impl JirReader._read_module_chunked(
     if self._source_path {
         last_node.source = self._ensure_module_source();
     }
-    # Give the module a real loc (its last kid is a cold decl; this hydrates at
-    # most that one chunk) so downstream range queries never hit a missing attr.
+
     try {
         last_node.loc = self._CodeLocInfo(*last_node.resolve_tok_range());
     } except Exception {
@@ -813,11 +782,6 @@ impl JirReader._read_link_table_lazy(data: (bytes | memoryview), pos: int) -> in
         return -1;
     }
     def _route(kind: int, a: int, b: int) -> None {
-        # Links whose endpoints are both eager can be wired immediately. Any link
-        # touching a chunk is bucketed and applied when that chunk hydrates --
-        # never eagerly against a cold shell, whose dict is repopulated on
-        # hydration (which would drop an eagerly-set field and the applied-guard
-        # would then skip the re-apply).
         (ca, cb) = (_owner(a), _owner(b));
         if ca < 0 and cb < 0 {
             self._apply_one_link(kind, a, b);
@@ -1099,18 +1063,20 @@ impl JirReader._read_node(data: (bytes | memoryview), pos: int, idx: int) -> int
     }
 
     cls = class_map[spec.class_name];
-    # Reuse a cold-shell placeholder in place so its object identity (already
-    # referenced by module.kid, symbols and name_of) is preserved through
-    # hydration; otherwise allocate a fresh node. Wiring set eagerly against the
-    # shell (parent, `_sym`) is preserved -- only the `_jir_*` control keys are
-    # dropped, and `parent` is restored after the generic reset below.
+
     reused_parent: any = None;
     existing = nodes[idx] if idx < len(nodes) else None;
     if existing is not None and existing.__dict__.get('_jir_cold') {
         ir_node: any = existing;
         nd = ir_node.__dict__;
         reused_parent = nd.get('parent');
-        for _k in ('_jir_cold', '_jir_gid', '_jir_chunk', '_jir_loader', '_jir_hydrating') {
+        for _k in (
+            '_jir_cold',
+            '_jir_gid',
+            '_jir_chunk',
+            '_jir_loader',
+            '_jir_hydrating'
+        ) {
             nd.pop(_k, None);
         }
     } else {
