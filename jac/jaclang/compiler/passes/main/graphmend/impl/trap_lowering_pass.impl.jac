@@ -1,3 +1,4 @@
+import builtins;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
@@ -89,14 +90,19 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         return;
     }
     x = cond.operand;
-    msg = self._raise_message(rs, nd);
+    msg = self._raise_message(rs);
     wrap = self._enclosing_compiled_fn(nd);
     covered = (wrap is not None) or self.prog.graphmend_scoped_compile;
     type_name = self._exception_type_name(rs) if covered else None;
     marked = (
-        self._marked_message(nd, msg, type_name) if (type_name is not None) else None
+        self._marked_message(nd, msg, type_name)
+            if ((type_name is not None) and (msg is not None))
+            else None
     );
     if marked is None {
+        return;
+    }
+    if not self._torch_binds_module(nd) {
         return;
     }
     eq = self._torch_equal_args(x);
@@ -105,7 +111,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         self._need_helper(nd, GraphMendHelper.EQ_ASSERT);
         self._replace(nd, [self._eq_assert_stmt(nd, a, b, marked)]);
         self._mark_guard(wrap);
-    } elif self._returns_tensor_bool(x) {
+    } elif self._returns_tensor_bool(x) and self._tensor_receiver_provable(x, nd) {
         self._replace(nd, [self._assert_async_stmt(nd, x, marked)]);
         self._mark_guard(wrap);
     }
@@ -125,11 +131,15 @@ impl TrapLoweringPass._exception_type_name(rs: uni.RaiseStmt) -> (str | None) {
         return None;
     }
     target = cause.target if isinstance(cause, uni.FuncCall) else cause;
-    if isinstance(target, uni.Name) {
-        return target.value;
+    if not isinstance(target, uni.Name) {
+        return None;
     }
-    if isinstance(target, uni.AtomTrailer) and isinstance(target.right, uni.Name) {
-        return target.right.value;
+    if target.sym is not None {
+        return None;
+    }
+    cls = getattr(builtins, target.value, None);
+    if isinstance(cls, type) and issubclass(cls, BaseException) {
+        return target.value;
     }
     return None;
 }
@@ -147,7 +157,11 @@ impl TrapLoweringPass._marked_message(
             }
         }
     }
-    text = "[[GM-TRAP " + type_name + "]]" + str(msg.lit_value) + "[[/GM-TRAP]]";
+    lit = str(msg.lit_value);
+    if "[[/GM-TRAP]]" in lit {
+        return None;
+    }
+    text = "[[GM-TRAP " + type_name + "]]" + lit + "[[/GM-TRAP]]";
     return self._str(at, text);
 }
 
@@ -213,16 +227,24 @@ impl TrapLoweringPass._returns_tensor_bool(x: uni.Expr) -> bool {
     );
 }
 
-impl TrapLoweringPass._raise_message(rs: uni.RaiseStmt, at: uni.UniNode) -> uni.Expr {
-    cause = rs.cause;
-    if isinstance(cause, uni.FuncCall) {
-        for p in (cause.params or []) {
-            if not isinstance(p, uni.KWPair) {
-                return p;
-            }
-        }
+impl TrapLoweringPass._raise_message(rs: uni.RaiseStmt) -> (uni.Expr | None) {
+    if rs.from_target is not None {
+        return None;
     }
-    return self._str(at, '');
+    cause = rs.cause;
+    if not isinstance(cause, uni.FuncCall) {
+        return None;
+    }
+    call: uni.FuncCall = cause;
+    pos = [
+        p
+        for p in (call.params or [])
+        if not isinstance(p, uni.KWPair)
+    ];
+    if (len(pos) != 1) or (len(pos) != len(call.params or [])) {
+        return None;
+    }
+    return pos[0];
 }
 
 impl TrapLoweringPass._gen_name(at: uni.UniNode, value: str) -> uni.Name {
@@ -276,6 +298,85 @@ impl TrapLoweringPass._assert_async_stmt(
         target=target, params=params, genai_call=None, kid=[target] + params
     );
     return self._call_stmt(call);
+}
+
+impl TrapLoweringPass._tensor_receiver_provable(
+    x: uni.Expr, site: uni.UniNode
+) -> bool {
+    if not (isinstance(x, uni.FuncCall) and isinstance(x.target, uni.AtomTrailer)) {
+        return False;
+    }
+    return self._tensor_expr_provable(x.target.target, site);
+}
+
+impl TrapLoweringPass._tensor_expr_provable(e: uni.Expr, site: uni.UniNode) -> bool {
+    if isinstance(e, uni.AtomUnit) and isinstance(e.value, uni.Expr) {
+        return self._tensor_expr_provable(e.value, site);
+    }
+    if isinstance(e, uni.Name) {
+        return self._param_is_tensor(e.value, site);
+    }
+    if isinstance(e, uni.BinaryExpr) {
+        return self._tensor_expr_provable(e.left, site)
+            or self._tensor_expr_provable(e.right, site);
+    }
+    if isinstance(e, uni.CompareExpr) {
+        if self._tensor_expr_provable(e.left, site) {
+            return True;
+        }
+        for r in (e.rights or []) {
+            if self._tensor_expr_provable(r, site) {
+                return True;
+            }
+        }
+        return False;
+    }
+    return False;
+}
+
+impl TrapLoweringPass._param_is_tensor(name: str, site: uni.UniNode) -> bool {
+    ab = site.find_parent_of_type(uni.Ability);
+    if ab is None {
+        return False;
+    }
+    sig = ab.signature;
+    if not isinstance(sig, uni.FuncSignature) {
+        return False;
+    }
+    for p in (sig.get_parameters() or []) {
+        if (p?.name is None) or (p.name.value != name) {
+            continue;
+        }
+        ann = p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
+        if isinstance(ann, uni.Name) {
+            return self._binds_torch_tensor(ann);
+        }
+        return is_torch_attr_target(ann, 'Tensor');
+    }
+    return False;
+}
+
+impl TrapLoweringPass._torch_binds_module(site: uni.UniNode) -> bool {
+    sym = site.sym_tab.lookup('torch');
+    decl = sym.decl if (sym is not None) else None;
+    mp = decl.find_parent_of_type(uni.ModulePath) if (decl is not None) else None;
+    if (mp is None) or mp.is_import_from or (mp.alias is not None) {
+        return False;
+    }
+    return mp.dot_path_str == 'torch';
+}
+
+impl TrapLoweringPass._binds_torch_tensor(ann: uni.Name) -> bool {
+    decl = ann.sym.decl if (ann.sym is not None) else None;
+    mi = decl.find_parent_of_type(uni.ModuleItem) if (decl is not None) else None;
+    if mi is None {
+        return False;
+    }
+    if not (isinstance(mi.name, uni.Name) and (mi.name.value == 'Tensor')) {
+        return False;
+    }
+    mp = mi.parent.from_loc if isinstance(mi.parent, uni.Import) else None;
+    return (mp is not None) and (mp.dot_path_str == 'torch');
 }
 
 impl TrapLoweringPass._replace(old: uni.UniNode, new_nodes: list) -> None {

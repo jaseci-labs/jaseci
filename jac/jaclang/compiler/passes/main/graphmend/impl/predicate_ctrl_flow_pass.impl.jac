@@ -1,6 +1,10 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, Tokens as Tok }
+import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    cond_materializes_scalar,
+    is_torch_attr_target
+}
 
 impl PredicateCtrlFlowPass.before_pass -> None {
     self._enabled = self.prog._compile_options.graphmend;
@@ -23,6 +27,9 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     tb = nd.body;
     fb = eb.body;
     if (not tb) or (not fb) {
+        return;
+    }
+    if cond_materializes_scalar(nd.condition) {
         return;
     }
     if (len(tb) == 1) and (len(fb) == 1) {
@@ -52,8 +59,11 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     a_last = tb[-1];
     b_last = fb[-1];
     if isinstance(a_last, uni.ExprStmt) and isinstance(b_last, uni.ExprStmt) {
-        if self._setups_safe(tb[:-1], nd) and self._setups_safe(fb[:-1], nd) {
-            self._merge_common_call(nd, a_last.expr, b_last.expr, tb[:-1], fb[:-1]);
+        (ts, fs) = (tb[:-1], fb[:-1]);
+        if (not (self._setup_writes(ts) & self._setup_writes(fs)))
+            and self._setups_safe(ts, nd)
+            and self._setups_safe(fs, nd) {
+            self._merge_common_call(nd, a_last.expr, b_last.expr, ts, fs);
         }
     }
 }
@@ -72,8 +82,7 @@ impl PredicateCtrlFlowPass._rewrite_assignment(
     }
     (stmts, c_ref, t_ref, f_ref) = self._hoist(nd, nd.condition, true_e, false_e);
     where_call = self._make_where(nd, c_ref, t_ref, f_ref);
-    final = self._assign(lhs, where_call);
-    self._replace(nd, stmts + [final]);
+    self._replace(nd, stmts + [self._assign(lhs, where_call)]);
 }
 
 impl PredicateCtrlFlowPass._rewrite_return(
@@ -130,6 +139,11 @@ impl PredicateCtrlFlowPass._merge_common_call(
     if not diff {
         return;
     }
+    for i in diff {
+        if self._has_call(a_pos[i]) or self._has_call(b_pos[i]) {
+            return;
+        }
+    }
     for s in (list(true_setups) + list(false_setups)) {
         if self._is_eq_assert(s) {
             return;
@@ -148,15 +162,11 @@ impl PredicateCtrlFlowPass._merge_common_call(
             merged.append(a_pos[i]);
         }
     }
-    new_params = merged;
     for k in a_kw {
-        new_params.append(a_kw[k]);
+        merged.append(a_kw[k]);
     }
     new_call = uni.FuncCall(
-        target=ca.target,
-        params=new_params,
-        genai_call=None,
-        kid=[ca.target] + new_params
+        target=ca.target, params=merged, genai_call=None, kid=[ca.target] + merged
     );
     call_stmt = uni.ExprStmt(expr=new_call, in_fstring=False, kid=[new_call]);
     gated_true = self._gate_asserts(list(true_setups), n, True);
@@ -248,24 +258,12 @@ impl PredicateCtrlFlowPass._make_where(
 impl PredicateCtrlFlowPass._make_cond(
     at: uni.UniNode, pred: uni.Expr, t: uni.Expr, f: uni.Expr
 ) -> uni.FuncCall {
-    torch_nm = self._gen_name(at, 'torch', False);
-    cond_nm = self._gen_name(at, 'cond', False);
-    target = uni.AtomTrailer(
-        target=torch_nm,
-        right=cond_nm,
-        is_attr=True,
-        is_null_ok=False,
-        kid=[torch_nm, cond_nm]
-    );
     true_fn = uni.LambdaExpr(body=t, signature=None, kid=[t]);
     false_fn = uni.LambdaExpr(body=f, signature=None, kid=[f]);
     operands = uni.TupleVal(
         values=[], kid=[at.gen_token(Tok.LPAREN, '('), at.gen_token(Tok.RPAREN, ')')]
     );
-    params = [pred, true_fn, false_fn, operands];
-    return uni.FuncCall(
-        target=target, params=params, genai_call=None, kid=[target] + params
-    );
+    return self._torch_call(at, 'cond', [pred, true_fn, false_fn, operands]);
 }
 
 impl PredicateCtrlFlowPass._torch_call(
@@ -289,16 +287,10 @@ impl PredicateCtrlFlowPass._hoist(
     at: uni.UniNode, cond: uni.Expr, t: uni.Expr, f: uni.Expr
 ) -> tuple[list, uni.Name, uni.Name, uni.Name] {
     n = self._counter;
-    self._counter += 1;
-    cond_tmp = self._gen_name(at, f"__gm_cond_{n}", True);
+    (stmts, cond_ref) = self._hoist_cond(at, cond);
     true_tmp = self._gen_name(at, f"__gm_true_{n}", True);
     false_tmp = self._gen_name(at, f"__gm_false_{n}", True);
-    stmts = [
-        self._assign(cond_tmp, cond),
-        self._assign(true_tmp, t),
-        self._assign(false_tmp, f)
-    ];
-    cond_ref = self._gen_name(at, f"__gm_cond_{n}", False);
+    stmts = stmts + [self._assign(true_tmp, t), self._assign(false_tmp, f)];
     true_ref = self._gen_name(at, f"__gm_true_{n}", False);
     false_ref = self._gen_name(at, f"__gm_false_{n}", False);
     return (stmts, cond_ref, true_ref, false_ref);
@@ -322,14 +314,7 @@ impl PredicateCtrlFlowPass._is_assert_async(stmt: uni.UniNode) -> bool {
     if not isinstance(call, uni.FuncCall) {
         return False;
     }
-    t = call.target;
-    return (
-        isinstance(t, uni.AtomTrailer)
-        and isinstance(t.right, uni.Name)
-        and (t.right.value == '_assert_async')
-        and isinstance(t.target, uni.Name)
-        and (t.target.value == 'torch')
-    );
+    return is_torch_attr_target(call.target, '_assert_async');
 }
 
 impl PredicateCtrlFlowPass._is_eq_assert(stmt: uni.UniNode) -> bool {
@@ -358,12 +343,7 @@ impl PredicateCtrlFlowPass._gate_asserts(
             out.append(s);
             continue;
         }
-        pos: list[uni.Expr] = [];
-        for prm in (call.params or []) {
-            if not isinstance(prm, uni.KWPair) {
-                pos.append(prm);
-            }
-        }
+        pos = self._split_params(call.params)[0];
         if not pos {
             out.append(s);
             continue;

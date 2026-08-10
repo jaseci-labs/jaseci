@@ -18,18 +18,40 @@ glob _PURE_BUILTINS: set[str] = {
          'getattr',
          'hasattr'
      },
-     _PURE_TENSOR_METHODS: set[str] = {
-         'to',
-         'float',
-         'double',
-         'clone',
-         'detach',
-         'get'
+     _PURE_TENSOR_METHODS: set[str] = {'to', 'float', 'double', 'clone', 'detach'},
+     _PURE_TORCH_FNS: set[str] = {
+         'arange',
+         'as_tensor',
+         'cat',
+         'clamp',
+         'cos',
+         'einsum',
+         'exp',
+         'eye',
+         'full',
+         'linspace',
+         'log',
+         'log2',
+         'log10',
+         'maximum',
+         'minimum',
+         'ones',
+         'outer',
+         'pow',
+         'reshape',
+         'rsqrt',
+         'sin',
+         'sqrt',
+         'stack',
+         'tensor',
+         'where',
+         'zeros'
      };
 
 obj PredicateCtrlFlowPass(UniPass) {
     has _enabled: bool = False,
-        _counter: int = 0;
+        _counter: int = 0,
+        _mat_seen: set[str] = set();
 
     def before_pass -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
@@ -80,10 +102,25 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _signature_accepts(fn: uni.Ability, c: uni.FuncCall) -> bool;
     def _module_fn(mod: uni.Module, name: str) -> (uni.Ability | None);
     def _dispatch_table_fns(mod: uni.Module) -> list[uni.Ability];
+    def _impure_writes(fn: uni.Ability, mod: (uni.Module | None)) -> bool;
+    def _module_scope_names(mod: uni.Module) -> set[str];
     def _body_pure_nonraising(
-        fn: uni.Ability, c: uni.FuncCall, seen: (set[int] | None) = None
+        fn: uni.Ability,
+        c: uni.FuncCall,
+        seen: (set[int] | None) = None,
+        ctx: (dict[str, list[uni.Archetype]] | None) = None
     ) -> bool;
 
+    def _callsite_ctx(
+        fn: uni.Ability, c: uni.FuncCall
+    ) -> dict[str, list[uni.Archetype]];
+
+    def _arg_classes(
+        arg: uni.Expr, c: uni.FuncCall, selfcls: list[uni.Archetype]
+    ) -> list[uni.Archetype];
+
+    def _self_classes(c: uni.FuncCall) -> list[uni.Archetype];
+    def _ctx_dict_get(call: uni.FuncCall, ctx: dict[str, list[uni.Archetype]]) -> bool;
     def _hasattr_key(c: uni.Expr) -> (tuple[str, str] | None);
     def _writes_attr(s: uni.Assignment, recv: str, key: str) -> bool;
     def _attr_confined(region: uni.IfStmt, key: str) -> bool;
@@ -93,7 +130,15 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _guarded_by_varkw(r: uni.RaiseStmt, varkw: str, fn: uni.Ability) -> bool;
     def _mentions_name(e: (uni.Expr | None), nm: str) -> bool;
     def _pure_callee(t: (uni.Expr | None)) -> bool;
-    def _assignment_neutral(s: uni.Assignment) -> bool;
+    def _pure_root(base: uni.Name) -> bool;
+    def _pure_receiver(recv: (uni.Expr | None)) -> bool;
+    def _assignment_neutral(s: uni.Assignment, region: uni.IfStmt) -> bool;
     def _is_device_move(s: uni.Assignment) -> bool;
-    def _all_local_targets(targets: Sequence[uni.Expr]) -> bool;
+    def _move_consumed(s: uni.Assignment, region: uni.IfStmt) -> bool;
+    def _consumers_harmless(s: uni.Assignment, region: uni.IfStmt) -> bool;
+    def _normalizes_first(ab: uni.Ability, tgt: str) -> bool;
+    def _stmt_spot(nd: uni.UniNode) -> (tuple[int, int] | None);
+    def _spot_chain(nd: uni.UniNode) -> dict[int, int];
+    def _all_local_targets(targets: Sequence[uni.Expr], region: uni.IfStmt) -> bool;
+    def _setup_writes(setups: Sequence[uni.CodeBlockStmt]) -> set[str];
 }

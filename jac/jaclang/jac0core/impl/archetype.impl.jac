@@ -184,6 +184,12 @@ impl EdgeAnchor.detach -> None {
     self.target.remove_edge(self);
     import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
     sv_forget_edge(self);
+
+    import from jaclang.jac0core.runtime { JacRuntime }
+    ctx = JacRuntime.exec_ctx;
+    if ctx is not None {
+        ctx.mem.delete(self.id);
+    }
 }
 
 @cached_property
@@ -207,6 +213,22 @@ impl Archetype.__init_subclass__(cls: any, **kwargs: object) -> None {
 }
 
 impl Archetype.postinit -> None { }
+
+impl Archetype.__setattr__(name: str, value: any) -> None {
+    object.__setattr__(self, name, value);
+    an = self.__dict__.get('__jac__');
+    if an is None or not an.persistent {
+        return;
+    }
+    import from jaclang.jac0core.runtime { JacRuntime }
+    ctx = JacRuntime.exec_ctx;
+    if ctx is not None {
+        md = ctx.mem?.mark_dirty;
+        if md is not None {
+            md(an);
+        }
+    }
+}
 
 impl Archetype.__repr__ -> str {
     return f"{self.__class__.__name__}";

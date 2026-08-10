@@ -14,6 +14,7 @@ import ast;
 import os;
 import pytest;
 import from tests.support { JAC_ROOT }
+import from jaclang.jac0core.jaclib { __jac_trap_guard__ }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 
@@ -170,4 +171,54 @@ test "shape mismatch trips the torch.equal precheck" {
     assert str(raised) == "unsupported attention mask" , f"message lost: {repr(
         raised
     )}";
+}
+
+"""Raise a RuntimeError carrying `text` verbatim (trap-guard parse probe)."""
+def _raise_runtime(text: str) {
+    raise RuntimeError(text);
+}
+
+"""A non-tensor mask: `.all()` matches the guard shape but returns a plain bool."""
+obj FakeMask {
+    has value: bool = False;
+
+    def all -> bool {
+        return self.value;
+    }
+}
+
+test "non-tensor guard condition keeps its original exception contract" {
+    # The `.all()` match is structural; with `mask: any` there is no static
+    # proof of tensor-ness, so the lowering DECLINES and the original guard
+    # runs unchanged: a duck-typed receiver keeps its exact Python semantics.
+    torch = _torch();
+    ns = _exec_gm("guard_unproven_receiver.jac", True, False);
+    x = torch.tensor([1.0, 2.0, 3.0]);
+    out = ns["f"](x, FakeMask(value=True));
+    assert torch.allclose(out, torch.sin(torch.relu(x)) * 2.0);
+    raised = None;
+    try {
+        ns["f"](x, FakeMask(value=False));
+    } except BaseException as e {
+        raised = e;
+    }
+    assert type(raised) is ValueError , f"expected ValueError, got {repr(raised)}";
+    assert str(raised) == "mask must be all true" , f"message lost: {repr(raised)}";
+}
+
+test "partial trap-marker text propagates unchanged" {
+    # An unrelated RuntimeError that happens to contain marker-like text must
+    # come out of the boundary guard exactly as it went in: not an IndexError
+    # from an unchecked split, and not a mis-restored exception.
+    wrapped = __jac_trap_guard__(_raise_runtime);
+    for text in ["dynamo says [[GM-TRAP oops", "[[GM-TRAP ValueError]]never closed"] {
+        raised = None;
+        try {
+            wrapped(text);
+        } except BaseException as e {
+            raised = e;
+        }
+        assert type(raised) is RuntimeError , f"wrong type: {repr(raised)}";
+        assert str(raised) == text , f"text mangled: {repr(raised)}";
+    }
 }

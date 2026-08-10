@@ -114,11 +114,16 @@ test "common call merges multiple differing args, preserves kwargs" {
     assert "if " not in src;
 }
 
-test "item() dynamic signal in return branch becomes torch.where" {
-    src = _pysrc("where_item_return.jac", True);
-    assert "x.item() > 5" in src;
-    assert "return torch.where(" in src;
-    assert "if " not in src;
+test "a scalar-materializing predicate is declined (soundness)" {
+    # `.item()` yields a Python bool, and `torch.where` rejects a non-tensor
+    # condition, so predicating this branch would replace a working graph
+    # break with a TypeError. Detection still tags both shapes -- the direct
+    # one and the one reached only through the use-def trace.
+    src = _pysrc("scalar_predicate.jac", True);
+    assert "torch.where(" not in src;
+    assert "if x.item() > 5:" in src;
+    assert "if hits > 5:" in src;
+    assert _break_kinds("scalar_predicate.jac") == ["dyn_ctrl_fl", "dyn_ctrl_fl"];
 }
 
 test "asymmetric call branches become torch.cond (runs one branch)" {
@@ -173,6 +178,138 @@ test "non-idempotent observable setup write is declined (soundness)" {
     assert "torch.where(" not in src;
     assert "if seq_len > 8:" in src;
     assert "self_obj.calls = self_obj.calls + 1" in src;
+}
+
+test "setups writing the same bare local in both branches are declined" {
+    src = _pysrc("where_local_clobber.jac", True);
+    # Hoisting both `scale` writes leaves the else-branch value in place for
+    # the merged call, so the true path would read the wrong operand.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "a setup writing a local live outside the region is declined" {
+    src = _pysrc("where_local_escape.jac", True);
+    # `scale` is read after the branch, so hoisting the true-branch write
+    # changes what the else path returns.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "differing common-call arguments containing calls are declined" {
+    src = _pysrc("merge_arg_calls.jac", True);
+    # torch.where evaluates both operands; merging call-bearing arguments
+    # would run the untaken branch's call. Same rule as call_vs_literal,
+    # applied to the common-call merge path.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "a shadowed torch root in the initializer is declined" {
+    src = _pysrc("guard_shadowed_torch_root.jac", True);
+    # `import fake as torch` rebinds the root; the allowlisted leaf name
+    # proves nothing without a genuine `import torch` binding.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "a shadowed pure builtin in the initializer is declined" {
+    src = _pysrc("guard_shadowed_len.jac", True);
+    # `len` is on the pure-builtin list by spelling, but the module rebinds
+    # it to an effectful function; the binding is the proof, not the name.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "a device move whose consumers all normalize first is licensed" {
+    src = _pysrc("where_device_move_shared.jac", True);
+    # The other function's first mention of the attribute is the same
+    # normalizing move, so no consumer can observe the hoisted placement.
+    assert "register_buffer('inv_freq', torch.where(" in src;
+    assert "if seq_len > 8:" not in src;
+}
+
+test "a normalization that does not dominate its reads is declined" {
+    src = _pysrc("where_conditional_normalizer.jac", True);
+    # `peek` normalizes only under a flag; the read outside that branch can
+    # observe the hoisted placement. Textual order is not dominance.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "a device move with a raw reader elsewhere is declined" {
+    src = _pysrc("where_raw_consumer.jac", True);
+    # `peek` reads the attribute without normalizing, so it can observe the
+    # placement change on originally-untaken executions.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "a device move whose target the region never consumes is declined" {
+    src = _pysrc("where_unused_device_move.jac", True);
+    # The move license exists to put a value consumed by the merged call on
+    # the right device; an unconsumed target is a bare attribute mutation.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "a recursive initializer helper is declined" {
+    src = _pysrc("guard_recursive_init.jac", True);
+    # Each helper body is clean, but the call graph has a cycle; termination
+    # of the speculated call is unprovable, so the hoist declines.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "an initializer helper that writes an attribute is declined" {
+    src = _pysrc("guard_helper_write.jac", True);
+    # The helper neither raises nor calls anything impure, but it assigns
+    # `config.cache`; purity covers writes too, so the hoist declines.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "config read proven by a constructor invariant licenses the hoist" {
+    src = _pysrc("guard_config_get.jac", True);
+    # `config.rope_scaling.get("factor")` is on no purity list; the fact pass
+    # proves it from RopeConfig's constructor, which raises unless the
+    # attribute is a dict. The receiver type comes from the call-site
+    # argument's annotation, not from the callee's declared parameter.
+    assert "register_buffer('inv_freq', torch.where(" in src;
+    assert "if seq_len > 8:" not in src;
+}
+
+test "a constructor invariant one import away is materialized and proves" {
+    src = _pysrc("where_config_import.jac", True);
+    # RopeConfig lives in a sibling module: the query follows the import and
+    # compiles that module's AST into the hub on demand, then reads the
+    # invariant from it.
+    assert "register_buffer('inv_freq', torch.where(" in src;
+    assert "if seq_len > 8:" not in src;
+}
+
+test "config read without the constructor invariant is declined" {
+    src = _pysrc("guard_config_get_unproven.jac", True);
+    # LooseConfig never validates rope_scaling, so `.get` stays opaque: the
+    # same shape could be a session object doing I/O. Must decline.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "existence-guarded init calling a tensor-named method on an opaque receiver is declined" {
+    src = _pysrc("guard_opaque_method_init.jac", True);
+    # `config.store.clone()` matches the pure-tensor-method name list, but the
+    # receiver is not a pure call, so nothing proves the method is a no-op.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
+test "existence-guarded init calling an effectful torch API is declined" {
+    src = _pysrc("guard_torch_effect_init.jac", True);
+    # `torch.save` is rooted at torch but writes a file; purity is decided by
+    # the checked pure-op list, not by the root module.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
 }
 
 test "hasattr guard whose key is not the memoized attribute is declined" {
@@ -230,7 +367,9 @@ test "nested guard in a data-dependent branch composes trap + predication" {
     # ...and the inner validation guard is lowered to a graph-native assert,
     # re-gated on the branch predicate so it only fires when the branch is taken.
     assert "torch._assert_async(" in src;
-    assert "torch.logical_or(torch.logical_not(__gm_cond_0), (x == y).all())" in src;
+    # the gate is plain logical_or: trap lowering only fires on a receiver
+    # proven to be a tensor, so the check needs no coercion.
+    assert ("torch.logical_or(torch.logical_not(__gm_cond_0), (x == y).all())" in src);
     # no raw control flow / raise survives -- one contiguous graph.
     assert "raise ValueError" not in src;
     assert "if x.sum()" not in src;

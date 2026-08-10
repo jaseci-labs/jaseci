@@ -54,7 +54,7 @@ import torch
 
 
 @torch.compile()
-def f(x, mask):
+def f(x, mask: torch.Tensor):
     x = torch.relu(x)
     if not mask.all():
         raise ValueError("mask must be all true")
@@ -89,8 +89,11 @@ test "torch.equal guard lowers to the tensor-equality assert helper" {
     assert _break_count("val_guard.jac") == 1;
 }
 
-test "tensor-bool guard lowers to torch._assert_async directly" {
+test "tensor-bool guard with a proven receiver lowers to a direct assert" {
     src = _pysrc("val_guard_all.jac", True);
+    # `mask: torch.Tensor` proves the receiver, so the guard lowers to
+    # torch._assert_async directly: no runtime helper, no import, nothing
+    # decided at runtime.
     assert (
         "torch._assert_async(mask.all(), "
         "'[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')"
@@ -101,7 +104,18 @@ test "tensor-bool guard lowers to torch._assert_async directly" {
     assert "if not mask.all()" not in src;
 }
 
-test "py source: validation guard lowers to torch._assert_async" {
+test "tensor-bool guard without a receiver proof is declined" {
+    src = _pysrc("guard_unproven_receiver.jac", True);
+    # Same guard shape, `mask: any`: the structural `.all` match alone cannot
+    # establish tensor-ness, so the lowering declines and the original guard
+    # (and its duck-typing contract) survives unchanged.
+    assert "torch._assert_async(" not in src;
+    assert "raise ValueError('mask must be all true')" in src;
+    assert "if not mask.all():" in src;
+    assert _break_count("guard_unproven_receiver.jac") == 1;
+}
+
+test "py source: proven tensor-bool guard lowers to a direct assert" {
     # The .py front-end (PyastBuildPass) produces UniIR whose nodes unparse
     # differently from .jac-origin nodes, so the trap pattern must match
     # structurally; this guards `jac run model.py --graphmend`.
@@ -174,4 +188,106 @@ test "static (non-tensor) guard is not rewritten" {
     # rewrite absence alone would not prove precision: the trap pass would
     # decline this shape even if it were mis-tagged, so check the tag table
     assert _break_count("static_guard.jac") == 0;
+}
+
+test "multi-argument exception declines instead of truncating its args" {
+    # Only one string literal fits in the trap marker, so lowering
+    # ValueError('msg', 42) would reconstruct ValueError('msg') at the
+    # boundary: right type, silently truncated args. Decline instead.
+    src = _pysrc("guard_multi_arg_msg.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError('mask must be all true', 42)" in src;
+    assert _break_count("guard_multi_arg_msg.jac") == 1;
+}
+
+test "raise-from guard declines instead of dropping the chained cause" {
+    # The boundary guard re-raises `from None`, so an explicit `from cause`
+    # chain cannot be reconstructed at the call site.
+    src = _pysrc("guard_raise_from.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "from upstream" in src;
+    assert _break_count("guard_raise_from.jac") == 1;
+}
+
+test "argument-less exception declines instead of gaining an empty arg" {
+    # Reconstructing `raise ValueError` or `raise ValueError()` from a marker
+    # yields ValueError('') whose args is ('',) where the original had ():
+    # an observable contract change, so both shapes decline.
+    src = _pysrc("guard_no_arg_msg.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError" in src;
+    assert _break_count("guard_no_arg_msg.jac") == 2;
+}
+
+test "message containing the trap delimiter declines instead of truncating" {
+    # The runtime parse stops at the first close delimiter, so a literal
+    # message embedding [[/GM-TRAP]] would come back truncated at that point.
+    src = _pysrc("guard_marker_msg.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError" in src;
+    assert _break_count("guard_marker_msg.jac") == 1;
+}
+
+test "shadowed builtin exception name declines instead of switching class" {
+    # `glob ValueError = RuntimeError` binds the name locally, so the raise no
+    # longer selects the builtin the boundary guard would reconstruct. The
+    # binding (Name.sym) is the proof; the spelling alone approves nothing.
+    src = _pysrc("guard_shadowed_exc.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError('bad mask')" in src;
+    assert _break_count("guard_shadowed_exc.jac") == 1;
+}
+
+test "bare Tensor annotation bound by a torch import lowers" {
+    # `from torch import Tensor` proves the bare-name annotation through its
+    # binding, so this is equivalent to the qualified torch.Tensor proof.
+    src = _pysrc("val_guard_tensor_import.jac", True);
+    assert (
+        "torch._assert_async(mask.all(), "
+        "'[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')"
+        in src
+    );
+    assert "@__jac_trap_guard__" in src;
+    assert "raise ValueError" not in src;
+}
+
+test "bare Tensor annotation from a non-torch import declines" {
+    # Same spelling, different binding: `from mylib import Tensor` disproves
+    # the receiver, so lowering would feed a non-torch value to
+    # torch._assert_async. The guard keeps its original semantics.
+    src = _pysrc("guard_foreign_tensor.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "if not mask.all()" in src;
+    assert "raise ValueError('mask must be all true')" in src;
+    assert _break_count("guard_foreign_tensor.jac") == 1;
+}
+
+test "non-builtin exception type declines instead of degrading its type" {
+    # The boundary guard restores the type by looking the marker name up in
+    # builtins, so an aliased (MaskError = RuntimeError) or qualified
+    # (torch.MaskError) exception would come back as a bare RuntimeError:
+    # an observable type change. Only bare builtin exception names lower.
+    src = _pysrc("guard_custom_exc.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise MaskError" in src;
+    assert "raise torch.MaskError" in src;
+    assert _break_count("guard_custom_exc.jac") == 2;
+}
+
+test "shadowed torch name declines instead of binding the assert to a local" {
+    # The receiver is provable via `Tensor`, but a parameter named `torch`
+    # captures the emitted `torch._assert_async`, which would raise
+    # AttributeError or silently skip the check. Proving the module by its
+    # import binding, not by the spelling `torch`, is what declines it.
+    src = _pysrc("guard_shadowed_torch.jac", True);
+    assert "_assert_async(" not in src;
+    assert "raise ValueError('mask must be all true')" in src;
+    assert _break_count("guard_shadowed_torch.jac") == 1;
 }
