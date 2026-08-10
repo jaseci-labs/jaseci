@@ -391,6 +391,16 @@ impl get_scale_config(project_dir: Path | None = None) -> JacScaleConfig {
         return _scale_config_instance;
     }
     new_instance = JacScaleConfig(project_dir);
+    raw_plugin_config: dict[str, any] | None = None;
+    try {
+        raw_plugin_config = new_instance.get_jac_config().get_plugin_config('scale');
+    } except Exception {
+        raw_plugin_config = None;
+    }
+    if raw_plugin_config is not None {
+        import from jaclang.scale.config.validation { warn_unknown_scale_keys }
+        warn_unknown_scale_keys(raw_plugin_config);
+    }
     _scale_config_instance = new_instance;
     return new_instance;
 }
@@ -547,7 +557,7 @@ impl normalize_microservices_config(
         }
     }
 
-    return {
+    normalized = {
         'enabled': ms_config.get('enabled', None),
         'gateway_port': int(ms_config.get('gateway_port', 8000)),
         'gateway_host': ms_config.get('gateway_host', '0.0.0.0'),
@@ -576,13 +586,22 @@ impl normalize_microservices_config(
         'client': {
             'entry': resolved_client_entry,
             'dist_dir': client_config.get('dist_dir', '.jac/client/dist'),
-            'base_route': client_config.get('base_route', '/')
+            'base_route': client_config.get('base_route', '/'),
+            'static_mounts': list(client_config.get('static_mounts', []) or [])
         },
         'ingress': dict(ms_config.get('ingress', {})),
         'shared_volumes': list(ms_config.get('shared_volumes', [])),
         'logs': dict(ms_config.get('logs', {})),
         'tracing': dict(ms_config.get('tracing', {}))
     };
+    for boot_key in (
+        'boot_health_timeout', 'boot_max_wait', 'health_monitor_interval'
+    ) {
+        if boot_key in ms_config {
+            normalized[boot_key] = ms_config[boot_key];
+        }
+    }
+    return normalized;
 }
 
 impl JacScaleConfig.get_admin_config(self: JacScaleConfig) -> dict[str, any] {
