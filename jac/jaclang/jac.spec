@@ -2,8 +2,7 @@ access_tag ::= (":" ("pub" | "priv" | "protect")?)?
 
 module ::= STRING? element_stmt*
 
-expression ::=
-    lambda_expr | (cast | concurrent_expr) ("if" expression "else" expression)?
+expression ::= lambda_expr | concurrent_expr ("if" expression "else" expression)?
 
 concurrent_expr ::= ("flow" | "wait") walrus_assign | walrus_assign
 
@@ -11,7 +10,9 @@ walrus_assign ::= by_expr (":=" by_expr)?
 
 by_expr ::= pipe ("by" by_expr)?
 
-cast ::= concurrent_expr ("as" pipe)*
+cast ::= bitwise_or ("as" cast_type)*
+
+cast_type ::= atomic_chain ("|" atomic_chain)*
 
 pipe ::= pipe_back ("|>" pipe_back)*
 
@@ -32,10 +33,8 @@ logical_and ::= logical_not ("and" logical_not)*
 logical_not ::= "not" logical_not | compare
 
 compare ::=
-    bitwise_or (
-        ("==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "is" | "not in" | "is not")
-        bitwise_or
-    )*
+    cast
+    (("==" | "!=" | "<" | ">" | "<=" | ">=" | "in" | "is" | "not in" | "is not") cast)*
 
 arithmetic ::= term (("+" | "-") term)*
 
@@ -471,7 +470,7 @@ switch_case ::= ("default" | "case" pattern) ":" statement*
 global_var ::= "glob" access_tag global_var_assignment ("," global_var_assignment)* ";"
 
 global_var_assignment ::=
-    (NAME | KWESC_NAME) (":" pipe)? ("=" expression ("=" expression)*)?
+    (NAME | KWESC_NAME) (":" ownership_prefix pipe)? ("=" expression ("=" expression)*)?
 
 impl_def ::=
     ("@" atomic_chain)* "impl" impl_target_name ("." impl_target_name)* (

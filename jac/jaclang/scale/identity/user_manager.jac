@@ -1,7 +1,12 @@
-import jwt;
+import from jaclang.runtimelib.serving.authcrypt {
+    JWTError,
+    JWTExpiredError,
+    jwt_decode,
+    jwt_encode
+}
 import logging;
 import from datetime { UTC, datetime, timedelta }
-import from fastapi { Request, Response }
+import from jaclang.runtimelib.serving.datatypes { Request, Response }
 import from contextvars { ContextVar }
 import from jaclang.runtimelib.server { UserManager }
 import from jaclang.runtimelib.transport { TransportResponse, Meta }
@@ -15,7 +20,7 @@ import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.sso.provider { SSOProvider, SSOUserInfo }
 import from jaclang.scale.identity.identity_storage {
     IdentityStorage,
-    MongoIdentityStorage,
+    PgIdentityStorage,
     SqliteIdentityStorage
 }
 import from jaclang.jac0core.constant { Constants as Con }
@@ -40,6 +45,7 @@ obj JacScaleUserManager(UserManager) {
 
     def postinit -> None;
     def create_user(username: str, password: str) -> dict[str, any];
+    def reset_root(identifier: str) -> str | None;
     def create_user_with_identities(
         identities: list[dict[str, any]],
         credential: dict[str, any],

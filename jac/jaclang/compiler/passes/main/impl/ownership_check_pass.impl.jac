@@ -80,11 +80,14 @@ impl OwnershipCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     self.idx_concurrent = [];
     self.name_uses_by_sym = {};
     self.imm_decl = {};
+    self.view_syms = set();
+    self.view_elision_fns = {};
 
     self._build_index(ir_in);
     self._stamp_ownership();
     self._stamp_loop_borrows();
     self._stamp_region_borrows();
+    self._process_partition_sugar();
     self._nogc_setup();
     if not self.owned_decl
         and not self.borrow_meta
@@ -111,9 +114,11 @@ impl OwnershipCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     self._emit_element_space_conflicts();
     self._emit_move_while_borrowed(cfg_nodes);
     self._emit_escape_diagnostics();
+    self._emit_view_diagnostics();
     self._emit_region_escape_diagnostics();
     self._emit_sendability_diagnostics();
     self._emit_flow_for_diagnostics();
+    self._emit_chunk_view_diagnostics();
     self._emit_marker_diagnostics();
     self._emit_freeze_diagnostics();
     self._emit_seal_warnings();
@@ -483,6 +488,12 @@ impl OwnershipCheckPass._stamp_loop_borrows -> None {
             continue;
         }
         owner = self._place_of(coll.operand);
+        if owner is None {
+            _chk = self._chunks_shape_of(coll.operand);
+            if _chk is not None {
+                owner = self._place_of(_chk[0]);
+            }
+        }
         if owner is None
             or owner.sym is None
             or owner.sym.ownership != OwnershipKind.OWN {
@@ -509,11 +520,18 @@ impl OwnershipCheckPass._return_roots_at_param_borrow(nd: uni.Expr | None) -> bo
     if base is None {
         return False;
     }
-    return (
+    if (
         base.sym is not None
         and base.sym.storage == SymbolStorage.PARAM
         and is_borrow_kind(base.sym.ownership)
-    );
+    ) {
+        return True;
+    }
+    _vsid = self._borrow_sym_of(nd);
+    if _vsid is not None and _vsid in self.view_syms {
+        return self._sym_is_param(self._view_root_owner(_vsid));
+    }
+    return False;
 }
 
 impl OwnershipCheckPass._borrow_region(sym_id: SymId) -> (uni.UniScopeNode | None) {

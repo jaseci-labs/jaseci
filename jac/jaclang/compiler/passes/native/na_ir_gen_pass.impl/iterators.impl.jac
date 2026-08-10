@@ -66,7 +66,7 @@ impl NaIRGenPass._alloc_iter_struct(name: str) -> ir.Value {
     if dtor is not None {
         raw_i8 = self.builder.bitcast(it_obj, i8p, name="it.raw.i8");
         dtor_slot = self.builder.gep(
-            raw_i8, [ir.Constant(i64, -8)], name="it.dtor.slot"
+            raw_i8, [ir.Constant(i64, HDR_DTOR_OFF)], name="it.dtor.slot"
         );
         dtor_slot_p = self.builder.bitcast(dtor_slot, i64p, name="it.dtor.p");
         dtor_i64 = self.builder.ptrtoint(dtor, i64, name="it.dtor.i64");
@@ -196,19 +196,13 @@ impl NaIRGenPass._get_char_cache_gv -> ir.Value {
     if sym in self.llvm_module.globals {
         return self.llvm_module.globals[sym];
     }
-    i8 = ir.IntType(8);
-    i64 = ir.IntType(64);
-    arr2_type = ir.ArrayType(i8, 2);
-    char_struct_type = ir.LiteralStructType([i64, i64, arr2_type]);
-    arr256_type = ir.ArrayType(char_struct_type, 256);
-    sentinel = ir.Constant(i64, RC_SENTINEL);
-
-    dtor_len1 = ir.Constant(i64, (1 << 1) | 1);
+    char_struct_type = None;
     entries: list = [];
     for _bi in range(256) {
-        c_arr = ir.Constant(arr2_type, bytearray([_bi, 0]));
-        entries.append(ir.Constant(char_struct_type, [sentinel, dtor_len1, c_arr]));
+        (char_struct_type, _entry) = self._static_str_struct_const(bytes([_bi, 0]));
+        entries.append(_entry);
     }
+    arr256_type = ir.ArrayType(char_struct_type, 256);
     cache_gv = ir.GlobalVariable(self.llvm_module, arr256_type, name=sym);
     cache_gv.linkage = "private";
     cache_gv.global_constant = True;
@@ -448,6 +442,7 @@ impl NaIRGenPass._set_iter_next_fn(
     entry_bb = fn.append_basic_block("entry");
     cont = fn.append_basic_block("cont");
     stop = fn.append_basic_block("stop");
+    helpers = self.set_helpers[elem_type_name];
     b = ir.IRBuilder(entry_bb);
     state = b.bitcast(fn.args[0], state_ptr_type, name="set.state");
     coll_slot = b.gep(
@@ -460,18 +455,11 @@ impl NaIRGenPass._set_iter_next_fn(
     );
     idx = b.load(idx_slot, name="set.idx");
 
-    n = b.load(
-        b.gep(set_ptr, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="set.len.p"),
-        name="set.len"
-    );
+    n = b.call(helpers["len"], [set_ptr], name="set.len");
     ok = b.icmp_signed("<", idx, n, name="set.ok");
     b.cbranch(ok, cont, stop);
     b.position_at_end(cont);
-    data = b.load(
-        b.gep(set_ptr, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="set.data.p"),
-        name="set.data"
-    );
-    v = b.load(b.gep(data, [idx], name="set.elem.p"), name="set.elem");
+    v = b.call(helpers["get"], [set_ptr, idx], name="set.elem");
     out_t = b.bitcast(fn.args[1], elem_type.as_pointer(), name="set.out");
     b.store(v, out_t);
     b.store(b.add(idx, ir.Constant(i64, 1), name="set.idx.next"), idx_slot);
@@ -777,7 +765,7 @@ impl NaIRGenPass._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
             return self._build_iter_from_expr(params[0]);
         }
     }
-    val = self._codegen_expr(expr);
+    val = self._str_norm(self._codegen_expr(expr));
     if val is None {
         return None;
     }
@@ -1255,14 +1243,21 @@ impl NaIRGenPass._codegen_next(nd: uni.FuncCall) -> (ir.Value | None) {
     self._ensure_iter_types();
     i1 = ir.IntType(1);
     i8p = ir.IntType(8).as_pointer();
-    out_slot = self._entry_alloca(elem_type, "next.out");
+
+    _out_is_desc = self._str_desc_ty is not None and elem_type == self._str_desc_ty;
+    _slot_ty = ir.IntType(8).as_pointer() if _out_is_desc else elem_type;
+    out_slot = self._entry_alloca(_slot_ty, "next.out");
     out_i8 = self.builder.bitcast(out_slot, i8p, name="next.out.i8");
     got = self._emit_iter_advance(self.builder, iter_val, out_i8);
     is_stop = self.builder.icmp_unsigned(
         "==", got, ir.Constant(i1, 0), name="next.stop"
     );
     self._emit_runtime_raise(is_stop, "StopIteration", "");
-    return self.builder.load(out_slot, name="next.val");
+    _next_val = self.builder.load(out_slot, name="next.val");
+    if _out_is_desc {
+        _next_val = self._coerce_type(_next_val, elem_type);
+    }
+    return _next_val;
 }
 
 impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {

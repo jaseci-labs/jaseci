@@ -34,6 +34,16 @@ test "shared-mutation captures are E1308" {
     expect_ownership_codes(prog, ["E1308", "E1308"]);
 }
 
+test "reduction idiom: += and min/max folds on outer ints are clean" {
+    prog = compile_fixture("flow_for_reduce.jac");
+    expect_ownership_codes(prog, []);
+}
+
+test "unlicensed accumulator shapes remain E1308" {
+    prog = compile_fixture("flow_for_reduce_bad.jac");
+    expect_ownership_codes(prog, ["E1308", "E1308", "E1308", "E1308"]);
+}
+
 test "nested flow for is E1313" {
     prog = compile_fixture("flow_for_nested.jac");
     expect_ownership_codes(prog, ["E1313"]);

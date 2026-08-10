@@ -7,9 +7,9 @@ glob _SEEDS: list[str] = [
          "jaclang.jac0core.runtime",
          "jaclang.jac0core.archetype",
          "jaclang.runtimelib.server",
-         "jaclang.runtimelib.memory",
+         "jaclang.runtimelib.session",
+         "jaclang.runtimelib.store",
          "jaclang.runtimelib.serializer",
-         "jaclang.runtimelib.changeset",
          "jaclang.runtimelib.builtin"
      ],
      _BYLLM_SEEDS: list[str] = [
@@ -49,7 +49,7 @@ glob _SEEDS: list[str] = [
      _ALLOW_EXACT: list[str] = [
          "jaclang.cli.console",
          "jaclang.cli.banners",
-         "jaclang.scale.jserver.jserver"
+         "jaclang.runtimelib.serving.endpoint"
      ],
      _VENDORED_INIT: str = '''"""Vendored jaclang runtime.
 

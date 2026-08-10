@@ -37,13 +37,13 @@ impl WebhookUtils.create_api_key_token(
         payload['exp'] = current_time + timedelta(days=int(default_expiry));
     }
 
-    return jwt.encode(payload, jwt_config['secret'], algorithm=jwt_config['algorithm']);
+    return jwt_encode(payload, jwt_config['secret'], algorithm=jwt_config['algorithm']);
 }
 
 impl WebhookUtils.validate_api_key(api_key: str) -> dict[str, str] | None {
     try {
         jwt_config = get_scale_config().get_jwt_config();
-        payload = jwt.decode(
+        payload = jwt_decode(
             api_key, jwt_config['secret'], algorithms=[jwt_config['algorithm']]
         );
 
@@ -56,9 +56,9 @@ impl WebhookUtils.validate_api_key(api_key: str) -> dict[str, str] | None {
             'api_key_id': payload.get('api_key_id', ''),
             'name': payload.get('name', '')
         };
-    } except jwt.ExpiredSignatureError {
+    } except JWTExpiredError {
         return None;
-    } except jwt.InvalidTokenError {
+    } except JWTError {
         return None;
     }
 }
@@ -80,9 +80,10 @@ impl ApiKeyManager.postinit -> None {
         }
     } else {
         logger.warning(
-            "Webhook API keys are stored in memory (no MongoDB configured). "
+            "Webhook API keys are stored in memory (no database available). "
             "Keys and revocations are NOT durable: every restart invalidates "
-            "all keys. Configure MongoDB for production webhook use."
+            "all keys. Ensure the shared database is reachable for "
+            "production webhook use."
         );
     }
 }

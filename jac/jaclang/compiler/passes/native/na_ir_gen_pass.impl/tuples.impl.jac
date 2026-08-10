@@ -23,6 +23,7 @@ impl NaIRGenPass._codegen_tuple_val(nd: uni.TupleVal) -> (ir.Value | None) {
         if v is None {
             return None;
         }
+        v = self._str_norm(v);
 
         if (
             _in_return and isinstance(v.type, ir.PointerType) and not self._is_owned(v)
@@ -82,6 +83,10 @@ impl NaIRGenPass._infer_unpack_struct_ptr(nd: object) -> (ir.Type | None) {
 impl NaIRGenPass._codegen_tuple_unpack(
     targets: list, tuple_val: ir.Value, tuple_node: (object | None)
 ) -> bool {
+    _tu_opt = self._opt_payload_of(tuple_val.type);
+    if _tu_opt is not None {
+        tuple_val = self._coerce_type(tuple_val, _tu_opt);
+    }
     _orig_tv = tuple_val;
     struct_type: (ir.LiteralStructType | None) = None;
     is_value = False;
@@ -138,7 +143,9 @@ impl NaIRGenPass._codegen_tuple_unpack(
                 self._emit_rc_retain(elem_val, op="unpack", loc="");
                 pending_old.append(self.builder.load(alloca, name=f"unpack.{i}.old"));
             }
-            self.builder.store(elem_val, alloca);
+            self.builder.store(
+                self._coerce_type(elem_val, alloca.type.pointee), alloca
+            );
         } else {
             alloca = self._entry_alloca(elem_val.type, var_name);
             if rc_field {

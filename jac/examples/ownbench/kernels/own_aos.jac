@@ -29,12 +29,27 @@ def checksum(ps: &list[Particle]) -> int {
     return t;
 }
 
+def run_aos(n: int, seed: int) -> int {
+    qs: list[own Particle] = [];
+    s = seed;
+    for i in range(n) {
+        s = (s * 1103515245 + 12345) % 2147483648;
+        qs.append(Particle(x=s % 500, y=(s // 11) % 500));
+    }
+    t = 0;
+    for i in range(len(qs)) {
+        t = (t + qs[i].x * 7 + qs[i].y * (i + 1)) % 1000000007;
+    }
+    return t;
+}
+
 def run(n: int, reps: int) -> int {
     total = 0;
     for r in range(reps) {
         ps = build(n, r + 1);
         c = checksum(&ps);
         total = (total + c) % 1000000007;
+        total = (total + run_aos(n, r + 3)) % 1000000007;
         sim: own Sim = Sim();
         for i in range(len(ps)) {
             if ps[i].x > sim.best.x {
