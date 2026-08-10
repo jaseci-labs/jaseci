@@ -125,6 +125,14 @@ test "ascii strtab still splits through the blob export" {
     _assert_parity(_canary_src(), "__parity_blob__.jac", use_blob=True);
 }
 
+test "jsx slot bodies with repeated brace-statement backtracks stay congruent" {
+    src = (
+        "def:pub C(a: int) -> JsxElement { "
+        + "return <ul>{for x in [a] { {1, 2}; {a: 1}; }}</ul>; }"
+    );
+    _assert_parity(src, "__parity_jsx_backtrack__.jac");
+}
+
 test "non-ascii sources reach full parity through the direct decode" {
     nl = chr(10);
     src = nl.join(

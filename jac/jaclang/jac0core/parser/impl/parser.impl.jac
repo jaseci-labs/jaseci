@@ -3669,7 +3669,9 @@ impl Parser.parse_statement -> int {
 
         self.pos = save_pos;
         self.error_count = saved_error_count;
-        del self.diags[saved_diags_len:];
+        while len(self.diags) > saved_diags_len {
+            self.diags.pop();
+        }
     }
 
     if self.check_any(TokenKind.KW_IMPORT, TokenKind.KW_INCLUDE) {
