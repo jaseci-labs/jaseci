@@ -3,9 +3,8 @@ import shutil;
 import from jaclang.runtimelib.serving.ws { WebSocket }
 import from jaclang.runtimelib.serving.endpoint { WSEndPoint }
 import from jaclang.scale.runtime.routing {
-    GATEWAY_API_SEGMENTS,
-    GATEWAY_BARE_API_SEGMENTS,
-    GATEWAY_CLIENT_SEGMENT
+    GATEWAY_BUILTIN_PREFIXES,
+    GATEWAY_BARE_API_PATHS
 }
 
 
@@ -237,13 +236,8 @@ impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
     return Response(content=target.read_bytes(), media_type=content_type);
 }
 
-glob _BUILTIN_PREFIXES: tuple = tuple(
-         [
-             f"/{seg}/"
-             for seg in (GATEWAY_CLIENT_SEGMENT,) + GATEWAY_API_SEGMENTS
-         ]
-     ),
-     _BUILTIN_EXACT: set[str] = {f"/{seg}" for seg in GATEWAY_BARE_API_SEGMENTS};
+glob _BUILTIN_PREFIXES: tuple = GATEWAY_BUILTIN_PREFIXES,
+     _BUILTIN_EXACT: set[str] = GATEWAY_BARE_API_PATHS;
 
 impl MicroserviceGateway.build_forward_headers(request: Request) -> dict[str, str] {
     import from jaclang.scale.runtime.context.trace_ctx {

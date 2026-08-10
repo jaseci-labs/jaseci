@@ -32,6 +32,18 @@ glob GATEWAY_API_SEGMENTS: tuple = (
      );
 
 
+def _derive_builtin_prefixes -> tuple {
+    segs = [GATEWAY_CLIENT_SEGMENT] + list(GATEWAY_API_SEGMENTS);
+    return tuple([f"/{seg}/" for seg in segs]);
+}
+
+
+glob GATEWAY_BUILTIN_PREFIXES: tuple = _derive_builtin_prefixes(),
+     GATEWAY_BARE_API_PATHS: set[str] = {
+         f"/{seg}" for seg in GATEWAY_BARE_API_SEGMENTS
+     };
+
+
 def service_slug(module_name: str) -> str {
     name = module_name;
     if name.endswith("_app") {

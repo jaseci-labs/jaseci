@@ -4,7 +4,8 @@ import from jaclang.scale.runtime.routing {
     resolve_routes,
     GATEWAY_API_SEGMENTS,
     GATEWAY_WELLKNOWN_SEGMENTS,
-    GATEWAY_CLIENT_SEGMENT
+    GATEWAY_CLIENT_SEGMENT,
+    GATEWAY_BUILTIN_PREFIXES
 }
 import from jaclang.scale.runtime.gateway.dispatch { is_gateway_owned }
 
@@ -101,6 +102,14 @@ test "trailing slashes cannot evade the duplicate-prefix check" {
 test "a trailing slash is canonicalized off the stored prefix" {
     routes = resolve_routes({"routes": {"shop": "/shop/"}});
     assert routes == {"shop": "/shop"};
+}
+
+
+test "every builtin gateway prefix is reserved as a route name" {
+    assert "/cl/" in GATEWAY_BUILTIN_PREFIXES;
+    for prefix in GATEWAY_BUILTIN_PREFIXES {
+        assert is_reserved(prefix.strip("/"));
+    }
 }
 
 
