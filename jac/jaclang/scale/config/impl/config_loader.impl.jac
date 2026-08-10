@@ -18,6 +18,7 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'firebase': {'project_id': ''}
         },
         'database': {
+            'enabled': True,
             'type': None,
             'project_id': None,
             'url': None,
@@ -187,6 +188,7 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     config = self.load();
     db_config = config.get('database', {});
     return {
+        'enabled': bool(db_config.get('enabled', True)),
         'type': db_config.get('type'),
         'url': os.environ.get('JAC_DB_URL') or db_config.get('url'),
         'deploy_mode': db_config.get('deploy_mode', 'image'),
@@ -205,6 +207,16 @@ impl JacScaleConfig.get_kubernetes_config(self: JacScaleConfig) -> dict[str, any
     k8s_config['prometheus_admin_password'] = monitoring['prometheus_admin_password'];
 
     k8s_config['admin_username'] = self.get_admin_config().get('username', 'admin');
+
+    db_config = self.get_database_config();
+    db_on = db_config['enabled'];
+    external_url = str(db_config.get('url') or '') if db_on else '';
+    k8s_config['postgres_enabled'] = (
+        db_on
+        and bool(k8s_config.get('postgres_enabled', True))
+        and not external_url
+    );
+    k8s_config['database_external_url'] = external_url;
 
     system_deps = self.get_jac_config().get_plugin_deps("system");
     k8s_config['service_dependencies'] = [

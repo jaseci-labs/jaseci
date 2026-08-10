@@ -67,6 +67,11 @@ class JacScalePluginConfig {
                     "default": {},
                     "description": "Database connection configuration",
                     "nested": {
+                        "enabled": {
+                            "type": "bool",
+                            "default": True,
+                            "description": "The database on/off switch. Set false to run without Postgres entirely: nothing is provisioned in Kubernetes, no JAC_DB_URL is injected, and the runtime falls back to local storage. Any configured url is ignored while disabled."
+                        },
                         "type": {
                             "type": "string",
                             "default": None,
@@ -75,7 +80,7 @@ class JacScalePluginConfig {
                         "url": {
                             "type": "string",
                             "default": None,
-                            "description": "Postgres connection URL (postgresql://user:pass@host:port/db). Also honored via the JAC_DB_URL env var. When set, in-cluster provisioning is skipped (external mode)."
+                            "description": "Postgres connection URL (postgresql://user:pass@host:port/db). Also honored via the JAC_DB_URL env var. When set, in-cluster provisioning is skipped and the url is injected into app pods as JAC_DB_URL (external mode)."
                         },
                         "deploy_mode": {
                             "type": "string",
@@ -117,7 +122,7 @@ class JacScalePluginConfig {
                         "postgres_enabled": {
                             "type": "bool",
                             "default": True,
-                            "description": "Provision Postgres in Kubernetes (disable when using an external database url)"
+                            "description": "Provision Postgres in Kubernetes. Prefer the [scale.database] switches: enabled = false turns the database off entirely, and setting url switches to an external database; either supersedes this flag."
                         },
                         "autoscaler_engine": {
                             "type": "string",

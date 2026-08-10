@@ -114,6 +114,12 @@ obj KubernetesTargetBase(DeploymentTarget) {
     }
 
     def _deploy_databases(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
+        if self.k8s_config.database_external_url {
+            self.env_list.append(
+                {'name': 'JAC_DB_URL', 'value': self.k8s_config.database_external_url}
+            );
+            return;
+        }
         if not self.k8s_config.postgres_enabled {
             return;
         }

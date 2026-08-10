@@ -12,6 +12,7 @@ def k8s_safe_slug(name: str, fallback: str = 'jaseci') -> str {
 obj KubernetesConfig(BaseConfig) {
     has container_port: int = 8000,
         postgres_enabled: bool = True,
+        database_external_url: str = '',
         cpu_request: (str | None) = None,
         cpu_limit: (str | None) = None,
         memory_request: (str | None) = None,
@@ -77,6 +78,7 @@ obj KubernetesConfig(BaseConfig) {
             {
                 'container_port': self.container_port,
                 'postgres_enabled': self.postgres_enabled,
+                'database_external_url': self.database_external_url,
                 'cpu_request': self.cpu_request,
                 'cpu_limit': self.cpu_limit,
                 'memory_request': self.memory_request,
@@ -146,6 +148,7 @@ obj KubernetesConfig(BaseConfig) {
             namespace=config.get('namespace', 'default'),
             container_port=config.get('container_port', 8000),
             postgres_enabled=config.get('postgres_enabled', True),
+            database_external_url=config.get('database_external_url', ''),
             postgres_storage_size=config.get('postgres_storage_size', '2Gi'),
             cpu_request=config.get('cpu_request'),
             cpu_limit=config.get('cpu_limit'),

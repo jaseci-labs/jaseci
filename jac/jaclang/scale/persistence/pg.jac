@@ -10,18 +10,22 @@ glob logger = logging.getLogger(__name__),
 
 
 def scale_db_url -> (str | None) {
+    cfg: dict[str, Any] = {};
+    try {
+        import from jaclang.scale.config.config_loader { get_scale_config }
+        cfg = get_scale_config().get_database_config();
+    } except Exception {
+        cfg = {};
+    }
+    if not cfg.get('enabled', True) {
+        return None;
+    }
     url = os.environ.get('JAC_DB_URL', '');
     if url {
         return url;
     }
-    try {
-        import from jaclang.scale.config.plugin_config { get_scale_config }
-        cfg = get_scale_config().get_database_config();
-        got = cfg.get('url') or cfg.get('postgres_url');
-        return str(got) if got else None;
-    } except Exception {
-        return None;
-    }
+    got = cfg.get('url') or cfg.get('postgres_url');
+    return str(got) if got else None;
 }
 
 

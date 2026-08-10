@@ -15,10 +15,10 @@ obj DatabaseProvisioner {
         self.k8s_target.env_list = [];
 
         cfg = self.k8s_target.k8s_config;
-        if not cfg.postgres_enabled {
+        if not (cfg.postgres_enabled or cfg.database_external_url) {
             if self.logger {
                 self.logger.info(
-                    "Database provisioning skipped (postgres_enabled=false)",
+                    "Database provisioning skipped (database disabled)",
                     {"app_name": app_name}
                 );
             }
@@ -32,9 +32,17 @@ obj DatabaseProvisioner {
         ensure_namespace_exists(namespace);
 
         if self.logger {
-            self.logger.info(
-                f"Provisioning postgres for '{app_name}'", {"namespace": namespace}
-            );
+            if cfg.database_external_url {
+                self.logger.info(
+                    f"Using the external database url for '{app_name}'; "
+                    f"no postgres provisioned",
+                    {"namespace": namespace}
+                );
+            } else {
+                self.logger.info(
+                    f"Provisioning postgres for '{app_name}'", {"namespace": namespace}
+                );
+            }
         }
         self.k8s_target._deploy_databases(app_name, namespace, apps_v1, core_v1);
 
