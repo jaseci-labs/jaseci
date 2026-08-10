@@ -81,6 +81,29 @@ test "valid routes still resolve with derived and normalized prefixes" {
 }
 
 
+test "a prefix under a name-reserved but unowned segment is allowed" {
+    routes = resolve_routes({"routes": {"cart": "/api/cart"}});
+    assert routes == {"cart": "/api/cart"};
+}
+
+
+test "trailing slashes cannot evade the duplicate-prefix check" {
+    caught = False;
+    try {
+        resolve_routes({"routes": {"a": "/shop", "b": "/shop/"}});
+    } except ValueError {
+        caught = True;
+    }
+    assert caught;
+}
+
+
+test "a trailing slash is canonicalized off the stored prefix" {
+    routes = resolve_routes({"routes": {"shop": "/shop/"}});
+    assert routes == {"shop": "/shop"};
+}
+
+
 test "the dispatch tables derive from the same source the guard reads" {
     assert is_gateway_owned("/healthz/ready");
     assert is_gateway_owned("/openapi.json");

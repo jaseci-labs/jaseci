@@ -35,6 +35,15 @@ glob _RESERVED_SEGMENTS: set[str] = (
          | {GATEWAY_CLIENT_SEGMENT, "api", "admin", "static"}
      );
 
+# Path prefixes the gateway actually intercepts. Unlike _RESERVED_SEGMENTS
+# this excludes name-only reservations such as 'api' and 'static': a service
+# may live under /api/cart, it just may not be NAMED api.
+glob _GATEWAY_OWNED_PREFIX_SEGMENTS: set[str] = (
+         set(GATEWAY_API_SEGMENTS)
+         | set(GATEWAY_WELLKNOWN_SEGMENTS)
+         | {GATEWAY_CLIENT_SEGMENT, "admin"}
+     );
+
 
 def service_slug(module_name: str) -> str {
     name = module_name;
@@ -69,7 +78,7 @@ def guard_route_name(module_name: str) {
 
 def guard_route_prefix(name: str, prefix: str) {
     seg = prefix.strip("/").split("/")[0];
-    if seg in _RESERVED_SEGMENTS {
+    if seg in _GATEWAY_OWNED_PREFIX_SEGMENTS {
         raise ValueError(
             f"service '{name}' maps to route prefix '{prefix}', whose first "
                 + f"segment '/{seg}' is owned by the gateway. Choose a prefix "
@@ -114,8 +123,10 @@ def resolve_routes(ms_config: dict[str, any]) -> dict[str, str] {
         prefix_str: str = str(prefix or "");
         if not prefix_str {
             prefix_str = derive_route_prefix(name_str);
-        } elif not prefix_str.startswith("/") {
-            prefix_str = "/" + prefix_str;
+        } else {
+            # Canonical form: leading slash, no trailing slash, so '/shop'
+            # and '/shop/' cannot register as two distinct owners.
+            prefix_str = "/" + prefix_str.strip("/");
         }
         guard_route_prefix(name_str, prefix_str);
         if prefix_str in owners {
