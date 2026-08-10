@@ -595,7 +595,9 @@ impl normalize_microservices_config(
         'tracing': dict(ms_config.get('tracing', {}))
     };
     for boot_key in (
-        'boot_health_timeout', 'boot_max_wait', 'health_monitor_interval'
+        'boot_health_timeout',
+        'boot_max_wait',
+        'health_monitor_interval'
     ) {
         if boot_key in ms_config {
             normalized[boot_key] = ms_config[boot_key];

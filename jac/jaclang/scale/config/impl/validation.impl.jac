@@ -29,23 +29,13 @@ impl validate_scale_config(raw: dict[str, any] | None) -> list[str] {
 }
 
 impl _walk(
-    section: dict[str, any],
-    options: dict[str, any],
-    path: str,
-    findings: list[str]
+    section: dict[str, any], options: dict[str, any], path: str, findings: list[str]
 ) -> None {
     for (key, value) in section.items() {
         key_s = str(key);
         if key_s not in options {
             findings.append(
-                _unknown_key_message(
-                    path,
-                    key_s,
-                    [
-                        str(k)
-                        for k in options.keys()
-                    ]
-                )
+                _unknown_key_message(path, key_s, [str(k) for k in options.keys()])
             );
             continue;
         }
@@ -92,7 +82,7 @@ impl warn_unknown_scale_keys(raw: dict[str, any] | None) -> None {
     if _strict_mode() {
         raise ValueError(
             f"Unknown [scale] keys in jac.toml ({STRICT_ENV} is set):\n"
-            + "\n".join(findings)
+                + "\n".join(findings)
         );
     }
     import logging;

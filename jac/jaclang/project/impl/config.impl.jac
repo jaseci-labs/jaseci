@@ -414,12 +414,7 @@ impl _warn_legacy_plugins_table(data: dict[str, any]) -> None {
         return;
     }
     legacy: dict[str, any] = dict(plugins_table);
-    sections = ", ".join(
-        sorted(
-            str(k)
-            for k in legacy.keys()
-        )
-    );
+    sections = ", ".join(sorted(str(k) for k in legacy.keys()));
     import from jaclang.cli.console { console }
     console.warning(
         f"jac.toml has a [plugins] table ({sections}); the [plugins.*] "

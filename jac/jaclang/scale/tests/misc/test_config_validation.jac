@@ -15,7 +15,7 @@ import from jaclang.scale.config.config_loader {
 
 def _collect_default_mismatches(
     options: dict[str, any], defaults: dict[str, any], path: str, bad: list[str]
-) -> None {
+) {
     for (key, dval) in defaults.items() {
         spec = options.get(key);
         if not isinstance(spec, dict) {
@@ -70,9 +70,7 @@ test "open dict sections accept arbitrary keys" {
                     "env": {"LOG_LEVEL": "DEBUG"},
                     "deployment_overlay": {"spec": {"replicas": 2}},
                     "hpa": {
-                        "behavior": {
-                            "scaleDown": {"stabilizationWindowSeconds": 600}
-                        }
+                        "behavior": {"scaleDown": {"stabilizationWindowSeconds": 600}}
                     }
                 }
             }
@@ -194,9 +192,7 @@ test "documented microservices boot and client keys are recognized" {
             "health_monitor_interval": 10.0,
             "client": {
                 "entry": "client/main.jac",
-                "static_mounts": [
-                    {"url_prefix": "/assets", "local_path": "public"}
-                ]
+                "static_mounts": [{"url_prefix": "/assets", "local_path": "public"}]
             }
         }
     };
@@ -205,10 +201,7 @@ test "documented microservices boot and client keys are recognized" {
 }
 
 test "a declared plugin deploy target owns its section" {
-    cfg = {
-        "deploy": {"target": "fly"},
-        "fly": {"app_name": "demo", "region": "fra"}
-    };
+    cfg = {"deploy": {"target": "fly"}, "fly": {"app_name": "demo", "region": "fra"}};
     msgs = validate_scale_config(cfg);
     assert msgs == [] , f"expected no findings, got {msgs}";
 
@@ -223,9 +216,7 @@ test "normalizer passes documented boot and static-mount keys through" {
             "boot_max_wait": 120,
             "client": {
                 "entry": "client/main.jac",
-                "static_mounts": [
-                    {"url_prefix": "/assets", "local_path": "public"}
-                ]
+                "static_mounts": [{"url_prefix": "/assets", "local_path": "public"}]
             }
         },
         env_routes_fallback=False
