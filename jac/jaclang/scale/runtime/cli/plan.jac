@@ -536,7 +536,7 @@ obj Plan {
                 out.append(m);
             }
         }
-        for m in self.bundle.get("autoscaler_manifests", []) {
+        for m in lget(self.bundle, "autoscaler_manifests") {
             out.append(m);
         }
         if self.bundle.get("ingress") {
