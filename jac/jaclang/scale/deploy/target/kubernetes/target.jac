@@ -855,7 +855,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     svc_name, cfg, autoscaler, self.k8s_config.namespace
                 )
             );
-            # KEDA wraps the ScaledObject in {name, body}; HPA returns the manifest.
+
             out.append(built["body"] if "body" in built else built);
         }
         return out;

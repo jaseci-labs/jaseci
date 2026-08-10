@@ -344,7 +344,7 @@ obj Plan {
     static def from_target(target: Any, app_config: AppConfig) -> Plan {
         bundle_raw = target.generate_manifests(app_config);
         bundle: dict = bundle_raw if isinstance(bundle_raw, dict) else {};
-        render_autoscalers = getattr(target, "render_autoscaler_manifests", None);
+        render_autoscalers = target?.render_autoscaler_manifests;
         if render_autoscalers is not None {
             bundle["autoscaler_manifests"] = render_autoscalers(bundle);
         }

@@ -9,9 +9,7 @@ import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
 
 
 test "hpa engine renders the HPA manifest the apply path would build" {
-    target = KubernetesTarget(
-        config=KubernetesConfig(app_name="t", namespace="t-ns")
-    );
+    target = KubernetesTarget(config=KubernetesConfig(app_name="t", namespace="t-ns"));
     bundle = {"autoscalers": {"api": {"min": 2, "max": 7, "cpu_target": 60}}};
     manifests = target.render_autoscaler_manifests(bundle);
     assert len(manifests) == 1;
@@ -42,8 +40,6 @@ test "keda engine renders the ScaledObject body, not the name/body wrapper" {
 
 
 test "a bundle with no autoscalers renders nothing" {
-    target = KubernetesTarget(
-        config=KubernetesConfig(app_name="t", namespace="t-ns")
-    );
+    target = KubernetesTarget(config=KubernetesConfig(app_name="t", namespace="t-ns"));
     assert target.render_autoscaler_manifests({"deployments": {}}) == [];
 }
