@@ -732,3 +732,23 @@ test "an unusable rollout wait setting in jac.toml fails the config load" {
         );
     }
 }
+
+test "an env interpolated rollout_timeout string stays accepted" {
+    toml = (
+        "[project]\nname = \"My App\"\n\n[scale.kubernetes]\n"
+        "rollout_timeout = \"${JAC_TEST_ROLLOUT_TIMEOUT:-1200}\"\n"
+    );
+
+    os.environ["JAC_TEST_ROLLOUT_TIMEOUT"] = "90";
+    try {
+        cfg = _k8s_config_for_toml(toml);
+        assert cfg["rollout_timeout"] == 90 , f"got {cfg['rollout_timeout']!r}";
+    } finally {
+        os.environ.pop("JAC_TEST_ROLLOUT_TIMEOUT", None);
+    }
+
+    fallback_cfg = _k8s_config_for_toml(toml);
+    assert fallback_cfg["rollout_timeout"] == 1200 , (
+        f"got {fallback_cfg['rollout_timeout']!r}"
+    );
+}
