@@ -14,9 +14,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
 import from jaclang.scale.deploy.target.kubernetes.database_provisioner {
     DatabaseProvisioner
 }
-import from jaclang.scale.deploy.database {
-    kubernetes_postgres as pg_provider_module
-}
+import from jaclang.scale.deploy.database { kubernetes_postgres as pg_provider_module }
 import from jaclang.scale.persistence.pg { scale_db_url }
 import from jaclang.scale._optdeps.kubernetes { ApiException }
 
@@ -47,7 +45,7 @@ test "database enabled=false turns postgres off even when a url is set" {
     os.environ.pop("JAC_DB_URL", None);
     cfg = _k8s_config_from_toml(
         PROJECT_HEADER
-        + '[scale.database]\nenabled = false\nurl = "postgresql://h:5432/app"\n'
+            + '[scale.database]\nenabled = false\nurl = "postgresql://h:5432/app"\n'
     );
     assert cfg["postgres_enabled"] is False;
     assert cfg["database_external_url"] == "";
@@ -98,18 +96,31 @@ def _target(postgres_enabled: bool, external_url: str) -> KubernetesTargetBase {
 }
 
 
-test "external mode injects JAC_DB_URL and touches no cluster resources" {
-    target = _target(False, "postgresql://ext.host:5432/app");
+test "external mode ships the url via a secret, provisions nothing" {
+    target = _target(False, "postgresql://user:pw@ext.host:5432/app");
     apps_v1 = unittest.mock.MagicMock();
     core_v1 = unittest.mock.MagicMock();
 
     target._deploy_databases("dbapp", "db-ns", apps_v1, core_v1);
 
-    assert target.env_list == [
-        {"name": "JAC_DB_URL", "value": "postgresql://ext.host:5432/app"}
-    ];
+    core_v1.create_namespaced_secret.assert_called_once();
+    secret_body = core_v1.create_namespaced_secret.call_args.kwargs["body"];
+    assert secret_body["metadata"]["name"] == "dbapp-postgres-secret";
+    assert secret_body["stringData"]
+        == {"connection-string": "postgresql://user:pw@ext.host:5432/app"};
+    assert target.env_list
+        == [
+            {
+                "name": "JAC_DB_URL",
+                "valueFrom": {
+                    "secretKeyRef": {
+                        "name": "dbapp-postgres-secret",
+                        "key": "connection-string"
+                    }
+                }
+            }
+        ];
     apps_v1.create_namespaced_stateful_set.assert_not_called();
-    core_v1.create_namespaced_secret.assert_not_called();
     assert target._get_database_init_containers("dbapp") == [];
 }
 
@@ -162,7 +173,7 @@ test "default mode provisions the postgres statefulset and wires its secret" {
     core_v1.create_namespaced_secret.assert_called_once();
     assert target.env_list[0]["name"] == "JAC_DB_URL";
     assert target.env_list[0]["valueFrom"]["secretKeyRef"]["key"]
-    == "connection-string";
+        == "connection-string";
     assert [c["name"] for c in init_containers] == ["wait-for-postgres"];
 }
 
@@ -189,14 +200,10 @@ test "scale_db_url honors the enabled switch at runtime" {
     os.environ["JAC_DB_URL"] = "postgresql://env.host:5432/app";
     try {
         with unittest.mock.patch(
-            "jaclang.scale.config.config_loader.get_scale_config",
-            return_value=fake_cfg
+            "jaclang.scale.config.config_loader.get_scale_config", return_value=fake_cfg
         ) {
             assert scale_db_url() is None;
-            fake_cfg.get_database_config.return_value = {
-                "enabled": True,
-                "url": None
-            };
+            fake_cfg.get_database_config.return_value = {"enabled": True, "url": None};
             assert scale_db_url() == "postgresql://env.host:5432/app";
         }
     } finally {

@@ -113,10 +113,23 @@ obj KubernetesTargetBase(DeploymentTarget) {
         return init_containers;
     }
 
+    def _inject_external_db_url(app_name: str, namespace: str, core_v1: Any, url: str) {
+        secret_name = f"{app_name}-postgres-secret";
+        create_k8s_secret(core_v1, namespace, secret_name, {'connection-string': url});
+        self.env_list.append(
+            {
+                'name': 'JAC_DB_URL',
+                'valueFrom': {
+                    'secretKeyRef': {'name': secret_name, 'key': 'connection-string'}
+                }
+            }
+        );
+    }
+
     def _deploy_databases(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
         if self.k8s_config.database_external_url {
-            self.env_list.append(
-                {'name': 'JAC_DB_URL', 'value': self.k8s_config.database_external_url}
+            self._inject_external_db_url(
+                app_name, namespace, core_v1, self.k8s_config.database_external_url
             );
             return;
         }
@@ -130,8 +143,8 @@ obj KubernetesTargetBase(DeploymentTarget) {
         );
         pg_result = pg_provider.deploy({});
         if pg_result['mode'] == 'external' {
-            self.env_list.append(
-                {'name': 'JAC_DB_URL', 'value': pg_result['connection_string']}
+            self._inject_external_db_url(
+                app_name, namespace, core_v1, pg_result['connection_string']
             );
             return;
         }

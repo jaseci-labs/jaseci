@@ -212,9 +212,7 @@ impl JacScaleConfig.get_kubernetes_config(self: JacScaleConfig) -> dict[str, any
     db_on = db_config['enabled'];
     external_url = str(db_config.get('url') or '') if db_on else '';
     k8s_config['postgres_enabled'] = (
-        db_on
-        and bool(k8s_config.get('postgres_enabled', True))
-        and not external_url
+        db_on and bool(k8s_config.get('postgres_enabled', True)) and not external_url
     );
     k8s_config['database_external_url'] = external_url;
 
