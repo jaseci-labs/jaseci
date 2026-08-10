@@ -186,7 +186,7 @@ Version specifiers follow the same rules as `[dependencies]`. Use `"*"` or `"lat
 
 An entry whose name matches `<project-name>[group,...]` is not installed as a package - it expands the listed groups transitively. In the example above, `"mypkg[data,monitoring]" = "*"` under `[optional-dependencies.all]` means `--extras all` pulls in everything from both `data` and `monitoring`.
 
-Third-party extras syntax (e.g. `"testcontainers[mongodb,redis]"`) passes through to pip unchanged.
+Third-party extras syntax (e.g. `"moto[s3]"`) passes through to pip unchanged.
 
 ---
 
@@ -891,8 +891,7 @@ Each line is a filename or pattern that should be skipped during Jac compilation
 
 | Variable | Description |
 |----------|-------------|
-| `MONGODB_URI` | MongoDB connection URI |
-| `REDIS_URL` | Redis connection URL |
+| `JAC_DB_URL` | Postgres connection URL (overrides `[scale.database].url`) |
 | `FIRESTORE_PROJECT_ID` | Firestore / Firebase project ID |
 | `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO, Firestore, Storage |
 

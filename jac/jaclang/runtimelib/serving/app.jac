@@ -13,6 +13,7 @@ import from jaclang.runtimelib.serving.coerce {
 import from jaclang.runtimelib.serving.datatypes {
     HTTPError,
     JSONResponse,
+    RedirectResponse,
     Request,
     Response,
     StreamingResponse,
@@ -82,6 +83,17 @@ def transport_to_response(tr: TransportResponse) -> JSONResponse {
     }
     return JSONResponse(content=body, status_code=status);
 }
+
+def _slash_alternate(path: str) -> (str | None) {
+    if path.endswith('/') and len(path) > 1 {
+        return path.rstrip('/') or '/';
+    }
+    if path and not path.endswith('/') {
+        return path + '/';
+    }
+    return None;
+}
+
 
 def _declares_body(ep: JEndPoint) -> bool {
     for param in (ep.parameters or []) {
@@ -227,6 +239,14 @@ obj ServingApp {
                 );
                 resp.headers.set('Allow', ', '.join(sorted(allowed)));
                 return resp;
+            }
+            alt = _slash_alternate(request.url.path);
+            if alt is not None
+                and self.router.resolve(request.method, alt)[0] is not None {
+                query = request.url.query;
+                return RedirectResponse(
+                    url=alt + (f"?{query}" if query else ''), status_code=307
+                );
             }
             return JSONResponse(content={'detail': 'Not Found'}, status_code=404);
         }

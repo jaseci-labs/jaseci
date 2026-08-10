@@ -356,6 +356,22 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
                 );
                 self._mark_owned(val);
             }
+            if (
+                skip_var is None
+                and self._opt_ptr_payload_of(val.type) is not None
+                and not self._nogc_headerless()
+                and self._gc_mode() != "none"
+                and not self._opt_result_owned(val, nd.expr)
+            ) {
+                self._emit_rc_retain(
+                    self.builder.extract_value(val, 1, name="ret.opt.pv"),
+                    op="return",
+                    loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                        if nd.loc
+                        else 0}"
+                );
+                self._mark_owned(val);
+            }
             self._emit_scope_cleanup(
                 skip_var=skip_var,
                 ret_val=val,
@@ -1202,6 +1218,16 @@ impl NaIRGenPass._match_arch_cond(
 impl NaIRGenPass._match_value_eq(
     subj: ir.Value, value_node: uni.UniNode
 ) -> (ir.Value | None) {
+    _mv = value_node.expr if isinstance(value_node, uni.CfgExpr) else value_node;
+    if isinstance(_mv, uni.AtomUnit) {
+        _mv = _mv.value;
+    }
+    if isinstance(_mv, uni.Null)
+        and self._opt_payload_of(subj.type) is None
+        and not isinstance(subj.type, ir.PointerType)
+        and not (bool(self?.jacval_type) and subj.type == self.jacval_type) {
+        return ir.Constant(ir.IntType(1), 0);
+    }
     pat = self._codegen_expr(value_node);
     if pat is None {
         return None;
@@ -2266,7 +2292,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 _opt_re_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
                     if nd.loc
                     else 0}";
-                if not self._is_owned(value) and not self._can_native_move_lower(nd) {
+                _opt_re_owned = self._opt_result_owned(value, nd.value);
+                if not _opt_re_owned and not self._can_native_move_lower(nd) {
                     _opt_re_pv = self.builder.extract_value(
                         coerced, 1, name=f"{var_name}.opt.newpv"
                     );
@@ -2750,7 +2777,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                 _opt_asg_loc = f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
                     if nd.loc
                     else 0}";
-                if not self._is_owned(value) and not self._can_native_move_lower(nd) {
+                if not self._opt_result_owned(value, nd.value)
+                    and not self._can_native_move_lower(nd) {
                     _opt_new_pv = self.builder.extract_value(
                         value, 1, name=f"{var_name}.opt.newpv"
                     );

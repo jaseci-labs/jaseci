@@ -250,6 +250,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         rc_stack_promotions: int = 0,
         struct_trace_fns: dict[str, ir.Function] = {},
         struct_release_fns: dict[str, ir.Function] = {},
+        tuple_release_fns: dict[str, ir.Function] = {},
+        tuple_trace_fns: dict[str, ir.Function] = {},
         struct_drop_fns: dict[str, ir.Function] = {},
         container_drop_fns: dict[str, ir.Function] = {},
         container_layouts: dict[str, dict] = {},
@@ -385,13 +387,20 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _closure_cell_structs: dict[str, str] = {},
         closure_thunks: dict[str, ir.Function] = {},
         _closure_uid: int = 0,
-        _opt_struct_types: dict[str, ir.Type] = {};
+        _opt_struct_types: dict[str, ir.Type] = {},
+        _loop_rebind_memo: dict[tuple, bool] = {};
 
     def _jac_optional_type(payload: ir.Type) -> ir.Type;
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None);
     def _opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None);
     def _narrowed_flow_type(nd: uni.UniNode) -> (any | None);
     def _narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool;
+    def _narrowing_stable_in_loops(nd: uni.UniNode, name: str) -> bool;
+    def _loop_rebinds_name(loop: uni.UniNode, name: str) -> bool;
+    def _body_assigns_before(
+        loop: uni.UniNode, child: (uni.UniNode | None), name: str
+    ) -> bool;
+
     def _apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Value;
     def _scan_closure_escapes(nd: uni.UniNode, body: (list | tuple)) -> None;
     def _closure_sig_struct(fnty: ir.FunctionType) -> tuple;
@@ -478,7 +487,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.Type;
     def _lower_type(t: any) -> (ir.Type | None);
     def _unify_repr_lowering(reprs: list) -> (ir.Type | None);
-    def _coerce_to_repr(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _lower_class_type(t: any) -> (ir.Type | None);
     def _lower_function_type(t: any) -> ir.Type;
     def _type_key_of(expr: (uni.UniNode | None)) -> (str | None);
@@ -1033,6 +1041,17 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_struct_size(struct_type: ir.LiteralStructType) -> int;
     def _sizeof_llvm(ty: ir.Type) -> ir.Value;
     def _box_value_tuple(val: ir.Value, loc: str = "") -> ir.Value;
+    def _rc_slot_ref(val: ir.Value) -> (ir.Value | None);
+    def _tuple_managed_fields(struct_type: ir.LiteralStructType) -> list;
+    def _tuple_box_release_fn(
+        struct_type: ir.LiteralStructType
+    ) -> (ir.Function | None);
+
+    def _tuple_box_trace_fn(struct_type: ir.LiteralStructType) -> (ir.Function | None);
+    def _emit_tuple_box_lifecycle(
+        raw: ir.Value, struct_type: ir.LiteralStructType
+    ) -> None;
+
     def _coerce_tuple_to_struct(val: ir.Value, target_struct: ir.Type) -> ir.Value;
     def _codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None);
     def _codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None);
@@ -1413,6 +1432,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _mark_owned(val: ir.Value) -> ir.Value;
     def _is_owned(val: ir.Value) -> bool;
+    def _opt_result_owned(val: ir.Value, expr: object) -> bool;
     def _can_native_move_lower(nd: object) -> bool;
     def _release_owned_operands(
         left_orig: ir.Value, right_orig: ir.Value, op: str = ""

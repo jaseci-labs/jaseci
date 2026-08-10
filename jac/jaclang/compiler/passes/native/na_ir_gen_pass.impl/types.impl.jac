@@ -101,21 +101,6 @@ impl NaIRGenPass._unify_repr_lowering(reprs: list) -> (ir.Type | None) {
     return self.jacval_type;
 }
 
-impl NaIRGenPass._coerce_to_repr(val: ir.Value, target_type: ir.Type) -> ir.Value {
-    if val.type == target_type {
-        return val;
-    }
-    if isinstance(val.type, ir.PointerType)
-        and isinstance(target_type, ir.PointerType) {
-        _cast = self.builder.bitcast(val, target_type, name="repr.cast");
-        if self._is_owned(val) {
-            self._mark_owned(_cast);
-        }
-        return _cast;
-    }
-    return self._coerce_type(val, target_type);
-}
-
 impl NaIRGenPass._type_key_of(expr: (uni.UniNode | None)) -> (str | None) {
     if not isinstance(expr, uni.Expr) or expr.type is None {
         return None;
@@ -1065,16 +1050,120 @@ impl NaIRGenPass._narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool {
     return False;
 }
 
+impl NaIRGenPass._narrowing_stable_in_loops(nd: uni.UniNode, name: str) -> bool {
+    _cur: (uni.UniNode | None) = nd;
+    _child: (uni.UniNode | None) = None;
+    while _cur is not None {
+        if isinstance(_cur, (uni.Ability, uni.Module, uni.LambdaExpr)) {
+            return True;
+        }
+        if isinstance(
+            _cur, (uni.WhileStmt, uni.ForeverStmt, uni.InForStmt, uni.IterForStmt)
+        )
+            and self._loop_rebinds_name(_cur, name)
+            and not self._body_assigns_before(_cur, _child, name) {
+            return False;
+        }
+        _child = _cur;
+        _cur = _cur.parent;
+    }
+    return True;
+}
+
+impl NaIRGenPass._loop_rebinds_name(loop: uni.UniNode, name: str) -> bool {
+    _key = (id(loop), name);
+    _hit = self._loop_rebind_memo.get(_key);
+    if _hit is not None {
+        return _hit;
+    }
+    _found = False;
+    for _asn in loop.get_all_sub_nodes(uni.Assignment) {
+        for _t in (_asn.target or []) {
+            for _tn in (
+                [_t] if isinstance(_t, uni.Name) else _t.get_all_sub_nodes(uni.Name)
+            ) {
+                if _tn.value == name {
+                    _found = True;
+                    break;
+                }
+            }
+            if _found {
+                break;
+            }
+        }
+        if _found {
+            break;
+        }
+    }
+    if not _found {
+        for _b in loop.get_all_sub_nodes(uni.BinaryExpr) {
+            if isinstance(_b.op, uni.Token)
+                and _b.op.name == Tok.WALRUS_EQ
+                and isinstance(_b.left, uni.Name)
+                and _b.left.value == name {
+                _found = True;
+                break;
+            }
+        }
+    }
+    self._loop_rebind_memo[_key] = _found;
+    return _found;
+}
+
+impl NaIRGenPass._body_assigns_before(
+    loop: uni.UniNode, child: (uni.UniNode | None), name: str
+) -> bool {
+    if isinstance(loop, (uni.InForStmt, uni.IterForStmt)) {
+        for _tn in (loop.target.get_all_sub_nodes(uni.Name) if loop?.target else []) {
+            if _tn.value == name {
+                return True;
+            }
+        }
+    }
+    _body = loop?.body;
+    if child is None or not isinstance(_body, (list, tuple)) {
+        return False;
+    }
+    _idx = -1;
+    for (_i, _stmt) in enumerate(_body) {
+        if _stmt is child {
+            _idx = _i;
+            break;
+        }
+    }
+    if _idx < 0 {
+        return False;
+    }
+    for _stmt in _body[:_idx] {
+        if not isinstance(_stmt, uni.Assignment) {
+            continue;
+        }
+        for _t in (_stmt.target or []) {
+            if isinstance(_t, uni.Name) and _t.value == name {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
 impl NaIRGenPass._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Value {
     _src_opt = self._opt_payload_of(val.type);
     _is_jv = bool(self?.jacval_type) and val.type == self.jacval_type;
     if _src_opt is None and not _is_jv {
         return val;
     }
-    if not isinstance(nd, (uni.Name, uni.AtomTrailer)) {
+    if not isinstance(nd, uni.Name) {
+        return val;
+    }
+    _nm = nd.value;
+    if _nm not in self.local_vars or _nm in self.closure_cell_vars {
         return val;
     }
     if self._narrowing_blocked_by_none_test(nd) {
+        return val;
+    }
+    if not self._narrowing_stable_in_loops(nd, _nm) {
         return val;
     }
     _nt = self._narrowed_flow_type(nd);
@@ -1398,6 +1487,9 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
     if not isinstance(val.type, ir.PointerType)
         and isinstance(target_type, ir.PointerType) {
         if target_type?.pointee and target_type.pointee == val.type {
+            if isinstance(val.type, ir.LiteralStructType) {
+                return self._box_value_tuple(val);
+            }
             null_ptr = ir.Constant(target_type, None);
             size_gep = self.builder.gep(
                 null_ptr, [ir.Constant(ir.IntType(32), 1)], name="clib.sizeof.gep"
@@ -1893,6 +1985,17 @@ impl NaIRGenPass._emit_binary_op(
             self.builder.store(ri, self.builder.gep(ptr, [z0, z1], name="c.res.ip"));
             return ptr;
         }
+    }
+
+    if self?.jacval_type
+        and (left.type == self.jacval_type or right.type == self.jacval_type) {
+        self.emit(
+            E5092,
+            node_override=self.cur_node,
+            kind="binary operator",
+            name=f"{op} on a tagged `any` operand"
+        );
+        return None;
     }
 
     is_float = isinstance(left.type, (ir.DoubleType, ir.FloatType))
