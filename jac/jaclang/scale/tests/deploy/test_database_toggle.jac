@@ -106,7 +106,7 @@ test "external mode ships the url via a secret, provisions nothing" {
 
     core_v1.create_namespaced_secret.assert_called_once();
     secret_body = core_v1.create_namespaced_secret.call_args.kwargs["body"];
-    assert secret_body["metadata"]["name"] == "dbapp-postgres-secret";
+    assert secret_body["metadata"]["name"] == "dbapp-database-url";
     assert secret_body["stringData"]
         == {"connection-string": "postgresql://user:pw@ext.host:5432/app"};
     assert target.env_list
@@ -115,7 +115,7 @@ test "external mode ships the url via a secret, provisions nothing" {
                 "name": "JAC_DB_URL",
                 "valueFrom": {
                     "secretKeyRef": {
-                        "name": "dbapp-postgres-secret",
+                        "name": "dbapp-database-url",
                         "key": "connection-string"
                     }
                 }
@@ -137,7 +137,7 @@ test "disabled database deploys nothing and removes the stale secret" {
     apps_v1.create_namespaced_stateful_set.assert_not_called();
     core_v1.create_namespaced_secret.assert_not_called();
     core_v1.delete_namespaced_secret.assert_called_once_with(
-        name="dbapp-postgres-secret", namespace="db-ns"
+        name="dbapp-database-url", namespace="db-ns"
     );
     assert target._get_database_init_containers("dbapp") == [];
 }
@@ -221,17 +221,11 @@ test "provisioner still reconciles the database secret when disabled" {
 }
 
 
-test "switching from external back to provisioned replaces the stale secret" {
+test "returning to provisioned keeps its password and drops the external secret" {
     target = _target(True, "");
     apps_v1 = unittest.mock.MagicMock();
     core_v1 = unittest.mock.MagicMock();
-    apps_v1.read_namespaced_stateful_set.side_effect = _not_found;
-    core_v1.read_namespaced_service.side_effect = _not_found;
-    core_v1.read_namespaced_service_account.side_effect = _not_found;
     core_v1.read_namespaced_persistent_volume_claim.side_effect = _not_found;
-    core_v1.read_namespaced_secret.return_value = SimpleNamespace(
-        data={"connection-string": "b64-old-external-url"}
-    );
 
     fake_cfg = unittest.mock.MagicMock();
     fake_cfg.get_database_config.return_value = {
@@ -247,38 +241,11 @@ test "switching from external back to provisioned replaces the stale secret" {
         target._deploy_databases("dbapp", "db-ns", apps_v1, core_v1);
     }
 
-    core_v1.replace_namespaced_secret.assert_called_once();
-    replaced = core_v1.replace_namespaced_secret.call_args.kwargs["body"];
-    assert "username" in replaced["stringData"];
+    core_v1.delete_namespaced_secret.assert_called_once_with(
+        name="dbapp-database-url", namespace="db-ns"
+    );
     core_v1.create_namespaced_secret.assert_not_called();
-}
-
-
-test "a provisioned-shaped secret is left alone on redeploy" {
-    target = _target(True, "");
-    apps_v1 = unittest.mock.MagicMock();
-    core_v1 = unittest.mock.MagicMock();
-    core_v1.read_namespaced_persistent_volume_claim.side_effect = _not_found;
-    core_v1.read_namespaced_secret.return_value = SimpleNamespace(
-        data={"username": "amFj", "password": "b2xk", "connection-string": "b64-url"}
-    );
-
-    fake_cfg = unittest.mock.MagicMock();
-    fake_cfg.get_database_config.return_value = {
-        "enabled": True,
-        "url": None,
-        "deploy_mode": "image",
-        "postgres_image": "postgres:18",
-        "postgres_storage": "2Gi"
-    };
-    with unittest.mock.patch.object(
-        pg_provider_module, "get_scale_config", lambda { fake_cfg; }
-    ) {
-        target._deploy_databases("dbapp", "db-ns", apps_v1, core_v1);
-    }
-
     core_v1.replace_namespaced_secret.assert_not_called();
-    core_v1.create_namespaced_secret.assert_not_called();
 }
 
 

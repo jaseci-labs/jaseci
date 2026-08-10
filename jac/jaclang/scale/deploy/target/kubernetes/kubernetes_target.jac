@@ -113,8 +113,12 @@ obj KubernetesTargetBase(DeploymentTarget) {
         return init_containers;
     }
 
+    def _external_db_secret_name(app_name: str) -> str {
+        return f"{app_name}-database-url";
+    }
+
     def _inject_external_db_url(app_name: str, namespace: str, core_v1: Any, url: str) {
-        secret_name = f"{app_name}-postgres-secret";
+        secret_name = self._external_db_secret_name(app_name);
         create_k8s_secret(core_v1, namespace, secret_name, {'connection-string': url});
         self.env_list.append(
             {
@@ -126,6 +130,21 @@ obj KubernetesTargetBase(DeploymentTarget) {
         );
     }
 
+    def _cleanup_external_db_secret(app_name: str, namespace: str, core_v1: Any) {
+        secret_name = self._external_db_secret_name(app_name);
+        try {
+            delete_k8s_secret(core_v1, namespace, secret_name);
+        } except ApiException as e {
+            if self.logger {
+                self.logger.warn(
+                    f"Could not remove the stale database secret "
+                    f"'{secret_name}' (status {e.status}); delete it "
+                    f"manually from namespace '{namespace}'"
+                );
+            }
+        }
+    }
+
     def _deploy_databases(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
         if self.k8s_config.database_external_url {
             self._inject_external_db_url(
@@ -133,19 +152,8 @@ obj KubernetesTargetBase(DeploymentTarget) {
             );
             return;
         }
+        self._cleanup_external_db_secret(app_name, namespace, core_v1);
         if not self.k8s_config.postgres_enabled {
-            secret_name = f"{app_name}-postgres-secret";
-            try {
-                delete_k8s_secret(core_v1, namespace, secret_name);
-            } except ApiException as e {
-                if self.logger {
-                    self.logger.warn(
-                        f"Could not remove the stale database secret "
-                        f"'{secret_name}' (status {e.status}); delete it "
-                        f"manually from namespace '{namespace}'"
-                    );
-                }
-            }
             return;
         }
         pg_name = f"{app_name}-postgres";
@@ -174,17 +182,10 @@ obj KubernetesTargetBase(DeploymentTarget) {
                 }
             }
         );
-        pg_secret_name = pg_result['secret']['metadata']['name'];
         try {
-            existing_secret = core_v1.read_namespaced_secret(
-                name=pg_secret_name, namespace=namespace
+            core_v1.read_namespaced_secret(
+                name=pg_result['secret']['metadata']['name'], namespace=namespace
             );
-
-            if 'username' not in dict(existing_secret.data or {}) {
-                core_v1.replace_namespaced_secret(
-                    name=pg_secret_name, namespace=namespace, body=pg_result['secret']
-                );
-            }
         } except ApiException as e {
             if e.status == 404 {
                 core_v1.create_namespaced_secret(
