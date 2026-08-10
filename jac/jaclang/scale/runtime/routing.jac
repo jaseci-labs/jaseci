@@ -1,7 +1,9 @@
 import os;
 
-glob _RESERVED_SEGMENTS: set[str] = {
-         "api",
+# Single source of truth for every path segment the gateway owns. The
+# dispatch tables and builtin-prefix tuples are derived from these sets;
+# add a new builtin here, never in a consumer.
+glob GATEWAY_API_SEGMENTS: tuple = (
          "walker",
          "function",
          "user",
@@ -10,15 +12,28 @@ glob _RESERVED_SEGMENTS: set[str] = {
          "webhook",
          "ws",
          "jobs",
-         "graph",
-         "admin",
-         "static",
+         "graph"
+     );
+
+# API segments the gateway also answers as a bare path with no member suffix.
+glob GATEWAY_BARE_API_SEGMENTS: tuple = ("user", "graph", "jobs");
+
+# Client-bundle prefix: gateway-intercepted, but never a service member segment.
+glob GATEWAY_CLIENT_SEGMENT: str = "cl";
+
+glob GATEWAY_WELLKNOWN_SEGMENTS: tuple = (
          "health",
          "healthz",
          "metrics",
          "openapi.json",
          "docs"
-     };
+     );
+
+glob _RESERVED_SEGMENTS: set[str] = (
+         set(GATEWAY_API_SEGMENTS)
+         | set(GATEWAY_WELLKNOWN_SEGMENTS)
+         | {GATEWAY_CLIENT_SEGMENT, "api", "admin", "static"}
+     );
 
 
 def service_slug(module_name: str) -> str {
@@ -52,6 +67,18 @@ def guard_route_name(module_name: str) {
 }
 
 
+def guard_route_prefix(name: str, prefix: str) {
+    seg = prefix.strip("/").split("/")[0];
+    if seg in _RESERVED_SEGMENTS {
+        raise ValueError(
+            f"service '{name}' maps to route prefix '{prefix}', whose first "
+                + f"segment '/{seg}' is owned by the gateway. Choose a prefix "
+                + f"that does not shadow a builtin path."
+        );
+    }
+}
+
+
 def ensure_main_service(
     routes: dict[str, str], service_files: dict[str, str], entry_file: str = ''
 ) -> None {
@@ -80,6 +107,7 @@ def ensure_main_service(
 def resolve_routes(ms_config: dict[str, any]) -> dict[str, str] {
     routes_cfg = dict(ms_config.get("routes", {}) or {});
     routes: dict[str, str] = {};
+    owners: dict[str, str] = {};
     for (name, prefix) in routes_cfg.items() {
         name_str: str = str(name);
         guard_route_name(name_str);
@@ -89,6 +117,15 @@ def resolve_routes(ms_config: dict[str, any]) -> dict[str, str] {
         } elif not prefix_str.startswith("/") {
             prefix_str = "/" + prefix_str;
         }
+        guard_route_prefix(name_str, prefix_str);
+        if prefix_str in owners {
+            raise ValueError(
+                f"services '{owners[prefix_str]}' and '{name_str}' both resolve "
+                    + f"to route prefix '{prefix_str}'; every service needs a "
+                    + f"distinct prefix."
+            );
+        }
+        owners[prefix_str] = name_str;
         routes[name_str] = prefix_str;
     }
     return routes;
