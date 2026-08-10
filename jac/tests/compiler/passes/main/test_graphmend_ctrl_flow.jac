@@ -229,6 +229,14 @@ test "a device move whose consumers all normalize first is licensed" {
     assert "if seq_len > 8:" not in src;
 }
 
+test "a normalization that does not dominate its reads is declined" {
+    src = _pysrc("where_conditional_normalizer.jac", True);
+    # `peek` normalizes only under a flag; the read outside that branch can
+    # observe the hoisted placement. Textual order is not dominance.
+    assert "torch.where(" not in src;
+    assert "if seq_len > 8:" in src;
+}
+
 test "a device move with a raw reader elsewhere is declined" {
     src = _pysrc("where_raw_consumer.jac", True);
     # `peek` reads the attribute without normalizing, so it can observe the

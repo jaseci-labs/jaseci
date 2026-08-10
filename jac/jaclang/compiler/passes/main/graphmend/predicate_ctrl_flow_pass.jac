@@ -130,6 +130,8 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _move_consumed(s: uni.Assignment, region: uni.IfStmt) -> bool;
     def _consumers_harmless(s: uni.Assignment, region: uni.IfStmt) -> bool;
     def _normalizes_first(ab: uni.Ability, tgt: str) -> bool;
+    def _stmt_spot(nd: uni.UniNode) -> (tuple[int, int] | None);
+    def _spot_chain(nd: uni.UniNode) -> dict[int, int];
     def _all_local_targets(targets: Sequence[uni.Expr], region: uni.IfStmt) -> bool;
     def _setup_writes(setups: Sequence[uni.CodeBlockStmt]) -> set[str];
 }

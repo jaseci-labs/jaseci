@@ -669,29 +669,77 @@ impl PredicateCtrlFlowPass._consumers_harmless(
 }
 
 impl PredicateCtrlFlowPass._normalizes_first(ab: uni.Ability, tgt: str) -> bool {
-    first: (uni.AtomTrailer | None) = None;
+    norms: list[tuple[int, int]] = [];
+    reads: list[uni.AtomTrailer] = [];
     for at in ab.get_all_sub_nodes(uni.AtomTrailer) {
         if at.unparse().replace(' ', '') != tgt {
             continue;
         }
-        if first is None
-            or (at.loc.first_line, at.loc.col_start)
-                < (first.loc.first_line, first.loc.col_start) {
-            first = at;
+        cur: (uni.UniNode | None) = at;
+        while (cur is not None) and (not isinstance(cur, uni.Assignment)) {
+            cur = cur.parent;
+        }
+        if isinstance(cur, uni.Assignment)
+            and self._is_device_move(cur)
+            and (cur.target[0].unparse().replace(' ', '') == tgt) {
+            spot = self._stmt_spot(cur);
+            if spot is not None {
+                norms.append(spot);
+            }
+            continue;
+        }
+        reads.append(at);
+    }
+    for m in reads {
+        chain = self._spot_chain(m);
+        ok = False;
+        for (cid, aidx) in norms {
+            midx = chain.get(cid);
+            if (midx is not None) and (aidx < midx) {
+                ok = True;
+                break;
+            }
+        }
+        if not ok {
+            return False;
         }
     }
-    if first is None {
-        return True;
+    return True;
+}
+
+impl PredicateCtrlFlowPass._stmt_spot(nd: uni.UniNode) -> (tuple[int, int] | None) {
+    cur: (uni.UniNode | None) = nd;
+    while cur is not None {
+        p = cur.parent;
+        if p is None {
+            return None;
+        }
+        holder: any = p;
+        b = holder?.body;
+        if isinstance(b, list) and (cur in b) {
+            return (id(p), b.index(cur));
+        }
+        cur = p;
     }
-    cur: (uni.UniNode | None) = first;
-    while (cur is not None) and (not isinstance(cur, uni.Assignment)) {
-        cur = cur.parent;
+    return None;
+}
+
+impl PredicateCtrlFlowPass._spot_chain(nd: uni.UniNode) -> dict[int, int] {
+    out: dict[int, int] = {};
+    cur: (uni.UniNode | None) = nd;
+    while cur is not None {
+        p = cur.parent;
+        if p is None {
+            break;
+        }
+        holder: any = p;
+        b = holder?.body;
+        if isinstance(b, list) and (cur in b) {
+            out[id(p)] = b.index(cur);
+        }
+        cur = p;
     }
-    if not isinstance(cur, uni.Assignment) {
-        return False;
-    }
-    a: uni.Assignment = cur;
-    return self._is_device_move(a) and (a.target[0].unparse().replace(' ', '') == tgt);
+    return out;
 }
 
 impl PredicateCtrlFlowPass._all_local_targets(

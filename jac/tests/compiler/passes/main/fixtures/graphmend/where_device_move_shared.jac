@@ -20,8 +20,12 @@ def f(self_obj: any, position_ids: any, device: any) -> any {
     return self_obj.inv_freq;
 }
 
-def dynamic_update(self_obj: any, device: any) -> any {
-    self_obj.original_inv_freq = self_obj.original_inv_freq.to(device);
-    self_obj.register_buffer("inv_freq", self_obj.original_inv_freq, persistent=False);
+def dynamic_update(self_obj: any, seq_len: int, device: any) -> any {
+    if (seq_len < 8) {
+        self_obj.original_inv_freq = self_obj.original_inv_freq.to(device);
+        self_obj.register_buffer(
+            "inv_freq", self_obj.original_inv_freq, persistent=False
+        );
+    }
     return self_obj.inv_freq;
 }
