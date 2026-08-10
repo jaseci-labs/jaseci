@@ -70,7 +70,7 @@ def _build_binding -> tuple {
     return result;
 }
 
-def _assert_parity(src: str, path: str, use_blob: bool = True) {
+def _assert_parity(src: str, path: str, use_blob: bool = False) {
     (fn, real_blob_fn, _eng, _keep) = _build_binding();
     blob_fn = real_blob_fn if use_blob else None;
     r = fn(src, path);
@@ -112,6 +112,21 @@ test "sealed parser matches bytecode parser on a compiler source module" {
     _assert_parity(arena_src.read_text(encoding="utf-8"), str(arena_src));
 }
 
-test "arena strtab decodes directly when no blob export is bound" {
-    _assert_parity(_canary_src(), "__parity_noblob__.jac", use_blob=False);
+test "ascii strtab still splits through the blob export" {
+    _assert_parity(_canary_src(), "__parity_blob__.jac", use_blob=True);
+}
+
+test "non-ascii sources reach full parity through the direct decode" {
+    nl = chr(10);
+    src = nl.join(
+        [
+            "glob MSG: str = '✅ done';",
+            "def greet(who: str) -> str {",
+            "    return f'hey {who} ✅';",
+            "}",
+            "with entry { print(greet('éé')); }",
+
+        ]
+    );
+    _assert_parity(src, "__parity_nonascii__.jac");
 }

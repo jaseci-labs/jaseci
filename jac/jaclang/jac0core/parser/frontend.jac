@@ -42,20 +42,14 @@ def _native_parse -> any {
                 }
             }
             fl = layout.functions.get("parse_program");
-            bl = layout.functions.get("arena_strtab_blob");
             if fl is not None {
                 fn = wrap_native_function(eng, fl, cc, em, pc, layout=layout);
-                blob_fn = (
-                    wrap_native_function(eng, bl, cc, em, pc, layout=layout)
-                        if bl is not None
-                        else None
-                );
                 if fn is not None {
                     fn.__jac_engine__ = eng;
-                    fn.__jac_strtab_blob__ = blob_fn;
+                    fn.__jac_strtab_blob__ = None;
                 }
             }
-            if fn is not None and not _canary_ok(fn, blob_fn) {
+            if fn is not None and not _canary_ok(fn, None) {
                 fn = None;
             }
         }
