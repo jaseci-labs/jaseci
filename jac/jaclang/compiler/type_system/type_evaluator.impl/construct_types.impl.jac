@@ -588,9 +588,31 @@ impl TypeEvaluator.get_type_of_enum(node_: uni.Enum) -> types.ClassType {
     return cls_type;
 }
 
+impl TypeEvaluator._materialize_lazy_decl(nd: uni.UniNode) -> None {
+    arch: (uni.Archetype | None) = None;
+    if isinstance(nd, uni.Archetype) {
+        arch = nd;
+    } elif (
+        isinstance(nd, uni.Name)
+        and nd.sym
+        and isinstance(nd.sym.decl.name_of, uni.Archetype)
+    ) {
+        arch = nd.sym.decl.name_of;
+    }
+    if arch is not None {
+        d = arch.__dict__;
+        if d.get('_jir_cold') {
+            getattr(arch, 'sym_name', '');
+        }
+    }
+}
+
 impl TypeEvaluator._get_type_from_module(module: uni.Module, name: str) -> TypeBase {
     if (symbol := type_utils.lookup_symtab(module, name, self.builtins_module))
         is not None {
+        if symbol.decl and symbol.decl.name_of {
+            self._materialize_lazy_decl(symbol.decl.name_of);
+        }
         return self.get_type_of_symbol(symbol);
     }
     return types.UnknownType();

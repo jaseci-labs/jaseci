@@ -201,6 +201,7 @@ obj TypeEvaluator {
 
     def postinit -> None;
     def _load_stub_module(path: str) -> uni.Module;
+    def _materialize_lazy_decl(nd: uni.UniNode) -> None;
     def _get_type_from_module(module: uni.Module, name: str) -> TypeBase;
     def _prefetch_types;
     def get_none_type -> TypeBase;

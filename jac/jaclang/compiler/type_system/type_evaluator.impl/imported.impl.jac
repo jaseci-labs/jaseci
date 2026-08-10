@@ -377,6 +377,9 @@ impl TypeEvaluator._resolve_importer_path(ast_node: uni.UniNode) -> (str | None)
 impl TypeEvaluator.get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
     if self.push_symbol_resolution(symbol) {
         try {
+            if symbol.decl and symbol.decl.name_of {
+                self._materialize_lazy_decl(symbol.decl.name_of);
+            }
             result = self._get_type_of_symbol(symbol);
             return result;
         } finally {

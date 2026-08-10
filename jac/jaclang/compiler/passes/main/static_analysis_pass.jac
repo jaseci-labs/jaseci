@@ -19,6 +19,10 @@ import from jaclang.jac0core.diagnostics {
     E2083
 }
 
+glob _NATIVE_SCALAR_TYPE_NAMES: frozenset[str] = frozenset(
+         {'i8', 'u8', 'i16', 'u16', 'i32', 'u32', 'i64', 'u64', 'f32', 'f64', }
+     );
+
 obj StaticAnalysisPass(Transform[uni.Module, uni.Module]) {
     has ir_in: uni.Module,
         prog: any,

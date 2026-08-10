@@ -122,6 +122,19 @@ impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
         if not name_nd.is_kwesc {
             native_position = self._native_type_position(name_nd);
             if native_position is not None {
+                if name_nd.value in _NATIVE_SCALAR_TYPE_NAMES {
+                    continue;
+                }
+                te = self.prog.type_evaluator;
+                if te is not None {
+                    import from jaclang.compiler.type_system.type_utils {
+                        lookup_symtab
+                    }
+                    if lookup_symtab(mod, name_nd.value, te.builtins_module)
+                        is not None {
+                        continue;
+                    }
+                }
                 self.emit(
                     E2018,
                     node_override=name_nd,

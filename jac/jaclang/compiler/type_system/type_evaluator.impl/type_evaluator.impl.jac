@@ -2821,11 +2821,11 @@ impl TypeEvaluator._is_typing_special_form(ty: TypeBase, name: str) -> bool {
 }
 
 impl TypeEvaluator.is_typevar_class(ty: TypeBase) -> bool {
+    prefetch = self.prefetch.type_var_class if self.prefetch else None;
     if (
-        self.prefetch
-        and self.prefetch.type_var_class
+        isinstance(prefetch, types.ClassType)
         and isinstance(ty, types.ClassType)
-        and ty.shared == self.prefetch.type_var_class.shared
+        and ty.shared == prefetch.shared
     ) {
         return True;
     }
@@ -2833,11 +2833,11 @@ impl TypeEvaluator.is_typevar_class(ty: TypeBase) -> bool {
 }
 
 impl TypeEvaluator.is_paramspec_class(ty: TypeBase) -> bool {
+    prefetch = self.prefetch.param_spec_class if self.prefetch else None;
     if (
-        self.prefetch
-        and self.prefetch.param_spec_class
+        isinstance(prefetch, types.ClassType)
         and isinstance(ty, types.ClassType)
-        and ty.shared == self.prefetch.param_spec_class.shared
+        and ty.shared == prefetch.shared
     ) {
         return True;
     }
@@ -2845,11 +2845,11 @@ impl TypeEvaluator.is_paramspec_class(ty: TypeBase) -> bool {
 }
 
 impl TypeEvaluator.is_type_var_tuple_class(ty: TypeBase) -> bool {
+    prefetch = self.prefetch.type_var_tuple_class if self.prefetch else None;
     if (
-        self.prefetch
-        and self.prefetch.type_var_tuple_class
+        isinstance(prefetch, types.ClassType)
         and isinstance(ty, types.ClassType)
-        and ty.shared == self.prefetch.type_var_tuple_class.shared
+        and ty.shared == prefetch.shared
     ) {
         return True;
     }
@@ -3440,6 +3440,9 @@ impl TypeEvaluator._prefetch_types{
     }
     self.prefetch.protocol_class = get_typing_class("Protocol");
     self.prefetch.any_class = get_typing_class("Any");
+    self.prefetch.type_var_class = get_typing_class("TypeVar");
+    self.prefetch.param_spec_class = get_typing_class("ParamSpec");
+    self.prefetch.type_var_tuple_class = get_typing_class("TypeVarTuple");
 
     self.prefetch.callable_class = get_typing_class("Callable");
     if self.prefetch.callable_class {
@@ -3570,16 +3573,6 @@ impl TypeEvaluator.postinit -> None {
     self.typing_module = self._load_stub_module(self._TYPING_STUB_FILE_PATH);
     self.types_module = self._load_stub_module(self._TYPES_STUB_FILE_PATH);
     self.enum_module = self._load_stub_module(self._ENUM_STUB_FILE_PATH);
-
-    self.prefetch.type_var_class = self._get_type_from_module(
-        self.typing_module, "TypeVar"
-    );
-    self.prefetch.param_spec_class = self._get_type_from_module(
-        self.typing_module, "ParamSpec"
-    );
-    self.prefetch.type_var_tuple_class = self._get_type_from_module(
-        self.typing_module, "TypeVarTuple"
-    );
 
     self.builtins_module = self._load_stub_module(self._BUILTINS_STUB_FILE_PATH);
     self.jac_builtins_module = self._load_stub_module(
