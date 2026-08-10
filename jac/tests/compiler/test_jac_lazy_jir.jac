@@ -49,6 +49,17 @@ test "jac lazy eligibility excludes bootstrap and jaclang self-hosting" {
     assert is_jac_lazy_eligible(FIXTURE);
 }
 
+test "jaclang-shaped user path stays eligible without jac0core marker" {
+    with tempfile.TemporaryDirectory() as tmp {
+        path = os.path.join(tmp, "jaclang", "compiler", "plugin.jac");
+        os.makedirs(os.path.dirname(path), exist_ok=True);
+        with open(path, "w", encoding="utf-8") as f {
+            f.write("def ping -> int { return 1; }\n");
+        }
+        assert is_jac_lazy_eligible(path);
+    }
+}
+
 test "jaclang internal dep cache is not chunked even with JAC_LAZY_JAC" {
     # Self-hosting modules must stay on the full-hydrate path.
     internal = os.path.join(JAC_ROOT, "jaclang", "jac0core", "constant.jac");

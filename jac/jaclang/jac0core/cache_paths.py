@@ -69,6 +69,14 @@ _JACLANG_SUBPACKAGES = frozenset(
 
 
 def _is_under_jaclang_tree(resolved: Path) -> bool:
+    """True when *resolved* lives under a real jaclang package root.
+
+    Structural matching is used when the checkout compiler reads checkout paths
+    while ``cache_paths.py`` lives in the sealed runtime bundle, so the
+    ``_JACLANG_PKG_DIR`` prefix check can miss.  Require ``jac0core/`` beside
+    the matched ``jaclang/`` segment so user trees that merely reuse directory
+    names (e.g. ``<project>/jaclang/compiler/plugin.jac``) stay eligible.
+    """
     parts = resolved.parts
     for i, part in enumerate(parts):
         if (
@@ -76,7 +84,9 @@ def _is_under_jaclang_tree(resolved: Path) -> bool:
             and i + 1 < len(parts)
             and parts[i + 1] in _JACLANG_SUBPACKAGES
         ):
-            return True
+            root = Path(*parts[: i + 1])
+            if (root / "jac0core").is_dir():
+                return True
     return False
 
 
