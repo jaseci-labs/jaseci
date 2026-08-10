@@ -1161,9 +1161,15 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     # The fleet is label-managed (`<svc>-deployment-*`, `gateway-deployment-*`),
-    # so the base pass - which deletes by app name - cannot see it. Sweeping it
-    # from here keeps the shared teardown, and its ordering, in one place.
-    def _destroy_fleet(namespace: str, apis: K8sApis) {
+    # so the base pass - which deletes by app name - cannot see it. Contributing
+    # it as a phase keeps the shared teardown, and its ordering, in one place.
+    def _destroy_fleet(app_name: str, namespace: str, apis: K8sApis) {
+        if self.logger {
+            self.logger.info(
+                f"Destroying microservice topology in namespace '{namespace}'",
+                {"app_name": app_name}
+            );
+        }
         selector: str = "managed=jac-scale,jac-scale.role in (microservice,gateway)";
         ms_selector: str = "managed=jac-scale";
 
@@ -1242,16 +1248,5 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 raise;
             }
         }
-    }
-
-    def _destroy_application(app_name: str, namespace: str, apis: K8sApis) {
-        if self.logger {
-            self.logger.info(
-                f"Destroying microservice topology in namespace '{namespace}'",
-                {"app_name": app_name}
-            );
-        }
-        self._destroy_fleet(namespace, apis);
-        super._destroy_application(app_name, namespace, apis);
     }
 }

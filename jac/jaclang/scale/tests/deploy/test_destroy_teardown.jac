@@ -4,7 +4,7 @@ secrets, the provisioned postgres and the namespace itself behind - and it
 accepted `--component` only to ignore it, so asking for one component tore down
 every workload instead. The teardown is now an ordered, fault-isolated run of
 phases owned by the base target, with the label sweep contributed by the
-fleet-aware subclass through `_destroy_application`.
+fleet-aware subclass as a phase of its own.
 
 These drive a real KubernetesTarget against a hand-rolled fake cluster: each API
 group is an object that records the calls it receives and otherwise answers like
@@ -251,17 +251,41 @@ test "a component destroy touches only that component" {
 }
 
 
-test "a component destroy of the application still sweeps the fleet" {
+# The fleet selectors match every jac-scale workload in the namespace, not just
+# this app's, so they belong to the full destroy - which deletes the namespace
+# regardless - and must stay out of the app-scoped component teardown.
+test "a component destroy never reaches for the namespace-wide selectors" {
     cluster = FakeCluster();
 
     _destroy(cluster, component="application");
 
     names = _names(cluster);
-    assert "apps.delete_collection_namespaced_deployment" in names , (
-        f"--component application left the label-managed fleet running: {names}"
+    assert "apps.delete_namespaced_deployment" in names , (
+        f"--component application destroyed nothing: {names}"
+    );
+    assert "apps.delete_collection_namespaced_deployment" not in names , (
+        f"--component application swept every jac-scale workload in the "
+        f"namespace: {names}"
     );
     assert "core.delete_namespace" not in names , (
         f"a --component destroy deleted the namespace: {names}"
+    );
+}
+
+
+test "a namespace that survives a clean teardown is still an error" {
+    cluster = FakeCluster();
+    cluster.core.answers["delete_namespace"] = _api_error(403);
+
+    raised = "";
+    try {
+        _destroy(cluster);
+    } except Exception as e {
+        raised = str(e);
+    }
+
+    assert "jac-shop" in raised , (
+        f"every phase passing hid a namespace that was never deleted: {raised}"
     );
 }
 

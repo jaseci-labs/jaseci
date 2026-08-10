@@ -29,9 +29,9 @@ import from jaclang.scale.deploy.target.kubernetes.ingress { IngressDeployer }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
 import time;
 
-# The teardown reads and deletes across five API groups. Building them once and
-# passing the bundle keeps every phase on the connection `_load_cluster_config`
-# selected, instead of each phase reaching for a client of its own.
+# Bound once so every teardown phase stays on the connection
+# `_load_cluster_config` selected, rather than reaching for a client of its
+# own against the ambient context.
 obj K8sApis {
     has apps: any,
         core: any,
@@ -457,6 +457,10 @@ obj KubernetesTargetBase(DeploymentTarget) {
         );
     }
 
+    # Workloads a subclass manages by label rather than by name. The selectors
+    # are namespace-wide, so this belongs to the full destroy - the one path
+    # that deletes the namespace anyway - and not to `--component`.
+    def _destroy_fleet(app_name: str, namespace: str, apis: K8sApis) { }
     def _destroy_ingress(app_name: str, namespace: str, apis: K8sApis) {
         IngressDeployer(self.k8s_config, self.logger).destroy(
             app_name,
@@ -545,11 +549,11 @@ obj KubernetesTargetBase(DeploymentTarget) {
         }
     }
 
-    # Ordered so the workloads go first: their pods hold the finalizers that pin
-    # the bundle PVC, and the volume sweep behind them cannot complete until
-    # they drain.
+    # Workloads first: their pods hold the finalizers pinning the bundle PVC,
+    # so the volume sweep behind them cannot complete until they drain.
     def _teardown_phases -> list[tuple[str, Any]] {
         return [
+            ('fleet', self._destroy_fleet),
             ('application', self._destroy_application),
             ('ingress', self._destroy_ingress),
             ('monitoring', self._destroy_monitoring),
@@ -560,10 +564,8 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
     def _run_teardown(app_name: str, namespace: str, apis: K8sApis) -> None {
         # Phases are isolated because deleting the namespace reclaims everything
-        # inside it. Letting one API error abort the run - a forbidden
-        # ClusterRole delete, a flaking apiserver - is what strands the whole
-        # namespace, so every phase gets its turn and the failures are judged
-        # once at the end.
+        # inside it, so letting one API error abort the run is what strands the
+        # whole namespace. Failures are judged once, at the end.
         failures: list[str] = [];
         for (phase, run) in self._teardown_phases() {
             try {
@@ -594,7 +596,16 @@ obj KubernetesTargetBase(DeploymentTarget) {
             }
         }
 
-        reclaimed = self._delete_namespace(namespace, apis);
+        # 'default' is never deleted, so it can never vouch for what it holds
+        # and a phase failure there stays fatal. Anywhere else, failing to
+        # reclaim the namespace is itself a leak and joins the failures.
+        reclaimed = False;
+        if namespace != 'default' {
+            reclaimed = self._delete_namespace(namespace, apis);
+            if not reclaimed {
+                failures.append(f"namespace: '{namespace}' was not deleted");
+            }
+        }
 
         if not failures {
             if self.logger {
@@ -619,14 +630,9 @@ obj KubernetesTargetBase(DeploymentTarget) {
         }
     }
 
-    # True once the namespace is confirmed gone. 'default' is never deleted, so
-    # it can never vouch for the resources it holds.
     def _delete_namespace(
         namespace: str, apis: K8sApis, max_wait: int = 120, poll_interval: float = 2.0
     ) -> bool {
-        if namespace == 'default' {
-            return False;
-        }
         core_v1 = apis.core;
         try {
             core_v1.delete_namespace(name=namespace);
