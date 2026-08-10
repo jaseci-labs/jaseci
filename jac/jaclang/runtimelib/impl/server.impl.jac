@@ -2211,6 +2211,27 @@ impl JacAPIServer.build_app -> ServingApp {
         _named_walkers = [];
         _named_functions = [];
     }
+    try {
+        _all_targets = dict(server.introspector.get_walkers());
+        _all_targets.update(server.introspector.get_functions());
+        _spec_carriers = [
+            n
+            for (n, t) in _all_targets.items()
+            if t?.restspec is not None
+        ];
+        if _spec_carriers {
+            import logging;
+            logging.getLogger(__name__).warning(
+                "@restspec is ignored by the core server: "
+                f"{', '.join(sorted(_spec_carriers))} will serve at the "
+                "default /walker/ and /function/ POST routes only. Custom "
+                "methods, paths, webhooks, and websockets need the scale "
+                "serving stack (`jac start`)."
+            );
+        }
+    } except Exception {
+        ;
+    }
     for _w_name in _named_walkers {
         def _mk_walker_ep(bound: str) -> Callable {
             def _spawn_named(request: Request, node_id: str = '') -> any {

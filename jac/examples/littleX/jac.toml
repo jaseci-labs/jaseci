@@ -64,5 +64,12 @@ author = "Jaseci Labs"
 theme_color = "#f97316"
 icon = "/static/assets/littlex-logo.svg"
 
+# enabled = false keeps local `jac start` single-process (the local gateway
+# spawns services with --no-client, so a client UI cannot serve through it);
+# the routes table below still realizes the microservice topology on a
+# `jac start --scale` Kubernetes deploy.
+[scale.microservices]
+enabled = false
+
 [scale.microservices.routes]
 "social_graph" = "/social_graph"

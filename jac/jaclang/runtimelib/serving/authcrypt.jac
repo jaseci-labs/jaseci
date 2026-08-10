@@ -1,5 +1,6 @@
 import hashlib;
 import hmac;
+import logging;
 import secrets;
 import time;
 import from base64 { urlsafe_b64decode, urlsafe_b64encode }
@@ -7,10 +8,32 @@ import from json { dumps, loads }
 
 
 glob SCRYPT_N: int = 16384,
+     SCRYPT_MAX_N: int = 32768,
      SCRYPT_R: int = 8,
      SCRYPT_P: int = 1,
      SCRYPT_DKLEN: int = 64,
-     SCRYPT_SALT_BYTES: int = 16;
+     SCRYPT_SALT_BYTES: int = 16,
+     SCRYPT_MAXMEM: int = 48 * 1024 * 1024,
+     _BCRYPT_PREFIXES: tuple = ('$2a$', '$2b$', '$2y$'),
+     _legacy_warned: set[str] = set(),
+     logger = logging.getLogger(__name__);
+
+
+def is_prescrypt_hash(stored: str) -> bool {
+    return isinstance(stored, str) and stored.startswith(_BCRYPT_PREFIXES);
+}
+
+
+def _warn_once(key_material: str, message: str) -> None {
+    key = hashlib.sha256(key_material.encode('utf-8', 'replace')).hexdigest()[:16];
+    if key in _legacy_warned {
+        return;
+    }
+    if len(_legacy_warned) < 10000 {
+        _legacy_warned.add(key);
+    }
+    logger.warning(message);
+}
 
 
 obj JWTError(Exception) {
@@ -119,6 +142,7 @@ def jwt_decode(
 }
 
 def hash_password(password: str, n: int = SCRYPT_N) -> str {
+    n = min(int(n), SCRYPT_MAX_N);
     salt = secrets.token_bytes(SCRYPT_SALT_BYTES);
     digest = hashlib.scrypt(
         password.encode('utf-8'),
@@ -126,7 +150,8 @@ def hash_password(password: str, n: int = SCRYPT_N) -> str {
         n=n,
         r=SCRYPT_R,
         p=SCRYPT_P,
-        dklen=SCRYPT_DKLEN
+        dklen=SCRYPT_DKLEN,
+        maxmem=SCRYPT_MAXMEM
     );
     return (
         f"scrypt${n}${SCRYPT_R}${SCRYPT_P}"
@@ -135,6 +160,17 @@ def hash_password(password: str, n: int = SCRYPT_N) -> str {
 }
 
 def verify_password(password: str, stored: str) -> bool {
+    if is_prescrypt_hash(stored) {
+        _warn_once(
+            stored,
+            'Login attempt against a bcrypt-format password hash: this '
+            'credential predates the 0.36 scrypt migration and can never '
+            'verify. The user must reset their password (admins: '
+            'POST /admin/users/expire-legacy-credentials flags all such '
+            'accounts). The client sees generic invalid-credentials.'
+        );
+        return False;
+    }
     try {
         parts = stored.split('$');
         if len(parts) != 6 or parts[0] != 'scrypt' {
@@ -146,9 +182,24 @@ def verify_password(password: str, stored: str) -> bool {
         salt = _b64url_decode(parts[4]);
         expected = _b64url_decode(parts[5]);
         digest = hashlib.scrypt(
-            password.encode('utf-8'), salt=salt, n=n, r=r, p=p, dklen=len(expected)
+            password.encode('utf-8'),
+            salt=salt,
+            n=n,
+            r=r,
+            p=p,
+            dklen=len(expected),
+            maxmem=SCRYPT_MAXMEM
         );
         return hmac.compare_digest(digest, expected);
+    } except ValueError {
+        _warn_once(
+            stored,
+            'Stored scrypt hash has parameters exceeding the memory budget '
+            f"(maxmem={SCRYPT_MAXMEM}); refusing to verify it. The "
+            'credential was written under a misconfigured '
+            'password_hash_cost; the user must reset their password.'
+        );
+        return False;
     } except Exception {
         return False;
     }

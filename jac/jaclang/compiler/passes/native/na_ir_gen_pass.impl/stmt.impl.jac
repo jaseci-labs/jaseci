@@ -233,9 +233,9 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
                 }
             }
         }
-    } elif isinstance(nd, uni.Semi) { } elif isinstance(nd, uni.PyInlineCode) { } elif isinstance(
-        nd, uni.VisitStmt
-    ) {
+    } elif isinstance(nd, uni.Semi) { } elif isinstance(nd, uni.Import) { } elif isinstance(
+        nd, uni.PyInlineCode
+    ) { } elif isinstance(nd, uni.VisitStmt) {
         self._codegen_visit(nd);
     } elif isinstance(nd, uni.DisengageStmt) {
         self._codegen_disengage(nd);
@@ -1202,6 +1202,16 @@ impl NaIRGenPass._match_arch_cond(
 impl NaIRGenPass._match_value_eq(
     subj: ir.Value, value_node: uni.UniNode
 ) -> (ir.Value | None) {
+    _mv = value_node.expr if isinstance(value_node, uni.CfgExpr) else value_node;
+    if isinstance(_mv, uni.AtomUnit) {
+        _mv = _mv.value;
+    }
+    if isinstance(_mv, uni.Null)
+        and self._opt_payload_of(subj.type) is None
+        and not isinstance(subj.type, ir.PointerType)
+        and not (bool(self?.jacval_type) and subj.type == self.jacval_type) {
+        return ir.Constant(ir.IntType(1), 0);
+    }
     pat = self._codegen_expr(value_node);
     if pat is None {
         return None;
