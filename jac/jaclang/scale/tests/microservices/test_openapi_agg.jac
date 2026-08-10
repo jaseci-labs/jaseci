@@ -6,10 +6,7 @@ collisions must be resolved loudly, never silently."""
 import asyncio;
 import logging;
 import time;
-import from jaclang.scale.runtime.gateway.openapi_agg {
-    aggregate_openapi,
-    _agg_logger
-}
+import from jaclang.scale.runtime.gateway.openapi_agg { aggregate_openapi, _agg_logger }
 import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry,
