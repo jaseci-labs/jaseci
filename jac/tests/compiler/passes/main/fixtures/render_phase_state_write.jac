@@ -41,3 +41,14 @@ def:pub Fine -> JsxElement {
 
     return <span>{total}</span>;
 }
+
+# Not a component: body-level `has` is also the native pathway's local
+# declaration syntax. Only defs returning a Jsx* type are render bodies,
+# so these writes are legal.
+def compute_checksum(data: list[int]) -> int {
+    has result: int = 0;
+    for val in data {
+        result = (result * 31 + val) % 1000000007;
+    }
+    return result;
+}

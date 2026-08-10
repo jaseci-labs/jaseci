@@ -175,7 +175,7 @@ impl ASTValidationPass._check_render_phase_state_write(
             return;
         }
         if isinstance(scope, (uni.Ability, uni.ImplDef)) {
-            if self._scope_declares_state(scope, name) {
+            if self._scope_declares_state(scope, name) and self._returns_jsx(scope) {
                 self.emit(E0082, node_override=nd, name=name);
             }
             return;
@@ -198,6 +198,29 @@ impl ASTValidationPass._scope_declares_state(
                     return True;
                 }
             }
+        }
+    }
+    return False;
+}
+
+impl ASTValidationPass._returns_jsx(
+    self: ASTValidationPass, scope: uni.UniNode
+) -> bool {
+    sig = scope?.signature;
+    ret = sig?.return_type;
+    if ret is None {
+        return False;
+    }
+    stack: list = [ret];
+    while stack {
+        probe = stack.pop();
+        if isinstance(probe, uni.Name)
+            and probe.sym_name in ("JsxElement", "JsxPage", "JsxLayout") {
+            return True;
+        }
+        kids = probe?.kid;
+        if isinstance(kids, (list, tuple)) {
+            stack.extend(kids);
         }
     }
     return False;

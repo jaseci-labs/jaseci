@@ -57,6 +57,7 @@ class ASTValidationPass(UniPass) {
         self: ASTValidationPass, scope: uni.UniNode, name: str
     ) -> bool;
 
+    def _returns_jsx(self: ASTValidationPass, scope: uni.UniNode) -> bool;
     def enter_in_for_stmt(self: ASTValidationPass, nd: uni.InForStmt) -> None;
     def enter_inner_compr(self: ASTValidationPass, nd: uni.InnerCompr) -> None;
     def enter_has_var(self: ASTValidationPass, nd: uni.HasVar) -> None;
