@@ -11,19 +11,11 @@ impl PredicateCtrlFlowPass._setups_safe(
     setups: Sequence[uni.CodeBlockStmt], region: uni.IfStmt
 ) -> bool {
     for s in setups {
-        if isinstance(s, (uni.ReturnStmt, uni.RaiseStmt, uni.CtrlStmt)) {
-            return False;
-        }
-        if s.get_all_sub_nodes(uni.ReturnStmt) {
-            return False;
-        }
-        if s.get_all_sub_nodes(uni.RaiseStmt) {
-            return False;
-        }
-        if s.get_all_sub_nodes(uni.CtrlStmt) {
-            return False;
-        }
-        if not self._effect_neutral(s, region) {
+        if isinstance(s, (uni.ReturnStmt, uni.RaiseStmt, uni.CtrlStmt))
+            or s.get_all_sub_nodes(uni.ReturnStmt)
+            or s.get_all_sub_nodes(uni.RaiseStmt)
+            or s.get_all_sub_nodes(uni.CtrlStmt)
+            or (not self._effect_neutral(s, region)) {
             return False;
         }
     }
@@ -85,8 +77,8 @@ impl PredicateCtrlFlowPass._init_value_safe(
     if v is None {
         return False;
     }
-    calls = [v] if isinstance(v, uni.FuncCall) else [];
-    calls = calls + list(v.get_all_sub_nodes(uni.FuncCall));
+    calls = ([v] if isinstance(v, uni.FuncCall) else [])
+        + list(v.get_all_sub_nodes(uni.FuncCall));
     for c in calls {
         if not self._call_speculatable(c) {
             return False;
@@ -293,6 +285,7 @@ impl PredicateCtrlFlowPass._callsite_ctx(
         }
     }
     ctx: dict[str, list[uni.Archetype]] = {};
+    selfcls = self._self_classes(c);
     i = 0;
     for prm in (c.params or []) {
         if isinstance(prm, uni.KWPair) {
@@ -301,7 +294,7 @@ impl PredicateCtrlFlowPass._callsite_ctx(
         if i >= len(pnames) {
             break;
         }
-        classes = self._arg_classes(prm, c);
+        classes = self._arg_classes(prm, c, selfcls);
         if classes {
             ctx[pnames[i]] = classes;
         }
@@ -311,7 +304,7 @@ impl PredicateCtrlFlowPass._callsite_ctx(
 }
 
 impl PredicateCtrlFlowPass._arg_classes(
-    arg: uni.Expr, c: uni.FuncCall
+    arg: uni.Expr, c: uni.FuncCall, selfcls: list[uni.Archetype]
 ) -> list[uni.Archetype] {
     mod = c.find_parent_of_type(uni.Module);
     if mod is None {
@@ -348,7 +341,7 @@ impl PredicateCtrlFlowPass._arg_classes(
         return [];
     }
     out: list[uni.Archetype] = [];
-    for k in self._self_classes(c) {
+    for k in selfcls {
         ann_name = attr_annotation(k, arg.right.value);
         if ann_name is None {
             return [];
@@ -733,20 +726,8 @@ impl PredicateCtrlFlowPass._normalizes_first(ab: uni.Ability, tgt: str) -> bool 
 }
 
 impl PredicateCtrlFlowPass._stmt_spot(nd: uni.UniNode) -> (tuple[int, int] | None) {
-    cur: (uni.UniNode | None) = nd;
-    while cur is not None {
-        p = cur.parent;
-        if p is None {
-            return None;
-        }
-        holder: any = p;
-        b = holder?.body;
-        if isinstance(b, list) and (cur in b) {
-            return (id(p), b.index(cur));
-        }
-        cur = p;
-    }
-    return None;
+    spots = list(self._spot_chain(nd).items());
+    return spots[0] if spots else None;
 }
 
 impl PredicateCtrlFlowPass._spot_chain(nd: uni.UniNode) -> dict[int, int] {
@@ -777,18 +758,22 @@ impl PredicateCtrlFlowPass._all_local_targets(
     if scope is None {
         return False;
     }
+    vals: set[str] = set();
     for t in targets {
         if not isinstance(t, uni.Name) {
             return False;
         }
-        tgt: uni.Name = t;
-        for n in scope.get_all_sub_nodes(uni.Name) {
-            if (n.value == tgt.value) and (not self._within(n, region)) {
-                return False;
-            }
+        vals.add(t.value);
+    }
+    if not vals {
+        return False;
+    }
+    for n in scope.get_all_sub_nodes(uni.Name) {
+        if (n.value in vals) and (not self._within(n, region)) {
+            return False;
         }
     }
-    return len(targets) > 0;
+    return True;
 }
 
 impl PredicateCtrlFlowPass._setup_writes(
@@ -796,8 +781,8 @@ impl PredicateCtrlFlowPass._setup_writes(
 ) -> set[str] {
     out: set[str] = set();
     for s in setups {
-        assigns = [s] if isinstance(s, uni.Assignment) else [];
-        assigns = assigns + list(s.get_all_sub_nodes(uni.Assignment));
+        assigns = ([s] if isinstance(s, uni.Assignment) else [])
+            + list(s.get_all_sub_nodes(uni.Assignment));
         for a in assigns {
             for t in (a.target or []) {
                 out.add(t.unparse().replace(' ', ''));

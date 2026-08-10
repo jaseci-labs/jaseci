@@ -115,7 +115,10 @@ obj PredicateCtrlFlowPass(UniPass) {
         fn: uni.Ability, c: uni.FuncCall
     ) -> dict[str, list[uni.Archetype]];
 
-    def _arg_classes(arg: uni.Expr, c: uni.FuncCall) -> list[uni.Archetype];
+    def _arg_classes(
+        arg: uni.Expr, c: uni.FuncCall, selfcls: list[uni.Archetype]
+    ) -> list[uni.Archetype];
+
     def _self_classes(c: uni.FuncCall) -> list[uni.Archetype];
     def _ctx_dict_get(call: uni.FuncCall, ctx: dict[str, list[uni.Archetype]]) -> bool;
     def _hasattr_key(c: uni.Expr) -> (tuple[str, str] | None);

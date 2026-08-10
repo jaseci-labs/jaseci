@@ -85,27 +85,25 @@ def wrapping_classes(
     }
     for m in mods {
         for arch in m.get_all_sub_nodes(uni.Archetype) {
-            if id(arch) in ids {
-                continue;
-            }
-            for ab in arch.get_all_sub_nodes(uni.Ability) {
-                found = False;
-                for dec in (ab.decorators or []) {
-                    base = dec.target if isinstance(dec, uni.FuncCall) else dec;
-                    if isinstance(base, uni.Name) and (base.value == decorator) {
-                        ids.add(id(arch));
-                        out.append(arch);
-                        found = True;
-                        break;
-                    }
-                }
-                if found {
-                    break;
-                }
+            if (id(arch) not in ids) and _decorated_with(arch, decorator) {
+                ids.add(id(arch));
+                out.append(arch);
             }
         }
     }
     return out;
+}
+
+def _decorated_with(arch: uni.Archetype, decorator: str) -> bool {
+    for ab in arch.get_all_sub_nodes(uni.Ability) {
+        for dec in (ab.decorators or []) {
+            base = dec.target if isinstance(dec, uni.FuncCall) else dec;
+            if isinstance(base, uni.Name) and (base.value == decorator) {
+                return True;
+            }
+        }
+    }
+    return False;
 }
 
 def class_init(arch: uni.Archetype) -> (uni.Ability | None) {
@@ -162,26 +160,23 @@ def attr_dict_kind(arch: uni.Archetype, attr: str) -> (str | None) {
     if ctor is None {
         return None;
     }
-    kind: (str | None) = None;
+    is_dict = False;
+    or_none = False;
     for ab in _init_reachable(arch, ctor) {
         for stmt in ab.get_all_sub_nodes(uni.IfStmt) {
             if _body_raises(stmt) and (_negated_dict_isinstance_attr(stmt) == attr) {
-                kind = 'dict';
+                is_dict = True;
             }
-        }
-    }
-    if kind is None {
-        return None;
-    }
-    for ab in _init_reachable(arch, ctor) {
-        for stmt in ab.get_all_sub_nodes(uni.IfStmt) {
             if _body_is_only_return(stmt)
                 and (_is_none_check_attr(stmt.condition) == attr) {
-                kind = 'dict_or_none';
+                or_none = True;
             }
         }
     }
-    return kind;
+    if not is_dict {
+        return None;
+    }
+    return 'dict_or_none' if or_none else 'dict';
 }
 
 def _init_reachable(arch: uni.Archetype, ctor: uni.Ability) -> list[uni.Ability] {
