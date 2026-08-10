@@ -125,18 +125,18 @@ test "deploy.k8s declares every dist the deploy path imports" {
 
     assert "kubernetes" in deps;
     assert "docker" in deps;
-    # The ingress deployer bcrypt-hashes the RedisInsight basic-auth htpasswd
-    # entry. Deploy tooling is auto-installed from this dep set, so omitting
-    # bcrypt crashed a real deploy with "No module named 'bcrypt'".
-    assert "bcrypt" in deps , "deploy.k8s must close over bcrypt";
+    # kubernetes_utils imports requests at module scope; deploy tooling is
+    # auto-installed from this dep set, so omitting it breaks a real deploy.
+    assert "requests" in deps , "deploy.k8s must close over requests";
+    # RedisInsight is gone (#8000); its htpasswd hasher was bcrypt's only user.
+    assert "bcrypt" not in deps , "bcrypt has no remaining deploy-path consumer";
 }
 
 
 test "importing the kubernetes deploy target does not require bcrypt" {
-    # bcrypt is reachable only through the RedisInsight dashboard branch, so a
-    # module-scope import made every deploy -- and every --dry-run, which merely
-    # renders manifests -- hard-fail when bcrypt was absent.
-    assert not hasattr(ingress_mod, "bcrypt") , "ingress must import bcrypt at its point of use, not at module scope";
+    # The RedisInsight dashboard branch was bcrypt's only consumer; the module
+    # must stay import-clean without it.
+    assert not hasattr(ingress_mod, "bcrypt") , "ingress must not import bcrypt at module scope";
 }
 
 
@@ -251,14 +251,4 @@ test "resolving the pod base image for a dry run makes no network probe" {
         # No [dev] stanza and no override: the stable channel's official image.
         assert image == "jaseci/jaclang:latest";
     }
-}
-
-
-test "redis dashboard htpasswd entry is a bcrypt 2y hash" {
-    line = ingress_mod._htpasswd_line("admin", "s3cret");
-
-    (user, hashed) = line.split(":", 1);
-    assert user == "admin";
-    # nginx's auth-file reader wants the $2y$ prefix, not bcrypt's native $2b$.
-    assert hashed.startswith("$2y$") , f"expected a $2y$ htpasswd hash, got {hashed!r}";
 }

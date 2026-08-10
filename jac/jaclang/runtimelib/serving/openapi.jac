@@ -148,8 +148,14 @@ def build_openapi(app: ServingApp) -> dict[str, any] {
         method = str(ep.method.value)
             if isinstance(ep.method, HTTPMethod)
             else str(ep.method);
+        media = ep.media_type or 'application/json';
         entry: dict[str, any] = {
-            'responses': {str(ep.status_code or 200): {'description': 'Success'}}
+            'responses': {
+                str(ep.status_code or 200): {
+                    'description': 'Success',
+                    'content': {media: {'schema': {}}}
+                }
+            }
         };
         if ep.summary {
             entry['summary'] = ep.summary;
@@ -233,6 +239,21 @@ def build_openapi(app: ServingApp) -> dict[str, any] {
         norm_path = _openapi_path(ep.path);
         bucket = paths.setdefault(norm_path, {});
         bucket[method.lower()] = entry;
+    }
+    for ws_route in app.router.ws_routes {
+        wsep = ws_route.ws_endpoint;
+        if wsep is None {
+            continue;
+        }
+        ws_bucket = paths.setdefault(_openapi_path(wsep.path), {});
+        ws_bucket.setdefault(
+            'get',
+            {
+                'summary': wsep.summary or 'WebSocket endpoint',
+                'description': 'WebSocket upgrade endpoint',
+                'responses': {'101': {'description': 'Switching Protocols'}}
+            }
+        );
     }
     spec: dict[str, any] = {
         'openapi': '3.1.0',

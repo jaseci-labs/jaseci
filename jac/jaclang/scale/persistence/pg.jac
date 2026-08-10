@@ -6,7 +6,24 @@ import from typing { Any }
 glob logger = logging.getLogger(__name__),
      _lock = threading.Lock(),
      _holder: dict[str, Any] = {},
-     __all__ = ['scale_db_url', 'shared_store'];
+     _DOCS_DDL = (
+         'CREATE TABLE IF NOT EXISTS jac_docs ('
+         'collection text NOT NULL, '
+         'id text NOT NULL, '
+         'doc jsonb NOT NULL, '
+         'PRIMARY KEY (collection, id))'
+     ),
+     __all__ = ['scale_db_url', 'shared_store', 'open_docs_store'];
+
+
+def open_docs_store -> (Any | None) {
+    store = shared_store();
+    if store is None {
+        return None;
+    }
+    store.rows(_DOCS_DDL, {});
+    return store;
+}
 
 
 def scale_db_url -> (str | None) {

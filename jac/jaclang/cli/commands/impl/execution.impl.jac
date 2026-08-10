@@ -558,7 +558,9 @@ impl start(
     }
 
     import from jaclang.scale.plugin { scale_start }
-    scale_rc = scale_start(filename, scale, target, enable_tls, dry_run, show_yaml);
+    scale_rc = scale_start(
+        filename, scale, target, enable_tls, dry_run, show_yaml, port=port
+    );
     if scale_rc is not None {
         return scale_rc;
     }
@@ -638,8 +640,9 @@ impl start(
             mach.close();
             return 1;
         } finally {
-            if server?.server and server.server {
-                server.server.server_close();
+            svr = server?.server;
+            if svr and hasattr(svr, 'server_close') {
+                svr.server_close();
             }
         }
         mach.close();

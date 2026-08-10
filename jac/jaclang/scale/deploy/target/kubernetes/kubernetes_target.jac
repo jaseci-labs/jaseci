@@ -24,7 +24,10 @@ import from jaclang.scale._optdeps.kubernetes {
     ApiException,
     ConfigException
 }
-import from jaclang.scale.deploy.database.factory { DatabaseProviderFactory }
+import from jaclang.scale.config.config_loader { get_scale_config }
+import from jaclang.scale.deploy.database.kubernetes_postgres {
+    KubernetesPostgresProvider
+}
 import from jaclang.scale.deploy.target.kubernetes.monitoring { MonitoringDeployer }
 import from jaclang.scale.deploy.target.kubernetes.ingress { IngressDeployer }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
@@ -101,8 +104,8 @@ obj KubernetesTargetBase(DeploymentTarget) {
         wait_image = self.k8s_config.wait_image;
 
         if self.k8s_config.postgres_enabled {
-            pg_provider = DatabaseProviderFactory.create(
-                'kubernetes_postgres', self, {'app_name': app_name}
+            pg_provider = KubernetesPostgresProvider(
+                target=self, config={'app_name': app_name}
             );
             init_container = pg_provider.get_init_container(app_name, wait_image);
             if init_container {
@@ -119,8 +122,8 @@ obj KubernetesTargetBase(DeploymentTarget) {
         }
         pg_name = f"{app_name}-postgres";
         pg_service_name = f"{pg_name}-service";
-        pg_provider = DatabaseProviderFactory.create(
-            'kubernetes_postgres', self, {'app_name': app_name}
+        pg_provider = KubernetesPostgresProvider(
+            target=self, config={'app_name': app_name}
         );
         pg_result = pg_provider.deploy({});
         if pg_result['mode'] == 'external' {
@@ -169,7 +172,13 @@ obj KubernetesTargetBase(DeploymentTarget) {
         }
         pg_pvc_name = f"{pg_name}-data-{pg_name}-0";
         resize_pvc_if_needed(
-            core_v1, namespace, pg_pvc_name, self.k8s_config.postgres_storage_size
+            core_v1,
+            namespace,
+            pg_pvc_name,
+            str(
+                get_scale_config().get_database_config().get('postgres_storage')
+                    or '2Gi'
+            )
         );
         try {
             core_v1.read_namespaced_service(name=pg_service_name, namespace=namespace);

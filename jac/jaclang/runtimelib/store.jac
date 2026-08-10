@@ -76,6 +76,7 @@ obj Store {
     def rows(sql: str, params: dict) -> list[tuple] abst;
     def kv_get(key: str) -> (str | None) abst;
     def kv_put(key: str, value: str) -> None abst;
+    def kv_put_ttl(key: str, value: str, ttl_seconds: int) -> None abst;
     def kv_delete(key: str) -> None abst;
     def quarantine(
         missing_id: UUID, referrer_id: (UUID | None), kind: str
@@ -118,6 +119,7 @@ obj PgStore(Store) {
     def rows(sql: str, params: dict) -> list[tuple];
     def kv_get(key: str) -> (str | None);
     def kv_put(key: str, value: str) -> None;
+    def kv_put_ttl(key: str, value: str, ttl_seconds: int) -> None;
     def kv_delete(key: str) -> None;
     def quarantine(missing_id: UUID, referrer_id: (UUID | None), kind: str) -> None;
     def notify(channel: str, payload: str) -> None;

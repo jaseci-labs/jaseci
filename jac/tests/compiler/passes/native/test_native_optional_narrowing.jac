@@ -202,11 +202,56 @@ test "a rebind re-widens: the tag is still read after reassignment" {
     assert vals == [-1, 6, 21] , f"unexpected rebind_widens results: {vals}";
 }
 
-test "a loop back-edge re-widens: None is never read as a payload" {
+test "a loop that rebinds before the use still narrows" {
     (eng, _) = compile_native(FIXTURE);
     sv = sv_module();
-    vals = congruent(eng, sv, "loop_rewiden", [0, 2, 6]);
-    assert vals == [-4, 7, 54] , f"unexpected loop_rewiden results: {vals}";
+    vals = congruent(eng, sv, "loop_fresh_each_iter", [0, 2, 6]);
+    assert vals == [-4, 7, 54] , f"unexpected loop_fresh_each_iter results: {vals}";
+}
+
+test "a callee that rebinds the attribute keeps the checked unwrap" {
+    # k=0 leaves the attribute set, so both backends agree on a value. k=1
+    # routes through `drop_slot`, which the checker's intra-procedural walk
+    # cannot see: sv raises TypeError there, so native must not read a payload.
+    (eng, ir) = compile_native(FIXTURE);
+    sv = sv_module();
+    vals = congruent(eng, sv, "callee_rebinds_attr", [0]);
+    assert vals == [1] , f"unexpected callee_rebinds_attr results: {vals}";
+    body = func_ir(str(ir.gen.llvm_ir), "callee_rebinds_attr");
+    assert "opt.isnone" in body , (
+        "an attribute a callee can rebind must keep its checked unwrap"
+    );
+}
+
+test "a value live across a loop back edge keeps the checked unwrap" {
+    # n=6 keeps the rebound value non-None on every iteration, so both
+    # backends agree. n=2 puts None on the back edge and sv raises TypeError,
+    # so the in-loop use must not have been narrowed away.
+    (eng, ir) = compile_native(FIXTURE);
+    sv = sv_module();
+    vals = congruent(eng, sv, "back_edge_rewiden", [0, 6]);
+    assert vals == [-1, 21] , f"unexpected back_edge_rewiden results: {vals}";
+    body = func_ir(str(ir.gen.llvm_ir), "back_edge_rewiden");
+    assert "opt.isnone" in body , (
+        "a use the loop body rebinds after must keep its checked unwrap"
+    );
+}
+
+test "`case None` over a narrowed subject folds instead of comparing to null" {
+    (eng, _) = compile_native(FIXTURE);
+    sv = sv_module();
+    vals = congruent(eng, sv, "match_narrowed_subject", [0, 2, 4]);
+    assert vals == [-1, 5, 5] , f"unexpected match_narrowed_subject results: {vals}";
+}
+
+test "the narrowed in-loop use keeps its tag check elided" {
+    # `scalar_continue_guard` assigns at the top of the body, so the guard's
+    # proof is fresh every iteration and the loop rule must still allow it.
+    (_, ir) = compile_native(FIXTURE);
+    body = func_ir(str(ir.gen.llvm_ir), "scalar_continue_guard");
+    assert "opt.isnone" not in body , (
+        "assign-then-guard inside a loop must still narrow"
+    );
 }
 
 test "narrowing removes the tag check from the proven use" {
