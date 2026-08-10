@@ -552,6 +552,20 @@ impl NaIRGenPass._is_owned(val: ir.Value) -> bool {
     return bool(getattr(val, 'is_owned', False));
 }
 
+impl NaIRGenPass._opt_result_owned(val: ir.Value, expr: object) -> bool {
+    if self._is_owned(val) {
+        return True;
+    }
+    if self._opt_ptr_payload_of(val.type) is None {
+        return False;
+    }
+    import from jaclang.compiler.passes.main.rc_facts_pass {
+        Ownership,
+        result_ownership
+    }
+    return isinstance(expr, uni.Expr) and result_ownership(expr) == Ownership.OWNED;
+}
+
 impl NaIRGenPass._can_native_move_lower(nd: object) -> bool {
     if not isinstance(nd, uni.Assignment) or not nd.na_move_lowerable {
         return False;
