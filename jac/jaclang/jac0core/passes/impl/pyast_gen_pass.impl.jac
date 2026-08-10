@@ -616,6 +616,14 @@ impl PyastGenPass._drain_module_hoists -> list[
     if not self._hoist_frames {
         self._hoist_frames = [[]];
     }
+    # Frame 0 is the module's own frame; its hoists are placed at the top of the
+    # module body below. Any frame beyond index 0 belongs to a scope that pushed
+    # a hoist frame (enter_ability / enter_test) but never drained it on exit, so
+    # its hoists are orphaned and would be silently lost -- report them as E5098
+    # so codegen blocks instead of shipping a broken module.
+    if len(self._hoist_frames) > 1 {
+        self._report_leaked_hoisted_lambdas();
+    }
     hoists = self._hoist_frames[0][:];
     self._hoist_frames = [[]];
     return hoists;
@@ -632,8 +640,13 @@ impl PyastGenPass._function_expr_from_def(
 }
 
 impl PyastGenPass._report_leaked_hoisted_lambdas -> None {
+    # Only frames beyond the module frame (index 0) are leaks: frame 0 is
+    # legitimately drained into the module body by _drain_module_hoists, while a
+    # residual in frames[1:] means a nested scope (enter_ability / enter_test)
+    # was entered but its exit never drained -- an internal placement bug. Frame
+    # reset is the drain's responsibility; this only reports.
     leftover: list[ast3.FunctionDef | ast3.AsyncFunctionDef] = [];
-    for frame in self._hoist_frames {
+    for frame in self._hoist_frames[1:] {
         leftover.extend(frame);
     }
     for func_def in leftover {
@@ -644,7 +657,6 @@ impl PyastGenPass._report_leaked_hoisted_lambdas -> None {
         }
         self.emit(E5098, node_override=jac_node, name=func_def.name);
     }
-    self._hoist_frames = [[]];
 }
 
 impl PyastGenPass._get_sem_decorator(nd: uni.UniNode) -> (ast3.Call | None) {

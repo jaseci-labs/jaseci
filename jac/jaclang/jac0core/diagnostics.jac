@@ -1484,12 +1484,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5098",
          Category.CODEGEN,
          "Multi-statement lambda '{name}' could not be hoisted into a valid scope",
-         help="On the Python (server) target, a multi-statement lambda lowers to a "
-         "helper `def` that must appear in the enclosing scope before any reference "
-         "to it is evaluated. This position is outside what the Python codegen can "
-         "place safely; rewrite the lambda as a named `def`, use a single-expression "
-         "body, or move the code to a statement position (assignment RHS, expression "
-         "statement). Without this error the module would compile but fail at runtime "
+         help="On the Python (server) target a multi-statement lambda lowers to a "
+         "helper `def` placed in the nearest enclosing function-or-module scope "
+         "before any reference to it is evaluated. This fires when a hoisted helper "
+         "is left without a placement because a scope (ability/test) was entered but "
+         "never drained on exit -- an internal compiler bug; please report it. "
+         "Codegen is blocked rather than shipping a module that would fail at runtime "
          "with `NameError: name '{name}' is not defined`.",
          blocks_codegen=True
      ),

@@ -674,16 +674,22 @@ test "leaked multi-statement lambda hoists emit E5098" {
         ),
         jac_node=entry_stmt
     );
-    pyast_pass._hoist_frames = [[fake_def]];
-    pyast_pass._report_leaked_hoisted_lambdas();
+    # Simulate a nested scope (ability/test) that pushed a hoist frame but whose
+    # exit never drained it: the helper is orphaned in a frame beyond the module
+    # frame (index 0), so _drain_module_hoists must report it as E5098 rather than
+    # silently dropping it. The module frame itself stays empty.
+    pyast_pass._hoist_frames = [[], [fake_def]];
+    placed = pyast_pass._drain_module_hoists();
+    assert placed == [] , f"module frame should be empty, got {placed}";
     leaked = [
         alrt
         for alrt in (prog.errors_had or [])
         if alrt.code is not None and alrt.code.code == "E5098"
     ];
     assert leaked , (
-        f"expected E5098 for leaked hoisted lambda, got: {prog.errors_had}"
+        f"expected E5098 for orphaned hoisted lambda, got: {prog.errors_had}"
     );
-    assert not pyast_pass._hoist_frames
-        or all(len(f) == 0 for f in pyast_pass._hoist_frames) , "leaked hoists should be cleared";
+    assert all(len(f) == 0 for f in pyast_pass._hoist_frames) , (
+        "drain should reset the frame stack after reporting"
+    );
 }
