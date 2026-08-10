@@ -620,6 +620,10 @@ impl start(
         return 1;
     }
 
+    try {
+        mach.mem.unit_exit();
+    } except Exception { }
+
     if dev and not no_client {
         vite_port = port;
         actual_api_port = api_port if api_port > 0 else port + 1;

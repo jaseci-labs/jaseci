@@ -210,16 +210,18 @@ def call_counting_drops(eng: object, name: str, a: int, b: int) -> tuple[int, in
 
 test "tuple unpack into an optional slot destroys each object exactly once" {
     # Two Res are allocated and bound into `Res | None` locals through the
-    # coerced store. The unpack takes neither a retain nor an old-value
-    # release, which balances: releasing the tuple box does not decrement
-    # its fields, and scope exit releases each payload once. Adding a
-    # retain here without changing the box release leaks both.
+    # coerced store. Each bind retains the field it borrows from the box,
+    # the box release runs the destructor that drops the box's own
+    # reference to each field, and scope exit releases each payload: one
+    # destruction per allocation. The two ways to get this wrong land on
+    # either side of 2, so the count discriminates between them.
     (eng, _) = compile_native("rc_tuple_unpack_optional.jac");
     (value, drops) = call_counting_drops(eng, "unpack_into_optional", 3, 4);
     assert value == 34 , f"Expected 34, got {value}";
     assert drops == 2 , (
         f"2 allocations must produce 2 drops, got {drops} "
-        f"(0 would mean the payloads leaked, 4 an over-release)"
+        f"(0 means the box abandoned its fields, more than 2 that the bind "
+        f"skipped its retain and each payload was released twice)"
     );
 }
 
@@ -227,9 +229,11 @@ test "tuple unpack from an optional element costs no more than the plain one" {
     # Both fixtures allocate 4 Res and overwrite two locals through a value
     # tuple; `unpack_plain_into_plain` has no optional anywhere. They must
     # drop the same number, i.e. the optional coercion adds no leak of its
-    # own. Both currently drop 2 rather than 4: value-tuple unpack skips the
-    # old-value release (`retain_fields = not is_value`), which predates
-    # this change and is reachable without any optional.
+    # own. Both drop 4: the store releases what each target slot held for a
+    # value tuple exactly as for a boxed one, reaching the overwritten
+    # original through the optional payload when the slot is an optional.
+    # Asserting the two are equal rather than naming a constant is what let
+    # this survive the accounting change that moved both from 2 to 4.
     (eng, _) = compile_native("rc_tuple_unpack_optional.jac");
     (opt_value, opt_drops) = call_counting_drops(
         eng, "unpack_optional_into_plain", 3, 4
