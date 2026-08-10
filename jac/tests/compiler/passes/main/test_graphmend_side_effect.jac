@@ -14,8 +14,25 @@ import ast;
 import os;
 import tempfile;
 import from tests.support { JAC_ROOT }
+import from jaclang.jac0core.jaclib {
+    __jac_log_emit__,
+    __jac_log_flush_hook__,
+    __jac_log_register__
+}
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
+
+glob _LOG_SEEN: list = [];
+
+"""Record a replayed log message (flush-hook probe)."""
+def _record_log(msg: str) {
+    _LOG_SEEN.append(msg);
+}
+
+"""Raise from inside a replayed log call (flush-hook probe)."""
+def _raise_log(msg: str) {
+    raise RuntimeError("logger down");
+}
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
@@ -203,4 +220,23 @@ test "no buffering when graphmend disabled" {
     assert "__jac_se_emit__" not in src;
     assert "__jac_se_guard__" not in src;
     assert "print(x)" in src;
+}
+
+test "a raising log call cannot replay stale entries on the next pass" {
+    # The flush hook snapshots and clears the buffer BEFORE replaying, so a
+    # log call that raises drops the batch instead of re-emitting it later.
+    ok_slot = __jac_log_register__(_record_log);
+    boom_slot = __jac_log_register__(_raise_log);
+    __jac_log_emit__(boom_slot, ("first", ), {});
+    __jac_log_emit__(ok_slot, ("second", ), {});
+    raised = None;
+    try {
+        __jac_log_flush_hook__(None, None, None);
+    } except RuntimeError as e {
+        raised = e;
+    }
+    assert raised is not None;
+    __jac_log_emit__(ok_slot, ("third", ), {});
+    __jac_log_flush_hook__(None, None, None);
+    assert _LOG_SEEN == ["third"] , f"stale entries replayed: {_LOG_SEEN}";
 }
