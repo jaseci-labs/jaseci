@@ -47,6 +47,28 @@ obj NativeModuleInfo {
         );
 }
 
+glob HDR_ALLOC_ID_OFF: int = -32,
+     HDR_TAG_OFF: int = -24,
+     HDR_RC_OFF: int = -16,
+     HDR_DTOR_OFF: int = -8,
+     HDR_TOTAL: int = 32;
+
+glob HDR_MAGIC: int = 44061,
+     HDR_MAGIC_SHIFT_BASE: int = 44061 * 4294967296,
+     RC_SENTINEL: int = 0x7FFFFFFFFFFFFFFF;
+
+glob STR_LEN_TAG_BIT: int = 1,
+     STR_LEN_TAG_SHIFT: int = 1;
+
+glob JACSTR_DESC_FIELDS: dict[(str, tuple)] = {
+         'jacstr3': ('root', 'data', 'len'),
+         'jacstr2': ('data', 'len')
+     };
+
+def str_len_tag(length: int) -> int {
+    return (length << STR_LEN_TAG_SHIFT) | STR_LEN_TAG_BIT;
+}
+
 obj NativeFieldInfo {
     has name: str,
         llvm_type: str,
@@ -54,7 +76,8 @@ obj NativeFieldInfo {
         enum_type: (str | None) = None,
         is_func_ptr: bool = False,
         func_param_types: (list[str] | None) = None,
-        func_ret_type: (str | None) = None;
+        func_ret_type: (str | None) = None,
+        elem_keys: (list | None) = None;
 }
 
 obj NativeStructLayout {
@@ -339,7 +362,8 @@ obj NativeModuleLayout {
         methods: dict[(str, NativeFuncLayout)] = field(default_factory=`dict),
         list_elem_types: dict[(str, str)] = field(default_factory=`dict),
         tuples: dict[(str, NativeTupleLayout)] = field(default_factory=`dict),
-        tests: list[NativeTestLayout] = field(default_factory=`list);
+        tests: list[NativeTestLayout] = field(default_factory=`list),
+        str_headerless: (bool | None) = None;
 }
 
 def _tuple_layout_to_dict(t: (NativeTupleLayout | None)) -> (dict | None) {
@@ -387,7 +411,10 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
                                 if fld.func_param_types is not None
                                 else None
                         ),
-                        "func_ret_type": fld.func_ret_type
+                        "func_ret_type": fld.func_ret_type,
+                        "elem_keys": (
+                            list(fld.elem_keys) if fld.elem_keys is not None else None
+                        )
                     } for fld in s.fields
                 ]
             } for (name, s) in layout.structs.items()
@@ -406,7 +433,8 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
             name: _func_layout_to_dict(f) for (name, f) in layout.methods.items()
         },
         "list_elem_types": dict(layout.list_elem_types),
-        "tuples": {key: _tuple_layout_to_dict(t) for (key, t) in layout.tuples.items()}
+        "tuples": {key: _tuple_layout_to_dict(t) for (key, t) in layout.tuples.items()},
+        "str_headerless": layout.str_headerless
     };
 }
 

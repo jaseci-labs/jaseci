@@ -213,7 +213,7 @@ impl NaIRGenPass._static_str_struct_const(data: bytes) -> tuple {
     arr_type = ir.ArrayType(i8, len(data));
     struct_type = ir.LiteralStructType([i64, i64, arr_type]);
     sentinel_val = ir.Constant(i64, RC_SENTINEL);
-    tagged_len = ir.Constant(i64, ((len(data) - 1) << 1) | 1);
+    tagged_len = ir.Constant(i64, str_len_tag(len(data) - 1));
     c_str = ir.Constant(arr_type, bytearray(data));
     return (struct_type, ir.Constant(struct_type, [sentinel_val, tagged_len, c_str]), );
 }
