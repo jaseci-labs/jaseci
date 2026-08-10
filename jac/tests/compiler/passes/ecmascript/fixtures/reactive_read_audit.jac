@@ -17,7 +17,10 @@ def:pub audit_app(items: list) -> JsxElement {
     nested = [count, count + 1];
 
     # write target — must lower to setter, never `count() = ...`
-    count = count + 1;
+    # (writes are deferred: render-phase writes are E0082)
+    can with entry {
+        count = count + 1;
+    }
 
     # member property named like the reactive var — property key untouched
     first = items[0].count;

@@ -152,12 +152,62 @@ impl ASTValidationPass.enter_assignment(
     for target in nd.target {
         self._reject_non_bindable(target);
     }
+    self._check_render_phase_state_write(nd);
 }
 
 impl ASTValidationPass.enter_in_for_stmt(
     self: ASTValidationPass, nd: uni.InForStmt
 ) -> None {
     self._reject_non_bindable(nd.target);
+}
+
+"""E0082: a write to a component's `has` state field in the render body.
+Body statements run on every render, and state writes are immediately
+visible (the client state contract), so a direct body write would
+re-render forever. Writes inside nested abilities, methods, and lambdas
+are deferred and legal -- the walk stops at the first function-like
+scope: if it is the very def that declares the field via a body-level
+`has`, the assignment executes during render."""
+impl ASTValidationPass._check_render_phase_state_write(
+    self: ASTValidationPass, nd: uni.Assignment
+) -> None {
+    targets = nd.target if isinstance(nd.target, (list, tuple)) else [nd.target];
+    if len(targets) != 1 or not isinstance(targets[0], uni.Name) {
+        return;
+    }
+    name = targets[0].sym_name;
+    scope = nd.parent;
+    while scope is not None {
+        if isinstance(scope, uni.LambdaExpr) {
+            return;
+        }
+        if isinstance(scope, (uni.Ability, uni.ImplDef)) {
+            if self._scope_declares_state(scope, name) {
+                self.emit(E0082, node_override=nd, name=name);
+            }
+            return;
+        }
+        scope = scope.parent;
+    }
+}
+
+impl ASTValidationPass._scope_declares_state(
+    self: ASTValidationPass, scope: uni.UniNode, name: str
+) -> bool {
+    body = getattr(scope, "body", None);
+    if not isinstance(body, (list, tuple)) {
+        return False;
+    }
+    for stmt in body {
+        if isinstance(stmt, uni.ArchHas) {
+            for var in stmt.vars {
+                if var.name.sym_name == name {
+                    return True;
+                }
+            }
+        }
+    }
+    return False;
 }
 
 impl ASTValidationPass.enter_inner_compr(

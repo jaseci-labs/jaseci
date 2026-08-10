@@ -260,6 +260,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "Property declaration must contain at least one of `getter`, `setter`, `deleter`"
      ),
+     E0082 = _err(
+         "E0082",
+         Category.SEMANTIC,
+         "Cannot assign to state field '{name}' during render",
+         help="Component body statements run on every render, and state writes are immediately visible, so this assignment would re-render forever. Move it into a `can` ability, an event handler, or a method.",
+         blocks_codegen=True
+     ),
      W0060 = _warn(
          "W0060",
          Category.SYNTAX,
