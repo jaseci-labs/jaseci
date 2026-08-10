@@ -1265,8 +1265,9 @@ impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> uni.Expr {
         type(None): uni.Null
     };
     value_type = type(nd.value);
-    if (value_type is complex) {
-        return self._emit_complex_call(nd, nd.value.real, nd.value.imag);
+    if isinstance(nd.value, complex) {
+        cval = nd.value;
+        return self._emit_complex_call(nd, cval.real, cval.imag);
     } elif (value_type is int) {
         return self._make_number_literal(nd, 'INT', str(nd.value));
     } elif (value_type is float) {
