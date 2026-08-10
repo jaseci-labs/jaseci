@@ -12,9 +12,9 @@ dataflow, before Python code generation, so only the Python lowering target is
 affected. The JS and native backends see the original tree.
 
 This page is the specification and legality argument for the passes that have
-landed. It currently covers detection, trap lowering and predication
-(`torch.where` / `torch.cond`); the side-effect deferral transform extends
-this page when it lands.
+landed. It currently covers detection and trap lowering; the predication
+(`torch.where` / `torch.cond`) and side-effect deferral transforms extend this
+page as they land.
 
 ## Activation and plumbing
 
@@ -28,11 +28,7 @@ this page when it lands.
   `before_pass` and prunes immediately when the flag is off, so the schedule
   is inert for normal compiles.
 - The passes run in `get_py_code_gen`, immediately before `PyastGenPass`:
-  `GraphBreakDetectPass`, then `TrapLoweringPass`, then
-  `PredicateCtrlFlowPass`. The order is load-bearing: trap lowering removes
-  the `raise` from a validation guard nested inside a data-dependent branch,
-  which is what lets predication later hoist that branch's setup statements
-  (the lowered assert is re-gated on the branch predicate, see below).
+  `GraphBreakDetectPass`, then `TrapLoweringPass`.
 - Cross-pass state is typed and lives on `JacProgram`, not on AST nodes:
   `graphmend_breaks` maps a node id to its `GraphBreakKind` (detection to
   transformation), and `graphmend_helpers` maps a module id to the set of
@@ -48,14 +44,14 @@ this page when it lands.
 
 ## Detection: `GraphBreakDetectPass`
 
-Detection combines a Dynamo entry-point analysis with graph-break
+Detection implements the paper's Dynamo entry-point analysis plus graph-break
 type analysis. It records a `GraphBreakKind` (declared in
 `jac0core/constant.jac`) per break site; each kind names the single transform
 allowed to lower it. Detection breadth grows in lockstep with the transforms:
-a data-dependent conditional whose body is exactly one `raise` is tagged
-`VAL_GUARD` (consumed by `TrapLoweringPass`); any other data-dependent
-conditional is tagged `DYN_CTRL_FL` (consumed by `PredicateCtrlFlowPass`).
-The side-effect kind arrives with the deferral pass.
+only `VAL_GUARD` (a data-dependent `if not C: raise`, consumed by
+`TrapLoweringPass`) exists today, so no analysis ships before the transform
+that lowers it. Data-dependent `if`/`else` and side-effect kinds arrive with
+the predication and deferral passes.
 
 ### Entry points
 
@@ -73,17 +69,15 @@ models, which are the primary target (`jac run model.py -g`).
 ### Data dependence
 
 A condition is data-dependent when it uses a dynamic torch attribute
-directly, or when a bounded use-def trace shows it derives from one. The
-dynamic-attribute table (`graphmend/torch_attr_table.jac`) lists ops whose
-result depends on tensor data rather than static shape: `item`, `tolist`,
-reductions, `nonzero`, `equal`, `allclose`, `unique` and so on. Extending
-detection to a new op is one entry in that table. The use-def trace follows
-each name in the condition back through its defining assignment (depth-capped
-and cycle-guarded), so `seq_len = torch.max(position_ids) + 1` makes a later
-`if seq_len > limit:` data-dependent even though the condition itself names
-no torch op. Guard shapes the trap transform accepts always name their
-dynamic op inline; branch conditions genuinely need the trace, which is why
-it landed with the predication pass.
+directly. The dynamic-attribute table (`graphmend/torch_attr_table.jac`)
+lists ops whose result depends on tensor data rather than static shape:
+`item`, `tolist`, reductions, `nonzero`, `equal`, `allclose`, `unique` and so
+on. Extending detection to a new op is one entry in that table. Direct use is
+sufficient here because every guard shape the trap transform accepts names
+its dynamic op inline; the bounded use-def trace that follows a condition
+back through assignments (for example `seq_len = torch.max(position_ids) + 1`
+used in a later branch) arrives with the predication pass, whose branch
+conditions genuinely need it.
 
 One deliberate precision choice: function parameters are NOT assumed dynamic.
 Treating every parameter as tensor-derived would tag static guards such as
@@ -214,248 +208,14 @@ in `jac0core/runtime.jac`. The tensor-bool form needs no helper: its
 receiver's tensor-ness is proven at compile time, so the pass emits
 `torch._assert_async` directly.
 
-## Predication: `PredicateCtrlFlowPass`
-
-A data-dependent `if`/`else` (tagged `DYN_CTRL_FL`) forces TorchDynamo to
-pick a Python path from tensor data, splitting the graph at the branch. The
-pass rewrites the branch into a single graph-native selection so both paths
-stay inside one FX graph. It fires only when both branches produce the same
-output, so the rewrite is provably semantics-preserving; anything more
-complex (differing targets, elif chains, a missing `else`) is left intact.
-
-The predicate must also be a tensor. `torch.where` rejects a Python `bool`
-condition, so a branch whose predicate materializes a scalar (`.item()`,
-`.tolist()`, `torch.equal`, `torch.allclose`, named inline or reached through
-the use-def chain that tagged the branch) is declined. Nothing is lost by
-that: the materializing call is itself the break, and predication cannot
-remove it. Such a branch stays tagged `DYN_CTRL_FL` and unrewritten.
-
-### Reconciliation shapes
-
-Three shapes are accepted, matched on the final statement of each branch:
-
-```python
-if c: x = A            # same-target assignment
-else: x = B            #   -> __gm_cond = c; __gm_true = A; __gm_false = B
-                       #      x = torch.where(__gm_cond, __gm_true, __gm_false)
-
-if c: return A         # same-shape return
-else: return B         #   -> ...; return torch.where(...)
-
-if c: g(a, k=K)        # common call: same callee, same kwargs, same arity
-else: g(b, k=K)        #   -> g(torch.where(__gm_cond, a, b), k=K)
-```
-
-The common-call form merges each differing positional argument with its own
-`torch.where` and emits the call once; kwargs must be textually identical and
-the callee texts must match. Branch values that are `None` decline (no tensor
-selection exists for it), as does a branch pair mixing a call with a literal
-(see below).
-
-### `torch.where` versus `torch.cond`
-
-`torch.where` is an ordinary call, so both operands are evaluated regardless
-of the predicate. For symmetric values (bare names, pure arithmetic) that is
-harmless and is what the pass emits. "Harmless" carries the transform's one
-foundational assumption, declared here alongside G5's: a hoisted call-free
-value expression is assumed total, i.e. non-raising, for the operand values
-executions actually reach. Tensor arithmetic satisfies this by construction
-(a zero divisor yields `inf`/`nan`, not an exception); a Python-scalar
-division or subscript in a branch value can raise on an execution that
-originally took the other branch. Declining those shapes would decline
-ordinary tensor arithmetic wholesale, since operand scalarity is not
-statically decidable, so the assumption is stated rather than enforced.
-Selecting between branch values without evaluating both is what `torch.cond`
-provides, and shapes that need that isolation get it: when a branch value
-contains a function call, evaluating both sides would run a call the
-original program did not run, which is not merely wasteful: it is unsound
-whenever that call is only valid under its own predicate. For that shape the pass emits `torch.cond`,
-whose lambda branches execute only the selected path:
-
-```python
-x = torch.cond(__gm_cond_0, lambda: f(a), lambda: g(b), ())
-```
-
-The selection is ordered by legality first and cost second: `torch.cond`
-introduces branch-dispatch synchronization and disables CUDA Graph capture
-for the region, so `torch.where` is preferred wherever it is legal. One gap
-remains: a call paired with a literal. `torch.where` would speculate the
-call, and `torch.cond` cannot return a Python literal, so neither form is
-sound and the branch is left untouched, break included.
-
-### Multi-statement branches and hoisting legality
-
-When both branches end in the same call but carry setup statements before it,
-the setups are hoisted to run unconditionally (predication computes both
-paths). A hoisted setup must therefore be observationally neutral on the
-untaken path. Two obligations apply, and failing either declines the whole
-rewrite:
-
-1. Control neutrality: no `return`, `raise`, `break` or `continue` anywhere
-   in a setup, else a control transfer becomes unconditional.
-2. Effect neutrality: every setup must be one of the licensed forms below.
-   Anything else, in particular a non-idempotent observable write such as
-   `self.counter += 1`, is declined and the break is left intact.
-
-The licensed forms:
-
-- A pure write to bare local names whose value contains no call, and whose
-  target is confined to the region: the name appears nowhere else in the
-  enclosing function, and the two branches do not write the same target.
-  Without both conditions the write is not neutral, it is just invisible at
-  the assignment itself. A name read after the branch would carry the taken
-  path's value onto runs that took the other one, and a name written by both
-  branches would leave the second write standing for both, so the merged call
-  would read the untaken branch's operand.
-- An idempotent device move `x = x.to(...)` where the target is textually the
-  receiver, the region consumes the moved value afterwards, and a module-wide
-  consumer analysis proves the early move unobservable. The consumption
-  requirement is what earns the license: the move exists to put an operand of
-  the merged call on the right device, which is also what makes the merged
-  `torch.where` same-device legal; a move whose target feeds nothing in the
-  region is a bare attribute mutation and declines. The consumer analysis
-  covers the mutation the hoist performs on other-branch executions: every
-  function in the module that mentions the moved attribute must make its
-  FIRST mention the same normalizing device move, so each consumer
-  re-establishes placement before any read and cannot distinguish "moved
-  early" from "not yet moved". Any rawer read, a mention at module scope, or
-  a mention elsewhere in the region's own function declines. This is the
-  shape of the transformers rope idiom itself: `dynamic_frequency_update`
-  shares `original_inv_freq` with the longrope path and normalizes it before
-  every use. What remains declared is the same family as G4's
-  external-observer caveat: an observer outside the module, or one comparing
-  stashed object identities across calls, can still distinguish the worlds.
-- A lowered validation assert (`torch._assert_async(...)` produced by
-  `TrapLoweringPass`). It is hoisted but re-gated on the branch predicate so
-  it cannot fire on the untaken path: the check `C` becomes
-  `torch.logical_or(torch.logical_not(cond), C)` for the true branch and
-  `torch.logical_or(cond, C)` for the false branch. The `torch.equal` guard
-  form (`__jac_tensor_eq_assert__`) computes its check inside the helper
-  where no predicate can be injected, so its presence declines the rewrite
-  rather than asserting unconditionally.
-- An existence-guarded initialization, under the conditions below.
-
-### The existence-guard license
-
-`if not hasattr(X, "k"): X.k = init(...)` is the one licensed hoist that
-creates state earlier than the original program would. The `hasattr` shape
-alone is not sufficient; five conditions must hold:
-
-- G1, shape: the guard has no `else` branch.
-- G2, memoization: the body definitely assigns `X.k`, so the guard closes and
-  re-execution is a genuine no-op. Without this the body re-runs on every
-  call, and hoisting it would run a live write on the untaken path.
-- G3, body neutrality: every other statement in the body is itself a neutral
-  assignment. Only the memoizing write may contain a call (the initializer);
-  arbitrary I/O smuggled in under a `hasattr` header is declined.
-- G4, confinement: the attribute `k` is read nowhere in the module outside
-  the rewritten region, including via string literals equal to `"k"` (which
-  could feed `hasattr`/`getattr`/`setattr`). Early existence must not be
-  observable by any code the pass can see.
-- G5, initializer safety: every call in the memoizing write resolves to
-  inspectable code that is pure and non-raising for the arguments this call
-  site passes. A bare-name callee must resolve to a module-level function. An
-  attribute callee such as `self.rope_init_fn` cannot be resolved from one
-  module, but the dispatch-table idiom is still decidable: the candidate set
-  is every function reachable through any module-level dict of local
-  functions, narrowed by signature compatibility (a function the call would
-  raise `TypeError` on cannot be the callee), and every surviving candidate
-  must clear the purity check. A `raise` inside a candidate counts as
-  unreachable only in the varkwargs-validation form (`if rope_kwargs: raise`)
-  when this call passes no unexpected keyword. Purity is transitive into
-  local helpers; unresolvable calls are opaque and decline. A library call is
-  pure only when the call as a whole is checked, never its leaf name alone.
-  A `torch`/`math` call needs its leaf on the pure-operation list (tensor
-  construction and elementwise math): being rooted at `torch` proves nothing,
-  since `torch.save` writes a file and `torch.manual_seed` mutates global RNG
-  state. A pure tensor method (`to`, `float`, `double`, `clone`, `detach`)
-  needs a receiver that is itself a pure call, so
-  `torch.arange(...).float().to(device)` is accepted while `session.clone()`
-  or `store.get(k)` is not: those names are no-ops on a tensor and arbitrary
-  work on anything else. Helper bodies must also be write-clean: assignments
-  may target bare local names only, and never a name that is also bound at
-  module scope, since `global x` lowers to a no-op in the IR and the
-  module-scope collision is the decidable proxy for a global write. A cycle
-  in the helper call graph declines outright: every body in the cycle is
-  still scanned, but termination of the speculated call is unprovable, and a
-  nonterminating speculation raises `RecursionError` on a path the original
-  never executed. The consequence of the receiver rule is stated under
-  residuals below.
-
-  Two assumptions in G5 are declared rather than proven, because no static
-  analysis of the source can discharge them. First, an allowlisted
-  `torch`/`math` operation is assumed non-raising for the argument values
-  the speculated call actually receives; `torch.arange(0, n, step)` raises
-  for `step == 0`, and value-level reachability is beyond a source-level
-  must-analysis. Second, the memoizing write is assumed to land in a plain
-  attribute slot: a class that intercepts it with a property setter or a
-  `__setattr__` override turns the write into a call this pass cannot see
-  from the module it compiles. Both assumptions hold for the transformers
-  rope idiom this analysis targets; a model that violates either can make
-  the untaken path raise or mutate. The scoped-import work, which sees whole
-  packages, can convert the setter assumption into a checked decline.
-
-### Caveat: speculated memoization is a state change, not a no-op
-
-The existence-guard hoist runs the initializer on executions where the
-original predicate would have been false, so the memoized attribute exists
-earlier than the original program would create it. The `hasattr` guard makes
-replay idempotent (running twice equals running once); it does not make
-speculation invisible. What makes the hoist legal is confinement (G4): the
-attribute is a private memoization slot no other code in the module can test
-or read, so no observer inside the compiled module distinguishes "cached now"
-from "cached on a later call". Two assumptions remain outside what the
-analysis can discharge: an observer in another module (an external `hasattr`,
-a `__dict__` or `state_dict()` walk, a subclass in another file) can still
-see the slot early, and an attribute callee bound to something other than a
-module-level dispatch table would not be seen by G5. The honest phrasing of
-the guarantee is therefore equivalence modulo private memoization state.
-
-### Configuration reads: proving `.get` from a constructor invariant
-
-Requiring a pure receiver would cost real coverage on its own. A rope
-initializer of the `transformers` `_compute_longrope_parameters` shape reads
-its configuration with `config.rope_scaling.get("factor")`. That call is pure
-in fact, because the receiver is a plain dict, but no purity list can say so:
-the same expression shape covers `session.get(url)`.
-
-The proof comes from the source, queried on demand. At a speculated call
-site the pass types each argument by walking the ASTs the compiler already
-holds: a call-site annotation resolves to its class through the import chain
-(`graphmend/scope_facts.jac`), a `self.attr` argument resolves through the
-classes that apply the enclosing decorator and their `__init__` attribute
-annotations, and `param.attr.get(...)` is accepted only when every resolved
-class's construction path forces the attribute to be a dict, i.e. an
-`if not isinstance(self.attr, dict): raise` reachable from `__init__`
-(directly or through a helper `__init__` calls, transformers'
-`_rope_scaling_validation` idiom). Because resolution follows the actual
-imports to a specific class node, two same-named classes in different
-modules can never pool their facts. When an import leads to a module the
-compiler has not read, its AST is materialized eagerly, compiled into the
-module hub without code generation, so the analysis never reasons about a
-module it has not fully parsed; this happens only inside the
-GraphMend-gated pass, so normal compiles never pay for it.
-`LooseConfig`-style classes that never validate the attribute stay opaque
-and decline.
-
-One residual, stated rather than papered over: the transformers validator
-permits `None` (`if self.rope_scaling is None: return`), recorded as
-`dict_or_none`, so a speculated `.get` on a None-config model raises
-`AttributeError` on a path the original never executed, the same class of
-residual as an initializer that raises for branch-specific arguments.
-
 ## Evidence
 
-`tests/compiler/passes/main/test_graphmend_trap_lowering.jac` and
-`test_graphmend_ctrl_flow.jac` assert detection tags and the generated
-Python source for `.jac` and `.py` fixtures, including one decline test per
-legality condition above.
-`test_graphmend_trap_integration.jac` and
-`test_graphmend_where_integration.jac` (skipped without torch) drive the
-transformed code through a counting Dynamo backend and assert the headline
-metric directly: each fixture fragments into two or more graphs without
-GraphMend and exactly one with it. The trap tests additionally check that a
-failing guard under a real eager-backend compile surfaces as the original
-`ValueError` with the original message, with no marker text leaking to the
-user; the predication tests additionally check that a hoisted, re-gated
-assert stays dormant when its branch is not taken.
+`tests/compiler/passes/main/test_graphmend_detect.jac` and
+`test_graphmend_trap_lowering.jac` assert detection tags and the generated
+Python source for `.jac` and `.py` fixtures.
+`test_graphmend_trap_integration.jac` (skipped without torch) drives the
+transformed code through a counting Dynamo backend and asserts the paper's
+metric directly: the validation-guard fixture fragments into two or more
+graphs without GraphMend and exactly one with it, and a failing guard under a
+real eager-backend compile surfaces as the original `ValueError` with the
+original message, with no marker text leaking to the user.

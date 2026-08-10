@@ -5,8 +5,8 @@ preserved and hoisted, not rewritten.
 Mirrors the rotary-embedding cache-update idiom in production model code: the
 initializer is reached through an attribute (`self_obj.rope_init_fn`) that is
 bound elsewhere from a module-level dispatch table, so the hoist is licensed
-only because every function in that table is checkably pure and non-raising
-(G5). The `len(rope_kwargs) > 0` validation raise is the upstream idiom
+only because every function in that table is checkably pure and non-raising.
+The `len(rope_kwargs) > 0` validation raise is the upstream idiom
 verbatim -- it is unreachable here because the call passes no keyword outside
 the named parameters."""
 import torch;
