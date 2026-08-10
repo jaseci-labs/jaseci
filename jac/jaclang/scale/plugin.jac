@@ -9,7 +9,6 @@ import from .config.config_loader { get_scale_config }
 import from .events.streams.postgres { PgEventStream }
 
 import from .persistence.pg { shared_store as _pg_anchor }
-import from .persistence.docdb { PgDocDb as _docdb_anchor }
 import from .state.pg_state_backend { PgStateBackend as _state_anchor }
 import from jaclang.runtimelib.server { UserManager }
 import from jaclang.runtimelib.storage { Storage }
@@ -59,11 +58,15 @@ def scale_start(
     target: str,
     enable_tls: bool,
     dry_run: bool,
-    show_yaml: bool
+    show_yaml: bool,
+    port: int = 8000
 ) -> int | None {
     os.environ["JAC_SCALE_RUNTIME"] = "1";
     scale_config = get_scale_config();
     ms_config = scale_config.get_microservices_config();
+    if port and port != 8000 {
+        ms_config["gateway_port"] = port;
+    }
     is_sv_sibling = os.environ.get("JAC_SV_SIBLING") == "1";
 
     enabled = ms_config.get("enabled", None);
@@ -91,7 +94,15 @@ def scale_start(
             import from jaclang.scale.runtime.realizer.local_realizer { LocalRealizer }
             realizer = LocalRealizer(ms_config=ms_config);
             should_serve_ms = realizer.should_serve(enabled);
-        } except Exception {
+        } except ValueError as e {
+            console.error(f"Microservice configuration invalid: {e}", emoji=False);
+            return 1;
+        } except Exception as e {
+            console.error(
+                f"Microservice mode unavailable "
+                f"({type(e).__name__}: {e}); starting as a monolith.",
+                emoji=False
+            );
             realizer = None;
             should_serve_ms = False;
         }

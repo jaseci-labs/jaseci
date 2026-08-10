@@ -243,6 +243,43 @@ impl IdentityStorage.reset_password(user_id: str, new_password: str) -> dict[str
     return {'user_id': user_id, 'message': 'Password updated successfully'};
 }
 
+impl IdentityStorage.expire_legacy_credentials(
+    user_id: (str | None) = None
+) -> list[str] {
+    ids: list[str] = [];
+    if user_id is not None {
+        ids = [user_id];
+    } else {
+        offset = 0;
+        while True {
+            page = self.list_all_users(limit=500, offset=offset);
+            if not page {
+                break;
+            }
+            ids.extend([str(u['user_id']) for u in page]);
+            offset += 500;
+        }
+    }
+    expired: list[str] = [];
+    now = datetime.now(UTC).isoformat();
+    for uid in ids {
+        has_legacy = False;
+        for cred in self._get_credentials(uid) {
+            if cred.get('type') == 'password'
+                and _is_prescrypt(str(cred.get('password_hash', ''))) {
+                has_legacy = True;
+            }
+        }
+        if has_legacy
+            and self._update_fields(
+                uid, {'requires_password_reset': True, 'updated_at': now}
+            ) {
+            expired.append(uid);
+        }
+    }
+    return expired;
+}
+
 impl IdentityStorage.get_root_id(user_id: str) -> str | None {
     user = self.get_user_by_id(user_id);
     return (user.get('root_id') or None) if user else None;
