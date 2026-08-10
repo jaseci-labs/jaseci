@@ -76,10 +76,9 @@ obj SyntaxArena {
             self.args.append(0);
             return;
         }
-        ids2: list[int] = ids;
         off = len(self.seqs);
-        self.seqs.append(len(ids2));
-        for i in ids2 {
+        self.seqs.append(len(ids));
+        for i in ids {
             self.seqs.append(i);
         }
         self.args.append(TAG_LIST);
@@ -91,9 +90,8 @@ obj SyntaxArena {
             self.args.append(TAG_NONE);
             self.args.append(0);
         } else {
-            s2: str = s;
             self.args.append(TAG_STR);
-            self.args.append(self.intern(s2));
+            self.args.append(self.intern(s));
         }
     }
 
@@ -117,11 +115,9 @@ obj SyntaxArena {
             self.args.append(TAG_NONE);
             self.args.append(0);
         } elif isinstance(v, int) {
-            vi: int = v;
-            self._arg_node(vi);
+            self._arg_node(v);
         } else {
-            vl: list[int] = v;
-            self._arg_list(vl);
+            self._arg_list(v);
         }
     }
 
