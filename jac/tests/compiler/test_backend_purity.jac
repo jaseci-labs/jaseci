@@ -145,7 +145,12 @@ glob FORBIDDEN: dict[str, str] = {
          ),
          ("native/na_ir_gen_pass.impl/objects.impl.jac", "type_tag.tag"): (
              1,
-             "declaration-surface read during archetype field lowering"
+             "declaration-surface read during archetype field lowering: "
+             "the field's declared annotation node is read once into a "
+             "local and feeds both the enum-name map and the container "
+             "element-key map the sealed layout exports. Keep it one read "
+             "- consumers of the annotation are added to the local, never "
+             "by reaching for type_tag.tag again"
          ),
          ("native/na_ir_gen_pass.impl/lists.impl.jac", "type_tag.tag"): (
              1,

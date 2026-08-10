@@ -218,6 +218,11 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     if _lit_spec == "jacval" and self?.jacval_type {
         elem_type = self.jacval_type;
         elem_type_name = "jacval";
+    } elif _lit_spec in ("i64", "f64")
+        and _decl_elem is not None
+        and isinstance(_decl_elem, (ir.IntType, ir.DoubleType)) {
+        elem_type = _decl_elem;
+        elem_type_name = _lit_spec;
     } else {
         elem_type = first_val.type;
         elem_type_name = "i64";
