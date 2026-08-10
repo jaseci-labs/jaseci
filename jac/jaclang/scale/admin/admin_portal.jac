@@ -48,6 +48,10 @@ obj JacAPIServerAdmin {
         username: str, Authorization: str | None = None
     ) -> TransportResponse;
 
+    def admin_expire_legacy_credentials(
+        username: str | None = None, Authorization: str | None = None
+    ) -> TransportResponse;
+
     def reset_password(
         current_password: str, new_password: str, Authorization: str | None = None
     ) -> TransportResponse;

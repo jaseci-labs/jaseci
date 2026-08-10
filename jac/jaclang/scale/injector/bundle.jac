@@ -101,35 +101,7 @@ def _is_dev_section(name: str) -> bool {
 }
 
 
-def bake_database_intent(toml_text: str, backend: str) -> str {
-    if not backend {
-        return toml_text;
-    }
-    try {
-        data = tomllib.loads(toml_text);
-    } except tomllib.TOMLDecodeError as exc {
-        logger.warning(
-            f"Sanitized jac.toml is not parseable ({exc}); shipping it without "
-            f"the provisioned '{backend}' database intent -- the pod's install "
-            f"may miss the matching data capability."
-        );
-        return toml_text;
-    }
-    scale = data.get("scale");
-    uses_scale_table = isinstance(scale, dict);
-    if not uses_scale_table {
-        plugins = data.get("plugins");
-        scale = plugins.get("scale") if isinstance(plugins, dict) else None;
-    }
-    if isinstance(scale, dict) and isinstance(scale.get("database"), dict) {
-        return toml_text;
-    }
-    header = "scale.database" if uses_scale_table else "plugins.scale.database";
-    return f'{toml_text}\n[{header}]\nbackend = "{backend}"\n';
-}
-
-
-def sanitized_jac_toml(base: Path, provisioned_database: str = "") -> (str | None) {
+def sanitized_jac_toml(base: Path) -> (str | None) {
     src = base / "jac.toml";
     if not src.is_file() {
         return None;
@@ -171,7 +143,7 @@ def sanitized_jac_toml(base: Path, provisioned_database: str = "") -> (str | Non
         out.append(line);
     }
     out.extend(pending);
-    return bake_database_intent("\n".join(out) + "\n", provisioned_database);
+    return "\n".join(out) + "\n";
 }
 
 
@@ -386,9 +358,7 @@ def _vendor_stage(stage: Path, seal_binary: bytes, platform_tag: str = "") {
 }
 
 
-def pack_jab(
-    project_dir: str, provisioned_database: str, seal_binary: bytes, pod_arch: str = ""
-) -> bytes {
+def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes {
     if not seal_binary {
         raise ValueError(
             "pack_jab requires a host-runnable jac binary to seal the app "
@@ -402,7 +372,7 @@ def pack_jab(
             "the project tree; check the code_folder path."
         );
     }
-    sanitized = sanitized_jac_toml(base, provisioned_database);
+    sanitized = sanitized_jac_toml(base);
     staged = _precompile_app(
         base, seal_binary, sanitized, seal_timeout_setting(project_dir)
     );

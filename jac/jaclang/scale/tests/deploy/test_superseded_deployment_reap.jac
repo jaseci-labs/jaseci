@@ -33,8 +33,8 @@ def _current_deployment(app: str) -> any {
 
 # A companion jac-scale owns but must never reap: same namespace, same owner
 # label, different selector.
-def _provisioned_redis(app: str) -> any {
-    name = f"{app}-redis";
+def _provisioned_postgres(app: str) -> any {
+    name = f"{app}-postgres";
     return SimpleNamespace(
         metadata=SimpleNamespace(
             name=name, labels={"app": name, "managed": "jac-scale"}
@@ -134,7 +134,7 @@ test "the Deployment we just applied is never reaped" {
 
 test "a provisioned database on another selector is never reaped" {
     apps_v1 = FakeAppsV1(
-        items=[_current_deployment("standup"), _provisioned_redis("standup")]
+        items=[_current_deployment("standup"), _provisioned_postgres("standup")]
     );
 
     _target().reap_superseded_deployments(apps_v1, "standup", _bundle_for("standup"));
