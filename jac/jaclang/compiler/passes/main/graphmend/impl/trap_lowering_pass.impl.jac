@@ -306,6 +306,9 @@ impl TrapLoweringPass._tensor_receiver_provable(
     if not (isinstance(x, uni.FuncCall) and isinstance(x.target, uni.AtomTrailer)) {
         return False;
     }
+    if self.prog.graphmend_scoped_compile {
+        return True;
+    }
     return self._tensor_expr_provable(x.target.target, site);
 }
 
