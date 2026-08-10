@@ -1,26 +1,13 @@
 """A module that fails to parse is compiled once, not once per import path.
 
-A module that compiles cleanly lands in `program.mod.hub` and every later
-reach resolves to that cached entry. A module that *fails* to parse used to be
-dropped before it reached the hub, so each independent path that reached it in
-the same build -- the import walk, the type checker, the placement solver --
-missed the cache, re-parsed it from scratch, and appended another full copy of
-its alerts to the shared `errors_had`. One missing brace then surfaced as a
-wall of identical messages in the build overlay and in editor diagnostics.
+A failed parse used to be dropped before it reached `program.mod.hub`, so every
+path that reached it in one build -- import walk, type checker, placement
+solver -- missed the cache, re-parsed, and appended another copy of its alerts
+to `errors_had`. The importer is a client module because that is the shape that
+pulls in those extra paths.
 
-The count is what a user sees, so that is what these tests pin: reaching a
-broken module through an importer must report exactly what compiling that
-module directly reports.
-
-The importer here is a client module, because that is the shape that pulls in
-the extra resolution paths -- a plain server-side import reaches the broken
-module once and never duplicated.
-
-This file covers duplication *within one build*. The other half -- alerts
-accumulating *across* builds, 6 errors then 12 then 18 as a dev server reloads
-a file you keep saving -- lives in tests/runtimelib/test_hmr.jac, driven
-through a real HotReloader rather than through the JacProgram methods it
-calls.
+Duplication *across* builds (6 errors, then 12, then 18 as a dev server
+reloads) is covered in tests/runtimelib/test_hmr.jac.
 """
 
 import tempfile;
@@ -36,9 +23,8 @@ glob BROKEN_SRC = 'def broken_repro( -> {{{ SYNTAX ERROR\n',
          '    return <div>{broken_repro()}</div>;\n}\n'
      );
 
-# Lay the project down in a dir of its own. Every measurement gets a fresh one
-# so the on-disk JIR cache is cold -- a warm cache serves the failed module
-# from disk and hides the duplication behind a correct-looking count.
+# A fresh dir per measurement keeps the on-disk JIR cache cold; a warm one
+# serves the failed module from disk and hides the duplication.
 def _write_project(base: str) -> Path {
     proj = Path(base);
     proj.mkdir(parents=True, exist_ok=True);
@@ -80,10 +66,8 @@ test "a recompile still reports its errors to a positional slice reader" {
         } except Exception {
             ;
         }
-        # Several callers -- the client bundle among them -- mark the list
-        # length, compile, and read back errors_had[mark:]. Eviction must not
-        # happen inside a compile, or the list shrinks under that slice and the
-        # caller reports an empty error message for a module that just failed.
+        # Callers like the client bundle mark the length, compile, then read
+        # errors_had[mark:]. Evicting inside a compile empties that slice.
         mark = len(prog.errors_had);
         try {
             prog.compile(broken);
@@ -105,11 +89,8 @@ test "a corrected module recompiles on a long-lived program" {
             ;
         }
         assert len(prog.errors_had) > 0;
-        # An editor or the dev server keeps one program alive across edits, so
-        # a remembered failure must not outlive the syntax error that caused it.
-        # No mtime spacing is needed before the rewrite: `invalidate_module`
-        # drops the `_hub_cache_times` stamp, so freshness is never consulted,
-        # and the on-disk JIR key hashes content rather than mtime.
+        # No mtime spacing needed: invalidate_module drops the _hub_cache_times
+        # stamp, and the on-disk JIR key hashes content rather than mtime.
         broken.write_text(FIXED_SRC);
         prog.errors_had = [];
         prog.invalidate_module(str(broken.resolve()));
