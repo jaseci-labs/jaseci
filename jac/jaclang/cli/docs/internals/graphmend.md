@@ -419,26 +419,30 @@ its configuration with `config.rope_scaling.get("factor")`. That call is pure
 in fact, because the receiver is a plain dict, but no purity list can say so:
 the same expression shape covers `session.get(url)`.
 
-The proof comes from the source instead. Before the pass runs, a fact
-collector (`graphmend/scope_facts.jac`) scans every module the program has
-read and records three tables on `JacProgram`: which classes apply which
-decorator to a method, which `__init__` parameters with class annotations are
-stored onto `self`, and which attributes a class's construction path forces
-to be a dict, i.e. an `if not isinstance(self.attr, dict): raise` reachable
-from `__init__` (directly or through a helper `__init__` calls, transformers'
-`_rope_scaling_validation` idiom). At a speculated call site the pass then
-types each argument, from the call-site annotation or through the stored
-attribute types, and accepts `param.attr.get(...)` only when every candidate
-class for `param` carries the dict invariant on `attr`. `LooseConfig`-style
-classes that never validate the attribute stay opaque and decline.
+The proof comes from the source, queried on demand. At a speculated call
+site the pass types each argument by walking the ASTs the compiler already
+holds: a call-site annotation resolves to its class through the import chain
+(`graphmend/scope_facts.jac`), a `self.attr` argument resolves through the
+classes that apply the enclosing decorator and their `__init__` attribute
+annotations, and `param.attr.get(...)` is accepted only when every resolved
+class's construction path forces the attribute to be a dict, i.e. an
+`if not isinstance(self.attr, dict): raise` reachable from `__init__`
+(directly or through a helper `__init__` calls, transformers'
+`_rope_scaling_validation` idiom). Because resolution follows the actual
+imports to a specific class node, two same-named classes in different
+modules can never pool their facts. When an import leads to a module the
+compiler has not read, its AST is materialized eagerly, compiled into the
+module hub without code generation, so the analysis never reasons about a
+module it has not fully parsed; this happens only inside the
+GraphMend-gated pass, so normal compiles never pay for it.
+`LooseConfig`-style classes that never validate the attribute stay opaque
+and decline.
 
-Two residuals, stated rather than papered over. The transformers validator
+One residual, stated rather than papered over: the transformers validator
 permits `None` (`if self.rope_scaling is None: return`), recorded as
-`dict_or_none`: a speculated `.get` on a None-config model raises
+`dict_or_none`, so a speculated `.get` on a None-config model raises
 `AttributeError` on a path the original never executed, the same class of
-residual as an initializer that raises for branch-specific arguments. And the
-fact tables key on bare class names; module-qualified keys arrive with the
-scoped-import work, where whole packages enter the analysis.
+residual as an initializer that raises for branch-specific arguments.
 
 ## Evidence
 

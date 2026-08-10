@@ -1,7 +1,6 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, Tokens as Tok }
-import from jaclang.compiler.passes.main.graphmend.scope_facts { collect_scope_facts }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     cond_materializes_scalar
 }
@@ -10,15 +9,6 @@ impl PredicateCtrlFlowPass.before_pass -> None {
     self._enabled = self.prog._compile_options.graphmend;
     if not self._enabled {
         self.prune_signal = True;
-        return;
-    }
-    for m in ([self.ir_in] + list(self.prog.mod.hub.values())) {
-        collect_scope_facts(
-            m,
-            self.prog.graphmend_decor_classes,
-            self.prog.graphmend_attr_types,
-            self.prog.graphmend_dict_attrs
-        );
     }
 }
 

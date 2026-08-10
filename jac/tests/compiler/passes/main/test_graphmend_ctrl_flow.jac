@@ -279,6 +279,15 @@ test "config read proven by a constructor invariant licenses the hoist" {
     assert "if seq_len > 8:" not in src;
 }
 
+test "a constructor invariant one import away is materialized and proves" {
+    src = _pysrc("where_config_import.jac", True);
+    # RopeConfig lives in a sibling module: the query follows the import and
+    # compiles that module's AST into the hub on demand, then reads the
+    # invariant from it.
+    assert "register_buffer('inv_freq', torch.where(" in src;
+    assert "if seq_len > 8:" not in src;
+}
+
 test "config read without the constructor invariant is declined" {
     src = _pysrc("guard_config_get_unproven.jac", True);
     # LooseConfig never validates rope_scaling, so `.get` stays opaque: the

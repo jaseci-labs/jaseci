@@ -50,7 +50,8 @@ glob _PURE_BUILTINS: set[str] = {
 
 obj PredicateCtrlFlowPass(UniPass) {
     has _enabled: bool = False,
-        _counter: int = 0;
+        _counter: int = 0,
+        _mat_seen: set[str] = set();
 
     def before_pass -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
@@ -107,13 +108,16 @@ obj PredicateCtrlFlowPass(UniPass) {
         fn: uni.Ability,
         c: uni.FuncCall,
         seen: (set[int] | None) = None,
-        ctx: (dict[str, list[str]] | None) = None
+        ctx: (dict[str, list[uni.Archetype]] | None) = None
     ) -> bool;
 
-    def _callsite_ctx(fn: uni.Ability, c: uni.FuncCall) -> dict[str, list[str]];
-    def _arg_classes(arg: uni.Expr, c: uni.FuncCall) -> list[str];
-    def _self_classes(c: uni.FuncCall) -> list[str];
-    def _ctx_dict_get(call: uni.FuncCall, ctx: dict[str, list[str]]) -> bool;
+    def _callsite_ctx(
+        fn: uni.Ability, c: uni.FuncCall
+    ) -> dict[str, list[uni.Archetype]];
+
+    def _arg_classes(arg: uni.Expr, c: uni.FuncCall) -> list[uni.Archetype];
+    def _self_classes(c: uni.FuncCall) -> list[uni.Archetype];
+    def _ctx_dict_get(call: uni.FuncCall, ctx: dict[str, list[uni.Archetype]]) -> bool;
     def _hasattr_key(c: uni.Expr) -> (tuple[str, str] | None);
     def _writes_attr(s: uni.Assignment, recv: str, key: str) -> bool;
     def _attr_confined(region: uni.IfStmt, key: str) -> bool;

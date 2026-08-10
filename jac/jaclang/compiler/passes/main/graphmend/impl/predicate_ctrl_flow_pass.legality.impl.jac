@@ -1,5 +1,11 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.passes.main.graphmend.scope_facts {
+    attr_annotation,
+    attr_dict_kind,
+    find_class,
+    wrapping_classes
+}
 
 impl PredicateCtrlFlowPass._setups_safe(
     setups: Sequence[uni.CodeBlockStmt], region: uni.IfStmt
@@ -191,7 +197,7 @@ impl PredicateCtrlFlowPass._body_pure_nonraising(
     fn: uni.Ability,
     c: uni.FuncCall,
     seen: (set[int] | None) = None,
-    ctx: (dict[str, list[str]] | None) = None
+    ctx: (dict[str, list[uni.Archetype]] | None) = None
 ) -> bool {
     marks = seen if seen is not None else set();
     if id(fn) in marks {
@@ -275,7 +281,7 @@ impl PredicateCtrlFlowPass._module_scope_names(mod: uni.Module) -> set[str] {
 
 impl PredicateCtrlFlowPass._callsite_ctx(
     fn: uni.Ability, c: uni.FuncCall
-) -> dict[str, list[str]] {
+) -> dict[str, list[uni.Archetype]] {
     sig = fn.signature;
     if (sig is None) or (not isinstance(sig, uni.FuncSignature)) {
         return {};
@@ -286,7 +292,7 @@ impl PredicateCtrlFlowPass._callsite_ctx(
             pnames.append(p.name.value);
         }
     }
-    ctx: dict[str, list[str]] = {};
+    ctx: dict[str, list[uni.Archetype]] = {};
     i = 0;
     for prm in (c.params or []) {
         if isinstance(prm, uni.KWPair) {
@@ -304,7 +310,13 @@ impl PredicateCtrlFlowPass._callsite_ctx(
     return ctx;
 }
 
-impl PredicateCtrlFlowPass._arg_classes(arg: uni.Expr, c: uni.FuncCall) -> list[str] {
+impl PredicateCtrlFlowPass._arg_classes(
+    arg: uni.Expr, c: uni.FuncCall
+) -> list[uni.Archetype] {
+    mod = c.find_parent_of_type(uni.Module);
+    if mod is None {
+        return [];
+    }
     if isinstance(arg, uni.Name) {
         site = c.find_parent_of_type(uni.Ability);
         if site is None {
@@ -320,7 +332,8 @@ impl PredicateCtrlFlowPass._arg_classes(arg: uni.Expr, c: uni.FuncCall) -> list[
             }
             ann = p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
             if isinstance(ann, uni.Name) {
-                return [ann.value];
+                cls = find_class(mod, ann.value, self.prog, self._mat_seen);
+                return [cls] if (cls is not None) else [];
             }
             return [];
         }
@@ -334,20 +347,28 @@ impl PredicateCtrlFlowPass._arg_classes(arg: uni.Expr, c: uni.FuncCall) -> list[
     ) {
         return [];
     }
-    out: list[str] = [];
+    out: list[uni.Archetype] = [];
     for k in self._self_classes(c) {
-        t = self.prog.graphmend_attr_types.get(k, {}).get(arg.right.value);
-        if t is None {
+        ann_name = attr_annotation(k, arg.right.value);
+        if ann_name is None {
             return [];
         }
-        if t not in out {
-            out.append(t);
+        kmod = k.find_parent_of_type(uni.Module);
+        if kmod is None {
+            return [];
+        }
+        cls = find_class(kmod, ann_name, self.prog, self._mat_seen);
+        if cls is None {
+            return [];
+        }
+        if cls not in out {
+            out.append(cls);
         }
     }
     return out;
 }
 
-impl PredicateCtrlFlowPass._self_classes(c: uni.FuncCall) -> list[str] {
+impl PredicateCtrlFlowPass._self_classes(c: uni.FuncCall) -> list[uni.Archetype] {
     inner = c.find_parent_of_type(uni.Ability);
     if inner is None {
         return [];
@@ -369,11 +390,15 @@ impl PredicateCtrlFlowPass._self_classes(c: uni.FuncCall) -> list[str] {
     if (not params) or (params[0]?.name is None) or (params[0].name.value != 'self') {
         return [];
     }
-    return list(self.prog.graphmend_decor_classes.get(outer.sym_name, []));
+    mod = c.find_parent_of_type(uni.Module);
+    if mod is None {
+        return [];
+    }
+    return wrapping_classes(self.prog, mod, outer.sym_name);
 }
 
 impl PredicateCtrlFlowPass._ctx_dict_get(
-    call: uni.FuncCall, ctx: dict[str, list[str]]
+    call: uni.FuncCall, ctx: dict[str, list[uni.Archetype]]
 ) -> bool {
     t = call.target;
     if not (
@@ -396,7 +421,7 @@ impl PredicateCtrlFlowPass._ctx_dict_get(
         return False;
     }
     for k in classes {
-        kind = self.prog.graphmend_dict_attrs.get(k, {}).get(recv.right.value);
+        kind = attr_dict_kind(k, recv.right.value);
         if kind not in ('dict', 'dict_or_none') {
             return False;
         }
