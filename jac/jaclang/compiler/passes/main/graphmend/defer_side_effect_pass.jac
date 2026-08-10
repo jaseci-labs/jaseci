@@ -31,6 +31,7 @@ obj DeferSideEffectPass(UniPass) {
     def exit_ability(nd: uni.Ability) -> None;
     def exit_module(nd: uni.Module) -> None;
     def _is_logger_call(nd: uni.FuncCall) -> bool;
+    def _base_binds_at_module(base: uni.Name) -> bool;
     def _logger_emit(nd: uni.FuncCall) -> (uni.FuncCall | None);
     def _register_assignment(
         at: uni.UniNode, slot_name: str, callee: uni.Expr
@@ -45,6 +46,7 @@ obj DeferSideEffectPass(UniPass) {
     def _need_helper(at: uni.UniNode, helper: GraphMendHelper) -> None;
     def _gen_name(at: uni.UniNode, value: str, store: bool) -> uni.Name;
     def _str(at: uni.UniNode, text: str) -> uni.String;
+    def _has_unpack(call: uni.FuncCall) -> bool;
     def _split_params(params: any) -> tuple[list[uni.Expr], list[uni.KWPair]];
     def _tuple(at: uni.UniNode, values: list[uni.Expr]) -> uni.TupleVal;
     def _dict_from_kws(at: uni.UniNode, kws: list[uni.KWPair]) -> uni.DictVal;

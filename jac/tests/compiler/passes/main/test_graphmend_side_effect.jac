@@ -75,6 +75,31 @@ def _py_fixture_src(gm: bool) -> str {
     }
 }
 
+glob PY_LOCAL_LOGGER_SRC = '''
+import torch
+
+
+class Net(torch.nn.Module):
+    def forward(self, x, local_logger):
+        x = torch.relu(x)
+        local_logger.warning("GM-LOCAL")
+        return torch.sin(x) * 2.0
+
+
+model = torch.compile(Net())
+''';
+
+"""Compile the local-receiver forward model and return its Python lowering."""
+def _py_local_logger_src(gm: bool) -> str {
+    with tempfile.TemporaryDirectory() as tmp {
+        path = os.path.join(tmp, "py_local_logger.py");
+        with open(path, "w") as fh {
+            fh.write(PY_LOCAL_LOGGER_SRC);
+        }
+        return _compile_path(path, gm);
+    }
+}
+
 test "print is buffered and flushed via the runtime helper" {
     src = _pysrc("side_effect.jac", True);
     # The mutable positional arg is snapshotted: hoisted to a temp and cloned (if
@@ -131,6 +156,24 @@ test "a buffered call's keyword arguments are preserved" {
     assert (
         "__jac_se_emit__(logger.warning, ('deprecated',), {'stacklevel': 2})" in src
     );
+}
+
+test "an unpacked argument declines instead of being dropped" {
+    # Detection still tags both; the decline belongs to the transform.
+    src = _pysrc("side_effect_unpack.jac", True);
+    assert "__jac_se_emit__" not in src;
+    assert "print('head', *extra)" in src;
+    assert "logger.warning('deprecated', **opts)" in src;
+    assert _break_kinds("side_effect_unpack.jac") == ["side_effect", "side_effect"];
+}
+
+test "a logger bound inside the function declines the module-scope slot" {
+    # The slot is registered at module scope, where a local receiver does not
+    # exist, so the module would fail to import. Falls back to the buffer.
+    src = _py_local_logger_src(True);
+    assert "__jac_log_register__" not in src;
+    assert "_gm_log_slot_0" not in src;
+    assert "__jac_se_emit__(local_logger.warning, ('GM-LOCAL',), {})" in src;
 }
 
 test "a user-defined name matching a logging pattern is not tagged" {
