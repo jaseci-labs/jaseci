@@ -1503,6 +1503,34 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             return _cls_name;
         }
 
+        _cf_member = self._codegen_class_form_enum_member(nd);
+        if _cf_member is not None {
+            return _cf_member;
+        }
+
+        if right_name == "value" or right_name == "name" {
+            import from jaclang.compiler.passes.main.layout_pass {
+                class_form_enum_member,
+                class_form_enum_scalar
+            }
+            _cf_owner = class_form_enum_member(
+                nd.target.type if isinstance(nd.target, uni.Expr) else None
+            );
+            if _cf_owner is not None {
+                if right_name == "value" {
+                    return self._codegen_class_form_enum_member(nd.target);
+                }
+                return self._make_global_string(
+                    _cf_owner[2], name_prefix=".cfenum.name"
+                );
+            }
+            if right_name == "value"
+                and isinstance(nd.target, uni.Expr)
+                and class_form_enum_scalar(nd.target.type) is not None {
+                return self._codegen_expr(nd.target);
+            }
+        }
+
         if (right_name == "value" or right_name == "name")
             and isinstance(nd.target, uni.AtomTrailer)
             and nd.target.is_attr {

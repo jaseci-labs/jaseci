@@ -584,12 +584,36 @@ impl NaIRGenPass._codegen_kwargs_dict(
 impl NaIRGenPass._codegen_call_args(nd: uni.FuncCall) -> list {
     arg_vals: list[ir.Value] = [];
     for param in (nd.params or []) {
-        v = self._codegen_expr(param);
+        v = self._coerce_narrowed_arg(param, self._codegen_expr(param));
         if v is not None {
             arg_vals.append(v);
         }
     }
     return arg_vals;
+}
+
+impl NaIRGenPass._coerce_narrowed_arg(
+    nd: (uni.UniNode | None), val: (ir.Value | None)
+) -> (ir.Value | None) {
+    if val is None or self._opt_payload_of(val.type) is None {
+        return val;
+    }
+    _arg_nd = nd.value if isinstance(nd, uni.KWPair) else nd;
+    if not isinstance(_arg_nd, uni.Expr) or _arg_nd.type is None {
+        return val;
+    }
+    _want = self._lower_type(_arg_nd.type);
+    if _want is None
+        or isinstance(_want, ir.VoidType)
+        or self._opt_payload_of(_want) is not None {
+        return val;
+    }
+    return self._coerce_type(val, _want);
+}
+
+impl NaIRGenPass._codegen_receiver(nd: (uni.UniNode | None)) -> (ir.Value | None) {
+    _rv = self._codegen_expr(nd);
+    return self._opt_unwrap_attr(_rv) if _rv is not None else None;
 }
 
 impl NaIRGenPass._emit_take_ref(value: ir.Value, op: str, loc: str = "") -> None {

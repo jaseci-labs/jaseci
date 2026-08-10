@@ -197,3 +197,51 @@ test "drop hook fires on rc release (--gc rc)" {
 test "drop hook fires under the default cycles collector" {
     check_drop_parity(None);
 }
+
+# --- Tuple unpack across an optional store (PR #7982) ---
+"""Call one fixture fn and return (result, drops it caused)."""
+def call_counting_drops(eng: object, name: str, a: int, b: int) -> tuple[int, int] {
+    fn = get_func(eng, name, ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    drops = get_func(eng, "drop_count", ctypes.c_int64);
+    before = drops();
+    value = fn(a, b);
+    return (value, drops() - before);
+}
+
+test "tuple unpack into an optional slot destroys each object exactly once" {
+    # Two Res are allocated and bound into `Res | None` locals through the
+    # coerced store. The unpack takes neither a retain nor an old-value
+    # release, which balances: releasing the tuple box does not decrement
+    # its fields, and scope exit releases each payload once. Adding a
+    # retain here without changing the box release leaks both.
+    (eng, _) = compile_native("rc_tuple_unpack_optional.jac");
+    (value, drops) = call_counting_drops(eng, "unpack_into_optional", 3, 4);
+    assert value == 34 , f"Expected 34, got {value}";
+    assert drops == 2 , (
+        f"2 allocations must produce 2 drops, got {drops} "
+        f"(0 would mean the payloads leaked, 4 an over-release)"
+    );
+}
+
+test "tuple unpack from an optional element costs no more than the plain one" {
+    # Both fixtures allocate 4 Res and overwrite two locals through a value
+    # tuple; `unpack_plain_into_plain` has no optional anywhere. They must
+    # drop the same number, i.e. the optional coercion adds no leak of its
+    # own. Both currently drop 2 rather than 4: value-tuple unpack skips the
+    # old-value release (`retain_fields = not is_value`), which predates
+    # this change and is reachable without any optional.
+    (eng, _) = compile_native("rc_tuple_unpack_optional.jac");
+    (opt_value, opt_drops) = call_counting_drops(
+        eng, "unpack_optional_into_plain", 3, 4
+    );
+    (plain_value, plain_drops) = call_counting_drops(
+        eng, "unpack_plain_into_plain", 3, 4
+    );
+    assert opt_value == 34 , f"Expected 34 from the optional unpack, got {opt_value}";
+    assert plain_value == 34 , f"Expected 34 from the plain unpack, got {plain_value}";
+    assert opt_drops == plain_drops , (
+        f"optional-element unpack dropped {opt_drops} but the identical "
+        f"non-optional shape dropped {plain_drops}; the optional coercion "
+        f"must not change ownership accounting"
+    );
+}
