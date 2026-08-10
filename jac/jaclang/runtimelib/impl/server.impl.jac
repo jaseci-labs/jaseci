@@ -391,6 +391,7 @@ async def _run_function_with_occ(
         return resolved;
     }
     (ctx, req_token, root_id) = resolved;
+    ctx.mem.unit_enter();
     try {
         if deserialize_args {
             _deserialize_wire_args(args);
@@ -439,6 +440,11 @@ async def _run_function_with_occ(
             'http_status': 409
         };
     } finally {
+        try {
+            ctx.mem.unit_exit();
+        } except Exception as ue {
+            logger.warning(f"unit exit failed: {type(ue).__name__}: {ue}");
+        }
         Jac.reset_request_context(req_token);
     }
 }
