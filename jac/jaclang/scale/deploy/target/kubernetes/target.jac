@@ -821,6 +821,46 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return triggers;
     }
 
+    def _autoscaler_spec(
+        svc_name: str, cfg: dict[str, any], autoscaler: any, namespace: str
+    ) -> AutoscalerSpec {
+        k8s_name = k8s_safe_name(svc_name);
+        return AutoscalerSpec(
+            scale_target_name=f"{k8s_name}-deployment",
+            autoscaler_name=autoscaler.resource_name_for(k8s_name),
+            app_name=k8s_name,
+            namespace=namespace,
+            min_replicas=int(cfg.get("min", 1)),
+            max_replicas=int(cfg.get("max", 3)),
+            idle_replicas=self.k8s_config.idle_replicas,
+            polling_interval=self.k8s_config.autoscaler_polling_interval,
+            cooldown_period=self.k8s_config.autoscaler_cooldown,
+            initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
+            scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
+            scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
+            triggers=self._resolve_service_triggers(svc_name, cfg),
+            behavior_overlay=cfg.get("behavior", {})
+        );
+    }
+
+    def render_autoscaler_manifests(bundle: dict[str, any]) -> list[dict[str, any]] {
+        out: list[dict[str, any]] = [];
+        for (svc_name, cfg_raw) in bundle.get("autoscalers", {}).items() {
+            cfg = dict(cfg_raw or {});
+            autoscaler = AutoscalerFactory.create(
+                self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), None
+            );
+            built = autoscaler._build_manifests(
+                self._autoscaler_spec(
+                    svc_name, cfg, autoscaler, self.k8s_config.namespace
+                )
+            );
+            # KEDA wraps the ScaledObject in {name, body}; HPA returns the manifest.
+            out.append(built["body"] if "body" in built else built);
+        }
+        return out;
+    }
+
     def apply_manifests(bundle: dict[str, any]) {
         self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
@@ -925,37 +965,19 @@ obj KubernetesTarget(KubernetesTargetBase) {
         self.reap_superseded_deployments(apps_v1, namespace, bundle);
 
         for svc_name in bundle.get("autoscalers", {}).keys() {
-            k8s_name = k8s_safe_name(svc_name);
             cfg = dict(bundle.get("autoscalers", {}).get(svc_name, {}));
             autoscaler = AutoscalerFactory.create(
                 self.k8s_config.autoscaler_engine,
                 self.k8s_config.to_dict(),
                 self.logger
             );
-            triggers = self._resolve_service_triggers(svc_name, cfg);
-            autoscaler_name = autoscaler.resource_name_for(k8s_name);
-            autoscaler_applied = autoscaler.apply(
-                AutoscalerSpec(
-                    scale_target_name=f"{k8s_name}-deployment",
-                    autoscaler_name=autoscaler_name,
-                    app_name=k8s_name,
-                    namespace=namespace,
-                    min_replicas=int(cfg.get("min", 1)),
-                    max_replicas=int(cfg.get("max", 3)),
-                    idle_replicas=self.k8s_config.idle_replicas,
-                    polling_interval=self.k8s_config.autoscaler_polling_interval,
-                    cooldown_period=self.k8s_config.autoscaler_cooldown,
-                    initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
-                    scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
-                    scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
-                    triggers=triggers,
-                    behavior_overlay=cfg.get("behavior", {})
-                )
-            );
+            spec = self._autoscaler_spec(svc_name, cfg, autoscaler, namespace);
+            autoscaler_applied = autoscaler.apply(spec);
 
             if self.logger and autoscaler_applied {
                 self.logger.info(
-                    f"Applied autoscaler for '{svc_name}'", {"name": autoscaler_name}
+                    f"Applied autoscaler for '{svc_name}'",
+                    {"name": spec.autoscaler_name}
                 );
             }
         }
