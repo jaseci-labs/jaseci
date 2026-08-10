@@ -59,7 +59,8 @@ obj UnknownType(TypeBase) {
         CATEGORY: ClassVar[TypeCategory] = TypeCategory.Unknown;
     }
 
-    has is_diagnosed: bool = False;
+    has is_diagnosed: bool = False,
+        is_incomplete: bool = False;
 
     def __str__ -> str;
 }

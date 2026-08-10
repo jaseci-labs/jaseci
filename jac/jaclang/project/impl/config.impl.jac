@@ -1130,11 +1130,34 @@ impl _parse_toml_data(
             );
             _cap = _builtin_cap;
         }
+        _native_data = build_data.get("native", {});
+        if not isinstance(_native_data, dict) {
+            _native_data = {};
+        }
+        _builtin_native = NativeBuildConfig();
+        try {
+            _native_opt = int(_native_data.get("opt_level", _builtin_native.opt_level));
+        } except (TypeError, ValueError) {
+            import from jaclang.cli.console { console }
+            console.warning(
+                f"[build.native] opt_level="
+                f"'{_native_data.get('opt_level')}' must be an integer; "
+                f"defaulting to {_builtin_native.opt_level}."
+            );
+            _native_opt = _builtin_native.opt_level;
+        }
         config.build = BuildConfig(
             typecheck=build_data.get("typecheck", False),
             dir=build_data.get("dir", ".jac"),
             default_codespace=_default_cs,
-            native_closure_cap=_cap
+            native_closure_cap=_cap,
+            native=NativeBuildConfig(
+                opt_level=_native_opt,
+                dump_ir=str(_native_data.get("dump_ir", "")),
+                target=str(_native_data.get("target", "")),
+                debug=bool(_native_data.get("debug", False)),
+                rc_debug_codegen=bool(_native_data.get("rc_debug_codegen", False))
+            )
         );
     }
     if "gc" in data {

@@ -162,6 +162,30 @@ test "arithmetic multiply" {
     assert mul(0, 999) == 0;
 }
 
+# Regression: CPython floor semantics for negative //, %, and divmod on native.
+test "negative floor divmod" {
+    (eng, _) = compile_native("neg_divmod.jac");
+    fd = get_func(eng, "floordiv", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert fd(-6, 4) == -2;
+    assert fd(6, -4) == -2;
+    assert fd(-6, -4) == 1;
+    im = get_func(eng, "intmod", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert im(-6, 4) == 2;
+    assert im(6, -4) == -2;
+    assert im(-6, -4) == -2;
+    dq = get_func(eng, "divmod_quot", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    dr = get_func(eng, "divmod_rem", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert dq(-6, 4) == -2;
+    assert dr(-6, 4) == 2;
+    ff = get_func(
+        eng, "float_floordiv", ctypes.c_double, ctypes.c_double, ctypes.c_double
+    );
+    assert abs(ff(-6.0, 4.0) - (-2.0)) < 1e-10;
+    fm = get_func(eng, "float_mod", ctypes.c_double, ctypes.c_double, ctypes.c_double);
+    assert abs(fm(-6.5, 2.5) - 1.0) < 1e-10;
+    assert abs(fm(7.5, -2.0) - (-0.5)) < 1e-10;
+}
+
 # Regression: sub-64-bit integer arithmetic must run at the operands'
 # true width, not force i64 overflow intrinsics (i32/i16/i8 kernels).
 test "arithmetic narrow int width" {
@@ -184,6 +208,17 @@ test "arithmetic true division" {
     fd = get_func(eng, "floordiv", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
     assert fd(3, 4) == 0;
     assert fd(7, 2) == 3;
+    assert fd(-6, 4) == -2;
+    assert fd(6, -4) == -2;
+    assert fd(-6, -4) == 1;
+    im = get_func(eng, "intmod", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert im(-6, 4) == 2;
+    assert im(6, -4) == -2;
+    assert im(-6, -4) == -2;
+    dq = get_func(eng, "divmod_quot", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    dr = get_func(eng, "divmod_rem", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert dq(-6, 4) == -2;
+    assert dr(-6, 4) == 2;
 }
 
 # --- Function pointers in struct fields (the OSP dispatch-slot shape) ---
@@ -368,6 +403,9 @@ test "arithmetic f32 promotion binops" {
         eng, "mixed_floordiv", ctypes.c_double, ctypes.c_float, ctypes.c_double
     );
     assert mf(5.5, 2.0) == 2.0;
+    nf = get_func(eng, "neg_fmod", ctypes.c_double, ctypes.c_double, ctypes.c_double);
+    assert abs(nf(-6.5, 2.5) - 1.0) < 1e-10;
+    assert abs(nf(7.5, -2.0) - (-0.5)) < 1e-10;
     fi = get_func(eng, "f32_int_add", ctypes.c_double, ctypes.c_float, ctypes.c_int64);
     assert fi(1.5, 2) == 3.5;
 }
@@ -3240,6 +3278,7 @@ test "native-default chess.jac runs via cli" {
             input=stdin_data,
             capture_output=True,
             text=True,
+            errors="replace",
             timeout=120,
             cwd=tmpdir
         );
@@ -4097,7 +4136,7 @@ test "struct layout tracks field indices correctly" {
     assert indices == list(range(len(af.fields)));
 }
 
-test "optional field compiles to pointer type" {
+test "optional field compiles to a tagged optional slot" {
     (eng, ir) = compile_native("func_ptr_fields.jac");
     layout = ir.gen.native_layout;
     assert layout is not None;
@@ -4106,8 +4145,9 @@ test "optional field compiles to pointer type" {
     field_map = {f.name: f for f in mp.fields};
     assert field_map["x"].llvm_type == "i64";
     assert field_map["y"].llvm_type == "i64";
-    # label is str|None → still i8* (pointers are nullable)
-    assert field_map["label"].llvm_type == "i8*";
+    # label is str|None -> a tagged JacOptional slot (#7871 A), never a
+    # bare nullable pointer
+    assert field_map["label"].llvm_type == "opt.i8*";
 }
 
 test "all_fields struct round-trip via ctypes" {

@@ -133,8 +133,11 @@ obj ManifestBuilder {
             k8s_safe_name(self.k8s_config.app_name),
             self.k8s_config.namespace,
             proj,
-            provisioned_database=("mongo" if self.k8s_config.mongodb_enabled else ""),
-            dry_run=self.dry_run
+            provisioned_database=(
+                "postgres" if self.k8s_config.postgres_enabled else ""
+            ),
+            dry_run=self.dry_run,
+            access_mode=self.k8s_config.bundle_access_mode
         );
         injector: PvcInjector = selection[0];
         self._toolchain_object_key = str(selection[1]);
@@ -162,22 +165,32 @@ obj ManifestBuilder {
         }
         dist = os.path.join(project_dir, ".jac", "client", "dist");
         console.print(f"Building the client bundle on the host ({client_entry}).");
-        try {
-            subprocess.run(
-                [jac_executable(), "build", client_entry, "--client", "web"],
-                cwd=project_dir,
-                check=True,
-                timeout=900
+        result = subprocess.run(
+            [jac_executable(), "build", client_entry, "--client", "web"],
+            cwd=project_dir,
+            capture_output=True,
+            text=True,
+            timeout=900
+        );
+        if result.returncode != 0 {
+            tail = "\n".join(
+                (
+                    (result.stdout or "") + "\n" + (result.stderr or "")
+                ).strip().splitlines()[-15:]
             );
-            if os.path.isfile(os.path.join(dist, "index.html")) {
-                console.print("Client bundle built; shipping it to the gateway pod.");
-            }
-        } except Exception as exc {
-            console.print(
-                f"Host client build did not complete ({exc}); the gateway pod "
-                f"will build it on boot instead."
+            raise RuntimeError(
+                f"client build failed ({client_entry}, exit {result.returncode}). "
+                f"The pod serves the bundle built here and never rebuilds it - "
+                f"fix the client build and redeploy.\n{tail}"
             );
         }
+        if not os.path.isfile(os.path.join(dist, "index.html")) {
+            raise RuntimeError(
+                f"client build produced no index.html under {dist} "
+                f"({client_entry}); the gateway would have nothing to serve."
+            );
+        }
+        console.print("Client bundle built; shipping it to the gateway pod.");
     }
 
     def generate_manifests(app_config: AppConfig, image: str) -> dict[str, any] {
@@ -801,6 +814,16 @@ obj ManifestBuilder {
                 raw_triggers.append(dict(item));
             }
         }
+        behavior = hpa.get("behavior", {});
+        if not isinstance(behavior, dict) {
+            if self.logger {
+                self.logger.warning(
+                    f"Ignoring malformed hpa.behavior for '{svc_name}': expected "
+                    f"a table, got {type(behavior).__name__}"
+                );
+            }
+            behavior = {};
+        }
         return {
             "min": int(hpa.get("min", 1)),
             "max": int(hpa.get("max", 3)),
@@ -811,7 +834,8 @@ obj ManifestBuilder {
             "has_memory_request": bool(
                 self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)
             ),
-            "triggers": raw_triggers
+            "triggers": raw_triggers,
+            "behavior": dict(behavior)
         };
     }
 
@@ -922,17 +946,6 @@ obj ManifestBuilder {
         import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
             build_service_apt_prefix
         }
-        gw_prefix = "";
-        client_entry = self._client_entry();
-
-        if client_entry {
-            gw_prefix = (
-                f'if [ ! -f .jac/client/dist/index.html ]; then '
-                f'echo "[jac-scale] building client bundle ({client_entry})"; '
-                f'jac build "{client_entry}" --client web; '
-                f'fi; '
-            );
-        }
         apt_prefix = build_service_apt_prefix(self.k8s_config);
         return {
             "command": ["bash", "-c"],
@@ -942,7 +955,6 @@ obj ManifestBuilder {
                 f"{apt_prefix}"
                 "export JAC_SV_SIBLING=1; "
                 'if [ "$JAC_SV_NAME" = "__gateway__" ]; then '
-                f"  {gw_prefix}"
                 "  exec jac scale gateway; "
                 "else "
                 '  SV_FILE="${JAC_SV_FILE:-}"; '
@@ -1033,9 +1045,7 @@ obj ManifestBuilder {
         }
         spec["initContainers"].append(
             build_bootstrap_init_container(
-                self.k8s_config,
-                self.k8s_config.python_image,
-                is_gateway=(svc_name == GATEWAY_NAME)
+                self.k8s_config, self.k8s_config.python_image
             )
         );
         return spec;

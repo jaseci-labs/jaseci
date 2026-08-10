@@ -162,7 +162,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _scan_for_crash_loop(
-        core_v1: any, ns: str, current_hashes: set, fleet_app_names: set
+        core_v1: any,
+        ns: str,
+        current_hashes: set,
+        fleet_app_names: set,
+        companion_app_names: set | None = None
     ) -> dict[str, any] {
         imagepull_reasons: set = {
             "ImagePullBackOff",
@@ -208,7 +212,14 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         pod_reason = reason;
                     }
 
-                    crashing = restarts >= 3 and reason not in imagepull_reasons;
+                    owned = in_fleet
+                        or (
+                            companion_app_names is not None
+                            and app in companion_app_names
+                        );
+                    crashing = (
+                        owned and restarts >= 3 and reason not in imagepull_reasons
+                    );
                     if crashing and not pod_crash {
                         pod_crash = str(cs.name);
                         pod_crash_restarts = restarts;
@@ -359,6 +370,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         ready = 0;
         interactive = bool(sys.stdout.isatty());
         fleet_apps: set = set(app_labels);
+
+        app_name = str(self.k8s_config.app_name or "");
+        companion_apps: set = {f"{app_name}-postgres"} if app_name else set();
         pod_selector = "app in ({})".format(", ".join(app_labels))
             if app_labels
             else None;
@@ -403,7 +417,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 }
 
                 scan = self._scan_for_crash_loop(
-                    core_v1, ns, current_hashes, fleet_apps
+                    core_v1, ns, current_hashes, fleet_apps, companion_apps
                 );
                 phase_tokens = scan["phases"];
                 state_tokens = scan["states"];
@@ -414,7 +428,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     refreshed = _refresh_rs_hashes(ns, pod_selector, current_hashes);
                     current_hashes = refreshed or set();
                     recheck = self._scan_for_crash_loop(
-                        core_v1, ns, current_hashes, fleet_apps
+                        core_v1, ns, current_hashes, fleet_apps, companion_apps
                     );
                     crash_failure = recheck["crash"];
                     crash_pod = recheck["crash_pod"];
@@ -934,7 +948,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
                     scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
                     scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
-                    triggers=triggers
+                    triggers=triggers,
+                    behavior_overlay=cfg.get("behavior", {})
                 )
             );
 

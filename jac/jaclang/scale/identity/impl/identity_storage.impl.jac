@@ -1,20 +1,10 @@
 impl IdentityStorage.hash_password(password: str) -> str {
-    rounds = get_scale_config().get_auth_config()['password_hash_rounds'];
-    return str(
-        bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt(rounds=rounds)).decode(
-            'utf-8'
-        )
-    );
+    cost = get_scale_config().get_auth_config()['password_hash_cost'];
+    return _scrypt_hash(password, n=2 ** int(cost));
 }
 
 impl IdentityStorage.verify_password(password: str, password_hash: str) -> bool {
-    try {
-        return bool(
-            bcrypt.checkpw(password.encode('utf-8'), password_hash.encode('utf-8'))
-        );
-    } except ValueError {
-        return False;
-    }
+    return _scrypt_verify(password, password_hash);
 }
 
 impl IdentityStorage.create_user(
@@ -141,6 +131,23 @@ impl IdentityStorage.ensure_user_by_id(user_id: str) -> str | None {
         }
         raise;
     }
+    return root_id;
+}
+
+impl IdentityStorage.reset_root(user_id: str) -> str | None {
+    import from jaclang.jac0core.constructs { Root }
+    import from jaclang { JacRuntime as Jac }
+
+    existing = self.get_user_by_id(user_id);
+    if not existing {
+        return None;
+    }
+    user_root = Root();
+    Jac.save(user_root);
+    Jac.commit(user_root);
+    root_id = user_root.__jac__.id.hex;
+    now = datetime.now(UTC).isoformat();
+    self._update_fields(user_id, {'root_id': root_id, 'updated_at': now});
     return root_id;
 }
 
