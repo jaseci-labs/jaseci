@@ -1,4 +1,4 @@
-"""GraphMend predicated control-flow (torch.where / torch.cond) tests.
+"""GraphMend predicated control-flow (torch.where) tests.
 
 Assertions run against the generated Python source (the lowering target),
 plus the detection tag table where source alone cannot distinguish "not
@@ -185,14 +185,15 @@ test "a scalar past the trace bound declines rather than slipping through" {
     assert _break_kinds("scalar_past_trace_bound.jac") == ["dyn_ctrl_fl"];
 }
 
-test "asymmetric call branches become torch.cond (runs one branch)" {
+test "call-bearing branch values are declined" {
     src = _pysrc("cond_assign.jac", True);
-    assert "z = torch.cond(__gm_cond_0," in src;
-    assert "lambda: torch.relu(x) + y" in src;
-    assert "lambda: torch.sigmoid(y) - x" in src;
-    # not torch.where -- that would evaluate both calls
+    # torch.where would evaluate both calls, and torch.cond branches need
+    # callees proven pure and capturable, a proof the analysis does not yet
+    # attempt; the conditional stays.
+    assert "torch.cond(" not in src;
     assert "torch.where(" not in src;
-    assert "if x.sum() > 0:" not in src;
+    assert "if x.sum() > 0:" in src;
+    assert "dyn_ctrl_fl" in _break_kinds("cond_assign.jac");
 }
 
 test "different callees in branches are left untouched" {

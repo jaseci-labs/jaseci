@@ -1,6 +1,6 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { GraphBreakKind, Tokens as Tok }
+import from jaclang.jac0core.constant { GraphBreakKind }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     cond_materializes_scalar,
     is_torch_attr_target
@@ -71,16 +71,10 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
 impl PredicateCtrlFlowPass._rewrite_assignment(
     nd: uni.IfStmt, lhs: uni.Name, true_e: uni.Expr, false_e: uni.Expr
 ) -> None {
-    if self._unfixable_call_literal(true_e, false_e) {
+    if self._has_call(true_e) or self._has_call(false_e) {
         return;
     }
     if self._provably_non_tensor(true_e) or self._provably_non_tensor(false_e) {
-        return;
-    }
-    if self._use_cond(true_e, false_e) {
-        (stmts, c_ref) = self._hoist_cond(nd, nd.condition);
-        cond_call = self._make_cond(nd, c_ref, true_e, false_e);
-        self._replace(nd, stmts + [self._assign(lhs, cond_call)]);
         return;
     }
     (stmts, c_ref, t_ref, f_ref) = self._hoist(nd, nd.condition, true_e, false_e);
@@ -91,17 +85,10 @@ impl PredicateCtrlFlowPass._rewrite_assignment(
 impl PredicateCtrlFlowPass._rewrite_return(
     nd: uni.IfStmt, true_e: uni.Expr, false_e: uni.Expr
 ) -> None {
-    if self._unfixable_call_literal(true_e, false_e) {
+    if self._has_call(true_e) or self._has_call(false_e) {
         return;
     }
     if self._provably_non_tensor(true_e) or self._provably_non_tensor(false_e) {
-        return;
-    }
-    if self._use_cond(true_e, false_e) {
-        (stmts, c_ref) = self._hoist_cond(nd, nd.condition);
-        cond_call = self._make_cond(nd, c_ref, true_e, false_e);
-        ret = uni.ReturnStmt(expr=cond_call, kid=[cond_call]);
-        self._replace(nd, stmts + [ret]);
         return;
     }
     (stmts, c_ref, t_ref, f_ref) = self._hoist(nd, nd.condition, true_e, false_e);
@@ -182,20 +169,6 @@ impl PredicateCtrlFlowPass._merge_common_call(
     gated_false = self._gate_asserts(list(false_setups), n, False);
     new_nodes = [cond_assign] + gated_true + gated_false + [call_stmt];
     self._replace(nd, new_nodes);
-}
-
-impl PredicateCtrlFlowPass._use_cond(true_e: uni.Expr, false_e: uni.Expr) -> bool {
-    if isinstance(true_e, uni.Literal) or isinstance(false_e, uni.Literal) {
-        return False;
-    }
-    return self._has_call(true_e) or self._has_call(false_e);
-}
-
-impl PredicateCtrlFlowPass._unfixable_call_literal(
-    true_e: uni.Expr, false_e: uni.Expr
-) -> bool {
-    has_lit = isinstance(true_e, uni.Literal) or isinstance(false_e, uni.Literal);
-    return has_lit and (self._has_call(true_e) or self._has_call(false_e));
 }
 
 impl PredicateCtrlFlowPass._has_call(e: uni.UniNode) -> bool {
@@ -289,17 +262,6 @@ impl PredicateCtrlFlowPass._make_where(
     at: uni.UniNode, cond: uni.Expr, t: uni.Expr, f: uni.Expr
 ) -> uni.FuncCall {
     return self._torch_call(at, 'where', [cond, t, f]);
-}
-
-impl PredicateCtrlFlowPass._make_cond(
-    at: uni.UniNode, pred: uni.Expr, t: uni.Expr, f: uni.Expr
-) -> uni.FuncCall {
-    true_fn = uni.LambdaExpr(body=t, signature=None, kid=[t]);
-    false_fn = uni.LambdaExpr(body=f, signature=None, kid=[f]);
-    operands = uni.TupleVal(
-        values=[], kid=[at.gen_token(Tok.LPAREN, '('), at.gen_token(Tok.RPAREN, ')')]
-    );
-    return self._torch_call(at, 'cond', [pred, true_fn, false_fn, operands]);
 }
 
 impl PredicateCtrlFlowPass._torch_call(

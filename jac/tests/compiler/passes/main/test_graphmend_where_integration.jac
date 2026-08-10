@@ -82,12 +82,9 @@ test "data-dependent branches defragment to one contiguous graph" {
     torch = _torch();
     a = torch.tensor([1.0, 2.0, 3.0]);
     b = torch.tensor([4.0, 5.0, 6.0]);
-    r = torch.randn(4);
-    s = torch.randn(4);
     for (fixture, fn_name, args) in [
         ("where_return.jac", "with_breaks", (a, b)),
-        ("where_assign.jac", "f", (a, b)),
-        ("cond_assign.jac", "f", (r, s))
+        ("where_assign.jac", "f", (a, b))
     ] {
         orig = _count_graphs(fixture, False, fn_name, args);
         fixed = _count_graphs(fixture, True, fn_name, args);
