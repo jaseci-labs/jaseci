@@ -63,7 +63,7 @@ obj Store {
     def is_available -> bool abst;
     def server_version -> int abst;
     def ensure_schema(promotions: dict[str, list[str]]) -> None abst;
-    def begin(serializable: bool = True) -> None abst;
+    def begin(serializable: bool = True, read_only: bool = False) -> None abst;
     def commit -> None abst;
     def rollback -> None abst;
     def in_txn -> bool abst;
@@ -106,7 +106,7 @@ obj PgStore(Store) {
     def server_version -> int;
     def ensure_schema(promotions: dict[str, list[str]]) -> None;
     def takeover -> int;
-    def begin(serializable: bool = True) -> None;
+    def begin(serializable: bool = True, read_only: bool = False) -> None;
     def commit -> None;
     def rollback -> None;
     def in_txn -> bool;
