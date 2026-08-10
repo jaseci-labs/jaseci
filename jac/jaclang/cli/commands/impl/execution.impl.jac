@@ -397,8 +397,11 @@ impl run(
                 and (_cfg_kind.project.kind or '').strip() == 'cli-native'
             );
             if (
-                _kind_forced
-                or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
+                (not (graphmend or graphmend_scope.strip()))
+                and (
+                    _kind_forced
+                    or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
+                )
             ) {
                 import ctypes;
                 import from jaclang.jac0core.compile_options {

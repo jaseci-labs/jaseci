@@ -423,6 +423,27 @@ test "graphmend options survive every jac run mode" {
     _cleanup();
 }
 
+test "a cli-native project under graphmend runs the python backend" {
+    # GraphMend transforms the python backend, so the native fast path is
+    # skipped and the run still honors the flag instead of losing it.
+    body = "import from jaclang.jac0core.runtime { JacRuntime as Jac }\n"
+        + "with entry { print(f\"GMN={Jac.get_program().graphmend_enabled}\"); }";
+    d = _mk_project("kind = \"cli-native\"\n", "main.jac", body);
+    old = os.getcwd();
+    os.chdir(d);
+    captured = io.StringIO();
+    sys.stdout = captured;
+    try {
+        rc = execution.run(filename="main.jac", graphmend=True);
+    } finally {
+        sys.stdout = sys.__stdout__;
+        os.chdir(old);
+    }
+    assert rc == 0;
+    assert "GMN=True" in captured.getvalue();
+    _cleanup();
+}
+
 test "a prebuilt .jab refuses graphmend instead of dropping it" {
     # A sealed bundle is prebuilt bytecode; the transform cannot apply.
     captured = io.StringIO();
