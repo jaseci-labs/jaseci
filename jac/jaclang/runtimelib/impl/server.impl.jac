@@ -9,6 +9,10 @@ import from jaclang.runtimelib.auth_models {
     RegisterRequest
 }
 
+impl JacAPIServer._make_user_manager -> UserManager {
+    return UserManager(base_path=self.base_path);
+}
+
 impl UserManager.postinit -> None {
     import sqlite3;
     import threading;
@@ -1247,6 +1251,29 @@ impl ModuleIntrospector.render_page(
     return Jac.render_page(self, function_name, args, username);
 }
 
+impl ModuleIntrospector.has_client_route(url_path: str) -> bool {
+    if not self._spa_routes_loaded {
+        self._spa_route_patterns = self._load_spa_routes();
+        self._spa_routes_loaded = True;
+    }
+    patterns = self._spa_route_patterns;
+    if patterns is None {
+        return False;
+    }
+    segments = [
+        seg
+        for seg in url_path.split('/')
+        if seg
+    ];
+    for pattern in patterns {
+        if self._spa_route_matches(pattern, segments) {
+            return True;
+        }
+    }
+    return False;
+}
+
+
 impl ModuleIntrospector.spa_fallback_status(url_path: str) -> int {
     if not self._spa_routes_loaded {
         self._spa_route_patterns = self._load_spa_routes();
@@ -1573,7 +1600,7 @@ impl ExecutionHandler.spawn_walker(
 
 impl JacAPIServer.postinit -> None {
     import from jaclang.runtimelib.scheduler { Scheduler }
-    self.user_manager = Jac.get_user_manager(base_path=self.base_path);
+    self.user_manager = self._make_user_manager();
 
     _um = self.user_manager;
     def _shared_root_id -> (str | None) {
@@ -1615,6 +1642,9 @@ impl JacAPIServer.build_app -> ServingApp {
     cl_route_prefix = config.serve.cl_route_prefix if config else 'cl';
     cl_route_path = f"/{cl_route_prefix}/";
     app = ServingApp(title=f"{self.module_name} API", version='1.0.0');
+    if server.introspector.has_client_route('/docs') {
+        app.docs_url = None;
+    }
     app.add_middleware(
         cors_middleware(
             allow_origins=['*'],
@@ -2109,7 +2139,9 @@ impl JacAPIServer.build_app -> ServingApp {
     _ep(HTTPMethod.GET, '/healthz', _health);
     _ep(HTTPMethod.GET, '/healthz/live', _health);
     _ep(HTTPMethod.GET, '/healthz/ready', _health);
-    _ep(HTTPMethod.GET, '/graph', _graph_page);
+    if not server.introspector.has_client_route('/graph') {
+        _ep(HTTPMethod.GET, '/graph', _graph_page);
+    }
     _ep(HTTPMethod.GET, '/graph/data', _graph_data);
     _ep(HTTPMethod.GET, '/static/client.js', _client_js);
     _ep(HTTPMethod.GET, '/__build_status', _build_status);

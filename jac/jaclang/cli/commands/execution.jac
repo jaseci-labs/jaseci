@@ -301,6 +301,16 @@ def enter(
             help="With --dry-run: dump the raw YAML stream",
             short=""
         ),
+        Arg.create(
+            "takeover",
+            typ=bool,
+            default=False,
+            help=(
+                "Evict any other session holding this project's database "
+                "before starting (use when a previous jac process is stuck)"
+            ),
+            short=""
+        ),
 
     ],
     examples=[
@@ -316,6 +326,10 @@ def enter(
         (
             "jac start --scale --wait full",
             "Deploy and return only once every replica is available"
+        ),
+        (
+            "jac start --takeover",
+            "Evict a stuck session holding this project's database"
         ),
 
     ],
@@ -337,7 +351,8 @@ def start(
     rollout_wait: str = "",
     enable_tls: bool = False,
     dry_run: bool = False,
-    show_yaml: bool = False
+    show_yaml: bool = False,
+    takeover: bool = False
 ) -> int;
 
 def debug(filename: str, main: bool = True, cache: bool = False) -> int;

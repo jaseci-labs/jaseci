@@ -143,7 +143,9 @@ impl NaIRGenPass._codegen_tuple_unpack(
                 self._emit_rc_retain(elem_val, op="unpack", loc="");
                 pending_old.append(self.builder.load(alloca, name=f"unpack.{i}.old"));
             }
-            self.builder.store(elem_val, alloca);
+            self.builder.store(
+                self._coerce_type(elem_val, alloca.type.pointee), alloca
+            );
         } else {
             alloca = self._entry_alloca(elem_val.type, var_name);
             if rc_field {
