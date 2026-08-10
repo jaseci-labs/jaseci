@@ -15,6 +15,12 @@ module directly reports.
 The importer here is a client module, because that is the shape that pulls in
 the extra resolution paths -- a plain server-side import reaches the broken
 module once and never duplicated.
+
+This file covers duplication *within one build*. The other half -- alerts
+accumulating *across* builds, 6 errors then 12 then 18 as a dev server reloads
+a file you keep saving -- lives in tests/runtimelib/test_hmr.jac, driven
+through a real HotReloader rather than through the JacProgram methods it
+calls.
 """
 
 import tempfile;
@@ -62,30 +68,6 @@ test "importing a broken module does not multiply its errors" {
     assert direct > 1 , "fixture must recover into several alerts to be meaningful";
     via_importer = _errors_for("card.jac");
     assert via_importer == direct , f"client importer reported {via_importer} errors for a {direct}-error failure";
-}
-
-test "evicting a module before reload clears its stale alerts" {
-    with tempfile.TemporaryDirectory() as tmp {
-        proj = _write_project(tmp);
-        broken = str((proj / "broken.jac").resolve());
-        prog = JacProgram();
-        counts = [];
-        # What the HMR reloader does per edit. Without the eviction the alerts
-        # pile up on the long-lived program and each reload reports one more
-        # copy of the same syntax error.
-        for _ in range(3) {
-            prog.invalidate_module(broken);
-            prog.drop_module_alerts(broken);
-            try {
-                prog.compile(broken);
-            } except Exception {
-                ;
-            }
-            counts.append(len(prog.errors_had));
-        }
-        assert counts[0] > 1;
-        assert counts == [counts[0], counts[0], counts[0]] , f"alerts accumulated across reloads: {counts}";
-    }
 }
 
 test "a recompile still reports its errors to a positional slice reader" {
