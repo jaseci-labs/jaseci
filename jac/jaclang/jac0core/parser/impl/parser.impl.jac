@@ -2860,7 +2860,7 @@ impl Parser.parse_lambda_expr -> int {
             kid.append(rbrace_uni);
         }
     }
-    lam_body: any = None;
+    lam_body: (int | list[int] | None) = None;
     if body_expr2 != NIL {
         lam_body = body_expr2;
     } elif body_stmts2 is not None {
@@ -5198,15 +5198,13 @@ impl Parser.parse_archetype -> int {
     }
     name = self.make_name_or_special(name_tok);
 
-    tp_list: list[int] = [];
-    has_tp = False;
+    tp_list: (list[int] | None) = None;
     tp_lb_uni: int = NIL;
     tp_rb_uni: int = NIL;
     tp_comma_unis: list[int] = [];
     if self.match_tok(TokenKind.LSQUARE) {
         tp_lb_uni = self.make_uni_token(self.previous());
         (tp_list, tp_comma_unis) = self.parse_type_params();
-        has_tp = True;
         tp_rb_uni = self.consume_uni(TokenKind.RSQUARE);
     }
     base_classes: list[int] = [];
@@ -5236,12 +5234,11 @@ impl Parser.parse_archetype -> int {
         ep_arrow_uni = self.consume_uni(TokenKind.ARROW_R);
         tgt_endpoint = self.parse_atomic_chain();
     }
-    body_l: list[int] = [];
-    has_body = False;
+    body_l: (list[int] | None) = None;
     body_lb_uni = NIL;
     body_rb_uni = NIL;
     if self.match_tok(TokenKind.LBRACE) {
-        has_body = True;
+        body_l = [];
         body_lb_uni = self.make_uni_token(self.previous());
         while not self.check(TokenKind.RBRACE) and not self.at_end() {
             before = self.pos;
@@ -5271,7 +5268,7 @@ impl Parser.parse_archetype -> int {
         kid.append(access);
     }
     kid.append(name);
-    if has_tp {
+    if tp_list is not None {
         kid.append(tp_lb_uni);
         for (i, tp) in enumerate(tp_list) {
             if i > 0 {
@@ -5297,31 +5294,23 @@ impl Parser.parse_archetype -> int {
         kid.append(ep_arrow_uni);
         kid.append(tgt_endpoint);
     }
-    if has_body {
+    if body_l is not None {
         kid.append(body_lb_uni);
         kid.extend(body_l);
         kid.append(body_rb_uni);
     } else {
         kid.append(self.make_semi());
     }
-    tp_arg: any = None;
-    if has_tp {
-        tp_arg = tp_list;
-    }
-    ab_body_arg: any = None;
-    if has_body {
-        ab_body_arg = body_l;
-    }
     arch = self.b.mk_archetype(
         name=name,
         arch_type=arch_type,
         access=access,
         base_classes=base_classes,
-        body=ab_body_arg,
+        body=body_l,
         kid=kid,
         doc=NIL,
         decorators=decorators,
-        type_params=tp_arg,
+        type_params=tp_list,
         src_endpoint=src_endpoint,
         tgt_endpoint=tgt_endpoint
     );
@@ -5579,8 +5568,7 @@ impl Parser.parse_has_var -> int {
         defer = True;
     }
 
-    acc_list: list[int] = [];
-    has_acc = False;
+    acc_list: (list[int] | None) = None;
     acc_lb_uni: int = NIL;
     acc_rb_uni: int = NIL;
     if self.check(TokenKind.LBRACE) {
@@ -5592,7 +5580,7 @@ impl Parser.parse_has_var -> int {
             );
         }
         acc_lb_uni = self.consume_uni(TokenKind.LBRACE);
-        has_acc = True;
+        acc_list = [];
         while not self.check(TokenKind.RBRACE) {
             acc_list.append(self.parse_accessor());
         }
@@ -5612,23 +5600,19 @@ impl Parser.parse_has_var -> int {
     if defer {
         kid.append(postinit_name);
     }
-    if has_acc {
+    if acc_list is not None {
         kid.append(acc_lb_uni);
         for acc in acc_list {
             kid.append(acc);
         }
         kid.append(acc_rb_uni);
     }
-    acc_arg: any = None;
-    if has_acc {
-        acc_arg = acc_list;
-    }
     return self.b.mk_has_var(
         name=name,
         type_tag=type_tag,
         value=value,
         defer=defer,
-        accessors=acc_arg,
+        accessors=acc_list,
         kid=kid
     );
 }
@@ -5760,15 +5744,13 @@ impl Parser.parse_ability -> int {
         name = self._make_attr_from_keyword(name_tok);
     }
 
-    tp_list: list[int] = [];
-    has_tp = False;
+    tp_list: (list[int] | None) = None;
     tp_lb_uni: int = NIL;
     tp_rb_uni: int = NIL;
     tp_comma_unis: list[int] = [];
     if self.match_tok(TokenKind.LSQUARE) {
         tp_lb_uni = self.make_uni_token(self.previous());
         (tp_list, tp_comma_unis) = self.parse_type_params();
-        has_tp = True;
         tp_rb_uni = self.consume_uni(TokenKind.RSQUARE);
     }
     signature: int;
@@ -5850,7 +5832,7 @@ impl Parser.parse_ability -> int {
     if name {
         kid.append(name);
     }
-    if has_tp {
+    if tp_list is not None {
         kid.append(tp_lb_uni);
         for (i, tp) in enumerate(tp_list) {
             if i > 0 {
@@ -5878,15 +5860,11 @@ impl Parser.parse_ability -> int {
         }
         kid.append(self.make_semi());
     }
-    body_arg: any = None;
+    body_arg: (int | list[int] | None) = None;
     if body_type == "brace" {
         body_arg = body_stmts;
     } elif body_type == "by" and body_expr != NIL {
         body_arg = body_expr;
-    }
-    tp_arg: any = None;
-    if has_tp {
-        tp_arg = tp_list;
     }
     return self.b.mk_ability(
         name_ref=name,
@@ -5901,7 +5879,7 @@ impl Parser.parse_ability -> int {
         kid=kid,
         doc=NIL,
         decorators=decorators,
-        type_params=tp_arg
+        type_params=tp_list
     );
 }
 
@@ -6173,13 +6151,12 @@ impl Parser.parse_enum -> int {
         }
         enum_rp_uni = self.consume_uni(TokenKind.RPAREN);
     }
-    body_l: list[int] = [];
+    body_l: (list[int] | None) = None;
     body_kid: list[int] = [];
-    has_body = False;
     enum_lb_uni: int = NIL;
     enum_rb_uni: int = NIL;
     if self.match_tok(TokenKind.LBRACE) {
-        has_body = True;
+        body_l = [];
         enum_lb_uni = self.make_uni_token(self.previous());
         while not self.check(TokenKind.RBRACE) and not self.at_end() {
             if self.check_name() {
@@ -6233,23 +6210,19 @@ impl Parser.parse_enum -> int {
         }
         kid.append(enum_rp_uni);
     }
-    if has_body {
+    if body_l is not None {
         kid.append(enum_lb_uni);
         kid.extend(body_kid);
         kid.append(enum_rb_uni);
     } else {
         kid.append(self.make_semi());
     }
-    ab_body_arg: any = None;
-    if has_body {
-        ab_body_arg = body_l;
-    }
     return self.b.mk_enum(
         name=name,
         access=access,
         value_type=value_type,
         base_classes=base_classes,
-        body=ab_body_arg,
+        body=body_l,
         kid=kid,
         doc=NIL,
         decorators=decorators
@@ -6658,13 +6631,13 @@ impl Parser.parse_impl_def -> int {
     } else {
         kid.append(body_expr3);
     }
-    spec_arg: any = None;
+    spec_arg: (int | list[int] | None) = None;
     if spec_sig != NIL {
         spec_arg = spec_sig;
     } elif spec_is_inh {
         spec_arg = base_classes;
     }
-    impl_body_arg: any = body_stmts3;
+    impl_body_arg: (int | list[int]) = body_stmts3;
     if body_expr3 != NIL {
         impl_body_arg = body_expr3;
     }
@@ -6900,15 +6873,13 @@ impl Parser.parse_type_alias -> int {
         name_tok = self.expect_name();
     }
     name = self.make_name_or_special(name_tok);
-    tp_list: list[int] = [];
-    has_tp = False;
+    tp_list: (list[int] | None) = None;
     tp_lb_uni: int = NIL;
     tp_rb_uni: int = NIL;
     tp_comma_unis: list[int] = [];
     if self.match_tok(TokenKind.LSQUARE) {
         tp_lb_uni = self.make_uni_token(self.previous());
         (tp_list, tp_comma_unis) = self.parse_type_params();
-        has_tp = True;
         tp_rb_uni = self.consume_uni(TokenKind.RSQUARE);
     }
     eq_uni = self.consume_uni(TokenKind.EQ);
@@ -6919,7 +6890,7 @@ impl Parser.parse_type_alias -> int {
         kid.append(access);
     }
     kid.append(name);
-    if has_tp {
+    if tp_list is not None {
         kid.append(tp_lb_uni);
         for (i, tp) in enumerate(tp_list) {
             if i > 0 {
@@ -6932,12 +6903,8 @@ impl Parser.parse_type_alias -> int {
     kid.append(eq_uni);
     kid.append(value);
     kid.append(self.make_semi());
-    tp_arg: any = None;
-    if has_tp {
-        tp_arg = tp_list;
-    }
     return self.b.mk_type_alias(
-        name=name, type_params=tp_arg, value=value, access=access, kid=kid, doc=NIL
+        name=name, type_params=tp_list, value=value, access=access, kid=kid, doc=NIL
     );
 }
 
