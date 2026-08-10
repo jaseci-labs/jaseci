@@ -15,16 +15,6 @@ obj DatabaseProvisioner {
         self.k8s_target.env_list = [];
 
         cfg = self.k8s_target.k8s_config;
-        if not (cfg.postgres_enabled or cfg.database_external_url) {
-            if self.logger {
-                self.logger.info(
-                    "Database provisioning skipped (database disabled)",
-                    {"app_name": app_name}
-                );
-            }
-            return ctx;
-        }
-
         self.k8s_target._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         core_v1 = client.CoreV1Api();
@@ -37,6 +27,11 @@ obj DatabaseProvisioner {
                     f"Using the external database url for '{app_name}'; "
                     f"no postgres provisioned",
                     {"namespace": namespace}
+                );
+            } elif not cfg.postgres_enabled {
+                self.logger.info(
+                    "Database disabled; removing any stale database secret",
+                    {"app_name": app_name}
                 );
             } else {
                 self.logger.info(

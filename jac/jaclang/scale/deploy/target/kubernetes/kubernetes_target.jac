@@ -134,6 +134,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
             return;
         }
         if not self.k8s_config.postgres_enabled {
+            delete_k8s_secret(core_v1, namespace, f"{app_name}-postgres-secret");
             return;
         }
         pg_name = f"{app_name}-postgres";
@@ -162,10 +163,17 @@ obj KubernetesTargetBase(DeploymentTarget) {
                 }
             }
         );
+        pg_secret_name = pg_result['secret']['metadata']['name'];
         try {
-            core_v1.read_namespaced_secret(
-                name=pg_result['secret']['metadata']['name'], namespace=namespace
+            existing_secret = core_v1.read_namespaced_secret(
+                name=pg_secret_name, namespace=namespace
             );
+
+            if 'username' not in dict(existing_secret.data or {}) {
+                core_v1.replace_namespaced_secret(
+                    name=pg_secret_name, namespace=namespace, body=pg_result['secret']
+                );
+            }
         } except ApiException as e {
             if e.status == 404 {
                 core_v1.create_namespaced_secret(
