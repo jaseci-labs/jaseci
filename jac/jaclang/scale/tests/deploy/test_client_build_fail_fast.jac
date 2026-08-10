@@ -41,8 +41,10 @@ def _project(entry_source: str) -> str {
 
 
 """A counting `jac` stand-in: fails with a canned install-failure message for
-the first `fail_first` invocations, then hands off to the real binary. Uses
-the codebase's own JAC_EXECUTABLE substitution seam, not a mock."""
+the first `fail_first` build invocations, then hands off to the real binary.
+Every other subcommand (the dependency install that precedes the build) passes
+straight through, so the counter tracks build attempts alone. Uses the
+codebase's own JAC_EXECUTABLE substitution seam, not a mock."""
 def _counting_jac(tmp: str, fail_first: int, failure_text: str) -> tuple {
     counter = os.path.join(tmp, "attempts");
     real_jac = jac_executable();
@@ -50,6 +52,7 @@ def _counting_jac(tmp: str, fail_first: int, failure_text: str) -> tuple {
     with open(script, "w", encoding="utf-8") as f {
         f.write(
             "#!/bin/sh\n"
+                + f'if [ "$1" != "build" ]; then exec "{real_jac}" "$@"; fi\n'
                 + f'count_file="{counter}"\n'
                 + 'n=$(cat "$count_file" 2>/dev/null || echo 0)\n'
                 + "n=$((n+1))\n"
