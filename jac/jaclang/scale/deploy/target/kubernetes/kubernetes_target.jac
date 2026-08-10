@@ -146,28 +146,32 @@ obj KubernetesTargetBase(DeploymentTarget) {
         } except ApiException as e {
             delete_status = e.status;
         }
-        remains = True;
         try {
             core_v1.read_namespaced_secret(name=secret_name, namespace=namespace);
         } except ApiException as e {
             if e.status == 404 {
                 return;
             }
-            remains = False;
         }
-        if remains {
-            raise RuntimeError(
-                f"the external database secret '{secret_name}' still holds "
-                f"credentials in namespace '{namespace}' but deleting it was "
-                f"denied (status {delete_status}). Grant the deployer delete "
-                f"permission on Secrets or remove it manually, then redeploy."
+        try {
+            create_k8s_secret(
+                core_v1, namespace, secret_name, {'connection-string': ''}
             );
-        }
+            if self.logger {
+                self.logger.warn(
+                    f"Deleting the database secret '{secret_name}' was denied "
+                    f"(status {delete_status}); its contents were cleared "
+                    f"instead. Remove the empty secret from namespace "
+                    f"'{namespace}' manually."
+                );
+            }
+            return;
+        } except ApiException { }
         if self.logger {
             self.logger.warn(
-                f"Could not verify removal of the database secret "
-                f"'{secret_name}' (delete status {delete_status}); check "
-                f"namespace '{namespace}' manually"
+                f"Could not delete or clear the database secret "
+                f"'{secret_name}' (delete status {delete_status}); remove it "
+                f"from namespace '{namespace}' manually"
             );
         }
     }

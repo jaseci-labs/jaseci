@@ -176,10 +176,11 @@ test "forbidden cleanup with no secret left does not fail the deploy" {
 
     assert target.env_list == [];
     apps_v1.create_namespaced_stateful_set.assert_not_called();
+    core_v1.create_namespaced_secret.assert_not_called();
 }
 
 
-test "forbidden cleanup with credentials still present fails the deploy" {
+test "forbidden cleanup clears the remaining credentials instead of failing" {
     target = _target(False, "");
     core_v1 = unittest.mock.MagicMock();
     core_v1.delete_namespaced_secret.side_effect = _forbidden;
@@ -187,13 +188,32 @@ test "forbidden cleanup with credentials still present fails the deploy" {
         data={"connection-string": "b64-url"}
     );
 
-    error = "";
-    try {
-        target._deploy_databases("dbapp", "db-ns", unittest.mock.MagicMock(), core_v1);
-    } except RuntimeError as e {
-        error = str(e);
+    def _already_exists(*args: any, **kwargs: any) {
+        raise ApiException(status=409);
     }
-    assert "dbapp-database-url" in error and "denied" in error;
+    core_v1.create_namespaced_secret.side_effect = _already_exists;
+
+    target._deploy_databases("dbapp", "db-ns", unittest.mock.MagicMock(), core_v1);
+
+    core_v1.replace_namespaced_secret.assert_called_once();
+    scrubbed = core_v1.replace_namespaced_secret.call_args.kwargs["body"];
+    assert scrubbed["stringData"] == {"connection-string": ""};
+    assert target.env_list == [];
+}
+
+
+test "cleanup without any secret permission still deploys with a warning" {
+    target = _target(False, "");
+    core_v1 = unittest.mock.MagicMock();
+    core_v1.delete_namespaced_secret.side_effect = _forbidden;
+    core_v1.read_namespaced_secret.return_value = SimpleNamespace(
+        data={"connection-string": "b64-url"}
+    );
+    core_v1.create_namespaced_secret.side_effect = _forbidden;
+
+    target._deploy_databases("dbapp", "db-ns", unittest.mock.MagicMock(), core_v1);
+
+    assert target.env_list == [];
 }
 
 
