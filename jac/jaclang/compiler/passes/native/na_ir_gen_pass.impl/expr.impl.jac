@@ -1462,12 +1462,12 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
             _uni_ty = self._unify_repr_lowering([then_val.type, else_val.type]);
             if _uni_ty is not None and then_val.type != _uni_ty and then_open {
                 self.builder.position_at_end(then_end_bb);
-                then_val = self._coerce_to_repr(then_val, _uni_ty);
+                then_val = self._coerce_type(then_val, _uni_ty);
                 then_end_bb = self.builder.block;
             }
             if _uni_ty is not None and else_val.type != _uni_ty and else_open {
                 self.builder.position_at_end(else_end_bb);
-                else_val = self._coerce_to_repr(else_val, _uni_ty);
+                else_val = self._coerce_type(else_val, _uni_ty);
                 else_end_bb = self.builder.block;
             }
         }
