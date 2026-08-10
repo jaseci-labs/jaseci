@@ -357,6 +357,12 @@ impl run(
             );
             return 0;
         }
+        if graphmend or graphmend_scope.strip() {
+            console.error(
+                "--graphmend cannot be combined with a prebuilt .jab bundle."
+            );
+            return 1;
+        }
         return _run_jab(filename, None, args, serve_only=False);
     }
     if show {

@@ -423,6 +423,19 @@ test "graphmend options survive every jac run mode" {
     _cleanup();
 }
 
+test "a prebuilt .jab refuses graphmend instead of dropping it" {
+    # A sealed bundle is prebuilt bytecode; the transform cannot apply.
+    captured = io.StringIO();
+    sys.stderr = captured;
+    try {
+        rc = execution.run(filename="app.jab", graphmend=True);
+    } finally {
+        sys.stderr = sys.__stderr__;
+    }
+    assert rc == 1;
+    assert "cannot be combined" in captured.getvalue();
+}
+
 test "a serve plan refuses graphmend instead of dropping it" {
     d = _mk_project("kind = \"service\"\nentry-point = \"api.sv.jac\"\n", "api.sv.jac");
     old = os.getcwd();
