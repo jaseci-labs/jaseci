@@ -13,6 +13,7 @@ import os;
 import tempfile;
 import jaclang;
 import from pathlib { Path }
+import from tests.support { JAC_ROOT as REPO_ROOT }
 import from jaclang.utils.precompile_bytecode { seal_native_artifacts }
 import from jaclang.jac0core.native_dylib { DylibEngine, layout_from_dict }
 import from jaclang.jac0core.native_marshal {
@@ -29,7 +30,6 @@ import jaclang.jac0core.parser.parser as na_parser;
 import jaclang.jac0core.parser.lexer as bytecode_lexer;
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     JAC_ROOT = Path(jaclang.__file__).parent.parent,
      _ARTIFACT_MEMO: list = [];
 
 def _build_binding -> tuple {
@@ -103,8 +103,8 @@ test "sealed parser matches bytecode parser on the canary corpus" {
 }
 
 test "sealed parser matches bytecode parser on fam.jac" {
-    fam = JAC_ROOT / "tests" / "compiler" / "fixtures" / "fam.jac";
-    _assert_parity(fam.read_text(encoding="utf-8"), str(fam));
+    fam = os.path.join(REPO_ROOT, "tests", "compiler", "fixtures", "fam.jac");
+    _assert_parity(Path(fam).read_text(encoding="utf-8"), fam);
 }
 
 test "sealed parser matches bytecode parser on a compiler source module" {
