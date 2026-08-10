@@ -91,7 +91,15 @@ def scale_start(
             import from jaclang.scale.runtime.realizer.local_realizer { LocalRealizer }
             realizer = LocalRealizer(ms_config=ms_config);
             should_serve_ms = realizer.should_serve(enabled);
-        } except Exception {
+        } except ValueError as e {
+            console.error(f"Microservice configuration invalid: {e}", emoji=False);
+            return 1;
+        } except Exception as e {
+            console.error(
+                f"Microservice mode unavailable "
+                f"({type(e).__name__}: {e}); starting as a monolith.",
+                emoji=False
+            );
             realizer = None;
             should_serve_ms = False;
         }
