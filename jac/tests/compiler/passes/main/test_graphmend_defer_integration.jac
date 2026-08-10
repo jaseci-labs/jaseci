@@ -191,7 +191,7 @@ test "deferred print flushes on the exceptional exit" {
         ns = _exec_src(src, "side_effect_raises.jac");
         printed: list = [];
         real_print = builtins.print;
-        def _capture(*a: any, **k: any) -> None {
+        def _capture(*a: any, **k: any) {
             printed.append(" ".join([str(v) for v in a]));
         }
         builtins.print = _capture;
@@ -229,7 +229,7 @@ def _run_model(py_src: str, name: str, logger_name: str, gm: bool) -> tuple {
     ns = _exec_src(src, name);
     messages: list = [];
     class _Capture(logging.Handler) {
-        def emit(self: any, record: any) -> None {
+        def emit(self: any, record: any) {
             messages.append(record.getMessage());
         }
     }
@@ -293,7 +293,7 @@ fast = torch.compile(fn)
     ns = _exec_src(src, "fn_wrap.py");
     printed: list = [];
     real_print = builtins.print;
-    def _capture(*a: any, **k: any) -> None {
+    def _capture(*a: any, **k: any) {
         printed.append(" ".join([str(v) for v in a]));
     }
     builtins.print = _capture;
@@ -319,7 +319,7 @@ test "deferred logger flushes when the forward raises" {
         ns = _exec_src(src, "logger_forward_hook_raises.py");
         messages: list = [];
         class _Capture(logging.Handler) {
-            def emit(self: any, record: any) -> None {
+            def emit(self: any, record: any) {
                 messages.append(record.getMessage());
             }
         }

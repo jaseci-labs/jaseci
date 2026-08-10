@@ -135,10 +135,10 @@ def resolve_ref(
     return None;
 }
 
-glob _gm_log_registry: list = [];
-glob _gm_log_buffer: list = [];
-glob _gm_se_buffer: list = [];
-glob _gm_se_depth: list = [0];
+glob _gm_log_registry: list = [],
+     _gm_log_buffer: list = [],
+     _gm_se_buffer: list = [],
+     _gm_se_depth: list = [0];
 
 class JacClassReferences {
     with entry {
