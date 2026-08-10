@@ -72,6 +72,39 @@ def materialize_module(
     }
 }
 
+def module_imports_plain(mod: uni.Module, name: str) -> bool {
+    found = False;
+    for mp in mod.get_all_sub_nodes(uni.ModulePath) {
+        if (mp.alias is None)
+            and (not mp.is_import_from)
+            and (mp.dot_path_str == name) {
+            found = True;
+        }
+    }
+    if not found {
+        return False;
+    }
+    for a in mod.get_all_sub_nodes(uni.Assignment) {
+        if a.find_parent_of_type(uni.Ability) is not None {
+            continue;
+        }
+        for t in (a.target or []) {
+            targets = list(t.values) if isinstance(t, uni.TupleVal) else [t];
+            for tg in targets {
+                if isinstance(tg, uni.Name) and (tg.value == name) {
+                    return False;
+                }
+            }
+        }
+    }
+    for ab in mod.get_all_sub_nodes(uni.Ability) {
+        if ab.sym_name == name {
+            return False;
+        }
+    }
+    return True;
+}
+
 def wrapping_classes(
     prog: JacProgram, current: uni.Module, decorator: str
 ) -> list[uni.Archetype] {
