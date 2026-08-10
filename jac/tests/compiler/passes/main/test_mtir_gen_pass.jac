@@ -17,7 +17,9 @@ test "mtir gen basic" {
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
     assert Jac.program is not None;
-    mtir_map = mtir_for_module(Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac"));
+    mtir_map = mtir_for_module(
+        Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac")
+    );
     assert mtir_map , "MTIR map should not be empty";
     scopes = list(mtir_map.keys());
     assert len(scopes) > 0 , "Should have at least one MTIR entry";
@@ -28,7 +30,9 @@ test "mtir gen standalone function" {
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
     assert Jac.program is not None;
-    mtir_map = mtir_for_module(Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac"));
+    mtir_map = mtir_for_module(
+        Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac")
+    );
     analyze_person_scope = None;
     for scope in mtir_map {
         if "analyze_person" in scope {
@@ -53,7 +57,9 @@ test "mtir gen method" {
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
     assert Jac.program is not None;
-    mtir_map = mtir_for_module(Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac"));
+    mtir_map = mtir_for_module(
+        Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac")
+    );
     summarize_scope = None;
     for scope in mtir_map {
         if "summarize" in scope {
@@ -78,7 +84,9 @@ test "mtir gen complex return type" {
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
     assert Jac.program is not None;
-    mtir_map = mtir_for_module(Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac"));
+    mtir_map = mtir_for_module(
+        Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac")
+    );
     create_team_scope = None;
     for scope in mtir_map {
         if "create_team" in scope {
@@ -102,7 +110,9 @@ test "mtir gen list return type" {
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
     assert Jac.program is not None;
-    mtir_map = mtir_for_module(Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac"));
+    mtir_map = mtir_for_module(
+        Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac")
+    );
     find_people_scope = None;
     for scope in mtir_map {
         if "find_people" in scope {
@@ -124,7 +134,9 @@ test "mtir gen semstrings" {
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
     assert Jac.program is not None;
-    mtir_map = mtir_for_module(Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac"));
+    mtir_map = mtir_for_module(
+        Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac")
+    );
     analyze_person_scope = None;
     for scope in mtir_map {
         if "analyze_person" in scope {
@@ -155,7 +167,9 @@ test "mtir gen class info extraction" {
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
     assert Jac.program is not None;
-    mtir_map = mtir_for_module(Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac"));
+    mtir_map = mtir_for_module(
+        Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac")
+    );
     analyze_person_scope = None;
     for scope in mtir_map {
         if "analyze_person" in scope {
@@ -188,7 +202,9 @@ test "mtir gen all genai abilities captured" {
     prog.compile(os.path.join(FIXTURES, "mtir_gen.jac"));
     assert not prog.errors_had;
     assert Jac.program is not None;
-    mtir_map = mtir_for_module(Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac"));
+    mtir_map = mtir_for_module(
+        Jac.program.mtir_by_module, os.path.join(FIXTURES, "mtir_gen.jac")
+    );
     expected_abilities = ["summarize", "analyze_person", "create_team", "find_people"];
     found_abilities: set = set();
     for scope in mtir_map {

@@ -111,22 +111,17 @@ def type_to_str(t: object) -> str {
 }
 
 def fetch_mtir(func: Callable) -> Info | None {
-    # MTIR is keyed by filesystem identity (jir.mtir_module_key), so the same
-    # resolution serves __main__ and every imported module: derive the owning
-    # source file from func.__module__, fetch that module's slice from
-    # mtir_by_module, then index it by "<stem>.<qualname>". A module with no
-    # backing file (builtin/extension/frozen/namespace pkg) has no by-LLM MTIR.
     import sys;
     import from jaclang.jac0core.runtime { JacRuntime }
     import from jaclang.jac0core.jir { mtir_module_key, mtir_module_stem }
 
-    module_name = getattr(func, "__module__", None);
+    module_name = func?.__module__;
 
     path = None;
     if module_name == "__main__" or module_name is None {
         main_mod = sys.modules.get("__main__");
         if main_mod {
-            path = getattr(main_mod, "__file__", None);
+            path = main_mod?.__file__;
         }
         if path is None and sys.argv and sys.argv[0] {
             path = sys.argv[0];
@@ -134,7 +129,7 @@ def fetch_mtir(func: Callable) -> Info | None {
     } else {
         mod = sys.modules.get(module_name);
         if mod {
-            path = getattr(mod, "__file__", None);
+            path = mod?.__file__;
         }
     }
     if path is None {
@@ -149,7 +144,6 @@ def fetch_mtir(func: Callable) -> Info | None {
     key = mtir_module_key(path);
     slice = prog.mtir_by_module.get(key);
     if slice is None {
-        # Fallback: jaclang-tree modules compile into the internal program.
         try {
             internal = prog._get_compiler().internal_program;
         } except Exception {
@@ -163,7 +157,7 @@ def fetch_mtir(func: Callable) -> Info | None {
         return None;
     }
 
-    qualname = getattr(func, "__qualname__", None);
+    qualname = func?.__qualname__;
     if qualname is None {
         return None;
     }

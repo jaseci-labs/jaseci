@@ -48,7 +48,8 @@ obj Memory {
 
 obj TieredMemory(Memory) {
     has l3: str | None = None;
-    def get_mem() -> dict[str, str] {
+
+    def get_mem -> dict[str, str] {
         return self.data;
     }
 }
@@ -149,8 +150,8 @@ def fail_unknown_cascade_from_subclass_attr(mem: Memory) -> str | None {
     # mem is typed as Memory, but at runtime is TieredMemory.
     # Accessing .l3 (defined only on TieredMemory) gives Unknown,
     # which then cascades to all subsequent uses.
-    persistence = mem.l3;                # E1030: Memory has no attribute l3
-    result = persistence.some_attr       # E1032: Unknown (cascade from above)
+    persistence = mem.l3;  # E1030: Memory has no attribute l3
+    result = persistence.some_attr  # E1032: Unknown (cascade from above)
         if persistence
         else None;
     return result;
@@ -158,8 +159,8 @@ def fail_unknown_cascade_from_subclass_attr(mem: Memory) -> str | None {
 
 def fail_unknown_cascade_from_method(mem: Memory) -> list {
     # get_mem() is only on TieredMemory, not on base Memory
-    data = mem.get_mem();                # E1030: Memory has no attribute get_mem
-    return `list(data.values());         # E1032: Unknown (cascade from above)
+    data = mem.get_mem();  # E1030: Memory has no attribute get_mem
+    return `list(data.values());  # E1032: Unknown (cascade from above)
 }
 
 # ============================================================================
@@ -179,16 +180,16 @@ def fail_callable_has_name(func: Callable) -> str {
     return func.__name__;  # E1030: _SpecialForm has no __name__
 }
 
-def fail_callable_set_name(func: Callable) -> None {
+def fail_callable_set_name(func: Callable) {
     # Should be able to set __name__ on a callable
     func.__name__ = "renamed";  # E1030: _SpecialForm has no __name__
 }
 
-def use_callable(caller: Callable[..., object]) -> None {
+def use_callable(caller: Callable[..., object]) {
     _ = caller;
 }
 
-def fail_callable_passed_as_callable(func: Callable) -> None {
+def fail_callable_passed_as_callable(func: Callable) {
     # Callable should be assignable to Callable[..., object]
     use_callable(func);  # E1053: _SpecialForm cannot assign to Callable
 }
@@ -204,7 +205,7 @@ def fail_callable_passed_as_callable(func: Callable) -> None {
 # Mirrors: runtime.impl.jac line 1353 (last.nd = post_filter after is None check)
 # ============================================================================
 
-def fail_assign_to_narrowed_none_field(dest: Destination) -> None {
+def fail_assign_to_narrowed_none_field(dest: Destination) {
     # dest.nd is Callable|None. After `is None` check, narrowed to NoneType.
     # Assigning a Callable should be valid (updating the field).
     filter_fn: Callable[[str], bool] = lambda (s: str) { s.startswith("."); };
@@ -239,7 +240,7 @@ def fail_assign_to_narrowed_none_local(x: int | None) -> int {
 def pass_string_slice_in_while(target: str) -> str {
     chomp = target;
     while chomp.startswith('.') {
-        chomp = chomp[1:];          # slice preserves str across iterations
+        chomp = chomp[1:];  # slice preserves str across iterations
         if chomp.startswith('.') {  # str.startswith resolves cleanly
             continue;
         }
@@ -248,13 +249,13 @@ def pass_string_slice_in_while(target: str) -> str {
 }
 
 def pass_string_slice_endswith(path: str) -> bool {
-    base = path[:-3];               # slice is str
-    return base.endswith(".jac");    # str.endswith resolves cleanly
+    base = path[:-3];  # slice is str
+    return base.endswith(".jac");  # str.endswith resolves cleanly
 }
 
 def pass_string_index_method(s: str) -> str {
-    c = s[0];                       # indexing str gives str
-    return c.upper();               # str.upper resolves cleanly
+    c = s[0];  # indexing str gives str
+    return c.upper();  # str.upper resolves cleanly
 }
 
 # ============================================================================
@@ -272,19 +273,19 @@ def pass_string_index_method(s: str) -> str {
 def fail_stdlib_spec_from_file_location(name: str, path: str) -> str {
     # importlib.util.spec_from_file_location should return ModuleSpec | None
     spec = importlib.util.spec_from_file_location(name, path);
-    if (not spec or not spec.origin) {          # E1032: Unknown has no .origin
+    if (not spec or not spec.origin) {  # E1032: Unknown has no .origin
         raise ImportError("cannot find module");
     }
-    return spec.origin;                          # E1032/E1099: Unknown.origin
+    return spec.origin;  # E1032/E1099: Unknown.origin
 }
 
-def fail_stdlib_spec_loader(name: str, path: str) -> None {
+def fail_stdlib_spec_loader(name: str, path: str) {
     spec = importlib.util.spec_from_file_location(name, path);
     if (not spec or not spec.origin) {
         raise ImportError("missing");
     }
-    if spec.loader {                            # E1099: Unknown.loader
-        spec.loader.exec_module(None);          # E1032: Unknown.exec_module
+    if spec.loader {  # E1099: Unknown.loader
+        spec.loader.exec_module(None);  # E1032: Unknown.exec_module
     }
 }
 
@@ -299,7 +300,7 @@ def fail_stdlib_spec_submodule(name: str, path: str) -> list[str] | None {
 def fail_stdlib_spec_endswith(name: str, path: str) -> bool {
     spec = importlib.util.spec_from_file_location(name, path);
     if spec and spec.origin {
-        return spec.origin.endswith('.jac');      # E1032: Unknown.endswith (cascade)
+        return spec.origin.endswith('.jac');  # E1032: Unknown.endswith (cascade)
     }
     return False;
 }
@@ -320,32 +321,26 @@ def fail_stdlib_spec_endswith(name: str, path: str) -> bool {
 def fail_nullable_attr_no_guard(ctx: Context) -> int {
     # Direct access without null check — this IS a real bug pattern,
     # but included to document the error cascade behavior
-    return ctx.user_root.id;        # E1099: NodeAnchor|None missing .id from NoneType
+    return ctx.user_root.id;  # E1099: NodeAnchor|None missing .id from NoneType
 }
 
 def fail_nullable_attr_archetype(ctx: Context) -> int {
     # Accessing .id through nullable chain
     anchor = ctx.user_root;
-    return anchor.id;               # E1099: NodeAnchor|None
+    return anchor.id;  # E1099: NodeAnchor|None
 }
 
-def fail_nullable_ternary_then_access(
-    `root: NodeAnchor | None,
-    ctx: Context
-) -> int {
+def fail_nullable_ternary_then_access(`root: NodeAnchor | None, ctx: Context) -> int {
     # Ternary where one branch is T|None — result is T|None
     # Subsequent access without guard fails
-    ranchor = `root if `root else ctx.user_root;
+    ranchor = `root or ctx.user_root;
     # ranchor is NodeAnchor|None — accessing without guard
-    return ranchor.id;              # E1099: NodeAnchor|None
+    return ranchor.id;  # E1099: NodeAnchor|None
 }
 
-def fail_nullable_ternary_edges(
-    `root: NodeAnchor | None,
-    ctx: Context
-) -> list[int] {
-    ranchor = `root if `root else ctx.user_root;
-    return ranchor.edges;           # E1099: NodeAnchor|None
+def fail_nullable_ternary_edges(`root: NodeAnchor | None, ctx: Context) -> list[int] {
+    ranchor = `root or ctx.user_root;
+    return ranchor.edges;  # E1099: NodeAnchor|None
 }
 
 # ============================================================================
@@ -362,14 +357,14 @@ def fail_nullable_ternary_edges(
 # line 2221 (ThreadPoolExecutor.submit — stdlib method not found)
 # ============================================================================
 
-def fail_dynamic_class_attr(cls: type[Archetype]) -> None {
+def fail_dynamic_class_attr(cls: type[Archetype]) {
     # Setting a class-level attribute dynamically — checker doesn't know it exists
-    cls.reports = [];               # E1030: type[Archetype] has no attribute reports
+    cls.reports = [];  # E1030: type[Archetype] has no attribute reports
 }
 
-def fail_dynamic_instance_cache() -> object {
+def fail_dynamic_instance_cache -> object {
     # Using getattr to check for cached instance, then setting it
-    _cache = getattr(WalkerArchetype, '_instance', None);
+    _cache = WalkerArchetype?._instance;
     if _cache is not None {
         return _cache;
     }
@@ -380,7 +375,7 @@ def fail_dynamic_instance_cache() -> object {
 
 def fail_object_typed_attr(model: object) -> dict {
     # Parameter typed as `object` — accessing .call_params fails
-    params = model.call_params;     # E1030: object has no attribute call_params
+    params = model.call_params;  # E1030: object has no attribute call_params
     return params if isinstance(params, `dict) else {};
 }
 
@@ -400,16 +395,12 @@ def fail_stdlib_method_on_assigned(svc: ServiceClass) -> Future {
 # Mirrors: runtime.impl.jac line ~1400 (__jac__ on Any | EdgeArchetype | GenericEdge)
 # ============================================================================
 
-def fail_any_in_union_blocks_attr(
-    `edge: (Any | EdgeAnchor | GenericEdge)
-) -> str {
+def fail_any_in_union_blocks_attr(`edge: (Any | EdgeAnchor | GenericEdge)) -> str {
     # Any should allow any attribute access, so union with Any should too
-    return `edge.__jac__;            # E1099: missing from Any
+    return `edge.__jac__;  # E1099: missing from Any
 }
 
-def fail_any_in_union_method(
-    val: (Any | str)
-) -> int {
+def fail_any_in_union_method(val: (Any | str)) -> int {
     # Any | str — should allow .upper() (from str) or any attr (from Any)
     return len(val.upper());
 }

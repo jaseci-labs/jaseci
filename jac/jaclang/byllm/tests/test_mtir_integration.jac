@@ -46,7 +46,7 @@ Production never builds this: fetch_mtir resolves a single module's slice
 directly from mtir_by_module. This helper only stands in for the removed flat
 mtir_map in tests that scan scopes program-wide.
 """
-def all_mtir() -> dict {
+def all_mtir -> dict {
     prog = JacRuntime.program;
     if prog is None {
         return {};
@@ -1072,8 +1072,8 @@ test "imported packaged module resolves via fetch_mtir" {
     assert alpha_mod is not None , "scope_dir.module_alpha should be imported";
     assert beta_mod is not None , "scope_dir.module_beta should be imported";
 
-    alpha_fn = getattr(alpha_mod, "process_data", None);
-    beta_fn = getattr(beta_mod, "process_data", None);
+    alpha_fn = alpha_mod?.process_data;
+    beta_fn = beta_mod?.process_data;
     assert alpha_fn is not None and beta_fn is not None;
 
     alpha_info = fetch_mtir(alpha_fn);
@@ -1153,7 +1153,7 @@ test "invalidate module makes runtime lookup return None" {
         leaked_mod = sys.modules.get("leaked");
         assert leaked_mod is not None , "leaked module should execute on import";
 
-        fn = getattr(leaked_mod, "generate_person", None);
+        fn = leaked_mod?.generate_person;
         assert fn is not None , "leaked module should expose generate_person";
         assert fetch_mtir(fn) is not None , (
             "fetch_mtir should resolve before invalidation"
