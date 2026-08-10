@@ -1,6 +1,7 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind }
+import from jaclang.compiler.passes.main.graphmend.scope_facts { compiled_region_ids }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     cond_is_data_dependent,
     defining_assignment,
@@ -15,11 +16,10 @@ impl GraphBreakDetectPass.before_pass -> None {
         self.prune_signal = True;
         return;
     }
-    self._whole_module = self.prog.graphmend_scoped_compile;
-    if self._whole_module {
-        return;
-    }
     self._entry_ids = self._collect_entry_points();
+    self._entry_ids |= compiled_region_ids(
+        self.prog, self.ir_in, self.prog.graphmend_scoped_compile, self._mat_seen
+    );
     if not self._entry_ids {
         self._enabled = False;
         self.prune_signal = True;
@@ -117,9 +117,6 @@ impl GraphBreakDetectPass._var_assignment(
 }
 
 impl GraphBreakDetectPass._in_torch_compiled_scope(nd: uni.UniNode) -> bool {
-    if self._whole_module {
-        return True;
-    }
     cur = nd.parent;
     while cur {
         if id(cur) in self._entry_ids {

@@ -102,13 +102,14 @@ test "scoped: a helper defers to the caller's region instead of flushing" {
     assert src.index("@__jac_se_guard__") < src.index("@torch.compile");
 }
 
-test "scoped: entry-file compile of the same fixture is untouched" {
-    # Without scoped-compile semantics the fixture has a decorated entry whose
-    # body holds no side-effect call, and the helper is out of scope; nothing
-    # may be rewritten.
+test "entry-file compile reaches the helper through the compiled entry" {
+    # Dynamo inlines the helper into the decorated entry's graph, so the
+    # reachability closure covers it without a scope: the helper's print
+    # buffers and the entry's boundary guard drains it.
     src = _fixture_src("se_in_helper.jac", False);
-    assert "__jac_se_emit__" not in src;
-    assert "print('FROM-HELPER', y)" in src;
+    assert "__jac_se_emit__(print," in src;
+    assert "__jac_se_flush__()" not in src;
+    assert "@__jac_se_guard__" in src;
 }
 
 """Write a generated .py source to a temp file and compile it as one whole
@@ -197,11 +198,12 @@ test "scoped: the entry wrap gets the trap boundary attach" {
 }
 
 """The discriminant validation guard from transformers v4.52.4
-`modeling_vits._rational_quadratic_spline` (Apache-2.0), the paper's real-model
-[Trap] case, vendored so the evidence does not rot with transformers releases
+`modeling_vits._rational_quadratic_spline` (Apache-2.0), a real-model [Trap]
+case, vendored so the evidence does not rot with transformers releases
 (5.x rewrote this guard into a torch-compilable check upstream). The message is
-reduced to a literal: GraphMend declines non-literal messages, because
-formatting a tensor inside the graph would itself force a break."""
+reduced to a literal: non-literal messages decline, because formatting a
+tensor inside the graph would itself force a break. The forward caller
+mirrors the real file, where the spline is forward-reachable."""
 glob PY_VITS_GUARD_SRC = '''
 import torch
 
@@ -211,6 +213,11 @@ def rational_quadratic_spline_root(a, b, c):
     if not (discriminant >= 0).all():
         raise RuntimeError("invalid discriminant in rational quadratic spline")
     return (2 * c) / (-b - torch.sqrt(discriminant))
+
+
+class Spline(torch.nn.Module):
+    def forward(self, a, b, c):
+        return rational_quadratic_spline_root(a, b, c)
 ''',
      PY_VITS_GUARD_FSTRING_SRC = '''
 import torch
@@ -221,6 +228,11 @@ def rational_quadratic_spline_root(a, b, c):
     if not (discriminant >= 0).all():
         raise RuntimeError(f"invalid discriminant {discriminant}")
     return (2 * c) / (-b - torch.sqrt(discriminant))
+
+
+class Spline(torch.nn.Module):
+    def forward(self, a, b, c):
+        return rational_quadratic_spline_root(a, b, c)
 ''';
 
 test "scoped: the real VITS guard shape lowers under a literal message" {
@@ -241,4 +253,37 @@ test "scoped: a guard with a non-literal message is declined" {
     src = _py_scoped_src(PY_VITS_GUARD_FSTRING_SRC, "vits_guard_fstring.py");
     assert "torch._assert_async(" not in src;
     assert "if not (discriminant >= 0).all():" in src;
+}
+
+glob PY_SCOPED_MIXED_SRC = '''
+import torch
+
+
+def reachable_helper(x):
+    print("IN-HELPER", x)
+    return x * 2
+
+
+def unreachable_util(x):
+    print("UTIL", x)
+    if x.sum() > 0:
+        y = x * 2
+    else:
+        y = x * 3
+    return y
+
+
+class Net(torch.nn.Module):
+    def forward(self, x):
+        return reachable_helper(torch.relu(x))
+''';
+
+test "scoped: only forward-reachable code is transformed" {
+    # The compiled region is the reachability closure over the call graph
+    # (what Dynamo would inline), not the whole module: a utility no forward
+    # reaches keeps its print and its data-dependent branch untouched.
+    src = _py_scoped_src(PY_SCOPED_MIXED_SRC, "scoped_mixed.py");
+    assert "__jac_se_emit__(print," in src;
+    assert "print('UTIL', x)" in src;
+    assert "torch.where(" not in src;
 }

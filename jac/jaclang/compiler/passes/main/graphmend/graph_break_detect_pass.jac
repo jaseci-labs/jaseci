@@ -4,8 +4,8 @@ import from jaclang.jac0core.passes { UniPass }
 
 obj GraphBreakDetectPass(UniPass) {
     has _enabled: bool = False,
-        _whole_module: bool = False,
-        _entry_ids: set[int] = set();
+        _entry_ids: set[int] = set(),
+        _mat_seen: set[str] = set();
 
     def before_pass -> None;
     def _collect_entry_points -> set[int];

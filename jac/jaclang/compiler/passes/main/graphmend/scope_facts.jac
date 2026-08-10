@@ -1,6 +1,119 @@
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    has_torch_compile_decorator
+}
 import type from jaclang.jac0core.program { JacProgram }
+
+def compiled_region_ids(
+    prog: JacProgram, current: uni.Module, scoped: bool, seen: set[str]
+) -> set[int] {
+    mods: list[uni.Module] = [current];
+    for m in prog.mod.hub.values() {
+        if m is not current {
+            mods.append(m);
+        }
+    }
+    ids: set[int] = set();
+    work: list[uni.Ability] = [];
+    for m in mods {
+        for arch in m.get_all_sub_nodes(uni.Archetype) {
+            if has_torch_compile_decorator(arch) {
+                ids.add(id(arch));
+                for meth in arch.get_all_sub_nodes(uni.Ability) {
+                    work.append(meth);
+                }
+            }
+        }
+        for ab in m.get_all_sub_nodes(uni.Ability) {
+            if has_torch_compile_decorator(ab)
+                or (scoped and (ab.sym_name == 'forward')) {
+                work.append(ab);
+            }
+        }
+    }
+    while work {
+        ab = work.pop();
+        if id(ab) in ids {
+            continue;
+        }
+        ids.add(id(ab));
+        callee: (uni.Ability | None) = None;
+        for call in ab.get_all_sub_nodes(uni.FuncCall) {
+            callee = _resolve_callee(ab, call, prog, seen);
+            if (callee is not None) and (id(callee) not in ids) {
+                work.append(callee);
+            }
+        }
+    }
+    return ids;
+}
+
+def _resolve_callee(
+    site: uni.Ability, call: uni.FuncCall, prog: JacProgram, seen: set[str]
+) -> (uni.Ability | None) {
+    t = call.target;
+    if isinstance(t, uni.Name) {
+        mod = site.find_parent_of_type(uni.Module);
+        if mod is None {
+            return None;
+        }
+        return find_ability(mod, t.value, prog, seen);
+    }
+    if (
+        isinstance(t, uni.AtomTrailer)
+        and isinstance(t.right, uni.Name)
+        and isinstance(t.target, uni.Name)
+        and (t.target.value == 'self')
+    ) {
+        arch = site.find_parent_of_type(uni.Archetype);
+        if arch is None {
+            return None;
+        }
+        for ab in arch.get_all_sub_nodes(uni.Ability) {
+            if ab.sym_name == t.right.value {
+                return ab;
+            }
+        }
+    }
+    return None;
+}
+
+def find_ability(
+    mod: uni.Module, name: str, prog: JacProgram, seen: set[str]
+) -> (uni.Ability | None) {
+    for ab in mod.get_all_sub_nodes(uni.Ability) {
+        if (
+            (ab.sym_name == name)
+            and (ab.find_parent_of_type(uni.Archetype) is None)
+            and (ab.find_parent_of_type(uni.Ability) is None)
+        ) {
+            return ab;
+        }
+    }
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if imp.from_loc is None {
+            continue;
+        }
+        top = imp.from_loc.dot_path_str.lstrip('.').split('.')[0];
+        if top in {'torch', 'jaclang'} {
+            continue;
+        }
+        target = _import_target(imp, name);
+        if target is None {
+            continue;
+        }
+        m2 = materialize_module(prog, imp.from_loc, seen);
+        if m2 is None {
+            continue;
+        }
+        got = find_ability(m2, target, prog, seen);
+        if got is not None {
+            return got;
+        }
+    }
+    return None;
+}
 
 def find_class(
     mod: uni.Module, name: str, prog: JacProgram, seen: set[str]
