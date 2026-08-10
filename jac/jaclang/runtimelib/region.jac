@@ -15,10 +15,19 @@ obj JacRegion {
     has _drops: list[any] = [],
         _parent: any = None;
 
-    def partition -> JacRegion {
-        c = JacRegion();
-        c._parent = self;
-        return c;
+    def partition(n: int = 0) -> any {
+        if n <= 0 {
+            c = JacRegion();
+            c._parent = self;
+            return c;
+        }
+        out: list = [];
+        for _i in range(n) {
+            c = JacRegion();
+            c._parent = self;
+            out.append(c);
+        }
+        return tuple(out);
     }
 
     def _jac_open {

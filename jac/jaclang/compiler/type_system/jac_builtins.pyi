@@ -134,7 +134,10 @@ class DSFunc: ...
 # extent opened by `in <handle> { ... }`. On managed backends the handle is a
 # no-op; native codegen gives it arena semantics.
 class Region:
+    @overload
     def partition(self) -> Region: ...
+    @overload
+    def partition(self, n: int) -> tuple[Region, ...]: ...
 
 class EdgeDir:
     OUT: int
