@@ -251,6 +251,21 @@ test "a component destroy touches only that component" {
 }
 
 
+test "a component destroy of the application still sweeps the fleet" {
+    cluster = FakeCluster();
+
+    _destroy(cluster, component="application");
+
+    names = _names(cluster);
+    assert "apps.delete_collection_namespaced_deployment" in names , (
+        f"--component application left the label-managed fleet running: {names}"
+    );
+    assert "core.delete_namespace" not in names , (
+        f"a --component destroy deleted the namespace: {names}"
+    );
+}
+
+
 test "a failing phase does not strand the namespace behind it" {
     cluster = FakeCluster();
     cluster.apps.answers["delete_namespaced_stateful_set"] = _api_error(403);
