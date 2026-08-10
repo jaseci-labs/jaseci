@@ -221,7 +221,7 @@ def _conn_dead(e: Exception) -> bool {
     }
     for arg in getattr(e, 'args', ()) {
         if isinstance(arg, dict)
-            and arg.get('C') in ('08006', '08003', '57P01', '57P03') {
+            and arg.get('C') in ('08006', '08003', '57P01', '57P03', '25P03') {
             return True;
         }
     }
@@ -481,13 +481,20 @@ impl PgStore.takeover -> int {
 }
 
 
-impl PgStore.begin(serializable: bool = True) -> None {
+impl PgStore.begin(serializable: bool = True, read_only: bool = False) -> None {
     with self._lock {
         if self._in_txn {
             return;
         }
-        level = 'SERIALIZABLE' if serializable else 'READ COMMITTED';
-        self._run(f"BEGIN ISOLATION LEVEL {level}", {});
+        if serializable {
+            level = 'SERIALIZABLE';
+        } elif read_only {
+            level = 'REPEATABLE READ';
+        } else {
+            level = 'READ COMMITTED';
+        }
+        suffix = ' READ ONLY' if read_only else '';
+        self._run(f"BEGIN ISOLATION LEVEL {level}{suffix}", {});
         self._in_txn = True;
         try {
             self._run("SET LOCAL lock_timeout = '10s'", {});
