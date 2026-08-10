@@ -2,18 +2,11 @@
 
 import sys
 
-from jaclang.meta_importer import (  # noqa: E402
-    JacMetaImporter,
-    install_graphmend_loader_hook,
-)
+from jaclang.meta_importer import JacMetaImporter  # noqa: E402
 
 # Register JacMetaImporter BEFORE anything else, so .jac modules can be imported
 if not any(isinstance(f, JacMetaImporter) for f in sys.meta_path):
     sys.meta_path.insert(0, JacMetaImporter())
-
-# Idempotent, and a no-op unless --graphmend-scope names the imported module;
-# needed because trust_remote_code-style imports bypass sys.meta_path entirely.
-install_graphmend_loader_hook()
 
 # Put the current project's .jac/venv on sys.path so per-project dependencies
 # (jac install [-e] <pkg>) and the on-demand feature capabilities (byllm, scale,

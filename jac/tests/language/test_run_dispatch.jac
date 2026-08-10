@@ -417,6 +417,9 @@ test "graphmend options survive every jac run mode" {
     assert rc_project == 0 and rc_file == 0 and rc_entry == 0;
     assert out.count("GM=True") == 3 , f"expected 3 enabled runs, got: {out}";
     assert rc_debug == 1;
+    # The scoped run above must have lazily installed the loader hook.
+    import from importlib.machinery { SourceFileLoader }
+    assert getattr(SourceFileLoader, "_jac_graphmend_hooked", False);
     _cleanup();
 }
 

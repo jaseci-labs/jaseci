@@ -237,6 +237,10 @@ def _apply_graphmend(graphmend: bool, graphmend_scope: str) {
     }
     Jac.get_program().graphmend_enabled = graphmend or bool(gm_scope);
     Jac.get_program().graphmend_scope = gm_scope;
+    if gm_scope {
+        import from jaclang.meta_importer { install_graphmend_loader_hook }
+        install_graphmend_loader_hook();
+    }
 }
 
 def _run_project(
