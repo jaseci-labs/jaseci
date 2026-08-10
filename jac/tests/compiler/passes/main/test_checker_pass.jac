@@ -3934,11 +3934,11 @@ test "root_cause_2_unknown_cascade" {
     );
     TypeCheckPass(ir_in=mod, prog=program);
 
-    # fail_ functions (lines 148-162) — one root E1030 cascades into E1032s
+    # fail_ functions (lines 149-163) - one root E1030 cascades into E1032s
     rc2_errors = [
         e
         for e in program.errors_had
-        if e.loc and 148 <= e.loc.first_line <= 162
+        if e.loc and 149 <= e.loc.first_line <= 163
     ];
     # Cascading E1032 suppressed for chained AtomTrailer/FuncCall targets.
     # Name targets still report: persistence.some_attr, data.values() are first
