@@ -13,6 +13,7 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { PyastGenPass }
+import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = os.path.join(
@@ -611,7 +612,15 @@ test \"demo\" {
 }
 """;
     prog = JacProgram();
-    mod = prog.compile(file_path="lambda_test_body_hoist.jac", use_str=code);
+    # This test inspects the generated Python, so pin the server codespace:
+    # the native codespace deliberately replaces a test body with an
+    # invoke_native_test shim, which would make the hoist assertions
+    # unobservable (and environment-dependent on LLVM shim availability).
+    mod = prog.compile(
+        file_path="lambda_test_body_hoist.jac",
+        use_str=code,
+        options=CompileOptions(type_check=False, default_codespace='server')
+    );
     assert not prog.errors_had , (
         f"test-body lambda hoist should compile cleanly: {prog.errors_had}"
     );

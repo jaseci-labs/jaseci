@@ -77,7 +77,6 @@ def _symbol_defining_module(sym: uni.Symbol) -> (uni.Module | None) {
     return decl.find_parent_of_type(uni.Module);
 }
 
-"""True when a user-defined symbol in the calling module shadows a builtin."""
 def _is_local_user_shadow(sym: uni.Symbol, call: uni.FuncCall) -> bool {
     if not _is_user_symbol(sym) {
         return False;
