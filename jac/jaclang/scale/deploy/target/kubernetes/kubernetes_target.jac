@@ -118,6 +118,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
     }
 
     def _inject_external_db_url(app_name: str, namespace: str, core_v1: Any, url: str) {
+        import hashlib;
         secret_name = self._external_db_secret_name(app_name);
         create_k8s_secret(core_v1, namespace, secret_name, {'connection-string': url});
         self.env_list.append(
@@ -128,20 +129,46 @@ obj KubernetesTargetBase(DeploymentTarget) {
                 }
             }
         );
+
+        self.env_list.append(
+            {
+                'name': 'JAC_DB_URL_REV',
+                'value': hashlib.sha256(url.encode()).hexdigest()[:12]
+            }
+        );
     }
 
     def _cleanup_external_db_secret(app_name: str, namespace: str, core_v1: Any) {
         secret_name = self._external_db_secret_name(app_name);
         try {
             delete_k8s_secret(core_v1, namespace, secret_name);
+            return;
         } except ApiException as e {
-            if self.logger {
-                self.logger.warn(
-                    f"Could not remove the stale database secret "
-                    f"'{secret_name}' (status {e.status}); delete it "
-                    f"manually from namespace '{namespace}'"
-                );
+            delete_status = e.status;
+        }
+        remains = True;
+        try {
+            core_v1.read_namespaced_secret(name=secret_name, namespace=namespace);
+        } except ApiException as e {
+            if e.status == 404 {
+                return;
             }
+            remains = False;
+        }
+        if remains {
+            raise RuntimeError(
+                f"the external database secret '{secret_name}' still holds "
+                f"credentials in namespace '{namespace}' but deleting it was "
+                f"denied (status {delete_status}). Grant the deployer delete "
+                f"permission on Secrets or remove it manually, then redeploy."
+            );
+        }
+        if self.logger {
+            self.logger.warn(
+                f"Could not verify removal of the database secret "
+                f"'{secret_name}' (delete status {delete_status}); check "
+                f"namespace '{namespace}' manually"
+            );
         }
     }
 

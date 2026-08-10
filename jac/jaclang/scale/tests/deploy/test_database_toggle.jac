@@ -109,20 +109,32 @@ test "external mode ships the url via a secret, provisions nothing" {
     assert secret_body["metadata"]["name"] == "dbapp-database-url";
     assert secret_body["stringData"]
         == {"connection-string": "postgresql://user:pw@ext.host:5432/app"};
-    assert target.env_list
-        == [
-            {
-                "name": "JAC_DB_URL",
-                "valueFrom": {
-                    "secretKeyRef": {
-                        "name": "dbapp-database-url",
-                        "key": "connection-string"
-                    }
+    assert target.env_list[0]
+        == {
+            "name": "JAC_DB_URL",
+            "valueFrom": {
+                "secretKeyRef": {
+                    "name": "dbapp-database-url",
+                    "key": "connection-string"
                 }
             }
-        ];
+        };
+    assert target.env_list[1]["name"] == "JAC_DB_URL_REV";
     apps_v1.create_namespaced_stateful_set.assert_not_called();
     assert target._get_database_init_containers("dbapp") == [];
+}
+
+
+test "rotating the external url changes the pod template revision" {
+    first = _target(False, "postgresql://old.host:5432/app");
+    second = _target(False, "postgresql://new.host:5432/app");
+    first._deploy_databases(
+        "dbapp", "db-ns", unittest.mock.MagicMock(), unittest.mock.MagicMock()
+    );
+    second._deploy_databases(
+        "dbapp", "db-ns", unittest.mock.MagicMock(), unittest.mock.MagicMock()
+    );
+    assert first.env_list[1]["value"] != second.env_list[1]["value"];
 }
 
 
@@ -148,20 +160,40 @@ def _not_found(*args: any, **kwargs: any) {
 }
 
 
-test "a forbidden secret cleanup does not fail a disabled-database deploy" {
+def _forbidden(*args: any, **kwargs: any) {
+    raise ApiException(status=403);
+}
+
+
+test "forbidden cleanup with no secret left does not fail the deploy" {
     target = _target(False, "");
     apps_v1 = unittest.mock.MagicMock();
     core_v1 = unittest.mock.MagicMock();
-
-    def _forbidden(*args: any, **kwargs: any) {
-        raise ApiException(status=403);
-    }
     core_v1.delete_namespaced_secret.side_effect = _forbidden;
+    core_v1.read_namespaced_secret.side_effect = _not_found;
 
     target._deploy_databases("dbapp", "db-ns", apps_v1, core_v1);
 
     assert target.env_list == [];
     apps_v1.create_namespaced_stateful_set.assert_not_called();
+}
+
+
+test "forbidden cleanup with credentials still present fails the deploy" {
+    target = _target(False, "");
+    core_v1 = unittest.mock.MagicMock();
+    core_v1.delete_namespaced_secret.side_effect = _forbidden;
+    core_v1.read_namespaced_secret.return_value = SimpleNamespace(
+        data={"connection-string": "b64-url"}
+    );
+
+    error = "";
+    try {
+        target._deploy_databases("dbapp", "db-ns", unittest.mock.MagicMock(), core_v1);
+    } except RuntimeError as e {
+        error = str(e);
+    }
+    assert "dbapp-database-url" in error and "denied" in error;
 }
 
 
