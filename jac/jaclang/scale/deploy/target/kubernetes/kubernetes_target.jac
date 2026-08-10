@@ -12,7 +12,6 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     create_k8s_secret,
     delete_k8s_secret,
     delete_if_exists,
-    delete_namespace,
     check_K8s_status,
     ensure_namespace_exists,
     get_cluster_provider,
@@ -29,6 +28,19 @@ import from jaclang.scale.deploy.target.kubernetes.monitoring { MonitoringDeploy
 import from jaclang.scale.deploy.target.kubernetes.ingress { IngressDeployer }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
 import time;
+
+# The teardown reads and deletes across five API groups. Building them once and
+# passing the bundle keeps every phase on the connection `_load_cluster_config`
+# selected, instead of each phase reaching for a client of its own.
+obj K8sApis {
+    has apps: any,
+        core: any,
+        policy: any,
+        networking: any,
+        rbac: any,
+        custom: any;
+}
+
 
 obj KubernetesTargetBase(DeploymentTarget) {
     has config: KubernetesConfig,
@@ -94,6 +106,18 @@ obj KubernetesTargetBase(DeploymentTarget) {
                 f"Original error from in-cluster load: {e}"
             );
         }
+    }
+
+    def _api_clients -> K8sApis {
+        self._load_cluster_config();
+        return K8sApis(
+            apps=client.AppsV1Api(),
+            core=client.CoreV1Api(),
+            policy=client.PolicyV1Api(),
+            networking=client.NetworkingV1Api(),
+            rbac=client.RbacAuthorizationV1Api(),
+            custom=client.CustomObjectsApi()
+        );
     }
 
     def _get_database_init_containers(app_name: str) -> list[dict[(str, Any)]] {
@@ -354,13 +378,13 @@ obj KubernetesTargetBase(DeploymentTarget) {
         }
     }
 
-    def _destroy_databases(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
-        self._destroy_database(app_name, namespace, apps_v1, core_v1);
+    def _destroy_databases(app_name: str, namespace: str, apis: K8sApis) {
+        self._destroy_database(app_name, namespace, apis);
     }
 
-    def _destroy_application(
-        app_name: str, namespace: str, apps_v1: any, core_v1: any
-    ) {
+    def _destroy_application(app_name: str, namespace: str, apis: K8sApis) {
+        apps_v1 = apis.apps;
+        core_v1 = apis.core;
         autoscaler = AutoscalerFactory.create(
             self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), self.logger
         );
@@ -391,7 +415,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
             namespace,
             'ServiceAccount'
         );
-        networking_v1 = client.NetworkingV1Api();
+        networking_v1 = apis.networking;
 
         network_policy_names = [
             f"{app_name}-network-policy",
@@ -411,7 +435,9 @@ obj KubernetesTargetBase(DeploymentTarget) {
         }
     }
 
-    def _destroy_database(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
+    def _destroy_database(app_name: str, namespace: str, apis: K8sApis) {
+        apps_v1 = apis.apps;
+        core_v1 = apis.core;
         pg_name = f"{app_name}-postgres";
         delete_if_exists(
             apps_v1.delete_namespaced_stateful_set, pg_name, namespace, 'StatefulSet'
@@ -431,16 +457,53 @@ obj KubernetesTargetBase(DeploymentTarget) {
         );
     }
 
+    def _destroy_ingress(app_name: str, namespace: str, apis: K8sApis) {
+        IngressDeployer(self.k8s_config, self.logger).destroy(
+            app_name,
+            namespace,
+            apis.apps,
+            apis.core,
+            apis.rbac,
+            apis.networking,
+            apis.custom
+        );
+    }
+
+    def _destroy_monitoring(app_name: str, namespace: str, apis: K8sApis) {
+        MonitoringDeployer(self.k8s_config, self.logger).destroy(
+            app_name, namespace, apis.apps, apis.core, apis.rbac
+        );
+    }
+
+    def _destroy_volumes(app_name: str, namespace: str, apis: K8sApis) {
+        core_v1 = apis.core;
+        pvcs = core_v1.list_namespaced_persistent_volume_claim(namespace);
+        for pvc in pvcs.items {
+            if pvc.metadata.name.startswith(app_name) {
+                try {
+                    core_v1.delete_namespaced_persistent_volume_claim(
+                        name=pvc.metadata.name, namespace=namespace
+                    );
+                } except Exception as e {
+                    if self.logger {
+                        self.logger.warning(
+                            f"Failed to delete PVC '{pvc.metadata.name}': {e}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     def _destroy_component(
-        app_name: str, namespace: str, component: str, apps_v1: any, core_v1: any
+        app_name: str, namespace: str, component: str, apis: K8sApis
     ) {
         if component == 'application' {
-            self._destroy_application(app_name, namespace, apps_v1, core_v1);
+            self._destroy_application(app_name, namespace, apis);
         } elif component == 'database' {
-            self._destroy_database(app_name, namespace, apps_v1, core_v1);
+            self._destroy_database(app_name, namespace, apis);
         } elif component == 'monitoring' {
-            monitoring = MonitoringDeployer(self.k8s_config, self.logger);
-            monitoring.destroy(app_name, namespace, apps_v1, core_v1);
+            self._destroy_monitoring(app_name, namespace, apis);
         } else {
             raise ValueError(
                 f"Unknown component: '{component}'. Valid choices: application, database, monitoring"
@@ -465,100 +528,149 @@ obj KubernetesTargetBase(DeploymentTarget) {
         }
 
         try {
-            self._load_cluster_config();
-            apps_v1 = client.AppsV1Api();
-            core_v1 = client.CoreV1Api();
+            apis = self._api_clients();
             namespace = self.k8s_config.namespace;
 
             if component {
-                self._destroy_component(
-                    app_name, namespace, component, apps_v1, core_v1
-                );
+                self._destroy_component(app_name, namespace, component, apis);
                 return;
             }
 
-            self._destroy_application(app_name, namespace, apps_v1, core_v1);
-
-            rbac_v1 = client.RbacAuthorizationV1Api();
-            networking_v1 = client.NetworkingV1Api();
-            ingress_deployer = IngressDeployer(self.k8s_config, self.logger);
-            ingress_deployer.destroy(
-                app_name, namespace, apps_v1, core_v1, rbac_v1, networking_v1
-            );
-
-            monitoring = MonitoringDeployer(self.k8s_config, self.logger);
-            monitoring.destroy(app_name, namespace, apps_v1, core_v1);
-
-            self._destroy_databases(app_name, namespace, apps_v1, core_v1);
-
-            pvcs = core_v1.list_namespaced_persistent_volume_claim(namespace);
-            for pvc in pvcs.items {
-                if pvc.metadata.name.startswith(app_name) {
-                    try {
-                        core_v1.delete_namespaced_persistent_volume_claim(
-                            name=pvc.metadata.name, namespace=namespace
-                        );
-                    } except Exception as e {
-                        if self.logger {
-                            self.logger.warning(
-                                f"Failed to delete PVC '{pvc.metadata.name}': {e}"
-                            );
-                        }
-                    }
-                }
-            }
-
-            if self.logger {
-                self.logger.info(
-                    f"Waiting for all resources to be deleted for '{app_name}'..."
-                );
-            }
-            self._wait_for_deletion(app_name, namespace, apps_v1, core_v1);
-
-            if namespace != 'default' {
-                delete_namespace(namespace);
-                if self.logger {
-                    self.logger.info(
-                        f"Waiting for namespace '{namespace}' to be deleted..."
-                    );
-                }
-                ns_deleted = False;
-                ns_elapsed = 0.0;
-                ns_max_wait = 120;
-                ns_poll = 2.0;
-                while ns_elapsed < ns_max_wait {
-                    try {
-                        core_v1.read_namespace(name=namespace);
-                        time.sleep(ns_poll);
-                        ns_elapsed = ns_elapsed + ns_poll;
-                    } except ApiException as e {
-                        if e.status == 404 {
-                            ns_deleted = True;
-                            break;
-                        }
-                        raise;
-                    }
-                }
-                if self.logger {
-                    if ns_deleted {
-                        self.logger.info(f"Namespace '{namespace}' deleted");
-                    } else {
-                        self.logger.warning(
-                            f"Timed out waiting for namespace '{namespace}' to be deleted"
-                        );
-                    }
-                }
-            }
-
-            if self.logger {
-                self.logger.info(f"Application '{app_name}' destroyed successfully");
-            }
+            self._run_teardown(app_name, namespace, apis);
         } except Exception as e {
             if self.logger {
                 self.logger.error(f"Error destroying application '{app_name}': {e}");
             }
             raise;
         }
+    }
+
+    # Ordered so the workloads go first: their pods hold the finalizers that pin
+    # the bundle PVC, and the volume sweep behind them cannot complete until
+    # they drain.
+    def _teardown_phases -> list[tuple[str, Any]] {
+        return [
+            ('application', self._destroy_application),
+            ('ingress', self._destroy_ingress),
+            ('monitoring', self._destroy_monitoring),
+            ('databases', self._destroy_databases),
+            ('volumes', self._destroy_volumes)
+        ];
+    }
+
+    def _run_teardown(app_name: str, namespace: str, apis: K8sApis) -> None {
+        # Phases are isolated because deleting the namespace reclaims everything
+        # inside it. Letting one API error abort the run - a forbidden
+        # ClusterRole delete, a flaking apiserver - is what strands the whole
+        # namespace, so every phase gets its turn and the failures are judged
+        # once at the end.
+        failures: list[str] = [];
+        for (phase, run) in self._teardown_phases() {
+            try {
+                run(app_name, namespace, apis);
+            } except Exception as e {
+                failures.append(f"{phase}: {e}");
+                if self.logger {
+                    self.logger.warning(
+                        f"Teardown phase '{phase}' failed for '{app_name}'; "
+                        f"continuing so the namespace delete still runs: {e}"
+                    );
+                }
+            }
+        }
+
+        if self.logger {
+            self.logger.info(
+                f"Waiting for all resources to be deleted for '{app_name}'..."
+            );
+        }
+        try {
+            self._wait_for_deletion(app_name, namespace, apis.apps, apis.core);
+        } except Exception as e {
+            if self.logger {
+                self.logger.warning(
+                    f"Could not confirm resource deletion for '{app_name}': {e}"
+                );
+            }
+        }
+
+        reclaimed = self._delete_namespace(namespace, apis);
+
+        if not failures {
+            if self.logger {
+                self.logger.info(f"Application '{app_name}' destroyed successfully");
+            }
+            return;
+        }
+
+        detail = "; ".join(failures);
+        if not reclaimed {
+            raise RuntimeError(
+                f"Failed to destroy '{app_name}' and namespace '{namespace}' "
+                f"still exists: {detail}"
+            );
+        }
+        if self.logger {
+            self.logger.warning(
+                f"Namespace '{namespace}' was deleted, so everything inside it is "
+                f"gone, but {len(failures)} teardown phase(s) failed and any "
+                f"cluster-scoped resources they own may remain: {detail}"
+            );
+        }
+    }
+
+    # True once the namespace is confirmed gone. 'default' is never deleted, so
+    # it can never vouch for the resources it holds.
+    def _delete_namespace(
+        namespace: str, apis: K8sApis, max_wait: int = 120, poll_interval: float = 2.0
+    ) -> bool {
+        if namespace == 'default' {
+            return False;
+        }
+        core_v1 = apis.core;
+        try {
+            core_v1.delete_namespace(name=namespace);
+        } except ApiException as e {
+            if e.status == 404 {
+                return True;
+            }
+            if self.logger {
+                self.logger.error(f"Failed to delete namespace '{namespace}': {e}");
+            }
+            return False;
+        }
+
+        if self.logger {
+            self.logger.info(f"Waiting for namespace '{namespace}' to be deleted...");
+        }
+        elapsed = 0.0;
+        while elapsed < max_wait {
+            try {
+                core_v1.read_namespace(name=namespace);
+            } except ApiException as e {
+                if e.status == 404 {
+                    if self.logger {
+                        self.logger.info(f"Namespace '{namespace}' deleted");
+                    }
+                    return True;
+                }
+                if self.logger {
+                    self.logger.warning(
+                        f"Could not read namespace '{namespace}' while waiting "
+                        f"for it to be deleted: {e}"
+                    );
+                }
+                return False;
+            }
+            time.sleep(poll_interval);
+            elapsed = elapsed + poll_interval;
+        }
+        if self.logger {
+            self.logger.warning(
+                f"Timed out waiting for namespace '{namespace}' to be deleted"
+            );
+        }
+        return False;
     }
 
     def get_status(app_name: str) -> ResourceStatusInfo {

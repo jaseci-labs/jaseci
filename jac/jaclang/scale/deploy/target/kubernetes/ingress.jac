@@ -835,7 +835,8 @@ obj IngressDeployer {
         apps_v1: any,
         core_v1: any,
         rbac_v1: any,
-        networking_v1: any
+        networking_v1: any,
+        custom_api: any
     ) {
         controller_name = f"{app_name}-ingress-nginx";
         cluster_resource_name = f"{namespace}-{app_name}-ingress-nginx";
@@ -857,7 +858,6 @@ obj IngressDeployer {
             'Secret'
         );
         try {
-            custom_api = client.CustomObjectsApi();
             custom_api.delete_namespaced_custom_object(
                 group='cert-manager.io',
                 version='v1',

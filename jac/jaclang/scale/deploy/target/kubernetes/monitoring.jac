@@ -2139,7 +2139,9 @@ obj MonitoringDeployer {
         self._deploy_grafana(app_name, namespace, apps_v1, core_v1);
     }
 
-    def destroy(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
+    def destroy(
+        app_name: str, namespace: str, apps_v1: Any, core_v1: Any, rbac_v1: Any
+    ) {
         prometheus_name = f"{app_name}-prometheus";
         grafana_name = f"{app_name}-grafana";
         ksm_name = f"{app_name}-kube-state-metrics";
@@ -2201,7 +2203,6 @@ obj MonitoringDeployer {
             }
         }
 
-        rbac_v1 = client.RbacAuthorizationV1Api();
         try {
             rbac_v1.delete_cluster_role(name=cluster_role_name);
         } except ApiException as e {

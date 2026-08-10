@@ -532,20 +532,15 @@ test "shared ingress destroy skips controller resource teardown" {
     mock_custom_api = unittest.mock.MagicMock();
     mock_custom_api.delete_namespaced_custom_object.side_effect = not_found;
 
-    with unittest.mock.patch(
-        "jaclang.scale.deploy.target.kubernetes.ingress.client"
-    ) as raw_mock_client {
-        mock_client: Any = raw_mock_client;
-        mock_client.CustomObjectsApi.return_value = mock_custom_api;
-        ingress_deployer.destroy(
-            app_name="myapp",
-            namespace="default",
-            apps_v1=mock_apps_v1,
-            core_v1=mock_core_v1,
-            rbac_v1=mock_rbac_v1,
-            networking_v1=mock_networking_v1
-        );
-    }
+    ingress_deployer.destroy(
+        app_name="myapp",
+        namespace="default",
+        apps_v1=mock_apps_v1,
+        core_v1=mock_core_v1,
+        rbac_v1=mock_rbac_v1,
+        networking_v1=mock_networking_v1,
+        custom_api=mock_custom_api
+    );
 
     assert mock_networking_v1.delete_namespaced_ingress.called , "app Ingress resource must be deleted regardless of shared_ingress mode";
 

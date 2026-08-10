@@ -1,5 +1,6 @@
 import logging;
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
+    K8sApis,
     KubernetesTargetBase
 }
 import from jaclang.scale.config.app_config { AppConfig }
@@ -1159,27 +1160,15 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def destroy(app_name: str, component: str = "") {
-        if self.logger {
-            self.logger.info(
-                f"Destroying microservice topology in namespace "
-                f"'{self.k8s_config.namespace}'",
-                {"app_name": app_name}
-            );
-        }
-
-        self._load_cluster_config();
-        apps_v1 = client.AppsV1Api();
-        core_v1 = client.CoreV1Api();
-        policy_v1 = client.PolicyV1Api();
-        networking_v1 = client.NetworkingV1Api();
-        namespace: str = self.k8s_config.namespace;
-
+    # The fleet is label-managed (`<svc>-deployment-*`, `gateway-deployment-*`),
+    # so the base pass - which deletes by app name - cannot see it. Sweeping it
+    # from here keeps the shared teardown, and its ordering, in one place.
+    def _destroy_fleet(namespace: str, apis: K8sApis) {
         selector: str = "managed=jac-scale,jac-scale.role in (microservice,gateway)";
         ms_selector: str = "managed=jac-scale";
 
         try {
-            apps_v1.delete_collection_namespaced_deployment(
+            apis.apps.delete_collection_namespaced_deployment(
                 namespace=namespace, label_selector=selector
             );
         } except ApiException as e {
@@ -1203,7 +1192,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
 
         try {
-            policy_v1.delete_collection_namespaced_pod_disruption_budget(
+            apis.policy.delete_collection_namespaced_pod_disruption_budget(
                 namespace=namespace, label_selector=ms_selector
             );
         } except ApiException as e {
@@ -1213,7 +1202,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
 
         try {
-            networking_v1.delete_collection_namespaced_ingress(
+            apis.networking.delete_collection_namespaced_ingress(
                 namespace=namespace, label_selector=ms_selector
             );
         } except ApiException as e {
@@ -1223,12 +1212,12 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
 
         try {
-            services = core_v1.list_namespaced_service(
+            services = apis.core.list_namespaced_service(
                 namespace=namespace, label_selector=ms_selector
             );
             for svc in services.items {
                 try {
-                    core_v1.delete_namespaced_service(
+                    apis.core.delete_namespaced_service(
                         name=svc.metadata.name, namespace=namespace
                     );
                 } except ApiException as e {
@@ -1244,7 +1233,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
 
         try {
-            core_v1.delete_collection_namespaced_config_map(
+            apis.core.delete_collection_namespaced_config_map(
                 namespace=namespace,
                 label_selector="managed=jac-scale,jac-scale.role=source"
             );
@@ -1253,17 +1242,16 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 raise;
             }
         }
+    }
 
-        try {
-            monitoring = MonitoringDeployer(self.k8s_config, self.logger);
-            monitoring.destroy(app_name, namespace, apps_v1, core_v1);
-        } except Exception as e {
-            if self.logger {
-                self.logger.info(
-                    f"Observability stack destroy reported a non-fatal error: {e}",
-                    {"app_name": app_name}
-                );
-            }
+    def _destroy_application(app_name: str, namespace: str, apis: K8sApis) {
+        if self.logger {
+            self.logger.info(
+                f"Destroying microservice topology in namespace '{namespace}'",
+                {"app_name": app_name}
+            );
         }
+        self._destroy_fleet(namespace, apis);
+        super._destroy_application(app_name, namespace, apis);
     }
 }
