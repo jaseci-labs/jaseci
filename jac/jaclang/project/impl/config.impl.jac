@@ -326,6 +326,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
             }
         }
     }
+    _warn_legacy_plugins_table(data);
     for _feat in ("byllm", "scale", "client", "mcp", "desktop") {
         if _feat in data and isinstance(data[_feat], dict) {
             if _feat in self.plugins {
@@ -405,6 +406,27 @@ impl JacConfig.get_plugin_deps(dep_type: str) -> dict[str, any] {
 
 impl JacConfig.get_plugin_config(plugin_name: str) -> dict[str, any] {
     return self.plugins.get(plugin_name, {});
+}
+
+impl _warn_legacy_plugins_table(data: dict[str, any]) -> None {
+    plugins_table = data.get("plugins");
+    if not isinstance(plugins_table, dict) or not plugins_table {
+        return;
+    }
+    legacy: dict[str, any] = dict(plugins_table);
+    sections = ", ".join(
+        sorted(
+            str(k)
+            for k in legacy.keys()
+        )
+    );
+    import from jaclang.cli.console { console }
+    console.warning(
+        f"jac.toml has a [plugins] table ({sections}); the [plugins.*] "
+        "namespace was removed and these settings are ignored. Move "
+        "[plugins.X] to top-level [X], e.g. [plugins.scale.database] "
+        "-> [scale.database]."
+    );
 }
 
 impl JacConfig.get_section(name: str) -> dict[str, any] | None {
@@ -1287,6 +1309,7 @@ impl _parse_toml_data(
             test_jobs=str(dev_data.get("test_jobs", "auto"))
         );
     }
+    _warn_legacy_plugins_table(data);
     for _feat in ("byllm", "scale", "client", "mcp", "desktop") {
         if _feat in data and isinstance(data[_feat], dict) {
             config.plugins[_feat] = data[_feat];
