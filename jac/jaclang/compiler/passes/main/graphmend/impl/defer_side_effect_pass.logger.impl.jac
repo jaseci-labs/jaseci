@@ -14,7 +14,18 @@ impl DeferSideEffectPass._is_logger_call(nd: uni.FuncCall) -> bool {
         return False;
     }
     base = t.target;
-    return isinstance(base, uni.Name) and (base.value not in {'self', 'cls'});
+    return isinstance(base, uni.Name)
+        and (base.value not in {'self', 'cls'})
+        and self._base_binds_at_module(base);
+}
+
+impl DeferSideEffectPass._base_binds_at_module(base: uni.Name) -> bool {
+    sym = base.sym;
+    if sym is None {
+        return True;
+    }
+    decl = sym.decl;
+    return (decl is not None) and (decl.find_parent_of_type(uni.Ability) is None);
 }
 
 impl DeferSideEffectPass._logger_emit(nd: uni.FuncCall) -> (uni.FuncCall | None) {

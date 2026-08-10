@@ -27,6 +27,9 @@ impl DeferSideEffectPass.exit_func_call(nd: uni.FuncCall) -> None {
     if ability is None {
         return;
     }
+    if self._has_unpack(nd) {
+        return;
+    }
     if self._is_logger_call(nd) and (ability?.sym_name == 'forward') {
         emit_call = self._logger_emit(nd);
         if emit_call is not None {
@@ -178,6 +181,20 @@ impl DeferSideEffectPass._str(at: uni.UniNode, text: str) -> uni.String {
         pos_start=at.loc.pos_start,
         pos_end=at.loc.pos_end
     );
+}
+
+impl DeferSideEffectPass._has_unpack(call: uni.FuncCall) -> bool {
+    for p in (call.params or []) {
+        if isinstance(p, uni.KWPair) {
+            if p.key is None {
+                return True;
+            }
+        } elif isinstance(p, uni.UnaryExpr)
+            and (p.op.name in [Tok.STAR_MUL, Tok.STAR_POW]) {
+            return True;
+        }
+    }
+    return False;
 }
 
 impl DeferSideEffectPass._split_params(
