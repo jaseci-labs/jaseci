@@ -711,7 +711,9 @@ test "rollout wait defaults to the fast gate and reads 'full' from jac.toml" {
 test "an unusable rollout wait setting in jac.toml fails the config load" {
     for (setting, bad) in [
         ("rollout_wait = \"everything\"", "everything"),
+        ("rollout_wait = \"\"", "''"),
         ("rollout_timeout = 0", "0"),
+        ("rollout_timeout = 30.5", "30.5"),
         ("rollout_timeout = \"soon\"", "soon")
     ] {
         caught = None;

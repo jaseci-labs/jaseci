@@ -6,7 +6,7 @@ glob ROLLOUT_WAIT_READY: str = "ready",
 
 
 def normalize_rollout_wait(mode: any) -> str {
-    candidate = str(mode or ROLLOUT_WAIT_READY).strip().lower();
+    candidate = str(ROLLOUT_WAIT_READY if mode is None else mode).strip().lower();
     if candidate not in ROLLOUT_WAIT_MODES {
         raise ValueError(
             f"invalid rollout wait mode '{mode}': expected one of "
@@ -20,13 +20,14 @@ def normalize_rollout_wait(mode: any) -> str {
 def normalize_rollout_timeout(value: any) -> int {
     try {
         seconds = int(value);
+        is_whole = seconds == float(value);
     } except (TypeError, ValueError) {
-        seconds = 0;
+        (seconds, is_whole) = (0, False);
     }
-    if seconds < 1 {
+    if seconds < 1 or not is_whole {
         raise ValueError(
-            f"invalid rollout timeout '{value}': expected a positive number "
-            "of seconds"
+            f"invalid rollout timeout '{value}': expected a positive whole "
+            "number of seconds"
         );
     }
     return seconds;
