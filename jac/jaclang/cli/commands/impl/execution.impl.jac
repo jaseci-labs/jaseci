@@ -529,7 +529,8 @@ impl start(
     target: str = "kubernetes",
     enable_tls: bool = False,
     dry_run: bool = False,
-    show_yaml: bool = False
+    show_yaml: bool = False,
+    takeover: bool = False
 ) -> int {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from pathlib { Path }
@@ -567,6 +568,19 @@ impl start(
     }
 
     _discover_config_from_file(filename);
+    if takeover {
+        import os;
+        import from jaclang.runtimelib.session { takeover_project }
+        tk_base = Jac.get_base_path_dir() or (os.path.split(filename)[0] or './');
+        tk_target = Jac.get_full_target_path() or filename;
+        evicted = takeover_project(tk_base, tk_target);
+        if evicted {
+            console.info(
+                f"takeover: evicted {evicted} session(s) holding this"
+                " project's database"
+            );
+        }
+    }
     (base, mod, mach) = _proc_file(filename);
     lng = filename.split('.')[-1];
 
