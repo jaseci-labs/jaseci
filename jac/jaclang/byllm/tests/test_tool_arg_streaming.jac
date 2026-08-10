@@ -1,22 +1,8 @@
 """Tool-argument streaming: `tool_call_delta` (jaseci-labs/jac#7997).
 
-litellm delivers tool-call argument fragments during streaming, in
-`chunk.choices[0].delta.tool_calls[].function.arguments`. byllm used to read
-only `delta.content` and rebuild the call at the end, so a caller learned a
-tool was being invoked only once every argument had been generated.
-
-The feature is display-only and opt-in. Each test below pins ONE invariant:
-
-  1. off unless enabled, and the tool still runs
-  2. deltas precede the call, and the first one names the tool
-  3. coalescing bounds a pathological provider
-  4. the executed call is byte-identical to the rebuilt one
-  5. a parallel batch keeps its calls separate
-  6. a retry announces the reset before the replacement's deltas, on BOTH
-     drain paths (during the token loop, and from the end-of-stream flush)
-  7. an abandoned stream is announced even when byllm's retry counter never
-     moves, as with emergency context compaction
-"""
+byllm used to read only `delta.content`, so a caller learned a tool was being
+invoked only once every argument had been generated. The feature is
+display-only and opt-in; each test pins one invariant."""
 
 import litellm;
 import types;
@@ -39,9 +25,8 @@ def read_file(path: str) -> str {
 }
 
 
-"""One streaming chunk. Prose when `content` is set, otherwise a tool-argument
-fragment. Only a call's FIRST fragment carries `id` and `name`, as litellm
-delivers them."""
+"""One chunk: prose when `content` is set, else an argument fragment. Only a
+call's FIRST fragment carries `id` and `name`, as litellm delivers them."""
 def _chunk(
     content: str = "", frag: str = "", call_id: str = "", name: str = "", index: int = 0
 ) -> any {
@@ -86,7 +71,7 @@ def _frags(args: str, tool: str, call_id: str, size: int = 12, index: int = 0) -
 }
 
 
-"""What `stream_chunk_builder` would return for `calls`, each (id, name, args)."""
+"""What `stream_chunk_builder` returns for `calls`, each (id, name, args)."""
 def _rebuilt(calls: list) -> dict {
     tcs = [
         types.SimpleNamespace(
@@ -122,13 +107,9 @@ def _plain(text: str) -> dict {
 }
 
 
-"""Drive `_invoke_streaming` over scripted turns and collect the events.
-
-`turns` is one entry per LLM round: a list of chunks, or RETRY to drop the
-stream with a transient error. `rebuilts` is parallel to it (None where a turn
-retries). Any turn past the end answers in plain text so the ReAct loop ends.
-`enabled` False means the caller never opts in, i.e. the shipped default.
-"""
+"""Drive `_invoke_streaming` over scripted turns. `turns` holds one entry per
+LLM round: chunks, or RETRY to drop the stream. `rebuilts` is parallel to it.
+`enabled` False means the caller never opts in, i.e. the shipped default."""
 def _run(turns: list, rebuilts: list, tools: list, enabled: bool = True) -> list {
     llm = Model(model_name="gpt-4o");
     wrapped = [Tool(func=t) for t in tools];
@@ -290,10 +271,8 @@ test "a parallel batch keeps its calls separate" {
 
 
 test "a retry announces the reset before the replacement's deltas" {
-    # Both drain paths must hold the invariant. The "loop" replacement is long
-    # and named, so it publishes while the token loop runs. The "flush" one is
-    # short and unnamed, so no threshold trips and its deltas exist only because
-    # the dispatcher flushes after the loop ends.
+    # "loop" publishes during the token loop; "flush" is short and unnamed, so
+    # no threshold trips and its deltas exist only because of the final flush.
     short = '{"path": "a.jac"}';
     cases = [
         (
@@ -322,10 +301,8 @@ test "a retry announces the reset before the replacement's deltas" {
 
 
 test "an abandoned stream is announced when compaction discards it" {
-    # Emergency compaction discards a stream that may already have published
-    # deltas, and it never increments _stream_reset_count, so no counter-based
-    # guard can see it. Without an announcement a consumer keeps showing the
-    # abandoned fragments.
+    # Compaction discards a stream without incrementing _stream_reset_count, so
+    # no counter-based guard sees it.
     body = '{"path": "a.jac", "content": "' + ("a" * 200) + '"}';
 
     llm = Model(model_name="gpt-4o");
@@ -344,8 +321,7 @@ test "an abandoned stream is announced when compaction discards it" {
     );
 
     def _stream(params: dict) -> any {
-        # Publish deltas, then blow the context window mid-stream. This is not
-        # a transient error, so byllm does not retry and the counter never moves.
+        # Not a transient error, so byllm does not retry and the counter stays put.
         def overflow -> any {
             for ch in _frags(body, "write_file", "c1") {
                 yield ch;
