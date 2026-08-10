@@ -161,13 +161,6 @@ impl ASTValidationPass.enter_in_for_stmt(
     self._reject_non_bindable(nd.target);
 }
 
-"""E0082: a write to a component's `has` state field in the render body.
-Body statements run on every render, and state writes are immediately
-visible (the client state contract), so a direct body write would
-re-render forever. Writes inside nested abilities, methods, and lambdas
-are deferred and legal -- the walk stops at the first function-like
-scope: if it is the very def that declares the field via a body-level
-`has`, the assignment executes during render."""
 impl ASTValidationPass._check_render_phase_state_write(
     self: ASTValidationPass, nd: uni.Assignment
 ) -> None {
@@ -194,7 +187,7 @@ impl ASTValidationPass._check_render_phase_state_write(
 impl ASTValidationPass._scope_declares_state(
     self: ASTValidationPass, scope: uni.UniNode, name: str
 ) -> bool {
-    body = getattr(scope, "body", None);
+    body = scope?.body;
     if not isinstance(body, (list, tuple)) {
         return False;
     }

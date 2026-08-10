@@ -33,9 +33,7 @@ glob FIXTURES = os.path.join(
 
 def compile_with_backend(fixture_name: str, backend: object) -> str {
     prog = JacProgram();
-    ir = prog.compile(
-        file_path=os.path.join(FIXTURES, fixture_name), no_cgen=True
-    );
+    ir = prog.compile(file_path=os.path.join(FIXTURES, fixture_name), no_cgen=True);
     assert not prog.errors_had , (
         f"Compilation errors in {fixture_name}: {[str(e) for e in prog.errors_had]}"
     );
@@ -65,11 +63,8 @@ def assert_store_contract(js: str, backend_name: str) {
 
     # Augmented writes read the CURRENT value, killing the stale
     # double-toggle (`n += 1; n += 1;` nets +2, not +1).
-    assert re.search(
-        r"__jacS_n\.set\(\(?\s*__jacS_n\.val\s*\+\s*1\s*\)?\)", js
-    ) , (
-        f"[{backend_name}] augmented writes must read the current cell "
-        f"value:\n{js}"
+    assert re.search(r"__jacS_n\.set\(\(?\s*__jacS_n\.val\s*\+\s*1\s*\)?\)", js) , (
+        f"[{backend_name}] augmented writes must read the current cell " f"value:\n{js}"
     );
 
     # Dependency effects sample values at render.
@@ -79,9 +74,7 @@ def assert_store_contract(js: str, backend_name: str) {
 
     # The store hook resolves from @jac/runtime on every React-family
     # backend (never preact/hooks).
-    assert re.search(
-        r'import \{[^}]*useJacState[^}]*\} from "@jac/runtime"', js
-    ) , (
+    assert re.search(r'import \{[^}]*useJacState[^}]*\} from "@jac/runtime"', js) , (
         f"[{backend_name}] useJacState must import from @jac/runtime:\n{js}"
     );
 }

@@ -76,12 +76,6 @@ impl __jacJsx(tag: any, props: dict = {}, children: any = []) -> JsxElement {
     }
 }
 
-"""Per-field state cell: the client state contract's read-your-writes
-primitive. `.val` always returns the latest written value -- same tick,
-helper methods, lambdas, deferred callbacks -- and `.set(v)` writes
-synchronously, then notifies the component's useSyncExternalStore
-subscription so rendering follows (batched by React). Same-value writes
-bail out with Object.is, matching useState."""
 impl useJacState(initial: any) -> any {
     ref = reactUseRef(None);
     if ref.current == None {

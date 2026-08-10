@@ -131,9 +131,6 @@ impl ReactBackend.view_runtime_symbols(view: ViewElement) -> list[str] {
     return [];
 }
 
-"""State fields lower to per-field store cells: reads are synchronous
-against the latest write (the client state contract), and rendering is
-subscribed inside `useJacState` via useSyncExternalStore."""
 impl ReactBackend.lower_state_field(s: StateField) -> list[es.Statement] {
     hook_call = es.CallExpression(
         callee=es.Identifier(name='useJacState'), arguments=[s.init_expr]
@@ -301,9 +298,6 @@ impl ReactBackend.lower_view(view: ViewElement, sync_loc: any) -> es.Expression 
     );
 }
 
-"""Writes go through the cell's synchronous setter; augmented writes
-read the CURRENT value (`__jacS_n.set(__jacS_n.val + 1)`), so two
-`n += 1;` in one handler net +2."""
 impl ReactBackend.lower_state_update(u: StateUpdate) -> es.Expression {
     if u.aug_op {
         setter_arg = es.BinaryExpression(

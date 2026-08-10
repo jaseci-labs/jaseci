@@ -10,33 +10,30 @@ def:pub Broken -> JsxElement {
     has n: int = 0,
         msg: str = "ok";
 
-    n = 5;                      # ERROR: direct render-phase write
+    n = 5;  # ERROR: direct render-phase write
     if n > 3 {
-        msg = "big";            # ERROR: nested control flow is still render
+        msg = "big";  # ERROR: nested control flow is still render
     }
 
     can with entry {
-        n = 1;                  # legal: entry ability runs post-commit
+        n = 1;  # legal: entry ability runs post-commit
     }
 
     can with [n] entry {
-        msg = "n moved";        # legal: dependency effect
+        msg = "n moved";  # legal: dependency effect
     }
 
     def poke {
-        n = 2;                  # legal: method body, runs from handlers
+        n = 2;  # legal: method body, runs from handlers
     }
 
-    return
-        <button onClick={lambda { n = 4; }}>
-            {msg}
-        </button>;              # legal: event handler lambda
+    return <button onClick={lambda { n = 4; }}>{msg}</button>;  # legal: event handler lambda
 }
 
 def:pub Fine -> JsxElement {
     has count: int = 0;
 
-    total: int = count + 1;     # legal: plain local, not a state field
+    total: int = count + 1;  # legal: plain local, not a state field
 
     can with entry {
         count += 1;

@@ -38,7 +38,10 @@ import from jaclang.runtimelib.client.bun_installer { get_bun }
 
 glob FIXTURES = str(
          Path(__file__).parent.parent
-         / "compiler" / "passes" / "ecmascript" / "fixtures"
+             / "compiler"
+             / "passes"
+             / "ecmascript"
+             / "fixtures"
      ),
      # Mirrors `_default_client_deps("react")` runtime deps; jsdom is test-only.
      _DEPS: dict[str, str] = {
@@ -180,9 +183,7 @@ test "react state semantics: all four contract faces hold live in jsdom" {
     backend = ReactBackend();
     component_js = _wire_jac_runtime(
         with_runtime_globals(
-            _compile_react(
-                os.path.join(FIXTURES, "state_semantics_component.jac")
-            ),
+            _compile_react(os.path.join(FIXTURES, "state_semantics_component.jac")),
             backend
         )
     );
@@ -210,8 +211,7 @@ test "react state semantics: all four contract faces hold live in jsdom" {
             encoding="utf-8"
         );
         install = subprocess.run(
-            [bun, "install"], cwd=str(work), capture_output=True, text=True,
-            timeout=300
+            [bun, "install"], cwd=str(work), capture_output=True, text=True, timeout=300
         );
         assert install.returncode == 0 , (
             f"bun install failed (exit {install.returncode}):\n"
