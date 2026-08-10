@@ -51,7 +51,7 @@ impl JirWriter.write_module(
         and os.environ.get('JAC_LAZY_JAC', '') in _jac_truthy
         and is_jac_lazy_eligible(src_path)
     );
-    chunked = jac_lazy;
+    chunked = module.stub_only or jac_lazy;
     is_lazy_id = [False] * node_total;
     chunks: list[tuple[int, int, int]] = [];
     if chunked {
