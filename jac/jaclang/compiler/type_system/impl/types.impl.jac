@@ -525,7 +525,7 @@ impl TypeBase.is_any_type -> bool {
     }
 
     if isinstance(self, ClassType) {
-        return self.is_builtin(["Any", "object"]);
+        return self.is_builtin("object");
     }
     return False;
 }
