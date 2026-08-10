@@ -139,7 +139,7 @@ test "disabled database deploys nothing and injects nothing" {
 }
 
 
-def _not_found(*args: any, **kwargs: any) -> None {
+def _not_found(*args: any, **kwargs: any) {
     raise ApiException(status=404);
 }
 
