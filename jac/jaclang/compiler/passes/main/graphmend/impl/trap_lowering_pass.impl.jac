@@ -46,6 +46,9 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if marked is None {
         return;
     }
+    if not self._torch_binds_module(nd) {
+        return;
+    }
     eq = self._torch_equal_args(x);
     if eq is not None {
         (a, b) = eq;
@@ -292,6 +295,16 @@ impl TrapLoweringPass._param_is_tensor(name: str, site: uni.UniNode) -> bool {
         return is_torch_attr_target(ann, 'Tensor');
     }
     return False;
+}
+
+impl TrapLoweringPass._torch_binds_module(site: uni.UniNode) -> bool {
+    sym = site.sym_tab.lookup('torch');
+    decl = sym.decl if (sym is not None) else None;
+    mp = decl.find_parent_of_type(uni.ModulePath) if (decl is not None) else None;
+    if (mp is None) or mp.is_import_from or (mp.alias is not None) {
+        return False;
+    }
+    return mp.dot_path_str == 'torch';
 }
 
 impl TrapLoweringPass._binds_torch_tensor(ann: uni.Name) -> bool {
