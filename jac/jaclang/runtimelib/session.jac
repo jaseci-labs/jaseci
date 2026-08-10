@@ -40,7 +40,8 @@ obj Session {
         _txn_changed: set[UUID] postinit,
         _runtime: (Any | None) postinit,
         _lock: threading.RLock postinit,
-        _fetch_count: int postinit;
+        _fetch_count: int postinit,
+        _active_units: int postinit;
 
     def postinit -> None;
     def data_location -> (str | None);
@@ -78,6 +79,8 @@ obj Session {
     def run_request(body: Callable) -> Any;
     def reset_fetch_count -> None;
     def get_fetch_count -> int;
+    def unit_enter -> None;
+    def unit_exit -> None;
     def on_commit(callback: Callable) -> None;
     def flush(full: bool = False) -> None;
     def read_barrier -> None;
