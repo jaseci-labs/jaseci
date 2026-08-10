@@ -43,10 +43,14 @@ def _native_parse -> any {
             }
             fl = layout.functions.get("parse_program");
             bl = layout.functions.get("arena_strtab_blob");
-            if fl is not None and bl is not None {
+            if fl is not None {
                 fn = wrap_native_function(eng, fl, cc, em, pc, layout=layout);
-                blob_fn = wrap_native_function(eng, bl, cc, em, pc, layout=layout);
-                if fn is not None and blob_fn is not None {
+                blob_fn = (
+                    wrap_native_function(eng, bl, cc, em, pc, layout=layout)
+                        if bl is not None
+                        else None
+                );
+                if fn is not None {
                     fn.__jac_engine__ = eng;
                     fn.__jac_strtab_blob__ = blob_fn;
                 }
@@ -144,7 +148,7 @@ def _canary_ok(fn: any, blob_fn: any) -> bool {
 
 
 def _arena_from_native(view: any, blob_fn: any) -> SyntaxArena {
-    import from jaclang.jac0core.native_marshal { bulk_int_list }
+    import from jaclang.jac0core.native_marshal { bulk_int_list, bulk_str_list }
     a = SyntaxArena();
     a.kinds = bulk_int_list(view.kinds);
     a.kid_los = bulk_int_list(view.kid_los);
@@ -155,7 +159,11 @@ def _arena_from_native(view: any, blob_fn: any) -> SyntaxArena {
     a.args = bulk_int_list(view.args);
     a.seqs = bulk_int_list(view.seqs);
     a.posts = bulk_int_list(view.posts);
-    a.strtab = _split_strtab(blob_fn(view));
+    a.strtab = (
+        _split_strtab(blob_fn(view))
+            if blob_fn is not None
+            else bulk_str_list(view.strtab)
+    );
     a.root_id = view.root_id;
     return a;
 }

@@ -70,8 +70,9 @@ def _build_binding -> tuple {
     return result;
 }
 
-def _assert_parity(src: str, path: str) {
-    (fn, blob_fn, _eng, _keep) = _build_binding();
+def _assert_parity(src: str, path: str, use_blob: bool = True) {
+    (fn, real_blob_fn, _eng, _keep) = _build_binding();
+    blob_fn = real_blob_fn if use_blob else None;
     r = fn(src, path);
     native_mod = materialize_module(
         _arena_from_native(r[0], blob_fn), Source(src, mod_path=path)
@@ -109,4 +110,8 @@ test "sealed parser matches bytecode parser on fam.jac" {
 test "sealed parser matches bytecode parser on a compiler source module" {
     arena_src = PKG_PATH / "jac0core" / "arena.jac";
     _assert_parity(arena_src.read_text(encoding="utf-8"), str(arena_src));
+}
+
+test "arena strtab decodes directly when no blob export is bound" {
+    _assert_parity(_canary_src(), "__parity_noblob__.jac", use_blob=False);
 }
