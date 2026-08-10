@@ -46,11 +46,51 @@ def get_bootstrap_cache_dir() -> Path:
 _JACLANG_PKG_DIR = str(Path(__file__).resolve().parent.parent)
 _JAC0CORE_DIR = str(Path(__file__).resolve().parent)
 
+# Known jaclang subpackages.  Used for structural matching so eligibility
+# works when the checkout compiler reads checkout paths while cache_paths.py
+# lives in the sealed runtime bundle (test-compiler's binary lane).
+_JACLANG_SUBPACKAGES = frozenset(
+    {
+        "byllm",
+        "cli",
+        "compiler",
+        "jac0core",
+        "langserve",
+        "lsp",
+        "project",
+        "publish",
+        "runtimelib",
+        "scale",
+        "tests",
+        "utils",
+        "vendor",
+    }
+)
+
+
+def _is_under_jaclang_tree(resolved: Path) -> bool:
+    parts = resolved.parts
+    for i, part in enumerate(parts):
+        if (
+            part == "jaclang"
+            and i + 1 < len(parts)
+            and parts[i + 1] in _JACLANG_SUBPACKAGES
+        ):
+            return True
+    return False
+
 
 def is_bootstrap_jac_path(source_path: str) -> bool:
     """True for jac0-tier .jac sources compiled by jac0 during bootstrap."""
-    resolved = str(Path(source_path).resolve())
-    return resolved.endswith(".jac") and resolved.startswith(_JAC0CORE_DIR + os.sep)
+    resolved = Path(source_path).resolve()
+    if resolved.suffix != ".jac":
+        return False
+    parts = resolved.parts
+    for i, part in enumerate(parts):
+        if part == "jac0core" and i > 0 and parts[i - 1] == "jaclang":
+            return True
+    resolved_str = str(resolved)
+    return resolved_str.startswith(_JAC0CORE_DIR + os.sep)
 
 
 def is_jac_lazy_eligible(source_path: str) -> bool:
@@ -60,12 +100,15 @@ def is_jac_lazy_eligible(source_path: str) -> bool:
     enabling JAC_LAZY_JAC globally does not cascade lazy hydration across the
     ~165 interdependent compiler modules (which OOMs under memory pressure).
     """
-    resolved = str(Path(source_path).resolve())
-    if not resolved.endswith(".jac") or resolved.endswith(".na.jac"):
+    resolved = Path(source_path).resolve()
+    resolved_str = str(resolved)
+    if not resolved_str.endswith(".jac") or resolved_str.endswith(".na.jac"):
         return False
-    if is_bootstrap_jac_path(resolved):
+    if is_bootstrap_jac_path(resolved_str):
         return False
-    if resolved.startswith(_JACLANG_PKG_DIR + os.sep):
+    if _is_under_jaclang_tree(resolved):
+        return False
+    if resolved_str.startswith(_JACLANG_PKG_DIR + os.sep):
         return False
     return True
 
