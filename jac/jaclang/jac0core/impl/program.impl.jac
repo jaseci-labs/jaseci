@@ -13,8 +13,6 @@ impl JacProgram.init(
 
     self._hub_cache_times: dict[str, float] = {};
 
-    self._failed_parses: set[str] = set();
-
     self._dependents: dict[str, set[str]] = {};
 
     self._track_dependencies: bool = False;
@@ -131,8 +129,6 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
         del (self._hub_cache_times[resolved_path], );
     }
 
-    self._failed_parses.discard(resolved_path);
-
     if resolved_path in self._native_cache {
         del (self._native_cache[resolved_path], );
     }
@@ -161,7 +157,8 @@ impl JacProgram.hub_key(path: str) -> str {
 }
 
 impl JacProgram.has_failed_parse(self: JacProgram, path: str) -> bool {
-    return JacProgram.hub_key(path) in self._failed_parses;
+    mod = self.mod.hub.get(JacProgram.hub_key(path));
+    return mod is not None and mod.parse_failed;
 }
 
 impl JacProgram.drop_module_alerts(self: JacProgram, resolved_path: str) -> None {
@@ -215,8 +212,6 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
     self.type_evaluator = None;
     if clear_hub {
         self.mod.hub.clear();
-
-        self._failed_parses.clear();
     } else {
         for mod in self.mod.hub.values() {
             for nd in mod.get_all_sub_nodes(uni.Expr) {
@@ -250,7 +245,6 @@ impl JacProgram.release_compile_closure(
     self.mod.hub.update(retained_stubs);
     self._hub_cache_times.clear();
     self._hub_cache_times.update(retained_times);
-    self._failed_parses.clear();
     self._dependents.clear();
     self.type_evaluator = None;
     self.errors_had.clear();

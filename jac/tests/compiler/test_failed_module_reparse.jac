@@ -99,3 +99,22 @@ test "a corrected module recompiles on a long-lived program" {
         assert len(prog.errors_had) == 0 , f"fixing the file must clear the recorded failure: {prog.errors_had}";
     }
 }
+
+test "a clean re-parse clears the failure flag" {
+    # A stale flag adds no errors -- it only silences the client-bundle
+    # worklist -- so no assertion on `errors_had` can stand in for this one.
+    with tempfile.TemporaryDirectory() as tmp {
+        proj = _write_project(tmp);
+        broken = proj / "broken.jac";
+        prog = JacProgram();
+        try {
+            prog.compile(str(broken));
+        } except Exception {
+            ;
+        }
+        assert prog.has_failed_parse(str(broken)) , "a failed parse must be recorded";
+        broken.write_text(FIXED_SRC);
+        prog.compile(str(broken));
+        assert not prog.has_failed_parse(str(broken)) , "a clean re-parse must clear the recorded failure";
+    }
+}

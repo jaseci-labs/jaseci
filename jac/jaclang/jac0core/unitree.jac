@@ -332,7 +332,8 @@ obj Module(AstDocNode, UniScopeNode) {
         stub_only: bool = False,
         src_terminals: list[Token] = [],
         is_raised_from_py: bool = False,
-        decided_codespace: str = "";
+        decided_codespace: str = "",
+        parse_failed: bool = False;
 
     def postinit -> None;
 

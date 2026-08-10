@@ -755,9 +755,9 @@ impl JacCompiler.parse_str(
     }
     hub_key = target_program.hub_key(mod.loc.mod_path);
     if had_error {
+        mod.parse_failed = True;
         target_program.mod.hub[hub_key] = mod;
         target_program.hub_cache_stamp(hub_key);
-        target_program._failed_parses.add(hub_key);
         return mod;
     }
     if target_program.mod.main.stub_only {

@@ -26,7 +26,6 @@ class JacProgram {
         _compile_options: CompileOptions,
         _native_cache: dict[(str, any)],
         _hub_cache_times: dict[str, float],
-        _failed_parses: set[str],
         _dependents: dict[str, set[str]],
         _track_dependencies: bool,
         _inferred_mods: set,
