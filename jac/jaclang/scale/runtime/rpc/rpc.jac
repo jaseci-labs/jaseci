@@ -15,6 +15,7 @@ def _rpc_with_retries(module_name: str, label: str, send: any) -> any {
     backoff: float = _RPC_INITIAL_BACKOFF_SECONDS;
     last_err: Exception | None = None;
     attempts: int = 0;
+    tripped: bool = False;
 
     for attempt in range(_RPC_MAX_ATTEMPTS) {
         attempts = attempt + 1;
@@ -27,6 +28,7 @@ def _rpc_with_retries(module_name: str, label: str, send: any) -> any {
             last_err = err_ref;
             breaker_record_failure(module_name);
             if breaker_should_skip(module_name) {
+                tripped = True;
                 break;
             }
             if attempt < _RPC_MAX_ATTEMPTS - 1 {
@@ -36,8 +38,9 @@ def _rpc_with_retries(module_name: str, label: str, send: any) -> any {
         }
     }
 
+    stopped_by = " (stopped by open circuit breaker)" if tripped else "";
     raise RuntimeError(
-        f"sv-to-sv {label} failed after {attempts} attempts: {last_err}"
+        f"sv-to-sv {label} failed after {attempts} attempts{stopped_by}: {last_err}"
     );
 }
 

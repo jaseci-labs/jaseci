@@ -459,14 +459,18 @@ test "a breaker that trips mid-call abandons the remaining retries" {
 
     try {
         sv_client.register(mod, "http://demo.invalid");
+        raised_msg = "";
         try {
             JacScalePlugin.sv_service_call(mod, "ping", {});
-        } except RuntimeError {
-            ;
+        } except RuntimeError as e {
+            raised_msg = str(e);
         }
 
         assert round_trips["n"] == 1 , (
             f"HALF_OPEN probe spent {round_trips['n']} round trips, expected 1"
+        );
+        assert "1 attempts (stopped by open circuit breaker)" in raised_msg , (
+            f"short attempt count needs a reason, got: {raised_msg}"
         );
         st = _breaker_peek(mod);
         assert st is not None and st["state"] == "OPEN";
