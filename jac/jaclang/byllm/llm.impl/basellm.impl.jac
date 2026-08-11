@@ -68,7 +68,8 @@ obj _ToolDeltaCoalescer {
                 "buf": "",
                 "last": time.time(),
                 "sent": 0,
-                "announced": False
+                "announced": False,
+                "capped": False
             };
             self.state[idx] = st;
         }
@@ -86,6 +87,18 @@ obj _ToolDeltaCoalescer {
             return;
         }
         if st["sent"] >= self.max_per_call {
+            if not st["capped"] {
+                st["capped"] = True;
+                self.out.append(
+                    {
+                        "call_id": st["call_id"],
+                        "tool": st["tool"],
+                        "arg_fragment": "",
+                        "index": idx,
+                        "truncated": True
+                    }
+                );
+            }
             return;
         }
         if len(st["buf"]) >= self.min_chars
@@ -1916,6 +1929,7 @@ impl BaseLLM._invoke_streaming(
                                 "tool": _d.get("tool", ""),
                                 "arg_fragment": _d.get("arg_fragment", ""),
                                 "index": _d.get("index", 0),
+                                "truncated": _d.get("truncated", False),
                                 "iteration": iter_count
                             }
                         );
@@ -1949,6 +1963,7 @@ impl BaseLLM._invoke_streaming(
                             "tool": _d.get("tool", ""),
                             "arg_fragment": _d.get("arg_fragment", ""),
                             "index": _d.get("index", 0),
+                            "truncated": _d.get("truncated", False),
                             "iteration": iter_count
                         }
                     );

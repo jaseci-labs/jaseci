@@ -369,6 +369,19 @@ test "coalescing is bounded, and the bounds come from config" {
     assert len(under(8, 3, 8)) <= 4 , f"max_per_call was ignored: {len(
         under(8, 3, 8)
     )} events with a cap of 3";
+
+    # Hitting the cap must be visible: a consumer rendering the fragments is
+    # otherwise showing a silently truncated value as if it were complete.
+    capped = under(8, 3, 8);
+    marks = [
+        d
+        for d in capped
+        if d.data.get("truncated")
+    ];
+    assert len(marks) == 1 , f"the cap must be announced exactly once, got {len(
+        marks
+    )}";
+    assert marks[0] is capped[-1] , "the truncation mark must be the call's last delta";
 }
 
 
