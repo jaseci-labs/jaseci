@@ -12,7 +12,13 @@ import from jaclang.byllm.lib { Model }
 import from jaclang.byllm.mtir { MTRuntime }
 import from jaclang.byllm.types { Message, MessageRole, Tool }
 
-glob RETRY: str = "__retry__";
+glob RETRY: str = "__retry__",
+     SHIPPED_DEFAULTS: dict = {
+         "enabled": False,
+         "min_chars": 48,
+         "min_interval": 0.15,
+         "max_per_call": 200
+     };
 
 
 def write_file(path: str, content: str) -> str {
@@ -109,8 +115,16 @@ def _plain(text: str) -> dict {
 
 """Drive `_invoke_streaming` over scripted turns. `turns` holds one entry per
 LLM round: chunks, or RETRY to drop the stream. `rebuilts` is parallel to it.
-`enabled` False means the caller never opts in, i.e. the shipped default."""
-def _run(turns: list, rebuilts: list, tools: list, enabled: bool = True) -> list {
+`enabled` False means the caller never opts in, i.e. the shipped default.
+`bounds` stands in for `[byllm.tool_stream]`, so a run never depends on the
+jac.toml of whoever is running the suite."""
+def _run(
+    turns: list,
+    rebuilts: list,
+    tools: list,
+    enabled: bool = True,
+    bounds: dict | None = None
+) -> list {
     llm = Model(model_name="gpt-4o");
     wrapped = [Tool(func=t) for t in tools];
     wrapped.append(Tool.make_finish_tool(str));
@@ -149,10 +163,17 @@ def _run(turns: list, rebuilts: list, tools: list, enabled: bool = True) -> list
         return _plain("all done");
     }
 
+    resolved = dict(bounds) if bounds else dict(SHIPPED_DEFAULTS);
+    cfg = _byllm_llm_mod.get_byllm_config();
+
+    def _tool_stream_cfg -> dict {
+        return dict(resolved);
+    }
+
     events: list = [];
     with mock.patch.object(llm, "model_call_with_stream", _stream), mock.patch.object(
         _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild
-    ) {
+    ), mock.patch.object(cfg, "get_tool_stream_config", _tool_stream_cfg) {
         for ev in llm._invoke_streaming(mt) {
             events.append(ev);
         }
@@ -223,6 +244,42 @@ test "coalescing bounds a provider that fragments pathologically" {
     deltas = _of(events, "tool_call_delta");
     assert len(deltas) > 0 , "no deltas emitted";
     assert len(deltas) < sent / 4 , f"expected coalescing, got {len(deltas)} events for {sent} fragments";
+}
+
+
+test "the jac.toml bounds are honored, not just `enabled`" {
+    # `enabled=False` means no per-call override, so everything here comes from
+    # config. min_interval is pinned high so only min_chars can publish.
+    def under(min_chars: int, max_per_call: int) -> list {
+        return _of(
+            _run(
+                [_frags(BODY, "write_file", "c1", size=8)],
+                [_rebuilt([("c1", "write_file", BODY)])],
+                [write_file],
+                enabled=False,
+                bounds={
+                    "enabled": True,
+                    "min_chars": min_chars,
+                    "min_interval": 30.0,
+                    "max_per_call": max_per_call
+                }
+            ),
+            "tool_call_delta"
+        );
+    }
+
+    tight = under(8, 500);
+    loose = under(4000, 500);
+
+    assert len(tight) > 0 , "config alone should enable streaming";
+    assert len(tight) > len(loose) , f"min_chars was ignored: {len(
+        tight
+    )} events at 8 chars vs {len(loose)} at 4000";
+
+    capped = under(8, 3);
+    assert len(capped) <= 4 , f"max_per_call was ignored: {len(
+        capped
+    )} events with a cap of 3";
 }
 
 

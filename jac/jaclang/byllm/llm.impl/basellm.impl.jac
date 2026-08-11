@@ -53,7 +53,10 @@ def _tool_call_fragments(chunk: object) -> list[dict] {
 
 obj _ToolDeltaCoalescer {
     has out: list[dict],
-        state: dict = {};
+        state: dict = {},
+        min_chars: int = _TOOL_DELTA_MIN_CHARS,
+        min_interval: float = _TOOL_DELTA_MIN_INTERVAL_S,
+        max_per_call: int = _TOOL_DELTA_MAX_PER_CALL;
 
     def observe(frag: dict) -> None {
         idx = frag.get("index", 0);
@@ -82,11 +85,11 @@ obj _ToolDeltaCoalescer {
             self._publish(idx, st);
             return;
         }
-        if st["sent"] >= _TOOL_DELTA_MAX_PER_CALL {
+        if st["sent"] >= self.max_per_call {
             return;
         }
-        if len(st["buf"]) >= _TOOL_DELTA_MIN_CHARS
-            or (time.time() - st["last"]) >= _TOOL_DELTA_MIN_INTERVAL_S {
+        if len(st["buf"]) >= self.min_chars
+            or (time.time() - st["last"]) >= self.min_interval {
             self._publish(idx, st);
         }
     }
@@ -111,7 +114,7 @@ obj _ToolDeltaCoalescer {
     def flush {
         for idx in list(self.state.keys()) {
             st = self.state[idx];
-            if st["buf"] and st["sent"] < _TOOL_DELTA_MAX_PER_CALL {
+            if st["buf"] and st["sent"] < self.max_per_call {
                 self._publish(idx, st);
             }
         }
@@ -119,16 +122,13 @@ obj _ToolDeltaCoalescer {
 }
 
 
-def _should_stream_tool_args(mt_run: MTRuntime) -> bool {
+def _tool_stream_settings(mt_run: MTRuntime) -> dict {
+    settings = dict(get_byllm_config().get_tool_stream_config());
     per_call = mt_run.call_params.get("stream_tool_args");
-    if per_call is True {
-        return True;
+    if per_call is True or per_call is False {
+        settings["enabled"] = per_call;
     }
-    if per_call is False {
-        return False;
-    }
-
-    return get_byllm_config().get_tool_stream_config().get("enabled", False);
+    return settings;
 }
 
 
@@ -1470,8 +1470,16 @@ impl BaseLLM.dispatch_streaming_with_tools(
         content_buf = "";
 
         mt_run._tool_arg_deltas = [];
-        stream_args = _should_stream_tool_args(mt_run);
-        coalescer = _ToolDeltaCoalescer(out=mt_run._tool_arg_deltas);
+        settings = _tool_stream_settings(mt_run);
+        stream_args = bool(settings.get("enabled", False));
+        coalescer = _ToolDeltaCoalescer(
+            out=mt_run._tool_arg_deltas,
+            min_chars=int(settings.get("min_chars", _TOOL_DELTA_MIN_CHARS)),
+            min_interval=float(
+                settings.get("min_interval", _TOOL_DELTA_MIN_INTERVAL_S)
+            ),
+            max_per_call=int(settings.get("max_per_call", _TOOL_DELTA_MAX_PER_CALL))
+        );
         try {
             for chunk in self.model_call_with_stream(params) {
                 chunks.append(chunk);
