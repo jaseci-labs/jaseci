@@ -1,15 +1,6 @@
 import from jaclang.jac0core { unitree as ut_mod }
 import from jaclang.jac0core { constant as const_mod }
-import from jaclang.jac0core.arena {
-    SyntaxArena,
-    TAG_BOOL,
-    TAG_ENUM,
-    TAG_INT,
-    TAG_LIST,
-    TAG_NODE,
-    TAG_NONE,
-    TAG_STR
-}
+import from jaclang.jac0core.arena { SyntaxArena, Tag }
 import from jaclang.jac0core.arena { SPECS }
 import from jaclang.jac0core.unitree { Module, Source, UniNode }
 
@@ -46,9 +37,9 @@ def _deps_of(a: SyntaxArena, i: int) -> list[int] {
     while s < n {
         tag = a.args[p];
         v = a.args[p + 1];
-        if tag == TAG_NODE {
+        if tag == Tag.NODE {
             deps.append(v);
-        } elif tag == TAG_LIST {
+        } elif tag == Tag.LIST {
             for d in a.seq_ids(v) {
                 deps.append(d);
             }
@@ -123,21 +114,21 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
             tag = a.args[p + (slot * 2)];
             v = a.args[p + (slot * 2) + 1];
             slot += 1;
-            if tag == TAG_NONE {
+            if tag == Tag.NONE {
                 if not has_default {
                     kwargs[pname] = None;
                 }
-            } elif tag == TAG_NODE {
+            } elif tag == Tag.NODE {
                 kwargs[pname] = objs[v];
-            } elif tag == TAG_LIST {
+            } elif tag == Tag.LIST {
                 kwargs[pname] = [objs[k] for k in a.seq_ids(v)];
-            } elif tag == TAG_STR {
+            } elif tag == Tag.STR {
                 kwargs[pname] = a.strtab[v];
-            } elif tag == TAG_INT {
+            } elif tag == Tag.INT {
                 kwargs[pname] = v;
-            } elif tag == TAG_BOOL {
+            } elif tag == Tag.BOOL {
                 kwargs[pname] = v != 0;
-            } elif tag == TAG_ENUM {
+            } elif tag == Tag.ENUM {
                 kwargs[pname] = ecls(v);
             }
         }

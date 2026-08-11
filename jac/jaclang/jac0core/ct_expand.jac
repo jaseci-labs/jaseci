@@ -1,16 +1,6 @@
 import jaclang.jac0core.parser.lexer as ct_lexer;
 
-import from jaclang.jac0core.arena {
-    NIL,
-    SyntaxArena,
-    TAG_BOOL,
-    TAG_ENUM,
-    TAG_INT,
-    TAG_LIST,
-    TAG_NODE,
-    TAG_NONE,
-    TAG_STR
-}
+import from jaclang.jac0core.arena { NIL, SyntaxArena, Tag }
 import from jaclang.jac0core.arena {
     KIND_CT_BLOCK,
     KIND_CT_ELSE,
@@ -223,10 +213,10 @@ obj CtEval {
             return [];
         }
         (tag, val) = self.a.arg_at(i, s);
-        if tag == TAG_NODE {
+        if tag == Tag.NODE {
             return [val];
         }
-        if tag == TAG_LIST {
+        if tag == Tag.LIST {
             return self.a.seq_ids(val);
         }
         return [];
@@ -1161,10 +1151,10 @@ obj CtExpander {
         while s < arg_n {
             tag = src.args[p];
             val = src.args[p + 1];
-            if tag == TAG_NODE {
-                pairs.append(TAG_NODE);
+            if tag == Tag.NODE {
+                pairs.append(Tag.NODE);
                 pairs.append(self.graft(src, val, memo));
-            } elif tag == TAG_LIST {
+            } elif tag == Tag.LIST {
                 ids = src.seq_ids(val);
                 new_ids: list[int] = [];
                 for x in ids {
@@ -1175,10 +1165,10 @@ obj CtExpander {
                 for x in new_ids {
                     a.seqs.append(x);
                 }
-                pairs.append(TAG_LIST);
+                pairs.append(Tag.LIST);
                 pairs.append(off);
-            } elif tag == TAG_STR {
-                pairs.append(TAG_STR);
+            } elif tag == Tag.STR {
+                pairs.append(Tag.STR);
                 pairs.append(a.intern(src.strtab[val]));
             } else {
                 pairs.append(tag);
@@ -1223,10 +1213,10 @@ obj CtExpander {
         while s < arg_n {
             tag = old_args[s * 2];
             val = old_args[s * 2 + 1];
-            if tag == TAG_NODE {
-                pairs.append(TAG_NODE);
+            if tag == Tag.NODE {
+                pairs.append(Tag.NODE);
                 pairs.append(self.copy_tree(val, memo));
-            } elif tag == TAG_LIST {
+            } elif tag == Tag.LIST {
                 ids = a.seq_ids(val);
                 new_ids: list[int] = [];
                 for x in ids {
@@ -1237,7 +1227,7 @@ obj CtExpander {
                 for x in new_ids {
                     a.seqs.append(x);
                 }
-                pairs.append(TAG_LIST);
+                pairs.append(Tag.LIST);
                 pairs.append(off);
             } else {
                 pairs.append(tag);
@@ -1322,7 +1312,7 @@ obj CtExpander {
                 continue;
             }
             (tag, val) = a.arg_at(i, slot);
-            if tag == TAG_NODE {
+            if tag == Tag.NODE {
                 vk = a.kinds[val];
                 if vk in CT_EXPR_KINDS {
                     nid = self.subst_expr(val);
@@ -1336,7 +1326,7 @@ obj CtExpander {
                 } else {
                     self.expand_node(val);
                 }
-            } elif tag == TAG_LIST {
+            } elif tag == Tag.LIST {
                 ids = a.seq_ids(val);
                 found_ct = False;
                 for x in ids {

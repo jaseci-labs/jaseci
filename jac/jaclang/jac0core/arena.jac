@@ -1,31 +1,35 @@
 import from jaclang.jac0core.constant { EdgeDir, OwnershipKind }
 import from jaclang.jac0core.ctlib { ct, fail, reflect }
 
-glob NIL: int = 0;
+type NodeId = int;
 
-glob TAG_NONE: int = 0,
-     TAG_NODE: int = 1,
-     TAG_LIST: int = 2,
-     TAG_STR: int = 3,
-     TAG_INT: int = 4,
-     TAG_BOOL: int = 5,
-     TAG_ENUM: int = 6;
+glob NIL: NodeId = 0;
+
+enum Tag: int { NONE = 0, NODE = 1, LIST = 2, STR = 3, INT = 4, BOOL = 5, ENUM = 6 }
 
 obj SyntaxArena {
+    # Node i: kind in kinds[i]; kids at kids[kid_los[i] : kid_los[i] + kid_ns[i]];
+    # args as (Tag, value) pairs, arg_ns[i] slots starting at arg_los[i].
+    # Variable-length arg lists live in seqs as [n, id0..idn-1] at their offset.
+    # Row 0 is the NIL sentinel so kind_of(NIL) and friends are always in range.
     has kinds: list[int] = [],
         kid_los: list[int] = [],
         kid_ns: list[int] = [],
         arg_los: list[int] = [],
         arg_ns: list[int] = [],
-        kids: list[int] = [],
+        kids: list[NodeId] = [],
         args: list[int] = [],
         seqs: list[int] = [],
         strtab: list[str] = [],
         posts: list[int] = [],
         _intern: dict[str, int] = {},
-        root_id: int = 0;
+        root_id: NodeId = 0;
 
     def postinit {
+        self._reserve_nil_row();
+    }
+
+    def _reserve_nil_row {
         self.kinds.append(0);
         self.kid_los.append(0);
         self.kid_ns.append(0);
@@ -38,9 +42,8 @@ obj SyntaxArena {
     }
 
     def intern(s: str) -> int {
-        got = self._intern.get(s, -1);
-        if got >= 0 {
-            return got;
+        if s in self._intern {
+            return self._intern[s];
         }
         idx = len(self.strtab);
         self.strtab.append(s);
@@ -48,94 +51,90 @@ obj SyntaxArena {
         return idx;
     }
 
-    def _start(kind: int, kid: list[int], arg_n: int) -> int {
+    def _start(kind: int, kid: list[NodeId], arg_n: int) -> NodeId {
         idx = len(self.kinds);
         self.kinds.append(kind);
         self.kid_los.append(len(self.kids));
         self.kid_ns.append(len(kid));
-        for k in kid {
-            self.kids.append(k);
-        }
+        self.kids.extend(kid);
         self.arg_los.append(len(self.args));
         self.arg_ns.append(arg_n);
         return idx;
     }
 
-    def _arg_node(v: int) {
+    def _arg_node(v: NodeId) {
         if v == NIL {
-            self.args.append(TAG_NONE);
+            self.args.append(Tag.NONE);
             self.args.append(0);
         } else {
-            self.args.append(TAG_NODE);
+            self.args.append(Tag.NODE);
             self.args.append(v);
         }
     }
 
-    def _arg_list(ids: (list[int] | None)) {
+    def _arg_list(ids: (list[NodeId] | None)) {
         if ids is None {
-            self.args.append(TAG_NONE);
+            self.args.append(Tag.NONE);
             self.args.append(0);
             return;
         }
-        ids2: list[int] = ids;
         off = len(self.seqs);
-        self.seqs.append(len(ids2));
-        for i in ids2 {
-            self.seqs.append(i);
-        }
-        self.args.append(TAG_LIST);
+        self.seqs.append(len(ids));
+        self.seqs.extend(ids);
+        self.args.append(Tag.LIST);
         self.args.append(off);
     }
 
     def _arg_str(s: (str | None)) {
         if s is None {
-            self.args.append(TAG_NONE);
+            self.args.append(Tag.NONE);
             self.args.append(0);
         } else {
-            s2: str = s;
-            self.args.append(TAG_STR);
-            self.args.append(self.intern(s2));
+            self.args.append(Tag.STR);
+            self.args.append(self.intern(s));
         }
     }
 
     def _arg_int(v: int) {
-        self.args.append(TAG_INT);
+        self.args.append(Tag.INT);
         self.args.append(v);
     }
 
     def _arg_bool(v: bool) {
-        self.args.append(TAG_BOOL);
+        self.args.append(Tag.BOOL);
         self.args.append(1 if v else 0);
     }
 
     def _arg_enum(v: int) {
-        self.args.append(TAG_ENUM);
+        self.args.append(Tag.ENUM);
         self.args.append(v);
     }
 
-    def _arg_poly(v: (int | list[int] | None)) {
+    def _arg_poly(v: (NodeId | list[NodeId] | None)) {
         if v is None {
-            self.args.append(TAG_NONE);
+            self.args.append(Tag.NONE);
             self.args.append(0);
         } elif isinstance(v, int) {
-            vi: int = v;
+            # Typed rebinds stay: isinstance branches do not narrow in native
+            # lowering (E5092); `is None` branches do.
+            vi: NodeId = v;
             self._arg_node(vi);
         } else {
-            vl: list[int] = v;
+            vl: list[NodeId] = v;
             self._arg_list(vl);
         }
     }
 
-    def kind_of(i: int) -> int {
+    def kind_of(i: NodeId) -> int {
         return self.kinds[i];
     }
 
-    def kid_ids(i: int) -> list[int] {
+    def kid_ids(i: NodeId) -> list[NodeId] {
         lo = self.kid_los[i];
         return self.kids[lo:lo + self.kid_ns[i]];
     }
 
-    def arg_at(i: int, slot: int) -> tuple[(int, int)] {
+    def arg_at(i: NodeId, slot: int) -> tuple[(int, int)] {
         if slot >= self.arg_ns[i] {
             raise ValueError(
                 f"arg slot {slot} out of range for node {i} "
@@ -146,23 +145,23 @@ obj SyntaxArena {
         return (self.args[p], self.args[p + 1]);
     }
 
-    def arg_node(i: int, slot: int) -> int {
+    def arg_node(i: NodeId, slot: int) -> NodeId {
         if slot >= self.arg_ns[i] {
             return NIL;
         }
         (tag, v) = self.arg_at(i, slot);
-        return v if tag == TAG_NODE else NIL;
+        return v if tag == Tag.NODE else NIL;
     }
 
-    def arg_str(i: int, slot: int) -> (str | None) {
+    def arg_str(i: NodeId, slot: int) -> (str | None) {
         if slot >= self.arg_ns[i] {
             return None;
         }
         (tag, v) = self.arg_at(i, slot);
-        return self.strtab[v] if tag == TAG_STR else None;
+        return self.strtab[v] if tag == Tag.STR else None;
     }
 
-    def arg_int(i: int, slot: int) -> int {
+    def arg_int(i: NodeId, slot: int) -> int {
         if slot >= self.arg_ns[i] {
             return 0;
         }
@@ -170,118 +169,104 @@ obj SyntaxArena {
         return v;
     }
 
-    def arg_bool(i: int, slot: int) -> bool {
+    def arg_bool(i: NodeId, slot: int) -> bool {
         if slot >= self.arg_ns[i] {
             return False;
         }
         (tag, v) = self.arg_at(i, slot);
-        return tag == TAG_BOOL and v != 0;
+        return tag == Tag.BOOL and v != 0;
     }
 
-    def arg_list(i: int, slot: int) -> (list[int] | None) {
+    def arg_list(i: NodeId, slot: int) -> (list[NodeId] | None) {
         if slot >= self.arg_ns[i] {
             return None;
         }
         (tag, v) = self.arg_at(i, slot);
-        if tag != TAG_LIST {
+        if tag != Tag.LIST {
             return None;
         }
         return self.seq_ids(v);
     }
 
-    def seq_ids(off: int) -> list[int] {
+    def seq_ids(off: int) -> list[NodeId] {
         n = self.seqs[off];
         return self.seqs[off + 1:off + 1 + n];
     }
 
-    def set_arg_node(i: int, slot: int, v: int) {
+    def set_arg_node(i: NodeId, slot: int, v: NodeId) {
         p = self.arg_los[i] + (slot * 2);
         if v == NIL {
-            self.args[p] = TAG_NONE;
+            self.args[p] = Tag.NONE;
             self.args[p + 1] = 0;
         } else {
-            self.args[p] = TAG_NODE;
+            self.args[p] = Tag.NODE;
             self.args[p + 1] = v;
         }
     }
 
-    def set_arg_str(i: int, slot: int, s: str) {
+    def set_arg_str(i: NodeId, slot: int, s: str) {
         p = self.arg_los[i] + (slot * 2);
-        self.args[p] = TAG_STR;
+        self.args[p] = Tag.STR;
         self.args[p + 1] = self.intern(s);
     }
 
-    def set_arg_bool(i: int, slot: int, v: bool) {
+    def set_arg_bool(i: NodeId, slot: int, v: bool) {
         p = self.arg_los[i] + (slot * 2);
-        self.args[p] = TAG_BOOL;
+        self.args[p] = Tag.BOOL;
         self.args[p + 1] = 1 if v else 0;
     }
 
-    def set_arg_enum(i: int, slot: int, v: int) {
+    def set_arg_enum(i: NodeId, slot: int, v: int) {
         p = self.arg_los[i] + (slot * 2);
-        self.args[p] = TAG_ENUM;
+        self.args[p] = Tag.ENUM;
         self.args[p + 1] = v;
     }
 
-    def prepend_kids(i: int, ids: list[int]) {
+    def prepend_kids(i: NodeId, ids: list[NodeId]) {
         old = self.kid_ids(i);
         lo = len(self.kids);
-        for k in ids {
-            self.kids.append(k);
-        }
-        for k in old {
-            self.kids.append(k);
-        }
+        self.kids.extend(ids);
+        self.kids.extend(old);
         self.kid_los[i] = lo;
         self.kid_ns[i] = len(ids) + len(old);
     }
 
-    def append_kids(i: int, ids: list[int]) {
+    def append_kids(i: NodeId, ids: list[NodeId]) {
         old = self.kid_ids(i);
         lo = len(self.kids);
-        for k in old {
-            self.kids.append(k);
-        }
-        for k in ids {
-            self.kids.append(k);
-        }
+        self.kids.extend(old);
+        self.kids.extend(ids);
         self.kid_los[i] = lo;
         self.kid_ns[i] = len(old) + len(ids);
     }
 
-    def post_set(i: int, key: str, v: int) {
+    def post_set(i: NodeId, key: str, v: int) {
         self.posts.append(i);
         self.posts.append(self.intern(key));
         self.posts.append(v);
     }
 
-    def set_arg_list(i: int, slot: int, ids: list[int]) {
+    def set_arg_list(i: NodeId, slot: int, ids: list[NodeId]) {
         p = self.arg_los[i] + (slot * 2);
         off = len(self.seqs);
         self.seqs.append(len(ids));
-        for k in ids {
-            self.seqs.append(k);
-        }
-        self.args[p] = TAG_LIST;
+        self.seqs.extend(ids);
+        self.args[p] = Tag.LIST;
         self.args[p + 1] = off;
     }
 
-    def replace_kid(i: int, old: int, news: list[int]) {
+    def replace_kid(i: NodeId, old: NodeId, news: list[NodeId]) {
         cur = self.kid_ids(i);
-        out: list[int] = [];
+        out: list[NodeId] = [];
         for k in cur {
             if k == old {
-                for n in news {
-                    out.append(n);
-                }
+                out.extend(news);
             } else {
                 out.append(k);
             }
         }
         lo = len(self.kids);
-        for k in out {
-            self.kids.append(k);
-        }
+        self.kids.extend(out);
         self.kid_los[i] = lo;
         self.kid_ns[i] = len(out);
     }
@@ -291,8 +276,8 @@ obj SyntaxArena {
         def mk_${K["snake"]}(
             comptime for p in K["bparams"] {
                 ${ct.name(p["pname"])}: ${ct.typ(p["ptype"])} = ${ct.expr(p["pdflt"])}
-            , }kid: list[int] = []
-        ) -> int {
+            , }kid: list[NodeId] = []
+        ) -> NodeId {
             idx = self._start(${K["kind"]}, kid, ${K["argn"]});
             comptime for p in K["bparams"] {
                 self.${ct.name(p["writer"])}(${ct.expr(p["warg"])});
@@ -414,16 +399,16 @@ def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
 def _ct_bparam(
     pname: str, cat: str, ename: str, opt: bool, hd: bool, dsrc: str
 ) -> dict {
-    ptype = "int";
+    ptype = "NodeId";
     pdflt = "NIL";
     writer = "_arg_node";
     warg = pname;
     if cat == "LIST" {
-        ptype = "(list[int] | None)";
+        ptype = "(list[NodeId] | None)";
         pdflt = "None";
         writer = "_arg_list";
     } elif cat == "POLY" {
-        ptype = "(int | list[int] | None)";
+        ptype = "(NodeId | list[NodeId] | None)";
         pdflt = "None";
         writer = "_arg_poly";
     } elif cat == "STR" {
@@ -442,7 +427,6 @@ def _ct_bparam(
         ptype = ename;
         pdflt = dsrc if hd else (ename + "." + _ct_first_enum(ename));
         writer = "_arg_enum";
-        warg = pname + ".value";
     }
     return {
         "pname": pname,
