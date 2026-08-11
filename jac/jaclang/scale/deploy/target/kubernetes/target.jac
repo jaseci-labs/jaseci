@@ -24,7 +24,7 @@ import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
 }
 import from jaclang.scale.deploy.target.kubernetes.rollout {
     ROLLOUT_WAIT_FULL,
-    STALL_CONFIRM_POLLS,
+    normalize_rollout_timeout,
     normalize_rollout_wait,
     read_rollout_status
 }
@@ -69,6 +69,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 message="shared_ingress=True requires a domain: set 'domain' "
                 "under [scale.kubernetes] in jac.toml."
             );
+        }
+        try {
+            (_, rollout_timeout) = self._rollout_gate();
+        } except ValueError as e {
+            return DeploymentResult(success=False, message=str(e));
         }
         if self.logger {
             self.logger.info(
@@ -163,7 +168,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
         self._emit("rollout", "start", "Waiting for the fleet to become ready");
         try {
-            self._wait_for_fleet_rollout(bundle);
+            self._wait_for_fleet_rollout(bundle, timeout=rollout_timeout);
         } except Exception as e {
             self._emit("rollout", "error", f"fleet did not become ready: {e}");
             return DeploymentResult(
@@ -387,6 +392,13 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return detail;
     }
 
+    def _rollout_gate -> tuple[str, int] {
+        return (
+            normalize_rollout_wait(self.k8s_config.rollout_wait),
+            normalize_rollout_timeout(self.k8s_config.rollout_timeout)
+        );
+    }
+
     def _wait_for_fleet_rollout(
         bundle: dict[str, any], timeout: int | None = None
     ) -> None {
@@ -414,10 +426,10 @@ obj KubernetesTarget(KubernetesTargetBase) {
         if not names {
             return;
         }
-        mode = normalize_rollout_wait(self.k8s_config.rollout_wait);
+        (mode, gate_timeout) = self._rollout_gate();
         gate = "fully rolled out" if mode == ROLLOUT_WAIT_FULL else "serving";
         if timeout is None {
-            timeout = self.k8s_config.rollout_timeout;
+            timeout = gate_timeout;
         }
         self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
@@ -436,7 +448,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             else None;
         imagepull_streak: dict[str, int] = {};
         creating_streak: dict[str, int] = {};
-        stall_streak: dict[str, int] = {};
+        inherited_stalls: dict[str, str] = {};
         healed_apps: dict[str, int] = {};
         last_sig = "";
         last_heartbeat = -90;
@@ -464,7 +476,10 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         if rollout.satisfies(mode) {
                             ready += 1;
                         }
-                        stall = rollout.stall();
+                        if name not in inherited_stalls {
+                            inherited_stalls[name] = rollout.stall_mark();
+                        }
+                        stall = rollout.stall(inherited_stalls[name]);
                         if stall {
                             stalls[name] = stall;
                         }
@@ -550,11 +565,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     );
                     raise Exception(f"{failure}.{detail}");
                 }
-                stall_streak = {k: stall_streak.get(k, 0) + 1 for k in stalls};
                 stalled = [
                     f"deployment '{name}' stalled: {reason}"
                     for (name, reason) in stalls.items()
-                    if stall_streak.get(name, 0) >= STALL_CONFIRM_POLLS
                 ];
                 if stalled {
                     raise Exception(

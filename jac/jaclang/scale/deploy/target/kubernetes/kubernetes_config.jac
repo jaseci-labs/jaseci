@@ -1,9 +1,5 @@
 import from jaclang.scale.config.base_config { BaseConfig }
-import from jaclang.scale.deploy.target.kubernetes.rollout {
-    ROLLOUT_WAIT_READY,
-    normalize_rollout_timeout,
-    normalize_rollout_wait
-}
+import from jaclang.scale.deploy.target.kubernetes.rollout { ROLLOUT_WAIT_READY }
 
 def k8s_safe_slug(name: str, fallback: str = 'jaseci') -> str {
     import re;
@@ -46,7 +42,7 @@ obj KubernetesConfig(BaseConfig) {
         resource_deletion_wait: int = 5,
         aws_nlb_wait: int = 60,
         rollout_wait: str = 'ready',
-        rollout_timeout: int = 1200,
+        rollout_timeout: (int | str) = 1200,
         app_mount_path: str = '/app',
         code_mount_path: str = '/code',
         workspace_path: str = '/code/workspace',
@@ -183,12 +179,8 @@ obj KubernetesConfig(BaseConfig) {
             bundle_access_mode=config.get('bundle_access_mode', 'ReadWriteMany'),
             resource_deletion_wait=config.get('resource_deletion_wait', 5),
             aws_nlb_wait=config.get('aws_nlb_wait', 60),
-            rollout_wait=normalize_rollout_wait(
-                config.get('rollout_wait', ROLLOUT_WAIT_READY)
-            ),
-            rollout_timeout=normalize_rollout_timeout(
-                config.get('rollout_timeout', 1200)
-            ),
+            rollout_wait=config.get('rollout_wait', ROLLOUT_WAIT_READY),
+            rollout_timeout=config.get('rollout_timeout', 1200),
             app_mount_path=config.get('app_mount_path', '/app'),
             code_mount_path=config.get('code_mount_path', '/code'),
             workspace_path=config.get('workspace_path', '/code/workspace'),

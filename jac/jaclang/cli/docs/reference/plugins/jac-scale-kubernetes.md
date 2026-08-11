@@ -381,7 +381,7 @@ Both modes only ever count replicas from the revision this deploy applied, so a 
 | TOML Key | Default | Description |
 |----------|---------|-------------|
 | `rollout_wait` | `"ready"` | Rollout completion bar: `"ready"` or `"full"` |
-| `rollout_timeout` | `1200` | Seconds to wait before the deploy fails with a per-pod diagnosis. Must be a positive whole number |
+| `rollout_timeout` | `1200` | Seconds to wait before the deploy fails with a per-pod diagnosis. Must be a positive whole number; a value that is not is rejected when the deploy runs |
 
 **To change in `jac.toml`:**
 
@@ -397,7 +397,7 @@ Or per invocation, which overrides the config:
 jac start main.jac --scale --wait full
 ```
 
-Use `full` in CI pipelines that cut traffic over once the deploy returns; the default is the better fit for iterating locally. Either way a rollout that exceeds its `progressDeadlineSeconds` fails with the stall reason rather than waiting out the timeout, once the stall has held across several polls - Kubernetes keeps re-asserting a `ProgressDeadlineExceeded` condition until the new ReplicaSet makes progress, so the deploy that fixes a previously timed-out rollout is not failed by its predecessor's verdict.
+Use `full` in CI pipelines that cut traffic over once the deploy returns; the default is the better fit for iterating locally. Either way a rollout that exceeds its `progressDeadlineSeconds` fails with the stall reason rather than waiting out the timeout. Kubernetes keeps re-asserting a `ProgressDeadlineExceeded` condition until the new ReplicaSet makes progress, so only a verdict the controller stamped after this deploy started counts: the deploy that fixes a previously timed-out rollout is never failed by its predecessor's verdict, however long its first pod takes to start.
 
 ---
 

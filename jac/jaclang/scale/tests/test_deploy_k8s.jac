@@ -28,6 +28,7 @@ import from jaclang.scale.observability.factory { UtilityFactory }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
+import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
 import from jaclang.scale.deploy.target.kubernetes.ingress { IngressDeployer }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
 import from jaclang.scale.deploy.autoscale.autoscaler { AutoscalerSpec, Trigger }
@@ -708,7 +709,87 @@ test "rollout wait defaults to the fast gate and reads 'full' from jac.toml" {
     );
 }
 
-test "an unusable rollout wait setting in jac.toml fails the config load" {
+def _status_for(deployment: any) -> any {
+    target = KubernetesTarget(
+        config=KubernetesConfig(app_name="svc-a", namespace="fleet-ns")
+    );
+    apps = unittest.mock.MagicMock();
+    apps.read_namespaced_deployment.return_value = deployment;
+    with unittest.mock.patch(
+        "jaclang.scale.deploy.target.kubernetes.kubernetes_target.k8s_cluster_config"
+    ) {
+        with unittest.mock.patch(
+            "jaclang.scale.deploy.target.kubernetes.kubernetes_target.client.AppsV1Api",
+            return_value=apps
+        ) {
+            return target.get_status("svc-a");
+        }
+    }
+}
+
+def _revision_deployment(
+    desired: int, updated: int, available: int, total: int
+) -> any {
+    return SimpleNamespace(
+        metadata=SimpleNamespace(generation=1),
+        spec=SimpleNamespace(replicas=desired),
+        status=SimpleNamespace(
+            replicas=total,
+            updated_replicas=updated,
+            available_replicas=available,
+            ready_replicas=available,
+            observed_generation=1,
+            conditions=[]
+        )
+    );
+}
+
+test "status is RUNNING only once the applied revision is fully available" {
+    mid = _status_for(_revision_deployment(desired=3, updated=1, available=3, total=4));
+    assert mid.status != ResourceStatus.RUNNING , (
+        f"old-revision pods are not a finished rollout: {mid.status}"
+    );
+    assert mid.ready_replicas == 0 , (
+        f"only new-revision replicas count as ready, got {mid.ready_replicas}"
+    );
+    assert not mid.is_ready() , "a rollout in flight is not ready";
+
+    done = _status_for(
+        _revision_deployment(desired=3, updated=3, available=3, total=3)
+    );
+    assert done.status == ResourceStatus.RUNNING , (
+        f"a completed rollout is RUNNING: {done.status}"
+    );
+    assert done.is_ready() , "a completed rollout is ready";
+}
+
+test "status reports the stall the deploy gate would fail on" {
+    stalled = _revision_deployment(desired=3, updated=1, available=3, total=4);
+    stalled.status.conditions = [
+        SimpleNamespace(
+            type="Progressing",
+            status="False",
+            reason="ProgressDeadlineExceeded",
+            message="ReplicaSet 'svc-a-abc' has timed out progressing.",
+            last_update_time="2026-08-11T10:00:00Z"
+        )
+    ];
+
+    info = _status_for(stalled);
+
+    assert info.status != ResourceStatus.RUNNING , f"got {info.status}";
+    assert info.message and "ProgressDeadlineExceeded" in info.message , (
+        f"the stall reason must reach the caller: {info.message!r}"
+    );
+}
+
+def _rollout_gate_for(cfg: dict) -> any {
+    return KubernetesTarget(
+        config=KubernetesConfig.from_dict(KubernetesConfig, cfg)
+    )._rollout_gate();
+}
+
+test "an unusable rollout setting fails the deploy, not every config read" {
     for (setting, bad) in [
         ("rollout_wait = \"everything\"", "everything"),
         ("rollout_wait = \"\"", "''"),
@@ -717,11 +798,20 @@ test "an unusable rollout wait setting in jac.toml fails the config load" {
         ("rollout_timeout = true", "True"),
         ("rollout_timeout = \"soon\"", "soon")
     ] {
+        cfg = _k8s_config_for_toml(
+            "[project]\nname = \"My App\"\n\n[scale.kubernetes]\n"
+            "namespace = \"shop\"\n"
+                + setting
+                + "\n"
+        );
+        assert cfg["namespace"] == "shop" , (
+            f"{setting}: an unusable rollout knob must not cost in-pod readers "
+            f"the rest of the config, got {cfg['namespace']!r}"
+        );
+
         caught = None;
         try {
-            _k8s_config_for_toml(
-                "[project]\nname = \"My App\"\n\n[scale.kubernetes]\n" + setting + "\n"
-            );
+            _rollout_gate_for(cfg);
         } except ValueError as e {
             caught = e;
         }
@@ -741,14 +831,12 @@ test "an env interpolated rollout_timeout string stays accepted" {
 
     os.environ["JAC_TEST_ROLLOUT_TIMEOUT"] = "90";
     try {
-        cfg = _k8s_config_for_toml(toml);
-        assert cfg["rollout_timeout"] == 90 , f"got {cfg['rollout_timeout']!r}";
+        (_, timeout) = _rollout_gate_for(_k8s_config_for_toml(toml));
+        assert timeout == 90 , f"got {timeout!r}";
     } finally {
         os.environ.pop("JAC_TEST_ROLLOUT_TIMEOUT", None);
     }
 
-    fallback_cfg = _k8s_config_for_toml(toml);
-    assert fallback_cfg["rollout_timeout"] == 1200 , (
-        f"got {fallback_cfg['rollout_timeout']!r}"
-    );
+    (_, fallback_timeout) = _rollout_gate_for(_k8s_config_for_toml(toml));
+    assert fallback_timeout == 1200 , f"got {fallback_timeout!r}";
 }

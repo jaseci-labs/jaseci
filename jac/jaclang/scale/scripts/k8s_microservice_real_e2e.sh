@@ -645,6 +645,74 @@ else
         "200|404|405|000" "${FIRST_SVC}-deployment" "" "5"
 fi
 
+# The readiness gate only has a revision to get wrong on a SECOND deploy over
+# an existing Deployment, so it runs last: bump the overlay marker, redeploy,
+# and assert the call returned with a new-revision replica already serving.
+echo "=== redeploy: the wait gates on the applied revision ==="
+sed -i "/E2E_OVERLAY_MARKER/{n;s/^value = .*/value = \"$(date +%s)\"/;}" \
+    "${PROJECT_DIR}/jac.preview.toml"
+cd "${PROJECT_DIR}"
+export JAC_PROFILE=preview
+jac - <<PYEOF
+import os, sys, time, jaclang  # noqa: F401
+from kubernetes import client, config as kube_config
+from jaclang.scale.deploy.target.kubernetes.target import KubernetesTarget
+from jaclang.scale.deploy.target.kubernetes.kubernetes_config import KubernetesConfig
+from jaclang.scale.deploy.target.kubernetes.rollout import read_rollout_status
+from jaclang.scale.config.app_config import AppConfig
+
+NS = "${NAMESPACE}"
+kube_config.load_kube_config()
+apps = client.AppsV1Api()
+
+def revision(name):
+    dep = apps.read_namespaced_deployment(name=name, namespace=NS)
+    return int((dep.metadata.annotations or {}).get("deployment.kubernetes.io/revision", 0))
+
+before = revision("products-app-deployment")
+
+target = KubernetesTarget(
+    config=KubernetesConfig(
+        app_name="jac-e2e",
+        namespace=NS,
+        container_port=8000,
+        bundle_storage_class="${BUNDLE_STORAGE_CLASS}",
+        python_image="${E2E_POD_BASE_IMAGE:-}",
+    ),
+)
+started = time.monotonic()
+result = target.deploy(AppConfig(code_folder=".", app_name="jac-e2e"))
+waited = time.monotonic() - started
+if not result.success:
+    print(f"FAIL: redeploy failed: {result.message}", file=sys.stderr)
+    sys.exit(1)
+
+names = [d["metadata"]["name"] for d in (result.details or {}).get("deployments", {}).values()]
+if not names:
+    sys.exit("FAIL: the redeploy bundle carried no Deployments to check")
+for name in names:
+    rollout = read_rollout_status(apps.read_namespaced_deployment(name=name, namespace=NS))
+    if not rollout.is_observed():
+        sys.exit(f"FAIL: {name} status is still behind its spec after the deploy returned")
+    if rollout.updated_available() < 1:
+        sys.exit(
+            f"FAIL: the deploy returned while {name} had no available replica from the "
+            f"new ReplicaSet (desired={rollout.desired} updated={rollout.updated} "
+            f"available={rollout.available} replicas={rollout.total})"
+        )
+
+after = revision("products-app-deployment")
+if after <= before:
+    sys.exit(
+        f"FAIL: the overlay bump produced no new revision ({before} -> {after}), so the "
+        "redeploy never exercised the gate"
+    )
+print(f"  redeploy OK in {waited:.0f}s: products-app revision {before} -> {after}, "
+      f"{len(names)} service(s) serving from the new ReplicaSet")
+PYEOF
+
+_t "redeploy gate OK"
+
 _t "ALL DONE"
 print_timing_report
 echo "=== K8s microservice REAL e2e PASSED ==="

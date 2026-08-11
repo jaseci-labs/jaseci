@@ -491,40 +491,64 @@ test "full wait returns once the rollout completes" {
     assert err is None , f"a fully available new ReplicaSet is ready: {err}";
 }
 
-def _timed_out_condition -> object {
+def _timed_out_condition(marked_at: str = "2026-08-11T10:00:00Z") -> object {
     return SimpleNamespace(
         type="Progressing",
         status="False",
         reason="ProgressDeadlineExceeded",
-        message="ReplicaSet 'gateway-abc' has timed out progressing."
+        message="ReplicaSet 'gateway-abc' has timed out progressing.",
+        last_update_time=marked_at
+    );
+}
+
+def _stalling_dep(marked_at: str) -> object {
+    return _dep(
+        desired=3,
+        updated=1,
+        available=3,
+        total=4,
+        generation=5,
+        observed=5,
+        conditions=[_timed_out_condition(marked_at)]
     );
 }
 
 test "a rollout past its progress deadline fails with the stall reason" {
     target = _fleet_target();
-    (apps, core) = _rollout_apis(
-        _dep(
-            desired=3,
-            updated=1,
-            available=3,
-            total=4,
-            conditions=[_timed_out_condition()]
-        )
-    );
+    (apps, core) = _rollout_apis(_dep(desired=3, updated=1, available=3, total=4));
+    apps.read_namespaced_deployment.side_effect = [
+        _dep(desired=3, updated=1, available=3, total=4),
+        _stalling_dep("2026-08-11T10:12:00Z")
+    ];
 
-    err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 60);
+    err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 600);
 
     assert err is not None , "a stalled rollout must fail instead of waiting";
     assert "ProgressDeadlineExceeded" in str(err) , f"stall reason missing: {err}";
     assert "gateway-deployment" in str(err) , f"stalled deployment not named: {err}";
     assert "timed out progressing" in str(err) , f"stall message missing: {err}";
-    assert apps.read_namespaced_deployment.call_count >= 3 , (
-        "a stall must be confirmed across polls, not raised on the first: "
-        f"{apps.read_namespaced_deployment.call_count}"
+    assert apps.read_namespaced_deployment.call_count == 2 , (
+        "a verdict stamped for this rollout fails on sight, without waiting out "
+        f"the timeout: {apps.read_namespaced_deployment.call_count}"
     );
 }
 
-test "a leftover stall condition from the previous deploy does not fail this one" {
+test "a stall the controller re-stamps for this rollout fails the deploy" {
+    target = _fleet_target();
+    (apps, core) = _rollout_apis(_stalling_dep("2026-08-11T10:00:00Z"));
+    apps.read_namespaced_deployment.side_effect = [
+        _stalling_dep("2026-08-11T10:00:00Z"),
+        _stalling_dep("2026-08-11T10:12:00Z")
+    ];
+
+    err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 600);
+
+    assert err is not None and "ProgressDeadlineExceeded" in str(err) , (
+        f"a re-stamped deadline is this rollout's own verdict: {err}"
+    );
+}
+
+test "a stall inherited from the previous deploy never fails this one" {
     target = _fleet_target();
     (apps, core) = _rollout_apis(
         _dep(
@@ -533,19 +557,23 @@ test "a leftover stall condition from the previous deploy does not fail this one
             available=3,
             total=3,
             generation=5,
-            observed=4,
+            observed=5,
             conditions=[_timed_out_condition()]
         )
     );
 
-    err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 60);
+    err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 120);
 
+    assert apps.read_namespaced_deployment.call_count > 3 , (
+        "the inherited verdict has to outlive several polls for this to prove "
+        f"anything: {apps.read_namespaced_deployment.call_count}"
+    );
     assert err is not None and "timed out" in str(err) , (
         f"expected the plain timeout, got: {err}"
     );
     assert "ProgressDeadlineExceeded" not in str(err) , (
-        "a condition the controller has not re-evaluated for this spec is "
-        f"the last deploy's verdict, not this one's: {err}"
+        "a verdict the controller stamped before this deploy is the last "
+        f"deploy's, however long the new ReplicaSet takes to start: {err}"
     );
 }
 

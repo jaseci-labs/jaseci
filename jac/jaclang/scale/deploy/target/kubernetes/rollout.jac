@@ -1,8 +1,7 @@
 glob ROLLOUT_WAIT_READY: str = "ready",
      ROLLOUT_WAIT_FULL: str = "full",
      ROLLOUT_WAIT_MODES: tuple = ("ready", "full"),
-     PROGRESS_DEADLINE_REASON: str = "ProgressDeadlineExceeded",
-     STALL_CONFIRM_POLLS: int = 3;
+     PROGRESS_DEADLINE_REASON: str = "ProgressDeadlineExceeded";
 
 
 def normalize_rollout_wait(mode: any) -> str {
@@ -54,7 +53,7 @@ def _field(source: any, name: str) -> any {
 def _stall_condition(status: any) -> tuple {
     conditions = _field(status, "conditions");
     if not isinstance(conditions, list) {
-        return ("", "");
+        return ("", "", "");
     }
     for cond in conditions {
         if str(_field(cond, "type") or "") != "Progressing" {
@@ -64,9 +63,13 @@ def _stall_condition(status: any) -> tuple {
         if reason != PROGRESS_DEADLINE_REASON {
             continue;
         }
-        return (reason, str(_field(cond, "message") or "").strip());
+        return (
+            reason,
+            str(_field(cond, "message") or "").strip(),
+            str(_field(cond, "last_update_time") or "")
+        );
     }
-    return ("", "");
+    return ("", "", "");
 }
 
 
@@ -78,7 +81,8 @@ obj RolloutStatus {
         generation: int = 0,
         observed_generation: int = 0,
         stall_reason: str = "",
-        stall_message: str = "";
+        stall_message: str = "",
+        stall_marked_at: str = "";
 
     def is_observed -> bool {
         return self.observed_generation >= self.generation;
@@ -105,8 +109,15 @@ obj RolloutStatus {
         return self.updated_available() >= 1;
     }
 
-    def stall -> str {
-        if not self.stall_reason or not self.is_observed() {
+    def stall_mark -> str {
+        return f"{self.stall_reason}@{self.stall_marked_at}"
+            if self.stall_reason
+            else "";
+    }
+
+    def stall(inherited: str = "") -> str {
+        mark = self.stall_mark();
+        if not mark or not self.is_observed() or mark == inherited {
             return "";
         }
         return f"{self.stall_reason}: {self.stall_message}"
@@ -120,7 +131,7 @@ def read_rollout_status(deployment: any) -> RolloutStatus {
     meta = _field(deployment, "metadata");
     spec = _field(deployment, "spec");
     status = _field(deployment, "status");
-    (stall_reason, stall_message) = _stall_condition(status);
+    (stall_reason, stall_message, stall_marked_at) = _stall_condition(status);
     return RolloutStatus(
         desired=_non_negative_int(_field(spec, "replicas")),
         updated=_non_negative_int(_field(status, "updated_replicas")),
@@ -129,6 +140,7 @@ def read_rollout_status(deployment: any) -> RolloutStatus {
         generation=_non_negative_int(_field(meta, "generation")),
         observed_generation=_non_negative_int(_field(status, "observed_generation")),
         stall_reason=stall_reason,
-        stall_message=stall_message
+        stall_message=stall_message,
+        stall_marked_at=stall_marked_at
     );
 }
