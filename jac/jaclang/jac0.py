@@ -3016,6 +3016,29 @@ def _ct_has_ct(source: str) -> bool:
     return False
 
 
+def ct_reflect_source_deps(source: str) -> list:
+    """Absolute paths of modules this source's comptime code reflects over.
+
+    The bootstrap ct dialect requires reflect.module() arguments to be
+    string literals, so a lexical scan is exact. Cache layers hash these
+    files alongside the source: a derived surface must rebuild when the
+    schema it reflects over changes, not only when its own text does.
+    """
+    import os
+    import re as _re
+
+    if not _ct_has_ct(source):
+        return []
+    deps = []
+    root = os.path.dirname(os.path.abspath(__file__))
+    pat = _re.compile(r"reflect\s*\.\s*module\(\s*[\"']([\w\.]+)[\"']")
+    for dotted in sorted(set(pat.findall(source))):
+        if dotted == "jaclang" or dotted.startswith("jaclang."):
+            rel = dotted[len("jaclang."):].replace(".", os.sep) + ".jac"
+            deps.append(os.path.join(root, rel))
+    return deps
+
+
 def ct_expand_source(source: str, filename: str = "<unknown>") -> str:
     """Expand comptime constructs in Jac source text (bootstrap path)."""
     if not _ct_has_ct(source):

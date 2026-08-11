@@ -111,6 +111,20 @@ test "comptime if selects by target context" {
 }
 
 
+test "reflect deps are visible to cache invalidation" {
+    import os;
+    import jaclang;
+    import from jaclang.jac0 { ct_reflect_source_deps }
+    arena_path = os.path.join(
+        os.path.dirname(jaclang.__file__), "jac0core", "arena.jac"
+    );
+    deps = ct_reflect_source_deps(open(arena_path, encoding="utf-8").read());
+    names = {os.path.basename(d) for d in deps};
+    assert "unitree.jac" in names and "constant.jac" in names , names;
+    assert ct_reflect_source_deps("with entry { print(1); }") == [];
+}
+
+
 test "jac0 bootstrap expander agrees on the same dialect" {
     out = ct_expand_source(CT_SRC, "ct_test.jac");
     assert "comptime" not in out , "bootstrap expansion left comptime text";
