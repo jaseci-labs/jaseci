@@ -165,21 +165,21 @@ impl JacProgram._forget_paired_mtir(self: JacProgram, mod_key: str) -> None {
         return;
     }
     internal = compiler._internal_program;
-    if internal is not None and internal is not self {
-        if mod_key in internal.mtir_by_module {
-            del (internal.mtir_by_module[mod_key], );
-        }
+    if internal is None {
+        return;
     }
-    try {
-        import from jaclang.jac0core.runtime { JacRuntime }
-        rt = JacRuntime.program;
-        if rt is not None and rt is not self and rt._compiler is compiler {
-            if mod_key in rt.mtir_by_module {
+    if internal is self {
+        try {
+            import from jaclang.jac0core.runtime { JacRuntime }
+            rt = JacRuntime.program;
+            if rt is not None and rt is not self and mod_key in rt.mtir_by_module {
                 del (rt.mtir_by_module[mod_key], );
             }
+        } except Exception {
+            ;
         }
-    } except Exception {
-        ;
+    } elif mod_key in internal.mtir_by_module {
+        del (internal.mtir_by_module[mod_key], );
     }
 }
 

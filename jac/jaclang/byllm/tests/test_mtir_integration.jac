@@ -545,6 +545,44 @@ test "filter_module_mtir keeps only the target module's scopes" {
     assert len(kept) == 2 , f"expected 2 kept scopes, got {len(kept)}";
 }
 
+test "invalidate internal clears runtime mtir without shared compiler identity" {
+    import from jaclang.jac0core.compiler { JacCompiler }
+    import from jaclang.jac0core.jir { mtir_module_key }
+
+    # Cache restore mirrors into runtime via a standalone JacCompiler; the
+    # runtime program must not need rt._compiler is compiler for cleanup.
+    assert JacRuntime.program is not None;
+    prog = JacRuntime.program;
+    assert prog._compiler is None , "runtime program starts without a compiler";
+    compiler = JacCompiler();
+    internal = compiler.internal_program;
+    assert internal._compiler is compiler;
+
+    path = os.path.realpath("/tmp/coord_probe/identityless.jac");
+    mod_key = mtir_module_key(path);
+    marker = FunctionInfo(name="f", semstr="s");
+    try {
+        prog.mtir_by_module[mod_key] = {"identityless.run": marker};
+        internal.mtir_by_module[mod_key] = {"identityless.run": marker};
+        assert prog._compiler is None , (
+            "mirroring must not require attaching compiler to runtime"
+        );
+
+        internal.invalidate_module(path);
+        assert mod_key not in internal.mtir_by_module , "internal slice cleared";
+        assert mod_key not in prog.mtir_by_module , (
+            "runtime slice must clear even without shared compiler identity"
+        );
+    } finally {
+        if mod_key in prog.mtir_by_module {
+            del (prog.mtir_by_module[mod_key], );
+        }
+        if mod_key in internal.mtir_by_module {
+            del (internal.mtir_by_module[mod_key], );
+        }
+    }
+}
+
 test "invalidate_module clears mirrored mtir across program pair" {
     import from jaclang.jac0core.jir { mtir_module_key }
 

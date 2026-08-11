@@ -126,6 +126,9 @@ impl JacCompiler._check_native_abi(layout: any, full_target: str) -> None {
 impl JacCompiler.get_bytecode(
     full_target: str, target_program: JacProgram
 ) -> (types.CodeType | None) {
+    if target_program._compiler is None {
+        target_program._compiler = self;
+    }
     actual_program = self._resolve_program(full_target, target_program);
     (rebuild, no_precompile) = cache_mode();
     symtab_only_recovery = False;
