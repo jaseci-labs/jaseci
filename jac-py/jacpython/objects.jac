@@ -678,6 +678,31 @@ obj PyList(PyObj) {
     }
 }
 
+# PyCode -- jacpython's direct code-object carrier (PLAN.md P0.1 contract).
+#
+# Pinned to CPython 3.14.6 (CURRENT.md). The native compiler assembles PyCode
+# in-process; marshal is test-oracle transport only.
+#
+# Bytecode layout:
+#   - co_code is a list of 16-bit code units (opcode, oparg pairs).
+#   - Jump and exception-handler offsets are measured in code units, not bytes.
+#   - EXTENDED_ARG (opcode_meta.OP_EXTENDED_ARG) prefixes fold high oparg bits
+#     into the following real instruction.
+#   - Instructions with inline caches are followed by OP_CACHE padding; width is
+#     2 + opcode_cache_count(op) code units (see opcode_meta.jac).
+#
+# Locals-plus (merged fast locals layout, CPython 3.11+):
+#   [varnames][non-argument cellvars][freevars]
+#   Argument cells live only in varnames; resolve_cell() in pyc_first maps a
+#   merged LOAD_FAST/_DEREF index to the correct PyCell.
+#
+# Exception table (co.exceptiontable):
+#   Varint-encoded entries: start*2, length*2, target*2, depth<<1|lasti per
+#   read_varint()/find_handler() in pyc_first.jac.
+#
+# Ownership: argcount/posonlyargcount/kwonlyargcount, stacksize, flags,
+# co_code, consts (recursive PyCode allowed), names, var/cell/free names,
+# filename/name/qualname, firstlineno, linetable, exceptiontable.
 obj PyCode(PyObj) {
     has argcount: int,
         posonlyargcount: int,
