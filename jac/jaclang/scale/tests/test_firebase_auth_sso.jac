@@ -52,11 +52,7 @@ obj MockScaleConfig {
     }
 
     def get_database_config -> dict {
-        return {
-            'mongodb_uri': None,
-            'redis_url': None,
-            'shelf_db_path': '.jac/data/anchor_store.db'
-        };
+        return {'redis_url': None, 'shelf_db_path': '.jac/data/anchor_store.db'};
     }
 
     def get_monitoring_config -> dict {

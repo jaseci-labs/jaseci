@@ -151,6 +151,133 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
     }
 }
 
+impl JacProgram.load_dependency_module(
+    self: JacProgram,
+    source_path: str,
+    importer_path: (str | None) = None,
+    use_str: (str | None) = None
+) -> uni.Module {
+    import from pathlib { Path }
+    import from jaclang.jac0core.jir {
+        jir_cacheable_source_path,
+        read_module_jir_cache,
+        write_module_jir_cache,
+    }
+
+    resolved_path = str(Path(source_path).resolve());
+    compiler = self._get_compiler();
+    target_program = compiler._resolve_program(resolved_path, self);
+    target_hub = target_program.mod.hub;
+
+    if (resolved_path in self.mod.hub and not self.is_hub_entry_fresh(resolved_path)) {
+        self.invalidate_module(resolved_path);
+    }
+    if (
+        resolved_path in target_hub
+        and target_program is not self
+        and not target_program.is_hub_entry_fresh(resolved_path)
+    ) {
+        target_program.invalidate_module(resolved_path);
+    }
+
+    mod: uni.Module;
+    from_jir_cache = False;
+    if resolved_path in self.mod.hub {
+        mod = self.mod.hub[resolved_path];
+    } elif resolved_path in target_hub {
+        mod = target_hub[resolved_path];
+    } else {
+        jir_mod: (object | None) = None;
+        if use_str is None {
+            jir_mod = read_module_jir_cache(resolved_path);
+        }
+        if jir_mod is not None {
+            mod = jir_mod;
+            from_jir_cache = True;
+            if resolved_path.endswith('.pyi') and not mod.stub_only {
+                mod.stub_only = True;
+            }
+        } elif resolved_path.endswith('.pyi') {
+            import ast as py_ast;
+            import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+            import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
+            import from jaclang.jac0core.helpers { read_file_with_encoding }
+            src = use_str or read_file_with_encoding(source_path);
+            uni_source = uni.Source(src, source_path);
+            mod = PyastBuildPass(
+                ir_in=uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
+                prog=self,
+            ).ir_out;
+            SymTabBuildPass(ir_in=mod, prog=self);
+            mod.stub_only = True;
+            if jir_cacheable_source_path(resolved_path) {
+                write_module_jir_cache(resolved_path, mod);
+            }
+        } else {
+            mod = self.compile(
+                source_path,
+                use_str=use_str,
+                no_cgen=True,
+                type_check=False,
+                symtab_ir_only=True
+            );
+            if jir_cacheable_source_path(resolved_path) {
+                write_module_jir_cache(resolved_path, mod);
+            }
+        }
+        target_hub[resolved_path] = mod;
+        target_program.hub_cache_stamp(resolved_path);
+        if from_jir_cache {
+            self._relink_absorbed_imports(mod);
+        }
+    }
+
+    if importer_path is not None {
+        self.record_dependency(importer_path, resolved_path);
+    }
+    return mod;
+}
+
+impl JacProgram._relink_absorbed_imports(self: JacProgram, mod: uni.Module) -> None {
+    import from pathlib { Path }
+    import from jaclang.jac0core.constant { SymbolAccess }
+    import from jaclang.jac0core.passes.sym_tab_build_pass { find_python_scope_node_of }
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if not imp.is_absorb or not imp.items {
+            continue;
+        }
+        path_node = imp.items[0];
+        if not isinstance(path_node, uni.ModulePath) {
+            continue;
+        }
+        scope = find_python_scope_node_of(imp);
+        if scope is None {
+            continue;
+        }
+        src_path = path_node.resolve_relative_path();
+        if not src_path or not Path(src_path).exists() {
+            continue;
+        }
+        src_mod = self.load_dependency_module(src_path);
+        for sym in src_mod.names_in_scope.values() {
+            if sym.access != SymbolAccess.PRIVATE and sym.defn {
+                scope.def_insert(
+                    sym.defn[0], single_decl='import absorb', imported=True
+                );
+            }
+        }
+        for overload_syms in src_mod.names_in_scope_overload.values() {
+            for sym in overload_syms {
+                if sym.access != SymbolAccess.PRIVATE and sym.defn {
+                    scope.def_insert(
+                        sym.defn[0], single_decl='import absorb', imported=True
+                    );
+                }
+            }
+        }
+    }
+}
+
 impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {
     if self._compiler {
         return self._compiler;

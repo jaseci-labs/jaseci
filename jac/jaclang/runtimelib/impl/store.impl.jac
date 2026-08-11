@@ -221,7 +221,7 @@ def _conn_dead(e: Exception) -> bool {
     }
     for arg in getattr(e, 'args', ()) {
         if isinstance(arg, dict)
-            and arg.get('C') in ('08006', '08003', '57P01', '57P03') {
+            and arg.get('C') in ('08006', '08003', '57P01', '57P03', '25P03') {
             return True;
         }
     }
@@ -481,13 +481,20 @@ impl PgStore.takeover -> int {
 }
 
 
-impl PgStore.begin(serializable: bool = True) -> None {
+impl PgStore.begin(serializable: bool = True, read_only: bool = False) -> None {
     with self._lock {
         if self._in_txn {
             return;
         }
-        level = 'SERIALIZABLE' if serializable else 'READ COMMITTED';
-        self._run(f"BEGIN ISOLATION LEVEL {level}", {});
+        if read_only {
+            level = 'REPEATABLE READ';
+        } elif serializable {
+            level = 'SERIALIZABLE';
+        } else {
+            level = 'READ COMMITTED';
+        }
+        suffix = ' READ ONLY' if read_only else '';
+        self._run(f"BEGIN ISOLATION LEVEL {level}{suffix}", {});
         self._in_txn = True;
         try {
             self._run("SET LOCAL lock_timeout = '10s'", {});
@@ -744,6 +751,28 @@ impl PgStore.kv_put(key: str, value: str) -> None {
 }
 
 
+impl PgStore.kv_put_ttl(key: str, value: str, ttl_seconds: int) -> None {
+    with self._lock {
+        conn: Any = self._side();
+        conn.run(
+            """
+            INSERT INTO kv_state (key, value, expires_at, updated_at)
+            VALUES (
+                :k, :v, now() + make_interval(secs => CAST(:ttl AS int)), now()
+            )
+            ON CONFLICT (key) DO UPDATE SET
+                value = EXCLUDED.value,
+                expires_at = EXCLUDED.expires_at,
+                updated_at = now()
+            """,
+            k=key,
+            v=value,
+            ttl=ttl_seconds
+        );
+    }
+}
+
+
 impl PgStore.kv_delete(key: str) -> None {
     self._run('DELETE FROM kv_state WHERE key = :k', {'k': key});
 }
@@ -768,8 +797,10 @@ impl PgStore.quarantine(
 
 
 impl PgStore.notify(channel: str, payload: str) -> None {
-    conn: Any = self._side();
-    conn.run('SELECT pg_notify(:c, :p)', c=channel, p=payload);
+    with self._lock {
+        conn: Any = self._side();
+        conn.run('SELECT pg_notify(:c, :p)', c=channel, p=payload);
+    }
 }
 
 
@@ -791,17 +822,42 @@ impl PgStore.listen(channel: str, callback: Any) -> None {
 
 
 impl PgStore._listen_loop -> None {
+    import select;
     stop: Any = self._listen_stop;
     if stop is None {
         return;
     }
     while not stop.is_set() {
+        pending: list = [];
+        sock: Any = None;
         try {
             with self._lock {
                 conn: Any = self._side();
-                conn.run('SELECT 1');
-                pending = list(conn.notifications);
-                conn.notifications.clear();
+                if conn.notifications {
+                    pending = list(conn.notifications);
+                    conn.notifications.clear();
+                } else {
+                    sock = conn._sock;
+                }
+            }
+            if not pending {
+                if sock is None {
+                    stop.wait(1.0);
+                    continue;
+                }
+                readable = select.select([sock], [], [], 10.0)[0];
+                if stop.is_set() {
+                    break;
+                }
+                if not readable {
+                    continue;
+                }
+                with self._lock {
+                    conn2: Any = self._side();
+                    conn2.run('SELECT 1');
+                    pending = list(conn2.notifications);
+                    conn2.notifications.clear();
+                }
             }
             for (pid, channel, payload) in pending {
                 for (want, cb) in list(self._listeners) {
@@ -816,8 +872,8 @@ impl PgStore._listen_loop -> None {
             }
         } except Exception as e {
             logger.debug(f"listen loop hiccup: {e}");
+            stop.wait(1.0);
         }
-        stop.wait(1.0);
     }
 }
 

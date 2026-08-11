@@ -21,7 +21,9 @@ import from jaclang.scale.config.config_loader {
 import from tempfile { mkdtemp }
 import shutil;
 import from jaclang.scale.deploy.target.factory { DeploymentTargetFactory }
-import from jaclang.scale.deploy.database.factory { DatabaseProviderFactory }
+import from jaclang.scale.deploy.database.kubernetes_postgres {
+    KubernetesPostgresProvider
+}
 import from jaclang.scale.observability.factory { UtilityFactory }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -324,9 +326,7 @@ test "fleet rollout falls back to broad pod scan when RS lookup fails" {
 
 
 test "kubernetes database provider security context" {
-    pg_provider = DatabaseProviderFactory.create(
-        'kubernetes_postgres', None, {'app_name': 'test-app'}
-    );
+    pg_provider = KubernetesPostgresProvider(config={'app_name': 'test-app'});
     pg_deploy = pg_provider.deploy({});
     pg_container = pg_deploy['statefulset']['spec']['template']['spec']['containers'][
         0

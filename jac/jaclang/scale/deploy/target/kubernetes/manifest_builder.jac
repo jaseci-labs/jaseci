@@ -15,7 +15,41 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 
 glob GATEWAY_NAME: str = "__gateway__",
      _UVICORN_EXIT_CUSHION_S: int = 5,
-     _RFC1123_MAX_LEN: int = 253;
+     _RFC1123_MAX_LEN: int = 253,
+     _CLIENT_BUILD_ATTEMPTS: int = 3,
+     _CLIENT_BUILD_RETRY_PAUSE_S: int = 3,
+     _DEP_INSTALL_TIMEOUT_S: int = 900,
+     _TRANSIENT_CLIENT_BUILD_MARKERS: tuple = (
+         "dependency installation failed",
+         "failed to install dependencies",
+         "bun install failed",
+         "econnreset",
+         "econnrefused",
+         "enotfound",
+         "etimedout",
+         "eai_again",
+         "socket hang up",
+         "i/o timeout",
+         "network request failed",
+
+     );
+
+
+def _output_tail(result: any, lines: int = 15) -> str {
+    combined = ((result.stdout or "") + "\n" + (result.stderr or "")).strip();
+    return "\n".join(combined.splitlines()[-lines:]);
+}
+
+
+def _is_transient_client_build_failure(output: str) -> bool {
+    lowered = output.lower();
+    for marker in _TRANSIENT_CLIENT_BUILD_MARKERS {
+        if marker in lowered {
+            return True;
+        }
+    }
+    return False;
+}
 
 
 def k8s_safe_name(svc_name: str) -> str {
@@ -133,9 +167,6 @@ obj ManifestBuilder {
             k8s_safe_name(self.k8s_config.app_name),
             self.k8s_config.namespace,
             proj,
-            provisioned_database=(
-                "postgres" if self.k8s_config.postgres_enabled else ""
-            ),
             dry_run=self.dry_run,
             access_mode=self.k8s_config.bundle_access_mode
         );
@@ -144,10 +175,38 @@ obj ManifestBuilder {
         return injector;
     }
 
+    def _install_app_deps(
+        project_dir: str, jac_bin: str, env: (dict[str, str] | None)
+    ) -> str {
+        import subprocess;
+        import from jaclang.cli.console { console }
+        console.print("Installing the app's dependencies on the build host.");
+        try {
+            result = subprocess.run(
+                [jac_bin, "install"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=_DEP_INSTALL_TIMEOUT_S,
+                env=env
+            );
+        } except subprocess.TimeoutExpired {
+            return f"'jac install' timed out after {_DEP_INSTALL_TIMEOUT_S}s";
+        } except OSError as exc {
+            return f"'jac install' could not run: {exc}";
+        }
+        if result.returncode != 0 {
+            return f"'jac install' exited {result.returncode}:\n{_output_tail(result)}";
+        }
+        return "";
+    }
+
     def _build_client_bundle(project_dir: str) {
         import os;
         import subprocess;
         import from jaclang.cli.console { console }
+        import from jaclang.scale.injector.binary { host_toolchain_path }
+        import from jaclang.scale.injector.bundle { release_binary_env }
         import from jaclang.scale.runtime.context.util { jac_executable }
         client_entry = self._client_entry();
         if not client_entry {
@@ -163,25 +222,80 @@ obj ManifestBuilder {
             );
             return;
         }
+        import time;
         dist = os.path.join(project_dir, ".jac", "client", "dist");
+        pinned = host_toolchain_path(project_dir);
+        jac_bin = pinned or jac_executable();
+        jac_env = release_binary_env() if pinned else None;
+        if pinned {
+            console.print(
+                "Building with the jac release this app pins, not the one "
+                f"running this deploy ({pinned})."
+            );
+        }
+        dep_error = self._install_app_deps(project_dir, jac_bin, jac_env);
+        if dep_error {
+            console.warning(
+                f"The app's dependencies did not install on the build host, so "
+                f"the client build may fail on a missing import. {dep_error}"
+            );
+        }
         console.print(f"Building the client bundle on the host ({client_entry}).");
-        result = subprocess.run(
-            [jac_executable(), "build", client_entry, "--client", "web"],
-            cwd=project_dir,
-            capture_output=True,
-            text=True,
-            timeout=900
-        );
-        if result.returncode != 0 {
-            tail = "\n".join(
-                (
-                    (result.stdout or "") + "\n" + (result.stderr or "")
-                ).strip().splitlines()[-15:]
+        attempt = 0;
+        while True {
+            attempt += 1;
+            try {
+                result = subprocess.run(
+                    [jac_bin, "build", client_entry, "--client", "web"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=900,
+                    env=jac_env
+                );
+            } except subprocess.TimeoutExpired {
+                if attempt >= _CLIENT_BUILD_ATTEMPTS {
+                    raise RuntimeError(
+                        f"client build timed out ({client_entry}) on all "
+                        f"{_CLIENT_BUILD_ATTEMPTS} attempts. The pod serves the "
+                        f"bundle built here and never rebuilds it - fix the "
+                        f"client build and redeploy."
+                    );
+                }
+                console.print(
+                    f"Client build timed out (attempt {attempt} of "
+                    f"{_CLIENT_BUILD_ATTEMPTS}); retrying."
+                );
+                time.sleep(_CLIENT_BUILD_RETRY_PAUSE_S);
+                continue;
+            }
+            if result.returncode == 0 {
+                break;
+            }
+            output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip();
+            tail = _output_tail(result);
+            if (
+                attempt < _CLIENT_BUILD_ATTEMPTS
+                and _is_transient_client_build_failure(output)
+            ) {
+                console.print(
+                    f"Client build hit a transient install/network failure "
+                    f"(attempt {attempt} of {_CLIENT_BUILD_ATTEMPTS}); "
+                    f"retrying.\n{tail}"
+                );
+                time.sleep(_CLIENT_BUILD_RETRY_PAUSE_S);
+                continue;
+            }
+            cause = (
+                f"\nIts dependencies did not install on this host first, which "
+                f"is the likely cause: {dep_error}"
+                    if dep_error
+                    else ""
             );
             raise RuntimeError(
                 f"client build failed ({client_entry}, exit {result.returncode}). "
                 f"The pod serves the bundle built here and never rebuilds it - "
-                f"fix the client build and redeploy.\n{tail}"
+                f"fix the client build and redeploy.\n{tail}{cause}"
             );
         }
         if not os.path.isfile(os.path.join(dist, "index.html")) {

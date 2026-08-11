@@ -823,3 +823,157 @@ impl NaIRGenPass._emit_rc_destructor_preamble(
     free_builder = ir.IRBuilder(free_bb);
     return (free_builder, done_bb);
 }
+
+impl NaIRGenPass._tuple_box_release_fn(
+    struct_type: ir.LiteralStructType
+) -> (ir.Function | None) {
+    key = str(struct_type);
+    _cached = self.tuple_release_fns.get(key);
+    if _cached is not None {
+        return _cached;
+    }
+    if self.rc_release_simple_fn is None or self.rc_safe_free_fn is None {
+        self._emit_rc_helpers();
+    }
+    if self.rc_release_simple_fn is None or self.rc_safe_free_fn is None {
+        return None;
+    }
+    i8 = ir.IntType(8);
+    i8_ptr = i8.as_pointer();
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    i64_ptr = i64.as_pointer();
+    struct_ptr_type = struct_type.as_pointer();
+    release_fn = ir.Function(
+        self.llvm_module,
+        ir.FunctionType(ir.VoidType(), [struct_ptr_type]),
+        name=f"__rc_release_tuple{len(self.tuple_release_fns)}"
+    );
+    release_fn.linkage = "private";
+    release_fn.args[0].name = "tup";
+    self.tuple_release_fns[key] = release_fn;
+
+    (b, done_bb) = self._emit_rc_destructor_preamble(release_fn, struct_ptr_type);
+    fields = self._tuple_managed_fields(struct_type);
+    if fields {
+        _cycles_on = self._gc_mode() == "cycles";
+        if _cycles_on and self.rc_collecting_gv is None {
+            self._emit_rc_helpers();
+        }
+        rel_bb = release_fn.append_basic_block("release_fields");
+        post_bb = release_fn.append_basic_block("post_fields");
+        if _cycles_on {
+            _coll = b.load(self.rc_collecting_gv, name="tup.collecting");
+            b.cbranch(
+                b.icmp_unsigned("!=", _coll, ir.Constant(i8, 0), name="tup.mid.coll"),
+                post_bb,
+                rel_bb
+            );
+        } else {
+            b.branch(rel_bb);
+        }
+        b = ir.IRBuilder(rel_bb);
+        for (idx, is_opt) in fields {
+            fptr = b.gep(
+                release_fn.args[0],
+                [ir.Constant(i32, 0), ir.Constant(i32, idx)],
+                name=f"tup.f{idx}.p"
+            );
+            if is_opt {
+                fptr = b.gep(
+                    fptr,
+                    [ir.Constant(i32, 0), ir.Constant(i32, 1)],
+                    name=f"tup.f{idx}.pvp"
+                );
+            }
+            fval = b.load(fptr, name=f"tup.f{idx}");
+            self._emit_elem_release(b, fval.type, fval);
+        }
+        b.branch(post_bb);
+        b = ir.IRBuilder(post_bb);
+    }
+    tup_i8 = b.bitcast(release_fn.args[0], i8_ptr, name="tup.i8");
+    tup_raw = b.gep(tup_i8, [ir.Constant(i64, HDR_ALLOC_ID_OFF)], name="tup.raw");
+    free_bb = release_fn.append_basic_block("tup_free");
+    self._emit_live_list_remove(b, tup_i8, i8_ptr, i64_ptr, free_bb, free_bb);
+    b = ir.IRBuilder(free_bb);
+    b.call(self.rc_safe_free_fn, [tup_raw]);
+    b.branch(done_bb);
+    b = ir.IRBuilder(done_bb);
+    b.ret_void();
+    return release_fn;
+}
+
+impl NaIRGenPass._tuple_box_trace_fn(
+    struct_type: ir.LiteralStructType
+) -> (ir.Function | None) {
+    if self._gc_mode() != "cycles" {
+        return None;
+    }
+    key = str(struct_type);
+    _cached = self.tuple_trace_fns.get(key);
+    if _cached is not None {
+        return _cached;
+    }
+    fields = self._tuple_managed_fields(struct_type);
+    if not fields {
+        return None;
+    }
+    i8_ptr = ir.IntType(8).as_pointer();
+    i32 = ir.IntType(32);
+    visitor_ptype = ir.FunctionType(ir.VoidType(), [i8_ptr]).as_pointer();
+    trace_fn = ir.Function(
+        self.llvm_module,
+        ir.FunctionType(ir.VoidType(), [i8_ptr, i8_ptr]),
+        name=f"__rc_trace_tuple{len(self.tuple_trace_fns)}"
+    );
+    trace_fn.linkage = "private";
+    trace_fn.args[0].name = "obj";
+    trace_fn.args[1].name = "vis";
+    self.tuple_trace_fns[key] = trace_fn;
+
+    entry_bb = trace_fn.append_basic_block("entry");
+    done_bb = trace_fn.append_basic_block("done");
+    b = ir.IRBuilder(entry_bb);
+    _vis = b.bitcast(trace_fn.args[1], visitor_ptype, name="vis.fn");
+    _obj = b.bitcast(trace_fn.args[0], struct_type.as_pointer(), name="obj.typed");
+    for (idx, is_opt) in fields {
+        fptr = b.gep(
+            _obj, [ir.Constant(i32, 0), ir.Constant(i32, idx)], name=f"tr.f{idx}.p"
+        );
+        if is_opt {
+            fptr = b.gep(
+                fptr, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name=f"tr.f{idx}.pvp"
+            );
+        }
+        fval = b.load(fptr, name=f"tr.f{idx}");
+        b.call(_vis, [b.bitcast(fval, i8_ptr, name=f"tr.f{idx}.i8")]);
+    }
+    b.branch(done_bb);
+    b = ir.IRBuilder(done_bb);
+    b.ret_void();
+    return trace_fn;
+}
+
+impl NaIRGenPass._emit_tuple_box_lifecycle(
+    raw: ir.Value, struct_type: ir.LiteralStructType
+) -> None {
+    rel_fn = self._tuple_box_release_fn(struct_type);
+    if rel_fn is None {
+        return;
+    }
+    i64 = ir.IntType(64);
+    slot = self.builder.gep(
+        raw, [ir.Constant(i64, HDR_DTOR_OFF)], name="tuple.dtor.slot"
+    );
+    slot_p = self.builder.bitcast(slot, i64.as_pointer(), name="tuple.dtor.p");
+    self.builder.store(
+        self.builder.ptrtoint(rel_fn, i64, name="tuple.dtor.i64"), slot_p
+    );
+    trace_fn = self._tuple_box_trace_fn(struct_type);
+    has_trace = False;
+    if trace_fn is not None {
+        has_trace = self._register_trace_pair(rel_fn, trace_fn);
+    }
+    self._require_trace_fn("tuple", True, has_trace);
+}
