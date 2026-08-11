@@ -150,18 +150,19 @@ impl NaIRGenPass._reject_ptr_into_raw_slot(
     if not isinstance(elem_type, ir.IntType) or elem_type.width < 64 {
         return False;
     }
+    emitted: bool = False;
     if nd is not None {
-        self.emit(
+        emitted = self.emit(
             E5092,
             node_override=nd,
             kind="expression",
             name=what,
-            help_text="A pointer value cannot be stored into a scalar container slot: the container would hold a raw address invisible to memory management. Declare the container with a matching element type, or mix element types so it lowers to tagged storage."
+            help_text="A pointer value cannot be stored into a scalar container slot: the container would hold a raw address invisible to memory management. Declare the container with a matching element type, mix element types so it lowers to tagged storage, or suppress E5092 to accept it as a raw integer address."
         );
     } else {
-        self.emit(E5092, kind="expression", name=what);
+        emitted = self.emit(E5092, kind="expression", name=what);
     }
-    return True;
+    return emitted;
 }
 
 impl NaIRGenPass._container_managed_fields(layout: dict) -> list {
