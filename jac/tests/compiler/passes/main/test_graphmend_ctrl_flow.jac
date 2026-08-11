@@ -185,6 +185,16 @@ test "a scalar past the trace bound declines rather than slipping through" {
     assert _break_kinds("scalar_past_trace_bound.jac") == ["dyn_ctrl_fl"];
 }
 
+test "a predicate with more than one definition is not traced" {
+    # The trace follows one defining assignment; with several, the reaching
+    # one is not lexically decidable, so both queries answer safely and the
+    # branch stays.
+    src = _pysrc("multi_def_predicate.jac", True);
+    assert "torch.where(" not in src;
+    assert "if flag:" in src;
+    assert _break_kinds("multi_def_predicate.jac") == [];
+}
+
 test "call-bearing branch values are declined" {
     src = _pysrc("cond_assign.jac", True);
     # torch.where would evaluate both calls, and torch.cond branches need
