@@ -190,3 +190,112 @@ test "temp user module outside jaclang is eligible" {
         _env_restore(prev);
     }
 }
+
+test "chunked stub contextmanager generic apply type-checks cleanly" {
+    import os;
+    import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.jac0core.jir { get_module_cache_path }
+
+    fixture = os.path.join(
+        JAC_ROOT,
+        "tests",
+        "compiler",
+        "passes",
+        "main",
+        "fixtures",
+        "checker",
+        "checker_contextmanager_generic_apply.jac"
+    );
+    ctxlib = os.path.join(
+        JAC_ROOT, "jaclang", "vendor", "typeshed", "stdlib", "contextlib.pyi"
+    );
+    te_stub = os.path.join(
+        JAC_ROOT, "jaclang", "vendor", "typeshed", "stdlib", "typing_extensions.pyi",
+    );
+    typing_stub = os.path.join(
+        JAC_ROOT, "jaclang", "vendor", "typeshed", "stdlib", "typing.pyi"
+    );
+    if not os.path.isfile(fixture) {
+        pytest.skip("fixture missing");
+    }
+    prev = _save_env("JAC_LAZY_JIR");
+    try {
+        os.environ["JAC_LAZY_JIR"] = "1";
+        for path in (fixture, ctxlib, te_stub, typing_stub) {
+            cp = get_module_cache_path(path);
+            if cp.exists() {
+                cp.unlink();
+            }
+        }
+        program = JacProgram();
+        mod = program.compile(
+            fixture,
+            options=CompileOptions(type_check=False, default_codespace='server')
+        );
+        TypeCheckPass(ir_in=mod, prog=program);
+        assert program.errors_had == [] , (
+            "lazy chunked contextlib must not break @contextmanager typing: "
+            + str([str(e) for e in program.errors_had])
+        );
+    } finally {
+        _env_restore(prev);
+    }
+}
+
+test "chunked stub version-guarded datetime.UTC resolves" {
+    import os;
+    import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.jac0core.jir { get_module_cache_path }
+
+    fixture = os.path.join(
+        JAC_ROOT,
+        "tests",
+        "compiler",
+        "passes",
+        "main",
+        "fixtures",
+        "checker",
+        "checker_bug_version_guard_stub_symbol.jac"
+    );
+    dt_stub = os.path.join(
+        JAC_ROOT, "jaclang", "vendor", "typeshed", "stdlib", "datetime.pyi"
+    );
+    te_stub = os.path.join(
+        JAC_ROOT, "jaclang", "vendor", "typeshed", "stdlib", "typing_extensions.pyi",
+    );
+    typing_stub = os.path.join(
+        JAC_ROOT, "jaclang", "vendor", "typeshed", "stdlib", "typing.pyi"
+    );
+    if not os.path.isfile(fixture) {
+        pytest.skip("fixture missing");
+    }
+    prev = _save_env("JAC_LAZY_JIR");
+    try {
+        os.environ["JAC_LAZY_JIR"] = "1";
+        for path in (fixture, dt_stub) {
+            cp = get_module_cache_path(path);
+            if cp.exists() {
+                cp.unlink();
+            }
+        }
+        program = JacProgram();
+        mod = program.compile(
+            fixture,
+            options=CompileOptions(type_check=False, default_codespace='server')
+        );
+        TypeCheckPass(ir_in=mod, prog=program);
+        unresolved = [
+            w
+            for w in program.warnings_had
+            if "could not be resolved" in str(w)
+        ];
+        assert unresolved == [] , (
+            "lazy chunked datetime stub must resolve version-guarded UTC: "
+            + str([str(w) for w in unresolved])
+        );
+    } finally {
+        _env_restore(prev);
+    }
+}

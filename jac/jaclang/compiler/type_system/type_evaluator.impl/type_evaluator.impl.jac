@@ -1884,6 +1884,16 @@ impl TypeEvaluator._get_type_of_expression_core(
                     scope, expr.value, self.builtins_module
                 );
 
+                if symbol is None {
+                    if mod := expr.find_parent_of_type(uni.Module) {
+                        if scope is not mod {
+                            symbol = type_utils.lookup_symtab(
+                                mod, expr.value, self.builtins_module
+                            );
+                        }
+                    }
+                }
+
                 if self._in_native_context()
                     and (symbol is None or symbol.parent_tab is self.builtins_module) {
                     na_sym = self.na_builtins_module.names_in_scope.get(expr.value);
@@ -2077,6 +2087,7 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
             return types.UnknownType();
 
         case uni.Ability():
+            self._materialize_lazy_decl(node_);
             return self.get_type_of_ability(node_);
 
         case uni.ParamVar():

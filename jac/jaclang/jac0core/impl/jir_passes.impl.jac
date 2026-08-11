@@ -875,7 +875,8 @@ impl JirReader._ensure_node_hydrated(node_id: int) -> None {
     if not self._lazy or node_id < 0 or node_id >= len(self._nodes) {
         return;
     }
-    if self._nodes[node_id] is not None {
+    existing = self._nodes[node_id];
+    if existing is not None and not existing.__dict__.get('_jir_cold') {
         return;
     }
     cidx = self._chunk_of[node_id] if node_id < len(self._chunk_of) else -1;
