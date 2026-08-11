@@ -347,6 +347,86 @@ test "implicit return" {
     assert lines[9] == "40" , f"multi-stmt lambda tail: {lines[9]}";
 }
 
+test "lambda decorator arg" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_decorator_arg.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "22" , f"multi-stmt lambda decorator arg (tail return): {lines[
+        0
+    ]}";
+    assert lines[1] == "29" , f"multi-stmt lambda decorator arg (explicit return): {lines[
+        1
+    ]}";
+    assert lines[2] == "110" , f"single-expr lambda decorator arg (parity): {lines[2]}";
+}
+
+test "lambda default arg" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_default_arg.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "HI!" , f"multi-stmt lambda default arg (tail return): {lines[
+        0
+    ]}";
+    assert lines[1] == "11" , f"multi-stmt lambda default arg (explicit return): {lines[
+        1
+    ]}";
+    assert lines[2] == "10" , f"single-expr lambda default arg (parity): {lines[2]}";
+}
+
+test "lambda has default" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_has_default.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "HI!" , f"obj has multi-stmt lambda default: {lines[0]}";
+    assert lines[1] == "BYE!" , f"node has multi-stmt lambda default: {lines[1]}";
+}
+
+test "lambda enum decorator" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_enum_decorator.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "200" , f"enum decorator multi-stmt lambda: {lines[0]}";
+    assert lines[1] == "500" , f"enum decorator multi-stmt lambda: {lines[1]}";
+}
+
+test "lambda compound header" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_compound_header.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "positive" , f"multi-stmt lambda in if-condition: {lines[0]}";
+    assert lines[1:4] == ["0", "1", "2"] , (
+        f"multi-stmt lambda in while-condition: {lines[1:4]}"
+    );
+}
+
+test "lambda decorator and has combo" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_decorator_has_combo.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "11" , (
+        f"decorator + has multi-stmt lambdas on one class: {lines[0]}"
+    );
+}
+
+test "lambda per-instance mutable default" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_per_instance_default.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "False" , (
+        f"compound has default must be per-instance: {lines[0]}"
+    );
+    assert lines[1] == "False" , (
+        f"mutation must not leak across instances: {lines[1]}"
+    );
+}
+
+test "lambda method body (no name mangling)" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_method_body.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "11" , f"multi-stmt lambda in method body: {lines[0]}";
+}
+
+test "lambda function decorator and body combo" {
+    output = run_jac(os.path.join(FIXTURES, "lambda_func_deco_body_combo.jac"));
+    lines = output.split("\n");
+    assert lines[0] == "6" , (
+        f"decorator + body multi-stmt lambdas on one function: {lines[0]}"
+    );
+}
+
 test "override walker inherit" {
     output = run_jac(os.path.join(FIXTURES, "walker_override.jac"));
     assert output == "baz\nbar\n";

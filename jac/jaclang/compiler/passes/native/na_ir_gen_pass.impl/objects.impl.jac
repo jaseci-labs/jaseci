@@ -334,12 +334,20 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
                 }
             }
 
-            ftag_name = self._get_name(var.type_tag.tag);
+            _ftag = var.type_tag.tag;
+            ftag_name = self._get_name(_ftag);
             if ftag_name is not None and ftag_name in self.enum_types {
                 if arch_name not in self.struct_field_enum_type {
                     self.struct_field_enum_type[arch_name] = {};
                 }
                 self.struct_field_enum_type[arch_name][fname] = ftag_name;
+            }
+            _fek = self._elem_keys_of_annotation(_ftag);
+            if _fek {
+                if arch_name not in self.struct_field_elem_keys {
+                    self.struct_field_elem_keys[arch_name] = {};
+                }
+                self.struct_field_elem_keys[arch_name][fname] = _fek;
             }
         }
         field_types.append(ftype);

@@ -14,6 +14,20 @@ import from jaclang.jac0core.diagnostics {
     E9002
 }
 import from jaclang.jac0core.osp_model { OspAnalysis, OspModel, stable_osp_tag }
+import from jaclang.jac0core.codeinfo {
+    HDR_ALLOC_ID_OFF,
+    HDR_DTOR_OFF,
+    HDR_MAGIC,
+    HDR_MAGIC_SHIFT_BASE,
+    HDR_RC_OFF,
+    HDR_TAG_OFF,
+    HDR_TOTAL,
+    JACSTR_DESC_FIELDS,
+    RC_SENTINEL,
+    STR_LEN_TAG_BIT,
+    STR_LEN_TAG_SHIFT,
+    str_len_tag
+}
 
 import from jaclang.compiler.passes.main.layout_pass { VTABLE_HEADER_SLOTS }
 
@@ -67,14 +81,6 @@ glob NATIVE_RANDOM_FUNCS: set[str] = {
 
 glob NATIVE_STRUCT_FUNCS: set[str] = {"pack", "unpack", "calcsize", "pack_into", };
 
-glob RC_SENTINEL: int = 0x7FFFFFFFFFFFFFFF;
-
-glob HDR_ALLOC_ID_OFF: int = -32,
-     HDR_TAG_OFF: int = -24,
-     HDR_RC_OFF: int = -16,
-     HDR_DTOR_OFF: int = -8,
-     HDR_TOTAL: int = 32;
-
 glob RC_COLOR_BLACK: int = 0,
      RC_COLOR_WHITE: int = 1,
      RC_COLOR_GRAY: int = 2,
@@ -89,9 +95,6 @@ glob LIVE_NODE_ID_OFF: int = 0,
      LIVE_NODE_RC_OFF: int = 24,
      LIVE_NODE_NEXT_OFF: int = 32,
      LIVE_NODE_SIZE: int = 40;
-
-glob HDR_MAGIC: int = 44061,
-     HDR_MAGIC_SHIFT_BASE: int = 44061 * 4294967296;
 
 obj NaIRGenPass(ModuleCodegenPass) {
     has llvm_module: ir.Module postinit,
@@ -131,6 +134,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         enum_int_values: dict[str, list] = {},
         enum_ordinal_fns: dict[str, object] = {},
         struct_field_enum_type: dict[str, dict] = {},
+        struct_field_elem_keys: dict[str, dict] = {},
         loop_stack: list[tuple] = [],
         _str_count: int = 0,
         struct_types: dict[str, object] = {},
@@ -552,6 +556,16 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _emit_comparison(
         op: str, left: ir.Value, right: ir.Value, is_float: bool
+    ) -> (ir.Value | None);
+
+    def _is_jacval_ty(t: ir.Type) -> bool;
+    def _is_jacval_boxable(t: ir.Type) -> bool;
+    def _emit_jacval_ordering(
+        op: str, jv: ir.Value, peer: ir.Value, jv_on_left: bool
+    ) -> (ir.Value | None);
+
+    def _emit_mixed_jacval_comparison(
+        op: str, left: ir.Value, right: ir.Value
     ) -> (ir.Value | None);
 
     def _emit_optional_eq(
@@ -1255,6 +1269,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _llvm_type_str(ty: ir.Type) -> str;
     def _export_native_layout -> None;
     def _normalize_type_key(key: str) -> str;
+    def _elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | None);
     def _record_ret_facts(name: str, sig: uni.FuncSignature) -> None;
     def _ret_tuple_hints(fname: str, ret_tuple: any) -> (list | None);
     def _ensure_emitters -> None;
@@ -1312,6 +1327,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None);
     def _flow_future_licensed(nd: uni.ConcurrentExpr) -> (uni.Name | None);
     def _str_desc_type -> ir.Type;
+    def _str_desc_kind -> str;
     def _str_norm(val: ir.Value | None) -> (ir.Value | None);
     def _str_arg(val: ir.Value | None) -> (ir.Value | None);
     def _emit_str_desc_helpers -> None;
