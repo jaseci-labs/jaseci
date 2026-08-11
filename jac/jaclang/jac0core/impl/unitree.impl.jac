@@ -1317,6 +1317,12 @@ impl Archetype.postinit -> None {
     } else {
         self.base_classes = [];
     }
+    _kw = self.keywords;
+    if _kw is not None {
+        self.keywords = `list(_kw);
+    } else {
+        self.keywords = [];
+    }
     _tp = self.type_params;
     if _tp is not None {
         self.type_params = `list(_tp);
