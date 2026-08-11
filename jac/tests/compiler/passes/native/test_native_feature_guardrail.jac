@@ -229,14 +229,14 @@ test "guardrail: Python module import is rejected" {
     )}";
 }
 
-# A dotted non-bundled Python import (`import collections.abc;`) is equally
-# unsupported (a dotted bundled name like `os.path` now resolves, #6978).
+# A dotted non-bundled Python import is equally unsupported (a dotted
+# bundled name like `os.path` now resolves, #6978; `collections.abc`
+# joined NATIVE_SUPPORTED_STDLIB with the unitree lowering census).
 test "guardrail: dotted Python module import is rejected" {
     prog = compile_na_inline(
-        "py_import_dotted",
-        "import collections.abc;\n" "with entry { print(\"hi\"); }\n"
+        "py_import_dotted", "import xml.etree;\n" "with entry { print(\"hi\"); }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for unsupported Python import 'collections.abc', got: {fmt_errors(
+    assert has_error_code(prog, "E5090") , f"Expected E5090 for unsupported Python import 'xml.etree', got: {fmt_errors(
         prog
     )}";
 }

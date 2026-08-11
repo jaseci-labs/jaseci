@@ -560,7 +560,7 @@ impl NaIRGenPass._emit_rc_collect_white_reclaim(
     );
     _cw_len = b.icmp_unsigned(
         "!=",
-        b.and_(dtor_val, ir.Constant(i64, 1), name="cw.dtor.lowbit"),
+        b.and_(dtor_val, ir.Constant(i64, STR_LEN_TAG_BIT), name="cw.dtor.lowbit"),
         ir.Constant(i64, 0),
         name="cw.dtor.is.len"
     );

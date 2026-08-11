@@ -65,6 +65,8 @@ obj ServingServer {
         port: int = 8000,
         drain_timeout: float = 10.0,
         max_body_bytes: int = MAX_BODY_BYTES,
+        ws_allowed_origins: list[str] = [],
+        ws_max_message_bytes: int = 0,
         bound_port: int = 0,
         _server: any = None,
         _loop: any = None,
@@ -245,7 +247,13 @@ obj ServingServer {
             }
             (request, http_version) = parsed;
             if self._is_ws_upgrade(request) {
-                await self._handle_ws(request, reader, writer);
+                ws_task = asyncio.current_task();
+                self._busy.add(ws_task);
+                try {
+                    await self._handle_ws(request, reader, writer);
+                } finally {
+                    self._busy.discard(ws_task);
+                }
                 return;
             }
             task = asyncio.current_task();
@@ -390,15 +398,39 @@ obj ServingServer {
         return upgrade == 'websocket' and 'upgrade' in connection;
     }
 
+    def _ws_origin_allowed(request: Request) -> bool {
+        origin = (request.headers.get('Origin') or '').strip();
+        if not origin {
+            return True;
+        }
+        if '*' in self.ws_allowed_origins or origin in self.ws_allowed_origins {
+            return True;
+        }
+        origin_host = urlsplit(origin).netloc.lower();
+        request_host = (request.headers.get('Host') or '').strip().lower();
+        return bool(origin_host) and origin_host == request_host;
+    }
+
     async def _handle_ws(
         request: Request, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
     ) {
+        if not self._ws_origin_allowed(request) {
+            _access_logger.info(
+                f'{request.client_host or "-"} - '
+                f'"WS {request.url.path}" 403 (cross-origin refused)'
+            );
+            await self._bare_error(writer, 403, 'Forbidden');
+            return;
+        }
         (ep, path_params) = self.app.router.resolve_ws(request.url.path);
         key = request.headers.get('Sec-WebSocket-Key') or '';
         if ep is None or not key {
             await self._bare_error(writer, 404, 'Not Found');
             return;
         }
+        _access_logger.info(
+            f'{request.client_host or "-"} - "WS {request.url.path}" 101'
+        );
         ws = WebSocket(
             reader=reader,
             writer=writer,
@@ -409,6 +441,9 @@ obj ServingServer {
             client_host=request.client_host,
             accept_key=compute_accept_key(key)
         );
+        if self.ws_max_message_bytes > 0 {
+            ws.max_message_bytes = self.ws_max_message_bytes;
+        }
         handler_fn: any = ep.handler;
         try {
             result = handler_fn(ws);

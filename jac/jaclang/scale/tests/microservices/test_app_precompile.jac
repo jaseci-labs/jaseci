@@ -160,7 +160,7 @@ def _names(raw: bytes) -> list[str] {
 test "pack_jab on a nonexistent app directory is a hard error" {
     caught = "";
     try {
-        pack_jab("/tmp/jac-no-such-app-dir", "", b"binary");
+        pack_jab("/tmp/jac-no-such-app-dir", b"binary");
     } except ValueError as e {
         caught = str(e);
     }
@@ -171,7 +171,7 @@ test "pack_jab on a nonexistent app directory is a hard error" {
 test "pack_jab without a pod binary is a hard error (a .jab requires a seal)" {
     caught = False;
     try {
-        pack_jab(_mini_app(), "", b"");
+        pack_jab(_mini_app(), b"");
     } except ValueError {
         caught = True;
     }
@@ -182,7 +182,7 @@ test "pack_jab without a pod binary is a hard error (a .jab requires a seal)" {
 test "an unrunnable pod binary fails the seal instead of shipping unsealed" {
     caught = False;
     try {
-        pack_jab(_mini_app(), "", b"not-an-elf");
+        pack_jab(_mini_app(), b"not-an-elf");
     } except Exception {
         caught = True;
     }
@@ -198,7 +198,7 @@ test "a real pod binary seals the app into a .jab (source + _precompiled + manif
     if not jac_bin.is_file() {
         return;
     }
-    names = _names(pack_jab(_mini_app(), "", jac_bin.read_bytes()));
+    names = _names(pack_jab(_mini_app(), jac_bin.read_bytes()));
     assert "svc.jac" in names;
     # The sealed manifest sits at the tar root, which is what makes this a .jab.
     assert "_precompiled/MANIFEST.json" in names;

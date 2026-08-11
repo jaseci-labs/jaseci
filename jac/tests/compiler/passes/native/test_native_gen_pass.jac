@@ -344,13 +344,14 @@ test "native partial class: native caller of a demoted method errors, not silent
     assert "Box.evaluate" in msgs , f"E5092 should name Box.evaluate, got: {msgs}";
 }
 
-test "native partial class: un-lowerable virtual method stays a hard error" {
-    # `render` is virtual (Base + Derived override -> vtable slot). A virtual
-    # method the backend cannot lower must NOT be demoted: native polymorphic
-    # dispatch cannot fall back to Python, and demoting it would leave a
-    # dangling vtable index / abort-stub slot. So the eval gap stays E5090.
+test "native partial class: un-lowerable virtual method demotes to a stub slot" {
+    # `render` is virtual (Base + Derived override -> vtable slot). An
+    # un-lowerable virtual now demotes like any other method: its vtable
+    # slot keeps the abort() stub so native dispatch that reaches it fails
+    # loudly, the function is excluded from the exported layout, and the
+    # module still lowers (#6930 W4).
     prog = JacProgram();
-    prog.compile(
+    ir_mod = prog.compile(
         file_path=str(os.path.join(FIXTURES, "partial_native_virtual.jac")),
         options=native_force_opts()
     );
@@ -359,9 +360,14 @@ test "native partial class: un-lowerable virtual method stays a hard error" {
         for e in (prog.errors_had or [])
         if e.code
     ];
-    assert "E5092" in codes , (
-        f"expected E5092 for un-lowerable virtual method, got {codes}"
+    assert codes == [] , (f"virtual demotion must not leave hard errors, got {codes}");
+    assert ir_mod is not None and ir_mod.gen.llvm_ir is not None;
+    layout = ir_mod.gen.native_layout;
+    assert layout is not None;
+    assert "Derived.render" not in layout.methods , (
+        "demoted virtual must not be exported in the layout"
     );
+    assert "Base.render" in layout.methods;
 }
 
 test "arithmetic negate" {
@@ -4990,6 +4996,20 @@ test "lambda closure as scaler" {
     assert f(5, 3) == 15 , f"Expected 15, got {f(5, 3)}";
     assert f(10, 0) == 0 , f"Expected 0, got {f(10, 0)}";
     assert f(7, -2) == -14 , f"Expected -14, got {f(7, -2)}";
+}
+
+# --- Multi-statement lambda callback parity (P2 cross-target probe) ---
+test "multi-statement lambda map callback (native inline lowering)" {
+    (eng, _) = compile_native("lambda_multi_stmt_callback.jac");
+    f = get_func(eng, "map_multi_stmt_callback", ctypes.c_int64);
+    assert f() == 18 , f"Expected 18 from sum of (x+1)*2 over [1,2,3], got {f()}";
+}
+
+test "multi-statement lambda sort key callback (native inline lowering)" {
+    (eng, _) = compile_native("lambda_multi_stmt_callback.jac");
+    f = get_func(eng, "sort_multi_stmt_key", ctypes.c_int64);
+    # keys: 31->1, 12->2, 23->3 => sorted order [31, 12, 23]
+    assert f() == 3243 , f"Expected 3243 (31*100+12*10+23), got {f()}";
 }
 
 # ─── Symbol Collision Detection ───────────────────────────────────────────────

@@ -306,7 +306,8 @@ impl ClassType.specialize_generics(type_args: list[TypeBase]) -> ClassType {
     new_private = ClassType.ClassDetailsPrivate(
         type_args=type_args,
         alias_name=self.private.alias_name,
-        literal_value=self.private.literal_value
+        literal_value=self.private.literal_value,
+        distinct_key=self.private.distinct_key
     );
     return ClassType(_shared=self.shared, private=new_private, flags=self.flags);
 }
@@ -318,7 +319,8 @@ impl ClassType.clone_as_class -> ClassType {
     private = ClassType.ClassDetailsPrivate(
         type_args=self.private.type_args[:],
         alias_name=self.private.alias_name,
-        literal_value=self.private.literal_value
+        literal_value=self.private.literal_value,
+        distinct_key=self.private.distinct_key
     );
     new_flag = self.flags;
     new_flag = TypeFlags((new_flag & ~TypeFlags.Instance));
@@ -334,7 +336,8 @@ impl ClassType.clone_as_instance -> ClassType {
     private = ClassType.ClassDetailsPrivate(
         type_args=self.private.type_args[:],
         alias_name=self.private.alias_name,
-        literal_value=self.private.literal_value
+        literal_value=self.private.literal_value,
+        distinct_key=self.private.distinct_key
     );
     new_instance = ClassType(_shared=self.shared, private=private, flags=self.flags);
     new_flag = self.flags;
@@ -370,6 +373,9 @@ impl ClassType.get_literal_value -> (str | int | bool | None) {
 }
 
 impl ClassType.__str__ -> str {
+    if self.private.distinct_key is not None {
+        return self.private.distinct_key.split("::")[-1];
+    }
     if self.private.literal_value is not None {
         lit_val = self.private.literal_value;
         if isinstance(lit_val, str) {
@@ -507,6 +513,16 @@ impl TypeBase.mangle -> str {
         return "<unknown>";
     }
     return "<unbound>";
+}
+
+impl TypeBase.is_any_instance -> bool {
+    if self.category == TypeCategory.Any {
+        return True;
+    }
+    if isinstance(self, ClassType) {
+        return self.is_builtin("Any");
+    }
+    return False;
 }
 
 impl TypeBase.is_any_type -> bool {

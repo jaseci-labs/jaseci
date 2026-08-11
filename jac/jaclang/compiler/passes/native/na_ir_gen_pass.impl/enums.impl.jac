@@ -34,6 +34,12 @@ impl NaIRGenPass._ensure_enum_lowered(t: any) -> (ir.Type | None) {
     _decl = enum_decl_of(t);
     if _decl is not None {
         self._codegen_enum(_decl);
+    } else {
+        _shared = t?.shared;
+        _enm = _shared.class_name if _shared is not None else None;
+        if _enm is not None {
+            self._codegen_enum_layout(_enm, None);
+        }
     }
     if class_form_enum_scalar(t) is not None {
         return self._lower_type(enum_value_type_of(t));
@@ -43,25 +49,46 @@ impl NaIRGenPass._ensure_enum_lowered(t: any) -> (ir.Type | None) {
 
 impl NaIRGenPass._codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None {
     enum_name = (nd).name.value if (nd).name else "unknown_enum";
+    if isinstance(nd, uni.Archetype) {
+        self.has_native_code = True;
+        return;
+    }
+    _owner_mod = nd.find_parent_of_type(uni.Module) or self.ir_in;
+    self._codegen_enum_layout(enum_name, _owner_mod);
+}
 
+impl NaIRGenPass._codegen_enum_layout(
+    enum_name: str, owner: (uni.Module | None)
+) -> None {
     if enum_name in self.enum_types {
         return;
     }
 
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    _owner_mod = nd.find_parent_of_type(uni.Module) or self.ir_in;
-    lay = get_layout_registry(_owner_mod, self.prog).get_enum_layout(enum_name);
-
-    if isinstance(nd, uni.Archetype) or (lay is not None and lay.is_class_form) {
-        self.has_native_code = True;
-        return;
+    candidates: list = [];
+    if owner is not None {
+        candidates.append(owner);
     }
-
-    self.enum_types[enum_name] = ir.IntType(64);
-    self.has_native_code = True;
+    candidates.append(self.ir_in);
+    for _fm in (self?._foreign_modules or []) {
+        candidates.append(_fm);
+    }
+    lay = None;
+    for _cand in candidates {
+        lay = get_layout_registry(_cand, self.prog).get_enum_layout(enum_name);
+        if lay is not None and lay.members {
+            break;
+        }
+    }
     if lay is None or not lay.members {
         return;
     }
+    if lay.is_class_form {
+        self.has_native_code = True;
+        return;
+    }
+    self.enum_types[enum_name] = ir.IntType(64);
+    self.has_native_code = True;
 
     i64 = ir.IntType(64);
     if lay.is_string_enum {
@@ -170,6 +197,13 @@ impl NaIRGenPass._codegen_enum_value_lookup(
         arr_global, [ir.Constant(i32, 0), idx], name=f"enum.{enum_name}.ptr"
     );
     return self.builder.load(ptr_ptr, name=f"enum.{enum_name}.str");
+}
+
+impl NaIRGenPass._wrap_enum_str(raw: (ir.Value | None)) -> (ir.Value | None) {
+    if raw is None or self.str_wrap_raw_fn is None {
+        return raw;
+    }
+    return self.builder.call(self.str_wrap_raw_fn, [raw], name="enum.s.desc");
 }
 
 impl NaIRGenPass._enum_is_string_valued(enum_name: str) -> bool {

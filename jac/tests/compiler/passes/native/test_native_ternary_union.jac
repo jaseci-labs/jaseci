@@ -1,17 +1,19 @@
-"""Congruence tests for mixed-representation ternaries.
+"""Congruence tests for the native union representation rule.
 
-The native backend lowers `a if cond else b` to a phi over the two branch
-values. When the branches lower to different representations (a list
-pointer against an i64) the phi is invalid IR and the module never
-compiles, which is why POLY handoffs in the parser had to be spelled as an
-`any`-typed local plus an if/else assignment instead of the ternary.
+Two call sites pick a representation for a set of Jac types sharing one
+slot, and they used to disagree. `a if cond else b` lowers to a phi over
+the two branch values; when the branches lowered differently the phi was
+invalid IR and the module never compiled, which is why POLY handoffs in the
+parser had to be spelled as an `any`-typed local plus an if/else assignment
+instead of the ternary. A declared multi-member union lowered to its first
+member's representation, silently reinterpreting the others.
 
-The conditional-expression result now runs through the same
-representation-unification rule declared multi-member unions use. These
-tests assert the native result equals the sv/bytecode result of the same
-fixture for every shape (shared lowering, all-pointer, genuinely mixed,
-ternary as a call argument, nested ternary), and that the two shapes that
-already lowered did not start paying for a jacval box.
+Both now run through one shared rule. These tests assert the native result
+equals the sv/bytecode result of the same fixture for every shape:
+conditional expressions (shared lowering, all-pointer, genuinely mixed,
+call argument, nested, closure-typed) and declared unions in parameter,
+return and global position. A structural test additionally pins that the
+two ternary shapes which already lowered did not start paying for a box.
 """
 
 import ctypes;
@@ -28,10 +30,24 @@ glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      ),
      FIXTURE = "ternary_union.jac",
-     FLAGS = [0, 1, 2, 3];
+     FLAGS = [0, 1, 2, 3],
+     TERNARY_FNS = [
+         "same_rep",
+         "all_ptr",
+         "mixed_rep",
+         "call_arg",
+         "nested",
+         "closure_arm"
+     ],
+     DECLARED_UNION_FNS = ["use_u_param", "use_u_return", "use_u_glob"];
 
 
-"""Compile the fixture natively and return (engine, module)."""
+"""Compile the fixture natively, run its glob init, return (engine, module).
+
+`__jac_glob_init` is what a real binary runs before anything else; the
+declared-union globals need it because a boxed initializer is a runtime
+store, not a constant.
+"""
 def _compile(fixture: str) -> tuple {
     prog = JacProgram();
     ir = prog.compile(
@@ -41,6 +57,9 @@ def _compile(fixture: str) -> tuple {
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     eng = ir.gen.native_engine;
     assert eng is not None , f"No native engine for {fixture}";
+    gi = eng.get_function_address("__jac_glob_init");
+    assert gi != 0 , "fixture emitted no __jac_glob_init";
+    ctypes.CFUNCTYPE(None)(gi)();
     return (eng, ir);
 }
 
@@ -95,10 +114,9 @@ def _fn_body(txt: str, name: str) -> str {
 }
 
 
-test "ternary congruence: every shape matches the sv/bytecode result" {
-    (eng, _) = _compile(FIXTURE);
-    sv = _sv_module();
-    for name in ["same_rep", "all_ptr", "mixed_rep", "call_arg", "nested"] {
+"""Assert native and sv agree on every flag for each named function."""
+def _assert_congruent(eng: object, sv: object, names: list[str]) {
+    for name in names {
         na_fn = _get(eng, name);
         sv_fn = getattr(sv, name);
         for flag in FLAGS {
@@ -107,6 +125,18 @@ test "ternary congruence: every shape matches the sv/bytecode result" {
             );
         }
     }
+}
+
+
+test "ternary congruence: every conditional shape matches the sv result" {
+    (eng, _) = _compile(FIXTURE);
+    _assert_congruent(eng, _sv_module(), TERNARY_FNS);
+}
+
+
+test "declared union congruence: param, return and global match the sv result" {
+    (eng, _) = _compile(FIXTURE);
+    _assert_congruent(eng, _sv_module(), DECLARED_UNION_FNS);
 }
 
 
@@ -125,6 +155,33 @@ test "ternary: a genuinely mixed pointer/i64 pair round-trips its payload" {
     assert nested(2) == -3 , "outer arm of a nested ternary";
     assert nested(1) == -2 , "inner pointer arm of a nested ternary";
     assert nested(0) == 5 , "inner int arm of a nested ternary";
+}
+
+
+test "ternary: an all-pointer pair with a closure arm still wraps the closure" {
+    # A stored closure ({fn, env}) and a bare named function are both
+    # pointers, so the rule keeps the closure layout and the bare function
+    # has to be wrapped into it. Short-circuiting that to a raw bitcast
+    # segfaults the moment the result is called.
+    (eng, _) = _compile(FIXTURE);
+    closure_arm = _get(eng, "closure_arm");
+    assert closure_arm(1) == 15 , "capturing-closure arm (5 + 10)";
+    assert closure_arm(0) == 20 , "bare-function arm (5 * 4)";
+}
+
+
+test "declared union: mixed members round-trip in param, return and global" {
+    (eng, _) = _compile(FIXTURE);
+    use_u_param = _get(eng, "use_u_param");
+    use_u_return = _get(eng, "use_u_return");
+    use_u_glob = _get(eng, "use_u_glob");
+
+    assert use_u_param(1) == 7 , "int member through an `int | str` parameter";
+    assert use_u_param(0) == -4 , "str member through an `int | str` parameter";
+    assert use_u_return(1) == 5 , "int member out of an `int | str` return";
+    assert use_u_return(0) == -3 , "str member out of an `int | str` return";
+    assert use_u_glob(0) == 11 , "int member in an `int | str` global";
+    assert use_u_glob(1) == -5 , "str member in an `int | str` global";
 }
 
 

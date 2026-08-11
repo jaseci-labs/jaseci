@@ -659,8 +659,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                 full_narrowed: TypeBase | None = None;
 
                 assert isinstance(expr.right, uni.Name);
-                if isinstance(base_type, types.AnyType) and base_type.is_foreign {
-                    expr.right.type = types.AnyType(is_foreign=True);
+                if isinstance(base_type, types.AnyType) {
+                    expr.right.type = types.AnyType(is_foreign=base_type.is_foreign);
                     return expr.right.type;
                 }
                 if isinstance(base_type, types.ModuleType) {
@@ -1376,11 +1376,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                         return types.UnknownType();
                     }
                 }
-                if (
-                    isinstance(base_type, types.ClassType)
-                    and self.prefetch.any_class is not None
-                    and base_type.shared == self.prefetch.any_class.shared
-                ) {
+                if base_type.is_any_instance()
+                    and self.prefetch.any_class is not None {
                     return self.prefetch.any_class;
                 }
                 if isinstance(base_type, types.ClassType)
@@ -2075,7 +2072,11 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
 
         case uni.TypeAlias():
             if node_.value is not None {
-                return self._resolve_type_alias_rhs(node_.value);
+                resolved = self._resolve_type_alias_rhs(node_.value);
+                if node_.is_distinct {
+                    return self._brand_distinct_alias(node_, resolved);
+                }
+                return resolved;
             }
             return types.UnknownType();
 
@@ -2482,6 +2483,11 @@ impl TypeEvaluator._assign_class(
     }
     src_type = unwrapped_src;
     dest_type = unwrapped_dest;
+
+    dest_brand = dest_type.private.distinct_key;
+    if dest_brand is not None and src_type.private.distinct_key != dest_brand {
+        return False;
+    }
     if src_type.shared.same_class(dest_type.shared) {
         if dest_type.is_literal_type() {
             if not src_type.is_literal_type() {
@@ -2732,10 +2738,11 @@ impl TypeEvaluator.is_any_type(ty: TypeBase) -> bool {
         return True;
     }
 
+    if ty.is_any_instance() {
+        return True;
+    }
+
     if isinstance(ty, types.ClassType) {
-        if (self.prefetch.any_class and ty.shared == self.prefetch.any_class.shared) {
-            return True;
-        }
         if (
             self.prefetch.type_var_class
             and ty.shared == self.prefetch.type_var_class.shared
@@ -2747,17 +2754,7 @@ impl TypeEvaluator.is_any_type(ty: TypeBase) -> bool {
 }
 
 impl TypeEvaluator.is_explicit_any(ty: TypeBase) -> bool {
-    if isinstance(ty, types.AnyType) {
-        return True;
-    }
-    if isinstance(ty, types.ClassType) {
-        if self.prefetch
-            and self.prefetch.any_class
-            and ty.shared == self.prefetch.any_class.shared {
-            return True;
-        }
-    }
-    return False;
+    return ty.is_any_instance();
 }
 
 impl TypeEvaluator.is_none_type(ty: TypeBase) -> bool {
@@ -3485,41 +3482,59 @@ impl TypeEvaluator._load_stub_module(path: str) -> uni.Module {
     }
 
     resolved_path = str(Path(path).resolve());
-
     compiler = self.program._get_compiler();
-    target_hub = compiler._resolve_program(resolved_path, self.program).mod.hub;
+    target_program = compiler._resolve_program(resolved_path, self.program);
+    target_hub = target_program.mod.hub;
+
     if resolved_path in self.program.mod.hub {
-        return self.program.mod.hub[resolved_path];
+        mod = self.program.mod.hub[resolved_path];
+        if mod.parent_scope is None and mod is not self.builtins_module {
+            mod.parent_scope = self.builtins_module;
+        }
+        return mod;
     }
     if resolved_path in target_hub {
-        return target_hub[resolved_path];
+        mod = target_hub[resolved_path];
+        if mod.parent_scope is None and mod is not self.builtins_module {
+            mod.parent_scope = self.builtins_module;
+        }
+        return mod;
     }
+
     memoized = _stub_module_memo.get(resolved_path);
     if memoized is not None and memoized[0] == os.path.getmtime(path) {
-        target_hub[resolved_path] = memoized[1];
-        return memoized[1];
-    }
-    file_content = read_file_with_encoding(path);
-    if path.endswith("builtins.pyi") and "def chunks(" not in file_content {
-        _ck_anchor = "    def copy(self) -> list[_T]: ...";
-        if _ck_anchor in file_content {
-            file_content = file_content.replace(
-                _ck_anchor,
-                _ck_anchor
-                    + "\n    # Jac extension: chunked iteration views"
-                    + " (`for c in &xs.chunks(n)`).\n"
-                    + "    def chunks(self, n: int, /) -> list[list[_T]]: ...",
-                1
-            );
+        mod = memoized[1];
+        target_hub[resolved_path] = mod;
+        target_program.hub_cache_stamp(resolved_path);
+        if mod.parent_scope is None and mod is not self.builtins_module {
+            mod.parent_scope = self.builtins_module;
         }
+        return mod;
     }
-    uni_source = uni.Source(file_content, path);
-    mod = PyastBuildPass(
-        ir_in=uni.PythonModuleAst(py_ast.parse(file_content), orig_src=uni_source,),
-        prog=self.program,
-    ).ir_out;
-    SymTabBuildPass(ir_in=mod, prog=self.program);
-    target_hub[resolved_path] = mod;
+
+    use_str: (str | None) = None;
+    if path.endswith("builtins.pyi") {
+        file_content = read_file_with_encoding(path);
+        if "def chunks(" not in file_content {
+            _ck_anchor = "    def copy(self) -> list[_T]: ...";
+            if _ck_anchor in file_content {
+                file_content = file_content.replace(
+                    _ck_anchor,
+                    _ck_anchor
+                        + "\n    # Jac extension: chunked iteration views"
+                        + " (`for c in &xs.chunks(n)`).\n"
+                        + "    def chunks(self, n: int, /) -> list[list[_T]]: ...",
+                    1
+                );
+            }
+        }
+        use_str = file_content;
+    }
+
+    mod = self.program.load_dependency_module(path, use_str=use_str);
+    if mod.parent_scope is None and mod is not self.builtins_module {
+        mod.parent_scope = self.builtins_module;
+    }
     _stub_module_memo[resolved_path] = (os.path.getmtime(path), mod);
     return mod;
 }
@@ -4884,6 +4899,28 @@ impl TypeEvaluator._is_type_alias_annotation(
         return tag_expr.value == "TypeAlias";
     }
     return False;
+}
+
+impl TypeEvaluator._brand_distinct_alias(
+    node_: uni.TypeAlias, resolved: TypeBase
+) -> TypeBase {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    if not isinstance(resolved, types.ClassType)
+        or not JAC_TYPE_REGISTRY.is_primitive(resolved.shared.class_name) {
+        return resolved;
+    }
+    key = f"{node_.loc.mod_path}::{node_.name.value}";
+    private = types.ClassType.ClassDetailsPrivate(
+        type_args=(
+            resolved.private.type_args[:] if resolved.private.type_args else None
+        ),
+        alias_name=resolved.private.alias_name,
+        literal_value=resolved.private.literal_value,
+        distinct_key=key
+    );
+    return types.ClassType(
+        _shared=resolved.shared, private=private, flags=resolved.flags
+    );
 }
 
 impl TypeEvaluator._resolve_type_alias_rhs(value: uni.Expr) -> types.TypeBase {

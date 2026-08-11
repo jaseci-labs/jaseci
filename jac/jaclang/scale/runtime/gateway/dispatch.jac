@@ -1,27 +1,17 @@
-glob _BUILTIN_EXACT: set[str] = {
-         "/healthz/live",
-         "/healthz/ready",
-         "/health",
-         "/healthz",
-         "/metrics",
-         "/openapi.json",
-         "/docs"
-     };
+import from jaclang.scale.runtime.routing {
+    GATEWAY_API_SEGMENTS,
+    GATEWAY_WELLKNOWN_SEGMENTS
+}
 
-glob _PASSTHROUGH_SEGMENTS: set[str] = {
-         "walker",
-         "function",
-         "user",
-         "sso",
-         "api-key",
-         "webhook",
-         "ws",
-         "jobs",
-         "graph"
-     };
+glob _BUILTIN_EXACT: set[str] = (
+         {"/healthz/live", "/healthz/ready"}
+         | {f"/{seg}" for seg in GATEWAY_WELLKNOWN_SEGMENTS}
+     );
+
+glob _PASSTHROUGH_SEGMENTS: set[str] = set(GATEWAY_API_SEGMENTS);
 
 glob _SERVICE_MEMBER_SEGMENTS: set[str] = _PASSTHROUGH_SEGMENTS
-         | {"healthz", "health", "metrics", "openapi.json", "docs"};
+         | set(GATEWAY_WELLKNOWN_SEGMENTS);
 
 glob ROUTE_BUILTIN: str = "builtin",
      ROUTE_ADMIN: str = "admin",

@@ -1,3 +1,6 @@
+# Auto-generated UniPass visitor base surface (#6942 A.1).
+# DO NOT EDIT MANUALLY - regenerate with `jac gen-uni-dispatch`.
+
 impl UniPass.enter_ability(nd: uni.Ability) -> None {
     self.default_enter(nd);
 }
@@ -67,6 +70,30 @@ impl UniPass.enter_concurrent_expr(nd: uni.ConcurrentExpr) -> None {
 }
 
 impl UniPass.enter_connect_op(nd: uni.ConnectOp) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_block(nd: uni.CtBlock) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_else(nd: uni.CtElse) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_for(nd: uni.CtFor) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_if(nd: uni.CtIf) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_name(nd: uni.CtName) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_splice(nd: uni.CtSplice) -> None {
     self.default_enter(nd);
 }
 
@@ -519,6 +546,30 @@ impl UniPass.exit_concurrent_expr(nd: uni.ConcurrentExpr) -> None {
 }
 
 impl UniPass.exit_connect_op(nd: uni.ConnectOp) -> None {
+    self.default_exit(nd);
+}
+
+impl UniPass.exit_ct_block(nd: uni.CtBlock) -> None {
+    self.default_exit(nd);
+}
+
+impl UniPass.exit_ct_else(nd: uni.CtElse) -> None {
+    self.default_exit(nd);
+}
+
+impl UniPass.exit_ct_for(nd: uni.CtFor) -> None {
+    self.default_exit(nd);
+}
+
+impl UniPass.exit_ct_if(nd: uni.CtIf) -> None {
+    self.default_exit(nd);
+}
+
+impl UniPass.exit_ct_name(nd: uni.CtName) -> None {
+    self.default_exit(nd);
+}
+
+impl UniPass.exit_ct_splice(nd: uni.CtSplice) -> None {
     self.default_exit(nd);
 }
 

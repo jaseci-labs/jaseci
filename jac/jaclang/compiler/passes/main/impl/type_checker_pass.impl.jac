@@ -943,10 +943,40 @@ impl TypeCheckPass._check_explicit_any(
     }
 }
 
-impl TypeCheckPass.exit_type_alias(self: TypeCheckPass, nd: uni.TypeAlias) -> None { }
+impl TypeCheckPass.exit_type_alias(self: TypeCheckPass, nd: uni.TypeAlias) -> None {
+    import from jaclang.compiler.type_system { types }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    if not nd.is_distinct {
+        return;
+    }
+    resolved = self.evaluator._resolve_type_alias_rhs(nd.value);
+    if not isinstance(resolved, types.ClassType)
+        or not JAC_TYPE_REGISTRY.is_primitive(resolved.shared.class_name) {
+        self.emit(E1107, node_override=nd.value, base=str(resolved));
+    }
+}
 
 impl TypeCheckPass.exit_archetype(self: TypeCheckPass, nd: uni.Archetype) -> None {
-    self.evaluator.get_type_of_class(nd);
+    import from jaclang.compiler.type_system { types }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    cls_type = self.evaluator.get_type_of_class(nd);
+    if isinstance(cls_type, types.ClassType)
+        and nd.arch_type.name == Tok.KW_OBJECT
+        and not cls_type.shared.is_from_stdlib_stub
+        and cls_type.shared.base_classes {
+        for base in cls_type.shared.base_classes {
+            if isinstance(base, types.ClassType)
+                and base.is_builtin()
+                and JAC_TYPE_REGISTRY.is_primitive(base.shared.class_name) {
+                self.emit(
+                    E1106,
+                    node_override=nd.name,
+                    name=nd.name.value,
+                    base=base.shared.class_name
+                );
+            }
+        }
+    }
     if (
         isinstance(nd.body, uni.ImplDef)
         and nd.body.find_parent_of_type(uni.Module) is not self.ir_in
