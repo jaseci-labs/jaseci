@@ -41,6 +41,7 @@ impl NaIRGenPass._codegen_bound_args(
     raw = nd.params or [];
     positional: list = [];
     kw_map: dict = {};
+    kw_spreads: list = [];
     _unpack_names: list = [];
     for param in raw {
         if isinstance(param, uni.KWPair) {
@@ -48,7 +49,7 @@ impl NaIRGenPass._codegen_bound_args(
             if key is not None {
                 kw_map[key] = param.value;
             } else {
-                _unpack_names.append("**");
+                kw_spreads.append(param.value);
             }
         } elif (
             isinstance(param, uni.UnaryExpr)
@@ -56,7 +57,7 @@ impl NaIRGenPass._codegen_bound_args(
             and param.op.name in (Tok.STAR_MUL, Tok.STAR_POW)
         ) {
             if param.op.name == Tok.STAR_POW {
-                _unpack_names.append(param.op.value);
+                kw_spreads.append(param.operand);
                 continue;
             }
             _tv = self._codegen_expr(param.operand);
@@ -121,6 +122,16 @@ impl NaIRGenPass._codegen_bound_args(
     }
 
     callee_sig = self._callee_sig_of(nd);
+    if kw_spreads and (callee_sig is None or callee_sig.kwargs is None) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="call argument unpacking",
+            name="**",
+            help_text="A `**` spread carries keys known only at runtime, so it can only fill a callee's `**kwargs` sink, never declared named parameters. Give the callee a `**kwargs` parameter, or pass the arguments explicitly."
+        );
+        kw_spreads = [];
+    }
     args: list = [];
 
     if callee_sig is None {
@@ -362,7 +373,7 @@ impl NaIRGenPass._codegen_bound_args(
         }
         if callee_sig.kwargs is not None {
             _kw_t = func.args[_slot].type if _slot < len(func.args) else None;
-            _dv = self._codegen_kwargs_dict(nd, kw_map, _kw_t);
+            _dv = self._codegen_kwargs_dict(nd, kw_map, _kw_t, kw_spreads);
             if _dv is not None {
                 args.append(_dv);
             } elif _kw_t is not None {
@@ -528,7 +539,10 @@ impl NaIRGenPass._codegen_varargs_list(
 }
 
 impl NaIRGenPass._codegen_kwargs_dict(
-    nd: uni.FuncCall, leftover: dict, expected: (ir.Type | None)
+    nd: uni.FuncCall,
+    leftover: dict,
+    expected: (ir.Type | None),
+    spreads: (list | None) = None
 ) -> (ir.Value | None) {
     dict_key: (str | None) = None;
     if expected is not None and isinstance(expected, ir.PointerType) {
@@ -578,7 +592,80 @@ impl NaIRGenPass._codegen_kwargs_dict(
             self._emit_rc_release_simple(_orig, op="dict_init", loc=_loc);
         }
     }
+    for sp_expr in (spreads or []) {
+        sv = self._codegen_expr(sp_expr);
+        if sv is None {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="call argument unpacking",
+                name="**",
+                help_text="The spread operand did not lower to a value."
+            );
+            continue;
+        }
+        if not self._merge_dict_into(dv, sv, helpers, dict_key, _loc) {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="call argument unpacking",
+                name="**",
+                help_text="A `**` spread must be a dict of the same key/value types as the callee's `**kwargs` sink."
+            );
+            continue;
+        }
+        if isinstance(sv.type, ir.PointerType) and self._is_owned(sv) {
+            self._emit_rc_release_simple(sv, op="dict_init", loc=_loc);
+        }
+    }
     return self._mark_owned(dv);
+}
+
+impl NaIRGenPass._merge_dict_into(
+    dst: ir.Value, src: ir.Value, helpers: dict, dict_key: str, loc: str
+) -> bool {
+    src_t = self.dict_types.get(dict_key);
+    if src_t is None
+        or not isinstance(src.type, ir.PointerType)
+        or src.type != src_t.as_pointer() {
+        return False;
+    }
+    i64 = ir.IntType(64);
+    fn = self.builder.block.function;
+    head_bb = fn.append_basic_block("kwsp.head");
+    body_bb = fn.append_basic_block("kwsp.body");
+    end_bb = fn.append_basic_block("kwsp.end");
+    idx_slot = self._entry_alloca(i64, "kwsp.idx");
+    self.builder.store(ir.Constant(i64, 0), idx_slot);
+    self.builder.branch(head_bb);
+
+    self.builder.position_at_end(head_bb);
+    idx = self.builder.load(idx_slot, name="kwsp.i");
+    n = self.builder.call(helpers["len"], [src], name="kwsp.n");
+    self.builder.cbranch(
+        self.builder.icmp_signed("<", idx, n, name="kwsp.ok"), body_bb, end_bb
+    );
+
+    self.builder.position_at_end(body_bb);
+    k = self.builder.call(helpers["get_key"], [src, idx], name="kwsp.k");
+    v = self.builder.call(helpers["get_val"], [src, idx], name="kwsp.v");
+    self._rc_call_with_ctx(
+        helpers["set"],
+        [
+            dst,
+            self._coerce_type(k, helpers["key_type"]),
+            self._coerce_type(v, helpers["val_type"])
+        ],
+        op="dict_init",
+        loc=loc
+    );
+    self.builder.store(
+        self.builder.add(idx, ir.Constant(i64, 1), name="kwsp.i.next"), idx_slot
+    );
+    self.builder.branch(head_bb);
+
+    self.builder.position_at_end(end_bb);
+    return True;
 }
 
 impl NaIRGenPass._codegen_call_args(nd: uni.FuncCall) -> list {

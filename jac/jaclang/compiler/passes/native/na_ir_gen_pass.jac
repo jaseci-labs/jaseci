@@ -537,8 +537,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _codegen_kwargs_dict(
-        nd: uni.FuncCall, leftover: dict, expected: (ir.Type | None)
+        nd: uni.FuncCall,
+        leftover: dict,
+        expected: (ir.Type | None),
+        spreads: (list | None) = None
     ) -> (ir.Value | None);
+
+    def _merge_dict_into(
+        dst: ir.Value, src: ir.Value, helpers: dict, dict_key: str, loc: str
+    ) -> bool;
 
     def _default_arg_fallback(t: ir.Type) -> ir.Value;
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
