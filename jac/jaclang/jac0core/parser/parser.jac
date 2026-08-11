@@ -380,7 +380,9 @@ obj Parser {
     def parse_ct_block -> int;
     def parse_ct_splice -> int;
     def parse_ct_name(as_name: bool = True) -> int;
-    def ct_name_follows -> bool;
+    def _ct_name_follows -> bool;
+    def _ct_body_recover -> None;
+    def _lookahead_advance -> None;
     def parse_if_stmt -> int;
     def parse_elif_stmt -> int;
     def parse_else_stmt -> int;

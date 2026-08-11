@@ -1286,7 +1286,7 @@ impl Parser.parse_atomic_chain -> int {
             }
 
             attr: int = NIL;
-            if self.check(TokenKind.DOLLAR_LBRACE) or self.ct_name_follows() {
+            if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
                 attr = self.parse_ct_name();
             } elif self.check_name() {
                 name_tok = self.expect_name();
@@ -1924,7 +1924,7 @@ impl Parser.parse_atom -> int {
     if self.check(TokenKind.KW_COMPTIME) and self.check_peek(TokenKind.LBRACE) {
         return self.parse_ct_block();
     }
-    if self.check(TokenKind.DOLLAR_LBRACE) or self.ct_name_follows() {
+    if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
         return self.parse_ct_name(as_name=False);
     }
     if self.check_any(
@@ -3272,7 +3272,7 @@ impl Parser.parse_element_stmt -> int {
             self.expect_any(TokenKind.KW_PUB, TokenKind.KW_PRIV, TokenKind.KW_PROT);
         }
         if self.check_name() or self.check(TokenKind.KWESC_NAME) {
-            self.advance();
+            self._lookahead_advance();
             if self.check(TokenKind.EQ) or self.check(TokenKind.LSQUARE) {
                 self.pos = save;
                 return self.parse_type_alias();
@@ -5763,7 +5763,7 @@ impl Parser.parse_ability -> int {
     access = self.parse_access_tag();
     name = NIL;
 
-    if self.check(TokenKind.DOLLAR_LBRACE) or self.ct_name_follows() {
+    if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
         name = self.parse_ct_name();
     } elif self.check_name() {
         name_tok = self.expect_name();
@@ -6072,7 +6072,7 @@ impl Parser.parse_param_var -> int {
         unpack = self.make_uni_token(unpack_tok);
     }
 
-    if self.check(TokenKind.DOLLAR_LBRACE) or self.ct_name_follows() {
+    if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
         name = self.parse_ct_name();
     } elif self.check_name() {
         name_tok = self.expect_name();
@@ -6485,7 +6485,7 @@ impl Parser.parse_global_var -> int {
 impl Parser.parse_global_var_assignment -> int {
     name: int = NIL;
     name_tok: LexToken;
-    if self.check(TokenKind.DOLLAR_LBRACE) or self.ct_name_follows() {
+    if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
         name = self.parse_ct_name();
     } elif self.check_name() {
         name_tok = self.expect_name();
@@ -7181,10 +7181,18 @@ impl Parser.parse_ct_body(mode: int, kid: list) -> list {
             kid.append(item);
         }
         if self.pos == before {
-            self.advance();
+            self._ct_body_recover();
         }
     }
     return body;
+}
+
+impl Parser._ct_body_recover -> None {
+    self.advance();
+}
+
+impl Parser._lookahead_advance -> None {
+    self.advance();
 }
 
 impl Parser.parse_ct_block -> int {
@@ -7202,7 +7210,7 @@ impl Parser.parse_ct_splice -> int {
     return self.b.mk_ct_splice(expr=expr, kid=[dl_uni, expr, rb_uni]);
 }
 
-impl Parser.ct_name_follows -> bool {
+impl Parser._ct_name_follows -> bool {
     if not self.check(TokenKind.NAME) {
         return False;
     }
@@ -7230,7 +7238,7 @@ impl Parser.parse_ct_name(as_name: bool = True) -> int {
             if parts and self.current().loc.pos_start != self.previous().loc.pos_end {
                 break;
             }
-            if not parts and not self.ct_name_follows() {
+            if not parts and not self._ct_name_follows() {
                 break;
             }
             name_tok = self.expect_name();
