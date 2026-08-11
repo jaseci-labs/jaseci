@@ -883,10 +883,6 @@ def na_census_end -> dict {
     return snap;
 }
 
-# Compose the demotion console note and its style. A demotion driven by
-# diagnostics is a placement decision and stays a dim note; a demotion
-# driven by a pass crash is an internal compiler error and must be loud,
-# self-identify as a bug, and never blend into capability-gap noise.
 def na_demotion_note(
     file_path: str, first_err: str, is_ice: bool
 ) -> tuple[(str, str)] {

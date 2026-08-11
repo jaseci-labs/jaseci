@@ -1,7 +1,7 @@
 """Brand violations: raw base into a distinct dest, cross-brand assign."""
 
-type UserId = distinct int;
-type GroupId = distinct int;
+type UserId := int;
+type GroupId := int;
 
 with entry {
     u: UserId = 5;

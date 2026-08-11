@@ -831,8 +831,7 @@ impl JacCompiler.compile(
             }
             return _mod;
         }
-        # A crash with no recorded diagnostics is an ICE, not a capability
-        # gap: census it apart, warn loud, and re-raise when asked to.
+
         _is_ice = _crash is not None and len(_wrap_prog.errors_had) == _pre_errs;
         if _is_ice and os.environ.get('JAC_NATIVE_ICE_RAISE') {
             raise _crash;

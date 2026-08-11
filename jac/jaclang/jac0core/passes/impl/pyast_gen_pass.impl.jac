@@ -1062,10 +1062,6 @@ impl PyastGenPass.exit_type_alias(nd: uni.TypeAlias) -> None {
     }
     value_ast = cast(ast3.expr, self.py_ast_val(nd.value));
     if nd.is_distinct {
-        # Erased distinct alias: the runtime name IS the base type, so
-        # X(v) is the base constructor (identity on primitives) and
-        # type(X(v)) is the base. A PEP 695 TypeAliasType would not be
-        # callable and would break the cast form.
         assign = self.sync(
             ast3.Assign(
                 targets=[self.sync(ast3.Name(id=nd.name.sym_name, ctx=ast3.Store()))],

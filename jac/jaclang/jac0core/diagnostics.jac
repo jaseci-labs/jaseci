@@ -562,14 +562,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="Subclassing a builtin primitive gives each backend a different"
          " semantics (dataclass constructors shadow the builtin's, native has"
          " no boxed layout for it). For a zero-cost branded id, declare"
-         " `type {name} = distinct {base};` instead: the brand exists only at"
+         " `type {name} := {base};` instead: the brand exists only at"
          " check time and the runtime value stays a plain {base} on every"
          " lowering."
      ),
      E1107 = _err(
          "E1107",
          Category.TYPE,
-         "'distinct' alias base must be a builtin primitive, got {base}",
+         "Distinct alias (`:=`) base must be a builtin primitive, got {base}",
          help="An erased distinct type is a check-time brand over a primitive"
          " runtime value (int, float, str, bool, bytes). For richer types,"
          " declare an archetype that wraps the value instead."

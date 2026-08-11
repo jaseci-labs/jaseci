@@ -1,3 +1,38 @@
+impl NaIRGenPass._quiet_glob_type(type_expr: (uni.UniNode | None)) -> (ir.Type | None) {
+    if type_expr is None {
+        return ir.IntType(64);
+    }
+    if isinstance(type_expr, uni.SubTag) and type_expr?.tag is not None {
+        return self._quiet_glob_type(type_expr.tag);
+    }
+    _ptb = type_expr?.type;
+    if _ptb is None {
+        return None;
+    }
+    try {
+        return self._lower_type(_ptb);
+    } except Exception {
+        return None;
+    }
+}
+
+impl NaIRGenPass._glob_native_use_exists(target: uni.UniNode) -> bool {
+    sym = target.sym if isinstance(target, uni.NameAtom) else None;
+    if sym is None {
+        return True;
+    }
+    for use in sym.uses {
+        _m = use.find_parent_of_type(uni.Module);
+        if _m is None {
+            continue;
+        }
+        if _m is self.ir_in or _m.decided_codespace == 'native' {
+            return True;
+        }
+    }
+    return False;
+}
+
 impl NaIRGenPass._register_globals(module: uni.Module) -> None {
     for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
         if isinstance(stmt, uni.GlobalVars) {
@@ -92,6 +127,12 @@ impl NaIRGenPass._codegen_global_vars(nd: uni.GlobalVars) -> None {
 
             var_type: ir.Type = ir.IntType(64);
             if assign.type_tag is not None {
+                if (
+                    self._quiet_glob_type(assign.type_tag) is None
+                    and not self._glob_native_use_exists(target)
+                ) {
+                    continue;
+                }
                 var_type = self._resolve_jac_type(assign.type_tag);
             } elif assign.value is not None {
                 inferred = self._infer_global_init_type(assign.value);

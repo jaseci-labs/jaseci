@@ -2483,8 +2483,7 @@ impl TypeEvaluator._assign_class(
     }
     src_type = unwrapped_src;
     dest_type = unwrapped_dest;
-    # Erased distinct brand: a branded dest accepts only its own brand; a
-    # branded src decays freely into unbranded dests (NewType semantics).
+
     dest_brand = dest_type.private.distinct_key;
     if dest_brand is not None and src_type.private.distinct_key != dest_brand {
         return False;
@@ -4908,8 +4907,6 @@ impl TypeEvaluator._brand_distinct_alias(
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
     if not isinstance(resolved, types.ClassType)
         or not JAC_TYPE_REGISTRY.is_primitive(resolved.shared.class_name) {
-        # E1107 is reported at the declaration by TypeCheckPass; the alias
-        # itself degrades to its transparent meaning so checking continues.
         return resolved;
     }
     key = f"{node_.loc.mod_path}::{node_.name.value}";

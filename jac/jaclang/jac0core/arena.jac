@@ -1,10 +1,10 @@
 import from jaclang.jac0core.constant { EdgeDir, OwnershipKind }
 import from jaclang.jac0core.ctlib { ct, fail, reflect }
 
-type NodeId = distinct int;
-type StrId = distinct int;
-type SeqOff = distinct int;
-type KindId = distinct int;
+type NodeId := int;
+type StrId := int;
+type SeqOff := int;
+type KindId := int;
 
 glob NIL: NodeId = NodeId(0);
 

@@ -3275,7 +3275,9 @@ impl Parser.parse_element_stmt -> NodeId {
         }
         if self.check_name() or self.check(TokenKind.KWESC_NAME) {
             self._lookahead_advance();
-            if self.check(TokenKind.EQ) or self.check(TokenKind.LSQUARE) {
+            if self.check(TokenKind.EQ)
+                or self.check(TokenKind.WALRUS_EQ)
+                or self.check(TokenKind.LSQUARE) {
                 self.pos = save;
                 return self.parse_type_alias();
             }
@@ -6966,15 +6968,13 @@ impl Parser.parse_type_alias -> NodeId {
         (tp_list, tp_comma_unis) = self.parse_type_params();
         tp_rb_uni = self.consume_uni(TokenKind.RSQUARE);
     }
-    eq_uni = self.consume_uni(TokenKind.EQ);
-    # `distinct` is a soft keyword valid only right after the `=`: it marks
-    # an erased distinct (branded) alias. Lookahead keeps a type literally
-    # named `distinct` parseable (`type X = distinct;`).
-    distinct_uni: NodeId = NIL;
-    if self.check(TokenKind.NAME)
-        and self.current().value == "distinct"
-        and self.peek(1).kind != TokenKind.SEMI {
-        distinct_uni = self.make_uni_token(self.advance());
+
+    is_distinct = self.check(TokenKind.WALRUS_EQ);
+    eq_uni: NodeId;
+    if is_distinct {
+        eq_uni = self.make_uni_token(self.advance());
+    } else {
+        eq_uni = self.consume_uni(TokenKind.EQ);
     }
     value = self.parse_pipe();
     self.expect(TokenKind.SEMI);
@@ -6994,16 +6994,13 @@ impl Parser.parse_type_alias -> NodeId {
         kid.append(tp_rb_uni);
     }
     kid.append(eq_uni);
-    if distinct_uni != NIL {
-        kid.append(distinct_uni);
-    }
     kid.append(value);
     kid.append(self.make_semi());
     return self.b.mk_type_alias(
         name=name,
         type_params=tp_list,
         value=value,
-        is_distinct=distinct_uni != NIL,
+        is_distinct=is_distinct,
         access=access,
         kid=kid,
         doc=NIL

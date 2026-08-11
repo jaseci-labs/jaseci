@@ -859,8 +859,6 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return self._codegen_intrinsic(nd, _intrinsic_entry);
     }
 
-    # An erased distinct alias used as a callee is the base primitive's
-    # conversion: Score(x) lowers exactly like int(x) — zero-cost cast.
     import from jaclang.compiler.type_system { types as jtypes }
     _callee_t = nd.target?.type;
     if isinstance(_callee_t, jtypes.ClassType)

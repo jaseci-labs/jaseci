@@ -24,8 +24,6 @@ obj ResolvedSpec {
 }
 
 
-# SPECS rows arrive as structured comptime-spliced tuples:
-# (class_name, token_family, has_kid, ((pname, cat, enum_name, hd), ...)).
 def spec_of(kind: KindId) -> tuple {
     return SPECS[kind];
 }

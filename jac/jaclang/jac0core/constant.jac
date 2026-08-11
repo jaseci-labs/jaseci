@@ -120,9 +120,6 @@ enum ExprCtx { LOAD = 'load', STORE = 'store', DEL = 'del' }
 
 enum OwnershipKind: int { NONE = 0, OWN = 1, BORROW = 2, MUT_BORROW = 3, IMM = 4 }
 
-# Constructor-parameter categories of the arena schema (values are the
-# member's declaration index: the comptime derivation in arena.jac maps
-# category names to these ids via enum_members reflection).
 enum ArgCat: int {
     KID = 0,
     SOURCE = 1,

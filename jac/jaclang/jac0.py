@@ -1332,16 +1332,13 @@ class Parser:
         if self._match(TT.LBRACKET):
             type_params = self._collect_until(TT.RBRACKET)
             self._expect(TT.RBRACKET)
-        self._expect(TT.OP, "=")
+        # `:=` declares an erased branded alias: the brand is check-time
+        # only, so the bootstrap lowers it to a plain runtime alias.
+        is_distinct = self._match(TT.OP, ":=") is not None
+        if not is_distinct:
+            self._expect(TT.OP, "=")
         value = self._collect_until(TT.SEMI)
         self._match(TT.SEMI)
-        # `distinct` marks an erased branded alias: the brand is check-time
-        # only, so the bootstrap lowers it to a plain runtime alias.
-        is_distinct = False
-        stripped = value.strip()
-        if stripped.startswith("distinct ") or stripped.startswith("distinct\t"):
-            is_distinct = True
-            value = stripped.split(None, 1)[1]
         return TypeAliasDef(
             name=name, type_params=type_params, value=value, is_distinct=is_distinct
         )

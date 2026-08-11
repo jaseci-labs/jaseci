@@ -2122,9 +2122,6 @@ impl NaIRGenPass._emit_binary_op(
     } else {
         if not isinstance(left.type, ir.IntType)
             or not isinstance(right.type, ir.IntType) {
-            # Semantic typing says integer op, but a layout disagrees (e.g. a
-            # struct-pointer lowering of an int-family archetype): a real
-            # diagnostic, never an AttributeError on .width.
             self.emit(
                 E5092,
                 node_override=self.cur_node,

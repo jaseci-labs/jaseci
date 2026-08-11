@@ -4,7 +4,7 @@ obj Payload {
     has v: int = 0;
 }
 
-type PayloadRef = distinct Payload;
+type PayloadRef := Payload;
 
 with entry {
     print(PayloadRef);

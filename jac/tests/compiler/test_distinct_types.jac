@@ -1,6 +1,6 @@
 """Erased distinct types (#8030 B1): check-time brand, runtime primitive.
 
-`type X = distinct int;` brands X nominally in the checker while every
+`type X := int;` brands X nominally in the checker while every
 lowering (jac0, sv, native) erases it to the base primitive; X(v) is a
 zero-cost cast. `obj X(builtin)` is rejected with a pointer at the
 distinct form (E1106); a distinct alias over a non-primitive base is
@@ -29,7 +29,7 @@ def compile_fixture(name: str) -> list {
 
 test "distinct alias parses clean and non-distinct still works" {
     (bad, pdiags, _l) = parse_diags(
-        "type NodeId = distinct int;\ntype Plain = int;\n", "d.jac"
+        "type NodeId := int;\ntype Plain = int;\n", "d.jac"
     );
     assert not bad , f"parse errors: {[d.message for d in pdiags]}";
 }
@@ -91,7 +91,7 @@ test "runtime value is the erased primitive" {
 
 test "jac0 bootstrap erases distinct to a plain alias" {
     py_src = compile_jac(
-        "type NodeId = distinct int;\n\ndef f(x: NodeId) -> NodeId {\n"
+        "type NodeId := int;\n\ndef f(x: NodeId) -> NodeId {\n"
             + "    return NodeId(x);\n}\n",
         "d.jac"
     );

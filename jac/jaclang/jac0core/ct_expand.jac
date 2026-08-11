@@ -1181,8 +1181,7 @@ obj CtExpander {
         self.ev.burn();
         a = self.a();
         kind = a.kind_of(i);
-        # Snapshot args before recursing: copies of kids and deps append to
-        # the same arena, so live column reads would see relocated data.
+
         old_pairs = a.arg_pairs(i);
         new_kids: list[int] = [];
         for k in a.kid_ids(i) {

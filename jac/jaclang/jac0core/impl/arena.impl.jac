@@ -152,7 +152,7 @@ impl SyntaxArena.append_record(
     return idx;
 }
 
-impl SyntaxArena.set_arg_node(i: NodeId, slot: int, v: NodeId) {
+impl SyntaxArena.set_arg_node(i: NodeId, slot: int, v: NodeId) -> None {
     p = self._arg_ptr(i, slot);
     if v == NIL {
         self.args[p] = Tag.NONE;
@@ -163,43 +163,43 @@ impl SyntaxArena.set_arg_node(i: NodeId, slot: int, v: NodeId) {
     }
 }
 
-impl SyntaxArena.set_arg_str(i: NodeId, slot: int, s: str) {
+impl SyntaxArena.set_arg_str(i: NodeId, slot: int, s: str) -> None {
     p = self._arg_ptr(i, slot);
     self.args[p] = Tag.STR;
     self.args[p + 1] = self.intern(s);
 }
 
-impl SyntaxArena.set_arg_bool(i: NodeId, slot: int, v: bool) {
+impl SyntaxArena.set_arg_bool(i: NodeId, slot: int, v: bool) -> None {
     p = self._arg_ptr(i, slot);
     self.args[p] = Tag.BOOL;
     self.args[p + 1] = 1 if v else 0;
 }
 
-impl SyntaxArena.set_arg_enum(i: NodeId, slot: int, v: int) {
+impl SyntaxArena.set_arg_enum(i: NodeId, slot: int, v: int) -> None {
     p = self._arg_ptr(i, slot);
     self.args[p] = Tag.ENUM;
     self.args[p + 1] = v;
 }
 
-impl SyntaxArena.set_arg_list(i: NodeId, slot: int, ids: list[NodeId]) {
+impl SyntaxArena.set_arg_list(i: NodeId, slot: int, ids: list[NodeId]) -> None {
     p = self._arg_ptr(i, slot);
     self.args[p] = Tag.LIST;
     self.args[p + 1] = self.intern_seq(ids);
 }
 
-impl SyntaxArena.set_kids_of(i: NodeId, ids: list[NodeId]) {
+impl SyntaxArena.set_kids_of(i: NodeId, ids: list[NodeId]) -> None {
     self._retable_kids(i, ids);
 }
 
-impl SyntaxArena.prepend_kids(i: NodeId, ids: list[NodeId]) {
+impl SyntaxArena.prepend_kids(i: NodeId, ids: list[NodeId]) -> None {
     self._retable_kids(i, ids + self.kid_ids(i));
 }
 
-impl SyntaxArena.append_kids(i: NodeId, ids: list[NodeId]) {
+impl SyntaxArena.append_kids(i: NodeId, ids: list[NodeId]) -> None {
     self._retable_kids(i, self.kid_ids(i) + ids);
 }
 
-impl SyntaxArena.replace_kid(i: NodeId, old: NodeId, news: list[NodeId]) {
+impl SyntaxArena.replace_kid(i: NodeId, old: NodeId, news: list[NodeId]) -> None {
     out: list[NodeId] = [];
     for k in self.kid_ids(i) {
         if k == old {
@@ -211,7 +211,7 @@ impl SyntaxArena.replace_kid(i: NodeId, old: NodeId, news: list[NodeId]) {
     self._retable_kids(i, out);
 }
 
-impl SyntaxArena.post_set(i: NodeId, key: str, v: int) {
+impl SyntaxArena.post_set(i: NodeId, key: str, v: int) -> None {
     self.posts.append(i);
     self.posts.append(self.intern(key));
     self.posts.append(v);
@@ -229,7 +229,7 @@ impl SyntaxArena.adopt_columns(
     posts: list[int],
     strtab: list[str],
     root_id: NodeId
-) {
+) -> None {
     self.kinds = kinds;
     self.kid_los = kid_los;
     self.kid_ns = kid_ns;
@@ -280,7 +280,7 @@ impl SyntaxArena._push_none{
     self.args.append(0);
 }
 
-impl SyntaxArena._arg_node(v: NodeId) {
+impl SyntaxArena._arg_node(v: NodeId) -> None {
     if v == NIL {
         self._push_none();
     } else {
@@ -289,7 +289,7 @@ impl SyntaxArena._arg_node(v: NodeId) {
     }
 }
 
-impl SyntaxArena._arg_list(ids: (list[NodeId] | None)) {
+impl SyntaxArena._arg_list(ids: (list[NodeId] | None)) -> None {
     if ids is None {
         self._push_none();
         return;
@@ -299,7 +299,7 @@ impl SyntaxArena._arg_list(ids: (list[NodeId] | None)) {
     self.args.append(off);
 }
 
-impl SyntaxArena._arg_str(s: (str | None)) {
+impl SyntaxArena._arg_str(s: (str | None)) -> None {
     if s is None {
         self._push_none();
     } else {
@@ -308,22 +308,22 @@ impl SyntaxArena._arg_str(s: (str | None)) {
     }
 }
 
-impl SyntaxArena._arg_int(v: int) {
+impl SyntaxArena._arg_int(v: int) -> None {
     self.args.append(Tag.INT);
     self.args.append(v);
 }
 
-impl SyntaxArena._arg_bool(v: bool) {
+impl SyntaxArena._arg_bool(v: bool) -> None {
     self.args.append(Tag.BOOL);
     self.args.append(1 if v else 0);
 }
 
-impl SyntaxArena._arg_enum(v: int) {
+impl SyntaxArena._arg_enum(v: int) -> None {
     self.args.append(Tag.ENUM);
     self.args.append(v);
 }
 
-impl SyntaxArena._arg_poly(v: (NodeId | list[NodeId] | None)) {
+impl SyntaxArena._arg_poly(v: (NodeId | list[NodeId] | None)) -> None {
     if v is None {
         self._push_none();
     } elif isinstance(v, int) {
@@ -333,14 +333,14 @@ impl SyntaxArena._arg_poly(v: (NodeId | list[NodeId] | None)) {
     }
 }
 
-impl SyntaxArena._retable_kids(i: NodeId, ids: list[NodeId]) {
+impl SyntaxArena._retable_kids(i: NodeId, ids: list[NodeId]) -> None {
     lo = len(self.kids);
     self.kids.extend(ids);
     self.kid_los[i] = lo;
     self.kid_ns[i] = len(ids);
 }
 
-impl SyntaxArena._bad_tag(i: NodeId, slot: int, want: Tag, got: int) {
+impl SyntaxArena._bad_tag(i: NodeId, slot: int, want: Tag, got: int) -> None {
     raise ValueError(
         f"arena node {i} (kind {self.kinds[i]}) slot {slot}: "
         f"expected {want} arg, found tag {got}"

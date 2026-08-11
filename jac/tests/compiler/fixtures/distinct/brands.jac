@@ -1,7 +1,7 @@
 """Valid erased-distinct-type flows: brand, decay, cast, erasure."""
 
-type UserId = distinct int;
-type GroupId = distinct int;
+type UserId := int;
+type GroupId := int;
 
 
 def mk_user(raw: int) -> UserId {
