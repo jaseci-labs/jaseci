@@ -1989,10 +1989,7 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         nd.gen.es_ast = result_expr;
         return;
     }
-    # classify_call only tags Jac archetypes as instantiations, so a foreign
-    # (TS-declared) class arrives as a plain call; JS class constructors throw
-    # without `new`, so consult the resolved type. Builtin classes are excluded:
-    # their callees lower to `_jac.types.*` coercion callables, not JS classes.
+
     _emit_new = _call_kind == "instantiation";
     if not _emit_new {
         _target_type = nd.target?.type;
