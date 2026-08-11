@@ -9,7 +9,8 @@ impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
             FunctionType as _FunctionType,
             NeverType as _NeverType,
             AnyType as _AnyType,
-            TypeVarType as _TypeVarType
+            TypeVarType as _TypeVarType,
+            EnumMemberType as _EnumMemberType
         }
     } except ImportError {
         return None;
@@ -30,6 +31,8 @@ impl NaIRGenPass._lower_type(t: any) -> (ir.Type | None) {
         lowered = ir.VoidType();
     } elif isinstance(t, _AnyType) {
         lowered = self.jacval_type;
+    } elif isinstance(t, _EnumMemberType) {
+        lowered = self._lower_type(t.enum_class) if t.enum_class is not None else None;
     } elif isinstance(t, _ClassType) {
         lowered = self._lower_class_type(t);
     } elif isinstance(t, _UnionType) {
@@ -2323,6 +2326,116 @@ impl NaIRGenPass._emit_optional_eq(
     return res;
 }
 
+impl NaIRGenPass._is_jacval_ty(t: ir.Type) -> bool {
+    if not self?.jacval_type {
+        return False;
+    }
+    return isinstance(t, ir.IdentifiedStructType) and t.name == self.jacval_type.name;
+}
+
+impl NaIRGenPass._is_jacval_boxable(t: ir.Type) -> bool {
+    if self._is_jacval_ty(t) {
+        return True;
+    }
+    if isinstance(t, (ir.IntType, ir.DoubleType, ir.PointerType)) {
+        return True;
+    }
+    _sd = self._str_desc_ty;
+    return (
+        _sd is not None
+        and isinstance(t, ir.IdentifiedStructType)
+        and t.name == _sd.name
+    );
+}
+
+impl NaIRGenPass._emit_jacval_ordering(
+    op: str, jv: ir.Value, peer: ir.Value, jv_on_left: bool
+) -> (ir.Value | None) {
+    i8 = ir.IntType(8);
+    i64 = ir.IntType(64);
+    _dbl = ir.DoubleType();
+    _sym = {Tok.LT: "<", Tok.GT: ">", Tok.LTE: "<=", Tok.GTE: ">="}.get(op, "<");
+    _tag = self.builder.extract_value(jv, 0, name="jv.ord.tag");
+    _pay = self.builder.extract_value(jv, 1, name="jv.ord.pay");
+    _is_flt = self.builder.icmp_signed(
+        "==", _tag, ir.Constant(i8, 1), name="jv.ord.isflt"
+    );
+    _is_int = self.builder.icmp_signed(
+        "==", _tag, ir.Constant(i8, 0), name="jv.ord.isint"
+    );
+    _is_bool = self.builder.icmp_signed(
+        "==", _tag, ir.Constant(i8, 7), name="jv.ord.isbool"
+    );
+    _numeric = self.builder.or_(
+        _is_flt,
+        self.builder.or_(_is_int, _is_bool, name="jv.ord.intish"),
+        name="jv.ord.num"
+    );
+    self._emit_runtime_raise(
+        self.builder.not_(_numeric, name="jv.ord.bad"),
+        "TypeError",
+        f"'{_sym}' not supported between these operand types"
+    );
+    _jv_f = self.builder.select(
+        _is_flt,
+        self.builder.bitcast(_pay, _dbl, name="jv.ord.f.bits"),
+        self.builder.sitofp(_pay, _dbl, name="jv.ord.f.conv"),
+        name="jv.ord.f"
+    );
+    if isinstance(peer.type, ir.DoubleType) {
+        _fl = _jv_f if jv_on_left else peer;
+        _fr = peer if jv_on_left else _jv_f;
+        return self._emit_comparison(op, _fl, _fr, True);
+    }
+    _peer_i = self._coerce_type(peer, i64);
+    _peer_f = self.builder.sitofp(_peer_i, _dbl, name="jv.ord.peer.f");
+    _il = _pay if jv_on_left else _peer_i;
+    _ir_ = _peer_i if jv_on_left else _pay;
+    _int_res = self._emit_comparison(op, _il, _ir_, False);
+    _ml = _jv_f if jv_on_left else _peer_f;
+    _mr = _peer_f if jv_on_left else _jv_f;
+    _flt_res = self._emit_comparison(op, _ml, _mr, True);
+    if _int_res is None or _flt_res is None {
+        return None;
+    }
+    return self.builder.select(_is_flt, _flt_res, _int_res, name="jv.ord.res");
+}
+
+impl NaIRGenPass._emit_mixed_jacval_comparison(
+    op: str, left: ir.Value, right: ir.Value
+) -> (ir.Value | None) {
+    _left_boxed = self._is_jacval_ty(left.type);
+    _peer = right.type if _left_boxed else left.type;
+    if op in (Tok.EE, Tok.NE) and self._is_jacval_boxable(_peer) {
+        if _left_boxed {
+            right = self._coerce_type(right, self.jacval_type);
+        } else {
+            left = self._coerce_type(left, self.jacval_type);
+        }
+        _mx_res = self._emit_jacval_eq(left, right);
+        if op == Tok.NE {
+            return self.builder.not_(_mx_res, name="jv.mixed.ne");
+        }
+        return _mx_res;
+    }
+    if op in (Tok.LT, Tok.GT, Tok.LTE, Tok.GTE)
+        and isinstance(_peer, (ir.IntType, ir.DoubleType)) {
+        return self._emit_jacval_ordering(
+            op,
+            left if _left_boxed else right,
+            right if _left_boxed else left,
+            _left_boxed
+        );
+    }
+    self.emit(
+        E5090,
+        kind="comparison",
+        name=f"tagged `any` value against {_peer}",
+        help_text="The element type of this container could not be inferred, so its values are stored as tagged `any`. Annotate the container (for example `list[int]`) so both sides of the comparison lower to the same representation."
+    );
+    return None;
+}
+
 impl NaIRGenPass._emit_comparison(
     op: str, left: ir.Value, right: ir.Value, is_float: bool
 ) -> (ir.Value | None) {
@@ -2335,6 +2448,12 @@ impl NaIRGenPass._emit_comparison(
             return self.builder.not_(_jv_res, name="jv.ne");
         }
         return _jv_res;
+    }
+    if self?.jacval_type
+        and self._is_jacval_ty(left.type) != self._is_jacval_ty(right.type)
+        and self._opt_payload_of(left.type) is None
+        and self._opt_payload_of(right.type) is None {
+        return self._emit_mixed_jacval_comparison(op, left, right);
     }
     _l_opt = self._opt_payload_of(left.type);
     _r_opt = self._opt_payload_of(right.type);
@@ -2984,13 +3103,20 @@ impl NaIRGenPass._emit_comparison(
             Tok.GTE: ">="
         };
         if op in icmp_map {
-            if isinstance(left.type, ir.IntType)
-                and isinstance(right.type, ir.IntType) {
-                if left.type.width < right.type.width {
-                    left = self.builder.sext(left, right.type, name="sext.l");
-                } elif right.type.width < left.type.width {
-                    right = self.builder.sext(right, left.type, name="sext.r");
-                }
+            if not isinstance(left.type, ir.IntType)
+                or not isinstance(right.type, ir.IntType) {
+                self.emit(
+                    E5090,
+                    kind="comparison",
+                    name=f"{left.type} against {right.type}",
+                    help_text="The two sides of this comparison lower to different native representations, so no integer comparison is well formed. Annotate the values (or the container they came from) so both sides agree."
+                );
+                return None;
+            }
+            if left.type.width < right.type.width {
+                left = self.builder.sext(left, right.type, name="sext.l");
+            } elif right.type.width < left.type.width {
+                right = self.builder.sext(right, left.type, name="sext.r");
             }
             return self.builder.icmp_signed(icmp_map[op], left, right, name="icmp");
         }
