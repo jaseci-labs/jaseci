@@ -194,13 +194,22 @@ test "an unpacked argument declines instead of being dropped" {
     assert _break_kinds("side_effect_unpack.jac") == ["side_effect", "side_effect"];
 }
 
-test "a logger bound inside the function declines the module-scope slot" {
-    # The slot is registered at module scope, where a local receiver does not
-    # exist, so the module would fail to import. Falls back to the buffer.
+test "a receiver that does not bind to a logger is left untouched" {
+    # A parameter receiver has no logger-proving binding, so the call is not
+    # tagged at all: no module-scope slot, no buffer, the break stays.
     src = _py_local_logger_src(True);
     assert "__jac_log_register__" not in src;
-    assert "_gm_log_slot_0" not in src;
-    assert "__jac_se_emit__(local_logger.warning, ('GM-LOCAL',), {})" in src;
+    assert "__jac_se_emit__" not in src;
+    assert "local_logger.warning('GM-LOCAL')" in src;
+}
+
+test "a logging-named method on a non-logger receiver is not tagged" {
+    # The receiver base must bind to a logger (a logging module import or a
+    # getLogger/get_logger assignment); an arbitrary module declines.
+    src = _pysrc("se_foreign_warn.jac", True);
+    assert "__jac_se_emit__" not in src;
+    assert "myutils.warn_user(y)" in src;
+    assert _break_kinds("se_foreign_warn.jac") == [];
 }
 
 test "a user-defined name matching a logging pattern is not tagged" {

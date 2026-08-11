@@ -16,6 +16,7 @@ obj GraphBreakDetectPass(UniPass) {
     def enter_if_stmt(nd: uni.IfStmt) -> None;
     def enter_func_call(nd: uni.FuncCall) -> None;
     def _call_name(nd: uni.FuncCall) -> (str | None);
+    def _base_binds_logger(t: uni.AtomTrailer) -> bool;
     def _is_user_defined(nd: uni.FuncCall, name: str) -> bool;
     def _body_is_only_raise(body: Sequence[uni.CodeBlockStmt]) -> bool;
 }

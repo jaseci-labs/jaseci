@@ -139,8 +139,50 @@ impl GraphBreakDetectPass.enter_func_call(nd: uni.FuncCall) -> None {
         if self._is_user_defined(nd, name) {
             return;
         }
+        target = nd.target;
+        if isinstance(target, uni.AtomTrailer) {
+            if not self._base_binds_logger(target) {
+                return;
+            }
+        } elif name != 'print' {
+            return;
+        }
         self.prog.graphmend_breaks[id(nd)] = GraphBreakKind.SIDE_EFFECT;
     }
+}
+
+impl GraphBreakDetectPass._base_binds_logger(t: uni.AtomTrailer) -> bool {
+    base = t.target;
+    if not isinstance(base, uni.Name) {
+        return False;
+    }
+    st = base.sym_tab;
+    sym = st.lookup(base.value, deep=True) if st else None;
+    if sym is None {
+        return False;
+    }
+    decl = sym.decl;
+    if decl is not None {
+        mi = decl.find_parent_of_type(uni.ModuleItem);
+        if (mi is not None) and isinstance(mi.name, uni.Name) {
+            local = mi.alias.value if (mi.alias is not None) else mi.name.value;
+            if local == 'logging' {
+                return True;
+            }
+        }
+        mp = decl.find_parent_of_type(uni.ModulePath);
+        if (mp is not None)
+            and (mp.dot_path_str.lstrip('.').split('.')[-1] == 'logging') {
+            return True;
+        }
+    }
+    assign = defining_assignment(sym);
+    v = assign.value if (assign is not None) else None;
+    if not isinstance(v, uni.FuncCall) {
+        return False;
+    }
+    leaf = v.target.right if isinstance(v.target, uni.AtomTrailer) else v.target;
+    return isinstance(leaf, uni.Name) and (leaf.value in {'getLogger', 'get_logger'});
 }
 
 impl GraphBreakDetectPass._call_name(nd: uni.FuncCall) -> (str | None) {
