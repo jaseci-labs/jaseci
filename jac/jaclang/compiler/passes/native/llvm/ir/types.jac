@@ -411,6 +411,9 @@ class VectorType(Type) {
     }
 
     def format_constant(self: VectorType, value: Any) -> object {
+        if value is None or (isinstance(value, int) and value == 0) {
+            return "zeroinitializer";
+        }
         itemstring = ", ".join(
             ["{0} {1}".format(x.type, x.get_reference()) for x in value]
         );
@@ -499,6 +502,9 @@ class ArrayType(Aggregate) {
     }
 
     def format_constant(self: ArrayType, value: Any) -> object {
+        if value is None or (isinstance(value, int) and value == 0) {
+            return "zeroinitializer";
+        }
         itemstring = ", ".join(
             ["{0} {1}".format(x.type, x.get_reference()) for x in value]
         );
@@ -542,6 +548,9 @@ class BaseStructType(Aggregate) {
     }
 
     def format_constant(self: BaseStructType, value: Any) -> object {
+        if value is None or (isinstance(value, int) and value == 0) {
+            return "zeroinitializer";
+        }
         itemstring = ", ".join(
             ["{0} {1}".format(x.type, x.get_reference()) for x in value]
         );
