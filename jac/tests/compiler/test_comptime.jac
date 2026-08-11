@@ -138,8 +138,7 @@ test "jac0 bootstrap expander agrees on the same dialect" {
 test "arena derivation self-hosts through the full compiler" {
     import os;
     import jaclang;
-    import from jaclang.jac0core.arena { KIND_CT_FOR, SPECS, SyntaxArena }
-    import from jaclang.jac0core.arena_materialize { decode_spec }
+    import from jaclang.jac0core.arena { Kind, SPECS, SyntaxArena }
     arena_path = os.path.join(
         os.path.dirname(jaclang.__file__), "jac0core", "arena.jac"
     );
@@ -149,6 +148,69 @@ test "arena derivation self-hosts through the full compiler" {
     assert not err , [a.msg for a in prog.errors_had[:2]];
     a = SyntaxArena();
     got = a.mk_ct_for(target=1, iter=2, body=[3], kid=[1, 2, 3]);
-    assert a.kind_of(got) == KIND_CT_FOR;
-    assert decode_spec(SPECS[KIND_CT_FOR])[0] == "CtFor";
+    assert a.kind_of(got) == Kind.CT_FOR;
+    assert SPECS[Kind.CT_FOR][0] == "CtFor";
+}
+
+glob ENUM_CT_SRC: str = """
+glob HUES: list[str] = ["RED", "GREEN"];
+
+enum Hue: int {
+    comptime for N in HUES {
+        ${ct.name(N)} = ${len(N)},
+    }
+}
+
+with entry {
+    x = Hue.RED;
+}
+""";
+
+
+test "comptime for inside an enum body parses clean" {
+    (bad, pdiags, ldiags) = parse_diags(ENUM_CT_SRC, "enum_ct.jac");
+    assert not bad , f"parse errors: {[d.message for d in pdiags]}";
+}
+
+
+test "enum-body comptime expands to plain members" {
+    import from jaclang.jac0core.unitree { Assignment, CtFor, Enum }
+    (mod, err) = parse(ENUM_CT_SRC, "enum_ct.jac");
+    assert not err , "expansion reported errors";
+    leftovers = [
+        nd
+        for nd in mod._in_mod_nodes
+        if isinstance(nd, CtFor)
+    ];
+    assert not leftovers , "ct nodes survived enum expansion";
+    enums = [
+        nd
+        for nd in mod._in_mod_nodes
+        if isinstance(nd, Enum)
+    ];
+    assert len(enums) == 1;
+    member_names = [
+        asgn.target[0].value
+        for asgn in enums[0].body
+        if isinstance(asgn, Assignment)
+    ];
+    assert member_names == ["RED", "GREEN"] , member_names;
+}
+
+
+test "jac0 bootstrap expands enum-body comptime" {
+    import from jaclang.jac0 { ct_expand_source }
+    expanded = ct_expand_source(ENUM_CT_SRC, "enum_ct.jac");
+    assert "RED = 3" in expanded , expanded;
+    assert "GREEN = 5" in expanded , expanded;
+    assert "comptime" not in expanded , expanded;
+}
+
+
+test "the arena kind surface is a generated enum" {
+    import from jaclang.jac0core.arena { Kind, SyntaxArena }
+    a = SyntaxArena();
+    got = a.mk_ct_for(target=1, iter=2, body=[3], kid=[1, 2, 3]);
+    assert a.kind_of(got) == Kind.CT_FOR;
+    assert Kind.MODULE.name == "MODULE";
 }
