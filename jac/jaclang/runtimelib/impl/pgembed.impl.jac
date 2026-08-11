@@ -450,7 +450,9 @@ impl PgRuntime._server_opts -> str {
         f"-p {self.port} {listen} "
         f"-c unix_socket_directories='{self._sock_dir()}' "
         "-c dynamic_shared_memory_type=posix "
-        f"-c max_connections={PG_MAX_CONNECTIONS}"
+        f"-c max_connections={PG_MAX_CONNECTIONS} "
+        "-c max_pred_locks_per_transaction=1024 "
+        "-c idle_in_transaction_session_timeout=300000"
     );
 }
 

@@ -157,6 +157,7 @@ impl Session.postinit -> None {
     self._on_commit = [];
     self._txn_changed = set();
     self._runtime = None;
+    self._active_units = 0;
     if self.store is None and self.base_path {
         url = os.environ.get('JAC_DB_URL', '');
         promos = promotions_for(self.base_path);
@@ -495,6 +496,36 @@ impl Session._ensure_txn -> None {
     with self._lock {
         if self.store is not None and not self.store.in_txn() {
             self.store.begin(serializable=True);
+        }
+    }
+}
+
+
+impl Session.unit_enter -> None {
+    with self._lock {
+        self._active_units += 1;
+    }
+}
+
+
+impl Session.unit_exit -> None {
+    with self._lock {
+        self._active_units = max(0, self._active_units - 1);
+        if self._active_units > 0 {
+            return;
+        }
+        if self.store is None or not self.store.in_txn() {
+            return;
+        }
+        try {
+            self.commit();
+        } except Exception as e {
+            logger.warning(
+                f"unit close commit failed; rolling back: {type(e).__name__}: {e}"
+            );
+            try {
+                self.store.rollback();
+            } except Exception { }
         }
     }
 }

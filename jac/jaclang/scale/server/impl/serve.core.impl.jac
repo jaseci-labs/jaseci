@@ -1,5 +1,15 @@
 import socket;
 
+def _validate_events_url(url: (str | None)) {
+    if url and not str(url).startswith(('postgres://', 'postgresql://')) {
+        raise ValueError(
+            f"Unknown [scale.events].url scheme: {url!r}. The event stream "
+            "rides Postgres; expected a postgresql:// URL (or unset, to fall "
+            "back to [scale.database].url / JAC_DB_URL)."
+        );
+    }
+}
+
 impl _find_available_port(start_port: int, max_retries: int = PORT_RETRY_LIMIT) -> int {
     current_port = start_port;
     for _ in range(max_retries) {
@@ -145,6 +155,7 @@ impl JacAPIServerCore._setup_events -> None {
 
     import from jaclang.scale.persistence.pg { scale_db_url }
     url = cfg.get('url') or scale_db_url();
+    _validate_events_url(url);
 
     if url {
         import from jaclang.scale.events.streams.postgres { PgEventStream }

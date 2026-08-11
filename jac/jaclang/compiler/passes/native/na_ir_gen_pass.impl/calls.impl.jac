@@ -859,6 +859,41 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return self._codegen_intrinsic(nd, _intrinsic_entry);
     }
 
+    import from jaclang.compiler.type_system { types as jtypes }
+    _callee_t = nd.target?.type;
+    if isinstance(_callee_t, jtypes.ClassType)
+        and _callee_t.private.distinct_key is not None {
+        _cast_params = nd.params or [];
+        if len(_cast_params) == 1 {
+            _cast_arg = self._codegen_expr(_cast_params[0]);
+            if _cast_arg is not None {
+                _cast_res = self._dispatch_builtin(
+                    _callee_t.shared.class_name,
+                    [_cast_arg],
+                    kwargs=self._split_call_kwargs(nd),
+                    kw_node=nd,
+                    type_key=(self._type_key_of(_cast_params[0]) or "")
+                );
+                if isinstance(_cast_arg.type, ir.PointerType)
+                    and self._is_owned(_cast_arg) {
+                    self._emit_rc_release_simple(
+                        _cast_arg, op="distinct_cast_arg", loc=""
+                    );
+                }
+                if _cast_res is not None {
+                    return _cast_res;
+                }
+            }
+        }
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="distinct cast",
+            name=func_name or _callee_t.shared.class_name
+        );
+        return None;
+    }
+
     if _call_kind == "builtin" {
         if func_name == "print" {
             return self._emit_print(nd);
@@ -1199,6 +1234,44 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 "ascii"
             ) {
             params_l = nd.params or [];
+            if not params_l
+                and func_name in ("list", "set")
+                and self._empty_ctor_args_of(nd) {
+                _ez_args = self._empty_ctor_args_of(nd);
+                _ez_elem: ir.Type = ir.IntType(8).as_pointer();
+                _ez_spec = "ptr";
+                if _ez_args {
+                    _ez_low = self._elem_storage_llvm(_ez_args[0]);
+                    if _ez_low is not None {
+                        if self._str_desc_ty is not None
+                            and _ez_low == self._str_desc_ty {
+                            _ez_low = ir.IntType(8).as_pointer();
+                        }
+                        _ez_elem = _ez_low;
+                        if isinstance(_ez_low, ir.DoubleType) {
+                            _ez_spec = "f64";
+                        } elif isinstance(_ez_low, ir.PointerType) {
+                            _ez_spec = "ptr";
+                        } else {
+                            _ez_spec = "i64";
+                        }
+                    }
+                }
+                if func_name == "set" {
+                    self._emit_set_helpers(_ez_spec, _ez_elem);
+                    _ez_h = self.set_helpers.get(_ez_spec);
+                } else {
+                    self._emit_list_helpers(_ez_spec, _ez_elem);
+                    _ez_h = self.list_helpers.get(_ez_spec);
+                }
+                if _ez_h is not None {
+                    return self.builder.call(
+                        _ez_h["new"], [], name=f"{func_name}.empty"
+                    );
+                }
+                self._emit_unsupported_builtin_call(nd, func_name);
+                return None;
+            }
             if params_l {
                 arg_val = self._codegen_expr(params_l[0]);
                 if arg_val is not None {
@@ -2209,4 +2282,12 @@ impl NaIRGenPass._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) {
         return self.builder.bitcast(_fut8, _res_ty, name="fut.h.p");
     }
     return _hraw;
+}
+
+impl NaIRGenPass._empty_ctor_args_of(nd: uni.FuncCall) -> list {
+    _t = nd?.type;
+    if _t is None or not _t?.private {
+        return [];
+    }
+    return list(_t.private.type_args or []);
 }

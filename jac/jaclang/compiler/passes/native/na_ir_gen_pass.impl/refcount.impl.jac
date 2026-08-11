@@ -500,7 +500,7 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     );
     is_dtor_len = b.icmp_unsigned(
         "!=",
-        b.and_(dtor_val, ir.Constant(i64, 1), name="dtor.lowbit"),
+        b.and_(dtor_val, ir.Constant(i64, STR_LEN_TAG_BIT), name="dtor.lowbit"),
         ir.Constant(i64, 0),
         name="dtor.is.len"
     );
@@ -550,6 +550,20 @@ impl NaIRGenPass._mark_owned(val: ir.Value) -> ir.Value {
 
 impl NaIRGenPass._is_owned(val: ir.Value) -> bool {
     return bool(getattr(val, 'is_owned', False));
+}
+
+impl NaIRGenPass._opt_result_owned(val: ir.Value, expr: object) -> bool {
+    if self._is_owned(val) {
+        return True;
+    }
+    if self._opt_ptr_payload_of(val.type) is None {
+        return False;
+    }
+    import from jaclang.compiler.passes.main.rc_facts_pass {
+        Ownership,
+        result_ownership
+    }
+    return isinstance(expr, uni.Expr) and result_ownership(expr) == Ownership.OWNED;
 }
 
 impl NaIRGenPass._can_native_move_lower(nd: object) -> bool {
@@ -685,14 +699,14 @@ impl NaIRGenPass._emit_str_len_helpers -> None {
             len_fn.args[0], [ir.Constant(i64, HDR_DTOR_OFF)], name="sl.dt.slot"
         );
         _l_dv = b.load(b.bitcast(_l_dt_slot, i64_ptr, name="sl.dt.p"), name="sl.dv");
-        _l_odd = b.and_(_l_dv, ir.Constant(i64, 1), name="sl.odd");
+        _l_odd = b.and_(_l_dv, ir.Constant(i64, STR_LEN_TAG_BIT), name="sl.odd");
         b.cbranch(
             b.icmp_unsigned("!=", _l_odd, ir.Constant(i64, 0), name="sl.has.len"),
             _l_fast,
             _l_slow
         );
         b = ir.IRBuilder(_l_fast);
-        b.ret(b.lshr(_l_dv, ir.Constant(i64, 1), name="sl.len"));
+        b.ret(b.lshr(_l_dv, ir.Constant(i64, STR_LEN_TAG_SHIFT), name="sl.len"));
         b = ir.IRBuilder(_l_slow);
         b.ret(b.call(strlen_fn, [len_fn.args[0]], name="sl.strlen"));
     }
@@ -729,8 +743,8 @@ impl NaIRGenPass._emit_str_stamp_and_new -> None {
         b.cbranch(_s_mc, _s_store, _s_done);
         b = ir.IRBuilder(_s_store);
         _s_enc = b.or_(
-            b.shl(stamp_fn.args[1], ir.Constant(i64, 1), name="ss.shl"),
-            ir.Constant(i64, 1),
+            b.shl(stamp_fn.args[1], ir.Constant(i64, STR_LEN_TAG_SHIFT), name="ss.shl"),
+            ir.Constant(i64, STR_LEN_TAG_BIT),
             name="ss.enc"
         );
         _s_slot = b.gep(
@@ -948,13 +962,18 @@ impl NaIRGenPass._str_desc_type -> ir.Type {
     i8p = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
     st = self.llvm_module.context.get_identified_type("JacStr");
-    if self._nogc_headerless() {
-        st.set_body(i8p, i64);
-    } else {
-        st.set_body(i8p, i8p, i64);
-    }
+    st.set_body(
+        *[
+            i64 if fname == "len" else i8p
+            for fname in JACSTR_DESC_FIELDS[self._str_desc_kind()]
+        ]
+    );
     self._str_desc_ty = st;
     return st;
+}
+
+impl NaIRGenPass._str_desc_kind -> str {
+    return "jacstr2" if self._nogc_headerless() else "jacstr3";
 }
 
 impl NaIRGenPass._emit_str_desc_helpers -> None {
@@ -973,8 +992,9 @@ impl NaIRGenPass._emit_str_desc_helpers -> None {
     i64 = ir.IntType(64);
     desc = self._str_desc_type();
     _hl = self._nogc_headerless();
-    _di = 0 if _hl else 1;
-    _li = 1 if _hl else 2;
+    _dfields = JACSTR_DESC_FIELDS[self._str_desc_kind()];
+    _di = _dfields.index("data");
+    _li = _dfields.index("len");
     _z = ir.Constant(i32, 0);
     for (fname, len_fn) in (
         ("__jac_str_wrap", self.str_len_fn),
