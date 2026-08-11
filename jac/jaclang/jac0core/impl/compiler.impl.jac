@@ -56,13 +56,13 @@ impl JacCompiler.internal_program.getter -> JacProgram {
     return self._internal_program;
 }
 
-impl JacCompiler._get_jaclang_root(cls: any) -> str {
-    if (cls._jaclang_root is None) {
-        cls._jaclang_root = os.path.realpath(
+impl JacCompiler._get_jaclang_root -> str {
+    if (self._jaclang_root is None) {
+        self._jaclang_root = os.path.realpath(
             os.path.dirname(os.path.dirname(__file__))
         );
     }
-    return cls._jaclang_root;
+    return self._jaclang_root;
 }
 
 impl JacCompiler._resolve_program(

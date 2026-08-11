@@ -41,14 +41,18 @@ impl NaIRGenPass._codegen_bound_args(
     raw = nd.params or [];
     positional: list = [];
     kw_map: dict = {};
+    kw_spreads: list = [];
+    kw_order: list = [];
     _unpack_names: list = [];
     for param in raw {
         if isinstance(param, uni.KWPair) {
             key = param.key.sym_name if param.key is not None else None;
             if key is not None {
                 kw_map[key] = param.value;
+                kw_order.append(("lit", key));
             } else {
-                _unpack_names.append("**");
+                kw_spreads.append(param.value);
+                kw_order.append(("spread", param.value));
             }
         } elif (
             isinstance(param, uni.UnaryExpr)
@@ -56,7 +60,8 @@ impl NaIRGenPass._codegen_bound_args(
             and param.op.name in (Tok.STAR_MUL, Tok.STAR_POW)
         ) {
             if param.op.name == Tok.STAR_POW {
-                _unpack_names.append(param.op.value);
+                kw_spreads.append(param.operand);
+                kw_order.append(("spread", param.operand));
                 continue;
             }
             _tv = self._codegen_expr(param.operand);
@@ -121,6 +126,17 @@ impl NaIRGenPass._codegen_bound_args(
     }
 
     callee_sig = self._callee_sig_of(nd);
+    if kw_spreads and (callee_sig is None or callee_sig.kwargs is None) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="call argument unpacking",
+            name="**",
+            help_text="A `**` spread carries keys known only at runtime, so it can only fill a callee's `**kwargs` sink, never declared named parameters. Give the callee a `**kwargs` parameter, or pass the arguments explicitly."
+        );
+        kw_spreads = [];
+        kw_order = [];
+    }
     args: list = [];
 
     if callee_sig is None {
@@ -362,7 +378,7 @@ impl NaIRGenPass._codegen_bound_args(
         }
         if callee_sig.kwargs is not None {
             _kw_t = func.args[_slot].type if _slot < len(func.args) else None;
-            _dv = self._codegen_kwargs_dict(nd, kw_map, _kw_t);
+            _dv = self._codegen_kwargs_dict(nd, kw_map, _kw_t, kw_order);
             if _dv is not None {
                 args.append(_dv);
             } elif _kw_t is not None {
@@ -528,7 +544,10 @@ impl NaIRGenPass._codegen_varargs_list(
 }
 
 impl NaIRGenPass._codegen_kwargs_dict(
-    nd: uni.FuncCall, leftover: dict, expected: (ir.Type | None)
+    nd: uni.FuncCall,
+    leftover: dict,
+    expected: (ir.Type | None),
+    order: (list | None) = None
 ) -> (ir.Value | None) {
     dict_key: (str | None) = None;
     if expected is not None and isinstance(expected, ir.PointerType) {
@@ -559,26 +578,122 @@ impl NaIRGenPass._codegen_kwargs_dict(
     dv = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_loc, name="kwargs.new"
     );
-    for (kname, vexpr) in leftover.items() {
-        v = self._codegen_expr(vexpr);
-        if v is None {
+    _seen_spread = False;
+    for _entry in (order or []) {
+        (_kind, _payload) = _entry;
+        if _kind == "lit" {
+            kname: str = _payload;
+            if kname not in leftover {
+                continue;
+            }
+            v = self._codegen_expr(leftover[kname]);
+            if v is None {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="expression",
+                    name=f"keyword argument '{kname}'"
+                );
+                continue;
+            }
+            k = self._make_global_string(kname, name_prefix=".kwname");
+            if _seen_spread {
+                self._emit_runtime_raise(
+                    self.builder.call(helpers["contains"], [dv, k], name="kwargs.dup"),
+                    "TypeError",
+                    f"got multiple values for keyword argument '{kname}'"
+                );
+            }
+            _orig = v;
+            v2 = self._coerce_type(v, helpers["val_type"]);
+            self._rc_call_with_ctx(
+                helpers["set"], [dv, k, v2], op="dict_init", loc=_loc
+            );
+            if isinstance(_orig.type, ir.PointerType) and self._is_owned(_orig) {
+                self._emit_rc_release_simple(_orig, op="dict_init", loc=_loc);
+            }
+            continue;
+        }
+        _seen_spread = True;
+        sp_expr = _payload;
+        sv = self._codegen_expr(sp_expr);
+        if sv is None {
             self.emit(
                 E5092,
                 node_override=nd,
-                kind="expression",
-                name=f"keyword argument '{kname}'"
+                kind="call argument unpacking",
+                name="**",
+                help_text="The spread operand did not lower to a value."
             );
             continue;
         }
-        k = self._make_global_string(kname, name_prefix=".kwname");
-        _orig = v;
-        v2 = self._coerce_type(v, helpers["val_type"]);
-        self._rc_call_with_ctx(helpers["set"], [dv, k, v2], op="dict_init", loc=_loc);
-        if isinstance(_orig.type, ir.PointerType) and self._is_owned(_orig) {
-            self._emit_rc_release_simple(_orig, op="dict_init", loc=_loc);
+        if not self._merge_dict_into(dv, sv, helpers, dict_key, _loc) {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="call argument unpacking",
+                name="**",
+                help_text="A `**` spread must be a dict of the same key/value types as the callee's `**kwargs` sink."
+            );
+            continue;
+        }
+        if isinstance(sv.type, ir.PointerType) and self._is_owned(sv) {
+            self._emit_rc_release_simple(sv, op="dict_init", loc=_loc);
         }
     }
     return self._mark_owned(dv);
+}
+
+impl NaIRGenPass._merge_dict_into(
+    dst: ir.Value, src: ir.Value, helpers: dict, dict_key: str, loc: str
+) -> bool {
+    src_t = self.dict_types.get(dict_key);
+    if src_t is None
+        or not isinstance(src.type, ir.PointerType)
+        or src.type != src_t.as_pointer() {
+        return False;
+    }
+    i64 = ir.IntType(64);
+    fn = self.builder.block.function;
+    head_bb = fn.append_basic_block("kwsp.head");
+    body_bb = fn.append_basic_block("kwsp.body");
+    end_bb = fn.append_basic_block("kwsp.end");
+    idx_slot = self._entry_alloca(i64, "kwsp.idx");
+    self.builder.store(ir.Constant(i64, 0), idx_slot);
+    self.builder.branch(head_bb);
+
+    self.builder.position_at_end(head_bb);
+    idx = self.builder.load(idx_slot, name="kwsp.i");
+    n = self.builder.call(helpers["len"], [src], name="kwsp.n");
+    self.builder.cbranch(
+        self.builder.icmp_signed("<", idx, n, name="kwsp.ok"), body_bb, end_bb
+    );
+
+    self.builder.position_at_end(body_bb);
+    k = self.builder.call(helpers["get_key"], [src, idx], name="kwsp.k");
+    v = self.builder.call(helpers["get_val"], [src, idx], name="kwsp.v");
+    self._emit_runtime_raise(
+        self.builder.call(helpers["contains"], [dst, k], name="kwsp.dup"),
+        "TypeError",
+        "got multiple values for a keyword argument"
+    );
+    self._rc_call_with_ctx(
+        helpers["set"],
+        [
+            dst,
+            self._coerce_type(k, helpers["key_type"]),
+            self._coerce_type(v, helpers["val_type"])
+        ],
+        op="dict_init",
+        loc=loc
+    );
+    self.builder.store(
+        self.builder.add(idx, ir.Constant(i64, 1), name="kwsp.i.next"), idx_slot
+    );
+    self.builder.branch(head_bb);
+
+    self.builder.position_at_end(end_bb);
+    return True;
 }
 
 impl NaIRGenPass._codegen_call_args(nd: uni.FuncCall) -> list {
@@ -1811,6 +1926,39 @@ impl NaIRGenPass._emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None) {
     if operand is None {
         return None;
     }
+    if self._opt_payload_of(operand.type) is None {
+        return self._emit_isinstance_core(nd, operand);
+    }
+    fn = self.builder.block.function;
+    some_bb = fn.append_basic_block("isinst.opt.some");
+    done_bb = fn.append_basic_block("isinst.opt.done");
+    opt_tag = self.builder.extract_value(operand, 0, name="isinst.opt.tag");
+    opt_set = self.builder.icmp_signed(
+        "!=", opt_tag, ir.Constant(i8, 0), name="isinst.opt.set"
+    );
+    payload = self.builder.extract_value(operand, 1, name="isinst.opt.val");
+    entry_bb = self.builder.block;
+    self.builder.cbranch(opt_set, some_bb, done_bb);
+    self.builder.position_at_end(some_bb);
+    inner = self._emit_isinstance_core(nd, payload);
+    inner_bb = self.builder.block;
+    self.builder.branch(done_bb);
+    self.builder.position_at_end(done_bb);
+    if inner is None {
+        return None;
+    }
+    res = self.builder.phi(i1, name="isinst.opt.res");
+    res.add_incoming(ir.Constant(i1, 0), entry_bb);
+    res.add_incoming(inner, inner_bb);
+    return res;
+}
+
+impl NaIRGenPass._emit_isinstance_core(
+    nd: uni.FuncCall, operand: ir.Value
+) -> (ir.Value | None) {
+    i1 = ir.IntType(1);
+    i8 = ir.IntType(8);
+    params = nd.params or [];
 
     type_arg = params[1];
     names: list[str] = [];
