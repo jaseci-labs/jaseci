@@ -1,6 +1,11 @@
 import io;
+import importlib;
 import json;
 import logging;
+import shutil;
+import tempfile;
+import from pathlib { Path }
+import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
 import from jaclang.scale.runtime.context.log_emit {
     emit_log_record,
     install_structured_logging,
@@ -10,6 +15,106 @@ import from jaclang.scale.runtime.context.trace_ctx {
     set_current_trace,
     reset_current_trace,
     install_trace_log_filter
+}
+
+
+def _reset_install_state {
+    # install_structured_logging is once-per-process; reset its module state
+    # the same way reset_scale_config resets the config singleton, so each
+    # test exercises a fresh install decision.
+    le = importlib.import_module("jaclang.scale.runtime.context.log_emit");
+    setattr(le, "_structured_installed", False);
+    setattr(le, "_structured_optout", False);
+}
+
+
+def _project_with_toml(toml_content: str) -> str {
+    project_dir = tempfile.mkdtemp(prefix="jac-logcfg-");
+    (Path(project_dir) / "jac.toml").write_text(toml_content);
+    reset_scale_config();
+    get_scale_config(project_dir=Path(project_dir));
+    return project_dir;
+}
+
+
+test "structured_logs=false leaves the host's handlers and level untouched" {
+    project_dir = _project_with_toml(
+        "[project]\n"
+        'name = "host"\n'
+        'entry-point = "main.jac"\n'
+        "\n"
+        "[scale.server]\n"
+        "structured_logs = false\n"
+    );
+    _reset_install_state();
+    log_root = logging.getLogger();
+    saved_handlers = list(log_root.handlers);
+    saved_level = log_root.level;
+    host_buf = io.StringIO();
+    host_handler = logging.StreamHandler(host_buf);
+    try {
+        log_root.addHandler(host_handler);
+        log_root.setLevel(int(logging.DEBUG));
+        install_structured_logging();
+        assert host_handler in log_root.handlers , "the host's handler was wiped by install_structured_logging";
+        assert log_root.level == int(logging.DEBUG) , f"the host's DEBUG level was forced to {log_root.level}";
+    } finally {
+        log_root.handlers = saved_handlers;
+        log_root.setLevel(saved_level);
+        _reset_install_state();
+        reset_scale_config();
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+}
+
+
+test "an explicitly-set root level survives the default install" {
+    project_dir = _project_with_toml(
+        "[project]\n" 'name = "host"\n' 'entry-point = "main.jac"\n'
+    );
+    _reset_install_state();
+    log_root = logging.getLogger();
+    saved_handlers = list(log_root.handlers);
+    saved_level = log_root.level;
+    try {
+        log_root.handlers = [];
+        log_root.setLevel(int(logging.DEBUG));
+        install_structured_logging();
+        assert log_root.level == int(logging.DEBUG) , f"an explicit DEBUG level was forced to {log_root.level}";
+        assert len(log_root.handlers) == 1;
+        assert isinstance(log_root.handlers[0].formatter, _JacJsonFormatter);
+    } finally {
+        log_root.handlers = saved_handlers;
+        log_root.setLevel(saved_level);
+        _reset_install_state();
+        reset_scale_config();
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+}
+
+
+test "default install on an untouched root: one JSON handler at INFO" {
+    project_dir = _project_with_toml(
+        "[project]\n" 'name = "host"\n' 'entry-point = "main.jac"\n'
+    );
+    _reset_install_state();
+    log_root = logging.getLogger();
+    saved_handlers = list(log_root.handlers);
+    saved_level = log_root.level;
+    try {
+        log_root.handlers = [];
+        log_root.setLevel(int(logging.WARNING));
+        install_structured_logging();
+        assert len(log_root.handlers) == 1;
+        assert isinstance(log_root.handlers[0].formatter, _JacJsonFormatter);
+        assert log_root.level == int(logging.INFO) , f"expected the pod default INFO, got {log_root.level}";
+    } finally {
+        log_root.handlers = saved_handlers;
+        log_root.setLevel(saved_level);
+        _reset_install_state();
+        reset_scale_config();
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
 }
 
 
