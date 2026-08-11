@@ -26,6 +26,7 @@ ALLOWED_HOST_ORACLE_IMPORTERS = {
     "layer4_compile.jac",
     "layer5_tokenizer.jac",
     "compiler_slice.jac",
+    "layer8_product_expr.jac",
     "layer0_replay.jac",
     "layer2_unittest.jac",
     "layer3_import.jac",

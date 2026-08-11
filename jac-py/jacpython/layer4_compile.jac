@@ -149,9 +149,12 @@ test "layer4: optimization level is honored by oracle" {
     assert len((co2 as PyCode).co_code) > 0;
 }
 
-test "layer4: product compile_source rejects host fallback" {
+test "layer4: product compile_source produces native PyCode for eval" {
+    # Phase B capstone: the eval path is now fully native (no host fallback).
+    # Byte-exact oracle parity + VM execution live in layer8_product_expr.
     r = compile_source("1+1", "<product>", "eval", 0);
-    assert is_error(r);
+    assert not is_error(r);
+    assert isinstance(r, PyCode);
 }
 
 test "layer4: product path flag starts clear" {

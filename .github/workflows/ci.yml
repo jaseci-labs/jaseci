@@ -40,6 +40,7 @@ jobs:
           filters: |
             core:
               - 'jac/**'
+              - 'jac-py/**'
               - '.github/workflows/ci.yml'
               - '.github/actions/setup-jac/**'
             scale:
@@ -530,6 +531,45 @@ jobs:
           PR_AUTHOR: ${{ github.event.pull_request.user.login }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: bash scripts/check-release-notes.sh
+
+  jac-py-gates:
+    name: jac-py P4 gates
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: P4 import boundary gate
+        run: python3 jac-py/tools/p4_import_gate.py
+
+      - name: P0.4 token model regeneration gate
+        run: python3 jac-py/tools/tokens2jac.py --check
+
+      - name: Set up jac (build the binary)
+        uses: ./.github/actions/setup-jac
+
+      - name: Layer 4 oracle contract tests
+        run: jac test jac-py/jacpython/layer4_compile.jac
+
+      - name: P0.10 compiler slice tests
+        run: jac test jac-py/jacpython/compiler_slice.jac
+
+      - name: P0.4 token model contract tests
+        run: jac test jac-py/jacpython/layer5_token_model.jac
+
+      - name: P0.5 tokenizer slice tests
+        run: jac test jac-py/jacpython/layer5_tokenizer.jac
+
+      - name: P0.6 PEG runtime contract tests
+        run: jac test jac-py/jacpython/layer6_peg_runtime.jac
+
+      - name: grammar2jac check
+        run: python3 jac-py/tools/grammar2jac.py --check
+
+      - name: layer7 parser expr tests
+        run: jac test jac-py/jacpython/layer7_parser_expr.jac
+
+      - name: layer8 product eval slice tests
+        run: jac test jac-py/jacpython/layer8_product_expr.jac
 
   test-solid-and-desktop:
     needs: [changes, build-jac]
@@ -1476,6 +1516,7 @@ jobs:
       - test-runtime
       - jac-check
       - contribution-checks
+      - jac-py-gates
       - test-solid-and-desktop
       - test-client
       - test-packages-and-docs
