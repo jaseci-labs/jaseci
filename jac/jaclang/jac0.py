@@ -2455,6 +2455,598 @@ def _ext_registry() -> ModuleType:
     return _ext_registry_mod
 
 
+
+
+# ---------------------------------------------------------------------------
+# Comptime expansion (bootstrap side).
+#
+# jac0core sources may use `comptime` metaprogramming (comptime-for
+# templates, comptime-if, `comptime { expr }` const-eval, and `${...}`
+# splices). The full compiler expands these over the syntax arena
+# (jac0core/ct_expand.jac); the bootstrap expands the same dialect at the
+# text level before transpiling: module-level helper defs and globs are
+# transpiled and exec'd into a namespace, template regions are repeated
+# with splices evaluated in that namespace, and reflection facts come
+# from parsing the reflected module with this file's own parser. Both
+# expanders must agree; the compiler's self-compile parity gate holds
+# them together.
+# ---------------------------------------------------------------------------
+
+
+class _CtFragment:
+    def __init__(self, kind: str, text: str) -> None:
+        self.kind = kind
+        self.text = text
+
+
+def _ct_pascal_to_snake(name: str) -> str:
+    import re as _re
+
+    return _re.sub("(?<!^)(?=[A-Z])", "_", name).lower()
+
+
+class _CtHelpers:
+    @staticmethod
+    def name(s: str) -> "_CtFragment":
+        return _CtFragment("name", str(s))
+
+    @staticmethod
+    def typ(s: str) -> "_CtFragment":
+        return _CtFragment("type", str(s))
+
+    @staticmethod
+    def expr(s: str) -> "_CtFragment":
+        return _CtFragment("expr", str(s))
+
+    @staticmethod
+    def snake(s: str) -> str:
+        return _ct_pascal_to_snake(str(s))
+
+    @staticmethod
+    def parts(ann: str) -> list:
+        t = str(ann).strip()
+        if t.startswith("(") and t.endswith(")"):
+            t = t[1:-1]
+        out: list = []
+        depth = 0
+        cur = ""
+        for ch in t:
+            if ch in "[(":
+                depth += 1
+            elif ch in "])":
+                depth -= 1
+            if ch == "|" and depth == 0:
+                out.append(cur.strip())
+                cur = ""
+            else:
+                cur += ch
+        out.append(cur.strip())
+        return out
+
+
+class _CtTargetB:
+    def has(self, ctx: object) -> bool:
+        return True
+
+
+class _CtFieldB:
+    def __init__(
+        self,
+        name: str,
+        ann: str,
+        default_src: str,
+        has_default: bool,
+        is_postinit: bool,
+        has_accessors: bool,
+    ) -> None:
+        self.name = name
+        self.ann = ann
+        self.default_src = default_src
+        self.has_default = has_default
+        self.is_postinit = is_postinit
+        self.has_accessors = has_accessors
+
+
+class _CtTypeB:
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.bases: list = []
+        self.fields: list = []
+        self.init_params: list = []
+        self.has_explicit_init = False
+        self.is_enum = False
+        self.members: list = []
+
+
+def _ct_norm(txt: str) -> str:
+    txt = " ".join(str(txt).split())
+    for a, b in (
+        (" [", "["), ("[ ", "["), (" ]", "]"), (" (", "("), ("( ", "("),
+        (" )", ")"), (" .", "."), (". ", "."), (" ,", ","), (", ", ","),
+    ):
+        while a in txt:
+            txt = txt.replace(a, b)
+    return txt
+
+
+class _CtModuleB:
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self.types: dict = {}
+        self.order: list = []
+
+    def type_names(self) -> list:
+        return list(self.order)
+
+    def get(self, name: str) -> object:
+        return self.types.get(name)
+
+    def enum_members(self, name: str) -> list:
+        ti = self.types.get(name)
+        return list(ti.members) if ti is not None else []
+
+    def linearize(self, name: str) -> list:
+        ti = self.types.get(name)
+        if ti is None or not ti.bases:
+            return [name]
+        seqs = [self.linearize(b) for b in ti.bases]
+        seqs.append(list(ti.bases))
+        out = [name]
+        while True:
+            seqs = [s for s in seqs if s]
+            if not seqs:
+                return out
+            cand = ""
+            for s in seqs:
+                head = s[0]
+                if not any(head in s2[1:] for s2 in seqs):
+                    cand = head
+                    break
+            if not cand:
+                raise ValueError(f"jac0 ct: inconsistent MRO for {name}")
+            out.append(cand)
+            for s in seqs:
+                if s and s[0] == cand:
+                    s.pop(0)
+
+    def is_subtype(self, name: str, base: str) -> bool:
+        return base in self.linearize(name)
+
+    def subtypes_of(self, base: str) -> list:
+        out = []
+        for nm in self.order:
+            ti = self.types[nm]
+            if not ti.is_enum and nm != base and self.is_subtype(nm, base):
+                out.append(nm)
+        return out
+
+    def ctor_fields(self, name: str) -> list:
+        mro = self.linearize(name)
+        for cls in mro:
+            ti = self.types.get(cls)
+            if ti is not None and ti.has_explicit_init:
+                return list(ti.init_params)
+        ordered: list = []
+        merged: dict = {}
+        for cls in reversed(mro):
+            ti = self.types.get(cls)
+            if ti is None:
+                continue
+            for f in ti.fields:
+                if f.name not in merged:
+                    ordered.append(f.name)
+                merged[f.name] = f
+        return [
+            merged[n]
+            for n in ordered
+            if not merged[n].is_postinit and not merged[n].has_accessors
+        ]
+
+
+_CT_REFLECT_CACHE: dict = {}
+
+
+class _CtReflectB:
+    def module(self, dotted: str) -> "_CtModuleB":
+        import os
+
+        if dotted in _CT_REFLECT_CACHE:
+            return _CT_REFLECT_CACHE[dotted]
+        if dotted == "jaclang" or dotted.startswith("jaclang."):
+            root = os.path.dirname(os.path.abspath(__file__))
+            rel = dotted[len("jaclang."):].replace(".", os.sep) + ".jac"
+            path = os.path.join(root, rel)
+        else:
+            raise ValueError(f"jac0 ct reflect: unsupported module '{dotted}'")
+        source = open(path, encoding="utf-8").read()
+        lexer = Lexer(source, path)
+        parser = Parser(lexer.tokens, source, path)
+        module = parser.parse()
+        info = _CtModuleB(path)
+        for node in module.body:
+            if isinstance(node, ClassDef):
+                ti = _CtTypeB(node.name)
+                ti.bases = [
+                    b.split("[")[0].strip()
+                    for b in node.bases.split(",")
+                    if b.strip()
+                ]
+                for stmt in node.body:
+                    if isinstance(stmt, HasDecl):
+                        for hv in stmt.vars:
+                            ti.fields.append(
+                                _CtFieldB(
+                                    hv.name,
+                                    _ct_norm(hv.type_ann),
+                                    _ct_norm(hv.default) if hv.default else "",
+                                    bool(hv.default),
+                                    hv.by_postinit,
+                                    bool(hv.accessors),
+                                )
+                            )
+                    elif isinstance(stmt, FuncDef) and stmt.name == "init":
+                        ti.has_explicit_init = True
+                        ti.init_params = [
+                            _CtFieldB(
+                                p.name,
+                                _ct_norm(p.type_ann),
+                                _ct_norm(p.default) if p.default else "",
+                                bool(p.default),
+                                False,
+                                False,
+                            )
+                            for p in stmt.params
+                            if p.name != "self" and not p.is_star and not p.is_dstar
+                        ]
+                info.types[ti.name] = ti
+                info.order.append(ti.name)
+            elif isinstance(node, EnumDef):
+                ti = _CtTypeB(node.name)
+                ti.is_enum = True
+                for item in node.body:
+                    if isinstance(item, str):
+                        text = item
+                    else:
+                        text = getattr(item, "expr", "") or getattr(item, "name", "")
+                    if not isinstance(text, str):
+                        text = str(text)
+                    text = text.strip()
+                    if text and (text[0].isalpha() or text[0] == "_"):
+                        member = text.split("=")[0].strip()
+                        if member.isidentifier():
+                            ti.members.append(member)
+                info.types[ti.name] = ti
+                info.order.append(ti.name)
+        _CT_REFLECT_CACHE[dotted] = info
+        return info
+
+
+def _ct_fail(msg: str) -> None:
+    raise RuntimeError(f"jac0 comptime: {msg}")
+
+
+_CT_EVAL_BUILTINS = {
+    "len": len, "str": str, "int": int, "float": float, "bool": bool,
+    "repr": repr, "sorted": sorted, "range": range, "enumerate": enumerate,
+    "list": list, "dict": dict, "set": set, "tuple": tuple, "min": min,
+    "max": max, "sum": sum, "abs": abs, "any": any, "all": all, "zip": zip,
+    "reversed": reversed, "getattr": getattr, "isinstance": isinstance,
+}
+
+_CT_QUOTES = ('"', "'")
+
+
+def _ct_skip_string(text: str, i: int) -> int:
+    """Return index just past the string literal starting at text[i]."""
+    q = text[i]
+    if text[i:i + 3] in ('"' * 3, "'" * 3):
+        end = text.find(text[i:i + 3], i + 3)
+        return len(text) if end < 0 else end + 3
+    j = i + 1
+    while j < len(text):
+        if text[j] == "\\":
+            j += 2
+            continue
+        if text[j] == q or text[j] == "\n":
+            return j + 1
+        j += 1
+    return j
+
+
+def _ct_scan(text: str, i: int, out: list | None) -> int:
+    """Advance one lexical unit from i, appending raw text to out."""
+    ch = text[i]
+    if ch in _CT_QUOTES:
+        j = _ct_skip_string(text, i)
+        if out is not None:
+            out.append(text[i:j])
+        return j
+    if ch == "#":
+        if text[i:i + 2] == "#*":
+            end = text.find("*#", i + 2)
+            j = len(text) if end < 0 else end + 2
+        else:
+            end = text.find("\n", i)
+            j = len(text) if end < 0 else end
+        if out is not None:
+            out.append(text[i:j])
+        return j
+    if out is not None:
+        out.append(ch)
+    return i + 1
+
+
+def _ct_match_brace(text: str, i: int) -> int:
+    """text[i] == '{'; return index of the matching '}'."""
+    depth = 0
+    while i < len(text):
+        ch = text[i]
+        if ch in _CT_QUOTES or ch == "#":
+            i = _ct_scan(text, i, None)
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    raise RuntimeError("jac0 comptime: unbalanced braces in template")
+
+
+def _ct_find_block_open(text: str, i: int) -> int:
+    """Find the '{' opening a comptime block, from i (relative depth 0)."""
+    depth = 0
+    while i < len(text):
+        ch = text[i]
+        if ch in _CT_QUOTES or ch == "#":
+            i = _ct_scan(text, i, None)
+            continue
+        if ch in "([":
+            depth += 1
+        elif ch in ")]":
+            depth -= 1
+        elif ch == "{" and depth == 0:
+            return i
+        i += 1
+    raise RuntimeError("jac0 comptime: missing '{' after comptime header")
+
+
+def _ct_render(value: object, name_ctx: bool) -> str:
+    if isinstance(value, _CtFragment):
+        return value.text
+    if isinstance(value, str):
+        if name_ctx:
+            return value
+        return repr(value)
+    if isinstance(value, bool) or value is None or isinstance(value, (int, float)):
+        return repr(value)
+    if isinstance(value, (list, tuple, dict)):
+        return repr(value)
+    raise RuntimeError(
+        f"jac0 comptime: value of type {type(value).__name__} cannot lower"
+    )
+
+
+def _ct_eval(expr: str, ns: dict, env: dict) -> object:
+    g = dict(ns)
+    g["__builtins__"] = _CT_EVAL_BUILTINS
+    return eval(expr.strip(), g, dict(env))  # noqa: S307 - trusted repo source
+
+
+def _ct_expand_text(text: str, ns: dict, env: dict) -> str:
+    out: list = []
+    i = 0
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if text.startswith("${", i):
+            close = _ct_match_brace(text, i + 1)
+            val = _ct_eval(text[i + 2:close], ns, env)
+            prev = out[-1][-1] if out and out[-1] else ""
+            nxt = text[close + 1] if close + 1 < n else ""
+            name_ctx = (
+                prev.isalnum() or prev == "_" or nxt.isalnum() or nxt == "_"
+            )
+            out.append(_ct_render(val, name_ctx))
+            i = close + 1
+            continue
+        if ch == "c" and text.startswith("comptime", i) and (
+            i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")
+        ):
+            j = i + len("comptime")
+            while j < n and text[j] in " \t\n":
+                j += 1
+            if text.startswith("def ", j) or text.startswith("can ", j):
+                header_open = _ct_find_block_open(text, j)
+                close = _ct_match_brace(text, header_open)
+                i = close + 1
+                continue
+            if text.startswith("for", j) and not (
+                j + 3 < n and (text[j + 3].isalnum() or text[j + 3] == "_")
+            ):
+                k = j + 3
+                header_open = _ct_find_block_open(text, k)
+                header = text[k:header_open]
+                var, _, iter_expr = header.partition(" in ")
+                var = var.strip()
+                close = _ct_match_brace(text, header_open)
+                body = text[header_open + 1:close]
+                coll = _ct_eval(iter_expr, ns, env)
+                for item in coll:
+                    env2 = dict(env)
+                    env2[var] = item
+                    out.append(_ct_expand_text(body, ns, env2))
+                i = close + 1
+                continue
+            if text.startswith("if", j) and not (
+                j + 2 < n and (text[j + 2].isalnum() or text[j + 2] == "_")
+            ):
+                taken = None
+                found = False
+                k = j + 2
+                while True:
+                    header_open = _ct_find_block_open(text, k)
+                    cond = text[k:header_open]
+                    close = _ct_match_brace(text, header_open)
+                    body = text[header_open + 1:close]
+                    if not found and _ct_eval(cond, ns, env):
+                        taken = body
+                        found = True
+                    i = close + 1
+                    while i < n and text[i] in " \t\n":
+                        i += 1
+                    if text.startswith("elif", i):
+                        k = i + 4
+                        continue
+                    if text.startswith("else", i):
+                        eo = _ct_find_block_open(text, i + 4)
+                        ec = _ct_match_brace(text, eo)
+                        if not found:
+                            taken = text[eo + 1:ec]
+                            found = True
+                        i = ec + 1
+                    break
+                if taken is not None:
+                    out.append(_ct_expand_text(taken, ns, env))
+                continue
+            if j < n and text[j] == "{":
+                close = _ct_match_brace(text, j)
+                val = _ct_eval(text[j + 1:close], ns, env)
+                out.append(_ct_render(val, False))
+                i = close + 1
+                continue
+            out.append(text[i:j])
+            i = j
+            continue
+        i = _ct_scan(text, i, out)
+    return "".join(out)
+
+
+def _ct_extract_helpers(source: str) -> str:
+    """Collect comptime-free top-level def blocks and glob decls."""
+    picked: list = []
+    i = 0
+    n = len(source)
+    while i < n:
+        ch = source[i]
+        if ch in _CT_QUOTES or ch == "#":
+            i = _ct_scan(source, i, None)
+            continue
+        at_line_start = i == 0 or source[i - 1] == "\n"
+        if at_line_start and source.startswith("comptime def ", i):
+            open_i = source.find("{", i)
+            close = _ct_match_brace(source, open_i)
+            block = source[i + len("comptime "):close + 1]
+            if "comptime" not in block and "${" not in block:
+                picked.append(block)
+            i = close + 1
+            continue
+        if at_line_start and source.startswith("def ", i):
+            open_i = source.find("{", i)
+            semi_i = source.find(";", i)
+            if 0 <= semi_i < open_i or open_i < 0:
+                i = (semi_i if semi_i >= 0 else n - 1) + 1
+                continue
+            close = _ct_match_brace(source, open_i)
+            block = source[i:close + 1]
+            if "comptime" not in block and "${" not in block:
+                picked.append(block)
+            i = close + 1
+            continue
+        if at_line_start and source.startswith("glob ", i):
+            end = i
+            depth = 0
+            while end < n:
+                c2 = source[end]
+                if c2 in _CT_QUOTES or c2 == "#":
+                    end = _ct_scan(source, end, None)
+                    continue
+                if c2 in "([{":
+                    depth += 1
+                elif c2 in ")]}":
+                    depth -= 1
+                elif c2 == ";" and depth == 0:
+                    break
+                end += 1
+            block = source[i:end + 1]
+            if "comptime" not in block and "${" not in block:
+                picked.append(block)
+            i = end + 1
+            continue
+        i += 1
+    return "\n\n".join(picked)
+
+
+def _ct_build_namespace(source: str, filename: str) -> dict:
+    helpers_src = _ct_extract_helpers(source)
+    ns: dict = {
+        "ct": _CtHelpers(),
+        "reflect": _CtReflectB(),
+        "target": _CtTargetB(),
+        "fail": _ct_fail,
+    }
+    ns.update(_CT_EVAL_BUILTINS)
+    if helpers_src.strip():
+        py_src = compile_jac(helpers_src, filename + "#ct-helpers")
+        exec(compile(py_src, filename + "#ct-helpers", "exec"), ns)  # noqa: S102
+    return ns
+
+
+def _ct_has_ct(source: str) -> bool:
+    """True if comptime constructs appear outside strings and comments."""
+    if "comptime" not in source and "${" not in source:
+        return False
+    i = 0
+    n = len(source)
+    while i < n:
+        ch = source[i]
+        if ch in _CT_QUOTES or ch == "#":
+            i = _ct_scan(source, i, None)
+            continue
+        if source.startswith("${", i):
+            return True
+        if ch == "c" and source.startswith("comptime", i) and (
+            i == 0 or not (source[i - 1].isalnum() or source[i - 1] == "_")
+        ):
+            after = i + 8
+            if after >= n or not (source[after].isalnum() or source[after] == "_"):
+                return True
+        i += 1
+    return False
+
+
+def ct_reflect_source_deps(source: str) -> list:
+    """Absolute paths of modules this source's comptime code reflects over.
+
+    The bootstrap ct dialect requires reflect.module() arguments to be
+    string literals, so a lexical scan is exact. Cache layers hash these
+    files alongside the source: a derived surface must rebuild when the
+    schema it reflects over changes, not only when its own text does.
+    """
+    import os
+    import re as _re
+
+    if not _ct_has_ct(source):
+        return []
+    deps = []
+    root = os.path.dirname(os.path.abspath(__file__))
+    pat = _re.compile(r"reflect\s*\.\s*module\(\s*[\"']([\w\.]+)[\"']")
+    for dotted in sorted(set(pat.findall(source))):
+        if dotted == "jaclang" or dotted.startswith("jaclang."):
+            rel = dotted[len("jaclang."):].replace(".", os.sep) + ".jac"
+            deps.append(os.path.join(root, rel))
+    return deps
+
+
+def ct_expand_source(source: str, filename: str = "<unknown>") -> str:
+    """Expand comptime constructs in Jac source text (bootstrap path)."""
+    if not _ct_has_ct(source):
+        return source
+    ns = _ct_build_namespace(source, filename)
+    return _ct_expand_text(source, ns, {})
+
+
 def discover_impl_files(jac_path: str) -> list[str]:
     """Discover .impl.jac files for a given .jac file."""
     reg = _ext_registry()
@@ -2492,6 +3084,11 @@ def compile_jac(
     impl_sources: list[tuple[str, str]] | None = None,
 ) -> str:
     """Compile Jac source to Python source."""
+    source = ct_expand_source(source, filename)
+    if impl_sources:
+        impl_sources = [
+            (ct_expand_source(s, f), f) for (s, f) in impl_sources
+        ]
     lexer = Lexer(source, filename)
     parser = Parser(lexer.tokens, source, filename)
     module = parser.parse()

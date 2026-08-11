@@ -1044,7 +1044,7 @@ obj JacCompiler {
     ) -> bool;
 
     static def _prepare_tool_program(
-        source_str: str, file_path: str
+        source_str: str, file_path: str, expand: bool = False
     ) -> tuple[JacProgram, (uni.Module | None)];
 
     static def jac_file_formatter(
