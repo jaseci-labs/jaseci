@@ -212,7 +212,10 @@ def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, l
 
 
 def parse(
-    source: str, file_path: str = "<input>", prog: (JacProgram | None) = None
+    source: str,
+    file_path: str = "<input>",
+    prog: (JacProgram | None) = None,
+    expand: bool = True
 ) -> tuple[Module, bool] {
     _np = _native_parse();
     if _np is not None {
@@ -231,6 +234,14 @@ def parse(
         p_diags = parser.diags;
     }
 
+    ct_errs: list = [];
+    if expand and p_errs == 0 and lex_errs == 0 {
+        import from jaclang.jac0core.ct_expand { arena_has_ct, expand_arena }
+        if arena_has_ct(arena) {
+            ct_errs = expand_arena(arena, file_path);
+        }
+    }
+
     diag_src: Source | None = None;
     if prog is not None and lex_diags {
         diag_src = Source(source, mod_path=file_path);
@@ -241,6 +252,33 @@ def parse(
             diag_src = Source(source, mod_path=file_path);
         }
         _replay_diags(p_diags, Parser, prog, diag_src);
+    }
+    if ct_errs {
+        if diag_src is None {
+            diag_src = Source(source, mod_path=file_path);
+        }
+        for d in ct_errs {
+            dtok = UniToken(
+                orig_src=diag_src,
+                name="ERROR",
+                value="",
+                line=d[0],
+                end_line=max(d[1], d[0]),
+                col_start=d[2],
+                col_end=max(d[3], d[2]),
+                pos_start=0,
+                pos_end=0
+            );
+            alrt = Alert(
+                d[4],
+                CodeLocInfo(dtok, dtok),
+                Parser,
+                code=DIAGNOSTICS.get("E0108")
+            );
+            if prog is not None {
+                prog.errors_had.append(alrt);
+            }
+        }
     }
     module = materialize_module(arena, Source(source, mod_path=file_path));
 
@@ -278,6 +316,6 @@ def parse(
             }
         }
     }
-    had_error = p_errs > 0 or lex_errs > 0;
+    had_error = p_errs > 0 or lex_errs > 0 or len(ct_errs) > 0;
     return (module, had_error);
 }

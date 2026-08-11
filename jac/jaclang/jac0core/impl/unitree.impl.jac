@@ -1582,6 +1582,8 @@ impl Ability.py_resolve_name -> str {
         return self.name_ref.value;
     } elif isinstance(self.name_ref, SpecialVarRef) {
         return self.name_ref.py_resolve_name();
+    } elif isinstance(self.name_ref, (CtName, CtSplice)) {
+        return self.name_ref.value;
     } else {
         raise NotImplementedError;
     }
@@ -1744,6 +1746,7 @@ impl ExprStmt.postinit -> None {
 
 impl CtBlock.postinit -> None {
     UniNode.postinit(self);
+    Expr.postinit(self);
 }
 
 
@@ -1770,12 +1773,42 @@ impl CtFor.postinit -> None {
 
 impl CtSplice.postinit -> None {
     UniNode.postinit(self);
+    Expr.postinit(self);
+}
+
+
+impl CtSplice.value.getter -> str {
+    return "$";
+}
+
+
+impl CtSplice.sym_name.getter -> str {
+    return self.value;
 }
 
 
 impl CtName.postinit -> None {
     self.parts = `list(self.parts);
     UniNode.postinit(self);
+    Expr.postinit(self);
+}
+
+
+impl CtName.value.getter -> str {
+    out = "";
+    for p in self.parts {
+        if isinstance(p, Name) {
+            out += p.value;
+        } else {
+            out += "$";
+        }
+    }
+    return out;
+}
+
+
+impl CtName.sym_name.getter -> str {
+    return self.value;
 }
 
 

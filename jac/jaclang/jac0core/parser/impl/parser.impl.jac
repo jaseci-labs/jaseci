@@ -1925,7 +1925,7 @@ impl Parser.parse_atom -> int {
         return self.parse_ct_block();
     }
     if self.check(TokenKind.DOLLAR_LBRACE) or self.ct_name_follows() {
-        return self.parse_ct_name();
+        return self.parse_ct_name(as_name=False);
     }
     if self.check_any(
         TokenKind.INT,
@@ -7201,7 +7201,7 @@ impl Parser.ct_name_follows -> bool {
     );
 }
 
-impl Parser.parse_ct_name -> int {
+impl Parser.parse_ct_name(as_name: bool = True) -> int {
     parts: list[int] = [];
     kid: list[int] = [];
     splice_count = 0;
@@ -7235,7 +7235,7 @@ impl Parser.parse_ct_name -> int {
         self.emit_diag("Expected interpolated name", "E0033");
         return NIL;
     }
-    if len(parts) == 1 and splice_count == 1 {
+    if len(parts) == 1 and splice_count == 1 and not as_name {
         return parts[0];
     }
     return self.b.mk_ct_name(parts=parts, kid=kid);

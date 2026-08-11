@@ -254,6 +254,37 @@ obj SyntaxArena {
         self.posts.append(v);
     }
 
+    def set_arg_list(i: int, slot: int, ids: list[int]) {
+        p = self.arg_los[i] + (slot * 2);
+        off = len(self.seqs);
+        self.seqs.append(len(ids));
+        for k in ids {
+            self.seqs.append(k);
+        }
+        self.args[p] = TAG_LIST;
+        self.args[p + 1] = off;
+    }
+
+    def replace_kid(i: int, old: int, news: list[int]) {
+        cur = self.kid_ids(i);
+        out: list[int] = [];
+        for k in cur {
+            if k == old {
+                for n in news {
+                    out.append(n);
+                }
+            } else {
+                out.append(k);
+            }
+        }
+        lo = len(self.kids);
+        for k in out {
+            self.kids.append(k);
+        }
+        self.kid_los[i] = lo;
+        self.kid_ns[i] = len(out);
+    }
+
     # >>> generated builder surface (jac gen-unitree) >>>
     def mk_ability(
         body: (int | list[int] | None) = None,

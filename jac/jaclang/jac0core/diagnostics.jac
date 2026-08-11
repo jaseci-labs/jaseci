@@ -160,10 +160,22 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "Unexpected '{token}' -- must follow its parent statement (if/try/match/switch)"
      ),
+     E0033 = _err(
+         "E0033",
+         Category.SYNTAX,
+         "Malformed comptime construct",
+         help="'comptime' introduces 'comptime for NAME in EXPR { ... }', 'comptime if EXPR { ... }', or a 'comptime { EXPR }' const-eval block; '${...}' splices and interpolated names are only meaningful inside comptime templates."
+     ),
      E0034 = _err(
          "E0034",
          Category.SYNTAX,
          "Expected 'with' after 'can' ability name (use 'def' for function-style declarations)"
+     ),
+     E0108 = _err(
+         "E0108",
+         Category.SYNTAX,
+         "Comptime expansion failed -- {details}",
+         help="The compile-time evaluator rejected this construct. Comptime code is a deterministic, fuel-bounded subset of Jac: pure values and control flow, reflect.* facts, and ct.name/ct.typ/ct.expr fragments; no I/O, no runtime APIs, and results must lower to literals."
      ),
      E0040 = _err(
          "E0040",

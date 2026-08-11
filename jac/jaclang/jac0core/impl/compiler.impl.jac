@@ -1294,7 +1294,9 @@ impl JacCompiler._prepare_tool_program(
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.parser { parse as rd_parse }
     prog = JacProgram();
-    (current_mod, had_error) = rd_parse(source_str, file_path, prog=prog);
+    (current_mod, had_error) = rd_parse(
+        source_str, file_path, prog=prog, expand=False
+    );
     if had_error {
         prog.mod = uni.ProgramModule(main_mod=current_mod);
         return (prog, None);

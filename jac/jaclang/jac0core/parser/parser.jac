@@ -377,7 +377,7 @@ obj Parser {
     def parse_ct_body(mode: int, kid: list) -> list;
     def parse_ct_block -> int;
     def parse_ct_splice -> int;
-    def parse_ct_name -> int;
+    def parse_ct_name(as_name: bool = True) -> int;
     def ct_name_follows -> bool;
     def parse_if_stmt -> int;
     def parse_elif_stmt -> int;
