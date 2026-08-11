@@ -1061,6 +1061,16 @@ impl PyastGenPass.exit_type_alias(nd: uni.TypeAlias) -> None {
         }
     }
     value_ast = cast(ast3.expr, self.py_ast_val(nd.value));
+    if nd.is_distinct {
+        assign = self.sync(
+            ast3.Assign(
+                targets=[self.sync(ast3.Name(id=nd.name.sym_name, ctx=ast3.Store()))],
+                value=value_ast
+            )
+        );
+        nd.gen.py_ast = [assign];
+        return;
+    }
     type_alias = self.sync(
         ast3.TypeAlias(
             name=self.sync(ast3.Name(id=nd.name.sym_name, ctx=ast3.Store())),

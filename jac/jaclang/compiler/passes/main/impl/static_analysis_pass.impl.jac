@@ -426,6 +426,39 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
                 }
             }
         }
+        string_specs: list = [];
+        if (nd.from_loc is not None and nd.from_loc.string_path_value is not None) {
+            string_specs.append((nd.from_loc.string_path_value, nd.from_loc));
+        } elif nd.from_loc is None {
+            for item in nd.items {
+                if (
+                    isinstance(item, uni.ModulePath)
+                    and item.string_path_value is not None
+                ) {
+                    string_specs.append((item.string_path_value, item));
+                }
+            }
+        }
+        for (spv, spv_node) in string_specs {
+            if (spv.startswith('.') or nd.is_virtual_jac) {
+                continue;
+            }
+            import os;
+            import from jaclang.jac0core.diagnostics { W1106 }
+            import from jaclang.jac0core.modresolver {
+                is_client_npm_import,
+                is_path_alias_import
+            }
+            mod_path = nd.loc.mod_path or '';
+            sibling_file = os.path.join(os.path.dirname(mod_path), spv);
+            if (
+                not is_client_npm_import(spv, mod_path)
+                and not is_path_alias_import(spv, mod_path)
+                and not os.path.isfile(sibling_file)
+            ) {
+                self.emit(W1106, node_override=spv_node, name=spv);
+            }
+        }
         if not is_client_boundary_import(nd) {
             continue;
         }

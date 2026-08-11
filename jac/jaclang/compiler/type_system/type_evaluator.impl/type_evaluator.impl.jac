@@ -2072,7 +2072,11 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
 
         case uni.TypeAlias():
             if node_.value is not None {
-                return self._resolve_type_alias_rhs(node_.value);
+                resolved = self._resolve_type_alias_rhs(node_.value);
+                if node_.is_distinct {
+                    return self._brand_distinct_alias(node_, resolved);
+                }
+                return resolved;
             }
             return types.UnknownType();
 
@@ -2479,6 +2483,11 @@ impl TypeEvaluator._assign_class(
     }
     src_type = unwrapped_src;
     dest_type = unwrapped_dest;
+
+    dest_brand = dest_type.private.distinct_key;
+    if dest_brand is not None and src_type.private.distinct_key != dest_brand {
+        return False;
+    }
     if src_type.shared.same_class(dest_type.shared) {
         if dest_type.is_literal_type() {
             if not src_type.is_literal_type() {
@@ -4890,6 +4899,28 @@ impl TypeEvaluator._is_type_alias_annotation(
         return tag_expr.value == "TypeAlias";
     }
     return False;
+}
+
+impl TypeEvaluator._brand_distinct_alias(
+    node_: uni.TypeAlias, resolved: TypeBase
+) -> TypeBase {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    if not isinstance(resolved, types.ClassType)
+        or not JAC_TYPE_REGISTRY.is_primitive(resolved.shared.class_name) {
+        return resolved;
+    }
+    key = f"{node_.loc.mod_path}::{node_.name.value}";
+    private = types.ClassType.ClassDetailsPrivate(
+        type_args=(
+            resolved.private.type_args[:] if resolved.private.type_args else None
+        ),
+        alias_name=resolved.private.alias_name,
+        literal_value=resolved.private.literal_value,
+        distinct_key=key
+    );
+    return types.ClassType(
+        _shared=resolved.shared, private=private, flags=resolved.flags
+    );
 }
 
 impl TypeEvaluator._resolve_type_alias_rhs(value: uni.Expr) -> types.TypeBase {

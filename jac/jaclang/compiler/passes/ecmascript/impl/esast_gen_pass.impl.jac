@@ -6076,7 +6076,12 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         } else {
             import_key = '';
         }
-        resolved_path = resolve_relative_path(import_key, nd.loc.mod_path);
+        resolved_path = resolve_relative_path(
+            import_key,
+            nd.loc.mod_path,
+            string_spec=isinstance(first_item, uni.ModulePath)
+                and first_item.string_path_value is not None
+        );
         self.client_manifest.imports[import_key] = resolved_path;
         import_path = import_key;
         if resolved_path.endswith('.jac') and not import_path.startswith('.') {

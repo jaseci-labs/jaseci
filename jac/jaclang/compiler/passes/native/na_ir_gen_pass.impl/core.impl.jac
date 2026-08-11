@@ -962,6 +962,12 @@ impl NaIRGenPass._register_imported_globals(
             }
             var_type: ir.Type = ir.IntType(64);
             if assign.type_tag and assign.type_tag.tag {
+                if (
+                    self._quiet_glob_type(assign.type_tag.tag) is None
+                    and not self._glob_native_use_exists(target)
+                ) {
+                    continue;
+                }
                 var_type = self._resolve_jac_type(assign.type_tag.tag);
             }
             global_var = ir.GlobalVariable(self.llvm_module, var_type, name=var_name);

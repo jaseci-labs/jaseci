@@ -126,8 +126,11 @@ glob FORBIDDEN: dict[str, str] = {
              "classify_call fallback for synthesized constructor calls"
          ),
          ("native/na_ir_gen_pass.impl/core.impl.jac", "type_tag.tag"): (
-             2,
-             "declaration-surface reads at interop layout export"
+             3,
+             "declaration-surface reads at interop layout export, plus the "
+             "quiet lowerability probe on imported globs (the py-side "
+             "carve-out for dual-codespace modules) which reads the same "
+             "declared annotation the adjacent _resolve_jac_type consumes"
          ),
          ("native/na_ir_gen_pass.impl/calls.impl.jac", "type_tag.tag"): (
              1,

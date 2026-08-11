@@ -1213,6 +1213,10 @@ impl ModulePath.resolve_relative_path(target_item: (str | None) = None) -> str {
     if bundled is not None {
         return bundled;
     }
+    spv = self.string_path_value;
+    if spv is not None {
+        return resolve_relative_path(spv, self.loc.mod_path, string_spec=True);
+    }
     target = self.dot_path_str + (f".{target_item}" if target_item else '');
     return resolve_relative_path(target, self.loc.mod_path);
 }
