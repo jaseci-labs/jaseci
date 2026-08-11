@@ -4992,6 +4992,20 @@ test "lambda closure as scaler" {
     assert f(7, -2) == -14 , f"Expected -14, got {f(7, -2)}";
 }
 
+# --- Multi-statement lambda callback parity (P2 cross-target probe) ---
+test "multi-statement lambda map callback (native inline lowering)" {
+    (eng, _) = compile_native("lambda_multi_stmt_callback.jac");
+    f = get_func(eng, "map_multi_stmt_callback", ctypes.c_int64);
+    assert f() == 18 , f"Expected 18 from sum of (x+1)*2 over [1,2,3], got {f()}";
+}
+
+test "multi-statement lambda sort key callback (native inline lowering)" {
+    (eng, _) = compile_native("lambda_multi_stmt_callback.jac");
+    f = get_func(eng, "sort_multi_stmt_key", ctypes.c_int64);
+    # keys: 31->1, 12->2, 23->3 => sorted order [31, 12, 23]
+    assert f() == 3243 , f"Expected 3243 (31*100+12*10+23), got {f()}";
+}
+
 # ─── Symbol Collision Detection ───────────────────────────────────────────────
 # Before the fix, when two imported native modules both exported a symbol with
 # the same name, link_in() would silently merge them and produce a binary that
