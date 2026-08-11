@@ -1,16 +1,3 @@
-"""Comptime reflection: read-only syntactic facts about Jac modules.
-
-Backs the `reflect` namespace available to comptime code. Reflection is
-deliberately syntactic and deterministic: it parses the target module's
-source (no expansion, no imports, no type resolution) and reports
-declarations in source order. Constructor parameter order reproduces the
-runtime dataclass synthesis: C3-linearized bases, base-most first, first
-appearance fixes position, redefinition updates the spec in place;
-postinit (`defer`) fields and accessor-backed fields are not
-constructor parameters (static `has` fields are: the runtime synthesizes
-them as ordinary dataclass fields). Python-side only (never target code).
-"""
-
 import jaclang.jac0core.parser.lexer as ct_lexer;
 
 import from jaclang.jac0core.arena_materialize { materialize_module }
@@ -140,8 +127,16 @@ def _module_path(dotted: str, cur_dir: str) -> str {
 def _clean_src(nd: any) -> str {
     txt = " ".join(nd.unparse().split());
     for pair in (
-        (" [", "["), ("[ ", "["), (" ]", "]"), (" (", "("), ("( ", "("),
-        (" )", ")"), (" .", "."), (". ", "."), (" ,", ","), (", ", ",")
+        (" [", "["),
+        ("[ ", "["),
+        (" ]", "]"),
+        (" (", "("),
+        ("( ", "("),
+        (" )", ")"),
+        (" .", "."),
+        (". ", "."),
+        (" ,", ","),
+        (", ", ",")
     ) {
         while pair[0] in txt {
             txt = txt.replace(pair[0], pair[1]);
@@ -171,9 +166,7 @@ def _field_infos(stmt: ArchHas) -> list[CtFieldInfo] {
                 has_default=has_d,
                 is_postinit=hv.defer,
                 is_static=stmt.is_static,
-                has_accessors=(
-                    hv.accessors is not None and len(list(hv.accessors)) > 0
-                )
+                has_accessors=(hv.accessors is not None and len(list(hv.accessors)) > 0)
             )
         );
     }
@@ -185,7 +178,7 @@ def _init_param_infos(abil: Ability) -> list[CtFieldInfo] {
     out: list[CtFieldInfo] = [];
     sig = abil.signature;
     params = [];
-    if sig is not None and getattr(sig, "params", None) is not None {
+    if sig is not None and sig?.params is not None {
         params = list(sig.params);
     }
     for pv in params {
@@ -269,7 +262,7 @@ def load_module(dotted: str, cur_dir: str = "") -> CtModuleInfo {
 }
 
 
-def _collect_types(info: CtModuleInfo, module: Module) -> None {
+def _collect_types(info: CtModuleInfo, module: Module) {
     for item in module.body {
         if isinstance(item, Archetype) {
             ti = CtTypeInfo(name=item.name.value, bases=_base_names(item));

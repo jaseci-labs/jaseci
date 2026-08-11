@@ -5973,8 +5973,7 @@ impl Parser.parse_func_signature -> int {
             } else {
                 regular_params.append(k);
             }
-        } elif self.b.kind_of(k) == KIND_CT_FOR
-            or self.b.kind_of(k) == KIND_CT_IF {
+        } elif self.b.kind_of(k) == KIND_CT_FOR or self.b.kind_of(k) == KIND_CT_IF {
             if saw_bare_star {
                 kwonly_params.append(k);
             } else {
@@ -7066,9 +7065,7 @@ impl Parser.parse_ct_element(mode: int) -> int {
     if self.check(TokenKind.KW_IF) {
         return self.parse_ct_if(mode, ct_uni);
     }
-    self.emit_diag(
-        "Expected 'for', 'if', or '{' after 'comptime'", "E0033"
-    );
+    self.emit_diag("Expected 'for', 'if', or '{' after 'comptime'", "E0033");
     return NIL;
 }
 
@@ -7214,8 +7211,7 @@ impl Parser.parse_ct_name(as_name: bool = True) -> int {
     splice_count = 0;
     while True {
         if self.check(TokenKind.DOLLAR_LBRACE) {
-            if parts
-                and self.current().loc.pos_start != self.previous().loc.pos_end {
+            if parts and self.current().loc.pos_start != self.previous().loc.pos_end {
                 break;
             }
             sp = self.parse_ct_splice();
@@ -7223,8 +7219,7 @@ impl Parser.parse_ct_name(as_name: bool = True) -> int {
             kid.append(sp);
             splice_count += 1;
         } elif self.check(TokenKind.NAME) {
-            if parts
-                and self.current().loc.pos_start != self.previous().loc.pos_end {
+            if parts and self.current().loc.pos_start != self.previous().loc.pos_end {
                 break;
             }
             if not parts and not self.ct_name_follows() {

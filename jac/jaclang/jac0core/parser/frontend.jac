@@ -270,10 +270,7 @@ def parse(
                 pos_end=0
             );
             alrt = Alert(
-                d[4],
-                CodeLocInfo(dtok, dtok),
-                Parser,
-                code=DIAGNOSTICS.get("E0108")
+                d[4], CodeLocInfo(dtok, dtok), Parser, code=DIAGNOSTICS.get("E0108")
             );
             if prog is not None {
                 prog.errors_had.append(alrt);

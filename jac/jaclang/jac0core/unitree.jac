@@ -731,7 +731,6 @@ obj CtSplice(Expr, AstSymbolStubNode) {
     def accept_exit(v: UniPass) -> None;
 
     has expr: Expr;
-
     has value: str { getter; }
 
     def postinit -> None;
@@ -746,7 +745,6 @@ obj CtName(Expr, AstSymbolStubNode) {
     def accept_exit(v: UniPass) -> None;
 
     has parts: Sequence[UniNode];
-
     has value: str { getter; }
 
     def postinit -> None;

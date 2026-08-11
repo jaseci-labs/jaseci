@@ -1,17 +1,3 @@
-"""Comptime expansion: evaluate ct constructs and lower the arena in place.
-
-EXPAND is a pure arena stage that runs immediately after parse, before
-materialization. It interprets `comptime` constructs -- const-eval blocks,
-static-if, comptime-for templates, splices, and interpolated names -- and
-replaces them with ordinary records, so every downstream consumer (the
-materializer, all passes, all three codegens) sees only expanded, ct-free
-syntax. The interpreter is deterministic and fuel-bounded: no I/O, no
-clock, no randomness, no runtime APIs from any codespace. Values crossing
-out of comptime must lower to literals; syntax crosses only as fragments
-built by `ct.name` / `ct.typ` / `ct.expr` (parsed snippets, never text
-pasted into the output). Python-side only (never target code).
-"""
-
 import jaclang.jac0core.parser.lexer as ct_lexer;
 
 import from jaclang.jac0core.arena {
@@ -129,7 +115,7 @@ obj CtTarget {
 }
 
 
-def _ct_err(msg: str) -> None {
+def _ct_err(msg: str) {
     raise RuntimeError(f"comptime: {msg}");
 }
 
@@ -627,14 +613,14 @@ obj CtEval {
         _ct_err(f"'{cn}' assign target not supported in comptime");
     }
 
-    def _attr_get(obj: any, name: str) -> any {
+    def _attr_get(base: any, name: str) -> any {
         if name.startswith("_") {
             _ct_err(f"access to '{name}' not allowed in comptime");
         }
         try {
-            return getattr(obj, name);
+            return getattr(base, name);
         } except AttributeError {
-            _ct_err(f"'{type(obj).__name__}' has no attribute '{name}'");
+            _ct_err(f"'{type(base).__name__}' has no attribute '{name}'");
         }
     }
 
@@ -810,9 +796,7 @@ obj CtEval {
             if aug != NIL {
                 op = self.tok_value(aug);
                 cur = self.eval(targets[0]);
-                self._assign_target(
-                    targets[0], self._binop(op.rstrip("="), cur, val)
-                );
+                self._assign_target(targets[0], self._binop(op.rstrip("="), cur, val));
                 return 0;
             }
             for t in targets {
@@ -1145,12 +1129,8 @@ obj CtExpander {
             }
             return self._tok("NAME", "NAME", f.text, loc);
         }
-        (tokens, _c, _ld, lex_errs) = ct_lexer.tokenize_full(
-            f.text, "<comptime>"
-        );
-        parser = Parser(
-            tokens=tokens, file_path="<comptime>", source_code=f.text
-        );
+        (tokens, _c, _ld, lex_errs) = ct_lexer.tokenize_full(f.text, "<comptime>");
+        parser = Parser(tokens=tokens, file_path="<comptime>", source_code=f.text);
         parser._tokens_len = len(tokens);
         frag_root = parser.parse_expression();
         if parser.error_count > 0 or lex_errs > 0 {
@@ -1360,8 +1340,7 @@ obj CtExpander {
                 ids = a.seq_ids(val);
                 found_ct = False;
                 for x in ids {
-                    if a.kinds[x] in CT_STRUCT_KINDS
-                        or a.kinds[x] in CT_EXPR_KINDS {
+                    if a.kinds[x] in CT_STRUCT_KINDS or a.kinds[x] in CT_EXPR_KINDS {
                         found_ct = True;
                         break;
                     }
@@ -1440,9 +1419,9 @@ obj CtExpander {
         return self.expand_items(ev.list_arg(eb, "body"), eb);
     }
 
-    def collect_module(root: int) {
+    def collect_module(mod_id: int) {
         ev = self.ev;
-        for item in ev.list_arg(root, "body") {
+        for item in ev.list_arg(mod_id, "body") {
             cn = ev.cls_name(item);
             if cn == "Ability" {
                 nref = ev.node_arg(item, "name_ref");
@@ -1514,9 +1493,7 @@ def expand_arena(
         file_path=file_path,
         cur_dir=os.path.dirname(file_path),
         fuel=fuel,
-        targets=(
-            targets if targets is not None else ["server", "client", "native"]
-        )
+        targets=(targets if targets is not None else ["server", "client", "native"])
     );
     ev.push_frame();
     ex = CtExpander(ev=ev);
