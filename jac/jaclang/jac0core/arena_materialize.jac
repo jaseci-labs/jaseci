@@ -4,7 +4,32 @@ import from jaclang.jac0core.arena { SyntaxArena, Tag }
 import from jaclang.jac0core.arena { SPECS }
 import from jaclang.jac0core.unitree { Module, Source, UniNode }
 
-glob _CLS_CACHE: dict[int, tuple] = {};
+glob _CLS_CACHE: dict[int, tuple] = {},
+     _DECODE_CACHE: dict[int, tuple] = {};
+
+
+def decode_spec(enc: str) -> tuple {
+    fields: list[str] = enc.split("|");
+    params: list = [];
+    if fields[3] {
+        parts: list[str] = fields[3].split(";");
+        for part in parts {
+            bits: list[str] = part.split(",");
+            params.append((bits[0], bits[1], bits[2], bits[3] == "1", ));
+        }
+    }
+    return (fields[0], tuple(params), fields[1] == "1", fields[2] == "1", );
+}
+
+
+def spec_of(kind: int) -> tuple {
+    got = _DECODE_CACHE.get(kind);
+    if got is None {
+        got = decode_spec(SPECS[kind]);
+        _DECODE_CACHE[kind] = got;
+    }
+    return got;
+}
 
 
 def _resolved_spec(kind: int) -> tuple {
@@ -12,11 +37,16 @@ def _resolved_spec(kind: int) -> tuple {
     if got is not None {
         return got;
     }
-    (cls_name, params, token_family, has_kid) = SPECS[kind];
+    spec: tuple = spec_of(kind);
+    cls_name: str = spec[0];
+    params: tuple = spec[1];
+    token_family: bool = spec[2];
+    has_kid: bool = spec[3];
     cls = getattr(ut_mod, cls_name);
     enums: list = [];
     for p in params {
-        ename = p[2];
+        pt: tuple = p;
+        ename: str = pt[2];
         if ename {
             enums.append(getattr(const_mod, ename, None) or getattr(ut_mod, ename));
         } else {
@@ -88,7 +118,9 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
     objs: dict[int, any] = {};
     stack: list = [(a.root_id, False)];
     while stack {
-        (i, expanded) = stack.pop();
+        entry: tuple = stack.pop();
+        i: int = entry[0];
+        expanded: bool = entry[1];
         if i in objs {
             continue;
         }
@@ -101,12 +133,22 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
             }
             continue;
         }
-        (cls, params, enums, token_family, has_kid) = _resolved_spec(a.kinds[i]);
+        rspec: tuple = _resolved_spec(a.kinds[i]);
+        cls: any = rspec[0];
+        params: tuple = rspec[1];
+        enums: tuple = rspec[2];
+        has_kid: bool = rspec[4];
         kwargs: dict[str, any] = {};
         p = a.arg_los[i];
         slot = 0;
-        for (pspec, ecls) in zip(params, enums) {
-            (pname, cat, _ename, has_default) = pspec;
+        pi = 0;
+        while pi < len(params) {
+            pspec: tuple = params[pi];
+            ecls: any = enums[pi];
+            pi += 1;
+            pname: str = pspec[0];
+            cat: str = pspec[1];
+            has_default: bool = pspec[3];
             if cat == "SOURCE" {
                 kwargs[pname] = source;
                 continue;
@@ -140,8 +182,14 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
         if kid_ids and not has_kid {
             made.set_kids([objs[k] for k in kid_ids]);
         }
-        for entry in posts_by_id.get(i, []) {
-            (key, pv) = entry;
+        plist: list = posts_by_id.get(i, []);
+        for entry in plist {
+            et: tuple = entry;
+            key: str = et[0];
+            pv: int = et[1];
+            if key == "ct_only" {
+                continue;
+            }
             setattr(made, key, _decode_post(key, pv));
         }
         objs[i] = made;

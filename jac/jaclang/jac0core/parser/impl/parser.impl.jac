@@ -7065,6 +7065,14 @@ impl Parser.parse_ct_element(mode: int) -> int {
     if self.check(TokenKind.KW_IF) {
         return self.parse_ct_if(mode, ct_uni);
     }
+    if self.check_any(TokenKind.KW_DEF, TokenKind.KW_CAN) {
+        abil = self.parse_ability();
+        if abil != NIL {
+            self.b.post_set(abil, "ct_only", 1);
+            self.b.prepend_kids(abil, [ct_uni]);
+        }
+        return abil;
+    }
     self.emit_diag("Expected 'for', 'if', or '{' after 'comptime'", "E0033");
     return NIL;
 }

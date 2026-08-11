@@ -116,9 +116,9 @@ def _module_path(dotted: str, cur_dir: str) -> str {
     import os;
     if dotted.startswith("jaclang.") or dotted == "jaclang" {
         import jaclang;
-        root = os.path.dirname(jaclang.__file__);
+        pkg_root = os.path.dirname(jaclang.__file__);
         rel = dotted[len("jaclang."):].replace(".", os.sep) + ".jac";
-        return os.path.join(root, rel);
+        return os.path.join(pkg_root, rel);
     }
     return os.path.join(cur_dir, dotted.replace(".", os.sep) + ".jac");
 }
@@ -177,10 +177,7 @@ def _field_infos(stmt: ArchHas) -> list[CtFieldInfo] {
 def _init_param_infos(abil: Ability) -> list[CtFieldInfo] {
     out: list[CtFieldInfo] = [];
     sig = abil.signature;
-    params = [];
-    if sig is not None and sig?.params is not None {
-        params = list(sig.params);
-    }
+    params: list = list(sig?.params or []);
     for pv in params {
         if not isinstance(pv, ParamVar) {
             continue;

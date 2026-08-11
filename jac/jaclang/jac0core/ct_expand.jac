@@ -1,3 +1,4 @@
+import operator as pyop;
 import jaclang.jac0core.parser.lexer as ct_lexer;
 
 import from jaclang.jac0core.arena { NIL, SyntaxArena, Tag }
@@ -10,6 +11,7 @@ import from jaclang.jac0core.arena {
     KIND_CT_SPLICE,
     SPECS
 }
+import from jaclang.jac0core.arena_materialize { spec_of as decode_spec_of }
 import from jaclang.jac0core.constant { CodeContext }
 import from jaclang.jac0core.helpers { pascal_to_snake }
 import from jaclang.jac0core.parser.parser { Parser }
@@ -170,8 +172,16 @@ obj CtEval {
         }
     }
 
+    def spec_of(i: int) -> (tuple | None) {
+        kind = self.a.kinds[i];
+        if kind not in SPECS {
+            return None;
+        }
+        return decode_spec_of(kind);
+    }
+
     def cls_name(i: int) -> str {
-        spec = SPECS.get(self.a.kinds[i]);
+        spec = self.spec_of(i);
         if spec is None {
             _ct_err(f"unknown arena kind {self.a.kinds[i]}");
         }
@@ -179,13 +189,15 @@ obj CtEval {
     }
 
     def slot_of(i: int, pname: str) -> int {
-        spec = SPECS[self.a.kinds[i]];
+        spec = decode_spec_of(self.a.kinds[i]);
         slot = 0;
-        for p in spec[1] {
-            if p[1] == "SOURCE" {
+        plist: tuple = spec[1];
+        for p in plist {
+            pt: tuple = p;
+            if pt[1] == "SOURCE" {
                 continue;
             }
-            if p[0] == pname {
+            if pt[0] == pname {
                 return slot;
             }
             slot += 1;
@@ -239,7 +251,7 @@ obj CtEval {
         if i == NIL or i >= len(self.a.kinds) {
             return (0, 0, 0, 0);
         }
-        spec = SPECS.get(self.a.kinds[i]);
+        spec = self.spec_of(i);
         if spec is not None and spec[2] {
             s_line = self.slot_of(i, "line");
             s_el = self.slot_of(i, "end_line");
@@ -861,6 +873,7 @@ obj CtEval {
             return 0;
         }
         _ct_err(f"'{cn}' statement not supported in comptime");
+        return 0;
     }
 
     def _binop(op: str, l: any, r: any) -> any {
@@ -902,22 +915,22 @@ obj CtEval {
             return l != r;
         }
         if op == "<" {
-            return l < r;
+            return pyop.lt(l, r);
         }
         if op == "<=" {
-            return l <= r;
+            return pyop.le(l, r);
         }
         if op == ">" {
-            return l > r;
+            return pyop.gt(l, r);
         }
         if op == ">=" {
-            return l >= r;
+            return pyop.ge(l, r);
         }
         if op == "in" {
-            return l in r;
+            return pyop.contains(r, l);
         }
         if op == "not in" {
-            return l not in r;
+            return not pyop.contains(r, l);
         }
         if op == "is" {
             return l is r;
@@ -926,12 +939,14 @@ obj CtEval {
             return l is not r;
         }
         _ct_err(f"comparison '{op}' not supported in comptime");
+        return False;
     }
 }
 
 obj CtExpander {
     has ev: CtEval,
-        subst: dict[int, list[int]] = {};
+        subst: dict[int, list[int]] = {},
+        ct_only: dict[int, int] = {};
 
     def a -> SyntaxArena {
         return self.ev.a;
@@ -1035,6 +1050,7 @@ obj CtExpander {
             );
         }
         _ct_err(f"internal: unknown token builder {mk_name}");
+        return NIL;
     }
 
     def value_to_records(v: any, loc: tuple) -> int {
@@ -1094,6 +1110,7 @@ obj CtExpander {
         _ct_err(
             f"comptime value of type '{type(v).__name__}' cannot lower to a literal"
         );
+        return NIL;
     }
 
     def _minus_tok(loc: tuple) -> int {
@@ -1302,13 +1319,15 @@ obj CtExpander {
         }
         self.ev.burn();
         a = self.a();
-        spec = SPECS.get(a.kinds[i]);
+        spec = self.ev.spec_of(i);
         if spec is None {
             return;
         }
         slot = 0;
-        for p in spec[1] {
-            if p[1] == "SOURCE" {
+        plist: tuple = spec[1];
+        for p in plist {
+            pt: tuple = p;
+            if pt[1] == "SOURCE" {
                 continue;
             }
             (tag, val) = a.arg_at(i, slot);
@@ -1409,6 +1428,45 @@ obj CtExpander {
         return self.expand_items(ev.list_arg(eb, "body"), eb);
     }
 
+    def collect_ct_only {
+        a = self.a();
+        j = 0;
+        n = len(a.posts);
+        while j + 2 < n {
+            if a.strtab[a.posts[j + 1]] == "ct_only" {
+                self.ct_only[a.posts[j]] = 1;
+            }
+            j += 3;
+        }
+    }
+
+    def strip_ct_only(mod_id: int) {
+        if not self.ct_only {
+            return;
+        }
+        a = self.a();
+        ev = self.ev;
+        slot = ev.slot_of(mod_id, "body");
+        if slot < 0 {
+            return;
+        }
+        body = ev.list_arg(mod_id, "body");
+        kept: list[int] = [];
+        for b in body {
+            if b not in self.ct_only {
+                kept.append(b);
+            }
+        }
+        if len(kept) != len(body) {
+            a.set_arg_list(mod_id, slot, kept);
+            for b in body {
+                if b in self.ct_only {
+                    a.replace_kid(mod_id, b, []);
+                }
+            }
+        }
+    }
+
     def collect_module(mod_id: int) {
         ev = self.ev;
         for item in ev.list_arg(mod_id, "body") {
@@ -1488,9 +1546,11 @@ def expand_arena(
     ev.push_frame();
     ex = CtExpander(ev=ev);
     try {
+        ex.collect_ct_only();
         ex.collect_module(a.root_id);
         ex.expand_node(a.root_id);
         ex.sweep_kids();
+        ex.strip_ct_only(a.root_id);
     } except Exception as e {
         at = ev.loc_stack[-1] if ev.loc_stack else a.root_id;
         loc = ev.loc_of(at);

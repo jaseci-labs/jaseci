@@ -296,16 +296,16 @@ obj SyntaxArena {
 # materializer SPECS. Deterministic by construction; drift is impossible
 # because there is no second artifact to drift.
 
-def _ct_mod -> any {
+comptime def _ct_mod -> any {
     return reflect.module("jaclang.jac0core.unitree");
 }
 
-def _ct_first_enum(name: str) -> str {
+comptime def _ct_first_enum(name: str) -> str {
     mems = reflect.module("jaclang.jac0core.constant").enum_members(name);
     return mems[0];
 }
 
-def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
+comptime def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
     out: dict = {"cat": "", "optional": False, "enum": ""};
     if pname == "kid" {
         out["cat"] = "KID";
@@ -396,7 +396,7 @@ def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
     return out;
 }
 
-def _ct_bparam(
+comptime def _ct_bparam(
     pname: str, cat: str, ename: str, opt: bool, hd: bool, dsrc: str
 ) -> dict {
     ptype = "NodeId";
@@ -437,7 +437,7 @@ def _ct_bparam(
     };
 }
 
-def _ct_schema -> list[dict] {
+comptime def _ct_schema -> list[dict] {
     mod = _ct_mod();
     class_names = mod.type_names();
     excluded = ["Source", "CommentToken", "ProgramModule", "PythonModuleAst"];
@@ -503,20 +503,31 @@ def _ct_schema -> list[dict] {
     return out;
 }
 
-def _ct_specs_table -> dict {
+comptime def _ct_specs_table -> dict {
     out: dict = {};
     for K in _ct_schema() {
-        plist: list = [];
-        sparams: list = K["sparams"];
+        nm: str = K["name"];
+        enc: str = nm;
+        enc += "|1|" if K["tokfam"] else "|0|";
+        enc += "1" if K["has_kid"] else "0";
+        ptxt: str = "";
+        sparams: list[dict] = K["sparams"];
         for p in sparams {
-            plist.append(tuple([p["pname"], p["cat"], p["enum"], p["hd"]]));
+            if ptxt {
+                ptxt += ";";
+            }
+            pname: str = p["pname"];
+            cat: str = p["cat"];
+            en: str = p["enum"];
+            hd: str = "1" if p["hd"] else "0";
+            ptxt += pname + "," + cat + "," + en + "," + hd;
         }
-        out[K["kind"]] = tuple([K["name"], tuple(plist), K["tokfam"], K["has_kid"]]);
+        out[K["kind"]] = enc + "|" + ptxt;
     }
     return out;
 }
 
-def _ct_slot_table(fld: str) -> dict {
+comptime def _ct_slot_table(fld: str) -> dict {
     out: dict = {};
     for K in _ct_schema() {
         slot = 0;
@@ -535,7 +546,7 @@ def _ct_slot_table(fld: str) -> dict {
     return out;
 }
 
-def _ct_family_rows -> list[dict] {
+comptime def _ct_family_rows -> list[dict] {
     mod = _ct_mod();
     fams = [
         "Token",
@@ -579,5 +590,5 @@ comptime for F in _ct_family_rows() {
     glob ${ct.name("KS_" + F["uname"])}: list[int] = ${F["members"]};
 }
 
-glob SPECS: dict[int, tuple] = comptime { _ct_specs_table() };
+glob SPECS: dict[int, str] = comptime { _ct_specs_table() };
 # <<< comptime derivation of the arena schema <<<

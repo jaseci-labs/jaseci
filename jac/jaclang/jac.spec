@@ -504,7 +504,7 @@ visit_stmt ::= "visit" (":" expression ":")? expression (else_stmt | ";")?
 
 report_stmt ::= "report" expression ";"
 
-ct_element ::= "comptime" (ct_for | ct_if)
+ct_element ::= "comptime" (ct_for | ct_if | ability)
 
 ct_for ::= "for" (NAME | KWESC_NAME) "in" expression "{" ct_body "}"
 

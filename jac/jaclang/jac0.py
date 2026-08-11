@@ -2857,6 +2857,11 @@ def _ct_expand_text(text: str, ns: dict, env: dict) -> str:
             j = i + len("comptime")
             while j < n and text[j] in " \t\n":
                 j += 1
+            if text.startswith("def ", j) or text.startswith("can ", j):
+                header_open = _ct_find_block_open(text, j)
+                close = _ct_match_brace(text, header_open)
+                i = close + 1
+                continue
             if text.startswith("for", j) and not (
                 j + 3 < n and (text[j + 3].isalnum() or text[j + 3] == "_")
             ):
@@ -2929,6 +2934,14 @@ def _ct_extract_helpers(source: str) -> str:
             i = _ct_scan(source, i, None)
             continue
         at_line_start = i == 0 or source[i - 1] == "\n"
+        if at_line_start and source.startswith("comptime def ", i):
+            open_i = source.find("{", i)
+            close = _ct_match_brace(source, open_i)
+            block = source[i + len("comptime "):close + 1]
+            if "comptime" not in block and "${" not in block:
+                picked.append(block)
+            i = close + 1
+            continue
         if at_line_start and source.startswith("def ", i):
             open_i = source.find("{", i)
             semi_i = source.find(";", i)

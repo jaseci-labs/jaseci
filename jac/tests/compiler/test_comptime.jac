@@ -125,6 +125,7 @@ test "arena derivation self-hosts through the full compiler" {
     import os;
     import jaclang;
     import from jaclang.jac0core.arena { KIND_CT_FOR, SPECS, SyntaxArena }
+    import from jaclang.jac0core.arena_materialize { decode_spec }
     arena_path = os.path.join(
         os.path.dirname(jaclang.__file__), "jac0core", "arena.jac"
     );
@@ -135,5 +136,5 @@ test "arena derivation self-hosts through the full compiler" {
     a = SyntaxArena();
     got = a.mk_ct_for(target=1, iter=2, body=[3], kid=[1, 2, 3]);
     assert a.kind_of(got) == KIND_CT_FOR;
-    assert SPECS[KIND_CT_FOR][0] == "CtFor";
+    assert decode_spec(SPECS[KIND_CT_FOR])[0] == "CtFor";
 }
