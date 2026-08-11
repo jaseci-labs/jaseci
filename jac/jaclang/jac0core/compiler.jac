@@ -24,6 +24,7 @@ import from jaclang.jac0core.jir {
     mtir_for_compiled_module,
     mtir_module_key,
     store_module_mtir,
+    filter_module_mtir,
     cache_mode,
     read_bytecode_only,
     read_sections,

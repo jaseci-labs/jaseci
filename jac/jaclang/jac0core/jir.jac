@@ -216,6 +216,23 @@ def store_module_mtir(prog: any, source_path: str, module_mtir: dict[(str, Info)
     prog.mtir_by_module[key] = module_mtir;
 }
 
+def filter_module_mtir(
+    source_path: str, module_mtir: dict[(str, Info)]
+) -> dict[(str, Info)] {
+    if not isinstance(module_mtir, dict) {
+        return {};
+    }
+    stem = mtir_module_stem(source_path);
+    prefix = stem + ".";
+    out: dict[(str, Info)] = {};
+    for (scope, info) in module_mtir.items() {
+        if scope == stem or scope.startswith(prefix) {
+            out[scope] = info;
+        }
+    }
+    return out;
+}
+
 def find_sections(data: (bytes | memoryview)) -> dict[int, bytes] {
     magic: any = SECTIONS_MAGIC;
     pos = data.find(magic, HEADER_SIZE);

@@ -522,6 +522,75 @@ test "invalidate module clears stale mtir" {
     }
 }
 
+test "filter_module_mtir keeps only the target module's scopes" {
+    import from jaclang.jac0core.jir { filter_module_mtir }
+
+    # Pre-deduplication JIR caches stored the whole program-wide MTIR map in
+    # every module's SEC_MTIR (FORMAT_VERSION stayed at 18, so those legacy
+    # blobs still pass the validity checks). The restore path must trim such a
+    # blob down to the scopes rooted at the target module's stem.
+    marker = FunctionInfo(name="f", semstr="s");
+    legacy: dict = {
+        "own.gen_a": marker,
+        "own.Inner.helper": marker,
+        "other.gen_b": marker,
+        "third.thing": marker,
+
+    };
+    kept = filter_module_mtir("/tmp/dir/own.jac", legacy);
+    assert "own.gen_a" in kept , "keep module-level scope";
+    assert "own.Inner.helper" in kept , "keep nested scope under stem";
+    assert "other.gen_b" not in kept , "drop foreign module scope";
+    assert "third.thing" not in kept , "drop other foreign scope";
+    assert len(kept) == 2 , f"expected 2 kept scopes, got {len(kept)}";
+}
+
+test "invalidate_module clears mirrored mtir across program pair" {
+    import from jaclang.jac0core.jir { mtir_module_key }
+
+    # The restore path mirrors a module's MTIR slice into both the runtime and
+    # internal programs; invalidating one must not leave a stale copy in the
+    # other.
+    assert JacRuntime.program is not None;
+    prog = JacRuntime.program;
+    compiler = prog._get_compiler();
+    internal = compiler.internal_program;
+    assert internal is not prog , "internal program is a distinct object";
+
+    path = os.path.realpath("/tmp/coord_probe/paired.jac");
+    mod_key = mtir_module_key(path);
+    marker = FunctionInfo(name="f", semstr="s");
+    try {
+        prog.mtir_by_module[mod_key] = {"paired.run": marker};
+        internal.mtir_by_module[mod_key] = {"paired.run": marker};
+        assert mod_key in prog.mtir_by_module , "seeded runtime copy";
+        assert mod_key in internal.mtir_by_module , "seeded internal copy";
+
+        prog.invalidate_module(path);
+        assert mod_key not in prog.mtir_by_module , "runtime slice cleared";
+        assert mod_key not in internal.mtir_by_module , (
+            "mirrored internal slice must not survive invalidation"
+        );
+
+        # Reverse direction: invalidating the internal program must also clear
+        # the mirrored runtime copy.
+        prog.mtir_by_module[mod_key] = {"paired.run": marker};
+        internal.mtir_by_module[mod_key] = {"paired.run": marker};
+        internal.invalidate_module(path);
+        assert mod_key not in internal.mtir_by_module , ("internal slice cleared");
+        assert mod_key not in prog.mtir_by_module , (
+            "mirrored runtime slice must not survive invalidation"
+        );
+    } finally {
+        if mod_key in prog.mtir_by_module {
+            del (prog.mtir_by_module[mod_key], );
+        }
+        if mod_key in internal.mtir_by_module {
+            del (internal.mtir_by_module[mod_key], );
+        }
+    }
+}
+
 # =============================================================================
 # Fixture Compilation Test
 # =============================================================================

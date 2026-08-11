@@ -143,6 +143,7 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
     if mod_key in self.mtir_by_module {
         del (self.mtir_by_module[mod_key], );
     }
+    self._forget_paired_mtir(mod_key);
 
     te = self.type_evaluator;
     if te is not None {
@@ -155,6 +156,30 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
 
     for bucket in self._dependents.values() {
         bucket.discard(resolved_path);
+    }
+}
+
+impl JacProgram._forget_paired_mtir(self: JacProgram, mod_key: str) -> None {
+    compiler = self._compiler;
+    if compiler is None {
+        return;
+    }
+    internal = compiler._internal_program;
+    if internal is not None and internal is not self {
+        if mod_key in internal.mtir_by_module {
+            del (internal.mtir_by_module[mod_key], );
+        }
+    }
+    try {
+        import from jaclang.jac0core.runtime { JacRuntime }
+        rt = JacRuntime.program;
+        if rt is not None and rt is not self and rt._compiler is compiler {
+            if mod_key in rt.mtir_by_module {
+                del (rt.mtir_by_module[mod_key], );
+            }
+        }
+    } except Exception {
+        ;
     }
 }
 

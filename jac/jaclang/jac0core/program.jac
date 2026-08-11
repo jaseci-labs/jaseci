@@ -47,6 +47,7 @@ class JacProgram {
     def record_module_dependencies(self: JacProgram, mod: uni.Module) -> None;
     def transitive_dependents(self: JacProgram, target_path: str) -> set[str];
     def invalidate_module(self: JacProgram, resolved_path: str) -> None;
+    def _forget_paired_mtir(self: JacProgram, mod_key: str) -> None;
     def load_dependency_module(
         self: JacProgram,
         source_path: str,
