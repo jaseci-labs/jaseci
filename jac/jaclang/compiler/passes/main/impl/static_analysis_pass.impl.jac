@@ -194,8 +194,8 @@ impl StaticAnalysisPass._literal_case_suggestion(name: str) -> (str | None) {
 
 
 impl StaticAnalysisPass._osp_shape_position(name_nd: uni.Name) -> (str | None) {
-    cur = name_nd;
-    parent = cur.parent;
+    cur: uni.UniNode = name_nd;
+    parent: (uni.UniNode | None) = cur.parent;
 
     for _ in range(8) {
         if parent is None {
@@ -254,21 +254,16 @@ impl StaticAnalysisPass._native_type_position(name_nd: uni.Name) -> (str | None)
 }
 
 impl StaticAnalysisPass._check_unreachable_code(mod: uni.Module) -> None {
-    container_types = [
-        uni.Ability,
-        uni.ImplDef,
-        uni.IfStmt,
-        uni.ElseStmt,
-        uni.ElseIf,
-        uni.WhileStmt,
-        uni.ForeverStmt,
-        uni.InForStmt,
-        uni.IterForStmt
-    ];
-    containers: list = [];
-    for typ in container_types {
-        containers.extend(mod.get_all_sub_nodes(typ=typ));
-    }
+    containers: list[uni.UniNode] = [];
+    containers.extend(mod.get_all_sub_nodes(typ=uni.Ability));
+    containers.extend(mod.get_all_sub_nodes(typ=uni.ImplDef));
+    containers.extend(mod.get_all_sub_nodes(typ=uni.IfStmt));
+    containers.extend(mod.get_all_sub_nodes(typ=uni.ElseStmt));
+    containers.extend(mod.get_all_sub_nodes(typ=uni.ElseIf));
+    containers.extend(mod.get_all_sub_nodes(typ=uni.WhileStmt));
+    containers.extend(mod.get_all_sub_nodes(typ=uni.ForeverStmt));
+    containers.extend(mod.get_all_sub_nodes(typ=uni.InForStmt));
+    containers.extend(mod.get_all_sub_nodes(typ=uni.IterForStmt));
 
     for container in containers {
         body = container?.body;

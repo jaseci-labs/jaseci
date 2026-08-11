@@ -187,13 +187,6 @@ impl JacProgram.load_dependency_module(
     } elif resolved_path in target_hub {
         mod = target_hub[resolved_path];
     } else {
-        if (
-            is_stub_path(resolved_path)
-            and self.type_evaluator is None
-            and not getattr(self, '_type_evaluator_bootstrap', False)
-        ) {
-            self.get_type_evaluator();
-        }
         jir_mod: (object | None) = None;
         if use_str is None {
             jir_mod = read_module_jir_cache(resolved_path);
@@ -251,34 +244,10 @@ impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {
 }
 
 impl JacProgram.get_type_evaluator(self: JacProgram) -> TypeEvaluator {
-    import from jaclang.compiler.type_system.type_evaluator {
-        TypeEvaluator,
-        _stub_module_memo,
-    }
-    import from jaclang.jac0core.jir { is_stub_path }
-
-    stubs_pre_eval: list[str] = [];
-    if not self.type_evaluator {
-        for path in self.mod.hub.keys() {
-            if is_stub_path(path) {
-                stubs_pre_eval.append(path);
-            }
-        }
-    }
+    import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 
     if not self.type_evaluator {
-        self._type_evaluator_bootstrap = True;
-        try {
-            self.type_evaluator = TypeEvaluator(program=self);
-            _stub_module_memo.clear();
-            if stubs_pre_eval {
-                for path in stubs_pre_eval {
-                    self.invalidate_module(path);
-                }
-            }
-        } finally {
-            self._type_evaluator_bootstrap = False;
-        }
+        self.type_evaluator = TypeEvaluator(program=self);
     }
     return self.type_evaluator;
 }

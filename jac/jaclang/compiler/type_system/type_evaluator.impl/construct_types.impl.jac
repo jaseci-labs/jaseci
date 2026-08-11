@@ -617,7 +617,13 @@ impl TypeEvaluator._materialize_lazy_decl(nd: uni.UniNode) -> None {
     if target is not None {
         d = target.__dict__;
         if d.get('_jir_cold') {
-            getattr(target, 'sym_name', '');
+            loader = d.get('_jir_loader');
+            chunk = d.get('_jir_chunk');
+            if loader is not None and chunk is not None {
+                loader.hydrate_chunk(chunk);
+            } else {
+                getattr(target, 'sym_name', '');
+            }
         }
     }
 }

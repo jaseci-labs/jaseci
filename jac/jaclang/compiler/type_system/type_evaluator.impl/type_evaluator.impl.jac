@@ -2576,7 +2576,10 @@ impl TypeEvaluator._assign_class(
             continue;
         }
 
-        if base_cls.shared == self.prefetch.protocol_class.shared {
+        if (
+            self.prefetch.protocol_class
+            and base_cls.shared == self.prefetch.protocol_class.shared
+        ) {
             is_protocol = True;
             break;
         }
