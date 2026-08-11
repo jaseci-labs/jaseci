@@ -1,3 +1,150 @@
+def _tool_call_fragments(chunk: object) -> list[dict] {
+    raw: object = None;
+    try {
+        if chunk?.choices and chunk?.choices?[0]?.delta {
+            raw = chunk.choices[0].delta?.tool_calls;
+        } elif isinstance(chunk, dict) {
+            _choices = chunk.get("choices") or [];
+            if _choices {
+                raw = (_choices[0].get("delta") or {}).get("tool_calls");
+            }
+        }
+    } except Exception {
+        return [];
+    }
+    if not raw {
+        return [];
+    }
+    out: list[dict] = [];
+    for (pos, tc) in enumerate(raw) {
+        try {
+            if isinstance(tc, dict) {
+                fn = tc.get("function") or {};
+                idx = tc.get("index");
+                out.append(
+                    {
+                        "index": int(idx) if idx is not None else pos,
+                        "id": tc.get("id") or "",
+                        "name": (fn.get("name") if isinstance(fn, dict) else "") or "",
+                        "fragment": (
+                            fn.get("arguments") if isinstance(fn, dict) else ""
+                        )
+                            or ""
+                    }
+                );
+            } else {
+                idx = tc?.index;
+                out.append(
+                    {
+                        "index": int(idx) if idx is not None else pos,
+                        "id": tc?.id or "",
+                        "name": tc?.function?.name or "",
+                        "fragment": tc?.function?.arguments or ""
+                    }
+                );
+            }
+        } except Exception {
+            continue;
+        }
+    }
+    return out;
+}
+
+
+obj _ToolDeltaCoalescer {
+    has out: list[dict],
+        state: dict = {},
+        min_chars: int = _TOOL_DELTA_MIN_CHARS,
+        min_interval: float = _TOOL_DELTA_MIN_INTERVAL_S,
+        max_per_call: int = _TOOL_DELTA_MAX_PER_CALL;
+
+    def observe(frag: dict) -> None {
+        idx = frag.get("index", 0);
+        st = self.state.get(idx);
+        if st is None {
+            st = {
+                "call_id": "",
+                "tool": "",
+                "buf": "",
+                "last": time.time(),
+                "sent": 0,
+                "announced": False,
+                "capped": False
+            };
+            self.state[idx] = st;
+        }
+        if frag.get("id") {
+            st["call_id"] = str(frag["id"]);
+        }
+        if frag.get("name") {
+            st["tool"] = str(frag["name"]);
+        }
+        st["buf"] += str(frag.get("fragment") or "");
+
+        if st["tool"] and not st["announced"] {
+            st["announced"] = True;
+            self._publish(idx, st);
+            return;
+        }
+        if st["sent"] >= self.max_per_call {
+            if not st["capped"] {
+                st["capped"] = True;
+                self.out.append(
+                    {
+                        "call_id": st["call_id"],
+                        "tool": st["tool"],
+                        "arg_fragment": "",
+                        "index": idx,
+                        "truncated": True
+                    }
+                );
+            }
+            return;
+        }
+        if len(st["buf"]) >= self.min_chars
+            or (time.time() - st["last"]) >= self.min_interval {
+            self._publish(idx, st);
+        }
+    }
+
+    def _publish(idx: int, st: dict) -> None {
+        if not st["buf"] and st["sent"] > 0 {
+            return;
+        }
+        self.out.append(
+            {
+                "call_id": st["call_id"],
+                "tool": st["tool"],
+                "arg_fragment": st["buf"],
+                "index": idx
+            }
+        );
+        st["buf"] = "";
+        st["last"] = time.time();
+        st["sent"] = st["sent"] + 1;
+    }
+
+    def flush {
+        for idx in list(self.state.keys()) {
+            st = self.state[idx];
+            if st["buf"] and st["sent"] < self.max_per_call {
+                self._publish(idx, st);
+            }
+        }
+    }
+}
+
+
+def _tool_stream_settings(mt_run: MTRuntime) -> dict {
+    settings = dict(get_byllm_config().get_tool_stream_config());
+    per_call = mt_run.call_params.get("stream_tool_args");
+    if per_call is True or per_call is False {
+        settings["enabled"] = per_call;
+    }
+    return settings;
+}
+
+
 def _should_parallelize(mt_run: MTRuntime) -> bool {
     per_call = mt_run.call_params.get("parallelize");
     if per_call is True {
@@ -1287,9 +1434,27 @@ impl BaseLLM.dispatch_streaming_with_tools(
     while True {
         chunks = [];
         content_buf = "";
+
+        mt_run._tool_arg_deltas = [];
+        settings = _tool_stream_settings(mt_run);
+        stream_args = bool(settings.get("enabled", False));
+        coalescer = _ToolDeltaCoalescer(
+            out=mt_run._tool_arg_deltas,
+            min_chars=int(settings.get("min_chars", _TOOL_DELTA_MIN_CHARS)),
+            min_interval=float(
+                settings.get("min_interval", _TOOL_DELTA_MIN_INTERVAL_S)
+            ),
+            max_per_call=int(settings.get("max_per_call", _TOOL_DELTA_MAX_PER_CALL))
+        );
         try {
             for chunk in self.model_call_with_stream(params) {
                 chunks.append(chunk);
+                pending_before = len(mt_run._tool_arg_deltas);
+                if stream_args {
+                    for _frag in _tool_call_fragments(chunk) {
+                        coalescer.observe(_frag);
+                    }
+                }
                 delta_content = "";
                 if chunk?.choices and chunk?.choices?[0]?.delta {
                     delta_content = chunk.choices[0].delta?.content or "";
@@ -1303,7 +1468,12 @@ impl BaseLLM.dispatch_streaming_with_tools(
                 if delta_content {
                     content_buf += str(delta_content);
                     yield str(delta_content);
+                } elif len(mt_run._tool_arg_deltas) > pending_before {
+                    yield "";
                 }
+            }
+            if stream_args {
+                coalescer.flush();
             }
             break;
         } except NotImplementedError {
@@ -1689,6 +1859,7 @@ impl BaseLLM._invoke_streaming(
             _llm_t0 = _time.time();
             try {
                 _stream_out: list[CompletionResult] = [];
+                _emitted_deltas = False;
                 _seen_resets = mt_run._stream_reset_count;
                 for _tok in self.dispatch_streaming_with_tools(mt_run, _stream_out) {
                     if mt_run._stream_reset_count != _seen_resets {
@@ -1696,6 +1867,21 @@ impl BaseLLM._invoke_streaming(
                         yield StreamEvent(
                             event_type="stream_reset",
                             data={"scope": "thought", "iteration": iter_count}
+                        );
+                    }
+                    while mt_run._tool_arg_deltas {
+                        _d = mt_run._tool_arg_deltas.pop(0);
+                        _emitted_deltas = True;
+                        yield StreamEvent(
+                            event_type="tool_call_delta",
+                            data={
+                                "call_id": _d.get("call_id", ""),
+                                "tool": _d.get("tool", ""),
+                                "arg_fragment": _d.get("arg_fragment", ""),
+                                "index": _d.get("index", 0),
+                                "truncated": _d.get("truncated", False),
+                                "iteration": iter_count
+                            }
                         );
                     }
                     if _tok {
@@ -1709,11 +1895,50 @@ impl BaseLLM._invoke_streaming(
                         );
                     }
                 }
+
+                if mt_run._stream_reset_count != _seen_resets {
+                    _seen_resets = mt_run._stream_reset_count;
+                    yield StreamEvent(
+                        event_type="stream_reset",
+                        data={"scope": "thought", "iteration": iter_count}
+                    );
+                }
+                while mt_run._tool_arg_deltas {
+                    _d = mt_run._tool_arg_deltas.pop(0);
+                    _emitted_deltas = True;
+                    yield StreamEvent(
+                        event_type="tool_call_delta",
+                        data={
+                            "call_id": _d.get("call_id", ""),
+                            "tool": _d.get("tool", ""),
+                            "arg_fragment": _d.get("arg_fragment", ""),
+                            "index": _d.get("index", 0),
+                            "truncated": _d.get("truncated", False),
+                            "iteration": iter_count
+                        }
+                    );
+                }
                 resp = _stream_out[0];
             } except litellm.exceptions.ContextWindowExceededError {
+                if _emitted_deltas {
+                    _emitted_deltas = False;
+                    yield StreamEvent(
+                        event_type="stream_reset",
+                        data={"scope": "thought", "iteration": iter_count}
+                    );
+                }
+                mt_run._tool_arg_deltas = [];
                 resp = self._emergency_compact_retry(mt_run, just_compacted, _cp);
                 just_compacted = True;
             } except OutputConversionError {
+                if _emitted_deltas {
+                    _emitted_deltas = False;
+                    yield StreamEvent(
+                        event_type="stream_reset",
+                        data={"scope": "thought", "iteration": iter_count}
+                    );
+                }
+                mt_run._tool_arg_deltas = [];
                 recovery_resp = self._attempt_recovery(mt_run);
                 if recovery_resp is None {
                     raise;

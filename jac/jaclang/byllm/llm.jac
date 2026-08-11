@@ -58,6 +58,10 @@ with entry {
     }
 }
 
+glob _TOOL_DELTA_MIN_CHARS = 48,
+     _TOOL_DELTA_MIN_INTERVAL_S = 0.15,
+     _TOOL_DELTA_MAX_PER_CALL = 200;
+
 glob DEFAULT_BASE_URL = "http://localhost:4000",
      MODEL_MOCK = "mockllm";
 
