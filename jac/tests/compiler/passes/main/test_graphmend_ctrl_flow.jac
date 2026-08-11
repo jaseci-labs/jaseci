@@ -258,6 +258,14 @@ test "setups writing the same bare local in both branches are declined" {
     assert "if seq_len > 8:" in src;
 }
 
+test "a setup writing a module-scope name is declined" {
+    # Function-scope confinement cannot see module-level readers, so a
+    # target colliding with a module name declines.
+    src = _pysrc("where_global_setup.jac", True);
+    assert "torch.where(" not in src;
+    assert "if x.sum() > 0:" in src;
+}
+
 test "a setup writing a local live outside the region is declined" {
     src = _pysrc("where_local_escape.jac", True);
     # `scale` is read after the branch, so hoisting the true-branch write

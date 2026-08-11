@@ -454,7 +454,11 @@ impl PredicateCtrlFlowPass._hasattr_key(c: uni.Expr) -> (tuple[str, str] | None)
         or (not isinstance(key, (uni.String, uni.MultiString))) {
         return None;
     }
-    return (recv.unparse().replace(' ', ''), key.lit_value);
+    lit = key.lit_value;
+    if not isinstance(lit, str) {
+        return None;
+    }
+    return (recv.unparse().replace(' ', ''), lit);
 }
 
 impl PredicateCtrlFlowPass._writes_attr(
@@ -784,6 +788,10 @@ impl PredicateCtrlFlowPass._all_local_targets(
         vals.add(t.value);
     }
     if not vals {
+        return False;
+    }
+    mod = region.find_parent_of_type(uni.Module);
+    if (mod is not None) and (vals & self._module_scope_names(mod)) {
         return False;
     }
     for n in scope.get_all_sub_nodes(uni.Name) {
