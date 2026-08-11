@@ -1183,12 +1183,16 @@ impl _parse_toml_data(
     }
     if "test" in data {
         test_data = data["test"];
+        raw_stubs = test_data.get("npm-stubs", test_data.get("npm_stubs", {}));
         config.test = TestConfig(
             directory=test_data.get("directory", ""),
             filter=test_data.get("filter", ""),
             verbose=test_data.get("verbose", False),
             fail_fast=test_data.get("fail_fast", False),
-            max_failures=test_data.get("max_failures", 0)
+            max_failures=test_data.get("max_failures", 0),
+            npm_stubs={
+                str(spec): str(path) for (spec, path) in dict(raw_stubs or {}).items()
+            }
         );
     }
     if "serve" in data {

@@ -74,7 +74,8 @@ obj TestConfig {
         filter: str = "",
         verbose: bool = False,
         fail_fast: bool = False,
-        max_failures: int = 0;
+        max_failures: int = 0,
+        npm_stubs: dict[str, str] = {};
 }
 
 obj ServeConfig {

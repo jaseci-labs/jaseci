@@ -331,6 +331,34 @@ When `directory` is set, `jac test` with no file argument collects tests only
 from that directory (resolved against the project root), so application modules
 whose top-level `with entry` runs on import are not pulled into test collection.
 
+#### [test.npm-stubs]
+
+Client (`cl`) tests run under bun in a sealed temp directory with no
+`node_modules`, so every npm import is rewritten to a universal Proxy stub that
+absorbs any call and returns nothing. That keeps imports from crashing, but a
+test that needs a dependency to *behave* -- return a value, record a call --
+needs a real module instead. Map the import spec to one:
+
+```toml
+[test.npm-stubs]
+vscode = "tests/mocks/vscode.js"        # plain JavaScript
+"@scope/telemetry" = "tests/mocks/telemetry.jac"   # or Jac
+```
+
+Paths are relative to the `jac.toml` that declares them. A mapped spec resolves
+to that module; anything unmapped keeps the Proxy stub, so this is purely
+additive to existing suites.
+
+A `.jac` mock is compiled through the ordinary client pipeline, so `:pub` is
+what makes a name importable from the test. Because placement is inferred, a
+mock holding no client-only syntax lands in the server codespace and compiles
+to no JS -- pin it alongside the mapping:
+
+```toml
+[placement.pins]
+"tests.mocks.telemetry" = "client"
+```
+
 ---
 
 ### [format]

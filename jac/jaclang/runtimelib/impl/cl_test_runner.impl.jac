@@ -59,8 +59,83 @@ impl _point_at_staged_runtime(js: str) -> str {
     );
 }
 
+impl _mock_stub_name(spec: str) -> str {
+    import hashlib;
+    safe = "".join([ch if (ch.isalnum() or ch == "_") else "_" for ch in spec]);
+    digest = hashlib.sha1(spec.encode("utf-8")).hexdigest()[:8];
+    return f"{_MOCK_PREFIX}{safe[:40]}_{digest}.js";
+}
+
+impl _resolve_npm_mocks(source_path: (str | None)) -> dict[str, str] {
+    if not source_path {
+        return {};
+    }
+    import from jaclang.project.config { JacConfig }
+
+    start = Path(source_path).resolve().parent;
+    config = JacConfig.discover(start_path=start);
+    if config is None {
+        return {};
+    }
+    declared = config.test.npm_stubs or {};
+    if not declared {
+        return {};
+    }
+    base_dir = start if config.toml_path is None else config.toml_path.parent;
+
+    resolved: dict[str, str] = {};
+    for (spec, rel) in declared.items() {
+        cand = Path(rel);
+        if not cand.is_absolute() {
+            cand = base_dir / cand;
+        }
+        if cand.suffix not in (".js", ".jac") {
+            raise RuntimeError(
+                f"[test.npm-stubs] '{spec}' points at '{rel}': an npm stub "
+                "must be a .js or .jac module"
+            );
+        }
+        if not cand.is_file() {
+            raise RuntimeError(
+                f"[test.npm-stubs] '{spec}' points at '{rel}', which does not "
+                f"exist (resolved against {base_dir} to {cand})"
+            );
+        }
+        resolved[spec] = str(cand.resolve());
+    }
+    return resolved;
+}
+
+impl _stage_npm_mocks(
+    mocks: dict[str, str]
+) -> tuple[dict[str, str], dict[str, str], dict[str, str]] {
+    spec_files: dict[str, str] = {};
+    mock_files: dict[str, str] = {};
+    merged_imports: dict[str, str] = {};
+
+    for (spec, path) in mocks.items() {
+        if path.endswith(".jac") {
+            (js, _mock_tests, mock_imports, _mock_server) = compile_cl_module(path);
+            if not js.strip() {
+                raise RuntimeError(
+                    f"[test.npm-stubs] '{spec}' -> {path} compiled to no client "
+                    "code, so it cannot stand in for an npm module; pin it with "
+                    "a [placement.pins] entry setting it to 'client'"
+                );
+            }
+            merged_imports.update(mock_imports);
+        } else {
+            js = Path(path).read_text(encoding="utf-8");
+        }
+        name = _mock_stub_name(spec);
+        spec_files[spec] = name;
+        mock_files[name] = js;
+    }
+    return (spec_files, mock_files, merged_imports);
+}
+
 impl _stub_npm_imports(
-    entry_js: str, staged: dict[str, str]
+    entry_js: str, staged: dict[str, str], mocks: dict[str, str]
 ) -> tuple[str, dict[str, str], str, bool] {
     named: set = set();
     state = {"needs_default": False, "changed": False};
@@ -74,8 +149,12 @@ impl _stub_npm_imports(
         if not is_npm(spec) {
             return mobj.group(0);
         }
-        state["changed"] = True;
         clause = mobj.group("clause").strip();
+        mock_file = mocks.get(spec);
+        if mock_file {
+            return 'import ' + clause + ' from "./' + mock_file + '";';
+        }
+        state["changed"] = True;
         brace = re.search(r"\{([^}]*)\}", clause);
         if brace {
             for ident in _NAMED_BINDING.findall(brace.group(1)) {
@@ -455,9 +534,15 @@ impl _run_harness(
             );
         }
 
+        (mock_specs, mock_files, mock_imports) = _stage_npm_mocks(
+            _resolve_npm_mocks(source_path)
+        );
+
         staged: dict[str, str] = {};
 
-        if ("@jac/runtime" in imports) or ("@jac/runtime" in dep_imports) {
+        if ("@jac/runtime" in imports)
+            or ("@jac/runtime" in dep_imports)
+            or ("@jac/runtime" in mock_imports) {
             import from jaclang.runtimelib.client_surface {
                 prepend_active_runtime_globals
             }
@@ -466,6 +551,9 @@ impl _run_harness(
             );
             for dep_name in list(dep_files.keys()) {
                 dep_files[dep_name] = _point_at_staged_runtime(dep_files[dep_name]);
+            }
+            for mock_name in list(mock_files.keys()) {
+                mock_files[mock_name] = _point_at_staged_runtime(mock_files[mock_name]);
             }
 
             runtime_js = _compile_runtime_js();
@@ -484,8 +572,19 @@ impl _run_harness(
         for (dep_name, dep_js) in dep_files.items() {
             staged[dep_name] = dep_js;
         }
+        for (mock_name, mock_js) in mock_files.items() {
+            if mock_name in staged {
+                raise RuntimeError(
+                    f"cl test harness cannot stage npm stub '{mock_name}': the "
+                    "name is already taken in the work dir"
+                );
+            }
+            staged[mock_name] = mock_js;
+        }
 
-        (module_js, staged, stub_js, changed) = _stub_npm_imports(module_js, staged);
+        (module_js, staged, stub_js, changed) = _stub_npm_imports(
+            module_js, staged, mock_specs
+        );
         if changed {
             staged[_NPM_STUB_FILE] = stub_js;
         }

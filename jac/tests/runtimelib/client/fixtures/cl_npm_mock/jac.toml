@@ -1,0 +1,16 @@
+[project]
+name = "cl-npm-mock-fixture"
+version = "0.0.0"
+description = "Fixture project exercising cl test runner npm stub overrides"
+
+# Modules substituted for npm packages when this project's client tests run.
+# Paths are relative to this file.
+[test.npm-stubs]
+"fake-editor" = "mocks/editor.js"
+"@fake/telemetry" = "mocks/telemetry.jac"
+
+# telemetry.jac holds no client-only syntax of its own, so inference would
+# place it in the server codespace. Pin it, the way any Jac module destined
+# for the browser is pinned.
+[placement.pins]
+"mocks.telemetry" = "client"

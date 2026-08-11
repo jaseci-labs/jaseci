@@ -6,6 +6,7 @@ glob _COLOR_CACHE: dict[(str, bool)] = {};
 
 glob _RESULT_SENTINEL: str = "__JAC_CL_TEST_RESULTS__",
      _NPM_STUB_FILE: str = "__jac_npm_stub.js",
+     _MOCK_PREFIX: str = "__jac_mock_",
      _SERVER_ENTRY_NAMES: tuple = ("server.jac", "main.jac"),
      _IMPORT_LINE = re.compile(r"^\s*import\b.*?;?\s*$", re.MULTILINE),
      _IMPORT_FROM = re.compile(
@@ -76,8 +77,16 @@ def _compile_runtime_core_js -> str;
 
 def _point_at_staged_runtime(js: str) -> str;
 
+def _mock_stub_name(spec: str) -> str;
+
+def _resolve_npm_mocks(source_path: (str | None)) -> dict[str, str];
+
+def _stage_npm_mocks(
+    mocks: dict[str, str]
+) -> tuple[dict[str, str], dict[str, str], dict[str, str]];
+
 def _stub_npm_imports(
-    entry_js: str, staged: dict[str, str]
+    entry_js: str, staged: dict[str, str], mocks: dict[str, str]
 ) -> tuple[str, dict[str, str], str, bool];
 
 def _build_harness(
