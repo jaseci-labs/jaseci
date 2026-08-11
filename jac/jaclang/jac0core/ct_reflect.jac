@@ -6,8 +6,9 @@ source (no expansion, no imports, no type resolution) and reports
 declarations in source order. Constructor parameter order reproduces the
 runtime dataclass synthesis: C3-linearized bases, base-most first, first
 appearance fixes position, redefinition updates the spec in place;
-postinit (`defer`) fields, static fields, and accessor-backed fields are
-not constructor parameters. Python-side only (never target code).
+postinit (`defer`) fields and accessor-backed fields are not
+constructor parameters (static `has` fields are: the runtime synthesizes
+them as ordinary dataclass fields). Python-side only (never target code).
 """
 
 import jaclang.jac0core.parser.lexer as ct_lexer;
@@ -22,6 +23,7 @@ import from jaclang.jac0core.unitree {
     Enum,
     Module,
     Name,
+    ParamVar,
     Source
 }
 
@@ -41,6 +43,8 @@ obj CtTypeInfo {
     has name: str,
         bases: list[str] = [],
         fields: list[CtFieldInfo] = [],
+        init_params: list[CtFieldInfo] = [],
+        has_explicit_init: bool = False,
         is_enum: bool = False,
         members: list[str] = [];
 }
@@ -85,6 +89,12 @@ obj CtModuleInfo {
 
     def ctor_fields(name: str) -> list[CtFieldInfo] {
         mro = _c3(self, name);
+        for cls in mro {
+            ti0 = self.types.get(cls);
+            if ti0 is not None and ti0.has_explicit_init {
+                return list(ti0.init_params);
+            }
+        }
         ordered: list[str] = [];
         merged: dict[str, CtFieldInfo] = {};
         for cls in reversed(mro) {
@@ -102,7 +112,7 @@ obj CtModuleInfo {
         out: list[CtFieldInfo] = [];
         for fname in ordered {
             f = merged[fname];
-            if f.is_postinit or f.is_static or f.has_accessors {
+            if f.is_postinit or f.has_accessors {
                 continue;
             }
             out.append(f);
@@ -128,8 +138,16 @@ def _module_path(dotted: str, cur_dir: str) -> str {
 
 
 def _clean_src(nd: any) -> str {
-    txt = nd.unparse();
-    return " ".join(txt.split());
+    txt = " ".join(nd.unparse().split());
+    for pair in (
+        (" [", "["), ("[ ", "["), (" ]", "]"), (" (", "("), ("( ", "("),
+        (" )", ")"), (" .", "."), (". ", "."), (" ,", ","), (", ", ",")
+    ) {
+        while pair[0] in txt {
+            txt = txt.replace(pair[0], pair[1]);
+        }
+    }
+    return txt;
 }
 
 
@@ -156,6 +174,39 @@ def _field_infos(stmt: ArchHas) -> list[CtFieldInfo] {
                 has_accessors=(
                     hv.accessors is not None and len(list(hv.accessors)) > 0
                 )
+            )
+        );
+    }
+    return out;
+}
+
+
+def _init_param_infos(abil: Ability) -> list[CtFieldInfo] {
+    out: list[CtFieldInfo] = [];
+    sig = abil.signature;
+    params = [];
+    if sig is not None and getattr(sig, "params", None) is not None {
+        params = list(sig.params);
+    }
+    for pv in params {
+        if not isinstance(pv, ParamVar) {
+            continue;
+        }
+        ann = "";
+        if pv.type_tag is not None and pv.type_tag.tag is not None {
+            ann = _clean_src(pv.type_tag.tag);
+        }
+        has_d = pv.value is not None;
+        dflt = _clean_src(pv.value) if has_d else "";
+        out.append(
+            CtFieldInfo(
+                name=pv.name.value,
+                ann=ann,
+                default_src=dflt,
+                has_default=has_d,
+                is_postinit=False,
+                is_static=False,
+                has_accessors=False
             )
         );
     }
@@ -226,6 +277,11 @@ def _collect_types(info: CtModuleInfo, module: Module) -> None {
             for stmt in body {
                 if isinstance(stmt, ArchHas) {
                     ti.fields.extend(_field_infos(stmt));
+                } elif isinstance(stmt, Ability)
+                    and isinstance(stmt.name_ref, Name)
+                    and stmt.name_ref.value == "init" {
+                    ti.has_explicit_init = True;
+                    ti.init_params = _init_param_infos(stmt);
                 }
             }
             info.types[ti.name] = ti;

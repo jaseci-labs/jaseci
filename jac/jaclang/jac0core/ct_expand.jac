@@ -76,6 +76,31 @@ obj CtHelpers {
     def snake(s: str) -> str {
         return pascal_to_snake(str(s));
     }
+
+    def parts(ann: str) -> list[str] {
+        t = str(ann).strip();
+        if t.startswith("(") and t.endswith(")") {
+            t = t[1:-1];
+        }
+        out: list[str] = [];
+        depth = 0;
+        cur = "";
+        for ch in t {
+            if ch == "[" or ch == "(" {
+                depth += 1;
+            } elif ch == "]" or ch == ")" {
+                depth -= 1;
+            }
+            if ch == "|" and depth == 0 {
+                out.append(cur.strip());
+                cur = "";
+            } else {
+                cur += ch;
+            }
+        }
+        out.append(cur.strip());
+        return out;
+    }
 }
 
 
@@ -115,11 +140,13 @@ obj CtEval {
         cur_dir: str = "",
         fuel: int = 50000000,
         frames: list[dict] = [],
+        frame_barriers: list[bool] = [],
         module_defs: dict[str, int] = {},
         module_glob_ids: dict[str, int] = {},
         module_globals: dict[str, any] = {},
         targets: list[str] = [],
         loc_stack: list[int] = [],
+        _call_memo: dict = {},
         _ret: any = None,
         _builtins: dict = {},
         _ns: dict = {};
@@ -149,7 +176,8 @@ obj CtEval {
             "any": any,
             "all": all,
             "zip": zip,
-            "reversed": reversed
+            "reversed": reversed,
+            "fail": _ct_err
         };
         self._ns = {
             "ct": CtHelpers(),
@@ -257,12 +285,14 @@ obj CtEval {
         return (0, 0, 0, 0);
     }
 
-    def push_frame {
+    def push_frame(barrier: bool = False) {
         self.frames.append({});
+        self.frame_barriers.append(barrier);
     }
 
     def pop_frame {
         self.frames.pop();
+        self.frame_barriers.pop();
     }
 
     def bind(name: str, v: any) {
@@ -274,6 +304,9 @@ obj CtEval {
         while idx >= 0 {
             if name in self.frames[idx] {
                 return self.frames[idx][name];
+            }
+            if self.frame_barriers[idx] {
+                break;
             }
             idx -= 1;
         }
@@ -300,6 +333,9 @@ obj CtEval {
             if name in self.frames[idx] {
                 self.frames[idx][name] = v;
                 return;
+            }
+            if self.frame_barriers[idx] {
+                break;
             }
             idx -= 1;
         }
@@ -375,8 +411,11 @@ obj CtEval {
             }
             return out;
         }
-        if cn == "CtBlock" {
+        if cn == "CtBlock" or cn == "CfgExpr" {
             return self.eval(self.node_arg(i, "expr"));
+        }
+        if cn == "AtomUnit" {
+            return self.eval(self.node_arg(i, "value"));
         }
         if cn == "BinaryExpr" {
             return self._binop(
@@ -569,9 +608,18 @@ obj CtEval {
             right = self.node_arg(tgt, "right");
             if self.cls_name(right) == "IndexSlice" {
                 slices = self.list_arg(right, "slices");
-                if len(slices) == 1 and self.cls_name(slices[0]) != "Slice" {
-                    tv[self.eval(slices[0])] = v;
-                    return;
+                if len(slices) == 1 {
+                    s0 = slices[0];
+                    if self.cls_name(s0) == "Slice" {
+                        lo = self.node_arg(s0, "start");
+                        if lo != NIL {
+                            tv[self.eval(lo)] = v;
+                            return;
+                        }
+                    } else {
+                        tv[self.eval(s0)] = v;
+                        return;
+                    }
                 }
             }
             _ct_err("attribute/slice assignment not supported in comptime");
@@ -599,20 +647,31 @@ obj CtEval {
         }
         if rcn == "IndexSlice" {
             slices = self.list_arg(right, "slices");
-            if len(slices) == 1 and self.cls_name(slices[0]) == "Slice" {
-                sl = slices[0];
-                lo = self.node_arg(sl, "start");
-                hi = self.node_arg(sl, "stop");
-                st = self.node_arg(sl, "step");
+            is_range = False;
+            s_r = self.slot_of(right, "is_range");
+            if s_r >= 0 {
+                is_range = self.a.arg_bool(right, s_r);
+            }
+            if len(slices) != 1 {
+                _ct_err("multi-dimension index not supported in comptime");
+            }
+            s0 = slices[0];
+            if self.cls_name(s0) == "Slice" {
+                lo = self.node_arg(s0, "start");
+                hi = self.node_arg(s0, "stop");
+                st = self.node_arg(s0, "step");
+                if not is_range {
+                    if lo == NIL {
+                        _ct_err("empty index not supported in comptime");
+                    }
+                    return tv[self.eval(lo)];
+                }
                 lo_v = self.eval(lo) if lo != NIL else None;
                 hi_v = self.eval(hi) if hi != NIL else None;
                 st_v = self.eval(st) if st != NIL else None;
                 return tv[slice(lo_v, hi_v, st_v)];
             }
-            if len(slices) == 1 {
-                return tv[self.eval(slices[0])];
-            }
-            _ct_err("multi-dimension index not supported in comptime");
+            return tv[self.eval(s0)];
         }
         if rcn == "FuncCall" {
             inner_tgt = self.node_arg(right, "target");
@@ -686,9 +745,12 @@ obj CtEval {
 
     def call_def(abil: int, args: list, kwargs: dict) -> any {
         self.burn(20);
+        if not args and not kwargs and abil in self._call_memo {
+            return self._call_memo[abil];
+        }
         sig = self.node_arg(abil, "signature");
         pids = self.list_arg(sig, "params") if sig != NIL else [];
-        self.push_frame();
+        self.push_frame(barrier=True);
         idx = 0;
         for pid in pids {
             pname_id = self.node_arg(pid, "name");
@@ -709,23 +771,27 @@ obj CtEval {
         }
         self._ret = None;
         body = self.poly_arg(abil, "body");
-        self.exec_block(body);
+        _sig = self.exec_block(body);
         out = self._ret;
         self._ret = None;
         self.pop_frame();
+        if not args and not kwargs {
+            self._call_memo[abil] = out;
+        }
         return out;
     }
 
-    def exec_block(ids: list[int]) -> bool {
+    def exec_block(ids: list[int]) -> int {
         for i in ids {
-            if self.exec_stmt(i) {
-                return True;
+            sig = self.exec_stmt(i);
+            if sig != 0 {
+                return sig;
             }
         }
-        return False;
+        return 0;
     }
 
-    def exec_stmt(i: int) -> bool {
+    def exec_stmt(i: int) -> int {
         self.burn();
         self.loc_stack.append(i);
         try {
@@ -735,7 +801,7 @@ obj CtEval {
         }
     }
 
-    def _exec_inner(i: int) -> bool {
+    def _exec_inner(i: int) -> int {
         cn = self.cls_name(i);
         if cn == "Assignment" {
             aug = self.node_arg(i, "aug_op");
@@ -747,16 +813,16 @@ obj CtEval {
                 self._assign_target(
                     targets[0], self._binop(op.rstrip("="), cur, val)
                 );
-                return False;
+                return 0;
             }
             for t in targets {
                 self._assign_target(t, val);
             }
-            return False;
+            return 0;
         }
         if cn == "ExprStmt" {
             self.eval(self.node_arg(i, "expr"));
-            return False;
+            return 0;
         }
         if cn in ("IfStmt", "ElseIf") {
             if self.eval(self.node_arg(i, "condition")) {
@@ -766,7 +832,7 @@ obj CtEval {
             if eb != NIL {
                 return self.exec_stmt(eb);
             }
-            return False;
+            return 0;
         }
         if cn == "ElseStmt" {
             return self.exec_block(self.list_arg(i, "body"));
@@ -774,11 +840,15 @@ obj CtEval {
         if cn == "WhileStmt" {
             while self.eval(self.node_arg(i, "condition")) {
                 self.burn(2);
-                if self.exec_block(self.list_arg(i, "body")) {
-                    return True;
+                sig = self.exec_block(self.list_arg(i, "body"));
+                if sig == 1 {
+                    return 1;
+                }
+                if sig == 2 {
+                    break;
                 }
             }
-            return False;
+            return 0;
         }
         if cn == "InForStmt" {
             tgt = self.node_arg(i, "target");
@@ -787,21 +857,34 @@ obj CtEval {
                 self.burn(2);
                 self.push_frame();
                 self._bind_target(tgt, item);
-                stop = self.exec_block(self.list_arg(i, "body"));
+                sig = self.exec_block(self.list_arg(i, "body"));
                 self.pop_frame();
-                if stop {
-                    return True;
+                if sig == 1 {
+                    return 1;
+                }
+                if sig == 2 {
+                    break;
                 }
             }
-            return False;
+            return 0;
         }
         if cn == "ReturnStmt" {
             e = self.node_arg(i, "expr");
             self._ret = self.eval(e) if e != NIL else None;
-            return True;
+            return 1;
+        }
+        if cn == "CtrlStmt" {
+            word = self.tok_value(self.node_arg(i, "ctrl"));
+            if word == "break" {
+                return 2;
+            }
+            if word == "continue" {
+                return 3;
+            }
+            _ct_err(f"'{word}' not supported in comptime");
         }
         if cn == "Semi" {
-            return False;
+            return 0;
         }
         _ct_err(f"'{cn}' statement not supported in comptime");
     }
@@ -980,9 +1063,13 @@ obj CtExpander {
                 vals.append(self.value_to_records(item, loc));
             }
             if isinstance(v, tuple) {
-                return a.mk_tuple_val(values=vals, kid=list(vals));
+                lt = self._punct("LPAREN", "(", loc);
+                rt = self._punct("RPAREN", ")", loc);
+                return a.mk_tuple_val(values=vals, kid=[lt] + vals + [rt]);
             }
-            return a.mk_list_val(values=vals, kid=list(vals));
+            lt2 = self._punct("LSQUARE", "[", loc);
+            rt2 = self._punct("RSQUARE", "]", loc);
+            return a.mk_list_val(values=vals, kid=[lt2] + vals + [rt2]);
         }
         if isinstance(v, dict) {
             pairs: list[int] = [];
@@ -991,7 +1078,9 @@ obj CtExpander {
                 vv = self.value_to_records(entry[1], loc);
                 pairs.append(a.mk_k_v_pair(key=kk, value=vv, kid=[kk, vv]));
             }
-            return a.mk_dict_val(kv_pairs=pairs, kid=list(pairs));
+            lb = self._punct("LBRACE", "{", loc);
+            rb = self._punct("RBRACE", "}", loc);
+            return a.mk_dict_val(kv_pairs=pairs, kid=[lb] + pairs + [rb]);
         }
         _ct_err(
             f"comptime value of type '{type(v).__name__}' cannot lower to a literal"
@@ -999,9 +1088,13 @@ obj CtExpander {
     }
 
     def _minus_tok(loc: tuple) -> int {
+        return self._punct("MINUS", "-", loc);
+    }
+
+    def _punct(name: str, text: str, loc: tuple) -> int {
         return self.a().mk_token(
-            name="MINUS",
-            value="-",
+            name=name,
+            value=text,
             line=loc[0],
             end_line=loc[1],
             col_start=loc[2],
