@@ -1966,6 +1966,14 @@ impl BaseLLM._invoke_streaming(
                 resp = self._emergency_compact_retry(mt_run, just_compacted, _cp);
                 just_compacted = True;
             } except OutputConversionError {
+                if _emitted_deltas {
+                    _emitted_deltas = False;
+                    yield StreamEvent(
+                        event_type="stream_reset",
+                        data={"scope": "thought", "iteration": iter_count}
+                    );
+                }
+                mt_run._tool_arg_deltas = [];
                 recovery_resp = self._attempt_recovery(mt_run);
                 if recovery_resp is None {
                     raise;

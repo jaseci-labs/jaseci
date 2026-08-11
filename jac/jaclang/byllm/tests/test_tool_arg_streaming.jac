@@ -11,6 +11,7 @@ import jaclang.byllm.llm as _byllm_llm_mod;
 import from jaclang.byllm.lib { Model }
 import from jaclang.byllm.mtir { MTRuntime }
 import from jaclang.byllm.types { Message, MessageRole, Tool }
+import from jaclang.byllm.exceptions { OutputConversionError }
 
 glob RETRY: str = "__retry__",
      SHIPPED_DEFAULTS: dict = {
@@ -124,7 +125,8 @@ def _run(
     tools: list,
     enabled: bool = True,
     bounds: dict | None = None,
-    tolerate_errors: bool = False
+    tolerate_errors: bool = False,
+    probe: dict | None = None
 ) -> list {
     llm = Model(model_name="gpt-4o");
     wrapped = [Tool(func=t) for t in tools];
@@ -140,6 +142,9 @@ def _run(
         call_params=({"stream_tool_args": True} if enabled else {}),
         mtir=None
     );
+    if probe is not None {
+        probe["mt"] = mt;
+    }
     at = [0];
 
     def _stream(params: dict) -> any {
@@ -164,6 +169,14 @@ def _run(
         return _byllm_llm_mod.CompletionResult(output="done", tool_calls=[], usage={});
     }
 
+    # Only the OutputConversionError handler calls this; a real one would need a
+    # non-str resp_type, which these turns do not use.
+    def _recovered(mt_arg: any) -> any {
+        return _byllm_llm_mod.CompletionResult(
+            output="recovered", tool_calls=[], usage={}
+        );
+    }
+
     def _rebuild(seen: list) -> dict {
         i = at[0] - 1;
         if i < len(rebuilts) and rebuilts[i] is not None {
@@ -184,7 +197,7 @@ def _run(
         _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild
     ), mock.patch.object(cfg, "get_tool_stream_config", _tool_stream_cfg), mock.patch.object(
         llm, "dispatch_no_streaming", _no_stream
-    ) {
+    ), mock.patch.object(llm, "_attempt_recovery", _recovered) {
         try {
             for ev in llm._invoke_streaming(mt) {
                 events.append(ev);
@@ -374,6 +387,15 @@ test "an abandoned stream is always announced alongside its deltas" {
         );
     }
 
+    # Same staleness class, different handler: the response fails conversion
+    # after deltas are already on screen, and that call will never run.
+    def unconvertible -> any {
+        for ch in _frags(big, "write_file", "c1") {
+            yield ch;
+        }
+        raise OutputConversionError("could not convert");
+    }
+
     # reset_first: a retry announces BEFORE the replacement's deltas; compaction
     # announces AFTER the deltas it is abandoning.
     cases = [
@@ -393,11 +415,13 @@ test "an abandoned stream is always announced alongside its deltas" {
             True,
             False
         ),
-        ("compaction", [overflow], [None], [write_file], False, True)
+        ("compaction", [overflow], [None], [write_file], False, True),
+        ("conversion", [unconvertible], [None], [write_file], False, True)
     ];
 
     for (label, turns, rebuilts, tools, reset_first, tolerate) in cases {
-        events = _run(turns, rebuilts, tools, tolerate_errors=tolerate);
+        seen: dict = {};
+        events = _run(turns, rebuilts, tools, tolerate_errors=tolerate, probe=seen);
         kinds = _kinds(events);
 
         assert "tool_call_delta" in kinds , f"[{label}] no deltas to reason about: {kinds}";
@@ -407,5 +431,10 @@ test "an abandoned stream is always announced alongside its deltas" {
         } else {
             assert kinds.index("tool_call_delta") < kinds.index("stream_reset") , f"[{label}] the reset must follow the deltas it abandons: {kinds}";
         }
+        # Announcing is only half of it: staged fragments for a call that never
+        # ran must not survive to be drained into the next iteration.
+        assert not seen["mt"]._tool_arg_deltas , f"[{label}] stale fragments left staged: {seen[
+            'mt'
+        ]._tool_arg_deltas}";
     }
 }
