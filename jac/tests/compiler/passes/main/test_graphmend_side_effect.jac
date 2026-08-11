@@ -175,6 +175,16 @@ test "a buffered call's keyword arguments are preserved" {
     );
 }
 
+test "a non-literal keyword value is snapshotted like a positional" {
+    src = _pysrc("side_effect_kwarg.jac", True);
+    assert "__gm_se_arg_0 = y" in src;
+    assert (
+        "{'extra': __gm_se_arg_0.clone() if hasattr(__gm_se_arg_0, 'clone') "
+        "else __gm_se_arg_0}"
+    )
+        in src;
+}
+
 test "an unpacked argument declines instead of being dropped" {
     # Detection still tags both; the decline belongs to the transform.
     src = _pysrc("side_effect_unpack.jac", True);

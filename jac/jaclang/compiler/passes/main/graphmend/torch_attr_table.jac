@@ -65,6 +65,9 @@ def trace_symbol_attr(
     if depth > 10 {
         return on_exhaust;
     }
+    if len(sym.defn) > 1 {
+        return on_exhaust;
+    }
     if sym.sym_name in visited {
         return False;
     }

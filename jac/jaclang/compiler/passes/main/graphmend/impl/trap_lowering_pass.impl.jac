@@ -75,6 +75,9 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if self.prog.graphmend_breaks.get(id(nd)) != GraphBreakKind.VAL_GUARD {
         return;
     }
+    if self._inside_try(nd) {
+        return;
+    }
     if (not nd.body) or (len(nd.body) != 1) {
         return;
     }
@@ -115,6 +118,20 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         self._replace(nd, [self._assert_async_stmt(nd, x, marked)]);
         self._mark_guard(wrap);
     }
+}
+
+impl TrapLoweringPass._inside_try(nd: uni.UniNode) -> bool {
+    cur: (uni.UniNode | None) = nd.parent;
+    while cur is not None {
+        if isinstance(cur, uni.TryStmt) {
+            return True;
+        }
+        if isinstance(cur, uni.Ability) {
+            return False;
+        }
+        cur = cur.parent;
+    }
+    return False;
 }
 
 impl TrapLoweringPass._enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | None) {
