@@ -260,6 +260,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "Property declaration must contain at least one of `getter`, `setter`, `deleter`"
      ),
+     E0082 = _err(
+         "E0082",
+         Category.SEMANTIC,
+         "Cannot assign to state field '{name}' during render",
+         help="Component body statements run on every render, and state writes are immediately visible, so this assignment would re-render forever. Move it into a `can` ability, an event handler, or a method.",
+         blocks_codegen=True
+     ),
      W0060 = _warn(
          "W0060",
          Category.SYNTAX,
@@ -1478,7 +1485,20 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E5097",
          Category.CODEGEN,
          "Client pathway failed to lower {kind} in an expression position",
-         help="The ES backend produced no JavaScript for this expression, so without this error it would silently become 'undefined' in the client bundle and only misbehave at runtime in the browser. The expression's shape is outside what the client lowering handles; adjust the shape or move the code to a server context."
+         help="The ES backend produced no JavaScript for this expression, so without this error it would silently become 'undefined' in the browser. The expression's shape is outside what the client lowering handles; adjust the shape or move the code to a server context."
+     ),
+     E5098 = _err(
+         "E5098",
+         Category.CODEGEN,
+         "Multi-statement lambda '{name}' could not be hoisted into a valid scope",
+         help="On the Python (server) target a multi-statement lambda lowers to a "
+         "helper `def` placed in the nearest enclosing function-or-module scope "
+         "before any reference to it is evaluated. This fires when a hoisted helper "
+         "is left without a placement because a scope (ability/test) was entered but "
+         "never drained on exit -- an internal compiler bug; please report it. "
+         "Codegen is blocked rather than shipping a module that would fail at runtime "
+         "with `NameError: name '{name}' is not defined`.",
+         blocks_codegen=True
      ),
      E5094 = _err(
          "E5094",

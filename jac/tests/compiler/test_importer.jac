@@ -540,6 +540,63 @@ test "stub module cache key is source focused" {
     }
 }
 
+test "JIR-cached stub re-knits star imports with overloads" {
+    # Regression: symbols a stub absorbs via `from X import *` have their defn
+    # nodes in the foreign module's AST, which JIR serialization can only mark
+    # EXTERNAL_REF; on read the reader dropped them, so a warm-cached facade
+    # stub (e.g. os/path.pyi) lost every re-exported name and its overload
+    # chain -- os.path.abspath(str) then failed E1053 against the first
+    # overload only.
+    absorb_dir = tempfile.mkdtemp(prefix="jac_absorb_knit_", dir=_test_tmp_dir);
+    base_file = os.path.join(absorb_dir, "knit_base.pyi");
+    facade_file = os.path.join(absorb_dir, "knit_facade.pyi");
+    with open(base_file, "w") as f {
+        f.write(
+            "from typing import overload\n"
+                + "@overload\n"
+                + "def probe(x: int) -> int: ...\n"
+                + "@overload\n"
+                + "def probe(x: str) -> str: ...\n"
+        );
+    }
+    with open(facade_file, "w") as f {
+        f.write("from knit_base import *\n");
+    }
+    past = time.time() - 2;
+    os.utime(base_file, (past, past));
+    os.utime(facade_file, (past, past));
+    try {
+        prog1 = JacProgram();
+        fresh = prog1.load_dependency_module(facade_file);
+        assert fresh.sym_tab.lookup("probe") is not None , (
+            "fresh facade stub must absorb probe"
+        );
+        assert fresh.names_in_scope_overload.get("probe") , (
+            "fresh facade stub must absorb probe's overload chain"
+        );
+        assert get_module_cache_path(facade_file).exists() , (
+            "facade stub should be JIR cached after first load"
+        );
+
+        prog2 = JacProgram();
+        cached = prog2.load_dependency_module(facade_file);
+        assert cached.sym_tab.lookup("probe") is not None , (
+            "JIR-cached facade stub lost its absorbed symbols"
+        );
+        assert cached.names_in_scope_overload.get("probe") , (
+            "JIR-cached facade stub lost its absorbed overload chain"
+        );
+    } finally {
+        for p in (base_file, facade_file) {
+            os.unlink(p);
+            cp = get_module_cache_path(p);
+            if cp.exists() {
+                cp.unlink();
+            }
+        }
+    }
+}
+
 test "get_bytecode busts in-memory hub when .impl.jac changes" {
     # Regression: in a persistent process, editing a .impl.jac annex left a
     # stale in-memory module in mod.hub; get_bytecode returned it with no

@@ -182,6 +182,7 @@ impl JacProgram.load_dependency_module(
     }
 
     mod: uni.Module;
+    from_jir_cache = False;
     if resolved_path in self.mod.hub {
         mod = self.mod.hub[resolved_path];
     } elif resolved_path in target_hub {
@@ -193,6 +194,7 @@ impl JacProgram.load_dependency_module(
         }
         if jir_mod is not None {
             mod = jir_mod;
+            from_jir_cache = True;
             if is_stub_path(resolved_path) and not mod.stub_only {
                 mod.stub_only = True;
             }
@@ -226,12 +228,55 @@ impl JacProgram.load_dependency_module(
         }
         target_hub[resolved_path] = mod;
         target_program.hub_cache_stamp(resolved_path);
+        if from_jir_cache {
+            self._relink_absorbed_imports(mod);
+        }
     }
 
     if importer_path is not None {
         self.record_dependency(importer_path, resolved_path);
     }
     return mod;
+}
+
+impl JacProgram._relink_absorbed_imports(self: JacProgram, mod: uni.Module) -> None {
+    import from pathlib { Path }
+    import from jaclang.jac0core.constant { SymbolAccess }
+    import from jaclang.jac0core.passes.sym_tab_build_pass { find_python_scope_node_of }
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if not imp.is_absorb or not imp.items {
+            continue;
+        }
+        path_node = imp.items[0];
+        if not isinstance(path_node, uni.ModulePath) {
+            continue;
+        }
+        scope = find_python_scope_node_of(imp);
+        if scope is None {
+            continue;
+        }
+        src_path = path_node.resolve_relative_path();
+        if not src_path or not Path(src_path).exists() {
+            continue;
+        }
+        src_mod = self.load_dependency_module(src_path);
+        for sym in src_mod.names_in_scope.values() {
+            if sym.access != SymbolAccess.PRIVATE and sym.defn {
+                scope.def_insert(
+                    sym.defn[0], single_decl='import absorb', imported=True
+                );
+            }
+        }
+        for overload_syms in src_mod.names_in_scope_overload.values() {
+            for sym in overload_syms {
+                if sym.access != SymbolAccess.PRIVATE and sym.defn {
+                    scope.def_insert(
+                        sym.defn[0], single_decl='import absorb', imported=True
+                    );
+                }
+            }
+        }
+    }
 }
 
 impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {
