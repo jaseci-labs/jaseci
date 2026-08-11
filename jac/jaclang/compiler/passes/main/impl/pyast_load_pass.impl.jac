@@ -2255,27 +2255,17 @@ impl PyastBuildPass._emit_float_call(nd: py_ast.AST, arg: str) -> uni.FuncCall {
         pos_end=0
     );
     return uni.FuncCall(
-        target=func,
-        params=[arg_lit],
-        genai_call=None,
-        kid=[func, arg_lit]
+        target=func, params=[arg_lit], genai_call=None, kid=[func, arg_lit]
     );
 }
 
 impl PyastBuildPass._builtin_attr_ref(nd: py_ast.AST, attr: str) -> uni.AtomTrailer {
     mod = self.name_node(nd, 'builtins');
     name = self.name_node(
-        nd,
-        attr,
-        col_start=nd.col_offset,
-        col_end=nd.col_offset + len(attr)
+        nd, attr, col_start=nd.col_offset, col_end=nd.col_offset + len(attr)
     );
     return uni.AtomTrailer(
-        target=mod,
-        right=name,
-        is_attr=True,
-        is_null_ok=False,
-        kid=[mod, name]
+        target=mod, right=name, is_attr=True, is_null_ok=False, kid=[mod, name]
     );
 }
 
