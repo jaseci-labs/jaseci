@@ -317,6 +317,49 @@ fi
 echo "  order ${ORDER_ID} survived the restart (served from Mongo by a fresh pod)"
 
 _t "identity + pod-restart persistence OK"
+echo "=== verify the circuit breaker sheds load when a downstream service is gone ==="
+# orders_app reaches cart_app through `sv import`, so create_order is a real
+# sv-to-sv call and the only breaker-protected hop in this fixture.
+kubectl scale -n "${NAMESPACE}" deploy/cart-app-deployment --replicas=0 >/dev/null
+kubectl wait --for=delete pod -n "${NAMESPACE}" -l app=cart-app --timeout=120s \
+    >/dev/null 2>&1 || true
+
+BREAKER_BODY=""
+BREAKER_SECS=0
+BREAKER_CALLS=0
+# Breaker state lives in the calling pod, so drive calls until one trips rather
+# than assuming a fixed count that a second orders-app replica would break.
+while [ "${BREAKER_CALLS}" -lt 10 ]; do
+    BREAKER_CALLS=$((BREAKER_CALLS + 1))
+    CALL_START=$(date +%s)
+    CALL_BODY=$(curl -sS --max-time 60 -X POST "${GW_URL}/orders/function/create_order" \
+        -H "${AUTH}" -H 'content-type: application/json' -d '{}' 2>/dev/null || true)
+    BREAKER_SECS=$(( $(date +%s) - CALL_START ))
+    if printf '%s' "${CALL_BODY}" | grep -q "open circuit breaker"; then
+        BREAKER_BODY="${CALL_BODY}"
+        break
+    fi
+done
+
+# Restore before asserting so a failure here cannot leave cart_app scaled to 0.
+kubectl scale -n "${NAMESPACE}" deploy/cart-app-deployment --replicas=1 >/dev/null
+if ! kubectl rollout status -n "${NAMESPACE}" deploy/cart-app-deployment \
+    --timeout=300s >/dev/null 2>&1; then
+    echo "FAIL: cart-app did not come back after the breaker check" >&2
+    exit 1
+fi
+
+if [ -z "${BREAKER_BODY}" ]; then
+    echo "FAIL: breaker never opened after ${BREAKER_CALLS} create_order calls to a downed cart_app" >&2
+    exit 1
+fi
+if [ "${BREAKER_SECS}" -ge 5 ]; then
+    echo "FAIL: breaker was open but the call still took ${BREAKER_SECS}s, so it is not shedding load" >&2
+    exit 1
+fi
+echo "  breaker opened after ${BREAKER_CALLS} call(s) and shed load in ${BREAKER_SECS}s"
+
+_t "circuit breaker load shedding OK"
 echo "=== verify HPA OOM guardrails (cpu+memory metrics, behavior rate limits) ==="
 # The heredoc feeds python's stdin, so the HPA JSON must travel via a file.
 HPA_JSON="$(mktemp)"

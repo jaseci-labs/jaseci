@@ -389,6 +389,7 @@ test "HALF_OPEN probe failure re-opens the breaker with a fresh cooldown" {
 
 test "walker_call records one breaker failure per failed round trip" {
     import from jaclang.scale.runtime.rpc.breaker { _breaker_peek }
+    import from jaclang.scale.runtime.rpc.rpc { _RPC_MAX_ATTEMPTS }
 
     mod = "breaker_walker_per_attempt_test";
     _breaker_reset(mod);
@@ -405,7 +406,7 @@ test "walker_call records one breaker failure per failed round trip" {
 
         st = _breaker_peek(mod);
         assert st is not None;
-        assert round_trips["n"] > 1;
+        assert round_trips["n"] == _RPC_MAX_ATTEMPTS;
         assert st["fails"] == round_trips["n"];
     } finally {
         sv_http.request_sync = original_request;
@@ -422,7 +423,9 @@ test "breaker opens after exactly the trip threshold of failed round trips" {
 
     try {
         sv_client.register(mod, "http://demo.invalid");
-        while not breaker_should_skip(mod) {
+        calls = 0;
+        while not breaker_should_skip(mod) and calls < _BREAKER_TRIP_THRESHOLD {
+            calls += 1;
             try {
                 JacScalePlugin.sv_service_call(mod, "ping", {});
             } except RuntimeError {
