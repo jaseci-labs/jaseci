@@ -86,12 +86,16 @@ impl NaIRGenPass.post_transform -> None {
     if os.environ.get("JAC_DEBUG_IR", "").strip().lower()
         in ("1", "true", "yes", "on") {
         import from jaclang.jac0core.jir { get_native_cache_dir }
+        import hashlib as _ll_hashlib;
         src_path = self.ir_in.loc.mod_path;
         if src_path {
             stem = os.path.splitext(os.path.basename(src_path))[0];
             ir_dir = str(get_native_cache_dir(src_path));
             os.makedirs(ir_dir, exist_ok=True);
-            auto_ir_path = os.path.join(ir_dir, stem + ".ll");
+            _ll_hash = _ll_hashlib.sha256(
+                os.path.abspath(src_path).encode()
+            ).hexdigest()[:8];
+            auto_ir_path = os.path.join(ir_dir, f"{stem}.{_ll_hash}.ll");
             with open(auto_ir_path, "w") as f {
                 f.write(ir_str);
             }

@@ -252,6 +252,11 @@ impl JacCompiler.get_bytecode(
         );
         if result.gen.py_bytecode {
             actual_program.hub_cache_stamp(full_target);
+            _bc_opts = actual_program._compile_options;
+            _skip_jir_write = _bc_opts is not None and _bc_opts.aot_mode;
+            if _skip_jir_write {
+                return marshal.loads(result.gen.py_bytecode);
+            }
             try {
                 import from jaclang.jac0core.jir_passes { JirWriter }
                 import pickle;
@@ -1172,7 +1177,9 @@ impl JacCompiler._compile_once(
         self.run_schedule(
             mod=mod_targ,
             target_program=actual_program,
-            passes=get_py_code_gen(native=needs_native),
+            passes=get_py_code_gen(
+                native=needs_native, aot=(needs_native and options.aot_mode)
+            ),
             cancel_token=options.cancel_token
         );
         if mod_targ.decided_codespace == 'native' {

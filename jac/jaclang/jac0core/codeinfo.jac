@@ -271,6 +271,10 @@ def _inferred_native_path(candidate: (str | None)) -> (str | None) {
     if candidate is None {
         return None;
     }
+    import from jaclang.jac0core.placement_pins { config_module_pin }
+    if config_module_pin(candidate) == 'native' {
+        return candidate;
+    }
     import from jaclang.jac0core.placement_solver { native_default_path_ok }
     return candidate if native_default_path_ok(candidate) else None;
 }

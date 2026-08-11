@@ -392,7 +392,7 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
                 if self.evaluator._is_awaitable_type(right_type) {
                     self.emit(E1042, actual=str(right_type), expected=str(left_type));
                 } else {
-                    self.emit(E1001, actual=str(right_type), expected=str(left_type));
+                    self.emit(E1001, node_override=nd, actual=str(right_type), expected=str(left_type));
                 }
             }
         }
@@ -453,7 +453,7 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
                     }
                     if result is not None
                         and not self.evaluator.assign_type(result, left_type) {
-                        self.emit(E1001, actual=str(result), expected=str(left_type));
+                        self.emit(E1001, node_override=nd, actual=str(result), expected=str(left_type));
                     }
                 }
             }

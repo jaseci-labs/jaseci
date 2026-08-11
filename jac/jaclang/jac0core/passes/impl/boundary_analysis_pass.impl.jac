@@ -1,8 +1,33 @@
 impl BoundaryAnalysisPass.before_pass(self: BoundaryAnalysisPass) -> None {
     self._func_defs: dict[(str, tuple[(InteropContext, uni.Ability)])] = {};
     self._imported_native_funcs: dict[(str, tuple[(str, InteropContext)])] = {};
-
     self._imported_native_modules: dict[(str, tuple[(str, InteropContext)])] = {};
+    self._parsed_source_cache: dict[(str, any)] = {};
+}
+
+impl BoundaryAnalysisPass._hub_lookup(
+    self: BoundaryAnalysisPass, path: (str | None)
+) -> (uni.Module | None) {
+    if not path or not (self.prog and self.prog.mod and self.prog.mod.hub) {
+        return None;
+    }
+    import os;
+    import from pathlib { Path as _HubPath }
+    hub = self.prog.mod.hub;
+    mod = hub.get(path);
+    if mod is not None {
+        return mod;
+    }
+    mod = hub.get(os.path.abspath(path));
+    if mod is not None {
+        return mod;
+    }
+    try {
+        mod = hub.get(str(_HubPath(path).resolve()));
+    } except Exception {
+        mod = None;
+    }
+    return mod;
 }
 
 impl BoundaryAnalysisPass._resolved_native_decl(
@@ -155,13 +180,7 @@ impl BoundaryAnalysisPass._absorbed_module(
     if not path {
         return None;
     }
-    mod: (uni.Module | None) = None;
-    if (self.prog and self.prog.mod and self.prog.mod.hub) {
-        mod = self.prog.mod.hub.get(path);
-        if mod is None {
-            mod = self.prog.mod.hub.get(os.path.abspath(path));
-        }
-    }
+    mod: (uni.Module | None) = self._hub_lookup(path);
     if mod is None and os.path.isfile(path) {
         try {
             mod = self.prog.compile(path, no_cgen=True, type_check=False);
@@ -377,19 +396,17 @@ impl BoundaryAnalysisPass._register_sv_import(
 ) -> None {
     source_mod: (uni.Module | None) = None;
     if nd.from_loc {
+        resolved_path: (str | None) = None;
         try {
             resolved_path = nd.from_loc.resolve_relative_path();
-            if (self.prog and self.prog.mod and self.prog.mod.hub) {
-                source_mod = self.prog.mod.hub.get(resolved_path);
-            }
         } except Exception {
-            source_mod = None;
+            resolved_path = None;
         }
-        if (source_mod is None) {
+        source_mod = self._hub_lookup(resolved_path);
+        if (source_mod is None and resolved_path) {
             try {
-                resolved_path = nd.from_loc.resolve_relative_path();
                 import os;
-                if resolved_path and os.path.isfile(resolved_path) {
+                if os.path.isfile(resolved_path) {
                     source_mod = self._parse_only_source_module(resolved_path);
                 }
             } except Exception {
@@ -630,18 +647,33 @@ impl BoundaryAnalysisPass._extract_walker_has_fields(
 impl BoundaryAnalysisPass._parse_only_source_module(
     self: BoundaryAnalysisPass, file_path: str
 ) -> any {
+    import os;
     import from jaclang.jac0core.compiler { JacCompiler }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.helpers { read_file_with_encoding }
+
+    cache_key = file_path;
+    try {
+        cache_key = os.path.abspath(file_path);
+    } except Exception {
+        cache_key = file_path;
+    }
+    if cache_key in self._parsed_source_cache {
+        return self._parsed_source_cache[cache_key];
+    }
+
+    parsed: any = None;
     try {
         src_text = read_file_with_encoding(file_path);
         compiler_obj = JacCompiler();
-        return compiler_obj.parse_str(
+        parsed = compiler_obj.parse_str(
             source_str=src_text, file_path=file_path, target_program=JacProgram()
         );
     } except Exception {
-        return None;
+        parsed = None;
     }
+    self._parsed_source_cache[cache_key] = parsed;
+    return parsed;
 }
 
 impl BoundaryAnalysisPass._find_archetype(

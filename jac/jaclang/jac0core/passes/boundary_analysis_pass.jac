@@ -32,6 +32,10 @@ class BoundaryAnalysisPass(UniPass) {
         self: BoundaryAnalysisPass, mod: (uni.Module | None)
     ) -> (str | None);
 
+    def _hub_lookup(
+        self: BoundaryAnalysisPass, path: (str | None)
+    ) -> (uni.Module | None);
+
     def _absorbed_module(
         self: BoundaryAnalysisPass, item: uni.ModulePath
     ) -> (uni.Module | None);

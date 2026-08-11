@@ -11,6 +11,7 @@ import from jaclang.jac0core.placement {
 }
 
 glob _na_scan_memo: dict[str, tuple] = {},
+     _na_pathok_memo: dict[str, bool] = {},
      _SPACE_BY_NAME: dict[str, CodeContext] = {
          'server': CodeContext.SERVER,
          'client': CodeContext.CLIENT,
@@ -19,6 +20,7 @@ glob _na_scan_memo: dict[str, tuple] = {},
 
 def native_scan_memo_clear {
     _na_scan_memo.clear();
+    _na_pathok_memo.clear();
 }
 
 def _native_dep_scan(path: str) -> (tuple[str, list[str]] | None) {
@@ -113,15 +115,23 @@ def _native_deps_ok(root_path: str, root_deps: list[str]) -> bool {
 
 def native_default_path_ok(path: str) -> bool {
     ap = os.path.abspath(path);
+    cached = _na_pathok_memo.get(ap);
+    if cached is not None {
+        return cached;
+    }
     info = _native_dep_scan(ap);
     if info is None {
+        _na_pathok_memo[ap] = False;
         return False;
     }
     (has_sv, deps) = info;
     if has_sv {
+        _na_pathok_memo[ap] = False;
         return False;
     }
-    return _native_deps_ok(ap, deps);
+    verdict = _native_deps_ok(ap, deps);
+    _na_pathok_memo[ap] = verdict;
+    return verdict;
 }
 
 def native_default_verdict(module: uni.Module) -> tuple[bool, str] {

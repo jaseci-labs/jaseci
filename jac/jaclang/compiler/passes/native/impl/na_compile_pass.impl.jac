@@ -55,6 +55,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
     if _compile_opts.skip_native_engine {
         return ir_in;
     }
+
     llvm_ir_str = str(module.gen.llvm_ir);
     try {
         import ctypes as _ct;
@@ -296,49 +297,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
         native_safe_sym
     }
 
-    import glob as _cgl;
-    import jaclang as _jlm;
-    _jl_dir = os.path.dirname(os.path.abspath(_jlm.__file__));
-    _nat_dir = os.path.join(_jl_dir, "compiler", "passes", "native");
-    _comp_h = hashlib.sha256();
-    for _cp in [
-        os.path.join(_nat_dir, "impl", "*.jac"),
-        os.path.join(_nat_dir, "na_ir_gen_pass.impl", "*.jac"),
-
-    ] {
-        for _cf in sorted(_cgl.glob(_cp)) {
-            try {
-                with open(_cf, "rb") as _cfh {
-                    _comp_h.update(_cfh.read());
-                }
-            } except Exception { }
-        }
-    }
+    _compiler_fp = "nofp";
     _gc_opts = self.prog?._compile_options;
-    _gc_sig_parts = [
-        getattr(_gc_opts, "na_gc_mode", "cycles") if _gc_opts else "cycles",
-        "all" if (_gc_opts and getattr(_gc_opts, "nogc_enforce_all", False)) else "",
-        getattr(_gc_opts, "nogc_cli_target", "") if _gc_opts else "",
-        ",".join(sorted(getattr(_gc_opts, "nogc_enforce_modules", []) or []))
-            if _gc_opts
-            else "",
-        ",".join(sorted(getattr(_gc_opts, "nogc_grandfathered", []) or []))
-            if _gc_opts
-            else ""
-    ];
-    try {
-        import from jaclang.project { get_config }
-        _gc_cfg = get_config();
-        if _gc_cfg {
-            _gc_sig_parts.append(_gc_cfg.gc.default);
-            _gc_sig_parts.append(",".join(sorted(list(_gc_cfg.gc.enforce.modules))));
-            _gc_sig_parts.append(
-                ",".join(sorted(list(_gc_cfg.gc.enforce.grandfathered)))
-            );
-        }
-    } except Exception { }
-    _comp_h.update("|".join(_gc_sig_parts).encode());
-    _compiler_fp = _comp_h.hexdigest()[:8];
 
     linked_modules: dict = {};
     if module.loc {
@@ -438,6 +398,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
         _cache_ir_path = "";
         _cache_meta_path = "";
         _cache_hit = False;
+        _no_ir_cache = False;
         imported_llvm_str_raw = "";
 
         meta = DepClibMeta();
@@ -544,6 +505,10 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
             meta.owned_symbols = sorted(_owned_seen);
             imported_llvm_str_raw = str(imported_ir.gen.llvm_ir);
+            try {
+                imported_ir.gen.llvm_ir.close();
+            } except Exception { }
+            imported_ir.gen.llvm_ir = None;
             meta.clib_paths = imported_ir.gen._clib_paths or [];
             meta.clib_symbol_lib = imported_ir.gen._clib_symbol_lib or {};
             meta.exported_symbols = imported_ir.gen._exported_symbols or [];
@@ -585,6 +550,13 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 _meta_obj = meta.to_meta();
                 with open(_cache_meta_path, "w") as _wmf {
                     _wmf.write(json.dumps(_meta_obj));
+                }
+            } except Exception { }
+            try {
+                import from pathlib { Path as _EvPath }
+                if imported_ir.loc and imported_ir.loc.mod_path {
+                    _ev_key = str(_EvPath(imported_ir.loc.mod_path).resolve());
+                    self.prog.invalidate_module(_ev_key);
                 }
             } except Exception { }
         }

@@ -280,18 +280,18 @@ def scrub_cache_dirs(root_dir: str) -> int {
     import glob as _glob;
     import shutil as _shutil;
     patterns = [
-        os.path.join(root_dir, "**", ".jac", "cache"),
-        os.path.join(root_dir, "**", ".jac_ir")
+        os.path.join(root_dir, "**", ".jac", "cache", "native"),
+        os.path.join(root_dir, "**", ".jac_ir", "native")
     ];
     removed = 0;
     seen: set[str] = set();
     for pattern in patterns {
-        for cache_dir in _glob.glob(pattern, recursive=True) {
-            if cache_dir in seen or not os.path.isdir(cache_dir) {
+        for native_dir in _glob.glob(pattern, recursive=True) {
+            if native_dir in seen or not os.path.isdir(native_dir) {
                 continue;
             }
-            seen.add(cache_dir);
-            _shutil.rmtree(cache_dir, ignore_errors=True);
+            seen.add(native_dir);
+            _shutil.rmtree(native_dir, ignore_errors=True);
             removed += 1;
         }
     }
