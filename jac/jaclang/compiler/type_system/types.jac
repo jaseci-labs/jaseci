@@ -50,6 +50,7 @@ obj TypeBase(ABC) {
     def is_instance -> bool;
     def is_instantiable_class -> bool;
     def is_class_instance -> bool;
+    def is_any_instance -> bool;
     def is_any_type -> bool;
 }
 
@@ -149,7 +150,8 @@ obj ClassType(TypeBase) {
     obj ClassDetailsPrivate {
         has type_args: (list[TypeBase] | None) = None,
             alias_name: (str | None) = None,
-            literal_value: (str | int | bool | None) = None;
+            literal_value: (str | int | bool | None) = None,
+            distinct_key: (str | None) = None;
 
         def postinit -> None;
     }

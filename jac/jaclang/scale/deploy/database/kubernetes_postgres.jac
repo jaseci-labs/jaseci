@@ -1,7 +1,6 @@
 import base64;
 import secrets as _pysecrets;
 import from typing { Any }
-import from jaclang.scale.deploy.database.database_provider { DatabaseProvider }
 import from jaclang.scale.deploy.target.deployment_target { DeploymentTarget }
 import from jaclang.scale.config.config_loader { get_scale_config }
 
@@ -9,7 +8,7 @@ glob PG_PORT = 5432,
      PG_IMAGE = 'postgres:18';
 
 
-obj KubernetesPostgresProvider(DatabaseProvider) {
+obj KubernetesPostgresProvider {
     has target: (DeploymentTarget | None) = None,
         config: dict[str, any] = {},
         app_name: str postinit,
@@ -42,7 +41,7 @@ obj KubernetesPostgresProvider(DatabaseProvider) {
         };
     }
 
-    override def get_connection_string -> str {
+    def get_connection_string -> str {
         cfg = self._db_cfg();
         ext = cfg.get('url') or cfg.get('postgres_url');
         if ext {
@@ -52,11 +51,11 @@ obj KubernetesPostgresProvider(DatabaseProvider) {
         return f"postgresql://jac@{n['service']}:{PG_PORT}/jac";
     }
 
-    override def is_available -> bool {
+    def is_available -> bool {
         return True;
     }
 
-    override def deploy(config: dict[str, any] = {}) -> dict[str, any] {
+    def deploy(config: dict[str, any] = {}) -> dict[str, any] {
         n = self._names();
         mode = self._mode();
         if mode == 'external' {
@@ -213,7 +212,7 @@ obj KubernetesPostgresProvider(DatabaseProvider) {
     }
 
     def cleanup { }
-    override def get_init_container(
+    def get_init_container(
         app_name: str, wait_image: str
     ) -> (dict[(str, Any)] | None) {
         if self._mode() == 'external' {

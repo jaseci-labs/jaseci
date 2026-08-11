@@ -211,8 +211,14 @@ obj NativeJServer {
         );
         ms_cfg = get_scale_config().get_microservices_config();
         drain_timeout = float(ms_cfg.get("drain_timeout_seconds", 10));
+        ws_cfg = get_scale_config().get_websocket_config();
         self.serving = ServingServer(
-            app=self.app, host=host, port=port, drain_timeout=drain_timeout
+            app=self.app,
+            host=host,
+            port=port,
+            drain_timeout=drain_timeout,
+            ws_allowed_origins=[str(o) for o in (ws_cfg.get('allowed_origins') or [])],
+            ws_max_message_bytes=int(ws_cfg.get('max_message_bytes') or 0)
         );
         install_signal_drain(self.serving, timeout_s=drain_timeout);
         self.serving.run(on_ready=on_ready, port_retries=max_retries);

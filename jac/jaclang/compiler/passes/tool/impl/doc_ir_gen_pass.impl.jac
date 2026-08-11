@@ -2688,3 +2688,75 @@ impl DocIRGenPass._wrap_doc_comments(nd: uni.UniNode) -> None {
     }
     nd.gen.doc_ir = base;
 }
+
+impl DocIRGenPass._ct_block_stmt_doc(
+    nd: uni.UniNode, body: Sequence[uni.UniNode]
+) -> None {
+    parts: list[doc.DocType] = [];
+    body_parts: list[doc.DocType] = [self.hard_line()];
+    prev_body_item: (uni.UniNode | None) = None;
+    placed = False;
+    for i in nd.kid {
+        if self.is_within(i, body) {
+            if not placed {
+                parts.append(self.indent(self.concat(body_parts), ast_node=nd));
+                parts.append(self.hard_line());
+                placed = True;
+            }
+            self.add_body_stmt_with_spacing(body_parts, i, prev_body_item);
+            prev_body_item = i;
+        } else {
+            parts.append(i.gen.doc_ir);
+            parts.append(self.space());
+        }
+    }
+    if not placed and body_parts {
+        parts.append(self.indent(self.concat(body_parts), ast_node=nd));
+        parts.append(self.hard_line());
+    }
+    if parts {
+        parts.pop();
+    }
+    body_parts.pop();
+    nd.gen.doc_ir = self.group(self.concat(parts, ast_node=nd), ast_node=nd);
+}
+
+impl DocIRGenPass.exit_ct_if(nd: uni.CtIf) -> None {
+    self._ct_block_stmt_doc(nd, nd.body);
+}
+
+impl DocIRGenPass.exit_ct_else(nd: uni.CtElse) -> None {
+    self._ct_block_stmt_doc(nd, nd.body);
+}
+
+impl DocIRGenPass.exit_ct_for(nd: uni.CtFor) -> None {
+    self._ct_block_stmt_doc(nd, nd.body);
+}
+
+impl DocIRGenPass.exit_ct_block(nd: uni.CtBlock) -> None {
+    parts: list[doc.DocType] = [];
+    for i in nd.kid {
+        parts.append(i.gen.doc_ir);
+        parts.append(self.space());
+    }
+    if parts {
+        parts.pop();
+    }
+    nd.gen.doc_ir = self.group(self.concat(parts, ast_node=nd), ast_node=nd);
+}
+
+impl DocIRGenPass.exit_ct_splice(nd: uni.CtSplice) -> None {
+    parts: list[doc.DocType] = [];
+    for i in nd.kid {
+        parts.append(i.gen.doc_ir);
+    }
+    nd.gen.doc_ir = self.concat(parts, ast_node=nd);
+}
+
+impl DocIRGenPass.exit_ct_name(nd: uni.CtName) -> None {
+    parts: list[doc.DocType] = [];
+    for i in nd.kid {
+        parts.append(i.gen.doc_ir);
+    }
+    nd.gen.doc_ir = self.concat(parts, ast_node=nd);
+}

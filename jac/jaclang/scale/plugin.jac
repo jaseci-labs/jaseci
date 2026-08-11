@@ -9,7 +9,6 @@ import from .config.config_loader { get_scale_config }
 import from .events.streams.postgres { PgEventStream }
 
 import from .persistence.pg { shared_store as _pg_anchor }
-import from .persistence.docdb { PgDocDb as _docdb_anchor }
 import from .state.pg_state_backend { PgStateBackend as _state_anchor }
 import from jaclang.runtimelib.server { UserManager }
 import from jaclang.runtimelib.storage { Storage }
@@ -60,7 +59,8 @@ def scale_start(
     enable_tls: bool,
     dry_run: bool,
     show_yaml: bool,
-    rollout_wait: str = ""
+    rollout_wait: str = "",
+    port: int = 8000
 ) -> int | None {
     os.environ["JAC_SCALE_RUNTIME"] = "1";
     if rollout_wait and not scale {
@@ -68,6 +68,9 @@ def scale_start(
     }
     scale_config = get_scale_config();
     ms_config = scale_config.get_microservices_config();
+    if port and port != 8000 {
+        ms_config["gateway_port"] = port;
+    }
     is_sv_sibling = os.environ.get("JAC_SV_SIBLING") == "1";
 
     enabled = ms_config.get("enabled", None);

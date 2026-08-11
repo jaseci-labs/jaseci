@@ -390,10 +390,20 @@ def:pub Counter() -> JsxElement {
 
 ### How It Works
 
-| Jac Syntax | React Equivalent |
-|------------|------------------|
-| `has count: int = 0` | `const [count, setCount] = useState(0)` |
-| `count = count + 1` | `setCount(count + 1)` |
+On the React-family backends each state field lowers to a per-field store cell whose reads are synchronous and whose writes notify rendering through `useSyncExternalStore`; on Solid it lowers to a signal. Both implement the same contract.
+
+| Jac Syntax | Lowered (react/preact) |
+|------------|------------------------|
+| `has count: int = 0` | `const __jacS_count = useJacState(0)` |
+| `count` (read) | `__jacS_count.val` |
+| `count = count + 1` | `__jacS_count.set(__jacS_count.val + 1)` |
+
+### The State Contract
+
+1. **Reads always return the most recent write** - in the same ability, in helper methods, in lambdas and deferred callbacks, and after `await`s. `x = v; if x { ... }` branches on `v`.
+2. **Rendering is reactive and batched** - the *render* is what's deferred, never the value. Writing the identical value (`Object.is`) skips the re-render, like `useState`.
+3. **`can with [deps] entry` re-runs when a dep's value changes** between committed renders.
+4. **Assigning a state field in the component body is a compile error (`E0082`)** - body statements run on every render, so an immediate write there would re-render forever. Write from abilities, event handlers, or methods.
 
 ### Complex State
 
@@ -2515,17 +2525,12 @@ If `MainContent` throws an error, only that boundary's fallback is shown, while 
 
 ## Memory & Persistence
 
-### Memory Hierarchy
+### The Session
 
-| Tier | Type | Implementation |
-|------|------|----------------|
-| L1 | Volatile | VolatileMemory (in-process) |
-| L2 | Cache | LocalCacheMemory (TTL-based) |
-| L3 | Persistent | SqliteMemory (default) |
-
-### TieredMemory
-
-Automatic read-through caching and write-through persistence:
+Each unit of work runs against a `Session`: an in-memory view of the graph
+backed by the project's Postgres store (embedded locally, external via
+`JAC_DB_URL`). Reads materialize anchors into the session; writes commit in
+one serializable transaction at the end of the unit of work.
 
 ```jac
 # Objects are automatically persisted

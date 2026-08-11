@@ -1793,7 +1793,9 @@ impl JacAutoLintPass._check_too_many_params(nd: uni.FuncSignature) -> None {
     if nd.params {
         all_params.extend(nd.params);
     }
-    if all_params and all_params[0].name.value == "self" {
+    if all_params
+        and isinstance(all_params[0], uni.ParamVar)
+        and all_params[0].name.value == "self" {
         count -= 1;
     }
     if count > threshold {
