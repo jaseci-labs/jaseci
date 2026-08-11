@@ -63,6 +63,12 @@ obj UniPass(ModuleCodegenPass) {
     def enter_compare_expr(nd: uni.CompareExpr) -> None;
     def enter_concurrent_expr(nd: uni.ConcurrentExpr) -> None;
     def enter_connect_op(nd: uni.ConnectOp) -> None;
+    def enter_ct_block(nd: uni.CtBlock) -> None;
+    def enter_ct_else(nd: uni.CtElse) -> None;
+    def enter_ct_for(nd: uni.CtFor) -> None;
+    def enter_ct_if(nd: uni.CtIf) -> None;
+    def enter_ct_name(nd: uni.CtName) -> None;
+    def enter_ct_splice(nd: uni.CtSplice) -> None;
     def enter_ctrl_stmt(nd: uni.CtrlStmt) -> None;
     def enter_delete_stmt(nd: uni.DeleteStmt) -> None;
     def enter_dict_compr(nd: uni.DictCompr) -> None;

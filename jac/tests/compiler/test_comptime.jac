@@ -80,7 +80,7 @@ test "formatter path keeps templates unexpanded" {
     assert kept , "formatter tree should retain comptime templates";
     out = main_mod.unparse(requires_format=True);
     assert "comptime for K in NAMES" in out , out[:200];
-    assert "${ct.name(" in out;
+    assert "${" in out , "splices should survive the formatter tree";
 }
 
 

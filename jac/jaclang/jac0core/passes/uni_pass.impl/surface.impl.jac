@@ -73,6 +73,30 @@ impl UniPass.enter_connect_op(nd: uni.ConnectOp) -> None {
     self.default_enter(nd);
 }
 
+impl UniPass.enter_ct_block(nd: uni.CtBlock) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_else(nd: uni.CtElse) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_for(nd: uni.CtFor) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_if(nd: uni.CtIf) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_name(nd: uni.CtName) -> None {
+    self.default_enter(nd);
+}
+
+impl UniPass.enter_ct_splice(nd: uni.CtSplice) -> None {
+    self.default_enter(nd);
+}
+
 impl UniPass.enter_ctrl_stmt(nd: uni.CtrlStmt) -> None {
     self.default_enter(nd);
 }

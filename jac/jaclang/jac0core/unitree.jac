@@ -693,6 +693,7 @@ obj ElseStmt(UniScopeNode) {
 
 obj CtBlock(Expr) {
     def accept_exit(v: UniPass) -> None;
+    def accept_enter(v: UniPass) -> None;
 
     has expr: Expr;
 
@@ -701,6 +702,7 @@ obj CtBlock(Expr) {
 
 obj CtIf(ElementStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
+    def accept_enter(v: UniPass) -> None;
 
     has condition: Expr,
         body: Sequence[UniNode],
@@ -711,6 +713,7 @@ obj CtIf(ElementStmt, CodeBlockStmt) {
 
 obj CtElse(ElementStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
+    def accept_enter(v: UniPass) -> None;
 
     has body: Sequence[UniNode];
 
@@ -719,6 +722,7 @@ obj CtElse(ElementStmt, CodeBlockStmt) {
 
 obj CtFor(ElementStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
+    def accept_enter(v: UniPass) -> None;
 
     has target: Name,
         iter: Expr,
@@ -729,6 +733,7 @@ obj CtFor(ElementStmt, CodeBlockStmt) {
 
 obj CtSplice(Expr, AstSymbolStubNode) {
     def accept_exit(v: UniPass) -> None;
+    def accept_enter(v: UniPass) -> None;
 
     has expr: Expr;
     has value: str { getter; }
@@ -743,6 +748,7 @@ obj CtSplice(Expr, AstSymbolStubNode) {
 
 obj CtName(Expr, AstSymbolStubNode) {
     def accept_exit(v: UniPass) -> None;
+    def accept_enter(v: UniPass) -> None;
 
     has parts: Sequence[UniNode];
     has value: str { getter; }

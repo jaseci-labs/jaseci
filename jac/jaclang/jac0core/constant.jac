@@ -692,6 +692,7 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_WITH': 'with',
          'KW_YIELD': 'yield',
          'LBRACE': '{',
+         'DOLLAR_LBRACE': '${',
          'LPAREN': '(',
          'LSHIFT': '<<',
          'LSHIFT_EQ': '<<=',
