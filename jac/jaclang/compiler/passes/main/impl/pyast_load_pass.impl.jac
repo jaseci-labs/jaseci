@@ -1271,6 +1271,9 @@ impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> uni.Expr {
     } elif (value_type is int) {
         return self._make_number_literal(nd, 'INT', str(nd.value));
     } elif (value_type is float) {
+        if not math.isfinite(nd.value) {
+            return self._numeric_literal(nd, nd.value);
+        }
         return self._make_number_literal(nd, 'FLOAT', str(nd.value));
     } elif (value_type in type_mapping) {
         if (value_type is type(None)) {
@@ -2259,25 +2262,18 @@ impl PyastBuildPass._emit_float_call(nd: py_ast.AST, arg: str) -> uni.FuncCall {
     );
 }
 
-impl PyastBuildPass._builtin_attr_ref(nd: py_ast.AST, attr: str) -> uni.AtomTrailer {
-    mod = self.name_node(nd, 'builtins');
-    name = self.name_node(
-        nd, attr, col_start=nd.col_offset, col_end=nd.col_offset + len(attr)
-    );
-    return uni.AtomTrailer(
-        target=mod, right=name, is_attr=True, is_null_ok=False, kid=[mod, name]
-    );
-}
-
 impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
+    # Python source cannot spell a non-finite numeric literal, so this branch is
+    # only reached via constant folding of overflowing forms such as `1e999j`.
+    # Jac has no inf/nan literal, so infinity is spelled as an overflowing float
+    # literal -- `1e309` evaluates to inf in every Jac codespace and keeps the
+    # value a compile-time constant rather than a shadowable `float(...)` call.
+    # nan has no literal spelling, so it falls back to `float('nan')`.
     if not math.isfinite(n) {
         if math.isnan(n) {
             return self._emit_float_call(nd, 'nan');
         }
-        if n > 0 {
-            return self._emit_float_call(nd, 'inf');
-        }
-        return self._emit_float_call(nd, '-inf');
+        return self._make_number_literal(nd, 'FLOAT', '1e309' if n > 0 else '-1e309');
     }
     if n == int(n) {
         return self._make_number_literal(nd, 'INT', str(int(n)), col_end=nd.col_offset);
@@ -2288,7 +2284,10 @@ impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
 impl PyastBuildPass._emit_complex_call(
     nd: py_ast.AST, re: float, im: float
 ) -> uni.FuncCall {
-    func = self._builtin_attr_ref(nd, 'complex');
+    # Bare `complex` is an injected builtin in every Jac codespace; qualifying it
+    # as `builtins.complex` only works where the native backend pattern-matches
+    # the name and crashes in the Python codespace (`builtins` is not defined).
+    func = self.name_node(nd, 'complex');
     real_lit = self._numeric_literal(nd, re);
     imag_lit = self._numeric_literal(nd, im);
     return uni.FuncCall(

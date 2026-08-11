@@ -36,7 +36,6 @@ obj PyastBuildPass(Transform[uni.PythonModuleAst, uni.Module]) {
 
     def _numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr;
     def _emit_float_call(nd: py_ast.AST, arg: str) -> uni.FuncCall;
-    def _builtin_attr_ref(nd: py_ast.AST, attr: str) -> uni.AtomTrailer;
     def _emit_complex_call(nd: py_ast.AST, re: float, im: float) -> uni.FuncCall;
     def _eval_complex_literal_ast(nd: py_ast.AST) -> (complex | float | int | None);
     def _try_fold_complex_literal(nd: py_ast.BinOp) -> (uni.FuncCall | None);

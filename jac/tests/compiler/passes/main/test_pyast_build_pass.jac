@@ -8,11 +8,14 @@ are handled properly.
 import ast as py_ast;
 import inspect;
 import os;
+import sys;
+import tempfile;
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
 import from jaclang.jac0core.helpers { pascal_to_snake }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.runtime { JacRuntime }
 import from jaclang.jac0core.unitree { PythonModuleAst, Source }
 
 glob FIXTURES = os.path.join(
@@ -242,18 +245,18 @@ test "py2jac complex literals" {
         prog=JacProgram()
     ).ir_out.unparse();
 
-    assert "builtins.complex(0, 1)" in code , f"Expected bare 1j as builtins.complex(0, 1) in:\n{code}";
-    assert "builtins.complex(0, 2)" in code , f"Expected 2.0j conversion in:\n{code}";
-    assert "builtins.complex(1, 2)" in code , f"Expected 1+2j as builtins.complex(1, 2) in:\n{code}";
-    assert "builtins.complex(-1, -2)" in code , f"Expected -1-2j as builtins.complex(-1, -2) in:\n{code}";
-    assert "builtins.complex(3, 0)" in code , f"Expected 3+0j as builtins.complex(3, 0) in:\n{code}";
-    assert "builtins.complex(1, 2)" in code , f"Expected 2j+1 as builtins.complex(1, 2) in:\n{code}";
-    assert "builtins.complex(4, 2)" in code , f"Expected 1+2j+3 as builtins.complex(4, 2) in:\n{code}";
-    assert "builtins.complex(-1, 2)" in code , f"Expected 2j-1 as builtins.complex(-1, 2) in:\n{code}";
-    assert "builtins.complex(0, 2) + 1" not in code , (
+    assert "complex(0, 1)" in code , f"Expected bare 1j as complex(0, 1) in:\n{code}";
+    assert "complex(0, 2)" in code , f"Expected 2.0j conversion in:\n{code}";
+    assert "complex(1, 2)" in code , f"Expected 1+2j as complex(1, 2) in:\n{code}";
+    assert "complex(-1, -2)" in code , f"Expected -1-2j as complex(-1, -2) in:\n{code}";
+    assert "complex(3, 0)" in code , f"Expected 3+0j as complex(3, 0) in:\n{code}";
+    assert "complex(1, 2)" in code , f"Expected 2j+1 as complex(1, 2) in:\n{code}";
+    assert "complex(4, 2)" in code , f"Expected 1+2j+3 as complex(4, 2) in:\n{code}";
+    assert "complex(-1, 2)" in code , f"Expected 2j-1 as complex(-1, 2) in:\n{code}";
+    assert "complex(0, 2) + 1" not in code , (
         f"Reversed complex add must fold, got native-broken binop in:\n{code}"
     );
-    assert "builtins.complex(1, 2) + 3" not in code , (
+    assert "complex(1, 2) + 3" not in code , (
         f"Nested complex add must fold, got native-broken binop in:\n{code}"
     );
 
@@ -262,6 +265,48 @@ test "py2jac complex literals" {
     );
     assert len(prog.errors_had) == 0 , (
         f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+}
+
+"""py2jac complex output must run in the server (Python) codespace.
+
+Qualifying the constructor as `builtins.complex` only works where the native
+backend pattern-matches the name; `builtins` is not defined in the Python
+codespace, so the generated code crashed at runtime with NameError. This test
+imports and executes the converted module to guard against that regression.
+"""
+test "py2jac complex literals run in server codespace" {
+    file_source = PY2JAC_COMPLEX_SOURCE;
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(file_source), orig_src=Source(file_source, "py2jac_complex.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse();
+
+    tmp = tempfile.mkdtemp();
+    mod_name = "py2jac_complex_rt";
+    open(os.path.join(tmp, f"{mod_name}.jac"), "w").write(code);
+    JacRuntime.jac_import(target=mod_name, base_path=tmp);
+    mod = sys.modules[mod_name];
+
+    assert mod.bare_j() == complex(0, 1) , f"bare_j: {mod.bare_j()}";
+    assert mod.bare_float_j() == complex(0, 2) , f"bare_float_j: {mod.bare_float_j()}";
+    assert mod.add_complex() == complex(1, 2) , f"add_complex: {mod.add_complex()}";
+    assert mod.negative_complex() == complex(-1, -2) , (
+        f"negative_complex: {mod.negative_complex()}"
+    );
+    assert mod.complex_real_only() == complex(3, 0) , (
+        f"complex_real_only: {mod.complex_real_only()}"
+    );
+    assert mod.reversed_add_complex() == complex(1, 2) , (
+        f"reversed_add_complex: {mod.reversed_add_complex()}"
+    );
+    assert mod.nested_add_complex() == complex(4, 2) , (
+        f"nested_add_complex: {mod.nested_add_complex()}"
+    );
+    assert mod.reversed_sub_complex() == complex(-1, 2) , (
+        f"reversed_sub_complex: {mod.reversed_sub_complex()}"
     );
 }
 
@@ -444,7 +489,9 @@ test "py2jac fstring hash survives formatter" {
 """Overflowed imaginary literals (1e999j) must not crash; isfinite guard emits inf.
 
 Without the math.isfinite guard in _numeric_literal, the imaginary part of
-`1e999j` overflows to inf and `inf == int(inf)` raises OverflowError.
+`1e999j` overflows to inf and `inf == int(inf)` raises OverflowError. Infinity
+is spelled as an overflowing float literal (`1e309`) so it stays a compile-time
+constant rather than a shadowable `float('inf')` call.
 """
 test "py2jac complex inf imaginary" {
     file_source = PY2JAC_COMPLEX_INF_SOURCE;
@@ -456,8 +503,8 @@ test "py2jac complex inf imaginary" {
         prog=JacProgram()
     ).ir_out.unparse();
 
-    assert "builtins.complex(0, float('inf'))" in code , (
-        f"Expected 1e999j to fold to builtins.complex(0, float('inf')) in:\n{code}"
+    assert "complex(0, 1e309)" in code , (
+        f"Expected 1e999j to fold to complex(0, 1e309) in:\n{code}"
     );
 
     prog = JacProgram.jac_str_formatter(
@@ -466,6 +513,41 @@ test "py2jac complex inf imaginary" {
     assert len(prog.errors_had) == 0 , (
         f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
     );
+}
+
+"""Overflowed plain float literals must emit 1e309, not the `inf` identifier.
+
+The same non-finite guard covers plain floats: `1e309` is a Python float
+constant (value inf), but `str(float('inf'))` is `"inf"`, which Jac lexes as a
+name -- producing an undefined-name error instead of preserving the value.
+"""
+test "py2jac plain float inf" {
+    source = "def pos():\n    return 1e309\n\ndef neg():\n    return -1e309\n";
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(source), orig_src=Source(source, "py2jac_float_inf.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse();
+
+    assert "return 1e309" in code , f"Expected 1e309 literal in:\n{code}";
+    assert "return -1e309" in code , f"Expected -1e309 literal in:\n{code}";
+    assert "return inf" not in code , f"Bare `inf` identifier leaked in:\n{code}";
+
+    prog = JacProgram.jac_str_formatter(
+        source_str=code, file_path="py2jac_float_inf.py", auto_lint=False
+    );
+    assert len(prog.errors_had) == 0 , (
+        f"Re-parse errors: {[str(e) for e in prog.errors_had]}\ncode:\n{code}"
+    );
+
+    tmp = tempfile.mkdtemp();
+    mod_name = "py2jac_float_inf_rt";
+    open(os.path.join(tmp, f"{mod_name}.jac"), "w").write(code);
+    JacRuntime.jac_import(target=mod_name, base_path=tmp);
+    mod = sys.modules[mod_name];
+    assert mod.pos() == float("inf") , f"pos: {mod.pos()}";
+    assert mod.neg() == float("-inf") , f"neg: {mod.neg()}";
 }
 
 """A complex literal in a match value pattern must emit E5044.
