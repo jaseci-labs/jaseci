@@ -5993,7 +5993,7 @@ impl Parser.parse_func_signature -> NodeId {
             } else {
                 regular_params.append(k);
             }
-        } elif self.b.kind_of(k) == KIND_CT_FOR or self.b.kind_of(k) == KIND_CT_IF {
+        } elif self.b.kind_of(k) == Kind.CT_FOR or self.b.kind_of(k) == Kind.CT_IF {
             if saw_bare_star {
                 kwonly_params.append(k);
             } else {
@@ -6226,7 +6226,14 @@ impl Parser.parse_enum -> NodeId {
         body_l = [];
         enum_lb_uni = self.make_uni_token(self.previous());
         while not self.check(TokenKind.RBRACE) and not self.at_end() {
-            if self.check_name() {
+            if self.check(TokenKind.KW_COMPTIME) {
+                cf = self.parse_ct_element(4);
+                if cf == NIL {
+                    break;
+                }
+                body_l.append(cf);
+                body_kid.append(cf);
+            } elif self.check_name() {
                 member = self.parse_enum_member();
                 body_l.append(member);
                 body_kid.append(member);
@@ -6297,8 +6304,13 @@ impl Parser.parse_enum -> NodeId {
 }
 
 impl Parser.parse_enum_member -> NodeId {
-    name_tok = self.expect_name();
-    name = self.make_name(name_tok, is_enum_stmt=True);
+    name: NodeId;
+    if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
+        name = self.parse_ct_name();
+    } else {
+        name_tok = self.expect_name();
+        name = self.make_name(name_tok, is_enum_stmt=True);
+    }
     value = NIL;
     em_eq_uni: NodeId = NIL;
     if self.match_tok(TokenKind.EQ) {
@@ -7185,6 +7197,26 @@ impl Parser.parse_ct_else(mode: int) -> NodeId {
 
 impl Parser.parse_ct_body(mode: int, kid: list) -> list {
     body: list[NodeId] = [];
+    if mode == 4 {
+        while not self.check(TokenKind.RBRACE) and not self.at_end() {
+            item: NodeId = NIL;
+            if self.check(TokenKind.KW_COMPTIME) {
+                item = self.parse_ct_element(4);
+            } else {
+                item = self.parse_enum_member();
+            }
+            if item == NIL {
+                break;
+            }
+            body.append(item);
+            kid.append(item);
+            if not self.match_tok(TokenKind.COMMA) {
+                break;
+            }
+            kid.append(self.make_uni_token(self.previous()));
+        }
+        return body;
+    }
     if mode == 2 {
         while not self.check(TokenKind.RBRACE) and not self.at_end() {
             if self.check(TokenKind.KW_COMPTIME) {

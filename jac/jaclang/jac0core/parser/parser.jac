@@ -3,8 +3,7 @@ import from .lexer { tokenize_full }
 
 import from jaclang.jac0core.arena { NIL, NodeId, SyntaxArena }
 import from jaclang.jac0core.arena {
-    KIND_CT_FOR,
-    KIND_CT_IF,
+    Kind,
     DOC_SLOTS,
     ENUM_STMT_SLOTS,
     KS_CONTEXT_AWARE_NODE,
@@ -421,6 +420,7 @@ obj Parser {
     def parse_assignment_with_target(
         target: NodeId, require_semi: bool = True
     ) -> NodeId;
+
     def parse_ownership_prefix(kids: list) -> OwnershipKind;
     def parse_import_stmt -> NodeId;
     def parse_from_path -> tuple[(int, bool)];

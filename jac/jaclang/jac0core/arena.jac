@@ -400,8 +400,12 @@ comptime def _ct_family_rows -> list[dict] {
     return out;
 }
 
-comptime for K in _ct_schema() {
-    glob ${ct.name("KIND_" + K["usnake"])}: int = ${K["kind"]};
+# One member per unitree kind; values are the schema's kind ids, so
+# Kind.X == kind_of(node) for a node built by mk_x.
+enum Kind: int {
+    comptime for K in _ct_schema() {
+        ${ct.name(K["usnake"])} = ${K["kind"]}
+    , }
 }
 
 glob DOC_SLOTS: dict[int, int] = comptime { _ct_slot_table("doc") },

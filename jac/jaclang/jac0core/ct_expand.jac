@@ -2,15 +2,7 @@ import operator as pyop;
 import jaclang.jac0core.parser.lexer as ct_lexer;
 
 import from jaclang.jac0core.arena { NIL, SyntaxArena, Tag }
-import from jaclang.jac0core.arena {
-    KIND_CT_BLOCK,
-    KIND_CT_ELSE,
-    KIND_CT_FOR,
-    KIND_CT_IF,
-    KIND_CT_NAME,
-    KIND_CT_SPLICE,
-    SPECS
-}
+import from jaclang.jac0core.arena { Kind, SPECS }
 import from jaclang.jac0core.arena_materialize { spec_of as decode_spec_of }
 import from jaclang.jac0core.constant { ArgCat }
 import from jaclang.jac0core.constant { CodeContext }
@@ -18,8 +10,8 @@ import from jaclang.jac0core.helpers { pascal_to_snake }
 import from jaclang.jac0core.parser.parser { Parser }
 import jaclang.jac0core.ct_reflect as ct_reflect;
 
-glob CT_STRUCT_KINDS: tuple = (KIND_CT_FOR, KIND_CT_IF, KIND_CT_ELSE),
-     CT_EXPR_KINDS: tuple = (KIND_CT_BLOCK, KIND_CT_SPLICE, KIND_CT_NAME),
+glob CT_STRUCT_KINDS: tuple = (Kind.CT_FOR, Kind.CT_IF, Kind.CT_ELSE),
+     CT_EXPR_KINDS: tuple = (Kind.CT_BLOCK, Kind.CT_SPLICE, Kind.CT_NAME),
      CT_FUEL_DEFAULT: int = 50000000;
 
 
@@ -1225,7 +1217,7 @@ obj CtExpander {
         out = "";
         for p in self.ev.list_arg(i, "parts") {
             k = self.a().kind_of(p);
-            if k == KIND_CT_SPLICE {
+            if k == Kind.CT_SPLICE {
                 v = self.ev.eval(self.ev.node_arg(p, "expr"));
                 if isinstance(v, CtFragment) and v.kind == "name" {
                     v = v.text;
@@ -1248,11 +1240,11 @@ obj CtExpander {
         a = self.a();
         kind = a.kind_of(i);
         loc = self.ev.loc_of(i);
-        if kind == KIND_CT_NAME {
+        if kind == Kind.CT_NAME {
             return self._tok("NAME", "NAME", self.ct_name_text(i), loc);
         }
         v = self.ev.eval(self.ev.node_arg(i, "expr"));
-        if kind == KIND_CT_SPLICE and isinstance(v, CtFragment) {
+        if kind == Kind.CT_SPLICE and isinstance(v, CtFragment) {
             if v.kind == "name" {
                 if not _is_ident(v.text) {
                     _ct_err(f"ct.name('{v.text}') is not a valid identifier");
@@ -1324,11 +1316,11 @@ obj CtExpander {
         out: list[int] = [];
         for x in ids {
             k = a.kind_of(x);
-            if k == KIND_CT_FOR {
+            if k == Kind.CT_FOR {
                 news = self.expand_ct_for(x);
                 self.subst[x] = news;
                 out.extend(news);
-            } elif k == KIND_CT_IF {
+            } elif k == Kind.CT_IF {
                 news = self.expand_ct_if(x, parent);
                 self.subst[x] = news;
                 out.extend(news);
@@ -1374,7 +1366,7 @@ obj CtExpander {
         if eb == NIL {
             return [];
         }
-        if self.a().kind_of(eb) == KIND_CT_IF {
+        if self.a().kind_of(eb) == Kind.CT_IF {
             return self.expand_ct_if(eb, parent);
         }
         return self.expand_items(ev.list_arg(eb, "body"), eb);
