@@ -2263,12 +2263,6 @@ impl PyastBuildPass._emit_float_call(nd: py_ast.AST, arg: str) -> uni.FuncCall {
 }
 
 impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
-    # Python source cannot spell a non-finite numeric literal, so this branch is
-    # only reached via constant folding of overflowing forms such as `1e999j`.
-    # Jac has no inf/nan literal, so infinity is spelled as an overflowing float
-    # literal -- `1e309` evaluates to inf in every Jac codespace and keeps the
-    # value a compile-time constant rather than a shadowable `float(...)` call.
-    # nan has no literal spelling, so it falls back to `float('nan')`.
     if not math.isfinite(n) {
         if math.isnan(n) {
             return self._emit_float_call(nd, 'nan');
@@ -2284,9 +2278,6 @@ impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
 impl PyastBuildPass._emit_complex_call(
     nd: py_ast.AST, re: float, im: float
 ) -> uni.FuncCall {
-    # Bare `complex` is an injected builtin in every Jac codespace; qualifying it
-    # as `builtins.complex` only works where the native backend pattern-matches
-    # the name and crashes in the Python codespace (`builtins` is not defined).
     func = self.name_node(nd, 'complex');
     real_lit = self._numeric_literal(nd, re);
     imag_lit = self._numeric_literal(nd, im);
