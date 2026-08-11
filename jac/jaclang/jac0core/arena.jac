@@ -1,12 +1,12 @@
 import from jaclang.jac0core.constant { EdgeDir, OwnershipKind }
 import from jaclang.jac0core.ctlib { ct, fail, reflect }
 
-type NodeId = int;
-type StrId = int;
-type SeqOff = int;
-type KindId = int;
+type NodeId = distinct int;
+type StrId = distinct int;
+type SeqOff = distinct int;
+type KindId = distinct int;
 
-glob NIL: NodeId = 0;
+glob NIL: NodeId = NodeId(0);
 
 enum Tag: int { NONE = 0, NODE = 1, LIST = 2, STR = 3, INT = 4, BOOL = 5, ENUM = 6 }
 
@@ -70,17 +70,17 @@ obj SyntaxArena {
     def post_set(i: NodeId, key: str, v: int) -> None;
     # -- bulk adoption: the one sanctioned column-level write (deserialization) --
     def adopt_columns(
-        kinds: list[int],
+        kinds: list[KindId],
         kid_los: list[int],
         kid_ns: list[int],
         arg_los: list[int],
         arg_ns: list[int],
-        kids: list[int],
+        kids: list[NodeId],
         args: list[int],
         seqs: list[int],
         posts: list[int],
         strtab: list[str],
-        root_id: int
+        root_id: NodeId
     ) -> None;
 
     # -- private layout helpers --
@@ -105,7 +105,7 @@ obj SyntaxArena {
                 ${ct.name(p["pname"])}: ${ct.typ(p["ptype"])} = ${ct.expr(p["pdflt"])}
             , }kid: list[NodeId] = []
         ) -> NodeId {
-            idx = self._start(${K["kind"]}, kid, ${K["argn"]});
+            idx = self._start(KindId(${K["kind"]}), kid, ${K["argn"]});
             comptime for p in K["bparams"] {
                 self.${ct.name(p["writer"])}(${ct.expr(p["warg"])});
             }

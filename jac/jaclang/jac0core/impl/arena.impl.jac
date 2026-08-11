@@ -10,7 +10,7 @@ impl SyntaxArena.intern(s: str) -> StrId {
     if s in self._intern {
         return self._intern[s];
     }
-    idx = len(self.strtab);
+    idx = StrId(len(self.strtab));
     self.strtab.append(s);
     self._intern[s] = idx;
     return idx;
@@ -55,7 +55,7 @@ impl SyntaxArena.arg_node(i: NodeId, slot: int) -> NodeId {
     if tag != Tag.NODE {
         self._bad_tag(i, slot, Tag.NODE, tag);
     }
-    return v;
+    return NodeId(v);
 }
 
 impl SyntaxArena.arg_str(i: NodeId, slot: int) -> (str | None) {
@@ -104,7 +104,7 @@ impl SyntaxArena.arg_list(i: NodeId, slot: int) -> (list[NodeId] | None) {
 
 impl SyntaxArena.seq_ids(off: SeqOff) -> list[NodeId] {
     n = self.seqs[off];
-    return self.seqs[off + 1:off + 1 + n];
+    return [NodeId(v) for v in self.seqs[off + 1:off + 1 + n]];
 }
 
 impl SyntaxArena.deps_of(i: NodeId) -> list[NodeId] {
@@ -112,7 +112,7 @@ impl SyntaxArena.deps_of(i: NodeId) -> list[NodeId] {
     for pr in self.arg_pairs(i) {
         (tag, v) = pr;
         if tag == Tag.NODE {
-            deps.append(v);
+            deps.append(NodeId(v));
         } elif tag == Tag.LIST {
             deps.extend(self.seq_ids(v));
         }
@@ -126,7 +126,7 @@ impl SyntaxArena.post_entries -> list[tuple[(NodeId, str, int)]] {
     n = len(self.posts);
     while j + 2 < n {
         out.append(
-            (self.posts[j], self.strtab[self.posts[j + 1]], self.posts[j + 2], )
+            (NodeId(self.posts[j]), self.strtab[self.posts[j + 1]], self.posts[j + 2], )
         );
         j += 3;
     }
@@ -134,7 +134,7 @@ impl SyntaxArena.post_entries -> list[tuple[(NodeId, str, int)]] {
 }
 
 impl SyntaxArena.intern_seq(ids: list[NodeId]) -> SeqOff {
-    off = len(self.seqs);
+    off = SeqOff(len(self.seqs));
     self.seqs.append(len(ids));
     self.seqs.extend(ids);
     return off;
@@ -218,17 +218,17 @@ impl SyntaxArena.post_set(i: NodeId, key: str, v: int) {
 }
 
 impl SyntaxArena.adopt_columns(
-    kinds: list[int],
+    kinds: list[KindId],
     kid_los: list[int],
     kid_ns: list[int],
     arg_los: list[int],
     arg_ns: list[int],
-    kids: list[int],
+    kids: list[NodeId],
     args: list[int],
     seqs: list[int],
     posts: list[int],
     strtab: list[str],
-    root_id: int
+    root_id: NodeId
 ) {
     self.kinds = kinds;
     self.kid_los = kid_los;
@@ -253,7 +253,7 @@ impl SyntaxArena.adopt_columns(
 }
 
 impl SyntaxArena._reserve_nil_row{
-    self.kinds.append(0);
+    self.kinds.append(KindId(0));
     self.kid_los.append(0);
     self.kid_ns.append(0);
     self.arg_los.append(0);
@@ -261,7 +261,7 @@ impl SyntaxArena._reserve_nil_row{
 }
 
 impl SyntaxArena._start(kind: KindId, kid: list[NodeId], arg_n: int) -> NodeId {
-    idx = len(self.kinds);
+    idx = NodeId(len(self.kinds));
     self.kinds.append(kind);
     self.kid_los.append(len(self.kids));
     self.kid_ns.append(len(kid));

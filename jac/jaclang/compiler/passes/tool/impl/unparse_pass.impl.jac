@@ -143,6 +143,9 @@ impl UnparsePass.exit_type_alias(nd: uni.TypeAlias) -> None {
         parts.append("[" + tp_str + "]");
     }
     parts.append("=");
+    if nd.is_distinct {
+        parts.append("distinct");
+    }
     parts.append(nd.value.gen.jac);
     nd.gen.jac = " ".join(parts);
 }

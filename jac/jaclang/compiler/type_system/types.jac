@@ -148,9 +148,13 @@ obj ClassType(TypeBase) {
     }
 
     obj ClassDetailsPrivate {
+        # distinct_key brands an erased distinct alias ("<mod_path>::<name>"):
+        # shared stays the base primitive's, so members, arithmetic decay, and
+        # every lowering see the base; only assignability reads the brand.
         has type_args: (list[TypeBase] | None) = None,
             alias_name: (str | None) = None,
-            literal_value: (str | int | bool | None) = None;
+            literal_value: (str | int | bool | None) = None,
+            distinct_key: (str | None) = None;
 
         def postinit -> None;
     }

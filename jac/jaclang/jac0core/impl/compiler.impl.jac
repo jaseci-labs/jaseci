@@ -831,6 +831,12 @@ impl JacCompiler.compile(
             }
             return _mod;
         }
+        # A crash with no recorded diagnostics is an ICE, not a capability
+        # gap: census it apart, warn loud, and re-raise when asked to.
+        _is_ice = _crash is not None and len(_wrap_prog.errors_had) == _pre_errs;
+        if _is_ice and os.environ.get('JAC_NATIVE_ICE_RAISE') {
+            raise _crash;
+        }
         _first_err = (
             _wrap_prog.errors_had[_pre_errs].pretty_print().split('\n')[0]
                 if len(_wrap_prog.errors_had) > _pre_errs
@@ -842,7 +848,9 @@ impl JacCompiler.compile(
                 if (_demote_alerts and _demote_alerts[0].code is not None)
                 else type(_crash).__name__
         );
-        na_census_record(_resolved, 'demoted', _demote_code, _first_err);
+        na_census_record(
+            _resolved, 'ice' if _is_ice else 'demoted', _demote_code, _first_err
+        );
         _mark_demoted_native(_resolved);
         _wrap_prog.errors_had = _wrap_prog.errors_had[:_pre_errs];
         _wrap_prog.warnings_had = _wrap_prog.warnings_had[:_pre_warns];
@@ -853,12 +861,8 @@ impl JacCompiler.compile(
         }
         try {
             import from jaclang.cli.console { console as _note_console }
-            _note_console.print(
-                f"note: {file_path} preferred native but did not lower; "
-                f"compiled in the server codespace ({_first_err})",
-                style="dim",
-                file=sys.stderr
-            );
+            (_note_msg, _note_style) = na_demotion_note(file_path, _first_err, _is_ice);
+            _note_console.print(_note_msg, style=_note_style, file=sys.stderr);
         } except Exception {
             ;
         }

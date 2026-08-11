@@ -2120,6 +2120,19 @@ impl NaIRGenPass._emit_binary_op(
             return self._codegen_float_floor_div(left, right);
         }
     } else {
+        if not isinstance(left.type, ir.IntType)
+            or not isinstance(right.type, ir.IntType) {
+            # Semantic typing says integer op, but a layout disagrees (e.g. a
+            # struct-pointer lowering of an int-family archetype): a real
+            # diagnostic, never an AttributeError on .width.
+            self.emit(
+                E5092,
+                node_override=self.cur_node,
+                kind="integer operator layout",
+                name=f"{op} on {left.type} vs {right.type}"
+            );
+            return None;
+        }
         if left.type.width < right.type.width {
             left = self.builder.sext(left, right.type, name="int.sext.l");
         } elif right.type.width < left.type.width {

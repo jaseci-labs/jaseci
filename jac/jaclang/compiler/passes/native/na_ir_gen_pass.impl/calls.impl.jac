@@ -859,6 +859,43 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return self._codegen_intrinsic(nd, _intrinsic_entry);
     }
 
+    # An erased distinct alias used as a callee is the base primitive's
+    # conversion: Score(x) lowers exactly like int(x) — zero-cost cast.
+    import from jaclang.compiler.type_system { types as jtypes }
+    _callee_t = nd.target?.type;
+    if isinstance(_callee_t, jtypes.ClassType)
+        and _callee_t.private.distinct_key is not None {
+        _cast_params = nd.params or [];
+        if len(_cast_params) == 1 {
+            _cast_arg = self._codegen_expr(_cast_params[0]);
+            if _cast_arg is not None {
+                _cast_res = self._dispatch_builtin(
+                    _callee_t.shared.class_name,
+                    [_cast_arg],
+                    kwargs=self._split_call_kwargs(nd),
+                    kw_node=nd,
+                    type_key=(self._type_key_of(_cast_params[0]) or "")
+                );
+                if isinstance(_cast_arg.type, ir.PointerType)
+                    and self._is_owned(_cast_arg) {
+                    self._emit_rc_release_simple(
+                        _cast_arg, op="distinct_cast_arg", loc=""
+                    );
+                }
+                if _cast_res is not None {
+                    return _cast_res;
+                }
+            }
+        }
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="distinct cast",
+            name=func_name or _callee_t.shared.class_name
+        );
+        return None;
+    }
+
     if _call_kind == "builtin" {
         if func_name == "print" {
             return self._emit_print(nd);
