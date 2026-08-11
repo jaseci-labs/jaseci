@@ -79,23 +79,38 @@ def intrinsic_registry_if_ready -> object | None {
     return INTRINSIC_REGISTRY;
 }
 
+def qualified_builtin_name(target: uni.Expr) -> (str | None) {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+
+    if not isinstance(target, uni.AtomTrailer) or not target.is_attr {
+        return None;
+    }
+    if isinstance(target.target, uni.AtomTrailer) {
+        return None;
+    }
+    mod_name: (str | None) = None;
+    attr_name: (str | None) = None;
+    if isinstance(target.target, uni.Name) {
+        mod_name = target.target.value;
+    }
+    if isinstance(target.right, uni.Name) {
+        attr_name = target.right.value;
+    }
+    if (
+        mod_name == "builtins"
+        and attr_name is not None
+        and JAC_TYPE_REGISTRY.is_builtin(attr_name)
+    ) {
+        return attr_name;
+    }
+    return None;
+}
+
 def classify_call(nd: uni.FuncCall) -> CallKind {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
     if isinstance(nd.target, uni.AtomTrailer) and nd.target.is_attr {
-        mod_name: (str | None) = None;
-        attr_name: (str | None) = None;
-        if isinstance(nd.target.target, uni.Name) {
-            mod_name = nd.target.target.value;
-        }
-        if isinstance(nd.target.right, uni.Name) {
-            attr_name = nd.target.right.value;
-        }
-        if (
-            mod_name == "builtins"
-            and attr_name is not None
-            and JAC_TYPE_REGISTRY.is_builtin(attr_name)
-        ) {
+        if qualified_builtin_name(nd.target) is not None {
             return CallKind.BUILTIN;
         }
         return CallKind.METHOD;

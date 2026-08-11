@@ -20,57 +20,13 @@ import from jaclang.jac0core.unitree { PythonModuleAst, Source }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
-     ),
-     PY2JAC_COMPLEX_SOURCE = (
-         '"""Fixture for py2jac complex literal conversion."""\n\n'
-         + "def bare_j():\n    return 1j\n\n"
-         + "def bare_float_j():\n    return 2.0j\n\n"
-         + "def add_complex():\n    return 1 + 2j\n\n"
-         + "def negative_complex():\n    return -1 - 2j\n\n"
-         + "def complex_real_only():\n    return 3 + 0j\n\n"
-         + "def reversed_add_complex():\n    return 2j + 1\n\n"
-         + "def nested_add_complex():\n    return 1 + 2j + 3\n\n"
-         + "def reversed_sub_complex():\n    return 2j - 1\n"
-     ),
-     PY2JAC_FSTRING_ADJACENT_MULTILINE_SOURCE = (
-         '"""Fixture for adjacent f-strings split across lines inside parens."""\n\n'
-         + "def welcome():\n    return (\n"
-         + '        f"Welcome "\n'
-         + '        f"aboard"\n'
-         + "    )\n"
-     ),
-     PY2JAC_FSTRING_ADJACENT_SINGLELINE_SOURCE = (
-         '"""Fixture for single-line adjacent f-strings with mixed quotes."""\n\n'
-         + "def adjacent():\n    return f'A' f\"B\"\n"
-     ),
-     PY2JAC_LAMBDA_IIFE_SOURCE = (
-         '"""Fixture for immediately-invoked lambda expressions."""\n\n'
-         + "def iife():\n    return (lambda x: x + 1)(10)\n\n"
-         + "def tap(f, x):\n    return f(x)\n\n"
-         + "def nested_lambda_call():\n"
-         + "    assert tap(lambda x: x + 1, (lambda x: x + 1)(10)) == 11\n"
-     ),
-     PY2JAC_FSTRING_HASH_SOURCE = (
-         '"""Fixture for a hash inside an f-string (fmt regression)."""\n\n'
-         + "def greet(x):\n    return f\"a # b {x}\"\n"
-     ),
-     PY2JAC_COMPLEX_INF_SOURCE = (
-         '"""Fixture for an overflowed imaginary literal (isfinite guard)."""\n\n'
-         + "def inf_imag():\n    return 1e999j\n"
-     ),
-     PY2JAC_MATCH_COMPLEX_SOURCE = (
-         '"""Fixture for a complex literal in a match value pattern (E5044)."""\n\n'
-         + "def classify(x):\n"
-         + "    match x:\n"
-         + "        case 1 + 2j:\n"
-         + "            return \"complex\"\n"
-         + "        case _:\n"
-         + "            return \"other\"\n"
-     ),
-     PY2JAC_TERNARY_CALL_SOURCE = (
-         '"""Fixture for a ternary expression as a call target."""\n\n'
-         + "def pick(a, b, c):\n    return (a if c else b)(10)\n"
      );
+
+def read_fixture(name: str) -> str {
+    with open(os.path.join(FIXTURES, name)) as f {
+        return f.read();
+    }
+}
 
 test "synced to latest py ast" {
     # Python 3.14 moved the unparser to `_ast_unparse` and binds
@@ -237,7 +193,7 @@ test "py2jac binop operator precedence" {
 
 """Complex number literals must emit complex(re, im) instead of ICE."""
 test "py2jac complex literals" {
-    file_source = PY2JAC_COMPLEX_SOURCE;
+    file_source = read_fixture("py2jac_complex.py");
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source), orig_src=Source(file_source, "py2jac_complex.py")
@@ -276,7 +232,7 @@ codespace, so the generated code crashed at runtime with NameError. This test
 imports and executes the converted module to guard against that regression.
 """
 test "py2jac complex literals run in server codespace" {
-    file_source = PY2JAC_COMPLEX_SOURCE;
+    file_source = read_fixture("py2jac_complex.py");
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source), orig_src=Source(file_source, "py2jac_complex.py")
@@ -337,7 +293,7 @@ test "py2jac complex literals native lowering" {
     if not pipeline_ok {
         pytest.skip(pipeline_reason);
     }
-    file_source = PY2JAC_COMPLEX_SOURCE;
+    file_source = read_fixture("py2jac_complex.py");
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source), orig_src=Source(file_source, "py2jac_complex.py")
@@ -366,7 +322,7 @@ test "py2jac complex literals native lowering" {
 
 """Adjacent f-strings folded by Python must emit valid Jac f-strings."""
 test "py2jac fstring adjacent multiline" {
-    file_source = PY2JAC_FSTRING_ADJACENT_MULTILINE_SOURCE;
+    file_source = read_fixture("py2jac_fstring_adjacent_multiline.py");
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source),
@@ -399,7 +355,7 @@ test "py2jac fstring adjacent multiline" {
 
 """Single-line adjacent f-strings with mixed quotes must not mangle output."""
 test "py2jac fstring adjacent singleline" {
-    file_source = PY2JAC_FSTRING_ADJACENT_SINGLELINE_SOURCE;
+    file_source = read_fixture("py2jac_fstring_adjacent_singleline.py");
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source),
@@ -427,7 +383,7 @@ test "py2jac fstring adjacent singleline" {
 
 """Immediately-invoked lambda expressions must parenthesize the call target."""
 test "py2jac lambda iife" {
-    file_source = PY2JAC_LAMBDA_IIFE_SOURCE;
+    file_source = read_fixture("py2jac_lambda_iife.py");
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source),
@@ -461,7 +417,7 @@ zero-error round-trip used elsewhere does NOT guard it. Inspect the formatted
 text directly.
 """
 test "py2jac fstring hash survives formatter" {
-    file_source = PY2JAC_FSTRING_HASH_SOURCE;
+    file_source = read_fixture("py2jac_fstring_hash.py");
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source),
@@ -494,7 +450,7 @@ is spelled as an overflowing float literal (`1e309`) so it stays a compile-time
 constant rather than a shadowable `float('inf')` call.
 """
 test "py2jac complex inf imaginary" {
-    file_source = PY2JAC_COMPLEX_INF_SOURCE;
+    file_source = read_fixture("py2jac_complex_inf.py");
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source),
@@ -522,10 +478,11 @@ constant (value inf), but `str(float('inf'))` is `"inf"`, which Jac lexes as a
 name -- producing an undefined-name error instead of preserving the value.
 """
 test "py2jac plain float inf" {
-    source = "def pos():\n    return 1e309\n\ndef neg():\n    return -1e309\n";
+    file_source = read_fixture("py2jac_float_inf.py");
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
-            py_ast.parse(source), orig_src=Source(source, "py2jac_float_inf.py")
+            py_ast.parse(file_source),
+            orig_src=Source(file_source, "py2jac_float_inf.py")
         ),
         prog=JacProgram()
     ).ir_out.unparse();
@@ -556,7 +513,7 @@ test "py2jac plain float inf" {
 would parse `complex(1, 2)` as a class pattern, so proc_match_value emits E5044.
 """
 test "py2jac match complex value emits E5044" {
-    file_source = PY2JAC_MATCH_COMPLEX_SOURCE;
+    file_source = read_fixture("py2jac_match_complex.py");
     prog = JacProgram();
     PyastBuildPass(
         ir_in=PythonModuleAst(
@@ -582,7 +539,7 @@ ternary, otherwise it re-parses as `a if c else b(10)` -- valid Jac that calls
 expression kind (BinOp, BoolOp, Compare, Unary, Await) as a call target.
 """
 test "py2jac ternary call target" {
-    file_source = PY2JAC_TERNARY_CALL_SOURCE;
+    file_source = read_fixture("py2jac_ternary_call.py");
     code = PyastBuildPass(
         ir_in=PythonModuleAst(
             py_ast.parse(file_source),
