@@ -243,16 +243,6 @@ impl UniNode.to_dict -> dict[(str, str)] {
     return ret;
 }
 
-impl UniNode.pp(depth: (int | None) = None) -> str {
-    import from jaclang.jac0core.treeprinter { print_ast_tree }
-    return print_ast_tree(self, max_depth=depth);
-}
-
-impl UniNode.printgraph -> str {
-    import from jaclang.jac0core.treeprinter { printgraph_ast_tree }
-    return printgraph_ast_tree(self);
-}
-
 impl UniNode.flatten -> list[UniNode] {
     ret: list[UniNode] = [self];
     for k in self.kid {
@@ -617,16 +607,6 @@ impl UniScopeNode.update_expr_ctx_for_def(nd: AstSymbolNode) -> None {
         }
         fix(nd);
     }
-}
-
-impl UniScopeNode.sym_pp(depth: (int | None) = None) -> str {
-    import from jaclang.jac0core.treeprinter { print_symtab_tree }
-    return print_symtab_tree(root_node=self, depth=depth);
-}
-
-impl UniScopeNode.sym_printgraph -> str {
-    import from jaclang.jac0core.treeprinter { printgraph_symtab_tree }
-    return printgraph_symtab_tree(self);
 }
 
 impl UniScopeNode.__repr__ -> str {

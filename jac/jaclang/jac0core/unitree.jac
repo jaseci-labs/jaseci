@@ -81,8 +81,6 @@ obj UniNode {
     def in_client_context -> bool;
     def in_native_context -> bool;
     def to_dict -> dict[(str, str)];
-    def pp(depth: (int | None) = None) -> str;
-    def printgraph -> str;
     def flatten -> list[UniNode];
     def unparse -> str;
 }
@@ -169,8 +167,6 @@ obj UniScopeNode(UniNode) {
 
     def chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None;
     def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
-    def sym_pp(depth: (int | None) = None) -> str;
-    def sym_printgraph -> str;
     def __repr__ -> str;
 }
 
