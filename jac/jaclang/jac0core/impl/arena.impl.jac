@@ -327,13 +327,9 @@ impl SyntaxArena._arg_poly(v: (NodeId | list[NodeId] | None)) {
     if v is None {
         self._push_none();
     } elif isinstance(v, int) {
-        # Typed rebinds stay: isinstance branches do not narrow in native
-        # lowering (E5092); `is None` branches do.
-        vi: NodeId = v;
-        self._arg_node(vi);
+        self._arg_node(NodeId(v));
     } else {
-        vl: list[NodeId] = v;
-        self._arg_list(vl);
+        self._arg_list(v);
     }
 }
 
