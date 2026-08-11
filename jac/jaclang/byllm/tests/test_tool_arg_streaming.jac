@@ -123,7 +123,8 @@ def _run(
     rebuilts: list,
     tools: list,
     enabled: bool = True,
-    bounds: dict | None = None
+    bounds: dict | None = None,
+    tolerate_errors: bool = False
 ) -> list {
     llm = Model(model_name="gpt-4o");
     wrapped = [Tool(func=t) for t in tools];
@@ -152,7 +153,15 @@ def _run(
                 message="dropped", llm_provider="openai", model="gpt-4o"
             );
         }
+        # A callable turn is a generator factory, for streams that raise midway.
+        if callable(turns[i]) {
+            return turns[i]();
+        }
         return turns[i];
+    }
+
+    def _no_stream(mt_arg: any) -> any {
+        return _byllm_llm_mod.CompletionResult(output="done", tool_calls=[], usage={});
     }
 
     def _rebuild(seen: list) -> dict {
@@ -173,9 +182,18 @@ def _run(
     events: list = [];
     with mock.patch.object(llm, "model_call_with_stream", _stream), mock.patch.object(
         _byllm_llm_mod.litellm, "stream_chunk_builder", _rebuild
-    ), mock.patch.object(cfg, "get_tool_stream_config", _tool_stream_cfg) {
-        for ev in llm._invoke_streaming(mt) {
-            events.append(ev);
+    ), mock.patch.object(cfg, "get_tool_stream_config", _tool_stream_cfg), mock.patch.object(
+        llm, "dispatch_no_streaming", _no_stream
+    ) {
+        try {
+            for ev in llm._invoke_streaming(mt) {
+                events.append(ev);
+            }
+        } except Exception as err {
+            # Only compaction-style scenarios opt in; anything else must surface.
+            if not tolerate_errors {
+                raise err;
+            }
         }
     }
     return events;
@@ -199,7 +217,9 @@ def _of(events: list, kind: str) -> list {
 glob BODY: str = '{"path": "main.jac", "content": "' + ("x" * 400) + '"}';
 
 
-test "streaming is off until it is enabled, and the call still runs" {
+test "disabled is the shipped default and changes nothing" {
+    # Deliberately isolated: this must keep passing even if every other part of
+    # the feature is broken, because it is the upgrade-safety guarantee.
     events = _run(
         [_frags(BODY, "write_file", "c1")],
         [_rebuilt([("c1", "write_file", BODY)])],
@@ -213,13 +233,47 @@ test "streaming is off until it is enabled, and the call still runs" {
     calls = _of(events, "tool_call");
     assert len(calls) >= 1 , f"the tool call vanished: {_kinds(events)}";
     assert calls[0].data.get("args", {}).get("path") == "main.jac" , calls[0].data;
+    assert len(_of(events, "tool_result")) >= 1 , f"the tool never ran: {_kinds(
+        events
+    )}";
 }
 
 
-test "deltas precede the call and the first one names the tool" {
+test "the gate opens per call or from jac.toml" {
+    def gate(enabled: bool, bounds: dict | None) -> list {
+        return _of(
+            _run(
+                [_frags(BODY, "write_file", "c1")],
+                [_rebuilt([("c1", "write_file", BODY)])],
+                [write_file],
+                enabled=enabled,
+                bounds=bounds
+            ),
+            "tool_call_delta"
+        );
+    }
+
+    assert len(gate(True, None)) > 0 , "the per-call override did not enable streaming";
+    assert len(
+        gate(
+            False,
+            {
+                "enabled": True,
+                "min_chars": 48,
+                "min_interval": 0.15,
+                "max_per_call": 200
+            }
+        )
+    )
+        > 0 , "[byllm.tool_stream] enabled did not enable streaming";
+}
+
+
+test "deltas precede the call, name the tool, and leave execution untouched" {
+    body = '{"path": "main.jac", "content": "hello world"}';
     events = _run(
-        [[_chunk(content="Writing it. ")] + _frags(BODY, "write_file", "c1")],
-        [_rebuilt([("c1", "write_file", BODY)])],
+        [[_chunk(content="Writing it. ")] + _frags(body, "write_file", "c1", size=5)],
+        [_rebuilt([("c1", "write_file", body)])],
         [write_file]
     );
     kinds = _kinds(events);
@@ -230,67 +284,8 @@ test "deltas precede the call and the first one names the tool" {
     assert deltas[0].data.get("tool") == "write_file" , f"the first delta must name the tool: {deltas[
         0
     ].data}";
-}
 
-
-test "coalescing bounds a provider that fragments pathologically" {
-    sent = len(range(0, len(BODY), 2));
-    events = _run(
-        [_frags(BODY, "write_file", "c1", size=2)],
-        [_rebuilt([("c1", "write_file", BODY)])],
-        [write_file]
-    );
-
-    deltas = _of(events, "tool_call_delta");
-    assert len(deltas) > 0 , "no deltas emitted";
-    assert len(deltas) < sent / 4 , f"expected coalescing, got {len(deltas)} events for {sent} fragments";
-}
-
-
-test "the jac.toml bounds are honored, not just `enabled`" {
-    # `enabled=False` means no per-call override, so everything here comes from
-    # config. min_interval is pinned high so only min_chars can publish.
-    def under(min_chars: int, max_per_call: int) -> list {
-        return _of(
-            _run(
-                [_frags(BODY, "write_file", "c1", size=8)],
-                [_rebuilt([("c1", "write_file", BODY)])],
-                [write_file],
-                enabled=False,
-                bounds={
-                    "enabled": True,
-                    "min_chars": min_chars,
-                    "min_interval": 30.0,
-                    "max_per_call": max_per_call
-                }
-            ),
-            "tool_call_delta"
-        );
-    }
-
-    tight = under(8, 500);
-    loose = under(4000, 500);
-
-    assert len(tight) > 0 , "config alone should enable streaming";
-    assert len(tight) > len(loose) , f"min_chars was ignored: {len(
-        tight
-    )} events at 8 chars vs {len(loose)} at 4000";
-
-    capped = under(8, 3);
-    assert len(capped) <= 4 , f"max_per_call was ignored: {len(
-        capped
-    )} events with a cap of 3";
-}
-
-
-test "the executed call is byte-identical to the rebuilt one" {
-    body = '{"path": "main.jac", "content": "hello world"}';
-    events = _run(
-        [_frags(body, "write_file", "c1", size=5)],
-        [_rebuilt([("c1", "write_file", body)])],
-        [write_file]
-    );
-
+    # Display is advisory: what ran is still whatever stream_chunk_builder rebuilt.
     calls = _of(events, "tool_call");
     assert calls[0].data.get("args", {}).get("content") == "hello world" , calls[
         0
@@ -299,10 +294,9 @@ test "the executed call is byte-identical to the rebuilt one" {
     assert "wrote 11 chars to main.jac" in str(results[0].data.get("result", "")) , results[
         0
     ].data;
-}
 
+    # A parallel batch must keep each call's fragments under its own id.
 
-test "a parallel batch keeps its calls separate" {
     a = '{"path": "a.jac", "content": "aaa"}';
     b = '{"path": "b.jac"}';
     events = _run(
@@ -327,88 +321,91 @@ test "a parallel batch keeps its calls separate" {
 }
 
 
-test "a retry announces the reset before the replacement's deltas" {
-    # "loop" publishes during the token loop; "flush" is short and unnamed, so
-    # no threshold trips and its deltas exist only because of the final flush.
-    short = '{"path": "a.jac"}';
-    cases = [
-        (
-            "loop",
-            _frags(BODY, "write_file", "c1"),
-            _rebuilt([("c1", "write_file", BODY)]),
-            [write_file]
-        ),
-        (
-            "flush",
-            [_chunk(frag=short[i:i + 4]) for i in range(0, len(short), 4)],
-            _rebuilt([("c1", "read_file", short)]),
-            [read_file]
-        )
-    ];
-
-    for (label, replacement, rebuilt, tools) in cases {
-        events = _run([RETRY, replacement], [None, rebuilt], tools);
-        kinds = _kinds(events);
-
-        assert "tool_call_delta" in kinds , f"[{label}] the replacement's deltas were lost: {kinds}";
-        assert "stream_reset" in kinds , f"[{label}] the retry was never announced: {kinds}";
-        assert kinds.index("stream_reset") < kinds.index("tool_call_delta") , f"[{label}] reset must precede the replacement's deltas: {kinds}";
+test "coalescing is bounded, and the bounds come from config" {
+    def under(min_chars: int, max_per_call: int, size: int) -> list {
+        return _of(
+            _run(
+                [_frags(BODY, "write_file", "c1", size=size)],
+                [_rebuilt([("c1", "write_file", BODY)])],
+                [write_file],
+                enabled=False,
+                bounds={
+                    "enabled": True,
+                    "min_chars": min_chars,
+                    "min_interval": 30.0,
+                    "max_per_call": max_per_call
+                }
+            ),
+            "tool_call_delta"
+        );
     }
+
+    # A provider that fragments pathologically must not become a flood.
+    sent = len(range(0, len(BODY), 2));
+    assert len(under(48, 200, 2)) < sent / 4 , f"expected coalescing, got {len(
+        under(48, 200, 2)
+    )} events for {sent} fragments";
+
+    # min_interval is pinned high above, so only min_chars can publish here.
+    tight = under(8, 500, 8);
+    loose = under(4000, 500, 8);
+    assert len(tight) > len(loose) , f"min_chars was ignored: {len(
+        tight
+    )} events at 8 chars vs {len(loose)} at 4000";
+
+    assert len(under(8, 3, 8)) <= 4 , f"max_per_call was ignored: {len(
+        under(8, 3, 8)
+    )} events with a cap of 3";
 }
 
 
-test "an abandoned stream is announced when compaction discards it" {
-    # Compaction discards a stream without incrementing _stream_reset_count, so
-    # no counter-based guard sees it.
-    body = '{"path": "a.jac", "content": "' + ("a" * 200) + '"}';
+test "an abandoned stream is always announced alongside its deltas" {
+    short = '{"path": "a.jac"}';
+    big = '{"path": "a.jac", "content": "' + ("a" * 200) + '"}';
 
-    llm = Model(model_name="gpt-4o");
-    wrapped = [Tool(func=write_file)];
-    wrapped.append(Tool.make_finish_tool(str));
-    mt = MTRuntime(
-        messages=[
-            Message(role=MessageRole.SYSTEM, content="s"),
-            Message(role=MessageRole.USER, content="u")
-        ],
-        resp_type=str,
-        stream=True,
-        tools=wrapped,
-        call_params={"stream_tool_args": True},
-        mtir=None
-    );
-
-    def _stream(params: dict) -> any {
-        # Not a transient error, so byllm does not retry and the counter stays put.
-        def overflow -> any {
-            for ch in _frags(body, "write_file", "c1") {
-                yield ch;
-            }
-            raise litellm.exceptions.ContextWindowExceededError(
-                message="too long", model="gpt-4o", llm_provider="openai"
-            );
+    # Compaction discards a stream WITHOUT incrementing _stream_reset_count, so
+    # no counter-based guard sees it. Not transient, so byllm does not retry.
+    def overflow -> any {
+        for ch in _frags(big, "write_file", "c1") {
+            yield ch;
         }
-        return overflow();
+        raise litellm.exceptions.ContextWindowExceededError(
+            message="too long", model="gpt-4o", llm_provider="openai"
+        );
     }
 
-    def _no_stream(mt_arg: any) -> any {
-        return _byllm_llm_mod.CompletionResult(output="done", tool_calls=[], usage={});
-    }
+    # reset_first: a retry announces BEFORE the replacement's deltas; compaction
+    # announces AFTER the deltas it is abandoning.
+    cases = [
+        (
+            "retry/loop",
+            [RETRY, _frags(BODY, "write_file", "c1")],
+            [None, _rebuilt([("c1", "write_file", BODY)])],
+            [write_file],
+            True,
+            False
+        ),
+        (
+            "retry/flush",
+            [RETRY, [_chunk(frag=short[i:i + 4]) for i in range(0, len(short), 4)]],
+            [None, _rebuilt([("c1", "read_file", short)])],
+            [read_file],
+            True,
+            False
+        ),
+        ("compaction", [overflow], [None], [write_file], False, True)
+    ];
 
-    events: list = [];
-    with mock.patch.object(llm, "model_call_with_stream", _stream), mock.patch.object(
-        llm, "dispatch_no_streaming", _no_stream
-    ) {
-        try {
-            for ev in llm._invoke_streaming(mt) {
-                events.append(ev);
-            }
-        } except Exception {
-            ;
+    for (label, turns, rebuilts, tools, reset_first, tolerate) in cases {
+        events = _run(turns, rebuilts, tools, tolerate_errors=tolerate);
+        kinds = _kinds(events);
+
+        assert "tool_call_delta" in kinds , f"[{label}] no deltas to reason about: {kinds}";
+        assert "stream_reset" in kinds , f"[{label}] the abandoned stream was never announced: {kinds}";
+        if reset_first {
+            assert kinds.index("stream_reset") < kinds.index("tool_call_delta") , f"[{label}] reset must precede the replacement's deltas: {kinds}";
+        } else {
+            assert kinds.index("tool_call_delta") < kinds.index("stream_reset") , f"[{label}] the reset must follow the deltas it abandons: {kinds}";
         }
     }
-
-    kinds = _kinds(events);
-    assert len(_of(events, "tool_call_delta")) > 0 , f"the scenario published no deltas to abandon: {kinds}";
-    assert "stream_reset" in kinds , f"compaction discarded a stream without announcing it: {kinds}";
-    assert kinds.index("tool_call_delta") < kinds.index("stream_reset") , f"the reset must follow the deltas it abandons: {kinds}";
 }
