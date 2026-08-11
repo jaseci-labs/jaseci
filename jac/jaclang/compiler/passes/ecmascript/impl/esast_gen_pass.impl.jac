@@ -1989,7 +1989,22 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         nd.gen.es_ast = result_expr;
         return;
     }
-    if _call_kind == "instantiation" and isinstance(callee, es.Expression) {
+    # classify_call only tags Jac archetypes as instantiations, so a foreign
+    # (TS-declared) class arrives as a plain call; JS class constructors throw
+    # without `new`, so consult the resolved type. Builtin classes are excluded:
+    # their callees lower to `_jac.types.*` coercion callables, not JS classes.
+    _emit_new = (_call_kind == "instantiation");
+    if not _emit_new {
+        _target_type = nd.target?.type;
+        if (
+            _target_type is not None
+            and _target_type.is_instantiable_class()
+            and not _target_type.shared.is_builtin_class
+        ) {
+            _emit_new = True;
+        }
+    }
+    if _emit_new and isinstance(callee, es.Expression) {
         result_expr: es.Expression = self.sync_loc(
             es.NewExpression(callee=callee_expr, arguments=call_args), jac_node=nd
         );
