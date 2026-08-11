@@ -739,6 +739,8 @@ obj CtSplice(Expr, AstSymbolStubNode) {
 
     has expr: Expr;
     has value: str { getter; }
+    has sym: (Symbol | None) { getter; }
+    has sym_name: str { getter; }
 
     def postinit -> None;
     def create_symbol(
