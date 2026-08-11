@@ -115,6 +115,16 @@ test "tensor-bool guard without a receiver proof is declined" {
     assert _break_count("guard_unproven_receiver.jac") == 1;
 }
 
+test "a guard inside a lexical try declines to keep the handler live" {
+    # The lowered assert fails at the boundary, outside the enclosing except,
+    # so the handler would silently stop firing; the guard stays.
+    src = _pysrc("guard_in_try.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError('mask must be all true')" in src;
+    assert _break_count("guard_in_try.jac") == 1;
+}
+
 test "escaped message literal round-trips through the trap marker" {
     # The marker embeds the DECODED message, so the emitted literal must
     # re-escape it or the string pipeline decodes it a second time and a
