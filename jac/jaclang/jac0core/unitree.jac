@@ -132,8 +132,8 @@ obj UniScopeNode(UniNode) {
         implicit_rebinds: dict[(str, Symbol)] postinit;
 
     def _init_scope(name: str, parent_scope: (UniScopeNode | None) = None) -> None;
-    static def get_python_scoping_nodes -> tuple[(type[UniScopeNode], ...)] {
-        return (Module, Enum, Archetype, Ability, ImplDef, Test);
+    static def is_python_scoping(nd: (UniNode | None)) -> bool {
+        return isinstance(nd, (Module, Enum, Archetype, Ability, ImplDef, Test));
     }
 
     def lookup(
@@ -167,6 +167,7 @@ obj UniScopeNode(UniNode) {
 
     def chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None;
     def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
+    def _fix_store_ctx(item: UniNode) -> None;
     def __repr__ -> str;
 }
 

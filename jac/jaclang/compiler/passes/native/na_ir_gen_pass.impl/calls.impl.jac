@@ -1898,6 +1898,39 @@ impl NaIRGenPass._emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None) {
     if operand is None {
         return None;
     }
+    if self._opt_payload_of(operand.type) is None {
+        return self._emit_isinstance_core(nd, operand);
+    }
+    fn = self.builder.block.function;
+    some_bb = fn.append_basic_block("isinst.opt.some");
+    done_bb = fn.append_basic_block("isinst.opt.done");
+    opt_tag = self.builder.extract_value(operand, 0, name="isinst.opt.tag");
+    opt_set = self.builder.icmp_signed(
+        "!=", opt_tag, ir.Constant(i8, 0), name="isinst.opt.set"
+    );
+    payload = self.builder.extract_value(operand, 1, name="isinst.opt.val");
+    entry_bb = self.builder.block;
+    self.builder.cbranch(opt_set, some_bb, done_bb);
+    self.builder.position_at_end(some_bb);
+    inner = self._emit_isinstance_core(nd, payload);
+    inner_bb = self.builder.block;
+    self.builder.branch(done_bb);
+    self.builder.position_at_end(done_bb);
+    if inner is None {
+        return None;
+    }
+    res = self.builder.phi(i1, name="isinst.opt.res");
+    res.add_incoming(ir.Constant(i1, 0), entry_bb);
+    res.add_incoming(inner, inner_bb);
+    return res;
+}
+
+impl NaIRGenPass._emit_isinstance_core(
+    nd: uni.FuncCall, operand: ir.Value
+) -> (ir.Value | None) {
+    i1 = ir.IntType(1);
+    i8 = ir.IntType(8);
+    params = nd.params or [];
 
     type_arg = params[1];
     names: list[str] = [];

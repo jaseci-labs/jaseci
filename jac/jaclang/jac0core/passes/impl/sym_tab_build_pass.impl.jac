@@ -680,9 +680,8 @@ impl SymTabBuildPass.exit_switch_case(
 }
 
 impl find_python_scope_node_of(nd: uni.UniNode) -> (UniScopeNode | None) {
-    scope_types = uni.UniScopeNode.get_python_scoping_nodes();
     while nd.parent {
-        if isinstance(nd.parent, scope_types) {
+        if uni.UniScopeNode.is_python_scoping(nd.parent) {
             return nd.parent;
         }
         nd = nd.parent;
@@ -743,9 +742,7 @@ impl bind_assignment_targets(nd: uni.Assignment) -> None {
                 outer_has.add_use(i.name_spec);
             } elif (
                 (nd.type_tag is None)
-                and not isinstance(
-                    i.sym_tab, uni.UniScopeNode.get_python_scoping_nodes()
-                )
+                and not uni.UniScopeNode.is_python_scoping(i.sym_tab)
             ) {
                 py_scope = find_python_scope_node_of(i);
                 if py_scope is not None {

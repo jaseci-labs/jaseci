@@ -479,6 +479,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.FuncCall, operand: ir.Value, names: list[str]
     ) -> (ir.Value | None);
 
+    def _emit_isinstance_core(
+        nd: uni.FuncCall, operand: ir.Value
+    ) -> (ir.Value | None);
+
     def _emit_isinstance_mixed(
         nd: uni.FuncCall, operand: ir.Value, tags: list[int], names: list[str]
     ) -> (ir.Value | None);
