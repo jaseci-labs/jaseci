@@ -16,7 +16,7 @@ import jaclang;
 import from jaclang.jac0core.codeinfo { NativeFunctionInfo }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.parser.tokens { Token, TokenKind, SourceLoc }
+import from jaclang.jac0core.parser.tokens { LexToken, TokenKind, SourceLoc }
 import from jaclang.jac0core.parser.lexer { Lexer }
 import from jaclang.compiler.passes.native.llvm.binding { ExecutionEngine }
 import jaclang.jac0core.unitree as uni;
@@ -38,6 +38,117 @@ def compile_fixture(fixture: str) -> tuple[ExecutionEngine | None, uni.Module] {
     errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
     assert not prog.errors_had , f"Compilation errors in {fixture}: {errors}";
     return (ir.gen.native_engine, ir);
+}
+
+class JacStrABI(ctypes.Structure) {
+    # Register view of a by-value JacStr {root, data, len} return. LLVM
+    # lowers the aggregate return into scalar return registers; a 16-byte
+    # two-pointer struct restype makes libffi read the first two of them,
+    # which yields root and data. len rides in the third return register,
+    # unreachable through libffi, but Jac string payloads are always
+    # NUL-terminated at len so a bounded read is recovered from data.
+    has _fields_: list[tuple[str, type]] = [
+        ("root", ctypes.c_void_p),
+        ("data", ctypes.c_void_p)
+    ];
+}
+
+"""Descriptor-ABI wrapper for layout-described functions: the by-value JacStr
+descriptor param ('jacstr3'/'jacstr2' in the exported layout) is decomposed by
+LLVM into scalar register slots, so each such param must be declared as
+(root, data, len) scalars in the CFUNCTYPE -- declaring one slot and passing
+three routes the extras through the variadic (stack) area on arm64 and the
+callee reads garbage registers. str args build their backing storage via
+jac_str_new; return values marshal through the library's marshal_value so
+struct/tuple results behave exactly as with wrap_native_function."""
+def wrap_native_sfunc(
+    eng: object,
+    func_layout: object,
+    ct_classes: dict,
+    enum_maps: dict,
+    py_classes: dict,
+    layout: object = None
+) -> object {
+    import from jaclang.jac0core.native_marshal { LLVM_TO_CTYPES, marshal_value }
+    addr = eng.get_function_address(func_layout.name);
+    assert addr != 0 , f"Function '{func_layout.name}' not found in JIT engine";
+    param_types = func_layout.param_types;
+    real_args: list = [];
+    for pt in param_types {
+        if pt == "jacstr3" {
+            real_args.extend([ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64]);
+        } elif pt == "jacstr2" {
+            real_args.extend([ctypes.c_void_p, ctypes.c_int64]);
+        } else {
+            ct = LLVM_TO_CTYPES.get(pt);
+            real_args.append(ct if ct is not None else ctypes.c_void_p);
+        }
+    }
+    ret_type = func_layout.ret_type;
+    if ret_type in ("jacstr3", "jacstr2") {
+        real_res = JacStrABI;
+    } else {
+        real_res = LLVM_TO_CTYPES.get(ret_type);
+        if real_res is None and ret_type != "void" {
+            real_res = ctypes.c_void_p;
+        }
+    }
+    raw = ctypes.CFUNCTYPE(real_res, *real_args)(addr);
+    sn_addr = 0;
+    for sn in ("jac_str_new", "__jac_str_new") {
+        try {
+            sn_addr = eng.get_function_address(sn);
+        } except Exception {
+            sn_addr = 0;
+        }
+        if sn_addr {
+            break;
+        }
+    }
+    mkstr = (
+        ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(sn_addr)
+            if sn_addr
+            else None
+    );
+    def _call(*args: any) -> any {
+        c_args: list = [];
+        for (a, pt) in zip(args, param_types) {
+            if pt in ("jacstr3", "jacstr2") and isinstance(a, (str, bytes)) {
+                assert mkstr is not None , "jac_str_new not found in JIT engine";
+                b = a.encode("utf-8") if isinstance(a, str) else a;
+                p = mkstr(b, len(b));
+                if pt == "jacstr3" {
+                    c_args.extend([p, p, len(b)]);
+                } else {
+                    c_args.extend([p, len(b)]);
+                }
+            } elif pt == "i8*" and isinstance(a, str) {
+                b = a.encode("utf-8");
+                assert mkstr is not None , "jac_str_new not found in JIT engine";
+                c_args.append(ctypes.cast(mkstr(b, len(b)), ctypes.c_char_p));
+            } else {
+                c_args.append(a);
+            }
+        }
+        r = raw(*c_args);
+        if real_res is JacStrABI {
+            if not r.data {
+                return b"";
+            }
+            return ctypes.string_at(r.data);
+        }
+        return marshal_value(
+            r,
+            ret_type,
+            ct_classes,
+            enum_maps,
+            py_classes,
+            func_layout=func_layout,
+            layout=layout,
+            view_memo={}
+        );
+    }
+    return _call;
 }
 
 # --- Compilation test ---
@@ -218,11 +329,11 @@ test "native layout tuple metadata for tokenize" {
     assert len(tl.element_types) == 2 , f"Expected 2 tuple elements, got {len(
         tl.element_types
     )}";
-    # First element: list of Token structs, second element: i64 (error count)
+    # First element: list of LexToken structs, second element: i64 (error count)
     assert tl.element_types[0] == "List.ptr*" , f"Element 0: {tl.element_types[0]}";
     assert tl.element_types[1] == "i64" , f"Element 1: {tl.element_types[1]}";
-    # Struct hint for first element should identify Token
-    assert tl.element_struct_hints[0] == "Token" , f"Hint 0: {tl.element_struct_hints[
+    # Struct hint for first element should identify LexToken
+    assert tl.element_struct_hints[0] == "LexToken" , f"Hint 0: {tl.element_struct_hints[
         0
     ]}";
 }
@@ -289,7 +400,7 @@ test "auto-marshal struct with string field" {
     }
     func_layout = layout.functions.get("make_result");
     assert func_layout is not None;
-    wrapper = wrap_native_function(
+    wrapper = wrap_native_sfunc(
         eng, func_layout, ct_classes, enum_maps, {}, layout=layout
     );
     assert wrapper is not None;
@@ -324,7 +435,7 @@ test "native tokenize returns correct tokens" {
     enum_maps = build_enum_maps(layout, {});
     func_layout = layout.functions.get("tokenize");
     assert func_layout is not None , "tokenize function not in layout";
-    wrapper = wrap_native_function(
+    wrapper = wrap_native_sfunc(
         eng, func_layout, ct_classes, enum_maps, {}, layout=layout
     );
     assert wrapper is not None;
@@ -368,7 +479,7 @@ test "native tokenize matches python lexer" {
     ct_classes = build_ctypes_classes(layout);
     enum_maps = build_enum_maps(layout, {});
     func_layout = layout.functions.get("tokenize");
-    wrapper = wrap_native_function(
+    wrapper = wrap_native_sfunc(
         eng, func_layout, ct_classes, enum_maps, {}, layout=layout
     );
     assert wrapper is not None;
@@ -381,14 +492,14 @@ test "native tokenize matches python lexer" {
     py_tokens = py_lexer.tokenize();
 
     assert len(na_tokens) == len(py_tokens) , (
-        f"Token count mismatch: native={len(na_tokens)}, python={len(py_tokens)}"
+        f"LexToken count mismatch: native={len(na_tokens)}, python={len(py_tokens)}"
     );
     for i in range(len(py_tokens)) {
         na_tok = na_tokens[i];
         py_tok = py_tokens[i];
         na_val = na_tok["value"] if isinstance(na_tok, dict) else na_tok.value;
         assert na_val == py_tok.value , (
-            f"Token {i} value mismatch: native='{na_val}', python='{py_tok.value}'"
+            f"LexToken {i} value mismatch: native='{na_val}', python='{py_tok.value}'"
         );
     }
 }
@@ -415,7 +526,7 @@ test "native tokenize matches python lexer for fstrings" {
 
     ct_classes = build_ctypes_classes(layout);
     enum_maps = build_enum_maps(layout, {});
-    wrapper = wrap_native_function(
+    wrapper = wrap_native_sfunc(
         eng, layout.functions.get("tokenize"), ct_classes, enum_maps, {}, layout=layout
     );
     assert wrapper is not None;
@@ -426,7 +537,7 @@ test "native tokenize matches python lexer for fstrings" {
         py_tokens = Lexer(source, "test.jac").tokenize();
         assert na_errors == 0 , f"native lex errors for {source!r}: {na_errors}";
         assert len(na_tokens) == len(py_tokens) , (
-            f"Token count mismatch for {source!r}: "
+            f"LexToken count mismatch for {source!r}: "
             f"native={len(na_tokens)}, python={len(py_tokens)}"
         );
         for i in range(len(py_tokens)) {
@@ -439,7 +550,7 @@ test "native tokenize matches python lexer for fstrings" {
     }
 }
 
-# Non-ASCII source exercises the rune-aware byte path. Token VALUES and
+# Non-ASCII source exercises the rune-aware byte path. LexToken VALUES and
 # BYTE-OFFSET positions (pos_start/pos_end/col) must match the Python lexer
 # exactly: a multi-byte code point advances `pos` by its UTF-8 width, so every
 # token after it carries the same byte offset in both backends (Rust/Go/Zig
@@ -462,7 +573,7 @@ test "native tokenize matches python lexer for unicode (byte offsets)" {
     init_native_globals(eng, ir.gen.interop_manifest);
     ct_classes = build_ctypes_classes(layout);
     enum_maps = build_enum_maps(layout, {});
-    wrapper = wrap_native_function(
+    wrapper = wrap_native_sfunc(
         eng, layout.functions.get("tokenize"), ct_classes, enum_maps, {}, layout=layout
     );
     assert wrapper is not None;
@@ -529,7 +640,7 @@ test "native tokenize error count matches python for illegal chars" {
     init_native_globals(eng, ir.gen.interop_manifest);
     ct_classes = build_ctypes_classes(layout);
     enum_maps = build_enum_maps(layout, {});
-    wrapper = wrap_native_function(
+    wrapper = wrap_native_sfunc(
         eng, layout.functions.get("tokenize"), ct_classes, enum_maps, {}, layout=layout
     );
     assert wrapper is not None;
@@ -568,7 +679,7 @@ test "native tokenize performance" {
     ct_classes = build_ctypes_classes(layout);
     enum_maps = build_enum_maps(layout, {});
     func_layout = layout.functions.get("tokenize");
-    na_tokenize = wrap_native_function(
+    na_tokenize = wrap_native_sfunc(
         eng, func_layout, ct_classes, enum_maps, {}, layout=layout
     );
 

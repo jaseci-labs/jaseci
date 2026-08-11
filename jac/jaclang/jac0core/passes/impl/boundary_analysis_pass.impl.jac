@@ -1085,6 +1085,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
 
     if isinstance(arch_node, uni.Enum) {
         members: list[tuple[(str, Any)]] = [];
+        next_auto = 1;
         if arch_node.body {
             body_items = arch_node.body
                 if isinstance(arch_node.body, list)
@@ -1093,8 +1094,14 @@ impl BoundaryAnalysisPass._collect_boundary_type(
                 if isinstance(item, uni.Assignment) {
                     member_name = '';
                     member_val = None;
-                    if isinstance(item.target, uni.Name) {
-                        member_name = item.target.value;
+                    targets = item.target
+                        if isinstance(item.target, list)
+                        else [item.target];
+                    for tgt in targets {
+                        if isinstance(tgt, uni.AstSymbolNode) {
+                            member_name = tgt.sym_name;
+                            break;
+                        }
                     }
                     if item.value {
                         if isinstance(item.value, uni.MultiString) {
@@ -1109,7 +1116,14 @@ impl BoundaryAnalysisPass._collect_boundary_type(
                             }
                         } elif isinstance(item.value, uni.Token) {
                             member_val = item.value.value;
+                            try {
+                                member_val = int(item.value.value);
+                                next_auto = member_val + 1;
+                            } except ValueError { }
                         }
+                    } else {
+                        member_val = next_auto;
+                        next_auto += 1;
                     }
                     if member_name {
                         members.append((member_name, member_val));

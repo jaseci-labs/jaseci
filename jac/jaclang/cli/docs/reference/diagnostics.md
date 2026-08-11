@@ -129,6 +129,12 @@ Emitted by the parser and lexer during source code parsing.
 | `E0080` | Property declarations cannot have an initializer (declare backing storage as a separate `has` field) |
 | `E0081` | Property declaration must contain at least one of `getter`, `setter`, `deleter` |
 
+### Client Component Errors
+
+| Code | Message |
+|------|---------|
+| `E0082` | Cannot assign to state field '{name}' during render (component body statements run on every render and state writes are immediately visible; move the assignment into a `can` ability, an event handler, or a method) |
+
 ### Parser Warnings
 
 | Code | Message |
@@ -201,6 +207,7 @@ Emitted by the type checker and type evaluator.
 |------|---------|
 | `E1040` | Type "{type}" is not subscriptable |
 | `E1041` | Type "{type}" is not awaitable |
+| `E1044` | Cast target is not a type: "{type}" |
 
 ### Function Call Errors
 
@@ -290,6 +297,7 @@ Emitted by `OwnershipCheckPass` for `own`/`imm`/`borrow`/`&`/`&mut` bindings and
 | `E1309` | Cannot mutate '{name}' through a deep-immutable `imm` binding |
 | `E1311` | Cannot freeze '{name}': the value may be aliased |
 | `E1313` | `flow for` does not allow {name} |
+| `E1314` | `partition(n)` does not allow {name} |
 
 ### Zero-RC Enforcement Errors
 

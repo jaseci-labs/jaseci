@@ -97,20 +97,9 @@ impl NaIRGenPass._emit_class_name_const(arch_name: str) -> ir.Value {
     if cached is not None {
         return cached;
     }
-    str_bytes = bytearray((arch_name + "\0").encode("utf8"));
-    i64 = ir.IntType(64);
-    i8 = ir.IntType(8);
     i32 = ir.IntType(32);
-    arr_type = ir.ArrayType(i8, len(str_bytes));
-
-    struct_type = ir.LiteralStructType([i64, i64, arr_type]);
-    struct_val = ir.Constant(
-        struct_type,
-        [
-            ir.Constant(i64, 0x7FFFFFFFFFFFFFFF),
-            ir.Constant(i64, 0),
-            ir.Constant(arr_type, str_bytes)
-        ]
+    (struct_type, struct_val) = self._static_str_struct_const(
+        (arch_name + "\0").encode("utf8")
     );
     global_str = ir.GlobalVariable(
         self.llvm_module, struct_type, name=f".clsname.{self._str_count}"
@@ -241,6 +230,17 @@ impl NaIRGenPass._generate_inherited_method_wrappers -> None {
                     }
                 }
 
+                _exp_types = impl_func.function_type.args;
+                for _ai in range(len(args)) {
+                    if _ai < len(_exp_types)
+                        and args[_ai].type != _exp_types[_ai]
+                        and isinstance(args[_ai].type, ir.PointerType)
+                        and isinstance(_exp_types[_ai], ir.PointerType) {
+                        args[_ai] = builder.bitcast(
+                            args[_ai], _exp_types[_ai], name=f"inh.arg{_ai}"
+                        );
+                    }
+                }
                 result = builder.call(impl_func, args, name=f"inherited.{method_name}");
 
                 if isinstance(orig_fn_type.return_type, ir.VoidType) {

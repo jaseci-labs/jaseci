@@ -26,10 +26,8 @@ impl TypeEvaluator.validate_arg_types(
             expected = type_utils.apply_solved_type_vars(expected, bindings);
         }
         value = arg.value if isinstance(arg, uni.KWPair) else arg;
-        _cyc_before_arg = self._cyclic_resolution_depth;
         arg_type = self.get_type_of_expression(value, expected_type=expected);
-        if isinstance(arg_type, types.UnknownType)
-            and self._cyclic_resolution_depth != _cyc_before_arg {
+        if isinstance(arg_type, types.UnknownType) and arg_type.is_incomplete {
             continue;
         }
 
@@ -80,7 +78,8 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         return caller_type;
     }
 
-    if isinstance(caller_type, types.UnknownType) and caller_type.is_diagnosed {
+    if isinstance(caller_type, types.UnknownType)
+        and (caller_type.is_diagnosed or caller_type.is_incomplete) {
         return caller_type;
     }
 
@@ -457,11 +456,7 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         return caller_type.clone_as_instance();
     }
     if caller_type.is_class_instance() {
-        if (
-            isinstance(caller_type, types.ClassType)
-            and self.prefetch.any_class
-            and caller_type.shared == self.prefetch.any_class.shared
-        ) {
+        if caller_type.is_any_instance() {
             return caller_type;
         }
         magic_call_ret = self.get_type_of_magic_method_call(
@@ -970,15 +965,7 @@ impl TypeEvaluator._collect_type_var_bindings(
     }
 
     def _effective_param_type(p: types.Parameter) -> TypeBase | None {
-        is_unannotated = (
-            p.param_type is None
-            or (
-                isinstance(p.param_type, types.ClassType)
-                and self.prefetch is not None
-                and self.prefetch.any_class is not None
-                and p.param_type.shared == self.prefetch.any_class.shared
-            )
-        );
+        is_unannotated = p.param_type is None or p.param_type.is_any_instance();
         if not is_unannotated {
             return p.param_type;
         }

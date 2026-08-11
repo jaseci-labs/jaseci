@@ -10,6 +10,9 @@ impl NaIRGenPass._mangled_of(t: any) -> (str | None) {
             m = re.sub(rf"\b{re.escape(tv)}\b", repl, m);
         }
     }
+    if m == "Sequence" or m.startswith("Sequence[") {
+        m = "list" + m[len("Sequence"):];
+    }
     return m;
 }
 
@@ -167,6 +170,7 @@ impl NaIRGenPass._stamp_mono_fn(
     saved_locals = self.local_vars if self?.local_vars else {};
     saved_param_vars = self.param_vars;
     saved_nogc = self.nogc_no_free_vars;
+    saved_nogc_owned = self.nogc_owned_str_vars;
     saved_region = self.region_handle_vars;
     saved_list_struct = self.var_list_elem_struct;
     saved_cell_vars = self.closure_cell_vars;
@@ -182,6 +186,7 @@ impl NaIRGenPass._stamp_mono_fn(
         self.local_vars = saved_locals;
         self.param_vars = saved_param_vars;
         self.nogc_no_free_vars = saved_nogc;
+        self.nogc_owned_str_vars = saved_nogc_owned;
         self.region_handle_vars = saved_region;
         self.var_list_elem_struct = saved_list_struct;
         self.closure_cell_vars = saved_cell_vars;

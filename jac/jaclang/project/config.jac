@@ -45,7 +45,10 @@ obj RunConfig {
 
 obj NativeBuildConfig {
     has opt_level: int = 2,
-        dump_ir: str = "";
+        dump_ir: str = "",
+        target: str = "",
+        debug: bool = False,
+        rc_debug_codegen: bool = False;
 }
 
 obj GcEnforceConfig {
