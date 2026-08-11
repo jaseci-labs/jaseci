@@ -132,6 +132,30 @@ comptime def _ct_first_enum(name: str) -> str {
     return mems[0];
 }
 
+# Category ids come from the ArgCat enum in constant.jac -- the enum is
+# the single authority; this map is reflection-derived, so it cannot drift.
+comptime def _ct_cat_ids -> dict {
+    mems = reflect.module("jaclang.jac0core.constant").enum_members("ArgCat");
+    out: dict = {};
+    for (i, nm) in enumerate(mems) {
+        out[nm] = i;
+    }
+    return out;
+}
+
+# Single-part annotation base -> category. Node-typed bases fall through
+# to the class_names check in _ct_cat.
+comptime def _ct_base_cats -> dict {
+    return {
+        "str": "STR",
+        "int": "INT",
+        "bool": "BOOL",
+        "EdgeDir": "ENUM",
+        "OwnershipKind": "ENUM",
+        "T": "POLY"
+    };
+}
+
 comptime def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
     out: dict = {"cat": "", "optional": False, "enum": ""};
     if pname == "kid" {
@@ -154,42 +178,24 @@ comptime def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
         out["optional"] = True;
         return out;
     }
-    all_source = True;
-    for p in kept {
-        if p.split("[")[0].strip() != "Source" {
-            all_source = False;
-        }
-    }
-    if all_source {
+    bases = [p.split("[")[0].strip() for p in kept];
+    if all([b == "Source" for b in bases]) {
         out["cat"] = "SOURCE";
         return out;
     }
     if len(kept) == 1 {
         p0 = kept[0];
-        b = p0.split("[")[0].strip();
-        if b == "str" {
-            out["cat"] = "STR";
-            return out;
-        }
-        if b == "int" {
-            out["cat"] = "INT";
-            return out;
-        }
-        if b == "bool" {
-            out["cat"] = "BOOL";
-            return out;
-        }
-        if b == "EdgeDir" or b == "OwnershipKind" {
-            out["cat"] = "ENUM";
-            out["enum"] = b;
+        b = bases[0];
+        base_cats = _ct_base_cats();
+        if b in base_cats {
+            out["cat"] = base_cats[b];
+            if out["cat"] == "ENUM" {
+                out["enum"] = b;
+            }
             return out;
         }
         if p0.startswith("Sequence[") or p0.startswith("list[") {
             out["cat"] = "LIST";
-            return out;
-        }
-        if b == "T" {
-            out["cat"] = "POLY";
             return out;
         }
         if b in class_names or b == "UniNode" or b == "NameAtom" or b == "AtomExpr" {
@@ -198,69 +204,63 @@ comptime def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
         }
         return out;
     }
-    n_seq = 0;
-    n_node = 0;
-    all_str = True;
-    for p in kept {
-        if p.startswith("Sequence[") or p.startswith("list[") {
-            n_seq += 1;
-        } else {
-            n_node += 1;
-            if p.split("[")[0].strip() != "str" {
-                all_str = False;
-            }
-        }
-    }
-    if n_seq > 0 and n_node == 0 {
+    seqs = [
+        p
+        for p in kept
+        if p.startswith("Sequence[") or p.startswith("list[")
+    ];
+    nodes = [
+        p
+        for p in kept
+        if not (p.startswith("Sequence[") or p.startswith("list["))
+    ];
+    if seqs and not nodes {
         out["cat"] = "LIST";
         return out;
     }
-    if n_node > 0 and n_seq == 0 {
-        out["cat"] = "STR" if all_str else "NODE";
+    if nodes and not seqs {
+        node_bases = [p.split("[")[0].strip() for p in nodes];
+        out["cat"] = "STR" if all([b == "str" for b in node_bases]) else "NODE";
         return out;
     }
     out["cat"] = "POLY";
     return out;
 }
 
+# Builder-parameter shape per category: (param type, default source, writer).
+# STR optionality and ENUM defaults are data-dependent and refined below.
+comptime def _ct_bparam_shapes -> dict {
+    return {
+        "NODE": ("NodeId", "NIL", "_arg_node"),
+        "LIST": ("(list[NodeId] | None)", "None", "_arg_list"),
+        "POLY": ("(NodeId | list[NodeId] | None)", "None", "_arg_poly"),
+        "STR": ("str", "\"\"", "_arg_str"),
+        "INT": ("int", "0", "_arg_int"),
+        "BOOL": ("bool", "False", "_arg_bool"),
+        "ENUM": ("", "", "_arg_enum")
+    };
+}
+
 comptime def _ct_bparam(
     pname: str, cat: str, ename: str, opt: bool, hd: bool, dsrc: str
 ) -> dict {
-    ptype = "NodeId";
-    pdflt = "NIL";
-    writer = "_arg_node";
-    warg = pname;
-    if cat == "LIST" {
-        ptype = "(list[NodeId] | None)";
-        pdflt = "None";
-        writer = "_arg_list";
-    } elif cat == "POLY" {
-        ptype = "(NodeId | list[NodeId] | None)";
-        pdflt = "None";
-        writer = "_arg_poly";
-    } elif cat == "STR" {
-        pdflt = dsrc if hd else "\"\"";
-        ptype = "(str | None)" if (opt and hd and dsrc == "None") else "str";
-        writer = "_arg_str";
-    } elif cat == "INT" {
-        ptype = "int";
-        pdflt = dsrc if hd else "0";
-        writer = "_arg_int";
-    } elif cat == "BOOL" {
-        ptype = "bool";
-        pdflt = dsrc if hd else "False";
-        writer = "_arg_bool";
-    } elif cat == "ENUM" {
+    (ptype, pdflt, writer) = _ct_bparam_shapes()[cat];
+    if cat in ("STR", "INT", "BOOL") and hd {
+        pdflt = dsrc;
+    }
+    if cat == "STR" and opt and hd and dsrc == "None" {
+        ptype = "(str | None)";
+    }
+    if cat == "ENUM" {
         ptype = ename;
         pdflt = dsrc if hd else (ename + "." + _ct_first_enum(ename));
-        writer = "_arg_enum";
     }
     return {
         "pname": pname,
         "ptype": ptype,
         "pdflt": pdflt,
         "writer": writer,
-        "warg": warg
+        "warg": pname
     };
 }
 
@@ -330,26 +330,19 @@ comptime def _ct_schema -> list[dict] {
     return out;
 }
 
+# kind -> (class_name, token_family, has_kid, ((pname, ArgCat-id, enum_name,
+# has_default), ...)). Spliced as structured literals: consumers index rows
+# directly, nothing re-parses an encoded string at runtime.
 comptime def _ct_specs_table -> dict {
+    cat_ids = _ct_cat_ids();
     out: dict = {};
     for K in _ct_schema() {
-        nm: str = K["name"];
-        enc: str = nm;
-        enc += "|1|" if K["tokfam"] else "|0|";
-        enc += "1" if K["has_kid"] else "0";
-        ptxt: str = "";
+        rows: list = [];
         sparams: list[dict] = K["sparams"];
         for p in sparams {
-            if ptxt {
-                ptxt += ";";
-            }
-            pname: str = p["pname"];
-            cat: str = p["cat"];
-            en: str = p["enum"];
-            hd: str = "1" if p["hd"] else "0";
-            ptxt += pname + "," + cat + "," + en + "," + hd;
+            rows.append((p["pname"], cat_ids[p["cat"]], p["enum"], p["hd"]));
         }
-        out[K["kind"]] = enc + "|" + ptxt;
+        out[K["kind"]] = (K["name"], K["tokfam"], K["has_kid"], tuple(rows));
     }
     return out;
 }
@@ -393,10 +386,11 @@ comptime def _ct_family_rows -> list[dict] {
         "EventSignature",
         "YieldExpr"
     ];
+    schema = _ct_schema();
     out: list[dict] = [];
     for fam in fams {
         members: list[int] = [];
-        for K in _ct_schema() {
+        for K in schema {
             if mod.is_subtype(K["name"], fam) {
                 members.append(K["kind"]);
             }
@@ -417,5 +411,5 @@ comptime for F in _ct_family_rows() {
     glob ${ct.name("KS_" + F["uname"])}: list[int] = ${F["members"]};
 }
 
-glob SPECS: dict[int, str] = comptime { _ct_specs_table() };
+glob SPECS: dict[int, tuple] = comptime { _ct_specs_table() };
 # <<< comptime derivation of the arena schema <<<

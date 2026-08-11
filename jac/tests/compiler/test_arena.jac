@@ -5,7 +5,8 @@ seqs, and stride-3 posts are readable and writable only through the
 accessor surface exercised here.
 """
 
-import from jaclang.jac0core.arena { NIL, SyntaxArena, Tag }
+import from jaclang.jac0core.arena { NIL, SPECS, SyntaxArena, Tag }
+import from jaclang.jac0core.constant { ArgCat }
 import from jaclang.jac0core.parser.frontend { parse }
 
 
@@ -133,6 +134,20 @@ test "adopt_columns rebuilds a readable arena from raw columns" {
     assert a.kind_of(t) == src.kind_of(t);
     assert a.arg_pairs(t) == src.arg_pairs(t);
     assert a.str_of(a.arg_pair(t, 1)[1]) == "z";
+}
+
+
+test "SPECS rows are structured data, not encoded strings" {
+    a = SyntaxArena();
+    t = _tok(a, "x");
+    spec = SPECS[a.kind_of(t)];
+    assert spec[0] == "Token" , spec;
+    assert spec[1] == True , "Token is token-family";
+    assert isinstance(spec[3], tuple) , "params must be a tuple, not a string";
+    (pname, cat, ename, hd) = spec[3][0];
+    assert pname == "orig_src" and cat == ArgCat.SOURCE , spec[3][0];
+    name_row = spec[3][1];
+    assert name_row[0] == "name" and name_row[1] == ArgCat.STR , name_row;
 }
 
 

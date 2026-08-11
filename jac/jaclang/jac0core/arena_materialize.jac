@@ -1,60 +1,62 @@
 import from jaclang.jac0core { unitree as ut_mod }
 import from jaclang.jac0core { constant as const_mod }
-import from jaclang.jac0core.arena { SyntaxArena, Tag }
+import from jaclang.jac0core.arena { KindId, NodeId, SyntaxArena, Tag }
 import from jaclang.jac0core.arena { SPECS }
+import from jaclang.jac0core.constant { ArgCat }
 import from jaclang.jac0core.unitree { Module, Source, UniNode }
 
-glob _CLS_CACHE: dict[int, tuple] = {},
-     _DECODE_CACHE: dict[int, tuple] = {};
+glob _SPEC_CACHE: dict[int, ResolvedSpec] = {};
 
 
-def decode_spec(enc: str) -> tuple {
-    fields: list[str] = enc.split("|");
-    params: list = [];
-    if fields[3] {
-        parts: list[str] = fields[3].split(";");
-        for part in parts {
-            bits: list[str] = part.split(",");
-            params.append((bits[0], bits[1], bits[2], bits[3] == "1", ));
-        }
-    }
-    return (fields[0], tuple(params), fields[1] == "1", fields[2] == "1", );
+obj ArgSpec {
+    has name: str,
+        cat: ArgCat,
+        enum_cls: any,
+        has_default: bool;
 }
 
 
-def spec_of(kind: int) -> tuple {
-    got = _DECODE_CACHE.get(kind);
-    if got is None {
-        got = decode_spec(SPECS[kind]);
-        _DECODE_CACHE[kind] = got;
-    }
-    return got;
+obj ResolvedSpec {
+    has cls: any,
+        params: list[ArgSpec],
+        token_family: bool,
+        has_kid: bool;
 }
 
 
-def _resolved_spec(kind: int) -> tuple {
-    got = _CLS_CACHE.get(kind);
+# SPECS rows arrive as structured comptime-spliced tuples:
+# (class_name, token_family, has_kid, ((pname, cat, enum_name, hd), ...)).
+def spec_of(kind: KindId) -> tuple {
+    return SPECS[kind];
+}
+
+
+def _resolved_spec(kind: KindId) -> ResolvedSpec {
+    got = _SPEC_CACHE.get(kind);
     if got is not None {
         return got;
     }
     spec: tuple = spec_of(kind);
-    cls_name: str = spec[0];
-    params: tuple = spec[1];
-    token_family: bool = spec[2];
-    has_kid: bool = spec[3];
-    cls = getattr(ut_mod, cls_name);
-    enums: list = [];
-    for p in params {
+    params: list[ArgSpec] = [];
+    prows: tuple = spec[3];
+    for p in prows {
         pt: tuple = p;
         ename: str = pt[2];
+        ecls: any = None;
         if ename {
-            enums.append(getattr(const_mod, ename, None) or getattr(ut_mod, ename));
-        } else {
-            enums.append(None);
+            ecls = getattr(const_mod, ename, None) or getattr(ut_mod, ename);
         }
+        params.append(
+            ArgSpec(name=pt[0], cat=ArgCat(pt[1]), enum_cls=ecls, has_default=pt[3])
+        );
     }
-    resolved = (cls, params, tuple(enums), token_family, has_kid);
-    _CLS_CACHE[kind] = resolved;
+    resolved = ResolvedSpec(
+        cls=getattr(ut_mod, spec[0]),
+        params=params,
+        token_family=spec[1],
+        has_kid=spec[2]
+    );
+    _SPEC_CACHE[kind] = resolved;
     return resolved;
 }
 
@@ -107,52 +109,41 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
             }
             continue;
         }
-        rspec: tuple = _resolved_spec(a.kind_of(i));
-        cls: any = rspec[0];
-        params: tuple = rspec[1];
-        enums: tuple = rspec[2];
-        has_kid: bool = rspec[4];
+        rspec = _resolved_spec(a.kind_of(i));
         kwargs: dict[str, any] = {};
         pairs = a.arg_pairs(i);
         slot = 0;
-        pi = 0;
-        while pi < len(params) {
-            pspec: tuple = params[pi];
-            ecls: any = enums[pi];
-            pi += 1;
-            pname: str = pspec[0];
-            cat: str = pspec[1];
-            has_default: bool = pspec[3];
-            if cat == "SOURCE" {
-                kwargs[pname] = source;
+        for pspec in rspec.params {
+            if pspec.cat == ArgCat.SOURCE {
+                kwargs[pspec.name] = source;
                 continue;
             }
             (tag, v) = pairs[slot];
             slot += 1;
             if tag == Tag.NONE {
-                if not has_default {
-                    kwargs[pname] = None;
+                if not pspec.has_default {
+                    kwargs[pspec.name] = None;
                 }
             } elif tag == Tag.NODE {
-                kwargs[pname] = objs[v];
+                kwargs[pspec.name] = objs[v];
             } elif tag == Tag.LIST {
-                kwargs[pname] = [objs[k] for k in a.seq_ids(v)];
+                kwargs[pspec.name] = [objs[k] for k in a.seq_ids(v)];
             } elif tag == Tag.STR {
-                kwargs[pname] = a.str_of(v);
+                kwargs[pspec.name] = a.str_of(v);
             } elif tag == Tag.INT {
-                kwargs[pname] = v;
+                kwargs[pspec.name] = v;
             } elif tag == Tag.BOOL {
-                kwargs[pname] = v != 0;
+                kwargs[pspec.name] = v != 0;
             } elif tag == Tag.ENUM {
-                kwargs[pname] = ecls(v);
+                kwargs[pspec.name] = pspec.enum_cls(v);
             }
         }
         kid_ids = a.kid_ids(i);
-        if has_kid {
+        if rspec.has_kid {
             kwargs["kid"] = [objs[k] for k in kid_ids];
         }
-        made = cls(**kwargs);
-        if kid_ids and not has_kid {
+        made = rspec.cls(**kwargs);
+        if kid_ids and not rspec.has_kid {
             made.set_kids([objs[k] for k in kid_ids]);
         }
         plist: list = posts_by_id.get(i, []);

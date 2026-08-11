@@ -12,6 +12,7 @@ import from jaclang.jac0core.arena {
     SPECS
 }
 import from jaclang.jac0core.arena_materialize { spec_of as decode_spec_of }
+import from jaclang.jac0core.constant { ArgCat }
 import from jaclang.jac0core.constant { CodeContext }
 import from jaclang.jac0core.helpers { pascal_to_snake }
 import from jaclang.jac0core.parser.parser { Parser }
@@ -191,10 +192,10 @@ obj CtEval {
     def slot_of(i: int, pname: str) -> int {
         spec = decode_spec_of(self.a.kind_of(i));
         slot = 0;
-        plist: tuple = spec[1];
+        plist: tuple = spec[3];
         for p in plist {
             pt: tuple = p;
-            if pt[1] == "SOURCE" {
+            if pt[1] == ArgCat.SOURCE {
                 continue;
             }
             if pt[0] == pname {
@@ -252,7 +253,7 @@ obj CtEval {
             return (0, 0, 0, 0);
         }
         spec = self.spec_of(i);
-        if spec is not None and spec[2] {
+        if spec is not None and spec[1] {
             s_line = self.slot_of(i, "line");
             s_el = self.slot_of(i, "end_line");
             s_cs = self.slot_of(i, "col_start");
@@ -1274,10 +1275,10 @@ obj CtExpander {
             return;
         }
         slot = 0;
-        plist: tuple = spec[1];
+        plist: tuple = spec[3];
         for p in plist {
             pt: tuple = p;
-            if pt[1] == "SOURCE" {
+            if pt[1] == ArgCat.SOURCE {
                 continue;
             }
             (tag, val) = a.arg_pair(i, slot);
