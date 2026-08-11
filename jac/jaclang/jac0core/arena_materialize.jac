@@ -10,7 +10,7 @@ import from jaclang.jac0core.arena {
     TAG_NONE,
     TAG_STR
 }
-import from jaclang.jac0core.arena_specs { SPECS }
+import from jaclang.jac0core.arena { SPECS }
 import from jaclang.jac0core.unitree { Module, Source, UniNode }
 
 glob _CLS_CACHE: dict[int, tuple] = {};

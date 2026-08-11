@@ -5973,6 +5973,13 @@ impl Parser.parse_func_signature -> int {
             } else {
                 regular_params.append(k);
             }
+        } elif self.b.kind_of(k) == KIND_CT_FOR
+            or self.b.kind_of(k) == KIND_CT_IF {
+            if saw_bare_star {
+                kwonly_params.append(k);
+            } else {
+                regular_params.append(k);
+            }
         } elif self.b.kind_of(k) in KS_TOKEN {
             _kn = self.b.arg_str(k, 0);
             if _kn == Tok.STAR_MUL {

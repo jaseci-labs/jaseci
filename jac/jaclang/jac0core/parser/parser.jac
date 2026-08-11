@@ -2,7 +2,9 @@ import from .tokens { LexToken, TokenKind, SourceLoc, SrcDiag, CommentData }
 import from .lexer { tokenize_full }
 
 import from jaclang.jac0core.arena { NIL, SyntaxArena }
-import from jaclang.jac0core.arena_schema {
+import from jaclang.jac0core.arena {
+    KIND_CT_FOR,
+    KIND_CT_IF,
     DOC_SLOTS,
     ENUM_STMT_SLOTS,
     KS_CONTEXT_AWARE_NODE,

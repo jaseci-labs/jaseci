@@ -25,15 +25,15 @@ import from jaclang.jac0core.arena {
     TAG_NONE,
     TAG_STR
 }
-import from jaclang.jac0core.arena_schema {
+import from jaclang.jac0core.arena {
     KIND_CT_BLOCK,
     KIND_CT_ELSE,
     KIND_CT_FOR,
     KIND_CT_IF,
     KIND_CT_NAME,
-    KIND_CT_SPLICE
+    KIND_CT_SPLICE,
+    SPECS
 }
-import from jaclang.jac0core.arena_specs { SPECS }
 import from jaclang.jac0core.constant { CodeContext }
 import from jaclang.jac0core.helpers { pascal_to_snake }
 import from jaclang.jac0core.parser.parser { Parser }
@@ -956,10 +956,45 @@ obj CtEval {
 }
 
 obj CtExpander {
-    has ev: CtEval;
+    has ev: CtEval,
+        subst: dict[int, list[int]] = {};
 
     def a -> SyntaxArena {
         return self.ev.a;
+    }
+
+    def sweep_kids {
+        a = self.a();
+        n = len(a.kinds);
+        i = 1;
+        while i < n {
+            hit = False;
+            for k in a.kid_ids(i) {
+                if k in self.subst {
+                    hit = True;
+                    break;
+                }
+            }
+            if hit {
+                rebuilt: list[int] = [];
+                for k in a.kid_ids(i) {
+                    if k in self.subst {
+                        for r in self.subst[k] {
+                            rebuilt.append(r);
+                        }
+                    } else {
+                        rebuilt.append(k);
+                    }
+                }
+                lo = len(a.kids);
+                for k in rebuilt {
+                    a.kids.append(k);
+                }
+                a.kid_los[i] = lo;
+                a.kid_ns[i] = len(rebuilt);
+            }
+            i += 1;
+        }
     }
 
     def _tok(mk_name: str, tok_name: str, text: str, loc: tuple) -> int {
@@ -1116,6 +1151,7 @@ obj CtExpander {
         parser = Parser(
             tokens=tokens, file_path="<comptime>", source_code=f.text
         );
+        parser._tokens_len = len(tokens);
         frag_root = parser.parse_expression();
         if parser.error_count > 0 or lex_errs > 0 {
             _ct_err(f"cannot parse ct fragment '{f.text}'");
@@ -1139,15 +1175,15 @@ obj CtExpander {
             new_kids.append(self.graft(src, k, memo));
         }
         arg_n = src.arg_ns[i];
-        new_i = a._start(kind, new_kids, arg_n);
+        pairs: list[int] = [];
         p = src.arg_los[i];
         s = 0;
         while s < arg_n {
             tag = src.args[p];
             val = src.args[p + 1];
             if tag == TAG_NODE {
-                a.args.append(TAG_NODE);
-                a.args.append(self.graft(src, val, memo));
+                pairs.append(TAG_NODE);
+                pairs.append(self.graft(src, val, memo));
             } elif tag == TAG_LIST {
                 ids = src.seq_ids(val);
                 new_ids: list[int] = [];
@@ -1159,17 +1195,21 @@ obj CtExpander {
                 for x in new_ids {
                     a.seqs.append(x);
                 }
-                a.args.append(TAG_LIST);
-                a.args.append(off);
+                pairs.append(TAG_LIST);
+                pairs.append(off);
             } elif tag == TAG_STR {
-                a.args.append(TAG_STR);
-                a.args.append(a.intern(src.strtab[val]));
+                pairs.append(TAG_STR);
+                pairs.append(a.intern(src.strtab[val]));
             } else {
-                a.args.append(tag);
-                a.args.append(val);
+                pairs.append(tag);
+                pairs.append(val);
             }
             p += 2;
             s += 1;
+        }
+        new_i = a._start(kind, new_kids, arg_n);
+        for pv in pairs {
+            a.args.append(pv);
         }
         memo[i] = new_i;
         return new_i;
@@ -1198,14 +1238,14 @@ obj CtExpander {
         for k in old_kids {
             new_kids.append(self.copy_tree(k, memo));
         }
-        new_i = a._start(kind, new_kids, arg_n);
+        pairs: list[int] = [];
         s = 0;
         while s < arg_n {
             tag = old_args[s * 2];
             val = old_args[s * 2 + 1];
             if tag == TAG_NODE {
-                a.args.append(TAG_NODE);
-                a.args.append(self.copy_tree(val, memo));
+                pairs.append(TAG_NODE);
+                pairs.append(self.copy_tree(val, memo));
             } elif tag == TAG_LIST {
                 ids = a.seq_ids(val);
                 new_ids: list[int] = [];
@@ -1217,13 +1257,17 @@ obj CtExpander {
                 for x in new_ids {
                     a.seqs.append(x);
                 }
-                a.args.append(TAG_LIST);
-                a.args.append(off);
+                pairs.append(TAG_LIST);
+                pairs.append(off);
             } else {
-                a.args.append(tag);
-                a.args.append(val);
+                pairs.append(tag);
+                pairs.append(val);
             }
             s += 1;
+        }
+        new_i = a._start(kind, new_kids, arg_n);
+        for pv in pairs {
+            a.args.append(pv);
         }
         j = 0;
         posts = a.posts;
@@ -1303,7 +1347,7 @@ obj CtExpander {
                 if vk in CT_EXPR_KINDS {
                     nid = self.subst_expr(val);
                     a.set_arg_node(i, slot, nid);
-                    a.replace_kid(i, val, [nid]);
+                    self.subst[val] = [nid];
                 } elif vk in CT_STRUCT_KINDS {
                     _ct_err(
                         "comptime for/if is not valid where a single "
@@ -1342,15 +1386,15 @@ obj CtExpander {
             k = a.kinds[x];
             if k == KIND_CT_FOR {
                 news = self.expand_ct_for(x);
-                a.replace_kid(parent, x, news);
+                self.subst[x] = news;
                 out.extend(news);
             } elif k == KIND_CT_IF {
                 news = self.expand_ct_if(x, parent);
-                a.replace_kid(parent, x, news);
+                self.subst[x] = news;
                 out.extend(news);
             } elif k in CT_EXPR_KINDS {
                 nid = self.subst_expr(x);
-                a.replace_kid(parent, x, [nid]);
+                self.subst[x] = [nid];
                 out.append(nid);
             } else {
                 self.expand_node(x);
@@ -1479,6 +1523,7 @@ def expand_arena(
     try {
         ex.collect_module(a.root_id);
         ex.expand_node(a.root_id);
+        ex.sweep_kids();
     } except Exception as e {
         at = ev.loc_stack[-1] if ev.loc_stack else a.root_id;
         loc = ev.loc_of(at);

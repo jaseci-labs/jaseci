@@ -727,26 +727,34 @@ obj CtFor(ElementStmt, CodeBlockStmt) {
     def postinit -> None;
 }
 
-obj CtSplice(Expr) {
+obj CtSplice(Expr, AstSymbolStubNode) {
     def accept_exit(v: UniPass) -> None;
 
     has expr: Expr;
 
     has value: str { getter; }
-    has sym_name: str { getter; }
 
     def postinit -> None;
+    def create_symbol(
+        access: SymbolAccess,
+        parent_tab: (UniScopeNode | None) = None,
+        imported: bool = False
+    ) -> Symbol;
 }
 
-obj CtName(Expr) {
+obj CtName(Expr, AstSymbolStubNode) {
     def accept_exit(v: UniPass) -> None;
 
     has parts: Sequence[UniNode];
 
     has value: str { getter; }
-    has sym_name: str { getter; }
 
     def postinit -> None;
+    def create_symbol(
+        access: SymbolAccess,
+        parent_tab: (UniScopeNode | None) = None,
+        imported: bool = False
+    ) -> Symbol;
 }
 
 obj ExprStmt(CodeBlockStmt) {

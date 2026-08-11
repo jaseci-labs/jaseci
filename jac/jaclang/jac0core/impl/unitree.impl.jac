@@ -1782,8 +1782,22 @@ impl CtSplice.value.getter -> str {
 }
 
 
+impl CtSplice.create_symbol(
+    access: SymbolAccess,
+    parent_tab: (UniScopeNode | None) = None,
+    imported: bool = False
+) -> Symbol {
+    return self.name_spec.create_symbol(access, parent_tab, imported);
+}
+
+
 impl CtSplice.sym_name.getter -> str {
     return self.value;
+}
+
+
+impl CtSplice.sym.getter -> (Symbol | None) {
+    return None;
 }
 
 
@@ -1791,6 +1805,7 @@ impl CtName.postinit -> None {
     self.parts = `list(self.parts);
     UniNode.postinit(self);
     Expr.postinit(self);
+    AstSymbolStubNode._init_stub(self, SymbolType.VAR);
 }
 
 
@@ -1807,8 +1822,12 @@ impl CtName.value.getter -> str {
 }
 
 
-impl CtName.sym_name.getter -> str {
-    return self.value;
+impl CtName.create_symbol(
+    access: SymbolAccess,
+    parent_tab: (UniScopeNode | None) = None,
+    imported: bool = False
+) -> Symbol {
+    return self.name_spec.create_symbol(access, parent_tab, imported);
 }
 
 

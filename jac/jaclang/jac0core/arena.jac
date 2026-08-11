@@ -1,4 +1,5 @@
 import from jaclang.jac0core.constant { EdgeDir, OwnershipKind }
+import from jaclang.jac0core.ctlib { ct, fail, reflect }
 
 glob NIL: int = 0;
 
@@ -285,752 +286,314 @@ obj SyntaxArena {
         self.kid_ns[i] = len(out);
     }
 
-    # >>> generated builder surface (jac gen-unitree) >>>
-    def mk_ability(
-        body: (int | list[int] | None) = None,
-        is_async: bool = False,
-        doc: int = NIL,
-        access: int = NIL,
-        codespace_dual: bool = False,
-        name_ref: int = NIL,
-        is_override: bool = False,
-        is_static: bool = False,
-        is_classmethod: bool = False,
-        is_abstract: bool = False,
-        signature: int = NIL,
-        decorators: (list[int] | None) = None,
-        type_params: (list[int] | None) = None,
-        accessor_kind: str = '',
-        event_triggers: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_arch_block_stmt(kid: list[int] = []) -> int;
-    def mk_arch_has(
-        doc: int = NIL,
-        access: int = NIL,
-        is_static: bool = False,
-        vars: (list[int] | None) = None,
-        is_frozen: bool = False,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_arch_spec(
-        doc: int = NIL,
-        is_async: bool = False,
-        decorators: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_archetype(
-        doc: int = NIL,
-        is_async: bool = False,
-        body: (int | list[int] | None) = None,
-        access: int = NIL,
-        decorators: (list[int] | None) = None,
-        codespace_dual: bool = False,
-        name: int = NIL,
-        arch_type: int = NIL,
-        base_classes: (list[int] | None) = None,
-        type_params: (list[int] | None) = None,
-        src_endpoint: int = NIL,
-        tgt_endpoint: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_assert_stmt(
-        condition: int = NIL, error_msg: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_assign_compr(
-        assigns: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_assignment(
-        is_enum_stmt: bool = False,
-        type_tag: int = NIL,
-        target: (list[int] | None) = None,
-        value: int = NIL,
-        mutable: bool = True,
-        aug_op: int = NIL,
-        na_move_lowerable: bool = False,
-        na_overwrite_consumed: bool = False,
-        na_flow_reduce: str = '',
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_ast_access_node(access: int = NIL, kid: list[int] = []) -> int;
-    def mk_ast_async_node(is_async: bool = False, kid: list[int] = []) -> int;
-    def mk_ast_doc_node(doc: int = NIL, kid: list[int] = []) -> int;
-    def mk_ast_else_body_node(else_body: int = NIL, kid: list[int] = []) -> int;
-    def mk_ast_impl_needing_node(
-        body: (int | list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_ast_symbol_node(kid: list[int] = []) -> int;
-    def mk_ast_symbol_stub_node(kid: list[int] = []) -> int;
-    def mk_ast_typed_var_node(type_tag: int = NIL, kid: list[int] = []) -> int;
-    def mk_atom_expr(kid: list[int] = []) -> int;
-    def mk_atom_trailer(
-        target: int = NIL,
-        right: int = NIL,
-        is_attr: bool = False,
-        is_null_ok: bool = False,
-        is_genai: bool = False,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_atom_unit(value: int = NIL, kid: list[int] = []) -> int;
-    def mk_await_expr(target: int = NIL, kid: list[int] = []) -> int;
-    def mk_awaiting_clause(
-        body: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_binary_expr(
-        left: int = NIL, right: int = NIL, op: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_bool(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_bool_expr(
-        op: int = NIL, values: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_builtin_type(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        is_enum_stmt: bool = False,
-        is_kwesc: bool = False,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_cast_expr(
-        value: int = NIL, cast_type: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_cfg_expr(
-        sc_true_target: int = NIL,
-        sc_false_target: int = NIL,
-        expr: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_code_block_stmt(kid: list[int] = []) -> int;
-    def mk_compare_expr(
-        left: int = NIL,
-        rights: (list[int] | None) = None,
-        ops: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_concurrent_expr(
-        tok: int = NIL, target: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_conditional_node(
-        sc_true_target: int = NIL, sc_false_target: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_connect_op(
-        conn_type: int = NIL,
-        conn_assign: int = NIL,
-        edge_dir: EdgeDir = EdgeDir.IN,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_context_aware_node(
-        codespace_dual: bool = False, kid: list[int] = []
-    ) -> int;
-
-    def mk_ct_block(expr: int = NIL, kid: list[int] = []) -> int;
-    def mk_ct_else(
-        doc: int = NIL, body: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_ct_for(
-        doc: int = NIL,
-        target: int = NIL,
-        iter: int = NIL,
-        body: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_ct_if(
-        doc: int = NIL,
-        condition: int = NIL,
-        body: (list[int] | None) = None,
-        else_body: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_ct_name(parts: (list[int] | None) = None, kid: list[int] = []) -> int;
-    def mk_ct_splice(expr: int = NIL, kid: list[int] = []) -> int;
-    def mk_ctrl_stmt(ctrl: int = NIL, kid: list[int] = []) -> int;
-    def mk_delete_stmt(target: int = NIL, kid: list[int] = []) -> int;
-    def mk_dict_compr(
-        kv_pair: int = NIL, compr: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_dict_val(kv_pairs: (list[int] | None) = None, kid: list[int] = []) -> int;
-    def mk_disconnect_op(edge_spec: int = NIL, kid: list[int] = []) -> int;
-    def mk_disengage_stmt(kid: list[int] = []) -> int;
-    def mk_edge_op_ref(
-        filter_cond: int = NIL, edge_dir: EdgeDir = EdgeDir.IN, kid: list[int] = []
-    ) -> int;
-
-    def mk_edge_ref_trailer(
-        chain: (list[int] | None) = None,
-        edges_only: bool = False,
-        is_async: bool = False,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_element_stmt(doc: int = NIL, kid: list[int] = []) -> int;
-    def mk_ellipsis(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_else_if(
-        else_body: int = NIL,
-        condition: int = NIL,
-        body: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_else_stmt(body: (list[int] | None) = None, kid: list[int] = []) -> int;
-    def mk_empty_token(kid: list[int] = []) -> int;
-    def mk_enum(
-        doc: int = NIL,
-        is_async: bool = False,
-        body: (int | list[int] | None) = None,
-        access: int = NIL,
-        decorators: (list[int] | None) = None,
-        codespace_dual: bool = False,
-        name: int = NIL,
-        value_type: int = NIL,
-        base_classes: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_enum_block_stmt(is_enum_stmt: bool = False, kid: list[int] = []) -> int;
-    def mk_event_signature(
-        event: int = NIL, arch_tag_info: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_except(
-        ex_type: int = NIL,
-        name: int = NIL,
-        body: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_expr(kid: list[int] = []) -> int;
-    def mk_expr_as_item(expr: int = NIL, alias: int = NIL, kid: list[int] = []) -> int;
-    def mk_expr_stmt(
-        expr: int = NIL,
-        in_fstring: bool = False,
-        has_semi: bool = True,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_f_string(
-        start: int = NIL,
-        parts: (list[int] | None) = None,
-        end: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_filter_compr(
-        f_type: int = NIL, compares: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_finally_stmt(body: (list[int] | None) = None, kid: list[int] = []) -> int;
-    def mk_float(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_forever_stmt(body: (list[int] | None) = None, kid: list[int] = []) -> int;
-    def mk_formatted_value(
-        format_part: int = NIL,
-        conversion: int = 0,
-        format_spec: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_func_call(
-        target: int = NIL,
-        params: (list[int] | None) = None,
-        genai_call: int = NIL,
-        call_kind: (str | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_func_signature(
-        posonly_params: (list[int] | None) = None,
-        params: (list[int] | None) = None,
-        varargs: int = NIL,
-        kwonlyargs: (list[int] | None) = None,
-        kwargs: int = NIL,
-        return_type: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_gen_compr(
-        out_expr: int = NIL, compr: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_global_vars(
-        access: int = NIL,
-        doc: int = NIL,
-        codespace_dual: bool = False,
-        assignments: (list[int] | None) = None,
-        is_frozen: bool = False,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_has_var(
-        type_tag: int = NIL,
-        name: int = NIL,
-        value: int = NIL,
-        defer: bool = False,
-        accessors: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_if_else_expr(
-        condition: int = NIL,
-        value: int = NIL,
-        else_value: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_if_stmt(
-        else_body: int = NIL,
-        condition: int = NIL,
-        body: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_impl_def(
-        doc: int = NIL,
-        codespace_dual: bool = False,
-        decorators: (list[int] | None) = None,
-        target: (list[int] | None) = None,
-        spec: (int | list[int] | None) = None,
-        body: (int | list[int] | None) = None,
-        decl_link: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_import(
-        doc: int = NIL,
-        codespace_dual: bool = False,
-        from_loc: int = NIL,
-        items: (list[int] | None) = None,
-        is_absorb: bool = False,
-        is_typed: bool = False,
-        clib_decls: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_in_for_stmt(
-        else_body: int = NIL,
-        is_async: bool = False,
-        target: int = NIL,
-        collection: int = NIL,
-        body: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_index_slice(
-        slices: (list[int] | None) = None, is_range: bool = False, kid: list[int] = []
-    ) -> int;
-
-    def mk_inner_compr(
-        is_async: bool = False,
-        target: int = NIL,
-        collection: int = NIL,
-        conditional: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_int(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_iter_for_stmt(
-        else_body: int = NIL,
-        is_async: bool = False,
-        iter: int = NIL,
-        condition: int = NIL,
-        count_by: int = NIL,
-        body: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_jsx_attribute(kid: list[int] = []) -> int;
-    def mk_jsx_child(kid: list[int] = []) -> int;
-    def mk_jsx_comment(value: int = NIL, kid: list[int] = []) -> int;
-    def mk_jsx_element(
-        name: int = NIL,
-        attributes: (list[int] | None) = None,
-        children: (list[int] | None) = None,
-        is_self_closing: bool = False,
-        is_fragment: bool = False,
-        dynamic_tag: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_jsx_element_name(
-        parts: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_jsx_expression(expr: int = NIL, kid: list[int] = []) -> int;
-    def mk_jsx_normal_attribute(
-        name: int = NIL,
-        value: int = NIL,
-        is_shorthand: bool = False,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_jsx_slot(body: (list[int] | None) = None, kid: list[int] = []) -> int;
-    def mk_jsx_spread_attribute(expr: int = NIL, kid: list[int] = []) -> int;
-    def mk_jsx_text(value: int = NIL, kid: list[int] = []) -> int;
-    def mk_k_v_pair(key: int = NIL, value: int = NIL, kid: list[int] = []) -> int;
-    def mk_k_w_pair(key: int = NIL, value: int = NIL, kid: list[int] = []) -> int;
-    def mk_lambda_expr(
-        body: (int | list[int] | None) = None, signature: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_list_compr(
-        out_expr: int = NIL, compr: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_list_val(values: (list[int] | None) = None, kid: list[int] = []) -> int;
-    def mk_literal(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_match_arch(
-        name: int = NIL,
-        arg_patterns: (list[int] | None) = None,
-        kw_patterns: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_match_as(name: int = NIL, pattern: int = NIL, kid: list[int] = []) -> int;
-    def mk_match_case(
-        pattern: int = NIL,
-        guard: int = NIL,
-        body: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_match_k_v_pair(
-        key: int = NIL, value: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_match_mapping(
-        values: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_match_or(patterns: (list[int] | None) = None, kid: list[int] = []) -> int;
-    def mk_match_pattern(kid: list[int] = []) -> int;
-    def mk_match_sequence(
-        values: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_match_singleton(value: int = NIL, kid: list[int] = []) -> int;
-    def mk_match_star(
-        name: int = NIL, is_list: bool = False, kid: list[int] = []
-    ) -> int;
-
-    def mk_match_stmt(
-        target: int = NIL, cases: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_match_value(value: int = NIL, kid: list[int] = []) -> int;
-    def mk_match_wild(kid: list[int] = []) -> int;
-    def mk_module(
-        doc: int = NIL,
-        name: str = "",
-        body: (list[int] | None) = None,
-        terminals: (list[int] | None) = None,
-        stub_only: bool = False,
-        src_terminals: (list[int] | None) = None,
-        is_raised_from_py: bool = False,
-        decided_codespace: str = '',
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_module_code(
-        is_enum_stmt: bool = False,
-        doc: int = NIL,
-        codespace_dual: bool = False,
-        name: int = NIL,
-        body: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_module_item(name: int = NIL, alias: int = NIL, kid: list[int] = []) -> int;
-    def mk_module_path(
-        path: (list[int] | None) = None,
-        level: int = 0,
-        alias: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_multi_string(
-        strings: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_name(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        is_enum_stmt: bool = False,
-        is_kwesc: bool = False,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_name_atom(
-        is_enum_stmt: bool = False,
-        is_getattr_resolved: bool = False,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_null(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_open_stmt(
-        target: int = NIL, body: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_param_var(
-        type_tag: int = NIL,
-        name: int = NIL,
-        unpack: int = NIL,
-        value: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_py_inline_code(
-        is_enum_stmt: bool = False, doc: int = NIL, code: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_raise_stmt(
-        cause: int = NIL, from_target: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_report_stmt(expr: int = NIL, kid: list[int] = []) -> int;
-    def mk_return_stmt(
-        expr: int = NIL, is_implicit: bool = False, kid: list[int] = []
-    ) -> int;
-
-    def mk_sem_def(
-        doc: int = NIL,
-        target: (list[int] | None) = None,
-        value: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_semi(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_set_compr(
-        out_expr: int = NIL, compr: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_set_val(values: (list[int] | None) = None, kid: list[int] = []) -> int;
-    def mk_slice(
-        start: int = NIL, stop: int = NIL, step: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_special_var_ref(
-        var: int = NIL, is_enum_stmt: bool = False, kid: list[int] = []
-    ) -> int;
-
-    def mk_string(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_sub_tag(
-        tag: (int | list[int] | None) = None,
-        ownership: OwnershipKind = OwnershipKind.NONE,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_switch_case(
-        pattern: int = NIL, body: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_switch_stmt(
-        target: int = NIL, cases: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_test(
-        doc: int = NIL,
-        codespace_dual: bool = False,
-        name: int = NIL,
-        body: (list[int] | None) = None,
-        description: int = NIL,
-        decorators: (list[int] | None) = None,
-        TEST_COUNT: int = 0,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_token(
-        name: str = "",
-        value: str = "",
-        line: int = 0,
-        end_line: int = 0,
-        col_start: int = 0,
-        col_end: int = 0,
-        pos_start: int = 0,
-        pos_end: int = 0,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_try_stmt(
-        else_body: int = NIL,
-        body: (list[int] | None) = None,
-        excepts: (list[int] | None) = None,
-        awaiting_body: int = NIL,
-        finally_body: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_tuple_val(values: (list[int] | None) = None, kid: list[int] = []) -> int;
-    def mk_type_alias(
-        doc: int = NIL,
-        access: int = NIL,
-        codespace_dual: bool = False,
-        name: int = NIL,
-        type_params: (list[int] | None) = None,
-        value: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_type_param(
-        name: int = NIL, bound: int = NIL, default_val: int = NIL, kid: list[int] = []
-    ) -> int;
-
-    def mk_typed_ctx_block(
-        type_ctx: int = NIL, body: (list[int] | None) = None, kid: list[int] = []
-    ) -> int;
-
-    def mk_unary_expr(
-        operand: int = NIL,
-        op: int = NIL,
-        ownership: OwnershipKind = OwnershipKind.NONE,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_uni_c_f_g_node(kid: list[int] = []) -> int;
-    def mk_uni_scope_node(kid: list[int] = []) -> int;
-    def mk_visit_stmt(
-        else_body: int = NIL,
-        insert_loc: int = NIL,
-        target: int = NIL,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_walker_stmt_only_node(kid: list[int] = []) -> int;
-    def mk_while_stmt(
-        else_body: int = NIL,
-        condition: int = NIL,
-        body: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_with_stmt(
-        is_async: bool = False,
-        exprs: (list[int] | None) = None,
-        body: (list[int] | None) = None,
-        kid: list[int] = []
-    ) -> int;
-
-    def mk_yield_expr(
-        expr: int = NIL, with_from: bool = False, kid: list[int] = []
-    ) -> int;
-    # <<< generated builder surface <<<
+    # >>> comptime-derived builder surface (one mk_* per unitree kind) >>>
+    comptime for K in _ct_schema() {
+        def mk_${K["snake"]}(
+            comptime for p in K["bparams"] {
+                ${ct.name(p["pname"])}: ${ct.typ(p["ptype"])} = ${ct.expr(p["pdflt"])}
+            , }kid: list[int] = []
+        ) -> int {
+            idx = self._start(${K["kind"]}, kid, ${K["argn"]});
+            comptime for p in K["bparams"] {
+                self.${ct.name(p["writer"])}(${ct.expr(p["warg"])});
+            }
+            return idx;
+        }
+    }
+    # <<< comptime-derived builder surface <<<
 }
+
+
+# >>> comptime derivation of the arena schema (replaces jac gen-unitree) >>>
+# The unitree constructor surface is the schema: reflect over it at
+# expansion time and derive kind ids (sorted class-name order), the
+# builder surface above, slot tables, kind-family membership, and the
+# materializer SPECS. Deterministic by construction; drift is impossible
+# because there is no second artifact to drift.
+
+def _ct_mod -> any {
+    return reflect.module("jaclang.jac0core.unitree");
+}
+
+def _ct_first_enum(name: str) -> str {
+    mems = reflect.module("jaclang.jac0core.constant").enum_members(name);
+    return mems[0];
+}
+
+def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
+    out: dict = {"cat": "", "optional": False, "enum": ""};
+    if pname == "kid" {
+        out["cat"] = "KID";
+        return out;
+    }
+    parts = ct.parts(ann);
+    optional = False;
+    kept: list[str] = [];
+    for p in parts {
+        if p == "None" {
+            optional = True;
+        } else {
+            kept.append(p);
+        }
+    }
+    out["optional"] = optional;
+    if len(kept) == 0 {
+        out["cat"] = "NODE";
+        out["optional"] = True;
+        return out;
+    }
+    all_source = True;
+    for p in kept {
+        if p.split("[")[0].strip() != "Source" {
+            all_source = False;
+        }
+    }
+    if all_source {
+        out["cat"] = "SOURCE";
+        return out;
+    }
+    if len(kept) == 1 {
+        p0 = kept[0];
+        b = p0.split("[")[0].strip();
+        if b == "str" {
+            out["cat"] = "STR";
+            return out;
+        }
+        if b == "int" {
+            out["cat"] = "INT";
+            return out;
+        }
+        if b == "bool" {
+            out["cat"] = "BOOL";
+            return out;
+        }
+        if b == "EdgeDir" or b == "OwnershipKind" {
+            out["cat"] = "ENUM";
+            out["enum"] = b;
+            return out;
+        }
+        if p0.startswith("Sequence[") or p0.startswith("list[") {
+            out["cat"] = "LIST";
+            return out;
+        }
+        if b == "T" {
+            out["cat"] = "POLY";
+            return out;
+        }
+        if b in class_names or b == "UniNode" or b == "NameAtom" or b == "AtomExpr" {
+            out["cat"] = "NODE";
+            return out;
+        }
+        return out;
+    }
+    n_seq = 0;
+    n_node = 0;
+    all_str = True;
+    for p in kept {
+        if p.startswith("Sequence[") or p.startswith("list[") {
+            n_seq += 1;
+        } else {
+            n_node += 1;
+            if p.split("[")[0].strip() != "str" {
+                all_str = False;
+            }
+        }
+    }
+    if n_seq > 0 and n_node == 0 {
+        out["cat"] = "LIST";
+        return out;
+    }
+    if n_node > 0 and n_seq == 0 {
+        out["cat"] = "STR" if all_str else "NODE";
+        return out;
+    }
+    out["cat"] = "POLY";
+    return out;
+}
+
+def _ct_bparam(
+    pname: str, cat: str, ename: str, opt: bool, hd: bool, dsrc: str
+) -> dict {
+    ptype = "int";
+    pdflt = "NIL";
+    writer = "_arg_node";
+    warg = pname;
+    if cat == "LIST" {
+        ptype = "(list[int] | None)";
+        pdflt = "None";
+        writer = "_arg_list";
+    } elif cat == "POLY" {
+        ptype = "(int | list[int] | None)";
+        pdflt = "None";
+        writer = "_arg_poly";
+    } elif cat == "STR" {
+        pdflt = dsrc if hd else "\"\"";
+        ptype = "(str | None)" if (opt and hd and dsrc == "None") else "str";
+        writer = "_arg_str";
+    } elif cat == "INT" {
+        ptype = "int";
+        pdflt = dsrc if hd else "0";
+        writer = "_arg_int";
+    } elif cat == "BOOL" {
+        ptype = "bool";
+        pdflt = dsrc if hd else "False";
+        writer = "_arg_bool";
+    } elif cat == "ENUM" {
+        ptype = ename;
+        pdflt = dsrc if hd else (ename + "." + _ct_first_enum(ename));
+        writer = "_arg_enum";
+        warg = pname + ".value";
+    }
+    return {
+        "pname": pname,
+        "ptype": ptype,
+        "pdflt": pdflt,
+        "writer": writer,
+        "warg": warg
+    };
+}
+
+def _ct_schema -> list[dict] {
+    mod = _ct_mod();
+    class_names = mod.type_names();
+    excluded = ["Source", "CommentToken", "ProgramModule", "PythonModuleAst"];
+    kept: list[str] = [];
+    for nm in sorted(mod.subtypes_of("UniNode")) {
+        if nm not in excluded {
+            kept.append(nm);
+        }
+    }
+    out: list[dict] = [];
+    kind = 1;
+    for nm in kept {
+        sparams: list[dict] = [];
+        bparams: list[dict] = [];
+        has_kid = False;
+        argn = 0;
+        for f in mod.ctor_fields(nm) {
+            got = _ct_cat(f.name, f.ann, class_names);
+            cat = got["cat"];
+            if cat == "KID" {
+                has_kid = True;
+            } elif cat == "" {
+                fail("unclassifiable ctor param " + nm + "." + f.name + ": " + f.ann);
+            } else {
+                sparams.append(
+                    {
+                        "pname": f.name,
+                        "cat": cat,
+                        "enum": got["enum"],
+                        "hd": f.has_default
+                    }
+                );
+                if cat != "SOURCE" {
+                    argn += 1;
+                    bparams.append(
+                        _ct_bparam(
+                            f.name,
+                            cat,
+                            got["enum"],
+                            got["optional"] or f.has_default,
+                            f.has_default,
+                            f.default_src
+                        )
+                    );
+                }
+            }
+        }
+        out.append(
+            {
+                "name": nm,
+                "snake": ct.snake(nm),
+                "usnake": ct.snake(nm).upper(),
+                "kind": kind,
+                "tokfam": mod.is_subtype(nm, "Token"),
+                "has_kid": has_kid,
+                "sparams": sparams,
+                "bparams": bparams,
+                "argn": argn
+            }
+        );
+        kind += 1;
+    }
+    return out;
+}
+
+def _ct_specs_table -> dict {
+    out: dict = {};
+    for K in _ct_schema() {
+        plist: list = [];
+        sparams: list = K["sparams"];
+        for p in sparams {
+            plist.append(tuple([p["pname"], p["cat"], p["enum"], p["hd"]]));
+        }
+        out[K["kind"]] = tuple([K["name"], tuple(plist), K["tokfam"], K["has_kid"]]);
+    }
+    return out;
+}
+
+def _ct_slot_table(fld: str) -> dict {
+    out: dict = {};
+    for K in _ct_schema() {
+        slot = 0;
+        sparams: list = K["sparams"];
+        for p in sparams {
+            if p["cat"] == "SOURCE" {
+                continue;
+            }
+            if p["pname"] == fld {
+                out[K["kind"]] = slot;
+                break;
+            }
+            slot += 1;
+        }
+    }
+    return out;
+}
+
+def _ct_family_rows -> list[dict] {
+    mod = _ct_mod();
+    fams = [
+        "Token",
+        "Name",
+        "String",
+        "MultiString",
+        "EmptyToken",
+        "Semi",
+        "ExprStmt",
+        "KWPair",
+        "KVPair",
+        "GenCompr",
+        "JsxElement",
+        "ParamVar",
+        "ContextAwareNode",
+        "FuncSignature",
+        "EventSignature",
+        "YieldExpr"
+    ];
+    out: list[dict] = [];
+    for fam in fams {
+        members: list[int] = [];
+        for K in _ct_schema() {
+            if mod.is_subtype(K["name"], fam) {
+                members.append(K["kind"]);
+            }
+        }
+        out.append({"uname": ct.snake(fam).upper(), "members": members});
+    }
+    return out;
+}
+
+comptime for K in _ct_schema() {
+    glob ${ct.name("KIND_" + K["usnake"])}: int = ${K["kind"]};
+}
+
+glob DOC_SLOTS: dict[int, int] = comptime { _ct_slot_table("doc") },
+     ENUM_STMT_SLOTS: dict[int, int] = comptime { _ct_slot_table("is_enum_stmt") };
+
+comptime for F in _ct_family_rows() {
+    glob ${ct.name("KS_" + F["uname"])}: list[int] = ${F["members"]};
+}
+
+glob SPECS: dict[int, tuple] = comptime { _ct_specs_table() };
+# <<< comptime derivation of the arena schema <<<
