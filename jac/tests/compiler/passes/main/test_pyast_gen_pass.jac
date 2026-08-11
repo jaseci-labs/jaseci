@@ -13,6 +13,7 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { PyastGenPass }
+import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.program { JacProgram }
 
 glob FIXTURES = os.path.join(
@@ -140,6 +141,32 @@ test "super_init_py_to_jac_roundtrip" {
                 "Child init",
                 "GrandChild init"
             ] , f"Unexpected initialization order: {lines}";
+    }
+}
+
+test "metaclass_py_to_jac_roundtrip" {
+    # A `class Foo(metaclass=Meta)` must survive Python AST -> Jac IR -> Python
+    # AST so CPython runs the metaclass natively (the class keyword is carried on
+    # uni.Archetype.keywords, not dropped).
+    code_gen = (prog := JacProgram()).compile(
+        os.path.join(FIXTURES, "metaclass_roundtrip.py")
+    );
+    assert not prog.errors_had , f"Compilation errors: {prog.errors_had}";
+    if code_gen.gen.py_ast and isinstance(code_gen.gen.py_ast[0], ast3.Module) {
+        compiled = compile(code_gen.gen.py_ast[0], filename="<ast>", mode="exec");
+        captured = io.StringIO();
+        original_stdout = sys.stdout;
+        try {
+            sys.stdout = captured;
+            module = types.ModuleType("__main__");
+            module.__dict__["__file__"] = code_gen.loc.mod_path;
+            exec(compiled, module.__dict__);
+        } finally {
+            sys.stdout = original_stdout;
+        }
+        output = captured.getvalue();
+        assert "by-meta" in output , f"metaclass did not fire, got: {output}";
+        assert "1" in output , f"class body lost, got: {output}";
     }
 }
 
@@ -594,4 +621,101 @@ with entry {
     values = [m.lit_value for m in found];
     assert b"abcd" in values , f"expected bytes b'abcd' in {values}";
     assert "abcd" in values , f"expected str 'abcd' in {values}";
+}
+
+test "multi-statement lambda in test body call arg is hoisted before use" {
+    code = """
+def _call(fn: Callable[[], None]) {
+    fn();
+}
+test \"demo\" {
+    _call(
+        lambda {
+            x = 1;
+            x;
+        }
+    );
+}
+""";
+    prog = JacProgram();
+    # This test inspects the generated Python, so pin the server codespace:
+    # the native codespace deliberately replaces a test body with an
+    # invoke_native_test shim, which would make the hoist assertions
+    # unobservable (and environment-dependent on LLVM shim availability).
+    mod = prog.compile(
+        file_path="lambda_test_body_hoist.jac",
+        use_str=code,
+        options=CompileOptions(type_check=False, default_codespace='server')
+    );
+    assert not prog.errors_had , (
+        f"test-body lambda hoist should compile cleanly: {prog.errors_had}"
+    );
+    py = mod.gen.py or "";
+    assert "def _jac_lambda_1():" in py , (
+        f"expected hoisted lambda def in generated python: {py}"
+    );
+    idx_def = py.find("def _jac_lambda_1():");
+    idx_use = py.find("_call(_jac_lambda_1)");
+    assert idx_def >= 0 and idx_use > idx_def , (
+        f"hoisted lambda must be defined before call site: def@{idx_def} use@{idx_use}"
+    );
+}
+
+test "multi-statement lambda signature fixtures do not leak hoists (no E5098)" {
+    for fixture in [
+        "lambda_decorator_arg.jac",
+        "lambda_default_arg.jac",
+        "lambda_has_default.jac",
+        "lambda_enum_decorator.jac"
+    ] {
+        prog = JacProgram();
+        prog.compile(file_path=os.path.join(LANG_FIXTURES, fixture));
+        leaked = [
+            str(e)
+            for e in (prog.errors_had or [])
+            if "E5098" in str(e)
+        ];
+        assert not leaked , (
+            f"{fixture} should not emit E5098 leaked-hoist diagnostic: {leaked}"
+        );
+    }
+}
+
+test "leaked multi-statement lambda hoists emit E5098" {
+    code = """with entry { x = 1; }""";
+    prog = JacProgram();
+    mod = prog.compile(file_path="leaked_lambda.jac", use_str=code);
+    pyast_pass = PyastGenPass(ir_in=mod, prog=prog);
+    entry_stmt = mod.body[0];
+    fake_def = pyast_pass.sync(
+        ast3.FunctionDef(
+            name='_jac_lambda_99',
+            args=ast3.arguments(
+                posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]
+            ),
+            body=[pyast_pass.sync(ast3.Pass(), jac_node=entry_stmt)],
+            decorator_list=[],
+            returns=None,
+            type_params=[]
+        ),
+        jac_node=entry_stmt
+    );
+    # Simulate a nested scope (ability/test) that pushed a hoist frame but whose
+    # exit never drained it: the helper is orphaned in a frame beyond the module
+    # frame (index 0), so _drain_module_hoists must report it as E5098 rather than
+    # silently dropping it. The module frame itself stays empty.
+    pyast_pass._hoist_frames = [[], [fake_def]];
+    placed = pyast_pass._drain_module_hoists();
+    assert placed == [] , f"module frame should be empty, got {placed}";
+    leaked = [
+        alrt
+        for alrt in (prog.errors_had or [])
+        if alrt.code is not None and alrt.code.code == "E5098"
+    ];
+    assert leaked , (
+        f"expected E5098 for orphaned hoisted lambda, got: {prog.errors_had}"
+    );
+    assert all(len(f) == 0 for f in pyast_pass._hoist_frames) , (
+        "drain should reset the frame stack after reporting"
+    );
 }

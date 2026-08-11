@@ -63,7 +63,7 @@ obj Store {
     def is_available -> bool abst;
     def server_version -> int abst;
     def ensure_schema(promotions: dict[str, list[str]]) -> None abst;
-    def begin(serializable: bool = True) -> None abst;
+    def begin(serializable: bool = True, read_only: bool = False) -> None abst;
     def commit -> None abst;
     def rollback -> None abst;
     def in_txn -> bool abst;
@@ -76,6 +76,7 @@ obj Store {
     def rows(sql: str, params: dict) -> list[tuple] abst;
     def kv_get(key: str) -> (str | None) abst;
     def kv_put(key: str, value: str) -> None abst;
+    def kv_put_ttl(key: str, value: str, ttl_seconds: int) -> None abst;
     def kv_delete(key: str) -> None abst;
     def quarantine(
         missing_id: UUID, referrer_id: (UUID | None), kind: str
@@ -105,7 +106,7 @@ obj PgStore(Store) {
     def server_version -> int;
     def ensure_schema(promotions: dict[str, list[str]]) -> None;
     def takeover -> int;
-    def begin(serializable: bool = True) -> None;
+    def begin(serializable: bool = True, read_only: bool = False) -> None;
     def commit -> None;
     def rollback -> None;
     def in_txn -> bool;
@@ -118,6 +119,7 @@ obj PgStore(Store) {
     def rows(sql: str, params: dict) -> list[tuple];
     def kv_get(key: str) -> (str | None);
     def kv_put(key: str, value: str) -> None;
+    def kv_put_ttl(key: str, value: str, ttl_seconds: int) -> None;
     def kv_delete(key: str) -> None;
     def quarantine(missing_id: UUID, referrer_id: (UUID | None), kind: str) -> None;
     def notify(channel: str, payload: str) -> None;

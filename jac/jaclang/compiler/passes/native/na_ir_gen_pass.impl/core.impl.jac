@@ -194,7 +194,7 @@ impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {
         return "opt." + self._llvm_type_str(_opt_pt);
     }
     if self._str_desc_ty is not None and ty == self._str_desc_ty {
-        return "jacstr3" if len(list(self._str_desc_ty.elements)) == 3 else "jacstr2";
+        return self._str_desc_kind();
     }
     if isinstance(ty, ir.IntType) {
         if ty.width == 64 {
@@ -271,12 +271,13 @@ impl NaIRGenPass._export_native_layout -> None {
         NativeTupleLayout,
         NativeTestLayout
     }
-    layout = NativeModuleLayout();
+    layout = NativeModuleLayout(str_headerless=self._nogc_headerless());
 
     for (arch_name, field_indices) in self.struct_field_indices.items() {
         field_types = self.struct_field_types.get(arch_name, {});
         fields: list[NativeFieldInfo] = [];
         enum_types = self.struct_field_enum_type.get(arch_name, {});
+        elem_keys = self.struct_field_elem_keys.get(arch_name, {});
         for (fname, idx) in sorted(field_indices.items(), key=lambda (x) { x[1]; }) {
             ftype = field_types.get(fname);
             llvm_t = self._llvm_type_str(ftype) if ftype is not None else "i64";
@@ -301,7 +302,8 @@ impl NaIRGenPass._export_native_layout -> None {
                     enum_type=enum_types.get(fname),
                     is_func_ptr=is_fn_ptr,
                     func_param_types=fn_param_types,
-                    func_ret_type=fn_ret_type
+                    func_ret_type=fn_ret_type,
+                    elem_keys=elem_keys.get(fname)
                 )
             );
         }
@@ -404,6 +406,9 @@ impl NaIRGenPass._export_native_layout -> None {
     }
 
     for (mname, func) in self.method_funcs.items() {
+        if mname in self._native_skipped_methods {
+            continue;
+        }
         param_types = [self._llvm_type_str(a) for a in func.function_type.args];
         param_names = [a.name for a in func.args];
         ret_type = self._llvm_type_str(func.function_type.return_type);
@@ -896,6 +901,22 @@ impl NaIRGenPass._register_imported_archetype(arch: uni.Archetype) -> None {
     aname = arch.name.value if arch.name else None;
     if aname is None {
         return;
+    }
+
+    _arch_mod = arch.find_parent_of_type(uni.Module);
+    _arch_src = _arch_mod.loc.mod_path if _arch_mod?.loc else "";
+    _seen_src = self._struct_source_mod.get(aname);
+    if _seen_src is not None and _arch_src and _seen_src != _arch_src {
+        import sys as _rc_sys;
+        _rc_sys.stderr.write(
+            f"warning: native struct name collision -- '{aname}' from "
+            f"{_arch_src} shadows the one from {_seen_src}; skipping "
+            f"re-registration\n"
+        );
+        return;
+    }
+    if _arch_src {
+        self._struct_source_mod[aname] = _arch_src;
     }
 
     if aname not in self.struct_types {

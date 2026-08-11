@@ -146,6 +146,40 @@ impl NaIRGenPass._normalize_type_key(key: str) -> str {
     return key;
 }
 
+impl NaIRGenPass._elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | None) {
+    if ann is None {
+        return None;
+    }
+    elems: list = [];
+    if isinstance(ann, uni.TupleVal) {
+        elems = list(ann.values or []);
+    } elif ann?.right and ann.right?.slices {
+        for s in (ann.right.slices or []) {
+            inner = s.start if s?.start else s;
+            if isinstance(inner, uni.TupleVal) {
+                elems.extend(list(inner.values or []));
+            } else {
+                elems.append(inner);
+            }
+        }
+    }
+    if not elems {
+        return None;
+    }
+    keys: list = [];
+    for e in elems {
+        _ek: (str | None) = None;
+        _etb = e?.type if isinstance(e, uni.Expr) else None;
+        if _etb is not None {
+            try {
+                _ek = self._normalize_type_key(self._mangled_of(_etb));
+            } except Exception { }
+        }
+        keys.append(_ek);
+    }
+    return keys;
+}
+
 impl NaIRGenPass._record_ret_facts(name: str, sig: uni.FuncSignature) -> None {
     _rt = sig.return_type;
     if _rt is None {
@@ -162,31 +196,8 @@ impl NaIRGenPass._record_ret_facts(name: str, sig: uni.FuncSignature) -> None {
             );
         } except Exception { }
     }
-    elems: list = [];
-    if isinstance(_rt, uni.TupleVal) {
-        elems = list(_rt.values or []);
-    } elif _rt?.right and _rt.right?.slices {
-        for s in (_rt.right.slices or []) {
-            inner = s.start if s?.start else s;
-            if isinstance(inner, uni.TupleVal) {
-                elems.extend(list(inner.values or []));
-            } else {
-                elems.append(inner);
-            }
-        }
-    }
-    if elems {
-        keys: list = [];
-        for e in elems {
-            _ek: (str | None) = None;
-            _etb = e?.type if isinstance(e, uni.Expr) else None;
-            if _etb is not None {
-                try {
-                    _ek = self._normalize_type_key(self._mangled_of(_etb));
-                } except Exception { }
-            }
-            keys.append(_ek);
-        }
+    keys = self._elem_keys_of_annotation(_rt);
+    if keys {
         self.func_ret_elem_keys[name] = keys;
     }
 }

@@ -73,7 +73,6 @@ def select_injector(
     app_name: str,
     namespace: str,
     project_dir: str,
-    provisioned_database: str = "",
     dry_run: bool = False,
     access_mode: str = "ReadWriteMany"
 ) -> tuple[PvcInjector, str] {
@@ -89,10 +88,7 @@ def select_injector(
     };
     if dry_run {
         injector = BinaryInjector(
-            channel=channel,
-            storage_class=storage_class,
-            access_mode=access_mode,
-            provisioned_database=provisioned_database
+            channel=channel, storage_class=storage_class, access_mode=access_mode
         );
         injector._object_key = bundle_object_key(app_name, DRY_RUN_DIGEST);
         injector._toolchain_object_key = toolchain_object_key(app_name, DRY_RUN_DIGEST);
@@ -105,10 +101,7 @@ def select_injector(
     try {
         console.print(f"Preparing the '{channel.value}' jac runtime for pods.");
         injector = BinaryInjector(
-            channel=channel,
-            storage_class=storage_class,
-            access_mode=access_mode,
-            provisioned_database=provisioned_database
+            channel=channel, storage_class=storage_class, access_mode=access_mode
         );
         injector.prepare(app_name, namespace, project_dir);
         console.print(f"Ready: {blurbs[channel]}.");

@@ -827,7 +827,7 @@ test "sv import kwargs preserve names in jac call function" {
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     # Pure-kwargs single arg: ``greet(name=input_text)``
-    assert '__jacCallFunction("greet", {"name": input_text})' in js_code , (
+    assert '__jacCallFunction("greet", {"name": __jacS_input_text.val})' in js_code , (
         "Single-kwarg call must propagate the name into the args object;\n"
         + "got:\n"
         + js_code
@@ -876,12 +876,12 @@ test "sv import kwargs preserve names in production jac2js path" {
     fixture = "svc_kwargs/sv_import_kwargs_client.jac";
     js_code = compile_fixture_to_js_production(fixture, FIXTURES);
 
-    assert '__jacCallFunction("greet", {"name": input_text})' in js_code , (
+    assert '__jacCallFunction("greet", {"name": __jacS_input_text.val})' in js_code , (
         "Production jac2js path must lower sv-import kwargs directly into the RPC args object;\n"
         + "got:\n"
         + js_code
     );
-    assert "await greet({name: input_text})" not in js_code , (
+    assert "await greet({name: __jacS_input_text.val})" not in js_code , (
         "Production jac2js path must not pass kwargs object into the generated RPC wrapper;\n"
         + "got:\n"
         + js_code
@@ -931,12 +931,12 @@ test "plain client kwargs lower to ordered js arguments" {
     js_code = compile_fixture_to_js_production(fixture, FIXTURES);
     compact_js = js_code.replace("\n", "").replace(" ", "");
 
-    assert "setTotal(add(5, 10));" in js_code , (
+    assert "__jacS_total.set(add(5, 10));" in js_code , (
         "Known Jac function kwargs must lower to ordered JS positional args;\n"
         + "got:\n"
         + js_code
     );
-    assert "setMixed(add(1, 2));" in js_code , (
+    assert "__jacS_mixed.set(add(1, 2));" in js_code , (
         "Mixed positional/kwarg call must preserve positional args and order kwargs by signature;\n"
         + "got:\n"
         + js_code
@@ -946,12 +946,12 @@ test "plain client kwargs lower to ordered js arguments" {
         + "got:\n"
         + js_code
     );
-    assert "setDefaulted(add_defaults(undefined, 99));" in js_code , (
+    assert "__jacS_defaulted.set(add_defaults(undefined, 99));" in js_code , (
         "Skipping an earlier defaulted param must emit an undefined placeholder, not collapse positions;\n"
         + "got:\n"
         + js_code
     );
-    assert 'setSpread_total(add(kw["a"], kw["b"]));' in js_code , (
+    assert '__jacS_spread_total.set(add(kw["a"], kw["b"]));' in js_code , (
         "Known **kwargs calls must lower to declared-parameter property reads;\n"
         + "got:\n"
         + js_code
@@ -960,7 +960,7 @@ test "plain client kwargs lower to ordered js arguments" {
         "Complex **kwargs source must be evaluated exactly once;\n" + "got:\n" + js_code
     );
     assert (
-        'setSpread_call_total((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))(get_kw()));'
+        '__jacS_spread_call_total.set((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))(get_kw()));'
         in compact_js
     ) , (
         "Known **function_call() spread must lower through a single-evaluation temp IIFE;\n"
@@ -968,7 +968,7 @@ test "plain client kwargs lower to ordered js arguments" {
         + js_code
     );
     assert (
-        'setSpread_merge_total((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))({...kw1,...kw2}));'
+        '__jacS_spread_merge_total.set((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))({...kw1,...kw2}));'
         in compact_js
     ) , (
         "Multiple **kwargs spreads must merge earlier and later sources before keyed reads;\n"
@@ -976,14 +976,14 @@ test "plain client kwargs lower to ordered js arguments" {
         + js_code
     );
     assert (
-        'setSpread_override_total((__jac_kwargs=>add3(__jac_kwargs["a"],99,__jac_kwargs["c"]))({...kw1,...kw2}));'
+        '__jacS_spread_override_total.set((__jac_kwargs=>add3(__jac_kwargs["a"],99,__jac_kwargs["c"]))({...kw1,...kw2}));'
         in compact_js
     ) , (
         "Explicit kwargs must override **spread values while preserving other merged keys;\n"
         + "got:\n"
         + js_code
     );
-    assert "setMethod_total(counter.bump(5, 3));" in js_code , (
+    assert "__jacS_method_total.set(counter.bump(5, 3));" in js_code , (
         "Known method kwargs must lower to ordered JS positional args;\n"
         + "got:\n"
         + js_code
@@ -1262,10 +1262,10 @@ test "compr list method call" {
 test "str methods on local vars and chained calls" {
     js_code = compile_fixture_to_js("str_method_chaining.jac", FIXTURES);
     assert "temp.toLowerCase()" in js_code , "str.lower() on local var should map to .toLowerCase()";
-    assert "text.trim().toLowerCase()" in js_code , "chained str.strip().lower() should map to .trim().toLowerCase()";
-    assert "text.toUpperCase().trim()" in js_code , "chained str.upper().strip() should map to .toUpperCase().trim()";
-    assert "text.trim().toUpperCase()" in js_code , "chained str.strip().upper() should map to .trim().toUpperCase()";
-    assert "text.toUpperCase().trim().toLowerCase()" in js_code , "triple-chained str.upper().strip().lower() should map to .toUpperCase().trim().toLowerCase()";
+    assert "__jacS_text.val.trim().toLowerCase()" in js_code , "chained str.strip().lower() should map to .trim().toLowerCase()";
+    assert "__jacS_text.val.toUpperCase().trim()" in js_code , "chained str.upper().strip() should map to .toUpperCase().trim()";
+    assert "__jacS_text.val.trim().toUpperCase()" in js_code , "chained str.strip().upper() should map to .trim().toUpperCase()";
+    assert "__jacS_text.val.toUpperCase().trim().toLowerCase()" in js_code , "triple-chained str.upper().strip().lower() should map to .toUpperCase().trim().toLowerCase()";
 }
 
 test "issue 5508 case1 in operator on str method call" {
@@ -2660,6 +2660,72 @@ test "builtin type used as a value lowers to a callable (#7454)" {
     );
 
     assert_balanced_syntax(js_code, "builtin_type_as_value.jac");
+}
+
+test "imported JS/TS class constructs with new (#8017)" {
+    # A `.d.ts`-declared class binds as a plain `variable` symbol, so
+    # classify_call reports "function" and the pre-fix backend emitted
+    # `Greeter(...)` — which throws `TypeError: Class constructor Greeter
+    # cannot be invoked without 'new'` at runtime. The backend must consult
+    # the resolved type; `plain` guards declared functions staying plain calls.
+    # The foreign lib is written at test time (the repo keeps no .js/.d.ts
+    # fixture sources), so the fixture compiles from a temp copy placed next
+    # to the generated lib. The .js implementation must exist alongside the
+    # .d.ts: sibling declaration lookup starts from the resolved .js module.
+    comp_dir = tempfile.mkdtemp(prefix="jac_ts_class_new_");
+    Path(os.path.join(comp_dir, "jac.toml")).write_text(
+        '[project]\nname = "ts-class-new"\n\n[placement.pins]\n"*" = "client"\n'
+    );
+    Path(os.path.join(comp_dir, "ts_class_new_lib.d.ts")).write_text(
+        "export declare class Greeter {\n"
+        "  constructor(name: string);\n"
+        "  hello(): string;\n"
+        "}\n"
+        "export declare function plain(x: string): string;\n"
+    );
+    Path(os.path.join(comp_dir, "ts_class_new_lib.js")).write_text(
+        "export class Greeter {\n"
+        "  constructor(name) { this.name = name; }\n"
+        "  hello() { return \"hi \" + this.name; }\n"
+        "}\n"
+        "export function plain(x) { return x; }\n"
+    );
+    fixture_src = Path(os.path.join(FIXTURES, "ts_class_new.jac")).read_text();
+    jac_path = os.path.join(comp_dir, "ts_class_new.jac");
+    Path(jac_path).write_text(fixture_src);
+    js_code = compile_fixture_to_js(jac_path);
+
+    assert "new Local(" in js_code , (
+        "Jac obj construction must keep emitting new:\n" + js_code
+    );
+    assert "new Greeter(" in js_code , (
+        "imported TS class construction must emit new:\n" + js_code
+    );
+    assert "new plain(" not in js_code , (
+        "imported TS function must stay a plain call:\n" + js_code
+    );
+
+    # Without a module marker Node treats sibling .js files as CommonJS and
+    # the generated named imports fail to resolve.
+    Path(os.path.join(comp_dir, "package.json")).write_text('{"type": "module"}');
+    Path(os.path.join(comp_dir, "main.mjs")).write_text(
+        js_code + "\nconsole.log(go());\n"
+    );
+    result = subprocess.run(
+        ["node", os.path.join(comp_dir, "main.mjs")],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "constructing an imported TS class crashed in Node:\n"
+        f"stderr={result.stderr!r}\njs:\n{js_code}"
+    );
+    assert result.stdout.strip() == "hi worldxa" , (
+        f"unexpected runtime output: {result.stdout!r}\njs:\n{js_code}"
+    );
+
+    assert_balanced_syntax(js_code, "ts_class_new.jac");
 }
 
 test "builtin functions lower to runtime helpers without type-check (#7480)" {

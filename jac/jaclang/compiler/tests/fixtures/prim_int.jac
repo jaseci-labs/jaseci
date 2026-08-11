@@ -4,7 +4,7 @@ Cross-backend equivalence fixture.
 """
 
 # --- Int arithmetic and bitwise operators ---
-def int_py() -> dict {
+def int_py -> dict {
     a: int = 17;
     b: int = 5;
 
@@ -163,7 +163,7 @@ def int_py() -> dict {
     };
 }
 
-def int_cl() -> dict {
+def int_cl -> dict {
     a: int = 17;
     b: int = 5;
 
@@ -268,7 +268,7 @@ def int_cl() -> dict {
 }
 
 
-def int_na() -> dict[str, any] {
+def int_na -> dict[str, any] {
     a: int = 17;
     b: int = 5;
 

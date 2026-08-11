@@ -271,7 +271,7 @@ test "pod stuck ContainerCreating with FailedMount events is healed" {
     target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
-    boot = _cs("wait-for-mongodb", restarts=0, waiting_reason="ContainerCreating");
+    boot = _cs("wait-for-postgres", restarts=0, waiting_reason="ContainerCreating");
     pod = _pod("gateway-xyz", "gateway", "Pending", [boot], []);
     (apps, core) = _apis(0, [pod]);
     core.list_namespaced_event.return_value = SimpleNamespace(
@@ -300,7 +300,7 @@ test "slow ContainerCreating without FailedMount events is left alone" {
     target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
-    boot = _cs("wait-for-mongodb", restarts=0, waiting_reason="ContainerCreating");
+    boot = _cs("wait-for-postgres", restarts=0, waiting_reason="ContainerCreating");
     pod = _pod("gateway-xyz", "gateway", "Pending", [boot], []);
     (apps, core) = _apis(0, [pod]);
 
@@ -317,7 +317,7 @@ test "a stale FailedMount event from a recovered hiccup never heals" {
     target = KubernetesTarget(
         config=KubernetesConfig(app_name="jac-shop", namespace="ns")
     );
-    boot = _cs("wait-for-mongodb", restarts=0, waiting_reason="ContainerCreating");
+    boot = _cs("wait-for-postgres", restarts=0, waiting_reason="ContainerCreating");
     pod = _pod("gateway-xyz", "gateway", "Pending", [boot], []);
     (apps, core) = _apis(0, [pod]);
     core.list_namespaced_event.return_value = SimpleNamespace(

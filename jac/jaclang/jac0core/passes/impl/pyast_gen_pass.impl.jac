@@ -60,6 +60,9 @@ impl PyastGenPass.postinit -> None {
     self.jaclib_imports = `set();
     self.builtin_imports = `set();
     self.typing_imports = `set();
+
+    self._hoist_frames = [[]];
+    self._scope_body_hoists = [];
     self.child_passes = self._init_child_passes(PyastGenPass);
     self.preamble = [
         self.sync(
@@ -507,6 +510,23 @@ impl PyastGenPass._next_temp_name(prefix: str) -> str {
     return f"__jac_{prefix}_{self._temp_name_counter}";
 }
 
+impl PyastGenPass._strip_hoisted_lambda_defs(
+    body: list[ast3.AST]
+) -> tuple[(list[ast3.AST], list[ast3.AST])] {
+    leaked: list[ast3.AST] = [];
+    cleaned: list[ast3.AST] = [];
+    for stmt in body {
+        if (
+            isinstance(stmt, ast3.FunctionDef) and stmt.name.startswith('_jac_lambda_')
+        ) {
+            leaked.append(stmt);
+        } else {
+            cleaned.append(stmt);
+        }
+    }
+    return (leaked, cleaned);
+}
+
 impl PyastGenPass._py_name(nd: uni.AstSymbolNode) -> str {
     if (isinstance(nd, uni.SpecialVarRef) and (nd.name == Tok.KW_INIT)) {
         return '__init__';
@@ -527,14 +547,107 @@ impl PyastGenPass.py_ctx(nd: uni.AstSymbolNode) -> ast3.expr_context {
     return ast3.Load();
 }
 
+impl PyastGenPass._next_lambda_name -> str {
+    self._lambda_counter += 1;
+    return f"_jac_lambda_{self._lambda_counter}";
+}
+
+impl PyastGenPass._push_hoist_frame -> None {
+    self._hoist_frames.append([]);
+}
+
+impl PyastGenPass._hoist_lambda(
+    func_def: (ast3.FunctionDef | ast3.AsyncFunctionDef)
+) -> None {
+    if not self._hoist_frames {
+        self._hoist_frames = [[]];
+    }
+    self._hoist_frames[-1].append(func_def);
+}
+
+impl PyastGenPass._ancestor_is_one_of(
+    nd: (uni.UniNode | None), roots: list[uni.UniNode]
+) -> bool {
+    cur: (uni.UniNode | None) = nd;
+    seen: set[uni.UniNode] = `set();
+    while cur {
+        if cur in seen {
+            return False;
+        }
+        seen.add(cur);
+        for root in roots {
+            if cur is root {
+                return True;
+            }
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+impl PyastGenPass._split_scope_hoists(
+    hoists: list[ast3.FunctionDef | ast3.AsyncFunctionDef], sig_roots: list[uni.UniNode]
+) -> tuple[
+    (
+        list[ast3.FunctionDef | ast3.AsyncFunctionDef],
+        list[ast3.FunctionDef | ast3.AsyncFunctionDef]
+    )
+] {
+    body_hoists: list[ast3.FunctionDef | ast3.AsyncFunctionDef] = [];
+    enclosing_hoists: list[ast3.FunctionDef | ast3.AsyncFunctionDef] = [];
+    for func_def in hoists {
+        lam: (uni.UniNode | None) = None;
+        jac_link = func_def?.jac_link;
+        if jac_link {
+            lam = jac_link[0];
+        }
+        if lam and self._ancestor_is_one_of(lam, sig_roots) {
+            enclosing_hoists.append(func_def);
+        } else {
+            body_hoists.append(func_def);
+        }
+    }
+    return (body_hoists, enclosing_hoists);
+}
+
+impl PyastGenPass._drain_module_hoists -> list[
+    ast3.FunctionDef | ast3.AsyncFunctionDef
+] {
+    if not self._hoist_frames {
+        self._hoist_frames = [[]];
+    }
+
+    if len(self._hoist_frames) > 1 {
+        self._report_leaked_hoisted_lambdas();
+    }
+    hoists = self._hoist_frames[0][:];
+    self._hoist_frames = [[]];
+    return hoists;
+}
+
 impl PyastGenPass._function_expr_from_def(
     func_def: (ast3.FunctionDef | ast3.AsyncFunctionDef),
     jac_node: uni.UniNode,
     filename_hint: str
 ) -> ast3.Name {
     ast3.fix_missing_locations(func_def);
-    self._hoisted_funcs.append(func_def);
+    self._hoist_lambda(func_def);
     return self.sync(ast3.Name(id=func_def.name, ctx=ast3.Load()), jac_node=jac_node);
+}
+
+impl PyastGenPass._report_leaked_hoisted_lambdas -> None {
+    leftover: list[ast3.FunctionDef | ast3.AsyncFunctionDef] = [];
+    for frame in self._hoist_frames[1:] {
+        leftover.extend(frame);
+    }
+    for func_def in leftover {
+        jac_node: uni.UniNode = self.ir_out;
+        jac_link = func_def?.jac_link;
+        if jac_link {
+            jac_node = jac_link[0];
+        }
+        self.emit(E5098, node_override=jac_node, name=func_def.name);
+    }
 }
 
 impl PyastGenPass._get_sem_decorator(nd: uni.UniNode) -> (ast3.Call | None) {
@@ -904,6 +1017,8 @@ impl PyastGenPass.exit_module(nd: uni.Module) -> None {
         body_items.append(doc_stmt);
     }
     body_items.extend(self.preamble);
+
+    body_items.extend(self._drain_module_hoists());
     reg_map = self._native_import_registration_map();
     emitted: set[str] = set();
     for item in merged_body {
@@ -1001,6 +1116,27 @@ impl PyastGenPass.exit_test(nd: uni.Test) -> None {
             *[cast(ast3.stmt, s) for s in test_directives],
             *body_stmts[insert_at:]
         ];
+    }
+    scope_frame = self._hoist_frames.pop() if self._hoist_frames else [];
+    if not self._hoist_frames {
+        self._hoist_frames = [[]];
+    }
+    test_sig_roots: list[uni.UniNode] = [];
+    if nd.decorators {
+        for d in nd.decorators {
+            if d {
+                test_sig_roots.append(d);
+            }
+        }
+    }
+    (test_body_hoists, test_enclosing_hoists) = self._split_scope_hoists(
+        scope_frame, test_sig_roots
+    );
+    if test_enclosing_hoists {
+        self._hoist_frames[-1].extend(test_enclosing_hoists);
+    }
+    if test_body_hoists {
+        body_stmts = [*test_body_hoists, *body_stmts];
     }
     func = self.sync(
         ast3.FunctionDef(
@@ -1370,6 +1506,9 @@ impl PyastGenPass.exit_archetype(nd: uni.Archetype) -> None {
     } elif not isinstance(nd.body, uni.Expr) {
         inner = nd.body;
     }
+    decorators = [cast(ast3.expr, self.py_ast_val(i)) for i in nd.decorators]
+        if nd.decorators
+        else [];
     body: list[ast3.AST] = self.resolve_stmt_block(inner, doc=nd.doc);
     if (not body and not isinstance(nd.body, uni.Expr)) {
         self.emit(E5003, node_override=nd);
@@ -1388,9 +1527,6 @@ impl PyastGenPass.exit_archetype(nd: uni.Archetype) -> None {
             )
         );
     }
-    decorators = [cast(ast3.expr, self.py_ast_val(i)) for i in nd.decorators]
-        if nd.decorators
-        else [];
     if (sem_decorator := self._get_sem_decorator(nd)) {
         decorators.append(sem_decorator);
     }
@@ -1406,16 +1542,20 @@ impl PyastGenPass.exit_archetype(nd: uni.Archetype) -> None {
             }
         }
     }
+    keywords = [cast(ast3.keyword, self.py_ast_val(k)) for k in nd.keywords]
+        if nd.keywords
+        else [];
     class_def = self.sync(
         ast3.ClassDef(
             name=nd.name.sym_name,
             bases=[cast(ast3.expr, i) for i in base_classes],
-            keywords=[],
+            keywords=keywords,
             body=[cast(ast3.stmt, i) for i in body],
             decorator_list=[cast(ast3.expr, i) for i in decorators],
             type_params=type_param_asts
         )
     );
+
     nd.gen.py_ast = [class_def];
 }
 
@@ -1432,10 +1572,10 @@ impl PyastGenPass.exit_enum(nd: uni.Enum) -> None {
     } elif not isinstance(nd.body, uni.Expr) {
         inner = nd.body;
     }
-    body = self.resolve_stmt_block(inner, doc=nd.doc);
     decorators = [cast(ast3.expr, self.py_ast_val(i)) for i in nd.decorators]
         if nd.decorators
         else [];
+    body = self.resolve_stmt_block(inner, doc=nd.doc);
     if (sem_decorator := self._get_sem_decorator(nd)) {
         decorators.append(sem_decorator);
     }
@@ -1465,13 +1605,19 @@ impl PyastGenPass.exit_enum(nd: uni.Enum) -> None {
             type_params=[]
         )
     );
+
     nd.gen.py_ast = [class_def];
 }
 
 impl PyastGenPass.enter_ability(nd: uni.Ability) -> None {
+    self._push_hoist_frame();
     if isinstance(nd.body, uni.ImplDef) {
         self.traverse(nd.body);
     }
+}
+
+impl PyastGenPass.enter_test(nd: uni.Test) -> None {
+    self._push_hoist_frame();
 }
 
 impl PyastGenPass._invoke_llm_call(
@@ -1580,6 +1726,26 @@ impl PyastGenPass.gen_llm_body(nd: uni.Ability) -> list[ast3.stmt] {
 
 impl PyastGenPass.exit_ability(nd: uni.Ability) -> None {
     func_type = ast3.AsyncFunctionDef if nd.is_async else ast3.FunctionDef;
+
+    scope_frame = self._hoist_frames.pop() if self._hoist_frames else [];
+    if not self._hoist_frames {
+        self._hoist_frames = [[]];
+    }
+    sig_roots: list[uni.UniNode] = [];
+    if nd.signature {
+        sig_roots.append(nd.signature);
+    }
+    if nd.decorators {
+        for d in nd.decorators {
+            if d {
+                sig_roots.append(d);
+            }
+        }
+    }
+    (body_hoists, enclosing_hoists) = self._split_scope_hoists(scope_frame, sig_roots);
+    if enclosing_hoists {
+        self._hoist_frames[-1].extend(enclosing_hoists);
+    }
 
     is_prop_acc = nd.accessor_kind != "";
     prop_owner_name: str | None = None;
@@ -1746,6 +1912,10 @@ impl PyastGenPass.exit_ability(nd: uni.Ability) -> None {
         self.emit(E5005, node_override=nd);
         body = [self.sync(ast3.Pass(), nd)];
     }
+
+    if body_hoists {
+        body = [*body_hoists, *body];
+    }
     directive_stmts = self.scope_directive_stmts(
         [nd, nd.body if isinstance(nd.body, uni.ImplDef) else None]
     );
@@ -1835,6 +2005,7 @@ impl PyastGenPass.exit_ability(nd: uni.Ability) -> None {
             type_params=[]
         )
     );
+
     nd.gen.py_ast = [func_def];
 }
 
@@ -2039,8 +2210,9 @@ impl PyastGenPass.exit_has_var(nd: uni.HasVar) -> None {
             )
         );
     } elif nd.value {
-        if isinstance(self.py_ast_val(nd.value), ast3.Constant) {
-            value = cast(ast3.expr, self.py_ast_val(nd.value));
+        value_expr = cast(ast3.expr, self.py_ast_val(nd.value));
+        if isinstance(value_expr, ast3.Constant) {
+            value = value_expr;
         } else {
             value = self.sync(
                 ast3.Call(
@@ -2063,7 +2235,7 @@ impl PyastGenPass.exit_has_var(nd: uni.HasVar) -> None {
                                                 defaults=[]
                                             )
                                         ),
-                                        body=cast(ast3.expr, self.py_ast_val(nd.value))
+                                        body=value_expr
                                     )
                                 )
                             )
@@ -2073,21 +2245,19 @@ impl PyastGenPass.exit_has_var(nd: uni.HasVar) -> None {
             );
         }
     }
-    nd.gen.py_ast = [
-        self.sync(
-            ast3.AnnAssign(
-                target=cast(
-                    ast3.Name | ast3.Attribute | ast3.Subscript,
-                    self.py_ast_val(nd.name)
-                ),
-                annotation=cast(ast3.expr, annotation)
-                    if annotation
-                    else ast3.Constant(value=None),
-                value=value,
-                simple=int(isinstance(nd.name, uni.Name))
-            )
+    ann_assign = self.sync(
+        ast3.AnnAssign(
+            target=cast(
+                ast3.Name | ast3.Attribute | ast3.Subscript, self.py_ast_val(nd.name)
+            ),
+            annotation=cast(ast3.expr, annotation)
+                if annotation
+                else ast3.Constant(value=None),
+            value=value,
+            simple=int(isinstance(nd.name, uni.Name))
         )
-    ];
+    );
+    nd.gen.py_ast = [ann_assign];
 }
 
 impl PyastGenPass.exit_typed_ctx_block(nd: uni.TypedCtxBlock) -> None {
@@ -2146,8 +2316,6 @@ impl PyastGenPass.exit_else_stmt(nd: uni.ElseStmt) -> None {
 }
 
 impl PyastGenPass.exit_expr_stmt(nd: uni.ExprStmt) -> None {
-    hoisted = self._hoisted_funcs[:];
-    self._hoisted_funcs.clear();
     expr_stmt = self.sync(ast3.Expr(value=cast(ast3.expr, self.py_ast_val(nd.expr))))
         if not nd.in_fstring
         else self.sync(
@@ -2157,7 +2325,7 @@ impl PyastGenPass.exit_expr_stmt(nd: uni.ExprStmt) -> None {
                 format_spec=None
             )
         );
-    nd.gen.py_ast = [*hoisted, expr_stmt];
+    nd.gen.py_ast = [expr_stmt];
 }
 
 impl PyastGenPass.exit_concurrent_expr(nd: uni.ConcurrentExpr) -> None {
@@ -2598,8 +2766,6 @@ impl PyastGenPass.exit_assignment(nd: uni.Assignment) -> None {
             if nd.is_enum_stmt
             else None if nd.type_tag else self.ice();
     targets_ast = [cast(ast3.expr, self.py_ast_val(t)) for t in nd.target];
-    hoisted = self._hoisted_funcs[:];
-    self._hoisted_funcs.clear();
     if nd.type_tag {
         assignment_stmt: ast3.AnnAssign | ast3.Assign | ast3.AugAssign = self.sync(
             ast3.AnnAssign(
@@ -2629,7 +2795,7 @@ impl PyastGenPass.exit_assignment(nd: uni.Assignment) -> None {
             )
         );
     }
-    nd.gen.py_ast = [*hoisted, assignment_stmt];
+    nd.gen.py_ast = [assignment_stmt];
 }
 
 impl PyastGenPass.exit_binary_expr(nd: uni.BinaryExpr) -> None {
@@ -2880,7 +3046,7 @@ impl PyastGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
         if not body_stmts {
             body_stmts = [self.sync(ast3.Pass(), jac_node=nd)];
         }
-        func_name = self._next_temp_name('lambda');
+        func_name = self._next_lambda_name();
         returns = cast(ast3.expr, self.py_ast_val(nd.signature.return_type))
             if (
                 nd.signature
