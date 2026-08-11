@@ -2,6 +2,16 @@ impl JacScaleConfig.get_plugin_name(self: JacScaleConfig) -> str {
     return "scale";
 }
 
+impl JacScaleConfig.get_config_schema(self: JacScaleConfig) -> dict[str, any] {
+    import from jaclang.scale.config.validation { scale_schema_options }
+    return {"section": "scale", "options": scale_schema_options()};
+}
+
+impl JacScaleConfig.get_config_strict_env(self: JacScaleConfig) -> str {
+    import from jaclang.scale.config.validation { STRICT_ENV }
+    return STRICT_ENV;
+}
+
 impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
     return {
         'jwt': {
@@ -389,16 +399,6 @@ impl get_scale_config(project_dir: Path | None = None) -> JacScaleConfig {
         return _scale_config_instance;
     }
     new_instance = JacScaleConfig(project_dir);
-    raw_plugin_config: dict[str, any] | None = None;
-    try {
-        raw_plugin_config = new_instance.get_jac_config().get_plugin_config('scale');
-    } except Exception {
-        raw_plugin_config = None;
-    }
-    if raw_plugin_config is not None {
-        import from jaclang.scale.config.validation { warn_unknown_scale_keys }
-        warn_unknown_scale_keys(raw_plugin_config);
-    }
     _scale_config_instance = new_instance;
     return new_instance;
 }

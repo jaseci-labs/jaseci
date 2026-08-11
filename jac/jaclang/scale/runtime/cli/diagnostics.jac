@@ -116,15 +116,24 @@ obj PlanValidator {
     }
 
     def _check_config_keys(out: list[Diagnostic]) {
+        import from jaclang.scale.config.config_loader { get_scale_config }
+        import from jaclang.scale.config.validation { validate_scale_config }
         try {
-            import from jaclang.scale.config.config_loader { get_scale_config }
-            import from jaclang.scale.config.validation { validate_scale_config }
             raw = get_scale_config().get_jac_config().get_plugin_config("scale");
-            for msg in validate_scale_config(raw) {
-                out.append(Diagnostic(severity="warn", message=msg));
-            }
-        } except Exception {
+        } except Exception as e {
+            out.append(
+                Diagnostic(
+                    severity="warn",
+                    message=(
+                        f"could not read [scale] from jac.toml to check for "
+                        f"unknown keys: {e}"
+                    )
+                )
+            );
             return;
+        }
+        for msg in validate_scale_config(raw) {
+            out.append(Diagnostic(severity="warn", message=msg));
         }
     }
 

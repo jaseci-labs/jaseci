@@ -2,9 +2,11 @@ import os;
 import shutil;
 import tempfile;
 import from pathlib { Path }
+import from jaclang.project.config_schema { report_schema_findings }
 import from jaclang.scale.config.validation {
-    validate_scale_config,
-    warn_unknown_scale_keys
+    STRICT_ENV,
+    known_deploy_targets,
+    validate_scale_config
 }
 import from jaclang.scale.config.plugin_config { JacScalePluginConfig }
 import from jaclang.scale.config.config_loader {
@@ -119,57 +121,125 @@ test "schema defaults agree with runtime defaults" {
     assert bad == [] , f"schema/defaults disagree: {bad}";
 }
 
-test "warn does not raise outside strict mode" {
-    os.environ.pop("JAC_SCALE_CONFIG_STRICT", None);
-    warn_unknown_scale_keys({"microservice": {}});
+test "reporting does not raise outside strict mode" {
+    os.environ.pop(STRICT_ENV, None);
+    report_schema_findings(
+        validate_scale_config({"microservice": {}}), "scale", STRICT_ENV
+    );
 }
 
 test "strict env raises on unknown keys" {
-    os.environ["JAC_SCALE_CONFIG_STRICT"] = "1";
+    os.environ[STRICT_ENV] = "1";
     try {
         raised = False;
         try {
-            warn_unknown_scale_keys({"microservice": {}});
+            report_schema_findings(
+                validate_scale_config({"microservice": {}}), "scale", STRICT_ENV
+            );
         } except ValueError as e {
             raised = True;
             assert "microservice" in str(e) , str(e);
         }
         assert raised , "expected ValueError in strict mode";
     } finally {
-        os.environ.pop("JAC_SCALE_CONFIG_STRICT", None);
+        os.environ.pop(STRICT_ENV, None);
     }
 }
 
 test "strict env ignores a clean config" {
-    os.environ["JAC_SCALE_CONFIG_STRICT"] = "1";
+    os.environ[STRICT_ENV] = "1";
     try {
-        warn_unknown_scale_keys({"server": {"port": 9000}});
+        report_schema_findings(
+            validate_scale_config({"server": {"port": 9000}}), "scale", STRICT_ENV
+        );
     } finally {
-        os.environ.pop("JAC_SCALE_CONFIG_STRICT", None);
+        os.environ.pop(STRICT_ENV, None);
     }
 }
 
-test "factory validates the on-disk jac.toml" {
+test "an empty strict-env name never escalates" {
+    import from jaclang.project.config_schema { schema_strict_enabled }
+    os.environ[STRICT_ENV] = "1";
+    try {
+        assert not schema_strict_enabled("");
+        report_schema_findings(["some finding"], "byllm", "");
+    } finally {
+        os.environ.pop(STRICT_ENV, None);
+    }
+}
+
+test "the shared loader validates the on-disk jac.toml" {
     d = tempfile.mkdtemp();
     (Path(d) / "jac.toml").write_text(
         "[project]\nname = \"demo\"\n\n[scale.microservice]\nroutes = {}\n"
     );
-    os.environ["JAC_SCALE_CONFIG_STRICT"] = "1";
+    os.environ[STRICT_ENV] = "1";
     reset_scale_config();
     try {
         raised = False;
         try {
-            get_scale_config(Path(d));
+            get_scale_config(Path(d)).load();
         } except ValueError as e {
             raised = True;
             assert "microservice" in str(e) , str(e);
         }
-        assert raised , "expected strict validation to fire from the factory";
+        assert raised , "expected strict validation to fire from PluginConfigBase.load";
     } finally {
-        os.environ.pop("JAC_SCALE_CONFIG_STRICT", None);
+        os.environ.pop(STRICT_ENV, None);
         reset_scale_config();
         shutil.rmtree(d, ignore_errors=True);
     }
+}
+
+test "a clean on-disk jac.toml loads without complaint under strict mode" {
+    d = tempfile.mkdtemp();
+    (Path(d) / "jac.toml").write_text(
+        "[project]\nname = \"demo\"\n\n[scale.server]\nport = 9100\n"
+    );
+    os.environ[STRICT_ENV] = "1";
+    reset_scale_config();
+    try {
+        cfg = get_scale_config(Path(d)).load();
+        assert cfg["server"]["port"] == 9100 , cfg["server"];
+    } finally {
+        os.environ.pop(STRICT_ENV, None);
+        reset_scale_config();
+        shutil.rmtree(d, ignore_errors=True);
+    }
+}
+
+test "plugins without a declared schema opt out of validation" {
+    cfg = JacScaleConfig();
+    assert cfg.get_config_strict_env() == STRICT_ENV;
+    schema = cfg.get_config_schema();
+    assert schema.get("section") == "scale" , schema.get("section");
+    assert "microservices" in schema.get("options", {}) , "schema options missing";
+}
+
+test "shipped jac.toml files validate clean" {
+    import tomllib;
+    repo = Path(__file__).parents[5];
+    checked = 0;
+    for p in sorted(repo.rglob("jac*.toml")) {
+        sp = str(p);
+        if ".jac/cache" in sp or "node_modules" in sp {
+            continue;
+        }
+        try {
+            data = tomllib.loads(p.read_text());
+        } except Exception {
+            continue;
+        }
+        scale = data.get("scale");
+        if not isinstance(scale, dict) or not scale {
+            continue;
+        }
+        checked += 1;
+        assert validate_scale_config(scale) == [] , (
+            f"{p} does not validate: {validate_scale_config(scale)}"
+        );
+    }
+    assert checked > 0 , f"sweep found no [scale] tables under {repo}";
 }
 
 test "platform-injected and capability-intent keys are recognized" {
@@ -199,13 +269,46 @@ test "documented microservices boot and client keys are recognized" {
     assert msgs == [] , f"expected no findings, got {msgs}";
 }
 
-test "a declared plugin deploy target owns its section" {
-    cfg = {"deploy": {"target": "fly"}, "fly": {"app_name": "demo", "region": "fra"}};
-    msgs = validate_scale_config(cfg);
-    assert msgs == [] , f"expected no findings, got {msgs}";
+test "every known deploy target owns a config section" {
+    for name in known_deploy_targets() {
+        msgs = validate_scale_config(
+            {"deploy": {"target": name}, name: {"namespace": "prod"}}
+        );
+        assert msgs == [] , f"target '{name}' section flagged: {msgs}";
+    }
+}
 
-    without_decl = validate_scale_config({"fly": {"app_name": "demo"}});
-    assert len(without_decl) == 1 , f"expected 1 finding, got {without_decl}";
+test "a registered plugin target owns its section" {
+    import from jaclang.scale.deploy.target.factory { DeploymentTargetFactory }
+    assert "fly" not in known_deploy_targets();
+    before = validate_scale_config({"fly": {"app_name": "demo"}});
+    assert len(before) == 1 , f"expected 1 finding, got {before}";
+
+    def _factory(config: dict, logger: any = None) -> any {
+        return None;
+    }
+    DeploymentTargetFactory.register("fly", _factory);
+    try {
+        assert "fly" in known_deploy_targets();
+        after = validate_scale_config({"fly": {"app_name": "demo"}});
+        assert after == [] , f"registered target section flagged: {after}";
+    } finally {
+        DeploymentTargetFactory._registry.pop("fly", None);
+    }
+}
+
+test "a misspelled deploy target is reported instead of silencing its section" {
+    msgs = validate_scale_config({"deploy": {"target": "kuberntes"}});
+    assert len(msgs) == 1 , f"expected 1 finding, got {msgs}";
+    assert "kuberntes" in msgs[0] , msgs[0];
+    assert "did you mean 'kubernetes'" in msgs[0] , msgs[0];
+}
+
+test "known targets are exactly the ones the factory can build" {
+    import from jaclang.scale.deploy.target.factory { BUILTIN_TARGET_TYPES }
+    for name in BUILTIN_TARGET_TYPES {
+        assert name in known_deploy_targets() , name;
+    }
 }
 
 test "normalizer passes documented boot and static-mount keys through" {
