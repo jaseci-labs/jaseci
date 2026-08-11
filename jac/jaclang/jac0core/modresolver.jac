@@ -277,10 +277,6 @@ def resolve_module(
         }
     }
     if (string_spec and not target.startswith('.')) {
-        # A quoted bare specifier is an ESM package import by contract (see
-        # W1105): it must never resolve to a same-named local file, and the
-        # returned value must stay a bare spec -- consumers treat filesystem
-        # paths as compile/copy targets.
         return (target, 'js');
     }
     if target.startswith('.') {
@@ -559,13 +555,29 @@ def is_client_npm_import(spec: str, source_path: str) -> bool {
         client_framework,
         npm_dependency_names
     }
-    if spec in npm_dependency_names(source_path) {
+    pkg_root = npm_package_root(spec);
+    if pkg_root in npm_dependency_names(source_path) {
         return True;
     }
-    if spec in _FRAMEWORK_PACKAGES.get(client_framework(source_path), set()) {
+    if pkg_root in _FRAMEWORK_PACKAGES.get(client_framework(source_path), set()) {
         return True;
     }
     return has_client_npm_package(spec, source_path);
+}
+
+def npm_package_root(spec: str) -> str {
+    parts = [
+        p
+        for p in spec.split('/')
+        if p
+    ];
+    if not parts {
+        return spec;
+    }
+    if (spec.startswith('@') and len(parts) >= 2) {
+        return parts[0] + '/' + parts[1];
+    }
+    return parts[0];
 }
 
 def resolve_client_npm_package(spec: str, base_path: str) -> (str | None) {

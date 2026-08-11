@@ -287,6 +287,31 @@ test "an unresolved quoted specifier warns instead of going local" {
     }
 }
 
+test "a declared package subpath does not warn before install" {
+    tmp = tempfile.mkdtemp(prefix="jac_universe_");
+    try {
+        proj = _write_project(
+            tmp,
+            {
+                "main.jac": (
+                    "import from \"react-dom/client\" { createRoot }\n"
+                    "\n"
+                    "def:pub app -> JsxElement {\n"
+                    "    return <div>{str(createRoot)}</div>;\n"
+                    "}\n"
+                )
+            },
+            npm_deps='react-dom = "*"\n'
+        );
+        (prog, mod, errs, warns) = _compile(proj, type_check=True);
+        assert "W1106" not in warns , "a subpath of a declared package is not unresolved";
+        js = mod.gen.js or "";
+        assert 'from "react-dom/client"' in js , "subpath specifiers emit verbatim";
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
 test "a quoted relative path stays a local file import" {
     tmp = tempfile.mkdtemp(prefix="jac_universe_");
     try {
