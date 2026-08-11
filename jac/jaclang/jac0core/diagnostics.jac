@@ -858,6 +858,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Local module '{name}' shadows the npm package of the same name",
          help="A bare module name resolves to the local Jac module first. Quote the name (import from \"{name}\") to import the npm package instead."
      ),
+     W1106 = _warn(
+         "W1106",
+         Category.IMPORT,
+         "String import '{name}' does not match any declared or installed npm package",
+         help="A quoted bare import always means an npm package. Declare '{name}' under [dependencies.npm] in jac.toml and run 'jac install', or use a dotted module path (import from .{name}) for a local Jac module."
+     ),
      W2001 = _warn("W2001", Category.SEMANTIC, "Name '{name}' may be undefined"),
      W2002 = _warn("W2002", Category.SEMANTIC, "Unreachable code detected"),
      W2003 = _warn("W2003", Category.SEMANTIC, "'{name}' is defined but never used"),

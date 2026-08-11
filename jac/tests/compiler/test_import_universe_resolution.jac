@@ -1,4 +1,4 @@
-"""Resolution decides what an import is -- not quoting.
+"""Resolution decides what a bare import is; quoting picks the world.
 
 A bare identifier module name resolves across the universe in order:
 local Jac module, then Python, then (for client-placed code) the client
@@ -8,6 +8,13 @@ what is physically installed under `.jac/client/node_modules`. Inference
 types the import from the resolved artifact (`.d.ts` for npm), emission
 follows the same classification, and an import that client code uses but
 that resolves nowhere is a hard error -- never a silent drop.
+
+A *quoted* bare specifier is the other direction of the same contract
+(W1105's help text): it is an ESM package import, full stop. It never
+resolves to a same-named local file -- not even the importing file
+itself -- and one that matches no declared or installed package warns
+W1106 instead of silently falling back to local resolution. Quoted
+relative paths ("./x.css") stay local files.
 """
 
 import os;
@@ -177,6 +184,129 @@ test "a dropped client-used import is a hard error" {
         );
         (prog, mod, errs, warns) = _compile(proj);
         assert "E5084" in errs , "client code using an unresolvable import must fail the build";
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+test "a quoted specifier beats a same-named local sibling" {
+    tmp = tempfile.mkdtemp(prefix="jac_universe_");
+    try {
+        proj = _write_project(
+            tmp,
+            {
+                "main.jac": (
+                    "import from \"sonner\" { toast }\n"
+                    "\n"
+                    "def:pub app -> JsxElement {\n"
+                    "    return <div>{str(toast)}</div>;\n"
+                    "}\n"
+                ),
+                "sonner.jac": (
+                    "def:pub toast -> JsxElement {\n"
+                    "    return <span>local impostor</span>;\n"
+                    "}\n"
+                )
+            },
+            npm_deps='sonner = "*"\n'
+        );
+        _install_pkg(proj, "sonner");
+        (prog, mod, errs, warns) = _compile(proj, type_check=True);
+        js = mod.gen.js or "";
+        assert 'from "sonner"' in js , "quoted specifier must resolve to the npm package";
+        assert "./sonner.js" not in js , "quoted specifier must never resolve to a local sibling";
+        assert "W1106" not in warns , "a declared and installed package must not warn";
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+test "a module named after the npm package it wraps does not self-import" {
+    tmp = tempfile.mkdtemp(prefix="jac_universe_");
+    try {
+        proj = _write_project(
+            tmp,
+            {
+                "main.jac": (
+                    "import from .components.ui.sonner { Toaster }\n"
+                    "\n"
+                    "def:pub app -> JsxElement {\n"
+                    "    return <div><Toaster/></div>;\n"
+                    "}\n"
+                ),
+                "components/ui/sonner.jac": (
+                    "import from \"sonner\" { Toaster as SonnerPrimitive }\n"
+                    "\n"
+                    "def:pub Toaster(props: any) -> JsxElement {\n"
+                    "    return <SonnerPrimitive {**props} />;\n"
+                    "}\n"
+                )
+            },
+            npm_deps='sonner = "*"\n'
+        );
+        _install_pkg(proj, "sonner");
+        prog = JacProgram();
+        wrapper = prog.compile(
+            str(proj / "components" / "ui" / "sonner.jac"), type_check=True
+        );
+        js = wrapper.gen.js or "";
+        assert 'from "sonner"' in js , "the wrapper must import the npm package";
+        assert "./sonner.js" not in js , "the wrapper must never import itself";
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+test "an unresolved quoted specifier warns instead of going local" {
+    tmp = tempfile.mkdtemp(prefix="jac_universe_");
+    try {
+        proj = _write_project(
+            tmp,
+            {
+                "main.jac": (
+                    "import from \"ghost-pkg\" { Thing }\n"
+                    "\n"
+                    "def:pub app -> JsxElement {\n"
+                    "    return <div><Thing/></div>;\n"
+                    "}\n"
+                ),
+                "ghost-pkg.jac": (
+                    "def:pub Thing -> JsxElement {\n"
+                    "    return <span>local impostor</span>;\n"
+                    "}\n"
+                )
+            }
+        );
+        (prog, mod, errs, warns) = _compile(proj, type_check=True);
+        assert "W1106" in warns , "a quoted specifier matching no package deserves a diagnostic";
+        js = mod.gen.js or "";
+        assert 'from "ghost-pkg"' in js , "emission must keep the bare specifier";
+        assert "./ghost-pkg.js" not in js , "no silent fallback to the local file";
+    } finally {
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+test "a quoted relative path stays a local file import" {
+    tmp = tempfile.mkdtemp(prefix="jac_universe_");
+    try {
+        proj = _write_project(
+            tmp,
+            {
+                "main.jac": (
+                    "import \"./styles.css\";\n"
+                    "\n"
+                    "def:pub app -> JsxElement {\n"
+                    "    return <div>styled</div>;\n"
+                    "}\n"
+                ),
+                "styles.css": "div { color: red; }\n"
+            }
+        );
+        (prog, mod, errs, warns) = _compile(proj);
+        js = mod.gen.js or "";
+        assert '"./styles.css"' in js , "relative string imports keep their relative path";
+        assert "W1106" not in warns , "relative string imports are not package imports";
     } finally {
         shutil.rmtree(tmp, ignore_errors=True);
     }

@@ -250,7 +250,13 @@ def _resolve_path_alias(target: str, base_path: str) -> (str | None) {
     return None;
 }
 
-def resolve_module(target: str, base_path: str) -> tuple[(str, str)] {
+def is_path_alias_import(target: str, base_path: str) -> bool {
+    return _resolve_path_alias(target, base_path) is not None;
+}
+
+def resolve_module(
+    target: str, base_path: str, string_spec: bool = False
+) -> tuple[(str, str)] {
     base_dir = os.path.dirname(base_path);
 
     jac_virtual = _resolve_jac_virtual_module(target);
@@ -269,6 +275,13 @@ def resolve_module(target: str, base_path: str) -> tuple[(str, str)] {
         if os.path.isfile(alias_resolved) {
             return (alias_resolved, language_of(alias_resolved));
         }
+    }
+    if (string_spec and not target.startswith('.')) {
+        # A quoted bare specifier is an ESM package import by contract (see
+        # W1105): it must never resolve to a same-named local file, and the
+        # returned value must stay a bare spec -- consumers treat filesystem
+        # paths as compile/copy targets.
+        return (target, 'js');
     }
     if target.startswith('.') {
         other_target = os.path.join(base_dir, convert_to_js_import_path(target));
@@ -375,13 +388,15 @@ def resolve_module(target: str, base_path: str) -> tuple[(str, str)] {
     return (os.path.join(base_dir, *actual_parts), 'py');
 }
 
-def infer_language(target: str, base_path: str) -> str {
-    (_, lang) = resolve_module(target, base_path);
+def infer_language(target: str, base_path: str, string_spec: bool = False) -> str {
+    (_, lang) = resolve_module(target, base_path, string_spec=string_spec);
     return lang;
 }
 
-def resolve_relative_path(target: str, base_path: str) -> str {
-    (path, _) = resolve_module(target, base_path);
+def resolve_relative_path(
+    target: str, base_path: str, string_spec: bool = False
+) -> str {
+    (path, _) = resolve_module(target, base_path, string_spec=string_spec);
     return path;
 }
 
