@@ -276,9 +276,6 @@ def resolve_module(
             return (alias_resolved, language_of(alias_resolved));
         }
     }
-    if (string_spec and not target.startswith('.')) {
-        return (target, 'js');
-    }
     if target.startswith('.') {
         other_target = os.path.join(base_dir, convert_to_js_import_path(target));
     } else {
@@ -286,6 +283,10 @@ def resolve_module(
     }
     if (os.path.exists(other_target) and os.path.isfile(other_target)) {
         return (os.path.normpath(other_target), 'other');
+    }
+
+    if (string_spec and not target.startswith('.')) {
+        return (target, 'js');
     }
 
     if not target.startswith('.') {

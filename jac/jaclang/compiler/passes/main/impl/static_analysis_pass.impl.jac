@@ -443,15 +443,18 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
             if (spv.startswith('.') or nd.is_virtual_jac) {
                 continue;
             }
+            import os;
             import from jaclang.jac0core.diagnostics { W1106 }
             import from jaclang.jac0core.modresolver {
                 is_client_npm_import,
                 is_path_alias_import
             }
             mod_path = nd.loc.mod_path or '';
+            sibling_file = os.path.join(os.path.dirname(mod_path), spv);
             if (
                 not is_client_npm_import(spv, mod_path)
                 and not is_path_alias_import(spv, mod_path)
+                and not os.path.isfile(sibling_file)
             ) {
                 self.emit(W1106, node_override=spv_node, name=spv);
             }
