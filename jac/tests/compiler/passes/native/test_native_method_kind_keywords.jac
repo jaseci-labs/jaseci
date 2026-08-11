@@ -183,9 +183,9 @@ test "guardrail: class def clears the gate but codegen cannot lower the call" {
     cg.compile(
         file_path=os.path.join(FIXTURES, "_mkind_class_def_cgen.jac"),
         use_str="obj Holder {\n"
-            "    class def make -> int { return 7; }\n"
-            "}\n"
-            "def use -> int { return Holder.make(); }\n",
+        "    class def make -> int { return 7; }\n"
+        "}\n"
+        "def use -> int { return Holder.make(); }\n",
         options=native_force_opts()
     );
     assert has_error_code(cg, "E5092") , (

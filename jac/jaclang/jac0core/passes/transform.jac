@@ -38,7 +38,6 @@ obj BaseTransform[T_in, T_out](ABC) {
     def pre_transform -> None;
     def post_transform -> None;
     def transform(ir_in: T_in) -> T_out abst;
-
     def log_info(msg: str) -> None;
     def is_canceled -> bool;
 }

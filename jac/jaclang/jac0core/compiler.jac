@@ -967,7 +967,6 @@ obj JacCompiler {
     has internal_program: JacProgram { getter; }
 
     def _get_jaclang_root -> str;
-
     def _resolve_program(file_path: str, target_program: JacProgram) -> JacProgram;
     def get_native_interop_setup(
         full_target: str, target_program: JacProgram
