@@ -1110,6 +1110,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> None;
 
     def _register_globals(module: uni.Module) -> None;
+    def _quiet_glob_type(type_expr: (uni.UniNode | None)) -> (ir.Type | None);
+    def _glob_native_use_exists(target: uni.UniNode) -> bool;
     def _register_entry_globals(module: uni.Module) -> None;
     def _codegen_global_vars(nd: uni.GlobalVars) -> None;
     def _infer_global_init_type(value_node: uni.UniNode) -> (ir.Type | None);

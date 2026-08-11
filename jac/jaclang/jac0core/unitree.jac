@@ -389,7 +389,8 @@ obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniSc
 
     has name: Name,
         type_params: (Sequence[TypeParam] | None),
-        value: Expr;
+        value: Expr,
+        is_distinct: bool = False;
 
     def postinit -> None;
 }

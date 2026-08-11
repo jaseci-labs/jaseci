@@ -1,9 +1,12 @@
 import from jaclang.jac0core.constant { EdgeDir, OwnershipKind }
 import from jaclang.jac0core.ctlib { ct, fail, reflect }
 
-type NodeId = int;
+type NodeId := int;
+type StrId := int;
+type SeqOff := int;
+type KindId := int;
 
-glob NIL: NodeId = 0;
+glob NIL: NodeId = NodeId(0);
 
 enum Tag: int { NONE = 0, NODE = 1, LIST = 2, STR = 3, INT = 4, BOOL = 5, ENUM = 6 }
 
@@ -12,7 +15,11 @@ obj SyntaxArena {
     # args as (Tag, value) pairs, arg_ns[i] slots starting at arg_los[i].
     # Variable-length arg lists live in seqs as [n, id0..idn-1] at their offset.
     # Row 0 is the NIL sentinel so kind_of(NIL) and friends are always in range.
-    has kinds: list[int] = [],
+    # The stride-2 args, length-prefixed seqs, and stride-3 posts encodings are
+    # layout knowledge private to this obj: consumers read and write through
+    # the accessor surface below. The columns stay public only for wholesale
+    # serialization (adopt_columns, strtab blobs), never for pointer math.
+    has kinds: list[KindId] = [],
         kid_los: list[int] = [],
         kid_ns: list[int] = [],
         arg_los: list[int] = [],
@@ -23,253 +30,73 @@ obj SyntaxArena {
         strtab: list[str] = [],
         posts: list[int] = [],
         _intern: dict[str, int] = {},
-        root_id: NodeId = 0;
+        root_id: NodeId = NodeId(0);
 
-    def postinit {
-        self._reserve_nil_row();
-    }
+    def postinit -> None;
 
-    def _reserve_nil_row {
-        self.kinds.append(0);
-        self.kid_los.append(0);
-        self.kid_ns.append(0);
-        self.arg_los.append(0);
-        self.arg_ns.append(0);
-    }
+    has node_count: int { getter; }
 
-    def node_count -> int {
-        return len(self.kinds);
-    }
+    # -- string table --
+    def intern(s: str) -> StrId;
+    def str_of(sid: StrId) -> str;
+    # -- node reads --
+    def kind_of(i: NodeId) -> KindId;
+    def kid_ids(i: NodeId) -> list[NodeId];
+    def arg_pair(i: NodeId, slot: int) -> tuple[(Tag, int)];
+    def arg_pairs(i: NodeId) -> list[tuple[(Tag, int)]];
+    def arg_node(i: NodeId, slot: int) -> NodeId;
+    def arg_str(i: NodeId, slot: int) -> (str | None);
+    def arg_int(i: NodeId, slot: int) -> int;
+    def arg_bool(i: NodeId, slot: int) -> bool;
+    def arg_list(i: NodeId, slot: int) -> (list[NodeId] | None);
+    def seq_ids(off: SeqOff) -> list[NodeId];
+    def deps_of(i: NodeId) -> list[NodeId];
+    def post_entries -> list[tuple[(NodeId, str, int)]];
+    # -- node writes --
+    def intern_seq(ids: list[NodeId]) -> SeqOff;
+    def append_record(
+        kind: KindId, kid: list[NodeId], pairs: list[tuple[(Tag, int)]]
+    ) -> NodeId;
 
-    def intern(s: str) -> int {
-        if s in self._intern {
-            return self._intern[s];
-        }
-        idx = len(self.strtab);
-        self.strtab.append(s);
-        self._intern[s] = idx;
-        return idx;
-    }
+    def set_arg_node(i: NodeId, slot: int, v: NodeId) -> None;
+    def set_arg_str(i: NodeId, slot: int, s: str) -> None;
+    def set_arg_bool(i: NodeId, slot: int, v: bool) -> None;
+    def set_arg_enum(i: NodeId, slot: int, v: int) -> None;
+    def set_arg_list(i: NodeId, slot: int, ids: list[NodeId]) -> None;
+    def set_kids_of(i: NodeId, ids: list[NodeId]) -> None;
+    def prepend_kids(i: NodeId, ids: list[NodeId]) -> None;
+    def append_kids(i: NodeId, ids: list[NodeId]) -> None;
+    def replace_kid(i: NodeId, old: NodeId, news: list[NodeId]) -> None;
+    def post_set(i: NodeId, key: str, v: int) -> None;
+    # -- bulk adoption: the one sanctioned column-level write (deserialization) --
+    def adopt_columns(
+        kinds: list[KindId],
+        kid_los: list[int],
+        kid_ns: list[int],
+        arg_los: list[int],
+        arg_ns: list[int],
+        kids: list[NodeId],
+        args: list[int],
+        seqs: list[int],
+        posts: list[int],
+        strtab: list[str],
+        root_id: NodeId
+    ) -> None;
 
-    def _start(kind: int, kid: list[NodeId], arg_n: int) -> NodeId {
-        idx = len(self.kinds);
-        self.kinds.append(kind);
-        self.kid_los.append(len(self.kids));
-        self.kid_ns.append(len(kid));
-        self.kids.extend(kid);
-        self.arg_los.append(len(self.args));
-        self.arg_ns.append(arg_n);
-        return idx;
-    }
-
-    def _arg_node(v: NodeId) {
-        if v == NIL {
-            self.args.append(Tag.NONE);
-            self.args.append(0);
-        } else {
-            self.args.append(Tag.NODE);
-            self.args.append(v);
-        }
-    }
-
-    def _arg_list(ids: (list[NodeId] | None)) {
-        if ids is None {
-            self.args.append(Tag.NONE);
-            self.args.append(0);
-            return;
-        }
-        off = len(self.seqs);
-        self.seqs.append(len(ids));
-        self.seqs.extend(ids);
-        self.args.append(Tag.LIST);
-        self.args.append(off);
-    }
-
-    def _arg_str(s: (str | None)) {
-        if s is None {
-            self.args.append(Tag.NONE);
-            self.args.append(0);
-        } else {
-            self.args.append(Tag.STR);
-            self.args.append(self.intern(s));
-        }
-    }
-
-    def _arg_int(v: int) {
-        self.args.append(Tag.INT);
-        self.args.append(v);
-    }
-
-    def _arg_bool(v: bool) {
-        self.args.append(Tag.BOOL);
-        self.args.append(1 if v else 0);
-    }
-
-    def _arg_enum(v: int) {
-        self.args.append(Tag.ENUM);
-        self.args.append(v);
-    }
-
-    def _arg_poly(v: (NodeId | list[NodeId] | None)) {
-        if v is None {
-            self.args.append(Tag.NONE);
-            self.args.append(0);
-        } elif isinstance(v, int) {
-            # Typed rebinds stay: isinstance branches do not narrow in native
-            # lowering (E5092); `is None` branches do.
-            vi: NodeId = v;
-            self._arg_node(vi);
-        } else {
-            vl: list[NodeId] = v;
-            self._arg_list(vl);
-        }
-    }
-
-    def kind_of(i: NodeId) -> int {
-        return self.kinds[i];
-    }
-
-    def kid_ids(i: NodeId) -> list[NodeId] {
-        lo = self.kid_los[i];
-        return self.kids[lo:lo + self.kid_ns[i]];
-    }
-
-    def arg_at(i: NodeId, slot: int) -> tuple[(int, int)] {
-        if slot >= self.arg_ns[i] {
-            raise ValueError(
-                f"arg slot {slot} out of range for node {i} "
-                f"(kind {self.kinds[i]}, {self.arg_ns[i]} args)"
-            );
-        }
-        p = self.arg_los[i] + (slot * 2);
-        return (self.args[p], self.args[p + 1]);
-    }
-
-    def arg_node(i: NodeId, slot: int) -> NodeId {
-        if slot >= self.arg_ns[i] {
-            return NIL;
-        }
-        (tag, v) = self.arg_at(i, slot);
-        return v if tag == Tag.NODE else NIL;
-    }
-
-    def arg_str(i: NodeId, slot: int) -> (str | None) {
-        if slot >= self.arg_ns[i] {
-            return None;
-        }
-        (tag, v) = self.arg_at(i, slot);
-        return self.strtab[v] if tag == Tag.STR else None;
-    }
-
-    def arg_int(i: NodeId, slot: int) -> int {
-        if slot >= self.arg_ns[i] {
-            return 0;
-        }
-        (tag, v) = self.arg_at(i, slot);
-        return v;
-    }
-
-    def arg_bool(i: NodeId, slot: int) -> bool {
-        if slot >= self.arg_ns[i] {
-            return False;
-        }
-        (tag, v) = self.arg_at(i, slot);
-        return tag == Tag.BOOL and v != 0;
-    }
-
-    def arg_list(i: NodeId, slot: int) -> (list[NodeId] | None) {
-        if slot >= self.arg_ns[i] {
-            return None;
-        }
-        (tag, v) = self.arg_at(i, slot);
-        if tag != Tag.LIST {
-            return None;
-        }
-        return self.seq_ids(v);
-    }
-
-    def seq_ids(off: int) -> list[NodeId] {
-        n = self.seqs[off];
-        return self.seqs[off + 1:off + 1 + n];
-    }
-
-    def set_arg_node(i: NodeId, slot: int, v: NodeId) {
-        p = self.arg_los[i] + (slot * 2);
-        if v == NIL {
-            self.args[p] = Tag.NONE;
-            self.args[p + 1] = 0;
-        } else {
-            self.args[p] = Tag.NODE;
-            self.args[p + 1] = v;
-        }
-    }
-
-    def set_arg_str(i: NodeId, slot: int, s: str) {
-        p = self.arg_los[i] + (slot * 2);
-        self.args[p] = Tag.STR;
-        self.args[p + 1] = self.intern(s);
-    }
-
-    def set_arg_bool(i: NodeId, slot: int, v: bool) {
-        p = self.arg_los[i] + (slot * 2);
-        self.args[p] = Tag.BOOL;
-        self.args[p + 1] = 1 if v else 0;
-    }
-
-    def set_arg_enum(i: NodeId, slot: int, v: int) {
-        p = self.arg_los[i] + (slot * 2);
-        self.args[p] = Tag.ENUM;
-        self.args[p + 1] = v;
-    }
-
-    def prepend_kids(i: NodeId, ids: list[NodeId]) {
-        old = self.kid_ids(i);
-        lo = len(self.kids);
-        self.kids.extend(ids);
-        self.kids.extend(old);
-        self.kid_los[i] = lo;
-        self.kid_ns[i] = len(ids) + len(old);
-    }
-
-    def append_kids(i: NodeId, ids: list[NodeId]) {
-        old = self.kid_ids(i);
-        lo = len(self.kids);
-        self.kids.extend(old);
-        self.kids.extend(ids);
-        self.kid_los[i] = lo;
-        self.kid_ns[i] = len(old) + len(ids);
-    }
-
-    def post_set(i: NodeId, key: str, v: int) {
-        self.posts.append(i);
-        self.posts.append(self.intern(key));
-        self.posts.append(v);
-    }
-
-    def set_arg_list(i: NodeId, slot: int, ids: list[NodeId]) {
-        p = self.arg_los[i] + (slot * 2);
-        off = len(self.seqs);
-        self.seqs.append(len(ids));
-        self.seqs.extend(ids);
-        self.args[p] = Tag.LIST;
-        self.args[p + 1] = off;
-    }
-
-    def replace_kid(i: NodeId, old: NodeId, news: list[NodeId]) {
-        cur = self.kid_ids(i);
-        out: list[NodeId] = [];
-        for k in cur {
-            if k == old {
-                out.extend(news);
-            } else {
-                out.append(k);
-            }
-        }
-        lo = len(self.kids);
-        self.kids.extend(out);
-        self.kid_los[i] = lo;
-        self.kid_ns[i] = len(out);
-    }
+    # -- private layout helpers --
+    def _reserve_nil_row -> None;
+    def _start(kind: KindId, kid: list[NodeId], arg_n: int) -> NodeId;
+    def _arg_ptr(i: NodeId, slot: int) -> int;
+    def _push_none -> None;
+    def _arg_node(v: NodeId) -> None;
+    def _arg_list(ids: (list[NodeId] | None)) -> None;
+    def _arg_str(s: (str | None)) -> None;
+    def _arg_int(v: int) -> None;
+    def _arg_bool(v: bool) -> None;
+    def _arg_enum(v: int) -> None;
+    def _arg_poly(v: (NodeId | list[NodeId] | None)) -> None;
+    def _retable_kids(i: NodeId, ids: list[NodeId]) -> None;
+    def _bad_tag(i: NodeId, slot: int, want: Tag, got: int) -> None;
 
     # >>> comptime-derived builder surface (one mk_* per unitree kind) >>>
     comptime for K in _ct_schema() {
@@ -278,7 +105,7 @@ obj SyntaxArena {
                 ${ct.name(p["pname"])}: ${ct.typ(p["ptype"])} = ${ct.expr(p["pdflt"])}
             , }kid: list[NodeId] = []
         ) -> NodeId {
-            idx = self._start(${K["kind"]}, kid, ${K["argn"]});
+            idx = self._start(KindId(${K["kind"]}), kid, ${K["argn"]});
             comptime for p in K["bparams"] {
                 self.${ct.name(p["writer"])}(${ct.expr(p["warg"])});
             }
@@ -305,6 +132,30 @@ comptime def _ct_first_enum(name: str) -> str {
     return mems[0];
 }
 
+# Category ids come from the ArgCat enum in constant.jac -- the enum is
+# the single authority; this map is reflection-derived, so it cannot drift.
+comptime def _ct_cat_ids -> dict {
+    mems = reflect.module("jaclang.jac0core.constant").enum_members("ArgCat");
+    out: dict = {};
+    for (i, nm) in enumerate(mems) {
+        out[nm] = i;
+    }
+    return out;
+}
+
+# Single-part annotation base -> category. Node-typed bases fall through
+# to the class_names check in _ct_cat.
+comptime def _ct_base_cats -> dict {
+    return {
+        "str": "STR",
+        "int": "INT",
+        "bool": "BOOL",
+        "EdgeDir": "ENUM",
+        "OwnershipKind": "ENUM",
+        "T": "POLY"
+    };
+}
+
 comptime def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
     out: dict = {"cat": "", "optional": False, "enum": ""};
     if pname == "kid" {
@@ -327,42 +178,24 @@ comptime def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
         out["optional"] = True;
         return out;
     }
-    all_source = True;
-    for p in kept {
-        if p.split("[")[0].strip() != "Source" {
-            all_source = False;
-        }
-    }
-    if all_source {
+    bases = [p.split("[")[0].strip() for p in kept];
+    if all([b == "Source" for b in bases]) {
         out["cat"] = "SOURCE";
         return out;
     }
     if len(kept) == 1 {
         p0 = kept[0];
-        b = p0.split("[")[0].strip();
-        if b == "str" {
-            out["cat"] = "STR";
-            return out;
-        }
-        if b == "int" {
-            out["cat"] = "INT";
-            return out;
-        }
-        if b == "bool" {
-            out["cat"] = "BOOL";
-            return out;
-        }
-        if b == "EdgeDir" or b == "OwnershipKind" {
-            out["cat"] = "ENUM";
-            out["enum"] = b;
+        b = bases[0];
+        base_cats = _ct_base_cats();
+        if b in base_cats {
+            out["cat"] = base_cats[b];
+            if out["cat"] == "ENUM" {
+                out["enum"] = b;
+            }
             return out;
         }
         if p0.startswith("Sequence[") or p0.startswith("list[") {
             out["cat"] = "LIST";
-            return out;
-        }
-        if b == "T" {
-            out["cat"] = "POLY";
             return out;
         }
         if b in class_names or b == "UniNode" or b == "NameAtom" or b == "AtomExpr" {
@@ -371,69 +204,63 @@ comptime def _ct_cat(pname: str, ann: str, class_names: list[str]) -> dict {
         }
         return out;
     }
-    n_seq = 0;
-    n_node = 0;
-    all_str = True;
-    for p in kept {
-        if p.startswith("Sequence[") or p.startswith("list[") {
-            n_seq += 1;
-        } else {
-            n_node += 1;
-            if p.split("[")[0].strip() != "str" {
-                all_str = False;
-            }
-        }
-    }
-    if n_seq > 0 and n_node == 0 {
+    seqs = [
+        p
+        for p in kept
+        if p.startswith("Sequence[") or p.startswith("list[")
+    ];
+    nodes = [
+        p
+        for p in kept
+        if not (p.startswith("Sequence[") or p.startswith("list["))
+    ];
+    if seqs and not nodes {
         out["cat"] = "LIST";
         return out;
     }
-    if n_node > 0 and n_seq == 0 {
-        out["cat"] = "STR" if all_str else "NODE";
+    if nodes and not seqs {
+        node_bases = [p.split("[")[0].strip() for p in nodes];
+        out["cat"] = "STR" if all([b == "str" for b in node_bases]) else "NODE";
         return out;
     }
     out["cat"] = "POLY";
     return out;
 }
 
+# Builder-parameter shape per category: (param type, default source, writer).
+# STR optionality and ENUM defaults are data-dependent and refined below.
+comptime def _ct_bparam_shapes -> dict {
+    return {
+        "NODE": ("NodeId", "NIL", "_arg_node"),
+        "LIST": ("(list[NodeId] | None)", "None", "_arg_list"),
+        "POLY": ("(NodeId | list[NodeId] | None)", "None", "_arg_poly"),
+        "STR": ("str", "\"\"", "_arg_str"),
+        "INT": ("int", "0", "_arg_int"),
+        "BOOL": ("bool", "False", "_arg_bool"),
+        "ENUM": ("", "", "_arg_enum")
+    };
+}
+
 comptime def _ct_bparam(
     pname: str, cat: str, ename: str, opt: bool, hd: bool, dsrc: str
 ) -> dict {
-    ptype = "NodeId";
-    pdflt = "NIL";
-    writer = "_arg_node";
-    warg = pname;
-    if cat == "LIST" {
-        ptype = "(list[NodeId] | None)";
-        pdflt = "None";
-        writer = "_arg_list";
-    } elif cat == "POLY" {
-        ptype = "(NodeId | list[NodeId] | None)";
-        pdflt = "None";
-        writer = "_arg_poly";
-    } elif cat == "STR" {
-        pdflt = dsrc if hd else "\"\"";
-        ptype = "(str | None)" if (opt and hd and dsrc == "None") else "str";
-        writer = "_arg_str";
-    } elif cat == "INT" {
-        ptype = "int";
-        pdflt = dsrc if hd else "0";
-        writer = "_arg_int";
-    } elif cat == "BOOL" {
-        ptype = "bool";
-        pdflt = dsrc if hd else "False";
-        writer = "_arg_bool";
-    } elif cat == "ENUM" {
+    (ptype, pdflt, writer) = _ct_bparam_shapes()[cat];
+    if cat in ("STR", "INT", "BOOL") and hd {
+        pdflt = dsrc;
+    }
+    if cat == "STR" and opt and hd and dsrc == "None" {
+        ptype = "(str | None)";
+    }
+    if cat == "ENUM" {
         ptype = ename;
         pdflt = dsrc if hd else (ename + "." + _ct_first_enum(ename));
-        writer = "_arg_enum";
     }
     return {
         "pname": pname,
         "ptype": ptype,
         "pdflt": pdflt,
         "writer": writer,
-        "warg": warg
+        "warg": pname
     };
 }
 
@@ -503,26 +330,19 @@ comptime def _ct_schema -> list[dict] {
     return out;
 }
 
+# kind -> (class_name, token_family, has_kid, ((pname, ArgCat-id, enum_name,
+# has_default), ...)). Spliced as structured literals: consumers index rows
+# directly, nothing re-parses an encoded string at runtime.
 comptime def _ct_specs_table -> dict {
+    cat_ids = _ct_cat_ids();
     out: dict = {};
     for K in _ct_schema() {
-        nm: str = K["name"];
-        enc: str = nm;
-        enc += "|1|" if K["tokfam"] else "|0|";
-        enc += "1" if K["has_kid"] else "0";
-        ptxt: str = "";
+        rows: list = [];
         sparams: list[dict] = K["sparams"];
         for p in sparams {
-            if ptxt {
-                ptxt += ";";
-            }
-            pname: str = p["pname"];
-            cat: str = p["cat"];
-            en: str = p["enum"];
-            hd: str = "1" if p["hd"] else "0";
-            ptxt += pname + "," + cat + "," + en + "," + hd;
+            rows.append((p["pname"], cat_ids[p["cat"]], p["enum"], p["hd"]));
         }
-        out[K["kind"]] = enc + "|" + ptxt;
+        out[K["kind"]] = (K["name"], K["tokfam"], K["has_kid"], tuple(rows));
     }
     return out;
 }
@@ -566,10 +386,11 @@ comptime def _ct_family_rows -> list[dict] {
         "EventSignature",
         "YieldExpr"
     ];
+    schema = _ct_schema();
     out: list[dict] = [];
     for fam in fams {
         members: list[int] = [];
-        for K in _ct_schema() {
+        for K in schema {
             if mod.is_subtype(K["name"], fam) {
                 members.append(K["kind"]);
             }
@@ -579,8 +400,12 @@ comptime def _ct_family_rows -> list[dict] {
     return out;
 }
 
-comptime for K in _ct_schema() {
-    glob ${ct.name("KIND_" + K["usnake"])}: int = ${K["kind"]};
+# One member per unitree kind; values are the schema's kind ids, so
+# Kind.X == kind_of(node) for a node built by mk_x.
+enum Kind: int {
+    comptime for K in _ct_schema() {
+        ${ct.name(K["usnake"])} = ${K["kind"]}
+    , }
 }
 
 glob DOC_SLOTS: dict[int, int] = comptime { _ct_slot_table("doc") },
@@ -590,5 +415,5 @@ comptime for F in _ct_family_rows() {
     glob ${ct.name("KS_" + F["uname"])}: list[int] = ${F["members"]};
 }
 
-glob SPECS: dict[int, str] = comptime { _ct_specs_table() };
+glob SPECS: dict[int, tuple] = comptime { _ct_specs_table() };
 # <<< comptime derivation of the arena schema <<<

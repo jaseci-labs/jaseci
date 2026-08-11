@@ -144,21 +144,23 @@ def _canary_ok(fn: any, blob_fn: any) -> bool {
 def _arena_from_native(view: any, blob_fn: any) -> SyntaxArena {
     import from jaclang.jac0core.native_marshal { bulk_int_list, bulk_str_list }
     a = SyntaxArena();
-    a.kinds = bulk_int_list(view.kinds);
-    a.kid_los = bulk_int_list(view.kid_los);
-    a.kid_ns = bulk_int_list(view.kid_ns);
-    a.arg_los = bulk_int_list(view.arg_los);
-    a.arg_ns = bulk_int_list(view.arg_ns);
-    a.kids = bulk_int_list(view.kids);
-    a.args = bulk_int_list(view.args);
-    a.seqs = bulk_int_list(view.seqs);
-    a.posts = bulk_int_list(view.posts);
-    a.strtab = (
-        _split_strtab(blob_fn(view))
-            if blob_fn is not None
-            else bulk_str_list(view.strtab)
+    a.adopt_columns(
+        kinds=bulk_int_list(view.kinds),
+        kid_los=bulk_int_list(view.kid_los),
+        kid_ns=bulk_int_list(view.kid_ns),
+        arg_los=bulk_int_list(view.arg_los),
+        arg_ns=bulk_int_list(view.arg_ns),
+        kids=bulk_int_list(view.kids),
+        args=bulk_int_list(view.args),
+        seqs=bulk_int_list(view.seqs),
+        posts=bulk_int_list(view.posts),
+        strtab=(
+            _split_strtab(blob_fn(view))
+                if blob_fn is not None
+                else bulk_str_list(view.strtab)
+        ),
+        root_id=view.root_id
     );
-    a.root_id = view.root_id;
     return a;
 }
 

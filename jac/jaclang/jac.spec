@@ -47,12 +47,15 @@ factor ::= ("~" | "-" | "+") factor | connect
 connect ::= atomic_pipe (connect_op atomic_pipe)*
 
 connect_op ::=
-    "del" edge_op_ref
-    | "++>"
-    | "+>:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? ":+>"
-    | "<++"
-    | "<+:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? (":<+" | ":+>")
-    | "<++>"
+    (
+        "del" edge_op_ref
+        | "++>"
+        | "+>:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? ":+>"
+        | "<++"
+        | "<+:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)?
+          (":<+" | ":+>")
+        | "<++>"
+    )?
 
 atomic_pipe ::= atomic_pipe_back (":>" atomic_pipe_back)*
 
@@ -105,48 +108,52 @@ assign_compr_inner ::=
     "=" ((NAME | KWESC_NAME) "=" expression ("," (NAME | KWESC_NAME) "=" expression)*)?
     ")"
 
-atom_literal ::= INT | HEX | BIN | OCT | FLOAT | BOOL | NULL | ELLIPSIS
+atom_literal ::= (INT | HEX | BIN | OCT | FLOAT | BOOL | NULL | ELLIPSIS)?
 
 multistring ::= (NAME STRING | STRING | fstring) (NAME STRING | STRING | fstring)*
 
 builtin_type ::=
-    "str"
-    | "int"
-    | "float"
-    | "list"
-    | "tuple"
-    | "set"
-    | "dict"
-    | "bool"
-    | "bytes"
-    | "any"
-    | "type"
-    | "i8"
-    | "u8"
-    | "i16"
-    | "u16"
-    | "i32"
-    | "u32"
-    | "i64"
-    | "u64"
-    | "f32"
-    | "f64"
+    (
+        "str"
+        | "int"
+        | "float"
+        | "list"
+        | "tuple"
+        | "set"
+        | "dict"
+        | "bool"
+        | "bytes"
+        | "any"
+        | "type"
+        | "i8"
+        | "u8"
+        | "i16"
+        | "u16"
+        | "i32"
+        | "u32"
+        | "i64"
+        | "u64"
+        | "f32"
+        | "f64"
+    )?
 
 special_ref ::=
-    "self"
-    | "super"
-    | "here"
-    | "root"
-    | "visitor"
-    | "props"
-    | "init"
-    | "postinit"
-    | "node"
-    | "edge"
-    | "walker"
-    | "obj"
-    | "class"
-    | "enum"
+    (
+        "self"
+        | "super"
+        | "here"
+        | "root"
+        | "visitor"
+        | "props"
+        | "init"
+        | "postinit"
+        | "node"
+        | "edge"
+        | "walker"
+        | "obj"
+        | "class"
+        | "enum"
+    )?
 
 atom ::=
     ct_block
@@ -194,11 +201,13 @@ edge_ref_chain ::=
     )* "]"
 
 edge_op_ref ::=
-    "-->"
-    | "<--"
-    | "<-->"
-    | "->:" atom? (":" (compare ("," compare)*)?)? ":->"
-    | "<-:" atom? (":" (compare ("," compare)*)?)? ":<-"
+    (
+        "-->"
+        | "<--"
+        | "<-->"
+        | "->:" atom? (":" (compare ("," compare)*)?)? ":->"
+        | "<-:" atom? (":" (compare ("," compare)*)?)? ":<-"
+    )?
 
 dict_or_set ::=
     "}"
@@ -239,10 +248,12 @@ jsx_attributes ::=
 jsx_children ::= jsx_child*
 
 jsx_child ::=
-    JSX_TEXT jsx_child?
-    | JSX_COMMENT
-    | "{" (code_block_stmts "}" | expression (";"? code_block_stmts "}" | "}"))
-    | jsx_element
+    (
+        JSX_TEXT jsx_child?
+        | JSX_COMMENT
+        | "{" (code_block_stmts "}" | expression (";"? code_block_stmts "}" | "}"))
+        | jsx_element
+    )?
 
 element_stmt ::=
     ";"
@@ -268,7 +279,7 @@ module_code ::=
 
 code_block_stmts ::= (statement ";"?)*
 
-ctrl_stmt ::= ("break" | "continue" | "skip") ";" | "disengage" ";"
+ctrl_stmt ::= (("break" | "continue" | "skip") ";" | "disengage" ";")?
 
 statement ::=
     ct_element
@@ -422,8 +433,8 @@ import_items ::=
 archetype ::=
     ("@" atomic_chain)* "async"? ("obj" | "node" | "edge" | "walker" | "class")
     access_tag (NAME | KWESC_NAME) ("[" type_params "]")?
-    ("(" (call_arg ("," call_arg)*)? ")")?
-    (":" atomic_chain "-->" atomic_chain)? ("{" archetype_member* "}" | ";")
+    ("(" (call_arg ("," call_arg)*)? ")")? (":" atomic_chain "-->" atomic_chain)?
+    ("{" archetype_member* "}" | ";")
 
 archetype_member ::=
     STRING? (
@@ -456,16 +467,43 @@ func_signature ::= ("(" func_params? ")")? ("->" pipe)?
 func_params ::= ("*" ","? | "/" ","? | ct_element ","? | param_var ","?)*
 
 param_var ::=
-    ("*" | "**")?
-    (ct_name | NAME | KWESC_NAME | "self" | "props" | "here" | "visitor" | builtin_type)
-    (":" ownership_prefix pipe)? ("=" expression)?
+    ("*" | "**")? (
+        ct_name
+        | NAME
+        | KWESC_NAME
+        | "self"
+        | "props"
+        | "here"
+        | "visitor"
+        | "str"
+        | "int"
+        | "float"
+        | "list"
+        | "tuple"
+        | "set"
+        | "dict"
+        | "bool"
+        | "bytes"
+        | "any"
+        | "type"
+        | "i8"
+        | "u8"
+        | "i16"
+        | "u16"
+        | "i32"
+        | "u32"
+        | "i64"
+        | "u64"
+        | "f32"
+        | "f64"
+    ) (":" ownership_prefix pipe)? ("=" expression)?
 
 enum ::=
     ("@" atomic_chain)* "enum" access_tag (NAME | KWESC_NAME)
     (":" atomic_chain | "(" (atomic_chain ("," atomic_chain)*)? ")")?
-    ("{" (enum_member ","? | PYNLINE | module_code)* "}" | ";")
+    ("{" (ct_element | enum_member ","? | PYNLINE | module_code)* "}" | ";")
 
-enum_member ::= (NAME | KWESC_NAME) ("=" expression)?
+enum_member ::= (ct_name | NAME | KWESC_NAME) ("=" expression)?
 
 test ::= ("@" atomic_chain)* "test" STRING? "{" code_block_stmts "}"
 
@@ -494,7 +532,8 @@ impl_enum_body ::= ((NAME | KWESC_NAME) (":" pipe)? ("=" expression)? ","?)*
 sem_def ::=
     "sem" impl_target_name ("." impl_target_name)* ("=" | "is") STRING STRING* ";"?
 
-type_alias ::= "type" access_tag (NAME | KWESC_NAME) ("[" type_params "]")? "=" pipe ";"
+type_alias ::=
+    "type" access_tag (NAME | KWESC_NAME) ("[" type_params "]")? (":=" | "=") pipe ";"
 
 type_params ::=
     (NAME | KWESC_NAME) (":" pipe)? ("=" pipe)?
@@ -515,7 +554,9 @@ ct_elif ::= "elif" expression "{" ct_body "}" (ct_elif | ct_else)?
 ct_else ::= "else" "{" ct_body "}"
 
 ct_body ::=
-    ((ct_element | param_var) ","?)* | (element_stmt | archetype_member | statement)*
+    ((ct_element | enum_member) ","?)*
+    | ((ct_element | param_var) ","?)*
+    | (element_stmt | archetype_member | statement)*
 
 ct_block ::= "comptime" "{" expression "}"
 
