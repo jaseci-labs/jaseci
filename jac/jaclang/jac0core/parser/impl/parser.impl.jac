@@ -6969,10 +6969,11 @@ impl Parser.parse_type_alias -> NodeId {
         tp_rb_uni = self.consume_uni(TokenKind.RSQUARE);
     }
 
-    is_distinct = self.check(TokenKind.WALRUS_EQ);
+    is_distinct = False;
     eq_uni: NodeId;
-    if is_distinct {
-        eq_uni = self.make_uni_token(self.advance());
+    if self.match_tok(TokenKind.WALRUS_EQ) {
+        is_distinct = True;
+        eq_uni = self.make_uni_token(self.previous());
     } else {
         eq_uni = self.consume_uni(TokenKind.EQ);
     }

@@ -539,7 +539,7 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
     if cls.__dict__.get('__annotations__', {}) {
         dataclass(eq=False)(cls);
     } else {
-        dataclass(eq=False, init=False, repr=False)(cls);
+        dataclass(eq=False, init=False)(cls);
     }
     return cls;
 }
