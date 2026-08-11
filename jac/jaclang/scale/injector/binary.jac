@@ -457,6 +457,32 @@ def _fetch_verified_asset(
 }
 
 
+def host_toolchain_path(project_dir: str, channel: str = "") -> str {
+    import from jaclang.cli.manifest_route { resolve_cli_version }
+    import from jaclang.scale.config.dev_config { resolve_dev_channel }
+
+    channel = channel or resolve_dev_channel(project_dir).value;
+    version = resolve_deploy_version(project_dir, channel);
+    if not version or version == resolve_cli_version().strip() {
+        return "";
+    }
+    plat = host_seal_platform();
+    arch = host_arch();
+    payload = download_release_binary(channel, arch, version, plat);
+    path = _binary_cache_path(channel, arch, plat, version);
+    if not path.is_file() {
+        path.parent.mkdir(parents=True, exist_ok=True);
+        tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp");
+        tmp.write_bytes(payload);
+        tmp.chmod(0o755);
+        tmp.replace(path);
+    }
+    path.chmod(0o755);
+    logger.info(f"Host build steps for this deploy run the pinned jac {version}.");
+    return str(path);
+}
+
+
 glob OFFICIAL_IMAGE: str = "jaseci/jaclang";
 
 
