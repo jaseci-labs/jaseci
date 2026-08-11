@@ -59,28 +59,6 @@ def _resolved_spec(kind: int) -> tuple {
 }
 
 
-def _deps_of(a: SyntaxArena, i: int) -> list[int] {
-    deps = a.kid_ids(i);
-    n = a.arg_ns[i];
-    p = a.arg_los[i];
-    s = 0;
-    while s < n {
-        tag = a.args[p];
-        v = a.args[p + 1];
-        if tag == Tag.NODE {
-            deps.append(v);
-        } elif tag == Tag.LIST {
-            for d in a.seq_ids(v) {
-                deps.append(d);
-            }
-        }
-        p += 2;
-        s += 1;
-    }
-    return deps;
-}
-
-
 def _decode_post(key: str, v: int) -> any {
     if key == "param_kind" {
         return ut_mod.ParamKind(v);
@@ -106,13 +84,9 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
         return None;
     }
     posts_by_id: dict[int, list] = {};
-    pi = 0;
-    pn = len(a.posts);
-    while pi < pn {
-        posts_by_id.setdefault(a.posts[pi], []).append(
-            (a.strtab[a.posts[pi + 1]], a.posts[pi + 2])
-        );
-        pi += 3;
+    for pe in a.post_entries() {
+        pet: tuple = pe;
+        posts_by_id.setdefault(pet[0], []).append((pet[1], pet[2]));
     }
 
     objs: dict[int, any] = {};
@@ -126,20 +100,20 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
         }
         if not expanded {
             stack.append((i, True));
-            for d in _deps_of(a, i) {
+            for d in a.deps_of(i) {
                 if d != 0 and d not in objs {
                     stack.append((d, False));
                 }
             }
             continue;
         }
-        rspec: tuple = _resolved_spec(a.kinds[i]);
+        rspec: tuple = _resolved_spec(a.kind_of(i));
         cls: any = rspec[0];
         params: tuple = rspec[1];
         enums: tuple = rspec[2];
         has_kid: bool = rspec[4];
         kwargs: dict[str, any] = {};
-        p = a.arg_los[i];
+        pairs = a.arg_pairs(i);
         slot = 0;
         pi = 0;
         while pi < len(params) {
@@ -153,8 +127,7 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
                 kwargs[pname] = source;
                 continue;
             }
-            tag = a.args[p + (slot * 2)];
-            v = a.args[p + (slot * 2) + 1];
+            (tag, v) = pairs[slot];
             slot += 1;
             if tag == Tag.NONE {
                 if not has_default {
@@ -165,7 +138,7 @@ def materialize(a: SyntaxArena, source: Source) -> (UniNode | None) {
             } elif tag == Tag.LIST {
                 kwargs[pname] = [objs[k] for k in a.seq_ids(v)];
             } elif tag == Tag.STR {
-                kwargs[pname] = a.strtab[v];
+                kwargs[pname] = a.str_of(v);
             } elif tag == Tag.INT {
                 kwargs[pname] = v;
             } elif tag == Tag.BOOL {

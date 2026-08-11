@@ -173,7 +173,7 @@ obj CtEval {
     }
 
     def spec_of(i: int) -> (tuple | None) {
-        kind = self.a.kinds[i];
+        kind = self.a.kind_of(i);
         if kind not in SPECS {
             return None;
         }
@@ -183,13 +183,13 @@ obj CtEval {
     def cls_name(i: int) -> str {
         spec = self.spec_of(i);
         if spec is None {
-            _ct_err(f"unknown arena kind {self.a.kinds[i]}");
+            _ct_err(f"unknown arena kind {self.a.kind_of(i)}");
         }
         return spec[0];
     }
 
     def slot_of(i: int, pname: str) -> int {
-        spec = decode_spec_of(self.a.kinds[i]);
+        spec = decode_spec_of(self.a.kind_of(i));
         slot = 0;
         plist: tuple = spec[1];
         for p in plist {
@@ -224,7 +224,7 @@ obj CtEval {
         if s < 0 {
             return [];
         }
-        (tag, val) = self.a.arg_at(i, s);
+        (tag, val) = self.a.arg_pair(i, s);
         if tag == Tag.NODE {
             return [val];
         }
@@ -248,7 +248,7 @@ obj CtEval {
     }
 
     def loc_of(i: int) -> tuple {
-        if i == NIL or i >= len(self.a.kinds) {
+        if i == NIL or i >= self.a.node_count {
             return (0, 0, 0, 0);
         }
         spec = self.spec_of(i);
@@ -954,7 +954,7 @@ obj CtExpander {
 
     def sweep_kids {
         a = self.a();
-        n = len(a.kinds);
+        n = a.node_count;
         i = 1;
         while i < n {
             hit = False;
@@ -975,12 +975,7 @@ obj CtExpander {
                         rebuilt.append(k);
                     }
                 }
-                lo = len(a.kids);
-                for k in rebuilt {
-                    a.kids.append(k);
-                }
-                a.kid_los[i] = lo;
-                a.kid_ns[i] = len(rebuilt);
+                a.set_kids_of(i, rebuilt);
             }
             i += 1;
         }
@@ -1156,48 +1151,29 @@ obj CtExpander {
         }
         self.ev.burn();
         a = self.a();
-        kind = src.kinds[i];
+        kind = src.kind_of(i);
         new_kids: list[int] = [];
         for k in src.kid_ids(i) {
             new_kids.append(self.graft(src, k, memo));
         }
-        arg_n = src.arg_ns[i];
-        pairs: list[int] = [];
-        p = src.arg_los[i];
-        s = 0;
-        while s < arg_n {
-            tag = src.args[p];
-            val = src.args[p + 1];
+        pairs: list[tuple[(Tag, int)]] = [];
+        for pr in src.arg_pairs(i) {
+            (tag, val) = pr;
             if tag == Tag.NODE {
-                pairs.append(Tag.NODE);
-                pairs.append(self.graft(src, val, memo));
+                pairs.append((Tag.NODE, self.graft(src, val, memo), ));
             } elif tag == Tag.LIST {
-                ids = src.seq_ids(val);
                 new_ids: list[int] = [];
-                for x in ids {
+                for x in src.seq_ids(val) {
                     new_ids.append(self.graft(src, x, memo));
                 }
-                off = len(a.seqs);
-                a.seqs.append(len(new_ids));
-                for x in new_ids {
-                    a.seqs.append(x);
-                }
-                pairs.append(Tag.LIST);
-                pairs.append(off);
+                pairs.append((Tag.LIST, a.intern_seq(new_ids), ));
             } elif tag == Tag.STR {
-                pairs.append(Tag.STR);
-                pairs.append(a.intern(src.strtab[val]));
+                pairs.append((Tag.STR, a.intern(src.str_of(val)), ));
             } else {
-                pairs.append(tag);
-                pairs.append(val);
+                pairs.append((tag, val, ));
             }
-            p += 2;
-            s += 1;
         }
-        new_i = a._start(kind, new_kids, arg_n);
-        for pv in pairs {
-            a.args.append(pv);
-        }
+        new_i = a.append_record(kind, new_kids, pairs);
         memo[i] = new_i;
         return new_i;
     }
@@ -1211,60 +1187,34 @@ obj CtExpander {
         }
         self.ev.burn();
         a = self.a();
-        kind = a.kinds[i];
-        old_kids = a.kid_ids(i);
-        arg_n = a.arg_ns[i];
-        old_p = a.arg_los[i];
-        old_args: list[int] = [];
-        s = 0;
-        while s < (arg_n * 2) {
-            old_args.append(a.args[old_p + s]);
-            s += 1;
-        }
+        kind = a.kind_of(i);
+        # Snapshot args before recursing: copies of kids and deps append to
+        # the same arena, so live column reads would see relocated data.
+        old_pairs = a.arg_pairs(i);
         new_kids: list[int] = [];
-        for k in old_kids {
+        for k in a.kid_ids(i) {
             new_kids.append(self.copy_tree(k, memo));
         }
-        pairs: list[int] = [];
-        s = 0;
-        while s < arg_n {
-            tag = old_args[s * 2];
-            val = old_args[s * 2 + 1];
+        pairs: list[tuple[(Tag, int)]] = [];
+        for pr in old_pairs {
+            (tag, val) = pr;
             if tag == Tag.NODE {
-                pairs.append(Tag.NODE);
-                pairs.append(self.copy_tree(val, memo));
+                pairs.append((Tag.NODE, self.copy_tree(val, memo), ));
             } elif tag == Tag.LIST {
-                ids = a.seq_ids(val);
                 new_ids: list[int] = [];
-                for x in ids {
+                for x in a.seq_ids(val) {
                     new_ids.append(self.copy_tree(x, memo));
                 }
-                off = len(a.seqs);
-                a.seqs.append(len(new_ids));
-                for x in new_ids {
-                    a.seqs.append(x);
-                }
-                pairs.append(Tag.LIST);
-                pairs.append(off);
+                pairs.append((Tag.LIST, a.intern_seq(new_ids), ));
             } else {
-                pairs.append(tag);
-                pairs.append(val);
+                pairs.append((tag, val, ));
             }
-            s += 1;
         }
-        new_i = a._start(kind, new_kids, arg_n);
-        for pv in pairs {
-            a.args.append(pv);
-        }
-        j = 0;
-        posts = a.posts;
-        n_posts = len(posts);
-        while j + 2 < n_posts {
-            if posts[j] == i {
-                a.post_set(new_i, a.strtab[posts[j + 1]], posts[j + 2]);
-                n_posts = len(a.posts) - 3;
+        new_i = a.append_record(kind, new_kids, pairs);
+        for pe in a.post_entries() {
+            if pe[0] == i {
+                a.post_set(new_i, pe[1], pe[2]);
             }
-            j += 3;
         }
         memo[i] = new_i;
         return new_i;
@@ -1273,7 +1223,7 @@ obj CtExpander {
     def ct_name_text(i: int) -> str {
         out = "";
         for p in self.ev.list_arg(i, "parts") {
-            k = self.a().kinds[p];
+            k = self.a().kind_of(p);
             if k == KIND_CT_SPLICE {
                 v = self.ev.eval(self.ev.node_arg(p, "expr"));
                 if isinstance(v, CtFragment) and v.kind == "name" {
@@ -1295,7 +1245,7 @@ obj CtExpander {
 
     def subst_expr(i: int) -> int {
         a = self.a();
-        kind = a.kinds[i];
+        kind = a.kind_of(i);
         loc = self.ev.loc_of(i);
         if kind == KIND_CT_NAME {
             return self._tok("NAME", "NAME", self.ct_name_text(i), loc);
@@ -1330,9 +1280,9 @@ obj CtExpander {
             if pt[1] == "SOURCE" {
                 continue;
             }
-            (tag, val) = a.arg_at(i, slot);
+            (tag, val) = a.arg_pair(i, slot);
             if tag == Tag.NODE {
-                vk = a.kinds[val];
+                vk = a.kind_of(val);
                 if vk in CT_EXPR_KINDS {
                     nid = self.subst_expr(val);
                     a.set_arg_node(i, slot, nid);
@@ -1349,7 +1299,8 @@ obj CtExpander {
                 ids = a.seq_ids(val);
                 found_ct = False;
                 for x in ids {
-                    if a.kinds[x] in CT_STRUCT_KINDS or a.kinds[x] in CT_EXPR_KINDS {
+                    if a.kind_of(x) in CT_STRUCT_KINDS
+                        or a.kind_of(x) in CT_EXPR_KINDS {
                         found_ct = True;
                         break;
                     }
@@ -1371,7 +1322,7 @@ obj CtExpander {
         a = self.a();
         out: list[int] = [];
         for x in ids {
-            k = a.kinds[x];
+            k = a.kind_of(x);
             if k == KIND_CT_FOR {
                 news = self.expand_ct_for(x);
                 self.subst[x] = news;
@@ -1422,21 +1373,17 @@ obj CtExpander {
         if eb == NIL {
             return [];
         }
-        if self.a().kinds[eb] == KIND_CT_IF {
+        if self.a().kind_of(eb) == KIND_CT_IF {
             return self.expand_ct_if(eb, parent);
         }
         return self.expand_items(ev.list_arg(eb, "body"), eb);
     }
 
     def collect_ct_only {
-        a = self.a();
-        j = 0;
-        n = len(a.posts);
-        while j + 2 < n {
-            if a.strtab[a.posts[j + 1]] == "ct_only" {
-                self.ct_only[a.posts[j]] = 1;
+        for pe in self.a().post_entries() {
+            if pe[1] == "ct_only" {
+                self.ct_only[pe[0]] = 1;
             }
-            j += 3;
         }
     }
 
