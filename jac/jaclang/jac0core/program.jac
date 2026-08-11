@@ -54,6 +54,7 @@ class JacProgram {
         use_str: (str | None) = None
     ) -> uni.Module;
 
+    def _relink_absorbed_imports(self: JacProgram, mod: uni.Module) -> None;
     def _search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]];
     def find_module(self: JacProgram, path: str) -> (uni.Module | None);
     def get_bytecode(self: JacProgram, full_target: str) -> (types.CodeType | None);
