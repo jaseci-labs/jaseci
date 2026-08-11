@@ -231,7 +231,8 @@ impl JacScaleConfig.get_server_config(self: JacScaleConfig) -> dict[str, any] {
         'docs_enabled': server_config.get('docs_enabled', True),
         'suppress_health_check_logs': bool(
             server_config.get('suppress_health_check_logs', False)
-        )
+        ),
+        'structured_logs': bool(server_config.get('structured_logs', True))
     };
 }
 
