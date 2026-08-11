@@ -3898,7 +3898,7 @@ impl Parser.parse_statement -> NodeId {
     } elif self.b.kind_of(expr) in KS_JSX_ELEMENT and self._view_body_depth > 0 { } elif self.b.kind_of(
         expr
     )
-        in KS_NAME
+        == Kind.NAME
         and self.b.arg_str(expr, 1) == "new" {
         self.emit_diag(
             "Use the `new(target, ...args)` ambient builtin to create new instances",
@@ -4941,7 +4941,7 @@ impl Parser.parse_assignment_with_target(
     if require_semi {
         if not self.check(TokenKind.SEMI)
             and value != NIL
-            and self.b.kind_of(value) in KS_NAME
+            and self.b.kind_of(value) == Kind.NAME
             and self.b.arg_str(value, 1) == "new" {
             self.emit_diag(
                 "Use the `new(target, ...args)` ambient builtin to create new instances",

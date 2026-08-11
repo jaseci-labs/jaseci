@@ -172,3 +172,9 @@ test "materialized module unparse reaches fixpoint" {
     assert not err2;
     assert mod2.unparse(requires_format=False) == out1;
 }
+
+test "kind-heterogeneous probe reads stay within their kind" {
+    src = "class Foo {\n    def greet {\n        self\n    }\n}\n";
+    (mod, err) = parse(src, "t.jac");
+    assert mod is not None , "bare special-var statement must parse";
+}
