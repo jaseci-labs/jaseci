@@ -1289,12 +1289,14 @@ impl JacCompiler._scrub_native_artifacts_on_error(
 }
 
 impl JacCompiler._prepare_tool_program(
-    source_str: str, file_path: str
+    source_str: str, file_path: str, expand: bool = False
 ) -> tuple[JacProgram, (uni.Module | None)] {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.parser { parse as rd_parse }
     prog = JacProgram();
-    (current_mod, had_error) = rd_parse(source_str, file_path, prog=prog);
+    (current_mod, had_error) = rd_parse(
+        source_str, file_path, prog=prog, expand=expand
+    );
     if had_error {
         prog.mod = uni.ProgramModule(main_mod=current_mod);
         return (prog, None);
@@ -1334,7 +1336,9 @@ impl JacCompiler.jac_str_formatter(
 
 impl JacCompiler.jac_file_linter(file_path: str) -> JacProgram {
     source_str = read_file_with_encoding(file_path);
-    (prog, current_mod) = JacCompiler._prepare_tool_program(source_str, file_path);
+    (prog, current_mod) = JacCompiler._prepare_tool_program(
+        source_str, file_path, expand=True
+    );
     if current_mod is None {
         return prog;
     }

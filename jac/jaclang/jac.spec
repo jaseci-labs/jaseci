@@ -49,9 +49,9 @@ connect ::= atomic_pipe (connect_op atomic_pipe)*
 connect_op ::=
     "del" edge_op_ref
     | "++>"
-    | "+>:" expression (":" (expression ("=" expression)? ","?)*)? ":+>"
+    | "+>:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? ":+>"
     | "<++"
-    | "<+:" expression (":" (expression ("=" expression)? ","?)*)? (":<+" | ":+>")
+    | "<+:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? (":<+" | ":+>")
     | "<++>"
 
 atomic_pipe ::= atomic_pipe_back (":>" atomic_pipe_back)*
@@ -74,7 +74,7 @@ pipe_call ::= ("|>" | ":>") atomic_chain | atomic_chain
 
 atomic_chain ::=
     atom (
-        ("." | "?" | ".>" | "<.") ("." | ".>" | "<.")? (NAME | KWESC_NAME)?
+        ("." | "?" | ".>" | "<.") ("." | ".>" | "<.")? (ct_name | NAME | KWESC_NAME)?
         | "(" filter_compr_inner
         | "(" assign_compr_inner
         | "(" call_args ")"
@@ -149,25 +149,28 @@ special_ref ::=
     | "enum"
 
 atom ::=
-    atom_literal
+    ct_block
+    | ct_name
+    | atom_literal
     | multistring
     | builtin_type
     | special_ref
     | NAME
     | KWESC_NAME
     | "*" expression
-    | "**" expression
     | paren_expr
     | bracket_expr
     | brace_expr
     | jsx_element
+
+tuple_item ::= "**" expression | expression
 
 paren_expr ::=
     "(" (
         ")"
         | yield_stmt ")"
         | ability ")"
-        | expression (comprehension_clauses ")" | "," (expression ","?)* ")" | ")")
+        | tuple_item (comprehension_clauses ")" | ","? tuple_item ","? ")" | ")")?
     )
 
 bracket_expr ::= "[" (filter_compr_bracket | edge_ref_chain | list_or_compr)
@@ -229,7 +232,7 @@ jsx_element ::=
 
 jsx_attributes ::=
     (
-        JSX_NAME ("=" (STRING | "{" expression "}")?)?
+        JSX_NAME ("=" ("{" expression "}" | STRING)?)?
         | "{" ("**" | ELLIPSIS)? expression "}"
     )*
 
@@ -253,6 +256,7 @@ element_stmt ::=
     | global_var
     | impl_def
     | sem_def
+    | ct_element
     | PYNLINE
     | module_code
 
@@ -267,7 +271,8 @@ code_block_stmts ::= (statement ";"?)*
 ctrl_stmt ::= ("break" | "continue" | "skip") ";" | "disengage" ";"
 
 statement ::=
-    ";"
+    ct_element
+    | ";"
     | jsx_element ";"?
     | expression ("}" ";"?)?
     | import_stmt
@@ -424,6 +429,7 @@ archetype_member ::=
     STRING? (
         ability
         | has_stmt
+        | ct_element
         | archetype
         | enum
         | impl_def
@@ -441,17 +447,17 @@ accessor ::= func_signature ("{" code_block_stmts "}" | ";")
 
 ability ::=
     ("@" atomic_chain)* "override"? "class"? "static"? ("async" "class"?)?
-    ("def" | "can") access_tag (NAME | KWESC_NAME)? ("[" type_params "]")?
+    ("def" | "can") access_tag (ct_name | NAME | KWESC_NAME)? ("[" type_params "]")?
     ("with" expression? ("entry" | "exit") | func_signature)
     ("{" code_block_stmts "}" | "by" expression ";" | "abst"? ";")
 
 func_signature ::= ("(" func_params? ")")? ("->" pipe)?
 
-func_params ::= ("*" ","? | "/" ","? | param_var ","?)*
+func_params ::= ("*" ","? | "/" ","? | ct_element ","? | param_var ","?)*
 
 param_var ::=
     ("*" | "**")?
-    (NAME | KWESC_NAME | "self" | "props" | "here" | "visitor" | builtin_type)
+    (ct_name | NAME | KWESC_NAME | "self" | "props" | "here" | "visitor" | builtin_type)
     (":" ownership_prefix pipe)? ("=" expression)?
 
 enum ::=
@@ -470,7 +476,8 @@ switch_case ::= ("default" | "case" pattern) ":" statement*
 global_var ::= "glob" access_tag global_var_assignment ("," global_var_assignment)* ";"
 
 global_var_assignment ::=
-    (NAME | KWESC_NAME) (":" ownership_prefix pipe)? ("=" expression ("=" expression)*)?
+    (ct_name | NAME | KWESC_NAME) (":" ownership_prefix pipe)?
+    ("=" expression ("=" expression)*)?
 
 impl_def ::=
     ("@" atomic_chain)* "impl" impl_target_name ("." impl_target_name)* (
@@ -496,3 +503,22 @@ type_params ::=
 visit_stmt ::= "visit" (":" expression ":")? expression (else_stmt | ";")?
 
 report_stmt ::= "report" expression ";"
+
+ct_element ::= "comptime" (ct_for | ct_if | ability)
+
+ct_for ::= "for" (NAME | KWESC_NAME) "in" expression "{" ct_body "}"
+
+ct_if ::= "if" expression "{" ct_body "}" (ct_elif | ct_else)?
+
+ct_elif ::= "elif" expression "{" ct_body "}" (ct_elif | ct_else)?
+
+ct_else ::= "else" "{" ct_body "}"
+
+ct_body ::=
+    ((ct_element | param_var) ","?)* | (element_stmt | archetype_member | statement)*
+
+ct_block ::= "comptime" "{" expression "}"
+
+ct_splice ::= "${" expression "}"
+
+ct_name ::= (ct_splice | NAME | KWESC_NAME)*
