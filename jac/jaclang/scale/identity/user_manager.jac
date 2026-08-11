@@ -20,8 +20,7 @@ import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.sso.provider { SSOProvider, SSOUserInfo }
 import from jaclang.scale.identity.identity_storage {
     IdentityStorage,
-    PgIdentityStorage,
-    SqliteIdentityStorage
+    PgIdentityStorage
 }
 import from jaclang.jac0core.constant { Constants as Con }
 
@@ -110,6 +109,7 @@ obj JacScaleUserManager(UserManager) {
         user_id: str, requires_reset: bool
     ) -> dict[str, str];
 
+    def expire_legacy_credentials(username: (str | None) = None) -> dict[str, any];
     def is_password_required(user_id: str) -> bool;
     def bootstrap_admin_user -> dict[str, str];
     def list_all_users(limit: int = 100, offset: int = 0) -> list[dict[str, any]];

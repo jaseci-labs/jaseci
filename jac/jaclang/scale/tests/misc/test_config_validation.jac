@@ -174,7 +174,6 @@ test "factory validates the on-disk jac.toml" {
 
 test "platform-injected and capability-intent keys are recognized" {
     cfg = {
-        "database": {"backend": "postgres"},
         "storage": {"backend": "postgres", "type": "sv"},
         "deploy": {"target": "kubernetes"},
         "tracing": {"enabled": True},

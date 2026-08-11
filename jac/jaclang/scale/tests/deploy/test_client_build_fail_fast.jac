@@ -4,18 +4,34 @@ build error - not ship a broken bundle and leave the gateway pod to retry the
 build at boot, where the failure surfaces minutes later as crash-loop noise
 that reads like a client-build problem regardless of the real cause.
 
+That bundle is also the one artifact a pinned app used to get from the wrong
+compiler: the seal, the pod binary and the base image all resolve from
+[project] jac-version, while the client build ran on whichever jac happened to
+be deploying. So these also cover which toolchain the host build steps run.
+
 These drive the real ManifestBuilder against real project folders (the broken
 build runs the actual `jac build` subprocess); no mocks."""
 
+import hashlib;
+import json;
 import os;
+import re;
 import shutil;
 import subprocess;
 import tempfile;
+import from pathlib { Path }
+import jaclang.scale.injector.binary as binary_mod;
+import from jaclang.cli.manifest_route { resolve_cli_version }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
+import from jaclang.scale.injector.bundle { release_binary_env }
 import from jaclang.scale.runtime.context.util { jac_executable }
+
+# No jac release carries this version, so it can never collide with the jac
+# running the suite.
+glob PINNED: str = "0.0.0";
 
 
 def _builder(project_dir: str) -> ManifestBuilder {
@@ -41,8 +57,10 @@ def _project(entry_source: str) -> str {
 
 
 """A counting `jac` stand-in: fails with a canned install-failure message for
-the first `fail_first` invocations, then hands off to the real binary. Uses
-the codebase's own JAC_EXECUTABLE substitution seam, not a mock."""
+the first `fail_first` build invocations, then hands off to the real binary.
+Every other subcommand (the dependency install that precedes the build) passes
+straight through, so the counter tracks build attempts alone. Uses the
+codebase's own JAC_EXECUTABLE substitution seam, not a mock."""
 def _counting_jac(tmp: str, fail_first: int, failure_text: str) -> tuple {
     counter = os.path.join(tmp, "attempts");
     real_jac = jac_executable();
@@ -50,6 +68,7 @@ def _counting_jac(tmp: str, fail_first: int, failure_text: str) -> tuple {
     with open(script, "w", encoding="utf-8") as f {
         f.write(
             "#!/bin/sh\n"
+                + f'if [ "$1" != "build" ]; then exec "{real_jac}" "$@"; fi\n'
                 + f'count_file="{counter}"\n'
                 + 'n=$(cat "$count_file" 2>/dev/null || echo 0)\n'
                 + "n=$((n+1))\n"
@@ -88,6 +107,59 @@ def _web_app_project(tmp: str) -> str {
         f"jac create failed: {created.stdout}\n{created.stderr}"
     );
     return os.path.join(tmp, "app");
+}
+
+
+def _restore(name: str, value: (str | None)) {
+    if value is None {
+        os.environ.pop(name, None);
+    } else {
+        os.environ[name] = value;
+    }
+}
+
+
+"""Declare `version` as the project's [project] jac-version, replacing any
+pin `jac create` already stamped."""
+def _pin(project_dir: str, version: str) {
+    path = Path(project_dir) / "jac.toml";
+    text = re.sub(r"(?m)^jac-version\s*=.*\n", "", path.read_text(encoding="utf-8"));
+    assert "[project]" in text , f"nothing to pin in {path}";
+    path.write_text(
+        text.replace("[project]", f"[project]\njac-version = \"=={version}\"", 1),
+        encoding="utf-8"
+    );
+}
+
+
+"""Publish a real jac binary as release `version` for jac-scale to download.
+
+The binary, its checksum and the sha256 verification stay real; only the
+release index is answered here instead of by api.github.com."""
+def _release_api(version: str, payload: bytes) -> Callable[[str], bytes] {
+    plat = binary_mod.host_seal_platform();
+    asset = f"jac-{version}-{plat}-{binary_mod.host_arch()}";
+    def _fetch(url: str) -> bytes {
+        if "api.github.com" in url {
+            return json.dumps(
+                {
+                    "tag_name": f"v{version}",
+                    "assets": [
+                        {
+                            "name": name,
+                            "browser_download_url": f"https://dl.test/{name}"
+                        } for name in [asset, f"{asset}.sha256"]
+                    ]
+                }
+            ).encode();
+        }
+        if url.endswith(".sha256") {
+            digest = hashlib.sha256(payload).hexdigest();
+            return f"{digest}  {asset}".encode();
+        }
+        return payload;
+    }
+    return _fetch;
 }
 
 
@@ -228,5 +300,84 @@ test "a genuine compile error fails on the first attempt with no retry" {
             os.environ["JAC_EXECUTABLE"] = saved;
         }
         shutil.rmtree(tmp, ignore_errors=True);
+    }
+}
+
+
+test "a pinned app builds its client on the pinned release, not the deploying jac" {
+    # The checkout's own binary is published as the pinned release, the same way
+    # the seal tests reuse it as the pod binary.
+    jac_bin = Path(str(__file__)).parents[4] / "zig-out" / "bin" / "jac";
+    if not jac_bin.is_file() {
+        return;
+    }
+    tmp = tempfile.mkdtemp(prefix="client-pin-");
+    project_dir = _web_app_project(tmp);
+    _pin(project_dir, PINNED);
+    cache = os.path.join(tmp, "cache");
+    saved_exec = os.environ.get("JAC_EXECUTABLE");
+    saved_cache = os.environ.get("JAC_SCALE_CACHE_DIR");
+    saved_http = binary_mod._http_get_bytes;
+    # Any step still reaching for the deploying jac lands on a path that is not
+    # there, so a green run cannot be one that ignored the pin.
+    os.environ["JAC_EXECUTABLE"] = os.path.join(tmp, "absent-jac");
+    os.environ["JAC_SCALE_CACHE_DIR"] = cache;
+    binary_mod._http_get_bytes = _release_api(PINNED, jac_bin.read_bytes());
+    try {
+        _builder(project_dir)._build_client_bundle(project_dir);
+        built = (
+            Path(project_dir) / ".jac" / "client" / "dist" / "index.html"
+        ).is_file();
+        resolved = binary_mod.host_toolchain_path(project_dir);
+        runnable = (Path(resolved).stat().st_mode & 0o111) != 0;
+        under_cache = resolved.startswith(cache);
+    } finally {
+        binary_mod._http_get_bytes = saved_http;
+        _restore("JAC_EXECUTABLE", saved_exec);
+        _restore("JAC_SCALE_CACHE_DIR", saved_cache);
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+
+    assert built , "the pinned toolchain produced no bundle for the gateway";
+    assert under_cache , f"the pin resolved to {resolved}, not a download";
+    assert runnable , "the downloaded release was never made executable";
+}
+
+
+test "no pin, and a pin naming the running jac, download nothing" {
+    def _no_release_api(url: str) -> bytes {
+        raise AssertionError(f"nothing to download, yet it fetched {url}");
+    }
+    unpinned = _project("with entry {}\n");
+    matching = _project("with entry {}\n");
+    _pin(matching, resolve_cli_version().strip());
+    saved_http = binary_mod._http_get_bytes;
+    binary_mod._http_get_bytes = _no_release_api;
+    try {
+        # "" keeps the deploy on its own jac, which is already the pinned one.
+        assert binary_mod.host_toolchain_path(unpinned) == "";
+        assert binary_mod.host_toolchain_path(matching) == "";
+    } finally {
+        binary_mod._http_get_bytes = saved_http;
+        shutil.rmtree(unpinned, ignore_errors=True);
+        shutil.rmtree(matching, ignore_errors=True);
+    }
+}
+
+
+test "a pinned release runs without the deploying jac's compiler redirects" {
+    saved = os.environ.get("JAC_DEV_SOURCE");
+    os.environ["JAC_DEV_SOURCE"] = "/the/checkout/that/ran/this/deploy";
+    try {
+        env = release_binary_env();
+    } finally {
+        _restore("JAC_DEV_SOURCE", saved);
+    }
+
+    assert env.get("PATH") == os.environ.get("PATH") , "not a real environment";
+    # Inherited, these point a release binary at the deploying jac's compiler
+    # and interpreter, which is the pin defeated by the back door.
+    for leaked in ["JAC_DEV_SOURCE", "JAC_NO_PRECOMPILE", "PYTHONPATH", "PYTHONHOME"] {
+        assert leaked not in env , f"{leaked} reaches the pinned release";
     }
 }

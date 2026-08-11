@@ -407,9 +407,7 @@ jobs:
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
           jac install \
-            "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-            "bcrypt>=4.0.0,<5.0.0" \
-            "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
+            "python-dotenv>=1.2.1,<2.0.0" \
             "prometheus-client>=0.21.0,<1.0.0" \
             "opentelemetry-sdk>=1.27.0,<2.0.0" \
             "opentelemetry-exporter-otlp-proto-http>=1.27.0,<2.0.0" \
@@ -731,8 +729,7 @@ jobs:
       # Pins mirror jac/jaclang/project/capabilities.jac.
       run: |
         jac install \
-          "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-          "bcrypt>=4.0.0,<5.0.0" \
+          "python-dotenv>=1.2.1,<2.0.0" \
           --global
         jac test -vv jac/tests/runtimelib/client/test_inprocess_dispatch.jac
 
@@ -982,15 +979,13 @@ jobs:
       # Pins mirror jac/jaclang/project/capabilities.jac.
       run: |
         jac install \
-          "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-          "bcrypt>=4.0.0,<5.0.0" \
-          "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
+          "python-dotenv>=1.2.1,<2.0.0" \
           "prometheus-client>=0.21.0,<1.0.0" \
           "opentelemetry-sdk>=1.27.0,<2.0.0" \
           "opentelemetry-exporter-otlp-proto-http>=1.27.0,<2.0.0" \
           "apscheduler>=3.11.2,<4.0.0" "kubernetes>=34.1.0,<35.0.0" \
           "docker>=7.1.0,<8.0.0" "boto3>=1.40.0,<2.0.0" \
-          requests "testcontainers[mongodb,redis]>=4.15,<5" "moto[s3]>=5.0.0" \
+          requests "moto[s3]>=5.0.0" \
           --global
 
     - name: Run ${{ matrix.group }} tests
@@ -1011,7 +1006,7 @@ jobs:
     - name: Run root-level scale tests (identity password, firebase env)
       if: matrix.group == 'data'
       # Root-level test_*.jac files the matrix globs don't reach. Base scale
-      # deps only (bcrypt, config) - no firebase-admin needed here.
+      # deps only (config) - no firebase-admin needed here.
       env:
         JAC_TEST_JOBS: "0"
       run: |
@@ -1066,9 +1061,7 @@ jobs:
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
           jac install \
-            "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-            "bcrypt>=4.0.0,<5.0.0" \
-            "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
+            "python-dotenv>=1.2.1,<2.0.0" \
             "kubernetes>=34.1.0,<35.0.0" "docker>=7.1.0,<8.0.0" \
             --global
 
@@ -1169,8 +1162,7 @@ jobs:
       # Pins mirror jac/jaclang/project/capabilities.jac.
       run: |
         jac install \
-          "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-          "bcrypt>=4.0.0,<5.0.0" \
+          "python-dotenv>=1.2.1,<2.0.0" \
           "requests>=2.32.0,<3.0.0" \
           --global
 
@@ -1465,9 +1457,7 @@ jobs:
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
           jac install \
-            "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-            "bcrypt>=4.0.0,<5.0.0" \
-            "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
+            "python-dotenv>=1.2.1,<2.0.0" \
             "kubernetes>=34.1.0,<35.0.0" "docker>=7.1.0,<8.0.0" "humanize>=4.0.0" \
             --global
 

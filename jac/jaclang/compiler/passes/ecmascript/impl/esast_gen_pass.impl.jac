@@ -1989,7 +1989,19 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         nd.gen.es_ast = result_expr;
         return;
     }
-    if _call_kind == "instantiation" and isinstance(callee, es.Expression) {
+
+    _emit_new = _call_kind == "instantiation";
+    if not _emit_new {
+        _target_type = nd.target?.type;
+        if (
+            _target_type is not None
+            and _target_type.is_instantiable_class()
+            and not _target_type.shared.is_builtin_class
+        ) {
+            _emit_new = True;
+        }
+    }
+    if _emit_new and isinstance(callee, es.Expression) {
         result_expr: es.Expression = self.sync_loc(
             es.NewExpression(callee=callee_expr, arguments=call_args), jac_node=nd
         );
@@ -6064,7 +6076,12 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         } else {
             import_key = '';
         }
-        resolved_path = resolve_relative_path(import_key, nd.loc.mod_path);
+        resolved_path = resolve_relative_path(
+            import_key,
+            nd.loc.mod_path,
+            string_spec=isinstance(first_item, uni.ModulePath)
+                and first_item.string_path_value is not None
+        );
         self.client_manifest.imports[import_key] = resolved_path;
         import_path = import_key;
         if resolved_path.endswith('.jac') and not import_path.startswith('.') {

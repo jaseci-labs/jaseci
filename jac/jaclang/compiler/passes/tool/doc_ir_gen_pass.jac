@@ -88,6 +88,13 @@ obj DocIRGenPass(UniPass) {
     def exit_param_var(nd: uni.ParamVar) -> None;
     def exit_assignment(nd: uni.Assignment) -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
+    def exit_ct_if(nd: uni.CtIf) -> None;
+    def exit_ct_else(nd: uni.CtElse) -> None;
+    def exit_ct_for(nd: uni.CtFor) -> None;
+    def exit_ct_block(nd: uni.CtBlock) -> None;
+    def exit_ct_splice(nd: uni.CtSplice) -> None;
+    def exit_ct_name(nd: uni.CtName) -> None;
+    def _ct_block_stmt_doc(nd: uni.UniNode, body: Sequence[uni.UniNode]) -> None;
     def exit_else_if(nd: uni.ElseIf) -> None;
     def exit_else_stmt(nd: uni.ElseStmt) -> None;
     def exit_binary_expr(nd: uni.BinaryExpr) -> None;
