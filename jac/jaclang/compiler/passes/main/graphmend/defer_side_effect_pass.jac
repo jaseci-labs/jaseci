@@ -51,6 +51,10 @@ obj DeferSideEffectPass(UniPass) {
     def _tuple(at: uni.UniNode, values: list[uni.Expr]) -> uni.TupleVal;
     def _dict_from_kws(at: uni.UniNode, kws: list[uni.KWPair]) -> uni.DictVal;
     def _buffer_entry(call: uni.FuncCall) -> tuple[uni.TupleVal, list[uni.UniNode]];
+    def _snapshot(
+        call: uni.FuncCall, v: uni.Expr, hoists: list[uni.UniNode]
+    ) -> uni.Expr;
+
     def _clone_guard(at: uni.UniNode, tmp: str) -> uni.IfElseExpr;
     def _buffer_append(at: uni.UniNode, ent: uni.TupleVal) -> uni.FuncCall;
     def _flush_stmt(at: uni.UniNode) -> uni.ExprStmt;
