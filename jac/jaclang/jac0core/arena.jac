@@ -427,6 +427,29 @@ obj SyntaxArena {
         codespace_dual: bool = False, kid: list[int] = []
     ) -> int;
 
+    def mk_ct_block(expr: int = NIL, kid: list[int] = []) -> int;
+    def mk_ct_else(
+        doc: int = NIL, body: (list[int] | None) = None, kid: list[int] = []
+    ) -> int;
+
+    def mk_ct_for(
+        doc: int = NIL,
+        target: int = NIL,
+        iter: int = NIL,
+        body: (list[int] | None) = None,
+        kid: list[int] = []
+    ) -> int;
+
+    def mk_ct_if(
+        doc: int = NIL,
+        condition: int = NIL,
+        body: (list[int] | None) = None,
+        else_body: int = NIL,
+        kid: list[int] = []
+    ) -> int;
+
+    def mk_ct_name(parts: (list[int] | None) = None, kid: list[int] = []) -> int;
+    def mk_ct_splice(expr: int = NIL, kid: list[int] = []) -> int;
     def mk_ctrl_stmt(ctrl: int = NIL, kid: list[int] = []) -> int;
     def mk_delete_stmt(target: int = NIL, kid: list[int] = []) -> int;
     def mk_dict_compr(

@@ -691,6 +691,46 @@ obj ElseStmt(UniScopeNode) {
     def postinit -> None;
 }
 
+obj CtBlock(Expr) {
+    has expr: Expr;
+
+    def postinit -> None;
+}
+
+obj CtIf(ElementStmt, CodeBlockStmt) {
+    has condition: Expr,
+        body: Sequence[UniNode],
+        else_body: (UniNode | None) = None;
+
+    def postinit -> None;
+}
+
+obj CtElse(ElementStmt, CodeBlockStmt) {
+    has body: Sequence[UniNode];
+
+    def postinit -> None;
+}
+
+obj CtFor(ElementStmt, CodeBlockStmt) {
+    has target: Name,
+        iter: Expr,
+        body: Sequence[UniNode];
+
+    def postinit -> None;
+}
+
+obj CtSplice(Expr) {
+    has expr: Expr;
+
+    def postinit -> None;
+}
+
+obj CtName(Expr) {
+    has parts: Sequence[UniNode];
+
+    def postinit -> None;
+}
+
 obj ExprStmt(CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;

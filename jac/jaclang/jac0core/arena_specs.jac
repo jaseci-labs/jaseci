@@ -228,18 +228,49 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         34: ("CtrlStmt", (("ctrl", "NODE", "", False), ), False, True),
-         35: ("DeleteStmt", (("target", "NODE", "", False), ), False, True),
+         34: ("CtBlock", (("expr", "NODE", "", False), ), False, True),
+         35: (
+             "CtElse",
+             (("doc", "NODE", "", True), ("body", "LIST", "", False)),
+             False,
+             True
+         ),
          36: (
+             "CtFor",
+             (
+                 ("doc", "NODE", "", True),
+                 ("target", "NODE", "", False),
+                 ("iter", "NODE", "", False),
+                 ("body", "LIST", "", False)
+             ),
+             False,
+             True
+         ),
+         37: (
+             "CtIf",
+             (
+                 ("doc", "NODE", "", True),
+                 ("condition", "NODE", "", False),
+                 ("body", "LIST", "", False),
+                 ("else_body", "NODE", "", True)
+             ),
+             False,
+             True
+         ),
+         38: ("CtName", (("parts", "LIST", "", False), ), False, True),
+         39: ("CtSplice", (("expr", "NODE", "", False), ), False, True),
+         40: ("CtrlStmt", (("ctrl", "NODE", "", False), ), False, True),
+         41: ("DeleteStmt", (("target", "NODE", "", False), ), False, True),
+         42: (
              "DictCompr",
              (("kv_pair", "NODE", "", False), ("compr", "LIST", "", False)),
              False,
              True
          ),
-         37: ("DictVal", (("kv_pairs", "LIST", "", False), ), False, True),
-         38: ("DisconnectOp", (("edge_spec", "NODE", "", False), ), False, True),
-         39: ("DisengageStmt", (), False, True),
-         40: (
+         43: ("DictVal", (("kv_pairs", "LIST", "", False), ), False, True),
+         44: ("DisconnectOp", (("edge_spec", "NODE", "", False), ), False, True),
+         45: ("DisengageStmt", (), False, True),
+         46: (
              "EdgeOpRef",
              (
                  ("filter_cond", "NODE", "", False),
@@ -248,7 +279,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         41: (
+         47: (
              "EdgeRefTrailer",
              (
                  ("chain", "LIST", "", False),
@@ -258,8 +289,8 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         42: ("ElementStmt", (("doc", "NODE", "", True), ), False, True),
-         43: (
+         48: ("ElementStmt", (("doc", "NODE", "", True), ), False, True),
+         49: (
              "Ellipsis",
              (
                  ("orig_src", "SOURCE", "", False),
@@ -275,7 +306,7 @@ glob SPECS: dict[int, tuple] = {
              True,
              False
          ),
-         44: (
+         50: (
              "ElseIf",
              (
                  ("else_body", "NODE", "", True),
@@ -285,9 +316,9 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         45: ("ElseStmt", (("body", "LIST", "", False), ), False, True),
-         46: ("EmptyToken", (("orig_src", "SOURCE", "", True), ), True, False),
-         47: (
+         51: ("ElseStmt", (("body", "LIST", "", False), ), False, True),
+         52: ("EmptyToken", (("orig_src", "SOURCE", "", True), ), True, False),
+         53: (
              "Enum",
              (
                  ("doc", "NODE", "", True),
@@ -303,14 +334,14 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         48: ("EnumBlockStmt", (("is_enum_stmt", "BOOL", "", True), ), False, True),
-         49: (
+         54: ("EnumBlockStmt", (("is_enum_stmt", "BOOL", "", True), ), False, True),
+         55: (
              "EventSignature",
              (("event", "NODE", "", False), ("arch_tag_info", "NODE", "", False)),
              False,
              True
          ),
-         50: (
+         56: (
              "Except",
              (
                  ("ex_type", "NODE", "", False),
@@ -320,14 +351,14 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         51: ("Expr", (), False, True),
-         52: (
+         57: ("Expr", (), False, True),
+         58: (
              "ExprAsItem",
              (("expr", "NODE", "", False), ("alias", "NODE", "", False)),
              False,
              True
          ),
-         53: (
+         59: (
              "ExprStmt",
              (
                  ("expr", "NODE", "", False),
@@ -337,7 +368,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         54: (
+         60: (
              "FString",
              (
                  ("start", "NODE", "", False),
@@ -347,14 +378,14 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         55: (
+         61: (
              "FilterCompr",
              (("f_type", "NODE", "", False), ("compares", "LIST", "", False)),
              False,
              True
          ),
-         56: ("FinallyStmt", (("body", "LIST", "", False), ), False, True),
-         57: (
+         62: ("FinallyStmt", (("body", "LIST", "", False), ), False, True),
+         63: (
              "Float",
              (
                  ("orig_src", "SOURCE", "", False),
@@ -370,8 +401,8 @@ glob SPECS: dict[int, tuple] = {
              True,
              False
          ),
-         58: ("ForeverStmt", (("body", "LIST", "", False), ), False, True),
-         59: (
+         64: ("ForeverStmt", (("body", "LIST", "", False), ), False, True),
+         65: (
              "FormattedValue",
              (
                  ("format_part", "NODE", "", False),
@@ -381,7 +412,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         60: (
+         66: (
              "FuncCall",
              (
                  ("target", "NODE", "", False),
@@ -392,7 +423,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         61: (
+         67: (
              "FuncSignature",
              (
                  ("posonly_params", "LIST", "", False),
@@ -405,13 +436,13 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         62: (
+         68: (
              "GenCompr",
              (("out_expr", "NODE", "", False), ("compr", "LIST", "", False)),
              False,
              True
          ),
-         63: (
+         69: (
              "GlobalVars",
              (
                  ("access", "NODE", "", True),
@@ -423,7 +454,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         64: (
+         70: (
              "HasVar",
              (
                  ("type_tag", "NODE", "", True),
@@ -435,7 +466,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         65: (
+         71: (
              "IfElseExpr",
              (
                  ("condition", "NODE", "", False),
@@ -445,7 +476,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         66: (
+         72: (
              "IfStmt",
              (
                  ("else_body", "NODE", "", True),
@@ -455,7 +486,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         67: (
+         73: (
              "ImplDef",
              (
                  ("doc", "NODE", "", True),
@@ -469,7 +500,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         68: (
+         74: (
              "Import",
              (
                  ("doc", "NODE", "", True),
@@ -483,7 +514,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         69: (
+         75: (
              "InForStmt",
              (
                  ("else_body", "NODE", "", True),
@@ -495,13 +526,13 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         70: (
+         76: (
              "IndexSlice",
              (("slices", "LIST", "", False), ("is_range", "BOOL", "", False)),
              False,
              True
          ),
-         71: (
+         77: (
              "InnerCompr",
              (
                  ("is_async", "BOOL", "", True),
@@ -512,7 +543,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         72: (
+         78: (
              "Int",
              (
                  ("orig_src", "SOURCE", "", False),
@@ -528,7 +559,7 @@ glob SPECS: dict[int, tuple] = {
              True,
              False
          ),
-         73: (
+         79: (
              "IterForStmt",
              (
                  ("else_body", "NODE", "", True),
@@ -541,10 +572,10 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         74: ("JsxAttribute", (), False, True),
-         75: ("JsxChild", (), False, True),
-         76: ("JsxComment", (("value", "NODE", "", False), ), False, True),
-         77: (
+         80: ("JsxAttribute", (), False, True),
+         81: ("JsxChild", (), False, True),
+         82: ("JsxComment", (("value", "NODE", "", False), ), False, True),
+         83: (
              "JsxElement",
              (
                  ("name", "NODE", "", False),
@@ -557,9 +588,9 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         78: ("JsxElementName", (("parts", "LIST", "", False), ), False, True),
-         79: ("JsxExpression", (("expr", "NODE", "", False), ), False, True),
-         80: (
+         84: ("JsxElementName", (("parts", "LIST", "", False), ), False, True),
+         85: ("JsxExpression", (("expr", "NODE", "", False), ), False, True),
+         86: (
              "JsxNormalAttribute",
              (
                  ("name", "NODE", "", False),
@@ -569,35 +600,35 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         81: ("JsxSlot", (("body", "LIST", "", False), ), False, True),
-         82: ("JsxSpreadAttribute", (("expr", "NODE", "", False), ), False, True),
-         83: ("JsxText", (("value", "NODE", "", False), ), False, True),
-         84: (
+         87: ("JsxSlot", (("body", "LIST", "", False), ), False, True),
+         88: ("JsxSpreadAttribute", (("expr", "NODE", "", False), ), False, True),
+         89: ("JsxText", (("value", "NODE", "", False), ), False, True),
+         90: (
              "KVPair",
              (("key", "NODE", "", False), ("value", "NODE", "", False)),
              False,
              True
          ),
-         85: (
+         91: (
              "KWPair",
              (("key", "NODE", "", False), ("value", "NODE", "", False)),
              False,
              True
          ),
-         86: (
+         92: (
              "LambdaExpr",
              (("body", "POLY", "", False), ("signature", "NODE", "", True)),
              False,
              True
          ),
-         87: (
+         93: (
              "ListCompr",
              (("out_expr", "NODE", "", False), ("compr", "LIST", "", False)),
              False,
              True
          ),
-         88: ("ListVal", (("values", "LIST", "", False), ), False, True),
-         89: (
+         94: ("ListVal", (("values", "LIST", "", False), ), False, True),
+         95: (
              "Literal",
              (
                  ("orig_src", "SOURCE", "", False),
@@ -613,7 +644,7 @@ glob SPECS: dict[int, tuple] = {
              True,
              False
          ),
-         90: (
+         96: (
              "MatchArch",
              (
                  ("name", "NODE", "", False),
@@ -623,13 +654,13 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         91: (
+         97: (
              "MatchAs",
              (("name", "NODE", "", False), ("pattern", "NODE", "", False)),
              False,
              True
          ),
-         92: (
+         98: (
              "MatchCase",
              (
                  ("pattern", "NODE", "", False),
@@ -639,32 +670,32 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         93: (
+         99: (
              "MatchKVPair",
              (("key", "NODE", "", False), ("value", "NODE", "", False)),
              False,
              True
          ),
-         94: ("MatchMapping", (("values", "LIST", "", False), ), False, True),
-         95: ("MatchOr", (("patterns", "LIST", "", False), ), False, True),
-         96: ("MatchPattern", (), False, True),
-         97: ("MatchSequence", (("values", "LIST", "", False), ), False, True),
-         98: ("MatchSingleton", (("value", "NODE", "", False), ), False, True),
-         99: (
+         100: ("MatchMapping", (("values", "LIST", "", False), ), False, True),
+         101: ("MatchOr", (("patterns", "LIST", "", False), ), False, True),
+         102: ("MatchPattern", (), False, True),
+         103: ("MatchSequence", (("values", "LIST", "", False), ), False, True),
+         104: ("MatchSingleton", (("value", "NODE", "", False), ), False, True),
+         105: (
              "MatchStar",
              (("name", "NODE", "", False), ("is_list", "BOOL", "", False)),
              False,
              True
          ),
-         100: (
+         106: (
              "MatchStmt",
              (("target", "NODE", "", False), ("cases", "LIST", "", False)),
              False,
              True
          ),
-         101: ("MatchValue", (("value", "NODE", "", False), ), False, True),
-         102: ("MatchWild", (), False, True),
-         103: (
+         107: ("MatchValue", (("value", "NODE", "", False), ), False, True),
+         108: ("MatchWild", (), False, True),
+         109: (
              "Module",
              (
                  ("doc", "NODE", "", True),
@@ -680,7 +711,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         104: (
+         110: (
              "ModuleCode",
              (
                  ("is_enum_stmt", "BOOL", "", True),
@@ -692,13 +723,13 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         105: (
+         111: (
              "ModuleItem",
              (("name", "NODE", "", False), ("alias", "NODE", "", False)),
              False,
              True
          ),
-         106: (
+         112: (
              "ModulePath",
              (
                  ("path", "LIST", "", False),
@@ -708,8 +739,8 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         107: ("MultiString", (("strings", "LIST", "", False), ), False, True),
-         108: (
+         113: ("MultiString", (("strings", "LIST", "", False), ), False, True),
+         114: (
              "Name",
              (
                  ("orig_src", "SOURCE", "", False),
@@ -727,7 +758,7 @@ glob SPECS: dict[int, tuple] = {
              True,
              False
          ),
-         109: (
+         115: (
              "NameAtom",
              (
                  ("is_enum_stmt", "BOOL", "", True),
@@ -736,7 +767,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         110: (
+         116: (
              "Null",
              (
                  ("orig_src", "SOURCE", "", False),
@@ -752,13 +783,13 @@ glob SPECS: dict[int, tuple] = {
              True,
              False
          ),
-         111: (
+         117: (
              "OpenStmt",
              (("target", "NODE", "", False), ("body", "LIST", "", False)),
              False,
              True
          ),
-         112: (
+         118: (
              "ParamVar",
              (
                  ("type_tag", "NODE", "", True),
@@ -769,7 +800,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         113: (
+         119: (
              "PyInlineCode",
              (
                  ("is_enum_stmt", "BOOL", "", True),
@@ -779,20 +810,20 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         114: (
+         120: (
              "RaiseStmt",
              (("cause", "NODE", "", False), ("from_target", "NODE", "", False)),
              False,
              True
          ),
-         115: ("ReportStmt", (("expr", "NODE", "", False), ), False, True),
-         116: (
+         121: ("ReportStmt", (("expr", "NODE", "", False), ), False, True),
+         122: (
              "ReturnStmt",
              (("expr", "NODE", "", False), ("is_implicit", "BOOL", "", True)),
              False,
              True
          ),
-         117: (
+         123: (
              "SemDef",
              (
                  ("doc", "NODE", "", True),
@@ -802,7 +833,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         118: (
+         124: (
              "Semi",
              (
                  ("orig_src", "SOURCE", "", False),
@@ -818,14 +849,14 @@ glob SPECS: dict[int, tuple] = {
              True,
              False
          ),
-         119: (
+         125: (
              "SetCompr",
              (("out_expr", "NODE", "", False), ("compr", "LIST", "", False)),
              False,
              True
          ),
-         120: ("SetVal", (("values", "LIST", "", False), ), False, True),
-         121: (
+         126: ("SetVal", (("values", "LIST", "", False), ), False, True),
+         127: (
              "Slice",
              (
                  ("start", "NODE", "", False),
@@ -835,13 +866,13 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         122: (
+         128: (
              "SpecialVarRef",
              (("var", "NODE", "", False), ("is_enum_stmt", "BOOL", "", True)),
              True,
              False
          ),
-         123: (
+         129: (
              "String",
              (
                  ("orig_src", "SOURCE", "", False),
@@ -857,25 +888,25 @@ glob SPECS: dict[int, tuple] = {
              True,
              False
          ),
-         124: (
+         130: (
              "SubTag",
              (("tag", "POLY", "", False), ("ownership", "ENUM", "OwnershipKind", True)),
              False,
              True
          ),
-         125: (
+         131: (
              "SwitchCase",
              (("pattern", "NODE", "", False), ("body", "LIST", "", False)),
              False,
              True
          ),
-         126: (
+         132: (
              "SwitchStmt",
              (("target", "NODE", "", False), ("cases", "LIST", "", False)),
              False,
              True
          ),
-         127: (
+         133: (
              "Test",
              (
                  ("doc", "NODE", "", True),
@@ -889,7 +920,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         128: (
+         134: (
              "Token",
              (
                  ("orig_src", "SOURCE", "", False),
@@ -905,7 +936,7 @@ glob SPECS: dict[int, tuple] = {
              True,
              False
          ),
-         129: (
+         135: (
              "TryStmt",
              (
                  ("else_body", "NODE", "", True),
@@ -917,8 +948,8 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         130: ("TupleVal", (("values", "LIST", "", False), ), False, True),
-         131: (
+         136: ("TupleVal", (("values", "LIST", "", False), ), False, True),
+         137: (
              "TypeAlias",
              (
                  ("doc", "NODE", "", True),
@@ -931,7 +962,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         132: (
+         138: (
              "TypeParam",
              (
                  ("name", "NODE", "", False),
@@ -941,13 +972,13 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         133: (
+         139: (
              "TypedCtxBlock",
              (("type_ctx", "NODE", "", False), ("body", "LIST", "", False)),
              False,
              True
          ),
-         134: (
+         140: (
              "UnaryExpr",
              (
                  ("operand", "NODE", "", False),
@@ -957,9 +988,9 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         135: ("UniCFGNode", (), False, True),
-         136: ("UniScopeNode", (), False, True),
-         137: (
+         141: ("UniCFGNode", (), False, True),
+         142: ("UniScopeNode", (), False, True),
+         143: (
              "VisitStmt",
              (
                  ("else_body", "NODE", "", True),
@@ -969,8 +1000,8 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         138: ("WalkerStmtOnlyNode", (), False, True),
-         139: (
+         144: ("WalkerStmtOnlyNode", (), False, True),
+         145: (
              "WhileStmt",
              (
                  ("else_body", "NODE", "", True),
@@ -980,7 +1011,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         140: (
+         146: (
              "WithStmt",
              (
                  ("is_async", "BOOL", "", True),
@@ -990,7 +1021,7 @@ glob SPECS: dict[int, tuple] = {
              False,
              True
          ),
-         141: (
+         147: (
              "YieldExpr",
              (("expr", "NODE", "", False), ("with_from", "BOOL", "", False)),
              False,

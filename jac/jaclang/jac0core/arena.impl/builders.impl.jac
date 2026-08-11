@@ -390,14 +390,73 @@ impl SyntaxArena.mk_context_aware_node(
     return idx;
 }
 
-impl SyntaxArena.mk_ctrl_stmt(ctrl: int = NIL, kid: list[int] = []) -> int {
+impl SyntaxArena.mk_ct_block(expr: int = NIL, kid: list[int] = []) -> int {
     idx = self._start(34, kid, 1);
+    self._arg_node(expr);
+    return idx;
+}
+
+impl SyntaxArena.mk_ct_else(
+    doc: int = NIL, body: (list[int] | None) = None, kid: list[int] = []
+) -> int {
+    idx = self._start(35, kid, 2);
+    self._arg_node(doc);
+    self._arg_list(body);
+    return idx;
+}
+
+impl SyntaxArena.mk_ct_for(
+    doc: int = NIL,
+    target: int = NIL,
+    iter: int = NIL,
+    body: (list[int] | None) = None,
+    kid: list[int] = []
+) -> int {
+    idx = self._start(36, kid, 4);
+    self._arg_node(doc);
+    self._arg_node(target);
+    self._arg_node(iter);
+    self._arg_list(body);
+    return idx;
+}
+
+impl SyntaxArena.mk_ct_if(
+    doc: int = NIL,
+    condition: int = NIL,
+    body: (list[int] | None) = None,
+    else_body: int = NIL,
+    kid: list[int] = []
+) -> int {
+    idx = self._start(37, kid, 4);
+    self._arg_node(doc);
+    self._arg_node(condition);
+    self._arg_list(body);
+    self._arg_node(else_body);
+    return idx;
+}
+
+impl SyntaxArena.mk_ct_name(
+    parts: (list[int] | None) = None, kid: list[int] = []
+) -> int {
+    idx = self._start(38, kid, 1);
+    self._arg_list(parts);
+    return idx;
+}
+
+impl SyntaxArena.mk_ct_splice(expr: int = NIL, kid: list[int] = []) -> int {
+    idx = self._start(39, kid, 1);
+    self._arg_node(expr);
+    return idx;
+}
+
+impl SyntaxArena.mk_ctrl_stmt(ctrl: int = NIL, kid: list[int] = []) -> int {
+    idx = self._start(40, kid, 1);
     self._arg_node(ctrl);
     return idx;
 }
 
 impl SyntaxArena.mk_delete_stmt(target: int = NIL, kid: list[int] = []) -> int {
-    idx = self._start(35, kid, 1);
+    idx = self._start(41, kid, 1);
     self._arg_node(target);
     return idx;
 }
@@ -405,7 +464,7 @@ impl SyntaxArena.mk_delete_stmt(target: int = NIL, kid: list[int] = []) -> int {
 impl SyntaxArena.mk_dict_compr(
     kv_pair: int = NIL, compr: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(36, kid, 2);
+    idx = self._start(42, kid, 2);
     self._arg_node(kv_pair);
     self._arg_list(compr);
     return idx;
@@ -414,26 +473,26 @@ impl SyntaxArena.mk_dict_compr(
 impl SyntaxArena.mk_dict_val(
     kv_pairs: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(37, kid, 1);
+    idx = self._start(43, kid, 1);
     self._arg_list(kv_pairs);
     return idx;
 }
 
 impl SyntaxArena.mk_disconnect_op(edge_spec: int = NIL, kid: list[int] = []) -> int {
-    idx = self._start(38, kid, 1);
+    idx = self._start(44, kid, 1);
     self._arg_node(edge_spec);
     return idx;
 }
 
 impl SyntaxArena.mk_disengage_stmt(kid: list[int] = []) -> int {
-    idx = self._start(39, kid, 0);
+    idx = self._start(45, kid, 0);
     return idx;
 }
 
 impl SyntaxArena.mk_edge_op_ref(
     filter_cond: int = NIL, edge_dir: EdgeDir = EdgeDir.IN, kid: list[int] = []
 ) -> int {
-    idx = self._start(40, kid, 2);
+    idx = self._start(46, kid, 2);
     self._arg_node(filter_cond);
     self._arg_enum(edge_dir.value);
     return idx;
@@ -445,7 +504,7 @@ impl SyntaxArena.mk_edge_ref_trailer(
     is_async: bool = False,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(41, kid, 3);
+    idx = self._start(47, kid, 3);
     self._arg_list(chain);
     self._arg_bool(edges_only);
     self._arg_bool(is_async);
@@ -453,7 +512,7 @@ impl SyntaxArena.mk_edge_ref_trailer(
 }
 
 impl SyntaxArena.mk_element_stmt(doc: int = NIL, kid: list[int] = []) -> int {
-    idx = self._start(42, kid, 1);
+    idx = self._start(48, kid, 1);
     self._arg_node(doc);
     return idx;
 }
@@ -469,7 +528,7 @@ impl SyntaxArena.mk_ellipsis(
     pos_end: int = 0,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(43, kid, 8);
+    idx = self._start(49, kid, 8);
     self._arg_str(name);
     self._arg_str(value);
     self._arg_int(line);
@@ -487,7 +546,7 @@ impl SyntaxArena.mk_else_if(
     body: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(44, kid, 3);
+    idx = self._start(50, kid, 3);
     self._arg_node(else_body);
     self._arg_node(condition);
     self._arg_list(body);
@@ -497,13 +556,13 @@ impl SyntaxArena.mk_else_if(
 impl SyntaxArena.mk_else_stmt(
     body: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(45, kid, 1);
+    idx = self._start(51, kid, 1);
     self._arg_list(body);
     return idx;
 }
 
 impl SyntaxArena.mk_empty_token(kid: list[int] = []) -> int {
-    idx = self._start(46, kid, 0);
+    idx = self._start(52, kid, 0);
     return idx;
 }
 
@@ -519,7 +578,7 @@ impl SyntaxArena.mk_enum(
     base_classes: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(47, kid, 9);
+    idx = self._start(53, kid, 9);
     self._arg_node(doc);
     self._arg_bool(is_async);
     self._arg_poly(body);
@@ -535,7 +594,7 @@ impl SyntaxArena.mk_enum(
 impl SyntaxArena.mk_enum_block_stmt(
     is_enum_stmt: bool = False, kid: list[int] = []
 ) -> int {
-    idx = self._start(48, kid, 1);
+    idx = self._start(54, kid, 1);
     self._arg_bool(is_enum_stmt);
     return idx;
 }
@@ -543,7 +602,7 @@ impl SyntaxArena.mk_enum_block_stmt(
 impl SyntaxArena.mk_event_signature(
     event: int = NIL, arch_tag_info: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(49, kid, 2);
+    idx = self._start(55, kid, 2);
     self._arg_node(event);
     self._arg_node(arch_tag_info);
     return idx;
@@ -555,7 +614,7 @@ impl SyntaxArena.mk_except(
     body: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(50, kid, 3);
+    idx = self._start(56, kid, 3);
     self._arg_node(ex_type);
     self._arg_node(name);
     self._arg_list(body);
@@ -563,14 +622,14 @@ impl SyntaxArena.mk_except(
 }
 
 impl SyntaxArena.mk_expr(kid: list[int] = []) -> int {
-    idx = self._start(51, kid, 0);
+    idx = self._start(57, kid, 0);
     return idx;
 }
 
 impl SyntaxArena.mk_expr_as_item(
     expr: int = NIL, alias: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(52, kid, 2);
+    idx = self._start(58, kid, 2);
     self._arg_node(expr);
     self._arg_node(alias);
     return idx;
@@ -582,7 +641,7 @@ impl SyntaxArena.mk_expr_stmt(
     has_semi: bool = True,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(53, kid, 3);
+    idx = self._start(59, kid, 3);
     self._arg_node(expr);
     self._arg_bool(in_fstring);
     self._arg_bool(has_semi);
@@ -595,7 +654,7 @@ impl SyntaxArena.mk_f_string(
     end: int = NIL,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(54, kid, 3);
+    idx = self._start(60, kid, 3);
     self._arg_node(start);
     self._arg_list(parts);
     self._arg_node(end);
@@ -605,7 +664,7 @@ impl SyntaxArena.mk_f_string(
 impl SyntaxArena.mk_filter_compr(
     f_type: int = NIL, compares: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(55, kid, 2);
+    idx = self._start(61, kid, 2);
     self._arg_node(f_type);
     self._arg_list(compares);
     return idx;
@@ -614,7 +673,7 @@ impl SyntaxArena.mk_filter_compr(
 impl SyntaxArena.mk_finally_stmt(
     body: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(56, kid, 1);
+    idx = self._start(62, kid, 1);
     self._arg_list(body);
     return idx;
 }
@@ -630,7 +689,7 @@ impl SyntaxArena.mk_float(
     pos_end: int = 0,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(57, kid, 8);
+    idx = self._start(63, kid, 8);
     self._arg_str(name);
     self._arg_str(value);
     self._arg_int(line);
@@ -645,7 +704,7 @@ impl SyntaxArena.mk_float(
 impl SyntaxArena.mk_forever_stmt(
     body: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(58, kid, 1);
+    idx = self._start(64, kid, 1);
     self._arg_list(body);
     return idx;
 }
@@ -656,7 +715,7 @@ impl SyntaxArena.mk_formatted_value(
     format_spec: int = NIL,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(59, kid, 3);
+    idx = self._start(65, kid, 3);
     self._arg_node(format_part);
     self._arg_int(conversion);
     self._arg_node(format_spec);
@@ -670,7 +729,7 @@ impl SyntaxArena.mk_func_call(
     call_kind: (str | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(60, kid, 4);
+    idx = self._start(66, kid, 4);
     self._arg_node(target);
     self._arg_list(params);
     self._arg_node(genai_call);
@@ -687,7 +746,7 @@ impl SyntaxArena.mk_func_signature(
     return_type: int = NIL,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(61, kid, 6);
+    idx = self._start(67, kid, 6);
     self._arg_list(posonly_params);
     self._arg_list(params);
     self._arg_node(varargs);
@@ -700,7 +759,7 @@ impl SyntaxArena.mk_func_signature(
 impl SyntaxArena.mk_gen_compr(
     out_expr: int = NIL, compr: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(62, kid, 2);
+    idx = self._start(68, kid, 2);
     self._arg_node(out_expr);
     self._arg_list(compr);
     return idx;
@@ -714,7 +773,7 @@ impl SyntaxArena.mk_global_vars(
     is_frozen: bool = False,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(63, kid, 5);
+    idx = self._start(69, kid, 5);
     self._arg_node(access);
     self._arg_node(doc);
     self._arg_bool(codespace_dual);
@@ -731,7 +790,7 @@ impl SyntaxArena.mk_has_var(
     accessors: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(64, kid, 5);
+    idx = self._start(70, kid, 5);
     self._arg_node(type_tag);
     self._arg_node(name);
     self._arg_node(value);
@@ -743,7 +802,7 @@ impl SyntaxArena.mk_has_var(
 impl SyntaxArena.mk_if_else_expr(
     condition: int = NIL, value: int = NIL, else_value: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(65, kid, 3);
+    idx = self._start(71, kid, 3);
     self._arg_node(condition);
     self._arg_node(value);
     self._arg_node(else_value);
@@ -756,7 +815,7 @@ impl SyntaxArena.mk_if_stmt(
     body: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(66, kid, 3);
+    idx = self._start(72, kid, 3);
     self._arg_node(else_body);
     self._arg_node(condition);
     self._arg_list(body);
@@ -773,7 +832,7 @@ impl SyntaxArena.mk_impl_def(
     decl_link: int = NIL,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(67, kid, 7);
+    idx = self._start(73, kid, 7);
     self._arg_node(doc);
     self._arg_bool(codespace_dual);
     self._arg_list(decorators);
@@ -794,7 +853,7 @@ impl SyntaxArena.mk_import(
     clib_decls: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(68, kid, 7);
+    idx = self._start(74, kid, 7);
     self._arg_node(doc);
     self._arg_bool(codespace_dual);
     self._arg_node(from_loc);
@@ -813,7 +872,7 @@ impl SyntaxArena.mk_in_for_stmt(
     body: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(69, kid, 5);
+    idx = self._start(75, kid, 5);
     self._arg_node(else_body);
     self._arg_bool(is_async);
     self._arg_node(target);
@@ -825,7 +884,7 @@ impl SyntaxArena.mk_in_for_stmt(
 impl SyntaxArena.mk_index_slice(
     slices: (list[int] | None) = None, is_range: bool = False, kid: list[int] = []
 ) -> int {
-    idx = self._start(70, kid, 2);
+    idx = self._start(76, kid, 2);
     self._arg_list(slices);
     self._arg_bool(is_range);
     return idx;
@@ -838,7 +897,7 @@ impl SyntaxArena.mk_inner_compr(
     conditional: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(71, kid, 4);
+    idx = self._start(77, kid, 4);
     self._arg_bool(is_async);
     self._arg_node(target);
     self._arg_node(collection);
@@ -857,7 +916,7 @@ impl SyntaxArena.mk_int(
     pos_end: int = 0,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(72, kid, 8);
+    idx = self._start(78, kid, 8);
     self._arg_str(name);
     self._arg_str(value);
     self._arg_int(line);
@@ -878,7 +937,7 @@ impl SyntaxArena.mk_iter_for_stmt(
     body: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(73, kid, 6);
+    idx = self._start(79, kid, 6);
     self._arg_node(else_body);
     self._arg_bool(is_async);
     self._arg_node(iter);
@@ -889,17 +948,17 @@ impl SyntaxArena.mk_iter_for_stmt(
 }
 
 impl SyntaxArena.mk_jsx_attribute(kid: list[int] = []) -> int {
-    idx = self._start(74, kid, 0);
+    idx = self._start(80, kid, 0);
     return idx;
 }
 
 impl SyntaxArena.mk_jsx_child(kid: list[int] = []) -> int {
-    idx = self._start(75, kid, 0);
+    idx = self._start(81, kid, 0);
     return idx;
 }
 
 impl SyntaxArena.mk_jsx_comment(value: int = NIL, kid: list[int] = []) -> int {
-    idx = self._start(76, kid, 1);
+    idx = self._start(82, kid, 1);
     self._arg_node(value);
     return idx;
 }
@@ -913,7 +972,7 @@ impl SyntaxArena.mk_jsx_element(
     dynamic_tag: int = NIL,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(77, kid, 6);
+    idx = self._start(83, kid, 6);
     self._arg_node(name);
     self._arg_list(attributes);
     self._arg_list(children);
@@ -926,13 +985,13 @@ impl SyntaxArena.mk_jsx_element(
 impl SyntaxArena.mk_jsx_element_name(
     parts: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(78, kid, 1);
+    idx = self._start(84, kid, 1);
     self._arg_list(parts);
     return idx;
 }
 
 impl SyntaxArena.mk_jsx_expression(expr: int = NIL, kid: list[int] = []) -> int {
-    idx = self._start(79, kid, 1);
+    idx = self._start(85, kid, 1);
     self._arg_node(expr);
     return idx;
 }
@@ -940,7 +999,7 @@ impl SyntaxArena.mk_jsx_expression(expr: int = NIL, kid: list[int] = []) -> int 
 impl SyntaxArena.mk_jsx_normal_attribute(
     name: int = NIL, value: int = NIL, is_shorthand: bool = False, kid: list[int] = []
 ) -> int {
-    idx = self._start(80, kid, 3);
+    idx = self._start(86, kid, 3);
     self._arg_node(name);
     self._arg_node(value);
     self._arg_bool(is_shorthand);
@@ -950,19 +1009,19 @@ impl SyntaxArena.mk_jsx_normal_attribute(
 impl SyntaxArena.mk_jsx_slot(
     body: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(81, kid, 1);
+    idx = self._start(87, kid, 1);
     self._arg_list(body);
     return idx;
 }
 
 impl SyntaxArena.mk_jsx_spread_attribute(expr: int = NIL, kid: list[int] = []) -> int {
-    idx = self._start(82, kid, 1);
+    idx = self._start(88, kid, 1);
     self._arg_node(expr);
     return idx;
 }
 
 impl SyntaxArena.mk_jsx_text(value: int = NIL, kid: list[int] = []) -> int {
-    idx = self._start(83, kid, 1);
+    idx = self._start(89, kid, 1);
     self._arg_node(value);
     return idx;
 }
@@ -970,7 +1029,7 @@ impl SyntaxArena.mk_jsx_text(value: int = NIL, kid: list[int] = []) -> int {
 impl SyntaxArena.mk_k_v_pair(
     key: int = NIL, value: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(84, kid, 2);
+    idx = self._start(90, kid, 2);
     self._arg_node(key);
     self._arg_node(value);
     return idx;
@@ -979,7 +1038,7 @@ impl SyntaxArena.mk_k_v_pair(
 impl SyntaxArena.mk_k_w_pair(
     key: int = NIL, value: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(85, kid, 2);
+    idx = self._start(91, kid, 2);
     self._arg_node(key);
     self._arg_node(value);
     return idx;
@@ -988,7 +1047,7 @@ impl SyntaxArena.mk_k_w_pair(
 impl SyntaxArena.mk_lambda_expr(
     body: (int | list[int] | None) = None, signature: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(86, kid, 2);
+    idx = self._start(92, kid, 2);
     self._arg_poly(body);
     self._arg_node(signature);
     return idx;
@@ -997,7 +1056,7 @@ impl SyntaxArena.mk_lambda_expr(
 impl SyntaxArena.mk_list_compr(
     out_expr: int = NIL, compr: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(87, kid, 2);
+    idx = self._start(93, kid, 2);
     self._arg_node(out_expr);
     self._arg_list(compr);
     return idx;
@@ -1006,7 +1065,7 @@ impl SyntaxArena.mk_list_compr(
 impl SyntaxArena.mk_list_val(
     values: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(88, kid, 1);
+    idx = self._start(94, kid, 1);
     self._arg_list(values);
     return idx;
 }
@@ -1022,7 +1081,7 @@ impl SyntaxArena.mk_literal(
     pos_end: int = 0,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(89, kid, 8);
+    idx = self._start(95, kid, 8);
     self._arg_str(name);
     self._arg_str(value);
     self._arg_int(line);
@@ -1040,7 +1099,7 @@ impl SyntaxArena.mk_match_arch(
     kw_patterns: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(90, kid, 3);
+    idx = self._start(96, kid, 3);
     self._arg_node(name);
     self._arg_list(arg_patterns);
     self._arg_list(kw_patterns);
@@ -1050,7 +1109,7 @@ impl SyntaxArena.mk_match_arch(
 impl SyntaxArena.mk_match_as(
     name: int = NIL, pattern: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(91, kid, 2);
+    idx = self._start(97, kid, 2);
     self._arg_node(name);
     self._arg_node(pattern);
     return idx;
@@ -1062,7 +1121,7 @@ impl SyntaxArena.mk_match_case(
     body: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(92, kid, 3);
+    idx = self._start(98, kid, 3);
     self._arg_node(pattern);
     self._arg_node(guard);
     self._arg_list(body);
@@ -1072,7 +1131,7 @@ impl SyntaxArena.mk_match_case(
 impl SyntaxArena.mk_match_k_v_pair(
     key: int = NIL, value: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(93, kid, 2);
+    idx = self._start(99, kid, 2);
     self._arg_node(key);
     self._arg_node(value);
     return idx;
@@ -1081,7 +1140,7 @@ impl SyntaxArena.mk_match_k_v_pair(
 impl SyntaxArena.mk_match_mapping(
     values: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(94, kid, 1);
+    idx = self._start(100, kid, 1);
     self._arg_list(values);
     return idx;
 }
@@ -1089,26 +1148,26 @@ impl SyntaxArena.mk_match_mapping(
 impl SyntaxArena.mk_match_or(
     patterns: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(95, kid, 1);
+    idx = self._start(101, kid, 1);
     self._arg_list(patterns);
     return idx;
 }
 
 impl SyntaxArena.mk_match_pattern(kid: list[int] = []) -> int {
-    idx = self._start(96, kid, 0);
+    idx = self._start(102, kid, 0);
     return idx;
 }
 
 impl SyntaxArena.mk_match_sequence(
     values: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(97, kid, 1);
+    idx = self._start(103, kid, 1);
     self._arg_list(values);
     return idx;
 }
 
 impl SyntaxArena.mk_match_singleton(value: int = NIL, kid: list[int] = []) -> int {
-    idx = self._start(98, kid, 1);
+    idx = self._start(104, kid, 1);
     self._arg_node(value);
     return idx;
 }
@@ -1116,7 +1175,7 @@ impl SyntaxArena.mk_match_singleton(value: int = NIL, kid: list[int] = []) -> in
 impl SyntaxArena.mk_match_star(
     name: int = NIL, is_list: bool = False, kid: list[int] = []
 ) -> int {
-    idx = self._start(99, kid, 2);
+    idx = self._start(105, kid, 2);
     self._arg_node(name);
     self._arg_bool(is_list);
     return idx;
@@ -1125,20 +1184,20 @@ impl SyntaxArena.mk_match_star(
 impl SyntaxArena.mk_match_stmt(
     target: int = NIL, cases: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(100, kid, 2);
+    idx = self._start(106, kid, 2);
     self._arg_node(target);
     self._arg_list(cases);
     return idx;
 }
 
 impl SyntaxArena.mk_match_value(value: int = NIL, kid: list[int] = []) -> int {
-    idx = self._start(101, kid, 1);
+    idx = self._start(107, kid, 1);
     self._arg_node(value);
     return idx;
 }
 
 impl SyntaxArena.mk_match_wild(kid: list[int] = []) -> int {
-    idx = self._start(102, kid, 0);
+    idx = self._start(108, kid, 0);
     return idx;
 }
 
@@ -1153,7 +1212,7 @@ impl SyntaxArena.mk_module(
     decided_codespace: str = '',
     kid: list[int] = []
 ) -> int {
-    idx = self._start(103, kid, 8);
+    idx = self._start(109, kid, 8);
     self._arg_node(doc);
     self._arg_str(name);
     self._arg_list(body);
@@ -1173,7 +1232,7 @@ impl SyntaxArena.mk_module_code(
     body: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(104, kid, 5);
+    idx = self._start(110, kid, 5);
     self._arg_bool(is_enum_stmt);
     self._arg_node(doc);
     self._arg_bool(codespace_dual);
@@ -1185,7 +1244,7 @@ impl SyntaxArena.mk_module_code(
 impl SyntaxArena.mk_module_item(
     name: int = NIL, alias: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(105, kid, 2);
+    idx = self._start(111, kid, 2);
     self._arg_node(name);
     self._arg_node(alias);
     return idx;
@@ -1197,7 +1256,7 @@ impl SyntaxArena.mk_module_path(
     alias: int = NIL,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(106, kid, 3);
+    idx = self._start(112, kid, 3);
     self._arg_list(path);
     self._arg_int(level);
     self._arg_node(alias);
@@ -1207,7 +1266,7 @@ impl SyntaxArena.mk_module_path(
 impl SyntaxArena.mk_multi_string(
     strings: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(107, kid, 1);
+    idx = self._start(113, kid, 1);
     self._arg_list(strings);
     return idx;
 }
@@ -1225,7 +1284,7 @@ impl SyntaxArena.mk_name(
     is_kwesc: bool = False,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(108, kid, 10);
+    idx = self._start(114, kid, 10);
     self._arg_str(name);
     self._arg_str(value);
     self._arg_int(line);
@@ -1242,7 +1301,7 @@ impl SyntaxArena.mk_name(
 impl SyntaxArena.mk_name_atom(
     is_enum_stmt: bool = False, is_getattr_resolved: bool = False, kid: list[int] = []
 ) -> int {
-    idx = self._start(109, kid, 2);
+    idx = self._start(115, kid, 2);
     self._arg_bool(is_enum_stmt);
     self._arg_bool(is_getattr_resolved);
     return idx;
@@ -1259,7 +1318,7 @@ impl SyntaxArena.mk_null(
     pos_end: int = 0,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(110, kid, 8);
+    idx = self._start(116, kid, 8);
     self._arg_str(name);
     self._arg_str(value);
     self._arg_int(line);
@@ -1274,7 +1333,7 @@ impl SyntaxArena.mk_null(
 impl SyntaxArena.mk_open_stmt(
     target: int = NIL, body: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(111, kid, 2);
+    idx = self._start(117, kid, 2);
     self._arg_node(target);
     self._arg_list(body);
     return idx;
@@ -1287,7 +1346,7 @@ impl SyntaxArena.mk_param_var(
     value: int = NIL,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(112, kid, 4);
+    idx = self._start(118, kid, 4);
     self._arg_node(type_tag);
     self._arg_node(name);
     self._arg_node(unpack);
@@ -1298,7 +1357,7 @@ impl SyntaxArena.mk_param_var(
 impl SyntaxArena.mk_py_inline_code(
     is_enum_stmt: bool = False, doc: int = NIL, code: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(113, kid, 3);
+    idx = self._start(119, kid, 3);
     self._arg_bool(is_enum_stmt);
     self._arg_node(doc);
     self._arg_node(code);
@@ -1308,14 +1367,14 @@ impl SyntaxArena.mk_py_inline_code(
 impl SyntaxArena.mk_raise_stmt(
     cause: int = NIL, from_target: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(114, kid, 2);
+    idx = self._start(120, kid, 2);
     self._arg_node(cause);
     self._arg_node(from_target);
     return idx;
 }
 
 impl SyntaxArena.mk_report_stmt(expr: int = NIL, kid: list[int] = []) -> int {
-    idx = self._start(115, kid, 1);
+    idx = self._start(121, kid, 1);
     self._arg_node(expr);
     return idx;
 }
@@ -1323,7 +1382,7 @@ impl SyntaxArena.mk_report_stmt(expr: int = NIL, kid: list[int] = []) -> int {
 impl SyntaxArena.mk_return_stmt(
     expr: int = NIL, is_implicit: bool = False, kid: list[int] = []
 ) -> int {
-    idx = self._start(116, kid, 2);
+    idx = self._start(122, kid, 2);
     self._arg_node(expr);
     self._arg_bool(is_implicit);
     return idx;
@@ -1335,7 +1394,7 @@ impl SyntaxArena.mk_sem_def(
     value: int = NIL,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(117, kid, 3);
+    idx = self._start(123, kid, 3);
     self._arg_node(doc);
     self._arg_list(target);
     self._arg_node(value);
@@ -1353,7 +1412,7 @@ impl SyntaxArena.mk_semi(
     pos_end: int = 0,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(118, kid, 8);
+    idx = self._start(124, kid, 8);
     self._arg_str(name);
     self._arg_str(value);
     self._arg_int(line);
@@ -1368,7 +1427,7 @@ impl SyntaxArena.mk_semi(
 impl SyntaxArena.mk_set_compr(
     out_expr: int = NIL, compr: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(119, kid, 2);
+    idx = self._start(125, kid, 2);
     self._arg_node(out_expr);
     self._arg_list(compr);
     return idx;
@@ -1377,7 +1436,7 @@ impl SyntaxArena.mk_set_compr(
 impl SyntaxArena.mk_set_val(
     values: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(120, kid, 1);
+    idx = self._start(126, kid, 1);
     self._arg_list(values);
     return idx;
 }
@@ -1385,7 +1444,7 @@ impl SyntaxArena.mk_set_val(
 impl SyntaxArena.mk_slice(
     start: int = NIL, stop: int = NIL, step: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(121, kid, 3);
+    idx = self._start(127, kid, 3);
     self._arg_node(start);
     self._arg_node(stop);
     self._arg_node(step);
@@ -1395,7 +1454,7 @@ impl SyntaxArena.mk_slice(
 impl SyntaxArena.mk_special_var_ref(
     var: int = NIL, is_enum_stmt: bool = False, kid: list[int] = []
 ) -> int {
-    idx = self._start(122, kid, 2);
+    idx = self._start(128, kid, 2);
     self._arg_node(var);
     self._arg_bool(is_enum_stmt);
     return idx;
@@ -1412,7 +1471,7 @@ impl SyntaxArena.mk_string(
     pos_end: int = 0,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(123, kid, 8);
+    idx = self._start(129, kid, 8);
     self._arg_str(name);
     self._arg_str(value);
     self._arg_int(line);
@@ -1429,7 +1488,7 @@ impl SyntaxArena.mk_sub_tag(
     ownership: OwnershipKind = OwnershipKind.NONE,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(124, kid, 2);
+    idx = self._start(130, kid, 2);
     self._arg_poly(tag);
     self._arg_enum(ownership.value);
     return idx;
@@ -1438,7 +1497,7 @@ impl SyntaxArena.mk_sub_tag(
 impl SyntaxArena.mk_switch_case(
     pattern: int = NIL, body: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(125, kid, 2);
+    idx = self._start(131, kid, 2);
     self._arg_node(pattern);
     self._arg_list(body);
     return idx;
@@ -1447,7 +1506,7 @@ impl SyntaxArena.mk_switch_case(
 impl SyntaxArena.mk_switch_stmt(
     target: int = NIL, cases: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(126, kid, 2);
+    idx = self._start(132, kid, 2);
     self._arg_node(target);
     self._arg_list(cases);
     return idx;
@@ -1463,7 +1522,7 @@ impl SyntaxArena.mk_test(
     TEST_COUNT: int = 0,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(127, kid, 7);
+    idx = self._start(133, kid, 7);
     self._arg_node(doc);
     self._arg_bool(codespace_dual);
     self._arg_node(name);
@@ -1485,7 +1544,7 @@ impl SyntaxArena.mk_token(
     pos_end: int = 0,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(128, kid, 8);
+    idx = self._start(134, kid, 8);
     self._arg_str(name);
     self._arg_str(value);
     self._arg_int(line);
@@ -1505,7 +1564,7 @@ impl SyntaxArena.mk_try_stmt(
     finally_body: int = NIL,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(129, kid, 5);
+    idx = self._start(135, kid, 5);
     self._arg_node(else_body);
     self._arg_list(body);
     self._arg_list(excepts);
@@ -1517,7 +1576,7 @@ impl SyntaxArena.mk_try_stmt(
 impl SyntaxArena.mk_tuple_val(
     values: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(130, kid, 1);
+    idx = self._start(136, kid, 1);
     self._arg_list(values);
     return idx;
 }
@@ -1531,7 +1590,7 @@ impl SyntaxArena.mk_type_alias(
     value: int = NIL,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(131, kid, 6);
+    idx = self._start(137, kid, 6);
     self._arg_node(doc);
     self._arg_node(access);
     self._arg_bool(codespace_dual);
@@ -1544,7 +1603,7 @@ impl SyntaxArena.mk_type_alias(
 impl SyntaxArena.mk_type_param(
     name: int = NIL, bound: int = NIL, default_val: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(132, kid, 3);
+    idx = self._start(138, kid, 3);
     self._arg_node(name);
     self._arg_node(bound);
     self._arg_node(default_val);
@@ -1554,7 +1613,7 @@ impl SyntaxArena.mk_type_param(
 impl SyntaxArena.mk_typed_ctx_block(
     type_ctx: int = NIL, body: (list[int] | None) = None, kid: list[int] = []
 ) -> int {
-    idx = self._start(133, kid, 2);
+    idx = self._start(139, kid, 2);
     self._arg_node(type_ctx);
     self._arg_list(body);
     return idx;
@@ -1566,7 +1625,7 @@ impl SyntaxArena.mk_unary_expr(
     ownership: OwnershipKind = OwnershipKind.NONE,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(134, kid, 3);
+    idx = self._start(140, kid, 3);
     self._arg_node(operand);
     self._arg_node(op);
     self._arg_enum(ownership.value);
@@ -1574,19 +1633,19 @@ impl SyntaxArena.mk_unary_expr(
 }
 
 impl SyntaxArena.mk_uni_c_f_g_node(kid: list[int] = []) -> int {
-    idx = self._start(135, kid, 0);
+    idx = self._start(141, kid, 0);
     return idx;
 }
 
 impl SyntaxArena.mk_uni_scope_node(kid: list[int] = []) -> int {
-    idx = self._start(136, kid, 0);
+    idx = self._start(142, kid, 0);
     return idx;
 }
 
 impl SyntaxArena.mk_visit_stmt(
     else_body: int = NIL, insert_loc: int = NIL, target: int = NIL, kid: list[int] = []
 ) -> int {
-    idx = self._start(137, kid, 3);
+    idx = self._start(143, kid, 3);
     self._arg_node(else_body);
     self._arg_node(insert_loc);
     self._arg_node(target);
@@ -1594,7 +1653,7 @@ impl SyntaxArena.mk_visit_stmt(
 }
 
 impl SyntaxArena.mk_walker_stmt_only_node(kid: list[int] = []) -> int {
-    idx = self._start(138, kid, 0);
+    idx = self._start(144, kid, 0);
     return idx;
 }
 
@@ -1604,7 +1663,7 @@ impl SyntaxArena.mk_while_stmt(
     body: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(139, kid, 3);
+    idx = self._start(145, kid, 3);
     self._arg_node(else_body);
     self._arg_node(condition);
     self._arg_list(body);
@@ -1617,7 +1676,7 @@ impl SyntaxArena.mk_with_stmt(
     body: (list[int] | None) = None,
     kid: list[int] = []
 ) -> int {
-    idx = self._start(140, kid, 3);
+    idx = self._start(146, kid, 3);
     self._arg_bool(is_async);
     self._arg_list(exprs);
     self._arg_list(body);
@@ -1627,7 +1686,7 @@ impl SyntaxArena.mk_with_stmt(
 impl SyntaxArena.mk_yield_expr(
     expr: int = NIL, with_from: bool = False, kid: list[int] = []
 ) -> int {
-    idx = self._start(141, kid, 2);
+    idx = self._start(147, kid, 2);
     self._arg_node(expr);
     self._arg_bool(with_from);
     return idx;

@@ -403,6 +403,7 @@ class Tokens(StrEnum) {
         DOT_BKWD = 'DOT_BKWD';
         LBRACE = 'LBRACE';
         RBRACE = 'RBRACE';
+        DOLLAR_LBRACE = 'DOLLAR_LBRACE';
         SEMI = 'SEMI';
         EQ = 'EQ';
         ADD_EQ = 'ADD_EQ';
@@ -507,6 +508,7 @@ class Tokens(StrEnum) {
         KW_SUPER = 'KW_SUPER';
         KW_ROOT = 'KW_ROOT';
         KW_POST_INIT = 'KW_POST_INIT';
+        KW_COMPTIME = 'KW_COMPTIME';
         KW_IMPL = 'KW_IMPL';
         KW_SEM = 'KW_SEM';
         A_PIPE_FWD = 'A_PIPE_FWD';
@@ -664,6 +666,7 @@ glob TOKEN_MAP: dict[str, str] = {
          'KW_OVERRIDE': 'override',
          'KW_AWAITING': 'awaiting',
          'KW_POST_INIT': 'postinit',
+         'KW_COMPTIME': 'comptime',
          'KW_PRIV': 'priv',
          'KW_PROPS': 'props',
          'KW_PROT': 'protect',

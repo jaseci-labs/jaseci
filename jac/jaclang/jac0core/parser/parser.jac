@@ -369,6 +369,16 @@ obj Parser {
     def _apply_implicit_return(body: list[int]) -> list[int];
     def parse_ctrl_stmt -> int;
     def parse_statement -> int;
+    def parse_ct_element(mode: int) -> int;
+    def parse_ct_for(mode: int, ct_uni: int) -> int;
+    def parse_ct_if(mode: int, ct_uni: int) -> int;
+    def parse_ct_elif(mode: int) -> int;
+    def parse_ct_else(mode: int) -> int;
+    def parse_ct_body(mode: int, kid: list) -> list;
+    def parse_ct_block -> int;
+    def parse_ct_splice -> int;
+    def parse_ct_name -> int;
+    def ct_name_follows -> bool;
     def parse_if_stmt -> int;
     def parse_elif_stmt -> int;
     def parse_else_stmt -> int;

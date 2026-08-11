@@ -1742,6 +1742,43 @@ impl ExprStmt.postinit -> None {
 }
 
 
+impl CtBlock.postinit -> None {
+    UniNode.postinit(self);
+}
+
+
+impl CtIf.postinit -> None {
+    self.body = `list(self.body);
+    UniNode.postinit(self);
+    CodeBlockStmt.postinit(self);
+}
+
+
+impl CtElse.postinit -> None {
+    self.body = `list(self.body);
+    UniNode.postinit(self);
+    CodeBlockStmt.postinit(self);
+}
+
+
+impl CtFor.postinit -> None {
+    self.body = `list(self.body);
+    UniNode.postinit(self);
+    CodeBlockStmt.postinit(self);
+}
+
+
+impl CtSplice.postinit -> None {
+    UniNode.postinit(self);
+}
+
+
+impl CtName.postinit -> None {
+    self.parts = `list(self.parts);
+    UniNode.postinit(self);
+}
+
+
 impl TryStmt.postinit -> None {
     self.body = `list(self.body);
     self.excepts = `list(self.excepts);
