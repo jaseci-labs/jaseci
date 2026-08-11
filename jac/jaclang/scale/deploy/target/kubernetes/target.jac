@@ -928,6 +928,103 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return ctx;
     }
 
+    def _resolve_service_triggers(svc_name: str, cfg: dict[str, any]) -> list[Trigger] {
+        is_gateway = svc_name == GATEWAY_NAME;
+        has_memory_request = bool(cfg.get("has_memory_request", True));
+        effective_extra = self.k8s_config.extra_triggers if is_gateway else [];
+        triggers: list[Trigger] = [];
+        if not cfg.get("triggers", []) and not effective_extra {
+            triggers = [
+                Trigger(
+                    type="cpu",
+                    metadata={
+                        "averageUtilization": str(
+                            cfg.get("cpu_target", DEFAULT_CPU_UTILIZATION_TARGET)
+                        )
+                    }
+                )
+            ];
+            if has_memory_request {
+                triggers.append(
+                    Trigger(
+                        type="memory",
+                        metadata={
+                            "averageUtilization": str(
+                                cfg.get(
+                                    "memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET
+                                )
+                            )
+                        }
+                    )
+                );
+            }
+        }
+        for raw in cfg.get("triggers", []) + effective_extra {
+            t = Trigger(
+                type=str(raw.get("type", "")),
+                metadata=dict(raw.get("metadata", {})),
+                name=raw.get("name")
+            );
+            if t.type == "memory" and not has_memory_request {
+                if self.logger {
+                    self.logger.warn(
+                        f"Skipping 'memory' trigger for '{svc_name}': "
+                        "memory_request resolves empty (explicitly set to "
+                        "\"\"); HPA cannot compute memory utilization "
+                        "without a request baseline"
+                    );
+                }
+                continue;
+            }
+            raw_auth = raw.get("auth");
+            if raw_auth {
+                t.auth = TriggerAuth(secret_refs=dict(raw_auth.get("secret_refs", {})));
+            }
+            triggers.append(t);
+        }
+        return triggers;
+    }
+
+    def _autoscaler_spec(
+        svc_name: str, cfg: dict[str, any], autoscaler: any, namespace: str
+    ) -> AutoscalerSpec {
+        k8s_name = k8s_safe_name(svc_name);
+        return AutoscalerSpec(
+            scale_target_name=f"{k8s_name}-deployment",
+            autoscaler_name=autoscaler.resource_name_for(k8s_name),
+            app_name=k8s_name,
+            namespace=namespace,
+            min_replicas=int(cfg.get("min", 1)),
+            max_replicas=int(cfg.get("max", 3)),
+            idle_replicas=self.k8s_config.idle_replicas,
+            polling_interval=self.k8s_config.autoscaler_polling_interval,
+            cooldown_period=self.k8s_config.autoscaler_cooldown,
+            initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
+            scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
+            scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
+            triggers=self._resolve_service_triggers(svc_name, cfg),
+            behavior_overlay=cfg.get("behavior", {})
+        );
+    }
+
+    def render_autoscaler_manifests(bundle: dict[str, any]) -> list[dict[str, any]] {
+        out: list[dict[str, any]] = [];
+        for (svc_name, cfg_raw) in bundle.get("autoscalers", {}).items() {
+            cfg = dict(cfg_raw or {});
+            autoscaler = AutoscalerFactory.create(
+                self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), None
+            );
+            built = autoscaler._build_manifests(
+                self._autoscaler_spec(
+                    svc_name, cfg, autoscaler, self.k8s_config.namespace
+                )
+            );
+
+            out.append(built["body"] if "body" in built else built);
+        }
+        return out;
+    }
+
     def apply_manifests(bundle: dict[str, any]) {
         self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
@@ -1043,90 +1140,19 @@ obj KubernetesTarget(KubernetesTargetBase) {
         self.reap_superseded_deployments(apps_v1, namespace, bundle);
 
         for svc_name in bundle.get("autoscalers", {}).keys() {
-            k8s_name = k8s_safe_name(svc_name);
             cfg = dict(bundle.get("autoscalers", {}).get(svc_name, {}));
             autoscaler = AutoscalerFactory.create(
                 self.k8s_config.autoscaler_engine,
                 self.k8s_config.to_dict(),
                 self.logger
             );
-            triggers = [];
-
-            is_gateway = svc_name == GATEWAY_NAME;
-            effective_extra = self.k8s_config.extra_triggers if is_gateway else [];
-            if not cfg.get("triggers", []) and not effective_extra {
-                triggers = [
-                    Trigger(
-                        type="cpu",
-                        metadata={
-                            "averageUtilization": str(
-                                cfg.get("cpu_target", DEFAULT_CPU_UTILIZATION_TARGET)
-                            )
-                        }
-                    ),
-                    Trigger(
-                        type="memory",
-                        metadata={
-                            "averageUtilization": str(
-                                cfg.get(
-                                    "memory_target", DEFAULT_MEMORY_UTILIZATION_TARGET
-                                )
-                            )
-                        }
-                    )
-                ];
-            }
-            for raw in cfg.get("triggers", []) {
-                t = Trigger(
-                    type=str(raw.get("type", "")),
-                    metadata=dict(raw.get("metadata", {})),
-                    name=raw.get("name")
-                );
-                raw_auth = raw.get("auth");
-                if raw_auth {
-                    t.auth = TriggerAuth(
-                        secret_refs=dict(raw_auth.get("secret_refs", {}))
-                    );
-                }
-                triggers.append(t);
-            }
-            for raw in effective_extra {
-                t = Trigger(
-                    type=str(raw.get("type", "")),
-                    metadata=dict(raw.get("metadata", {})),
-                    name=raw.get("name")
-                );
-                raw_auth = raw.get("auth");
-                if raw_auth {
-                    t.auth = TriggerAuth(
-                        secret_refs=dict(raw_auth.get("secret_refs", {}))
-                    );
-                }
-                triggers.append(t);
-            }
-            autoscaler_name = autoscaler.resource_name_for(k8s_name);
-            autoscaler_applied = autoscaler.apply(
-                AutoscalerSpec(
-                    scale_target_name=f"{k8s_name}-deployment",
-                    autoscaler_name=autoscaler_name,
-                    app_name=k8s_name,
-                    namespace=namespace,
-                    min_replicas=int(cfg.get("min", 1)),
-                    max_replicas=int(cfg.get("max", 3)),
-                    idle_replicas=self.k8s_config.idle_replicas,
-                    polling_interval=self.k8s_config.autoscaler_polling_interval,
-                    cooldown_period=self.k8s_config.autoscaler_cooldown,
-                    initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
-                    scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
-                    scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
-                    triggers=triggers,
-                    behavior_overlay=cfg.get("behavior", {})
-                )
-            );
+            spec = self._autoscaler_spec(svc_name, cfg, autoscaler, namespace);
+            autoscaler_applied = autoscaler.apply(spec);
 
             if self.logger and autoscaler_applied {
                 self.logger.info(
-                    f"Applied autoscaler for '{svc_name}'", {"name": autoscaler_name}
+                    f"Applied autoscaler for '{svc_name}'",
+                    {"name": spec.autoscaler_name}
                 );
             }
         }

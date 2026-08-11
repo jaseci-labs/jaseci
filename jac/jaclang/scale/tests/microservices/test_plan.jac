@@ -139,6 +139,52 @@ test "--show-yaml gate: YAML hidden by default, dumped on opt-in" {
 }
 
 
+test "--show-yaml dumps rendered autoscaler manifests alongside the rest" {
+    bundle: dict[str, Any] = {
+        "deployments": {"api": _dep()},
+        "autoscaler_manifests": [
+            {
+                "apiVersion": "autoscaling/v2",
+                "kind": "HorizontalPodAutoscaler",
+                "metadata": {"name": "api-hpa"},
+                "spec": {"minReplicas": 2}
+            }
+        ]
+    };
+    (on, _) = _run_plan(bundle, show_yaml=True);
+    assert "kind: HorizontalPodAutoscaler" in on;
+    assert "api-hpa" in on;
+}
+
+
+test "every manifest-bearing bundle key reaches --show-yaml" {
+    # The summary counts these resources; the reviewed YAML must carry them
+    # all. Excluded by design: pod_specs and injector (not manifests) and
+    # autoscalers (configs, rendered into autoscaler_manifests).
+    bundle: dict[str, Any] = {
+        "user_secret": {"metadata": {"name": "sentinel-user-secret"}},
+        "pvcs": {"a": {"metadata": {"name": "sentinel-pvc"}}},
+        "deployments": {"a": {"metadata": {"name": "sentinel-deployment"}}},
+        "services": {"a": {"metadata": {"name": "sentinel-service"}}},
+        "pdbs": {"a": {"metadata": {"name": "sentinel-pdb"}}},
+        "autoscaler_manifests": [{"metadata": {"name": "sentinel-autoscaler"}}],
+        "ingress": {"metadata": {"name": "sentinel-ingress"}}
+    };
+    (on, _) = _run_plan(bundle, show_yaml=True);
+    for sentinel in [
+        "sentinel-user-secret",
+        "sentinel-pvc",
+        "sentinel-deployment",
+        "sentinel-service",
+        "sentinel-pdb",
+        "sentinel-autoscaler",
+        "sentinel-ingress"
+    ] {
+        assert sentinel in on , f"{sentinel} missing from --show-yaml output";
+    }
+}
+
+
 test "render smoke: realistic bundle prints every section" {
     bundle: dict[str, Any] = {
         "deployments": {

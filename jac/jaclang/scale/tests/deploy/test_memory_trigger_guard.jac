@@ -96,5 +96,5 @@ test "malformed hpa.behavior warns and falls back to the empty fragment" {
     cfg = b._get_autoscaler_config("billing_ops");
     assert cfg["behavior"] == {};
     logger.warning.assert_called_once();
-    assert "billing_ops" in logger.warning.call_args[0][0];
+    assert "billing_ops" in str(logger.warning.call_args[0][0]);
 }
