@@ -30,7 +30,7 @@ obj SyntaxArena {
         strtab: list[str] = [],
         posts: list[int] = [],
         _intern: dict[str, int] = {},
-        root_id: NodeId = 0;
+        root_id: NodeId = NodeId(0);
 
     def postinit -> None;
 
