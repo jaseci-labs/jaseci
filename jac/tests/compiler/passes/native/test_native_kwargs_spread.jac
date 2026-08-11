@@ -159,3 +159,41 @@ test "a spread into a sink no longer trips the capability gate" {
     );
     assert not prog.errors_had , fmt_errors(prog);
 }
+
+# ─────────────────────────────────────────────────────────────────────
+# Congruence with the Python backend on ordering and duplicates
+# ─────────────────────────────────────────────────────────────────────
+
+# CPython evaluates call arguments strictly left to right, spreads included.
+# The first cut of this lowering emitted every literal keyword and only then
+# the spreads, so a spread appearing first in source ran second. `_SEQ`
+# records the order each operand fired as decimal digits.
+test "a spread and a literal keyword evaluate in source order" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    spread_first = get_func(eng, "order_spread_then_literal", ctypes.c_int64);
+    assert spread_first() == 12 , (
+        f"**spread should evaluate before the later literal, got {spread_first()}"
+    );
+    lit_first = get_func(eng, "order_literal_then_spread", ctypes.c_int64);
+    assert lit_first() == 12 , (
+        f"literal should evaluate before the later **spread, got {lit_first()}"
+    );
+}
+
+# CPython raises `TypeError: got multiple values for keyword argument` when a
+# spread collides with an already-bound key. The keys of a spread are only
+# known at runtime, so the check is a guard emitted per inserted entry rather
+# than a compile-time diagnostic. Asserted on the emitted IR: executing the
+# raise through the JIT would longjmp out of the ctypes frame.
+test "a spread emits a duplicate-key guard for every entry it inserts" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=str(os.path.join(FIXTURES, "kwargs_spread.jac")),
+        options=native_force_opts()
+    );
+    assert not prog.errors_had , str([str(e) for e in prog.errors_had]);
+    llvm_text = str(ir.gen.llvm_ir);
+    assert "kwsp.dup" in llvm_text , (
+        "expected a duplicate-key guard on the spread merge path"
+    );
+}

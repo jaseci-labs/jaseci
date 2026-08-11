@@ -46,3 +46,27 @@ def call_spread_empty(n: int) -> int {
     d: dict[str, int] = {};
     return sink(n, **d);
 }
+
+glob _SEQ: int = 0;
+
+def _tick(n: int) -> int {
+    _SEQ = _SEQ * 10 + n;
+    return n;
+}
+
+def _mkd(tag: int) -> dict[str, int] {
+    _tick(tag);
+    return {"p": 1};
+}
+
+def order_spread_then_literal -> int {
+    _SEQ = 0;
+    sink(0, **_mkd(1), q=_tick(2));
+    return _SEQ;
+}
+
+def order_literal_then_spread -> int {
+    _SEQ = 0;
+    sink(0, q=_tick(1), **_mkd(2));
+    return _SEQ;
+}

@@ -42,14 +42,17 @@ impl NaIRGenPass._codegen_bound_args(
     positional: list = [];
     kw_map: dict = {};
     kw_spreads: list = [];
+    kw_order: list = [];
     _unpack_names: list = [];
     for param in raw {
         if isinstance(param, uni.KWPair) {
             key = param.key.sym_name if param.key is not None else None;
             if key is not None {
                 kw_map[key] = param.value;
+                kw_order.append(("lit", key));
             } else {
                 kw_spreads.append(param.value);
+                kw_order.append(("spread", param.value));
             }
         } elif (
             isinstance(param, uni.UnaryExpr)
@@ -58,6 +61,7 @@ impl NaIRGenPass._codegen_bound_args(
         ) {
             if param.op.name == Tok.STAR_POW {
                 kw_spreads.append(param.operand);
+                kw_order.append(("spread", param.operand));
                 continue;
             }
             _tv = self._codegen_expr(param.operand);
@@ -131,6 +135,7 @@ impl NaIRGenPass._codegen_bound_args(
             help_text="A `**` spread carries keys known only at runtime, so it can only fill a callee's `**kwargs` sink, never declared named parameters. Give the callee a `**kwargs` parameter, or pass the arguments explicitly."
         );
         kw_spreads = [];
+        kw_order = [];
     }
     args: list = [];
 
@@ -373,7 +378,7 @@ impl NaIRGenPass._codegen_bound_args(
         }
         if callee_sig.kwargs is not None {
             _kw_t = func.args[_slot].type if _slot < len(func.args) else None;
-            _dv = self._codegen_kwargs_dict(nd, kw_map, _kw_t, kw_spreads);
+            _dv = self._codegen_kwargs_dict(nd, kw_map, _kw_t, kw_order);
             if _dv is not None {
                 args.append(_dv);
             } elif _kw_t is not None {
@@ -542,7 +547,7 @@ impl NaIRGenPass._codegen_kwargs_dict(
     nd: uni.FuncCall,
     leftover: dict,
     expected: (ir.Type | None),
-    spreads: (list | None) = None
+    order: (list | None) = None
 ) -> (ir.Value | None) {
     dict_key: (str | None) = None;
     if expected is not None and isinstance(expected, ir.PointerType) {
@@ -573,26 +578,44 @@ impl NaIRGenPass._codegen_kwargs_dict(
     dv = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_loc, name="kwargs.new"
     );
-    for (kname, vexpr) in leftover.items() {
-        v = self._codegen_expr(vexpr);
-        if v is None {
-            self.emit(
-                E5092,
-                node_override=nd,
-                kind="expression",
-                name=f"keyword argument '{kname}'"
+    _seen_spread = False;
+    for _entry in (order or []) {
+        (_kind, _payload) = _entry;
+        if _kind == "lit" {
+            kname: str = _payload;
+            if kname not in leftover {
+                continue;
+            }
+            v = self._codegen_expr(leftover[kname]);
+            if v is None {
+                self.emit(
+                    E5092,
+                    node_override=nd,
+                    kind="expression",
+                    name=f"keyword argument '{kname}'"
+                );
+                continue;
+            }
+            k = self._make_global_string(kname, name_prefix=".kwname");
+            if _seen_spread {
+                self._emit_runtime_raise(
+                    self.builder.call(helpers["contains"], [dv, k], name="kwargs.dup"),
+                    "TypeError",
+                    f"got multiple values for keyword argument '{kname}'"
+                );
+            }
+            _orig = v;
+            v2 = self._coerce_type(v, helpers["val_type"]);
+            self._rc_call_with_ctx(
+                helpers["set"], [dv, k, v2], op="dict_init", loc=_loc
             );
+            if isinstance(_orig.type, ir.PointerType) and self._is_owned(_orig) {
+                self._emit_rc_release_simple(_orig, op="dict_init", loc=_loc);
+            }
             continue;
         }
-        k = self._make_global_string(kname, name_prefix=".kwname");
-        _orig = v;
-        v2 = self._coerce_type(v, helpers["val_type"]);
-        self._rc_call_with_ctx(helpers["set"], [dv, k, v2], op="dict_init", loc=_loc);
-        if isinstance(_orig.type, ir.PointerType) and self._is_owned(_orig) {
-            self._emit_rc_release_simple(_orig, op="dict_init", loc=_loc);
-        }
-    }
-    for sp_expr in (spreads or []) {
+        _seen_spread = True;
+        sp_expr = _payload;
         sv = self._codegen_expr(sp_expr);
         if sv is None {
             self.emit(
@@ -649,6 +672,11 @@ impl NaIRGenPass._merge_dict_into(
     self.builder.position_at_end(body_bb);
     k = self.builder.call(helpers["get_key"], [src, idx], name="kwsp.k");
     v = self.builder.call(helpers["get_val"], [src, idx], name="kwsp.v");
+    self._emit_runtime_raise(
+        self.builder.call(helpers["contains"], [dst, k], name="kwsp.dup"),
+        "TypeError",
+        "got multiple values for a keyword argument"
+    );
     self._rc_call_with_ctx(
         helpers["set"],
         [

@@ -544,7 +544,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.FuncCall,
         leftover: dict,
         expected: (ir.Type | None),
-        spreads: (list | None) = None
+        order: (list | None) = None
     ) -> (ir.Value | None);
 
     def _merge_dict_into(
