@@ -12,7 +12,11 @@ import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator, es_to_js }
+import from jaclang.compiler.passes.ecmascript.es_unparse {
+    JSCodeGenerator,
+    es_to_js,
+    template_element_raw
+}
 import from jaclang.compiler.passes.ecmascript.primitives_es {
     ESDictEmitter,
     ESEmitCtx
@@ -717,6 +721,54 @@ test "fstring edge cases" {
         os.unlink(temp_path);
     }
 }
+
+"""Each case is (f-string as written in Jac, the template literal it must emit)."""
+glob FSTRING_LITERAL_SEGMENTS = [
+         ("f'x \"{a}\" y'", "`x \"${a}\" y`"),
+         ("f\"a {a}'c'\"", "`a ${a}'c'`"),
+         ("f'\"{a}\"'", "`\"${a}\"`"),
+         ("f\"\"\"tri \"{a}\" end\"\"\"", "`tri \"${a}\" end`"),
+         ("f\"{a} `tick`\"", "`${a} \\`tick\\``"),
+         ("f\"{a} ${a}\"", "`${a} $${a}`"),
+         ("f\"C:\\\\dir {a}\"", "`C:\\\\dir ${a}`"),
+         ("f\"a\\nb {a}\"", "`a\\nb ${a}`"),
+         ("rf\"\\d+ {a}\"", "`\\\\d+ ${a}`")
+     ];
+
+
+test "fstring literal segments keep quotes and escape template syntax" {
+    lines = ["\"\"\"Literal segments around interpolations (#8071).\"\"\""];
+    for (idx, (expr, _)) in enumerate(FSTRING_LITERAL_SEGMENTS) {
+        lines.append(
+            "def case" + str(idx) + "(a: str) -> str { return " + expr + "; }"
+        );
+    }
+    temp_path = write_temp_jac("\n".join(lines) + "\n");
+
+    try {
+        js_code = compile_fixture_to_js(temp_path);
+
+        for (expr, expected) in FSTRING_LITERAL_SEGMENTS {
+            assert expected in js_code , (
+                f"{expr} should emit {expected}, got:\n{js_code}"
+            );
+        }
+        assert_balanced_syntax(js_code, temp_path);
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+
+test "template element raw escapes only what is syntax between backticks" {
+    assert template_element_raw("plain text") == "plain text";
+    assert template_element_raw("a `b` c") == "a \\`b\\` c";
+    assert template_element_raw("cost ${x}") == "cost \\${x}";
+    assert template_element_raw("trailing $") == "trailing $";
+    assert template_element_raw("C:\\dir") == "C:\\\\dir";
+    assert template_element_raw("a\r\nb\tc") == "a\\r\\nb\\tc";
+}
+
 
 test "fstring no concatenation operators" {
     jac_code = "\"\"\"Test that f-strings use template literals, not concatenation.\"\"\"\n\ndef format_message(user: str, count: int) -> str {\n    return f\"User {user} has {count} items\";\n}\n";
@@ -2660,6 +2712,72 @@ test "builtin type used as a value lowers to a callable (#7454)" {
     );
 
     assert_balanced_syntax(js_code, "builtin_type_as_value.jac");
+}
+
+test "imported JS/TS class constructs with new (#8017)" {
+    # A `.d.ts`-declared class binds as a plain `variable` symbol, so
+    # classify_call reports "function" and the pre-fix backend emitted
+    # `Greeter(...)` — which throws `TypeError: Class constructor Greeter
+    # cannot be invoked without 'new'` at runtime. The backend must consult
+    # the resolved type; `plain` guards declared functions staying plain calls.
+    # The foreign lib is written at test time (the repo keeps no .js/.d.ts
+    # fixture sources), so the fixture compiles from a temp copy placed next
+    # to the generated lib. The .js implementation must exist alongside the
+    # .d.ts: sibling declaration lookup starts from the resolved .js module.
+    comp_dir = tempfile.mkdtemp(prefix="jac_ts_class_new_");
+    Path(os.path.join(comp_dir, "jac.toml")).write_text(
+        '[project]\nname = "ts-class-new"\n\n[placement.pins]\n"*" = "client"\n'
+    );
+    Path(os.path.join(comp_dir, "ts_class_new_lib.d.ts")).write_text(
+        "export declare class Greeter {\n"
+        "  constructor(name: string);\n"
+        "  hello(): string;\n"
+        "}\n"
+        "export declare function plain(x: string): string;\n"
+    );
+    Path(os.path.join(comp_dir, "ts_class_new_lib.js")).write_text(
+        "export class Greeter {\n"
+        "  constructor(name) { this.name = name; }\n"
+        "  hello() { return \"hi \" + this.name; }\n"
+        "}\n"
+        "export function plain(x) { return x; }\n"
+    );
+    fixture_src = Path(os.path.join(FIXTURES, "ts_class_new.jac")).read_text();
+    jac_path = os.path.join(comp_dir, "ts_class_new.jac");
+    Path(jac_path).write_text(fixture_src);
+    js_code = compile_fixture_to_js(jac_path);
+
+    assert "new Local(" in js_code , (
+        "Jac obj construction must keep emitting new:\n" + js_code
+    );
+    assert "new Greeter(" in js_code , (
+        "imported TS class construction must emit new:\n" + js_code
+    );
+    assert "new plain(" not in js_code , (
+        "imported TS function must stay a plain call:\n" + js_code
+    );
+
+    # Without a module marker Node treats sibling .js files as CommonJS and
+    # the generated named imports fail to resolve.
+    Path(os.path.join(comp_dir, "package.json")).write_text('{"type": "module"}');
+    Path(os.path.join(comp_dir, "main.mjs")).write_text(
+        js_code + "\nconsole.log(go());\n"
+    );
+    result = subprocess.run(
+        ["node", os.path.join(comp_dir, "main.mjs")],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "constructing an imported TS class crashed in Node:\n"
+        f"stderr={result.stderr!r}\njs:\n{js_code}"
+    );
+    assert result.stdout.strip() == "hi worldxa" , (
+        f"unexpected runtime output: {result.stdout!r}\njs:\n{js_code}"
+    );
+
+    assert_balanced_syntax(js_code, "ts_class_new.jac");
 }
 
 test "builtin functions lower to runtime helpers without type-check (#7480)" {

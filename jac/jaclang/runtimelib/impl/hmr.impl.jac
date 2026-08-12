@@ -329,13 +329,10 @@ impl HotReloader._reload_server_module(file_path: str) -> None {
     }
 
     try {
-        if file_path in Jac.program.mod.hub {
-            del Jac.program.mod.hub[file_path];
-        }
-
         resolved_path = str(Path(file_path).resolve());
-        if resolved_path in Jac.program.mod.hub {
-            del Jac.program.mod.hub[resolved_path];
+        for key in (file_path, resolved_path) {
+            Jac.program.invalidate_module(key);
+            Jac.program.drop_module_alerts(key);
         }
     } except Exception as e {
         console.warning(f"Could not clear module hub: {e}");
@@ -383,11 +380,9 @@ impl HotReloader._recompile_client_unified(file_path: str) -> None {
         program = Jac.program;
         if program is not None {
             for key in {file_path, str(source_path)} {
-                if key in program.mod.hub {
-                    del program.mod.hub[key];
-                }
+                program.invalidate_module(key);
+                program.drop_module_alerts(key);
             }
-            program.errors_had.clear();
         }
         jcc = self.client_compiler.jac_client_compiler;
         jcc.compile_dependencies_recursively(
@@ -501,26 +496,24 @@ impl HotReloader._recompile_client_code(
             return;
         }
 
-        Jac.program.errors_had.clear();
+        Jac.program.invalidate_module(source_key);
+        Jac.program.drop_module_alerts(source_key);
 
-        if source_key in Jac.program.mod.hub {
-            del Jac.program.mod.hub[source_key];
-        }
-
+        mark = len(Jac.program.errors_had);
         mod = Jac.program.compile(source_key);
 
-        if Jac.program.errors_had {
+        new_errors = Jac.program.errors_had[mark:];
+        if new_errors {
             if force {
                 base_prefix = str(base_dir) + '/';
                 errors = '\n'.join(
-                    str(err).replace(base_prefix, '') for err in Jac.program.errors_had
+                    str(err).replace(base_prefix, '') for err in new_errors
                 );
                 console.error(f"Compile error in {file_path}:\n{errors}");
                 self.record_error(file_path, errors);
             } else {
                 console.warning(f"Errors compiling dependency {file_path}, skipping");
             }
-            Jac.program.errors_had.clear();
             return;
         }
 

@@ -161,6 +161,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         vtable_method_indices: dict[str, dict] = {},
         vtable_globals: dict[str, ir.GlobalVariable] = {},
         _non_overridden_methods: dict[str, set[str]] = {},
+        _struct_source_mod: dict[str, str] = {},
         _native_skipped_methods: set[str] = set(),
         _class_name_consts: dict[str, ir.Value] = {},
         osp_type_tag_field: dict[str, int] = {},
@@ -368,6 +369,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _native_module_call_target(nd: uni.FuncCall) -> (tuple | None);
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
+    def _empty_ctor_args_of(nd: uni.FuncCall) -> list;
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
 
     has lambda_captures: dict[str, list[tuple]] = {},
@@ -477,6 +479,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.FuncCall, operand: ir.Value, names: list[str]
     ) -> (ir.Value | None);
 
+    def _emit_isinstance_core(
+        nd: uni.FuncCall, operand: ir.Value
+    ) -> (ir.Value | None);
+
     def _emit_isinstance_mixed(
         nd: uni.FuncCall, operand: ir.Value, tags: list[int], names: list[str]
     ) -> (ir.Value | None);
@@ -485,6 +491,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_fmt_string(fmt: str) -> ir.GlobalVariable;
     def _get_snprintf_fmt(fmt: str) -> ir.GlobalVariable;
     def _resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type;
+    def _resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type;
     def _resolve_field_type(var: uni.UniNode) -> ir.Type;
     def _foreign_optional_field(tb: any) -> bool;
     def _type_base_is_unknown(tb: any) -> bool;
@@ -534,8 +541,30 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _codegen_kwargs_dict(
-        nd: uni.FuncCall, leftover: dict, expected: (ir.Type | None)
+        nd: uni.FuncCall,
+        leftover: dict,
+        expected: (ir.Type | None),
+        order: (list | None) = None,
+        bind_records: (list | None) = None
     ) -> (ir.Value | None);
+
+    def _merge_dict_into(
+        dst: ir.Value,
+        src: ir.Value,
+        helpers: dict,
+        dict_key: str,
+        loc: str,
+        skip_keys: (ir.Value | None) = None
+    ) -> bool;
+
+    def _prep_kwbind_record(
+        name: str,
+        slot_type: ir.Type,
+        args_idx: int,
+        stored: ir.Value,
+        bound_kind: (str | None),
+        required_kind: (str | None)
+    ) -> dict;
 
     def _default_arg_fallback(t: ir.Type) -> ir.Value;
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
@@ -593,10 +622,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> ir.Value;
 
     def _codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None;
+    def _codegen_enum_layout(enum_name: str, owner: (uni.Module | None)) -> None;
     def _build_enum_string_table(
         enum_name: str, entries: list, with_values: bool = True
     ) -> None;
 
+    def _wrap_enum_str(raw: (ir.Value | None)) -> (ir.Value | None);
     def _codegen_enum_value_lookup(
         enum_name: str, ordinal_val: ir.Value, use_name: bool = False
     ) -> (ir.Value | None);
@@ -738,7 +769,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
     def _codegen_method(arch_name: str, method: uni.Ability) -> None;
     def _demote_method_if_unlowerable(
-        full_name: str, func: ir.Function, err_mark: int, local_mark: int
+        full_name: str,
+        func: ir.Function,
+        err_mark: int,
+        local_mark: int,
+        keep_func: bool = False
     ) -> bool;
 
     def _codegen_no_sig_method(arch_name: str, method: uni.Ability) -> None;
@@ -1101,6 +1136,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> None;
 
     def _register_globals(module: uni.Module) -> None;
+    def _quiet_glob_type(type_expr: (uni.UniNode | None)) -> (ir.Type | None);
+    def _glob_native_use_exists(target: uni.UniNode) -> bool;
     def _register_entry_globals(module: uni.Module) -> None;
     def _codegen_global_vars(nd: uni.GlobalVars) -> None;
     def _infer_global_init_type(value_node: uni.UniNode) -> (ir.Type | None);
@@ -1138,6 +1175,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
         layout: dict
     ) -> dict;
 
+    def _static_str_hash(key: str) -> int;
+    def _static_key_hash_of(key_node: (uni.UniNode | None)) -> (int | None);
+    def _static_key_op(
+        helpers: dict, op: str, key_node: (uni.UniNode | None)
+    ) -> tuple;
+
     def _emit_order_scan_incr_block(
         b: ir.IRBuilder,
         idx_slot: ir.Value,
@@ -1151,7 +1194,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Value;
     def _codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None);
     def _codegen_dict_access(
-        target_val: ir.Value, key_val: ir.Value, key_type_name: str, val_type_name: str
+        target_val: ir.Value,
+        key_val: ir.Value,
+        key_type_name: str,
+        val_type_name: str,
+        key_node: (uni.UniNode | None) = None
     ) -> (ir.Value | None);
 
     def _codegen_dict_set(
@@ -1159,7 +1206,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         key_val: ir.Value,
         value: ir.Value,
         key_type_name: str,
-        val_type_name: str
+        val_type_name: str,
+        key_node: (uni.UniNode | None) = None
     ) -> None;
 
     def _infer_dict_type(val: ir.Value) -> (tuple | None);

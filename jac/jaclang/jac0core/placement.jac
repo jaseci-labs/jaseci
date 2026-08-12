@@ -6,9 +6,9 @@ import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
 
 glob PLACEMENT_SCHEMA: int = 1,
      PLACEMENT_SV_SIGNAL_NODES: tuple = (
-         uni.TypedCtxBlock,
-         uni.PyInlineCode,
-         uni.JsxElement
+         ("TypedCtxBlock", uni.TypedCtxBlock),
+         ("PyInlineCode", uni.PyInlineCode),
+         ("JsxElement", uni.JsxElement)
      ),
      PLACEMENT_NATIVE_REJECT_NODES: tuple = ();
 
@@ -517,15 +517,15 @@ def scan_native_blockers(
         resolve_native_module
     }
     deps: list[str] = [];
-    for typ in PLACEMENT_SV_SIGNAL_NODES {
+    for (nd_name, typ) in PLACEMENT_SV_SIGNAL_NODES {
         if module.get_all_sub_nodes(typ) {
-            return (f"contains {typ.__name__}", deps);
+            return (f"contains {nd_name}", deps);
         }
     }
 
-    for typ in PLACEMENT_NATIVE_REJECT_NODES {
+    for (nd_name, typ) in PLACEMENT_NATIVE_REJECT_NODES {
         if module.get_all_sub_nodes(typ) {
-            return (f"native-unsupported {typ.__name__}", deps);
+            return (f"native-unsupported {nd_name}", deps);
         }
     }
     for svr in module.get_all_sub_nodes(uni.SpecialVarRef) {
@@ -568,6 +568,13 @@ def scan_native_blockers(
     }
     for imp in module.get_all_sub_nodes(uni.Import) {
         if imp.has_clib_decls {
+            continue;
+        }
+        if imp.is_typed {
+            continue;
+        }
+        if imp.find_parent_of_type(uni.Ability) is not None
+            or imp.find_parent_of_type(uni.ImplDef) is not None {
             continue;
         }
         if imp.is_virtual_jac or imp.has_string_path {

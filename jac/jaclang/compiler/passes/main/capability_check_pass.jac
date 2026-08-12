@@ -14,6 +14,8 @@ def name_in_type_position(name_nd: uni.UniNode) -> bool;
 
 def static_fstring_spec_text(spec: uni.UniNode) -> (str | None);
 
+def call_has_kwargs_sink(call: uni.FuncCall) -> bool;
+
 def native_capability_violations(mod: uni.Module) -> list;
 
 obj PortabilityWarnPass(Transform[uni.Module, uni.Module]) {
