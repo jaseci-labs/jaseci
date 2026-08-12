@@ -334,14 +334,16 @@ impl NaIRGenPass._codegen_bound_args(
                 args.append(self._default_arg_fallback(expected_type));
             }
             if kw_spreads and pix >= _n_posonly {
-                _bind_records.append(self._prep_kwbind_record(
-                    sp.name.sym_name,
-                    expected_type,
-                    len(args) - 1,
-                    args[-1],
-                    "pos" if _from_pos else ("kw" if _from_kw else None),
-                    "positional" if sp.value is None else None
-                ));
+                _bind_records.append(
+                    self._prep_kwbind_record(
+                        sp.name.sym_name,
+                        expected_type,
+                        len(args) - 1,
+                        args[-1],
+                        "pos" if _from_pos else ("kw" if _from_kw else None),
+                        "positional" if sp.value is None else None
+                    )
+                );
             }
         }
         _slot = self_offset + len(_fixed);
@@ -393,22 +395,22 @@ impl NaIRGenPass._codegen_bound_args(
                 args.append(self._default_arg_fallback(expected_type));
             }
             if kw_spreads {
-                _bind_records.append(self._prep_kwbind_record(
-                    sp.name.sym_name,
-                    expected_type,
-                    len(args) - 1,
-                    args[-1],
-                    "kw" if _from_kw else None,
-                    "keyword-only" if sp.value is None else None
-                ));
+                _bind_records.append(
+                    self._prep_kwbind_record(
+                        sp.name.sym_name,
+                        expected_type,
+                        len(args) - 1,
+                        args[-1],
+                        "kw" if _from_kw else None,
+                        "keyword-only" if sp.value is None else None
+                    )
+                );
             }
             _slot += 1;
         }
         if callee_sig.kwargs is not None {
             _kw_t = func.args[_slot].type if _slot < len(func.args) else None;
-            _dv = self._codegen_kwargs_dict(
-                nd, kw_map, _kw_t, kw_order, _bind_records
-            );
+            _dv = self._codegen_kwargs_dict(nd, kw_map, _kw_t, kw_order, _bind_records);
             if _dv is not None {
                 args.append(_dv);
             } elif _kw_t is not None {
@@ -710,9 +712,7 @@ impl NaIRGenPass._codegen_kwargs_dict(
         # checks run before the merge so a raising key never reaches the sink.
         for _rec in (bind_records or []) {
             _kg = self._make_global_string(_rec["name"], name_prefix=".kwname");
-            _has = self.builder.call(
-                helpers["contains"], [sv, _kg], name="kwbind.has"
-            );
+            _has = self.builder.call(helpers["contains"], [sv, _kg], name="kwbind.has");
             if _rec["alloca"] is None {
                 self._emit_runtime_raise(_has, "TypeError", _rec["dup_msg"]);
                 continue;
@@ -724,9 +724,7 @@ impl NaIRGenPass._codegen_kwargs_dict(
                 _rec["dup_msg"]
             );
             _do = self.builder.and_(
-                _has,
-                self.builder.not_(_flv, name="kwbind.unset"),
-                name="kwbind.do"
+                _has, self.builder.not_(_flv, name="kwbind.unset"), name="kwbind.do"
             );
             _bfn = self.builder.block.function;
             _bind_bb = _bfn.append_basic_block("kwbind.set");
@@ -803,9 +801,7 @@ impl NaIRGenPass._merge_dict_into(
     if skip_keys is not None {
         merge_bb = fn.append_basic_block("kwsp.merge");
         self.builder.cbranch(
-            self.builder.call(
-                helpers["contains"], [skip_keys, k], name="kwsp.bound"
-            ),
+            self.builder.call(helpers["contains"], [skip_keys, k], name="kwsp.bound"),
             step_bb,
             merge_bb
         );
@@ -2615,9 +2611,7 @@ impl NaIRGenPass._prep_kwbind_record(
     rec["alloca"] = _al;
     rec["flag"] = _fl;
     if required_kind is not None {
-        rec["missing_msg"] = (
-            f"missing 1 required {required_kind} argument: '{name}'"
-        );
+        rec["missing_msg"] = f"missing 1 required {required_kind} argument: '{name}'";
     }
     return rec;
 }
