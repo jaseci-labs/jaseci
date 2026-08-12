@@ -394,6 +394,10 @@ impl get_scale_config(project_dir: Path | None = None) -> JacScaleConfig {
     return new_instance;
 }
 
+impl peek_scale_config -> JacScaleConfig | None {
+    return _scale_config_instance;
+}
+
 impl reset_scale_config -> None {
     _scale_config_instance = None;
 }

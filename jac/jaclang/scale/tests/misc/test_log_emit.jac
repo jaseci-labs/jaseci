@@ -5,7 +5,11 @@ import logging;
 import shutil;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
+import from jaclang.scale.config.config_loader {
+    get_scale_config,
+    peek_scale_config,
+    reset_scale_config
+}
 import from jaclang.scale.runtime.context.log_emit {
     emit_log_record,
     install_structured_logging,
@@ -114,6 +118,30 @@ test "default install on an untouched root: one JSON handler at INFO" {
         _reset_install_state();
         reset_scale_config();
         shutil.rmtree(project_dir, ignore_errors=True);
+    }
+}
+
+
+test "install never creates the config singleton" {
+    # A gateway or serving process may reach install before its own config
+    # load; deciding the install must not be what creates (and scopes) the
+    # process-wide singleton for everything after it.
+    _reset_install_state();
+    reset_scale_config();
+    log_root = logging.getLogger();
+    saved_handlers = list(log_root.handlers);
+    saved_level = log_root.level;
+    try {
+        install_structured_logging();
+        assert peek_scale_config() is None , (
+            "install_structured_logging created the config singleton as a "
+            "side effect"
+        );
+    } finally {
+        log_root.handlers = saved_handlers;
+        log_root.setLevel(saved_level);
+        _reset_install_state();
+        reset_scale_config();
     }
 }
 
