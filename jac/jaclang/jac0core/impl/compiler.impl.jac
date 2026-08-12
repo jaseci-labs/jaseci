@@ -733,6 +733,15 @@ impl JacCompiler.parse_str(
                 codespace = _forced_pre;
             }
         }
+        if not codespace and target_program is not self._internal_program {
+            import from jaclang.jac0core.placement_pins {
+                config_kind_space as _kind_space_of
+            }
+            _kind_space = _kind_space_of(file_path);
+            if _kind_space in ('client', 'native') {
+                codespace = _kind_space;
+            }
+        }
         if (codespace == 'client') {
             _coerce_client_module(mod);
         } elif (codespace == 'native') {

@@ -98,6 +98,61 @@ def config_module_pin(source_path: str) -> str {
 }
 
 
+glob _kind_cache: dict[str, tuple[float, str]] = {},
+     _kind_probe: dict = {"active": False};
+
+
+def _load_project_kind(root_dir: str) -> str {
+    toml_path = os.path.join(root_dir, "jac.toml");
+    try {
+        mtime = os.path.getmtime(toml_path);
+    } except OSError {
+        return '';
+    }
+    cached = _kind_cache.get(root_dir);
+    if cached is not None and cached[0] == mtime {
+        return cached[1];
+    }
+    import tomllib;
+    kind = '';
+    try {
+        with open(toml_path, "rb") as f {
+            doc = tomllib.load(f);
+        }
+        kind = str(doc.get("project", {}).get("kind", "") or "");
+    } except Exception {
+        kind = '';
+    }
+    _kind_cache[root_dir] = (mtime, kind);
+    return kind;
+}
+
+
+def config_kind_space(source_path: str) -> str {
+    if not source_path {
+        return '';
+    }
+    root_dir = find_jac_project_root(source_path);
+    if not root_dir {
+        return '';
+    }
+    kind = _load_project_kind(root_dir);
+    if not kind or _kind_probe["active"] {
+        return '';
+    }
+    _kind_probe["active"] = True;
+    try {
+        import from jaclang.project.kinds { kind_spec }
+        spec = kind_spec(kind);
+        return spec.codespace if spec is not None else '';
+    } except Exception {
+        return '';
+    } finally {
+        _kind_probe["active"] = False;
+    }
+}
+
+
 def pins_digest(source_path: str) -> str {
     pins = config_pins_for(source_path);
     if not pins {
