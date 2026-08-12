@@ -1,0 +1,7 @@
+[project]
+name = "cl-npm-forms-fixture"
+version = "0.0.0"
+description = "Fixture project for npm specs that appear outside `import ... from`"
+
+[test.npm-stubs]
+"fake-widgets" = "mocks/widgets.js"

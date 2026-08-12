@@ -349,6 +349,12 @@ Paths are relative to the `jac.toml` that declares them. A mapped spec resolves
 to that module; anything unmapped keeps the Proxy stub, so this is purely
 additive to existing suites.
 
+Inside a mock, npm specs are rewritten in every static form -- `import x from
+"pkg"`, a side-effect `import "pkg/theme.css"`, and `export ... from "pkg"` --
+so a mock can pull in stylesheets and re-export from other packages the way
+ordinary JavaScript does. Dynamic `import("pkg")` is not rewritten and will
+fail to resolve.
+
 A `.jac` mock is compiled through the ordinary client pipeline, so `:pub` is
 what makes a name importable from the test. Because placement is inferred, a
 mock holding no client-only syntax lands in the server codespace and compiles

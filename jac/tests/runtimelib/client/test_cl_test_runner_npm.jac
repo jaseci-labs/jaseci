@@ -14,7 +14,8 @@ import from jaclang.runtimelib.cl_test_runner {
     module_is_client,
     run_cl_test_file,
     _mock_stub_name,
-    _resolve_npm_mocks
+    _resolve_npm_mocks,
+    _stub_npm_imports
 }
 
 glob FIXTURES = Path(__file__).parent / "fixtures";
@@ -39,6 +40,35 @@ test "mapped npm modules behave while unmapped ones keep the proxy" {
     fixture = str(FIXTURES / "cl_npm_mock" / "test_mocked.jac");
     results = run_cl_test_file(fixture);
     assert len(results) == 4 , f"expected 4 client tests, got {len(results)}";
+    for res in results {
+        assert res.ok , f"cl test {res.name} failed: {res.error}";
+    }
+}
+
+test "every static import form is rewritten, not just `import ... from`" {
+    # A hand-written mock is ordinary JS, so npm specs turn up in forms the
+    # rewriter used to walk straight past, leaving them bare for bun to choke on.
+    src = 'import "pkg-css/theme.css";\n'
+        + 'export { helper } from "pkg-helper";\n'
+        + 'export * from "pkg-all";\n'
+        + 'import { widget } from "pkg-widget";\n'
+        + 'import "./local.js";\n';
+
+    (rewritten, _staged, stub, changed) = _stub_npm_imports(src, {}, {});
+    assert changed;
+    for spec in ["pkg-css/theme.css", "pkg-helper", "pkg-all", "pkg-widget"] {
+        assert f'"{spec}"' not in rewritten , f"{spec} left bare in:\n{rewritten}";
+    }
+    # Relative specs resolve on their own and stay untouched.
+    assert '"./local.js"' in rewritten;
+    # A re-exported name has to exist on the stub or bun cannot bind it.
+    assert "export const helper" in stub;
+}
+
+test "a mapped mock may itself re-export and side-effect import" {
+    fixture = str(FIXTURES / "cl_npm_forms" / "test_forms.jac");
+    results = run_cl_test_file(fixture);
+    assert len(results) == 2 , f"expected 2 client tests, got {len(results)}";
     for res in results {
         assert res.ok , f"cl test {res.name} failed: {res.error}";
     }

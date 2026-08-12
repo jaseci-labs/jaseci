@@ -144,17 +144,16 @@ impl _stub_npm_imports(
         return (not spec.startswith(".")) and (spec != "@jac/runtime");
     }
 
-    def repl(mobj: any) -> str {
-        spec = mobj.group("spec");
-        if not is_npm(spec) {
-            return mobj.group(0);
-        }
-        clause = mobj.group("clause").strip();
+    def target(spec: str) -> str {
         mock_file = mocks.get(spec);
         if mock_file {
-            return 'import ' + clause + ' from "./' + mock_file + '";';
+            return mock_file;
         }
         state["changed"] = True;
+        return _NPM_STUB_FILE;
+    }
+
+    def collect_named(clause: str) {
         brace = re.search(r"\{([^}]*)\}", clause);
         if brace {
             for ident in _NAMED_BINDING.findall(brace.group(1)) {
@@ -163,18 +162,56 @@ impl _stub_npm_imports(
                 }
             }
         }
-
-        head = clause.split("{")[0].split(",")[0].strip();
-        if head and (not head.startswith("*")) {
-            state["needs_default"] = True;
-        }
-        return 'import ' + clause + ' from "./' + _NPM_STUB_FILE + '";';
     }
 
-    rewritten_entry = _IMPORT_FROM.sub(repl, entry_js);
+    def repl_import(mobj: any) -> str {
+        spec = mobj.group("spec");
+        if not is_npm(spec) {
+            return mobj.group(0);
+        }
+        clause = mobj.group("clause").strip();
+        dest = target(spec);
+        if dest == _NPM_STUB_FILE {
+            collect_named(clause);
+            head = clause.split("{")[0].split(",")[0].strip();
+            if head and (not head.startswith("*")) {
+                state["needs_default"] = True;
+            }
+        }
+        return 'import ' + clause + ' from "./' + dest + '";';
+    }
+
+    def repl_export(mobj: any) -> str {
+        spec = mobj.group("spec");
+        if not is_npm(spec) {
+            return mobj.group(0);
+        }
+        clause = mobj.group("clause").strip();
+        dest = target(spec);
+        if dest == _NPM_STUB_FILE {
+            collect_named(clause);
+        }
+        return 'export ' + clause + ' from "./' + dest + '";';
+    }
+
+    def repl_bare(mobj: any) -> str {
+        spec = mobj.group("spec");
+        if not is_npm(spec) {
+            return mobj.group(0);
+        }
+        return 'import "./' + target(spec) + '";';
+    }
+
+    def rewrite(js: str) -> str {
+        rewritten = _IMPORT_FROM.sub(repl_import, js);
+        rewritten = _EXPORT_FROM.sub(repl_export, rewritten);
+        return _BARE_IMPORT.sub(repl_bare, rewritten);
+    }
+
+    rewritten_entry = rewrite(entry_js);
     rewritten_staged: dict[str, str] = {};
     for (staged_name, staged_js) in staged.items() {
-        rewritten_staged[staged_name] = _IMPORT_FROM.sub(repl, staged_js);
+        rewritten_staged[staged_name] = rewrite(staged_js);
     }
 
     lines = ["const __jacNpmStub = new Proxy(function () {}, {"];
