@@ -43,6 +43,9 @@ Bug index:
                kind>), so a back edge originating inside a nested loop of the
                SAME kind was treated as a loop-entry pred and destroyed the
                header narrowing (#7853)
+  #LOOPWIDEN-1 - the first statement of a loop body was exempted from the
+                 conservative back-edge merge, so a symbol the body reassigns
+                 kept its iteration-one (pre-loop) narrowing there (#8039)
   #CYCLE-IMPORT-1 - re-entrant module import while that module's compile was
                     still on the stack fell into a fresh program.compile of the
                     same path instead of answering from the in-flight state
@@ -1091,12 +1094,24 @@ test "bug_7163_llvm_ir_boundary_resolves" {
 # `pred.find_parent_of_type(<kind of header>)`, i.e. the NEAREST same-kind
 # ancestor, so a back edge originating inside a nested loop of the SAME
 # kind (the tail of the inner loop's else clause links straight to the
-# outer header) resolved to the inner loop, was mistaken for a loop-entry
-# pred, and its widening assignment (`cur = start`, Item | None) erased the
-# entry narrowing (`cur = Item()`). `cur.val` in the outer body then raised
-# a spurious "Cannot access attribute ... missing from NoneType" error.
-# The fixture's single-loop control is the unnested equivalent that always
-# checked clean; nested same-kind loops must match it.
+# outer header) resolved to the inner loop and was mistaken for a
+# loop-entry pred. Merging it drops `cur` back to its declared
+# `Item | None`, and `cur.val` in the outer body raises a spurious
+# "Cannot access attribute ... missing from NoneType" error.
+#
+# No loop in the fixture reassigns `cur`, so its pre-loop narrowing to
+# `Item` is valid on every iteration and a sound checker has nothing to
+# report anywhere in the file. The whole file must therefore check clean:
+# any diagnostic at all is the bug. (Asserting a count instead would not
+# discriminate -- the same diagnostics appear whether or not back-edge
+# detection works, once the fixture is allowed to widen `cur` in the body.
+# That widening is what #LOOPWIDEN-1 covers, and it is kept out of here on
+# purpose so this fixture isolates back-edge detection alone.)
+#
+# The single-loop control is the unnested equivalent: its back edge
+# originates directly in the loop body, whose nearest same-kind ancestor IS
+# the header, so it was skipped correctly even by the buggy detection and
+# stays clean under both. The nested forms must match it.
 # =========================================================================
 test "bug_loophdr1_nested_same_kind_loop_back_edge" {
     program = compile_and_check("checker_nested_loop_backedge.jac");
@@ -1342,4 +1357,61 @@ test "bug_cycprec1_node_type_never_stores_incomplete_result" {
         "Bug #CYCLE-PRECISION-1: the settled (complete) type must be "
         f"cached on the node. Got: {config_use.type}"
     );
+}
+
+# =========================================================================
+# Bug #LOOPWIDEN-1 / #8039: a loop body that reassigns a narrowed symbol
+# makes every body node see the conservative back-edge merge, `body[0]`
+# included. `body[0]` used to be exempted, so it kept the iteration-one
+# view: the pre-loop narrowing, leaked into iterations that reach the top
+# of the body over the back edge with the widened value instead.
+#
+# This is the converse of #LOOPHDR-1. There, skipping the back edge at the
+# header is right because nothing in the loop rewrites the symbol; here the
+# body does rewrite it, so the entry narrowing does not survive to the next
+# iteration and the read must fall back to the declared type. Locations are
+# asserted, not just counts: the fix must diagnose exactly the two bodies
+# that widen and leave the two that do not alone. In particular
+# `condition_renarrows` widens `cur` too, but `while cur is not None`
+# re-narrows entry into the body over the conservative merge, so a blanket
+# "loop bodies are conservative" rule would wrongly flag it.
+# =========================================================================
+test "bug_loopwiden1_body_reassign_forces_conservative_merge" {
+    program = compile_and_check("checker_loop_body_widening.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 2 , (
+        "Bug #LOOPWIDEN-1: exactly the two loop bodies that reassign `cur` "
+        "may be diagnosed. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 35 in error_lines , (
+        "Bug #LOOPWIDEN-1: `cur.val` at the top of a while body whose tail "
+        "rebinds `cur` to an `Item | None` must be diagnosed -- iteration "
+        "two reaches it over the back edge, not from the pre-loop "
+        f"`cur = Item()`. Got errors on lines: {error_lines}"
+    );
+    assert 46 in error_lines , (
+        "Bug #LOOPWIDEN-1: the same holds for a for body; the fallback is "
+        f"keyed on the loop kind, not on while alone. Got: {error_lines}"
+    );
+    assert 56 not in error_lines , (
+        "Bug #LOOPWIDEN-1: `while cur is not None` re-narrows entry into "
+        "the body on every iteration, so the conservative merge must still "
+        f"have the loop condition applied over it. Got: {error_lines}"
+    );
+    assert 67 not in error_lines , (
+        "Bug #LOOPWIDEN-1: a body that never writes `cur` has no back-edge "
+        "widening to merge, so the pre-loop narrowing must survive. "
+        f"Got: {error_lines}"
+    );
+    for e in program.errors_had {
+        assert "Item | NoneType" in str(e) , (
+            "Bug #LOOPWIDEN-1: the fallback is to the declared type, so the "
+            f"diagnosed type must be the full `Item | None`. Got: {e}"
+        );
+    }
 }
