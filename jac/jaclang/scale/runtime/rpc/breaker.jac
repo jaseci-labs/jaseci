@@ -89,11 +89,16 @@ def breaker_release_probe(provider: str, probe: int) {
     }
 }
 
-def breaker_record_success(provider: str) {
+def breaker_record_success(provider: str, probe: int = _BREAKER_NO_PROBE) {
     with _breaker_lock {
-        st = _breaker_state.get(provider) or _breaker_new_state();
-        _breaker_close(st);
-        _breaker_state[provider] = st;
+        st = _breaker_state.get(provider);
+        if st is None {
+            _breaker_state[provider] = _breaker_new_state();
+            return;
+        }
+        if st.get("state") == "CLOSED" or _breaker_holds_probe(st, probe) {
+            _breaker_close(st);
+        }
     }
 }
 

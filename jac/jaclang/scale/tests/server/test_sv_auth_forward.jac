@@ -352,11 +352,11 @@ test "HALF_OPEN probe success closes the breaker" {
     _trip_breaker(mod);
     assert breaker_should_skip(mod);
 
-    _take_probe(mod);
+    probe = _take_probe(mod);
     st = _breaker_peek(mod);
     assert st is not None and st["state"] == "HALF_OPEN";
 
-    breaker_record_success(mod);
+    breaker_record_success(mod, probe);
     st = _breaker_peek(mod);
     assert st is not None and st["state"] == "CLOSED";
     assert st["fails"] == 0;
@@ -615,6 +615,43 @@ test "a probe that never reports back is reclaimed after the probe timeout" {
     assert st is not None and st["state"] == "HALF_OPEN" , (
         "a stale probe verdict clobbered the live probe"
     );
+
+    _breaker_reset(mod);
+}
+
+test "a stale probe success does not close the breaker around a live probe" {
+    mod = "breaker_stale_success_test";
+    _trip_breaker(mod);
+    stale_probe = _take_probe(mod);
+
+    _breaker_force_probe_expired(mod);
+    (reclaimed, fresh_probe) = breaker_admit(mod);
+    assert reclaimed and fresh_probe != stale_probe;
+
+    breaker_record_success(mod, stale_probe);
+    st = _breaker_peek(mod);
+    assert st is not None and st["state"] == "HALF_OPEN" , (
+        "a stale probe success reopened the breaker to every caller"
+    );
+    assert st["probe"] == fresh_probe;
+
+    (admitted, blocked_probe) = breaker_admit(mod);
+    assert not admitted and blocked_probe == 0;
+
+    _breaker_reset(mod);
+}
+
+test "a success from before the breaker opened does not cancel the cooldown" {
+    mod = "breaker_straggler_success_test";
+    _breaker_reset(mod);
+    _trip_breaker(mod);
+
+    breaker_record_success(mod);
+    st = _breaker_peek(mod);
+    assert st is not None and st["state"] == "OPEN" , (
+        "a straggler success cancelled the cooldown"
+    );
+    assert breaker_should_skip(mod);
 
     _breaker_reset(mod);
 }

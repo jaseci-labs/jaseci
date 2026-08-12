@@ -32,7 +32,7 @@ def _rpc_with_retries(module_name: str, label: str, send: any) -> any {
             attempts = attempt + 1;
             try {
                 payload = send();
-                breaker_record_success(module_name);
+                breaker_record_success(module_name, probe);
                 return payload;
             } except (ClientConnectionError, OSError) as e {
                 err_ref: any = e;
