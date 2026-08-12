@@ -130,7 +130,7 @@ test "sv_service_call retries on transport error and succeeds on 2nd attempt" {
     def handler(request: _MockRequest) -> _MockResponse {
         call_count["n"] = call_count["n"] + 1;
         if call_count["n"] == 1 {
-            raise sv_http.ClientConnectionError("connection refused");
+            raise sv_http.ClientRequestNotSent("connection refused");
         }
         return _MockResponse(json_payload={"ok": True, "data": {"result": "ok"}});
     }
@@ -153,7 +153,7 @@ test "sv_service_call gives up after max_attempts on persistent transport error"
 
     def handler(request: _MockRequest) -> _MockResponse {
         call_count["n"] = call_count["n"] + 1;
-        raise sv_http.ClientConnectionError("connection refused");
+        raise sv_http.ClientRequestNotSent("connection refused");
     }
 
     original_post = _install_mock(handler);
@@ -623,5 +623,148 @@ test "ensure_sv_service early-returns when peer already registered" {
         } else {
             os.environ["KUBERNETES_SERVICE_HOST"] = orig_k8s_host;
         }
+    }
+}
+
+import socket;
+import threading;
+import jaclang.scale.runtime.rpc.rpc as rpc_mod;
+
+
+def _fast_rpc_timeout(module_name: str) -> float {
+    return 0.4;
+}
+
+
+def _start_counting_server(counts: dict, reply: (bytes | None)) -> tuple {
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+    srv.bind(("127.0.0.1", 0));
+    srv.listen(8);
+    port = srv.getsockname()[1];
+    held: list = [];
+
+    def serve {
+        while True {
+            try {
+                (conn, _addr) = srv.accept();
+            } except OSError {
+                return;
+            }
+            counts["n"] = counts["n"] + 1;
+            held.append(conn);
+            try {
+                conn.recv(65536);
+                if reply is not None {
+                    conn.sendall(reply);
+                    conn.close();
+                }
+            } except OSError {
+                ;
+            }
+        }
+    }
+    t = threading.Thread(target=serve, daemon=True);
+    t.start();
+    return (srv, held, port);
+}
+
+
+def _stop_counting_server(srv: any, held: list) {
+    try {
+        srv.close();
+    } except OSError {
+        ;
+    }
+    for conn in held {
+        try {
+            conn.close();
+        } except OSError {
+            ;
+        }
+    }
+}
+
+
+test "walker_call sends exactly one POST to a peer that never replies" {
+    counts: dict = {"n": 0};
+    (srv, held, port) = _start_counting_server(counts, None);
+    mod = "deaf_walker_mod";
+    _breaker_reset(mod);
+    original_timeout = rpc_mod._sv_rpc_timeout;
+    rpc_mod._sv_rpc_timeout = _fast_rpc_timeout;
+    try {
+        sv_client.register(mod, f"http://127.0.0.1:{port}");
+        raised_msg = "";
+        try {
+            JacScalePlugin.sv_walker_call(mod, "Ping", {}, None);
+        } except RuntimeError as e {
+            raised_msg = str(e);
+        }
+        assert counts["n"] == 1;
+        assert "no response head within" in raised_msg;
+    } finally {
+        rpc_mod._sv_rpc_timeout = original_timeout;
+        sv_client.unregister(mod);
+        _stop_counting_server(srv, held);
+        _breaker_reset(mod);
+    }
+}
+
+
+test "service_call sends exactly one POST to a peer that never replies" {
+    counts: dict = {"n": 0};
+    (srv, held, port) = _start_counting_server(counts, None);
+    mod = "deaf_service_mod";
+    _breaker_reset(mod);
+    original_timeout = rpc_mod._sv_rpc_timeout;
+    rpc_mod._sv_rpc_timeout = _fast_rpc_timeout;
+    try {
+        sv_client.register(mod, f"http://127.0.0.1:{port}");
+        raised_msg = "";
+        try {
+            JacScalePlugin.sv_service_call(mod, "ping", {});
+        } except RuntimeError as e {
+            raised_msg = str(e);
+        }
+        assert counts["n"] == 1;
+        assert "no response head within" in raised_msg;
+    } finally {
+        rpc_mod._sv_rpc_timeout = original_timeout;
+        sv_client.unregister(mod);
+        _stop_counting_server(srv, held);
+        _breaker_reset(mod);
+    }
+}
+
+
+test "service_call does not retry an HTTP 500" {
+    counts: dict = {"n": 0};
+    reply = (
+        b"HTTP/1.1 500 Internal Server Error\r\n"
+        + b"Content-Type: text/plain\r\n"
+        + b"Content-Length: 4\r\n"
+        + b"Connection: close\r\n\r\nboom"
+    );
+    (srv, held, port) = _start_counting_server(counts, reply);
+    mod = "http500_service_mod";
+    _breaker_reset(mod);
+    original_timeout = rpc_mod._sv_rpc_timeout;
+    rpc_mod._sv_rpc_timeout = _fast_rpc_timeout;
+    try {
+        sv_client.register(mod, f"http://127.0.0.1:{port}");
+        raised_msg = "";
+        try {
+            JacScalePlugin.sv_service_call(mod, "boom", {});
+        } except RuntimeError as e {
+            raised_msg = str(e);
+        }
+        assert counts["n"] == 1;
+        assert "HTTP 500" in raised_msg;
+    } finally {
+        rpc_mod._sv_rpc_timeout = original_timeout;
+        sv_client.unregister(mod);
+        _stop_counting_server(srv, held);
+        _breaker_reset(mod);
     }
 }

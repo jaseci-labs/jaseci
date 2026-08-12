@@ -40,6 +40,7 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
     }
     import from jaclang.runtimelib.serving.client {
         ClientConnectionError,
+        ClientRequestNotSent,
         post_stream_aware_sync
     }
 
@@ -80,13 +81,17 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
                 return payload;
             }
             return _unwrap_sv_envelope(payload, module_name, func_name);
-        } except (ClientConnectionError, OSError) as e {
+        } except ClientRequestNotSent as e {
             err_ref: any = e;
             last_err = err_ref;
             if attempt < max_attempts - 1 {
                 time.sleep(backoff);
                 backoff = backoff * 2.0;
             }
+        } except (ClientConnectionError, OSError) as e {
+            sent_ref: any = e;
+            last_err = sent_ref;
+            break;
         }
     }
 
@@ -126,6 +131,7 @@ def walker_call(
     url = sv_client.resolve_url(module_name);
     import from jaclang.runtimelib.serving.client {
         ClientConnectionError,
+        ClientRequestNotSent,
         request_sync
     }
 
@@ -163,13 +169,17 @@ def walker_call(
             data = resp.json();
             breaker_record_success(module_name);
             return _hydrate_walker_envelope(data, module_name, walker_name, stub_cls);
-        } except (ClientConnectionError, OSError) as e {
+        } except ClientRequestNotSent as e {
             err_ref: any = e;
             last_err = err_ref;
             if attempt < max_attempts - 1 {
                 time.sleep(backoff);
                 backoff = backoff * 2.0;
             }
+        } except (ClientConnectionError, OSError) as e {
+            sent_ref: any = e;
+            last_err = sent_ref;
+            break;
         }
     }
 
