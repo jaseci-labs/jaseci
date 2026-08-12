@@ -21,6 +21,7 @@ import from jaclang.jac0core.native_marshal {
     build_enum_maps,
     wrap_native_function
 }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.jac0core.parser.frontend { _canary_src }
 import from jaclang.jac0core.parser.parser { Parser }
 import jaclang.jac0core.parser.parser as na_parser;
@@ -86,8 +87,8 @@ def _assert_parity(src: str, path: str) {
         f"{path}: node count diverged "
         f"({len(native_mod._in_mod_nodes)} != {len(py_mod._in_mod_nodes)})"
     );
-    native_up = native_mod.unparse(requires_format=False);
-    py_up = py_mod.unparse(requires_format=False);
+    native_up = unparse_module(native_mod, requires_format=False);
+    py_up = unparse_module(py_mod, requires_format=False);
     assert native_up == py_up , f"{path}: unparse diverged";
 }
 

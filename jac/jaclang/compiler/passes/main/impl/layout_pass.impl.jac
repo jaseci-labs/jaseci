@@ -1,6 +1,7 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
 impl LayoutPass.postinit -> None {
     self.registry = LayoutRegistry();
@@ -317,7 +318,7 @@ impl LayoutPass._build_layout(arch: uni.Archetype) -> ArchetypeLayout {
         type_node: (uni.UniNode | None) = None;
         if var.type_tag and var.type_tag.tag {
             type_node = var.type_tag.tag;
-            type_tag = var.type_tag.tag?.unparse() or str(var.type_tag.tag);
+            type_tag = unparse_node(type_node) or str(type_node);
         }
         is_fn_ptr = type_node is not None and isinstance(type_node, uni.FuncSignature);
         new_field = FieldInfo(
@@ -691,7 +692,7 @@ impl LayoutPass._validate_obj_fields(
         }
         type_node = var.type_tag.tag;
         if not self._is_layout_compatible_type(type_node, arch_map) {
-            type_str = type_node?.unparse() or str(type_node);
+            type_str = unparse_node(type_node) or str(type_node);
             self.emit(W5032, node_override=var, arch=aname, field=fname, type=type_str);
         }
     }

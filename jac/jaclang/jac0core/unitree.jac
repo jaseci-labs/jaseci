@@ -80,9 +80,7 @@ obj UniNode {
     def codespace -> CodeContext;
     def in_client_context -> bool;
     def in_native_context -> bool;
-    def to_dict -> dict[(str, str)];
     def flatten -> list[UniNode];
-    def unparse -> str;
 }
 
 obj Symbol {
@@ -345,8 +343,6 @@ obj Module(AstDocNode, UniScopeNode) {
 
     has annexable_by: (str | None) { getter; }
 
-    def format -> str;
-    def unparse(requires_format: bool = True) -> str;
     def declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool;
     static def make_stub(
         inject_name: (str | None) = None, inject_src: (Source | None) = None
@@ -1577,7 +1573,6 @@ obj Token(UniNode) {
     ) -> None;
 
     def __repr__ -> str;
-    def unparse -> str;
 }
 
 obj Name(Token, NameAtom) {

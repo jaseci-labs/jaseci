@@ -223,39 +223,12 @@ impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
     return False;
 }
 
-impl UniNode.to_dict -> dict[(str, str)] {
-    ret = {
-        'node': str(`type(self).__name__),
-        'kid': str(
-            [
-                x.to_dict()
-                for x in self.kid
-                if x
-            ]
-        ),
-        'line': str(self.loc.first_line),
-        'col': str(self.loc.col_start)
-    };
-    if isinstance(self, Token) {
-        ret['name'] = self.name;
-        ret['value'] = self.value;
-    }
-    return ret;
-}
-
 impl UniNode.flatten -> list[UniNode] {
     ret: list[UniNode] = [self];
     for k in self.kid {
         ret += k.flatten();
     }
     return ret;
-}
-
-impl UniNode.unparse -> str {
-    if self.gen.jac {
-        return self.gen.jac;
-    }
-    return ' '.join([i.unparse() for i in self.kid]);
 }
 
 
@@ -917,48 +890,6 @@ impl Module.annexable_by.getter -> (str | None) {
     }
     import from jaclang.jac0core.bccache { discover_base_file }
     return discover_base_file(self.loc.mod_path);
-}
-
-impl Module.format -> str {
-    import from jaclang.compiler.passes.tool.jac_formatter_pass { format_module }
-    return format_module(self);
-}
-
-impl Module.unparse(requires_format: bool = True) -> str {
-    import from jaclang.compiler.passes.tool.normalize_pass { NormalizePass }
-    import from jaclang.jac0core.program { JacProgram }
-
-    own_path = self.loc.mod_path;
-    saved_body = self.body;
-    saved_kid = self.kid;
-    head_kid = [
-        k
-        for k in saved_kid
-        if (not k.loc.mod_path) or (k.loc.mod_path == own_path)
-    ];
-    filtered = len(head_kid) != len(saved_kid);
-    if filtered {
-        self.body = [
-            st
-            for st in saved_body
-            if (not st.loc.mod_path) or (st.loc.mod_path == own_path)
-        ];
-        self.set_kids(nodes=head_kid or [EmptyToken()]);
-    }
-    try {
-        NormalizePass(ir_in=self, prog=JacProgram());
-        if requires_format {
-            return self.format();
-        }
-        import from jaclang.compiler.passes.tool.unparse_pass { UnparsePass }
-        UnparsePass(ir_in=self, prog=JacProgram());
-        return self.gen.jac;
-    } finally {
-        if filtered {
-            self.body = saved_body;
-            self.set_kids(nodes=saved_kid);
-        }
-    }
 }
 
 impl ProgramModule.postinit -> None {
@@ -2037,8 +1968,6 @@ impl BoolExpr.postinit -> None {
 
 
 impl LambdaExpr.postinit -> None {
-    # body is Expr | Sequence: constructors hand over fresh lists, so no
-    # defensive copy here (a union-conditional copy does not lower natively).
     UniNode.postinit(self);
     Expr.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
@@ -2534,13 +2463,6 @@ impl Token.init(
 
 impl Token.__repr__ -> str {
     return f"Token({self.name}, {self.value}, {self.loc})";
-}
-
-impl Token.unparse -> str {
-    if self.gen.jac {
-        return self.gen.jac;
-    }
-    return self.value;
 }
 
 impl Name.init(
