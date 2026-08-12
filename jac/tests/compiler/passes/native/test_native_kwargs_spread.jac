@@ -1,19 +1,19 @@
-"""`**` spread lowers into a callee's `**kwargs` sink; not onto named params.
+"""`**` spread lowers into a callee's `**kwargs` sink and binds named params.
 
 Native already lowered the declaration half of kwargs: a callee with a
 `**kwargs` sink gets a trailing dict slot in its LLVM signature, and
 `_codegen_kwargs_dict` collects a call site's leftover *literal* keywords
-into that dict at compile time. What it rejected outright was the `**`
-spread, so every forwarding wrapper in the compiler's own diagnostics chain
-(`emit` -> `format_message`) sat behind an E5090.
-
-A spread into a sink needs no runtime name-to-slot binding: the keys land in
-the sink dict whatever they are. So the spread operand is now merged into the
-sink with an index loop over the source dict, reusing the same len/get_key/
+into that dict at compile time. The spread operand is merged into the sink
+with an index loop over the source dict, reusing the same len/get_key/
 get_val primitives dict iteration already uses.
 
-A spread onto *declared named parameters* is the genuinely hard case -- it
-would need runtime keyword binding -- and stays rejected.
+A spread key that names a *keyword-bindable declared parameter* follows
+CPython binding semantics at runtime: it binds the slot when unbound,
+raises TypeError when the slot is already bound (positionally, by literal
+keyword, or by an earlier spread), and a required slot no spread supplies
+raises TypeError. Bound keys never reach the sink. Only the truly dynamic
+shape stays statically rejected: a spread at a callee with no sink, where
+unmatched keys would have nowhere to go.
 
 Refs #8039
 """
@@ -134,7 +134,7 @@ test "the spread fixture compiles with no native diagnostics" {
 # The genuinely dynamic case stays rejected
 # ─────────────────────────────────────────────────────────────────────
 
-test "guardrail: a spread onto declared named params is still rejected" {
+test "guardrail: a spread at a callee with no sink is still rejected" {
     prog = check_na_inline(
         "onto_named",
         "def sink(a: int, b: int) -> int { return a + b; }\n"
@@ -195,5 +195,108 @@ test "a spread emits a duplicate-key guard for every entry it inserts" {
     llvm_text = str(ir.gen.llvm_ir);
     assert "kwsp.dup" in llvm_text , (
         "expected a duplicate-key guard on the spread merge path"
+    );
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# Spread keys that name declared parameters bind them (CPython parity)
+# ─────────────────────────────────────────────────────────────────────
+
+# CPython binds a spread key naming a keyword-bindable declared parameter to
+# that parameter, never to the **kwargs sink: `f(**{"a": 5})` against
+# `def f(a=0, **kw)` means a=5, kw={}. Each expectation below is chosen so
+# the sink-diversion wrong answer (a left at its default, the key landing in
+# kw) is numerically distinct from the bound answer.
+
+test "a spread key naming a defaulted param binds it, not the sink" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    f = get_func(eng, "spread_binds_declared", ctypes.c_int64);
+    # a=5, kw={} -> 5000. Sink diversion would give 105.
+    assert f() == 5000 , f"got {f()}";
+}
+
+test "a spread key satisfies a required param" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    f = get_func(eng, "spread_binds_required", ctypes.c_int64, ctypes.c_int64);
+    # a=n, kw={} -> n*10. Sink diversion would give 1 for any n.
+    assert f(6) == 60 , f"got {f(6)}";
+}
+
+test "one spread splits between a declared param and the sink" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    f = get_func(eng, "mixed_bind_and_sink", ctypes.c_int64, ctypes.c_int64);
+    # a=3 bound, {"z": 9} sunk -> 3100. Sink diversion would give 203.
+    assert f(3) == 3100 , f"got {f(3)}";
+}
+
+test "two spreads split: first binds the param, second fills the sink" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    f = get_func(eng, "two_spread_split", ctypes.c_int64);
+    # a=4 from d1, {"z": 9} from d2 -> 4100. Sink diversion would give 204.
+    assert f() == 4100 , f"got {f()}";
+}
+
+test "a spread key binds a keyword-only param" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    f = get_func(eng, "kwonly_bind", ctypes.c_int64);
+    # args=(1,2), k=7, kw={} -> 20700. Sink diversion would give 20001.
+    assert f() == 20700 , f"got {f()}";
+}
+
+test "the sink parameter's own name stays a sink key" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    f = get_func(eng, "sink_name_not_bindable", ctypes.c_int64);
+    # "kw" is not keyword-bindable: a=0, kw={"kw": 3} -> 100.
+    assert f() == 100 , f"got {f()}";
+}
+
+# CPython: TypeError "got multiple values for keyword argument 'a'" /
+# "... for argument 'a'". Each fixture returns 1 from the except arm and a
+# distinct sentinel when no raise fired.
+
+test "a spread key colliding with a literal keyword raises TypeError" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    f = get_func(eng, "collide_bound_kw", ctypes.c_int64);
+    assert f() == 1 , f"expected TypeError, got sentinel {f()}";
+}
+
+test "a spread key colliding with a positional binding raises TypeError" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    f = get_func(eng, "collide_bound_pos", ctypes.c_int64);
+    assert f() == 1 , f"expected TypeError, got sentinel {f()}";
+}
+
+test "a second spread re-binding a param raises TypeError" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    f = get_func(eng, "collide_two_spreads", ctypes.c_int64);
+    assert f() == 1 , f"expected TypeError, got sentinel {f()}";
+}
+
+test "a required param a spread never supplies raises TypeError" {
+    (eng, _) = compile_native("kwargs_spread.jac");
+    f = get_func(eng, "missing_required", ctypes.c_int64);
+    # Sentinel -x surfaces the zero-filled wrong answer if no raise fired.
+    assert f() == 1 , f"expected TypeError, got sentinel {f()}";
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# Duplicate literal keywords stay a compile-time rejection
+# ─────────────────────────────────────────────────────────────────────
+
+# The name-keyed kw_map in _codegen_bound_args would silently drop the first
+# of two identical literal keywords, but ast_validation_pass rejects the call
+# with E0065 on every codespace before codegen can see it. Pinned here so the
+# front-end guard can't regress out from under the native lowering.
+test "duplicate literal keywords are rejected at check time" {
+    prog = check_na_inline(
+        "dup_literal",
+        "def sink(**kw: int) -> int { return len(kw); }\n"
+        "def use -> int {\n"
+        "    d: dict[str, int] = {};\n"
+        "    return sink(p=1, p=2, **d);\n"
+        "}\n"
+    );
+    assert has_error_code(prog, "E0065") , (
+        f"expected E0065 for a duplicate literal keyword, got {fmt_errors(prog)}"
     );
 }

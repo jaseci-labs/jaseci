@@ -2,7 +2,9 @@
 
 The sink dict is built at compile time: literal keywords are inserted
 directly and each spread operand is merged in with an index loop over the
-source dict, so no runtime name-to-slot binding is needed. Encoding below
+source dict. A spread key that names a keyword-bindable declared parameter
+binds that slot at runtime instead (CPython semantics), raising TypeError
+on a double binding or a required slot no spread supplies. Encoding below
 lets a single i64 return prove both the arity and the actual keys.
 """
 
@@ -69,4 +71,100 @@ def order_literal_then_spread -> int {
     _SEQ = 0;
     sink(0, q=_tick(1), **_mkd(2));
     return _SEQ;
+}
+
+# ── Spread keys that name declared parameters: Python binding semantics ──
+#
+# A spread key naming a keyword-bindable declared parameter binds that slot
+# (CPython semantics), raising TypeError when the slot is already bound and
+# when a required slot stays unbound. Encodings keep the pre-binding wrong
+# answers distinct from every expected value, so a silent regression to
+# sink-diversion cannot pass.
+
+# a in thousands, sink arity in hundreds, a diverted-"a" sink entry in ones.
+def bind_probe(a: int = 0, **kw: int) -> int {
+    return a * 1000 + len(kw) * 100 + ((kw["a"] if "a" in kw else 0));
+}
+
+# a (required) in tens, sink arity in ones.
+def required_probe(a: int, **kw: int) -> int {
+    return a * 10 + len(kw);
+}
+
+# positional pack in ten-thousands, kwonly k in hundreds, sink arity in ones.
+def kwonly_probe(*args: int, k: int = 0, **kw: int) -> int {
+    return len(args) * 10000 + k * 100 + len(kw);
+}
+
+def spread_binds_declared -> int {
+    d: dict[str, int] = {"a": 5};
+    return bind_probe(**d);
+}
+
+def spread_binds_required(n: int) -> int {
+    d: dict[str, int] = {"a": n};
+    return required_probe(**d);
+}
+
+def mixed_bind_and_sink(n: int) -> int {
+    d: dict[str, int] = {"a": n, "z": 9};
+    return bind_probe(**d);
+}
+
+def two_spread_split -> int {
+    d1: dict[str, int] = {"a": 4};
+    d2: dict[str, int] = {"z": 9};
+    return bind_probe(**d1, **d2);
+}
+
+def kwonly_bind -> int {
+    d: dict[str, int] = {"k": 7};
+    return kwonly_probe(1, 2, **d);
+}
+
+# The sink parameter's own name is not keyword-bindable: it stays a sink key.
+def sink_name_not_bindable -> int {
+    d: dict[str, int] = {"kw": 3};
+    return bind_probe(**d);
+}
+
+def collide_bound_kw -> int {
+    d: dict[str, int] = {"a": 2};
+    try {
+        bind_probe(a=1, **d);
+    } except TypeError {
+        return 1;
+    }
+    return -1;
+}
+
+def collide_bound_pos -> int {
+    d: dict[str, int] = {"a": 2};
+    try {
+        required_probe(7, **d);
+    } except TypeError {
+        return 1;
+    }
+    return -1;
+}
+
+def collide_two_spreads -> int {
+    d1: dict[str, int] = {"a": 1};
+    d2: dict[str, int] = {"a": 2};
+    try {
+        bind_probe(**d1, **d2);
+    } except TypeError {
+        return 1;
+    }
+    return -1;
+}
+
+def missing_required -> int {
+    d: dict[str, int] = {"z": 1};
+    try {
+        x = required_probe(**d);
+        return -x;
+    } except TypeError {
+        return 1;
+    }
 }
