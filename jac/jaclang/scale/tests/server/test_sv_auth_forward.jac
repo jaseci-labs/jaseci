@@ -281,31 +281,51 @@ test "sv_service_call omits X-Trace-Id when no trace context is set" {
 
 import from jaclang.scale.runtime.rpc.breaker {
     _breaker_reset,
+    _breaker_peek,
+    _breaker_force_cooldown_elapsed,
+    _breaker_force_probe_expired,
+    breaker_admit,
     breaker_record_success,
     breaker_record_failure,
     breaker_should_skip,
     _BREAKER_TRIP_THRESHOLD
 }
 
-test "breaker trips OPEN after N consecutive transport failures and fails fast" {
-    mod = "breaker_open_test";
+"""Trip the breaker OPEN without going through the transport."""
+def _trip_breaker(mod: str) {
     _breaker_reset(mod);
-
     for _ in range(_BREAKER_TRIP_THRESHOLD) {
         breaker_record_failure(mod);
     }
+}
+
+"""Take the HALF_OPEN probe lease the way a real caller would, and return it."""
+def _take_probe(mod: str) -> int {
+    _breaker_force_cooldown_elapsed(mod);
+    (admitted, probe) = breaker_admit(mod);
+    assert admitted and probe != 0;
+    return probe;
+}
+
+test "breaker trips OPEN after N consecutive transport failures and fails fast" {
+    mod = "breaker_open_test";
+    _trip_breaker(mod);
 
     assert breaker_should_skip(mod);
 
-    raised_msg = "";
     try {
-        JacScalePlugin.sv_service_call(mod, "anything", {});
-    } except RuntimeError as e {
-        raised_msg = str(e);
+        sv_client.register(mod, "http://demo.invalid");
+        raised_msg = "";
+        try {
+            JacScalePlugin.sv_service_call(mod, "anything", {});
+        } except RuntimeError as e {
+            raised_msg = str(e);
+        }
+        assert "open circuit breaker" in raised_msg;
+    } finally {
+        sv_client.unregister(mod);
+        _breaker_reset(mod);
     }
-    assert "open circuit breaker" in raised_msg;
-
-    _breaker_reset(mod);
 }
 
 test "breaker success recorder resets failure count" {
@@ -328,21 +348,11 @@ test "breaker success recorder resets failure count" {
 }
 
 test "HALF_OPEN probe success closes the breaker" {
-    import from jaclang.scale.runtime.rpc.breaker {
-        _breaker_peek,
-        _breaker_force_cooldown_elapsed
-    }
-
     mod = "breaker_half_open_test";
-    _breaker_reset(mod);
-
-    for _ in range(_BREAKER_TRIP_THRESHOLD) {
-        breaker_record_failure(mod);
-    }
+    _trip_breaker(mod);
     assert breaker_should_skip(mod);
 
-    _breaker_force_cooldown_elapsed(mod);
-    assert not breaker_should_skip(mod);
+    _take_probe(mod);
     st = _breaker_peek(mod);
     assert st is not None and st["state"] == "HALF_OPEN";
 
@@ -356,26 +366,16 @@ test "HALF_OPEN probe success closes the breaker" {
 
 test "HALF_OPEN probe failure re-opens the breaker with a fresh cooldown" {
     import time;
-    import from jaclang.scale.runtime.rpc.breaker {
-        _breaker_peek,
-        _breaker_force_cooldown_elapsed
-    }
-
     mod = "breaker_half_open_reopen_test";
-    _breaker_reset(mod);
-
-    for _ in range(_BREAKER_TRIP_THRESHOLD) {
-        breaker_record_failure(mod);
-    }
+    _trip_breaker(mod);
     assert breaker_should_skip(mod);
 
-    _breaker_force_cooldown_elapsed(mod);
-    assert not breaker_should_skip(mod);
+    probe = _take_probe(mod);
     st = _breaker_peek(mod);
     assert st is not None and st["state"] == "HALF_OPEN";
 
     before = time.time();
-    breaker_record_failure(mod);
+    breaker_record_failure(mod, probe);
     after = time.time();
 
     st = _breaker_peek(mod);
@@ -388,7 +388,6 @@ test "HALF_OPEN probe failure re-opens the breaker with a fresh cooldown" {
 }
 
 test "walker_call records one breaker failure per failed round trip" {
-    import from jaclang.scale.runtime.rpc.breaker { _breaker_peek }
     import from jaclang.scale.runtime.rpc.rpc { _RPC_MAX_ATTEMPTS }
 
     mod = "breaker_walker_per_attempt_test";
@@ -445,16 +444,8 @@ test "breaker opens after exactly the trip threshold of failed round trips" {
 }
 
 test "a breaker that trips mid-call abandons the remaining retries" {
-    import from jaclang.scale.runtime.rpc.breaker {
-        _breaker_peek,
-        _breaker_force_cooldown_elapsed
-    }
-
     mod = "breaker_probe_single_test";
-    _breaker_reset(mod);
-    for _ in range(_BREAKER_TRIP_THRESHOLD) {
-        breaker_record_failure(mod);
-    }
+    _trip_breaker(mod);
     _breaker_force_cooldown_elapsed(mod);
 
     round_trips: dict = {"n": 0};
@@ -482,6 +473,150 @@ test "a breaker that trips mid-call abandons the remaining retries" {
         sv_client.unregister(mod);
         _breaker_reset(mod);
     }
+}
+
+test "only one caller is admitted while a HALF_OPEN probe is in flight" {
+    mod = "breaker_single_probe_admit_test";
+    _trip_breaker(mod);
+    probe = _take_probe(mod);
+
+    (admitted, second_probe) = breaker_admit(mod);
+    assert not admitted , "a second caller was admitted into a live probe";
+    assert second_probe == 0;
+    assert breaker_should_skip(mod);
+
+    st = _breaker_peek(mod);
+    assert st is not None and st["probe"] == probe;
+
+    _breaker_reset(mod);
+}
+
+test "concurrent callers do not pile onto a HALF_OPEN probe" {
+    import threading;
+    import from jaclang.runtimelib.serving.client { ClientConnectionError }
+
+    mod = "breaker_probe_concurrency_test";
+    _trip_breaker(mod);
+    _breaker_force_cooldown_elapsed(mod);
+
+    round_trips: dict = {"n": 0};
+    probe_started = threading.Event();
+    probe_may_finish = threading.Event();
+    errors: list[str] = [];
+    errors_lock = threading.Lock();
+    original_post = sv_http.post_stream_aware_sync;
+
+    def fake(*args: any, **kwargs: any) -> tuple[str, any] {
+        with errors_lock {
+            round_trips["n"] = round_trips["n"] + 1;
+        }
+        probe_started.set();
+        probe_may_finish.wait(5.0);
+        raise ClientConnectionError(detail="connection refused");
+    }
+    sv_http.post_stream_aware_sync = fake;
+
+    def call {
+        try {
+            JacScalePlugin.sv_service_call(mod, "ping", {});
+        } except RuntimeError as e {
+            with errors_lock {
+                errors.append(str(e));
+            }
+        }
+    }
+
+    try {
+        sv_client.register(mod, "http://demo.invalid");
+        prober = threading.Thread(target=call);
+        prober.start();
+        assert probe_started.wait(5.0) , "probe never reached the transport";
+
+        others = [threading.Thread(target=call) for _ in range(8)];
+        for t in others {
+            t.start();
+        }
+        for t in others {
+            t.join(5.0);
+        }
+
+        assert round_trips["n"] == 1 , (
+            f"{round_trips['n']} concurrent probes reached the transport, expected 1"
+        );
+        with errors_lock {
+            blocked = [
+                m
+                for m in errors
+                if "blocked by open circuit breaker" in m
+            ];
+        }
+        assert len(blocked) == len(others) , (
+            f"only {len(blocked)} of {len(others)} callers were shed"
+        );
+    } finally {
+        probe_may_finish.set();
+        prober.join(5.0);
+        sv_http.post_stream_aware_sync = original_post;
+        sv_client.unregister(mod);
+        _breaker_reset(mod);
+    }
+}
+
+test "a probe that dies without a verdict does not wedge the breaker shut" {
+    mod = "breaker_probe_abandoned_test";
+    _trip_breaker(mod);
+    _breaker_force_cooldown_elapsed(mod);
+
+    original_post = sv_http.post_stream_aware_sync;
+
+    def fake(*args: any, **kwargs: any) -> tuple[str, any] {
+        raise ValueError("transport blew up");
+    }
+    sv_http.post_stream_aware_sync = fake;
+
+    try {
+        sv_client.register(mod, "http://demo.invalid");
+        try {
+            JacScalePlugin.sv_service_call(mod, "ping", {});
+        } except ValueError {
+            ;
+        }
+
+        st = _breaker_peek(mod);
+        assert st is not None and st["state"] == "OPEN" , (
+            f"abandoned probe left the breaker in {st}"
+        );
+
+        _breaker_force_cooldown_elapsed(mod);
+        (admitted, probe) = breaker_admit(mod);
+        assert admitted and probe != 0;
+    } finally {
+        sv_http.post_stream_aware_sync = original_post;
+        sv_client.unregister(mod);
+        _breaker_reset(mod);
+    }
+}
+
+test "a probe that never reports back is reclaimed after the probe timeout" {
+    mod = "breaker_probe_stale_test";
+    _trip_breaker(mod);
+    stale_probe = _take_probe(mod);
+
+    (admitted, blocked_probe) = breaker_admit(mod);
+    assert not admitted and blocked_probe == 0;
+
+    _breaker_force_probe_expired(mod);
+    (reclaimed, fresh_probe) = breaker_admit(mod);
+    assert reclaimed , "a stuck probe pinned the breaker in HALF_OPEN";
+    assert fresh_probe != stale_probe;
+
+    breaker_record_failure(mod, stale_probe);
+    st = _breaker_peek(mod);
+    assert st is not None and st["state"] == "HALF_OPEN" , (
+        "a stale probe verdict clobbered the live probe"
+    );
+
+    _breaker_reset(mod);
 }
 
 test "application error envelope does NOT trip the breaker" {

@@ -1,49 +1,114 @@
 import from threading { Lock as _BreakerLock }
 glob _BREAKER_TRIP_THRESHOLD: int = 5,
      _BREAKER_COOLDOWN_SECONDS: float = 30.0,
+     _BREAKER_PROBE_TIMEOUT_SECONDS: float = 60.0,
+     _BREAKER_NO_PROBE: int = 0,
      _breaker_state: dict[str, dict] = {},
      _breaker_lock = _BreakerLock();
+
+def _breaker_new_state -> dict {
+    return {
+        "state": "CLOSED",
+        "fails": 0,
+        "opened_at": 0.0,
+        "probe": _BREAKER_NO_PROBE,
+        "probe_started_at": 0.0
+    };
+}
+
+def _breaker_open(st: dict, now: float) {
+    st["state"] = "OPEN";
+    st["opened_at"] = now;
+    st["probe_started_at"] = 0.0;
+}
+
+def _breaker_close(st: dict) {
+    st["state"] = "CLOSED";
+    st["fails"] = 0;
+    st["opened_at"] = 0.0;
+    st["probe_started_at"] = 0.0;
+}
+
+def _breaker_lease_probe(st: dict, now: float) -> int {
+    st["state"] = "HALF_OPEN";
+    st["probe"] = st.get("probe", _BREAKER_NO_PROBE) + 1;
+    st["probe_started_at"] = now;
+    return st["probe"];
+}
+
+def _breaker_holds_probe(st: dict, probe: int) -> bool {
+    return probe != _BREAKER_NO_PROBE
+        and st.get("state") == "HALF_OPEN"
+        and st.get("probe") == probe;
+}
+
+def _breaker_is_shedding(st: dict, now: float) -> bool {
+    state = st.get("state", "CLOSED");
+    if state == "OPEN" {
+        return (now - st.get("opened_at", 0.0)) < _BREAKER_COOLDOWN_SECONDS;
+    }
+    if state == "HALF_OPEN" {
+        return (now - st.get("probe_started_at", 0.0)) < _BREAKER_PROBE_TIMEOUT_SECONDS;
+    }
+    return False;
+}
 
 def breaker_should_skip(provider: str) -> bool {
     import time;
     with _breaker_lock {
         st = _breaker_state.get(provider);
-        if st is None or st.get("state") == "CLOSED" {
-            return False;
-        }
-        if st.get("state") == "OPEN" {
-            elapsed = time.time() - st.get("opened_at", 0.0);
-            if elapsed < _BREAKER_COOLDOWN_SECONDS {
-                return True;
-            }
+        return st is not None and _breaker_is_shedding(st, time.time());
+    }
+}
 
-            st["state"] = "HALF_OPEN";
-            return False;
+def breaker_admit(provider: str) -> tuple[bool, int] {
+    import time;
+    with _breaker_lock {
+        st = _breaker_state.get(provider);
+        if st is None or st.get("state") == "CLOSED" {
+            return (True, _BREAKER_NO_PROBE);
         }
-        return False;
+        now = time.time();
+        if _breaker_is_shedding(st, now) {
+            return (False, _BREAKER_NO_PROBE);
+        }
+        return (True, _breaker_lease_probe(st, now));
+    }
+}
+
+def breaker_release_probe(provider: str, probe: int) {
+    import time;
+    if probe == _BREAKER_NO_PROBE {
+        return;
+    }
+    with _breaker_lock {
+        st = _breaker_state.get(provider);
+        if st is not None and _breaker_holds_probe(st, probe) {
+            _breaker_open(st, time.time());
+        }
     }
 }
 
 def breaker_record_success(provider: str) {
     with _breaker_lock {
-        _breaker_state[provider] = {"state": "CLOSED", "fails": 0, "opened_at": 0.0};
+        st = _breaker_state.get(provider) or _breaker_new_state();
+        _breaker_close(st);
+        _breaker_state[provider] = st;
     }
 }
 
-def breaker_record_failure(provider: str) {
+def breaker_record_failure(provider: str, probe: int = _BREAKER_NO_PROBE) {
     import time;
     with _breaker_lock {
-        st = _breaker_state.get(provider)
-            or {"state": "CLOSED", "fails": 0, "opened_at": 0.0};
-        current = st.get("state", "CLOSED");
-        if current == "HALF_OPEN" {
-            st["state"] = "OPEN";
-            st["opened_at"] = time.time();
+        st = _breaker_state.get(provider) or _breaker_new_state();
+        if st.get("state") == "HALF_OPEN" {
+            if _breaker_holds_probe(st, probe) {
+                _breaker_open(st, time.time());
+            }
         } else {
             st["fails"] = st.get("fails", 0) + 1;
             if st["fails"] >= _BREAKER_TRIP_THRESHOLD {
-                st["state"] = "OPEN";
-                st["opened_at"] = time.time();
+                _breaker_open(st, time.time());
             }
         }
         _breaker_state[provider] = st;
@@ -70,6 +135,15 @@ def _breaker_force_cooldown_elapsed(provider: str) {
         st = _breaker_state.get(provider);
         if st is not None {
             st["opened_at"] = 0.0;
+        }
+    }
+}
+
+def _breaker_force_probe_expired(provider: str) {
+    with _breaker_lock {
+        st = _breaker_state.get(provider);
+        if st is not None {
+            st["probe_started_at"] = 0.0;
         }
     }
 }
