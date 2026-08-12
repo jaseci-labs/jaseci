@@ -308,7 +308,10 @@ impl NaIRGenPass._export_native_layout -> None {
             );
         }
         layout.structs[arch_name] = NativeStructLayout(
-            name=arch_name, fields=fields, has_vtable=self._arch_has_vtable(arch_name)
+            name=arch_name,
+            fields=fields,
+            has_vtable=self._arch_has_vtable(arch_name),
+            accessors=self._exported_accessors(arch_name)
         );
     }
 
@@ -440,6 +443,39 @@ impl NaIRGenPass._export_native_layout -> None {
         );
     }
     self.ir_in.gen.native_layout = layout;
+}
+
+"""The accessor table a marshalled view dispatches through, per class (#8092).
+
+`{ getter; }` fields have no data slot (#8074), so a Python-side read must
+call the emitted accessor body. For every accessor slot the class answers to
+-- own or inherited, the registry's vtable layout lists both -- this records
+the symbol `_resolve_method` binds, which is the same function the class's
+vtable slot holds, so a static call to the recorded symbol and a virtual
+dispatch agree for every runtime class. A body this unit demoted is omitted:
+advertising an abort stub would turn a Python-side read into a process abort.
+"""
+impl NaIRGenPass._exported_accessors(arch_name: str) -> dict[(str, dict[(str, str)])] {
+    out: dict[(str, dict[(str, str)])] = {};
+    lay = self._arch_layout(arch_name);
+    if lay is None {
+        return out;
+    }
+    for slot in lay.method_index {
+        parts = slot.rsplit(".", 1);
+        if len(parts) != 2 or parts[1] not in ACCESSOR_SLOT_SUFFIX.values() {
+            continue;
+        }
+        fn = self._resolve_method(arch_name, slot);
+        if fn is None or fn.name in self._native_skipped_methods {
+            continue;
+        }
+        if parts[0] not in out {
+            out[parts[0]] = {};
+        }
+        out[parts[0]][parts[1]] = fn.name;
+    }
+    return out;
 }
 
 impl NaIRGenPass._ret_tuple_hints(fname: str, ret_tuple: any) -> (list | None) {

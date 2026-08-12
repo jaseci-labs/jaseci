@@ -1334,6 +1334,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _clib_sext_ret(func_name: str, result: ir.Value) -> ir.Value;
     def _llvm_type_str(ty: ir.Type) -> str;
     def _export_native_layout -> None;
+    def _exported_accessors(arch_name: str) -> dict[(str, dict[(str, str)])];
     def _normalize_type_key(key: str) -> str;
     def _elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | None);
     def _record_ret_facts(name: str, sig: uni.FuncSignature) -> None;
