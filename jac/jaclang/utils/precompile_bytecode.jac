@@ -720,6 +720,34 @@ def seal_native_artifacts(
             purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
+        # Accessor bodies are part of the marshalling ABI (#8092): a view
+        # reads a `{ getter; }` field by calling the symbol the layout
+        # advertises under `structs[cls].accessors`, so those symbols join
+        # the export list (the canary then proves each resolves). An
+        # accessor whose body ships as a waived abort stub is dropped from
+        # the advertised table instead: a Python-side read of it must keep
+        # raising AttributeError, never abort the process.
+        layout_dict = native_layout_to_dict(layout);
+        _stub_syms = set(seal_abort_stubs(llvm_ir_text));
+        accessor_syms: set[str] = set();
+        for _sd in layout_dict["structs"].values() {
+            _live = {
+                _fname: {
+                    _kind: _sym
+                    for (_kind, _sym) in _kinds.items()
+                    if _sym not in _stub_syms
+                } for (_fname, _kinds) in (_sd.get("accessors") or {}).items()
+            };
+            _sd["accessors"] = {
+                _fname: _kinds
+                for (_fname, _kinds) in _live.items()
+                if _kinds
+            };
+            for _kinds in _sd["accessors"].values() {
+                accessor_syms.update(_kinds.values());
+            }
+        }
+        exports = sorted(set(exports) | accessor_syms);
         triple = llvm.get_default_triple();
         out_dir = precompiled_dir / "native" / triple;
         out_dir.mkdir(parents=True, exist_ok=True);
@@ -753,8 +781,7 @@ def seal_native_artifacts(
         }
         layout_path = out_dir / f"{stem}.layout.json";
         layout_path.write_text(
-            json.dumps(native_layout_to_dict(layout), sort_keys=True) + "\n",
-            encoding="utf-8"
+            json.dumps(layout_dict, sort_keys=True) + "\n", encoding="utf-8"
         );
         parts = [
             p

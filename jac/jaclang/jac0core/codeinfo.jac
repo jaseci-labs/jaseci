@@ -84,7 +84,8 @@ obj NativeFieldInfo {
 obj NativeStructLayout {
     has name: str,
         fields: list[NativeFieldInfo] = field(default_factory=`list),
-        has_vtable: bool = False;
+        has_vtable: bool = False,
+        accessors: dict[(str, dict[(str, str)])] = field(default_factory=`dict);
 }
 
 obj NativeEnumLayout {
@@ -402,6 +403,9 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
             name: {
                 "name": s.name,
                 "has_vtable": s.has_vtable,
+                "accessors": {
+                    fname: dict(kinds) for (fname, kinds) in s.accessors.items()
+                },
                 "fields": [
                     {
                         "name": fld.name,

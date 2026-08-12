@@ -18,6 +18,17 @@ impl NativeStructView.__getattr__(name: str) -> any {
     try {
         raw = getattr(native, name);
     } except AttributeError {
+        # Not a data slot: an accessor field has none (#8074), so the read
+        # routes through the emitted getter when a bridge is bound.
+        bridge = getattr(self.layout, "_accessor_bridge", None)
+            if self.layout is not None
+            else None;
+        if bridge is not None {
+            (hit, val) = bridge.read_through(self, name);
+            if hit {
+                return val;
+            }
+        }
         raise AttributeError(f"'{self.struct_name}' has no field '{name}'");
     }
     return self._resolve(name, raw);
@@ -30,6 +41,12 @@ impl NativeStructView.__setattr__(name: str, value: any) -> None {
     }
     finfo = self._field_meta.get(name);
     if finfo is None {
+        bridge = getattr(self.layout, "_accessor_bridge", None)
+            if self.layout is not None
+            else None;
+        if bridge is not None and bridge.write_through(self, name, value) {
+            return;
+        }
         raise AttributeError(f"'{self.struct_name}' has no field '{name}'");
     }
     lt = finfo.llvm_type;
@@ -184,6 +201,151 @@ impl NativeStructView.items -> any {
 
 impl NativeStructView.__repr__ -> str {
     return f"<NativeStructView {self.struct_name}>";
+}
+
+impl NativeAccessorBridge.runtime_class(struct_name: str, addr: int) -> str {
+    sl = self.layout.structs.get(struct_name);
+    if (sl is None or not sl.has_vtable or not addr) {
+        return struct_name;
+    }
+    vt = ctypes.c_void_p.from_address(addr).value;
+    if not vt {
+        return struct_name;
+    }
+    nm = self._cls_names.get(vt);
+    if nm is None {
+        # Vtable slot 0 is the class-name constant the compiler stamps ahead
+        # of the method slots (`_emit_class_name_const`).
+        namep = ctypes.c_void_p.from_address(vt).value;
+        nm = ctypes.string_at(namep).decode("utf-8", errors="replace") if namep else "";
+        self._cls_names[vt] = nm;
+    }
+    return nm if nm in self.layout.structs else struct_name;
+}
+
+impl NativeAccessorBridge._accessor_symbol(
+    view: NativeStructView, name: str, kind: str
+) -> (str | None) {
+    cls = view._acc_cls;
+    if cls is None {
+        cls = self.runtime_class(view.struct_name, view.addr);
+        view._acc_cls = cls;
+    }
+    candidates = [cls] if cls == view.struct_name else [cls, view.struct_name];
+    for cand in candidates {
+        sl = self.layout.structs.get(cand);
+        amap = getattr(sl, "accessors", None) if sl is not None else None;
+        entry = amap.get(name) if amap else None;
+        sym = entry.get(kind) if entry else None;
+        if sym is not None {
+            return sym;
+        }
+    }
+    return None;
+}
+
+impl NativeAccessorBridge._binding(symbol: str) -> any {
+    cached = self._bound.get(symbol);
+    if cached is not None {
+        return cached or None;
+    }
+    ml = self.layout.methods.get(symbol);
+    addr = self.engine.get_function_address(symbol) if ml is not None else 0;
+    if (not addr or any(pt.startswith("opt.") for pt in ml.param_types)) {
+        self._bound[symbol] = False;
+        return None;
+    }
+    fn_type = ctypes.CFUNCTYPE(_c_ret_type(ml.ret_type), *_c_arg_types(ml.param_types));
+    bound = (fn_type(addr), ml, );
+    self._bound[symbol] = bound;
+    return bound;
+}
+
+impl NativeAccessorBridge._str_new_fn -> any {
+    if self._str_new is None {
+        self._str_new = _resolve_str_new(self.engine) or False;
+    }
+    return self._str_new or None;
+}
+
+impl NativeAccessorBridge.read_through(view: NativeStructView, name: str) -> tuple {
+    sym = self._accessor_symbol(view, name, "__get__");
+    bound = self._binding(sym) if sym is not None else None;
+    if bound is None {
+        return (False, None);
+    }
+    (fn, ml) = bound;
+    raw = fn(view.addr);
+    return (
+        True,
+        marshal_value(
+            raw,
+            ml.ret_type,
+            view.ctypes_classes,
+            view.enum_maps,
+            {},
+            func_layout=ml,
+            layout=self.layout,
+            view_memo=view._view_memo
+        ),
+
+    );
+}
+
+impl NativeAccessorBridge.write_through(
+    view: NativeStructView, name: str, value: any
+) -> bool {
+    sym = self._accessor_symbol(view, name, "__set__");
+    bound = self._binding(sym) if sym is not None else None;
+    if bound is None {
+        return False;
+    }
+    (fn, ml) = bound;
+    vt = ml.param_types[1] if len(ml.param_types) > 1 else "";
+    c_args: list = [view.addr];
+    if vt in ("jacstr3", "jacstr2") and isinstance(value, (str, bytes)) {
+        sp_fn = self._str_new_fn();
+        if sp_fn is None {
+            raise TypeError(
+                f"cannot write field '{name}' of type '{vt}' through "
+                "NativeStructView: the artifact exports no jac_str_new"
+            );
+        }
+        _b = value.encode("utf-8") if isinstance(value, str) else value;
+        _sp = sp_fn(_b, len(_b));
+        if vt == "jacstr3" {
+            c_args.extend([_sp, _sp, len(_b)]);
+        } else {
+            c_args.extend([_sp, len(_b)]);
+        }
+    } elif isinstance(value, NativeStructView) {
+        c_args.append(value.addr);
+    } elif isinstance(value, NativeListView) {
+        c_args.append(value.list_ptr);
+    } elif isinstance(value, (bool, int, float)) {
+        c_args.append(value);
+    } elif (value is None and vt.endswith("*")) {
+        c_args.append(None);
+    } else {
+        converted = False;
+        if vt in ("i64", "i32", "i16", "i8") {
+            for emap in view.enum_maps.values() {
+                if value in emap {
+                    c_args.append(emap.index(value));
+                    converted = True;
+                    break;
+                }
+            }
+        }
+        if not converted {
+            raise TypeError(
+                f"cannot write field '{name}' of type '{vt}' through "
+                "NativeStructView"
+            );
+        }
+    }
+    fn(*c_args);
+    return True;
 }
 
 impl NativeListView.postinit -> None {

@@ -85,6 +85,7 @@ def layout_from_dict(data: any) -> any {
         structs[name] = SimpleNamespace(
             name=sd["name"],
             has_vtable=sd.get("has_vtable", False),
+            accessors=dict(sd.get("accessors") or {}),
             fields=[_field_info(f) for f in (sd.get("fields") or [])]
         );
     }

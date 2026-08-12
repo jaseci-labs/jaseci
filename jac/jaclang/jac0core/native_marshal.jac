@@ -24,28 +24,71 @@ glob logger = logging.getLogger(__name__),
          "void": None
      };
 
-def _build_cfunctype(finfo: any) -> type {
-    if finfo.func_ret_type == "jacstr3" {
-        ret_ct = JacStrRet3;
-    } elif finfo.func_ret_type == "jacstr2" {
-        ret_ct = JacStrRet2;
-    } else {
-        ret_ct = LLVM_TO_CTYPES.get(finfo.func_ret_type);
-        if ret_ct is None {
-            ret_ct = ctypes.c_void_p if finfo.func_ret_type != "void" else None;
-        }
-    }
-    param_cts: list = [];
-    for pt in (finfo.func_param_types or []) {
+"""The ctypes argument row for a native signature.
+
+A Jac str crosses the boundary decomposed: `jacstr3` is the by-value
+{root, data, len} descriptor and `jacstr2` its headerless {data, len} form,
+so one declared parameter widens to three (or two) scalar slots.
+"""
+def _c_arg_types(param_types: any) -> list {
+    out: list = [];
+    for pt in (param_types or []) {
         if pt == "jacstr3" {
-            param_cts.extend([ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64]);
+            out.extend([ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64]);
         } elif pt == "jacstr2" {
-            param_cts.extend([ctypes.c_void_p, ctypes.c_int64]);
+            out.extend([ctypes.c_void_p, ctypes.c_int64]);
         } else {
-            param_cts.append(LLVM_TO_CTYPES.get(pt, ctypes.c_void_p));
+            ct = LLVM_TO_CTYPES.get(pt);
+            out.append(ctypes.c_void_p if ct is None else ct);
         }
     }
-    return ctypes.CFUNCTYPE(ret_ct, *param_cts);
+    return out;
+}
+
+
+def _c_ret_type(ret_type: str) -> any {
+    if ret_type == "jacstr3" {
+        return JacStrRet3;
+    }
+    if ret_type == "jacstr2" {
+        return JacStrRet2;
+    }
+    if ret_type == "void" {
+        return None;
+    }
+    if ret_type.startswith("opt.") {
+        return _opt_ctype(ret_type[4:]);
+    }
+    ct = LLVM_TO_CTYPES.get(ret_type);
+    return ctypes.c_void_p if ct is None else ct;
+}
+
+
+def _build_cfunctype(finfo: any) -> type {
+    return ctypes.CFUNCTYPE(
+        _c_ret_type(finfo.func_ret_type or "void"),
+        *_c_arg_types(finfo.func_param_types)
+    );
+}
+
+
+"""The `jac_str_new` constructor of an artifact, or None if it exports none."""
+def _resolve_str_new(engine: any) -> any {
+    _sn_addr = 0;
+    for _sn_name in ("jac_str_new", "__jac_str_new") {
+        try {
+            _sn_addr = engine.get_function_address(_sn_name);
+        } except Exception {
+            _sn_addr = 0;
+        }
+        if _sn_addr {
+            break;
+        }
+    }
+    if not _sn_addr {
+        return None;
+    }
+    return ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(_sn_addr);
 }
 
 
@@ -199,7 +242,8 @@ obj NativeStructView {
         enum_maps: dict = field(default_factory=`dict),
         _native: any = field(default=None, repr=False),
         _field_meta: dict = field(default_factory=`dict, repr=False),
-        _view_memo: dict = field(default_factory=`dict, repr=False);
+        _view_memo: dict = field(default_factory=`dict, repr=False),
+        _acc_cls: (str | None) = field(default=None, repr=False);
 
     def postinit -> None;
     def __getattr__(name: str) -> any;
@@ -240,6 +284,45 @@ obj NativeListView {
     def __iter__ -> any;
     def __eq__(other: any) -> any;
     def __repr__ -> str;
+}
+
+
+"""Engine-bound dispatch for accessor fields on marshalled views (#8092).
+
+An accessor-only `has` occupies no data slot (#8074): the layout advertises
+it under `structs[cls].accessors` as the symbol the class's dispatch binds,
+and the artifact exports that body. One bridge per binding hangs off the
+layout (`install_accessor_bridge`), holding the engine handle, the
+per-symbol ctypes bindings and the vtable-pointer -> class-name memo, so a
+plain field read pays nothing new and an accessor read resolves its symbol
+once. Dispatch is virtual where the class dispatches virtually: a vtabled
+receiver is re-keyed to its runtime class -- vtable slot 0 is the class-name
+constant the compiler stamps -- and that class's recorded symbol is by
+construction the function its vtable slot holds.
+"""
+obj NativeAccessorBridge {
+    has engine: any,
+        layout: any,
+        _bound: dict = field(default_factory=`dict, repr=False),
+        _cls_names: dict = field(default_factory=`dict, repr=False),
+        _str_new: any = field(default=None, repr=False);
+
+    def runtime_class(struct_name: str, addr: int) -> str;
+    def read_through(view: NativeStructView, name: str) -> tuple;
+    def write_through(view: NativeStructView, name: str, value: any) -> bool;
+    def _accessor_symbol(view: NativeStructView, name: str, kind: str) -> (str | None);
+
+    def _binding(symbol: str) -> any;
+    def _str_new_fn -> any;
+}
+
+
+"""Hang a NativeAccessorBridge off `layout` once per binding."""
+def install_accessor_bridge(engine: any, layout: any) -> None {
+    if (layout is None or getattr(layout, "_accessor_bridge", None) is not None) {
+        return;
+    }
+    layout._accessor_bridge = NativeAccessorBridge(engine=engine, layout=layout);
 }
 
 
@@ -778,6 +861,7 @@ def wrap_native_function(
     py_classes: dict,
     layout: any = None
 ) -> any {
+    install_accessor_bridge(engine, layout);
     addr = engine.get_function_address(func_layout.name);
     if not addr {
         return None;
@@ -787,42 +871,10 @@ def wrap_native_function(
         return None;
     }
 
-    c_arg_types: list = [];
-    for pt in func_layout.param_types {
-        if pt == "jacstr3" {
-            c_arg_types.extend([ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64]);
-            continue;
-        }
-        if pt == "jacstr2" {
-            c_arg_types.extend([ctypes.c_void_p, ctypes.c_int64]);
-            continue;
-        }
-        ct = LLVM_TO_CTYPES.get(pt);
-        if ct is None {
-            ct = ctypes.c_void_p;
-        }
-        c_arg_types.append(ct);
-    }
-
     ret_type = func_layout.ret_type;
-    if ret_type == "jacstr3" {
-        c_ret = JacStrRet3;
-    } elif ret_type == "jacstr2" {
-        c_ret = JacStrRet2;
-    } else {
-        c_ret = LLVM_TO_CTYPES.get(ret_type);
-    }
-    if c_ret is None {
-        if ret_type == "void" {
-            c_ret = None;
-        } elif ret_type.startswith("opt.") {
-            c_ret = _opt_ctype(ret_type[4:]);
-        } else {
-            c_ret = ctypes.c_void_p;
-        }
-    }
-
-    fn_type = ctypes.CFUNCTYPE(c_ret, *c_arg_types);
+    fn_type = ctypes.CFUNCTYPE(
+        _c_ret_type(ret_type), *_c_arg_types(func_layout.param_types)
+    );
     native_fn = fn_type(addr);
 
     param_types = func_layout.param_types;
@@ -830,23 +882,7 @@ def wrap_native_function(
 
     str_new_fn: any = None;
     if any(pt in ("i8*", "jacstr3", "jacstr2") for pt in param_types) {
-        _sn_addr = 0;
-        for _sn_name in ("jac_str_new", "__jac_str_new") {
-            try {
-                _sn_addr = engine.get_function_address(_sn_name);
-            } except Exception {
-                _sn_addr = 0;
-            }
-            if _sn_addr {
-                break;
-            }
-        }
-        if _sn_addr {
-            _sn_type = ctypes.CFUNCTYPE(
-                ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64
-            );
-            str_new_fn = _sn_type(_sn_addr);
-        }
+        str_new_fn = _resolve_str_new(engine);
     }
 
     def wrapper(*args: any) -> any {
