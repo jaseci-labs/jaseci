@@ -132,7 +132,7 @@ impl NaIRGenPass._codegen_bound_args(
             node_override=nd,
             kind="call argument unpacking",
             name="**",
-            help_text="A `**` spread carries keys known only at runtime, so it can only fill a callee's `**kwargs` sink, never declared named parameters. Give the callee a `**kwargs` parameter, or pass the arguments explicitly."
+            help_text="A `**` spread carries keys known only at runtime, so the callee needs a `**kwargs` sink to receive keys that match no declared parameter. Give the callee a `**kwargs` parameter, or pass the arguments explicitly."
         );
         kw_spreads = [];
         kw_order = [];

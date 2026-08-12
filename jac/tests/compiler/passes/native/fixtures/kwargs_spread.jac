@@ -2,7 +2,9 @@
 
 The sink dict is built at compile time: literal keywords are inserted
 directly and each spread operand is merged in with an index loop over the
-source dict, so no runtime name-to-slot binding is needed. Encoding below
+source dict. A spread key that names a keyword-bindable declared parameter
+binds that slot at runtime instead (CPython semantics), raising TypeError
+on a double binding or a required slot no spread supplies. Encoding below
 lets a single i64 return prove both the arity and the actual keys.
 """
 

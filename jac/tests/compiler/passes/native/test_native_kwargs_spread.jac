@@ -1,19 +1,19 @@
-"""`**` spread lowers into a callee's `**kwargs` sink; not onto named params.
+"""`**` spread lowers into a callee's `**kwargs` sink and binds named params.
 
 Native already lowered the declaration half of kwargs: a callee with a
 `**kwargs` sink gets a trailing dict slot in its LLVM signature, and
 `_codegen_kwargs_dict` collects a call site's leftover *literal* keywords
-into that dict at compile time. What it rejected outright was the `**`
-spread, so every forwarding wrapper in the compiler's own diagnostics chain
-(`emit` -> `format_message`) sat behind an E5090.
-
-A spread into a sink needs no runtime name-to-slot binding: the keys land in
-the sink dict whatever they are. So the spread operand is now merged into the
-sink with an index loop over the source dict, reusing the same len/get_key/
+into that dict at compile time. The spread operand is merged into the sink
+with an index loop over the source dict, reusing the same len/get_key/
 get_val primitives dict iteration already uses.
 
-A spread onto *declared named parameters* is the genuinely hard case -- it
-would need runtime keyword binding -- and stays rejected.
+A spread key that names a *keyword-bindable declared parameter* follows
+CPython binding semantics at runtime: it binds the slot when unbound,
+raises TypeError when the slot is already bound (positionally, by literal
+keyword, or by an earlier spread), and a required slot no spread supplies
+raises TypeError. Bound keys never reach the sink. Only the truly dynamic
+shape stays statically rejected: a spread at a callee with no sink, where
+unmatched keys would have nowhere to go.
 
 Refs #8039
 """
@@ -134,7 +134,7 @@ test "the spread fixture compiles with no native diagnostics" {
 # The genuinely dynamic case stays rejected
 # ─────────────────────────────────────────────────────────────────────
 
-test "guardrail: a spread onto declared named params is still rejected" {
+test "guardrail: a spread at a callee with no sink is still rejected" {
     prog = check_na_inline(
         "onto_named",
         "def sink(a: int, b: int) -> int { return a + b; }\n"
