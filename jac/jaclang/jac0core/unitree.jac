@@ -1309,7 +1309,7 @@ obj FilterCompr(AtomExpr) {
     def accept_enter(v: UniPass) -> None;
 
     has f_type: (Expr | None),
-        compares: Sequence[CompareExpr];
+        compares: Sequence[Expr];
 
     def postinit -> None;
 }

@@ -476,6 +476,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None);
     def _isinstance_type_name(nd: uni.UniNode) -> (str | None);
     def _enum_union_tags(operand_expr: uni.UniNode, names: list[str]) -> tuple;
+    def _arch_alias_target(nd: (uni.UniNode | None)) -> (str | None);
     def _emit_isinstance_user(
         nd: uni.FuncCall, operand: ir.Value, names: list[str]
     ) -> (ir.Value | None);

@@ -1,5 +1,26 @@
 import from jaclang.jac0core.constant { OwnershipKind }
 
+impl NaIRGenPass._arch_alias_target(nd: (uni.UniNode | None)) -> (str | None) {
+    # Resolve an imported alias (import { Ellipsis as EllipsisLit }) to the
+    # archetype's canonical name via the alias symbol's declaration site.
+    if not isinstance(nd, uni.NameAtom) {
+        return None;
+    }
+    sym = nd.sym;
+    if sym is None {
+        return None;
+    }
+    d = sym.decl;
+    if d is None {
+        return None;
+    }
+    par = d.parent;
+    if isinstance(par, uni.ModuleItem) and par.alias is d {
+        return self._get_name(par.name);
+    }
+    return None;
+}
+
 impl NaIRGenPass._callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None) {
     decl = nd.callee_decl;
     sig = decl.signature if decl is not None else None;
@@ -1577,6 +1598,10 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if func_name in self.struct_types {
         return self._codegen_instantiation(nd);
     }
+    _alias_arch = self._arch_alias_target(nd.target);
+    if _alias_arch is not None and _alias_arch in self.struct_types {
+        return self._codegen_instantiation(nd, type_name_override=_alias_arch);
+    }
     if func_name in self.decorated_fns {
         return self._codegen_decorated_call(nd, func_name);
     }
@@ -1777,7 +1802,10 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if self._nogc_headerless() {
         _skip_own: set = set();
         _is_ctor = isinstance(nd.target, uni.Name)
-            and nd.target.sym_name in self.arch_ast_map;
+            and (
+                nd.target.sym_name in self.arch_ast_map
+                or self._arch_alias_target(nd.target) in self.arch_ast_map
+            );
         _sig = None if _is_ctor else self._callee_sig_of(nd);
         _sig_params = _sig.get_parameters() if _sig is not None else [];
         if _is_ctor {
@@ -1910,6 +1938,10 @@ impl NaIRGenPass._isinstance_type_name(nd: uni.UniNode) -> (str | None) {
             return "NoneType";
         }
         return None;
+    }
+    _alias_nm = self._arch_alias_target(nd);
+    if _alias_nm is not None {
+        return _alias_nm;
     }
     return self._get_name(nd);
 }

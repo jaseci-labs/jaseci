@@ -3794,8 +3794,9 @@ impl TypeEvaluator._get_type_from_flow_node(
         return None;
     }
 
-    if len(visited) > 64 {
-        self._flow_node_type_cache[cache_key] = None;
+    if len(visited) > 256 {
+        # Fuel exhausted: this walk gives up, but the result depends on this
+        # walk's visited set, so it must not poison the cache.
         return None;
     }
     visited.add(flow_node_id);
@@ -3837,8 +3838,26 @@ impl TypeEvaluator._get_type_from_flow_node(
         if isinstance(
             pred, (uni.WhileStmt, uni.ForeverStmt, uni.InForStmt, uni.IterForStmt)
         )
-            and not (pred.body and flow_node is pred.body[0])
             and self._loop_body_writes_target(pred, target) {
+            # A body that writes the target makes every body node see the
+            # back-edge merge, including body[0]: an iteration-one view there
+            # would leak the pre-loop assignment's type into later iterations.
+            # The loop condition still narrows entry into the body, applied
+            # over the conservative (declared) merge.
+            if (
+                isinstance(pred, uni.WhileStmt)
+                and pred.body
+                and flow_node is pred.body[0]
+            ) {
+                predicate = self._find_predicate_for(target, pred.condition);
+                if predicate is not None {
+                    narrowed = self._apply_narrowing(predicate, None, True, target);
+                    if narrowed is not None {
+                        incoming_types.append(narrowed);
+                        continue;
+                    }
+                }
+            }
             has_unnarrowed_pred = True;
             continue;
         }
@@ -4027,6 +4046,32 @@ impl TypeEvaluator._get_type_from_flow_node(
             }
         }
 
+        _after_if_write = (
+            isinstance(pred, uni.IfStmt)
+            and not isinstance(flow_node, uni.CfgExpr)
+            and self._loop_body_writes_target(pred, target)
+        );
+        if _after_if_write {
+            _anc2: uni.UniNode | None = flow_node;
+            while _anc2 is not None {
+                if _anc2 is pred {
+                    _after_if_write = False;
+                    break;
+                }
+                _anc2 = _anc2.parent;
+            }
+        }
+        if _after_if_write {
+            # The branch bodies assign the target, so the if's exit type is
+            # the join over its arm tails, not its entry-time narrow.
+            exit_t = self._if_exit_type(target, pred, pred_narrowed, set());
+            if exit_t is not None {
+                incoming_types.append(exit_t);
+            } else {
+                has_unnarrowed_pred = True;
+            }
+            continue;
+        }
         if pred_narrowed is not None {
             incoming_types.append(pred_narrowed);
         } else {
@@ -4055,6 +4100,63 @@ impl TypeEvaluator._get_type_from_flow_node(
     }
     visited.discard(flow_node_id);
     return result;
+}
+
+impl TypeEvaluator._if_exit_type(
+    target: NarrowingTarget,
+    stmt: uni.IfStmt,
+    entry_type: TypeBase | None,
+    visited: set
+) -> TypeBase | None {
+    import from jaclang.compiler.type_system.type_evaluator { NarrowingTarget }
+    arm_types: list[TypeBase] = [];
+    if stmt.body {
+        then_t = self._get_type_from_flow_node(target, stmt.body[-1], visited);
+        if then_t is None {
+            return None;
+        }
+        arm_types.append(then_t);
+    }
+    eb = stmt.else_body;
+    if eb is None {
+        fall_t = entry_type;
+        predicate = self._find_predicate_for(target, stmt.condition);
+        if predicate is not None {
+            narrowed_f = self._apply_narrowing(predicate, entry_type, False, target);
+            if narrowed_f is not None {
+                fall_t = narrowed_f;
+            }
+        }
+        if fall_t is None {
+            return None;
+        }
+        arm_types.append(fall_t);
+    } elif isinstance(eb, uni.ElseIf) {
+        else_t = self._if_exit_type(target, eb, entry_type, visited);
+        if else_t is None {
+            return None;
+        }
+        arm_types.append(else_t);
+    } elif isinstance(eb, uni.ElseStmt) {
+        if eb.body {
+            else_t = self._get_type_from_flow_node(target, eb.body[-1], visited);
+            if else_t is None {
+                return None;
+            }
+            arm_types.append(else_t);
+        } elif entry_type is not None {
+            arm_types.append(entry_type);
+        } else {
+            return None;
+        }
+    }
+    if not arm_types {
+        return None;
+    }
+    if len(arm_types) == 1 {
+        return arm_types[0];
+    }
+    return self._union_narrowed_types(arm_types);
 }
 
 impl TypeEvaluator._loop_body_writes_target(

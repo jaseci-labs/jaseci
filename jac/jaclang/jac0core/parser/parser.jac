@@ -69,6 +69,8 @@ import from jaclang.jac0core.unitree {
     InnerCompr,
     Int,
     IterForStmt,
+    JsxAttribute,
+    JsxChild,
     JsxComment,
     JsxElement,
     JsxElementName,
@@ -443,8 +445,8 @@ obj Parser {
     def parse_atomic_chain -> Expr;
     def _make_attr_from_keyword(name_tok: LexToken) -> Name;
     def parse_index_slice -> IndexSlice;
-    def parse_call_args(kid: list) -> list;
-    def parse_call_arg -> UniNode;
+    def parse_call_args(kid: list[UniNode]) -> list[Expr | KWPair];
+    def parse_call_arg -> Expr | KWPair;
     def parse_filter_compr_inner -> FilterCompr;
     def parse_filter_compr_bracket -> FilterCompr;
     def parse_assign_compr_inner -> AssignCompr;
@@ -466,31 +468,32 @@ obj Parser {
     def parse_edge_ref_chain -> Expr;
     def parse_edge_op_ref -> EdgeOpRef | None;
     def _continue_edge_ref_chain(start_expr: Expr, lsquare_uni: Token) -> Expr;
-    def parse_comprehension_clauses -> list;
+    def parse_comprehension_clauses -> list[InnerCompr];
     def parse_compr_clause -> InnerCompr;
     def parse_lambda_expr -> Expr;
-    def parse_jsx_element -> Expr;
-    def _parse_jsx_dynamic_tag(open_kid: list) -> Expr | None;
-    def _consume_jsx_dynamic_close(close_kid: list);
-    def parse_jsx_attributes -> list;
-    def parse_jsx_children -> list;
-    def parse_jsx_child -> UniNode | None;
+    def parse_jsx_element -> JsxElement;
+    def _parse_jsx_dynamic_tag(open_kid: list[UniNode]) -> Expr | None;
+    def _consume_jsx_dynamic_close(close_kid: list[UniNode]);
+    def parse_jsx_attributes -> list[JsxAttribute];
+    def parse_jsx_children -> list[JsxChild | JsxElement];
+    def parse_jsx_child -> JsxChild | JsxElement | None;
     def parse_element_stmt -> ElementStmt | EmptyToken | None;
     def _dispatch_decorated -> ElementStmt | None;
+    def _dispatch_decorated_stmt -> CodeBlockStmt | None;
     def _dispatch_async -> ElementStmt | None;
     def _attach_doc(nd: AstDocNode, elem_doc: String) -> None;
     def parse_docstring_target -> ElementStmt | None;
     def parse_module_code -> ModuleCode;
-    def parse_code_block_stmts -> list;
-    def _apply_implicit_return(body: list) -> list;
+    def parse_code_block_stmts -> list[CodeBlockStmt];
+    def _apply_implicit_return(body: list[CodeBlockStmt]) -> list[CodeBlockStmt];
     def parse_ctrl_stmt -> CtrlStmt | DisengageStmt | None;
     def parse_statement -> CodeBlockStmt | None;
     def parse_ct_element(mode: int) -> CtFor | CtIf | Ability | None;
-    def parse_ct_for(mode: int, ct_uni: Token) -> UniNode | None;
-    def parse_ct_if(mode: int, ct_uni: Token) -> UniNode | None;
-    def parse_ct_elif(mode: int) -> UniNode | None;
-    def parse_ct_else(mode: int) -> UniNode | None;
-    def parse_ct_body(mode: int, kid: list) -> list;
+    def parse_ct_for(mode: int, ct_uni: Token) -> CtFor | None;
+    def parse_ct_if(mode: int, ct_uni: Token) -> CtIf | None;
+    def parse_ct_elif(mode: int) -> CtIf | None;
+    def parse_ct_else(mode: int) -> CtElse | None;
+    def parse_ct_body(mode: int, kid: list[UniNode]) -> list[UniNode];
     def parse_ct_block -> Expr | None;
     def parse_ct_splice -> Expr | None;
     def parse_ct_name(as_name: bool = True) -> Expr | None;
@@ -520,7 +523,7 @@ obj Parser {
     def parse_mapping_pattern -> MatchPattern;
     def parse_literal_for_mapping -> MatchPattern | NameAtom | None;
     def parse_class_pattern_args(
-        names: list, dot_unis: (list | None) = None
+        names: list[Name], dot_unis: (list[Token] | None) = None
     ) -> MatchPattern;
 
     def parse_switch_stmt -> SwitchStmt;
@@ -536,10 +539,10 @@ obj Parser {
         target: Expr, require_semi: bool = True
     ) -> CodeBlockStmt;
 
-    def parse_ownership_prefix(kids: list) -> OwnershipKind;
+    def parse_ownership_prefix(kids: list[UniNode]) -> OwnershipKind;
     def parse_import_stmt -> Import;
-    def parse_from_path -> tuple[(int, bool)];
-    def parse_import_items(kid: list, is_clib_import: bool) -> tuple[(list, list)];
+    def parse_from_path -> tuple[(ModulePath | None, bool)];
+    def parse_import_items(kid: list[UniNode], is_clib_import: bool) -> tuple[(list, list)];
     def parse_archetype -> Archetype;
     def parse_archetype_member -> UniNode | None;
     def _skip_semicolons;
@@ -557,7 +560,7 @@ obj Parser {
     ) -> tuple[(bool, (LexToken | None), bool, (LexToken | None))];
 
     def parse_func_signature -> FuncSignature;
-    def parse_func_params(kid: list) -> list;
+    def parse_func_params(kid: list[UniNode]) -> list[ParamVar | CtFor | CtIf];
     def parse_param_var -> ParamVar | None;
     def parse_enum -> Enum;
     def parse_enum_member -> Assignment;
@@ -566,8 +569,8 @@ obj Parser {
     def parse_global_var_assignment -> Assignment;
     def parse_impl_def -> ImplDef;
     def _is_impl_enum_body -> bool;
-    def parse_impl_target_name -> UniNode;
-    def parse_impl_enum_body -> list;
+    def parse_impl_target_name -> NameAtom;
+    def parse_impl_enum_body -> list[Assignment];
     def parse_sem_def -> SemDef;
     def parse_type_alias -> TypeAlias;
     def parse_type_params -> tuple[(list, list)];
