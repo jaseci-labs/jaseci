@@ -122,13 +122,17 @@ impl NativeStructView._resolve(name: str, raw: any) -> any {
         if (raw is None or int(raw.tag) == 0) {
             return None;
         }
+        # Keep the field's own metadata across the unwrap: an optional
+        # list's element hints live on `finfo`, and dropping it here made
+        # every `opt.List.ptr*` field marshal its elements as bare
+        # pointers (#8093).
         return marshal_value(
             raw.payload,
             lt[4:],
             self.ctypes_classes,
             self.enum_maps,
             {},
-            None,
+            finfo,
             None,
             self.layout,
             self._view_memo
@@ -136,7 +140,39 @@ impl NativeStructView._resolve(name: str, raw: any) -> any {
     }
 
     if lt == "i8*" {
-        return decode_native_str(raw, layout_str_header_stamped(self.layout));
+        if (raw is None or not raw) {
+            return "";
+        }
+        _hs = layout_str_header_stamped(self.layout);
+        _a = int(raw);
+        stamped = native_stamped_str_len(_a, _hs);
+        if stamped is not None {
+            if stamped <= 0 {
+                return "";
+            }
+            return ctypes.string_at(_a, stamped).decode("utf-8", errors="replace");
+        }
+        if _hs {
+            # An `i8*` slot is also how an opaque value lands (a generic
+            # `has held: T`), so a header-stamped allocation that is not a
+            # tagged str resolves through the rc header's class-name stamp
+            # -- the same authority `get_struct_view` re-keys with (#8093).
+            # A C string can never match: it carries no verified header.
+            _rt = runtime_struct_name(_a, self.layout);
+            _rt_ct = self.ctypes_classes.get(_rt) if _rt is not None else None;
+            if _rt_ct is not None {
+                return get_struct_view(
+                    _a,
+                    _rt_ct,
+                    _rt,
+                    self.layout,
+                    self.ctypes_classes,
+                    self.enum_maps,
+                    view_memo=self._view_memo
+                );
+            }
+        }
+        return ctypes.string_at(_a).decode("utf-8", errors="replace");
     }
 
     if (lt in ("i64", "i32") and finfo.enum_type) {
@@ -215,13 +251,10 @@ impl NativeStructView.__contains__(key: str) -> bool {
     return key in self._field_meta;
 }
 
-impl NativeStructView.keys -> any {
-    return self._field_meta.keys();
-}
-
-impl NativeStructView.items -> any {
-    return ((k, self[k]) for k in self.keys());
-}
+# NB: no `keys`/`items` mapping helpers on the view -- a method of those
+# names would shadow real node fields (`Import.items`), and Python-side
+# consumers read fields by plain attribute access (#8093). `["field"]` and
+# `in` remain via `__getitem__`/`__contains__`.
 
 impl NativeStructView.__repr__ -> str {
     return f"<NativeStructView {self.struct_name}>";

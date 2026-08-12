@@ -22,7 +22,6 @@ glob FIXTURES = os.path.join(
 
 obj TwinBase {
     has tag: int = 0;
-
     has double_tag: int { getter; }
 }
 

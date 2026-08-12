@@ -13,7 +13,6 @@ obj Pad {
 
 obj BaseN {
     has tag: int = 1;
-
     has kind: int { getter; }
 }
 

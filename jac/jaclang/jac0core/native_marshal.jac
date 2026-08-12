@@ -255,8 +255,6 @@ obj NativeStructView {
     def __contains__(key: str) -> bool;
     def __eq__(other: any) -> any;
     def __hash__ -> int;
-    def keys -> any;
-    def items -> any;
     def __repr__ -> str;
 }
 
@@ -313,7 +311,6 @@ obj NativeAccessorBridge {
     def read_through(view: NativeStructView, name: str) -> tuple;
     def write_through(view: NativeStructView, name: str, value: any) -> bool;
     def _accessor_symbol(view: NativeStructView, name: str, kind: str) -> (str | None);
-
     def _binding(symbol: str) -> any;
     def _str_new_fn -> any;
 }
@@ -787,18 +784,23 @@ def marshal_value(
         return raw;
     }
 
+    _field_keys = field_info.elem_keys if field_info is not None else None;
     if (llvm_type.startswith("Dict.") and llvm_type.endswith("*")) {
         if (raw is None or raw == 0) {
             return {};
         }
-        return _marshal_dict(raw, llvm_type[5:-1], func_layout, layout=layout);
+        return _marshal_dict(
+            raw, llvm_type[5:-1], func_layout, elem_keys=_field_keys, layout=layout
+        );
     }
 
     if (llvm_type.startswith("Set.") and llvm_type.endswith("*")) {
         if (raw is None or raw == 0) {
             return set();
         }
-        return _marshal_set(raw, llvm_type[4:-1], func_layout, layout=layout);
+        return _marshal_set(
+            raw, llvm_type[4:-1], func_layout, elem_keys=_field_keys, layout=layout
+        );
     }
 
     if (llvm_type.endswith("*") and not llvm_type.startswith("List.")) {
@@ -827,6 +829,9 @@ def marshal_value(
             return NativeListView.empty();
         }
         ret_keys = func_layout?.ret_elem_keys if func_layout is not None else None;
+        if ret_keys is None {
+            ret_keys = _field_keys;
+        }
         (struct_hint, elem_hint) = elem_hints_for(elem_key, ret_keys, ctypes_classes);
         return get_list_view(
             raw,
