@@ -48,6 +48,13 @@ glob _EXCLUDE_SUFFIXES: tuple = (
          ".jks",
          ".keystore"
      );
+glob _EXCLUDE_ENV: set[str] = {
+         "PYTHONPATH",
+         "PYTHONHOME",
+         "JAC_LLVM_SHIM",
+         "JAC_DEV_SOURCE",
+         "JAC_NO_PRECOMPILE"
+     };
 
 
 def is_excluded(rel: Path) -> bool {
@@ -186,6 +193,15 @@ def open_det_tar(buf: io.BytesIO) -> tuple[tarfile.TarFile, any] {
 }
 
 
+def release_binary_env -> dict[str, str] {
+    return {
+        k: v
+        for (k, v) in os.environ.items()
+        if k not in _EXCLUDE_ENV
+    };
+}
+
+
 def _precompile_app(base: Path, pod_binary: bytes) -> Path {
     stage_root = Path(tempfile.mkdtemp(prefix="jac-app-precompile-"));
     stage = stage_root / "app";
@@ -213,17 +229,12 @@ def _precompile_app(base: Path, pod_binary: bytes) -> Path {
             encoding="utf-8"
         );
 
-        seal_env = {
-            k: v
-            for (k, v) in os.environ.items()
-            if k not in ("PYTHONPATH", "PYTHONHOME", "JAC_LLVM_SHIM")
-        };
         result = subprocess.run(
             [str(jac_path), "run", str(script), str(stage_root), "--seal"],
             capture_output=True,
             text=True,
             timeout=600,
-            env=seal_env,
+            env=release_binary_env(),
             cwd=str(stage_root)
         );
         jac_path.unlink();

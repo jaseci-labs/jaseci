@@ -10,6 +10,12 @@ build runs the actual `jac build` subprocess); no mocks."""
 import os;
 import shutil;
 import tempfile;
+import hashlib;
+import json;
+import re;
+import from pathlib { Path }
+import jaclang.scale.injector.binary as binary_mod;
+import from jaclang.scale.injector.bundle { release_binary_env }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
@@ -139,5 +145,145 @@ test "an app without a client entry skips the build untouched" {
         mb._build_client_bundle(project_dir);
     } finally {
         shutil.rmtree(project_dir, ignore_errors=True);
+    }
+}
+
+
+"""This line has no jaclang.cli.manifest_route (main's 0.35 CLI-manifest
+work); read the running version the way the rest of this tree does."""
+def _running_jac_version -> str {
+    import from importlib.metadata { version as pkg_version }
+    try {
+        return pkg_version("jaclang");
+    } except Exception {
+        return "";
+    }
+}
+
+
+"""Declare `version` as the project's [project] jac-version, replacing any
+pin `jac create` already stamped."""
+def _pin(project_dir: str, version: str) {
+    path = Path(project_dir) / "jac.toml";
+    text = re.sub(r"(?m)^jac-version\s*=.*\n", "", path.read_text(encoding="utf-8"));
+    assert "[project]" in text , f"nothing to pin in {path}";
+    path.write_text(
+        text.replace("[project]", f"[project]\njac-version = \"=={version}\"", 1),
+        encoding="utf-8"
+    );
+}
+
+
+def _release_api(version: str, payload: bytes) -> Callable[[str], bytes] {
+    plat = binary_mod.host_seal_platform();
+    asset = f"jac-{version}-{plat}-{binary_mod.host_arch()}";
+    def _fetch(url: str) -> bytes {
+        if "api.github.com" in url {
+            return json.dumps(
+                {
+                    "tag_name": f"v{version}",
+                    "assets": [
+                        {
+                            "name": name,
+                            "browser_download_url": f"https://dl.test/{name}"
+                        } for name in [asset, f"{asset}.sha256"]
+                    ]
+                }
+            ).encode();
+        }
+        if url.endswith(".sha256") {
+            digest = hashlib.sha256(payload).hexdigest();
+            return f"{digest}  {asset}".encode();
+        }
+        return payload;
+    }
+    return _fetch;
+}
+
+
+def _restore(name: str, value: (str | None)) {
+    if value is None {
+        os.environ.pop(name, None);
+    } else {
+        os.environ[name] = value;
+    }
+}
+
+
+test "a pinned app builds its client on the pinned release, not the deploying jac" {
+    # The checkout's own binary is published as the pinned release, the same way
+    # the seal tests reuse it as the pod binary.
+    jac_bin = Path(str(__file__)).parents[4] / "zig-out" / "bin" / "jac";
+    if not jac_bin.is_file() {
+        return;
+    }
+    tmp = tempfile.mkdtemp(prefix="client-pin-");
+    project_dir = _web_app_project(tmp);
+    _pin(project_dir, PINNED);
+    cache = os.path.join(tmp, "cache");
+    saved_exec = os.environ.get("JAC_EXECUTABLE");
+    saved_cache = os.environ.get("JAC_SCALE_CACHE_DIR");
+    saved_http = binary_mod._http_get_bytes;
+    # Any step still reaching for the deploying jac lands on a path that is not
+    # there, so a green run cannot be one that ignored the pin.
+    os.environ["JAC_EXECUTABLE"] = os.path.join(tmp, "absent-jac");
+    os.environ["JAC_SCALE_CACHE_DIR"] = cache;
+    binary_mod._http_get_bytes = _release_api(PINNED, jac_bin.read_bytes());
+    try {
+        _builder(project_dir)._build_client_bundle(project_dir);
+        built = (
+            Path(project_dir) / ".jac" / "client" / "dist" / "index.html"
+        ).is_file();
+        resolved = binary_mod.host_toolchain_path(project_dir);
+        runnable = (Path(resolved).stat().st_mode & 0o111) != 0;
+        under_cache = resolved.startswith(cache);
+    } finally {
+        binary_mod._http_get_bytes = saved_http;
+        _restore("JAC_EXECUTABLE", saved_exec);
+        _restore("JAC_SCALE_CACHE_DIR", saved_cache);
+        shutil.rmtree(tmp, ignore_errors=True);
+    }
+
+    assert built , "the pinned toolchain produced no bundle for the gateway";
+    assert under_cache , f"the pin resolved to {resolved}, not a download";
+    assert runnable , "the downloaded release was never made executable";
+}
+
+
+test "no pin, and a pin naming the running jac, download nothing" {
+    def _no_release_api(url: str) -> bytes {
+        raise AssertionError(f"nothing to download, yet it fetched {url}");
+    }
+    unpinned = _project("with entry {}\n");
+    matching = _project("with entry {}\n");
+    _pin(matching, _running_jac_version().strip());
+    saved_http = binary_mod._http_get_bytes;
+    binary_mod._http_get_bytes = _no_release_api;
+    try {
+        # "" keeps the deploy on its own jac, which is already the pinned one.
+        assert binary_mod.host_toolchain_path(unpinned) == "";
+        assert binary_mod.host_toolchain_path(matching) == "";
+    } finally {
+        binary_mod._http_get_bytes = saved_http;
+        shutil.rmtree(unpinned, ignore_errors=True);
+        shutil.rmtree(matching, ignore_errors=True);
+    }
+}
+
+
+test "a pinned release runs without the deploying jac's compiler redirects" {
+    saved = os.environ.get("JAC_DEV_SOURCE");
+    os.environ["JAC_DEV_SOURCE"] = "/the/checkout/that/ran/this/deploy";
+    try {
+        env = release_binary_env();
+    } finally {
+        _restore("JAC_DEV_SOURCE", saved);
+    }
+
+    assert env.get("PATH") == os.environ.get("PATH") , "not a real environment";
+    # Inherited, these point a release binary at the deploying jac's compiler
+    # and interpreter, which is the pin defeated by the back door.
+    for leaked in ["JAC_DEV_SOURCE", "JAC_NO_PRECOMPILE", "PYTHONPATH", "PYTHONHOME"] {
+        assert leaked not in env , f"{leaked} reaches the pinned release";
     }
 }

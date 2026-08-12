@@ -175,18 +175,20 @@ obj ManifestBuilder {
         return injector;
     }
 
-    def _install_app_deps(project_dir: str) -> str {
+    def _install_app_deps(
+        project_dir: str, jac_bin: str, env: (dict[str, str] | None)
+    ) -> str {
         import subprocess;
         import from jaclang.cli.console { console }
-        import from jaclang.scale.runtime.context.util { jac_executable }
         console.print("Installing the app's dependencies on the build host.");
         try {
             result = subprocess.run(
-                [jac_executable(), "install"],
+                [jac_bin, "install"],
                 cwd=project_dir,
                 capture_output=True,
                 text=True,
-                timeout=_DEP_INSTALL_TIMEOUT_S
+                timeout=_DEP_INSTALL_TIMEOUT_S,
+                env=env
             );
         } except subprocess.TimeoutExpired {
             return f"'jac install' timed out after {_DEP_INSTALL_TIMEOUT_S}s";
@@ -203,6 +205,8 @@ obj ManifestBuilder {
         import os;
         import subprocess;
         import from jaclang.cli.console { console }
+        import from jaclang.scale.injector.binary { host_toolchain_path }
+        import from jaclang.scale.injector.bundle { release_binary_env }
         import from jaclang.scale.runtime.context.util { jac_executable }
         client_entry = self._client_entry();
         if not client_entry {
@@ -219,7 +223,16 @@ obj ManifestBuilder {
             return;
         }
         dist = os.path.join(project_dir, ".jac", "client", "dist");
-        dep_error = self._install_app_deps(project_dir);
+        pinned = host_toolchain_path(project_dir);
+        jac_bin = pinned or jac_executable();
+        jac_env = release_binary_env() if pinned else None;
+        if pinned {
+            console.print(
+                "Building with the jac release this app pins, not the one "
+                f"running this deploy ({pinned})."
+            );
+        }
+        dep_error = self._install_app_deps(project_dir, jac_bin, jac_env);
         if dep_error {
             console.warning(
                 f"The app's dependencies did not install on the build host, so "
@@ -232,11 +245,12 @@ obj ManifestBuilder {
             attempt += 1;
             try {
                 result = subprocess.run(
-                    [jac_executable(), "build", client_entry, "--client", "web"],
+                    [jac_bin, "build", client_entry, "--client", "web"],
                     cwd=project_dir,
                     capture_output=True,
                     text=True,
-                    timeout=900
+                    timeout=900,
+                    env=jac_env
                 );
             } except subprocess.TimeoutExpired {
                 if attempt >= _CLIENT_BUILD_ATTEMPTS {
