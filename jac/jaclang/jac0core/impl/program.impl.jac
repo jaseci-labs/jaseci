@@ -304,7 +304,20 @@ impl JacProgram.drop_module_alerts(self: JacProgram, resolved_path: str) -> None
         } except Exception {
             return False;
         }
-        return alert_path == norm or alert_path.startswith(prefix);
+        if alert_path == norm {
+            return True;
+        }
+        if not alert_path.startswith(prefix) {
+            return False;
+        }
+        rest = alert_path[len(prefix):];
+        return (
+            rest in ('impl.jac', 'test.jac')
+            or rest.endswith('.impl.jac')
+            or rest.endswith('.test.jac')
+            or rest.startswith('impl' + os.sep)
+            or rest.startswith('test' + os.sep)
+        );
     }
     self.errors_had = [
         a

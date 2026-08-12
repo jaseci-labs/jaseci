@@ -119,6 +119,38 @@ test "a clean re-parse clears the failure flag" {
     }
 }
 
+test "dropping a module's alerts spares dotted-name neighbors" {
+    # foo.bar.jac is an independent module, not an annex of foo.jac, so
+    # reloading foo.jac must not erase its diagnostics.
+    with tempfile.TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        (proj / "jac.toml").write_text(
+            '[project]\nname = "reparse"\nversion = "0.1.0"\n'
+            'entry-point = "foo.jac"\n'
+        );
+        (proj / "foo.jac").write_text(BROKEN_SRC);
+        (proj / "foo.bar.jac").write_text(BROKEN_SRC);
+        prog = JacProgram();
+        for name in ("foo.jac", "foo.bar.jac") {
+            try {
+                prog.compile(str(proj / name));
+            } except Exception {
+                ;
+            }
+        }
+        import os;
+        neighbor = os.path.realpath(str(proj / "foo.bar.jac"));
+        assert any(
+            os.path.realpath(a.loc.mod_path) == neighbor for a in prog.errors_had
+        ) , "fixture must produce neighbor alerts";
+        prog.drop_module_alerts(str(proj / "foo.jac"));
+        assert prog.errors_had , "neighbor module alerts must survive the drop";
+        assert all(
+            os.path.realpath(a.loc.mod_path) == neighbor for a in prog.errors_had
+        ) , f"only foo.jac's own alerts may be dropped: {prog.errors_had}";
+    }
+}
+
 test "a failed parse is never written to the on-disk module cache" {
     # A JIR cache hit replays no alerts, so serving a parse_failed module from
     # disk would report the import as clean.
