@@ -278,6 +278,45 @@ impl JacProgram._relink_absorbed_imports(self: JacProgram, mod: uni.Module) -> N
     }
 }
 
+impl JacProgram.hub_key(path: str) -> str {
+    import from pathlib { Path }
+    return str(Path(path).resolve());
+}
+
+impl JacProgram.has_failed_parse(self: JacProgram, path: str) -> bool {
+    mod = self.mod.hub.get(JacProgram.hub_key(path));
+    return mod is not None and mod.parse_failed;
+}
+
+impl JacProgram.drop_module_alerts(self: JacProgram, resolved_path: str) -> None {
+    import os;
+    try {
+        norm = os.path.realpath(resolved_path);
+    } except OSError {
+        return;
+    }
+    import from jaclang.jac0core.ext_registry { is_annex_path_of }
+
+    def owned(alert: Alert) -> bool {
+        try {
+            alert_path = os.path.realpath(alert.loc.mod_path);
+        } except Exception {
+            return False;
+        }
+        return alert_path == norm or is_annex_path_of(alert_path, norm);
+    }
+    self.errors_had = [
+        a
+        for a in self.errors_had
+        if not owned(a)
+    ];
+    self.warnings_had = [
+        a
+        for a in self.warnings_had
+        if not owned(a)
+    ];
+}
+
 impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {
     if self._compiler {
         return self._compiler;
