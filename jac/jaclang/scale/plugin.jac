@@ -625,7 +625,8 @@ class JacScalePlugin {
         import from jaclang.scale.runtime.context.util {
             pick_free_port,
             jac_executable,
-            wait_for_health
+            wait_for_health,
+            boot_health_timeout
         }
 
         if module_name in sv_client._registry {
@@ -690,11 +691,38 @@ class JacScalePlugin {
             log_file.close();
         }
 
-        if not wait_for_health(base_url, lambda { proc.poll() is None; }) {
-            proc.terminate();
+        def _log_size -> int {
+            try {
+                return log_path.stat().st_size;
+            } except OSError {
+                return -1;
+            }
+        }
+
+        budget: float = boot_health_timeout();
+        healthy = wait_for_health(
+            base_url,
+            lambda { proc.poll() is None; },
+            timeout=budget,
+            progress=_log_size
+        );
+        if not healthy {
+            exit_code = proc.poll();
+            if exit_code is None {
+                proc.terminate();
+                detail = f"stopped making progress for {budget:.0f}s while starting up";
+            } else {
+                detail = f"exited with status {exit_code} before serving";
+            }
             raise RuntimeError(
-                f"sv-to-sv service '{module_name}' did not become healthy at "
-                f"{base_url}; see {log_path} for the service's output"
+                f"sv-to-sv service '{module_name}' {detail}; "
+                f"expected it at {base_url}. See {log_path} for its output"
+                    + (
+                        ""
+                            if exit_code is not None
+                            else "; raise [scale.microservices] boot_health_timeout if it "
+                            "needs longer"
+                    )
             );
         }
 
