@@ -3409,7 +3409,7 @@ impl Parser._dispatch_async -> ElementStmt | None {
 }
 
 impl Parser._attach_doc(nd: AstDocNode, elem_doc: String) -> None {
-    nd.doc = elem_doc;
+    nd.set_doc(elem_doc);
     nd.add_kids_left([elem_doc]);
 }
 

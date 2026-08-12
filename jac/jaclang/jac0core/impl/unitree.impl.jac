@@ -616,13 +616,31 @@ impl UniScopeNode.__repr__ -> str {
     return out;
 }
 
+impl AstDocNode.set_doc(elem_doc: (String | None)) -> None {
+    # Mixin fields live at class-specific offsets, so a write through a
+    # base-typed reference goes through this dispatched setter rather than
+    # a static store (the `set_code_context` idiom).
+    self.doc = elem_doc;
+}
+
+
+impl NameAtom.bind_sym(
+    name_of: AstSymbolNode, sym_name: str, sym_category: SymbolType
+) -> None {
+    # Mixin fields live at class-specific offsets, so a write through a
+    # base-typed reference goes through this dispatched setter rather than
+    # a static store (the `set_code_context` idiom).
+    self.name_of = name_of;
+    self._sym_name = sym_name;
+    self._sym_category = sym_category;
+}
+
+
 impl AstSymbolNode._init_symbol(
     sym_name: str, name_spec: NameAtom, sym_category: SymbolType
 ) -> None {
     self.name_spec = name_spec;
-    self.name_spec.name_of = self;
-    self.name_spec._sym_name = sym_name;
-    self.name_spec._sym_category = sym_category;
+    self.name_spec.bind_sym(self, sym_name, sym_category);
     self.semstr = '';
 }
 

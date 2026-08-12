@@ -782,6 +782,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         obj_val: ir.Value, type_name: str, slot: str, args: list[ir.Value]
     ) -> (ir.Value | None);
 
+    def _emit_dispatched_field_ptr(
+        obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
+    ) -> (ir.Value | None);
+
     def _emit_class_routed_call(
         nd: uni.FuncCall,
         _sfull: str,

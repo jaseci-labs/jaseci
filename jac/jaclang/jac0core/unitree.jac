@@ -206,6 +206,8 @@ obj ContextAwareNode(UniNode) {
 
 obj AstDocNode(UniNode) {
     has doc: (String | None) = None;
+
+    def set_doc(elem_doc: (String | None)) -> None;
 }
 
 obj AstAsyncNode(UniNode) {
@@ -297,6 +299,10 @@ obj NameAtom(AtomExpr, EnumBlockStmt) {
     has sym: (Symbol | None) { getter; setter(sym: Symbol); }
     has sym_name: str { getter; }
     has sym_category: SymbolType { getter; }
+
+    def bind_sym(
+        name_of: AstSymbolNode, sym_name: str, sym_category: SymbolType
+    ) -> None;
 
     def create_symbol(
         access: SymbolAccess,

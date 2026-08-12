@@ -133,6 +133,98 @@ impl NaIRGenPass._codegen_virtual_call(
     i32 = ir.IntType(32);
     i8_ptr = ir.IntType(8).as_pointer();
 
+    # A slot index is only meaningful when every class the receiver could be
+    # keeps the method at the same index. A method reached through a
+    # non-primary base sits at class-specific slots (Name appends its primary
+    # chain's methods before NameAtom's), so the static class's index would
+    # select an unrelated function from the runtime vtable. Those calls
+    # dispatch on vtable identity instead, the way `isinstance` does.
+    _vd_variants: list[tuple] = [];
+    _vd_uniform = True;
+    import from jaclang.compiler.passes.main.layout_pass {
+        get_layout_registry as _vd_glr
+    }
+    _vd_reg = _vd_glr(self.ir_in, self.prog);
+    for _vd_cls in _vd_reg.mro_order {
+        if obj_type_name not in self._mro_of(_vd_cls) {
+            continue;
+        }
+        _vd_lay = _vd_reg.get_layout(_vd_cls);
+        if _vd_lay is None or not _vd_lay.has_vtable {
+            continue;
+        }
+        _vd_idx = _vd_lay.method_index.get(method_name);
+        _vd_fn = self._resolve_method(_vd_cls, method_name);
+        _vd_vt = self._vtable_global_for(_vd_cls);
+        if _vd_vt is None or _vd_fn is None {
+            continue;
+        }
+        _vd_variants.append((_vd_cls, _vd_vt, _vd_fn));
+        if _vd_idx != indices[method_name] {
+            _vd_uniform = False;
+        }
+    }
+    if not _vd_uniform and _vd_variants {
+        vtable_ptr_ptr = self.builder.gep(
+            obj_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="vt.id.pp"
+        );
+        _vd_vtp = self.builder.load(vtable_ptr_ptr, name="vt.id");
+        _vd_fnc = self.builder.function;
+        _vd_done = _vd_fnc.append_basic_block(name=f"vd.{method_name}.done");
+        _vd_incoming: list[tuple] = [];
+        for (_vc, _vt, _vf) in _vd_variants {
+            _vd_hit = _vd_fnc.append_basic_block(name=f"vd.{method_name}.{_vc}");
+            _vd_next = _vd_fnc.append_basic_block(name=f"vd.{method_name}.n.{_vc}");
+            _vd_eq = self.builder.icmp_unsigned(
+                "==",
+                _vd_vtp,
+                self.builder.bitcast(_vt, _vd_vtp.type, name="vd.cand"),
+                name=f"vd.eq.{_vc}"
+            );
+            self.builder.cbranch(_vd_eq, _vd_hit, _vd_next);
+            self.builder.position_at_end(_vd_hit);
+            _vd_args: list[ir.Value] = [];
+            for (_ai, _av) in enumerate(coerced) {
+                if _ai < len(_vf.function_type.args) {
+                    _vd_args.append(
+                        self._coerce_type(_av, _vf.function_type.args[_ai])
+                    );
+                } else {
+                    _vd_args.append(_av);
+                }
+            }
+            _vd_r = self.builder.call(_vf, _vd_args, name=f"vd.call.{_vc}");
+            _vd_ret_t = fn_type.return_type;
+            if not isinstance(_vd_ret_t, ir.VoidType) and _vd_r.type != _vd_ret_t {
+                _vd_r = self._coerce_type(_vd_r, _vd_ret_t);
+            }
+            _vd_incoming.append((_vd_r, self.builder.block));
+            self.builder.branch(_vd_done);
+            self.builder.position_at_end(_vd_next);
+        }
+        # Unmatched class: fall through to the statically resolved copy, the
+        # same answer the uniform slot path would have produced.
+        _vd_fb = self.builder.call(func, coerced, name=f"vd.fb.{method_name}");
+        _vd_incoming.append((_vd_fb, self.builder.block));
+        self.builder.branch(_vd_done);
+        self.builder.position_at_end(_vd_done);
+        _vd_ret_t = fn_type.return_type;
+        if isinstance(_vd_ret_t, ir.VoidType) {
+            # A None return reads as "could not lower" to the call sites,
+            # which would emit a second, undispatched call; hand back the
+            # fallback call instruction the way the slot path returns its
+            # (possibly void) call.
+            self._release_owned_args(coerced, op="vcall_arg");
+            return _vd_fb;
+        }
+        _vd_phi = self.builder.phi(_vd_ret_t, name=f"vd.{method_name}.res");
+        for (_vr, _vb) in _vd_incoming {
+            _vd_phi.add_incoming(_vr, _vb);
+        }
+        self._release_owned_args(coerced, op="vcall_arg");
+        return _vd_phi;
+    }
+
     vtable_ptr_ptr = self.builder.gep(
         obj_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="vtable.ptr.ptr"
     );

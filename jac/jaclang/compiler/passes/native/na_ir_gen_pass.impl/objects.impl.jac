@@ -2476,6 +2476,106 @@ impl NaIRGenPass._codegen_accessor_call(
     return self.builder.call(func, coerced, name=f"acc.{slot}");
 }
 
+impl NaIRGenPass._emit_dispatched_field_ptr(
+    obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
+) -> (ir.Value | None) {
+    # A mixin's fields sit at class-specific slots, so a field access whose
+    # static receiver class is a non-primary ancestor somewhere in the
+    # hierarchy cannot use one static index. When the subtree disagrees on
+    # the slot, dispatch on vtable identity and gep at each concrete class's
+    # own index -- the compiler-emitted form of the dispatched-setter idiom.
+    import from jaclang.compiler.passes.main.layout_pass {
+        get_layout_registry as _df_glr
+    }
+    reg = _df_glr(self.ir_in, self.prog);
+    _base_lay = reg.get_layout(type_name);
+    if _base_lay is None or not _base_lay.has_vtable {
+        return None;
+    }
+    _base_idx = _base_lay.field_index.get(field_name);
+    if _base_idx is None {
+        return None;
+    }
+    _variants: list[tuple] = [];
+    _uniform = True;
+    for _cls in reg.mro_order {
+        if type_name not in self._mro_of(_cls) {
+            continue;
+        }
+        _lay = reg.get_layout(_cls);
+        if _lay is None or _cls not in self.struct_types {
+            continue;
+        }
+        _ci = _lay.field_index.get(field_name);
+        if _ci is None {
+            continue;
+        }
+        _vt = self._vtable_global_for(_cls) if _lay.has_vtable else None;
+        if _vt is None {
+            continue;
+        }
+        _variants.append((_cls, _vt, _ci));
+        if _ci != _base_idx {
+            _uniform = False;
+        }
+    }
+    if _uniform or not _variants {
+        return None;
+    }
+    i32 = ir.IntType(32);
+    _fp_t = ftype.as_pointer();
+    b = self.builder;
+    _df_vpp = b.gep(
+        obj_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="df.vt.pp"
+    );
+    _df_vtp = b.load(_df_vpp, name="df.vt");
+    _df_fnc = b.block.function;
+    _df_done = _df_fnc.append_basic_block(name=f"df.{field_name}.done");
+    _df_incoming: list[tuple] = [];
+    for (_vc, _vt, _ci) in _variants {
+        _df_hit = _df_fnc.append_basic_block(name=f"df.{field_name}.{_vc}");
+        _df_nxt = _df_fnc.append_basic_block(name=f"df.{field_name}.n.{_vc}");
+        _df_eq = b.icmp_unsigned(
+            "==",
+            _df_vtp,
+            b.bitcast(_vt, _df_vtp.type, name="df.cand"),
+            name=f"df.eq.{_vc}"
+        );
+        b.cbranch(_df_eq, _df_hit, _df_nxt);
+        b.position_at_end(_df_hit);
+        _df_typed = b.bitcast(
+            obj_val, self.struct_types[_vc].as_pointer(), name=f"df.self.{_vc}"
+        );
+        _df_p = b.gep(
+            _df_typed, [ir.Constant(i32, 0), ir.Constant(i32, _ci)], name=f"df.p.{_vc}"
+        );
+        _df_pc = b.bitcast(_df_p, _fp_t, name=f"df.pc.{_vc}");
+        _df_incoming.append((_df_pc, b.block));
+        b.branch(_df_done);
+        b.position_at_end(_df_nxt);
+    }
+    # Unmatched class: the static class's own slot, the same answer the
+    # undispatched path would have produced.
+    _df_fb_recv = obj_val;
+    if type_name in self.struct_types {
+        _df_fb_recv = b.bitcast(
+            obj_val, self.struct_types[type_name].as_pointer(), name="df.self.fb"
+        );
+    }
+    _df_fb = b.gep(
+        _df_fb_recv, [ir.Constant(i32, 0), ir.Constant(i32, _base_idx)], name="df.p.fb"
+    );
+    _df_fbc = b.bitcast(_df_fb, _fp_t, name="df.pc.fb");
+    _df_incoming.append((_df_fbc, b.block));
+    b.branch(_df_done);
+    b.position_at_end(_df_done);
+    _df_phi = b.phi(_fp_t, name=f"df.{field_name}.ptr");
+    for (_pv, _pb) in _df_incoming {
+        _df_phi.add_incoming(_pv, _pb);
+    }
+    return _df_phi;
+}
+
 impl NaIRGenPass._codegen_field_access(
     obj_val: ir.Value, field_name: str, type_name: str
 ) -> (ir.Value | None) {
@@ -2528,11 +2628,24 @@ impl NaIRGenPass._codegen_field_access(
         return self._codegen_accessor_call(obj_val, type_name, _getter, []);
     }
     idx = field_indices[field_name];
-    field_ptr = self.builder.gep(
-        obj_val,
-        [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
-        name=f"field.{field_name}.ptr"
-    );
+    field_ptr: (ir.Value | None) = None;
+    _fa_struct_t = self.struct_types.get(type_name);
+    if (
+        _fa_struct_t is not None
+        and idx < len(_fa_struct_t.elements)
+        and field_name not in self.struct_field_inline.get(type_name, set())
+    ) {
+        field_ptr = self._emit_dispatched_field_ptr(
+            obj_val, type_name, field_name, _fa_struct_t.elements[idx]
+        );
+    }
+    if field_ptr is None {
+        field_ptr = self.builder.gep(
+            obj_val,
+            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
+            name=f"field.{field_name}.ptr"
+        );
+    }
     if field_name in self.struct_field_inline.get(type_name, set()) {
         return field_ptr;
     }
@@ -2769,11 +2882,19 @@ impl NaIRGenPass._codegen_field_assign(
     } elif not (skip_narrow_coerce and value.type != ftype) {
         value = self._coerce_type(value, ftype);
     }
-    field_ptr = self.builder.gep(
-        obj_val,
-        [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
-        name=f"field.{field_name}.ptr"
-    );
+    field_ptr: (ir.Value | None) = None;
+    if not _vt_struct {
+        field_ptr = self._emit_dispatched_field_ptr(
+            obj_val, type_name, field_name, ftype
+        );
+    }
+    if field_ptr is None {
+        field_ptr = self.builder.gep(
+            obj_val,
+            [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), idx)],
+            name=f"field.{field_name}.ptr"
+        );
+    }
 
     if isinstance(ftype, ir.PointerType) and not _vt_struct {
         self._emit_take_ref(
