@@ -132,9 +132,12 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
         else 0}";
 
     first_val = self._nogc_elem_prep(nd.values[0], first_val);
-    self._rc_call_with_ctx(
-        helpers["add"], [set_val, first_val], op="set_init", loc=_sinit_loc
-    );
+    (_add_fn, _kh) = self._prehashed_op(helpers, "add", nd.values[0]);
+    _add_args = [set_val, first_val];
+    if _kh is not None {
+        _add_args.append(_kh);
+    }
+    self._rc_call_with_ctx(_add_fn, _add_args, op="set_init", loc=_sinit_loc);
 
     for i in range(1, len(nd.values)) {
         val = self._str_norm(self._codegen_expr(nd.values[i]));
@@ -145,9 +148,12 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
             }
             _orig_sv = val;
             val = self._coerce_type(val, elem_type);
-            self._rc_call_with_ctx(
-                helpers["add"], [set_val, val], op="set_init", loc=_sinit_loc
-            );
+            (_add_fn, _kh) = self._prehashed_op(helpers, "add", nd.values[i]);
+            _add_args = [set_val, val];
+            if _kh is not None {
+                _add_args.append(_kh);
+            }
+            self._rc_call_with_ctx(_add_fn, _add_args, op="set_init", loc=_sinit_loc);
 
             if isinstance(_orig_sv.type, ir.PointerType) and self._is_owned(_orig_sv) {
                 self._emit_rc_release_simple(_orig_sv, op="set_init", loc=_sinit_loc);

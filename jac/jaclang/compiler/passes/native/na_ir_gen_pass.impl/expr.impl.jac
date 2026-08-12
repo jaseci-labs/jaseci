@@ -777,6 +777,9 @@ impl NaIRGenPass._codegen_compare_link(
         is_not_in = op == Tok.KW_NIN;
         left = self._str_norm(left);
         right = self._str_norm(right);
+        _in_key_nd = left_node.expr
+            if isinstance(left_node, uni.CfgExpr)
+            else left_node;
 
         for (dict_key, helpers) in self.dict_helpers.items() {
             dict_type = self.dict_types.get(dict_key);
@@ -785,9 +788,12 @@ impl NaIRGenPass._codegen_compare_link(
                 (left_coerced, _din_gate) = self._opt_membership_operand(
                     left, key_type
                 );
-                result = self.builder.call(
-                    helpers["contains"], [right, left_coerced], name="dict.contains"
-                );
+                (_has_fn, _kh) = self._prehashed_op(helpers, "contains", _in_key_nd);
+                _has_args = [right, left_coerced];
+                if _kh is not None {
+                    _has_args.append(_kh);
+                }
+                result = self.builder.call(_has_fn, _has_args, name="dict.contains");
 
                 result = self.builder.zext(result, ir.IntType(64), name="contains.i64");
                 if _din_gate is not None {
@@ -823,9 +829,12 @@ impl NaIRGenPass._codegen_compare_link(
                 (left_coerced, _sin_gate) = self._opt_membership_operand(
                     left, elem_type
                 );
-                result = self.builder.call(
-                    helpers["contains"], [right, left_coerced], name="set.contains"
-                );
+                (_has_fn, _kh) = self._prehashed_op(helpers, "contains", _in_key_nd);
+                _has_args = [right, left_coerced];
+                if _kh is not None {
+                    _has_args.append(_kh);
+                }
+                result = self.builder.call(_has_fn, _has_args, name="set.contains");
                 result = self.builder.zext(result, ir.IntType(64), name="contains.i64");
                 if _sin_gate is not None {
                     result = self.builder.select(
@@ -1992,8 +2001,13 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             key_val = self._codegen_expr(idx_node.start);
                         }
                         if key_val is not None {
+                            _dk_nd = idx_node.start if idx_node?.start else idx_node;
                             return self._codegen_dict_access(
-                                target_val, key_val, key_type_name, val_type_name
+                                target_val,
+                                key_val,
+                                key_type_name,
+                                val_type_name,
+                                key_node=_dk_nd
                             );
                         }
                     }
@@ -2017,8 +2031,13 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             key_val = self._codegen_expr(idx_node.start);
                         }
                         if key_val is not None {
+                            _dk_nd = idx_node.start if idx_node?.start else idx_node;
                             return self._codegen_dict_access(
-                                target_val, key_val, key_type_name, val_type_name
+                                target_val,
+                                key_val,
+                                key_type_name,
+                                val_type_name,
+                                key_node=_dk_nd
                             );
                         }
                     }

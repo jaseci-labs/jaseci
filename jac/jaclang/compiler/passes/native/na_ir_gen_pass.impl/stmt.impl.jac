@@ -1039,13 +1039,22 @@ impl NaIRGenPass._match_map_cond(
             self.builder.position_at_end(merge_bb);
             return None;
         }
-        has_key = self.builder.call(
-            helpers["contains"], [subj, key_val], name="match.map.has"
-        );
+        _mk_nd = kv.key.value if isinstance(kv.key, uni.MatchValue) else kv.key;
+        (_has_fn, _mkh) = self._prehashed_op(helpers, "contains", _mk_nd);
+        _has_args = [subj, key_val];
+        if _mkh is not None {
+            _has_args.append(_mkh);
+        }
+        has_key = self.builder.call(_has_fn, _has_args, name="match.map.has");
         val_bb = func.append_basic_block(name="match.map.val");
         self.builder.cbranch(has_key, val_bb, merge_bb);
         self.builder.position_at_end(val_bb);
-        v = self.builder.call(helpers["get"], [subj, key_val], name="match.map.get");
+        (_get_fn, _mgh) = self._prehashed_op(helpers, "get", _mk_nd);
+        _get_args = [subj, key_val];
+        if _mgh is not None {
+            _get_args.append(_mgh);
+        }
+        v = self.builder.call(_get_fn, _get_args, name="match.map.get");
         v = self._match_cast_elem(v, val_ty);
         sub_cond = self._match_pattern_cond(kv.value, v, val_ty);
         if sub_cond is None {
@@ -1402,7 +1411,13 @@ impl NaIRGenPass._bind_match_map(
             continue;
         }
         matched_keys.append(key_val);
-        v = self.builder.call(helpers["get"], [subj, key_val], name="match.map.bget");
+        _mk_nd = kv.key.value if isinstance(kv.key, uni.MatchValue) else kv.key;
+        (_get_fn, _mgh) = self._prehashed_op(helpers, "get", _mk_nd);
+        _get_args = [subj, key_val];
+        if _mgh is not None {
+            _get_args.append(_mgh);
+        }
+        v = self.builder.call(_get_fn, _get_args, name="match.map.bget");
         v = self._match_cast_elem(v, val_ty);
         self._bind_match_pattern(kv.value, v, val_ty);
     }
@@ -1715,10 +1730,17 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                         if dict_type_key is not None {
                             parts = dict_type_key.split(":");
                             if len(parts) == 2 {
+                                _dk_nd = idx_node.start
+                                    if idx_node?.start
+                                    else idx_node;
                                 store_val: (ir.Value | None) = value;
                                 if nd.aug_op is not None {
                                     cur_elem = self._codegen_dict_access(
-                                        target_val, idx_val, parts[0], parts[1]
+                                        target_val,
+                                        idx_val,
+                                        parts[0],
+                                        parts[1],
+                                        key_node=_dk_nd
                                     );
                                     store_val = None;
                                     if cur_elem is not None {
@@ -1736,7 +1758,8 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
                                         idx_val,
                                         store_val,
                                         parts[0],
-                                        parts[1]
+                                        parts[1],
+                                        key_node=_dk_nd
                                     );
                                     _idx_stored = True;
                                 }
