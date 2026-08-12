@@ -29,6 +29,16 @@ impl NativeStructView.__getattr__(name: str) -> any {
                 return val;
             }
         }
+        # A demoted (waived Python-only) accessor has no callable native
+        # body; the declared Python property computes it, re-entering this
+        # view for the stored fields it derives from.
+        _py_cls = _ACCESSOR_CLASSES.get(self.struct_name);
+        if _py_cls is not None {
+            _desc = getattr(_py_cls, name, None);
+            if isinstance(_desc, property) and _desc.fget is not None {
+                return _desc.fget(self);
+            }
+        }
         raise AttributeError(f"'{self.struct_name}' has no field '{name}'");
     }
     return self._resolve(name, raw);
@@ -40,6 +50,12 @@ impl NativeStructView.__setattr__(name: str, value: any) -> None {
         return;
     }
     finfo = self._field_meta.get(name);
+    if finfo is not None and getattr(finfo, "foreign", False) {
+        # A foreign slot holds Python-only state the native side cannot
+        # carry; it lives on the view's overlay.
+        self._py_overlay[name] = value;
+        return;
+    }
     if finfo is None {
         bridge = getattr(self.layout, "_accessor_bridge", None)
             if self.layout is not None
@@ -47,7 +63,10 @@ impl NativeStructView.__setattr__(name: str, value: any) -> None {
         if bridge is not None and bridge.write_through(self, name, value) {
             return;
         }
-        raise AttributeError(f"'{self.struct_name}' has no field '{name}'");
+        # An attribute the native layout never carried is Python-side
+        # annotation state; it lives on the overlay too.
+        self._py_overlay[name] = value;
+        return;
     }
     lt = finfo.llvm_type;
     if (
@@ -83,6 +102,11 @@ impl NativeStructView._resolve(name: str, raw: any) -> any {
     finfo = self._field_meta.get(name);
     if finfo is None {
         return raw;
+    }
+    if getattr(finfo, "foreign", False) {
+        # A foreign slot holds Python-only state the native side cannot
+        # carry; its live value is whatever this view's Python overlay has.
+        return self._py_overlay.get(name);
     }
     lt = finfo.llvm_type;
 

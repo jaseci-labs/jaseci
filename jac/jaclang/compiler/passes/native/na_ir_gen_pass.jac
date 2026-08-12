@@ -571,6 +571,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _jacval_is_none(jv: ir.Value, negate: bool) -> ir.Value;
     def _entry_alloca(var_type: ir.Type, name: str) -> ir.Value;
     def _zero_const(ty: ir.Type) -> ir.Constant;
+    def _spec_from_list_slot_type(t: (ir.Type | None)) -> (str | None);
+    def _empty_list_dest_spec(nd: uni.ListVal) -> (str | None);
     def _coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _promote_to_float(

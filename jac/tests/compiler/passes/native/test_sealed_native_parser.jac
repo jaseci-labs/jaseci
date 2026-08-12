@@ -21,7 +21,7 @@ import from jaclang.jac0core.native_marshal {
     build_enum_maps,
     wrap_native_function
 }
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang.jac0core.parser.frontend { _canary_src }
 import from jaclang.jac0core.parser.parser { Parser }
 import jaclang.jac0core.parser.parser as na_parser;
@@ -58,10 +58,18 @@ def _build_binding -> tuple {
     ns = na_parser.__dict__;
     cc = build_ctypes_classes(layout);
     em = build_enum_maps(layout, ns);
+    # Classes resolve across the sealed closure's modules, the way
+    # `frontend._native_parse` binds them: accessor-bearing helpers
+    # (`CodeLocInfo`) live only in their defining modules.
+    import jaclang.jac0core.unitree as _sc_unitree;
+    import jaclang.jac0core.srcloc as _sc_srcloc;
     pc: dict = {};
     for sn in layout.structs {
-        if ns.get(sn) is not None {
-            pc[sn] = ns[sn];
+        for _sc_ns in (ns, _sc_unitree.__dict__, _sc_srcloc.__dict__) {
+            if _sc_ns.get(sn) is not None {
+                pc[sn] = _sc_ns[sn];
+                break;
+            }
         }
     }
     fn = wrap_native_function(
@@ -87,8 +95,8 @@ def _assert_parity(src: str, path: str) {
         f"{path}: node count diverged "
         f"({len(native_mod._in_mod_nodes)} != {len(py_mod._in_mod_nodes)})"
     );
-    native_up = unparse_module(native_mod, requires_format=False);
-    py_up = unparse_module(py_mod, requires_format=False);
+    native_up = unparse_node(native_mod);
+    py_up = unparse_node(py_mod);
     assert native_up == py_up , f"{path}: unparse diverged";
 }
 

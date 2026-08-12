@@ -133,6 +133,103 @@ impl NaIRGenPass._emit_list_helpers(elem_type_name: str, elem_type: ir.Type) -> 
     };
 }
 
+impl NaIRGenPass._spec_from_list_slot_type(t: (ir.Type | None)) -> (str | None) {
+    if t is None {
+        return None;
+    }
+    # An optional slot keeps the flavor in its payload half.
+    _pl = self._opt_payload_of(t);
+    if _pl is not None {
+        return self._spec_from_list_slot_type(_pl);
+    }
+    if not isinstance(t, ir.PointerType) {
+        return None;
+    }
+    for (spec, lt) in self.list_types.items() {
+        if lt.as_pointer() == t {
+            return spec;
+        }
+    }
+    return None;
+}
+
+impl NaIRGenPass._empty_list_dest_spec(nd: uni.ListVal) -> (str | None) {
+    # An empty literal carries no element to infer from, but its slot shape
+    # is an ABI commitment: every later use site picks helpers from the
+    # DESTINATION's static type, so a mismatched creation (a 16-byte-slot
+    # jacval list behind a `list[UniNode]` field) leaves half-written slots
+    # that the list's own destructor then walks. The destination's declared
+    # slot type is therefore the authority for the flavor.
+    _dp = nd.parent;
+    if isinstance(_dp, uni.HasVar) and _dp.value is nd {
+        _hv_spec = self._spec_from_list_slot_type(self._resolve_field_type(_dp));
+        if self._na_debug_on() {
+            import sys;
+            _hv_nm = _dp.name.value if _dp.name else "?";
+            sys.stderr.write(
+                f"NA_DEBUG empty-list dest hasvar={_hv_nm} spec={_hv_spec}\n"
+            );
+        }
+        return _hv_spec;
+    }
+    if isinstance(_dp, uni.Assignment) and _dp.value is nd {
+        if _dp.type_tag is not None
+            and _dp.type_tag.tag is not None
+            and _dp.type_tag.tag.type is not None {
+            return self._spec_from_list_slot_type(
+                self._lower_type(_dp.type_tag.tag.type)
+            );
+        }
+        for _tgt in (_dp.target or []) {
+            if isinstance(_tgt, uni.AtomTrailer) and _tgt.is_attr {
+                _cls = self._struct_name_of(_tgt.target);
+                _fld = self._get_name(_tgt.right);
+                if _cls is not None and _fld is not None {
+                    _spec = self._spec_from_list_slot_type(
+                        self.struct_field_types.get(_cls, {}).get(_fld)
+                    );
+                    if _spec is not None {
+                        return _spec;
+                    }
+                }
+            }
+            # A rebind of an existing local (`body_l = [];` after
+            # `body_l: (list[UniNode] | None) = None;`) commits to the
+            # slot's declared shape.
+            _tn = self._get_name(_tgt)
+                if not isinstance(_tgt, uni.AtomTrailer)
+                else None;
+            if _tn is not None {
+                _slot = self.local_vars.get(_tn);
+                if _slot is not None and isinstance(_slot.type, ir.PointerType) {
+                    _spec = self._spec_from_list_slot_type(_slot.type.pointee);
+                    if _spec is not None {
+                        return _spec;
+                    }
+                }
+            }
+        }
+    }
+    if isinstance(_dp, uni.KWPair) and _dp.value is nd {
+        # A constructor keyword argument's destination is the named field's
+        # slot on the class being built (`Module(body=[], ...)`).
+        _fc = _dp.parent;
+        if isinstance(_fc, uni.FuncCall) {
+            _cn = self._get_name(_fc.target);
+            if _cn is None or _cn not in self.struct_types {
+                _cn = self._struct_name_of(_fc);
+            }
+            _kn = _dp.key.sym_name if _dp.key is not None else None;
+            if _cn is not None and _kn is not None {
+                return self._spec_from_list_slot_type(
+                    self.struct_field_types.get(_cn, {}).get(_kn)
+                );
+            }
+        }
+    }
+    return None;
+}
+
 impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
     self._pending_list_elem_struct = None;
     if not nd.values {
@@ -152,6 +249,9 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             _bare_list_decl = _lt_name == "list";
         }
         _own_spec = self._elem_spec_of(nd);
+        if _own_spec is None {
+            _own_spec = self._empty_list_dest_spec(nd);
+        }
         if _own_spec is not None {
             elem_type_name = _own_spec;
         } elif _bare_list_decl {

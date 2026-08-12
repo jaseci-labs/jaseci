@@ -78,7 +78,8 @@ obj NativeFieldInfo {
         is_func_ptr: bool = False,
         func_param_types: (list[str] | None) = None,
         func_ret_type: (str | None) = None,
-        elem_keys: (list | None) = None;
+        elem_keys: (list | None) = None,
+        foreign: bool = False;
 }
 
 obj NativeStructLayout {
@@ -421,7 +422,8 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
                         "func_ret_type": fld.func_ret_type,
                         "elem_keys": (
                             list(fld.elem_keys) if fld.elem_keys is not None else None
-                        )
+                        ),
+                        "foreign": fld.foreign
                     } for fld in s.fields
                 ]
             } for (name, s) in layout.structs.items()

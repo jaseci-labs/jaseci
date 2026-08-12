@@ -1559,6 +1559,32 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
 
     if isinstance(val.type, ir.PointerType)
         and isinstance(target_type, ir.PointerType) {
+        # A cast between two DIFFERENT list flavors reinterprets the slot
+        # stride (a jacval list carries 16-byte tagged slots, a ptr list
+        # 8-byte ones), so every later helper call would half-write or
+        # half-read elements. That is never a coercion; fail loud so the
+        # producing site gets fixed instead of corrupting the heap.
+        _lc_src = self._spec_from_list_slot_type(val.type);
+        _lc_dst = self._spec_from_list_slot_type(target_type);
+        if (
+            _lc_src is not None
+            and _lc_dst is not None
+            and _lc_src != _lc_dst
+            and (_lc_src == "jacval") != (_lc_dst == "jacval")
+        ) {
+            self.emit(
+                E5092,
+                node_override=self.ir_in,
+                kind="coercion",
+                name=f"list[{_lc_src}] -> list[{_lc_dst}]",
+                help_text=(
+                    "These list layouts store elements at different slot "
+                    "widths, so a cast would corrupt the elements; construct "
+                    "the list with the destination's element flavor instead."
+                )
+            );
+            return val;
+        }
         return self.builder.bitcast(val, target_type, name="ptrcast");
     }
 

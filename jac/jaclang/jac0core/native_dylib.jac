@@ -66,7 +66,8 @@ def _field_info(f: any) -> any {
         is_func_ptr=f.get("is_func_ptr", False),
         func_param_types=f.get("func_param_types"),
         func_ret_type=f.get("func_ret_type"),
-        elem_keys=f.get("elem_keys")
+        elem_keys=f.get("elem_keys"),
+        foreign=f.get("foreign", False)
     );
 }
 

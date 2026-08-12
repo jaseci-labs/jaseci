@@ -129,7 +129,17 @@ def unparse_node(nd: uni.UniNode) -> str {
     if isinstance(nd, uni.Token) {
         return nd.value;
     }
-    return ' '.join([unparse_node(i) for i in nd.kid]);
+    _kids = list(nd.kid);
+    if not _kids {
+        # A marshalled view of a token is not a `uni.Token` instance, but a
+        # leaf carrying a string `value` is a token by shape; this keeps the
+        # walk read-only over native trees.
+        _v = getattr(nd, "value", None);
+        if isinstance(_v, str) {
+            return _v;
+        }
+    }
+    return ' '.join([unparse_node(i) for i in _kids]);
 }
 
 def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {

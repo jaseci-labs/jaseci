@@ -33,10 +33,20 @@ def _native_parse -> any {
             ns = na_parser.__dict__;
             cc = build_ctypes_classes(layout);
             em = build_enum_maps(layout, ns);
+            # Classes resolve across the sealed closure's modules: the parser
+            # namespace re-exports most unitree names, but accessor-bearing
+            # helpers (`CodeLocInfo`) live only in their defining modules, and
+            # the marshal views need each declared class to serve accessor
+            # reads.
+            import jaclang.jac0core.unitree as _sc_unitree;
+            import jaclang.jac0core.srcloc as _sc_srcloc;
             pc: dict = {};
             for sn in layout.structs {
-                if ns.get(sn) is not None {
-                    pc[sn] = ns[sn];
+                for _sc_ns in (ns, _sc_unitree.__dict__, _sc_srcloc.__dict__) {
+                    if _sc_ns.get(sn) is not None {
+                        pc[sn] = _sc_ns[sn];
+                        break;
+                    }
                 }
             }
             fl = layout.functions.get("parse_program");
@@ -84,7 +94,7 @@ glob _CANARY_LINES: tuple = (
          "    }",
          "    return self.a if self.a else -1;",
          "}",
-         "test canary_t { assert Canary(a=5).m(2) >= -1; }",
+         "test \"canary t\" { assert Canary(a=5).m(2) >= -1; }",
          "with entry { print({'k': [1, 2.5, True, None]}); }",
 
      );
@@ -96,7 +106,7 @@ def _canary_src -> str {
 
 
 def _canary_ok(fn: any) -> bool {
-    import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
+    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
     try {
         r = fn(_canary_src(), "__seal_selfcheck__.jac");
         native_mod = r[0];
@@ -110,8 +120,7 @@ def _canary_ok(fn: any) -> bool {
         return (
             r[1] == pyp.error_count
             and len(native_mod._in_mod_nodes) == len(py_mod._in_mod_nodes)
-            and unparse_module(native_mod, requires_format=False)
-                == unparse_module(py_mod, requires_format=False)
+            and unparse_node(native_mod) == unparse_node(py_mod)
         );
     } except Exception {
         return False;

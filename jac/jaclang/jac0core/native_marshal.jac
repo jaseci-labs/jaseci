@@ -6,6 +6,7 @@ import from jaclang.jac0core.codeinfo {
     HDR_DTOR_OFF,
     HDR_MAGIC,
     HDR_RC_OFF,
+    HDR_TAG_OFF,
     RC_SENTINEL,
     STR_LEN_TAG_BIT,
     STR_LEN_TAG_SHIFT
@@ -243,7 +244,8 @@ obj NativeStructView {
         _native: any = field(default=None, repr=False),
         _field_meta: dict = field(default_factory=`dict, repr=False),
         _view_memo: dict = field(default_factory=`dict, repr=False),
-        _acc_cls: (str | None) = field(default=None, repr=False);
+        _acc_cls: (str | None) = field(default=None, repr=False),
+        _py_overlay: dict = field(default_factory=`dict, repr=False);
 
     def postinit -> None;
     def __getattr__(name: str) -> any;
@@ -326,6 +328,36 @@ def install_accessor_bridge(engine: any, layout: any) -> None {
 }
 
 
+def runtime_struct_name(addr: int, layout: any) -> (str | None) {
+    # The rc header stamps every object with its class name; a field or list
+    # slot statically typed at a base class still holds a concrete instance,
+    # and the view must carry the runtime class for its fields to resolve.
+    if not addr {
+        return None;
+    }
+    _a = int(addr);
+    if ctypes.c_uint64.from_address(_a + HDR_RC_OFF).value != RC_SENTINEL {
+        _aid = ctypes.c_uint64.from_address(_a + HDR_ALLOC_ID_OFF).value;
+        if ((_aid >> 32) & 0xFFFF) != HDR_MAGIC {
+            return None;
+        }
+    }
+    _tag = ctypes.c_uint64.from_address(_a + HDR_TAG_OFF).value;
+    if not _tag {
+        return None;
+    }
+    try {
+        _name = ctypes.string_at(_tag).decode("utf-8", errors="replace");
+    } except Exception {
+        return None;
+    }
+    if layout is not None and hasattr(layout, "structs") and _name in layout.structs {
+        return _name;
+    }
+    return None;
+}
+
+
 def get_struct_view(
     addr: int,
     ct_cls: any,
@@ -337,6 +369,15 @@ def get_struct_view(
 ) -> NativeStructView {
     if view_memo is None {
         view_memo = {};
+    }
+    _rt_name = runtime_struct_name(addr, layout);
+    if (
+        _rt_name is not None
+        and _rt_name != struct_name
+        and ctypes_classes.get(_rt_name) is not None
+    ) {
+        struct_name = _rt_name;
+        ct_cls = ctypes_classes[_rt_name];
     }
     memo_key = ("s", addr, struct_name);
     cached = view_memo.get(memo_key);
@@ -553,6 +594,13 @@ def _marshal_set(
 
 
 glob _OPT_CTYPES: dict = {};
+
+# The declared Python classes behind the marshalled structs, registered when
+# a native function is bound. An accessor field carries no native slot (it is
+# a property, not storage), so a view read that misses the ctypes fields
+# falls back to the Python property, whose body re-enters the view for the
+# stored fields it derives from.
+glob _ACCESSOR_CLASSES: dict = {};
 
 def _opt_ctype(payload_type: str) -> type {
     cached = _OPT_CTYPES.get(payload_type);
@@ -865,6 +913,9 @@ def wrap_native_function(
     addr = engine.get_function_address(func_layout.name);
     if not addr {
         return None;
+    }
+    if py_classes {
+        _ACCESSOR_CLASSES.update(py_classes);
     }
 
     if any(pt.startswith("opt.") for pt in func_layout.param_types) {
