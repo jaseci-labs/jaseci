@@ -821,6 +821,16 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
                 }
             }
         }
+        # Accessors are methods under a dotted slot name, so an accessor the
+        # imported unit could not lower is just as unusable here as a demoted
+        # method: the artifact ships an abort stub for it either way.
+        for (_ia_slot, _ia_var, _ia_acc) in archetype_accessors(_imp_arch) {
+            _im_full = f"{_ia_name}.{_ia_slot}";
+            if (_imp_layout is not None and _im_full not in _imp_layout.methods)
+                or (_imp_layout is None and _wl_internal) {
+                self._native_skipped_methods.add(_im_full);
+            }
+        }
     }
     for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
         if (
@@ -863,6 +873,9 @@ impl NaIRGenPass._forward_declare_archetype_methods(arch: uni.Archetype) -> None
                 self._emit_osp_thunk(aname, stmt);
             }
         }
+    }
+    for (_slot, _accvar, _acc) in archetype_accessors(arch) {
+        self._forward_declare_method(aname, _acc, field=_accvar);
     }
 }
 

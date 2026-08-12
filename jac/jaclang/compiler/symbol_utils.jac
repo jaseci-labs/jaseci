@@ -450,6 +450,7 @@ def collect_assigned_symbols(nd: uni.UniNode) -> set[str] {
 }
 
 def collect_method_names(arch: uni.Archetype) -> set[str] {
+    import from jaclang.compiler.passes.main.layout_pass { archetype_accessors }
     names: set[str] = set();
     if arch.body is not None and isinstance(arch.body, Sequence) {
         for stmt in arch.body {
@@ -460,6 +461,11 @@ def collect_method_names(arch: uni.Archetype) -> set[str] {
                 }
             }
         }
+    }
+    # An accessor is a method under a dotted slot name, so a class that
+    # declares one provides that slot and must not inherit an ancestor's.
+    for (slot_name, _var, _acc) in archetype_accessors(arch) {
+        names.add(slot_name);
     }
     return names;
 }
