@@ -1607,6 +1607,19 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
 
     if not isinstance(val.type, ir.PointerType)
         and isinstance(target_type, ir.PointerType) {
+        if isinstance(val.type, ir.LiteralStructType)
+            and target_type?.pointee
+            and isinstance(target_type.pointee, ir.LiteralStructType)
+            and val.type != target_type.pointee
+            and len(val.type.elements) == len(target_type.pointee.elements) {
+            # A value tuple takes the declared slot layout before it is
+            # boxed: an optional slot holds a JacOpt, not the bare payload
+            # the element arrived as, and the box, its destructor, and every
+            # later slot read must agree on that layout. Boxing the inferred
+            # layout and bitcasting to the declared one shears the tag byte
+            # onto the payload (#8091).
+            val = self._coerce_tuple_to_struct(val, target_type.pointee);
+        }
         if target_type?.pointee and target_type.pointee == val.type {
             if isinstance(val.type, ir.LiteralStructType) {
                 return self._box_value_tuple(val);
