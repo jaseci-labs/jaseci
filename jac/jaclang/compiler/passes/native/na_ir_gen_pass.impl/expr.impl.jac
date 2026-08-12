@@ -137,10 +137,52 @@ impl NaIRGenPass._codegen_required(nd: (uni.UniNode | None)) -> (ir.Value | None
     }
     _errs_before = len(self.errors_had);
     val = self._codegen_expr(nd);
-    if val is None and len(self.errors_had) == _errs_before {
+    if val is None
+        and len(self.errors_had) == _errs_before
+        and not self._reads_unlowered_local(nd) {
         self.emit(E5092, node_override=nd, kind="expression", name=type(nd).__name__);
     }
     return val;
+}
+
+impl NaIRGenPass._current_fn_key -> (str | None) {
+    _bb = self._builder.block if self._builder is not None else None;
+    _fn = _bb.parent if _bb is not None else None;
+    return _fn.name if _fn is not None else None;
+}
+
+impl NaIRGenPass._mark_local_unlowered(name: str) -> None {
+    _key = self._current_fn_key();
+    if _key is None {
+        return;
+    }
+    _names = self._unlowered_locals.get(_key);
+    if _names is None {
+        _names = set();
+        self._unlowered_locals[_key] = _names;
+    }
+    _names.add(name);
+}
+
+impl NaIRGenPass._reads_unlowered_local(nd: uni.UniNode) -> bool {
+    if not self._unlowered_locals {
+        return False;
+    }
+    _key = self._current_fn_key();
+    _names = self._unlowered_locals.get(_key) if _key is not None else None;
+    if not _names {
+        return False;
+    }
+    _reads = [nd] if isinstance(nd, uni.Name) else nd.get_all_sub_nodes(uni.Name);
+    for _sub in _reads {
+        if _sub.value in _names
+            and _sub.value not in self.local_vars
+            and _sub.value not in self.func_symtab
+            and _sub.value not in self.global_vars {
+            return True;
+        }
+    }
+    return False;
 }
 
 impl NaIRGenPass._codegen_yield(nd: uni.YieldExpr) -> (ir.Value | None) {

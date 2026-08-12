@@ -1574,13 +1574,27 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
         }
     }
     if value is None {
-        if nd.value is not None and len(self.errors_had) == _rhs_errs_before {
+        if nd.value is not None
+            and len(self.errors_had) == _rhs_errs_before
+            and not self._reads_unlowered_local(nd.value) {
             self.emit(
                 E5092,
                 node_override=nd.value,
                 kind="expression",
                 name=type(nd.value).__name__
             );
+        }
+
+        _unbound: list = list(nd.target)
+            if isinstance(nd.target, (list, tuple))
+            else [nd.target];
+        while _unbound {
+            _t = _unbound.pop();
+            if isinstance(_t, uni.Name) {
+                self._mark_local_unlowered(_t.value);
+            } elif isinstance(_t, uni.TupleVal) {
+                _unbound.extend(_t.values or []);
+            }
         }
         return;
     }

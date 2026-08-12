@@ -107,6 +107,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         func_symtab: dict[str, ir.Function] = {},
         local_vars: dict[str, ir.AllocaInstr] = {},
         param_vars: set[str] = set(),
+        _unlowered_locals: dict[str, set[str]] = {},
         flow_future_meta: dict = {},
         drop_fn_registry: dict = {},
         has_native_code: bool = False,
@@ -329,6 +330,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_assignment(nd: uni.Assignment) -> None;
     def _codegen_expr(nd: (uni.UniNode | None)) -> (ir.Value | None);
     def _codegen_required(nd: (uni.UniNode | None)) -> (ir.Value | None);
+    def _current_fn_key -> (str | None);
+    def _mark_local_unlowered(name: str) -> None;
+    def _reads_unlowered_local(nd: uni.UniNode) -> bool;
     def _codegen_name(nd: uni.Name) -> (ir.Value | None);
     def _codegen_binary(nd: uni.BinaryExpr) -> (ir.Value | None);
     def _codegen_pipe_fwd(nd: uni.BinaryExpr) -> (ir.Value | None);
