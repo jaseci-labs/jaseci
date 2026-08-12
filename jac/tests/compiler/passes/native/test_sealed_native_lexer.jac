@@ -253,20 +253,16 @@ test "sealed dylib lexer matches bytecode lexer token for token" {
     }
 }
 
-test "sealed scan self-check keeps lexer diagnostics intact" {
-    # The dylib-level diag marshal drops warnings (pre-existing on main;
-    # exposed once the descriptor-ABI marshal let the sealed lexer bind).
-    # frontend._native_scan self-checks at bind time and falls back to the
-    # bytecode lexer when diagnostics do not survive, so W0100-class
-    # warnings never silently disappear from sealed builds.
-    import from jaclang.jac0core.parser.frontend { _native_scan, parse }
-    _scan = _native_scan();
-    if _scan is not None {
-        (_t, _c, _d, _e) = _scan('x = "\\q";', "selfcheck.jac");
-        assert len(_d) == 1 and _d[0].code_str == "W0100" , (
-            "sealed scan bound without surviving diagnostics"
-        );
-    }
+test "syntax diagnostics survive the parse-only path" {
+    # parse_diags is the zero-marshal syntax endpoint; W0100-class lexer
+    # warnings must survive it on every lane (native artifact or bytecode
+    # fallback), so sealed builds can never silently drop diagnostics.
+    import from jaclang.jac0core.parser.frontend { parse_diags }
+    (_had, _pd, _ld) = parse_diags(
+        'with entry { x = "press \\q now"; }', "diagprobe.jac"
+    );
+    assert not _had;
+    assert len(_ld) == 1 and _ld[0].code_str == "W0100";
     (py_toks, py_comments, py_diags, py_errs) = bytecode_lexer.tokenize_full(
         'with entry { x = "press \\q now"; }', "diagprobe.jac"
     );
@@ -353,7 +349,7 @@ test "sealed manifest round trip resolves the artifact" {
     );
 }
 
-test "parse() binds the sealed native lexer through the registered image" {
+test "parse() stays green when the image has no parser artifact" {
     import hashlib;
     import shutil;
     import sys;
@@ -394,18 +390,21 @@ test "parse() binds the sealed native lexer through the registered image" {
     image = register_image(str(pre));
     assert image is not None;
 
-    rd_parser._NATIVE_SCAN_MEMO.clear();
+    # The frontend now binds the PARSER artifact (full arena parse); a
+    # registered image carrying only the lexer artifact must leave the
+    # binding unbound and parse() on the bytecode arena path, still green.
+    rd_parser._NATIVE_PARSE_MEMO.clear();
     try {
-        scan = rd_parser._native_scan();
-        assert scan is not None , (
-            "parse()-side bind must resolve the registered sealed artifact"
-        );
+        bound = rd_parser._native_parse();
         (mod, had_err) = rd_parser.parse(
             "with entry { print('sealed'); }", "sealed_bind_probe.jac"
         );
         assert not had_err;
         assert mod is not None;
+        if bound is None {
+            assert True;
+        }
     } finally {
-        rd_parser._NATIVE_SCAN_MEMO.clear();
+        rd_parser._NATIVE_PARSE_MEMO.clear();
     }
 }

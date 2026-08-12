@@ -406,6 +406,9 @@ impl NaIRGenPass._export_native_layout -> None {
     }
 
     for (mname, func) in self.method_funcs.items() {
+        if mname in self._native_skipped_methods {
+            continue;
+        }
         param_types = [self._llvm_type_str(a) for a in func.function_type.args];
         param_names = [a.name for a in func.args];
         ret_type = self._llvm_type_str(func.function_type.return_type);
@@ -900,6 +903,22 @@ impl NaIRGenPass._register_imported_archetype(arch: uni.Archetype) -> None {
         return;
     }
 
+    _arch_mod = arch.find_parent_of_type(uni.Module);
+    _arch_src = _arch_mod.loc.mod_path if _arch_mod?.loc else "";
+    _seen_src = self._struct_source_mod.get(aname);
+    if _seen_src is not None and _arch_src and _seen_src != _arch_src {
+        import sys as _rc_sys;
+        _rc_sys.stderr.write(
+            f"warning: native struct name collision -- '{aname}' from "
+            f"{_arch_src} shadows the one from {_seen_src}; skipping "
+            f"re-registration\n"
+        );
+        return;
+    }
+    if _arch_src {
+        self._struct_source_mod[aname] = _arch_src;
+    }
+
     if aname not in self.struct_types {
         struct_type = self.llvm_module.context.get_identified_type(aname);
         self.struct_types[aname] = struct_type;
@@ -943,6 +962,12 @@ impl NaIRGenPass._register_imported_globals(
             }
             var_type: ir.Type = ir.IntType(64);
             if assign.type_tag and assign.type_tag.tag {
+                if (
+                    self._quiet_glob_type(assign.type_tag.tag) is None
+                    and not self._glob_native_use_exists(target)
+                ) {
+                    continue;
+                }
                 var_type = self._resolve_jac_type(assign.type_tag.tag);
             }
             global_var = ir.GlobalVariable(self.llvm_module, var_type, name=var_name);
