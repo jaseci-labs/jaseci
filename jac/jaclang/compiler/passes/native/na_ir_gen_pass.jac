@@ -30,8 +30,11 @@ import from jaclang.jac0core.codeinfo {
 }
 
 import from jaclang.compiler.passes.main.layout_pass {
+    ACCESSOR_SLOT_SUFFIX,
     ArchetypeLayout,
-    VTABLE_HEADER_SLOTS
+    VTABLE_HEADER_SLOTS,
+    accessor_slot_name,
+    archetype_accessors
 }
 
 glob NATIVE_TIME_FUNCS: set[str] = {
@@ -761,11 +764,23 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _osp_isa_bases(arch_name: str) -> list[int];
     def _codegen_archetype(nd: uni.Archetype) -> None;
     def _register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None;
-    def _forward_declare_method(arch_name: str, method: uni.Ability) -> None;
+    def _forward_declare_method(
+        arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None
+    ) -> None;
+
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
     def _codegen_method(
-        arch_name: str, method: uni.Ability, symbol_override: (str | None) = None
+        arch_name: str,
+        method: uni.Ability,
+        symbol_override: (str | None) = None,
+        field: (uni.HasVar | None) = None
     ) -> None;
+
+    def _method_slot_name(method: uni.Ability, field: (uni.HasVar | None)) -> str;
+    def _accessor_slot_of(type_name: str, field_name: str, kind: str) -> (str | None);
+    def _codegen_accessor_call(
+        obj_val: ir.Value, type_name: str, slot: str, args: list[ir.Value]
+    ) -> (ir.Value | None);
 
     def _emit_class_routed_call(
         nd: uni.FuncCall,

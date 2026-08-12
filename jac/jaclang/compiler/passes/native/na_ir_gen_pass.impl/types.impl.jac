@@ -672,9 +672,6 @@ impl NaIRGenPass._resolve_field_type(var: uni.UniNode) -> ir.Type {
         if self._foreign_optional_field(_ptb) {
             return ir.IntType(8).as_pointer();
         }
-        if var?.accessors is not None {
-            return ir.IntType(8).as_pointer();
-        }
         try {
             import from jaclang.compiler.type_system.types {
                 TypeVarType as _RfTypeVarType

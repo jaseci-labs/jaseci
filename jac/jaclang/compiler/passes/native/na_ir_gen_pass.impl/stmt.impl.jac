@@ -178,6 +178,24 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
             } elif _disc_fn is None {
                 self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
             }
+        } elif isinstance(target_expr, uni.AtomTrailer) and target_expr.is_attr {
+            # `del obj.prop` runs the property's deleter -- the only write path
+            # a property has besides its setter.
+            _del_cls = self._struct_name_of(target_expr.target);
+            _del_fld = self._get_name(target_expr.right);
+            _del_slot = self._accessor_slot_of(_del_cls, _del_fld, "deleter")
+                if (_del_cls is not None and _del_fld is not None)
+                else None;
+            if _del_slot is not None {
+                _del_recv = self._codegen_expr(target_expr.target);
+                if _del_recv is None
+                    or self._codegen_accessor_call(_del_recv, _del_cls, _del_slot, [])
+                        is None {
+                    self.emit(
+                        E5092, node_override=nd, kind="statement", name="DeleteStmt"
+                    );
+                }
+            }
         } elif (
             isinstance(target_expr, uni.AtomTrailer)
             and not target_expr.is_attr
@@ -273,6 +291,20 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
         return;
     }
     func_ret_type = self.builder.function.return_value.type;
+    if nd.expr is not None and isinstance(func_ret_type, ir.VoidType) {
+        # A `-> None` signature lowers to a void function, so `return None`
+        # (or `return f()` for a void call) still has to `ret void`; the
+        # expression is evaluated first because it may have effects.
+        self._codegen_expr(nd.expr);
+        self._emit_scope_cleanup(
+            skip_var=None,
+            loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                if nd.loc
+                else 0}"
+        );
+        self.builder.ret_void();
+        return;
+    }
     if nd.expr is not None {
         val = self._codegen_required(nd.expr);
         if val is not None {

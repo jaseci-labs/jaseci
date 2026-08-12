@@ -308,6 +308,13 @@ impl LayoutPass._build_layout(arch: uni.Archetype) -> ArchetypeLayout {
         if fname in seen_fields {
             continue;
         }
+        # A property has no instance storage: it lays out as the method slots
+        # `_build_vtable_layout` gives it. A data slot here would put a
+        # never-written word in every instance, and a field read would resolve
+        # to that word instead of running the getter.
+        if var.accessors {
+            continue;
+        }
 
         _archhas = var.find_parent_of_type(uni.ArchHas);
         if _archhas is not None and _archhas.is_static {
@@ -472,6 +479,15 @@ impl LayoutPass._build_vtable_layout(
                 seen_methods.add(method_name);
             }
         }
+        # Accessors dispatch like any other method: `AstSymbolNode.sym_name`
+        # and `NameAtom.sym_name` are two getters for one field name, and the
+        # one that runs is the receiver's.
+        for (slot_name, _var, _acc) in archetype_accessors(arch) {
+            if slot_name not in seen_methods {
+                method_list.append(slot_name);
+                seen_methods.add(slot_name);
+            }
+        }
     }
 
     methods: list[MethodSlot] = [];
@@ -481,18 +497,33 @@ impl LayoutPass._build_vtable_layout(
         owner = arch_name;
         for check_name in mro {
             check_arch = arch_map.get(check_name);
-            if check_arch is not None {
-                for method in check_arch.get_methods() {
-                    mn = method.name_ref.sym_name if method.name_ref else None;
-                    if mn == mname {
-                        sig_node = method.signature;
+            if check_arch is None {
+                continue;
+            }
+            found = False;
+            for method in check_arch.get_methods() {
+                mn = method.name_ref.sym_name if method.name_ref else None;
+                if mn == mname {
+                    sig_node = method.signature;
+                    owner = check_name;
+                    found = True;
+                    break;
+                }
+            }
+            if not found {
+                # An accessor declared bare (`getter;`) has no signature of its
+                # own, so the owner search cannot key off one.
+                for (slot_name, _var, acc) in archetype_accessors(check_arch) {
+                    if slot_name == mname {
+                        sig_node = acc.signature;
                         owner = check_name;
+                        found = True;
                         break;
                     }
                 }
-                if sig_node is not None {
-                    break;
-                }
+            }
+            if found {
+                break;
             }
         }
         slot = MethodSlot(name=mname, index=i, owner=owner, signature=sig_node);
@@ -685,6 +716,11 @@ impl LayoutPass._validate_obj_fields(
     aname = arch.name.value if arch.name else "unknown";
     for var in arch.get_has_vars() {
         fname = var.name.value if var.name else "field";
+        # A property's declared type is its getter's result, never a stored
+        # word, so layout compatibility does not apply to it.
+        if var.accessors {
+            continue;
+        }
 
         if not var.type_tag or not var.type_tag.tag {
             self.emit(W5031, node_override=var, arch=aname, field=fname);

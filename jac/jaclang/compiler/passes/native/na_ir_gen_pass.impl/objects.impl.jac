@@ -122,6 +122,9 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
                 }
             }
         }
+        for (_slot, _accvar, _acc) in archetype_accessors(arch) {
+            self._forward_declare_method(arch_name, _acc, field=_accvar);
+        }
     }
 
     for arch in archetypes {
@@ -169,6 +172,14 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
                             }
                         }
                     }
+                    if not overridden and child_arch is not None {
+                        for (_slot, _accvar, _acc) in archetype_accessors(child_arch) {
+                            if _slot == method_name {
+                                overridden = True;
+                                break;
+                            }
+                        }
+                    }
                 }
                 if overridden {
                     break;
@@ -210,6 +221,9 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
                     }
                 }
             }
+        }
+        for (_slot, _accvar, _acc) in archetype_accessors(arch) {
+            self._codegen_method(arch_name, _acc, field=_accvar);
         }
     }
 
@@ -263,6 +277,21 @@ impl NaIRGenPass._visit_nonprimary_ancestor_methods(
                     provided_methods.add(method_name);
                 }
             }
+        }
+        # Accessors need the same receiver-specialized copy: the ancestor's
+        # body reads its own field offsets, which a non-primary ancestor does
+        # not share with this class.
+        for (_slot, _accvar, _acc) in archetype_accessors(ancestor_arch) {
+            if _slot in provided_methods {
+                continue;
+            }
+            full_name = f"{arch_name}.{_slot}";
+            if declare and full_name not in self.method_funcs {
+                self._forward_declare_method(arch_name, _acc, field=_accvar);
+            } elif not declare and full_name in self.method_funcs {
+                self._codegen_method(arch_name, _acc, field=_accvar);
+            }
+            provided_methods.add(_slot);
         }
     }
 }
@@ -437,8 +466,23 @@ impl NaIRGenPass._register_static_fields(arch_name: str, archhas: uni.ArchHas) -
 }
 
 
-impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) -> None {
-    method_name = method.name_ref.sym_name if method.name_ref else "unnamed";
+impl NaIRGenPass._method_slot_name(
+    method: uni.Ability, field: (uni.HasVar | None)
+) -> str {
+    if field is not None {
+        _fname = field.name.value if field.name else "field";
+        _slot = accessor_slot_name(_fname, method);
+        if _slot is not None {
+            return _slot;
+        }
+    }
+    return method.name_ref.sym_name if method.name_ref else "unnamed";
+}
+
+impl NaIRGenPass._forward_declare_method(
+    arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None
+) -> None {
+    method_name = self._method_slot_name(method, field);
     full_name = f"{arch_name}.{method_name}";
 
     if method.type_params {
@@ -454,12 +498,12 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     }
     sig = method.signature;
     struct_type = self.struct_types.get(arch_name);
-    if struct_type is None or sig is None {
+    if struct_type is None or (sig is None and field is None) {
         return;
     }
     _is_static = method.is_static;
 
-    _m_params = sig.get_parameters();
+    _m_params = sig.get_parameters() if sig is not None else [];
     if (
         not _is_static
         and _m_params
@@ -477,9 +521,20 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
         );
     }
 
-    ret_type = self._resolve_sig_type(sig.return_type);
-    if isinstance(ret_type, ir.VoidType) {
-        ;
+    ret_type = self._resolve_sig_type(sig.return_type)
+        if sig is not None
+        else ir.IntType(64);
+    # An accessor declared bare (`getter;`) names no signature: the field's
+    # declared type is the getter's result and the setter's one argument, and
+    # that argument is `value`. This is the substitution
+    # `PyastGenPass.exit_ability` makes for the `@property` it emits, so the
+    # two backends agree on the accessor's shape.
+    if sig is None and field is not None {
+        if method.accessor_kind == "property" {
+            ret_type = self._resolve_sig_type(field);
+        } elif method.accessor_kind == "setter" {
+            param_types.append(self._resolve_sig_type(field));
+        }
     }
     fnty = ir.FunctionType(ret_type, param_types);
     func = ir.Function(self.llvm_module, fnty, name=full_name);
@@ -491,6 +546,9 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     for (i, p) in enumerate(_m_params) {
         func.args[i + _base].name = p.name.value if p.name else f"arg{i}";
     }
+    if len(func.args) > _base + len(_m_params) {
+        func.args[_base + len(_m_params)].name = "value";
+    }
     self._apply_ownership_param_attrs(func, _m_params, _base);
     self.method_funcs[full_name] = func;
     self.func_symtab[full_name] = func;
@@ -500,9 +558,12 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
 }
 
 impl NaIRGenPass._codegen_method(
-    arch_name: str, method: uni.Ability, symbol_override: (str | None) = None
+    arch_name: str,
+    method: uni.Ability,
+    symbol_override: (str | None) = None,
+    field: (uni.HasVar | None) = None
 ) -> None {
-    method_name = method.name_ref.sym_name if method.name_ref else "unnamed";
+    method_name = self._method_slot_name(method, field);
     # A symbol override lowers this body specialized to `arch_name`'s layout
     # under its own name -- the receiver-class copy an unbound
     # `Ancestor.method(self)` call needs when the ancestor is not
@@ -550,7 +611,7 @@ impl NaIRGenPass._codegen_method(
     }
 
     sig = method.signature;
-    _body_params = sig.get_parameters();
+    _body_params = sig.get_parameters() if sig is not None else [];
     if (
         not _is_static
         and _body_params
@@ -559,8 +620,16 @@ impl NaIRGenPass._codegen_method(
     ) {
         _body_params = _body_params[1:];
     }
-    for (i, p) in enumerate(_body_params) {
-        param_name = p.name.value if p.name else f"arg{i}";
+    # A bare `setter;` binds its one argument as `value` -- `_forward_declare_method`
+    # named the slot that way for the same reason.
+    _bound_params: list[tuple[(str, bool)]] = [
+        ((p.name.value if p.name else f"arg{i}"), bool(p.name?.sym?.param_rebound), )
+        for (i, p) in enumerate(_body_params)
+    ];
+    if sig is None and len(func.args) > _base + len(_bound_params) {
+        _bound_params.append(("value", False, ));
+    }
+    for (i, (param_name, _p_rebound)) in enumerate(_bound_params) {
         arg_val = func.args[i + _base];
         if param_name in self.closure_cell_vars {
             slot = self._emit_closure_cell(param_name, arg_val.type);
@@ -575,8 +644,7 @@ impl NaIRGenPass._codegen_method(
         self.builder.store(arg_val, alloca);
         self.local_vars[param_name] = alloca;
 
-        if isinstance(arg_val.type, ir.PointerType)
-            and bool(p.name?.sym?.param_rebound) {
+        if isinstance(arg_val.type, ir.PointerType) and _p_rebound {
             self._emit_rc_retain(arg_val, op="param_promote", loc=full_name);
         } else {
             self.param_vars.add(param_name);
@@ -2366,11 +2434,54 @@ impl NaIRGenPass._opt_unwrap_attr(obj_val: ir.Value) -> ir.Value {
     return self.builder.extract_value(obj_val, 1, name="attr.opt.val");
 }
 
+impl NaIRGenPass._accessor_slot_of(
+    type_name: str, field_name: str, kind: str
+) -> (str | None) {
+    _slot = f"{field_name}.{ACCESSOR_SLOT_SUFFIX[kind]}";
+    _lay = self._arch_layout(type_name);
+    if _lay is not None and _slot in _lay.method_index {
+        return _slot;
+    }
+    # A class without a vtable carries no method slots, so the declared
+    # function is the authority there.
+    return _slot if self._resolve_method(type_name, _slot) is not None else None;
+}
+
+"""Call an accessor on `obj_val`, virtually when the class dispatches virtually.
+
+The receiver has already been narrowed by the caller, so this mirrors
+`_codegen_method_call`'s tail: prefer the vtable slot, fall back to the
+statically resolved function, and coerce every argument to the callee's type.
+"""
+impl NaIRGenPass._codegen_accessor_call(
+    obj_val: ir.Value, type_name: str, slot: str, args: list[ir.Value]
+) -> (ir.Value | None) {
+    func = self._resolve_method(type_name, slot);
+    if func is None {
+        return None;
+    }
+    _all_args: list[ir.Value] = [obj_val] + args;
+    if self._arch_has_vtable(type_name) {
+        result = self._codegen_virtual_call(obj_val, slot, _all_args, type_name);
+        if result is not None {
+            return result;
+        }
+    }
+    coerced: list[ir.Value] = [];
+    for (i, arg) in enumerate(_all_args) {
+        coerced.append(
+            self._coerce_type(arg, func.args[i].type) if i < len(func.args) else arg
+        );
+    }
+    return self.builder.call(func, coerced, name=f"acc.{slot}");
+}
+
 impl NaIRGenPass._codegen_field_access(
     obj_val: ir.Value, field_name: str, type_name: str
 ) -> (ir.Value | None) {
     field_indices = self.struct_field_indices.get(type_name);
-    if field_indices is None or field_name not in field_indices {
+    _getter = self._accessor_slot_of(type_name, field_name, "property");
+    if _getter is None and (field_indices is None or field_name not in field_indices) {
         return None;
     }
     obj_val = self._opt_unwrap_attr(obj_val);
@@ -2412,6 +2523,9 @@ impl NaIRGenPass._codegen_field_access(
     }
     if not isinstance(obj_val.type, ir.PointerType) {
         return None;
+    }
+    if _getter is not None {
+        return self._codegen_accessor_call(obj_val, type_name, _getter, []);
     }
     idx = field_indices[field_name];
     field_ptr = self.builder.gep(
@@ -2562,12 +2676,17 @@ impl NaIRGenPass._codegen_field_assign(
     field_indices = self.struct_field_indices.get(type_name)
         if type_name is not None
         else None;
+    _setter = self._accessor_slot_of(type_name, field_name, "setter")
+        if (type_name is not None and field_name is not None)
+        else None;
     if (
         field_name is None
         or obj_val is None
         or type_name is None
-        or field_indices is None
-        or field_name not in field_indices
+        or (
+            _setter is None
+            and (field_indices is None or field_name not in field_indices)
+        )
     ) {
         if len(self.errors_had) == _fa_errs {
             self.emit(
@@ -2575,6 +2694,29 @@ impl NaIRGenPass._codegen_field_assign(
                 node_override=target,
                 kind="field assignment",
                 name=(field_name or "<field>")
+            );
+        }
+        return;
+    }
+    # A property's write runs its setter: there is no slot to store into, and
+    # the setter is where a validating or backing-field write lives.
+    if _setter is not None {
+        _fs_struct = self.struct_types.get(type_name);
+        if _fs_struct is not None
+            and isinstance(obj_val.type, ir.PointerType)
+            and obj_val.type.pointee != _fs_struct {
+            obj_val = self.builder.bitcast(
+                obj_val, _fs_struct.as_pointer(), name="acc.recv.cast"
+            );
+        }
+        if self._codegen_accessor_call(obj_val, type_name, _setter, [value]) is None {
+            self.emit(
+                E5092,
+                node_override=target,
+                kind="field assignment",
+                name=field_name,
+                help_text=f"'{type_name}.{field_name}' is a property whose "
+                f"setter has no native lowering."
             );
         }
         return;
