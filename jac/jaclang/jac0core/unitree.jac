@@ -566,7 +566,8 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
         decorators: (Sequence[Expr] | None) = None,
         type_params: (Sequence[TypeParam] | None) = None,
         accessor_kind: str = "",
-        event_triggers: (list[TypeBase] | None) = None;
+        event_triggers: (list[TypeBase] | None) = None,
+        is_ct_only: bool = False;
 
     def postinit -> None;
 

@@ -2,10 +2,9 @@
 
 Runs the exact pipeline `seal_native_artifacts` ships (AOT compile with the
 demotion gate, abort-stub scan, in-house link, dlopen canary) on this
-platform, binds `parse_program` + `arena_strtab_blob` the way
-`frontend._native_parse` does, and asserts the native arena materializes to
-the same tree as the bytecode arena on a corpus. Green here is the condition
-for sealing the parser outside darwin.
+platform, binds `parse_program` the way `frontend._native_parse` does, and
+asserts the native parser builds the same unitree as the bytecode parser on
+a corpus. Green here is the condition for sealing the parser outside darwin.
 """
 
 import json;
@@ -22,10 +21,7 @@ import from jaclang.jac0core.native_marshal {
     build_enum_maps,
     wrap_native_function
 }
-import from jaclang.jac0core.arena { SyntaxArena }
-import from jaclang.jac0core.arena_materialize { materialize_module }
-import from jaclang.jac0core.unitree { Source }
-import from jaclang.jac0core.parser.frontend { _arena_from_native, _canary_src }
+import from jaclang.jac0core.parser.frontend { _canary_src }
 import from jaclang.jac0core.parser.parser { Parser }
 import jaclang.jac0core.parser.parser as na_parser;
 import jaclang.jac0core.parser.lexer as bytecode_lexer;
@@ -70,26 +66,19 @@ def _build_binding -> tuple {
     fn = wrap_native_function(
         eng, layout.functions["parse_program"], cc, em, pc, layout=layout
     );
-    blob_fn = wrap_native_function(
-        eng, layout.functions["arena_strtab_blob"], cc, em, pc, layout=layout
-    );
-    assert fn is not None and blob_fn is not None , "parser binding failed";
-    result = (fn, blob_fn, eng, out_dir);
+    assert fn is not None , "parser binding failed";
+    result = (fn, eng, out_dir);
     _ARTIFACT_MEMO.append(result);
     return result;
 }
 
-def _assert_parity(src: str, path: str, use_blob: bool = False) {
-    (fn, real_blob_fn, _eng, _keep) = _build_binding();
-    blob_fn = real_blob_fn if use_blob else None;
+def _assert_parity(src: str, path: str) {
+    (fn, _eng, _keep) = _build_binding();
     r = fn(src, path);
-    native_mod = materialize_module(
-        _arena_from_native(r[0], blob_fn), Source(src, mod_path=path)
-    );
+    native_mod = r[0];
     (tokens, _c, _ld, _le) = bytecode_lexer.tokenize_full(src, path);
     pyp = Parser(tokens=tokens, file_path=path, source_code=src);
-    pyp.parse();
-    py_mod = materialize_module(pyp.b, Source(src, mod_path=path));
+    py_mod = pyp.parse();
     assert r[1] == pyp.error_count , (
         f"{path}: native reported {r[1]} errors, bytecode {pyp.error_count}"
     );
@@ -103,8 +92,8 @@ def _assert_parity(src: str, path: str, use_blob: bool = False) {
 }
 
 test "sealed parser passes the demotion gate and canary on this platform" {
-    (fn, blob_fn, _eng, _keep) = _build_binding();
-    assert fn is not None and blob_fn is not None;
+    (fn, _eng, _keep) = _build_binding();
+    assert fn is not None;
 }
 
 test "sealed parser matches bytecode parser on the canary corpus" {
@@ -117,12 +106,8 @@ test "sealed parser matches bytecode parser on fam.jac" {
 }
 
 test "sealed parser matches bytecode parser on a compiler source module" {
-    arena_src = PKG_PATH / "jac0core" / "arena.jac";
-    _assert_parity(arena_src.read_text(encoding="utf-8"), str(arena_src));
-}
-
-test "ascii strtab still splits through the blob export" {
-    _assert_parity(_canary_src(), "__parity_blob__.jac", use_blob=True);
+    mod_src = PKG_PATH / "jac0core" / "srcloc.jac";
+    _assert_parity(mod_src.read_text(encoding="utf-8"), str(mod_src));
 }
 
 test "jsx slot bodies with repeated brace-statement backtracks stay congruent" {

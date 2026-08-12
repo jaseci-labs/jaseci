@@ -1,24 +1,60 @@
 import operator as pyop;
 import jaclang.jac0core.parser.lexer as ct_lexer;
 
-import from jaclang.jac0core.arena { NIL, SyntaxArena, Tag }
-import from jaclang.jac0core.arena { Kind, NodeId, SPECS, SeqOff, StrId }
-import from jaclang.jac0core.arena_materialize { spec_of as decode_spec_of }
-import from jaclang.jac0core.constant { ArgCat }
 import from jaclang.jac0core.constant { CodeContext }
 import from jaclang.jac0core.helpers { pascal_to_snake }
 import from jaclang.jac0core.parser.parser { Parser }
+import from jaclang.jac0core.unitree {
+    Ability,
+    Bool,
+    CtBlock,
+    CtElse,
+    CtFor,
+    CtIf,
+    CtName,
+    CtSplice,
+    DictVal,
+    Float,
+    Int,
+    KVPair,
+    ListVal,
+    Module,
+    Name,
+    Null,
+    Source,
+    String,
+    Token,
+    TupleVal,
+    UnaryExpr,
+    UniNode
+}
 import jaclang.jac0core.ct_reflect as ct_reflect;
 
-glob CT_STRUCT_KINDS: tuple = (Kind.CT_FOR, Kind.CT_IF, Kind.CT_ELSE),
-     CT_EXPR_KINDS: tuple = (Kind.CT_BLOCK, Kind.CT_SPLICE, Kind.CT_NAME),
-     CT_FUEL_DEFAULT: int = 50000000;
+glob CT_FUEL_DEFAULT: int = 50000000;
+
+# Structural fields owned by the tree infrastructure rather than the node's
+# own constructor surface: never walked for comptime constructs.
+glob _CT_SKIP_FIELDS: tuple = (
+         "parent",
+         "kid",
+         "loc",
+         "orig_src",
+         "name_of",
+         "terminals",
+         "src_terminals",
+         "source"
+     );
 
 
-def arena_has_ct(a: SyntaxArena) -> bool {
-    for k in a.kinds {
-        if k in CT_STRUCT_KINDS or k in CT_EXPR_KINDS {
+def module_has_ct(mod: Module) -> bool {
+    stack: list[UniNode] = [mod];
+    while stack {
+        nd = stack.pop();
+        if isinstance(nd, (CtFor, CtIf, CtElse, CtBlock, CtSplice, CtName)) {
             return True;
+        }
+        for k in nd.kid {
+            stack.append(k);
         }
     }
     return False;
@@ -106,17 +142,17 @@ def _ct_err(msg: str) {
 
 
 obj CtEval {
-    has a: SyntaxArena,
+    has mod: Module,
         file_path: str = "<input>",
         cur_dir: str = "",
         fuel: int = 50000000,
         frames: list[dict] = [],
         frame_barriers: list[bool] = [],
-        module_defs: dict[str, int] = {},
-        module_glob_ids: dict[str, int] = {},
+        module_defs: dict[str, Ability] = {},
+        module_glob_ids: dict[str, UniNode] = {},
         module_globals: dict[str, any] = {},
         targets: list[str] = [],
-        loc_stack: list[NodeId] = [],
+        loc_stack: list[UniNode] = [],
         _call_memo: dict = {},
         _ret: any = None,
         _builtins: dict = {},
@@ -158,6 +194,10 @@ obj CtEval {
         };
     }
 
+    def source -> Source {
+        return self.mod.source;
+    }
+
     def burn(n: int = 1) {
         self.fuel -= n;
         if self.fuel < 0 {
@@ -165,105 +205,51 @@ obj CtEval {
         }
     }
 
-    def spec_of(i: NodeId) -> (tuple | None) {
-        kind = self.a.kind_of(i);
-        if kind not in SPECS {
-            return None;
-        }
-        return decode_spec_of(kind);
+    def cls_name(i: UniNode) -> str {
+        return type(i).__name__;
     }
 
-    def cls_name(i: NodeId) -> str {
-        spec = self.spec_of(i);
-        if spec is None {
-            _ct_err(f"unknown arena kind {self.a.kind_of(i)}");
-        }
-        return spec[0];
+    def node_arg(i: UniNode, pname: str) -> (UniNode | None) {
+        got = getattr(i, pname, None);
+        return got if isinstance(got, UniNode) else None;
     }
 
-    def slot_of(i: NodeId, pname: str) -> int {
-        spec = decode_spec_of(self.a.kind_of(i));
-        slot = 0;
-        plist: tuple = spec[3];
-        for p in plist {
-            pt: tuple = p;
-            if pt[1] == ArgCat.SOURCE {
-                continue;
-            }
-            if pt[0] == pname {
-                return slot;
-            }
-            slot += 1;
-        }
-        return -1;
-    }
-
-    def node_arg(i: NodeId, pname: str) -> NodeId {
-        s = self.slot_of(i, pname);
-        return self.a.arg_node(i, s) if s >= 0 else NIL;
-    }
-
-    def list_arg(i: NodeId, pname: str) -> list[NodeId] {
-        s = self.slot_of(i, pname);
-        if s < 0 {
+    def list_arg(i: UniNode, pname: str) -> list {
+        got = getattr(i, pname, None);
+        if got is None or isinstance(got, UniNode) {
             return [];
         }
-        got = self.a.arg_list(i, s);
-        return got if got is not None else [];
+        return list(got);
     }
 
-    def poly_arg(i: NodeId, pname: str) -> list[NodeId] {
-        s = self.slot_of(i, pname);
-        if s < 0 {
+    def poly_arg(i: UniNode, pname: str) -> list {
+        got = getattr(i, pname, None);
+        if got is None {
             return [];
         }
-        (tag, val) = self.a.arg_pair(i, s);
-        if tag == Tag.NODE {
-            return [NodeId(val)];
+        if isinstance(got, UniNode) {
+            return [got];
         }
-        if tag == Tag.LIST {
-            return self.a.seq_ids(SeqOff(val));
-        }
-        return [];
+        return list(got);
     }
 
-    def str_arg(i: NodeId, pname: str) -> str {
-        s = self.slot_of(i, pname);
-        if s < 0 {
+    def str_arg(i: UniNode, pname: str) -> str {
+        got = getattr(i, pname, None);
+        return got if isinstance(got, str) else "";
+    }
+
+    def tok_value(i: (UniNode | None)) -> str {
+        if i is None {
             return "";
         }
-        got = self.a.arg_str(i, s);
-        return got if got is not None else "";
-    }
-
-    def tok_value(i: NodeId) -> str {
         return self.str_arg(i, "value");
     }
 
-    def loc_of(i: NodeId) -> tuple {
-        if i == NIL or i >= self.a.node_count {
+    def loc_of(i: (UniNode | None)) -> tuple {
+        if i is None {
             return (0, 0, 0, 0);
         }
-        spec = self.spec_of(i);
-        if spec is not None and spec[1] {
-            s_line = self.slot_of(i, "line");
-            s_el = self.slot_of(i, "end_line");
-            s_cs = self.slot_of(i, "col_start");
-            s_ce = self.slot_of(i, "col_end");
-            return (
-                self.a.arg_int(i, s_line),
-                self.a.arg_int(i, s_el),
-                self.a.arg_int(i, s_cs),
-                self.a.arg_int(i, s_ce)
-            );
-        }
-        for k in self.a.kid_ids(i) {
-            got = self.loc_of(k);
-            if got[0] > 0 {
-                return got;
-            }
-        }
-        return (0, 0, 0, 0);
+        return (i.loc.first_line, i.loc.last_line, i.loc.col_start, i.loc.col_end);
     }
 
     def push_frame(barrier: bool = False) {
@@ -299,7 +285,7 @@ obj CtEval {
         }
         if name in self.module_glob_ids {
             gid = self.module_glob_ids[name];
-            self.module_globals[name] = self.eval(NodeId(gid));
+            self.module_globals[name] = self.eval(gid);
             return self.module_globals[name];
         }
         if name in self._builtins {
@@ -336,7 +322,7 @@ obj CtEval {
         }
     }
 
-    def eval(i: NodeId) -> any {
+    def eval(i: UniNode) -> any {
         self.burn();
         self.loc_stack.append(i);
         try {
@@ -346,7 +332,7 @@ obj CtEval {
         }
     }
 
-    def _eval_inner(i: NodeId) -> any {
+    def _eval_inner(i: UniNode) -> any {
         cn = self.cls_name(i);
         if cn == "Name" {
             return self.lookup(self.tok_value(i));
@@ -478,7 +464,7 @@ obj CtEval {
             out2: dict = {};
             for kv in self.list_arg(i, "kv_pairs") {
                 key = self.node_arg(kv, "key");
-                if key == NIL {
+                if key is None {
                     _ct_err("dict spread not supported in comptime");
                 }
                 out2[self.eval(key)] = self.eval(self.node_arg(kv, "value"));
@@ -493,7 +479,7 @@ obj CtEval {
         }
         if cn == "DictCompr" {
             kvp = self.node_arg(i, "kv_pair");
-            pairs = self._compr_items(self.list_arg(i, "compr"), 0, NIL, kvp);
+            pairs = self._compr_items(self.list_arg(i, "compr"), 0, None, kvp);
             out3: dict = {};
             for entry in pairs {
                 out3[entry[0]] = entry[1];
@@ -510,10 +496,13 @@ obj CtEval {
     }
 
     def _compr_items(
-        comprs: list[NodeId], depth: int, out_expr: NodeId, kv_pair: NodeId = NIL
+        comprs: list,
+        depth: int,
+        out_expr: (UniNode | None),
+        kv_pair: (UniNode | None) = None
     ) -> list {
         if depth >= len(comprs) {
-            if kv_pair != NIL and kv_pair != 0 {
+            if kv_pair is not None {
                 k = self.eval(self.node_arg(kv_pair, "key"));
                 v = self.eval(self.node_arg(kv_pair, "value"));
                 return [(k, v, )];
@@ -543,7 +532,7 @@ obj CtEval {
         return out;
     }
 
-    def _bind_target(tgt: NodeId, v: any) {
+    def _bind_target(tgt: UniNode, v: any) {
         cn = self.cls_name(tgt);
         if cn == "Name" {
             self.bind(self.tok_value(tgt), v);
@@ -565,7 +554,7 @@ obj CtEval {
         _ct_err(f"'{cn}' target not supported in comptime");
     }
 
-    def _assign_target(tgt: NodeId, v: any) {
+    def _assign_target(tgt: UniNode, v: any) {
         cn = self.cls_name(tgt);
         if cn == "Name" {
             self.assign(self.tok_value(tgt), v);
@@ -593,7 +582,7 @@ obj CtEval {
                     s0 = slices[0];
                     if self.cls_name(s0) == "Slice" {
                         lo = self.node_arg(s0, "start");
-                        if lo != NIL {
+                        if lo is not None {
                             tv[self.eval(lo)] = v;
                             return;
                         }
@@ -619,7 +608,7 @@ obj CtEval {
         }
     }
 
-    def _eval_trailer(i: NodeId) -> any {
+    def _eval_trailer(i: UniNode) -> any {
         tv = self.eval(self.node_arg(i, "target"));
         right = self.node_arg(i, "right");
         rcn = self.cls_name(right);
@@ -629,9 +618,9 @@ obj CtEval {
         if rcn == "IndexSlice" {
             slices = self.list_arg(right, "slices");
             is_range = False;
-            s_r = self.slot_of(right, "is_range");
-            if s_r >= 0 {
-                is_range = self.a.arg_bool(right, s_r);
+            got_r = getattr(right, "is_range", None);
+            if got_r is not None {
+                is_range = bool(got_r);
             }
             if len(slices) != 1 {
                 _ct_err("multi-dimension index not supported in comptime");
@@ -642,14 +631,14 @@ obj CtEval {
                 hi = self.node_arg(s0, "stop");
                 st = self.node_arg(s0, "step");
                 if not is_range {
-                    if lo == NIL {
+                    if lo is None {
                         _ct_err("empty index not supported in comptime");
                     }
                     return tv[self.eval(lo)];
                 }
-                lo_v = self.eval(lo) if lo != NIL else None;
-                hi_v = self.eval(hi) if hi != NIL else None;
-                st_v = self.eval(st) if st != NIL else None;
+                lo_v = self.eval(lo) if lo is not None else None;
+                hi_v = self.eval(hi) if hi is not None else None;
+                st_v = self.eval(st) if st is not None else None;
                 return tv[slice(lo_v, hi_v, st_v)];
             }
             return tv[self.eval(s0)];
@@ -668,13 +657,13 @@ obj CtEval {
         _ct_err(f"'{rcn}' trailer not supported in comptime");
     }
 
-    def _call_args(call: NodeId) -> tuple {
+    def _call_args(call: UniNode) -> tuple {
         args: list = [];
         kwargs: dict = {};
         for p in self.list_arg(call, "params") {
             if self.cls_name(p) == "KWPair" {
                 key = self.node_arg(p, "key");
-                if key == NIL {
+                if key is None {
                     _ct_err("** spread not supported in comptime calls");
                 }
                 kwargs[self.tok_value(key)] = self.eval(self.node_arg(p, "value"));
@@ -685,7 +674,7 @@ obj CtEval {
         return (args, kwargs, );
     }
 
-    def _eval_call(i: NodeId) -> any {
+    def _eval_call(i: UniNode) -> any {
         tgt = self.node_arg(i, "target");
         tcn = self.cls_name(tgt);
         if tcn == "AtomTrailer" {
@@ -703,7 +692,7 @@ obj CtEval {
             fname = self.tok_value(tgt);
             if fname in self.module_defs {
                 (args, kwargs) = self._call_args(i);
-                return self.call_def(NodeId(self.module_defs[fname]), args, kwargs);
+                return self.call_def(self.module_defs[fname], args, kwargs);
             }
             fn2 = self.lookup(fname);
             (args2, kwargs2) = self._call_args(i);
@@ -724,13 +713,13 @@ obj CtEval {
         _ct_err(f"'{tcn}' call target not supported in comptime");
     }
 
-    def call_def(abil: NodeId, args: list, kwargs: dict) -> any {
+    def call_def(abil: Ability, args: list, kwargs: dict) -> any {
         self.burn(20);
         if not args and not kwargs and abil in self._call_memo {
             return self._call_memo[abil];
         }
         sig = self.node_arg(abil, "signature");
-        pids = self.list_arg(sig, "params") if sig != NIL else [];
+        pids = self.list_arg(sig, "params") if sig is not None else [];
         self.push_frame(barrier=True);
         idx = 0;
         for pid in pids {
@@ -742,7 +731,7 @@ obj CtEval {
                 self.bind(pname, kwargs[pname]);
             } else {
                 dflt = self.node_arg(pid, "value");
-                if dflt == NIL {
+                if dflt is None {
                     self.pop_frame();
                     _ct_err(f"missing comptime argument '{pname}'");
                 }
@@ -762,7 +751,7 @@ obj CtEval {
         return out;
     }
 
-    def exec_block(ids: list[NodeId]) -> int {
+    def exec_block(ids: list) -> int {
         for i in ids {
             sig = self.exec_stmt(i);
             if sig != 0 {
@@ -772,7 +761,7 @@ obj CtEval {
         return 0;
     }
 
-    def exec_stmt(i: NodeId) -> int {
+    def exec_stmt(i: UniNode) -> int {
         self.burn();
         self.loc_stack.append(i);
         try {
@@ -782,13 +771,13 @@ obj CtEval {
         }
     }
 
-    def _exec_inner(i: NodeId) -> int {
+    def _exec_inner(i: UniNode) -> int {
         cn = self.cls_name(i);
         if cn == "Assignment" {
             aug = self.node_arg(i, "aug_op");
             targets = self.list_arg(i, "target");
             val = self.eval(self.node_arg(i, "value"));
-            if aug != NIL {
+            if aug is not None {
                 op = self.tok_value(aug);
                 cur = self.eval(targets[0]);
                 self._assign_target(targets[0], self._binop(op.rstrip("="), cur, val));
@@ -808,7 +797,7 @@ obj CtEval {
                 return self.exec_block(self.list_arg(i, "body"));
             }
             eb = self.node_arg(i, "else_body");
-            if eb != NIL {
+            if eb is not None {
                 return self.exec_stmt(eb);
             }
             return 0;
@@ -849,7 +838,7 @@ obj CtEval {
         }
         if cn == "ReturnStmt" {
             e = self.node_arg(i, "expr");
-            self._ret = self.eval(e) if e != NIL else None;
+            self._ret = self.eval(e) if e is not None else None;
             return 1;
         }
         if cn == "CtrlStmt" {
@@ -937,113 +926,134 @@ obj CtEval {
 }
 
 obj CtExpander {
+    # subst and _visited key nodes by id(); each entry also pins the keyed
+    # node object so a collected node's address can never be reused by a
+    # fresh node and matched against a stale entry mid-expansion.
     has ev: CtEval,
-        subst: dict[int, list[NodeId]] = {},
-        ct_only: dict[int, int] = {};
-
-    def a -> SyntaxArena {
-        return self.ev.a;
-    }
+        subst: dict[int, tuple] = {},
+        _visited: dict[int, UniNode] = {};
 
     def sweep_kids {
-        a = self.a();
-        n = a.node_count;
-        i = 1;
-        while i < n {
+        stack: list[UniNode] = [self.ev.mod];
+        seen: dict[int, bool] = {};
+        while stack {
+            nd = stack.pop();
+            if id(nd) in seen {
+                continue;
+            }
+            seen[id(nd)] = True;
             hit = False;
-            for k in a.kid_ids(NodeId(i)) {
-                if k in self.subst {
+            for k in nd.kid {
+                if id(k) in self.subst {
                     hit = True;
                     break;
                 }
             }
             if hit {
-                rebuilt: list[NodeId] = [];
-                for k in a.kid_ids(NodeId(i)) {
-                    if k in self.subst {
-                        for r in self.subst[k] {
+                rebuilt: list[UniNode] = [];
+                for k in nd.kid {
+                    if id(k) in self.subst {
+                        for r in self.subst[id(k)][1] {
                             rebuilt.append(r);
                         }
                     } else {
                         rebuilt.append(k);
                     }
                 }
-                a.set_kids_of(NodeId(i), rebuilt);
+                nd.set_kids(rebuilt);
             }
-            i += 1;
+            for k in nd.kid {
+                stack.append(k);
+            }
         }
     }
 
-    def _tok(mk_name: str, tok_name: str, text: str, loc: tuple) -> NodeId {
-        a = self.a();
+    def _tok(mk_name: str, tok_name: str, text: str, loc: tuple) -> UniNode {
         (line, end_line, cs, ce) = (loc[0], loc[1], loc[2], loc[3]);
+        src = self.ev.source();
         if mk_name == "NAME" {
-            return a.mk_name(
+            return Name(
+                orig_src=src,
                 name="NAME",
                 value=text,
                 line=line,
                 end_line=end_line,
                 col_start=cs,
-                col_end=ce
+                col_end=ce,
+                pos_start=0,
+                pos_end=0
             );
         }
         if mk_name == "INT" {
-            return a.mk_int(
+            return Int(
+                orig_src=src,
                 name="INT",
                 value=text,
                 line=line,
                 end_line=end_line,
                 col_start=cs,
-                col_end=ce
+                col_end=ce,
+                pos_start=0,
+                pos_end=0
             );
         }
         if mk_name == "FLOAT" {
-            return a.mk_float(
+            return Float(
+                orig_src=src,
                 name="FLOAT",
                 value=text,
                 line=line,
                 end_line=end_line,
                 col_start=cs,
-                col_end=ce
+                col_end=ce,
+                pos_start=0,
+                pos_end=0
             );
         }
         if mk_name == "STRING" {
-            return a.mk_string(
+            return String(
+                orig_src=src,
                 name="STRING",
                 value=text,
                 line=line,
                 end_line=end_line,
                 col_start=cs,
-                col_end=ce
+                col_end=ce,
+                pos_start=0,
+                pos_end=0
             );
         }
         if mk_name == "BOOL" {
-            return a.mk_bool(
+            return Bool(
+                orig_src=src,
                 name="BOOL",
                 value=text,
                 line=line,
                 end_line=end_line,
                 col_start=cs,
-                col_end=ce
+                col_end=ce,
+                pos_start=0,
+                pos_end=0
             );
         }
         if mk_name == "NULL" {
-            return a.mk_null(
+            return Null(
+                orig_src=src,
                 name="NULL",
                 value=text,
                 line=line,
                 end_line=end_line,
                 col_start=cs,
-                col_end=ce
+                col_end=ce,
+                pos_start=0,
+                pos_end=0
             );
         }
         _ct_err(f"internal: unknown token builder {mk_name}");
-        return NIL;
     }
 
-    def value_to_records(v: any, loc: tuple) -> NodeId {
+    def value_to_nodes(v: any, loc: tuple) -> UniNode {
         self.ev.burn(2);
-        a = self.a();
         if isinstance(v, CtFragment) {
             return self.parse_frag(v, loc);
         }
@@ -1052,11 +1062,9 @@ obj CtExpander {
         }
         if isinstance(v, int) {
             if v < 0 {
-                op = self._tok("NAME", "NAME", "-", loc);
-                return a.mk_unary_expr(
-                    op=self._minus_tok(loc),
-                    operand=self._tok("INT", "INT", str(-v), loc),
-                    kid=[self._tok("INT", "INT", str(-v), loc)]
+                operand = self._tok("INT", "INT", str(-v), loc);
+                return UnaryExpr(
+                    op=self._minus_tok(loc), operand=operand, kid=[operand]
                 );
             }
             return self._tok("INT", "INT", str(v), loc);
@@ -1071,52 +1079,54 @@ obj CtExpander {
             return self._tok("NULL", "NULL", "None", loc);
         }
         if isinstance(v, (list, tuple)) {
-            vals: list[NodeId] = [];
+            vals: list[UniNode] = [];
             for item in v {
-                vals.append(self.value_to_records(item, loc));
+                vals.append(self.value_to_nodes(item, loc));
             }
             if isinstance(v, tuple) {
                 lt = self._punct("LPAREN", "(", loc);
                 rt = self._punct("RPAREN", ")", loc);
-                return a.mk_tuple_val(values=vals, kid=[lt] + vals + [rt]);
+                return TupleVal(values=vals, kid=[lt] + vals + [rt]);
             }
             lt2 = self._punct("LSQUARE", "[", loc);
             rt2 = self._punct("RSQUARE", "]", loc);
-            return a.mk_list_val(values=vals, kid=[lt2] + vals + [rt2]);
+            return ListVal(values=vals, kid=[lt2] + vals + [rt2]);
         }
         if isinstance(v, dict) {
-            pairs: list[NodeId] = [];
+            pairs: list[UniNode] = [];
             for entry in v.items() {
-                kk = self.value_to_records(entry[0], loc);
-                vv = self.value_to_records(entry[1], loc);
-                pairs.append(a.mk_k_v_pair(key=kk, value=vv, kid=[kk, vv]));
+                kk = self.value_to_nodes(entry[0], loc);
+                vv = self.value_to_nodes(entry[1], loc);
+                pairs.append(KVPair(key=kk, value=vv, kid=[kk, vv]));
             }
             lb = self._punct("LBRACE", "{", loc);
             rb = self._punct("RBRACE", "}", loc);
-            return a.mk_dict_val(kv_pairs=pairs, kid=[lb] + pairs + [rb]);
+            return DictVal(kv_pairs=pairs, kid=[lb] + pairs + [rb]);
         }
         _ct_err(
             f"comptime value of type '{type(v).__name__}' cannot lower to a literal"
         );
-        return NIL;
     }
 
-    def _minus_tok(loc: tuple) -> NodeId {
+    def _minus_tok(loc: tuple) -> UniNode {
         return self._punct("MINUS", "-", loc);
     }
 
-    def _punct(name: str, text: str, loc: tuple) -> NodeId {
-        return self.a().mk_token(
+    def _punct(name: str, text: str, loc: tuple) -> UniNode {
+        return Token(
+            orig_src=self.ev.source(),
             name=name,
             value=text,
             line=loc[0],
             end_line=loc[1],
             col_start=loc[2],
-            col_end=loc[3]
+            col_end=loc[3],
+            pos_start=0,
+            pos_end=0
         );
     }
 
-    def parse_frag(f: CtFragment, loc: tuple) -> NodeId {
+    def parse_frag(f: CtFragment, loc: tuple) -> UniNode {
         self.ev.burn(50);
         if f.kind == "name" {
             if not _is_ident(f.text) {
@@ -1131,92 +1141,43 @@ obj CtExpander {
         if parser.error_count > 0 or lex_errs > 0 {
             _ct_err(f"cannot parse ct fragment '{f.text}'");
         }
-        memo: dict[int, int] = {};
-        return self.graft(parser.b, frag_root, memo);
+        self._rebind_src(frag_root);
+        return frag_root;
     }
 
-    def graft(src: SyntaxArena, i: NodeId, memo: dict) -> NodeId {
-        if i == NIL {
-            return NIL;
+    def _rebind_src(frag_root: UniNode) {
+        src = self.ev.source();
+        stack: list[UniNode] = [frag_root];
+        while stack {
+            nd = stack.pop();
+            if isinstance(nd, Token) {
+                nd.orig_src = src;
+            }
+            for k in nd.kid {
+                stack.append(k);
+            }
         }
-        if i in memo {
-            return memo[i];
+    }
+
+    def copy_tree(i: (UniNode | None)) -> (UniNode | None) {
+        if i is None {
+            return None;
         }
         self.ev.burn();
-        a = self.a();
-        kind = src.kind_of(i);
-        new_kids: list[NodeId] = [];
-        for k in src.kid_ids(i) {
-            new_kids.append(self.graft(src, k, memo));
+        import copy as pycopy;
+        memo: dict = {};
+        if i.parent is not None {
+            memo[id(i.parent)] = i.parent;
         }
-        pairs: list[tuple[(Tag, int)]] = [];
-        for pr in src.arg_pairs(i) {
-            (tag, val) = pr;
-            if tag == Tag.NODE {
-                pairs.append((Tag.NODE, self.graft(src, NodeId(val), memo), ));
-            } elif tag == Tag.LIST {
-                new_ids: list[NodeId] = [];
-                for x in src.seq_ids(SeqOff(val)) {
-                    new_ids.append(self.graft(src, x, memo));
-                }
-                pairs.append((Tag.LIST, a.intern_seq(new_ids), ));
-            } elif tag == Tag.STR {
-                pairs.append((Tag.STR, a.intern(src.str_of(StrId(val))), ));
-            } else {
-                pairs.append((tag, val, ));
-            }
-        }
-        new_i = a.append_record(kind, new_kids, pairs);
-        memo[i] = new_i;
-        return new_i;
+        src = self.ev.source();
+        memo[id(src)] = src;
+        return pycopy.deepcopy(i, memo);
     }
 
-    def copy_tree(i: NodeId, memo: dict) -> NodeId {
-        if i == NIL {
-            return NIL;
-        }
-        if i in memo {
-            return memo[i];
-        }
-        self.ev.burn();
-        a = self.a();
-        kind = a.kind_of(i);
-
-        old_pairs = a.arg_pairs(i);
-        new_kids: list[NodeId] = [];
-        for k in a.kid_ids(i) {
-            new_kids.append(self.copy_tree(k, memo));
-        }
-        pairs: list[tuple[(Tag, int)]] = [];
-        for pr in old_pairs {
-            (tag, val) = pr;
-            if tag == Tag.NODE {
-                pairs.append((Tag.NODE, self.copy_tree(NodeId(val), memo), ));
-            } elif tag == Tag.LIST {
-                new_ids: list[NodeId] = [];
-                for x in a.seq_ids(SeqOff(val)) {
-                    new_ids.append(self.copy_tree(x, memo));
-                }
-                pairs.append((Tag.LIST, a.intern_seq(new_ids), ));
-            } else {
-                pairs.append((tag, val, ));
-            }
-        }
-        new_i = a.append_record(kind, new_kids, pairs);
-        for pe in a.post_entries() {
-            if pe[0] == i {
-                a.post_set(new_i, pe[1], pe[2]);
-            }
-        }
-        memo[i] = new_i;
-        return new_i;
-    }
-
-    def ct_name_text(i: NodeId) -> str {
+    def ct_name_text(i: UniNode) -> str {
         out = "";
         for p in self.ev.list_arg(i, "parts") {
-            k = self.a().kind_of(p);
-            if k == Kind.CT_SPLICE {
+            if isinstance(p, CtSplice) {
                 v = self.ev.eval(self.ev.node_arg(p, "expr"));
                 if isinstance(v, CtFragment) and v.kind == "name" {
                     v = v.text;
@@ -1235,15 +1196,13 @@ obj CtExpander {
         return out;
     }
 
-    def subst_expr(i: NodeId) -> NodeId {
-        a = self.a();
-        kind = a.kind_of(i);
+    def subst_expr(i: UniNode) -> UniNode {
         loc = self.ev.loc_of(i);
-        if kind == Kind.CT_NAME {
+        if isinstance(i, CtName) {
             return self._tok("NAME", "NAME", self.ct_name_text(i), loc);
         }
         v = self.ev.eval(self.ev.node_arg(i, "expr"));
-        if kind == Kind.CT_SPLICE and isinstance(v, CtFragment) {
+        if isinstance(i, CtSplice) and isinstance(v, CtFragment) {
             if v.kind == "name" {
                 if not _is_ident(v.text) {
                     _ct_err(f"ct.name('{v.text}') is not a valid identifier");
@@ -1252,80 +1211,81 @@ obj CtExpander {
             }
             return self.parse_frag(v, loc);
         }
-        return self.value_to_records(v, loc);
+        return self.value_to_nodes(v, loc);
     }
 
-    def expand_node(i: NodeId) {
-        if i == NIL {
+    def expand_node(i: (UniNode | None)) {
+        if i is None {
             return;
         }
+        if id(i) in self._visited {
+            return;
+        }
+        self._visited[id(i)] = i;
         self.ev.burn();
-        a = self.a();
-        spec = self.ev.spec_of(i);
-        if spec is None {
-            return;
-        }
-        slot = 0;
-        plist: tuple = spec[3];
-        for p in plist {
-            pt: tuple = p;
-            if pt[1] == ArgCat.SOURCE {
+        for entry in list(i.__dict__.items()) {
+            fname: str = entry[0];
+            val: any = entry[1];
+            if fname.startswith("_") or fname in _CT_SKIP_FIELDS {
                 continue;
             }
-            (tag, val) = a.arg_pair(i, slot);
-            if tag == Tag.NODE {
-                vk = a.kind_of(NodeId(val));
-                if vk in CT_EXPR_KINDS {
-                    nid = self.subst_expr(NodeId(val));
-                    a.set_arg_node(i, slot, nid);
-                    self.subst[val] = [nid];
-                } elif vk in CT_STRUCT_KINDS {
+            if isinstance(val, UniNode) {
+                if isinstance(val, (CtBlock, CtSplice, CtName)) {
+                    nid = self.subst_expr(val);
+                    setattr(i, fname, nid);
+                    self.subst[id(val)] = (val, [nid], );
+                } elif isinstance(val, (CtFor, CtIf, CtElse)) {
                     _ct_err(
                         "comptime for/if is not valid where a single "
                         "expression is required"
                     );
                 } else {
-                    self.expand_node(NodeId(val));
+                    self.expand_node(val);
                 }
-            } elif tag == Tag.LIST {
-                ids = a.seq_ids(SeqOff(val));
+            } elif isinstance(val, (list, tuple)) {
+                ids: list = [
+                    x
+                    for x in val
+                    if isinstance(x, UniNode)
+                ];
+                if len(ids) != len(list(val)) {
+                    continue;
+                }
                 found_ct = False;
                 for x in ids {
-                    if a.kind_of(x) in CT_STRUCT_KINDS
-                        or a.kind_of(x) in CT_EXPR_KINDS {
+                    if isinstance(
+                        x, (CtFor, CtIf, CtElse, CtBlock, CtSplice, CtName)
+                    ) {
                         found_ct = True;
                         break;
                     }
                 }
                 if found_ct {
                     new_ids = self.expand_items(ids, i);
-                    a.set_arg_list(i, slot, new_ids);
+                    setattr(i, fname, new_ids);
                 } else {
                     for x in ids {
                         self.expand_node(x);
                     }
                 }
             }
-            slot += 1;
         }
     }
 
-    def expand_items(ids: list[NodeId], parent: NodeId) -> list[NodeId] {
-        a = self.a();
-        out: list[NodeId] = [];
+    def expand_items(ids: list, parent: UniNode) -> list {
+        out: list = [];
         for x in ids {
-            k = a.kind_of(x);
-            if k == Kind.CT_FOR {
+            if isinstance(x, CtFor) {
                 news = self.expand_ct_for(x);
-                self.subst[x] = news;
+                self.subst[id(x)] = (x, news, );
                 out.extend(news);
-            } elif k == Kind.CT_IF {
+            } elif isinstance(x, CtIf) {
                 news = self.expand_ct_if(x, parent);
-                self.subst[x] = news;
+                self.subst[id(x)] = (x, news, );
                 out.extend(news);
-            } elif k in CT_EXPR_KINDS {
+            } elif isinstance(x, (CtBlock, CtSplice, CtName)) {
                 nid = self.subst_expr(x);
-                self.subst[x] = [nid];
+                self.subst[id(x)] = (x, [nid], );
                 out.append(nid);
             } else {
                 self.expand_node(x);
@@ -1335,20 +1295,19 @@ obj CtExpander {
         return out;
     }
 
-    def expand_ct_for(i: NodeId) -> list[NodeId] {
+    def expand_ct_for(i: UniNode) -> list {
         ev = self.ev;
         tgt = ev.node_arg(i, "target");
         tname = ev.tok_value(tgt);
         coll = ev.eval(ev.node_arg(i, "iter"));
         body = ev.list_arg(i, "body");
-        out: list[NodeId] = [];
+        out: list = [];
         for v in coll {
             ev.burn(5);
             ev.push_frame();
             ev.bind(tname, v);
             for b in body {
-                memo: dict[int, int] = {};
-                nb = self.copy_tree(b, memo);
+                nb = self.copy_tree(b);
                 out.extend(self.expand_items([nb], i));
             }
             ev.pop_frame();
@@ -1356,63 +1315,50 @@ obj CtExpander {
         return out;
     }
 
-    def expand_ct_if(i: NodeId, parent: NodeId) -> list[NodeId] {
+    def expand_ct_if(i: UniNode, parent: UniNode) -> list {
         ev = self.ev;
         if ev.eval(ev.node_arg(i, "condition")) {
             return self.expand_items(ev.list_arg(i, "body"), i);
         }
         eb = ev.node_arg(i, "else_body");
-        if eb == NIL {
+        if eb is None {
             return [];
         }
-        if self.a().kind_of(eb) == Kind.CT_IF {
+        if isinstance(eb, CtIf) {
             return self.expand_ct_if(eb, parent);
         }
         return self.expand_items(ev.list_arg(eb, "body"), eb);
     }
 
-    def collect_ct_only {
-        for pe in self.a().post_entries() {
-            if pe[1] == "ct_only" {
-                self.ct_only[pe[0]] = 1;
-            }
-        }
-    }
-
-    def strip_ct_only(mod_id: NodeId) {
-        if not self.ct_only {
-            return;
-        }
-        a = self.a();
-        ev = self.ev;
-        slot = ev.slot_of(mod_id, "body");
-        if slot < 0 {
-            return;
-        }
-        body = ev.list_arg(mod_id, "body");
-        kept: list[NodeId] = [];
-        for b in body {
-            if b not in self.ct_only {
+    def strip_ct_only(mod: Module) {
+        removed: dict[int, bool] = {};
+        kept: list = [];
+        for b in mod.body {
+            if isinstance(b, Ability) and b.is_ct_only {
+                removed[id(b)] = True;
+            } else {
                 kept.append(b);
             }
         }
-        if len(kept) != len(body) {
-            a.set_arg_list(mod_id, slot, kept);
-            for b in body {
-                if b in self.ct_only {
-                    a.replace_kid(mod_id, b, []);
-                }
-            }
+        if not removed {
+            return;
         }
+        mod.body = kept;
+        new_kid: list[UniNode] = [
+            k
+            for k in mod.kid
+            if id(k) not in removed
+        ];
+        mod.set_kids(new_kid);
     }
 
-    def collect_module(mod_id: NodeId) {
+    def collect_module(mod: Module) {
         ev = self.ev;
-        for item in ev.list_arg(mod_id, "body") {
+        for item in mod.body {
             cn = ev.cls_name(item);
             if cn == "Ability" {
                 nref = ev.node_arg(item, "name_ref");
-                if nref != NIL and ev.cls_name(nref) == "Name" {
+                if nref is not None and ev.cls_name(nref) == "Name" {
                     ev.module_defs[ev.tok_value(nref)] = item;
                 }
             } elif cn == "GlobalVars" {
@@ -1468,15 +1414,56 @@ def _jac_str_lit(s: str) -> str {
 }
 
 
-def expand_arena(
-    a: SyntaxArena,
+def _refresh_locs(mod: Module) {
+    # Post-order loc recompute: substitutions changed subtree token ranges,
+    # and a parent's span must be derived from refreshed children.
+    stack: list = [(mod, False)];
+    while stack {
+        entry: tuple = stack.pop();
+        nd: UniNode = entry[0];
+        expanded: bool = entry[1];
+        if expanded {
+            if len(nd.kid) {
+                nd.loc.update_token_range(*nd.resolve_tok_range());
+            }
+            continue;
+        }
+        stack.append((nd, True));
+        for k in nd.kid {
+            stack.append((k, False));
+        }
+    }
+}
+
+
+def _refresh_in_mod_nodes(mod: Module) {
+    node_list: list[UniNode] = [];
+    seen: dict[int, bool] = {};
+    walk: list[UniNode] = [mod];
+    while walk {
+        nd = walk.pop();
+        nid = id(nd);
+        if nid not in seen {
+            seen[nid] = True;
+            node_list.append(nd);
+            for child in nd.kid {
+                walk.append(child);
+            }
+        }
+    }
+    mod._in_mod_nodes = node_list;
+}
+
+
+def expand_module(
+    mod: Module,
     file_path: str = "<input>",
     targets: (list[str] | None) = None,
     fuel: int = 50000000
 ) -> list {
     import os;
     ev = CtEval(
-        a=a,
+        mod=mod,
         file_path=file_path,
         cur_dir=os.path.dirname(file_path),
         fuel=fuel,
@@ -1485,13 +1472,14 @@ def expand_arena(
     ev.push_frame();
     ex = CtExpander(ev=ev);
     try {
-        ex.collect_ct_only();
-        ex.collect_module(a.root_id);
-        ex.expand_node(a.root_id);
+        ex.collect_module(mod);
+        ex.expand_node(mod);
         ex.sweep_kids();
-        ex.strip_ct_only(a.root_id);
+        ex.strip_ct_only(mod);
+        _refresh_locs(mod);
+        _refresh_in_mod_nodes(mod);
     } except Exception as e {
-        at = ev.loc_stack[-1] if ev.loc_stack else a.root_id;
+        at = ev.loc_stack[-1] if ev.loc_stack else mod;
         loc = ev.loc_of(at);
         msg = str(e);
         if not msg.startswith("comptime") {

@@ -1,6 +1,5 @@
 import jaclang.jac0core.parser.lexer as ct_lexer;
 
-import from jaclang.jac0core.arena_materialize { materialize_module }
 import from jaclang.jac0core.parser.parser { Parser }
 import from jaclang.jac0core.unitree {
     Ability,
@@ -10,8 +9,7 @@ import from jaclang.jac0core.unitree {
     Enum,
     Module,
     Name,
-    ParamVar,
-    Source
+    ParamVar
 }
 
 
@@ -247,11 +245,10 @@ def load_module(dotted: str, cur_dir: str = "") -> CtModuleInfo {
     src_txt = open(key, encoding="utf-8").read();
     (tokens, _comments, _ld, lex_errs) = ct_lexer.tokenize_full(src_txt, key);
     parser = Parser(tokens=tokens, file_path=key, source_code=src_txt);
-    parser.parse();
+    module = parser.parse();
     if parser.error_count > 0 or lex_errs > 0 {
         raise ValueError(f"reflect: parse errors in {key}");
     }
-    module = materialize_module(parser.b, Source(src_txt, mod_path=key));
     info = CtModuleInfo(path=key);
     _collect_types(info, module);
     _MODULE_CACHE[key] = info;
