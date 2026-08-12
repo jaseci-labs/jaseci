@@ -1175,6 +1175,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
         layout: dict
     ) -> dict;
 
+    def _static_str_hash(key: str) -> int;
+    def _static_key_hash_of(key_node: (uni.UniNode | None)) -> (int | None);
+    def _prehashed_op(
+        helpers: dict, op: str, key_node: (uni.UniNode | None)
+    ) -> tuple;
+
     def _emit_order_scan_incr_block(
         b: ir.IRBuilder,
         idx_slot: ir.Value,

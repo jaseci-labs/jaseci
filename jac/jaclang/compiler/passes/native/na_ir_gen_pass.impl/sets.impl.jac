@@ -58,8 +58,11 @@ impl NaIRGenPass._emit_set_helpers(
     self.set_helpers[elem_type_name] = {
         "new": new_fn,
         "add": core["insert"],
+        "add_ph": core["insert_ph"],
         "contains": core["contains"],
+        "contains_ph": core["contains_ph"],
         "remove": core["remove"],
+        "remove_ph": core["remove_ph"],
         "clear": core["clear"],
         "get": core["get_key"],
         "find": core["find"],
