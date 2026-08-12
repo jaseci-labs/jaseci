@@ -2,23 +2,16 @@ import operator as pyop;
 import jaclang.jac0core.parser.lexer as ct_lexer;
 
 import from jaclang.jac0core.arena { NIL, SyntaxArena, Tag }
-import from jaclang.jac0core.arena {
-    KIND_CT_BLOCK,
-    KIND_CT_ELSE,
-    KIND_CT_FOR,
-    KIND_CT_IF,
-    KIND_CT_NAME,
-    KIND_CT_SPLICE,
-    SPECS
-}
+import from jaclang.jac0core.arena { Kind, NodeId, SPECS, SeqOff, StrId }
 import from jaclang.jac0core.arena_materialize { spec_of as decode_spec_of }
+import from jaclang.jac0core.constant { ArgCat }
 import from jaclang.jac0core.constant { CodeContext }
 import from jaclang.jac0core.helpers { pascal_to_snake }
 import from jaclang.jac0core.parser.parser { Parser }
 import jaclang.jac0core.ct_reflect as ct_reflect;
 
-glob CT_STRUCT_KINDS: tuple = (KIND_CT_FOR, KIND_CT_IF, KIND_CT_ELSE),
-     CT_EXPR_KINDS: tuple = (KIND_CT_BLOCK, KIND_CT_SPLICE, KIND_CT_NAME),
+glob CT_STRUCT_KINDS: tuple = (Kind.CT_FOR, Kind.CT_IF, Kind.CT_ELSE),
+     CT_EXPR_KINDS: tuple = (Kind.CT_BLOCK, Kind.CT_SPLICE, Kind.CT_NAME),
      CT_FUEL_DEFAULT: int = 50000000;
 
 
@@ -123,7 +116,7 @@ obj CtEval {
         module_glob_ids: dict[str, int] = {},
         module_globals: dict[str, any] = {},
         targets: list[str] = [],
-        loc_stack: list[int] = [],
+        loc_stack: list[NodeId] = [],
         _call_memo: dict = {},
         _ret: any = None,
         _builtins: dict = {},
@@ -172,29 +165,29 @@ obj CtEval {
         }
     }
 
-    def spec_of(i: int) -> (tuple | None) {
-        kind = self.a.kinds[i];
+    def spec_of(i: NodeId) -> (tuple | None) {
+        kind = self.a.kind_of(i);
         if kind not in SPECS {
             return None;
         }
         return decode_spec_of(kind);
     }
 
-    def cls_name(i: int) -> str {
+    def cls_name(i: NodeId) -> str {
         spec = self.spec_of(i);
         if spec is None {
-            _ct_err(f"unknown arena kind {self.a.kinds[i]}");
+            _ct_err(f"unknown arena kind {self.a.kind_of(i)}");
         }
         return spec[0];
     }
 
-    def slot_of(i: int, pname: str) -> int {
-        spec = decode_spec_of(self.a.kinds[i]);
+    def slot_of(i: NodeId, pname: str) -> int {
+        spec = decode_spec_of(self.a.kind_of(i));
         slot = 0;
-        plist: tuple = spec[1];
+        plist: tuple = spec[3];
         for p in plist {
             pt: tuple = p;
-            if pt[1] == "SOURCE" {
+            if pt[1] == ArgCat.SOURCE {
                 continue;
             }
             if pt[0] == pname {
@@ -205,12 +198,12 @@ obj CtEval {
         return -1;
     }
 
-    def node_arg(i: int, pname: str) -> int {
+    def node_arg(i: NodeId, pname: str) -> NodeId {
         s = self.slot_of(i, pname);
         return self.a.arg_node(i, s) if s >= 0 else NIL;
     }
 
-    def list_arg(i: int, pname: str) -> list[int] {
+    def list_arg(i: NodeId, pname: str) -> list[NodeId] {
         s = self.slot_of(i, pname);
         if s < 0 {
             return [];
@@ -219,22 +212,22 @@ obj CtEval {
         return got if got is not None else [];
     }
 
-    def poly_arg(i: int, pname: str) -> list[int] {
+    def poly_arg(i: NodeId, pname: str) -> list[NodeId] {
         s = self.slot_of(i, pname);
         if s < 0 {
             return [];
         }
-        (tag, val) = self.a.arg_at(i, s);
+        (tag, val) = self.a.arg_pair(i, s);
         if tag == Tag.NODE {
-            return [val];
+            return [NodeId(val)];
         }
         if tag == Tag.LIST {
-            return self.a.seq_ids(val);
+            return self.a.seq_ids(SeqOff(val));
         }
         return [];
     }
 
-    def str_arg(i: int, pname: str) -> str {
+    def str_arg(i: NodeId, pname: str) -> str {
         s = self.slot_of(i, pname);
         if s < 0 {
             return "";
@@ -243,16 +236,16 @@ obj CtEval {
         return got if got is not None else "";
     }
 
-    def tok_value(i: int) -> str {
+    def tok_value(i: NodeId) -> str {
         return self.str_arg(i, "value");
     }
 
-    def loc_of(i: int) -> tuple {
-        if i == NIL or i >= len(self.a.kinds) {
+    def loc_of(i: NodeId) -> tuple {
+        if i == NIL or i >= self.a.node_count {
             return (0, 0, 0, 0);
         }
         spec = self.spec_of(i);
-        if spec is not None and spec[2] {
+        if spec is not None and spec[1] {
             s_line = self.slot_of(i, "line");
             s_el = self.slot_of(i, "end_line");
             s_cs = self.slot_of(i, "col_start");
@@ -306,7 +299,7 @@ obj CtEval {
         }
         if name in self.module_glob_ids {
             gid = self.module_glob_ids[name];
-            self.module_globals[name] = self.eval(gid);
+            self.module_globals[name] = self.eval(NodeId(gid));
             return self.module_globals[name];
         }
         if name in self._builtins {
@@ -343,7 +336,7 @@ obj CtEval {
         }
     }
 
-    def eval(i: int) -> any {
+    def eval(i: NodeId) -> any {
         self.burn();
         self.loc_stack.append(i);
         try {
@@ -353,7 +346,7 @@ obj CtEval {
         }
     }
 
-    def _eval_inner(i: int) -> any {
+    def _eval_inner(i: NodeId) -> any {
         cn = self.cls_name(i);
         if cn == "Name" {
             return self.lookup(self.tok_value(i));
@@ -517,7 +510,7 @@ obj CtEval {
     }
 
     def _compr_items(
-        comprs: list[int], depth: int, out_expr: int, kv_pair: int = 0
+        comprs: list[NodeId], depth: int, out_expr: NodeId, kv_pair: NodeId = NIL
     ) -> list {
         if depth >= len(comprs) {
             if kv_pair != NIL and kv_pair != 0 {
@@ -550,7 +543,7 @@ obj CtEval {
         return out;
     }
 
-    def _bind_target(tgt: int, v: any) {
+    def _bind_target(tgt: NodeId, v: any) {
         cn = self.cls_name(tgt);
         if cn == "Name" {
             self.bind(self.tok_value(tgt), v);
@@ -572,7 +565,7 @@ obj CtEval {
         _ct_err(f"'{cn}' target not supported in comptime");
     }
 
-    def _assign_target(tgt: int, v: any) {
+    def _assign_target(tgt: NodeId, v: any) {
         cn = self.cls_name(tgt);
         if cn == "Name" {
             self.assign(self.tok_value(tgt), v);
@@ -626,7 +619,7 @@ obj CtEval {
         }
     }
 
-    def _eval_trailer(i: int) -> any {
+    def _eval_trailer(i: NodeId) -> any {
         tv = self.eval(self.node_arg(i, "target"));
         right = self.node_arg(i, "right");
         rcn = self.cls_name(right);
@@ -675,7 +668,7 @@ obj CtEval {
         _ct_err(f"'{rcn}' trailer not supported in comptime");
     }
 
-    def _call_args(call: int) -> tuple {
+    def _call_args(call: NodeId) -> tuple {
         args: list = [];
         kwargs: dict = {};
         for p in self.list_arg(call, "params") {
@@ -692,7 +685,7 @@ obj CtEval {
         return (args, kwargs, );
     }
 
-    def _eval_call(i: int) -> any {
+    def _eval_call(i: NodeId) -> any {
         tgt = self.node_arg(i, "target");
         tcn = self.cls_name(tgt);
         if tcn == "AtomTrailer" {
@@ -710,7 +703,7 @@ obj CtEval {
             fname = self.tok_value(tgt);
             if fname in self.module_defs {
                 (args, kwargs) = self._call_args(i);
-                return self.call_def(self.module_defs[fname], args, kwargs);
+                return self.call_def(NodeId(self.module_defs[fname]), args, kwargs);
             }
             fn2 = self.lookup(fname);
             (args2, kwargs2) = self._call_args(i);
@@ -731,7 +724,7 @@ obj CtEval {
         _ct_err(f"'{tcn}' call target not supported in comptime");
     }
 
-    def call_def(abil: int, args: list, kwargs: dict) -> any {
+    def call_def(abil: NodeId, args: list, kwargs: dict) -> any {
         self.burn(20);
         if not args and not kwargs and abil in self._call_memo {
             return self._call_memo[abil];
@@ -769,7 +762,7 @@ obj CtEval {
         return out;
     }
 
-    def exec_block(ids: list[int]) -> int {
+    def exec_block(ids: list[NodeId]) -> int {
         for i in ids {
             sig = self.exec_stmt(i);
             if sig != 0 {
@@ -779,7 +772,7 @@ obj CtEval {
         return 0;
     }
 
-    def exec_stmt(i: int) -> int {
+    def exec_stmt(i: NodeId) -> int {
         self.burn();
         self.loc_stack.append(i);
         try {
@@ -789,7 +782,7 @@ obj CtEval {
         }
     }
 
-    def _exec_inner(i: int) -> int {
+    def _exec_inner(i: NodeId) -> int {
         cn = self.cls_name(i);
         if cn == "Assignment" {
             aug = self.node_arg(i, "aug_op");
@@ -945,7 +938,7 @@ obj CtEval {
 
 obj CtExpander {
     has ev: CtEval,
-        subst: dict[int, list[int]] = {},
+        subst: dict[int, list[NodeId]] = {},
         ct_only: dict[int, int] = {};
 
     def a -> SyntaxArena {
@@ -954,19 +947,19 @@ obj CtExpander {
 
     def sweep_kids {
         a = self.a();
-        n = len(a.kinds);
+        n = a.node_count;
         i = 1;
         while i < n {
             hit = False;
-            for k in a.kid_ids(i) {
+            for k in a.kid_ids(NodeId(i)) {
                 if k in self.subst {
                     hit = True;
                     break;
                 }
             }
             if hit {
-                rebuilt: list[int] = [];
-                for k in a.kid_ids(i) {
+                rebuilt: list[NodeId] = [];
+                for k in a.kid_ids(NodeId(i)) {
                     if k in self.subst {
                         for r in self.subst[k] {
                             rebuilt.append(r);
@@ -975,18 +968,13 @@ obj CtExpander {
                         rebuilt.append(k);
                     }
                 }
-                lo = len(a.kids);
-                for k in rebuilt {
-                    a.kids.append(k);
-                }
-                a.kid_los[i] = lo;
-                a.kid_ns[i] = len(rebuilt);
+                a.set_kids_of(NodeId(i), rebuilt);
             }
             i += 1;
         }
     }
 
-    def _tok(mk_name: str, tok_name: str, text: str, loc: tuple) -> int {
+    def _tok(mk_name: str, tok_name: str, text: str, loc: tuple) -> NodeId {
         a = self.a();
         (line, end_line, cs, ce) = (loc[0], loc[1], loc[2], loc[3]);
         if mk_name == "NAME" {
@@ -1053,7 +1041,7 @@ obj CtExpander {
         return NIL;
     }
 
-    def value_to_records(v: any, loc: tuple) -> int {
+    def value_to_records(v: any, loc: tuple) -> NodeId {
         self.ev.burn(2);
         a = self.a();
         if isinstance(v, CtFragment) {
@@ -1083,7 +1071,7 @@ obj CtExpander {
             return self._tok("NULL", "NULL", "None", loc);
         }
         if isinstance(v, (list, tuple)) {
-            vals: list[int] = [];
+            vals: list[NodeId] = [];
             for item in v {
                 vals.append(self.value_to_records(item, loc));
             }
@@ -1097,7 +1085,7 @@ obj CtExpander {
             return a.mk_list_val(values=vals, kid=[lt2] + vals + [rt2]);
         }
         if isinstance(v, dict) {
-            pairs: list[int] = [];
+            pairs: list[NodeId] = [];
             for entry in v.items() {
                 kk = self.value_to_records(entry[0], loc);
                 vv = self.value_to_records(entry[1], loc);
@@ -1113,11 +1101,11 @@ obj CtExpander {
         return NIL;
     }
 
-    def _minus_tok(loc: tuple) -> int {
+    def _minus_tok(loc: tuple) -> NodeId {
         return self._punct("MINUS", "-", loc);
     }
 
-    def _punct(name: str, text: str, loc: tuple) -> int {
+    def _punct(name: str, text: str, loc: tuple) -> NodeId {
         return self.a().mk_token(
             name=name,
             value=text,
@@ -1128,7 +1116,7 @@ obj CtExpander {
         );
     }
 
-    def parse_frag(f: CtFragment, loc: tuple) -> int {
+    def parse_frag(f: CtFragment, loc: tuple) -> NodeId {
         self.ev.burn(50);
         if f.kind == "name" {
             if not _is_ident(f.text) {
@@ -1147,7 +1135,7 @@ obj CtExpander {
         return self.graft(parser.b, frag_root, memo);
     }
 
-    def graft(src: SyntaxArena, i: int, memo: dict) -> int {
+    def graft(src: SyntaxArena, i: NodeId, memo: dict) -> NodeId {
         if i == NIL {
             return NIL;
         }
@@ -1156,53 +1144,34 @@ obj CtExpander {
         }
         self.ev.burn();
         a = self.a();
-        kind = src.kinds[i];
-        new_kids: list[int] = [];
+        kind = src.kind_of(i);
+        new_kids: list[NodeId] = [];
         for k in src.kid_ids(i) {
             new_kids.append(self.graft(src, k, memo));
         }
-        arg_n = src.arg_ns[i];
-        pairs: list[int] = [];
-        p = src.arg_los[i];
-        s = 0;
-        while s < arg_n {
-            tag = src.args[p];
-            val = src.args[p + 1];
+        pairs: list[tuple[(Tag, int)]] = [];
+        for pr in src.arg_pairs(i) {
+            (tag, val) = pr;
             if tag == Tag.NODE {
-                pairs.append(Tag.NODE);
-                pairs.append(self.graft(src, val, memo));
+                pairs.append((Tag.NODE, self.graft(src, NodeId(val), memo), ));
             } elif tag == Tag.LIST {
-                ids = src.seq_ids(val);
-                new_ids: list[int] = [];
-                for x in ids {
+                new_ids: list[NodeId] = [];
+                for x in src.seq_ids(SeqOff(val)) {
                     new_ids.append(self.graft(src, x, memo));
                 }
-                off = len(a.seqs);
-                a.seqs.append(len(new_ids));
-                for x in new_ids {
-                    a.seqs.append(x);
-                }
-                pairs.append(Tag.LIST);
-                pairs.append(off);
+                pairs.append((Tag.LIST, a.intern_seq(new_ids), ));
             } elif tag == Tag.STR {
-                pairs.append(Tag.STR);
-                pairs.append(a.intern(src.strtab[val]));
+                pairs.append((Tag.STR, a.intern(src.str_of(StrId(val))), ));
             } else {
-                pairs.append(tag);
-                pairs.append(val);
+                pairs.append((tag, val, ));
             }
-            p += 2;
-            s += 1;
         }
-        new_i = a._start(kind, new_kids, arg_n);
-        for pv in pairs {
-            a.args.append(pv);
-        }
+        new_i = a.append_record(kind, new_kids, pairs);
         memo[i] = new_i;
         return new_i;
     }
 
-    def copy_tree(i: int, memo: dict) -> int {
+    def copy_tree(i: NodeId, memo: dict) -> NodeId {
         if i == NIL {
             return NIL;
         }
@@ -1211,70 +1180,43 @@ obj CtExpander {
         }
         self.ev.burn();
         a = self.a();
-        kind = a.kinds[i];
-        old_kids = a.kid_ids(i);
-        arg_n = a.arg_ns[i];
-        old_p = a.arg_los[i];
-        old_args: list[int] = [];
-        s = 0;
-        while s < (arg_n * 2) {
-            old_args.append(a.args[old_p + s]);
-            s += 1;
-        }
-        new_kids: list[int] = [];
-        for k in old_kids {
+        kind = a.kind_of(i);
+
+        old_pairs = a.arg_pairs(i);
+        new_kids: list[NodeId] = [];
+        for k in a.kid_ids(i) {
             new_kids.append(self.copy_tree(k, memo));
         }
-        pairs: list[int] = [];
-        s = 0;
-        while s < arg_n {
-            tag = old_args[s * 2];
-            val = old_args[s * 2 + 1];
+        pairs: list[tuple[(Tag, int)]] = [];
+        for pr in old_pairs {
+            (tag, val) = pr;
             if tag == Tag.NODE {
-                pairs.append(Tag.NODE);
-                pairs.append(self.copy_tree(val, memo));
+                pairs.append((Tag.NODE, self.copy_tree(NodeId(val), memo), ));
             } elif tag == Tag.LIST {
-                ids = a.seq_ids(val);
-                new_ids: list[int] = [];
-                for x in ids {
+                new_ids: list[NodeId] = [];
+                for x in a.seq_ids(SeqOff(val)) {
                     new_ids.append(self.copy_tree(x, memo));
                 }
-                off = len(a.seqs);
-                a.seqs.append(len(new_ids));
-                for x in new_ids {
-                    a.seqs.append(x);
-                }
-                pairs.append(Tag.LIST);
-                pairs.append(off);
+                pairs.append((Tag.LIST, a.intern_seq(new_ids), ));
             } else {
-                pairs.append(tag);
-                pairs.append(val);
+                pairs.append((tag, val, ));
             }
-            s += 1;
         }
-        new_i = a._start(kind, new_kids, arg_n);
-        for pv in pairs {
-            a.args.append(pv);
-        }
-        j = 0;
-        posts = a.posts;
-        n_posts = len(posts);
-        while j + 2 < n_posts {
-            if posts[j] == i {
-                a.post_set(new_i, a.strtab[posts[j + 1]], posts[j + 2]);
-                n_posts = len(a.posts) - 3;
+        new_i = a.append_record(kind, new_kids, pairs);
+        for pe in a.post_entries() {
+            if pe[0] == i {
+                a.post_set(new_i, pe[1], pe[2]);
             }
-            j += 3;
         }
         memo[i] = new_i;
         return new_i;
     }
 
-    def ct_name_text(i: int) -> str {
+    def ct_name_text(i: NodeId) -> str {
         out = "";
         for p in self.ev.list_arg(i, "parts") {
-            k = self.a().kinds[p];
-            if k == KIND_CT_SPLICE {
+            k = self.a().kind_of(p);
+            if k == Kind.CT_SPLICE {
                 v = self.ev.eval(self.ev.node_arg(p, "expr"));
                 if isinstance(v, CtFragment) and v.kind == "name" {
                     v = v.text;
@@ -1293,15 +1235,15 @@ obj CtExpander {
         return out;
     }
 
-    def subst_expr(i: int) -> int {
+    def subst_expr(i: NodeId) -> NodeId {
         a = self.a();
-        kind = a.kinds[i];
+        kind = a.kind_of(i);
         loc = self.ev.loc_of(i);
-        if kind == KIND_CT_NAME {
+        if kind == Kind.CT_NAME {
             return self._tok("NAME", "NAME", self.ct_name_text(i), loc);
         }
         v = self.ev.eval(self.ev.node_arg(i, "expr"));
-        if kind == KIND_CT_SPLICE and isinstance(v, CtFragment) {
+        if kind == Kind.CT_SPLICE and isinstance(v, CtFragment) {
             if v.kind == "name" {
                 if not _is_ident(v.text) {
                     _ct_err(f"ct.name('{v.text}') is not a valid identifier");
@@ -1313,7 +1255,7 @@ obj CtExpander {
         return self.value_to_records(v, loc);
     }
 
-    def expand_node(i: int) {
+    def expand_node(i: NodeId) {
         if i == NIL {
             return;
         }
@@ -1324,17 +1266,17 @@ obj CtExpander {
             return;
         }
         slot = 0;
-        plist: tuple = spec[1];
+        plist: tuple = spec[3];
         for p in plist {
             pt: tuple = p;
-            if pt[1] == "SOURCE" {
+            if pt[1] == ArgCat.SOURCE {
                 continue;
             }
-            (tag, val) = a.arg_at(i, slot);
+            (tag, val) = a.arg_pair(i, slot);
             if tag == Tag.NODE {
-                vk = a.kinds[val];
+                vk = a.kind_of(NodeId(val));
                 if vk in CT_EXPR_KINDS {
-                    nid = self.subst_expr(val);
+                    nid = self.subst_expr(NodeId(val));
                     a.set_arg_node(i, slot, nid);
                     self.subst[val] = [nid];
                 } elif vk in CT_STRUCT_KINDS {
@@ -1343,13 +1285,14 @@ obj CtExpander {
                         "expression is required"
                     );
                 } else {
-                    self.expand_node(val);
+                    self.expand_node(NodeId(val));
                 }
             } elif tag == Tag.LIST {
-                ids = a.seq_ids(val);
+                ids = a.seq_ids(SeqOff(val));
                 found_ct = False;
                 for x in ids {
-                    if a.kinds[x] in CT_STRUCT_KINDS or a.kinds[x] in CT_EXPR_KINDS {
+                    if a.kind_of(x) in CT_STRUCT_KINDS
+                        or a.kind_of(x) in CT_EXPR_KINDS {
                         found_ct = True;
                         break;
                     }
@@ -1367,16 +1310,16 @@ obj CtExpander {
         }
     }
 
-    def expand_items(ids: list[int], parent: int) -> list[int] {
+    def expand_items(ids: list[NodeId], parent: NodeId) -> list[NodeId] {
         a = self.a();
-        out: list[int] = [];
+        out: list[NodeId] = [];
         for x in ids {
-            k = a.kinds[x];
-            if k == KIND_CT_FOR {
+            k = a.kind_of(x);
+            if k == Kind.CT_FOR {
                 news = self.expand_ct_for(x);
                 self.subst[x] = news;
                 out.extend(news);
-            } elif k == KIND_CT_IF {
+            } elif k == Kind.CT_IF {
                 news = self.expand_ct_if(x, parent);
                 self.subst[x] = news;
                 out.extend(news);
@@ -1392,13 +1335,13 @@ obj CtExpander {
         return out;
     }
 
-    def expand_ct_for(i: int) -> list[int] {
+    def expand_ct_for(i: NodeId) -> list[NodeId] {
         ev = self.ev;
         tgt = ev.node_arg(i, "target");
         tname = ev.tok_value(tgt);
         coll = ev.eval(ev.node_arg(i, "iter"));
         body = ev.list_arg(i, "body");
-        out: list[int] = [];
+        out: list[NodeId] = [];
         for v in coll {
             ev.burn(5);
             ev.push_frame();
@@ -1413,7 +1356,7 @@ obj CtExpander {
         return out;
     }
 
-    def expand_ct_if(i: int, parent: int) -> list[int] {
+    def expand_ct_if(i: NodeId, parent: NodeId) -> list[NodeId] {
         ev = self.ev;
         if ev.eval(ev.node_arg(i, "condition")) {
             return self.expand_items(ev.list_arg(i, "body"), i);
@@ -1422,25 +1365,21 @@ obj CtExpander {
         if eb == NIL {
             return [];
         }
-        if self.a().kinds[eb] == KIND_CT_IF {
+        if self.a().kind_of(eb) == Kind.CT_IF {
             return self.expand_ct_if(eb, parent);
         }
         return self.expand_items(ev.list_arg(eb, "body"), eb);
     }
 
     def collect_ct_only {
-        a = self.a();
-        j = 0;
-        n = len(a.posts);
-        while j + 2 < n {
-            if a.strtab[a.posts[j + 1]] == "ct_only" {
-                self.ct_only[a.posts[j]] = 1;
+        for pe in self.a().post_entries() {
+            if pe[1] == "ct_only" {
+                self.ct_only[pe[0]] = 1;
             }
-            j += 3;
         }
     }
 
-    def strip_ct_only(mod_id: int) {
+    def strip_ct_only(mod_id: NodeId) {
         if not self.ct_only {
             return;
         }
@@ -1451,7 +1390,7 @@ obj CtExpander {
             return;
         }
         body = ev.list_arg(mod_id, "body");
-        kept: list[int] = [];
+        kept: list[NodeId] = [];
         for b in body {
             if b not in self.ct_only {
                 kept.append(b);
@@ -1467,7 +1406,7 @@ obj CtExpander {
         }
     }
 
-    def collect_module(mod_id: int) {
+    def collect_module(mod_id: NodeId) {
         ev = self.ev;
         for item in ev.list_arg(mod_id, "body") {
             cn = ev.cls_name(item);

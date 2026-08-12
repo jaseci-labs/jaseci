@@ -852,7 +852,8 @@ def na_census_record(path: str, outcome: str, code: str = '', detail: str = '') 
     }
     key = os.path.realpath(path);
     prev = _na_census.get(key);
-    if prev is not None and prev['outcome'] == 'demoted' and outcome != 'demoted' {
+    sticky = ('demoted', 'ice');
+    if prev is not None and prev['outcome'] in sticky and outcome not in sticky {
         return;
     }
     _na_census[key] = {
@@ -880,6 +881,25 @@ def na_census_end -> dict {
     snap = dict(_na_census);
     _na_census_state["enabled"] = False;
     return snap;
+}
+
+def na_demotion_note(
+    file_path: str, first_err: str, is_ice: bool
+) -> tuple[(str, str)] {
+    if is_ice {
+        msg = (
+            f"warning: {file_path} hit an internal compiler error during "
+            + "native lowering and fell back to the server codespace "
+            + f"({first_err}); this is a compiler bug -- please report it. "
+            + "Set JAC_NATIVE_ICE_RAISE=1 to surface the full traceback."
+        );
+        return (msg, "yellow");
+    }
+    msg = (
+        f"note: {file_path} preferred native but did not lower; "
+        + f"compiled in the server codespace ({first_err})"
+    );
+    return (msg, "dim");
 }
 
 def _default_codespace_for(target_program: JacProgram) -> str {
@@ -940,18 +960,13 @@ def _note_native_closure_cap(root_path: str, cap: int) {
 
 
 obj JacCompiler {
-    with entry {
-        _jaclang_root: (str | None) = None;
-    }
-
     has _internal_program: (JacProgram | None) = None,
-        _internal_bytecode_depth: int = 0;
+        _internal_bytecode_depth: int = 0,
+        _jaclang_root: (str | None) = None;
 
     has internal_program: JacProgram { getter; }
 
-    @classmethod
-    def _get_jaclang_root(cls: any) -> str;
-
+    def _get_jaclang_root -> str;
     def _resolve_program(file_path: str, target_program: JacProgram) -> JacProgram;
     def get_native_interop_setup(
         full_target: str, target_program: JacProgram

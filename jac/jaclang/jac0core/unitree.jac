@@ -81,8 +81,6 @@ obj UniNode {
     def in_client_context -> bool;
     def in_native_context -> bool;
     def to_dict -> dict[(str, str)];
-    def pp(depth: (int | None) = None) -> str;
-    def printgraph -> str;
     def flatten -> list[UniNode];
     def unparse -> str;
 }
@@ -134,8 +132,8 @@ obj UniScopeNode(UniNode) {
         implicit_rebinds: dict[(str, Symbol)] postinit;
 
     def _init_scope(name: str, parent_scope: (UniScopeNode | None) = None) -> None;
-    static def get_python_scoping_nodes -> tuple[(type[UniScopeNode], ...)] {
-        return (Module, Enum, Archetype, Ability, ImplDef, Test);
+    static def is_python_scoping(nd: (UniNode | None)) -> bool {
+        return isinstance(nd, (Module, Enum, Archetype, Ability, ImplDef, Test));
     }
 
     def lookup(
@@ -169,8 +167,7 @@ obj UniScopeNode(UniNode) {
 
     def chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None;
     def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
-    def sym_pp(depth: (int | None) = None) -> str;
-    def sym_printgraph -> str;
+    def _fix_store_ctx(item: UniNode) -> None;
     def __repr__ -> str;
 }
 
@@ -390,7 +387,8 @@ obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniSc
 
     has name: Name,
         type_params: (Sequence[TypeParam] | None),
-        value: Expr;
+        value: Expr,
+        is_distinct: bool = False;
 
     def postinit -> None;
 }
@@ -739,6 +737,8 @@ obj CtSplice(Expr, AstSymbolStubNode) {
 
     has expr: Expr;
     has value: str { getter; }
+    has sym: (Symbol | None) { getter; }
+    has sym_name: str { getter; }
 
     def postinit -> None;
     def create_symbol(

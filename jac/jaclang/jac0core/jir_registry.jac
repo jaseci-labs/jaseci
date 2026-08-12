@@ -1611,7 +1611,8 @@ glob NODE_SPECS: tuple = (
                  FieldDesc(name="codespace_dual", kind=2),
                  FieldDesc(name="name", kind=4),
                  FieldDesc(name="type_params", kind=5),
-                 FieldDesc(name="value", kind=4)
+                 FieldDesc(name="value", kind=4),
+                 FieldDesc(name="is_distinct", kind=2)
              )
          ),
          NodeSpec(

@@ -56,13 +56,13 @@ impl JacCompiler.internal_program.getter -> JacProgram {
     return self._internal_program;
 }
 
-impl JacCompiler._get_jaclang_root(cls: any) -> str {
-    if (cls._jaclang_root is None) {
-        cls._jaclang_root = os.path.realpath(
+impl JacCompiler._get_jaclang_root -> str {
+    if (self._jaclang_root is None) {
+        self._jaclang_root = os.path.realpath(
             os.path.dirname(os.path.dirname(__file__))
         );
     }
-    return cls._jaclang_root;
+    return self._jaclang_root;
 }
 
 impl JacCompiler._resolve_program(
@@ -733,6 +733,15 @@ impl JacCompiler.parse_str(
                 codespace = _forced_pre;
             }
         }
+        if not codespace and target_program is not self._internal_program {
+            import from jaclang.jac0core.placement_pins {
+                config_kind_space as _kind_space_of
+            }
+            _kind_space = _kind_space_of(file_path);
+            if _kind_space in ('client', 'native') {
+                codespace = _kind_space;
+            }
+        }
         if (codespace == 'client') {
             _coerce_client_module(mod);
         } elif (codespace == 'native') {
@@ -834,6 +843,11 @@ impl JacCompiler.compile(
             }
             return _mod;
         }
+
+        _is_ice = _crash is not None and len(_wrap_prog.errors_had) == _pre_errs;
+        if _is_ice and os.environ.get('JAC_NATIVE_ICE_RAISE') {
+            raise _crash;
+        }
         _first_err = (
             _wrap_prog.errors_had[_pre_errs].pretty_print().split('\n')[0]
                 if len(_wrap_prog.errors_had) > _pre_errs
@@ -845,7 +859,9 @@ impl JacCompiler.compile(
                 if (_demote_alerts and _demote_alerts[0].code is not None)
                 else type(_crash).__name__
         );
-        na_census_record(_resolved, 'demoted', _demote_code, _first_err);
+        na_census_record(
+            _resolved, 'ice' if _is_ice else 'demoted', _demote_code, _first_err
+        );
         _mark_demoted_native(_resolved);
         _wrap_prog.errors_had = _wrap_prog.errors_had[:_pre_errs];
         _wrap_prog.warnings_had = _wrap_prog.warnings_had[:_pre_warns];
@@ -856,12 +872,8 @@ impl JacCompiler.compile(
         }
         try {
             import from jaclang.cli.console { console as _note_console }
-            _note_console.print(
-                f"note: {file_path} preferred native but did not lower; "
-                f"compiled in the server codespace ({_first_err})",
-                style="dim",
-                file=sys.stderr
-            );
+            (_note_msg, _note_style) = na_demotion_note(file_path, _first_err, _is_ice);
+            _note_console.print(_note_msg, style=_note_style, file=sys.stderr);
         } except Exception {
             ;
         }

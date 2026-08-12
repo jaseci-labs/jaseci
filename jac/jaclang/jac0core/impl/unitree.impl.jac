@@ -243,16 +243,6 @@ impl UniNode.to_dict -> dict[(str, str)] {
     return ret;
 }
 
-impl UniNode.pp(depth: (int | None) = None) -> str {
-    import from jaclang.jac0core.treeprinter { print_ast_tree }
-    return print_ast_tree(self, max_depth=depth);
-}
-
-impl UniNode.printgraph -> str {
-    import from jaclang.jac0core.treeprinter { printgraph_ast_tree }
-    return printgraph_ast_tree(self);
-}
-
 impl UniNode.flatten -> list[UniNode] {
     ret: list[UniNode] = [self];
     for k in self.kid {
@@ -316,10 +306,7 @@ impl Symbol.symbol_table.getter -> (UniScopeNode | None) {
 
 impl Symbol.storage.getter -> SymbolStorage {
     owner = self.parent_tab;
-    while (
-        owner is not None
-        and not isinstance(owner, UniScopeNode.get_python_scoping_nodes())
-    ) {
+    while (owner is not None and not UniScopeNode.is_python_scoping(owner)) {
         owner = owner.parent_scope;
     }
     if (owner is None) or isinstance(owner, Module) {
@@ -333,11 +320,10 @@ impl Symbol.storage.getter -> SymbolStorage {
         return SymbolStorage.PARAM;
     }
 
-    barriers = UniScopeNode.get_python_scoping_nodes();
     def_scope: (UniNode | None) = self.decl.parent;
     while (
         def_scope is not None
-        and not isinstance(def_scope, barriers)
+        and not UniScopeNode.is_python_scoping(def_scope)
         and not isinstance(def_scope, LambdaExpr)
     ) {
         def_scope = def_scope.parent;
@@ -346,7 +332,7 @@ impl Symbol.storage.getter -> SymbolStorage {
         cur = use.parent;
         while (
             cur is not None
-            and not isinstance(cur, barriers)
+            and not UniScopeNode.is_python_scoping(cur)
             and not isinstance(cur, LambdaExpr)
         ) {
             cur = cur.parent;
@@ -405,7 +391,7 @@ impl UniScopeNode.lookup(
     }
     if incl_inner_scope {
         for kid in self.kid_scope {
-            if isinstance(kid, UniScopeNode.get_python_scoping_nodes()) {
+            if UniScopeNode.is_python_scoping(kid) {
                 continue;
             }
             if ((sym := kid.lookup(name, False, True)) is not None) {
@@ -482,14 +468,17 @@ impl UniScopeNode.find_scope(name: str) -> (UniScopeNode | None) {
 
 impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
     out: list[Symbol] = [];
-    func_scopes = (Ability, ImplDef, LambdaExpr, Test);
     for name in self.get_all_sub_nodes(Name) {
         sym = name.sym;
         if (sym is None) {
             continue;
         }
         tab = sym.parent_tab;
-        if ((tab is None) or (tab is self) or not isinstance(tab, func_scopes)) {
+        if (
+            (tab is None)
+            or (tab is self)
+            or not isinstance(tab, (Ability, ImplDef, LambdaExpr, Test))
+        ) {
             continue;
         }
 
@@ -594,39 +583,30 @@ impl UniScopeNode.chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None {
     }
 }
 
-impl UniScopeNode.update_expr_ctx_for_def(nd: AstSymbolNode) -> None {
-    nd.name_spec.expr_ctx = ExprCtx.STORE;
-    if (isinstance(nd, (TupleVal, ListVal)) and nd.values) {
-        def fix(item: TupleVal | ListVal | UnaryExpr) {
-            if isinstance(item, UnaryExpr) {
-                if isinstance(item.operand, AstSymbolNode) {
-                    item.operand.name_spec.expr_ctx = ExprCtx.STORE;
-                }
-            } elif isinstance(item, (TupleVal, ListVal)) {
-                for i in item.values {
-                    if isinstance(i, AstSymbolNode) {
-                        i.name_spec.expr_ctx = ExprCtx.STORE;
-                    } elif isinstance(i, AtomTrailer) {
-                        self.chain_def_insert(i.as_attr_list);
-                    }
-                    if isinstance(i, (TupleVal, ListVal, UnaryExpr)) {
-                        fix(i);
-                    }
-                }
+impl UniScopeNode._fix_store_ctx(item: UniNode) -> None {
+    if isinstance(item, UnaryExpr) {
+        if isinstance(item.operand, AstSymbolNode) {
+            item.operand.name_spec.expr_ctx = ExprCtx.STORE;
+        }
+    } elif isinstance(item, (TupleVal, ListVal)) {
+        for i in item.values {
+            if isinstance(i, AstSymbolNode) {
+                i.name_spec.expr_ctx = ExprCtx.STORE;
+            } elif isinstance(i, AtomTrailer) {
+                self.chain_def_insert(i.as_attr_list);
+            }
+            if isinstance(i, (TupleVal, ListVal, UnaryExpr)) {
+                self._fix_store_ctx(i);
             }
         }
-        fix(nd);
     }
 }
 
-impl UniScopeNode.sym_pp(depth: (int | None) = None) -> str {
-    import from jaclang.jac0core.treeprinter { print_symtab_tree }
-    return print_symtab_tree(root_node=self, depth=depth);
-}
-
-impl UniScopeNode.sym_printgraph -> str {
-    import from jaclang.jac0core.treeprinter { printgraph_symtab_tree }
-    return printgraph_symtab_tree(self);
+impl UniScopeNode.update_expr_ctx_for_def(nd: AstSymbolNode) -> None {
+    nd.name_spec.expr_ctx = ExprCtx.STORE;
+    if isinstance(nd, (TupleVal, ListVal)) and nd.values {
+        self._fix_store_ctx(nd);
+    }
 }
 
 impl UniScopeNode.__repr__ -> str {
@@ -1212,6 +1192,10 @@ impl ModulePath.resolve_relative_path(target_item: (str | None) = None) -> str {
     bundled = self.native_bundled_path();
     if bundled is not None {
         return bundled;
+    }
+    spv = self.string_path_value;
+    if spv is not None {
+        return resolve_relative_path(spv, self.loc.mod_path, string_spec=True);
     }
     target = self.dot_path_str + (f".{target_item}" if target_item else '');
     return resolve_relative_path(target, self.loc.mod_path);

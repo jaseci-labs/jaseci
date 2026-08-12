@@ -609,6 +609,7 @@ obj TypeEvaluator {
     ) -> bool;
 
     def _resolve_type_alias_rhs(value: uni.Expr) -> TypeBase;
+    def _brand_distinct_alias(node_: uni.TypeAlias, resolved: TypeBase) -> TypeBase;
     def _resolve_string_type_expr(
         type_str: str, scope: uni.UniScopeNode
     ) -> TypeBase | None;

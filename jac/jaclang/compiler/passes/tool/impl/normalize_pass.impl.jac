@@ -44,7 +44,9 @@ impl NormalizePass.enter_type_alias(nd: uni.TypeAlias) -> None {
         }
         new_kid.append(nd.gen_token(Tok.RSQUARE));
     }
-    new_kid.append(nd.gen_token(Tok.EQ));
+    new_kid.append(
+        nd.gen_token(Tok.WALRUS_EQ) if nd.is_distinct else nd.gen_token(Tok.EQ)
+    );
     new_kid.append(nd.value);
     new_kid.append(nd.gen_token(Tok.SEMI));
     nd.set_kids(nodes=new_kid);
