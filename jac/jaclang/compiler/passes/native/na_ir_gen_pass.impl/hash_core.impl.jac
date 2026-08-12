@@ -959,7 +959,7 @@ impl NaIRGenPass._static_key_hash_of(key_node: (uni.UniNode | None)) -> (int | N
     } except Exception {
         return None;
     }
-    if not isinstance(v, str) {
+    if not isinstance(v, str) or "\0" in v {
         return None;
     }
     return self._static_str_hash(v);

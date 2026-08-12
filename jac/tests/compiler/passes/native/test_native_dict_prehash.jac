@@ -82,6 +82,17 @@ test "literal and runtime spellings address the same slot" {
     assert f() == 31 , f"got {f()}";
 }
 
+# Native strings are NUL-terminated, so the runtime hash and comparison stop
+# at the first NUL - "a\0b" IS "a" at runtime. A compile-time hash spanning
+# the full literal would probe a different slot than every runtime operation
+# on the same key, so literals with embedded NULs must refuse the prehash and
+# fall back to the hashing wrapper.
+test "an embedded-NUL literal degrades to the runtime hash" {
+    (eng, _) = compile_native("dict_prehash.jac");
+    f = get_func(eng, "embedded_nul_key", ctypes.c_int64);
+    assert f() == 1 , f"expected runtime-consistent lookup, got {f()}";
+}
+
 # ─────────────────────────────────────────────────────────────────────
 # Shape: static-key sites call the prehashed cores
 # ─────────────────────────────────────────────────────────────────────

@@ -69,3 +69,9 @@ def overwrite_across_paths -> int {
     d["alpha"] = 3;
     return d["alpha"] * 10 + len(d);
 }
+
+def embedded_nul_key -> int {
+    d: dict[str, int] = {"a\0b": 1};
+    k = make_key("a", "\0b");
+    return d[k] if k in d else 9;
+}
