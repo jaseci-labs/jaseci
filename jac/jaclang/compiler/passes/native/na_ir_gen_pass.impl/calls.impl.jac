@@ -2165,6 +2165,9 @@ impl NaIRGenPass._emit_isinstance_mixed(
         );
         prim = cmp if prim is None else self.builder.or_(prim, cmp, name="isinst.or");
     }
+    if prim is None {
+        prim = ir.Constant(i1, 0);
+    }
 
     pre_bb = self.builder.block;
     obj_bb = self.builder.append_basic_block(name="isinst.mix.obj");
@@ -2220,6 +2223,9 @@ impl NaIRGenPass._emit_isinstance_user(
     i32 = ir.IntType(32);
 
     if not isinstance(operand.type, ir.PointerType) {
+        if self?.jacval_type and operand.type == self.jacval_type {
+            return self._emit_isinstance_mixed(nd, operand, [], names);
+        }
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
     }
@@ -2240,16 +2246,18 @@ impl NaIRGenPass._emit_isinstance_user(
     }
 
     struct_name = self._struct_name_of(nd.params[0] if nd.params else None);
-    if struct_name is None or struct_name not in self.struct_types {
-        self._emit_unsupported_builtin_call(nd, "isinstance");
-        return None;
-    }
-    if struct_name not in self.vtable_globals {
+    if (
+        struct_name is not None
+        and struct_name in self.struct_types
+        and struct_name not in self.vtable_globals
+    ) {
         if self._is_owned(operand) {
             self._emit_rc_release_simple(operand, op="isinstance_arg", loc="");
         }
         return ir.Constant(i1, 0);
     }
+    # A union- or optional-typed operand has no single static struct name;
+    # the runtime vtable comparison below decides for any object pointer.
 
     pre_bb = self.builder.block;
     null_ptr = ir.Constant(operand.type, None);
