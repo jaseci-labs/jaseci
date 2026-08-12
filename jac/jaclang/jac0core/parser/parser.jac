@@ -3,6 +3,7 @@ import from .lexer { tokenize_full }
 
 import from jaclang.jac0core.unitree {
     Ability,
+    AstDocNode,
     ArchHas,
     Archetype,
     AssignCompr,
@@ -17,6 +18,7 @@ import from jaclang.jac0core.unitree {
     BuiltinType,
     CastExpr,
     CfgExpr,
+    CodeBlockStmt,
     CommentToken,
     CompareExpr,
     ConcurrentExpr,
@@ -99,6 +101,7 @@ import from jaclang.jac0core.unitree {
     ModulePath,
     MultiString,
     Name,
+    NameAtom,
     Null,
     OpenStmt,
     ParamVar,
@@ -405,7 +408,7 @@ obj Parser {
     def parse_expression(allow_cast: bool = True) -> Expr;
     def _check_js_arrow_fault -> bool;
     def _recover_js_arrow_fault(left: Expr) -> Expr;
-    def _recover_removed_marker -> Expr;
+    def _recover_removed_marker -> ElementStmt | EmptyToken | None;
     def _recover_missing_connect_rhs -> bool;
     def _recover_misplaced_disconnect -> None;
     def parse_concurrent_expr(allow_cast: bool = True) -> Expr;
@@ -438,7 +441,7 @@ obj Parser {
     def parse_await_expr -> Expr;
     def parse_pipe_call -> Expr;
     def parse_atomic_chain -> Expr;
-    def _make_attr_from_keyword(name_tok: LexToken) -> Expr;
+    def _make_attr_from_keyword(name_tok: LexToken) -> Name;
     def parse_index_slice -> IndexSlice;
     def parse_call_args(kid: list) -> list;
     def parse_call_arg -> UniNode;
@@ -450,7 +453,7 @@ obj Parser {
     def parse_builtin_type -> Expr | None;
     def parse_special_ref -> Expr | None;
     def parse_atom -> Expr;
-    def parse_tuple_item -> UniNode;
+    def parse_tuple_item -> Expr | KWPair;
     def parse_paren_expr -> Expr;
     def parse_bracket_expr -> Expr;
     def _is_edge_ref_start -> bool;
@@ -472,17 +475,17 @@ obj Parser {
     def parse_jsx_attributes -> list;
     def parse_jsx_children -> list;
     def parse_jsx_child -> UniNode | None;
-    def parse_element_stmt -> UniNode | None;
-    def _dispatch_decorated -> UniNode | None;
-    def _dispatch_async -> UniNode | None;
-    def _attach_doc(nd: ElementStmt, elem_doc: String) -> ElementStmt;
-    def parse_docstring_target -> UniNode;
+    def parse_element_stmt -> ElementStmt | EmptyToken | None;
+    def _dispatch_decorated -> ElementStmt | None;
+    def _dispatch_async -> ElementStmt | None;
+    def _attach_doc(nd: AstDocNode, elem_doc: String) -> None;
+    def parse_docstring_target -> ElementStmt | None;
     def parse_module_code -> ModuleCode;
     def parse_code_block_stmts -> list;
     def _apply_implicit_return(body: list) -> list;
-    def parse_ctrl_stmt -> UniNode | None;
-    def parse_statement -> UniNode | None;
-    def parse_ct_element(mode: int) -> UniNode | None;
+    def parse_ctrl_stmt -> CtrlStmt | DisengageStmt | None;
+    def parse_statement -> CodeBlockStmt | None;
+    def parse_ct_element(mode: int) -> CtFor | CtIf | Ability | None;
     def parse_ct_for(mode: int, ct_uni: Token) -> UniNode | None;
     def parse_ct_if(mode: int, ct_uni: Token) -> UniNode | None;
     def parse_ct_elif(mode: int) -> UniNode | None;
@@ -500,7 +503,7 @@ obj Parser {
     def parse_while_stmt -> WhileStmt;
     def parse_open_stmt -> OpenStmt;
     def parse_forever_stmt -> ForeverStmt;
-    def parse_for_stmt -> UniNode;
+    def parse_for_stmt -> IterForStmt | InForStmt;
     def parse_try_stmt -> TryStmt;
     def parse_except_handler -> Except;
     def parse_with_stmt -> WithStmt;
@@ -515,7 +518,7 @@ obj Parser {
     def parse_sequence_pattern -> MatchPattern;
     def parse_tuple_sequence_pattern -> MatchPattern;
     def parse_mapping_pattern -> MatchPattern;
-    def parse_literal_for_mapping -> UniNode | None;
+    def parse_literal_for_mapping -> MatchPattern | NameAtom | None;
     def parse_class_pattern_args(
         names: list, dot_unis: (list | None) = None
     ) -> MatchPattern;
@@ -531,7 +534,7 @@ obj Parser {
     def parse_report_stmt -> ReportStmt;
     def parse_assignment_with_target(
         target: Expr, require_semi: bool = True
-    ) -> UniNode;
+    ) -> CodeBlockStmt;
 
     def parse_ownership_prefix(kids: list) -> OwnershipKind;
     def parse_import_stmt -> Import;

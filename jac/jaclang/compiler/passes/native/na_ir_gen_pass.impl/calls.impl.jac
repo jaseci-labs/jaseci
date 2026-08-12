@@ -1914,6 +1914,82 @@ impl NaIRGenPass._isinstance_type_name(nd: uni.UniNode) -> (str | None) {
     return self._get_name(nd);
 }
 
+impl NaIRGenPass._enum_union_tags(
+    operand_expr: uni.UniNode, names: list[str]
+) -> tuple {
+    # isinstance against an enum class: enum values box as ints (tag 0), so
+    # the test lowers to a tag check when the operand's static union gives
+    # the named enum sole ownership of that tag.
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _EnClassType,
+            UnionType as _EnUnionType
+        }
+    } except ImportError {
+        return ([], names, );
+    }
+    t = operand_expr.type if isinstance(operand_expr, uni.Expr) else None;
+    members: list = [];
+    if isinstance(t, _EnUnionType) {
+        members = list(t.types or []);
+    } elif t is not None {
+        members = [t];
+    }
+    if not members {
+        return ([], names, );
+    }
+    member_rows: list = [];
+    for m in members {
+        if not isinstance(m, _EnClassType) or m._shared is None {
+            return ([], names, );
+        }
+        cn = m.shared.class_name;
+        if m.is_enum_class {
+            member_rows.append((cn, True, [0], ));
+        } elif cn in ("NoneType", "None") {
+            member_rows.append((cn, False, [8], ));
+        } elif cn == "bool" {
+            member_rows.append((cn, False, [7], ));
+        } elif cn == "int" {
+            member_rows.append((cn, False, [0, 7], ));
+        } elif cn == "float" {
+            member_rows.append((cn, False, [1], ));
+        } elif cn == "str" {
+            member_rows.append((cn, False, [2], ));
+        } elif cn in ("list", "dict", "set", "tuple") {
+            member_rows.append((cn, False, [3, 4, 5], ));
+        } else {
+            member_rows.append((cn, False, [6], ));
+        }
+    }
+    resolved: list[int] = [];
+    still: list[str] = [];
+    for nm in names {
+        hit = False;
+        for row in member_rows {
+            if row[0] == nm and row[1] {
+                clash = False;
+                for other in member_rows {
+                    if other[0] != nm and (0 in other[2]) {
+                        clash = True;
+                        break;
+                    }
+                }
+                hit = not clash;
+                break;
+            }
+        }
+        if hit {
+            if 0 not in resolved {
+                resolved.append(0);
+            }
+        } else {
+            still.append(nm);
+        }
+    }
+    return (resolved, still, );
+}
+
 impl NaIRGenPass._emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None) {
     i1 = ir.IntType(1);
     i8 = ir.IntType(8);
@@ -1985,6 +2061,14 @@ impl NaIRGenPass._emit_isinstance_core(
         for t in nm_tags {
             if t not in tags {
                 tags.append(t);
+            }
+        }
+    }
+    if unresolved {
+        (_enum_tags, unresolved) = self._enum_union_tags(params[0], unresolved);
+        for _et in _enum_tags {
+            if _et not in tags {
+                tags.append(_et);
             }
         }
     }

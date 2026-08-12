@@ -198,6 +198,23 @@ impl NaIRGenPass._generate_inherited_method_wrappers -> None {
 
                 orig_fn_type = impl_func.function_type;
 
+                # A wrapper exists to retype `self`; static methods have no
+                # self (arg0, if any, is a real parameter such as a JacOpt),
+                # so the ancestor's function serves the child directly.
+                _has_self = False;
+                if len(orig_fn_type.args) > 0
+                    and isinstance(orig_fn_type.args[0], ir.PointerType) {
+                    _p0_nm = getattr(orig_fn_type.args[0].pointee, "name", "") or "";
+                    if _p0_nm == impl_class {
+                        _has_self = True;
+                    }
+                }
+                if not _has_self {
+                    self.method_funcs[child_full] = impl_func;
+                    self.func_symtab[child_full] = impl_func;
+                    continue;
+                }
+
                 new_param_types: list[ir.Type] = [child_struct.as_pointer()];
                 for i in range(1, len(orig_fn_type.args)) {
                     new_param_types.append(orig_fn_type.args[i]);

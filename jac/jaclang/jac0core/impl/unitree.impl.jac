@@ -400,9 +400,15 @@ impl UniScopeNode.lookup(
         }
     }
 
-    impl_def: ImplDef | None = (
-        self if isinstance(self, ImplDef) else self.find_parent_of_type(ImplDef)
-    );
+    impl_def: ImplDef | None = None;
+    _walk: UniNode | None = self;
+    while _walk is not None {
+        if isinstance(_walk, ImplDef) {
+            impl_def = _walk;
+            break;
+        }
+        _walk = _walk.parent;
+    }
     if (impl_def and impl_def.decl_link and impl_def.decl_link.sym_tab) {
         return impl_def.decl_link.sym_tab.lookup(
             name, deep=True, incl_inner_scope=False
@@ -438,12 +444,14 @@ impl UniScopeNode.insert(
     collision = self.names_in_scope[nd.sym_name].defn[-1]
         if (single and (nd.sym_name in self.names_in_scope))
         else None;
+    resolved_access: SymbolAccess = SymbolAccess.PUBLIC;
+    if isinstance(access_spec, SymbolAccess) {
+        resolved_access = access_spec;
+    } elif isinstance(access_spec, AstAccessNode) {
+        resolved_access = access_spec.access_type;
+    }
     symbol = nd.name_spec.create_symbol(
-        access=access_spec
-            if isinstance(access_spec, SymbolAccess)
-            else access_spec.access_type if access_spec else SymbolAccess.PUBLIC,
-        parent_tab=self,
-        imported=imported
+        access=resolved_access, parent_tab=self, imported=imported
     );
     if (nd.sym_name in self.names_in_scope) {
         self.names_in_scope_overload.setdefault(nd.sym_name, []).append(symbol);
@@ -466,19 +474,30 @@ impl UniScopeNode.find_scope(name: str) -> (UniScopeNode | None) {
     return None;
 }
 
+impl UniScopeNode._capture_names(nd: UniNode, out: list[Name]) -> None {
+    for k in nd.kid {
+        self._capture_names(k, out);
+        if isinstance(k, Name) {
+            out.append(k);
+        }
+    }
+}
+
 impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
     out: list[Symbol] = [];
-    for name in self.get_all_sub_nodes(Name) {
+    sub_names: list[Name] = [];
+    self._capture_names(self, sub_names);
+    for name in sub_names {
         sym = name.sym;
         if (sym is None) {
             continue;
         }
         tab = sym.parent_tab;
-        if (
-            (tab is None)
-            or (tab is self)
-            or not isinstance(tab, (Ability, ImplDef, LambdaExpr, Test))
-        ) {
+        tab_captures = isinstance(tab, Ability)
+            or isinstance(tab, ImplDef)
+            or isinstance(tab, LambdaExpr)
+            or isinstance(tab, Test);
+        if ((tab is None) or (tab is self) or not tab_captures) {
             continue;
         }
 
@@ -588,16 +607,24 @@ impl UniScopeNode._fix_store_ctx(item: UniNode) -> None {
         if isinstance(item.operand, AstSymbolNode) {
             item.operand.name_spec.expr_ctx = ExprCtx.STORE;
         }
-    } elif isinstance(item, (TupleVal, ListVal)) {
-        for i in item.values {
-            if isinstance(i, AstSymbolNode) {
-                i.name_spec.expr_ctx = ExprCtx.STORE;
-            } elif isinstance(i, AtomTrailer) {
-                self.chain_def_insert(i.as_attr_list);
-            }
-            if isinstance(i, (TupleVal, ListVal, UnaryExpr)) {
-                self._fix_store_ctx(i);
-            }
+    } elif isinstance(item, TupleVal) {
+        self._fix_store_items(list(item.values));
+    } elif isinstance(item, ListVal) {
+        self._fix_store_items(list(item.values));
+    }
+}
+
+impl UniScopeNode._fix_store_items(items: Sequence[UniNode]) -> None {
+    for i in items {
+        if isinstance(i, AstSymbolNode) {
+            i.name_spec.expr_ctx = ExprCtx.STORE;
+        } elif isinstance(i, AtomTrailer) {
+            self.chain_def_insert(i.as_attr_list);
+        }
+        if isinstance(i, TupleVal)
+            or isinstance(i, ListVal)
+            or isinstance(i, UnaryExpr) {
+            self._fix_store_ctx(i);
         }
     }
 }
@@ -969,12 +996,14 @@ impl TypeAlias.postinit -> None {
     );
     UniScopeNode._init_scope(self, name=self.sym_name);
     ContextAwareNode.postinit(self);
+    CodeBlockStmt.postinit(self);
 }
 
 
 impl GlobalVars.postinit -> None {
     UniNode.postinit(self);
     ContextAwareNode.postinit(self);
+    CodeBlockStmt.postinit(self);
 }
 
 
@@ -1024,6 +1053,7 @@ impl Test.postinit -> None {
 impl ModuleCode.postinit -> None {
     UniNode.postinit(self);
     ContextAwareNode.postinit(self);
+    CodeBlockStmt.postinit(self);
 }
 
 
@@ -1423,6 +1453,7 @@ impl SemDef.postinit -> None {
         sym_category=SymbolType.SEM
     );
     UniScopeNode._init_scope(self, name=self.sym_name);
+    CodeBlockStmt.postinit(self);
 }
 
 
@@ -1492,6 +1523,8 @@ impl Ability.postinit -> None {
         );
         name_spec_for_init: (Name | NameAtom) = synthetic_name_ref;
         self.name_ref = synthetic_name_ref;
+    } elif isinstance(self.name_ref, CtName) {
+        name_spec_for_init = self.name_ref.name_spec;
     } else {
         name_spec_for_init = self.name_ref;
     }
@@ -1665,8 +1698,11 @@ impl EventSignature.postinit -> None {
 impl ParamVar.postinit -> None {
     self.param_kind = ParamKind.NORMAL;
     UniNode.postinit(self);
+    pv_spec: NameAtom = self.name.name_spec
+        if isinstance(self.name, CtName)
+        else self.name;
     AstSymbolNode._init_symbol(
-        self, sym_name=self.name.value, name_spec=self.name, sym_category=SymbolType.VAR
+        self, sym_name=self.name.value, name_spec=pv_spec, sym_category=SymbolType.VAR
     );
 }
 
@@ -1688,10 +1724,13 @@ impl ArchHas.postinit -> None {
 
 impl HasVar.postinit -> None {
     UniNode.postinit(self);
+    hv_spec: NameAtom = self.name.name_spec
+        if isinstance(self.name, CtName)
+        else self.name;
     AstSymbolNode._init_symbol(
         self,
         sym_name=self.name.value,
-        name_spec=self.name,
+        name_spec=hv_spec,
         sym_category=SymbolType.HAS_VAR
     );
 }
@@ -1998,10 +2037,8 @@ impl BoolExpr.postinit -> None {
 
 
 impl LambdaExpr.postinit -> None {
-    lam_body = self.body;
-    if isinstance(lam_body, list) {
-        self.body = `list(lam_body);
-    }
+    # body is Expr | Sequence: constructors hand over fresh lists, so no
+    # defensive copy here (a union-conditional copy does not lower natively).
     UniNode.postinit(self);
     Expr.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
