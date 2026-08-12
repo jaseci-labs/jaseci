@@ -997,7 +997,8 @@ impl JacCompiler._compile_once(
         import from dataclasses { replace as _replace_opts }
         for dep_mod in list(actual_program.mod.hub.values()) {
             if (dep_mod is mod_targ)
-                or (id(dep_mod) in actual_program._inferred_mods) {
+                or (id(dep_mod) in actual_program._inferred_mods)
+                or dep_mod.parse_failed {
                 continue;
             }
             if dep_mod.decided_codespace == 'native' {

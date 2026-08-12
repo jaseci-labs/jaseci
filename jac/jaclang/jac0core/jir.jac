@@ -522,7 +522,12 @@ def read_module_jir_cache(source_path: str) -> (object | None) {
         }
         data = cache_path.read_bytes();
         reader = JirReader(_source_path=resolved_path);
-        return reader.read_module(data);
+        cached = reader.read_module(data);
+        # Caches written before parse_failed modules were rejected on write.
+        if cached is not None and cached.parse_failed {
+            return None;
+        }
+        return cached;
     } except Exception {
         if os.environ.get("JAC_JIR_DEBUG") {
             traceback.print_exc();
@@ -546,6 +551,11 @@ def write_module_jir_cache(
         return False;
     }
     mod_any: any = mod;
+    # A cache hit replays no alerts, so a served parse_failed module would
+    # silently suppress its own syntax errors.
+    if mod_any.parse_failed {
+        return False;
+    }
     if resolved_path.endswith('.pyi') and not mod_any.stub_only {
         mod_any.stub_only = True;
     }

@@ -23,8 +23,8 @@ glob BROKEN_SRC = 'def broken_repro( -> {{{ SYNTAX ERROR\n',
          '    return <div>{broken_repro()}</div>;\n}\n'
      );
 
-# A fresh dir per measurement keeps the on-disk JIR cache cold; a warm one
-# serves the failed module from disk and hides the duplication.
+# A fresh dir per measurement keeps measurements independent of any on-disk
+# JIR cache state.
 def _write_project(base: str) -> Path {
     proj = Path(base);
     proj.mkdir(parents=True, exist_ok=True);
@@ -116,5 +116,24 @@ test "a clean re-parse clears the failure flag" {
         broken.write_text(FIXED_SRC);
         prog.compile(str(broken));
         assert not prog.has_failed_parse(str(broken)) , "a clean re-parse must clear the recorded failure";
+    }
+}
+
+test "a failed parse is never written to the on-disk module cache" {
+    # A JIR cache hit replays no alerts, so serving a parse_failed module from
+    # disk would report the import as clean.
+    import from jaclang.jac0core.jir { write_module_jir_cache }
+    with tempfile.TemporaryDirectory() as tmp {
+        proj = _write_project(tmp);
+        broken = str((proj / "broken.jac").resolve());
+        prog = JacProgram();
+        try {
+            prog.compile(broken);
+        } except Exception {
+            ;
+        }
+        mod = prog.mod.hub.get(JacProgram.hub_key(broken));
+        assert mod is not None and mod.parse_failed , "fixture must produce a recorded failed parse";
+        assert not write_module_jir_cache(broken, mod) , "a parse_failed module must be rejected by the cache writer";
     }
 }
