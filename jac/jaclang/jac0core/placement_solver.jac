@@ -1,6 +1,7 @@
 import os;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
+import from jaclang.jac0core.diagnostics { DiagnosticInfo }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.placement {
     get_module_summary,
@@ -661,7 +662,9 @@ def solve_module_placement(
     return stamp_count[0];
 }
 
-def _emit_solver_warning(prog: any, diag: any, nd: uni.UniNode, **kwargs: any) {
+def _emit_solver_warning(
+    prog: any, diag: DiagnosticInfo, nd: uni.UniNode, **kwargs: any
+) {
     import from jaclang.jac0core.passes.transform { Alert }
     for w in prog.warnings_had {
         if (

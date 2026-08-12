@@ -420,6 +420,38 @@ test "recompile signals a full reload only when the export set changes" {
     }
 }
 
+test "reloading a broken module reports its errors once per reload" {
+    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.meta_importer { _module_scoped_alerts }
+    with tempfile.TemporaryDirectory() as tmp {
+        temp_dir = Path(tmp);
+        broken = temp_dir / "broken_reload.jac";
+        broken.write_text("def broken_repro( -> {{{ SYNTAX ERROR\n");
+        resolved = str(broken.resolve());
+        watcher = JacFileWatcher(watch_paths=[str(temp_dir)]);
+        reloader = HotReloader(
+            base_path=str(temp_dir), module_name="broken_reload", watcher=watcher
+        );
+        # `errors_had` is append-only and `_module_scoped_alerts` -- what the
+        # overlay, /__build_status and editor diagnostics all read -- scans the
+        # whole list. Without the eviction `_reload_server_module` performs,
+        # saving a broken file three times reports the same syntax error 3x.
+        counts = [];
+        for _ in range(3) {
+            reloader._reload_server_module(resolved);
+            counts.append(len(_module_scoped_alerts(Jac.program, resolved)));
+        }
+        try {
+            assert counts[0] > 0 , "a broken module must report at least one alert";
+            assert counts == [counts[0], counts[0], counts[0]] , f"alerts accumulated across reloads: {counts}";
+        } finally {
+            # Long-lived global program: do not leak this file's alerts into
+            # whatever else runs in this worker.
+            Jac.program.drop_module_alerts(resolved);
+        }
+    }
+}
+
 # --- TestHMRIntegration ---
 test "file change triggers callback" {
     with tempfile.TemporaryDirectory() as tmp {

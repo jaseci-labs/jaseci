@@ -1064,6 +1064,16 @@ impl PyastGenPass.exit_type_alias(nd: uni.TypeAlias) -> None {
         }
     }
     value_ast = cast(ast3.expr, self.py_ast_val(nd.value));
+    if nd.is_distinct {
+        assign = self.sync(
+            ast3.Assign(
+                targets=[self.sync(ast3.Name(id=nd.name.sym_name, ctx=ast3.Store()))],
+                value=value_ast
+            )
+        );
+        nd.gen.py_ast = [assign];
+        return;
+    }
     type_alias = self.sync(
         ast3.TypeAlias(
             name=self.sync(ast3.Name(id=nd.name.sym_name, ctx=ast3.Store())),
@@ -1545,11 +1555,14 @@ impl PyastGenPass.exit_archetype(nd: uni.Archetype) -> None {
             }
         }
     }
+    keywords = [cast(ast3.keyword, self.py_ast_val(k)) for k in nd.keywords]
+        if nd.keywords
+        else [];
     class_def = self.sync(
         ast3.ClassDef(
             name=nd.name.sym_name,
             bases=[cast(ast3.expr, i) for i in base_classes],
-            keywords=[],
+            keywords=keywords,
             body=[cast(ast3.stmt, i) for i in body],
             decorator_list=[cast(ast3.expr, i) for i in decorators],
             type_params=type_param_asts
