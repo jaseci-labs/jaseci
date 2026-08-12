@@ -60,7 +60,10 @@ Bug index:
                 was inserted into that block's scope while bare assignments
                 hoist to the enclosing function, so one variable became two
                 symbols and a reassignment was checked against the first
-                branch's type instead of the declared annotation (#8060)
+                branch's type instead of the declared annotation; the
+                declaration now binds the function local, so its annotation
+                also holds after the block and a sibling block redeclaring
+                the name collides with it (#8060)
 """
 
 import os;
@@ -1394,6 +1397,38 @@ test "bug_blockann1_block_scoped_declaration_still_rejects_bad_assignment" {
     assert len(program.errors_had) == 2 , (
         "Bug #BLOCKANN-1: an assignment outside the declared annotation must "
         "still be reported for block-scoped declarations. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #BLOCKANN-1, scoping consequences: because the declaration now lands
+# in the enclosing function, two shapes that were silently accepted while it
+# was stranded on the block scope are diagnosed.
+#
+#   1. The annotation outlives its block. `if c { z: int = 1; }` then
+#      `z = "oops";` after the block: `z` is a function local of type int,
+#      so the str is rejected. Jac has no block scope for locals, so the
+#      name was always live there; only its declared type was being lost.
+#   2. Sibling blocks declaring the same name are one variable. The first
+#      declaration owns the symbol and the second is checked against it.
+#
+# Shape 2 is reported today as an assignment failure at the second
+# declaration (E1001). The language reference specifies a redeclaration
+# diagnostic for "typed declaration after the name is already bound in this
+# scope" (E0064), whose trigger is currently limited to names that rebind an
+# *outer* binding, so the code is a known imprecision; the verdict (this is
+# an error) is what this test pins.
+# =========================================================================
+test "bug_blockann1_block_declaration_binds_the_function_local" {
+    program = compile_and_check("checker_bug_block_scoped_annotation_scope.jac");
+
+    # Expected: 2 errors, one per shape. Before the fix: 0, because each
+    # declaration was stranded on its own block scope.
+    assert len(program.errors_had) == 2 , (
+        "Bug #BLOCKANN-1: a block-scoped declaration binds a function local, "
+        "so its annotation constrains the name after the block and a sibling "
+        "block redeclaring it collides. "
         f"Got errors: {[str(e) for e in program.errors_had]}"
     );
 }
