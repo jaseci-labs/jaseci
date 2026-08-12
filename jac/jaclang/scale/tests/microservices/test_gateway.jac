@@ -1509,3 +1509,313 @@ test "bare /jobs (create + list) is forwarded as a built-in route, not 404'd" {
     resp_one = client.get("/jobs/abc123");
     assert resp_one.status_code == 503;
 }
+
+import socket;
+import threading;
+
+
+def _http_response(status: int, body: str) -> bytes {
+    reason = {200: "OK", 404: "Not Found"}.get(status, "Error");
+    payload = body.encode("utf-8");
+    head = (
+        f"HTTP/1.1 {status} {reason}\r\n"
+        + "Content-Type: application/json\r\n"
+        + f"Content-Length: {len(payload)}\r\n"
+        + "Connection: close\r\n\r\n"
+    );
+    return head.encode("latin-1") + payload;
+}
+
+
+def _start_backend(hits: dict, routes: dict) -> tuple {
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+    srv.bind(("127.0.0.1", 0));
+    srv.listen(8);
+    port = srv.getsockname()[1];
+
+    def serve {
+        while True {
+            try {
+                (conn, _addr) = srv.accept();
+            } except OSError {
+                return;
+            }
+            try {
+                raw = conn.recv(65536);
+                line = raw.split(b"\r\n")[0].decode("latin-1");
+                parts = line.split(" ");
+                method = parts[0] if parts else "";
+                target = parts[1].split("?")[0] if len(parts) > 1 else "";
+                key = f"{method} {target}";
+                hits[key] = hits.get(key, 0) + 1;
+                (status, body) = routes.get(key, (404, '{"detail": "nope"}'));
+                conn.sendall(_http_response(status, body));
+                conn.close();
+            } except OSError {
+                ;
+            }
+        }
+    }
+    t = threading.Thread(target=serve, daemon=True);
+    t.start();
+    return (srv, port);
+}
+
+
+def _stop_backend(srv: any) {
+    try {
+        srv.close();
+    } except OSError {
+        ;
+    }
+}
+
+
+def _entry(name: str, prefix: str, port: int) -> ServiceEntry {
+    return ServiceEntry(
+        name=name,
+        file=f"{name}.jac",
+        prefix=prefix,
+        port=port,
+        url=f"http://127.0.0.1:{port}",
+        status=ServiceStatus.HEALTHY
+    );
+}
+
+
+test "walker POST with a learned owner is forwarded only to the owner" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {});
+    (srv_b, port_b) = _start_backend(
+        hits_b, {"POST /walker/create_user": (200, '{"ok": true}')}
+    );
+    try {
+        reg = ServiceRegistry();
+        reg.register(_entry("svc_a", "/api/a", port_a));
+        reg.register(_entry("svc_b", "/api/b", port_b));
+        gw = MicroserviceGateway(registry=reg);
+        gw.setup();
+        gw.route_table.learn("svc_b", ["/walker/create_user"]);
+
+        import from jaclang.runtimelib.serving.testing {
+            ServingTestClient as TestClient
+        }
+        client = TestClient(gw.app);
+        resp = client.post("/walker/create_user", json={"name": "x"});
+
+        assert resp.status_code == 200;
+        assert hits_b.get("POST /walker/create_user", 0) == 1;
+        assert hits_a.get("POST /walker/create_user", 0) == 0 , (
+            f"non-owning service must not receive the body; got {hits_a}"
+        );
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "cold gateway learns walker ownership from openapi before forwarding" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {});
+    (srv_b, port_b) = _start_backend(
+        hits_b,
+        {
+            "GET /openapi.json": (
+                200,
+                '{"paths": {"/walker/create_user": {"post": {}}}}'
+            ),
+            "POST /walker/create_user": (200, '{"ok": true}')
+        }
+    );
+    try {
+        reg = ServiceRegistry();
+        reg.register(_entry("svc_a", "/api/a", port_a));
+        reg.register(_entry("svc_b", "/api/b", port_b));
+        gw = MicroserviceGateway(registry=reg);
+        gw.setup();
+
+        import from jaclang.runtimelib.serving.testing {
+            ServingTestClient as TestClient
+        }
+        client = TestClient(gw.app);
+        resp = client.post("/walker/create_user", json={"name": "x"});
+
+        assert resp.status_code == 200;
+        assert hits_b.get("POST /walker/create_user", 0) == 1;
+        assert hits_a.get("POST /walker/create_user", 0) == 0 , (
+            f"cold start must learn ownership, not fan the body out; got {hits_a}"
+        );
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "unsafe request with unresolvable ownership is delivered at most once" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {});
+    (srv_b, port_b) = _start_backend(hits_b, {});
+    try {
+        reg = ServiceRegistry();
+        reg.register(_entry("svc_a", "/api/a", port_a));
+        reg.register(_entry("svc_b", "/api/b", port_b));
+        gw = MicroserviceGateway(registry=reg);
+        gw.setup();
+
+        import from jaclang.runtimelib.serving.testing {
+            ServingTestClient as TestClient
+        }
+        client = TestClient(gw.app);
+        resp = client.post("/webhook/incoming", json={"payload": 1});
+
+        assert resp.status_code == 404;
+        total = (
+            hits_a.get("POST /webhook/incoming", 0)
+            + hits_b.get("POST /webhook/incoming", 0)
+        );
+        assert total == 1 , (
+            f"unsafe body must reach at most one service, reached {total}"
+        );
+        assert hits_a.get("POST /webhook/incoming", 0) == 1;
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "identity fallthrough POST is delivered at most once" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {});
+    (srv_b, port_b) = _start_backend(hits_b, {});
+    try {
+        reg = ServiceRegistry();
+        reg.register(_entry("svc_a", "/api/a", port_a));
+        reg.register(_entry("svc_b", "/api/b", port_b));
+        gw = MicroserviceGateway(registry=reg);
+        gw.setup();
+
+        import from jaclang.runtimelib.serving.testing {
+            ServingTestClient as TestClient
+        }
+        client = TestClient(gw.app);
+        resp = client.post(
+            "/user/verify-identity", json={"token": "secret", "identity": "x"}
+        );
+
+        total = (
+            hits_a.get("POST /user/verify-identity", 0)
+            + hits_b.get("POST /user/verify-identity", 0)
+        );
+        assert total <= 1 , (
+            f"credential-bearing body must never fan out, reached {total} services"
+        );
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "POST /jobs cross-service discovery is preserved" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {});
+    (srv_b, port_b) = _start_backend(hits_b, {"POST /jobs": (200, '{"job_id": "j1"}')});
+    try {
+        reg = ServiceRegistry();
+        reg.register(_entry("svc_a", "/api/a", port_a));
+        reg.register(_entry("svc_b", "/api/b", port_b));
+        gw = MicroserviceGateway(registry=reg);
+        gw.setup();
+
+        import from jaclang.runtimelib.serving.testing {
+            ServingTestClient as TestClient
+        }
+        client = TestClient(gw.app);
+        resp = client.post("/jobs", json={"name": "nightly"});
+
+        assert resp.status_code == 200;
+        assert hits_a.get("POST /jobs", 0) == 1;
+        assert hits_b.get("POST /jobs", 0) == 1;
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "GET /cl page discovery across services is preserved" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {});
+    (srv_b, port_b) = _start_backend(
+        hits_b, {"GET /cl/dashboard": (200, '{"page": "dashboard"}')}
+    );
+    try {
+        reg = ServiceRegistry();
+        reg.register(_entry("svc_a", "/api/a", port_a));
+        reg.register(_entry("svc_b", "/api/b", port_b));
+        gw = MicroserviceGateway(registry=reg);
+        gw.setup();
+
+        import from jaclang.runtimelib.serving.testing {
+            ServingTestClient as TestClient
+        }
+        client = TestClient(gw.app);
+        resp = client.get("/cl/dashboard");
+
+        assert resp.status_code == 200;
+        assert hits_a.get("GET /cl/dashboard", 0) == 1;
+        assert hits_b.get("GET /cl/dashboard", 0) == 1;
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "stale learned owner is forgotten and falls back single-shot" {
+    hits_a: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {});
+    try {
+        reg = ServiceRegistry();
+        reg.register(_entry("svc_a", "/api/a", port_a));
+        gw = MicroserviceGateway(registry=reg);
+        gw.setup();
+        gw.route_table.learn("ghost", ["/walker/vanished"]);
+
+        import from jaclang.runtimelib.serving.testing {
+            ServingTestClient as TestClient
+        }
+        client = TestClient(gw.app);
+        resp = client.post("/walker/vanished", json={});
+
+        assert resp.status_code == 404;
+        assert hits_a.get("POST /walker/vanished", 0) == 1;
+        assert "/walker/vanished" not in gw.route_table.prefixes();
+    } finally {
+        _stop_backend(srv_a);
+    }
+}
+
+
+test "learn skips bare builtin API roots so one service cannot capture them" {
+    table = gw_route_table_for_poison_test();
+    assert table.prefixes() == {};
+}
+
+
+def gw_route_table_for_poison_test -> any {
+    import from jaclang.scale.runtime.gateway.route_table { ServiceRouteTable }
+    table = ServiceRouteTable();
+    table.learn("core_app", ["/walker/{name}", "/function/{name}", "/webhook/{n}"]);
+    return table;
+}

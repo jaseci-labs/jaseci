@@ -4,7 +4,8 @@ import from jaclang.runtimelib.serving.ws { WebSocket }
 import from jaclang.runtimelib.serving.endpoint { WSEndPoint }
 import from jaclang.scale.runtime.routing {
     GATEWAY_BUILTIN_PREFIXES,
-    GATEWAY_BARE_API_PATHS
+    GATEWAY_BARE_API_PATHS,
+    GATEWAY_DISCOVERY_SEGMENTS
 }
 
 
@@ -237,7 +238,9 @@ impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
 }
 
 glob _BUILTIN_PREFIXES: tuple = GATEWAY_BUILTIN_PREFIXES,
-     _BUILTIN_EXACT: set[str] = GATEWAY_BARE_API_PATHS;
+     _BUILTIN_EXACT: set[str] = GATEWAY_BARE_API_PATHS,
+     _DISCOVERY_SEGMENTS: set[str] = set(GATEWAY_DISCOVERY_SEGMENTS),
+     _SAFE_METHODS: set[str] = {"GET", "HEAD", "OPTIONS"};
 
 impl MicroserviceGateway.build_forward_headers(request: Request) -> dict[str, str] {
     import from jaclang.scale.runtime.context.trace_ctx {
@@ -373,6 +376,52 @@ impl MicroserviceGateway.handle_builtin_passthrough(
         }
     }
 
+    import from jaclang.scale.runtime.gateway.dispatch { is_gateway_owned }
+
+    stripped: str = path.strip("/");
+    first_seg: str = stripped.split("/")[0] if stripped else "";
+    if first_seg in _DISCOVERY_SEGMENTS or request.method in _SAFE_METHODS {
+        return await self.fanout_discovery(request, path, True);
+    }
+
+    if not is_gateway_owned(path) {
+        owner = await self.resolve_learned_owner(path);
+        if owner is not None {
+            query: str = str(request.url.query);
+            target_url: str = f"{self.service_base_url(owner)}{path}";
+            if query {
+                target_url = f"{target_url}?{query}";
+            }
+            logger.info(f"Passthrough owner: {request.method} {path} -> {target_url}");
+            return await self.forward_to(request, owner, target_url);
+        }
+    }
+
+    return await self.fanout_discovery(request, path, False);
+}
+
+impl MicroserviceGateway.resolve_learned_owner(path: str) -> ServiceEntry | None {
+    svc_name: str = self.route_table.owner(path);
+    if not svc_name {
+        if not await self.refresh_app_routes() {
+            return None;
+        }
+        svc_name = self.route_table.owner(path);
+        if not svc_name {
+            return None;
+        }
+    }
+    svc = self.registry.entries.get(svc_name);
+    if svc is None {
+        self.route_table.forget(svc_name);
+        return None;
+    }
+    return svc;
+}
+
+impl MicroserviceGateway.fanout_discovery(
+    request: Request, path: str, allow_probe: bool
+) -> Response {
     fwd_headers = self.build_forward_headers(request);
     body: bytes = request.body;
     query: str = str(request.url.query);
@@ -398,7 +447,7 @@ impl MicroserviceGateway.handle_builtin_passthrough(
                 return service_unavailable(svc_name, "transport_error");
             }
 
-            if fr.status in (404, 405) {
+            if allow_probe and fr.status in (404, 405) {
                 await fr.cleanup();
                 continue;
             }
@@ -486,20 +535,8 @@ impl MicroserviceGateway.refresh_app_routes -> bool {
 impl MicroserviceGateway.handle_app_route(
     request: Request, path: str
 ) -> Response | None {
-    svc_name: str = self.route_table.owner(path);
-    if not svc_name {
-        if not await self.refresh_app_routes() {
-            return None;
-        }
-        svc_name = self.route_table.owner(path);
-        if not svc_name {
-            return None;
-        }
-    }
-
-    svc = self.registry.entries.get(svc_name);
+    svc = await self.resolve_learned_owner(path);
     if svc is None {
-        self.route_table.forget(svc_name);
         return None;
     }
 

@@ -1,11 +1,15 @@
 impl ServiceRouteTable.learn(service_name: str, templates: list[str]) -> list[str] {
     import from jaclang.scale.runtime.gateway.dispatch { is_gateway_owned }
+    import from jaclang.scale.runtime.routing { GATEWAY_API_SEGMENTS }
 
     self.forget(service_name);
     clashes: list[str] = [];
     for template in templates {
         prefix: str = literal_prefix(str(template));
         if not prefix or is_gateway_owned(prefix) {
+            continue;
+        }
+        if prefix.strip("/") in GATEWAY_API_SEGMENTS {
             continue;
         }
         held: str = self._owner_of.get(prefix, "");

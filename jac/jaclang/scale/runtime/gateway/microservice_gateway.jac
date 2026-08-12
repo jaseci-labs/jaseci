@@ -68,6 +68,11 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
         request: Request, path: str
     ) -> Response | None;
 
+    async def resolve_learned_owner(path: str) -> ServiceEntry | None;
+    async def fanout_discovery(
+        request: Request, path: str, allow_probe: bool
+    ) -> Response;
+
     def handle_admin(path: str) -> Response | None;
     async def handle_proxy(request: Request, path: str) -> Response | None;
     async def handle_app_route(request: Request, path: str) -> Response | None;

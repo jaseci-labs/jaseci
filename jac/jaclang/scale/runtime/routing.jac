@@ -41,7 +41,8 @@ def _derive_builtin_prefixes -> tuple {
 glob GATEWAY_BUILTIN_PREFIXES: tuple = _derive_builtin_prefixes(),
      GATEWAY_BARE_API_PATHS: set[str] = {
          f"/{seg}" for seg in GATEWAY_BARE_API_SEGMENTS
-     };
+     },
+     GATEWAY_DISCOVERY_SEGMENTS: tuple = ("jobs", "cl");
 
 
 def service_slug(module_name: str) -> str {
