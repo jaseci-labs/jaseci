@@ -197,8 +197,9 @@ def compute_module_key(source_path: str) -> str {
     h.update(schema_digest().encode());
     h.update(_module_client_kind(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
-    import from jaclang.jac0core.placement_pins { pins_digest }
+    import from jaclang.jac0core.placement_pins { pins_digest, config_kind_space }
     h.update(pins_digest(source_path).encode());
+    h.update(config_kind_space(source_path).encode());
     import from jaclang.jac0core.service_cut { cut_digest }
     h.update(cut_digest(source_path).encode());
     import from jaclang.jac0core.compile_options { effective_codegen_fingerprint }
