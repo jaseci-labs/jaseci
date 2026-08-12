@@ -1,5 +1,6 @@
 import os;
 import pathlib;
+import threading;
 import from jaclang.cli.registry { get_registry }
 import from jaclang.cli.command { Arg, ArgKind }
 import from jaclang.cli.console { console }
@@ -204,7 +205,18 @@ def _print_deployment_status(status_data: dict) -> None {
 }
 
 glob registry = get_registry(),
-     _sv_sibling_procs: dict[str, any] = {};
+     _sv_sibling_procs: dict[str, any] = {},
+     _sv_spawn_locks: dict[str, any] = {},
+     _sv_spawn_guard = threading.Lock();
+
+def _sv_spawn_lock(module_name: str) -> any {
+    with _sv_spawn_guard {
+        if module_name not in _sv_spawn_locks {
+            _sv_spawn_locks[module_name] = threading.Lock();
+        }
+        return _sv_spawn_locks[module_name];
+    }
+}
 
 def stop_sv_sibling(module_name: str, timeout: float = 10.0) -> bool {
     proc = _sv_sibling_procs.pop(module_name, None);
@@ -684,73 +696,73 @@ class JacScalePlugin {
             );
         }
 
-        port: int = pick_free_port(module_name);
-        base_url: str = f"http://127.0.0.1:{port}";
-
-        child_env = dict(os.environ);
-        child_env["JAC_SV_SIBLING"] = "1";
-
-        cmd = [jac_executable()]
-            + sv_client.headless_start_args(str(module_file), port);
-
-        log_dir = base_dir / '.jac' / 'logs';
-        log_dir.mkdir(parents=True, exist_ok=True);
-        log_path = log_dir / f"{module_name}.log";
-        log_file = open(log_path, 'ab');
-        try {
-            proc = subprocess.Popen(
-                cmd,
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                env=child_env,
-                cwd=str(base_dir)
-            );
-        } finally {
-            log_file.close();
-        }
-        _sv_sibling_procs[module_name] = proc;
-
-        def _log_size -> int {
+        with _sv_spawn_lock(module_name) {
+            if module_name in sv_client._registry {
+                return;
+            }
+            port: int = pick_free_port(module_name);
+            base_url: str = f"http://127.0.0.1:{port}";
+            child_env = dict(os.environ);
+            child_env["JAC_SV_SIBLING"] = "1";
+            cmd = [jac_executable()]
+                + sv_client.headless_start_args(str(module_file), port);
+            log_dir = base_dir / '.jac' / 'logs';
+            log_dir.mkdir(parents=True, exist_ok=True);
+            log_path = log_dir / f"{module_name}.log";
+            log_file = open(log_path, 'ab');
             try {
-                return log_path.stat().st_size;
-            } except OSError {
-                return -1;
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    env=child_env,
+                    cwd=str(base_dir)
+                );
+            } finally {
+                log_file.close();
             }
-        }
-
-        budget: float = boot_health_timeout();
-        healthy = wait_for_health(
-            base_url,
-            lambda { proc.poll() is None; },
-            timeout=budget,
-            progress=_log_size
-        );
-        if not healthy {
-            exit_code = proc.poll();
-            if exit_code is None {
-                detail = f"stopped making progress for {budget:.0f}s while starting up";
-            } else {
-                detail = f"exited with status {exit_code} before serving";
+            _sv_sibling_procs[module_name] = proc;
+            def _log_size -> int {
+                try {
+                    return log_path.stat().st_size;
+                } except OSError {
+                    return -1;
+                }
             }
-            stop_sv_sibling(module_name);
-            raise RuntimeError(
-                f"sv-to-sv service '{module_name}' {detail}; "
-                f"expected it at {base_url}. See {log_path} for its output"
-                    + (
-                        ""
-                            if exit_code is not None
-                            else "; raise [scale.microservices] boot_health_timeout if it "
-                            "needs longer"
-                    )
+            budget: float = boot_health_timeout();
+            healthy = wait_for_health(
+                base_url,
+                lambda { proc.poll() is None; },
+                timeout=budget,
+                progress=_log_size
             );
+            if not healthy {
+                exit_code = proc.poll();
+                if exit_code is None {
+                    detail = (
+                        f"stopped making progress for {budget:.0f}s while starting up"
+                    );
+                } else {
+                    detail = f"exited with status {exit_code} before serving";
+                }
+                stop_sv_sibling(module_name);
+                raise RuntimeError(
+                    f"sv-to-sv service '{module_name}' {detail}; "
+                    f"expected it at {base_url}. See {log_path} for its output"
+                        + (
+                            ""
+                                if exit_code is not None
+                                else "; raise [scale.microservices] boot_health_timeout "
+                                "if it needs longer"
+                        )
+                );
+            }
+            sv_client.register(module_name, base_url);
+            def _cleanup {
+                stop_sv_sibling(module_name);
+            }
+            atexit.register(_cleanup);
         }
-
-        sv_client.register(module_name, base_url);
-
-        def _cleanup {
-            stop_sv_sibling(module_name);
-        }
-        atexit.register(_cleanup);
     }
 
     static def get_sv_registry -> dict[str, str] {

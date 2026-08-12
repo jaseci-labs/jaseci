@@ -46,6 +46,22 @@ glob _DEAD_PEER_SRC: str = 'with entry {\n'
      '    return 1;\n'
      '}\n';
 
+# Appends its own pid on module entry, so the file counts how many child
+# processes were actually started regardless of which one won the port.
+glob _PID_PEER_SRC: str = 'import os;\n'
+     'import time;\n'
+     '\n'
+     'with entry {\n'
+     '    with open("spawn_pids.txt", "a") as f {\n'
+     '        f.write(str(os.getpid()) + "\\n");\n'
+     '    }\n'
+     '    time.sleep(3.0);\n'
+     '}\n'
+     '\n'
+     'def:pub ping() -> int {\n'
+     '    return 1;\n'
+     '}\n';
+
 
 def _make_project(module_name: str, source: str, budget: float | None) -> str {
     project_dir = tempfile.mkdtemp(prefix="jac-sv-budget-");
@@ -92,6 +108,41 @@ test "a slow-booting sv-to-sv service comes up within the configured budget" {
         assert elapsed > _SLOW_BOOT_SECONDS , (
             f"came up in {elapsed:.1f}s, faster than the module's own "
             f"{_SLOW_BOOT_SECONDS}s sleep - the fixture is not exercising a slow boot"
+        );
+    } finally {
+        _teardown(module_name, project_dir);
+    }
+}
+
+
+test "concurrent first calls to one service spawn exactly one sibling" {
+    import from concurrent.futures { ThreadPoolExecutor }
+    module_name = "svbudget_pid_peer";
+    project_dir = _make_project(module_name, _PID_PEER_SRC, _BUDGET_SECONDS);
+    try {
+        def _one(_i: int) -> str {
+            JacScalePlugin.ensure_sv_service(module_name, project_dir);
+            return sv_client._registry.get(module_name, "");
+        }
+        executor = ThreadPoolExecutor(max_workers=2);
+        try {
+            urls = list(executor.map(_one, range(2)));
+        } finally {
+            executor.shutdown(wait=True);
+        }
+        assert all([u for u in urls]) , f"a caller returned unregistered: {urls}";
+        assert len(set(urls)) == 1 , f"callers registered different URLs: {urls}";
+
+        pid_file = Path(project_dir) / "spawn_pids.txt";
+        pids = [
+            line
+            for line in pid_file.read_text().splitlines()
+            if line.strip()
+        ];
+        assert len(pids) == 1 , (
+            f"{len(pids)} service processes were started for one module "
+            f"(pids {pids}); concurrent first calls must share one spawn, or the "
+            "loser's process leaks with no handle left to stop it"
         );
     } finally {
         _teardown(module_name, project_dir);
