@@ -57,9 +57,9 @@ def static_store_runtime_lookup -> int {
 def set_static_runtime_membership -> int {
     s: set[str] = {"px", "", "ünïcode"};
     total = 0;
-    total += (1 if make_key("p", "x") in s else 0);
-    total += (10 if make_key("", "") in s else 0);
-    total += (100 if make_key("ünï", "code") in s else 0);
+    total += 1 if make_key("p", "x") in s else 0;
+    total += 10 if make_key("", "") in s else 0;
+    total += 100 if make_key("ünï", "code") in s else 0;
     return total;
 }
 

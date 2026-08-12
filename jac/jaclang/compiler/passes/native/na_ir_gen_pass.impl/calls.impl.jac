@@ -648,9 +648,7 @@ impl NaIRGenPass._codegen_kwargs_dict(
                     _skip_dv,
                     self._make_global_string(_br["name"], name_prefix=".kwname"),
                     self._default_arg_fallback(helpers["val_type"]),
-                    ir.Constant(
-                        ir.IntType(64), self._static_str_hash(_br["name"])
-                    )
+                    ir.Constant(ir.IntType(64), self._static_str_hash(_br["name"]))
                 ],
                 op="dict_init",
                 loc=_loc
@@ -712,9 +710,7 @@ impl NaIRGenPass._codegen_kwargs_dict(
 
         for _rec in (bind_records or []) {
             _kg = self._make_global_string(_rec["name"], name_prefix=".kwname");
-            _rkh = ir.Constant(
-                ir.IntType(64), self._static_str_hash(_rec["name"])
-            );
+            _rkh = ir.Constant(ir.IntType(64), self._static_str_hash(_rec["name"]));
             _has = self.builder.call(
                 helpers["contains_ph"], [sv, _kg, _rkh], name="kwbind.has"
             );

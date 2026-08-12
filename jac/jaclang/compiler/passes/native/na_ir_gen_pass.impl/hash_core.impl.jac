@@ -597,9 +597,7 @@ impl NaIRGenPass._emit_hash_core_helpers(
     pop_fn: any = None;
     if has_vals {
         pop_fnty = ir.FunctionType(val_type, [cont_ptr_type, key_type, i64]);
-        pop_fn = ir.Function(
-            self.llvm_module, pop_fnty, name=f"{_pre}_pop_ph_{_safe}"
-        );
+        pop_fn = ir.Function(self.llvm_module, pop_fnty, name=f"{_pre}_pop_ph_{_safe}");
         pop_fn.linkage = "private";
         pop_fn.args[0].name = "cont";
         pop_fn.args[1].name = "key";
@@ -916,9 +914,7 @@ impl NaIRGenPass._emit_hash_core_helpers(
     }
     for (_wkey, _wop, _wcore) in _pub_specs {
         _w_args = [a.type for a in _wcore.args];
-        _wfnty = ir.FunctionType(
-            _wcore.function_type.return_type, _w_args[:-1]
-        );
+        _wfnty = ir.FunctionType(_wcore.function_type.return_type, _w_args[:-1]);
         _wfn: any = ir.Function(
             self.llvm_module, _wfnty, name=f"{_pre}_{_wop}_{_safe}"
         );
