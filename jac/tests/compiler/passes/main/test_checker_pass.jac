@@ -5687,3 +5687,42 @@ test "bare_list_flow_inference" {
         )}";
     }
 }
+
+test "none_equality_not_flagged" {
+    # `==` / `!=` never fail to resolve in Python (object.__eq__ is the
+    # universal identity fallback), so None-equality must not raise E1110.
+    # typeshed's NoneType has no __eq__, which previously made every
+    # `x == None` an error and steered users toward `is None` (#7922).
+    program = JacProgram();
+    path = os.path.join(CHECKER_FIXTURES, "checker_none_equality.jac");
+    mod = program.compile(path, options=NO_TC);
+    TypeCheckPass(ir_in=mod, prog=program);
+    eq_errors = [
+        e
+        for e in program.errors_had
+        if "not supported between" in str(e)
+    ];
+    assert not eq_errors , (
+        "None equality must type-check; got: " + str([str(e) for e in eq_errors])
+    );
+}
+
+test "match_wildcard_no_warning_noise" {
+    # `case _:` is a binder, not an expression read: it must not draw
+    # W2001 ("may be undefined") from static analysis or W1051 (unknown
+    # expression type) from the checker (#7922).
+    program = JacProgram();
+    path = os.path.join(CHECKER_FIXTURES, "checker_match_wildcard.jac");
+    mod = program.compile(path, options=NO_TC);
+    TypeCheckPass(ir_in=mod, prog=program);
+    noise = [
+        w
+        for w in program.warnings_had
+        if ("'_'" in str(w))
+            or ("may be undefined" in str(w))
+            or ("could not be resolved" in str(w))
+    ];
+    assert not noise , (
+        "case _ must not draw warning noise; got: " + str([str(w) for w in noise])
+    );
+}

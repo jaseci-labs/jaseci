@@ -1192,10 +1192,7 @@ impl ESListEmitter.emit_op_imul(
 impl ESDictEmitter.emit_get(
     self, ctx: ESEmitCtx, target: str, args: list[str]
 ) -> (str | None) {
-    if len(args) == 1 {
-        return "(" + target + "[" + args[0] + "] ?? undefined)";
-    }
-    return "(" + target + "[" + args[0] + "] ?? " + args[1] + ")";
+    return _rt("dict", "get", [target] + args);
 }
 
 impl ESDictEmitter.emit_keys(
@@ -1703,7 +1700,21 @@ impl ESBuiltinEmitter.emit_input(
 }
 
 impl ESBuiltinEmitter.emit_len(self, ctx: ESEmitCtx, args: list[str]) -> (str | None) {
-    return args[0] + ".length";
+    if not args {
+        return None;
+    }
+
+    arg_type = (ctx.arg_type_names or [""])[0] if ctx.arg_type_names else "";
+    if arg_type == "dict" {
+        return "Object.keys(" + args[0] + ").length";
+    }
+    if arg_type in ("set", "frozenset") {
+        return args[0] + ".size";
+    }
+    if arg_type in ("str", "list", "tuple", "bytes", "bytearray", "range") {
+        return args[0] + ".length";
+    }
+    return _rt("builtin", "len", args);
 }
 
 impl ESBuiltinEmitter.emit_abs(self, ctx: ESEmitCtx, args: list[str]) -> (str | None) {
