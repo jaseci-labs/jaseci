@@ -42,6 +42,17 @@ def _breaker_holds_probe(st: dict, probe: int) -> bool {
         and st.get("probe") == probe;
 }
 
+def _breaker_verdict_is_current(st: dict, probe: int) -> bool {
+    state = st.get("state", "CLOSED");
+    if state == "HALF_OPEN" {
+        return _breaker_holds_probe(st, probe);
+    }
+    if state == "OPEN" {
+        return False;
+    }
+    return probe == _BREAKER_NO_PROBE;
+}
+
 def _breaker_is_shedding(st: dict, now: float) -> bool {
     state = st.get("state", "CLOSED");
     if state == "OPEN" {
@@ -96,7 +107,7 @@ def breaker_record_success(provider: str, probe: int = _BREAKER_NO_PROBE) {
             _breaker_state[provider] = _breaker_new_state();
             return;
         }
-        if st.get("state") == "CLOSED" or _breaker_holds_probe(st, probe) {
+        if _breaker_verdict_is_current(st, probe) {
             _breaker_close(st);
         }
     }
@@ -105,18 +116,22 @@ def breaker_record_success(provider: str, probe: int = _BREAKER_NO_PROBE) {
 def breaker_record_failure(provider: str, probe: int = _BREAKER_NO_PROBE) {
     import time;
     with _breaker_lock {
-        st = _breaker_state.get(provider) or _breaker_new_state();
-        if st.get("state") == "HALF_OPEN" {
-            if _breaker_holds_probe(st, probe) {
-                _breaker_open(st, time.time());
-            }
-        } else {
-            st["fails"] = st.get("fails", 0) + 1;
-            if st["fails"] >= _BREAKER_TRIP_THRESHOLD {
-                _breaker_open(st, time.time());
-            }
+        st = _breaker_state.get(provider);
+        if st is None {
+            st = _breaker_new_state();
+            _breaker_state[provider] = st;
         }
-        _breaker_state[provider] = st;
+        if not _breaker_verdict_is_current(st, probe) {
+            return;
+        }
+        if st.get("state") == "HALF_OPEN" {
+            _breaker_open(st, time.time());
+            return;
+        }
+        st["fails"] = st.get("fails", 0) + 1;
+        if st["fails"] >= _BREAKER_TRIP_THRESHOLD {
+            _breaker_open(st, time.time());
+        }
     }
 }
 

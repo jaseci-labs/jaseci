@@ -641,6 +641,53 @@ test "a stale probe success does not close the breaker around a live probe" {
     _breaker_reset(mod);
 }
 
+"""Retire a probe by expiring it and letting its replacement succeed."""
+def _strand_probe(mod: str) -> int {
+    stale_probe = _take_probe(mod);
+    _breaker_force_probe_expired(mod);
+    (reclaimed, fresh_probe) = breaker_admit(mod);
+    assert reclaimed and fresh_probe != stale_probe;
+    breaker_record_success(mod, fresh_probe);
+    return stale_probe;
+}
+
+test "a stale probe failure does not count toward the trip threshold" {
+    mod = "breaker_stale_failure_test";
+    _trip_breaker(mod);
+    stale_probe = _strand_probe(mod);
+
+    st = _breaker_peek(mod);
+    assert st is not None and st["state"] == "CLOSED" and st["fails"] == 0;
+
+    breaker_record_failure(mod, stale_probe);
+    st = _breaker_peek(mod);
+    assert st is not None and st["fails"] == 0 , (
+        "a stale probe failure was counted as a current failure"
+    );
+
+    _breaker_reset(mod);
+}
+
+test "a stale probe success does not erase current failures" {
+    mod = "breaker_stale_success_clear_test";
+    _trip_breaker(mod);
+    stale_probe = _strand_probe(mod);
+
+    for _ in range(_BREAKER_TRIP_THRESHOLD - 1) {
+        breaker_record_failure(mod);
+    }
+    st = _breaker_peek(mod);
+    assert st is not None and st["fails"] == _BREAKER_TRIP_THRESHOLD - 1;
+
+    breaker_record_success(mod, stale_probe);
+    st = _breaker_peek(mod);
+    assert st is not None and st["fails"] == _BREAKER_TRIP_THRESHOLD - 1 , (
+        "a stale probe success erased current failures"
+    );
+
+    _breaker_reset(mod);
+}
+
 test "a success from before the breaker opened does not cancel the cooldown" {
     mod = "breaker_straggler_success_test";
     _breaker_reset(mod);
