@@ -489,11 +489,25 @@ def _opt_ctype(payload_type: str) -> type {
     return cls;
 }
 
+"""ctypes mirrors of the native structs, keyed by archetype name.
+
+A field's `index` is its slot in the LLVM struct, and the named fields do not
+cover every slot: the vtable pointer, and an OSP type tag, sit ahead of them
+and belong to no `has`. Each is one machine word, so an unnamed slot is
+mirrored by a `c_void_p` filler. Without it every field past the gap reads its
+neighbour, which is a silently wrong value rather than a failure.
+"""
 def build_ctypes_classes(layout: any) -> dict {
     classes: dict = {};
     for (name, struct_layout) in layout.structs.items() {
         fields: list = [];
+        next_slot = 0;
         for f in struct_layout.fields {
+            while next_slot < f.index {
+                fields.append((f"__slot{next_slot}", ctypes.c_void_p, ));
+                next_slot += 1;
+            }
+            next_slot = f.index + 1;
             if f.is_func_ptr {
                 ct = ctypes.c_void_p;
             } elif f.llvm_type.startswith("opt.") {
