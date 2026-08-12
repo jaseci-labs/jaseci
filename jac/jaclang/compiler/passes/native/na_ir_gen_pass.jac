@@ -479,6 +479,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.FuncCall, operand: ir.Value, names: list[str]
     ) -> (ir.Value | None);
 
+    def _emit_isinstance_core(
+        nd: uni.FuncCall, operand: ir.Value
+    ) -> (ir.Value | None);
+
     def _emit_isinstance_mixed(
         nd: uni.FuncCall, operand: ir.Value, tags: list[int], names: list[str]
     ) -> (ir.Value | None);
@@ -537,8 +541,30 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _codegen_kwargs_dict(
-        nd: uni.FuncCall, leftover: dict, expected: (ir.Type | None)
+        nd: uni.FuncCall,
+        leftover: dict,
+        expected: (ir.Type | None),
+        order: (list | None) = None,
+        bind_records: (list | None) = None
     ) -> (ir.Value | None);
+
+    def _merge_dict_into(
+        dst: ir.Value,
+        src: ir.Value,
+        helpers: dict,
+        dict_key: str,
+        loc: str,
+        skip_keys: (ir.Value | None) = None
+    ) -> bool;
+
+    def _prep_kwbind_record(
+        name: str,
+        slot_type: ir.Type,
+        args_idx: int,
+        stored: ir.Value,
+        bound_kind: (str | None),
+        required_kind: (str | None)
+    ) -> dict;
 
     def _default_arg_fallback(t: ir.Type) -> ir.Value;
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
@@ -1149,6 +1175,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
         layout: dict
     ) -> dict;
 
+    def _static_str_hash(key: str) -> int;
+    def _static_key_hash_of(key_node: (uni.UniNode | None)) -> (int | None);
+    def _static_key_op(
+        helpers: dict, op: str, key_node: (uni.UniNode | None)
+    ) -> tuple;
+
     def _emit_order_scan_incr_block(
         b: ir.IRBuilder,
         idx_slot: ir.Value,
@@ -1162,7 +1194,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Value;
     def _codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None);
     def _codegen_dict_access(
-        target_val: ir.Value, key_val: ir.Value, key_type_name: str, val_type_name: str
+        target_val: ir.Value,
+        key_val: ir.Value,
+        key_type_name: str,
+        val_type_name: str,
+        key_node: (uni.UniNode | None) = None
     ) -> (ir.Value | None);
 
     def _codegen_dict_set(
@@ -1170,7 +1206,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         key_val: ir.Value,
         value: ir.Value,
         key_type_name: str,
-        val_type_name: str
+        val_type_name: str,
+        key_node: (uni.UniNode | None) = None
     ) -> None;
 
     def _infer_dict_type(val: ir.Value) -> (tuple | None);

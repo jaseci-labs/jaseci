@@ -186,6 +186,32 @@ def is_annex(path: str) -> bool:
     return path.endswith(ANNEX_SUFFIXES)
 
 
+def is_annex_path_of(candidate_path: str, base_path: str) -> bool:
+    """True when ``candidate_path`` is annex-shaped relative to ``base_path``.
+
+    A pure path predicate (no filesystem access, so it also matches annexes
+    that were deleted): for base ``/a/foo.jac`` it accepts ``/a/foo.impl.jac``,
+    dotted variants like ``/a/foo.x.impl.jac``, and anything under the
+    module-scoped annex folders ``/a/foo.impl/`` and ``/a/foo.test/``. An
+    independent dotted-name sibling such as ``/a/foo.bar.jac`` is rejected.
+    Derived from ``ANNEX_FOLDER``; both paths must be normalized alike.
+    """
+    stem = (
+        base_path[: -len(JAC_SUFFIX)]
+        if base_path.endswith(JAC_SUFFIX)
+        else base_path
+    )
+    if not candidate_path.startswith(stem):
+        return False
+    rest = candidate_path[len(stem) :]
+    if not rest.startswith("."):
+        return False
+    return any(
+        rest.endswith(suffix) or rest.startswith(folder + os.sep)
+        for suffix, folder in ANNEX_FOLDER.items()
+    )
+
+
 def is_impl(path: str) -> bool:
     """True for an ``.impl.jac`` annex file."""
     return path.endswith(IMPL_SUFFIX)
