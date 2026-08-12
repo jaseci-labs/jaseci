@@ -276,18 +276,50 @@ glob NATIVE_SEAL_MODULES: tuple = (
      );
 
 # Waived seams ship as abort stubs, so an entry is sound only for a method the
-# sealed entry points cannot reach. The four below are unitree's frontier,
-# mirrored from `test_unitree_seal_census.jac` (which documents each): one
-# backend gap (#8068: a dict keyed by `type` has no native layout, behind
-# `UniNode._sub_node_tab`'s lazy build) and three methods that call Python-only
-# infrastructure (import resolution through `modresolver`/`codeinfo`, and the
-# type system's `TypeBase.mangle`), none of which a parse ever calls -- the
-# parity corpus and the dlopen canary exercise the artifacts to hold that line.
+# sealed entry points cannot reach. These are unitree's frontier, mirrored from
+# `test_unitree_seal_census.jac`, which documents each one: backend gaps named
+# by the construct they cannot lower (#8068: a dict keyed by `type` has no
+# native layout, behind `UniNode._sub_node_tab`'s lazy build), and methods that
+# call Python-only infrastructure (import resolution through
+# `modresolver`/`codeinfo`, CPython `ast` handles, `eval`, and the type
+# system's `TypeBase.mangle`), none of which a parse ever calls -- the parity
+# corpus and the dlopen canary exercise the artifacts to hold that line.
+#
+# Every `.__get__` entry is a property. #8074 made accessors lower as methods,
+# so these bodies reach the backend for the first time; before it a property
+# read loaded an unwritten data slot, which is why they were invisible rather
+# than absent. A property declared on a non-primary ancestor is re-emitted per
+# concrete class (its body addresses that class's offsets), so one un-lowerable
+# accessor lists once per class that inherits it.
 glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::UniNode._construct_sub_node_tab",
          "jac0core/unitree.jac::ModulePath.resolve_relative_path",
          "jac0core/unitree.jac::ModulePath.native_bundled_path",
          "jac0core/unitree.jac::Ability.event_trigger_type_names",
+         "jac0core/unitree.jac::UniNode.gen.__get__",
+         "jac0core/unitree.jac::Module.annexable_by.__get__",
+         "jac0core/unitree.jac::Import.is_jac.__get__",
+         "jac0core/unitree.jac::Import.__jac_detected.__get__",
+         "jac0core/unitree.jac::Import.is_service_import.__get__",
+         "jac0core/unitree.jac::ModulePath.string_path_value.__get__",
+         "jac0core/unitree.jac::ModulePath.dot_path_str.__get__",
+         "jac0core/unitree.jac::ModulePath.base_module_name.__get__",
+         "jac0core/unitree.jac::FuncSignature.is_in_py_class.__get__",
+         "jac0core/unitree.jac::DeleteStmt.py_ast_targets.__get__",
+         "jac0core/unitree.jac::AstAccessNode.access_type.__get__",
+         "jac0core/unitree.jac::TypeAlias.access_type.__get__",
+         "jac0core/unitree.jac::GlobalVars.access_type.__get__",
+         "jac0core/unitree.jac::Archetype.access_type.__get__",
+         "jac0core/unitree.jac::Enum.access_type.__get__",
+         "jac0core/unitree.jac::Ability.access_type.__get__",
+         "jac0core/unitree.jac::NameAtom.sem_token.__get__",
+         "jac0core/unitree.jac::Name.sem_token.__get__",
+         "jac0core/unitree.jac::SpecialVarRef.sem_token.__get__",
+         "jac0core/unitree.jac::BuiltinType.sem_token.__get__",
+         "jac0core/unitree.jac::String.lit_value.__get__",
+         "jac0core/unitree.jac::MultiString.lit_value.__get__",
+         "jac0core/unitree.jac::BuiltinType.lit_value.__get__",
+         "jac0core/unitree.jac::Ellipsis.lit_value.__get__",
 
      ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
@@ -650,7 +682,9 @@ def seal_native_artifacts(
         reg = ir.gen.layout_registry;
         if reg is not None {
             for bare in allowed_bare {
-                (owner, dot, meth) = bare.rpartition(".");
+                # Split at the first dot: a class name never contains one, but
+                # an accessor's method slot does (`gen.__get__`).
+                (owner, dot, meth) = bare.partition(".");
                 if not dot {
                     continue;
                 }
