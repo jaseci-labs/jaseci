@@ -36,8 +36,20 @@ def chk_node(pick: int) -> bool {
     return isinstance(spec, AccessNode);
 }
 
-"""`UniScopeNode.insert`'s shape: an access spec that is either an already
-resolved member, a node carrying one, or absent."""
+def _rank(resolved: Access) -> int {
+    if resolved == Access.PRIVATE {
+        return 0;
+    }
+    if resolved == Access.PUBLIC {
+        return 1;
+    }
+    return 2;
+}
+
+"""`UniScopeNode.insert`'s shape, with the union joined from assignments: an
+access spec that is either an already resolved member, a node carrying one, or
+absent. A branch assigning `Access.PUBLIC` puts the enum *member* type in the
+union, not the enum class."""
 def resolve_access(pick: int) -> int {
     spec: (Access | AccessNode | None) = None;
     if pick == 1 {
@@ -51,13 +63,30 @@ def resolve_access(pick: int) -> int {
     } elif isinstance(spec, AccessNode) {
         resolved = spec.access_type;
     }
-    if resolved == Access.PRIVATE {
-        return 0;
+    return _rank(resolved);
+}
+
+"""The same resolution with the union *declared on the signature*, which is
+literally `UniScopeNode.insert`'s `access_spec` parameter. Here the union
+carries the enum class rather than a member."""
+def _resolve_param(spec: (Access | AccessNode | None)) -> int {
+    resolved: Access = Access.PRIVATE;
+    if isinstance(spec, Access) {
+        resolved = spec;
+    } elif isinstance(spec, AccessNode) {
+        resolved = spec.access_type;
     }
-    if resolved == Access.PUBLIC {
-        return 1;
+    return _rank(resolved);
+}
+
+def resolve_access_param(pick: int) -> int {
+    spec: (Access | AccessNode | None) = None;
+    if pick == 1 {
+        spec = Access.PUBLIC;
+    } elif pick == 2 {
+        spec = AccessNode();
     }
-    return 2;
+    return _resolve_param(spec);
 }
 
 """bool owns tag 7, so the enum still owns tag 0 alone and the tag compare

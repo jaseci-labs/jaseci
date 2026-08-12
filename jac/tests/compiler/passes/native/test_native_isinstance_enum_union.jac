@@ -92,6 +92,19 @@ test "UniScopeNode.insert's access-spec resolution answers correctly" {
 }
 
 
+test "the same resolution with the union declared on the parameter" {
+    # The two union shapes reach `_enum_union_tags` differently: a branch
+    # assigning `Access.PUBLIC` leaves an EnumMemberType in the joined union,
+    # while a declared parameter leaves the enum ClassType. Both have to
+    # classify as the enum that owns the tag.
+    (eng, _) = compile_native("isinstance_enum_union.jac");
+    f = get_func(eng, "resolve_access_param", ctypes.c_int64, ctypes.c_int64);
+    assert f(1) == 1 , "a bare Access member resolves to itself (PUBLIC)";
+    assert f(2) == 2 , "a node resolves through its access_type (PROTECTED)";
+    assert f(0) == 0 , "an absent spec falls back to the default (PRIVATE)";
+}
+
+
 test "an enum against bool still owns the int tag alone" {
     (eng, _) = compile_native("isinstance_enum_union.jac");
     f = get_func(eng, "chk_enum_over_bool", ctypes.c_bool, ctypes.c_int64);
