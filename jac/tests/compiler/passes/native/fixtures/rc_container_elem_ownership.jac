@@ -32,6 +32,7 @@ glob dropped = 0;
 obj Node {
     has tag: int = 0,
         label: str = "",
+        kids: list[Node] = [],
         parent: (Node | None) = None;
 
     def drop {
@@ -47,6 +48,16 @@ obj Node {
     """Hand back a field -- also a borrow, and a string descriptor slot."""
     def get_label -> str {
         return self.label;
+    }
+
+    """An element indexed out of a field: borrowed through the receiver."""
+    def first_kid -> Node {
+        return self.kids[0];
+    }
+
+    """The same shape where the element slot is a string descriptor."""
+    def first_kid_label -> str {
+        return self.kids[0].label;
     }
 }
 
@@ -257,4 +268,31 @@ def param_elem_drops(n: int) -> int {
     kept = [];
     mid = dropped - before;
     return mid * 1000 + sum_list(src);
+}
+
+# --- the receiver itself, outside any container ---------------------------
+
+"""`return self` on its own: the caller must get a reference of its own."""
+def self_ref_direct(n: int) -> int {
+    owner = Node(tag=100);
+    src = make_src(n);
+    kept = src[0].self_ref(owner);
+    src = [];
+    return kept.tag * 1000 + owner.tag;
+}
+
+"""`return self.kids[i]`: an element reached through the receiver."""
+def kid_elem_return(n: int) -> int {
+    holder = Node(tag=0, kids=make_src(n));
+    k = holder.first_kid();
+    holder.kids = [];
+    return k.tag;
+}
+
+"""The same, where the element is a string descriptor rather than a pointer."""
+def kid_label_return(n: int) -> int {
+    holder = Node(tag=0, kids=make_src(n));
+    s = holder.first_kid_label();
+    holder.kids = [];
+    return len(s);
 }

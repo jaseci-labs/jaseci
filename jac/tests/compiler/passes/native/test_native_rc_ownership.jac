@@ -350,3 +350,29 @@ test "comprehension over a borrowed collection leaves it intact" {
         "releasing the built list destroyed elements the borrowed source held"
     );
 }
+
+test "returning the receiver hands the caller a reference of its own" {
+    # The same `return self` outside any container: `src[0].self_ref(owner)` is
+    # bound to a local, then the list that made the node is dropped. Encoded as
+    # kept.tag * 1000 + owner.tag, so 1100 needs both the element and the owner
+    # its parent field points at; 100 is what a freed element reads back as.
+    (eng, _) = compile_native("rc_container_elem_ownership.jac");
+    assert call_elem_fn(eng, "self_ref_direct", 4) == 1100 , (
+        "the returned receiver did not outlive the list that held it"
+    );
+}
+
+test "returning an element indexed through the receiver still retains it" {
+    # `return self.kids[0]` is the one shape whose retain is decided by a rule
+    # that asks whether the container's root is a slot the frame owns. Making
+    # the receiver a borrow changes that answer, so both element kinds are
+    # pinned: a pointer, and a string descriptor, which the generic
+    # retain-on-return does not cover because it is not a pointer type.
+    (eng, _) = compile_native("rc_container_elem_ownership.jac");
+    assert call_elem_fn(eng, "kid_elem_return", 4) == 1 , (
+        "an object element returned out of a field slot was released early"
+    );
+    assert call_elem_fn(eng, "kid_label_return", 4) == 2 , (
+        "a string element returned out of a field slot was released early"
+    );
+}
