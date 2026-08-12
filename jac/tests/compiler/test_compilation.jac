@@ -5,6 +5,7 @@ fixture files without errors, and test compilation-level behaviour.
 """
 
 import os;
+import from jaclang.jac0core.treeprinter { print_ast_tree }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
@@ -86,7 +87,7 @@ test "double format issue" {
 
 test "multiline single tok" {
     mypass = JacProgram().compile(os.path.join(LANG_FIXTURES, "byllmissue.jac"));
-    assert "2:5 - 4:8" in mypass.pp();
+    assert "2:5 - 4:8" in print_ast_tree(mypass);
 }
 
 test "annotation tuple issue" {

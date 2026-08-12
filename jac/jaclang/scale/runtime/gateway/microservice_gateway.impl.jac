@@ -2,6 +2,10 @@ import shutil;
 
 import from jaclang.runtimelib.serving.ws { WebSocket }
 import from jaclang.runtimelib.serving.endpoint { WSEndPoint }
+import from jaclang.scale.runtime.routing {
+    GATEWAY_BUILTIN_PREFIXES,
+    GATEWAY_BARE_API_PATHS
+}
 
 
 def _install_ws_catchall(gw: MicroserviceGateway) {
@@ -232,19 +236,8 @@ impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
     return Response(content=target.read_bytes(), media_type=content_type);
 }
 
-glob _BUILTIN_PREFIXES: tuple = (
-         "/user/",
-         "/cl/",
-         "/walker/",
-         "/function/",
-         "/sso/",
-         "/api-key/",
-         "/webhook/",
-         "/ws/",
-         "/jobs/",
-         "/graph/"
-     ),
-     _BUILTIN_EXACT: set[str] = {"/user", "/graph", "/jobs"};
+glob _BUILTIN_PREFIXES: tuple = GATEWAY_BUILTIN_PREFIXES,
+     _BUILTIN_EXACT: set[str] = GATEWAY_BARE_API_PATHS;
 
 impl MicroserviceGateway.build_forward_headers(request: Request) -> dict[str, str] {
     import from jaclang.scale.runtime.context.trace_ctx {

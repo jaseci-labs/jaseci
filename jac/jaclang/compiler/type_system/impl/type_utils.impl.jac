@@ -219,7 +219,7 @@ impl collect_member_syms(
             return here;
         }
         for kid in s.kid_scope {
-            if isinstance(kid, uni.UniScopeNode.get_python_scoping_nodes()) {
+            if uni.UniScopeNode.is_python_scoping(kid) {
                 continue;
             }
             if isinstance(kid, (uni.ElseStmt, uni.ElseIf))

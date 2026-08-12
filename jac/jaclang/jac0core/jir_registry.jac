@@ -1237,7 +1237,8 @@ glob NODE_SPECS: tuple = (
                  FieldDesc(name="stub_only", kind=2),
                  FieldDesc(name="src_terminals", kind=5),
                  FieldDesc(name="is_raised_from_py", kind=2),
-                 FieldDesc(name="decided_codespace", kind=0)
+                 FieldDesc(name="decided_codespace", kind=0),
+                 FieldDesc(name="parse_failed", kind=2)
              )
          ),
          NodeSpec(

@@ -128,20 +128,21 @@ impl NaIRGenPass._emit_hash_core_helpers(
         }
     }
 
-    find_fnty = ir.FunctionType(i64, [cont_ptr_type, key_type]);
+    find_fnty = ir.FunctionType(i64, [cont_ptr_type, key_type, i64]);
     find_fn: any = ir.Function(
-        self.llvm_module, find_fnty, name=f"{_pre}_find_{_safe}"
+        self.llvm_module, find_fnty, name=f"{_pre}_find_ph_{_safe}"
     );
     find_fn.linkage = "private";
     find_fn.args[0].name = "cont";
     find_fn.args[1].name = "key";
+    find_fn.args[2].name = "h";
     bf = ir.IRBuilder(find_fn.append_basic_block("entry"));
     d_f = find_fn.args[0];
     k_f = find_fn.args[1];
     slot_a = bf.alloca(i64, name="slot");
     itomb_a = bf.alloca(i64, name="itomb");
 
-    hf = bf.call(hash_fn, [k_f], name="h");
+    hf = find_fn.args[2];
     h2r = bf.lshr(hf, ir.Constant(i64, 57), name="h2r");
     h27 = bf.and_(h2r, ir.Constant(i64, 0x7F), name="h27");
     h2o = bf.or_(h27, ir.Constant(i64, 0x80), name="h2o");
@@ -367,12 +368,12 @@ impl NaIRGenPass._emit_hash_core_helpers(
     brf.ret_void();
 
     _ins_op = "set" if has_vals else "add";
-    _ins_args = [cont_ptr_type, key_type, val_type]
+    _ins_args = [cont_ptr_type, key_type, val_type, i64]
         if has_vals
-        else [cont_ptr_type, key_type];
+        else [cont_ptr_type, key_type, i64];
     ins_fnty = ir.FunctionType(ir.VoidType(), _ins_args);
     ins_fn: any = ir.Function(
-        self.llvm_module, ins_fnty, name=f"{_pre}_{_ins_op}_{_safe}"
+        self.llvm_module, ins_fnty, name=f"{_pre}_{_ins_op}_ph_{_safe}"
     );
     ins_fn.linkage = "private";
     ins_fn.args[0].name = "cont";
@@ -380,11 +381,13 @@ impl NaIRGenPass._emit_hash_core_helpers(
     if has_vals {
         ins_fn.args[2].name = "val";
     }
+    ins_fn.args[3 if has_vals else 2].name = "h";
     bs = ir.IRBuilder(ins_fn.append_basic_block("entry"));
     d_s = ins_fn.args[0];
     k_s = ins_fn.args[1];
     v_s: any = ins_fn.args[2] if has_vals else None;
-    res_s = bs.call(find_fn, [d_s, k_s], name="res");
+    h_ins: any = ins_fn.args[3 if has_vals else 2];
+    res_s = bs.call(find_fn, [d_s, k_s, h_ins], name="res");
     is_fnd = bs.icmp_signed(">=", res_s, ir.Constant(i64, 0), name="found");
     upd_bb = ins_fn.append_basic_block("upd");
     ins_bb = ins_fn.append_basic_block("ins");
@@ -439,7 +442,7 @@ impl NaIRGenPass._emit_hash_core_helpers(
     bi = ir.IRBuilder(ins_bb);
     isl = bi.xor(res_s, ir.Constant(i64, -1), name="isl");
 
-    h_s = bi.call(hash_fn, [k_s], name="h");
+    h_s = h_ins;
     h2r_s = bi.lshr(h_s, ir.Constant(i64, 57), name="h2r");
     h27_s = bi.and_(h2r_s, ir.Constant(i64, 0x7F), name="h27");
     h2o_s = bi.or_(h27_s, ir.Constant(i64, 0x80), name="h2o");
@@ -511,27 +514,35 @@ impl NaIRGenPass._emit_hash_core_helpers(
     breh.branch(done_s);
     ir.IRBuilder(done_s).ret_void();
 
-    contains_fnty = ir.FunctionType(i1, [cont_ptr_type, key_type]);
+    contains_fnty = ir.FunctionType(i1, [cont_ptr_type, key_type, i64]);
     contains_fn: any = ir.Function(
-        self.llvm_module, contains_fnty, name=f"{_pre}_contains_{_safe}"
+        self.llvm_module, contains_fnty, name=f"{_pre}_contains_ph_{_safe}"
     );
     contains_fn.linkage = "private";
     contains_fn.args[0].name = "cont";
     contains_fn.args[1].name = "key";
+    contains_fn.args[2].name = "h";
     bc = ir.IRBuilder(contains_fn.append_basic_block("entry"));
-    res_c = bc.call(find_fn, [contains_fn.args[0], contains_fn.args[1]], name="res");
+    res_c = bc.call(
+        find_fn,
+        [contains_fn.args[0], contains_fn.args[1], contains_fn.args[2]],
+        name="res"
+    );
     bc.ret(bc.icmp_signed(">=", res_c, ir.Constant(i64, 0), name="found"));
 
-    remove_fnty = ir.FunctionType(ir.VoidType(), [cont_ptr_type, key_type]);
+    remove_fnty = ir.FunctionType(ir.VoidType(), [cont_ptr_type, key_type, i64]);
     remove_fn: any = ir.Function(
-        self.llvm_module, remove_fnty, name=f"{_pre}_remove_{_safe}"
+        self.llvm_module, remove_fnty, name=f"{_pre}_remove_ph_{_safe}"
     );
     remove_fn.linkage = "private";
     remove_fn.args[0].name = "cont";
     remove_fn.args[1].name = "key";
+    remove_fn.args[2].name = "h";
     brm = ir.IRBuilder(remove_fn.append_basic_block("entry"));
     d_rm = remove_fn.args[0];
-    res_rm: any = brm.call(find_fn, [d_rm, remove_fn.args[1]], name="res");
+    res_rm: any = brm.call(
+        find_fn, [d_rm, remove_fn.args[1], remove_fn.args[2]], name="res"
+    );
     fnd_rm = brm.icmp_signed(">=", res_rm, ir.Constant(i64, 0), name="found");
     del_bb = remove_fn.append_basic_block("del");
     done_rm = remove_fn.append_basic_block("done");
@@ -585,14 +596,17 @@ impl NaIRGenPass._emit_hash_core_helpers(
 
     pop_fn: any = None;
     if has_vals {
-        pop_fnty = ir.FunctionType(val_type, [cont_ptr_type, key_type]);
-        pop_fn = ir.Function(self.llvm_module, pop_fnty, name=f"{_pre}_pop_{_safe}");
+        pop_fnty = ir.FunctionType(val_type, [cont_ptr_type, key_type, i64]);
+        pop_fn = ir.Function(self.llvm_module, pop_fnty, name=f"{_pre}_pop_ph_{_safe}");
         pop_fn.linkage = "private";
         pop_fn.args[0].name = "cont";
         pop_fn.args[1].name = "key";
+        pop_fn.args[2].name = "h";
         bpop = ir.IRBuilder(pop_fn.append_basic_block("entry"));
         d_pop = pop_fn.args[0];
-        res_p: any = bpop.call(find_fn, [d_pop, pop_fn.args[1]], name="res");
+        res_p: any = bpop.call(
+            find_fn, [d_pop, pop_fn.args[1], pop_fn.args[2]], name="res"
+        );
         fnd_p = bpop.icmp_signed(">=", res_p, ir.Constant(i64, 0), name="found");
         del_p = pop_fn.append_basic_block("del");
         miss_p = pop_fn.append_basic_block("miss");
@@ -791,26 +805,29 @@ impl NaIRGenPass._emit_hash_core_helpers(
 
     core: dict = {
         "hash": hash_fn,
-        "find": find_fn,
+        "find_ph": find_fn,
         "rehash": rehash_fn,
-        "insert": ins_fn,
-        "contains": contains_fn,
-        "remove": remove_fn,
+        "insert_ph": ins_fn,
+        "contains_ph": contains_fn,
+        "remove_ph": remove_fn,
         "clear": clear_fn,
         "get_key": get_key_fn
     };
     if has_vals {
-        core["pop"] = pop_fn;
+        core["pop_ph"] = pop_fn;
 
-        get_fnty = ir.FunctionType(val_type, [cont_ptr_type, key_type]);
+        get_fnty = ir.FunctionType(val_type, [cont_ptr_type, key_type, i64]);
         get_fn: any = ir.Function(
-            self.llvm_module, get_fnty, name=f"{_pre}_get_{_safe}"
+            self.llvm_module, get_fnty, name=f"{_pre}_get_ph_{_safe}"
         );
         get_fn.linkage = "private";
         get_fn.args[0].name = "cont";
         get_fn.args[1].name = "key";
+        get_fn.args[2].name = "h";
         bg = ir.IRBuilder(get_fn.append_basic_block("entry"));
-        res_g = bg.call(find_fn, [get_fn.args[0], get_fn.args[1]], name="res");
+        res_g = bg.call(
+            find_fn, [get_fn.args[0], get_fn.args[1], get_fn.args[2]], name="res"
+        );
         fnd_g = bg.icmp_signed(">=", res_g, ir.Constant(i64, 0), name="found");
         got_bb = get_fn.append_basic_block("got");
         miss_bb = get_fn.append_basic_block("miss");
@@ -835,7 +852,7 @@ impl NaIRGenPass._emit_hash_core_helpers(
         } else {
             bmi.ret(ir.Constant(val_type, 0));
         }
-        core["get"] = get_fn;
+        core["get_ph"] = get_fn;
 
         get_val_fnty = ir.FunctionType(val_type, [cont_ptr_type, i64]);
         get_val_fn: any = ir.Function(
@@ -884,5 +901,85 @@ impl NaIRGenPass._emit_hash_core_helpers(
         }
         core["get_val"] = get_val_fn;
     }
+
+    _pub_specs: list = [
+        ("find", "find", find_fn),
+        ("insert", _ins_op, ins_fn),
+        ("contains", "contains", contains_fn),
+        ("remove", "remove", remove_fn)
+    ];
+    if has_vals {
+        _pub_specs.append(("pop", "pop", core["pop_ph"]));
+        _pub_specs.append(("get", "get", core["get_ph"]));
+    }
+    for (_wkey, _wop, _wcore) in _pub_specs {
+        _w_args = [a.type for a in _wcore.args];
+        _wfnty = ir.FunctionType(_wcore.function_type.return_type, _w_args[:-1]);
+        _wfn: any = ir.Function(
+            self.llvm_module, _wfnty, name=f"{_pre}_{_wop}_{_safe}"
+        );
+        _wfn.linkage = "private";
+        _wfn.args[0].name = "cont";
+        _wfn.args[1].name = "key";
+        _wb = ir.IRBuilder(_wfn.append_basic_block("entry"));
+        _wh = _wb.call(hash_fn, [_wfn.args[1]], name="h");
+        if isinstance(_wcore.function_type.return_type, ir.VoidType) {
+            _wb.call(_wcore, list(_wfn.args) + [_wh]);
+            _wb.ret_void();
+        } else {
+            _wb.ret(_wb.call(_wcore, list(_wfn.args) + [_wh], name="res"));
+        }
+        core[_wkey] = _wfn;
+    }
     return core;
+}
+
+impl NaIRGenPass._static_str_hash(key: str) -> int {
+    mask = 0xFFFFFFFFFFFFFFFF;
+    h = HASH_FNV_BASIS & mask;
+    for b in key.encode("utf-8") {
+        h = ((h ^ b) * HASH_FNV_PRIME) & mask;
+    }
+    return h - 0x10000000000000000 if h >= 0x8000000000000000 else h;
+}
+
+impl NaIRGenPass._static_key_hash_of(key_node: (uni.UniNode | None)) -> (int | None) {
+    if isinstance(key_node, uni.MultiString) {
+        for s in key_node.strings {
+            if not isinstance(s, uni.String) {
+                return None;
+            }
+        }
+    } elif not isinstance(key_node, uni.String) {
+        return None;
+    }
+    v: any = None;
+    try {
+        v = key_node.lit_value;
+    } except Exception {
+        return None;
+    }
+    if not isinstance(v, str) or "\0" in v {
+        return None;
+    }
+    return self._static_str_hash(v);
+}
+
+impl NaIRGenPass._static_key_op(
+    helpers: dict, op: str, key_node: (uni.UniNode | None)
+) -> tuple {
+    plain = helpers[op];
+    ph = helpers.get(f"{op}_ph");
+    if ph is None or key_node is None {
+        return (plain, None);
+    }
+    kt = helpers.get("key_type", helpers.get("elem_type"));
+    if kt != ir.IntType(8).as_pointer() {
+        return (plain, None);
+    }
+    h = self._static_key_hash_of(key_node);
+    if h is None {
+        return (plain, None);
+    }
+    return (ph, ir.Constant(ir.IntType(64), h));
 }

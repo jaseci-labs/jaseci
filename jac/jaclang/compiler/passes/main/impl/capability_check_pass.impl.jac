@@ -165,6 +165,26 @@ impl static_fstring_spec_text(spec: uni.UniNode) -> (str | None) {
     return None;
 }
 
+impl call_has_kwargs_sink(call: uni.FuncCall) -> bool {
+    tgt = call.target;
+    sym = None;
+    if isinstance(tgt, uni.Name) {
+        sym = tgt.sym;
+    } elif isinstance(tgt, uni.AtomTrailer) and isinstance(tgt.right, uni.Name) {
+        sym = tgt.right.sym;
+    }
+    if sym is None or sym.decl is None {
+        return False;
+    }
+    owner = sym.decl.name_of;
+    if not isinstance(owner, uni.Ability)
+        or not isinstance(owner.signature, uni.FuncSignature) {
+        return False;
+    }
+    return owner.signature.kwargs is not None;
+}
+
+
 impl native_capability_violations(mod: uni.Module) -> list {
     import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
     import from jaclang.jac0core.constant { CodeContext, ExprCtx, Tokens as Tok }
@@ -394,7 +414,8 @@ impl native_capability_violations(mod: uni.Module) -> list {
                 and isinstance(nd.op, uni.Token)
                 and nd.op.name == Tok.STAR_POW
                 and isinstance(nd.parent, uni.FuncCall)
-                and nd in (nd.parent.params or []) {
+                and nd in (nd.parent.params or [])
+                and not call_has_kwargs_sink(nd.parent) {
                 out.append(
                     (nd, "call argument unpacking", nd.op.value, _NATIVE_UNPACK_HELP)
                 );
@@ -403,7 +424,8 @@ impl native_capability_violations(mod: uni.Module) -> list {
 
             if isinstance(nd, uni.KWPair)
                 and nd.key is None
-                and isinstance(nd.parent, uni.FuncCall) {
+                and isinstance(nd.parent, uni.FuncCall)
+                and not call_has_kwargs_sink(nd.parent) {
                 out.append((nd, "call argument unpacking", "**", _NATIVE_UNPACK_HELP));
                 continue;
             }
