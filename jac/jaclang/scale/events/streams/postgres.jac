@@ -108,7 +108,7 @@ obj PgEventStream(EventStreamBroker) {
         );
     }
 
-    def _claim(topic: str, group: str, max_messages: int) -> list {
+    def _claim(topic: str, group: str, max_messages: int) -> list[any] {
         store = self._ensure_store();
         store.begin(serializable=False);
         try {

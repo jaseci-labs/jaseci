@@ -10,8 +10,8 @@ import from jaclang.jac0core.helpers { pascal_to_snake }
 import from jaclang.jac0core.parser.parser { Parser }
 import jaclang.jac0core.ct_reflect as ct_reflect;
 
-glob CT_STRUCT_KINDS: tuple = (Kind.CT_FOR, Kind.CT_IF, Kind.CT_ELSE),
-     CT_EXPR_KINDS: tuple = (Kind.CT_BLOCK, Kind.CT_SPLICE, Kind.CT_NAME),
+glob CT_STRUCT_KINDS: tuple[Kind, ...] = (Kind.CT_FOR, Kind.CT_IF, Kind.CT_ELSE),
+     CT_EXPR_KINDS: tuple[Kind, ...] = (Kind.CT_BLOCK, Kind.CT_SPLICE, Kind.CT_NAME),
      CT_FUEL_DEFAULT: int = 50000000;
 
 
@@ -110,17 +110,17 @@ obj CtEval {
         file_path: str = "<input>",
         cur_dir: str = "",
         fuel: int = 50000000,
-        frames: list[dict] = [],
+        frames: list[dict[str, any]] = [],
         frame_barriers: list[bool] = [],
         module_defs: dict[str, int] = {},
         module_glob_ids: dict[str, int] = {},
         module_globals: dict[str, any] = {},
         targets: list[str] = [],
         loc_stack: list[NodeId] = [],
-        _call_memo: dict = {},
+        _call_memo: dict[NodeId, any] = {},
         _ret: any = None,
-        _builtins: dict = {},
-        _ns: dict = {};
+        _builtins: dict[str, any] = {},
+        _ns: dict[str, any] = {};
 
     def postinit {
         if not self.targets {
@@ -165,7 +165,7 @@ obj CtEval {
         }
     }
 
-    def spec_of(i: NodeId) -> (tuple | None) {
+    def spec_of(i: NodeId) -> (tuple[any, ...] | None) {
         kind = self.a.kind_of(i);
         if kind not in SPECS {
             return None;
@@ -184,9 +184,9 @@ obj CtEval {
     def slot_of(i: NodeId, pname: str) -> int {
         spec = decode_spec_of(self.a.kind_of(i));
         slot = 0;
-        plist: tuple = spec[3];
+        plist = spec[3];
         for p in plist {
-            pt: tuple = p;
+            pt = p;
             if pt[1] == ArgCat.SOURCE {
                 continue;
             }
@@ -240,7 +240,7 @@ obj CtEval {
         return self.str_arg(i, "value");
     }
 
-    def loc_of(i: NodeId) -> tuple {
+    def loc_of(i: NodeId) -> tuple[int, int, int, int] {
         if i == NIL or i >= self.a.node_count {
             return (0, 0, 0, 0);
         }
@@ -475,7 +475,7 @@ obj CtEval {
             return {self.eval(v) for v in self.list_arg(i, "values")};
         }
         if cn == "DictVal" {
-            out2: dict = {};
+            out2: dict[any, any] = {};
             for kv in self.list_arg(i, "kv_pairs") {
                 key = self.node_arg(kv, "key");
                 if key == NIL {
@@ -494,7 +494,7 @@ obj CtEval {
         if cn == "DictCompr" {
             kvp = self.node_arg(i, "kv_pair");
             pairs = self._compr_items(self.list_arg(i, "compr"), 0, NIL, kvp);
-            out3: dict = {};
+            out3: dict[any, any] = {};
             for entry in pairs {
                 out3[entry[0]] = entry[1];
             }
@@ -511,7 +511,7 @@ obj CtEval {
 
     def _compr_items(
         comprs: list[NodeId], depth: int, out_expr: NodeId, kv_pair: NodeId = NIL
-    ) -> list {
+    ) -> list[any] {
         if depth >= len(comprs) {
             if kv_pair != NIL and kv_pair != 0 {
                 k = self.eval(self.node_arg(kv_pair, "key"));
@@ -524,7 +524,7 @@ obj CtEval {
         coll = self.eval(self.node_arg(c, "collection"));
         conds = self.list_arg(c, "conditional");
         tgt = self.node_arg(c, "target");
-        out: list = [];
+        out: list[any] = [];
         for item in coll {
             self.push_frame();
             self._bind_target(tgt, item);
@@ -668,9 +668,9 @@ obj CtEval {
         _ct_err(f"'{rcn}' trailer not supported in comptime");
     }
 
-    def _call_args(call: NodeId) -> tuple {
-        args: list = [];
-        kwargs: dict = {};
+    def _call_args(call: NodeId) -> tuple[list[any], dict[str, any]] {
+        args: list[any] = [];
+        kwargs: dict[str, any] = {};
         for p in self.list_arg(call, "params") {
             if self.cls_name(p) == "KWPair" {
                 key = self.node_arg(p, "key");
@@ -724,7 +724,7 @@ obj CtEval {
         _ct_err(f"'{tcn}' call target not supported in comptime");
     }
 
-    def call_def(abil: NodeId, args: list, kwargs: dict) -> any {
+    def call_def(abil: NodeId, args: list[any], kwargs: dict[str, any]) -> any {
         self.burn(20);
         if not args and not kwargs and abil in self._call_memo {
             return self._call_memo[abil];
@@ -974,7 +974,9 @@ obj CtExpander {
         }
     }
 
-    def _tok(mk_name: str, tok_name: str, text: str, loc: tuple) -> NodeId {
+    def _tok(
+        mk_name: str, tok_name: str, text: str, loc: tuple[int, int, int, int]
+    ) -> NodeId {
         a = self.a();
         (line, end_line, cs, ce) = (loc[0], loc[1], loc[2], loc[3]);
         if mk_name == "NAME" {
@@ -1041,7 +1043,7 @@ obj CtExpander {
         return NIL;
     }
 
-    def value_to_records(v: any, loc: tuple) -> NodeId {
+    def value_to_records(v: any, loc: tuple[int, int, int, int]) -> NodeId {
         self.ev.burn(2);
         a = self.a();
         if isinstance(v, CtFragment) {
@@ -1101,11 +1103,11 @@ obj CtExpander {
         return NIL;
     }
 
-    def _minus_tok(loc: tuple) -> NodeId {
+    def _minus_tok(loc: tuple[int, int, int, int]) -> NodeId {
         return self._punct("MINUS", "-", loc);
     }
 
-    def _punct(name: str, text: str, loc: tuple) -> NodeId {
+    def _punct(name: str, text: str, loc: tuple[int, int, int, int]) -> NodeId {
         return self.a().mk_token(
             name=name,
             value=text,
@@ -1116,7 +1118,7 @@ obj CtExpander {
         );
     }
 
-    def parse_frag(f: CtFragment, loc: tuple) -> NodeId {
+    def parse_frag(f: CtFragment, loc: tuple[int, int, int, int]) -> NodeId {
         self.ev.burn(50);
         if f.kind == "name" {
             if not _is_ident(f.text) {
@@ -1131,11 +1133,11 @@ obj CtExpander {
         if parser.error_count > 0 or lex_errs > 0 {
             _ct_err(f"cannot parse ct fragment '{f.text}'");
         }
-        memo: dict[int, int] = {};
+        memo: dict[NodeId, NodeId] = {};
         return self.graft(parser.b, frag_root, memo);
     }
 
-    def graft(src: SyntaxArena, i: NodeId, memo: dict) -> NodeId {
+    def graft(src: SyntaxArena, i: NodeId, memo: dict[NodeId, NodeId]) -> NodeId {
         if i == NIL {
             return NIL;
         }
@@ -1171,7 +1173,7 @@ obj CtExpander {
         return new_i;
     }
 
-    def copy_tree(i: NodeId, memo: dict) -> NodeId {
+    def copy_tree(i: NodeId, memo: dict[NodeId, NodeId]) -> NodeId {
         if i == NIL {
             return NIL;
         }
@@ -1266,9 +1268,9 @@ obj CtExpander {
             return;
         }
         slot = 0;
-        plist: tuple = spec[3];
+        plist = spec[3];
         for p in plist {
-            pt: tuple = p;
+            pt = p;
             if pt[1] == ArgCat.SOURCE {
                 continue;
             }
@@ -1347,7 +1349,7 @@ obj CtExpander {
             ev.push_frame();
             ev.bind(tname, v);
             for b in body {
-                memo: dict[int, int] = {};
+                memo: dict[NodeId, NodeId] = {};
                 nb = self.copy_tree(b, memo);
                 out.extend(self.expand_items([nb], i));
             }
@@ -1473,7 +1475,7 @@ def expand_arena(
     file_path: str = "<input>",
     targets: (list[str] | None) = None,
     fuel: int = 50000000
-) -> list {
+) -> list[tuple[int, int, int, int, str]] {
     import os;
     ev = CtEval(
         a=a,

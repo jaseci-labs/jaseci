@@ -99,7 +99,7 @@ obj ServiceView {
         name: str, deployment: Any, hpa: Any, pdb: Any, route_path: str | None
     ) -> ServiceView {
         containers = lget(pod_spec(deployment), "containers");
-        container: dict = {};
+        container: dict[str, any] = {};
         if containers and isinstance(containers[0], dict) {
             container = dict(containers[0]);
         }
@@ -227,7 +227,9 @@ obj IngressRuleView {
 obj IngressView {
     has rules: list[IngressRuleView];
 
-    static def from_manifest(ingress: Any, routes: dict) -> IngressView | None {
+    static def from_manifest(
+        ingress: Any, routes: dict[str, any]
+    ) -> IngressView | None {
         if not isinstance(ingress, dict) {
             return None;
         }
@@ -333,9 +335,9 @@ def _render_totals(bundle: Any) {
 
 
 obj Plan {
-    has bundle: dict,
-        ms_cfg: dict,
-        svc_configs: dict,
+    has bundle: dict[str, any],
+        ms_cfg: dict[str, any],
+        svc_configs: dict[str, any],
         cluster_type: str,
         namespace: str,
         services: list[ServiceView],
@@ -343,11 +345,11 @@ obj Plan {
 
     static def from_target(target: Any, app_config: AppConfig) -> Plan {
         bundle_raw = target.generate_manifests(app_config);
-        bundle: dict = bundle_raw if isinstance(bundle_raw, dict) else {};
+        bundle: dict[str, any] = bundle_raw if isinstance(bundle_raw, dict) else {};
         (ms_cfg, svc_configs) = Plan._load_ms_cfg();
 
         routes_any: Any = ms_cfg.get("routes", {});
-        routes: dict = {};
+        routes: dict[str, any] = {};
         if isinstance(routes_any, dict) {
             routes = routes_any;
         }
@@ -400,13 +402,13 @@ obj Plan {
         );
     }
 
-    static def _load_ms_cfg -> tuple[dict, dict] {
+    static def _load_ms_cfg -> tuple[dict[str, any], dict[str, any]] {
         try {
             import from jaclang.scale.config.config_loader { get_scale_config }
             raw: Any = get_scale_config().get_microservices_config();
-            ms_cfg: dict = raw if isinstance(raw, dict) else {};
+            ms_cfg: dict[str, any] = raw if isinstance(raw, dict) else {};
             services_raw: Any = ms_cfg.get("services", {});
-            svc_configs: dict = {};
+            svc_configs: dict[str, any] = {};
             if isinstance(services_raw, dict) {
                 for (name, cfg) in services_raw.items() {
                     if isinstance(cfg, dict) {
@@ -522,8 +524,8 @@ obj Plan {
         }
     }
 
-    def _flatten_manifests -> list {
-        out: list = [];
+    def _flatten_manifests -> list[dict[str, any]] {
+        out: list[dict[str, any]] = [];
         if self.bundle.get("user_secret") {
             out.append(self.bundle["user_secret"]);
         }
@@ -542,7 +544,7 @@ obj Plan {
 
 def print_plan(
     target: Any, app_config: AppConfig, show_yaml: bool = False
-) -> tuple[dict, list[Diagnostic]] {
+) -> tuple[dict[str, any], list[Diagnostic]] {
     plan = Plan.from_target(target, app_config);
     diagnostics = plan.validate();
     plan.render(diagnostics, show_yaml=show_yaml);

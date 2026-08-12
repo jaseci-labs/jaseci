@@ -84,7 +84,9 @@ obj PlanValidator {
 
         self._check_routes(routes, out);
 
-        cfgs: dict = self.svc_configs if isinstance(self.svc_configs, dict) else {};
+        cfgs: dict[str, any] = self.svc_configs
+            if isinstance(self.svc_configs, dict)
+            else {};
         for svc_name_raw in routes {
             if svc_name_raw == GATEWAY_NAME {
                 continue;
@@ -114,7 +116,7 @@ obj PlanValidator {
         return out;
     }
 
-    def _check_routes(routes: dict, out: list[Diagnostic]) {
+    def _check_routes(routes: dict[str, any], out: list[Diagnostic]) {
         if GATEWAY_NAME in routes {
             out.append(
                 Diagnostic(

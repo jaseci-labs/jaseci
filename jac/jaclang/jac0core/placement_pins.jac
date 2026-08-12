@@ -3,7 +3,7 @@ import json;
 import os;
 import from jaclang.jac0core.modresolver { find_jac_project_root }
 
-glob _VALID_SPACES: tuple = ('server', 'client', 'native'),
+glob _VALID_SPACES: tuple[str, ...] = ('server', 'client', 'native'),
      _pins_cache: dict[str, tuple[float, dict[str, str]]] = {};
 
 

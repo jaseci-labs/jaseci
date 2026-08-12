@@ -415,5 +415,5 @@ comptime for F in _ct_family_rows() {
     glob ${ct.name("KS_" + F["uname"])}: list[int] = ${F["members"]};
 }
 
-glob SPECS: dict[int, tuple] = comptime { _ct_specs_table() };
+glob SPECS: dict[int, tuple[any, ...]] = comptime { _ct_specs_table() };
 # <<< comptime derivation of the arena schema <<<

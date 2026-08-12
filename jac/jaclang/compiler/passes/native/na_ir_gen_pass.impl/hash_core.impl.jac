@@ -789,7 +789,7 @@ impl NaIRGenPass._emit_hash_core_helpers(
         boob.ret(ir.Constant(key_type, 0));
     }
 
-    core: dict = {
+    core: dict[str, any] = {
         "hash": hash_fn,
         "find": find_fn,
         "rehash": rehash_fn,
