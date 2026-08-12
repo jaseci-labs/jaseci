@@ -225,12 +225,12 @@ def stop_sv_sibling(module_name: str, timeout: float = 10.0) -> bool {
     }
     if proc.poll() is None {
         proc.terminate();
-        try {
-            proc.wait(timeout=timeout);
-        } except Exception {
-            proc.kill();
-            proc.wait(timeout=5);
-        }
+    }
+    try {
+        proc.wait(timeout=timeout);
+    } except Exception {
+        proc.kill();
+        proc.wait(timeout=5);
     }
     return True;
 }
