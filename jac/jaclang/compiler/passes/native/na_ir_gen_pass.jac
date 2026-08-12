@@ -925,7 +925,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> ir.IRBuilder;
 
     def _emit_rc_alloc_container(
-        b: ir.IRBuilder, container_ptr_type: ir.Type, layout: dict[str, any], initial_cap: int = 8
+        b: ir.IRBuilder,
+        container_ptr_type: ir.Type,
+        layout: dict[str, any],
+        initial_cap: int = 8
     ) -> tuple;
 
     def _emit_grow_array(
