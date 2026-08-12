@@ -96,6 +96,7 @@ def _canary_src -> str {
 
 
 def _canary_ok(fn: any) -> bool {
+    import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
     try {
         r = fn(_canary_src(), "__seal_selfcheck__.jac");
         native_mod = r[0];
@@ -109,8 +110,8 @@ def _canary_ok(fn: any) -> bool {
         return (
             r[1] == pyp.error_count
             and len(native_mod._in_mod_nodes) == len(py_mod._in_mod_nodes)
-            and native_mod.unparse(requires_format=False)
-                == py_mod.unparse(requires_format=False)
+            and unparse_module(native_mod, requires_format=False)
+                == unparse_module(py_mod, requires_format=False)
         );
     } except Exception {
         return False;

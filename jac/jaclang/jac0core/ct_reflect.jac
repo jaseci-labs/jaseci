@@ -123,7 +123,8 @@ def _module_path(dotted: str, cur_dir: str) -> str {
 
 
 def _clean_src(nd: any) -> str {
-    txt = " ".join(nd.unparse().split());
+    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+    txt = " ".join(unparse_node(nd).split());
     for pair in (
         (" [", "["),
         ("[ ", "["),

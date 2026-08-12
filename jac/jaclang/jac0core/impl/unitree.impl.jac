@@ -108,7 +108,11 @@ impl UniNode.add_kids_right(
 impl UniNode.insert_kids_at_pos(
     nodes: Sequence[UniNode], pos: int, pos_update: bool = True
 ) -> UniNode {
-    self.kid = [*self.kid[:pos], *nodes, *self.kid[pos:]];
+    new_kid: list[UniNode] = [];
+    new_kid.extend(self.kid[:pos]);
+    new_kid.extend(nodes);
+    new_kid.extend(self.kid[pos:]);
+    self.kid = new_kid;
     if pos_update {
         for i in nodes {
             i.parent = self;
@@ -120,7 +124,9 @@ impl UniNode.insert_kids_at_pos(
 }
 
 impl UniNode.set_kids(nodes: Sequence[UniNode]) -> UniNode {
-    self.kid = [*nodes];
+    new_kid: list[UniNode] = [];
+    new_kid.extend(nodes);
+    self.kid = new_kid;
     for i in nodes {
         i.parent = self;
     }
@@ -166,15 +172,7 @@ impl UniNode.gen_token(name: Tok, value: (str | None) = None) -> Token {
 
 
 impl UniNode.codespace -> CodeContext {
-    if isinstance(self, ContextAwareNode) {
-        if (self.code_context == CodeContext.CLIENT) {
-            return CodeContext.CLIENT;
-        }
-        if (self.code_context == CodeContext.NATIVE) {
-            return CodeContext.NATIVE;
-        }
-    }
-    nd: (UniNode | None) = self.parent;
+    nd: (UniNode | None) = self;
     while (nd is not None) {
         if isinstance(nd, ContextAwareNode) {
             context = nd.code_context;
@@ -185,7 +183,8 @@ impl UniNode.codespace -> CodeContext {
                 return CodeContext.NATIVE;
             }
         }
-        if isinstance(nd, Module) {
+
+        if isinstance(nd, Module) and (nd is not self) {
             if nd.decided_codespace == CodeContext.NATIVE.value {
                 return CodeContext.NATIVE;
             }
@@ -223,39 +222,12 @@ impl Module.declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool {
     return False;
 }
 
-impl UniNode.to_dict -> dict[(str, str)] {
-    ret = {
-        'node': str(`type(self).__name__),
-        'kid': str(
-            [
-                x.to_dict()
-                for x in self.kid
-                if x
-            ]
-        ),
-        'line': str(self.loc.first_line),
-        'col': str(self.loc.col_start)
-    };
-    if isinstance(self, Token) {
-        ret['name'] = self.name;
-        ret['value'] = self.value;
-    }
-    return ret;
-}
-
 impl UniNode.flatten -> list[UniNode] {
     ret: list[UniNode] = [self];
     for k in self.kid {
         ret += k.flatten();
     }
     return ret;
-}
-
-impl UniNode.unparse -> str {
-    if self.gen.jac {
-        return self.gen.jac;
-    }
-    return ' '.join([i.unparse() for i in self.kid]);
 }
 
 
@@ -919,48 +891,6 @@ impl Module.annexable_by.getter -> (str | None) {
     return discover_base_file(self.loc.mod_path);
 }
 
-impl Module.format -> str {
-    import from jaclang.compiler.passes.tool.jac_formatter_pass { format_module }
-    return format_module(self);
-}
-
-impl Module.unparse(requires_format: bool = True) -> str {
-    import from jaclang.compiler.passes.tool.normalize_pass { NormalizePass }
-    import from jaclang.jac0core.program { JacProgram }
-
-    own_path = self.loc.mod_path;
-    saved_body = self.body;
-    saved_kid = self.kid;
-    head_kid = [
-        k
-        for k in saved_kid
-        if (not k.loc.mod_path) or (k.loc.mod_path == own_path)
-    ];
-    filtered = len(head_kid) != len(saved_kid);
-    if filtered {
-        self.body = [
-            st
-            for st in saved_body
-            if (not st.loc.mod_path) or (st.loc.mod_path == own_path)
-        ];
-        self.set_kids(nodes=head_kid or [EmptyToken()]);
-    }
-    try {
-        NormalizePass(ir_in=self, prog=JacProgram());
-        if requires_format {
-            return self.format();
-        }
-        import from jaclang.compiler.passes.tool.unparse_pass { UnparsePass }
-        UnparsePass(ir_in=self, prog=JacProgram());
-        return self.gen.jac;
-    } finally {
-        if filtered {
-            self.body = saved_body;
-            self.set_kids(nodes=saved_kid);
-        }
-    }
-}
-
 impl ProgramModule.postinit -> None {
     self.main = self.main_mod or Module.make_stub();
     self.kid = [self.main];
@@ -1268,7 +1198,7 @@ impl ModulePath.resolve_relative_path_list -> list[str] {
     }
     for i in range(len(parts) - 2, -1, -1) {
         init_found = False;
-        for init_name in ('__init__.jac', '__init__.py', '__init__.pyi') {
+        for init_name in ['__init__.jac', '__init__.py', '__init__.pyi'] {
             init_path = os.path.join(cur_dir, init_name);
             if os.path.isfile(init_path) {
                 paths[i] = init_path;
@@ -1364,12 +1294,13 @@ impl Archetype.postinit -> None {
 }
 
 
-impl Archetype._get_impl_resolved_body -> list {
-    return `list(self.body)
-        if isinstance(self.body, list)
-        else `list(self.body.body)
-            if (isinstance(self.body, ImplDef) and isinstance(self.body.body, list))
-            else [];
+impl Archetype._get_impl_resolved_body -> list[UniNode] {
+    src = self.body.body if isinstance(self.body, ImplDef) else self.body;
+    out: list[UniNode] = [];
+    if isinstance(src, list) {
+        out.extend(src);
+    }
+    return out;
 }
 
 impl Archetype.is_abstract.getter -> bool {
@@ -1618,7 +1549,8 @@ impl Ability.event_trigger_type_names -> (list[str] | None) {
     }
     names: list[str] = [];
     for t in self.event_triggers {
-        for part in t.mangle().split("|") {
+        parts = t.mangle().split("|");
+        for part in parts {
             name = part.strip();
             if name.startswith("type[") and name.endswith("]") {
                 name = name[5:-1];
@@ -2037,8 +1969,6 @@ impl BoolExpr.postinit -> None {
 
 
 impl LambdaExpr.postinit -> None {
-    # body is Expr | Sequence: constructors hand over fresh lists, so no
-    # defensive copy here (a union-conditional copy does not lower natively).
     UniNode.postinit(self);
     Expr.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
@@ -2052,24 +1982,24 @@ impl LambdaExpr.tail_return_expr -> Expr | None {
     """Implicit return: a braced body consisting of a single expression
     statement returns that expression's value. Any other body (multiple
     statements, or a non-expression statement) uses an explicit `return`.""";
-    if not (isinstance(self.body, list) and not isinstance(self.body, Expr)) {
+    if isinstance(self.body, Expr) or not isinstance(self.body, list) {
         return None;
     }
+    body: Sequence[CodeBlockStmt] = self.body;
     stmts = [
         s
-        for s in self.body
+        for s in body
         if not isinstance(s, Semi)
     ];
-    if (len(stmts) == 1 and isinstance(stmts[0], ExprStmt)) {
-        return stmts[0].expr;
+    if len(stmts) != 1 {
+        return None;
     }
-    if (
-        len(stmts) == 1
-        and isinstance(stmts[0], ReturnStmt)
-        and stmts[0].is_implicit
-        and stmts[0].expr is not None
-    ) {
-        return stmts[0].expr;
+    only = stmts[0];
+    if isinstance(only, ExprStmt) {
+        return only.expr;
+    }
+    if isinstance(only, ReturnStmt) and only.is_implicit {
+        return only.expr;
     }
     return None;
 }
@@ -2534,13 +2464,6 @@ impl Token.init(
 
 impl Token.__repr__ -> str {
     return f"Token({self.name}, {self.value}, {self.loc})";
-}
-
-impl Token.unparse -> str {
-    if self.gen.jac {
-        return self.gen.jac;
-    }
-    return self.value;
 }
 
 impl Name.init(

@@ -731,7 +731,8 @@ impl NaIRGenPass._type_base_is_unknown(tb: any) -> bool {
 
 impl NaIRGenPass._emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.Type {
     if isinstance(type_expr, uni.Expr) {
-        _label = type_expr.unparse();
+        import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+        _label = unparse_node(type_expr);
     } else {
         _tag = type_expr?.type_tag;
         _label = self._get_name(_tag?.tag) or str(tb);

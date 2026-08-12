@@ -2,6 +2,7 @@
 
 import from jaclang.jac0core.parser.frontend { parse, parse_diags }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.jac0 { ct_expand_source }
 
 glob CT_SRC: str = """
@@ -78,7 +79,7 @@ test "formatter path keeps templates unexpanded" {
         if isinstance(nd, CtFor)
     ];
     assert kept , "formatter tree should retain comptime templates";
-    out = main_mod.unparse(requires_format=True);
+    out = unparse_module(main_mod, requires_format=True);
     assert "comptime for K in NAMES" in out , out[:200];
     assert "${" in out , "splices should survive the formatter tree";
 }
