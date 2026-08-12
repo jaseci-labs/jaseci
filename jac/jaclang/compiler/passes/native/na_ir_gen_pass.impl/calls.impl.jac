@@ -289,16 +289,22 @@ impl NaIRGenPass._codegen_bound_args(
         }
     } else {
         _fixed = list(callee_sig.posonly_params or []) + list(callee_sig.params or []);
+        _n_posonly = len(callee_sig.posonly_params or []);
+        _bind_records: list = [];
         for (pix, sp) in enumerate(_fixed) {
             slot = self_offset + pix;
             expected_type = func.args[slot].type
                 if slot < len(func.args)
                 else ir.IntType(64);
             chosen = None;
+            _from_pos = False;
+            _from_kw = False;
             if pix < len(positional) {
                 chosen = positional[pix];
+                _from_pos = True;
             } elif sp.name.sym_name in kw_map {
                 chosen = kw_map.pop(sp.name.sym_name);
+                _from_kw = True;
             } elif sp.value is not None {
                 chosen = sp.value;
                 if isinstance(chosen, (uni.Null, uni.Ellipsis))
@@ -326,6 +332,16 @@ impl NaIRGenPass._codegen_bound_args(
                 args.append(val);
             } else {
                 args.append(self._default_arg_fallback(expected_type));
+            }
+            if kw_spreads and pix >= _n_posonly {
+                _bind_records.append(self._prep_kwbind_record(
+                    sp.name.sym_name,
+                    expected_type,
+                    len(args) - 1,
+                    args[-1],
+                    "pos" if _from_pos else ("kw" if _from_kw else None),
+                    "positional" if sp.value is None else None
+                ));
             }
         }
         _slot = self_offset + len(_fixed);
@@ -344,8 +360,10 @@ impl NaIRGenPass._codegen_bound_args(
                 if _slot < len(func.args)
                 else ir.IntType(64);
             chosen = None;
+            _from_kw = False;
             if sp.name.sym_name in kw_map {
                 chosen = kw_map.pop(sp.name.sym_name);
+                _from_kw = True;
             } elif sp.value is not None {
                 chosen = sp.value;
                 if isinstance(chosen, (uni.Null, uni.Ellipsis))
@@ -374,16 +392,46 @@ impl NaIRGenPass._codegen_bound_args(
             } else {
                 args.append(self._default_arg_fallback(expected_type));
             }
+            if kw_spreads {
+                _bind_records.append(self._prep_kwbind_record(
+                    sp.name.sym_name,
+                    expected_type,
+                    len(args) - 1,
+                    args[-1],
+                    "kw" if _from_kw else None,
+                    "keyword-only" if sp.value is None else None
+                ));
+            }
             _slot += 1;
         }
         if callee_sig.kwargs is not None {
             _kw_t = func.args[_slot].type if _slot < len(func.args) else None;
-            _dv = self._codegen_kwargs_dict(nd, kw_map, _kw_t, kw_order);
+            _dv = self._codegen_kwargs_dict(
+                nd, kw_map, _kw_t, kw_order, _bind_records
+            );
             if _dv is not None {
                 args.append(_dv);
             } elif _kw_t is not None {
                 args.append(self._default_arg_fallback(_kw_t));
             }
+        }
+        for _rec in _bind_records {
+            if _rec["alloca"] is None {
+                continue;
+            }
+            if _rec["missing_msg"] is not None {
+                _flv = self.builder.load(_rec["flag"], name="kwbind.flag");
+                self._emit_runtime_raise(
+                    self.builder.not_(_flv, name="kwbind.unbound"),
+                    "TypeError",
+                    _rec["missing_msg"]
+                );
+            }
+            _bv = self.builder.load(_rec["alloca"], name="kwbind.final");
+            if isinstance(_bv.type, ir.PointerType) {
+                self._mark_owned(_bv);
+            }
+            args[_rec["args_idx"]] = _bv;
         }
     }
 
@@ -547,7 +595,8 @@ impl NaIRGenPass._codegen_kwargs_dict(
     nd: uni.FuncCall,
     leftover: dict,
     expected: (ir.Type | None),
-    order: (list | None) = None
+    order: (list | None) = None,
+    bind_records: (list | None) = None
 ) -> (ir.Value | None) {
     dict_key: (str | None) = None;
     if expected is not None and isinstance(expected, ir.PointerType) {
@@ -578,6 +627,34 @@ impl NaIRGenPass._codegen_kwargs_dict(
     dv = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_loc, name="kwargs.new"
     );
+
+    # Keys that may bind declared parameter slots must never reach the sink.
+    # The merge loop tests membership of this compile-time-keyed dict, reusing
+    # the sink's own hash helpers instead of per-key string compares.
+    _skip_dv: (ir.Value | None) = None;
+    _unbound: list = [];
+    for _br in (bind_records or []) {
+        if _br["alloca"] is not None {
+            _unbound.append(_br);
+        }
+    }
+    if _unbound {
+        _skip_dv = self._rc_call_with_ctx(
+            helpers["new"], [], op="new", loc=_loc, name="kwbind.names"
+        );
+        for _br in _unbound {
+            self._rc_call_with_ctx(
+                helpers["set"],
+                [
+                    _skip_dv,
+                    self._make_global_string(_br["name"], name_prefix=".kwname"),
+                    self._default_arg_fallback(helpers["val_type"])
+                ],
+                op="dict_init",
+                loc=_loc
+            );
+        }
+    }
     _seen_spread = False;
     for _entry in (order or []) {
         (_kind, _payload) = _entry;
@@ -627,7 +704,50 @@ impl NaIRGenPass._codegen_kwargs_dict(
             );
             continue;
         }
-        if not self._merge_dict_into(dv, sv, helpers, dict_key, _loc) {
+
+        # CPython binding semantics: a spread key naming a keyword-bindable
+        # declared parameter binds that slot; a slot bound twice raises. The
+        # checks run before the merge so a raising key never reaches the sink.
+        for _rec in (bind_records or []) {
+            _kg = self._make_global_string(_rec["name"], name_prefix=".kwname");
+            _has = self.builder.call(
+                helpers["contains"], [sv, _kg], name="kwbind.has"
+            );
+            if _rec["alloca"] is None {
+                self._emit_runtime_raise(_has, "TypeError", _rec["dup_msg"]);
+                continue;
+            }
+            _flv = self.builder.load(_rec["flag"], name="kwbind.flag");
+            self._emit_runtime_raise(
+                self.builder.and_(_has, _flv, name="kwbind.dup"),
+                "TypeError",
+                _rec["dup_msg"]
+            );
+            _do = self.builder.and_(
+                _has,
+                self.builder.not_(_flv, name="kwbind.unset"),
+                name="kwbind.do"
+            );
+            _bfn = self.builder.block.function;
+            _bind_bb = _bfn.append_basic_block("kwbind.set");
+            _cont_bb = _bfn.append_basic_block("kwbind.cont");
+            self.builder.cbranch(_do, _bind_bb, _cont_bb);
+            self.builder.position_at_end(_bind_bb);
+            _bv = self.builder.call(helpers["get"], [sv, _kg], name="kwbind.get");
+            _bv = self._coerce_type(_bv, _rec["slot_type"]);
+            if isinstance(_rec["slot_type"], ir.PointerType) {
+                self._emit_rc_retain(_bv, op="kwbind", loc=_loc);
+                _old = self.builder.load(_rec["alloca"], name="kwbind.old");
+                self._emit_rc_release_simple(_old, op="kwbind", loc=_loc);
+            }
+            self.builder.store(_bv, _rec["alloca"]);
+            self.builder.store(ir.Constant(ir.IntType(1), 1), _rec["flag"]);
+            self.builder.branch(_cont_bb);
+            self.builder.position_at_end(_cont_bb);
+        }
+        if not self._merge_dict_into(
+            dv, sv, helpers, dict_key, _loc, skip_keys=_skip_dv
+        ) {
             self.emit(
                 E5092,
                 node_override=nd,
@@ -641,11 +761,19 @@ impl NaIRGenPass._codegen_kwargs_dict(
             self._emit_rc_release_simple(sv, op="dict_init", loc=_loc);
         }
     }
+    if _skip_dv is not None {
+        self._emit_rc_release_simple(_skip_dv, op="dict_init", loc=_loc);
+    }
     return self._mark_owned(dv);
 }
 
 impl NaIRGenPass._merge_dict_into(
-    dst: ir.Value, src: ir.Value, helpers: dict, dict_key: str, loc: str
+    dst: ir.Value,
+    src: ir.Value,
+    helpers: dict,
+    dict_key: str,
+    loc: str,
+    skip_keys: (ir.Value | None) = None
 ) -> bool {
     src_t = self.dict_types.get(dict_key);
     if src_t is None
@@ -657,6 +785,7 @@ impl NaIRGenPass._merge_dict_into(
     fn = self.builder.block.function;
     head_bb = fn.append_basic_block("kwsp.head");
     body_bb = fn.append_basic_block("kwsp.body");
+    step_bb = fn.append_basic_block("kwsp.step");
     end_bb = fn.append_basic_block("kwsp.end");
     idx_slot = self._entry_alloca(i64, "kwsp.idx");
     self.builder.store(ir.Constant(i64, 0), idx_slot);
@@ -671,6 +800,17 @@ impl NaIRGenPass._merge_dict_into(
 
     self.builder.position_at_end(body_bb);
     k = self.builder.call(helpers["get_key"], [src, idx], name="kwsp.k");
+    if skip_keys is not None {
+        merge_bb = fn.append_basic_block("kwsp.merge");
+        self.builder.cbranch(
+            self.builder.call(
+                helpers["contains"], [skip_keys, k], name="kwsp.bound"
+            ),
+            step_bb,
+            merge_bb
+        );
+        self.builder.position_at_end(merge_bb);
+    }
     v = self.builder.call(helpers["get_val"], [src, idx], name="kwsp.v");
     self._emit_runtime_raise(
         self.builder.call(helpers["contains"], [dst, k], name="kwsp.dup"),
@@ -687,6 +827,9 @@ impl NaIRGenPass._merge_dict_into(
         op="dict_init",
         loc=loc
     );
+    self.builder.branch(step_bb);
+
+    self.builder.position_at_end(step_bb);
     self.builder.store(
         self.builder.add(idx, ir.Constant(i64, 1), name="kwsp.i.next"), idx_slot
     );
@@ -2438,4 +2581,43 @@ impl NaIRGenPass._empty_ctor_args_of(nd: uni.FuncCall) -> list {
         return [];
     }
     return list(_t.private.type_args or []);
+}
+
+impl NaIRGenPass._prep_kwbind_record(
+    name: str,
+    slot_type: ir.Type,
+    args_idx: int,
+    stored: ir.Value,
+    bound_kind: (str | None),
+    required_kind: (str | None)
+) -> dict {
+    rec: dict = {};
+    rec["name"] = name;
+    rec["slot_type"] = slot_type;
+    rec["args_idx"] = args_idx;
+    rec["alloca"] = None;
+    rec["flag"] = None;
+    rec["missing_msg"] = None;
+    if bound_kind is not None {
+        _noun = "argument" if bound_kind == "pos" else "keyword argument";
+        rec["dup_msg"] = f"got multiple values for {_noun} '{name}'";
+        return rec;
+    }
+    rec["dup_msg"] = f"got multiple values for keyword argument '{name}'";
+    _al = self._entry_alloca(slot_type, f"kwbind.{name}");
+    _init = self._coerce_type(stored, slot_type);
+    if isinstance(slot_type, ir.PointerType) and not self._is_owned(stored) {
+        self._emit_rc_retain(_init, op="kwbind", loc="");
+    }
+    self.builder.store(_init, _al);
+    _fl = self._entry_alloca(ir.IntType(1), f"kwbind.{name}.bound");
+    self.builder.store(ir.Constant(ir.IntType(1), 0), _fl);
+    rec["alloca"] = _al;
+    rec["flag"] = _fl;
+    if required_kind is not None {
+        rec["missing_msg"] = (
+            f"missing 1 required {required_kind} argument: '{name}'"
+        );
+    }
+    return rec;
 }

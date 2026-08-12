@@ -544,12 +544,27 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.FuncCall,
         leftover: dict,
         expected: (ir.Type | None),
-        order: (list | None) = None
+        order: (list | None) = None,
+        bind_records: (list | None) = None
     ) -> (ir.Value | None);
 
     def _merge_dict_into(
-        dst: ir.Value, src: ir.Value, helpers: dict, dict_key: str, loc: str
+        dst: ir.Value,
+        src: ir.Value,
+        helpers: dict,
+        dict_key: str,
+        loc: str,
+        skip_keys: (ir.Value | None) = None
     ) -> bool;
+
+    def _prep_kwbind_record(
+        name: str,
+        slot_type: ir.Type,
+        args_idx: int,
+        stored: ir.Value,
+        bound_kind: (str | None),
+        required_kind: (str | None)
+    ) -> dict;
 
     def _default_arg_fallback(t: ir.Type) -> ir.Value;
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
