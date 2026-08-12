@@ -273,6 +273,20 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
         return;
     }
     func_ret_type = self.builder.function.return_value.type;
+    if nd.expr is not None and isinstance(func_ret_type, ir.VoidType) {
+        # A `-> None` signature lowers to a void function, so `return None`
+        # (or `return f()` for a void call) still has to `ret void`; the
+        # expression is evaluated first because it may have effects.
+        self._codegen_expr(nd.expr);
+        self._emit_scope_cleanup(
+            skip_var=None,
+            loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                if nd.loc
+                else 0}"
+        );
+        self.builder.ret_void();
+        return;
+    }
     if nd.expr is not None {
         val = self._codegen_required(nd.expr);
         if val is not None {
