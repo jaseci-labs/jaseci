@@ -1649,12 +1649,59 @@ impl NaIRGenPass._codegen_instantiation(
         self.builder.call(init_fn, coerced_args, name="call.init");
     }
 
-    for pname in [f"{type_name}.__post_init__", f"{type_name}.postinit"] {
-        if pname in self.method_funcs {
-            postinit_fn = self.method_funcs[pname];
-            self.builder.call(postinit_fn, [obj_ptr]);
+    # `postinit` may be inherited (`ElseIf(IfStmt)` runs IfStmt's), so
+    # resolution walks the MRO like `init` does. An explicit `init` suppresses
+    # the hook entirely -- it owns the postinit chain, the way a dataclass
+    # only runs `__post_init__` from its generated initializer. A
+    # layout-prefix-compatible owner runs directly on the bitcast receiver; a
+    # non-primary owner's body would address the wrong offsets, so that shape
+    # fails loud.
+    _pi_fn: (ir.Function | None) = None;
+    if init_fn is not None {
+        return obj_ptr;
+    }
+    _pi_owner: str = type_name;
+    for _pi_cls in self._mro_of(type_name) {
+        for pname in [f"{_pi_cls}.__post_init__", f"{_pi_cls}.postinit"] {
+            if pname in self.method_funcs {
+                _pi_fn = self.method_funcs[pname];
+                _pi_owner = _pi_cls;
+                break;
+            }
+        }
+        if _pi_fn is not None {
             break;
         }
+    }
+    if _pi_fn is not None and _pi_owner != type_name {
+        import from jaclang.compiler.passes.main.layout_pass {
+            get_layout_registry as _pi_glr
+        }
+        if not _pi_glr(self.ir_in, self.prog).is_primary_ancestor(
+            type_name, _pi_owner
+        ) {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="constructor",
+                name=f"{type_name}() via {_pi_owner}.postinit",
+                help_text=(
+                    "The inherited postinit belongs to an ancestor that is "
+                    "not layout-prefix-compatible with this class, so calling "
+                    "it directly would address the wrong field offsets."
+                )
+            );
+            return None;
+        }
+    }
+    if _pi_fn is not None {
+        _pi_recv = obj_ptr;
+        if _pi_fn.args and _pi_recv.type != _pi_fn.args[0].type {
+            _pi_recv = self.builder.bitcast(
+                _pi_recv, _pi_fn.args[0].type, name="postinit.recv"
+            );
+        }
+        self.builder.call(_pi_fn, [_pi_recv]);
     }
     return obj_ptr;
 }
@@ -3093,9 +3140,11 @@ impl NaIRGenPass._emit_class_routed_call(
             _used_kw.add(_an);
             _sargs.append(_pv);
         } elif _an in _sdefaults {
+            # A bare `None` default has no standalone lowering; the
+            # slot's zero value is exactly what it denotes.
             _pv = self._codegen_expr(_sdefaults[_an]);
             if _pv is None {
-                return None;
+                _pv = self._default_arg_fallback(_sfunc.args[_ai].type);
             }
             _sargs.append(_pv);
         } else {
