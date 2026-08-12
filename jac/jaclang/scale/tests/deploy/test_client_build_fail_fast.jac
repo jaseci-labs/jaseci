@@ -60,17 +60,7 @@ def _counting_jac(tmp: str, fail_first: int, failure_text: str) -> tuple {
     script = os.path.join(tmp, "counting-jac.sh");
     with open(script, "w", encoding="utf-8") as f {
         f.write(
-            "#!/bin/sh\n"
-                + f'if [ "$1" != "build" ]; then exec "{real_jac}" "$@"; fi\n'
-                + f'count_file="{counter}"\n'
-                + 'n=$(cat "$count_file" 2>/dev/null || echo 0)\n'
-                + "n=$((n+1))\n"
-                + 'printf %s "$n" > "$count_file"\n'
-                + f'if [ "$n" -le {fail_first} ]; then\n'
-                + f'  echo "{failure_text}" >&2\n'
-                + "  exit 1\n"
-                + "fi\n"
-                + f'exec "{real_jac}" "$@"\n'
+            "#!/bin/sh\n" + f'if [ "$1" != "build" ]; then exec "{real_jac}" "$@"; fi\n' + f'count_file="{counter}"\n' + 'n=$(cat "$count_file" 2>/dev/null || echo 0)\n' + "n=$((n+1))\n" + 'printf %s "$n" > "$count_file"\n' + f'if [ "$n" -le {fail_first} ]; then\n' + f'  echo "{failure_text}" >&2\n' + "  exit 1\n" + "fi\n" + f'exec "{real_jac}" "$@"\n'
         );
     }
     os.chmod(script, 0o755);

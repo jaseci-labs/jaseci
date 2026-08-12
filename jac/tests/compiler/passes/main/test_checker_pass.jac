@@ -5157,8 +5157,7 @@ test "cast_target_must_be_a_type" {
     ];
     assert len(e1044) == 2 , f"Expected 2 E1044 (bad_parens, bad_value), got {len(
         e1044
-    )}:\n"
-        + "\n---\n".join(e.pretty_print() for e in program.errors_had);
+    )}:\n" + "\n---\n".join(e.pretty_print() for e in program.errors_had);
     lines = sorted(e.loc.first_line for e in e1044);
     assert lines == [4, 8] , f"E1044 on wrong lines: {lines}";
 
@@ -5168,8 +5167,7 @@ test "cast_target_must_be_a_type" {
         if not (e.code and e.code.code == "E1044")
     ];
     assert len(others) == 0 , "Only E1044 expected -- the union and generic casts"
-    " must stay valid:\n"
-        + "\n---\n".join(e.pretty_print() for e in others);
+    " must stay valid:\n" + "\n---\n".join(e.pretty_print() for e in others);
 }
 
 # ============================================================================
@@ -5749,8 +5747,8 @@ test "match_wildcard_no_warning_noise" {
         w
         for w in program.warnings_had
         if ("'_'" in str(w))
-            or ("may be undefined" in str(w))
-            or ("could not be resolved" in str(w))
+        or ("may be undefined" in str(w))
+        or ("could not be resolved" in str(w))
     ];
     assert not noise , (
         "case _ must not draw warning noise; got: " + str([str(w) for w in noise])

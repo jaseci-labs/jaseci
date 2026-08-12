@@ -2711,8 +2711,9 @@ test "unimplemented client statement is a hard error, not a silent drop (#7922)"
             if "not supported by client codegen" in str(e)
         ];
         assert len(drops) == 1 , (
-            "Expected exactly one E5017 silent-drop diagnostic, got "
-            + str([str(e) for e in prog.errors_had])
+            "Expected exactly one E5017 silent-drop diagnostic, got " + str(
+                [str(e) for e in prog.errors_had]
+            )
         );
         assert "del" in str(drops[0]) , (
             "E5017 must name the offending construct; got " + str(drops[0])
@@ -2750,8 +2751,9 @@ test "supported client statements do not trip the completeness guard (#7922)" {
             if "not supported by client codegen" in str(e)
         ];
         assert not drops , (
-            "Guard false-positive on supported statements: "
-            + str([str(e) for e in drops])
+            "Guard false-positive on supported statements: " + str(
+                [str(e) for e in drops]
+            )
         );
     } finally {
         os.unlink(temp_path);
@@ -2774,12 +2776,7 @@ test "branch-first assignment binds function-wide, not per block (#7882)" {
         timeout=30
     );
     assert result.returncode == 0 , (
-        "scope-hoist shapes crashed in Node:\nstdout="
-        + result.stdout
-        + "\nstderr="
-        + result.stderr
-        + "\njs:\n"
-        + js_code
+        "scope-hoist shapes crashed in Node:\nstdout=" + result.stdout + "\nstderr=" + result.stderr + "\njs:\n" + js_code
     );
     got: dict[str, any] = json.loads(result.stdout.strip());
     expected = {
@@ -2866,10 +2863,7 @@ test "len dispatches on argument type: dict, set, unknown (#7883)" {
         timeout=30
     );
     assert result.returncode == 0 , (
-        "len dispatch crashed in Node:\nstdout="
-        + result.stdout
-        + "\nstderr="
-        + result.stderr
+        "len dispatch crashed in Node:\nstdout=" + result.stdout + "\nstderr=" + result.stderr
     );
     got: dict[str, any] = json.loads(result.stdout.strip());
     expected = {"d": 2, "s": 3, "a": 4, "l": 3, "st": 4};
@@ -2899,10 +2893,7 @@ test "dict.get miss is a real None on the client (#7884)" {
         timeout=30
     );
     assert result.returncode == 0 , (
-        "dict.get semantics crashed in Node:\nstdout="
-        + result.stdout
-        + "\nstderr="
-        + result.stderr
+        "dict.get semantics crashed in Node:\nstdout=" + result.stdout + "\nstderr=" + result.stderr
     );
     got: dict[str, any] = json.loads(result.stdout.strip());
     expected = {
@@ -2943,10 +2934,7 @@ test "None comparisons lower to loose equality so undefined cannot impersonate a
         timeout=30
     );
     assert result.returncode == 0 , (
-        "none-compare fixture crashed in Node:\nstdout="
-        + result.stdout
-        + "\nstderr="
-        + result.stderr
+        "none-compare fixture crashed in Node:\nstdout=" + result.stdout + "\nstderr=" + result.stderr
     );
     got: dict[str, any] = json.loads(result.stdout.strip());
     expected = {
@@ -2957,8 +2945,9 @@ test "None comparisons lower to loose equality so undefined cannot impersonate a
     };
     for (key, want) in expected.items() {
         assert key in got and got[key] == want , (
-            f"none-compare axis {key}: expected {want}, got {got.get(key)}\njs:\n"
-            + js_code
+            f"none-compare axis {key}: expected {want}, got {got.get(
+                key
+            )}\njs:\n" + js_code
         );
     }
 }
@@ -2990,10 +2979,7 @@ test "match lowers to a guarded if-chain with full pattern coverage (#7881)" {
         timeout=30
     );
     assert result.returncode == 0 , (
-        "match lowering crashed in Node:\nstdout="
-        + result.stdout
-        + "\nstderr="
-        + result.stderr
+        "match lowering crashed in Node:\nstdout=" + result.stdout + "\nstderr=" + result.stderr
     );
     got: dict[str, any] = json.loads(result.stdout.strip());
     expected = {

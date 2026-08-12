@@ -133,8 +133,11 @@ impl JacByllmConfig.get_tool_stream_config(self: JacByllmConfig) -> dict[str, an
     ts_config = config.get('tool_stream', {});
 
     import os;
-    env_enabled = os.environ.get('BYLLM_STREAM_TOOL_ARGS', '').lower()
-        in ('true', '1', 'yes');
+    env_enabled = os.environ.get('BYLLM_STREAM_TOOL_ARGS', '').lower() in (
+        'true',
+        '1',
+        'yes'
+    );
     toml_enabled = bool(ts_config.get('enabled', False));
     return {
         'enabled': env_enabled or toml_enabled,

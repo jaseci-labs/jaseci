@@ -2760,7 +2760,7 @@ impl EsastGenPass._is_null_literal(nd: (uni.UniNode | None)) -> bool {
         return False;
     }
     return isinstance(nd, uni.Null)
-        or (isinstance(nd, uni.Name) and nd.sym_name == 'None');
+    or (isinstance(nd, uni.Name) and nd.sym_name == 'None');
 }
 
 impl EsastGenPass.exit_cfg_expr(nd: uni.CfgExpr) -> None {

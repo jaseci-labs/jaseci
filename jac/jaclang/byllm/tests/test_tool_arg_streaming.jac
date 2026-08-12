@@ -277,8 +277,7 @@ test "the gate opens per call or from jac.toml" {
                 "max_per_call": 200
             }
         )
-    )
-        > 0 , "[byllm.tool_stream] enabled did not enable streaming";
+    ) > 0 , "[byllm.tool_stream] enabled did not enable streaming";
 }
 
 
@@ -314,8 +313,9 @@ test "deltas precede the call, name the tool, and leave execution untouched" {
     b = '{"path": "b.jac"}';
     events = _run(
         [
-            _frags(a, "write_file", "c1", size=10, index=0)
-                + _frags(b, "read_file", "c2", size=8, index=1)
+            _frags(a, "write_file", "c1", size=10, index=0) + _frags(
+                b, "read_file", "c2", size=8, index=1
+            )
         ],
         [_rebuilt([("c1", "write_file", a), ("c2", "read_file", b)])],
         [write_file, read_file]

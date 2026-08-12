@@ -266,7 +266,7 @@ def get_type_of_binary_operation(
     if (isinstance(expr.op, uni.Token) and (expr.op.name in BINARY_OPERATOR_MAP)) {
         if expr.op.name == Tok.BW_OR {
             if is_annotation_type(evaluator, left_type)
-                and is_annotation_type(evaluator, right_type) {
+            and is_annotation_type(evaluator, right_type) {
                 return jtypes.UnionType(types=[left_type, right_type]);
             }
         }

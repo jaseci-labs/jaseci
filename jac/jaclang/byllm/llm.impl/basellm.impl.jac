@@ -29,7 +29,7 @@ def _tool_call_fragments(chunk: object) -> list[dict] {
                         "fragment": (
                             fn.get("arguments") if isinstance(fn, dict) else ""
                         )
-                            or ""
+                        or ""
                     }
                 );
             } else {
@@ -102,7 +102,7 @@ obj _ToolDeltaCoalescer {
             return;
         }
         if len(st["buf"]) >= self.min_chars
-            or (time.time() - st["last"]) >= self.min_interval {
+        or (time.time() - st["last"]) >= self.min_interval {
             self._publish(idx, st);
         }
     }
