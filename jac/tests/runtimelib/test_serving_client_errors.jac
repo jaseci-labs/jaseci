@@ -91,9 +91,9 @@ def _http_500(conn: any) {
     conn.recv(65536);
     conn.sendall(
         b"HTTP/1.1 500 Internal Server Error\r\n"
-        + b"Content-Type: text/plain\r\n"
-        + b"Content-Length: 4\r\n"
-        + b"Connection: close\r\n\r\nboom"
+            + b"Content-Type: text/plain\r\n"
+            + b"Content-Length: 4\r\n"
+            + b"Connection: close\r\n\r\nboom"
     );
     conn.close();
 }
@@ -112,9 +112,7 @@ test "connect refused classifies as ClientRequestNotSent" {
     port = _closed_port();
     caught: any = None;
     try {
-        request_sync(
-            'POST', f"http://127.0.0.1:{port}/x", json_body={}, timeout=2.0
-        );
+        request_sync('POST', f"http://127.0.0.1:{port}/x", json_body={}, timeout=2.0);
     } except ClientRequestNotSent as e {
         caught = e;
     }
@@ -186,9 +184,7 @@ test "post_stream_aware_sync preserves ClientRequestNotSent on connect failure" 
     port = _closed_port();
     caught: any = None;
     try {
-        post_stream_aware_sync(
-            f"http://127.0.0.1:{port}/x", json_body={}, timeout=2.0
-        );
+        post_stream_aware_sync(f"http://127.0.0.1:{port}/x", json_body={}, timeout=2.0);
     } except ClientRequestNotSent as e {
         caught = e;
     }

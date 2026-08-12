@@ -170,9 +170,7 @@ async def _open_stream(
 
 async def _read_response_head(reader: any, timeout: float) -> tuple[int, str, Headers] {
     try {
-        status_line: bytes = await asyncio.wait_for(
-            reader.readline(), timeout=timeout
-        );
+        status_line: bytes = await asyncio.wait_for(reader.readline(), timeout=timeout);
     } except asyncio.TimeoutError {
         raise ClientReadTimeout(detail=f"no response head within {timeout}s");
     }
@@ -267,7 +265,9 @@ async def arequest(
         } except Exception {
             ;
         }
-        raise ClientRequestSent(detail=f"connection lost after request was sent: {e!r}");
+        raise ClientRequestSent(
+            detail=f"connection lost after request was sent: {e!r}"
+        );
     }
     transfer = (resp_headers.get('Transfer-Encoding') or '').lower();
     chunked = 'chunked' in transfer;
