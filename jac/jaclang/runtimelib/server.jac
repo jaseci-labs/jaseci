@@ -151,6 +151,7 @@ obj ModuleIntrospector {
     def introspect_callable(func: Callable[(..., Any)]) -> dict[str, any];
     def introspect_walker(walker_cls: type[WalkerArchetype]) -> dict[str, any];
     def ensure_bundle -> str;
+    def _invalidate_bundle -> None;
     def render_page(
         function_name: str, args: dict[(str, Any)], username: str
     ) -> dict[str, any];

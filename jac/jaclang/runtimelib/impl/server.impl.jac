@@ -606,8 +606,7 @@ impl ModuleIntrospector.load(force_reload: bool = False) -> None {
 
     self._collect_cross_boundary_endpoints();
     self._fill_endpoint_effect_defaults();
-    self._bundle = None;
-    self._bundle_error = None;
+    self._invalidate_bundle();
 }
 
 impl ModuleIntrospector._load_manifest -> None {
@@ -1056,8 +1055,7 @@ impl ModuleIntrospector._check_module_freshness -> None {
         self._walkers = self._collect_walkers();
         self._collect_cross_boundary_endpoints();
         self._fill_endpoint_effect_defaults();
-        self._bundle = None;
-        self._bundle_error = None;
+        self._invalidate_bundle();
         return;
     }
 
@@ -1075,8 +1073,7 @@ impl ModuleIntrospector._check_module_freshness -> None {
         self._functions = self._collect_functions();
         self._walkers = self._collect_walkers();
         self._collect_cross_boundary_endpoints();
-        self._bundle = None;
-        self._bundle_error = None;
+        self._invalidate_bundle();
     }
 }
 
@@ -1226,6 +1223,13 @@ impl ModuleIntrospector.introspect_walker(
         'default': 'root'
     };
     return {'fields': fields};
+}
+
+impl ModuleIntrospector._invalidate_bundle -> None {
+    with self._bundle_lock {
+        self._bundle = None;
+        self._bundle_error = None;
+    }
 }
 
 impl ModuleIntrospector.ensure_bundle -> str {
