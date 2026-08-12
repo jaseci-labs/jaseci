@@ -203,7 +203,25 @@ def _print_deployment_status(status_data: dict) -> None {
     }
 }
 
-glob registry = get_registry();
+glob registry = get_registry(),
+     _sv_sibling_procs: dict[str, any] = {};
+
+def stop_sv_sibling(module_name: str, timeout: float = 10.0) -> bool {
+    proc = _sv_sibling_procs.pop(module_name, None);
+    if proc is None {
+        return False;
+    }
+    if proc.poll() is None {
+        proc.terminate();
+        try {
+            proc.wait(timeout=timeout);
+        } except Exception {
+            proc.kill();
+            proc.wait(timeout=5);
+        }
+    }
+    return True;
+}
 
 def deploy_destroy(
     file_path: str, target: str = "kubernetes", component: str = ""
@@ -690,6 +708,7 @@ class JacScalePlugin {
         } finally {
             log_file.close();
         }
+        _sv_sibling_procs[module_name] = proc;
 
         def _log_size -> int {
             try {
@@ -709,11 +728,11 @@ class JacScalePlugin {
         if not healthy {
             exit_code = proc.poll();
             if exit_code is None {
-                proc.terminate();
                 detail = f"stopped making progress for {budget:.0f}s while starting up";
             } else {
                 detail = f"exited with status {exit_code} before serving";
             }
+            stop_sv_sibling(module_name);
             raise RuntimeError(
                 f"sv-to-sv service '{module_name}' {detail}; "
                 f"expected it at {base_url}. See {log_path} for its output"
@@ -729,9 +748,7 @@ class JacScalePlugin {
         sv_client.register(module_name, base_url);
 
         def _cleanup {
-            if proc.poll() is None {
-                proc.terminate();
-            }
+            stop_sv_sibling(module_name);
         }
         atexit.register(_cleanup);
     }
