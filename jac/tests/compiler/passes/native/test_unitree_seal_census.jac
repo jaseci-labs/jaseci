@@ -43,9 +43,9 @@ back, which would make the unit circular.
 glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
      # Seams that stay, each naming what has to land before it goes. Keyed
      # `<module>::<Type>.<method>` exactly as `_seal_demotions` keys them, so
-     # an entry reads the same as one in `NATIVE_SEAL_DEMOTION_WAIVERS` -- and
-     # the three "Python-only" entries below are the ones that will have to be
-     # copied there when `unitree` joins `NATIVE_SEAL_MODULES`.
+     # an entry reads the same as one in `NATIVE_SEAL_DEMOTION_WAIVERS` --
+     # these four are mirrored there (as `_UNITREE_SEAM_WAIVERS`) now that
+     # `unitree` is in `NATIVE_SEAL_MODULES`.
      SEAM_WAIVERS: dict[(str, str)] = {
          "unitree.jac::UniNode._construct_sub_node_tab": (
              "#8068: a dict keyed by `type` is not layout-compatible, and "
@@ -68,60 +68,13 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
              "Python-only: calls `TypeBase.mangle`, and `TypeBase` is the "
              "type system's, reached through a typing-only import."
          )
-     },
-     # `UniScopeNode.insert` resolves `access_spec: AstAccessNode | None |
-     # SymbolAccess` with `isinstance(access_spec, SymbolAccess)`. One source
-     # line, inherited by every scope subclass, so it is enumerated by owner
-     # rather than repeated verbatim 30 times.
-     INSERT_SEAM_REASON: str = (
-         "#8067: `_enum_union_tags` reads `ClassType.is_enum_class` uncalled, "
-         "so every member of the operand union classifies as an enum owning "
-         "jacval tag 0 and the sole-ownership test always clashes. The enum "
-         "tag path therefore never fires on a union, which is the only shape "
-         "it exists for."
-     ),
-     INSERT_SEAM_OWNERS: tuple = (
-         "Ability",
-         "Archetype",
-         "AwaitingClause",
-         "DictCompr",
-         "ElseIf",
-         "Enum",
-         "Except",
-         "FinallyStmt",
-         "ForeverStmt",
-         "GenCompr",
-         "IfStmt",
-         "ImplDef",
-         "InForStmt",
-         "InnerCompr",
-         "IterForStmt",
-         "LambdaExpr",
-         "ListCompr",
-         "MatchCase",
-         "Module",
-         "OpenStmt",
-         "SemDef",
-         "SetCompr",
-         "SwitchCase",
-         "Test",
-         "TryStmt",
-         "TypeAlias",
-         "TypedCtxBlock",
-         "UniScopeNode",
-         "WhileStmt",
-         "WithStmt"
-     );
+     };
 
 glob _CENSUS_MEMO: list = [];
 
-"""The full waiver table, with the inherited `insert` seams expanded."""
+"""The full waiver table."""
 def _waived_seams -> dict[(str, str)] {
-    waived: dict[(str, str)] = dict(SEAM_WAIVERS);
-    for owner in INSERT_SEAM_OWNERS {
-        waived[f"unitree.jac::{owner}.insert"] = INSERT_SEAM_REASON;
-    }
-    return waived;
+    return dict(SEAM_WAIVERS);
 }
 
 """Compile `unitree.jac` the way `seal_native_artifacts` does, up to the census."""

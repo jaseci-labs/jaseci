@@ -296,10 +296,8 @@ impl NaIRGenPass._elem_storage_llvm(t: any) -> (ir.Type | None) {
             and m.shared.class_name in ("NoneType", "None")
         )
     ];
-    if _members and len(_members) < len(t.types or []) {
-        return self.jacval_type;
-    }
-    if len(_members) < 2 {
+    _had_none = len(_members) < len(t.types or []);
+    if not _members {
         return self._lower_type(t);
     }
     _lowered: list = [];
@@ -311,10 +309,30 @@ impl NaIRGenPass._elem_storage_llvm(t: any) -> (ir.Type | None) {
         _lowered.append(_ml);
     }
     _first = _lowered[0];
+    _all_same = True;
+    _all_ptr = isinstance(_first, ir.PointerType);
     for _ml in _lowered[1:] {
         if _ml != _first {
-            return self.jacval_type;
+            _all_same = False;
         }
+        if not isinstance(_ml, ir.PointerType) {
+            _all_ptr = False;
+        }
+    }
+    if _all_ptr {
+        # Every member is an rc-managed pointer, so the element slot is a
+        # common pointer (mirroring `_unify_repr_lowering`); a None member
+        # is representable as null and never forces jacval boxing. A list
+        # literal of mixed node classes stays a "ptr" list this way, which
+        # keeps its flavor consistent with the appends and extends that
+        # follow it.
+        if _all_same and not _had_none {
+            return _first;
+        }
+        return _first if _all_same else ir.IntType(8).as_pointer();
+    }
+    if _had_none or not _all_same {
+        return self.jacval_type;
     }
     return _first;
 }
@@ -837,6 +855,13 @@ impl NaIRGenPass._entry_alloca(var_type: ir.Type, name: str) -> ir.Value {
         self.builder.position_at_start(entry_block);
     }
     alloca = self.builder.alloca(var_type, name=name);
+    # Scope cleanup releases any rc-tracked slot at function exit, including
+    # one whose assigning path never ran (a loop variable after zero
+    # iterations), so every slot must start null rather than as stack garbage.
+    # A slot that is always stored before being read loses this store to DSE.
+    # The generator-frame path above must NOT be zeroed: its slots alias a
+    # heap frame that carries live values across yields.
+    self.builder.store(self._zero_const(var_type), alloca);
 
     self.builder.position_at_end(cur_block);
     return alloca;
@@ -966,13 +991,11 @@ impl NaIRGenPass._to_bool(val: ir.Value) -> ir.Value {
             return self._emit_bytes_truthy(val);
         }
 
-        i8p = ir.IntType(8).as_pointer();
-        if val.type == i8p {
-            first = self.builder.load(val, name="tobool.str.ch");
-            return self.builder.icmp_unsigned(
-                "!=", first, ir.Constant(ir.IntType(8), 0), name="tobool.str"
-            );
-        }
+        # A bare i8* is a type-erased object pointer (union storage) or a
+        # C-side char*; both take null-compare truthiness. Jac strings are
+        # `_str_desc_ty` descriptors handled at the top of this method, so
+        # reading a first byte here would deref null for a None-carrying
+        # union and impose C-string semantics on erased objects.
         null_ptr = ir.Constant(val.type, None);
         return self.builder.icmp_unsigned("!=", val, null_ptr, name="tobool");
     }
@@ -1053,6 +1076,15 @@ impl NaIRGenPass._jacval_is_none(jv: ir.Value, negate: bool) -> ir.Value {
     return self.builder.icmp_unsigned(
         cmp_op, tag, ir.Constant(i8, 8), name="jv.nonetest"
     );
+}
+
+impl NaIRGenPass._zero_const(ty: ir.Type) -> ir.Constant {
+    # An aggregate (JacOpt/jacval struct) or pointer zero is its null form;
+    # a raw 0 only type-checks for scalars.
+    if isinstance(ty, (ir.PointerType, ir.Aggregate)) {
+        return ir.Constant(ty, None);
+    }
+    return ir.Constant(ty, 0);
 }
 
 impl NaIRGenPass._coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value {
@@ -1425,6 +1457,17 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
             return self.builder.select(_tag_set, _boxed, _none_jv, name="opt.tojv");
         }
 
+        if isinstance(target_type, ir.PointerType)
+            and isinstance(_pl.type, ir.PointerType) {
+            # A pointer target can represent None as null, so an optional
+            # erases rather than unwraps -- this is also the payload route of
+            # a JacOptA -> JacOptB conversion, where a None must stay None
+            # instead of tripping the required-value guard below.
+            _pl_c = self._coerce_type_inner(_pl, target_type);
+            return self.builder.select(
+                _tag_set, _pl_c, ir.Constant(target_type, None), name="opt.ornull"
+            );
+        }
         _is_none = self.builder.icmp_signed(
             "==", _tag, ir.Constant(ir.IntType(8), 0), name="opt.isnone"
         );

@@ -5086,7 +5086,9 @@ impl Parser.parse_from_path -> tuple[(ModulePath | None, bool)] {
     return (from_loc, is_clib_import);
 }
 
-impl Parser.parse_import_items(kid: list[UniNode], is_clib_import: bool) -> tuple[(list, list)] {
+impl Parser.parse_import_items(
+    kid: list[UniNode], is_clib_import: bool
+) -> tuple[(list, list)] {
     items: list[ModuleItem | ModulePath] = [];
     clib_decls: list[UniNode] = [];
     self.expect(TokenKind.LBRACE);
@@ -5110,7 +5112,7 @@ impl Parser.parse_import_items(kid: list[UniNode], is_clib_import: bool) -> tupl
                 clib_decls.append(stmt);
                 kid.append(stmt);
                 if isinstance(stmt, ContextAwareNode) {
-                    stmt.code_context = CodeContext.NATIVE;
+                    stmt.set_code_context(CodeContext.NATIVE);
                 }
             }
         }
@@ -5247,7 +5249,7 @@ impl Parser.parse_archetype -> Archetype {
         ep_arrow_uni = self.consume_uni(TokenKind.ARROW_R);
         tgt_endpoint = self.parse_atomic_chain();
     }
-    body_l: (list | None) = None;
+    body_l: (list[UniNode] | None) = None;
     body_lb_uni = None;
     body_rb_uni = None;
     if self.match_tok(TokenKind.LBRACE) {
@@ -5600,7 +5602,7 @@ impl Parser.parse_has_var -> HasVar {
         defer = True;
     }
 
-    acc_list: (list | None) = None;
+    acc_list: (list[Ability] | None) = None;
     acc_lb_uni: Token | None = None;
     acc_rb_uni: Token | None = None;
     if self.check(TokenKind.LBRACE) {
@@ -6206,7 +6208,7 @@ impl Parser.parse_enum -> Enum {
         }
         enum_rp_uni = self.consume_uni(TokenKind.RPAREN);
     }
-    body_l: (list | None) = None;
+    body_l: (list[UniNode] | None) = None;
     body_kid: list[UniNode] = [];
     enum_lb_uni: Token | None = None;
     enum_rb_uni: Token | None = None;
@@ -6925,7 +6927,9 @@ impl Parser.parse_sem_def -> SemDef {
         sep_uni = self.make_uni_token(self.previous());
     }
 
-    str_nodes: list[String | FString] = [self.make_string(self.expect(TokenKind.STRING))];
+    str_nodes: list[String | FString] = [
+        self.make_string(self.expect(TokenKind.STRING))
+    ];
     while self.check(TokenKind.STRING) {
         str_nodes.append(self.make_string(self.expect(TokenKind.STRING)));
     }
@@ -7074,9 +7078,7 @@ impl Parser.parse_visit_stmt -> VisitStmt {
         has_semi = True;
     }
     kid: list[UniNode] = [visit_uni];
-    if insert_loc is not None
-        and colon1_uni is not None
-        and colon2_uni is not None {
+    if insert_loc is not None and colon1_uni is not None and colon2_uni is not None {
         kid.append(colon1_uni);
         kid.append(insert_loc);
         kid.append(colon2_uni);

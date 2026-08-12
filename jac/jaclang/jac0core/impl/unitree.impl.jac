@@ -674,6 +674,13 @@ impl ContextAwareNode.postinit -> None {
 }
 
 
+impl ContextAwareNode.set_code_context(ctx: CodeContext) -> None {
+    # Mixin fields live at class-specific offsets, so a polymorphic write
+    # goes through this dispatched setter rather than a base-typed store.
+    self.code_context = ctx;
+}
+
+
 impl WalkerStmtOnlyNode.postinit -> None {
     self.from_walker = False;
 }

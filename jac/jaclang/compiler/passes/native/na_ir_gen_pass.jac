@@ -481,6 +481,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_printf -> ir.Function;
     def _emit_print(nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None);
+    def _emit_isinstance_ptr_tags(operand: ir.Value, tags: list[int]) -> ir.Value;
     def _isinstance_type_name(nd: uni.UniNode) -> (str | None);
     def _enum_union_tags(operand_expr: uni.UniNode, names: list[str]) -> tuple;
     def _arch_alias_target(nd: (uni.UniNode | None)) -> (str | None);
@@ -566,6 +567,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _jacval_truthy(jv: ir.Value) -> ir.Value;
     def _jacval_is_none(jv: ir.Value, negate: bool) -> ir.Value;
     def _entry_alloca(var_type: ir.Type, name: str) -> ir.Value;
+    def _zero_const(ty: ir.Type) -> ir.Constant;
     def _coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _promote_to_float(
@@ -761,7 +763,18 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None;
     def _forward_declare_method(arch_name: str, method: uni.Ability) -> None;
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
-    def _codegen_method(arch_name: str, method: uni.Ability) -> None;
+    def _codegen_method(
+        arch_name: str, method: uni.Ability, symbol_override: (str | None) = None
+    ) -> None;
+
+    def _emit_class_routed_call(
+        nd: uni.FuncCall,
+        _sfull: str,
+        _mnames: list[str],
+        _given_recv: (ir.Value | None),
+        _given_recv_cls: (str | None)
+    ) -> (ir.Value | None);
+
     def _demote_method_if_unlowerable(
         full_name: str,
         func: ir.Function,

@@ -18,11 +18,26 @@ impl NaIRGenPass._native_archetypes(module: uni.Module) -> list[uni.Archetype] {
             result[aname] = arch;
         }
     }
-    return [
-        a
-        for a in result.values()
-        if not a.type_params
-    ];
+    # A generic archetype is emitted iff the central layout registry carries a
+    # (type-erased) layout for it: everything downstream -- imported-method
+    # declarations, ctor field stores, rc hooks -- already follows the
+    # registry, so withholding only the definitions would strand those
+    # references as undefined symbols at link time. A generic the registry
+    # does not lay out stays dropped, and a method body the erased layout
+    # cannot host demotes through the normal seam machinery.
+    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+    layout_reg = get_layout_registry(self.ir_in, self.prog);
+    out: list[uni.Archetype] = [];
+    for a in result.values() {
+        if a.type_params {
+            aname = a.name.value if a.name else "unknown";
+            if layout_reg.get_layout(aname) is None {
+                continue;
+            }
+        }
+        out.append(a);
+    }
+    return out;
 }
 
 impl NaIRGenPass._forward_declare_archetype_names(module: uni.Module) -> None {
@@ -484,9 +499,15 @@ impl NaIRGenPass._forward_declare_method(arch_name: str, method: uni.Ability) ->
     }
 }
 
-impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
+impl NaIRGenPass._codegen_method(
+    arch_name: str, method: uni.Ability, symbol_override: (str | None) = None
+) -> None {
     method_name = method.name_ref.sym_name if method.name_ref else "unnamed";
-    full_name = f"{arch_name}.{method_name}";
+    # A symbol override lowers this body specialized to `arch_name`'s layout
+    # under its own name -- the receiver-class copy an unbound
+    # `Ancestor.method(self)` call needs when the ancestor is not
+    # layout-prefix-compatible with the receiver.
+    full_name = symbol_override or f"{arch_name}.{method_name}";
     func = self.method_funcs.get(full_name);
     if func is None {
         return;
@@ -582,10 +603,8 @@ impl NaIRGenPass._codegen_method(arch_name: str, method: uni.Ability) -> None {
             ret_type = func.return_value.type;
             if isinstance(ret_type, ir.VoidType) {
                 self.builder.ret_void();
-            } elif isinstance(ret_type, ir.PointerType) {
-                self.builder.ret(ir.Constant(ret_type, None));
             } else {
-                self.builder.ret(ir.Constant(ret_type, 0));
+                self.builder.ret(self._zero_const(ret_type));
             }
         }
         method.gen.llvm_ir = func;
@@ -1450,16 +1469,48 @@ impl NaIRGenPass._codegen_instantiation(
         }
     }
 
+    # An explicit `init` may be inherited (`EmptyToken()` runs `Token.init`),
+    # so resolution walks the MRO. A layout-prefix-compatible owner runs
+    # directly on the bitcast receiver; a non-primary owner's body would
+    # address the wrong offsets, so that shape fails loud instead.
     init_fn: (ir.Function | None) = None;
-    for candidate in [f"{type_name}.init", f"{type_name}.__init__"] {
-        if candidate in self.method_funcs {
-            init_fn = self.method_funcs[candidate];
+    _init_owner: str = type_name;
+    for _init_cls in self._mro_of(type_name) {
+        for candidate in [f"{_init_cls}.init", f"{_init_cls}.__init__"] {
+            if candidate in self.method_funcs {
+                init_fn = self.method_funcs[candidate];
+                _init_owner = _init_cls;
+                break;
+            }
+        }
+        if init_fn is not None {
             break;
+        }
+    }
+    if init_fn is not None and _init_owner != type_name {
+        import from jaclang.compiler.passes.main.layout_pass {
+            get_layout_registry as _ci_glr
+        }
+        if not _ci_glr(self.ir_in, self.prog).is_primary_ancestor(
+            type_name, _init_owner
+        ) {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="constructor",
+                name=f"{type_name}() via {_init_owner}.init",
+                help_text=(
+                    "The inherited initializer belongs to an ancestor that is "
+                    "not layout-prefix-compatible with this class, so calling "
+                    "it directly would address the wrong field offsets."
+                )
+            );
+            return None;
         }
     }
     if init_fn is not None {
         init_args: list[ir.Value] = [obj_ptr];
-        init_sig = self._arch_init_sig_of(type_name) if _is_call else None;
+        init_sig = self._arch_init_sig_of(_init_owner) if _is_call else None;
         if init_sig is not None {
             _init_pos: list = [];
             _init_kw: dict = {};
@@ -1547,6 +1598,50 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if method_name is None {
         return None;
     }
+    if target_name == "super" and self._self_arch is not None {
+        # `super.method(args)` resolves to the nearest MRO ancestor that
+        # provides the method and runs it on this method's own receiver,
+        # through the same class-routed path (which specializes the body
+        # when the ancestor is not layout-prefix-compatible).
+        _sup_names = [method_name];
+        if method_name == "postinit" {
+            _sup_names.append("__post_init__");
+        } elif method_name == "init" {
+            _sup_names.append("__init__");
+        }
+        _sup_full: (str | None) = None;
+        for _cn in self._mro_of(self._self_arch)[1:] {
+            for _mn in _sup_names {
+                _cand = f"{_cn}.{_mn}";
+                if _cand in self.method_funcs
+                    and _cand not in self._native_skipped_methods {
+                    _sup_full = _cand;
+                    break;
+                }
+            }
+            if _sup_full is not None {
+                break;
+            }
+        }
+        _self_slot = self.local_vars.get("self");
+        if _sup_full is not None and _self_slot is not None {
+            _self_val = self.builder.load(_self_slot, name="super.self");
+            return self._emit_class_routed_call(
+                nd, _sup_full, _sup_names, _self_val, self._self_arch
+            );
+        }
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="call",
+            name=f"super.{method_name}",
+            help_text=(
+                "No MRO ancestor of this class provides a native lowering "
+                "of this method, so the super call cannot lower."
+            )
+        );
+        return None;
+    }
     if method_name == "partition"
         and (
             self._type_key_of(trailer.target) == "Region"
@@ -1589,6 +1684,12 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         and target_name not in self.local_vars
     ) {
         _sfull: (str | None) = None;
+        _mnames = [method_name];
+        if method_name == "postinit" {
+            _mnames.append("__post_init__");
+        } elif method_name == "init" {
+            _mnames.append("__init__");
+        }
         for _cn in self._mro_of(target_name) {
             _cand = f"{_cn}.{method_name}";
             if _cand in self.static_methods {
@@ -1614,27 +1715,29 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
             );
             return None;
         }
+        if _sfull is None {
+            # An unbound instance-method call routes through the class the
+            # same way (`UniNode.postinit(self)`): resolve along the MRO
+            # under the lowered dunder names and pass the call's own
+            # arguments, the first of which is the receiver. Without this
+            # the call fell through every branch and the statement dropped
+            # silently -- invisible even to the demotion gate.
+            for _cn in self._mro_of(target_name) {
+                for _mn in _mnames {
+                    _icand = f"{_cn}.{_mn}";
+                    if _icand in self.method_funcs
+                        and _icand not in self._native_skipped_methods {
+                        _sfull = _icand;
+                        break;
+                    }
+                }
+                if _sfull is not None {
+                    break;
+                }
+            }
+        }
         if _sfull is not None {
-            _sfunc = self.method_funcs[_sfull];
-            _sargs: list[ir.Value] = [];
-            for (_i, _p) in enumerate(nd.params or []) {
-                _pv = self._codegen_expr(_p);
-                if _pv is None {
-                    return None;
-                }
-                if _i < len(_sfunc.args) {
-                    _pv = self._coerce_type(_pv, _sfunc.args[_i].type);
-                }
-                _sargs.append(_pv);
-            }
-            for _fill in range(len(_sargs), len(_sfunc.args)) {
-                _sargs.append(self._default_arg_fallback(_sfunc.args[_fill].type));
-            }
-            _sr = self.builder.call(_sfunc, _sargs, name=f"scall.{method_name}");
-            if isinstance(_sfunc.return_value.type, ir.VoidType) {
-                return None;
-            }
-            return _sr;
+            return self._emit_class_routed_call(nd, _sfull, _mnames, None, None);
         }
     }
 
@@ -2272,6 +2375,17 @@ impl NaIRGenPass._codegen_field_access(
     }
     obj_val = self._opt_unwrap_attr(obj_val);
 
+    if (
+        self?.jacval_type
+        and obj_val.type == self.jacval_type
+        and type_name in self.struct_types
+    ) {
+        # The checker narrowed a boxed union to this class; unbox before
+        # touching fields.
+        obj_val = self._unbox_from_jacval(
+            obj_val, self.struct_types[type_name].as_pointer()
+        );
+    }
     if isinstance(obj_val.type, ir.IntType) and (type_name in self.struct_types) {
         obj_val = self.builder.inttoptr(
             obj_val, self.struct_types[type_name].as_pointer(), name="osp.handle.ptr"
@@ -2295,6 +2409,9 @@ impl NaIRGenPass._codegen_field_access(
         self._emit_runtime_raise(
             is_null, "AttributeError", "'NoneType' object has no attribute"
         );
+    }
+    if not isinstance(obj_val.type, ir.PointerType) {
+        return None;
     }
     idx = field_indices[field_name];
     field_ptr = self.builder.gep(
@@ -2428,6 +2545,17 @@ impl NaIRGenPass._codegen_field_assign(
         obj_val = self._opt_unwrap_attr(obj_val);
     }
     type_name: (str | None) = self._struct_name_of(target.target);
+    if (
+        obj_val is not None
+        and self?.jacval_type
+        and obj_val.type == self.jacval_type
+        and type_name is not None
+        and type_name in self.struct_types
+    ) {
+        obj_val = self._unbox_from_jacval(
+            obj_val, self.struct_types[type_name].as_pointer()
+        );
+    }
     if type_name is None and obj_val is not None {
         type_name = self._infer_type_name(obj_val);
     }
@@ -2454,6 +2582,29 @@ impl NaIRGenPass._codegen_field_assign(
     field_types = self.struct_field_types.get(type_name);
     idx = field_indices[field_name];
     ftype = field_types[field_name];
+    # A union-typed receiver travels as a common pointer (e.g. an i8* list
+    # element); the checker's narrowing names the concrete class, so retype
+    # the pointer before any field gep.
+    _fa_struct = self.struct_types.get(type_name);
+    if (
+        _fa_struct is not None
+        and isinstance(obj_val.type, ir.PointerType)
+        and obj_val.type.pointee != _fa_struct
+    ) {
+        obj_val = self.builder.bitcast(
+            obj_val, _fa_struct.as_pointer(), name="fa.recv.cast"
+        );
+    }
+    # The identified struct is shared across module compiles; if another
+    # module registered it first with a different field lowering, the
+    # physical slot type is the authority the store must match.
+    _slot_struct = self.struct_types.get(type_name);
+    _slot_elems = _slot_struct?.elements if _slot_struct is not None else None;
+    if _slot_elems is not None
+        and idx < len(_slot_elems)
+        and _slot_elems[idx] != ftype {
+        ftype = _slot_elems[idx];
+    }
 
     if field_name in self.struct_field_inline.get(type_name, set()) {
         _inl_fp = self.builder.gep(
@@ -2515,4 +2666,201 @@ impl NaIRGenPass._codegen_field_assign(
         self._emit_rc_release_simple(_fs_old_pv, op="field_set", loc=_fs_loc);
     }
     self.builder.store(value, field_ptr);
+}
+
+impl NaIRGenPass._emit_class_routed_call(
+    nd: uni.FuncCall,
+    _sfull: str,
+    _mnames: list[str],
+    _given_recv: (ir.Value | None),
+    _given_recv_cls: (str | None)
+) -> (ir.Value | None) {
+    method_name = _sfull.partition(".")[2];
+    _sfunc = self.method_funcs[_sfull];
+    # An unbound ancestor call (`Expr.postinit(self)` inside
+    # `Name.init`) runs the ancestor's body on the receiver, and the
+    # receiver's mixin fields live at class-specific offsets. When
+    # the ancestor is not a layout-prefix of the receiver's class,
+    # lower a receiver-specialized copy of the body instead of
+    # calling the ancestor's own lowering, which would read and
+    # write through the ancestor's layout and corrupt the object.
+    _owner_cls = _sfull.partition(".")[0];
+    _recv_cls: (str | None) = _given_recv_cls;
+    if _recv_cls is None {
+        _recv_first = (nd.params or [None])[0];
+        _recv_cls = (
+            self._struct_name_of(_recv_first)
+                if _recv_first is not None and not isinstance(_recv_first, uni.KWPair)
+                else None
+        );
+    }
+    if (
+        _recv_cls is not None
+        and _recv_cls != _owner_cls
+        and _recv_cls in self.struct_types
+        and _sfull not in self.static_methods
+    ) {
+        # A static method has no receiver -- its first argument is data --
+        # so only unbound instance calls specialize to the receiver class.
+        import from jaclang.compiler.passes.main.layout_pass {
+            get_layout_registry as _sc_glr
+        }
+        _sc_reg = _sc_glr(self.ir_in, self.prog);
+        if not _sc_reg.is_primary_ancestor(_recv_cls, _owner_cls) {
+            _mn_part = _sfull.partition(".")[2];
+            _spec_key = f"{_recv_cls}.{_mn_part}${_owner_cls}";
+            if _spec_key not in self.method_funcs
+                and _spec_key not in self._native_skipped_methods {
+                _anc_arch = self.arch_ast_map.get(_owner_cls);
+                _anc_meth: (uni.Ability | None) = None;
+                if _anc_arch is not None and _anc_arch.body is not None {
+                    for _ab in _anc_arch.body {
+                        if isinstance(_ab, uni.Ability)
+                            and _ab.name_ref is not None
+                            and _ab.name_ref.sym_name in _mnames
+                            and _ab.signature is not None {
+                            _anc_meth = _ab;
+                            break;
+                        }
+                    }
+                }
+                if _anc_meth is None {
+                    self.emit(
+                        E5092,
+                        node_override=nd,
+                        kind="call",
+                        name=_sfull,
+                        help_text=(
+                            "An unbound ancestor call runs the "
+                            "ancestor's body on this receiver, whose "
+                            "field layout differs; specializing it "
+                            "needs the ancestor's source, which is "
+                            "not visible to this unit."
+                        )
+                    );
+                    return None;
+                }
+                _spec_arg_tys: list[ir.Type] = [
+                    self.struct_types[_recv_cls].as_pointer()
+                ];
+                for _at in _sfunc.function_type.args[1:] {
+                    _spec_arg_tys.append(_at);
+                }
+                _spec_fnty = ir.FunctionType(
+                    _sfunc.function_type.return_type, _spec_arg_tys
+                );
+                _spec_fn = ir.Function(self.llvm_module, _spec_fnty, name=_spec_key);
+                for (_sai, _sa) in enumerate(_sfunc.args) {
+                    if _sai < len(_spec_fn.args) {
+                        _spec_fn.args[_sai].name = _sa.name;
+                    }
+                }
+                self.method_funcs[_spec_key] = _spec_fn;
+                self._codegen_method(_recv_cls, _anc_meth, symbol_override=_spec_key);
+            }
+            _spec_ready = self.method_funcs.get(_spec_key);
+            if _spec_ready is None {
+                # The specialized body demoted, so the call cannot
+                # lower; failing loud demotes this caller too rather
+                # than dropping the statement.
+                self.emit(E5092, node_override=nd, kind="call", name=_spec_key);
+                return None;
+            }
+            _sfunc = _spec_ready;
+        }
+    }
+    # Keyword arguments are routine on these calls
+    # (`Token.init(self, orig_src=..., ...)`), and `nd.callee_decl`
+    # is not bound for a class-routed callee, so map them here
+    # against the callee's own argument names. The source signature,
+    # when the class AST is at hand, supplies unpassed defaults.
+    _spos: list[uni.UniNode] = [];
+    _skw: dict[str, uni.UniNode] = {};
+    for _p in (nd.params or []) {
+        if isinstance(_p, uni.KWPair) {
+            if _p.key is not None {
+                _skw[_p.key.sym_name] = _p.value;
+            }
+        } else {
+            _spos.append(_p);
+        }
+    }
+    _sdefaults: dict[str, uni.UniNode] = {};
+    _sarch_nd = self.arch_ast_map.get(_sfull.split(".")[0]);
+    if _sarch_nd is not None and _sarch_nd.body is not None {
+        for _sb in _sarch_nd.body {
+            if isinstance(_sb, uni.Ability)
+                and _sb.name_ref is not None
+                and _sb.name_ref.sym_name in _mnames
+                and isinstance(_sb.signature, uni.FuncSignature) {
+                for _sprm in _sb.signature.get_parameters() {
+                    if isinstance(_sprm, uni.ParamVar)
+                        and _sprm.name is not None
+                        and _sprm.value is not None {
+                        _sdefaults[_sprm.name.value] = _sprm.value;
+                    }
+                }
+                break;
+            }
+        }
+    }
+    _sargs: list[ir.Value] = [];
+    _bad_arg = False;
+    if _given_recv is not None {
+        _sargs.append(_given_recv);
+    }
+    for _p in _spos {
+        _pv = self._codegen_expr(_p);
+        if _pv is None {
+            return None;
+        }
+        _sargs.append(_pv);
+    }
+    _used_kw: set[str] = set();
+    for _ai in range(len(_sargs), len(_sfunc.args)) {
+        _an = _sfunc.args[_ai].name or "";
+        if _an in _skw {
+            _pv = self._codegen_expr(_skw[_an]);
+            if _pv is None {
+                return None;
+            }
+            _used_kw.add(_an);
+            _sargs.append(_pv);
+        } elif _an in _sdefaults {
+            _pv = self._codegen_expr(_sdefaults[_an]);
+            if _pv is None {
+                return None;
+            }
+            _sargs.append(_pv);
+        } else {
+            if _an == "" and _skw {
+                _bad_arg = True;
+            }
+            _sargs.append(self._default_arg_fallback(_sfunc.args[_ai].type));
+        }
+    }
+    if _bad_arg or (len(_used_kw) < len(_skw)) {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="call",
+            name=_sfull,
+            help_text=(
+                "A keyword argument on this class-routed call could "
+                "not be matched to the callee's parameters, so the "
+                "call cannot lower faithfully."
+            )
+        );
+        return None;
+    }
+    for (_i, _sv) in enumerate(_sargs) {
+        if _i < len(_sfunc.args) {
+            _sargs[_i] = self._coerce_type(_sv, _sfunc.args[_i].type);
+        }
+    }
+    _sr = self.builder.call(_sfunc, _sargs, name=f"scall.{method_name}");
+    if isinstance(_sfunc.return_value.type, ir.VoidType) {
+        return None;
+    }
+    return _sr;
 }

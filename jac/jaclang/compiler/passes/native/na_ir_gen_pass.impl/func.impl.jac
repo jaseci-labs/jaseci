@@ -437,10 +437,8 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         ret_type = func.return_value.type;
         if isinstance(ret_type, ir.VoidType) {
             self.builder.ret_void();
-        } elif isinstance(ret_type, ir.PointerType) {
-            self.builder.ret(ir.Constant(ret_type, None));
         } else {
-            self.builder.ret(ir.Constant(ret_type, 0));
+            self.builder.ret(self._zero_const(ret_type));
         }
     }
 
@@ -703,10 +701,8 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
             tb = ir.IRBuilder(bb);
             if isinstance(ret_type, ir.VoidType) {
                 tb.ret_void();
-            } elif isinstance(ret_type, ir.PointerType) {
-                tb.ret(ir.Constant(ret_type, None));
             } else {
-                tb.ret(ir.Constant(ret_type, 0));
+                tb.ret(self._zero_const(ret_type));
             }
         }
     }

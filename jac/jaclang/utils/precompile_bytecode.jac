@@ -271,9 +271,29 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 glob NATIVE_SEAL_MODULES: tuple = (
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
+         "jac0core/unitree.jac",
+
+     );
+
+# Waived seams ship as abort stubs, so an entry is sound only for a method the
+# sealed entry points cannot reach. The four below are unitree's frontier,
+# mirrored from `test_unitree_seal_census.jac` (which documents each): one
+# backend gap (#8068: a dict keyed by `type` has no native layout, behind
+# `UniNode._sub_node_tab`'s lazy build) and three methods that call Python-only
+# infrastructure (import resolution through `modresolver`/`codeinfo`, and the
+# type system's `TypeBase.mangle`), none of which a parse ever calls -- the
+# parity corpus and the dlopen canary exercise the artifacts to hold that line.
+glob _UNITREE_SEAM_WAIVERS: tuple = (
+         "jac0core/unitree.jac::UniNode._construct_sub_node_tab",
+         "jac0core/unitree.jac::ModulePath.resolve_relative_path",
+         "jac0core/unitree.jac::ModulePath.native_bundled_path",
+         "jac0core/unitree.jac::Ability.event_trigger_type_names",
 
      ),
-     NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {};
+     NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
+         "jac0core/parser/parser.jac": _UNITREE_SEAM_WAIVERS,
+         "jac0core/unitree.jac": _UNITREE_SEAM_WAIVERS
+     };
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
     if pkg_path is not None {
@@ -621,10 +641,30 @@ def seal_native_artifacts(
         llvm_ir_text = str(ir.gen.llvm_ir);
 
         (_qualified, allowed_bare) = seal_waiver_names(rel, waivers);
+        # The backend lowers inherited methods per concrete class, so one
+        # demoted source method ships a stub in every subclass. The census
+        # keys the seam by its defining class; the shipped-IR scan accepts the
+        # same method on any class whose MRO reaches a waived owner, and the
+        # layout registry the compile just populated is the authority on that.
+        allowed_stub_names: set[str] = set(allowed_bare);
+        reg = ir.gen.layout_registry;
+        if reg is not None {
+            for bare in allowed_bare {
+                (owner, dot, meth) = bare.rpartition(".");
+                if not dot {
+                    continue;
+                }
+                for (cls, mro) in reg.mro_order.items() {
+                    if owner in mro {
+                        allowed_stub_names.add(f"{cls}.{meth}");
+                    }
+                }
+            }
+        }
         shipped_stubs = [
             s
             for s in seal_abort_stubs(llvm_ir_text)
-            if s not in allowed_bare
+            if s not in allowed_stub_names
         ];
         if shipped_stubs {
             console.error(
