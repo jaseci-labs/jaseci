@@ -2230,7 +2230,7 @@ test "stdlib server answers health endpoints" {
 """A missing bun is an environmental precondition, cheap to re-check - the
 bundle layer must retry it on every request (so fetching bun fixes serving
 without a restart), while genuine build failures stay memoized."""
-test "ensure_bundle retries a missing-bun failure but memoizes build errors" {
+test "ensure_bundle retries a missing-bun failure and a build error alike" {
     import from unittest.mock { MagicMock }
     import from jaclang.runtimelib.server { ModuleIntrospector }
     import from jaclang.runtimelib.client_bundle { ClientBundleError, MissingBunError }
@@ -2258,7 +2258,11 @@ test "ensure_bundle retries a missing-bun failure but memoizes build errors" {
             assert False , "ensure_bundle should raise for a broken build";
         } except ClientBundleError { }
     }
-    assert broken.build.call_count == 1 , "a real build failure stays memoized until reload";
+    assert broken.build.call_count == 2 , (
+        "a build failure must be retried on the next call: the serving core builds "
+        "at boot and keeps serving when that fails, so memoizing the error left "
+        "every client page 503 until the process restarted"
+    );
 }
 
 """/graph, /graph/data and /docs must be served by the stdlib server too -

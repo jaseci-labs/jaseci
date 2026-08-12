@@ -563,7 +563,9 @@ impl ExecutionManager.spawn_walker_async(
 }
 
 impl ModuleIntrospector.postinit -> None {
+    import threading;
     self._bundle_builder = Jac.get_client_bundle_builder();
+    self._bundle_lock = threading.Lock();
 }
 
 impl ModuleIntrospector.load(force_reload: bool = False) -> None {
@@ -1234,20 +1236,28 @@ impl ModuleIntrospector.ensure_bundle -> str {
         return self._bundle.hash;
     }
 
-    if self._bundle_error {
-        raise ClientBundleError(self._bundle_error);
-    }
-    try {
-        self._bundle = self._bundle_builder.build(self._module);
-        self._bundle_error = None;
-        return self._bundle.hash;
-    } except MissingBunError {
-        self._bundle = None;
-        raise;
-    } except Exception as exc {
-        self._bundle = None;
-        self._bundle_error = str(exc);
-        raise ClientBundleError(self._bundle_error);
+    entry_epoch = self._bundle_epoch;
+    with self._bundle_lock {
+        if self._bundle {
+            return self._bundle.hash;
+        }
+        if self._bundle_error is not None and self._bundle_epoch != entry_epoch {
+            raise ClientBundleError(self._bundle_error);
+        }
+        try {
+            self._bundle = self._bundle_builder.build(self._module);
+            self._bundle_error = None;
+            self._bundle_epoch += 1;
+            return self._bundle.hash;
+        } except MissingBunError {
+            self._bundle_epoch += 1;
+            raise;
+        } except Exception as exc {
+            self._bundle_error = str(exc)
+                or f"{type(exc).__name__} raised with no message";
+            self._bundle_epoch += 1;
+            raise ClientBundleError(self._bundle_error);
+        }
     }
 }
 
