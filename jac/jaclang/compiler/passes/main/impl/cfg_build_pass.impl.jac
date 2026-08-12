@@ -318,6 +318,19 @@ impl CFGBuildPass._link_sequential(body: Sequence[uni.CodeBlockStmt]) -> None {
     }
 }
 
+impl CFGBuildPass._exit_wired(nd: uni.UniCFGNode) -> bool {
+    if isinstance(nd, uni.IfStmt) {
+        return bool(nd.bb_out);
+    }
+    for succ in nd.bb_out {
+        if not isinstance(succ, uni.CfgExpr)
+            or succ.find_parent_of_type(uni.UniCFGNode) is not nd {
+            return True;
+        }
+    }
+    return False;
+}
+
 impl CFGBuildPass._connect_tails(parent: uni.UniNode, target: uni.UniCFGNode) -> None {
     for k in parent.kid {
         if not k or isinstance(k, uni.Expr) or isinstance(k, uni.Semi) {
@@ -345,7 +358,7 @@ impl CFGBuildPass._connect_tails(parent: uni.UniNode, target: uni.UniCFGNode) ->
             continue;
         }
         if isinstance(k, uni.UniCFGNode) {
-            if not k.bb_out and not self._is_terminal(k) {
+            if not self._exit_wired(k) and not self._is_terminal(k) {
                 self.link_bbs(k, target);
             } elif isinstance(k, uni.IfStmt) and not k.else_body {
                 first_body = k.body[0] if k.body else None;

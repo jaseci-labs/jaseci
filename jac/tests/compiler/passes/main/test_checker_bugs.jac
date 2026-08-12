@@ -56,6 +56,11 @@ Bug index:
                        amnesty, including genuine unrelated errors; replaced by
                        an is_incomplete flag carried on the Unknown itself
                        (#7871 E)
+  #TERNTAIL-1 - a statement whose RHS holds a ternary or a short-circuit chain
+                looked wired to _connect_tails (that sub-expression CFG hangs
+                off the statement), so a statement ending a block never reached
+                the statement after the block and its write stayed invisible to
+                the narrowing walk (#8059)
 """
 
 import os;
@@ -1342,4 +1347,47 @@ test "bug_cycprec1_node_type_never_stores_incomplete_result" {
         "Bug #CYCLE-PRECISION-1: the settled (complete) type must be "
         f"cached on the node. Got: {config_use.type}"
     );
+}
+
+# =========================================================================
+# Bug #TERNTAIL-1 / #8059: `exit_if_else_expr` / `exit_bool_expr` hang the
+# sub-expression CFG of a ternary or a short-circuit chain off the statement
+# that contains it, so `v = a if c else b;` leaves the statement with a
+# `bb_out` that never leaves the statement. `_connect_tails` read that as
+# "already wired" and skipped the fall-through edge, so an assignment ending
+# an if arm, an elif arm, a while body or a try body never reached the
+# statement after the block: the narrowing walk resolved every later
+# `is not None` guard against the pre-block view of the symbol and kept the
+# `| NoneType` member inside the guard's own body.
+# =========================================================================
+test "bug_terntail1_ternary_rhs_at_block_tail_narrows" {
+    program = compile_and_check("checker_bug_ternary_rhs_tail.jac");
+
+    # Expected: 0 errors (every guard narrows out NoneType)
+    # Actual before the fix: 4 errors (both guards from the issue's repro,
+    # the try-body tail, and the short-circuit RHS tail)
+    assert program.errors_had == [] , "Bug #TERNTAIL-1: an assignment whose RHS routes through the sub-expression "
+    "CFG must still flow to the statement after the block it ends, so a later "
+    "'is not None' guard narrows it. "
+    f"Got errors: {[str(e) for e in program.errors_had]}";
+}
+
+# =========================================================================
+# Bug #TERNTAIL-1, negative side: the missing edge also swallowed genuine
+# errors. In `dropped_else_arm` the else arm's ternary write never reached
+# the join, so the walk saw only the then arm's Leaf2 and the call checked
+# clean. Both appends must be reported, and against the *narrowed* union --
+# a diagnostic still carrying NoneType would mean the guard never narrowed.
+# =========================================================================
+test "bug_terntail1_ternary_rhs_union_still_reported" {
+    program = compile_and_check("checker_bug_ternary_rhs_tail_err.jac");
+
+    # Expected: 2 errors (Leaf2 | Tok3 is not assignable to list[Leaf2])
+    # Actual before the fix: 1 error, and it read Leaf2 | Tok3 | NoneType
+    assert len(program.errors_had) == 2 , "Bug #TERNTAIL-1: a ternary-assigned union that outlives its guard must "
+    f"still be reported at every use. Expected 2 errors, got "
+    f"{len(program.errors_had)}: {[str(e) for e in program.errors_had]}";
+
+    assert not any(["NoneType" in str(e) for e in program.errors_had]) , "Bug #TERNTAIL-1: the guard must narrow NoneType away before the error is "
+    f"raised. Got errors: {[str(e) for e in program.errors_had]}";
 }
