@@ -463,7 +463,7 @@ impl PgStore._live_blockers -> list[dict[str, any]] {
     held = [
         p
         for p in peers
-        if 'idle in transaction' in p['state']
+        if 'idle in transaction' in str(p['state'])
     ];
     return held or peers;
 }
