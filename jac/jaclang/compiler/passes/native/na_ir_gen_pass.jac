@@ -794,6 +794,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _given_recv_cls: (str | None)
     ) -> (ir.Value | None);
 
+    def _receiver_routed_method_fn(
+        nd: uni.UniNode, _sfull: str, _mnames: list[str], _recv_cls: (str | None)
+    ) -> (ir.Function | None);
+
     def _demote_method_if_unlowerable(
         full_name: str,
         func: ir.Function,

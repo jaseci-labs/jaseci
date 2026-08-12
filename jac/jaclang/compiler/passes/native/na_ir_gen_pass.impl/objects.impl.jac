@@ -1649,59 +1649,86 @@ impl NaIRGenPass._codegen_instantiation(
         self.builder.call(init_fn, coerced_args, name="call.init");
     }
 
-    # `postinit` may be inherited (`ElseIf(IfStmt)` runs IfStmt's), so
-    # resolution walks the MRO like `init` does. An explicit `init` suppresses
-    # the hook entirely -- it owns the postinit chain, the way a dataclass
-    # only runs `__post_init__` from its generated initializer. A
-    # layout-prefix-compatible owner runs directly on the bitcast receiver; a
-    # non-primary owner's body would address the wrong offsets, so that shape
-    # fails loud.
-    _pi_fn: (ir.Function | None) = None;
-    if init_fn is not None {
-        return obj_ptr;
-    }
-    _pi_owner: str = type_name;
+    # A postinit runs only under a generated init: the first MRO class that
+    # carries its own explicit `init` or its own has-fields decides which
+    # init `T()` effectively runs. An explicit init owns its whole
+    # construction chain (`Name.init` seeds the symbol fields itself and
+    # must not be run over), while a generated one assigns fields and then
+    # dispatches the MRO-nearest postinit on the constructed class -- so a
+    # postinit may be inherited the same way an `init` is (`ElseIf()` runs
+    # `IfStmt.__post_init__`), through the class-routed path that
+    # specializes the body when the owner is not layout-prefix-compatible.
+    _pi_auto = init_fn is None;
     for _pi_cls in self._mro_of(type_name) {
-        for pname in [f"{_pi_cls}.__post_init__", f"{_pi_cls}.postinit"] {
-            if pname in self.method_funcs {
-                _pi_fn = self.method_funcs[pname];
-                _pi_owner = _pi_cls;
+        _pi_arch = self.arch_ast_map.get(_pi_cls);
+        if _pi_arch is None {
+            continue;
+        }
+        _pi_own_init = False;
+        if _pi_arch.body is not None {
+            for _pi_stmt in _pi_arch.body {
+                if isinstance(_pi_stmt, uni.Ability)
+                    and _pi_stmt.name_ref is not None
+                    and _pi_stmt.name_ref.sym_name in ("init", "__init__") {
+                    _pi_own_init = True;
+                    break;
+                }
+            }
+        }
+        if _pi_own_init {
+            _pi_auto = False;
+            break;
+        }
+        _pi_fielded = False;
+        for _pi_var in _pi_arch.get_has_vars() {
+            # An accessor var lowers to a property, not a stored field, so
+            # it does not give the class a generated init of its own.
+            if not _pi_var.accessors {
+                _pi_fielded = True;
                 break;
             }
         }
-        if _pi_fn is not None {
+        if _pi_fielded {
+            _pi_auto = True;
             break;
         }
     }
-    if _pi_fn is not None and _pi_owner != type_name {
-        import from jaclang.compiler.passes.main.layout_pass {
-            get_layout_registry as _pi_glr
-        }
-        if not _pi_glr(self.ir_in, self.prog).is_primary_ancestor(
-            type_name, _pi_owner
-        ) {
-            self.emit(
-                E5092,
-                node_override=nd,
-                kind="constructor",
-                name=f"{type_name}() via {_pi_owner}.postinit",
-                help_text=(
-                    "The inherited postinit belongs to an ancestor that is "
-                    "not layout-prefix-compatible with this class, so calling "
-                    "it directly would address the wrong field offsets."
-                )
-            );
-            return None;
+    _pi_full: (str | None) = None;
+    if _pi_auto {
+        for _pi_cls in self._mro_of(type_name) {
+            for pname in [f"{_pi_cls}.__post_init__", f"{_pi_cls}.postinit"] {
+                if pname in self.method_funcs {
+                    _pi_full = pname;
+                    break;
+                }
+                if pname in self._native_skipped_methods {
+                    # The chain's nearest owner demoted; running an
+                    # ancestor's postinit instead would silently skip a
+                    # level of the chain, so the construction fails loud.
+                    self.emit(
+                        E5092,
+                        node_override=nd,
+                        kind="constructor",
+                        name=f"{type_name}() via {pname}"
+                    );
+                    return None;
+                }
+            }
+            if _pi_full is not None {
+                break;
+            }
         }
     }
-    if _pi_fn is not None {
-        _pi_recv = obj_ptr;
-        if _pi_fn.args and _pi_recv.type != _pi_fn.args[0].type {
-            _pi_recv = self.builder.bitcast(
-                _pi_recv, _pi_fn.args[0].type, name="postinit.recv"
-            );
+    if _pi_full is not None {
+        postinit_fn = self._receiver_routed_method_fn(
+            nd, _pi_full, ["__post_init__", "postinit"], type_name
+        );
+        if postinit_fn is None {
+            return None;
         }
-        self.builder.call(_pi_fn, [_pi_recv]);
+        self.builder.call(
+            postinit_fn, [self._coerce_type(obj_ptr, postinit_fn.args[0].type)]
+        );
     }
     return obj_ptr;
 }
@@ -2981,32 +3008,19 @@ impl NaIRGenPass._codegen_field_assign(
     self.builder.store(value, field_ptr);
 }
 
-impl NaIRGenPass._emit_class_routed_call(
-    nd: uni.FuncCall,
-    _sfull: str,
-    _mnames: list[str],
-    _given_recv: (ir.Value | None),
-    _given_recv_cls: (str | None)
-) -> (ir.Value | None) {
-    method_name = _sfull.partition(".")[2];
+impl NaIRGenPass._receiver_routed_method_fn(
+    nd: uni.UniNode, _sfull: str, _mnames: list[str], _recv_cls: (str | None)
+) -> (ir.Function | None) {
     _sfunc = self.method_funcs[_sfull];
-    # An unbound ancestor call (`Expr.postinit(self)` inside
-    # `Name.init`) runs the ancestor's body on the receiver, and the
-    # receiver's mixin fields live at class-specific offsets. When
-    # the ancestor is not a layout-prefix of the receiver's class,
-    # lower a receiver-specialized copy of the body instead of
-    # calling the ancestor's own lowering, which would read and
-    # write through the ancestor's layout and corrupt the object.
+    # An inherited method resolved on another class (`Expr.postinit(self)`
+    # inside `Name.init`, or a constructed class's inherited postinit) runs
+    # the ancestor's body on the receiver, and the receiver's mixin fields
+    # live at class-specific offsets. When the ancestor is not a
+    # layout-prefix of the receiver's class, lower a receiver-specialized
+    # copy of the body instead of calling the ancestor's own lowering,
+    # which would read and write through the ancestor's layout and corrupt
+    # the object.
     _owner_cls = _sfull.partition(".")[0];
-    _recv_cls: (str | None) = _given_recv_cls;
-    if _recv_cls is None {
-        _recv_first = (nd.params or [None])[0];
-        _recv_cls = (
-            self._struct_name_of(_recv_first)
-                if _recv_first is not None and not isinstance(_recv_first, uni.KWPair)
-                else None
-        );
-    }
     if (
         _recv_cls is not None
         and _recv_cls != _owner_cls
@@ -3081,6 +3095,30 @@ impl NaIRGenPass._emit_class_routed_call(
             }
             _sfunc = _spec_ready;
         }
+    }
+    return _sfunc;
+}
+
+impl NaIRGenPass._emit_class_routed_call(
+    nd: uni.FuncCall,
+    _sfull: str,
+    _mnames: list[str],
+    _given_recv: (ir.Value | None),
+    _given_recv_cls: (str | None)
+) -> (ir.Value | None) {
+    method_name = _sfull.partition(".")[2];
+    _recv_cls: (str | None) = _given_recv_cls;
+    if _recv_cls is None {
+        _recv_first = (nd.params or [None])[0];
+        _recv_cls = (
+            self._struct_name_of(_recv_first)
+                if _recv_first is not None and not isinstance(_recv_first, uni.KWPair)
+                else None
+        );
+    }
+    _sfunc = self._receiver_routed_method_fn(nd, _sfull, _mnames, _recv_cls);
+    if _sfunc is None {
+        return None;
     }
     # Keyword arguments are routine on these calls
     # (`Token.init(self, orig_src=..., ...)`), and `nd.callee_decl`

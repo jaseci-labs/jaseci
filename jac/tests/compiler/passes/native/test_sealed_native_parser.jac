@@ -111,6 +111,16 @@ test "sealed parser matches bytecode parser on a compiler source module" {
     _assert_parity(mod_src.read_text(encoding="utf-8"), str(mod_src));
 }
 
+test "elif and else arms build their postinit chain (#8090)" {
+    # `ElseIf` inherits its postinit from `IfStmt`; before the fix the
+    # constructor never ran the chain, `ElseIf.loc` stayed null, and this
+    # parse aborted in `IfStmt.postinit` on the parent statement.
+    src = (
+        "with entry { if 1 > 0 { x = 2; } elif 2 > 1 { x = 3; } " + "else { x = 4; } }"
+    );
+    _assert_parity(src, "__parity_elseif__.jac");
+}
+
 test "jsx slot bodies with repeated brace-statement backtracks stay congruent" {
     src = (
         "def:pub C(a: int) -> JsxElement { "
