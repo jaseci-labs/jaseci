@@ -68,7 +68,7 @@ impl MTIRGenPass._parse_type_expr(
             resolved_parts: list[object] = [];
             for p in parts {
                 try_sym = None;
-                if isinstance(scope, uni.UniScopeNode) and scope?.lookup {
+                if isinstance(scope, uni.UniScopeNode) {
                     try {
                         try_sym = scope.lookup(p, deep=True);
                     } except Exception {

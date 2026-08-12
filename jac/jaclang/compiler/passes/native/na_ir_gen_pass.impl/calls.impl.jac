@@ -1,8 +1,6 @@
 import from jaclang.jac0core.constant { OwnershipKind }
 
 impl NaIRGenPass._arch_alias_target(nd: (uni.UniNode | None)) -> (str | None) {
-    # Resolve an imported alias (import { Ellipsis as EllipsisLit }) to the
-    # archetype's canonical name via the alias symbol's declaration site.
     if not isinstance(nd, uni.NameAtom) {
         return None;
     }
@@ -1949,12 +1947,10 @@ impl NaIRGenPass._isinstance_type_name(nd: uni.UniNode) -> (str | None) {
 impl NaIRGenPass._enum_union_tags(
     operand_expr: uni.UniNode, names: list[str]
 ) -> tuple {
-    # isinstance against an enum class: enum values box as ints (tag 0), so
-    # the test lowers to a tag check when the operand's static union gives
-    # the named enum sole ownership of that tag.
     try {
         import from jaclang.compiler.type_system.types {
             ClassType as _EnClassType,
+            EnumMemberType as _EnMemberType,
             UnionType as _EnUnionType
         }
     } except ImportError {
@@ -1972,11 +1968,12 @@ impl NaIRGenPass._enum_union_tags(
     }
     member_rows: list = [];
     for m in members {
-        if not isinstance(m, _EnClassType) or m._shared is None {
+        cls = m.enum_class if isinstance(m, _EnMemberType) else m;
+        if not isinstance(cls, _EnClassType) or cls._shared is None {
             return ([], names, );
         }
-        cn = m.shared.class_name;
-        if m.is_enum_class {
+        cn = cls.shared.class_name;
+        if cls.is_enum_class() {
             member_rows.append((cn, True, [0], ));
         } elif cn in ("NoneType", "None") {
             member_rows.append((cn, False, [8], ));
@@ -2238,8 +2235,6 @@ impl NaIRGenPass._emit_isinstance_user(
         }
         return ir.Constant(i1, 0);
     }
-    # A union- or optional-typed operand has no single static struct name;
-    # the runtime vtable comparison below decides for any object pointer.
 
     pre_bb = self.builder.block;
     null_ptr = ir.Constant(operand.type, None);
