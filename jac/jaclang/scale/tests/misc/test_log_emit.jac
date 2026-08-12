@@ -122,21 +122,36 @@ test "default install on an untouched root: one JSON handler at INFO" {
 }
 
 
-test "install never creates the config singleton" {
-    # A gateway or serving process may reach install before its own config
-    # load; deciding the install must not be what creates (and scopes) the
-    # process-wide singleton for everything after it.
+test "install before any config load defers, then applies once config exists" {
+    # A process may reach install before its own config load; deciding from
+    # ambient defaults there would latch past a project's explicit opt-out,
+    # and creating the singleton there would mis-scope config for everything
+    # after it. Until the process loads its config, install must do nothing.
     _reset_install_state();
     reset_scale_config();
     log_root = logging.getLogger();
     saved_handlers = list(log_root.handlers);
     saved_level = log_root.level;
     try {
+        log_root.handlers = [];
+        log_root.setLevel(int(logging.WARNING));
         install_structured_logging();
         assert peek_scale_config() is None , (
             "install_structured_logging created the config singleton as a "
             "side effect"
         );
+        assert log_root.handlers == [] , (
+            "install decided from ambient defaults before any config load"
+        );
+        assert log_root.level == int(logging.WARNING) , (
+            f"install touched the level before any config load: {log_root.level}"
+        );
+        get_scale_config();
+        install_structured_logging();
+        assert len(log_root.handlers) == 1 , (
+            "install did not apply on the first call after config load"
+        );
+        assert isinstance(log_root.handlers[0].formatter, _JacJsonFormatter);
     } finally {
         log_root.handlers = saved_handlers;
         log_root.setLevel(saved_level);
@@ -147,6 +162,8 @@ test "install never creates the config singleton" {
 
 
 test "emit_log_record produces a JSON line with the stable schema" {
+    reset_scale_config();
+    get_scale_config();
     install_structured_logging();
     install_trace_log_filter();
 
@@ -175,6 +192,8 @@ test "emit_log_record produces a JSON line with the stable schema" {
 
 
 test "extras land under the 'extras' key, not top-level" {
+    reset_scale_config();
+    get_scale_config();
     install_structured_logging();
     install_trace_log_filter();
 
@@ -197,6 +216,8 @@ test "extras land under the 'extras' key, not top-level" {
 
 
 test "trace_id field is populated inside a request context" {
+    reset_scale_config();
+    get_scale_config();
     install_structured_logging();
     install_trace_log_filter();
 
@@ -224,6 +245,8 @@ test "trace_id field is populated inside a request context" {
 
 
 test "install_structured_logging routes serving loggers through root" {
+    reset_scale_config();
+    get_scale_config();
     install_structured_logging();
 
     for name in [
@@ -238,6 +261,8 @@ test "install_structured_logging routes serving loggers through root" {
 
 
 test "trace_id populates on records emitted from child loggers" {
+    reset_scale_config();
+    get_scale_config();
     install_structured_logging();
 
     buf: io.StringIO = io.StringIO();

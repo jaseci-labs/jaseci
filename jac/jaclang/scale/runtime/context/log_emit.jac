@@ -83,11 +83,11 @@ def debug(msg: str, **extras: Any) {
 
 def install_structured_logging {
     if not _structured_installed {
-        import from jaclang.scale.config.config_loader {
-            JacScaleConfig,
-            peek_scale_config
+        import from jaclang.scale.config.config_loader { peek_scale_config }
+        cfg = peek_scale_config();
+        if cfg is None {
+            return;
         }
-        cfg = peek_scale_config() or JacScaleConfig();
         _structured_optout = not bool(
             cfg.get_server_config().get('structured_logs', True)
         );
