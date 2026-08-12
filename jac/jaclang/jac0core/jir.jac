@@ -524,7 +524,6 @@ def read_module_jir_cache(source_path: str) -> (object | None) {
         data = cache_path.read_bytes();
         reader = JirReader(_source_path=resolved_path);
         cached = reader.read_module(data);
-        # Caches written before parse_failed modules were rejected on write.
         if cached is not None and cached.parse_failed {
             return None;
         }
@@ -552,8 +551,6 @@ def write_module_jir_cache(
         return False;
     }
     mod_any: any = mod;
-    # A cache hit replays no alerts, so a served parse_failed module would
-    # silently suppress its own syntax errors.
     if mod_any.parse_failed {
         return False;
     }
