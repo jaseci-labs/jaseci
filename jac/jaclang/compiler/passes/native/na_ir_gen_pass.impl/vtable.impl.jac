@@ -57,6 +57,14 @@ impl NaIRGenPass._vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None
         return None;
     }
 
+    # A generic archetype has no monomorphic struct, and no module emits a
+    # vtable for it (`_native_archetypes` drops it), so naming the symbol here
+    # would leave it unresolved at link time.
+    _arch_nd = self.arch_ast_map.get(arch_name);
+    if _arch_nd is not None and _arch_nd.type_params {
+        return None;
+    }
+
     # An imported class's vtable is defined by the module that declares the
     # class; the layout registry gives its length, so this module can name the
     # symbol without a local definition. Method indices are deliberately not
