@@ -71,6 +71,24 @@ def _teardown(module_name: str, project_dir: str) {
     if module_name in sv_client._registry {
         sv_client.unregister(module_name);
     }
+    # The spawn only registers an atexit terminate, so reap the child here or
+    # a successful test leaks a serving process for the rest of the session.
+    # The module name is unique to this test, so the match cannot hit anything
+    # else.
+    import subprocess;
+    import time;
+    subprocess.run(["pkill", "-f", f"{module_name}.jac"], check=False);
+    deadline = time.time() + 10;
+    while time.time() < deadline {
+        alive = subprocess.run(
+            ["pgrep", "-f", f"{module_name}.jac"], capture_output=True
+        );
+        if alive.returncode != 0 {
+            break;
+        }
+        time.sleep(0.2);
+    }
+    subprocess.run(["pkill", "-9", "-f", f"{module_name}.jac"], check=False);
     reset_scale_config();
     shutil.rmtree(project_dir, ignore_errors=True);
 }
