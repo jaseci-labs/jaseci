@@ -67,28 +67,79 @@ def _make_project(module_name: str, source: str, budget: float | None) -> str {
 }
 
 
+"""Kill and reap the service `ensure_sv_service` spawned for this test.
+
+The spawn keeps its Popen handle in an atexit closure, so a passing test would
+otherwise leak a live server (and an unreaped zombie) until interpreter exit.
+Candidates are direct children of THIS process whose cmdline names the test's
+own module file, matched by ppid so nothing unrelated can be hit, then killed
+by pid and reaped with waitpid.
+"""
+def _reap_spawned_service(module_name: str) {
+    import os;
+    import signal;
+    import time;
+    proc_root = Path("/proc");
+    if not proc_root.exists() {
+        return;
+    }
+    me = os.getpid();
+    victims: list[int] = [];
+    for entry in proc_root.iterdir() {
+        if not entry.name.isdigit() {
+            continue;
+        }
+        try {
+            stat_text = (entry / "stat").read_text();
+            cmdline = (entry / "cmdline").read_bytes().decode(errors="replace");
+        } except OSError {
+            continue;
+        }
+        ppid = int(stat_text.rsplit(")", 1)[1].split()[1]);
+        if ppid == me and f"{module_name}.jac" in cmdline {
+            victims.append(int(entry.name));
+        }
+    }
+    for pid in victims {
+        try {
+            os.kill(pid, signal.SIGTERM);
+        } except OSError {
+            continue;
+        }
+    }
+    deadline = time.time() + 10;
+    for pid in victims {
+        reaped = False;
+        while time.time() < deadline {
+            try {
+                (done, _) = os.waitpid(pid, os.WNOHANG);
+            } except ChildProcessError {
+                reaped = True;
+                break;
+            }
+            if done == pid {
+                reaped = True;
+                break;
+            }
+            time.sleep(0.2);
+        }
+        if not reaped {
+            try {
+                os.kill(pid, signal.SIGKILL);
+                os.waitpid(pid, 0);
+            } except OSError {
+                ;
+            }
+        }
+    }
+}
+
+
 def _teardown(module_name: str, project_dir: str) {
     if module_name in sv_client._registry {
         sv_client.unregister(module_name);
     }
-    # The spawn only registers an atexit terminate, so reap the child here or
-    # a successful test leaks a serving process for the rest of the session.
-    # The module name is unique to this test, so the match cannot hit anything
-    # else.
-    import subprocess;
-    import time;
-    subprocess.run(["pkill", "-f", f"{module_name}.jac"], check=False);
-    deadline = time.time() + 10;
-    while time.time() < deadline {
-        alive = subprocess.run(
-            ["pgrep", "-f", f"{module_name}.jac"], capture_output=True
-        );
-        if alive.returncode != 0 {
-            break;
-        }
-        time.sleep(0.2);
-    }
-    subprocess.run(["pkill", "-9", "-f", f"{module_name}.jac"], check=False);
+    _reap_spawned_service(module_name);
     reset_scale_config();
     shutil.rmtree(project_dir, ignore_errors=True);
 }
