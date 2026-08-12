@@ -90,6 +90,8 @@ class SymTabBuildPass(UniPass) {
 
 def find_python_scope_node_of(nd: uni.UniNode) -> (UniScopeNode | None);
 
+def find_typed_decl_scope_of(nd: uni.AstSymbolNode) -> UniScopeNode;
+
 def def_insert_unpacking(
     nd: uni.Expr, sym_tab: UniScopeNode, rebind_in_python_scope: bool = False
 ) -> None;

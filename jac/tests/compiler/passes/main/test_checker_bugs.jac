@@ -61,6 +61,14 @@ Bug index:
                 off the statement), so a statement ending a block never reached
                 the statement after the block and its write stayed invisible to
                 the narrowing walk (#8059)
+  #BLOCKANN-1 - a typed declaration inside a block (a while/if/for/try body)
+                was inserted into that block's scope while bare assignments
+                hoist to the enclosing function, so one variable became two
+                symbols and a reassignment was checked against the first
+                branch's type instead of the declared annotation; the
+                declaration now binds the function local, so its annotation
+                also holds after the block and a sibling block redeclaring
+                the name collides with it (#8060)
 """
 
 import os;
@@ -1390,4 +1398,84 @@ test "bug_terntail1_ternary_rhs_union_still_reported" {
 
     assert not any(["NoneType" in str(e) for e in program.errors_had]) , "Bug #TERNTAIL-1: the guard must narrow NoneType away before the error is "
     f"raised. Got errors: {[str(e) for e in program.errors_had]}";
+}
+
+# Bug #BLOCKANN-1: a block-scoped typed declaration lost its annotation
+#
+# Jac locals are python-scoped: a block (while/if/for/try body) is a symbol
+# table scope but not a binding scope, which is why bind_assignment_targets
+# hoists a bare assignment to the enclosing function. A typed declaration
+# took the other path and was inserted into the block's own scope, so the
+# branch assignments that followed it created a SECOND symbol on the
+# function, decl-ed by the first branch. get_type_of_symbol then answered
+# that branch's type and the next branch was rejected against it:
+#   while n > 0 {
+#       item: (A | B | None) = None;   # symbol on the WhileStmt scope
+#       if c { item = pa(c); }         # new symbol on the Ability, A | None
+#       else { item = pb(c); }         # E1001: cannot assign B | None
+#   }
+# The same declaration at function level was fine, since there the two
+# paths land in the same scope.
+# =========================================================================
+test "bug_blockann1_block_scoped_declaration_keeps_annotation" {
+    program = compile_and_check("checker_bug_block_scoped_annotation.jac");
+
+    # Expected: 0 errors, every branch assignment fits (A | B | None)
+    # Actual (before the fix): 2 errors, one for the while body and one for
+    # the if block; the function-level shape already passed.
+    assert len(program.errors_had) == 0 , (
+        "Bug #BLOCKANN-1: a typed declaration inside a while body or an if "
+        "block must declare in the enclosing function, so reassignments are "
+        "checked against the declared annotation. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #BLOCKANN-1, negative: the declared annotation must still constrain.
+# Widening a block-scoped declaration to Unknown would silence the bug too,
+# so assignments the annotation does not admit have to stay diagnosed.
+# =========================================================================
+test "bug_blockann1_block_scoped_declaration_still_rejects_bad_assignment" {
+    program = compile_and_check("checker_bug_block_scoped_annotation_negative.jac");
+
+    # Expected: 2 errors, one per block shape, for assigning (C | None) to a
+    # local declared (A | B | None).
+    assert len(program.errors_had) == 2 , (
+        "Bug #BLOCKANN-1: an assignment outside the declared annotation must "
+        "still be reported for block-scoped declarations. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #BLOCKANN-1, scoping consequences: because the declaration now lands
+# in the enclosing function, two shapes that were silently accepted while it
+# was stranded on the block scope are diagnosed.
+#
+#   1. The annotation outlives its block. `if c { z: int = 1; }` then
+#      `z = "oops";` after the block: `z` is a function local of type int,
+#      so the str is rejected. Jac has no block scope for locals, so the
+#      name was always live there; only its declared type was being lost.
+#   2. Sibling blocks declaring the same name are one variable. The first
+#      declaration owns the symbol and the second is checked against it.
+#
+# Shape 2 is reported today as an assignment failure at the second
+# declaration (E1001). The language reference specifies a redeclaration
+# diagnostic for "typed declaration after the name is already bound in this
+# scope" (E0064), whose trigger is currently limited to names that rebind an
+# *outer* binding, so the code is a known imprecision; the verdict (this is
+# an error) is what this test pins.
+# =========================================================================
+test "bug_blockann1_block_declaration_binds_the_function_local" {
+    program = compile_and_check("checker_bug_block_scoped_annotation_scope.jac");
+
+    # Expected: 2 errors, one per shape. Before the fix: 0, because each
+    # declaration was stranded on its own block scope.
+    assert len(program.errors_had) == 2 , (
+        "Bug #BLOCKANN-1: a block-scoped declaration binds a function local, "
+        "so its annotation constrains the name after the block and a sibling "
+        "block redeclaring it collides. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
 }

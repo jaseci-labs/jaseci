@@ -4818,7 +4818,7 @@ impl Parser.parse_ownership_prefix(kids: list[UniNode]) -> OwnershipKind {
 
 impl Parser.parse_assignment_with_target(
     target: Expr, require_semi: bool = True
-) -> CodeBlockStmt {
+) -> Assignment {
     type_tag: (SubTag | None) = None;
     if self.match_tok(TokenKind.COLON) {
         colon_uni = self.make_uni_token(self.previous());
