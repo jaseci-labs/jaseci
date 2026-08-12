@@ -3,10 +3,8 @@ import marshal;
 import os;
 import pdb;
 import re;
-import from functools { lru_cache }
 import from traceback { TracebackException }
 
-@lru_cache(maxsize=256)
 def pascal_to_snake(pascal_string: str) -> str {
     snake_string = re.sub('(?<!^)(?=[A-Z])', '_', pascal_string).lower();
     return snake_string;

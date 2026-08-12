@@ -1436,6 +1436,37 @@ Tokens used: {'prompt_tokens': 850, 'completion_tokens': 45, ...}
 
 With `logging=True`, the user sees the first `tool_call` event after just one LLM call (~1-2s), instead of waiting for all ReAct iterations to finish (~3-4s).
 
+### Streaming Tool Arguments
+
+A `tool_call` event is emitted only once every argument has been generated, so for a
+large argument such as a file body the caller has nothing to show while it is written.
+`tool_call_delta` surfaces those arguments as they arrive. It is **disabled by default**:
+
+```toml
+[byllm.tool_stream]
+enabled = true          # optional: min_chars, min_interval, max_per_call
+```
+
+Or per call with `stream_tool_args=True`, or one run with `BYLLM_STREAM_TOOL_ARGS=1`.
+
+```jac
+with entry {
+    for event in build("create the inventory model") {
+        if event.event_type == "tool_call_delta" {
+            if event.data["tool"] {
+                print(f"Writing with {event.data['tool']}...");
+            }
+            print(event.data["arg_fragment"]);
+        }
+    }
+}
+```
+
+Display only: the tool still runs once with the complete arguments, so a partial
+fragment can never reach it. Show `arg_fragment` as text, never parse it, since
+mid-stream it is incomplete. Fragments are coalesced, and a `stream_reset` precedes any
+delta from a stream that replaced an abandoned one.
+
 ### `StreamEvent` Reference
 
 `StreamEvent` has two fields:
@@ -1449,6 +1480,7 @@ With `logging=True`, the user sees the first `tool_call` event after just one LL
 
 | `event_type` | When emitted | `data` fields |
 |-------------|--------------|---------------|
+| `tool_call_delta` | A tool's arguments are still being generated (opt in, see below) | `tool` (str), `call_id` (str), `arg_fragment` (str), `index` (int), `iteration` (int) |
 | `tool_call` | LLM decided to call a tool | `tool` (str), `args` (dict), `call_id` (str), `iteration` (int) |
 | `tool_result` | Tool finished executing | `tool` (str), `result` (str, truncated), `call_id` (str), `iteration` (int) |
 | `thought` | LLM produced reasoning text before a tool call | `content` (str), `iteration` (int) |

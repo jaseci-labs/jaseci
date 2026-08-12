@@ -160,10 +160,22 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.SYNTAX,
          "Unexpected '{token}' -- must follow its parent statement (if/try/match/switch)"
      ),
+     E0033 = _err(
+         "E0033",
+         Category.SYNTAX,
+         "Malformed comptime construct",
+         help="'comptime' introduces 'comptime for NAME in EXPR { ... }', 'comptime if EXPR { ... }', or a 'comptime { EXPR }' const-eval block; '${...}' splices and interpolated names are only meaningful inside comptime templates."
+     ),
      E0034 = _err(
          "E0034",
          Category.SYNTAX,
          "Expected 'with' after 'can' ability name (use 'def' for function-style declarations)"
+     ),
+     E0108 = _err(
+         "E0108",
+         Category.SYNTAX,
+         "Comptime expansion failed -- {details}",
+         help="The compile-time evaluator rejected this construct. Comptime code is a deterministic, fuel-bounded subset of Jac: pure values and control flow, reflect.* facts, and ct.name/ct.typ/ct.expr fragments; no I/O, no runtime APIs, and results must lower to literals."
      ),
      E0040 = _err(
          "E0040",
@@ -276,7 +288,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "W0063",
          Category.SYNTAX,
          "JSX spread '{{...expr}}' is JS-idiomatic. Prefer '{{**expr}}' in Jac.",
-         "Jac uses ** for dict unpacking — use {**expr} instead of {...expr} in JSX attributes."
+         "Jac uses ** for dict unpacking -- use {**expr} instead of {...expr} in JSX attributes."
      ),
      E0100 = _err("E0100", Category.SYNTAX, "Unterminated string literal"),
      E0101 = _err("E0101", Category.SYNTAX, "Unterminated block comment"),
@@ -541,6 +553,26 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " components are"
          " allowed; only unresolved names are rejected.",
          blocks_codegen=True
+     ),
+     E1106 = _err(
+         "E1106",
+         Category.TYPE,
+         "Archetype '{name}' inherits builtin primitive '{base}', which has no"
+         " defined lowering",
+         help="Subclassing a builtin primitive gives each backend a different"
+         " semantics (dataclass constructors shadow the builtin's, native has"
+         " no boxed layout for it). For a zero-cost branded id, declare"
+         " `type {name} := {base};` instead: the brand exists only at"
+         " check time and the runtime value stays a plain {base} on every"
+         " lowering."
+     ),
+     E1107 = _err(
+         "E1107",
+         Category.TYPE,
+         "Distinct alias (`:=`) base must be a builtin primitive, got {base}",
+         help="An erased distinct type is a check-time brand over a primitive"
+         " runtime value (int, float, str, bool, bytes). For richer types,"
+         " declare an archetype that wraps the value instead."
      ),
      E1110 = _err(
          "E1110",
@@ -846,6 +878,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Local module '{name}' shadows the npm package of the same name",
          help="A bare module name resolves to the local Jac module first. Quote the name (import from \"{name}\") to import the npm package instead."
      ),
+     W1106 = _warn(
+         "W1106",
+         Category.IMPORT,
+         "String import '{name}' does not match any declared or installed npm package",
+         help="A quoted bare import always means an npm package. Declare '{name}' under [dependencies.npm] in jac.toml and run 'jac install', or use a dotted module path (import from .{name}) for a local Jac module."
+     ),
      W2001 = _warn("W2001", Category.SEMANTIC, "Name '{name}' may be undefined"),
      W2002 = _warn("W2002", Category.SEMANTIC, "Unreachable code detected"),
      W2003 = _warn("W2003", Category.SEMANTIC, "'{name}' is defined but never used"),
@@ -1014,7 +1052,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E2023 = _err(
          "E2023",
          Category.SEMANTIC,
-         "Redundant '{{...}}' slot wrapping inside a JSX slot body — slot "
+         "Redundant '{{...}}' slot wrapping inside a JSX slot body -- slot "
          "bodies are already in slot mode. Drop the outer braces: write "
          "'{stmt_kw} ... {{ ... }}' directly instead of "
          "'{{{stmt_kw} ... {{ ... }}}}'."
@@ -1032,7 +1070,7 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E2028",
          Category.SEMANTIC,
          "Redundant '{{...}}' around a single expression inside a JSX slot "
-         "body — slot bodies are already in slot mode, so the value renders "
+         "body -- slot bodies are already in slot mode, so the value renders "
          "without the extra braces. Drop them: write the expression directly, "
          "terminated with ';' (e.g. 'name;' instead of '{{name}}')."
      ),
