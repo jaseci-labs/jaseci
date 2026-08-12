@@ -104,7 +104,7 @@ test "an overridden accessor dispatches on the runtime class" {
     assert fns["make_tagged"](1).label == 102 , "Renamed.label.getter overrides it";
 }
 
-test "unknown names keep the AttributeError shape" {
+test "unknown-name reads keep the AttributeError shape; stores annotate" {
     fns = accessor_fns();
     p = fns["make_part"](9);
     try {
@@ -113,12 +113,10 @@ test "unknown names keep the AttributeError shape" {
     } except AttributeError as e {
         assert "'Part' has no field 'no_such_field'" in str(e);
     }
-    try {
-        p.no_such_field = 1;
-        assert False , "expected AttributeError";
-    } except AttributeError as e {
-        assert "'Part' has no field 'no_such_field'" in str(e);
-    }
+    # A name the native layout never carried is Python-side annotation
+    # state: the store lands on the view's overlay instead of raising.
+    p.no_such_field = 1;
+    assert p._py_overlay.get("no_such_field") == 1;
 }
 
 test "real data fields still read around the accessors" {
