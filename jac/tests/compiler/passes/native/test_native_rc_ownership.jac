@@ -9,7 +9,10 @@ end through the JIT:
     (items 1d/1e);
   - named locals own what they hold: for-loop tuple unpack must retain the
     borrowed tuple fields it binds, or scope exit / early return releases
-    strings still owned by the list (items 1a/1b/1c residue).
+    strings still owned by the list (items 1a/1b/1c residue);
+  - containers own what they hold: a comprehension's result must carry +1
+    per element, so the elements outlive the source and the locals the
+    comprehension was built from (issue #8088).
 
 Fixtures encode first-use/second-use results into a single i64 so a wrong
 value (freed glob, corrupted list) fails the assert rather than relying on
@@ -247,5 +250,103 @@ test "tuple unpack from an optional element costs no more than the plain one" {
         f"optional-element unpack dropped {opt_drops} but the identical "
         f"non-optional shape dropped {plain_drops}; the optional coercion "
         f"must not change ownership accounting"
+    );
+}
+
+# --- Comprehension elements are owned by their container (issue #8088) ---
+"""Call one fixture builder+reader and return the i64 it encodes."""
+def call_elem_fn(eng: object, name: str, n: int) -> int {
+    fn = get_func(eng, name, ctypes.c_int64, ctypes.c_int64);
+    return fn(n);
+}
+
+test "list comprehension owns elements a borrow-returning call produced" {
+    # `[x.self_ref(owner) for x in src]` -- `self_ref` hands back the receiver
+    # the caller lent it, so the container's retain is the only reference the
+    # element gains. `borrow_elems` then lets `src` and `owner` die, and the
+    # 4 tags are read back afterwards: 10 means every element survived, 0 that
+    # the list held pointers into freed heap.
+    (eng, _) = compile_native("rc_container_elem_ownership.jac");
+    assert call_elem_fn(eng, "borrow_elem_sum", 4) == 10 , (
+        "elements of the returned comprehension did not survive their source"
+    );
+    assert call_elem_fn(eng, "borrow_elem_parent_sum", 4) == 400 , (
+        "the owner each element points at did not survive the builder"
+    );
+    # mid * 1000000 + after * 1000 + total: nothing may be destroyed while the
+    # list is alive, and releasing it must destroy the 4 nodes plus the owner.
+    assert call_elem_fn(eng, "borrow_elem_drops", 4) == 5010 , (
+        "expected 0 destructions during the build, 5 on release and a tag sum " "of 10"
+    );
+}
+
+test "list comprehension does not double-own a fresh element" {
+    # `[Node(...) for x in src]` already hands over a +1; the container must
+    # take that reference rather than add a second, or nothing is ever freed.
+    # mid = 4 (the sources die with the builder), after = 8, total = 50.
+    (eng, _) = compile_native("rc_container_elem_ownership.jac");
+    assert call_elem_fn(eng, "fresh_elem_sum", 4) == 50;
+    assert call_elem_fn(eng, "fresh_elem_drops", 4) == 4008050 , (
+        "a fresh element expression must net exactly one reference"
+    );
+}
+
+test "list comprehension owns a bare loop variable element" {
+    (eng, _) = compile_native("rc_container_elem_ownership.jac");
+    assert call_elem_fn(eng, "alias_elem_sum", 4) == 10;
+    assert call_elem_fn(eng, "alias_elem_drops", 4) == 4010 , (
+        "aliasing the source's elements must still take a reference each"
+    );
+}
+
+test "list comprehension owns heap string elements" {
+    # The element slot is a string descriptor rather than a pointer, and the
+    # strings belong to `src`, which dies with the builder. Each element is
+    # compared byte for byte, so a freed descriptor cannot pass.
+    (eng, _) = compile_native("rc_container_elem_ownership.jac");
+    assert call_elem_fn(eng, "label_match_count", 4) == 4 , (
+        "string elements did not survive the source they were borrowed from"
+    );
+}
+
+test "dict comprehension owns values a borrow-returning call produced" {
+    (eng, _) = compile_native("rc_container_elem_ownership.jac");
+    assert call_elem_fn(eng, "dict_elem_sum", 4) == 10;
+    assert call_elem_fn(eng, "dict_elem_drops", 4) == 5010 , (
+        "dict values must gain a reference of the dict's own"
+    );
+}
+
+test "set comprehension owns elements a borrow-returning call produced" {
+    # Native sets have no element iteration, so the read-back is the length;
+    # the discriminator is `mid`, which counts destructions the builder caused.
+    # An element expression whose storage class was inferred as a raw integer
+    # takes no reference at all, and every node dies with the builder (5004).
+    (eng, _) = compile_native("rc_container_elem_ownership.jac");
+    assert call_elem_fn(eng, "set_elem_drops", 4) == 4 , (
+        "set elements were destroyed while the set still held them"
+    );
+}
+
+test "nested comprehension: inner lists own their elements too" {
+    # `[[y.self_ref(owner) for y in src] for x in src]`: 4 inner lists of the
+    # same 4 nodes, read back as 4 * (1+2+3+4). Only the construction side is
+    # asserted -- releasing the outer list is left out because iterating a
+    # list whose elements are themselves lists leaks the last loop value,
+    # which is a separate defect from element ownership.
+    (eng, _) = compile_native("rc_container_elem_ownership.jac");
+    assert call_elem_fn(eng, "nested_elem_drops", 4) == 40 , (
+        "expected no destructions during the build and a tag sum of 40"
+    );
+}
+
+test "comprehension over a borrowed collection leaves it intact" {
+    # The walk releases the collection only when the frame owns it. Here the
+    # source is a param, so releasing the built list must not reach into it:
+    # mid = 0 and the caller's `src` still sums to 10.
+    (eng, _) = compile_native("rc_container_elem_ownership.jac");
+    assert call_elem_fn(eng, "param_elem_sum", 4) == 20;
+    assert call_elem_fn(eng, "param_elem_drops", 4) == 10 , (
+        "releasing the built list destroyed elements the borrowed source held"
     );
 }

@@ -135,6 +135,13 @@ impl NaIRGenPass._codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None) {
             val_type = ir.IntType(8).as_pointer();
         }
     }
+    # As in the set comprehension: an expression that evaluates to an archetype
+    # without looking like a constructor call still needs a pointer slot, or the
+    # dict stores a raw integer and never takes a reference to the value.
+    if val_type_name == "i64" and self._struct_name_of(val_expr) is not None {
+        val_type_name = "ptr";
+        val_type = ir.IntType(8).as_pointer();
+    }
 
     self._emit_dict_helpers(key_type_name, val_type_name, key_type, val_type, key_size);
     dict_key = f"{key_type_name}:{val_type_name}";
@@ -209,6 +216,15 @@ impl NaIRGenPass._codegen_set_compr(nd: uni.SetCompr) -> (ir.Value | None) {
                 }
             }
         }
+    }
+    # The shapes above read the storage class off the element expression's
+    # syntax, which misses any expression that merely *evaluates* to an
+    # archetype -- a method call, or the loop variable itself. Falling back to
+    # i64 there stores the pointer as a raw integer, and a raw slot takes no
+    # reference, so the set would hold elements it does not own.
+    if elem_type_name == "i64" and self._struct_name_of(out_expr) is not None {
+        elem_type_name = "ptr";
+        elem_type = ir.IntType(8).as_pointer();
     }
 
     self._emit_set_helpers(elem_type_name, elem_type, elem_size);

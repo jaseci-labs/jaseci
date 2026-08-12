@@ -607,6 +607,7 @@ impl NaIRGenPass._codegen_method(
         self_alloca = self.builder.alloca(func.args[0].type, name="self");
         self.builder.store(func.args[0], self_alloca);
         self.local_vars["self"] = self_alloca;
+        self.param_vars.add("self");
         _base = 1;
     }
 
@@ -818,6 +819,7 @@ impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> 
     self_alloca = self.builder.alloca(func.args[0].type, name="self");
     self.builder.store(func.args[0], self_alloca);
     self.local_vars["self"] = self_alloca;
+    self.param_vars.add("self");
 
     body = ModuleCodegenPass.unwrap_body(method);
     if body is not None {
@@ -1016,6 +1018,7 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     self_alloca = self.builder.alloca(func.args[0].type, name="self");
     self.builder.store(func.args[0], self_alloca);
     self.local_vars["self"] = self_alloca;
+    self.param_vars.add("self");
 
     loc_name = "here" if sig.from_walker else "visitor";
     loc_arg = func.args[1];
