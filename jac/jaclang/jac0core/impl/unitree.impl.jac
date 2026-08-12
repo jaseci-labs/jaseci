@@ -108,7 +108,11 @@ impl UniNode.add_kids_right(
 impl UniNode.insert_kids_at_pos(
     nodes: Sequence[UniNode], pos: int, pos_update: bool = True
 ) -> UniNode {
-    self.kid = [*self.kid[:pos], *nodes, *self.kid[pos:]];
+    new_kid: list[UniNode] = [];
+    new_kid.extend(self.kid[:pos]);
+    new_kid.extend(nodes);
+    new_kid.extend(self.kid[pos:]);
+    self.kid = new_kid;
     if pos_update {
         for i in nodes {
             i.parent = self;
@@ -120,7 +124,9 @@ impl UniNode.insert_kids_at_pos(
 }
 
 impl UniNode.set_kids(nodes: Sequence[UniNode]) -> UniNode {
-    self.kid = [*nodes];
+    new_kid: list[UniNode] = [];
+    new_kid.extend(nodes);
+    self.kid = new_kid;
     for i in nodes {
         i.parent = self;
     }
@@ -166,15 +172,7 @@ impl UniNode.gen_token(name: Tok, value: (str | None) = None) -> Token {
 
 
 impl UniNode.codespace -> CodeContext {
-    if isinstance(self, ContextAwareNode) {
-        if (self.code_context == CodeContext.CLIENT) {
-            return CodeContext.CLIENT;
-        }
-        if (self.code_context == CodeContext.NATIVE) {
-            return CodeContext.NATIVE;
-        }
-    }
-    nd: (UniNode | None) = self.parent;
+    nd: (UniNode | None) = self;
     while (nd is not None) {
         if isinstance(nd, ContextAwareNode) {
             context = nd.code_context;
@@ -185,7 +183,8 @@ impl UniNode.codespace -> CodeContext {
                 return CodeContext.NATIVE;
             }
         }
-        if isinstance(nd, Module) {
+
+        if isinstance(nd, Module) and (nd is not self) {
             if nd.decided_codespace == CodeContext.NATIVE.value {
                 return CodeContext.NATIVE;
             }
@@ -1199,7 +1198,7 @@ impl ModulePath.resolve_relative_path_list -> list[str] {
     }
     for i in range(len(parts) - 2, -1, -1) {
         init_found = False;
-        for init_name in ('__init__.jac', '__init__.py', '__init__.pyi') {
+        for init_name in ['__init__.jac', '__init__.py', '__init__.pyi'] {
             init_path = os.path.join(cur_dir, init_name);
             if os.path.isfile(init_path) {
                 paths[i] = init_path;
@@ -1295,12 +1294,13 @@ impl Archetype.postinit -> None {
 }
 
 
-impl Archetype._get_impl_resolved_body -> list {
-    return `list(self.body)
-        if isinstance(self.body, list)
-        else `list(self.body.body)
-            if (isinstance(self.body, ImplDef) and isinstance(self.body.body, list))
-            else [];
+impl Archetype._get_impl_resolved_body -> list[UniNode] {
+    src = self.body.body if isinstance(self.body, ImplDef) else self.body;
+    out: list[UniNode] = [];
+    if isinstance(src, list) {
+        out.extend(src);
+    }
+    return out;
 }
 
 impl Archetype.is_abstract.getter -> bool {
@@ -1549,7 +1549,8 @@ impl Ability.event_trigger_type_names -> (list[str] | None) {
     }
     names: list[str] = [];
     for t in self.event_triggers {
-        for part in t.mangle().split("|") {
+        parts = t.mangle().split("|");
+        for part in parts {
             name = part.strip();
             if name.startswith("type[") and name.endswith("]") {
                 name = name[5:-1];
@@ -1981,24 +1982,24 @@ impl LambdaExpr.tail_return_expr -> Expr | None {
     """Implicit return: a braced body consisting of a single expression
     statement returns that expression's value. Any other body (multiple
     statements, or a non-expression statement) uses an explicit `return`.""";
-    if not (isinstance(self.body, list) and not isinstance(self.body, Expr)) {
+    if isinstance(self.body, Expr) or not isinstance(self.body, list) {
         return None;
     }
+    body: Sequence[CodeBlockStmt] = self.body;
     stmts = [
         s
-        for s in self.body
+        for s in body
         if not isinstance(s, Semi)
     ];
-    if (len(stmts) == 1 and isinstance(stmts[0], ExprStmt)) {
-        return stmts[0].expr;
+    if len(stmts) != 1 {
+        return None;
     }
-    if (
-        len(stmts) == 1
-        and isinstance(stmts[0], ReturnStmt)
-        and stmts[0].is_implicit
-        and stmts[0].expr is not None
-    ) {
-        return stmts[0].expr;
+    only = stmts[0];
+    if isinstance(only, ExprStmt) {
+        return only.expr;
+    }
+    if isinstance(only, ReturnStmt) and only.is_implicit {
+        return only.expr;
     }
     return None;
 }

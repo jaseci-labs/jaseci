@@ -506,7 +506,7 @@ obj Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImplN
         tgt_endpoint: (Expr | None) = None;
 
     def postinit -> None;
-    def _get_impl_resolved_body -> list;
+    def _get_impl_resolved_body -> list[UniNode];
 
     has is_abstract: bool { getter; }
     has arch_kind: (str | None) { getter; }
