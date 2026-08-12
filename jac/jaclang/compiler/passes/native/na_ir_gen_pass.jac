@@ -1175,6 +1175,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
         layout: dict
     ) -> dict;
 
+    def _static_str_hash(key: str) -> int;
+    def _static_key_hash_of(key_node: (uni.UniNode | None)) -> (int | None);
+    def _static_key_op(
+        helpers: dict, op: str, key_node: (uni.UniNode | None)
+    ) -> tuple;
+
     def _emit_order_scan_incr_block(
         b: ir.IRBuilder,
         idx_slot: ir.Value,
@@ -1188,7 +1194,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _unbox_from_jacval(jv: ir.Value, target_type: ir.Type) -> ir.Value;
     def _codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None);
     def _codegen_dict_access(
-        target_val: ir.Value, key_val: ir.Value, key_type_name: str, val_type_name: str
+        target_val: ir.Value,
+        key_val: ir.Value,
+        key_type_name: str,
+        val_type_name: str,
+        key_node: (uni.UniNode | None) = None
     ) -> (ir.Value | None);
 
     def _codegen_dict_set(
@@ -1196,7 +1206,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         key_val: ir.Value,
         value: ir.Value,
         key_type_name: str,
-        val_type_name: str
+        val_type_name: str,
+        key_node: (uni.UniNode | None) = None
     ) -> None;
 
     def _infer_dict_type(val: ir.Value) -> (tuple | None);

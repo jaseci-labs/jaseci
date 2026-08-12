@@ -643,11 +643,12 @@ impl NaIRGenPass._codegen_kwargs_dict(
         );
         for _br in _unbound {
             self._rc_call_with_ctx(
-                helpers["set"],
+                helpers["set_ph"],
                 [
                     _skip_dv,
                     self._make_global_string(_br["name"], name_prefix=".kwname"),
-                    self._default_arg_fallback(helpers["val_type"])
+                    self._default_arg_fallback(helpers["val_type"]),
+                    ir.Constant(ir.IntType(64), self._static_str_hash(_br["name"]))
                 ],
                 op="dict_init",
                 loc=_loc
@@ -673,9 +674,12 @@ impl NaIRGenPass._codegen_kwargs_dict(
                 continue;
             }
             k = self._make_global_string(kname, name_prefix=".kwname");
+            _lkh = ir.Constant(ir.IntType(64), self._static_str_hash(kname));
             if _seen_spread {
                 self._emit_runtime_raise(
-                    self.builder.call(helpers["contains"], [dv, k], name="kwargs.dup"),
+                    self.builder.call(
+                        helpers["contains_ph"], [dv, k, _lkh], name="kwargs.dup"
+                    ),
                     "TypeError",
                     f"got multiple values for keyword argument '{kname}'"
                 );
@@ -683,7 +687,7 @@ impl NaIRGenPass._codegen_kwargs_dict(
             _orig = v;
             v2 = self._coerce_type(v, helpers["val_type"]);
             self._rc_call_with_ctx(
-                helpers["set"], [dv, k, v2], op="dict_init", loc=_loc
+                helpers["set_ph"], [dv, k, v2, _lkh], op="dict_init", loc=_loc
             );
             if isinstance(_orig.type, ir.PointerType) and self._is_owned(_orig) {
                 self._emit_rc_release_simple(_orig, op="dict_init", loc=_loc);
@@ -706,7 +710,10 @@ impl NaIRGenPass._codegen_kwargs_dict(
 
         for _rec in (bind_records or []) {
             _kg = self._make_global_string(_rec["name"], name_prefix=".kwname");
-            _has = self.builder.call(helpers["contains"], [sv, _kg], name="kwbind.has");
+            _rkh = ir.Constant(ir.IntType(64), self._static_str_hash(_rec["name"]));
+            _has = self.builder.call(
+                helpers["contains_ph"], [sv, _kg, _rkh], name="kwbind.has"
+            );
             if _rec["alloca"] is None {
                 self._emit_runtime_raise(_has, "TypeError", _rec["dup_msg"]);
                 continue;
@@ -725,7 +732,9 @@ impl NaIRGenPass._codegen_kwargs_dict(
             _cont_bb = _bfn.append_basic_block("kwbind.cont");
             self.builder.cbranch(_do, _bind_bb, _cont_bb);
             self.builder.position_at_end(_bind_bb);
-            _bv = self.builder.call(helpers["get"], [sv, _kg], name="kwbind.get");
+            _bv = self.builder.call(
+                helpers["get_ph"], [sv, _kg, _rkh], name="kwbind.get"
+            );
             _bv = self._coerce_type(_bv, _rec["slot_type"]);
             if isinstance(_rec["slot_type"], ir.PointerType) {
                 self._emit_rc_retain(_bv, op="kwbind", loc=_loc);
