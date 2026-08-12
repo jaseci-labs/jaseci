@@ -1,4 +1,5 @@
 import tempfile;
+import from jaclang.jac0core.treeprinter { print_ast_tree }
 import os;
 import sys;
 import threading;
@@ -291,7 +292,7 @@ impl CompilerBridge.get_ast_snippet(code: str, fmt: str = "tree") -> dict[str, a
         if fmt == "json" {
             ast_output = json.dumps(ir.to_dict(), default=str);
         } else {
-            ast_output = ir.pp();
+            ast_output = print_ast_tree(ir);
         }
 
         return {"ast": ast_output, "valid": len(errors) == 0, "errors": errors};

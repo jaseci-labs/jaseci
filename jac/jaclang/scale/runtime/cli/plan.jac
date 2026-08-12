@@ -346,6 +346,10 @@ obj Plan {
     static def from_target(target: Any, app_config: AppConfig) -> Plan {
         bundle_raw = target.generate_manifests(app_config);
         bundle: dict[str, any] = bundle_raw if isinstance(bundle_raw, dict) else {};
+        render_autoscalers = target?.render_autoscaler_manifests;
+        if render_autoscalers is not None {
+            bundle["autoscaler_manifests"] = render_autoscalers(bundle);
+        }
         (ms_cfg, svc_configs) = Plan._load_ms_cfg();
 
         routes_any: Any = ms_cfg.get("routes", {});
@@ -533,6 +537,9 @@ obj Plan {
             for m in dget(self.bundle, key).values() {
                 out.append(m);
             }
+        }
+        for m in lget(self.bundle, "autoscaler_manifests") {
+            out.append(m);
         }
         if self.bundle.get("ingress") {
             out.append(self.bundle["ingress"]);

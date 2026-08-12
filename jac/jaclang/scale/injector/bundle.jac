@@ -50,6 +50,13 @@ glob _EXCLUDE_SUFFIXES: tuple[str, ...] = (
          ".jks",
          ".keystore"
      );
+glob _EXCLUDE_ENV: set[str] = {
+         "PYTHONPATH",
+         "PYTHONHOME",
+         "JAC_LLVM_SHIM",
+         "JAC_DEV_SOURCE",
+         "JAC_NO_PRECOMPILE"
+     };
 
 
 def is_excluded(rel: Path) -> bool {
@@ -214,11 +221,11 @@ def _stage_app(base: Path, sanitized_toml: (str | None)) -> Path {
 }
 
 
-def _seal_subprocess_env -> dict[str, str] {
+def release_binary_env -> dict[str, str] {
     return {
         k: v
         for (k, v) in os.environ.items()
-        if k not in ("PYTHONPATH", "PYTHONHOME", "JAC_LLVM_SHIM")
+        if k not in _EXCLUDE_ENV
     };
 }
 
@@ -241,7 +248,7 @@ def _precompile_app(
             capture_output=True,
             text=True,
             timeout=timeout_s,
-            env=_seal_subprocess_env(),
+            env=release_binary_env(),
             cwd=str(stage_root)
         );
         jac_path.unlink();
@@ -338,7 +345,7 @@ def _vendor_stage(stage: Path, seal_binary: bytes, platform_tag: str = "") {
     }
     try {
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=900, env=_seal_subprocess_env()
+            cmd, capture_output=True, text=True, timeout=900, env=release_binary_env()
         );
     } finally {
         jac_path.unlink(missing_ok=True);
