@@ -9,6 +9,7 @@ build runs the actual `jac build` subprocess); no mocks."""
 
 import os;
 import shutil;
+import subprocess;
 import tempfile;
 import hashlib;
 import json;
@@ -20,6 +21,10 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
+import from jaclang.scale.runtime.context.util { jac_executable }
+
+
+glob PINNED: str = "0.0.0";
 
 
 def _builder(project_dir: str) -> ManifestBuilder {

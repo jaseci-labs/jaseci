@@ -345,7 +345,7 @@ def download_release_binary(
     channel: str, arch: str, version: str = "", plat: str = "linux"
 ) -> bytes {
     repo = GH_REPO;
-    suffix = f"-linux-{arch}";
+    suffix = f"-{plat}-{arch}";
     binary_url = "";
     checksum_url = "";
 
