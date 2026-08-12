@@ -351,14 +351,14 @@ obj Parser {
     def parse_edge_ref_chain -> NodeId;
     def parse_edge_op_ref -> NodeId;
     def _continue_edge_ref_chain(start_expr: NodeId, lsquare_uni: NodeId) -> NodeId;
-    def parse_comprehension_clauses -> list;
+    def parse_comprehension_clauses -> list[NodeId];
     def parse_compr_clause -> NodeId;
     def parse_lambda_expr -> NodeId;
     def parse_jsx_element -> NodeId;
     def _parse_jsx_dynamic_tag(open_kid: list[NodeId]) -> NodeId;
     def _consume_jsx_dynamic_close(close_kid: list[NodeId]);
-    def parse_jsx_attributes -> list;
-    def parse_jsx_children -> list;
+    def parse_jsx_attributes -> list[NodeId];
+    def parse_jsx_children -> list[NodeId];
     def parse_jsx_child -> NodeId;
     def parse_element_stmt -> NodeId;
     def _dispatch_decorated -> NodeId;
@@ -366,7 +366,7 @@ obj Parser {
     def _attach_doc(nd: NodeId, elem_doc: NodeId) -> NodeId;
     def parse_docstring_target -> NodeId;
     def parse_module_code -> NodeId;
-    def parse_code_block_stmts -> list;
+    def parse_code_block_stmts -> list[NodeId];
     def _apply_implicit_return(body: list[NodeId]) -> list[NodeId];
     def parse_ctrl_stmt -> NodeId;
     def parse_statement -> NodeId;
@@ -375,7 +375,7 @@ obj Parser {
     def parse_ct_if(mode: int, ct_uni: NodeId) -> NodeId;
     def parse_ct_elif(mode: int) -> NodeId;
     def parse_ct_else(mode: int) -> NodeId;
-    def parse_ct_body(mode: int, kid: list) -> list;
+    def parse_ct_body(mode: int, kid: list[NodeId]) -> list[NodeId];
     def parse_ct_block -> NodeId;
     def parse_ct_splice -> NodeId;
     def parse_ct_name(as_name: bool = True) -> NodeId;
@@ -421,10 +421,13 @@ obj Parser {
         target: NodeId, require_semi: bool = True
     ) -> NodeId;
 
-    def parse_ownership_prefix(kids: list) -> OwnershipKind;
+    def parse_ownership_prefix(kids: list[NodeId]) -> OwnershipKind;
     def parse_import_stmt -> NodeId;
     def parse_from_path -> tuple[(int, bool)];
-    def parse_import_items(kid: list, is_clib_import: bool) -> tuple[(list, list)];
+    def parse_import_items(
+        kid: list[NodeId], is_clib_import: bool
+    ) -> tuple[(list[NodeId], list[NodeId])];
+
     def parse_archetype -> NodeId;
     def parse_archetype_member -> (NodeId);
     def _skip_semicolons;
@@ -442,7 +445,7 @@ obj Parser {
     ) -> tuple[(bool, (LexToken | None), bool, (LexToken | None))];
 
     def parse_func_signature -> NodeId;
-    def parse_func_params(kid: list) -> list;
+    def parse_func_params(kid: list[NodeId]) -> list[NodeId];
     def parse_param_var -> NodeId;
     def parse_enum -> NodeId;
     def parse_enum_member -> NodeId;
@@ -452,10 +455,10 @@ obj Parser {
     def parse_impl_def -> NodeId;
     def _is_impl_enum_body -> bool;
     def parse_impl_target_name -> NodeId;
-    def parse_impl_enum_body -> list;
+    def parse_impl_enum_body -> list[NodeId];
     def parse_sem_def -> NodeId;
     def parse_type_alias -> NodeId;
-    def parse_type_params -> tuple[(list, list)];
+    def parse_type_params -> tuple[(list[NodeId], list[NodeId])];
 }
 
 def parse_source(

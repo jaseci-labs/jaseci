@@ -903,7 +903,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_jacval_retain_fn -> ir.Function;
     def _emit_jacval_release_fn -> ir.Function;
     def _emit_jacval_rc_fn(fn_name: str, is_retain: bool) -> ir.Function;
-    def _container_managed_fields(layout: dict) -> list;
+    def _container_managed_fields(layout: dict[str, any]) -> list;
     def _reject_ptr_into_raw_slot(
         nd: (uni.UniNode | None), value: ir.Value, elem_type: ir.Type, what: str
     ) -> bool;
@@ -913,19 +913,19 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_jacval_slot_drop_fn(elem_mangle: str) -> (ir.Function | None);
     def _container_layout_dense(data_types: list) -> dict;
     def _container_layout_hash(key_type: ir.Type, val_type: (ir.Type | None)) -> dict;
-    def _container_struct_fields(layout: dict) -> list;
+    def _container_struct_fields(layout: dict[str, any]) -> list;
     def _emit_live_slot_loop(
         fn: ir.Function,
         b: ir.IRBuilder,
         cont: ir.Value,
-        layout: dict,
+        layout: dict[str, any],
         tag: str,
         body_cb: object,
         fields: (list | None) = None
     ) -> ir.IRBuilder;
 
     def _emit_rc_alloc_container(
-        b: ir.IRBuilder, container_ptr_type: ir.Type, layout: dict, initial_cap: int = 8
+        b: ir.IRBuilder, container_ptr_type: ir.Type, layout: dict[str, any], initial_cap: int = 8
     ) -> tuple;
 
     def _emit_grow_array(
@@ -944,7 +944,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_container_new_fn(
         fn_name: str,
         container_ptr_type: ir.Type,
-        layout: dict,
+        layout: dict[str, any],
         dtor_fn: (ir.Function | None) = None
     ) -> ir.Function;
 
@@ -953,7 +953,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> ir.Function;
 
     def _emit_container_release_fn(
-        fn_name: str, container_ptr_type: ir.Type, layout: dict
+        fn_name: str, container_ptr_type: ir.Type, layout: dict[str, any]
     ) -> ir.Function;
 
     def _emit_release_header_free(
@@ -1179,7 +1179,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         val_type: (ir.Type | None),
         key_type_name: str,
         key_size: int,
-        layout: dict
+        layout: dict[str, any]
     ) -> dict;
 
     def _static_str_hash(key: str) -> int;
@@ -1398,7 +1398,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _struct_has_ref_fields(arch_name: str) -> bool;
     def _container_type_name(dtor_fn: object) -> str;
     def _emit_container_trace_fn(
-        trace_fn_name: str, container_ptr_type: ir.Type, layout: dict
+        trace_fn_name: str, container_ptr_type: ir.Type, layout: dict[str, any]
     ) -> ir.Function;
 
     def _emit_rc_collect_cycles -> None;

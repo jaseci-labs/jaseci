@@ -2758,7 +2758,7 @@ impl Parser.parse_dict_spread_entry -> NodeId {
     }
 }
 
-impl Parser.parse_comprehension_clauses -> list {
+impl Parser.parse_comprehension_clauses -> list[NodeId] {
     comprs: list[NodeId] = [self.parse_compr_clause()];
     while self.check(TokenKind.KW_FOR)
         or (self.check(TokenKind.KW_ASYNC) and self.check_peek(TokenKind.KW_FOR)) {
@@ -3044,7 +3044,7 @@ impl Parser._consume_jsx_dynamic_close(close_kid: list[NodeId]) {
     }
 }
 
-impl Parser.parse_jsx_attributes -> list {
+impl Parser.parse_jsx_attributes -> list[NodeId] {
     attrs: list[NodeId] = [];
     while True {
         if self.check(TokenKind.JSX_NAME) {
@@ -3124,7 +3124,7 @@ impl Parser.parse_jsx_attributes -> list {
     return attrs;
 }
 
-impl Parser.parse_jsx_children -> list {
+impl Parser.parse_jsx_children -> list[NodeId] {
     children: list[NodeId] = [];
     while not self.at_end() {
         if self.check(TokenKind.JSX_CLOSE_START)
@@ -3503,7 +3503,7 @@ impl Parser.parse_module_code -> NodeId {
     return self.b.mk_module_code(name=target_name, body=body, kid=kid, doc=NIL);
 }
 
-impl Parser.parse_code_block_stmts -> list {
+impl Parser.parse_code_block_stmts -> list[NodeId] {
     stmts: list[NodeId] = [];
     checked_first = False;
     while not self.check(TokenKind.RBRACE) and not self.at_end() {
@@ -4827,7 +4827,7 @@ impl Parser._recover_misplaced_disconnect -> None {
     }
 }
 
-impl Parser.parse_ownership_prefix(kids: list) -> OwnershipKind {
+impl Parser.parse_ownership_prefix(kids: list[NodeId]) -> OwnershipKind {
     if self.check(TokenKind.KW_OWN) {
         own_tok = self.expect(TokenKind.KW_OWN);
         kids.append(self.make_uni_token(own_tok));
@@ -5112,7 +5112,9 @@ impl Parser.parse_from_path -> tuple[(int, bool)] {
     return (from_loc, is_clib_import);
 }
 
-impl Parser.parse_import_items(kid: list, is_clib_import: bool) -> tuple[(list, list)] {
+impl Parser.parse_import_items(
+    kid: list[NodeId], is_clib_import: bool
+) -> tuple[(list[NodeId], list[NodeId])] {
     items: list[NodeId] = [];
     clib_decls: list[NodeId] = [];
     self.expect(TokenKind.LBRACE);
@@ -6036,7 +6038,7 @@ impl Parser.parse_func_signature -> NodeId {
     );
 }
 
-impl Parser.parse_func_params(kid: list) -> list {
+impl Parser.parse_func_params(kid: list[NodeId]) -> list[NodeId] {
     params: list[NodeId] = [];
     while not self.check(TokenKind.RPAREN) {
         if self.check(TokenKind.STAR_MUL)
@@ -6859,7 +6861,7 @@ impl Parser.parse_impl_target_name -> NodeId {
     }
 }
 
-impl Parser.parse_impl_enum_body -> list {
+impl Parser.parse_impl_enum_body -> list[NodeId] {
     members: list[NodeId] = [];
     while not self.check(TokenKind.RBRACE) and not self.at_end() {
         if self.check_name() {
@@ -7008,7 +7010,7 @@ impl Parser.parse_type_alias -> NodeId {
     );
 }
 
-impl Parser.parse_type_params -> tuple[(list, list)] {
+impl Parser.parse_type_params -> tuple[(list[NodeId], list[NodeId])] {
     params: list[NodeId] = [];
     comma_unis: list[NodeId] = [];
 
@@ -7193,7 +7195,7 @@ impl Parser.parse_ct_else(mode: int) -> NodeId {
     return self.b.mk_ct_else(body=body, kid=kid);
 }
 
-impl Parser.parse_ct_body(mode: int, kid: list) -> list {
+impl Parser.parse_ct_body(mode: int, kid: list[NodeId]) -> list[NodeId] {
     body: list[NodeId] = [];
     if mode == 4 {
         while not self.check(TokenKind.RBRACE) and not self.at_end() {

@@ -99,7 +99,7 @@ def config_module_pin(source_path: str) -> str {
 
 
 glob _kind_cache: dict[str, tuple[float, str]] = {},
-     _kind_probe: dict = {"active": False};
+     _kind_probe: dict[str, bool] = {"active": False};
 
 
 def _load_project_kind(root_dir: str) -> str {

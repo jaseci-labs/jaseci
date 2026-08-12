@@ -13,7 +13,7 @@ impl NaIRGenPass._emit_hash_core_helpers(
     val_type: (ir.Type | None),
     key_type_name: str,
     key_size: int,
-    layout: dict
+    layout: dict[str, any]
 ) -> dict {
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
@@ -902,7 +902,7 @@ impl NaIRGenPass._emit_hash_core_helpers(
         core["get_val"] = get_val_fn;
     }
 
-    _pub_specs: list = [
+    _pub_specs: list[tuple[str, str, any]] = [
         ("find", "find", find_fn),
         ("insert", _ins_op, ins_fn),
         ("contains", "contains", contains_fn),
