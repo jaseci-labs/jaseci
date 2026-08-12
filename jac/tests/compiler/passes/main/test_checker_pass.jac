@@ -4332,7 +4332,7 @@ test "bare_generic_iteration_is_a_hard_error" {
 
     assert_error_pretty_found(
         """
-        b: str = t;   # <-- Error (int not assignable to str)
+        b: str = t;  # <-- Error (int not assignable to str)
         ^^^^^^^^^^^
     """,
         "\n".join(e.pretty_print() for e in program.errors_had)
