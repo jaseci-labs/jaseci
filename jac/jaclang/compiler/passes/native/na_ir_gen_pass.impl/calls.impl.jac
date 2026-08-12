@@ -630,9 +630,6 @@ impl NaIRGenPass._codegen_kwargs_dict(
         helpers["new"], [], op="new", loc=_loc, name="kwargs.new"
     );
 
-    # Keys that may bind declared parameter slots must never reach the sink.
-    # The merge loop tests membership of this compile-time-keyed dict, reusing
-    # the sink's own hash helpers instead of per-key string compares.
     _skip_dv: (ir.Value | None) = None;
     _unbound: list = [];
     for _br in (bind_records or []) {
@@ -707,9 +704,6 @@ impl NaIRGenPass._codegen_kwargs_dict(
             continue;
         }
 
-        # CPython binding semantics: a spread key naming a keyword-bindable
-        # declared parameter binds that slot; a slot bound twice raises. The
-        # checks run before the merge so a raising key never reaches the sink.
         for _rec in (bind_records or []) {
             _kg = self._make_global_string(_rec["name"], name_prefix=".kwname");
             _has = self.builder.call(helpers["contains"], [sv, _kg], name="kwbind.has");
