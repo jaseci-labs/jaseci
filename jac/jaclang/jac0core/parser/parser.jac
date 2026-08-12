@@ -537,7 +537,7 @@ obj Parser {
     def parse_report_stmt -> ReportStmt;
     def parse_assignment_with_target(
         target: Expr, require_semi: bool = True
-    ) -> CodeBlockStmt;
+    ) -> Assignment;
 
     def parse_ownership_prefix(kids: list[UniNode]) -> OwnershipKind;
     def parse_import_stmt -> Import;
