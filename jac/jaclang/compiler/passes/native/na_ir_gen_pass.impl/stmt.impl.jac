@@ -1040,7 +1040,7 @@ impl NaIRGenPass._match_map_cond(
             return None;
         }
         _mk_nd = kv.key.value if isinstance(kv.key, uni.MatchValue) else kv.key;
-        (_has_fn, _mkh) = self._prehashed_op(helpers, "contains", _mk_nd);
+        (_has_fn, _mkh) = self._static_key_op(helpers, "contains", _mk_nd);
         _has_args = [subj, key_val];
         if _mkh is not None {
             _has_args.append(_mkh);
@@ -1049,7 +1049,7 @@ impl NaIRGenPass._match_map_cond(
         val_bb = func.append_basic_block(name="match.map.val");
         self.builder.cbranch(has_key, val_bb, merge_bb);
         self.builder.position_at_end(val_bb);
-        (_get_fn, _mgh) = self._prehashed_op(helpers, "get", _mk_nd);
+        (_get_fn, _mgh) = self._static_key_op(helpers, "get", _mk_nd);
         _get_args = [subj, key_val];
         if _mgh is not None {
             _get_args.append(_mgh);
@@ -1412,7 +1412,7 @@ impl NaIRGenPass._bind_match_map(
         }
         matched_keys.append(key_val);
         _mk_nd = kv.key.value if isinstance(kv.key, uni.MatchValue) else kv.key;
-        (_get_fn, _mgh) = self._prehashed_op(helpers, "get", _mk_nd);
+        (_get_fn, _mgh) = self._static_key_op(helpers, "get", _mk_nd);
         _get_args = [subj, key_val];
         if _mgh is not None {
             _get_args.append(_mgh);

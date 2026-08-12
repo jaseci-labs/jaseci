@@ -405,7 +405,7 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
             if use_jacval
             else self._coerce_type(first_val, val_type)
     );
-    (_set_fn, _kh) = self._prehashed_op(helpers, "set", first_pair.key);
+    (_set_fn, _kh) = self._static_key_op(helpers, "set", first_pair.key);
     _set_args = [dict_val, self._coerce_type(first_key, key_type), first_store_val];
     if _kh is not None {
         _set_args.append(_kh);
@@ -437,7 +437,7 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
             } else {
                 v = self._coerce_type(v, val_type);
             }
-            (_set_fn, _kh) = self._prehashed_op(helpers, "set", pair.key);
+            (_set_fn, _kh) = self._static_key_op(helpers, "set", pair.key);
             _set_args = [dict_val, k, v];
             if _kh is not None {
                 _set_args.append(_kh);
@@ -471,7 +471,7 @@ impl NaIRGenPass._codegen_dict_access(
     key_type = helpers["key_type"];
     key_val = self._coerce_type(key_val, key_type);
 
-    (_has_fn, _kh) = self._prehashed_op(helpers, "contains", key_node);
+    (_has_fn, _kh) = self._static_key_op(helpers, "contains", key_node);
     _has_args = [target_val, key_val];
     if _kh is not None {
         _has_args.append(_kh);
@@ -479,7 +479,7 @@ impl NaIRGenPass._codegen_dict_access(
     key_exists = self.builder.call(_has_fn, _has_args, name="dict.has");
     not_exists = self.builder.not_(key_exists, name="dict.nokey");
     self._emit_runtime_raise(not_exists, "KeyError", "key not found");
-    (_get_fn, _gh) = self._prehashed_op(helpers, "get", key_node);
+    (_get_fn, _gh) = self._static_key_op(helpers, "get", key_node);
     _get_args = [target_val, key_val];
     if _gh is not None {
         _get_args.append(_gh);
@@ -512,7 +512,7 @@ impl NaIRGenPass._codegen_dict_set(
     _dset_ctx_loc = getattr(
         _orig_value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
     );
-    (_set_fn, _kh) = self._prehashed_op(helpers, "set", key_node);
+    (_set_fn, _kh) = self._static_key_op(helpers, "set", key_node);
     _set_args = [target_val, key_val, value];
     if _kh is not None {
         _set_args.append(_kh);

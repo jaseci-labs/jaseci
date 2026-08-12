@@ -965,7 +965,7 @@ impl NaIRGenPass._static_key_hash_of(key_node: (uni.UniNode | None)) -> (int | N
     return self._static_str_hash(v);
 }
 
-impl NaIRGenPass._prehashed_op(
+impl NaIRGenPass._static_key_op(
     helpers: dict, op: str, key_node: (uni.UniNode | None)
 ) -> tuple {
     plain = helpers[op];

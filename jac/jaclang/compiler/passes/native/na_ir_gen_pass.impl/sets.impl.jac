@@ -132,7 +132,7 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
         else 0}";
 
     first_val = self._nogc_elem_prep(nd.values[0], first_val);
-    (_add_fn, _kh) = self._prehashed_op(helpers, "add", nd.values[0]);
+    (_add_fn, _kh) = self._static_key_op(helpers, "add", nd.values[0]);
     _add_args = [set_val, first_val];
     if _kh is not None {
         _add_args.append(_kh);
@@ -148,7 +148,7 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
             }
             _orig_sv = val;
             val = self._coerce_type(val, elem_type);
-            (_add_fn, _kh) = self._prehashed_op(helpers, "add", nd.values[i]);
+            (_add_fn, _kh) = self._static_key_op(helpers, "add", nd.values[i]);
             _add_args = [set_val, val];
             if _kh is not None {
                 _add_args.append(_kh);

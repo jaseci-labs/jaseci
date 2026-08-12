@@ -788,7 +788,7 @@ impl NaIRGenPass._codegen_compare_link(
                 (left_coerced, _din_gate) = self._opt_membership_operand(
                     left, key_type
                 );
-                (_has_fn, _kh) = self._prehashed_op(helpers, "contains", _in_key_nd);
+                (_has_fn, _kh) = self._static_key_op(helpers, "contains", _in_key_nd);
                 _has_args = [right, left_coerced];
                 if _kh is not None {
                     _has_args.append(_kh);
@@ -829,7 +829,7 @@ impl NaIRGenPass._codegen_compare_link(
                 (left_coerced, _sin_gate) = self._opt_membership_operand(
                     left, elem_type
                 );
-                (_has_fn, _kh) = self._prehashed_op(helpers, "contains", _in_key_nd);
+                (_has_fn, _kh) = self._static_key_op(helpers, "contains", _in_key_nd);
                 _has_args = [right, left_coerced];
                 if _kh is not None {
                     _has_args.append(_kh);
