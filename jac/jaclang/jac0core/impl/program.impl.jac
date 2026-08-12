@@ -295,8 +295,7 @@ impl JacProgram.drop_module_alerts(self: JacProgram, resolved_path: str) -> None
     } except OSError {
         return;
     }
-    stem = norm[:-4] if norm.endswith(".jac") else norm;
-    prefix = stem + ".";
+    import from jaclang.jac0core.ext_registry { is_annex_path_of }
 
     def owned(alert: Alert) -> bool {
         try {
@@ -304,20 +303,7 @@ impl JacProgram.drop_module_alerts(self: JacProgram, resolved_path: str) -> None
         } except Exception {
             return False;
         }
-        if alert_path == norm {
-            return True;
-        }
-        if not alert_path.startswith(prefix) {
-            return False;
-        }
-        rest = alert_path[len(prefix):];
-        return (
-            rest in ('impl.jac', 'test.jac')
-            or rest.endswith('.impl.jac')
-            or rest.endswith('.test.jac')
-            or rest.startswith('impl' + os.sep)
-            or rest.startswith('test' + os.sep)
-        );
+        return alert_path == norm or is_annex_path_of(alert_path, norm);
     }
     self.errors_had = [
         a
