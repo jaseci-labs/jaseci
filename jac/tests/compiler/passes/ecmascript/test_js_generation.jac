@@ -504,7 +504,7 @@ test "assignment inside globvar js" {
 }
 
 test "effect lambda local hoists its declaration into the effect body" {
-    jac_code = "def:pub app -> JsxElement {\n    has status: str = \"starting\";\n\n    can with entry {\n        setup = lambda {\n            probe = \"READY\";\n            status = probe;\n        };\n        setup();\n    }\n\n    <div>{status}</div>\n}\n";
+    jac_code = "cl def:pub app -> JsxElement {\n    has status: str = \"starting\";\n\n    can with entry {\n        setup = lambda {\n            probe = \"READY\";\n            status = probe;\n        };\n        setup();\n    }\n\n    return <div>{status}</div>;\n}\n";
     temp_path = write_temp_jac(jac_code);
     js_code = compile_fixture_to_js(temp_path);
 
@@ -2693,7 +2693,7 @@ test "unimplemented client statement is a hard error, not a silent drop (#7922)"
     # green -- the function compiled but computed the wrong value at
     # runtime. Any such statement must now be a blocks_codegen error.
     jac_code = (
-        "def t_del() -> int {\n"
+        "cl def t_del() -> int {\n"
         "    d: dict[str, int] = {\"a\": 1, \"b\": 2};\n"
         "    del d[\"a\"];\n"
         "    return len(d.keys());\n"
@@ -2810,7 +2810,7 @@ test "branch-first assignment binds function-wide, not per block (#7882)" {
 
 test "module-level entry block assignment hoists to module scope (#7882)" {
     jac_code = (
-        "with entry {\n"
+        "cl with entry {\n"
         "    if True {\n"
         "        z = 42;\n"
         "    }\n"
