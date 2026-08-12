@@ -812,11 +812,11 @@ impl NaIRGenPass._mro_of(arch_name: str) -> list[str] {
     return mro or [arch_name];
 }
 
-impl NaIRGenPass._arch_has_vtable(arch_name: str) -> bool {
-    if arch_name not in self.struct_types {
-        return False;
-    }
+impl NaIRGenPass._arch_layout(arch_name: str) -> (ArchetypeLayout | None) {
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+
+    # Only the module that declares a class computes its layout, so an
+    # imported class is resolved through its defining module's registry.
     _owner = None;
     _arch_nd = self.arch_ast_map.get(arch_name);
     if _arch_nd is not None {
@@ -828,10 +828,18 @@ impl NaIRGenPass._arch_has_vtable(arch_name: str) -> bool {
         }
         lay = get_layout_registry(_cand, self.prog).get_layout(arch_name);
         if lay is not None {
-            return lay.has_vtable;
+            return lay;
         }
     }
-    return False;
+    return None;
+}
+
+impl NaIRGenPass._arch_has_vtable(arch_name: str) -> bool {
+    if arch_name not in self.struct_types {
+        return False;
+    }
+    lay = self._arch_layout(arch_name);
+    return lay is not None and lay.has_vtable;
 }
 
 impl NaIRGenPass._union_layout_conflict(members: list[str]) -> (str | None) {
@@ -1196,8 +1204,8 @@ impl NaIRGenPass._codegen_instantiation(
         }
     }
 
-    if type_name in self.vtable_globals {
-        vtable_global = self.vtable_globals[type_name];
+    vtable_global = self._vtable_global_for(type_name);
+    if vtable_global is not None {
         vtable_base = self.builder.gep(
             vtable_global,
             [ir.Constant(ir.IntType(32), 0), ir.Constant(ir.IntType(32), 0)],

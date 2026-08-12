@@ -1,6 +1,5 @@
 impl NaIRGenPass._build_vtable(arch_name: str) -> None {
-    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
-    lay = get_layout_registry(self.ir_in, self.prog).get_layout(arch_name);
+    lay = self._arch_layout(arch_name);
     if lay is None or not lay.has_vtable {
         self.vtable_layouts[arch_name] = [];
         self.vtable_method_indices[arch_name] = {};
@@ -29,13 +28,74 @@ impl NaIRGenPass._emit_vtable_global(arch_name: str) -> None {
         }
     }
     vtable_init = ir.Constant(vtable_type, entries);
-    vtable_global = ir.GlobalVariable(
+
+    # A module that imports this class references the same symbol (see
+    # `_vtable_global_for`), so a reference emitted before the definition is
+    # the declaration this call turns into a definition.
+    vtable_global = self.vtable_globals.get(arch_name);
+    if vtable_global is None {
+        vtable_global = ir.GlobalVariable(
+            self.llvm_module, vtable_type, name=f"{arch_name}.__vtable"
+        );
+        self.vtable_globals[arch_name] = vtable_global;
+    }
+    vtable_global.global_constant = True;
+
+    # Externally visible: the vtable address is the class identity every
+    # importer compares against, so it has to resolve at link time.
+    vtable_global.linkage = "";
+    vtable_global.initializer = vtable_init;
+}
+
+impl NaIRGenPass._vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None) {
+    existing = self.vtable_globals.get(arch_name);
+    if existing is not None {
+        return existing;
+    }
+    lay = self._arch_layout(arch_name);
+    if lay is None or not lay.has_vtable or arch_name not in self.struct_types {
+        return None;
+    }
+
+    # An imported class's vtable is defined by the module that declares the
+    # class; the layout registry gives its length, so this module can name the
+    # symbol without a local definition. Method indices are deliberately not
+    # recorded here: `_codegen_virtual_call` keys off `vtable_method_indices`,
+    # and populating it from a reference would make dispatch depend on whether
+    # some earlier expression happened to mention the class.
+    i8_ptr = ir.IntType(8).as_pointer();
+    vtable_type = ir.ArrayType(i8_ptr, len(lay.methods) + VTABLE_HEADER_SLOTS);
+    vtable_ref = ir.GlobalVariable(
         self.llvm_module, vtable_type, name=f"{arch_name}.__vtable"
     );
-    vtable_global.global_constant = True;
-    vtable_global.linkage = "private";
-    vtable_global.initializer = vtable_init;
-    self.vtable_globals[arch_name] = vtable_global;
+    vtable_ref.global_constant = True;
+    vtable_ref.linkage = "external";
+    self.vtable_globals[arch_name] = vtable_ref;
+    return vtable_ref;
+}
+
+impl NaIRGenPass._vtable_candidates(names: list[str]) -> list[ir.GlobalVariable] {
+    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+
+    # The candidates are every class whose MRO reaches one of `names`, drawn
+    # from the program-wide hierarchy the layout registry carries (imported
+    # hierarchies are merged into it by `_register_imported_hierarchy`) rather
+    # than from the classes this module happens to define.
+    reg = get_layout_registry(self.ir_in, self.prog);
+    out: list[ir.GlobalVariable] = [];
+    for cand in reg.mro_order {
+        cand_mro = self._mro_of(cand);
+        for name in names {
+            if name in cand_mro {
+                vt = self._vtable_global_for(cand);
+                if vt is not None {
+                    out.append(vt);
+                }
+                break;
+            }
+        }
+    }
+    return out;
 }
 
 impl NaIRGenPass._codegen_virtual_call(
