@@ -1146,11 +1146,7 @@ impl NaIRGenPass._match_arch_cond(
     if static_name == arch_name and not self._arch_has_vtable(static_name) {
         vt_mode = False;
     } elif self._arch_has_vtable(static_name) {
-        for cand in self.vtable_globals {
-            if arch_name in self._mro_of(cand) {
-                target_vtables.append(self.vtable_globals[cand]);
-            }
-        }
+        target_vtables = self._vtable_candidates([arch_name]);
         if not target_vtables {
             return ir.Constant(i1, 0);
         }

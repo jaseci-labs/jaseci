@@ -29,7 +29,10 @@ import from jaclang.jac0core.codeinfo {
     str_len_tag
 }
 
-import from jaclang.compiler.passes.main.layout_pass { VTABLE_HEADER_SLOTS }
+import from jaclang.compiler.passes.main.layout_pass {
+    ArchetypeLayout,
+    VTABLE_HEADER_SLOTS
+}
 
 glob NATIVE_TIME_FUNCS: set[str] = {
          "time",
@@ -969,9 +972,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _build_vtable(arch_name: str) -> None;
     def _emit_vtable_global(arch_name: str) -> None;
+    def _vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None);
+    def _vtable_candidates(names: list[str]) -> list[ir.GlobalVariable];
     def _emit_class_name_const(arch_name: str) -> ir.Value;
     def _codegen_class_name(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _mro_of(arch_name: str) -> list[str];
+    def _arch_layout(arch_name: str) -> (ArchetypeLayout | None);
     def _arch_has_vtable(arch_name: str) -> bool;
     def _codegen_virtual_call(
         obj_val: ir.Value, method_name: str, args: list[ir.Value], obj_type_name: str

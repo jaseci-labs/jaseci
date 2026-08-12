@@ -2139,16 +2139,7 @@ impl NaIRGenPass._emit_isinstance_mixed(
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
 
-    target_vtables: list[ir.GlobalVariable] = [];
-    for cand in self.vtable_globals {
-        cand_mro = self._mro_of(cand);
-        for name in names {
-            if name in cand_mro {
-                target_vtables.append(self.vtable_globals[cand]);
-                break;
-            }
-        }
-    }
+    target_vtables = self._vtable_candidates(names);
     if not target_vtables {
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
@@ -2230,16 +2221,7 @@ impl NaIRGenPass._emit_isinstance_user(
         return None;
     }
 
-    target_vtables: list[ir.GlobalVariable] = [];
-    for cand in self.vtable_globals {
-        cand_mro = self._mro_of(cand);
-        for name in names {
-            if name in cand_mro {
-                target_vtables.append(self.vtable_globals[cand]);
-                break;
-            }
-        }
-    }
+    target_vtables = self._vtable_candidates(names);
     if not target_vtables {
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
@@ -2249,7 +2231,7 @@ impl NaIRGenPass._emit_isinstance_user(
     if (
         struct_name is not None
         and struct_name in self.struct_types
-        and struct_name not in self.vtable_globals
+        and not self._arch_has_vtable(struct_name)
     ) {
         if self._is_owned(operand) {
             self._emit_rc_release_simple(operand, op="isinstance_arg", loc="");
