@@ -204,7 +204,7 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
 
 impl JacScaleConfig.get_kubernetes_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
-    k8s_config = config.get('kubernetes', {});
+    k8s_config = dict(config.get('kubernetes', {}));
 
     monitoring = self.get_monitoring_config();
     k8s_config['monitoring_enabled'] = monitoring['enabled'];
@@ -396,6 +396,20 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
 
 impl get_scale_config(project_dir: Path | None = None) -> JacScaleConfig {
     if _scale_config_instance is not None {
+        if (
+            project_dir is not None
+            and Path(project_dir).resolve()
+                != _scale_config_instance.project_dir.resolve()
+        ) {
+            raise RuntimeError(
+                f"get_scale_config(project_dir={project_dir}) called after the "
+                f"config was already loaded for "
+                f"{_scale_config_instance.project_dir}. Call "
+                "reset_scale_config() first, or pass the config explicitly; "
+                "returning the cached instance would silently read the wrong "
+                "project's config."
+            );
+        }
         return _scale_config_instance;
     }
     new_instance = JacScaleConfig(project_dir);

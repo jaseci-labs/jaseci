@@ -80,11 +80,7 @@ obj UniNode {
     def codespace -> CodeContext;
     def in_client_context -> bool;
     def in_native_context -> bool;
-    def to_dict -> dict[(str, str)];
-    def pp(depth: (int | None) = None) -> str;
-    def printgraph -> str;
     def flatten -> list[UniNode];
-    def unparse -> str;
 }
 
 obj Symbol {
@@ -134,8 +130,8 @@ obj UniScopeNode(UniNode) {
         implicit_rebinds: dict[(str, Symbol)] postinit;
 
     def _init_scope(name: str, parent_scope: (UniScopeNode | None) = None) -> None;
-    static def get_python_scoping_nodes -> tuple[(type[UniScopeNode], ...)] {
-        return (Module, Enum, Archetype, Ability, ImplDef, Test);
+    static def is_python_scoping(nd: (UniNode | None)) -> bool {
+        return isinstance(nd, (Module, Enum, Archetype, Ability, ImplDef, Test));
     }
 
     def lookup(
@@ -169,8 +165,9 @@ obj UniScopeNode(UniNode) {
 
     def chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None;
     def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
-    def sym_pp(depth: (int | None) = None) -> str;
-    def sym_printgraph -> str;
+    def _fix_store_ctx(item: UniNode) -> None;
+    def _fix_store_items(items: Sequence[UniNode]) -> None;
+    def _capture_names(nd: UniNode, out: list[Name]) -> None;
     def __repr__ -> str;
 }
 
@@ -204,10 +201,13 @@ obj ContextAwareNode(UniNode) {
         codespace_dual: bool = False;
 
     def postinit -> None;
+    def set_code_context(ctx: CodeContext) -> None;
 }
 
 obj AstDocNode(UniNode) {
     has doc: (String | None) = None;
+
+    def set_doc(elem_doc: (String | None)) -> None;
 }
 
 obj AstAsyncNode(UniNode) {
@@ -300,6 +300,10 @@ obj NameAtom(AtomExpr, EnumBlockStmt) {
     has sym_name: str { getter; }
     has sym_category: SymbolType { getter; }
 
+    def bind_sym(
+        name_of: AstSymbolNode, sym_name: str, sym_category: SymbolType
+    ) -> None;
+
     def create_symbol(
         access: SymbolAccess,
         parent_tab: (UniScopeNode | None) = None,
@@ -340,14 +344,13 @@ obj Module(AstDocNode, UniScopeNode) {
         stub_only: bool = False,
         src_terminals: list[Token] = [],
         is_raised_from_py: bool = False,
-        decided_codespace: str = "";
+        decided_codespace: str = "",
+        parse_failed: bool = False;
 
     def postinit -> None;
 
     has annexable_by: (str | None) { getter; }
 
-    def format -> str;
-    def unparse(requires_format: bool = True) -> str;
     def declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool;
     static def make_stub(
         inject_name: (str | None) = None, inject_src: (Source | None) = None
@@ -383,7 +386,7 @@ obj TypeParam(AstSymbolNode, UniNode) {
     def postinit -> None;
 }
 
-obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniScopeNode) {
+obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -395,7 +398,7 @@ obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniSc
     def postinit -> None;
 }
 
-obj GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode) {
+obj GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -419,7 +422,7 @@ obj Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNo
     def postinit -> None;
 }
 
-obj ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt) {
+obj ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -443,7 +446,7 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     def accept_enter(v: UniPass) -> None;
 
     has from_loc: (ModulePath | None),
-        items: (Sequence[ModuleItem] | Sequence[ModulePath]),
+        items: Sequence[(ModuleItem | ModulePath)],
         is_absorb: bool,
         is_typed: bool = False,
         clib_decls: (Sequence[UniNode] | None) = None,
@@ -511,7 +514,7 @@ obj Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImplN
         tgt_endpoint: (Expr | None) = None;
 
     def postinit -> None;
-    def _get_impl_resolved_body -> list;
+    def _get_impl_resolved_body -> list[UniNode];
 
     has is_abstract: bool { getter; }
     has arch_kind: (str | None) { getter; }
@@ -534,7 +537,7 @@ obj ImplDef(ContextAwareNode, CodeBlockStmt, ElementStmt, ArchBlockStmt, AstSymb
     def create_impl_name_node -> Name;
 }
 
-obj SemDef(ElementStmt, AstSymbolNode, UniScopeNode) {
+obj SemDef(ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -560,7 +563,7 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name_ref: (NameAtom | None),
+    has name_ref: (NameAtom | CtName | None),
         is_override: bool,
         is_static: bool,
         is_classmethod: bool,
@@ -569,7 +572,8 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
         decorators: (Sequence[Expr] | None) = None,
         type_params: (Sequence[TypeParam] | None) = None,
         accessor_kind: str = "",
-        event_triggers: (list[TypeBase] | None) = None;
+        event_triggers: (list[TypeBase] | None) = None,
+        is_ct_only: bool = False;
 
     def postinit -> None;
 
@@ -587,10 +591,10 @@ obj FuncSignature(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has posonly_params: Sequence[ParamVar],
-        params: (Sequence[ParamVar] | None),
+    has posonly_params: Sequence[(ParamVar | CtFor | CtIf)],
+        params: (Sequence[(ParamVar | CtFor | CtIf)] | None),
         varargs: (ParamVar | None),
-        kwonlyargs: Sequence[ParamVar],
+        kwonlyargs: Sequence[(ParamVar | CtFor | CtIf)],
         kwargs: (ParamVar | None),
         return_type: (Expr | None);
 
@@ -615,7 +619,7 @@ obj ParamVar(AstSymbolNode, AstTypedVarNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
+    has name: (Name | CtName),
         unpack: (Token | None),
         value: (Expr | None),
         param_kind: ParamKind postinit;
@@ -641,7 +645,7 @@ obj HasVar(AstSymbolNode, AstTypedVarNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
+    has name: (Name | CtName),
         value: (Expr | None),
         defer: bool,
         accessors: (Sequence[Ability] | None) = None;
@@ -739,6 +743,8 @@ obj CtSplice(Expr, AstSymbolStubNode) {
 
     has expr: Expr;
     has value: str { getter; }
+    has sym: (Symbol | None) { getter; }
+    has sym_name: str { getter; }
 
     def postinit -> None;
     def create_symbol(
@@ -1307,7 +1313,7 @@ obj FilterCompr(AtomExpr) {
     def accept_enter(v: UniPass) -> None;
 
     has f_type: (Expr | None),
-        compares: Sequence[CompareExpr];
+        compares: Sequence[Expr];
 
     def postinit -> None;
 }
@@ -1575,7 +1581,6 @@ obj Token(UniNode) {
     ) -> None;
 
     def __repr__ -> str;
-    def unparse -> str;
 }
 
 obj Name(Token, NameAtom) {

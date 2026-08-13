@@ -38,6 +38,32 @@ def _install_mock(handler: any) -> any {
     return original;
 }
 
+"""Replace the function transport with one that always fails to connect."""
+def _install_unreachable_transport(round_trips: dict) -> any {
+    import from jaclang.runtimelib.serving.client { ClientConnectionError }
+    original = sv_http.post_stream_aware_sync;
+
+    def fake(*args: any, **kwargs: any) -> tuple[str, any] {
+        round_trips["n"] = round_trips["n"] + 1;
+        raise ClientConnectionError(detail="connection refused");
+    }
+    sv_http.post_stream_aware_sync = fake;
+    return original;
+}
+
+"""Replace the walker transport with one that always fails to connect."""
+def _install_unreachable_walker_transport(round_trips: dict) -> any {
+    import from jaclang.runtimelib.serving.client { ClientConnectionError }
+    original = sv_http.request_sync;
+
+    def fake(*args: any, **kwargs: any) -> any {
+        round_trips["n"] = round_trips["n"] + 1;
+        raise ClientConnectionError(detail="connection refused");
+    }
+    sv_http.request_sync = fake;
+    return original;
+}
+
 test "set/get/reset auth context round-trips" {
     tok = set_current_auth("Bearer abc");
     assert get_current_auth() == "Bearer abc";
@@ -359,6 +385,103 @@ test "HALF_OPEN probe failure re-opens the breaker with a fresh cooldown" {
     assert breaker_should_skip(mod);
 
     _breaker_reset(mod);
+}
+
+test "walker_call records one breaker failure per failed round trip" {
+    import from jaclang.scale.runtime.rpc.breaker { _breaker_peek }
+    import from jaclang.scale.runtime.rpc.rpc { _RPC_MAX_ATTEMPTS }
+
+    mod = "breaker_walker_per_attempt_test";
+    _breaker_reset(mod);
+    round_trips: dict = {"n": 0};
+    original_request = _install_unreachable_walker_transport(round_trips);
+
+    try {
+        sv_client.register(mod, "http://demo.invalid");
+        try {
+            JacScalePlugin.sv_walker_call(mod, "Ping", {}, None);
+        } except RuntimeError {
+            ;
+        }
+
+        st = _breaker_peek(mod);
+        assert st is not None;
+        assert round_trips["n"] == _RPC_MAX_ATTEMPTS;
+        assert st["fails"] == round_trips["n"];
+    } finally {
+        sv_http.request_sync = original_request;
+        sv_client.unregister(mod);
+        _breaker_reset(mod);
+    }
+}
+
+test "breaker opens after exactly the trip threshold of failed round trips" {
+    mod = "breaker_trip_roundtrips_test";
+    _breaker_reset(mod);
+    round_trips: dict = {"n": 0};
+    original_post = _install_unreachable_transport(round_trips);
+
+    try {
+        sv_client.register(mod, "http://demo.invalid");
+        calls = 0;
+        while not breaker_should_skip(mod) and calls < _BREAKER_TRIP_THRESHOLD {
+            calls += 1;
+            try {
+                JacScalePlugin.sv_service_call(mod, "ping", {});
+            } except RuntimeError {
+                ;
+            }
+        }
+
+        assert round_trips["n"] == _BREAKER_TRIP_THRESHOLD , (
+            f"breaker opened after {round_trips['n']} round trips, "
+            + f"expected {_BREAKER_TRIP_THRESHOLD}"
+        );
+    } finally {
+        sv_http.post_stream_aware_sync = original_post;
+        sv_client.unregister(mod);
+        _breaker_reset(mod);
+    }
+}
+
+test "a breaker that trips mid-call abandons the remaining retries" {
+    import from jaclang.scale.runtime.rpc.breaker {
+        _breaker_peek,
+        _breaker_force_cooldown_elapsed
+    }
+
+    mod = "breaker_probe_single_test";
+    _breaker_reset(mod);
+    for _ in range(_BREAKER_TRIP_THRESHOLD) {
+        breaker_record_failure(mod);
+    }
+    _breaker_force_cooldown_elapsed(mod);
+
+    round_trips: dict = {"n": 0};
+    original_post = _install_unreachable_transport(round_trips);
+
+    try {
+        sv_client.register(mod, "http://demo.invalid");
+        raised_msg = "";
+        try {
+            JacScalePlugin.sv_service_call(mod, "ping", {});
+        } except RuntimeError as e {
+            raised_msg = str(e);
+        }
+
+        assert round_trips["n"] == 1 , (
+            f"HALF_OPEN probe spent {round_trips['n']} round trips, expected 1"
+        );
+        assert "1 attempts (stopped by open circuit breaker)" in raised_msg , (
+            f"short attempt count needs a reason, got: {raised_msg}"
+        );
+        st = _breaker_peek(mod);
+        assert st is not None and st["state"] == "OPEN";
+    } finally {
+        sv_http.post_stream_aware_sync = original_post;
+        sv_client.unregister(mod);
+        _breaker_reset(mod);
+    }
 }
 
 test "application error envelope does NOT trip the breaker" {

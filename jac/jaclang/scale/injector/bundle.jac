@@ -59,7 +59,7 @@ glob _EXCLUDE_ENV: set[str] = {
      };
 
 
-def is_excluded(rel: Path) -> bool {
+def _is_bundle_required(rel: Path) -> bool {
     parts = rel.parts;
     if (
         len(parts) >= 3
@@ -67,31 +67,97 @@ def is_excluded(rel: Path) -> bool {
         and parts[1] == "client"
         and parts[2] == "dist"
     ) {
-        return False;
+        return True;
     }
 
     if len(parts) >= 2 and parts[0] == ".jac" and parts[1] == "admin" {
-        return False;
+        return True;
     }
-    if len(parts) == 2 and parts[0] == ".jac" and parts[1] == "serve_manifest.json" {
-        return False;
+    return len(parts) == 2 and parts[0] == ".jac" and parts[1] == "serve_manifest.json";
+}
+
+
+obj BundleSourceFilter {
+    has ignore_patterns: list[str];
+
+    def parks(rel: Path) -> bool {
+        import from jaclang.jac0core.helpers { path_matches_exclude }
+
+        return path_matches_exclude(rel.as_posix(), self.ignore_patterns);
     }
-    for part in parts {
-        if part in _EXCLUDE_DIRS {
+
+    def excludes_tree(rel: Path) -> bool {
+        for part in rel.parts {
+            if part in _EXCLUDE_DIRS {
+                return True;
+            }
+        }
+        return self.parks(rel);
+    }
+
+    def excludes(rel: Path) -> bool {
+        if _is_bundle_required(rel) {
+            return False;
+        }
+        if self.excludes_tree(rel) {
             return True;
         }
+        name = rel.name;
+        if name in _EXCLUDE_FILES {
+            return True;
+        }
+        if name == ".env" or name.startswith(".env.") {
+            return True;
+        }
+        return name.endswith(_EXCLUDE_SUFFIXES);
     }
-    name = rel.name;
-    if name in _EXCLUDE_FILES {
-        return True;
+}
+
+
+def source_filter_for(base: Path) -> BundleSourceFilter {
+    import from jaclang.jac0core.helpers { read_jacignore_patterns }
+
+    return BundleSourceFilter(ignore_patterns=read_jacignore_patterns(str(base)));
+}
+
+
+def entry_module_rel(project_dir: str) -> (Path | None) {
+    import from jaclang.project.config { get_config_for_path }
+
+    try {
+        config = get_config_for_path(Path(project_dir));
+    } except Exception as exc {
+        logger.warning(f"entry-point check skipped, jac.toml unparseable: {exc}");
+        return None;
     }
-    if name == ".env" or name.startswith(".env.") {
-        return True;
+    if config is None or not config.project.entry_point {
+        return None;
     }
-    if name.endswith(_EXCLUDE_SUFFIXES) {
-        return True;
+    return Path(config.project.entry_point);
+}
+
+
+def assert_entry_module_ships(base: Path, excluded: BundleSourceFilter) {
+    rel = entry_module_rel(str(base));
+    if rel is None or not (base / rel).is_file() or not excluded.parks(rel) {
+        return;
     }
-    return False;
+    raise ValueError(
+        f"The project entry module '{rel.as_posix()}' is parked by .jacignore, "
+        f"so the bundle would ship without an entry point and every pod would "
+        f"crash-loop on boot. Drop the .jacignore pattern that matches it, or "
+        f"point [project] entry-point at a module the bundle ships."
+    );
+}
+
+
+def bundle_source_files(base: Path) -> list[Path] {
+    excluded = source_filter_for(base);
+    return [
+        path
+        for path in sorted(base.rglob("*"))
+        if path.is_file() and not excluded.excludes(path.relative_to(base))
+    ];
 }
 
 
@@ -170,11 +236,19 @@ def open_det_tar(buf: io.BytesIO) -> tuple[tarfile.TarFile, any] {
 }
 
 
+def add_source_members(tar: tarfile.TarFile, base: Path) {
+    for path in bundle_source_files(base) {
+        tar.add(str(path), arcname=str(path.relative_to(base)), filter=det_tar_member);
+    }
+}
+
+
 def nested_sanitized_tomls(base: Path) -> dict[str, str] {
+    excluded = source_filter_for(base);
     out: dict[str, str] = {};
     for toml_path in sorted(base.rglob("jac.toml")) {
         rel = toml_path.relative_to(base);
-        if len(rel.parts) == 1 or any(part in _EXCLUDE_DIRS for part in rel.parts) {
+        if len(rel.parts) == 1 or excluded.excludes_tree(rel) {
             continue;
         }
         text = sanitized_jac_toml(toml_path.parent);
@@ -190,10 +264,7 @@ def _stage_app(base: Path, sanitized_toml: (str | None)) -> Path {
     stage_root = Path(tempfile.mkdtemp(prefix="jac-app-precompile-"));
     stage = stage_root / "app";
     try {
-        for path in sorted(base.rglob("*")) {
-            if not path.is_file() or is_excluded(path.relative_to(base)) {
-                continue;
-            }
+        for path in bundle_source_files(base) {
             dest = stage / path.relative_to(base);
             dest.parent.mkdir(parents=True, exist_ok=True);
             shutil.copy2(str(path), str(dest));
@@ -379,6 +450,14 @@ def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes 
             "the project tree; check the code_folder path."
         );
     }
+    excluded = source_filter_for(base);
+    assert_entry_module_ships(base, excluded);
+    if excluded.ignore_patterns {
+        logger.info(
+            f"Honoring {len(excluded.ignore_patterns)} .jacignore pattern(s) "
+            f"while staging the app bundle."
+        );
+    }
     sanitized = sanitized_jac_toml(base);
     staged = _precompile_app(
         base, seal_binary, sanitized, seal_timeout_setting(project_dir)
@@ -406,16 +485,7 @@ def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes 
         (tar, gz) = open_det_tar(buf);
         try {
             with tar {
-                for path in sorted(base.rglob("*")) {
-                    if not path.is_file() {
-                        continue;
-                    }
-                    rel = path.relative_to(base);
-                    if is_excluded(rel) {
-                        continue;
-                    }
-                    tar.add(str(path), arcname=str(rel), filter=det_tar_member);
-                }
+                add_source_members(tar, base);
                 pre = staged / "_precompiled";
                 count = 0;
                 for path in sorted(pre.rglob("*")) {

@@ -6,6 +6,7 @@ and micro suite.
 """
 
 import inspect;
+import from jaclang.jac0core.treeprinter { print_ast_tree }
 import io;
 import os;
 import re;
@@ -44,7 +45,7 @@ test "parser fam" {
 
 test "staticmethod checks out" {
     (module, had_error) = rd_parse(load_fixture("staticcheck.jac"), "");
-    out = module.pp();
+    out = print_ast_tree(module);
     assert not had_error;
     assert "staticmethod" not in out;
 }
@@ -258,7 +259,7 @@ test "jsx comprehensive fixture" {
     source_text = Path(fixture_path).read_text(encoding="utf-8");
     (module, had_error) = rd_parse(source_text, str(fixture_path));
     assert not had_error , "Parser reported errors for JSX fixture";
-    tree_repr = module.pp();
+    tree_repr = print_ast_tree(module);
 
     expected_snippets = {
         "self_closing": "<div/>",
@@ -288,14 +289,14 @@ test "jsx star_pow spread attribute" {
     source = 'with entry { x = <div {**props} title="hi"/>; }';
     (module, had_error) = rd_parse(source, "test_spread.jac");
     assert not had_error , "Parser rejected {**props} spread syntax";
-    tree_repr = module.pp();
+    tree_repr = print_ast_tree(module);
     assert "JsxSpreadAttribute" in tree_repr , "Missing JsxSpreadAttribute node";
     assert "Token - **" in tree_repr , "Missing ** token in spread";
     # Ellipsis form should warn but still parse
     source2 = 'with entry { x = <div {...props}/>; }';
     (module2, had_error2) = rd_parse(source2, "test_spread2.jac");
     assert not had_error2 , "Parser rejected {...props} spread syntax";
-    assert "Ellipsis" in module2.pp() , "Missing Ellipsis node for ... spread";
+    assert "Ellipsis" in print_ast_tree(module2) , "Missing Ellipsis node for ... spread";
 }
 
 test "removed sv/cl/na markers produce the migration error" {
