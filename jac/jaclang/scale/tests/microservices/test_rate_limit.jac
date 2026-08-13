@@ -373,7 +373,7 @@ test "dropped X-Forwarded-For without trusted_proxies warns exactly once" {
         forwarded = _req(
             path="/api/x", headers={"X-Forwarded-For": "6.6.6.6"}, client_host="9.9.9.9"
         );
-        async def run -> None {
+        async def run {
             await mw(plain, next_handler);
             await mw(forwarded, next_handler);
             await mw(forwarded, next_handler);
