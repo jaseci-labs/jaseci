@@ -1,0 +1,75 @@
+"""Tests for the React FrameworkBackend's generated file-based-routing entry.
+
+The Solid entry has had string-level coverage since it shipped
+(`test_solid_backend.jac`); the React entry had none, which is how it came to
+call `AuthGuard` with a positional string. `AuthGuard` compiles to
+`function AuthGuard(props)`, so `AuthGuard("/signin")` destructures a string,
+finds no `redirect` key, and silently falls back to `/login` -- the configured
+`[client.routing] auth_redirect` never reaches the guard.
+
+These pin the calling convention at the source level. The behavioral proof that
+the guard then routes correctly lives in `tests/runtimelib/test_react_auth_jsdom.jac`.
+"""
+
+import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
+import from jaclang.runtimelib.react_entry {
+    build_pages_react_entry_script,
+    build_simple_react_entry_script
+}
+
+test "react file-based-routing entry mounts via react-dom + react-router" {
+    script = build_pages_react_entry_script("main", "/login", False);
+    # React mount surface and router, never Solid's.
+    assert 'import { createRoot } from "react-dom/client";' in script;
+    assert 'import { BrowserRouter, Routes, Route } from "react-router-dom";' in script;
+    assert 'solid-js' not in script;
+    assert '@solidjs/router' not in script;
+    # Framework-neutral route manifest, shared with the Solid entry.
+    assert 'import { routes, layouts } from "./_routes.js";' in script;
+    # Protected routes are nested under a single pathless AuthGuard route, so the
+    # guard's `<Outlet/>` fallback resolves whichever child route matched.
+    assert 'React.createElement(Route, { key: "__auth", element: authGuardElement },'
+        in script;
+    # Root layout (when present) wraps the whole route tree.
+    assert 'const RootLayout = layouts["/"] || null;' in script;
+    assert 'getElementById("root")' in script;
+    # No top-level `app` wrapper import when has_app_wrapper is False.
+    assert 'app as AppWrapper' not in script;
+}
+
+test "react entry passes auth_redirect to AuthGuard as a prop, not positionally" {
+    # `AuthGuard` is a compiled Jac component: `function AuthGuard(props)` with
+    # `const { redirect = "/login" } = props`. A positional string arg destructures
+    # to the default, discarding the configured value -- so the entry must build
+    # the element with props.
+    script = build_pages_react_entry_script("main", "/signin", False);
+    assert 'const authGuardElement = React.createElement(AuthGuard, { redirect: "/signin" });'
+        in script;
+    # The positional-call wrapper is the defect; it must not come back.
+    assert 'AuthGuard("' not in script;
+    assert '_AuthGuardRoute' not in script;
+}
+
+test "react file-based-routing entry honors the app wrapper" {
+    script = build_pages_react_entry_script("main", "/login", True);
+    assert 'import { app as AppWrapper } from "./main.js";' in script;
+    assert 'React.createElement(AppWrapper, null, React.createElement(App, null));'
+        in script;
+    assert 'React.createElement(AuthGuard, { redirect: "/login" })' in script;
+}
+
+test "react simple entry mounts the module app under the error boundary" {
+    script = build_simple_react_entry_script("main");
+    assert 'import { app as App } from "./main.js";' in script;
+    assert '__jacInstallErrorHandlers();' in script;
+    assert 'JacClientErrorBoundary' in script;
+    # No routing surface in the non-`pages/` entry.
+    assert 'react-router-dom' not in script;
+    assert 'AuthGuard' not in script;
+}
+
+test "backend.build_pages_entry_script routes through the react entry builder" {
+    direct = build_pages_react_entry_script("main", "/signin", False);
+    via_backend = ReactBackend().build_pages_entry_script("main", "/signin", False);
+    assert via_backend == direct;
+}
