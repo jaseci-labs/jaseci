@@ -1,172 +1,150 @@
-import from .tokens { Token, TokenKind, SourceLoc }
+import from .tokens { LexToken, TokenKind, SourceLoc, SrcDiag, CommentData }
+import from .lexer { tokenize_full }
 
-import from jaclang.jac0core.unitree { UniNode, Token as UniToken, Expr }
-import from jaclang.jac0core.codeinfo { CodeLocInfo }
-import from jaclang.jac0core.passes.transform { Alert }
-import type from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.diagnostics {
-    DiagnosticInfo,
-    E0001,
-    E0002,
-    E0003,
-    E0004,
-    E0005,
-    E0006,
-    E0012,
-    E0013,
-    E0022,
-    E0025,
-    E0026,
-    E0027,
-    E0028,
-    E0030,
-    E0032,
-    E0034,
-    E0045,
-    E0046,
-    E0047,
-    E2023,
-    E2028,
-    W0060,
-    E0048,
-    W0063
-}
-import from jaclang.jac0core.unitree { Name, String, Int, Float, Bool, Null }
 import from jaclang.jac0core.unitree {
-    Ellipsis as EllipsisLit,
-    BuiltinType,
-    SpecialVarRef,
-    EmptyToken,
-    Semi
-}
-import from jaclang.jac0core.unitree {
-    Module,
-    Source,
-    GlobalVars,
-    Test,
-    ModuleCode,
-    PyInlineCode
-}
-import from jaclang.jac0core.unitree { Import, ModulePath, ModuleItem }
-import from jaclang.jac0core.unitree {
-    Archetype,
     Ability,
-    Enum,
-    ImplDef,
-    SemDef,
-    TypeAlias,
-    TypeParam
-}
-import from jaclang.jac0core.unitree {
+    AstDocNode,
     ArchHas,
-    HasVar,
-    SubTag,
-    ParamVar,
-    ParamKind,
-    FuncSignature,
-    EventSignature
-}
-import from jaclang.jac0core.unitree {
-    IfStmt,
-    ElseIf,
-    ElseStmt,
-    WhileStmt,
-    ForeverStmt,
-    InForStmt,
-    IterForStmt
-}
-import from jaclang.jac0core.unitree {
-    TryStmt,
-    Except,
-    FinallyStmt,
-    AwaitingClause,
-    WithStmt,
-    ExprAsItem
-}
-import from jaclang.jac0core.unitree { MatchStmt, MatchCase, SwitchStmt, SwitchCase }
-import from jaclang.jac0core.unitree {
+    Archetype,
+    AssignCompr,
     Assignment,
-    ReturnStmt,
-    YieldExpr,
-    RaiseStmt,
-    AssertStmt,
-    DeleteStmt
-}
-import from jaclang.jac0core.unitree {
-    CtrlStmt,
-    ReportStmt,
-    VisitStmt,
-    DisengageStmt,
-    ExprStmt
-}
-import from jaclang.jac0core.unitree { TypedCtxBlock, OpenStmt }
-import from jaclang.jac0core.unitree {
-    BinaryExpr,
-    UnaryExpr,
-    CompareExpr,
-    BoolExpr,
-    IfElseExpr,
-    CfgExpr
-}
-import from jaclang.jac0core.unitree {
     AtomTrailer,
     AtomUnit,
-    FuncCall,
-    IndexSlice,
-    Slice,
-    EdgeRefTrailer
-}
-import from jaclang.jac0core.unitree {
-    ListVal,
-    TupleVal,
-    SetVal,
-    DictVal,
-    KVPair,
-    KWPair
-}
-import from jaclang.jac0core.unitree {
-    ListCompr,
-    SetCompr,
+    AwaitExpr,
+    AwaitingClause,
+    BinaryExpr,
+    Bool,
+    BoolExpr,
+    BuiltinType,
+    CastExpr,
+    CfgExpr,
+    CodeBlockStmt,
+    CommentToken,
+    CompareExpr,
+    ConcurrentExpr,
+    ConnectOp,
+    ContextAwareNode,
+    CtBlock,
+    CtElse,
+    CtFor,
+    CtIf,
+    CtName,
+    CtSplice,
+    CtrlStmt,
+    DeleteStmt,
     DictCompr,
-    GenCompr,
-    InnerCompr
-}
-import from jaclang.jac0core.unitree {
+    DictVal,
+    DisconnectOp,
+    DisengageStmt,
+    EdgeOpRef,
+    EdgeRefTrailer,
+    ElseIf,
+    ElseStmt,
+    ElementStmt,
+    EmptyToken,
+    EnumBlockStmt,
+    Enum,
+    EventSignature,
+    Except,
+    Expr,
+    ExprAsItem,
+    ExprStmt,
     FString,
+    FilterCompr,
+    FinallyStmt,
+    Float,
+    ForeverStmt,
     FormattedValue,
-    MultiString,
-    LambdaExpr
-}
-import from jaclang.jac0core.unitree { AwaitExpr, CastExpr, ConcurrentExpr }
-import from jaclang.jac0core.unitree { EdgeOpRef, FilterCompr, AssignCompr }
-import from jaclang.jac0core.unitree { ConnectOp, DisconnectOp }
-import from jaclang.jac0core.unitree {
-    MatchOr,
-    MatchAs,
-    MatchWild,
-    MatchValue,
-    MatchSingleton
-}
-import from jaclang.jac0core.unitree {
-    MatchSequence,
-    MatchMapping,
-    MatchKVPair,
-    MatchStar,
-    MatchArch
-}
-import from jaclang.jac0core.unitree {
+    FuncCall,
+    FuncSignature,
+    GenCompr,
+    GlobalVars,
+    HasVar,
+    IfElseExpr,
+    IfStmt,
+    ImplDef,
+    Import,
+    InForStmt,
+    IndexSlice,
+    InnerCompr,
+    Int,
+    IterForStmt,
+    JsxAttribute,
+    JsxChild,
+    JsxComment,
     JsxElement,
     JsxElementName,
+    JsxExpression,
+    JsxNormalAttribute,
+    JsxSlot,
     JsxSpreadAttribute,
-    JsxNormalAttribute
+    JsxText,
+    KVPair,
+    KWPair,
+    LambdaExpr,
+    ListCompr,
+    ListVal,
+    MatchArch,
+    MatchAs,
+    MatchCase,
+    MatchKVPair,
+    MatchMapping,
+    MatchOr,
+    MatchPattern,
+    MatchSequence,
+    MatchSingleton,
+    MatchStar,
+    MatchStmt,
+    MatchValue,
+    MatchWild,
+    Module,
+    ModuleCode,
+    ModuleItem,
+    ModulePath,
+    MultiString,
+    Name,
+    NameAtom,
+    Null,
+    OpenStmt,
+    ParamVar,
+    PyInlineCode,
+    RaiseStmt,
+    ReportStmt,
+    ReturnStmt,
+    SemDef,
+    Semi,
+    SetCompr,
+    SetVal,
+    Slice,
+    Source,
+    SpecialVarRef,
+    String,
+    SubTag,
+    SwitchCase,
+    SwitchStmt,
+    Test,
+    Token,
+    TryStmt,
+    TupleVal,
+    TypeAlias,
+    TypeParam,
+    TypedCtxBlock,
+    UnaryExpr,
+    UniNode,
+    VisitStmt,
+    WhileStmt,
+    WithStmt,
+    YieldExpr,
+    AssertStmt
 }
-import from jaclang.jac0core.unitree { JsxText, JsxExpression, JsxSlot, JsxComment }
+import from jaclang.jac0core.unitree { Ellipsis as EllipsisLit }
 
 import from jaclang.jac0core.constant {
     Tokens as Tok,
     EdgeDir,
     CodeContext,
-    OwnershipKind
+    OwnershipKind,
+    ParamKind
 }
 
 glob TOKEN_KIND_TO_TOK: dict[TokenKind, str] = {
@@ -355,22 +333,41 @@ glob TOKEN_KIND_TO_TOK: dict[TokenKind, str] = {
          TokenKind.EOF: "EOF"
      };
 
+def _string_lit_text(raw: str) -> str {
+    v = raw;
+    while v and v[0] in "rbfRBF" {
+        v = v[1:];
+    }
+    if len(v) >= 6 and v.startswith('"""') and v.endswith('"""') {
+        return v[3:-3];
+    }
+    if len(v) >= 6 and v.startswith("'''") and v.endswith("'''") {
+        return v[3:-3];
+    }
+    if len(v) >= 2 and (v[0] == "'" or v[0] == '"') and v[-1] == v[0] {
+        return v[1:-1];
+    }
+    return v;
+}
+
 obj Parser {
-    has tokens: list[Token],
+    has tokens: list[LexToken],
         pos: int = 0,
         _tokens_len: int = 0,
         error_count: int = 0,
         file_path: str = "<input>",
         source_code: str = "",
-        source: Source | None = None,
-        prog: (JacProgram | None) = None,
+        source: Source postinit,
+        diags: list[SrcDiag] = [],
         _view_body_depth: int = 0,
-        _impl_enum_comma_unis: list = [];
+        _gen_test_idx: int = 0,
+        _impl_enum_comma_unis: list[Token] = [];
 
-    def current -> Token;
-    def peek(offset: int = 1) -> Token;
-    def advance -> Token;
-    def previous -> Token;
+    def postinit;
+    def current -> LexToken;
+    def peek(offset: int = 1) -> LexToken;
+    def advance -> LexToken;
+    def previous -> LexToken;
     def at_end -> bool;
     def check(kind: TokenKind) -> bool;
     def check_any(*kinds: TokenKind) -> bool;
@@ -379,42 +376,33 @@ obj Parser {
     def check_name -> bool;
     def is_keyword_token -> bool;
     def is_builtin_type_token -> bool;
-    def get_source -> Source;
-    def match_tok(kind: TokenKind) -> Token | None;
-    def match_any(*kinds: TokenKind) -> Token | None;
-    def expect(kind: TokenKind) -> Token;
-    def expect_any(*kinds: TokenKind) -> Token;
-    def consume_uni(kind: TokenKind) -> UniToken;
-    def expect_name -> Token;
-    def _make_alert(
-        message: str,
-        sloc: SourceLoc,
-        code: DiagnosticInfo | None = None,
-        help_text: str | None = None
-    ) -> Alert;
-
+    def match_tok(kind: TokenKind) -> LexToken | None;
+    def match_any(*kinds: TokenKind) -> LexToken | None;
+    def expect(kind: TokenKind) -> LexToken;
+    def expect_any(*kinds: TokenKind) -> LexToken;
+    def consume_uni(kind: TokenKind) -> Token;
+    def expect_name -> LexToken;
     def error(message: str);
     def emit_diag(
-        diag: DiagnosticInfo, loc: SourceLoc | None = None, **kwargs: object
+        message: str, code_str: str, loc: SourceLoc | None = None, help: str = ""
     );
 
     def emit_warn(
-        diag: DiagnosticInfo, loc: SourceLoc | None = None, **kwargs: object
+        message: str, code_str: str, loc: SourceLoc | None = None, help: str = ""
     );
 
-    def make_uni_token(tok: Token) -> UniToken;
-    def make_name(tok: Token, is_enum_stmt: bool = False) -> Name;
-    def make_special_name(tok: Token) -> Name;
-    def make_name_or_special(tok: Token) -> Name;
+    def make_uni_token(tok: LexToken) -> Token;
+    def make_name(tok: LexToken, is_enum_stmt: bool = False) -> Name;
+    def make_special_name(tok: LexToken) -> Name;
+    def make_name_or_special(tok: LexToken) -> Name;
     def parse_access_tag -> SubTag | None;
-    def _make_literal(node_cls: type, name: str, tok: Token) -> object;
-    def make_string(tok: Token) -> String;
+    def make_string(tok: LexToken) -> String;
     def make_string_from_value(value: str) -> String;
-    def make_int(tok: Token) -> Int;
-    def make_float(tok: Token) -> Float;
-    def make_bool(tok: Token) -> Bool;
-    def make_null(tok: Token) -> Null;
-    def make_ellipsis(tok: Token) -> EllipsisLit;
+    def make_int(tok: LexToken) -> Int;
+    def make_float(tok: LexToken) -> Float;
+    def make_bool(tok: LexToken) -> Bool;
+    def make_null(tok: LexToken) -> Null;
+    def make_ellipsis(tok: LexToken) -> EllipsisLit;
     def make_semi -> Semi;
     def synchronize;
     def parse -> Module;
@@ -422,7 +410,7 @@ obj Parser {
     def parse_expression(allow_cast: bool = True) -> Expr;
     def _check_js_arrow_fault -> bool;
     def _recover_js_arrow_fault(left: Expr) -> Expr;
-    def _recover_removed_marker;
+    def _recover_removed_marker -> ElementStmt | EmptyToken | None;
     def _recover_missing_connect_rhs -> bool;
     def _recover_misplaced_disconnect -> None;
     def parse_concurrent_expr(allow_cast: bool = True) -> Expr;
@@ -455,9 +443,9 @@ obj Parser {
     def parse_await_expr -> Expr;
     def parse_pipe_call -> Expr;
     def parse_atomic_chain -> Expr;
-    def _make_attr_from_keyword(name_tok: any);
+    def _make_attr_from_keyword(name_tok: LexToken) -> Name;
     def parse_index_slice -> IndexSlice;
-    def parse_call_args(kid: list) -> list;
+    def parse_call_args(kid: list[UniNode]) -> list[Expr | KWPair];
     def parse_call_arg -> Expr | KWPair;
     def parse_filter_compr_inner -> FilterCompr;
     def parse_filter_compr_bracket -> FilterCompr;
@@ -467,6 +455,7 @@ obj Parser {
     def parse_builtin_type -> Expr | None;
     def parse_special_ref -> Expr | None;
     def parse_atom -> Expr;
+    def parse_tuple_item -> Expr | KWPair;
     def parse_paren_expr -> Expr;
     def parse_bracket_expr -> Expr;
     def _is_edge_ref_start -> bool;
@@ -474,52 +463,69 @@ obj Parser {
     def parse_fstring -> FString;
     def parse_list_or_compr -> Expr;
     def parse_dict_or_set -> Expr;
-    def parse_dict_with_spread(lbrace_uni: UniToken) -> DictVal;
+    def parse_dict_with_spread(lbrace_uni: Token) -> DictVal;
     def parse_dict_spread_entry -> KVPair;
     def parse_edge_ref_chain -> Expr;
     def parse_edge_op_ref -> EdgeOpRef | None;
-    def _continue_edge_ref_chain(start_expr: Expr, lsquare_uni: UniToken) -> Expr;
-    def parse_comprehension_clauses -> list;
+    def _continue_edge_ref_chain(start_expr: Expr, lsquare_uni: Token) -> Expr;
+    def parse_comprehension_clauses -> list[InnerCompr];
     def parse_compr_clause -> InnerCompr;
     def parse_lambda_expr -> Expr;
-    def parse_jsx_element -> Expr;
-    def _parse_jsx_dynamic_tag(open_kid: list) -> Expr;
-    def _consume_jsx_dynamic_close(close_kid: list);
-    def parse_jsx_attributes -> list;
-    def parse_jsx_children -> list;
-    def parse_jsx_child -> Expr | None;
-    def parse_element_stmt;
-    def _dispatch_decorated;
-    def _dispatch_async;
-    def parse_docstring_target;
+    def parse_jsx_element -> JsxElement;
+    def _parse_jsx_dynamic_tag(open_kid: list[UniNode]) -> Expr | None;
+    def _consume_jsx_dynamic_close(close_kid: list[UniNode]);
+    def parse_jsx_attributes -> list[JsxAttribute];
+    def parse_jsx_children -> list[JsxChild | JsxElement];
+    def parse_jsx_child -> JsxChild | JsxElement | None;
+    def parse_element_stmt -> ElementStmt | EmptyToken | None;
+    def _dispatch_decorated -> ElementStmt | None;
+    def _dispatch_decorated_stmt -> CodeBlockStmt | None;
+    def _dispatch_async -> ElementStmt | None;
+    def _attach_doc(nd: AstDocNode, elem_doc: String) -> None;
+    def parse_docstring_target -> ElementStmt | None;
     def parse_module_code -> ModuleCode;
-    def parse_code_block_stmts -> list;
-    def _apply_implicit_return(body: list) -> list;
+    def parse_code_block_stmts -> list[CodeBlockStmt];
+    def _apply_implicit_return(body: list[CodeBlockStmt]) -> list[CodeBlockStmt];
     def parse_ctrl_stmt -> CtrlStmt | DisengageStmt | None;
-    def parse_statement;
+    def parse_statement -> CodeBlockStmt | None;
+    def parse_ct_element(mode: int) -> CtFor | CtIf | Ability | None;
+    def parse_ct_for(mode: int, ct_uni: Token) -> CtFor | None;
+    def parse_ct_if(mode: int, ct_uni: Token) -> CtIf | None;
+    def parse_ct_elif(mode: int) -> CtIf | None;
+    def parse_ct_else(mode: int) -> CtElse | None;
+    def parse_ct_body(mode: int, kid: list[UniNode]) -> list[UniNode];
+    def parse_ct_block -> Expr | None;
+    def parse_ct_splice -> Expr | None;
+    def parse_ct_name(as_name: bool = True) -> Expr | None;
+    def _ct_name_follows -> bool;
+    def _ct_body_recover -> None;
+    def _lookahead_advance -> None;
     def parse_if_stmt -> IfStmt;
     def parse_elif_stmt -> ElseIf;
     def parse_else_stmt -> ElseStmt;
     def parse_while_stmt -> WhileStmt;
     def parse_open_stmt -> OpenStmt;
     def parse_forever_stmt -> ForeverStmt;
-    def parse_for_stmt;
+    def parse_for_stmt -> IterForStmt | InForStmt;
     def parse_try_stmt -> TryStmt;
     def parse_except_handler -> Except;
     def parse_with_stmt -> WithStmt;
     def parse_match_stmt -> MatchStmt;
     def parse_match_case -> MatchCase;
-    def parse_pattern;
-    def parse_or_pattern;
-    def parse_single_pattern;
+    def parse_pattern -> MatchPattern;
+    def parse_or_pattern -> MatchPattern;
+    def parse_single_pattern -> MatchPattern;
     def parse_literal_pattern -> MatchValue;
     def parse_expression_pattern -> MatchValue;
-    def parse_name_pattern;
-    def parse_sequence_pattern;
-    def parse_tuple_sequence_pattern;
-    def parse_mapping_pattern;
-    def parse_literal_for_mapping;
-    def parse_class_pattern_args(names: list, dot_unis: list | None = None);
+    def parse_name_pattern -> MatchPattern;
+    def parse_sequence_pattern -> MatchPattern;
+    def parse_tuple_sequence_pattern -> MatchPattern;
+    def parse_mapping_pattern -> MatchPattern;
+    def parse_literal_for_mapping -> MatchPattern | NameAtom | None;
+    def parse_class_pattern_args(
+        names: list[Name], dot_unis: (list[Token] | None) = None
+    ) -> MatchPattern;
+
     def parse_switch_stmt -> SwitchStmt;
     def parse_switch_case -> SwitchCase;
     def parse_return_stmt -> ReturnStmt;
@@ -533,25 +539,31 @@ obj Parser {
         target: Expr, require_semi: bool = True
     ) -> Assignment;
 
-    def parse_ownership_prefix(kids: list) -> OwnershipKind;
+    def parse_ownership_prefix(kids: list[UniNode]) -> OwnershipKind;
     def parse_import_stmt -> Import;
-    def parse_from_path -> tuple;
-    def parse_import_items(kid: list, is_clib_import: bool) -> tuple;
+    def parse_from_path -> tuple[(ModulePath | None, bool)];
+    def parse_import_items(
+        kid: list[UniNode], is_clib_import: bool
+    ) -> tuple[(list, list)];
+
     def parse_archetype -> Archetype;
-    def parse_archetype_member;
+    def parse_archetype_member -> UniNode | None;
     def _skip_semicolons;
     def _error_unexpected_member;
     def parse_has_stmt -> ArchHas;
     def parse_has_var -> HasVar;
     def parse_accessor -> Ability;
-    def _consume_accessor_kind -> tuple[(str, Token)];
+    def _consume_accessor_kind -> tuple[(str, LexToken)];
     def parse_ability -> Ability;
     def _parse_post_async_modifiers(
-        is_override: bool, override_tok: any, is_static: bool, static_tok: any
-    ) -> tuple;
+        is_override: bool,
+        override_tok: (LexToken | None),
+        is_static: bool,
+        static_tok: (LexToken | None)
+    ) -> tuple[(bool, (LexToken | None), bool, (LexToken | None))];
 
     def parse_func_signature -> FuncSignature;
-    def parse_func_params(kid: list) -> list;
+    def parse_func_params(kid: list[UniNode]) -> list[ParamVar | CtFor | CtIf];
     def parse_param_var -> ParamVar | None;
     def parse_enum -> Enum;
     def parse_enum_member -> Assignment;
@@ -560,9 +572,34 @@ obj Parser {
     def parse_global_var_assignment -> Assignment;
     def parse_impl_def -> ImplDef;
     def _is_impl_enum_body -> bool;
-    def parse_impl_target_name -> Name;
-    def parse_impl_enum_body -> list;
+    def parse_impl_target_name -> NameAtom;
+    def parse_impl_enum_body -> list[Assignment];
     def parse_sem_def -> SemDef;
     def parse_type_alias -> TypeAlias;
-    def parse_type_params -> tuple;
+    def parse_type_params -> tuple[(list, list)];
+}
+
+def parse_source(
+    tokens: list[LexToken], file_path: str, source_code: str
+) -> tuple[(Module, int, list[SrcDiag])] {
+    parser = Parser(tokens=tokens, file_path=file_path, source_code=source_code);
+    mod = parser.parse();
+    return (mod, parser.error_count, parser.diags);
+}
+
+
+def parse_program(
+    source: str, file_path: str
+) -> tuple[(Module, int, list[SrcDiag], list[CommentData], list[SrcDiag], int)] {
+    (tokens, comments, lex_diags, lex_error_count) = tokenize_full(source, file_path);
+    parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
+    mod = parser.parse();
+    return (
+        mod,
+        parser.error_count,
+        parser.diags,
+        comments,
+        lex_diags,
+        lex_error_count
+    );
 }

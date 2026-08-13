@@ -659,8 +659,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                 full_narrowed: TypeBase | None = None;
 
                 assert isinstance(expr.right, uni.Name);
-                if isinstance(base_type, types.AnyType) and base_type.is_foreign {
-                    expr.right.type = types.AnyType(is_foreign=True);
+                if isinstance(base_type, types.AnyType) {
+                    expr.right.type = types.AnyType(is_foreign=base_type.is_foreign);
                     return expr.right.type;
                 }
                 if isinstance(base_type, types.ModuleType) {
@@ -1376,11 +1376,8 @@ impl TypeEvaluator._get_type_of_expression_core(
                         return types.UnknownType();
                     }
                 }
-                if (
-                    isinstance(base_type, types.ClassType)
-                    and self.prefetch.any_class is not None
-                    and base_type.shared == self.prefetch.any_class.shared
-                ) {
+                if base_type.is_any_instance()
+                    and self.prefetch.any_class is not None {
                     return self.prefetch.any_class;
                 }
                 if isinstance(base_type, types.ClassType)
@@ -2075,7 +2072,11 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
 
         case uni.TypeAlias():
             if node_.value is not None {
-                return self._resolve_type_alias_rhs(node_.value);
+                resolved = self._resolve_type_alias_rhs(node_.value);
+                if node_.is_distinct {
+                    return self._brand_distinct_alias(node_, resolved);
+                }
+                return resolved;
             }
             return types.UnknownType();
 
@@ -2482,6 +2483,11 @@ impl TypeEvaluator._assign_class(
     }
     src_type = unwrapped_src;
     dest_type = unwrapped_dest;
+
+    dest_brand = dest_type.private.distinct_key;
+    if dest_brand is not None and src_type.private.distinct_key != dest_brand {
+        return False;
+    }
     if src_type.shared.same_class(dest_type.shared) {
         if dest_type.is_literal_type() {
             if not src_type.is_literal_type() {
@@ -2732,10 +2738,11 @@ impl TypeEvaluator.is_any_type(ty: TypeBase) -> bool {
         return True;
     }
 
+    if ty.is_any_instance() {
+        return True;
+    }
+
     if isinstance(ty, types.ClassType) {
-        if (self.prefetch.any_class and ty.shared == self.prefetch.any_class.shared) {
-            return True;
-        }
         if (
             self.prefetch.type_var_class
             and ty.shared == self.prefetch.type_var_class.shared
@@ -2747,17 +2754,7 @@ impl TypeEvaluator.is_any_type(ty: TypeBase) -> bool {
 }
 
 impl TypeEvaluator.is_explicit_any(ty: TypeBase) -> bool {
-    if isinstance(ty, types.AnyType) {
-        return True;
-    }
-    if isinstance(ty, types.ClassType) {
-        if self.prefetch
-            and self.prefetch.any_class
-            and ty.shared == self.prefetch.any_class.shared {
-            return True;
-        }
-    }
-    return False;
+    return ty.is_any_instance();
 }
 
 impl TypeEvaluator.is_none_type(ty: TypeBase) -> bool {
@@ -3797,8 +3794,7 @@ impl TypeEvaluator._get_type_from_flow_node(
         return None;
     }
 
-    if len(visited) > 64 {
-        self._flow_node_type_cache[cache_key] = None;
+    if len(visited) > 256 {
         return None;
     }
     visited.add(flow_node_id);
@@ -3840,8 +3836,21 @@ impl TypeEvaluator._get_type_from_flow_node(
         if isinstance(
             pred, (uni.WhileStmt, uni.ForeverStmt, uni.InForStmt, uni.IterForStmt)
         )
-            and not (pred.body and flow_node is pred.body[0])
             and self._loop_body_writes_target(pred, target) {
+            if (
+                isinstance(pred, uni.WhileStmt)
+                and pred.body
+                and flow_node is pred.body[0]
+            ) {
+                predicate = self._find_predicate_for(target, pred.condition);
+                if predicate is not None {
+                    narrowed = self._apply_narrowing(predicate, None, True, target);
+                    if narrowed is not None {
+                        incoming_types.append(narrowed);
+                        continue;
+                    }
+                }
+            }
             has_unnarrowed_pred = True;
             continue;
         }
@@ -4030,6 +4039,30 @@ impl TypeEvaluator._get_type_from_flow_node(
             }
         }
 
+        _after_if_write = (
+            isinstance(pred, uni.IfStmt)
+            and not isinstance(flow_node, uni.CfgExpr)
+            and self._loop_body_writes_target(pred, target)
+        );
+        if _after_if_write {
+            _anc2: uni.UniNode | None = flow_node;
+            while _anc2 is not None {
+                if _anc2 is pred {
+                    _after_if_write = False;
+                    break;
+                }
+                _anc2 = _anc2.parent;
+            }
+        }
+        if _after_if_write {
+            exit_t = self._if_exit_type(target, pred, pred_narrowed, set());
+            if exit_t is not None {
+                incoming_types.append(exit_t);
+            } else {
+                has_unnarrowed_pred = True;
+            }
+            continue;
+        }
         if pred_narrowed is not None {
             incoming_types.append(pred_narrowed);
         } else {
@@ -4058,6 +4091,60 @@ impl TypeEvaluator._get_type_from_flow_node(
     }
     visited.discard(flow_node_id);
     return result;
+}
+
+impl TypeEvaluator._if_exit_type(
+    target: NarrowingTarget, stmt: uni.IfStmt, entry_type: TypeBase | None, visited: set
+) -> TypeBase | None {
+    import from jaclang.compiler.type_system.type_evaluator { NarrowingTarget }
+    arm_types: list[TypeBase] = [];
+    if stmt.body {
+        then_t = self._get_type_from_flow_node(target, stmt.body[-1], visited);
+        if then_t is None {
+            return None;
+        }
+        arm_types.append(then_t);
+    }
+    eb = stmt.else_body;
+    if eb is None {
+        fall_t = entry_type;
+        predicate = self._find_predicate_for(target, stmt.condition);
+        if predicate is not None {
+            narrowed_f = self._apply_narrowing(predicate, entry_type, False, target);
+            if narrowed_f is not None {
+                fall_t = narrowed_f;
+            }
+        }
+        if fall_t is None {
+            return None;
+        }
+        arm_types.append(fall_t);
+    } elif isinstance(eb, uni.ElseIf) {
+        else_t = self._if_exit_type(target, eb, entry_type, visited);
+        if else_t is None {
+            return None;
+        }
+        arm_types.append(else_t);
+    } elif isinstance(eb, uni.ElseStmt) {
+        if eb.body {
+            else_t = self._get_type_from_flow_node(target, eb.body[-1], visited);
+            if else_t is None {
+                return None;
+            }
+            arm_types.append(else_t);
+        } elif entry_type is not None {
+            arm_types.append(entry_type);
+        } else {
+            return None;
+        }
+    }
+    if not arm_types {
+        return None;
+    }
+    if len(arm_types) == 1 {
+        return arm_types[0];
+    }
+    return self._union_narrowed_types(arm_types);
 }
 
 impl TypeEvaluator._loop_body_writes_target(
@@ -4902,6 +4989,28 @@ impl TypeEvaluator._is_type_alias_annotation(
         return tag_expr.value == "TypeAlias";
     }
     return False;
+}
+
+impl TypeEvaluator._brand_distinct_alias(
+    node_: uni.TypeAlias, resolved: TypeBase
+) -> TypeBase {
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    if not isinstance(resolved, types.ClassType)
+        or not JAC_TYPE_REGISTRY.is_primitive(resolved.shared.class_name) {
+        return resolved;
+    }
+    key = f"{node_.loc.mod_path}::{node_.name.value}";
+    private = types.ClassType.ClassDetailsPrivate(
+        type_args=(
+            resolved.private.type_args[:] if resolved.private.type_args else None
+        ),
+        alias_name=resolved.private.alias_name,
+        literal_value=resolved.private.literal_value,
+        distinct_key=key
+    );
+    return types.ClassType(
+        _shared=resolved.shared, private=private, flags=resolved.flags
+    );
 }
 
 impl TypeEvaluator._resolve_type_alias_rhs(value: uni.Expr) -> types.TypeBase {

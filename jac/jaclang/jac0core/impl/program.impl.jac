@@ -215,6 +215,7 @@ impl JacProgram.load_dependency_module(
     }
 
     mod: uni.Module;
+    from_jir_cache = False;
     if resolved_path in self.mod.hub {
         mod = self.mod.hub[resolved_path];
     } elif resolved_path in target_hub {
@@ -226,6 +227,7 @@ impl JacProgram.load_dependency_module(
         }
         if jir_mod is not None {
             mod = jir_mod;
+            from_jir_cache = True;
             if resolved_path.endswith('.pyi') and not mod.stub_only {
                 mod.stub_only = True;
             }
@@ -259,12 +261,94 @@ impl JacProgram.load_dependency_module(
         }
         target_hub[resolved_path] = mod;
         target_program.hub_cache_stamp(resolved_path);
+        if from_jir_cache {
+            self._relink_absorbed_imports(mod);
+        }
     }
 
     if importer_path is not None {
         self.record_dependency(importer_path, resolved_path);
     }
     return mod;
+}
+
+impl JacProgram._relink_absorbed_imports(self: JacProgram, mod: uni.Module) -> None {
+    import from pathlib { Path }
+    import from jaclang.jac0core.constant { SymbolAccess }
+    import from jaclang.jac0core.passes.sym_tab_build_pass { find_python_scope_node_of }
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if not imp.is_absorb or not imp.items {
+            continue;
+        }
+        path_node = imp.items[0];
+        if not isinstance(path_node, uni.ModulePath) {
+            continue;
+        }
+        scope = find_python_scope_node_of(imp);
+        if scope is None {
+            continue;
+        }
+        src_path = path_node.resolve_relative_path();
+        if not src_path or not Path(src_path).exists() {
+            continue;
+        }
+        src_mod = self.load_dependency_module(src_path);
+        for sym in src_mod.names_in_scope.values() {
+            if sym.access != SymbolAccess.PRIVATE and sym.defn {
+                scope.def_insert(
+                    sym.defn[0], single_decl='import absorb', imported=True
+                );
+            }
+        }
+        for overload_syms in src_mod.names_in_scope_overload.values() {
+            for sym in overload_syms {
+                if sym.access != SymbolAccess.PRIVATE and sym.defn {
+                    scope.def_insert(
+                        sym.defn[0], single_decl='import absorb', imported=True
+                    );
+                }
+            }
+        }
+    }
+}
+
+impl JacProgram.hub_key(path: str) -> str {
+    import from pathlib { Path }
+    return str(Path(path).resolve());
+}
+
+impl JacProgram.has_failed_parse(self: JacProgram, path: str) -> bool {
+    mod = self.mod.hub.get(JacProgram.hub_key(path));
+    return mod is not None and mod.parse_failed;
+}
+
+impl JacProgram.drop_module_alerts(self: JacProgram, resolved_path: str) -> None {
+    import os;
+    try {
+        norm = os.path.realpath(resolved_path);
+    } except OSError {
+        return;
+    }
+    import from jaclang.jac0core.ext_registry { is_annex_path_of }
+
+    def owned(alert: Alert) -> bool {
+        try {
+            alert_path = os.path.realpath(alert.loc.mod_path);
+        } except Exception {
+            return False;
+        }
+        return alert_path == norm or is_annex_path_of(alert_path, norm);
+    }
+    self.errors_had = [
+        a
+        for a in self.errors_had
+        if not owned(a)
+    ];
+    self.warnings_had = [
+        a
+        for a in self.warnings_had
+        if not owned(a)
+    ];
 }
 
 impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {

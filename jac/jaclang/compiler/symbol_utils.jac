@@ -69,6 +69,23 @@ def _is_user_symbol(sym: uni.Symbol) -> bool {
     return False;
 }
 
+def _symbol_defining_module(sym: uni.Symbol) -> (uni.Module | None) {
+    decl = sym.decl;
+    if decl is None {
+        return None;
+    }
+    return decl.find_parent_of_type(uni.Module);
+}
+
+def _is_local_user_shadow(sym: uni.Symbol, call: uni.FuncCall) -> bool {
+    if not _is_user_symbol(sym) {
+        return False;
+    }
+    call_mod = call.find_parent_of_type(uni.Module);
+    sym_mod = _symbol_defining_module(sym);
+    return call_mod is not None and sym_mod is call_mod;
+}
+
 def intrinsic_registry_if_ready -> object | None {
     import sys;
     _mod = sys.modules.get("jaclang.compiler.intrinsic_registry");
@@ -110,7 +127,7 @@ def classify_call(nd: uni.FuncCall) -> CallKind {
             return CallKind.CLIB;
         }
     }
-    if sym is not None and _is_user_symbol(sym) {
+    if sym is not None and _is_local_user_shadow(sym, nd) {
         if sym.sym_type
             in (
                 SymbolType.OBJECT_ARCH,
@@ -433,6 +450,7 @@ def collect_assigned_symbols(nd: uni.UniNode) -> set[str] {
 }
 
 def collect_method_names(arch: uni.Archetype) -> set[str] {
+    import from jaclang.compiler.passes.main.layout_pass { archetype_accessors }
     names: set[str] = set();
     if arch.body is not None and isinstance(arch.body, Sequence) {
         for stmt in arch.body {
@@ -443,6 +461,10 @@ def collect_method_names(arch: uni.Archetype) -> set[str] {
                 }
             }
         }
+    }
+
+    for (slot_name, _var, _acc) in archetype_accessors(arch) {
+        names.add(slot_name);
     }
     return names;
 }

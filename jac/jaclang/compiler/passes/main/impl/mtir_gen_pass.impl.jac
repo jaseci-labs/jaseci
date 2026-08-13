@@ -3,6 +3,7 @@ import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.passes { UniPass }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.jac0core.mtp {
     ClassInfo,
@@ -53,11 +54,9 @@ impl MTIRGenPass._parse_type_expr(
         return str(type_expr);
     }
     try {
-        if type_expr?.unparse {
-            text = type_expr.unparse();
-        } else {
-            text = str(type_expr);
-        }
+        text = unparse_node(type_expr)
+            if isinstance(type_expr, uni.UniNode)
+            else str(type_expr);
         if ('[' in text) and (']' in text) {
             base = text.split('[', 1)[0].strip();
             inner = text[(text.find('[') + 1):text.rfind(']')].strip();
@@ -69,7 +68,7 @@ impl MTIRGenPass._parse_type_expr(
             resolved_parts: list[object] = [];
             for p in parts {
                 try_sym = None;
-                if isinstance(scope, uni.UniScopeNode) and scope?.lookup {
+                if isinstance(scope, uni.UniScopeNode) {
                     try {
                         try_sym = scope.lookup(p, deep=True);
                     } except Exception {
@@ -237,7 +236,7 @@ impl MTIRGenPass._extract_class_info(symbol: uni.Symbol) -> ClassInfo | None {
             if isinstance(base, uni.Name) {
                 base_name = base.value;
             } elif isinstance(base, uni.AtomTrailer) {
-                base_name = base.unparse();
+                base_name = unparse_node(base);
             } else {
                 base_name = str(base);
             }

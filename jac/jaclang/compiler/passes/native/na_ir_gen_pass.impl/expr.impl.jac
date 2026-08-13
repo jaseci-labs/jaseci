@@ -137,10 +137,52 @@ impl NaIRGenPass._codegen_required(nd: (uni.UniNode | None)) -> (ir.Value | None
     }
     _errs_before = len(self.errors_had);
     val = self._codegen_expr(nd);
-    if val is None and len(self.errors_had) == _errs_before {
+    if val is None
+        and len(self.errors_had) == _errs_before
+        and not self._reads_unlowered_local(nd) {
         self.emit(E5092, node_override=nd, kind="expression", name=type(nd).__name__);
     }
     return val;
+}
+
+impl NaIRGenPass._current_fn_key -> (str | None) {
+    _bb = self._builder.block if self._builder is not None else None;
+    _fn = _bb.parent if _bb is not None else None;
+    return _fn.name if _fn is not None else None;
+}
+
+impl NaIRGenPass._mark_local_unlowered(name: str) -> None {
+    _key = self._current_fn_key();
+    if _key is None {
+        return;
+    }
+    _names = self._unlowered_locals.get(_key);
+    if _names is None {
+        _names = set();
+        self._unlowered_locals[_key] = _names;
+    }
+    _names.add(name);
+}
+
+impl NaIRGenPass._reads_unlowered_local(nd: uni.UniNode) -> bool {
+    if not self._unlowered_locals {
+        return False;
+    }
+    _key = self._current_fn_key();
+    _names = self._unlowered_locals.get(_key) if _key is not None else None;
+    if not _names {
+        return False;
+    }
+    _reads = [nd] if isinstance(nd, uni.Name) else nd.get_all_sub_nodes(uni.Name);
+    for _sub in _reads {
+        if _sub.value in _names
+            and _sub.value not in self.local_vars
+            and _sub.value not in self.func_symtab
+            and _sub.value not in self.global_vars {
+            return True;
+        }
+    }
+    return False;
 }
 
 impl NaIRGenPass._codegen_yield(nd: uni.YieldExpr) -> (ir.Value | None) {
@@ -369,7 +411,7 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
                         help_text="An expression in this lambda body could not lower natively; an unresolvable name here usually means the lambda reads a variable its enclosing frame cannot expose (e.g. a module-entry local)."
                     );
                 }
-                self.builder.ret(ir.Constant(ret_type, 0));
+                self.builder.ret(self._zero_const(ret_type));
             }
         } else {
             self._codegen_body(body);
@@ -388,7 +430,7 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
                     help_text="An expression in this lambda body could not lower natively; an unresolvable name here usually means the lambda reads a variable its enclosing frame cannot expose (e.g. a module-entry local)."
                 );
             }
-            self.builder.ret(ir.Constant(ret_type, 0));
+            self.builder.ret(self._zero_const(ret_type));
         }
     }
 
@@ -398,7 +440,7 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
             if ret_type == ir.VoidType() {
                 term_builder.ret_void();
             } else {
-                term_builder.ret(ir.Constant(ret_type, 0));
+                term_builder.ret(self._zero_const(ret_type));
             }
         }
     }
@@ -777,6 +819,9 @@ impl NaIRGenPass._codegen_compare_link(
         is_not_in = op == Tok.KW_NIN;
         left = self._str_norm(left);
         right = self._str_norm(right);
+        _in_key_nd = left_node.expr
+            if isinstance(left_node, uni.CfgExpr)
+            else left_node;
 
         for (dict_key, helpers) in self.dict_helpers.items() {
             dict_type = self.dict_types.get(dict_key);
@@ -785,9 +830,12 @@ impl NaIRGenPass._codegen_compare_link(
                 (left_coerced, _din_gate) = self._opt_membership_operand(
                     left, key_type
                 );
-                result = self.builder.call(
-                    helpers["contains"], [right, left_coerced], name="dict.contains"
-                );
+                (_has_fn, _kh) = self._static_key_op(helpers, "contains", _in_key_nd);
+                _has_args = [right, left_coerced];
+                if _kh is not None {
+                    _has_args.append(_kh);
+                }
+                result = self.builder.call(_has_fn, _has_args, name="dict.contains");
 
                 result = self.builder.zext(result, ir.IntType(64), name="contains.i64");
                 if _din_gate is not None {
@@ -823,9 +871,12 @@ impl NaIRGenPass._codegen_compare_link(
                 (left_coerced, _sin_gate) = self._opt_membership_operand(
                     left, elem_type
                 );
-                result = self.builder.call(
-                    helpers["contains"], [right, left_coerced], name="set.contains"
-                );
+                (_has_fn, _kh) = self._static_key_op(helpers, "contains", _in_key_nd);
+                _has_args = [right, left_coerced];
+                if _kh is not None {
+                    _has_args.append(_kh);
+                }
+                result = self.builder.call(_has_fn, _has_args, name="set.contains");
                 result = self.builder.zext(result, ir.IntType(64), name="contains.i64");
                 if _sin_gate is not None {
                     result = self.builder.select(
@@ -1309,6 +1360,14 @@ impl NaIRGenPass._bool_expr_unify_type(a: ir.Type, b: ir.Type) -> (ir.Type | Non
     if _pb is not None and _pb == a {
         return a;
     }
+
+    _a_ptrish = isinstance(a, ir.PointerType)
+        or (_pa is not None and isinstance(_pa, ir.PointerType));
+    _b_ptrish = isinstance(b, ir.PointerType)
+        or (_pb is not None and isinstance(_pb, ir.PointerType));
+    if _a_ptrish and _b_ptrish and (_pa is not None or _pb is not None) {
+        return ir.IntType(8).as_pointer();
+    }
     if isinstance(a, ir.DoubleType) and isinstance(b, ir.IntType) {
         return a;
     }
@@ -1541,8 +1600,10 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 and f"{mem_enum}.{mem_name}" in self.enum_values {
                 member_val = self.enum_values[f"{mem_enum}.{mem_name}"];
                 if mem_enum in self.enum_string_values {
-                    return self._codegen_enum_value_lookup(
-                        mem_enum, member_val, use_name=(right_name == "name")
+                    return self._wrap_enum_str(
+                        self._codegen_enum_value_lookup(
+                            mem_enum, member_val, use_name=(right_name == "name")
+                        )
                     );
                 }
 
@@ -1552,9 +1613,44 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
 
                 ordinal = self.enum_member_ordinal.get(f"{mem_enum}.{mem_name}");
                 if ordinal is not None {
-                    return self._codegen_enum_value_lookup(
-                        mem_enum, ir.Constant(ir.IntType(64), ordinal), use_name=True
+                    return self._wrap_enum_str(
+                        self._codegen_enum_value_lookup(
+                            mem_enum,
+                            ir.Constant(ir.IntType(64), ordinal),
+                            use_name=True
+                        )
                     );
+                }
+            }
+        }
+        if right_name is not None and (right_name == "value" or right_name == "name") {
+            _re_tk = self._type_key_of(nd.target);
+            if _re_tk is not None {
+                _re_tk = _re_tk.replace(" ", "").split(".")[-1];
+                if _re_tk in self.enum_string_values {
+                    _re_ord = self._codegen_expr(nd.target);
+                    if _re_ord is not None {
+                        return self._wrap_enum_str(
+                            self._codegen_enum_value_lookup(
+                                _re_tk, _re_ord, use_name=(right_name == "name")
+                            )
+                        );
+                    }
+                } elif right_name == "value" and _re_tk in self.enum_name_arrays {
+                    return self._codegen_expr(nd.target);
+                }
+            }
+        }
+        if right_name is not None and (right_name == "value" or right_name == "name") {
+            _mt_tk = self._type_key_of(nd.target);
+            if _mt_tk is not None {
+                _mt_tk = _mt_tk.replace(" ", "");
+            }
+            if _mt_tk is not None and _mt_tk.startswith("type[") and "]." in _mt_tk {
+                _mt_cls = _mt_tk[5:_mt_tk.index("]")];
+                _mt_mem = _mt_tk.split("].", 1)[1];
+                if right_name == "name" {
+                    return self._make_global_string(_mt_mem);
                 }
             }
         }
@@ -1609,6 +1705,33 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             full_name = f"{target_name}.{right_name}";
             if full_name in self.enum_values {
                 return self.enum_values[full_name];
+            }
+            _tk_alias = self._type_key_of(nd.target);
+            if _tk_alias is not None {
+                _tk_alias = _tk_alias.replace(" ", "");
+            }
+            if _tk_alias is not None
+                and _tk_alias.startswith("type[")
+                and _tk_alias.endswith("]") {
+                _real_cls = _tk_alias[5:-1];
+                _real_full = f"{_real_cls}.{right_name}";
+                if _real_full not in self.enum_values {
+                    self._codegen_enum_layout(_real_cls, None);
+                }
+                if _real_full in self.enum_values {
+                    return self.enum_values[_real_full];
+                }
+                if _real_cls in self.struct_types
+                    and _real_cls not in self.local_vars {
+                    for _rcn in self._mro_of(_real_cls) {
+                        _rsf = f"{_rcn}.{right_name}";
+                        if _rsf in self.static_fields {
+                            return self.builder.load(
+                                self.static_fields[_rsf], name=f"sfld.{right_name}"
+                            );
+                        }
+                    }
+                }
             }
 
             if (
@@ -1928,8 +2051,13 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             key_val = self._codegen_expr(idx_node.start);
                         }
                         if key_val is not None {
+                            _dk_nd = idx_node.start if idx_node?.start else idx_node;
                             return self._codegen_dict_access(
-                                target_val, key_val, key_type_name, val_type_name
+                                target_val,
+                                key_val,
+                                key_type_name,
+                                val_type_name,
+                                key_node=_dk_nd
                             );
                         }
                     }
@@ -1953,8 +2081,13 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             key_val = self._codegen_expr(idx_node.start);
                         }
                         if key_val is not None {
+                            _dk_nd = idx_node.start if idx_node?.start else idx_node;
                             return self._codegen_dict_access(
-                                target_val, key_val, key_type_name, val_type_name
+                                target_val,
+                                key_val,
+                                key_type_name,
+                                val_type_name,
+                                key_node=_dk_nd
                             );
                         }
                     }

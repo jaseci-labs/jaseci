@@ -24,6 +24,7 @@ import from jaclang.cli.commands {
 import from jaclang.cli.commands { config as config_cmd }
 import from jaclang.cli.registry { get_registry }
 import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.project.config { set_config }
 import from jaclang.runtimelib.builtin { printgraph }
 
@@ -814,8 +815,8 @@ test "param arg" {
         }
 
         try {
-            jac_code = (
-                JacProgram().compile(use_str=py_code, file_path=py_file_path).unparse()
+            jac_code = unparse_module(
+                JacProgram().compile(use_str=py_code, file_path=py_file_path)
             );
             with tempfile.NamedTemporaryFile(
                 mode="w", suffix=".jac", delete=False

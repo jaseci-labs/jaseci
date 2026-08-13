@@ -6,6 +6,7 @@ import jaclang.jac0core.unitree as uni;
 import from pathlib { Path }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.passes { Alert }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang.jac0core.jir {
     SEC_SYMINDEX,
     SECTIONS_MAGIC,
@@ -738,7 +739,7 @@ obj CodeIntelligence {
             return "";
         }
         try {
-            return str(expr.unparse()).strip();
+            return str(unparse_node(expr)).strip();
         } except Exception as e {
             _ = e;
             return "";

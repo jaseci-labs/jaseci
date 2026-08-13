@@ -10,6 +10,9 @@ impl NaIRGenPass._mangled_of(t: any) -> (str | None) {
             m = re.sub(rf"\b{re.escape(tv)}\b", repl, m);
         }
     }
+    if m == "Sequence" or m.startswith("Sequence[") {
+        m = "list" + m[len("Sequence"):];
+    }
     return m;
 }
 
@@ -316,7 +319,10 @@ impl NaIRGenPass._stamp_mono_method(
     full_name = f"{arch_name}.{method_name}";
     struct_type = self.struct_types.get(arch_name);
     sig = ability.signature;
-    if struct_type is None or sig is None or ability.is_static {
+    if struct_type is None
+        or sig is None
+        or ability.is_static
+        or ability.is_classmethod {
         self.emit(E5092, node_override=ability, kind="method", name=full_name);
         return None;
     }

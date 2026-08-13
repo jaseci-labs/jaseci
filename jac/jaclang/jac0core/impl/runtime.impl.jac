@@ -536,7 +536,11 @@ impl JacArchetype.make_archetype(cls: type[Archetype]) -> type[Archetype] {
             default_factory=`list, init=False, repr=False, compare=False
         );
     }
-    dataclass(eq=False)(cls);
+    if cls.__dict__.get('__annotations__', {}) {
+        dataclass(eq=False)(cls);
+    } else {
+        dataclass(eq=False, init=False)(cls);
+    }
     return cls;
 }
 

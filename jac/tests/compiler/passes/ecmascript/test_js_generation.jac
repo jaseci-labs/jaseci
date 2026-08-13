@@ -12,7 +12,11 @@ import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator, es_to_js }
+import from jaclang.compiler.passes.ecmascript.es_unparse {
+    JSCodeGenerator,
+    es_to_js,
+    template_element_raw
+}
 import from jaclang.compiler.passes.ecmascript.primitives_es {
     ESDictEmitter,
     ESEmitCtx
@@ -516,11 +520,107 @@ test "effect lambda local hoists its declaration into the effect body" {
     temp_path = write_temp_jac(jac_code);
     js_code = compile_fixture_to_js(temp_path);
 
-    assert "let probe;" in js_code , (
+    assert 'let probe = "READY";' in js_code , (
         "a local first-assigned inside an effect lambda must keep its `let`; "
         "a bare assignment throws ReferenceError in a strict-mode bundle"
     );
     assert "let setup = () => {" in js_code;
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda-body local stays per-invocation so map closures capture their own item" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        tid = str(t.id);\n        return <button onClick={lambda { print(tid); }}>{tid}</button>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let tid = " in js_code , (
+        "an unannotated lambda-body local must be declared inside the lambda; "
+        "hoisting it to component scope makes every .map() closure share one "
+        "binding and capture the last item"
+    );
+    assert "let tid;" not in js_code , (
+        "no empty hoisted declaration of a lambda-body local may exist at "
+        "component-function scope"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "annotated lambda-body local stays per-invocation" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        aid: any = str(t.id);\n        return <button onClick={lambda { print(aid); }}>{aid}</button>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let aid = " in js_code;
+    assert "let aid;" not in js_code;
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "branch-assigned lambda local hoists to the lambda not the component" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        if ti > 0 { bid = str(t.id); } else { bid = \"zero\"; }\n        return <button onClick={lambda { print(bid); }}>{bid}</button>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    lambda_start = js_code.find("map((t, ti) =>");
+    assert lambda_start >= 0;
+    hoist_pos = js_code.find("let bid;");
+    assert hoist_pos > lambda_start , (
+        "a lambda local assigned only in branches must hoist to the top of "
+        "the lambda body, not past the lambda into the component function"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "walrus target inside a lambda binds in the lambda not the component" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        if (wid := str(t.id)) {\n            return <button onClick={lambda { print(wid); }}>{wid}</button>;\n        }\n        return <span>none</span>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    lambda_start = js_code.find("map((t, ti) =>");
+    assert lambda_start >= 0;
+    hoist_pos = js_code.find("let wid;");
+    assert hoist_pos > lambda_start , (
+        "a walrus-bound lambda name must be declared inside the lambda; "
+        "binding it in the enclosing component makes .map() closures share it"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda assignment to an enclosing local stays a closure rebind" {
+    jac_code = "def:pub app -> any {\n    can with entry {\n        count = 0;\n        inc = lambda -> int { count = count + 1; return count; };\n        inc();\n    }\n    return <div>ok</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let count = 0;" in js_code;
+    assert "count = (count + 1);" in js_code , (
+        "an assignment to a name that already has an enclosing binding must "
+        "rebind that binding (closure mutation), not shadow it with a fresh "
+        "lambda-local"
+    );
+    assert "let count = (count + 1);" not in js_code;
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda returning dict literal parenthesises the arrow body" {
+    jac_code = "def:pub app -> str {\n    style_of = lambda (kind: str) { {\"color\": \"red\" if kind == \"warn\" else \"blue\"}; };\n    return style_of(\"warn\")[\"color\"];\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert 'kind => ({"color":' in js_code , (
+        "an object-literal arrow body must be parenthesised; "
+        "`kind => {...}` parses as a function block and breaks the bundle"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda body starting with dict literal parenthesises the arrow body" {
+    jac_code = "def:pub app -> int {\n    f = lambda (k: str) { {\"a\": 1}[k]; };\n    return f(\"a\");\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert 'k => ({"a": 1}[k])' in js_code , (
+        "an arrow body whose leftmost token is `{` must be parenthesised "
+        "even when the body is not itself an object literal"
+    );
     assert_balanced_syntax(js_code, temp_path);
 }
 
@@ -718,6 +818,54 @@ test "fstring edge cases" {
     }
 }
 
+"""Each case is (f-string as written in Jac, the template literal it must emit)."""
+glob FSTRING_LITERAL_SEGMENTS = [
+         ("f'x \"{a}\" y'", "`x \"${a}\" y`"),
+         ("f\"a {a}'c'\"", "`a ${a}'c'`"),
+         ("f'\"{a}\"'", "`\"${a}\"`"),
+         ("f\"\"\"tri \"{a}\" end\"\"\"", "`tri \"${a}\" end`"),
+         ("f\"{a} `tick`\"", "`${a} \\`tick\\``"),
+         ("f\"{a} ${a}\"", "`${a} $${a}`"),
+         ("f\"C:\\\\dir {a}\"", "`C:\\\\dir ${a}`"),
+         ("f\"a\\nb {a}\"", "`a\\nb ${a}`"),
+         ("rf\"\\d+ {a}\"", "`\\\\d+ ${a}`")
+     ];
+
+
+test "fstring literal segments keep quotes and escape template syntax" {
+    lines = ["\"\"\"Literal segments around interpolations (#8071).\"\"\""];
+    for (idx, (expr, _)) in enumerate(FSTRING_LITERAL_SEGMENTS) {
+        lines.append(
+            "def case" + str(idx) + "(a: str) -> str { return " + expr + "; }"
+        );
+    }
+    temp_path = write_temp_jac("\n".join(lines) + "\n");
+
+    try {
+        js_code = compile_fixture_to_js(temp_path);
+
+        for (expr, expected) in FSTRING_LITERAL_SEGMENTS {
+            assert expected in js_code , (
+                f"{expr} should emit {expected}, got:\n{js_code}"
+            );
+        }
+        assert_balanced_syntax(js_code, temp_path);
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+
+test "template element raw escapes only what is syntax between backticks" {
+    assert template_element_raw("plain text") == "plain text";
+    assert template_element_raw("a `b` c") == "a \\`b\\` c";
+    assert template_element_raw("cost ${x}") == "cost \\${x}";
+    assert template_element_raw("trailing $") == "trailing $";
+    assert template_element_raw("C:\\dir") == "C:\\\\dir";
+    assert template_element_raw("a\r\nb\tc") == "a\\r\\nb\\tc";
+}
+
+
 test "fstring no concatenation operators" {
     jac_code = "\"\"\"Test that f-strings use template literals, not concatenation.\"\"\"\n\ndef format_message(user: str, count: int) -> str {\n    return f\"User {user} has {count} items\";\n}\n";
 
@@ -827,7 +975,7 @@ test "sv import kwargs preserve names in jac call function" {
     js_code = compile_fixture_to_js(fixture, FIXTURES);
 
     # Pure-kwargs single arg: ``greet(name=input_text)``
-    assert '__jacCallFunction("greet", {"name": input_text})' in js_code , (
+    assert '__jacCallFunction("greet", {"name": __jacS_input_text.val})' in js_code , (
         "Single-kwarg call must propagate the name into the args object;\n"
         + "got:\n"
         + js_code
@@ -876,12 +1024,12 @@ test "sv import kwargs preserve names in production jac2js path" {
     fixture = "svc_kwargs/sv_import_kwargs_client.jac";
     js_code = compile_fixture_to_js_production(fixture, FIXTURES);
 
-    assert '__jacCallFunction("greet", {"name": input_text})' in js_code , (
+    assert '__jacCallFunction("greet", {"name": __jacS_input_text.val})' in js_code , (
         "Production jac2js path must lower sv-import kwargs directly into the RPC args object;\n"
         + "got:\n"
         + js_code
     );
-    assert "await greet({name: input_text})" not in js_code , (
+    assert "await greet({name: __jacS_input_text.val})" not in js_code , (
         "Production jac2js path must not pass kwargs object into the generated RPC wrapper;\n"
         + "got:\n"
         + js_code
@@ -931,12 +1079,12 @@ test "plain client kwargs lower to ordered js arguments" {
     js_code = compile_fixture_to_js_production(fixture, FIXTURES);
     compact_js = js_code.replace("\n", "").replace(" ", "");
 
-    assert "setTotal(add(5, 10));" in js_code , (
+    assert "__jacS_total.set(add(5, 10));" in js_code , (
         "Known Jac function kwargs must lower to ordered JS positional args;\n"
         + "got:\n"
         + js_code
     );
-    assert "setMixed(add(1, 2));" in js_code , (
+    assert "__jacS_mixed.set(add(1, 2));" in js_code , (
         "Mixed positional/kwarg call must preserve positional args and order kwargs by signature;\n"
         + "got:\n"
         + js_code
@@ -946,12 +1094,12 @@ test "plain client kwargs lower to ordered js arguments" {
         + "got:\n"
         + js_code
     );
-    assert "setDefaulted(add_defaults(undefined, 99));" in js_code , (
+    assert "__jacS_defaulted.set(add_defaults(undefined, 99));" in js_code , (
         "Skipping an earlier defaulted param must emit an undefined placeholder, not collapse positions;\n"
         + "got:\n"
         + js_code
     );
-    assert 'setSpread_total(add(kw["a"], kw["b"]));' in js_code , (
+    assert '__jacS_spread_total.set(add(kw["a"], kw["b"]));' in js_code , (
         "Known **kwargs calls must lower to declared-parameter property reads;\n"
         + "got:\n"
         + js_code
@@ -960,7 +1108,7 @@ test "plain client kwargs lower to ordered js arguments" {
         "Complex **kwargs source must be evaluated exactly once;\n" + "got:\n" + js_code
     );
     assert (
-        'setSpread_call_total((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))(get_kw()));'
+        '__jacS_spread_call_total.set((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))(get_kw()));'
         in compact_js
     ) , (
         "Known **function_call() spread must lower through a single-evaluation temp IIFE;\n"
@@ -968,7 +1116,7 @@ test "plain client kwargs lower to ordered js arguments" {
         + js_code
     );
     assert (
-        'setSpread_merge_total((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))({...kw1,...kw2}));'
+        '__jacS_spread_merge_total.set((__jac_kwargs=>add3(__jac_kwargs["a"],__jac_kwargs["b"],__jac_kwargs["c"]))({...kw1,...kw2}));'
         in compact_js
     ) , (
         "Multiple **kwargs spreads must merge earlier and later sources before keyed reads;\n"
@@ -976,14 +1124,14 @@ test "plain client kwargs lower to ordered js arguments" {
         + js_code
     );
     assert (
-        'setSpread_override_total((__jac_kwargs=>add3(__jac_kwargs["a"],99,__jac_kwargs["c"]))({...kw1,...kw2}));'
+        '__jacS_spread_override_total.set((__jac_kwargs=>add3(__jac_kwargs["a"],99,__jac_kwargs["c"]))({...kw1,...kw2}));'
         in compact_js
     ) , (
         "Explicit kwargs must override **spread values while preserving other merged keys;\n"
         + "got:\n"
         + js_code
     );
-    assert "setMethod_total(counter.bump(5, 3));" in js_code , (
+    assert "__jacS_method_total.set(counter.bump(5, 3));" in js_code , (
         "Known method kwargs must lower to ordered JS positional args;\n"
         + "got:\n"
         + js_code
@@ -1262,10 +1410,10 @@ test "compr list method call" {
 test "str methods on local vars and chained calls" {
     js_code = compile_fixture_to_js("str_method_chaining.jac", FIXTURES);
     assert "temp.toLowerCase()" in js_code , "str.lower() on local var should map to .toLowerCase()";
-    assert "text.trim().toLowerCase()" in js_code , "chained str.strip().lower() should map to .trim().toLowerCase()";
-    assert "text.toUpperCase().trim()" in js_code , "chained str.upper().strip() should map to .toUpperCase().trim()";
-    assert "text.trim().toUpperCase()" in js_code , "chained str.strip().upper() should map to .trim().toUpperCase()";
-    assert "text.toUpperCase().trim().toLowerCase()" in js_code , "triple-chained str.upper().strip().lower() should map to .toUpperCase().trim().toLowerCase()";
+    assert "__jacS_text.val.trim().toLowerCase()" in js_code , "chained str.strip().lower() should map to .trim().toLowerCase()";
+    assert "__jacS_text.val.toUpperCase().trim()" in js_code , "chained str.upper().strip() should map to .toUpperCase().trim()";
+    assert "__jacS_text.val.trim().toUpperCase()" in js_code , "chained str.strip().upper() should map to .trim().toUpperCase()";
+    assert "__jacS_text.val.toUpperCase().trim().toLowerCase()" in js_code , "triple-chained str.upper().strip().lower() should map to .toUpperCase().trim().toLowerCase()";
 }
 
 test "issue 5508 case1 in operator on str method call" {
@@ -1827,43 +1975,32 @@ test "fstring format spec invokes runtime format helper" {
     }
 }
 
-test "issue 5930 sibling if else branches each get block scoped let" {
-    # BUG: when the same local name is declared (e.g. `x: int = 1;`) in both
-    # an if-branch and its sibling else-branch, codegen emitted `let x = ...`
-    # only in the first branch and a bare `x = ...` in the second. Under
-    # strict mode (every ES module) the else-branch threw
-    # `ReferenceError: x is not defined`.
-    #
-    # Root cause: `_is_name_first_definition` is symbol-table based and treats
-    # the else-branch occurrence as a non-first definition, so the existing
-    # `is_first AND not _is_declared_in_any_scope` predicate downgraded the
-    # emit to bare assignment even though the if-branch's block scope had
-    # already been popped. The fix drops the `is_first` half of the guard;
-    # block-scope membership is the authoritative signal for whether a JS
-    # `let` is still in flight.
+test "issue 5930 sibling if else branches share one hoisted let" {
+    # #5930 originally pinned per-branch `let x = ...` declarations, when a
+    # block-typed declaration was its own block-scoped symbol. Jac locals
+    # are function-scoped, and the checker now binds a typed declaration in
+    # a block to the enclosing function scope (#8060) -- the two branches
+    # declare ONE variable, visible after the if. The faithful JS lowering
+    # is a single hoisted `let x;` with bare per-branch assignments; a
+    # per-branch `let` would make the name invisible after the if and
+    # diverge from Jac semantics. The strict-mode node run below still
+    # guards the original #5930 ReferenceError regression.
     jac_code = "\"\"\"Test #5930 sibling block let.\"\"\"\n\ndef test(mode: bool) -> int {\n    if mode {\n        x: int = 1;\n        x = 2;\n    } else {\n        x: int = 3;\n        x = 4;\n    }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
         js_code = compile_fixture_to_js(temp_path);
 
-        # Both branches must introduce x with `let` — the else-branch is the
-        # one that regressed prior to the fix.
-        assert "let x = 1" in js_code , (
-            f"if-branch must declare `let x = 1`, got:\n{js_code}"
+        # One hoisted declaration; every branch write is a bare assignment.
+        assert "let x;" in js_code , (
+            f"the function must hoist a single `let x;` (#8060), got:\n{js_code}"
         );
-        assert "let x = 3" in js_code , (
-            f"else-branch must declare `let x = 3` (#5930), got:\n{js_code}"
-        );
-
-        # And follow-up reassignments inside each branch must NOT redeclare.
-        # We assert the absence of `let x = 2` / `let x = 4` to lock that in.
-        assert "let x = 2" not in js_code , (
-            "in-branch reassignment must stay a bare assignment, " f"got:\n{js_code}"
-        );
-        assert "let x = 4" not in js_code , (
-            "in-branch reassignment must stay a bare assignment, " f"got:\n{js_code}"
-        );
+        for _forbidden in ["let x = 1", "let x = 2", "let x = 3", "let x = 4"] {
+            assert _forbidden not in js_code , (
+                f"branch writes must not redeclare (`{_forbidden}`), "
+                f"got:\n{js_code}"
+            );
+        }
 
         # And the emitted JS must actually execute in strict mode without
         # tripping the ReferenceError from the original bug report. We pipe
@@ -1901,18 +2038,21 @@ test "issue 5930 sibling if else branches each get block scoped let" {
 }
 
 test "sibling block scopes — elif chain each branch gets its own let" {
-    # Generalizes #5930: every alternate-branch (elif as well as else) must
-    # re-declare a same-named local with `let`, since each is an independent
-    # JS lexical block.
+    # Generalizes the #5930 shape: with the checker binding block-typed
+    # declarations to the function scope (#8060), every elif branch writes
+    # the same hoisted variable; no branch redeclares.
     jac_code = "\"\"\"Test elif chain sibling-block lets.\"\"\"\n\ndef test_elif(mode: int) -> int {\n    if mode == 1 {\n        x: int = 1;\n        x = 2;\n    } elif mode == 2 {\n        x: int = 3;\n        x = 4;\n    } elif mode == 3 {\n        x: int = 5;\n        x = 6;\n    } else {\n        x: int = 7;\n        x = 8;\n    }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
         js_code = compile_fixture_to_js(temp_path);
-        for _expected_init in ["let x = 1", "let x = 3", "let x = 5", "let x = 7"] {
-            assert _expected_init in js_code , (
-                f"elif chain must declare `{_expected_init}` in its own "
-                f"branch, got:\n{js_code}"
+        assert "let x;" in js_code , (
+            f"the function must hoist a single `let x;` (#8060), got:\n{js_code}"
+        );
+        for _forbidden in ["let x = 1", "let x = 3", "let x = 5", "let x = 7"] {
+            assert _forbidden not in js_code , (
+                f"elif branches must not redeclare (`{_forbidden}`), "
+                f"got:\n{js_code}"
             );
         }
         # Run under strict mode through node to catch any
@@ -1953,11 +2093,9 @@ test "walrus in if-condition still hoists its let despite alt-branch scope final
     # `let n;` is lost and the resulting JS leaves `n` undeclared, which
     # is its own strict-mode ReferenceError.
     #
-    # Note: the *location* of the hoist (currently inside the if-body)
-    # has a pre-existing accuracy issue separate from this PR — `n`
-    # should be visible after the if per Python semantics. This test
-    # locks in the current behavior so a future correctness fix is a
-    # deliberate change, not an accidental regression.
+    # Note: `n` should be visible after the if per Python semantics;
+    # the branch-local `x` below is now covered by the #8060 hoisting
+    # contract (one function-scoped variable, bare branch writes).
     jac_code = "\"\"\"Test walrus hoist preservation across alt-branch finalization.\"\"\"\n\ndef check(seed: int) -> int {\n    if (n := seed) > 5 {\n        x: int = 1;\n    } else {\n        x: int = 2;\n    }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
@@ -1971,10 +2109,11 @@ test "walrus in if-condition still hoists its let despite alt-branch scope final
             "as a `let` declaration when an else branch is present, "
             f"got:\n{js_code}"
         );
-        # And both branches must still get their per-branch `let x`
-        # (the #5930 sibling-block fix continues to apply).
-        assert "let x = 1" in js_code;
-        assert "let x = 2" in js_code;
+        # And the branch-declared local is one hoisted function-scoped
+        # variable (#8060): bare writes, no per-branch redeclaration.
+        assert "let x;" in js_code;
+        assert "let x = 1" not in js_code;
+        assert "let x = 2" not in js_code;
         assert_balanced_syntax(js_code, temp_path);
     } finally {
         os.unlink(temp_path);
@@ -1982,20 +2121,22 @@ test "walrus in if-condition still hoists its let despite alt-branch scope final
 }
 
 test "sibling block scopes — try except finally each get their own let" {
-    # Same structural bug as #5930 in a different compound statement: the
-    # try-body's UniScopeNode covers its body, and the except / finally
-    # blocks are AST children of the TryStmt — so the try-body's `let x`
-    # would leak into except / finally and downgrade them to bare
-    # assignment. Generalized sibling-block fix.
+    # Same shape as #5930 in a different compound statement: with #8060
+    # the try / except / finally writes hit one hoisted function-scoped
+    # variable; the strict-mode run below guards the ReferenceError that
+    # the original bug produced.
     jac_code = "\"\"\"Test try/except/finally sibling-block lets.\"\"\"\n\ndef test_try(mode: bool) -> int {\n    try {\n        x: int = 1;\n        x = 2;\n        if mode {\n            raise Exception(\"force-except\");\n        }\n    } except Exception {\n        x: int = 3;\n        x = 4;\n    } finally {\n        x: int = 5;\n        x = 6;\n    }\n    return 0;\n}\n";
 
     temp_path = write_temp_jac(jac_code);
     try {
         js_code = compile_fixture_to_js(temp_path);
-        for _expected_init in ["let x = 1", "let x = 3", "let x = 5"] {
-            assert _expected_init in js_code , (
-                f"try/except/finally must declare `{_expected_init}` in its "
-                f"own block, got:\n{js_code}"
+        assert "let x;" in js_code , (
+            f"the function must hoist a single `let x;` (#8060), got:\n{js_code}"
+        );
+        for _forbidden in ["let x = 1", "let x = 3", "let x = 5"] {
+            assert _forbidden not in js_code , (
+                f"try/except/finally must not redeclare (`{_forbidden}`), "
+                f"got:\n{js_code}"
             );
         }
         # Run under strict mode through node to confirm no
@@ -2660,6 +2801,72 @@ test "builtin type used as a value lowers to a callable (#7454)" {
     );
 
     assert_balanced_syntax(js_code, "builtin_type_as_value.jac");
+}
+
+test "imported JS/TS class constructs with new (#8017)" {
+    # A `.d.ts`-declared class binds as a plain `variable` symbol, so
+    # classify_call reports "function" and the pre-fix backend emitted
+    # `Greeter(...)` — which throws `TypeError: Class constructor Greeter
+    # cannot be invoked without 'new'` at runtime. The backend must consult
+    # the resolved type; `plain` guards declared functions staying plain calls.
+    # The foreign lib is written at test time (the repo keeps no .js/.d.ts
+    # fixture sources), so the fixture compiles from a temp copy placed next
+    # to the generated lib. The .js implementation must exist alongside the
+    # .d.ts: sibling declaration lookup starts from the resolved .js module.
+    comp_dir = tempfile.mkdtemp(prefix="jac_ts_class_new_");
+    Path(os.path.join(comp_dir, "jac.toml")).write_text(
+        '[project]\nname = "ts-class-new"\n\n[placement.pins]\n"*" = "client"\n'
+    );
+    Path(os.path.join(comp_dir, "ts_class_new_lib.d.ts")).write_text(
+        "export declare class Greeter {\n"
+        "  constructor(name: string);\n"
+        "  hello(): string;\n"
+        "}\n"
+        "export declare function plain(x: string): string;\n"
+    );
+    Path(os.path.join(comp_dir, "ts_class_new_lib.js")).write_text(
+        "export class Greeter {\n"
+        "  constructor(name) { this.name = name; }\n"
+        "  hello() { return \"hi \" + this.name; }\n"
+        "}\n"
+        "export function plain(x) { return x; }\n"
+    );
+    fixture_src = Path(os.path.join(FIXTURES, "ts_class_new.jac")).read_text();
+    jac_path = os.path.join(comp_dir, "ts_class_new.jac");
+    Path(jac_path).write_text(fixture_src);
+    js_code = compile_fixture_to_js(jac_path);
+
+    assert "new Local(" in js_code , (
+        "Jac obj construction must keep emitting new:\n" + js_code
+    );
+    assert "new Greeter(" in js_code , (
+        "imported TS class construction must emit new:\n" + js_code
+    );
+    assert "new plain(" not in js_code , (
+        "imported TS function must stay a plain call:\n" + js_code
+    );
+
+    # Without a module marker Node treats sibling .js files as CommonJS and
+    # the generated named imports fail to resolve.
+    Path(os.path.join(comp_dir, "package.json")).write_text('{"type": "module"}');
+    Path(os.path.join(comp_dir, "main.mjs")).write_text(
+        js_code + "\nconsole.log(go());\n"
+    );
+    result = subprocess.run(
+        ["node", os.path.join(comp_dir, "main.mjs")],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        "constructing an imported TS class crashed in Node:\n"
+        f"stderr={result.stderr!r}\njs:\n{js_code}"
+    );
+    assert result.stdout.strip() == "hi worldxa" , (
+        f"unexpected runtime output: {result.stdout!r}\njs:\n{js_code}"
+    );
+
+    assert_balanced_syntax(js_code, "ts_class_new.jac");
 }
 
 test "builtin functions lower to runtime helpers without type-check (#7480)" {

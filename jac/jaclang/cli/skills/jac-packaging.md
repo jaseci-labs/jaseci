@@ -70,7 +70,7 @@ There is no `jac publish` command - use `twine` (separate pip install). In CI au
 
 ## Publishing to npm
 
-`jac build --as npm` compiles the package's client modules (`.jac` files under the package dir - client placement is inferred from JSX or npm imports) to ES-module JavaScript, generates `package.json` + a `.d.ts` per module (TypeScript consumers get full type-checking), and packs `dist/<name>-<version>.tgz`. To produce both a wheel and an npm tarball, run both commands - there is no combined projection.
+`jac build --as npm` compiles the package's modules (`.jac` files under the package dir) to ES-module JavaScript - a `kind = "js-package"` project has no server, so every module is placed client by construction, `pub` or not, on every compile path (`jac build`, `jac tool jac2js`, `jac check`) - then generates `package.json` + a `.d.ts` per module (TypeScript consumers get full type-checking), and packs `dist/<name>-<version>.tgz`. To produce both a wheel and an npm tarball, run both commands - there is no combined projection.
 
 ```toml
 [npm]
