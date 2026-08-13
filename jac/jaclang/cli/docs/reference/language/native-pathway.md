@@ -949,8 +949,6 @@ The codegen options carry a canonical identity string and a short hash of it, th
 |---|---|
 | `JAC_NO_SEAL` | Disables sealed-image discovery entirely at runtime; with no artifact found, parsing runs on the bytecode tier. Set by the payload build itself while regenerating the image. |
 | `JAC_SEAL_NO_NATIVE` | Build-time: `seal_native_artifacts` emits nothing, so the sealed image ships without native parser artifacts (also implied on Windows). |
-| `JAC_PY_INCLUDE` | Build-time: CPython include directory for compiling the `jacmat` materializer extension when the running interpreter's `sysconfig` carries no headers. |
-| `JAC_CC` | Build-time: C compiler used for the `jacmat` build (defaults to `cc`, then `clang`, then `gcc` from PATH). |
 
 Toolchain location variables are read through the same boundary module, never inside passes: `JAC_LLVM_SHIM`, `JAC_LLVM_TYPED_POINTERS` (with `LLVMLITE_ENABLE_IR_LAYER_TYPED_POINTERS` honored as a fallback), `JAC_NATIVE_WASM_LIBC_DIR`, `JAC_NATIVE_MUSL_DIR`, `JAC_NATIVE_FLOOR_DIR`, `JAC_NATIVE_CA_BUNDLE`.
 

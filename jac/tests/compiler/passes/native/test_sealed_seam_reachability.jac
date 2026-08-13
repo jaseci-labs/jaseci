@@ -45,7 +45,7 @@ import from jaclang.compiler.passes.main.layout_pass {
 import from jaclang.utils.precompile_bytecode { _UNITREE_SEAM_WAIVERS }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     SEALED_ROOT = "jac0core/parser/parser.jac",
+     SEALED_ROOT = "compiler/native_materialize.jac",
      _CLOSURE_MEMO: list = [];
 
 """Every archetype, module function and glob root in the sealed closure."""

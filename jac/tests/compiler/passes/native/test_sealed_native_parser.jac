@@ -1,13 +1,14 @@
-"""In-CI parity gate for the sealed AOT native parser and its materializer.
+"""Parity gate for the sealed native parser and its jac materializer.
 
-Runs the exact pipeline `seal_native_artifacts` ships (AOT compile with the
-demotion gate, abort-stub scan, in-house link, dlopen canary, jacmat build,
-recipe bake) on this platform, binds `parse_program` and the jacmat
-materializer the way `frontend._native_parse` does, and asserts the
-materialized native tree is the bytecode parser's tree: error counts, node
-counts, unparse fingerprints, and instance-dict key sets. Green here is the
-condition for a payload serving parse trees natively, which since the
-JAC_NATIVE_PARSE_TREES retirement is the only tier a sealed build has.
+Runs the exact pipeline `seal_native_artifacts` ships (AOT compile of the
+`compiler/native_materialize.jac` root with the demotion gate, abort-stub
+scan, in-house link, dlopen canary), serves the artifact through the real
+`sealed.native_artifact_for` seam, binds it with the real
+`frontend._native_parse`, and asserts the materialized tree IS the bytecode
+parser's tree: error counts, node counts, unparse fingerprints, field-level
+values, and instance-dict key sets, plus a compile-and-exec smoke. Green
+here is the condition for a payload serving parse trees natively, which is
+the only tier a sealed build has.
 """
 
 import json;
@@ -18,14 +19,6 @@ import jaclang;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT as REPO_ROOT }
 import from jaclang.utils.precompile_bytecode { seal_native_artifacts }
-import from jaclang.jac0core.native_dylib { DylibEngine, layout_from_dict }
-import from jaclang.jac0core.native_marshal {
-    build_ctypes_classes,
-    build_enum_maps,
-    load_materializer,
-    materialize_recipes,
-    wrap_native_function
-}
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang.jac0core.parser.parser { Parser }
 import jaclang.jac0core.parser.parser as na_parser;
@@ -72,6 +65,22 @@ def _canary_src -> str {
     return nl.join(list(_CANARY_LINES));
 }
 
+"""Serves one locally built parser artifact through the
+sealed.native_artifact_for seam; everything else defers to the real
+resolver."""
+obj _ServeLocalArtifact {
+    has lib_path: str,
+        layout_dict: dict,
+        real: any;
+
+    def __call__(fullname: str) -> any {
+        if fullname == "jaclang.compiler.native_materialize" {
+            return (self.lib_path, self.layout_dict, );
+        }
+        return self.real(fullname) if self.real is not None else None;
+    }
+}
+
 def _build_binding -> tuple {
     if "/.cache/jac/rt/"
         in str(Path(jaclang.__file__).resolve()).replace(os.sep, "/") {
@@ -86,48 +95,25 @@ def _build_binding -> tuple {
     }
     out_dir = Path(tempfile.mkdtemp(prefix="jac_sealed_parser_"));
     artifacts = seal_native_artifacts(
-        PKG_PATH, out_dir, modules=("jac0core/parser/parser.jac", )
+        PKG_PATH, out_dir, modules=("compiler/native_materialize.jac", )
     );
     assert artifacts , (
-        "seal_native_artifacts refused the parser artifact on this platform"
+        "seal_native_artifacts refused the materializer root on this platform"
     );
-    rec = artifacts["jaclang.jac0core.parser.parser"];
+    rec = artifacts["jaclang.compiler.native_materialize"];
     lib_path = str(out_dir / rec["lib"]);
     layout_dict = json.loads((out_dir / rec["layout"]).read_text(encoding="utf-8"));
-    eng = DylibEngine(lib_path);
-    eng.initialize();
-    layout = layout_from_dict(layout_dict);
-    ns = na_parser.__dict__;
-    cc = build_ctypes_classes(layout);
-    em = build_enum_maps(layout, ns);
-    # Classes resolve across the sealed closure's modules, the way
-    # `frontend._native_parse` binds them: accessor-bearing helpers
-    # (`CodeLocInfo`) live only in their defining modules.
-    pc: dict = {};
-    for sn in layout.structs {
-        for _sc_ns in (ns, uni.__dict__, uni_srcloc.__dict__) {
-            if _sc_ns.get(sn) is not None {
-                pc[sn] = _sc_ns[sn];
-                break;
-            }
-        }
-    }
-    fn = wrap_native_function(
-        eng, layout.functions["parse_program"], cc, em, pc, layout=layout
+    # Serve the local artifact through the real seam and bind via the real
+    # frontend, so every parity test exercises the exact production path.
+    import jaclang.jac0core.sealed as sealed;
+    import jaclang.jac0core.parser.frontend as frontend;
+    sealed.native_artifact_for = _ServeLocalArtifact(
+        lib_path=lib_path, layout_dict=layout_dict, real=sealed.native_artifact_for
     );
-    assert fn is not None , "parser binding failed";
-    if "materializer" not in rec {
-        pytest.skip(
-            "seal built no jacmat materializer on this host (needs CPython "
-            "headers + a C compiler; set JAC_PY_INCLUDE / JAC_CC). The seal "
-            "messages above carry the reason."
-        );
-    }
-    matmod = load_materializer(str(out_dir / rec["materializer"]));
-    recipes = materialize_recipes(layout_dict, (ns, uni.__dict__, uni_srcloc.__dict__));
-    assert recipes is not None , "layout carries no baked materialize recipes";
-    matmod.install(recipes);
-    result = (fn, matmod, eng, out_dir, rec);
+    frontend._NATIVE_PARSE_MEMO.clear();
+    bound = frontend._native_parse();
+    assert bound is not None , "frontend refused the local artifact";
+    result = (bound, out_dir, rec);
     _ARTIFACT_MEMO.append(result);
     return result;
 }
@@ -139,13 +125,18 @@ def _bytecode_parse(src: str, path: str) -> tuple {
 }
 
 def _materialize(src: str, path: str) -> tuple {
-    (fn, matmod, _eng, _out, _rec) = _build_binding();
+    ((fn, mat_entry, pydec, _keep), _out, _rec) = _build_binding();
+    import ctypes as _t_ct;
     r = fn(src, path);
-    return (matmod.materialize(r[0].addr), r[1], matmod);
+    mat_h = mat_entry(r[0].addr);
+    assert mat_h != 0 , f"{path}: jac materializer returned NULL";
+    module = _t_ct.cast(mat_h, _t_ct.py_object).value;
+    pydec(module);
+    return (module, r[1], None);
 }
 
 def _assert_parity(src: str, path: str) {
-    (native_mod, native_errs, matmod) = _materialize(src, path);
+    (native_mod, native_errs, _unused) = _materialize(src, path);
     (py_mod, py_errs) = _bytecode_parse(src, path);
     assert native_errs == py_errs , (
         f"{path}: native reported {native_errs} errors, bytecode {py_errs}"
@@ -160,17 +151,14 @@ def _assert_parity(src: str, path: str) {
     native_up = unparse_node(native_mod);
     py_up = unparse_node(py_mod);
     assert native_up == py_up , f"{path}: unparse diverged";
-    stats = matmod.stats();
-    for key in ("unknown_stamp", "unmapped_cls", "bad_list", "bad_ptr", "bad_dict") {
-        assert stats[key] == 0 , f"{path}: materializer anomaly {key}={stats[key]}";
-    }
 }
 
-test "sealed parser passes the demotion gate and builds its materializer" {
-    (fn, matmod, _eng, _out, rec) = _build_binding();
+test "the materializer root seals and binds through the frontend" {
+    ((fn, mat_entry, _pydec, keep), _out, rec) = _build_binding();
     assert fn is not None;
-    assert matmod is not None;
-    assert rec.get("materializer_sha256");
+    assert mat_entry is not None;
+    assert len(keep) > 300;
+    assert rec.get("lib_sha256");
 }
 
 test "materialized native tree matches bytecode on the canary corpus" {
@@ -265,60 +253,23 @@ test "materialized instances carry exactly the bytecode parser's dict keys" {
     }
 }
 
-"""Serves one locally built parser artifact through the
-sealed.native_artifact_for seam; everything else defers to the real
-resolver."""
-obj _ServeLocalArtifact {
-    has lib_path: str,
-        layout_dict: dict,
-        mat_path: str,
-        real: any;
-
-    def __call__(fullname: str) -> any {
-        if fullname == "jaclang.jac0core.parser.parser" {
-            return (self.lib_path, self.layout_dict, self.mat_path, );
-        }
-        return self.real(fullname) if self.real is not None else None;
-    }
-}
-
 test "the full compiler pipeline runs over materialized native trees" {
-    # The end-to-end contract of the clean break: with the artifact served
-    # through sealed.native_artifact_for, frontend.parse returns materialized
-    # native trees and JacProgram.compile works unchanged on them.
-    (fn, matmod, _eng, out_dir, rec) = _build_binding();
-    import jaclang.jac0core.sealed as sealed;
+    # _build_binding patches sealed.native_artifact_for and primes the
+    # frontend memo, so plain frontend.parse and JacProgram.compile run the
+    # exact production path over the locally built artifact.
+    _build_binding();
     import jaclang.jac0core.parser.frontend as frontend;
     import from jaclang.jac0core.program { JacProgram }
-    lib_path = str(out_dir / rec["lib"]);
-    layout_dict = json.loads((out_dir / rec["layout"]).read_text(encoding="utf-8"));
-    mat_path = str(out_dir / rec["materializer"]);
-    real_naf = sealed.native_artifact_for;
-    saved_memo = list(frontend._NATIVE_PARSE_MEMO);
-    sealed.native_artifact_for = _ServeLocalArtifact(
-        lib_path=lib_path, layout_dict=layout_dict, mat_path=mat_path, real=real_naf
-    );
-    frontend._NATIVE_PARSE_MEMO.clear();
-    try {
-        (module, had_error) = frontend.parse(_canary_src(), "__pipeline_canary__.jac");
-        assert not had_error;
-        assert isinstance(module, uni.Module);
-        with tempfile.TemporaryDirectory(prefix="jac_mat_pipe_") as td {
-            target = Path(td) / "hello.jac";
-            target.write_text(
-                "with entry { print('materialized'); }", encoding="utf-8"
-            );
-            prog = JacProgram();
-            mod = prog.compile(str(target));
-            assert mod is not None;
-            assert len(prog.errors_had) == 0 , str(prog.errors_had[:3]);
-        }
-    } finally {
-        sealed.native_artifact_for = real_naf;
-        frontend._NATIVE_PARSE_MEMO.clear();
-        for m in saved_memo {
-            frontend._NATIVE_PARSE_MEMO.append(m);
-        }
+    (module, had_error) = frontend.parse(_canary_src(), "__pipeline_canary__.jac");
+    assert not had_error;
+    assert isinstance(module, uni.Module);
+    with tempfile.TemporaryDirectory(prefix="jac_mat_pipe_") as td {
+        target = Path(td) / "hello.jac";
+        target.write_text("with entry { print('materialized'); }", encoding="utf-8");
+        prog = JacProgram();
+        mod = prog.compile(str(target));
+        assert mod is not None;
+        assert len(prog.errors_had) == 0 , str(prog.errors_had[:3]);
     }
 }
 
@@ -457,52 +408,33 @@ test "field-level parity holds on a compiler source module" {
 test "materialized trees compile to RUNNABLE bytecode (obj __init__)" {
     # The payload smoke that caught #8109's body-slot gap: an obj compiled
     # through a materialized tree must construct with its has-var __init__.
-    (fn, matmod, _eng, out_dir, rec) = _build_binding();
-    import jaclang.jac0core.sealed as sealed;
-    import jaclang.jac0core.parser.frontend as frontend;
+    _build_binding();
     import from jaclang.jac0core.program { JacProgram }
     import types as _pytypes;
-    lib_path = str(out_dir / rec["lib"]);
-    layout_dict = json.loads((out_dir / rec["layout"]).read_text(encoding="utf-8"));
-    mat_path = str(out_dir / rec["materializer"]);
-    real_naf = sealed.native_artifact_for;
-    saved_memo = list(frontend._NATIVE_PARSE_MEMO);
-    sealed.native_artifact_for = _ServeLocalArtifact(
-        lib_path=lib_path, layout_dict=layout_dict, mat_path=mat_path, real=real_naf
-    );
-    frontend._NATIVE_PARSE_MEMO.clear();
-    try {
-        with tempfile.TemporaryDirectory(prefix="jac_mat_exec_") as td {
-            target = Path(td) / "objinit.jac";
-            nl = chr(10);
-            target.write_text(
-                "obj P { has x: int = 8; }"
-                    + nl
-                    + "def probe -> int { return P(x=3).x + P().x; }"
-                    + nl,
-                encoding="utf-8"
-            );
-            prog = JacProgram();
-            prog.compile(str(target));
-            assert len(prog.errors_had) == 0 , str(prog.errors_had[:3]);
-            code = prog.get_bytecode(str(target));
-            assert code is not None;
-            m = _pytypes.ModuleType("objinit_probe");
-            m.__file__ = str(target);
-            import sys as _pysys;
-            _pysys.modules["objinit_probe"] = m;
-            try {
-                exec(code, m.__dict__);
-                assert m.probe() == 11 , f"probe() gave {m.probe()}";
-            } finally {
-                _pysys.modules.pop("objinit_probe", None);
-            }
-        }
-    } finally {
-        sealed.native_artifact_for = real_naf;
-        frontend._NATIVE_PARSE_MEMO.clear();
-        for mm in saved_memo {
-            frontend._NATIVE_PARSE_MEMO.append(mm);
+    import sys as _pysys;
+    with tempfile.TemporaryDirectory(prefix="jac_mat_exec_") as td {
+        target = Path(td) / "objinit.jac";
+        nl = chr(10);
+        target.write_text(
+            "obj P { has x: int = 8; }"
+                + nl
+                + "def probe -> int { return P(x=3).x + P().x; }"
+                + nl,
+            encoding="utf-8"
+        );
+        prog = JacProgram();
+        prog.compile(str(target));
+        assert len(prog.errors_had) == 0 , str(prog.errors_had[:3]);
+        code = prog.get_bytecode(str(target));
+        assert code is not None;
+        m = _pytypes.ModuleType("objinit_probe");
+        m.__file__ = str(target);
+        _pysys.modules["objinit_probe"] = m;
+        try {
+            exec(code, m.__dict__);
+            assert m.probe() == 11 , f"probe() gave {m.probe()}";
+        } finally {
+            _pysys.modules.pop("objinit_probe", None);
         }
     }
 }

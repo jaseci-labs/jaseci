@@ -299,14 +299,12 @@ class SealedImage:
                     f"sealed image: payload {path} does not match its manifest sha256"
                 )
 
-    def native_artifact(
-        self, fullname: str
-    ) -> tuple[str, dict, str | None] | None:
+    def native_artifact(self, fullname: str) -> tuple[str, dict] | None:
         """Resolve a sealed AOT native artifact for ``fullname``.
 
-        Returns ``(lib_abspath, layout_dict, materializer_abspath_or_None)``
-        after hash-verifying every file against the manifest, or None only
-        when the image carries no artifact entry for the module at all.
+        Returns ``(lib_abspath, layout_dict)`` after hash-verifying both
+        files against the manifest, or None only when the image carries no
+        artifact entry for the module at all.
         An entry that exists but is corrupt, unreadable, or built for another
         platform RAISES: sealed builds serve the native tier with no bytecode
         fallback, so a broken artifact is a broken install and must be loud,
@@ -331,9 +329,7 @@ class SealedImage:
             raise _bad(
                 f"artifact targets {expected_triple}, not this platform"
             )
-        mat_rel = entry.get("materializer", "")
-        rels = [lib_rel, layout_rel] + ([mat_rel] if mat_rel else [])
-        for rel in rels:
+        for rel in (lib_rel, layout_rel):
             if os.path.isabs(rel) or ".." in Path(rel).parts:
                 raise _bad(f"illegal artifact path {rel!r}")
         lib_path = self.precompiled_dir / lib_rel
@@ -353,18 +349,7 @@ class SealedImage:
             layout_dict = json.loads(layout_bytes)
         except ValueError as exc:
             raise _bad(f"{layout_path.name} is not valid JSON") from exc
-        mat_path: Path | None = None
-        if mat_rel:
-            mat_path = self.precompiled_dir / mat_rel
-            try:
-                mat_bytes = mat_path.read_bytes()
-            except OSError as exc:
-                raise _bad(f"cannot read {mat_rel} ({exc})") from exc
-            if hashlib.sha256(mat_bytes).hexdigest() != entry.get(
-                "materializer_sha256"
-            ):
-                raise _bad(f"{mat_path.name} fails its manifest sha256")
-        return (str(lib_path), layout_dict, str(mat_path) if mat_path else None)
+        return (str(lib_path), layout_dict)
 
     def bootstrap_code(self, fullname: str) -> types.CodeType | None:
         """Code object for a bootstrap-tier module, extracted from its JIR's
@@ -479,14 +464,11 @@ def source_for(fullname: str) -> str | None:
     return found[0].debug_source(fullname)
 
 
-def native_artifact_for(
-    fullname: str,
-) -> tuple[str, dict, str | None] | None:
+def native_artifact_for(fullname: str) -> tuple[str, dict] | None:
     """Sealed AOT native artifact for ``fullname`` across all images.
 
-    Returns ``(lib_abspath, layout_dict, materializer_abspath_or_None)`` or
-    None when no image carries an entry. Integrity problems raise; see
-    ``SealedImage.native_artifact``.
+    Returns ``(lib_abspath, layout_dict)`` or None when no image carries an
+    entry. Integrity problems raise; see ``SealedImage.native_artifact``.
     """
     _jaclang_image()
     for img in _images:

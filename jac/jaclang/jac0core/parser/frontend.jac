@@ -15,30 +15,29 @@ def _native_parse -> any {
         return _NATIVE_PARSE_MEMO[0];
     }
     import from jaclang.jac0core.sealed { native_artifact_for }
-    found = native_artifact_for("jaclang.jac0core.parser.parser");
+    found = native_artifact_for("jaclang.compiler.native_materialize");
     if found is None {
         _NATIVE_PARSE_MEMO.append(None);
         return None;
     }
-    (lib_path, layout_dict, mat_path) = found;
-    if mat_path is None {
-        raise RuntimeError(
-            "sealed parser artifact carries no jacmat materializer "
-            f"({lib_path}); this build cannot serve parse trees. "
-            "Reinstall or rebuild the payload."
-        );
-    }
+    (lib_path, layout_dict) = found;
+    import ctypes;
+    import sys as _fe_sys;
+    import jaclang.jac0core.constant as _sc_constant;
     import jaclang.jac0core.parser.parser as na_parser;
+    import jaclang.jac0core.srcloc as _sc_srcloc;
+    import jaclang.jac0core.unitree as _sc_unitree;
     import from jaclang.jac0core.native_dylib { DylibEngine, layout_from_dict }
     import from jaclang.jac0core.native_marshal {
         build_ctypes_classes,
         build_enum_maps,
-        load_materializer,
-        materialize_recipes,
         wrap_native_function
     }
-    import jaclang.jac0core.srcloc as _sc_srcloc;
-    import jaclang.jac0core.unitree as _sc_unitree;
+    import from jaclang.compiler.native_materialize_manifest {
+        CLASS_NAMES,
+        ENUM_MEMBERS,
+        KEY_NAMES
+    }
     eng = DylibEngine(lib_path);
     eng.initialize();
     layout = layout_from_dict(layout_dict);
@@ -65,18 +64,55 @@ def _native_parse -> any {
         raise RuntimeError(f"sealed parser artifact could not be bound ({lib_path})");
     }
     fn.__jac_engine__ = eng;
-    recipes = materialize_recipes(
-        layout_dict, (ns, _sc_unitree.__dict__, _sc_srcloc.__dict__)
+
+    cdll = eng._cdll;
+    _i64 = ctypes.c_int64;
+    mat_reset = ctypes.PYFUNCTYPE(None, _i64, _i64, _i64)(("mat_reset", cdll, ));
+    mat_set_class = ctypes.PYFUNCTYPE(None, _i64, _i64, _i64)(
+        ("mat_set_class", cdll, )
     );
-    if recipes is None {
-        raise RuntimeError(
-            "sealed parser artifact predates the materializer layout "
-            f"({lib_path}); rebuild the payload."
-        );
+    mat_set_key = ctypes.PYFUNCTYPE(None, _i64, _i64)(("mat_set_key", cdll, ));
+    mat_set_enum = ctypes.PYFUNCTYPE(None, _i64, _i64)(("mat_set_enum", cdll, ));
+    mat_entry = ctypes.PYFUNCTYPE(ctypes.c_uint64, ctypes.c_uint64)(
+        ("mat_materialize", cdll, )
+    );
+    pydec = ctypes.pythonapi.Py_DecRef;
+    setattr(pydec, "argtypes", [ctypes.py_object]);
+
+    keep: list = [];
+    enum_handles: list = [];
+    for em_pair in ENUM_MEMBERS {
+        (mat_en, mat_members) = em_pair;
+        ecls = getattr(_sc_unitree, mat_en, None)
+            or getattr(_sc_constant, mat_en, None)
+            or getattr(_sc_srcloc, mat_en, None);
+        if ecls is None {
+            raise RuntimeError(f"materializer manifest names unknown enum {mat_en}");
+        }
+        for mn in mat_members {
+            enum_handles.append(getattr(ecls, mn));
+        }
     }
-    matmod = load_materializer(mat_path);
-    matmod.install(recipes);
-    bound = (fn, matmod, );
+    mat_reset(len(CLASS_NAMES), len(KEY_NAMES), len(enum_handles));
+    for (mat_ci, mat_cn) in enumerate(CLASS_NAMES) {
+        mat_cls = pc.get(mat_cn);
+        if mat_cls is None {
+            raise RuntimeError(f"materializer manifest names unknown class {mat_cn}");
+        }
+        mat_new = mat_cls.__new__;
+        keep.append(mat_new);
+        mat_set_class(mat_ci, id(mat_cls), id(mat_new));
+    }
+    for (mat_ki, mat_kn) in enumerate(KEY_NAMES) {
+        mat_key = _fe_sys.intern(mat_kn);
+        keep.append(mat_key);
+        mat_set_key(mat_ki, id(mat_key));
+    }
+    for (mat_ei, mat_mh) in enumerate(enum_handles) {
+        keep.append(mat_mh);
+        mat_set_enum(mat_ei, id(mat_mh));
+    }
+    bound = (fn, mat_entry, pydec, keep, );
     _NATIVE_PARSE_MEMO.append(bound);
     return bound;
 }
@@ -116,7 +152,7 @@ def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Sourc
 def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, list)] {
     _np = _native_parse();
     if _np is not None {
-        (fn, _mat) = _np;
+        (fn, _mat, _pydec, _keep) = _np;
         (_mod, p_errs, p_diags, _comments, lex_diags, lex_errs) = fn(source, file_path);
         return (p_errs > 0 or lex_errs > 0, list(p_diags), list(lex_diags));
     }
@@ -137,9 +173,19 @@ def parse(
 ) -> tuple[Module, bool] {
     _np = _native_parse();
     if _np is not None {
-        (fn, mat) = _np;
+        (fn, mat_entry, pydec, _keep) = _np;
         r = fn(source, file_path);
-        module = mat.materialize(r[0].addr);
+        mat_h = mat_entry(r[0].addr);
+        if mat_h == 0 {
+            raise RuntimeError(
+                "sealed parser materializer failed on "
+                f"{file_path}; the artifact and this runtime disagree. "
+                "Reinstall or rebuild the payload."
+            );
+        }
+        import ctypes as _p_ct;
+        module = _p_ct.cast(mat_h, _p_ct.py_object).value;
+        pydec(module);
         import from jaclang.jac0core.native_marshal { materialize_fixups }
         materialize_fixups(module);
         p_errs = r[1];

@@ -454,21 +454,24 @@ allocation header with reference counts (see `HDR_*` globals in
 flow through the interop bridge generated from `BoundaryAnalysisPass`.
 
 **Sealed AOT native artifacts.** The compiler dogfoods this backend for its
-own hot path: sealing a release AOT-compiles `jac0core/parser/parser.jac`
-(whose native closure carries the lexer and `unitree`) and
+own hot path: sealing a release AOT-compiles
+`compiler/native_materialize.jac` -- the materializer root, whose native
+closure carries the parser, lexer and `unitree` -- and
 `jac0core/unitree.jac` into per-platform shared libraries at
-`_precompiled/native/<triple>/libjac_parser.*` / `libjac_unitree.*`,
-alongside persisted `NativeModuleLayout` JSON describing the marshal layout
-plus baked materializer recipes, and `jacmat`, a CPython extension compiled
-at seal time (`jac0core/native_src/jacmat.c`) that materializes the native
-parser's tree into real Python `unitree` objects for the unchanged
-downstream pipeline. Everything is recorded in `MANIFEST.json` (format 4)
-under `native_artifacts` with sha256 digests that fail closed on mismatch.
-A sealed runtime binds the library with plain ctypes
-(`jac0core/native_dylib.jac`) at startup -- no LLVM on the boot path -- and
-`parse()` serves natively with no bytecode fallback: artifact damage raises
-rather than degrading. Dev trees without a seal parse on the bytecode tier,
-which is also the bootstrap that builds the seal.
+`_precompiled/native/<triple>/libjac_native_materialize.*` /
+`libjac_unitree.*`, alongside persisted `NativeModuleLayout` JSON. The
+materializer is native jac (generated per-class emitters, see
+`jaclang/utils/gen_native_materialize.py`) that rebuilds the parsed tree as
+real Python `unitree` objects through CPython C-API clib externs resolved
+from the host process (ELF lazy PLT / Mach-O flat lookup), feeding the
+unchanged downstream pipeline. Everything is recorded in `MANIFEST.json`
+(format 4) under `native_artifacts` with sha256 digests that fail closed on
+mismatch. A sealed runtime binds the library with plain ctypes
+(`jac0core/native_dylib.jac`) at startup -- no LLVM on the boot path, the
+materializer entries GIL-held via PYFUNCTYPE -- and `parse()` serves
+natively with no bytecode fallback: artifact damage raises rather than
+degrading. Dev trees without a seal parse on the bytecode tier, which is
+also the bootstrap that builds the seal.
 
 ---
 
