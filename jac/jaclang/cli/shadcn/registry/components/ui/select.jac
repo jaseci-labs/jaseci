@@ -4,8 +4,8 @@ import from "@hugeicons/react" { HugeiconsIcon }
 import from "@hugeicons/core-free-icons" {
     UnfoldMoreIcon,
     Tick02Icon,
-    ArrowUpIcon,
-    ArrowDownIcon
+    ArrowUp01Icon,
+    ArrowDown01Icon
 }
 
 def:pub Select(props: any) -> JsxElement {
@@ -139,7 +139,7 @@ def:pub SelectScrollUpButton(props: any) -> JsxElement {
             props["className"]
         )}
     >
-        <HugeiconsIcon icon={ArrowUpIcon} strokeWidth={2}/>
+        <HugeiconsIcon icon={ArrowUp01Icon} strokeWidth={2}/>
     </SelectPrimitive.ScrollUpButton>
 }
 
@@ -152,6 +152,6 @@ def:pub SelectScrollDownButton(props: any) -> JsxElement {
             props["className"]
         )}
     >
-        <HugeiconsIcon icon={ArrowDownIcon} strokeWidth={2}/>
+        <HugeiconsIcon icon={ArrowDown01Icon} strokeWidth={2}/>
     </SelectPrimitive.ScrollDownButton>
 }

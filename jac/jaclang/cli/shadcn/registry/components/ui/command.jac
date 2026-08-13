@@ -1,6 +1,6 @@
 import from "cmdk" { Command as CommandPrimitive }
 import from "@hugeicons/react" { HugeiconsIcon }
-import from "@hugeicons/core-free-icons" { SearchIcon, Tick02Icon }
+import from "@hugeicons/core-free-icons" { Search01Icon, Tick02Icon }
 import from .dialog {
     Dialog,
     DialogContent,
@@ -56,7 +56,7 @@ def:pub CommandInput(props: any) -> JsxElement {
             />
             <InputGroupAddon>
                 <HugeiconsIcon
-                    icon={SearchIcon}
+                    icon={Search01Icon}
                     className="cn-command-input-icon"
                     size={16}
                 />

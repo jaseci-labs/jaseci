@@ -151,10 +151,14 @@ Load `jac-cl-styling` for full conditional class patterns and cn() usage.
 
 ⚠ **Never guess an icon name.** The package exports ~5,500 icons and most are
 number-suffixed, so the obvious name is usually wrong: there is no `SearchIcon`,
-`DocumentIcon`, `FolderIcon`, `PlusIcon`, or `TrendUpIcon`. A wrong name is NOT a
-compile error - `jac check` and the build both pass, and it fails only when the
-page loads, with `SyntaxError: ... does not provide an export named 'DocumentIcon'`.
-Use a name from the table below, or list the real ones:
+`DocumentIcon`, `FolderIcon`, `PlusIcon`, `ArrowDownIcon`, or `TrendUpIcon`. A
+wrong name is NOT a compile error - `jac check` and the build both pass, and it
+fails only when the page loads, with `SyntaxError: ... does not provide an export
+named 'DocumentIcon'`.
+
+**Numeric suffixes are always zero-padded** - `Calendar01Icon`, `ArrowDown01Icon`,
+never `Calendar1Icon` or `ArrowDown1Icon`. There is no single-digit form to fall
+back to. Use a name from the table below, or list the real ones:
 
 ```bash
 ls .jac/client/node_modules/@hugeicons/core-free-icons/dist/esm/ | grep -v '\.map' | grep -i '^chart'
@@ -167,7 +171,7 @@ ls .jac/client/node_modules/@hugeicons/core-free-icons/dist/esm/ | grep -v '\.ma
 | search / filter / download / upload | `Search01Icon`, `FilterIcon`, `Download01Icon`, `Upload01Icon` |
 | success / warning / info | `CheckmarkCircle01Icon`, `Alert01Icon`, `InformationCircleIcon` |
 | file / folder / message / mail | `File01Icon`, `Folder01Icon`, `Message01Icon`, `Mail01Icon` |
-| calendar / clock | `Calendar1Icon`, `Clock1Icon` (single digit, NOT `01`) |
+| calendar / clock | `Calendar01Icon`, `Clock01Icon` |
 | user / settings / logout / bell | `UserIcon`, `Settings01Icon`, `Logout01Icon`, `Notification01Icon` |
 | chart / analytics / dashboard / money | `ChartIcon`, `Analytics01Icon`, `DashboardSquare01Icon`, `DollarCircleIcon` |
 | star / eye / lock / sparkle | `StarIcon`, `EyeIcon`, `LockIcon`, `SparklesIcon` |

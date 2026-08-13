@@ -2,7 +2,7 @@ import from "class-variance-authority" { cva }
 import from "radix-ui" { NavigationMenu as NavigationMenuPrimitive }
 import from ...lib.utils { cn }
 import from "@hugeicons/react" { HugeiconsIcon }
-import from "@hugeicons/core-free-icons" { ArrowDownIcon }
+import from "@hugeicons/core-free-icons" { ArrowDown01Icon }
 
 glob _navigationMenuTriggerStyle: any = cva(
          "cn-navigation-menu-trigger group/navigation-menu-trigger inline-flex h-9 w-max items-center justify-center disabled:pointer-events-none outline-none"
@@ -57,7 +57,7 @@ def:pub NavigationMenuTrigger(props: any) -> JsxElement {
     >
         {props["children"]}
         <HugeiconsIcon
-            icon={ArrowDownIcon}
+            icon={ArrowDown01Icon}
             strokeWidth={2}
             className="cn-navigation-menu-trigger-icon"
             aria-hidden="true"
