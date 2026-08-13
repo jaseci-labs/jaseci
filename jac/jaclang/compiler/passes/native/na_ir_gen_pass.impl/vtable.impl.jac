@@ -262,6 +262,10 @@ impl NaIRGenPass._codegen_class_name(nd: uni.AtomTrailer) -> (ir.Value | None) {
     if receiver is None {
         return None;
     }
+    return self._codegen_class_id(receiver);
+}
+
+impl NaIRGenPass._codegen_class_id(receiver: uni.UniNode) -> (ir.Value | None) {
     arch_name = self._struct_name_of(receiver);
     if arch_name is None {
         return None;
@@ -284,6 +288,21 @@ impl NaIRGenPass._codegen_class_name(nd: uni.AtomTrailer) -> (ir.Value | None) {
         vtable_ptr, [ir.Constant(i32, 0)], name="clsname.slot"
     );
     return self.builder.load(name_slot, name="clsname");
+}
+
+impl NaIRGenPass._codegen_class_ref(nd: uni.Name) -> (ir.Value | None) {
+    _np = nd.parent;
+    if isinstance(_np, uni.AtomTrailer) and _np.target is nd {
+        return None;
+    }
+    if isinstance(_np, uni.FuncCall) and _np.target is nd {
+        return None;
+    }
+    _arch = self._arch_alias_target(nd) or nd.value;
+    if _arch not in self.struct_types {
+        return None;
+    }
+    return self._emit_class_name_const(_arch);
 }
 
 impl NaIRGenPass._generate_inherited_method_wrappers -> None {

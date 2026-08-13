@@ -1206,6 +1206,16 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             return self._emit_isinstance(nd);
         }
 
+        if func_name == "type" {
+            _cid_params = nd.params or [];
+            if len(_cid_params) == 1 {
+                _cid = self._codegen_class_id(_cid_params[0]);
+                if _cid is not None {
+                    return _cid;
+                }
+            }
+        }
+
         if func_name == "len" {
             params_l = nd.params or [];
             if params_l {

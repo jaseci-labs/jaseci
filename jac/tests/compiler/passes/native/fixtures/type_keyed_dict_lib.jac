@@ -1,15 +1,20 @@
-"""Companion module for `type_keyed_dict.jac`: two of the key classes.
+"""Companion module for `type_keyed_dict.jac`: classes it does not declare.
 
-`Node` and `ExtLeaf` are declared here so the main fixture keys its table with
-at least one class it does not itself define. Class identity in the native
-backend is program-wide, not per-module, so a key minted in one module has to
-answer for the same class when the table is built and probed in another.
+`ext_class` mints a class reference *here*, from `Ext`'s vtable, for a table
+that is built and probed in the other module against a literal `Ext` /
+`ExtSub` written there. Class identity in the native backend has to be
+program-wide, so the two spellings must land on the same bucket.
 """
 
-obj Node {
-    has n: int = 0;
+obj Ext {
+    has v: int = 0;
 }
 
-obj ExtLeaf(Node) {
-    has e: int = 4;
+obj ExtSub(Ext) {
+    has w: int = 0;
+}
+
+"""The runtime class of `e`, resolved in this module."""
+def ext_class(e: Ext) -> type {
+    return `type(e);
 }

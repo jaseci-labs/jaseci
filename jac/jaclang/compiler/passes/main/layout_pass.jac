@@ -24,6 +24,8 @@ glob LAYOUT_COMPATIBLE_PRIMITIVES: set[str] = {
      },
      VTABLE_HEADER_SLOTS: int = 1;
 
+glob LAYOUT_COMPATIBLE_SCALARS: set[str] = LAYOUT_COMPATIBLE_PRIMITIVES | {"type"};
+
 obj FieldInfo {
     has name: str,
         index: int,

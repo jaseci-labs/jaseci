@@ -111,8 +111,8 @@ test "an obj field of type dict[type, V] is layout-compatible" {
 
 
 test "one bucket per runtime class, keyed off a base-typed receiver" {
-    assert _same_int("key_count") == 5 , (
-        "seven nodes over five classes must produce five buckets"
+    assert _same_int("key_count") == 4 , (
+        "six nodes over four classes must produce four buckets"
     );
 }
 
@@ -132,8 +132,9 @@ test "a subclass key does not collapse into its parent's bucket" {
 }
 
 
-test "a key whose class is defined in another module still matches" {
+test "a key minted in another module matches a literal written here" {
     _same_int("cross_module_key");
+    _same_int("cross_module_key_reverse");
 }
 
 

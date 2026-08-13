@@ -3,20 +3,23 @@
 The table is an identity map over a closed set of classes: it is built from
 `type(x)` on a receiver whose static type is a base class, probed with class
 literals, merged key-by-key out of another table's `.items()`, and carried as
-an object field. Every one of those needs the same program-wide notion of
-class identity, and it has to be the *runtime* class -- a `Node`-typed slot
-holding an `Alpha` must key the `Alpha` bucket, and `AlphaLeaf` must not fall
-into `Alpha`'s.
+an object field. Every one of those needs the same notion of class identity,
+and it has to be the *runtime* class -- a `Node`-typed slot holding an `Alpha`
+must key the `Alpha` bucket, and `AlphaLeaf` must not fall into `Alpha`'s.
 
-`Node` and `ExtLeaf` come from `type_keyed_dict_lib`, so one key's class is
-defined in another module: a per-module identity would let the same class hash
-two ways depending on where the key was minted.
+`type_keyed_dict_lib` mints class references in a second module, so the
+identity is checked across a module boundary too: a key produced by
+`ext_class` has to match the literal `Ext` / `ExtSub` written here.
 
-Every function returns an int so the native result can be compared against the
-sv/bytecode result of the same source.
+Every function returns an int so the native result can be compared against
+the sv/bytecode result of the same source.
 """
 
-import from type_keyed_dict_lib { Node, ExtLeaf }
+import from type_keyed_dict_lib { Ext, ExtSub, ext_class }
+
+obj Node {
+    has n: int = 0;
+}
 
 obj Alpha(Node) {
     has a: int = 1;
@@ -51,7 +54,7 @@ obj Registry {
     }
 }
 
-"""Seven nodes over five classes, each carrying a distinct `n`."""
+"""Six nodes over four classes, each carrying a distinct `n`."""
 def sample -> list[Node] {
     out: list[Node] = [];
     out.append(Node(n=1));
@@ -59,7 +62,6 @@ def sample -> list[Node] {
     out.append(Beta(n=3));
     out.append(Alpha(n=4));
     out.append(AlphaLeaf(n=5));
-    out.append(ExtLeaf(n=6));
     out.append(Node(n=7));
     return out;
 }
@@ -93,15 +95,14 @@ def key_count -> int {
     return len(index_by_type(sample()));
 }
 
-# Node 1+7, Alpha 2+4, Beta 3, AlphaLeaf 5, ExtLeaf 6 -- one digit each.
+# Node 1+7, Alpha 2+4, Beta 3, AlphaLeaf 5 -- one digit each.
 def literal_key_sums -> int {
     tab = index_by_type(sample());
     return (
-        bucket_sum(tab, Node) * 10000
-        + bucket_sum(tab, Alpha) * 1000
-        + bucket_sum(tab, Beta) * 100
-        + bucket_sum(tab, AlphaLeaf) * 10
-        + bucket_sum(tab, ExtLeaf)
+        bucket_sum(tab, Node) * 1000
+        + bucket_sum(tab, Alpha) * 100
+        + bucket_sum(tab, Beta) * 10
+        + bucket_sum(tab, AlphaLeaf)
     );
 }
 
@@ -126,10 +127,24 @@ def subclass_keys_distinct -> int {
     );
 }
 
-"""The key class is declared in `type_keyed_dict_lib`, not here."""
+"""Keys minted in `type_keyed_dict_lib`, read with literals written here."""
 def cross_module_key -> int {
-    tab = index_by_type(sample());
-    return bucket_sum(tab, ExtLeaf) * 10 + bucket_sum(tab, Node);
+    tab: dict[type, int] = {};
+    tab[ext_class(ExtSub(w=1))] = 7;
+    tab[ext_class(Ext(v=2))] = 9;
+    sub = tab[ExtSub] if ExtSub in tab else -1;
+    base = tab[Ext] if Ext in tab else -1;
+    return sub * 10 + base;
+}
+
+"""The same crossing in the other direction: literals in, minted keys out."""
+def cross_module_key_reverse -> int {
+    tab: dict[type, int] = {};
+    tab[ExtSub] = 4;
+    tab[Ext] = 5;
+    return (
+        tab[ext_class(ExtSub(w=1))] * 10 + tab[ext_class(Ext(v=2))] + len(tab) * 100
+    );
 }
 
 """A `type` held in a local before it is used as a key."""
@@ -191,7 +206,7 @@ def registry_field -> int {
         len(r.tab) * 1000
         + r.count(Alpha) * 100
         + r.count(AlphaLeaf) * 10
-        + r.count(ExtLeaf)
+        + r.count(Beta)
     );
 }
 
