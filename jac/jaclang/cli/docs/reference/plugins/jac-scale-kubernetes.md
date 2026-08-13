@@ -727,9 +727,13 @@ The scale server registers built-in endpoints for Kubernetes probes:
 
 - `/healthz/live` -- Liveness: returns `200` while the server process is up
 - `/healthz/ready` -- Readiness: returns `200` when serving, `503` while the server is draining during shutdown
-- `/healthz` -- Legacy combined health endpoint
+- `/healthz` -- Legacy combined health endpoint, treated as liveness
 
 Microservice deployments wire their probes to `/healthz/live` and `/healthz/ready` automatically. Single-app deployments probe `health_check_path` (default `/docs`); point it at `/healthz/ready` to use the built-in endpoint -- see [Health Probes](#health-probes).
+
+**The two probes answer different questions, and the split is deliberate.** Liveness answers "is this process wedged, restart it"; readiness answers "can this pod serve traffic, keep it in Endpoints". A database outage is only ever the second question, so `/healthz/live` (and the legacy `/healthz`) do **not** build a request context and never touch the database: they answer from the process alone. `/healthz/ready` does build one, so it reflects database health, and returns `503` when the database is unreachable rather than failing. The pod leaves Endpoints, stops taking traffic, and rejoins when the database recovers -- with no restart, and no restart loop that would outlive the incident. Any ordinary request whose context cannot be built returns `503` with `Retry-After` for the same reason: an unreachable dependency is not an internal server error.
+
+Point a `livenessProbe` at `/healthz/live` and a `readinessProbe` at `/healthz/ready`. Never point a liveness probe at anything that queries the database.
 
 You can also create custom health walkers:
 

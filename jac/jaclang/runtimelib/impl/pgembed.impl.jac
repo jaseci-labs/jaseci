@@ -444,15 +444,22 @@ impl PgRuntime._initdb_if_needed(bin_dir: str) -> None {
 }
 
 
+impl pg_tuning_settings -> dict[str, str] {
+    return {
+        'max_connections': str(PG_MAX_CONNECTIONS),
+        'max_pred_locks_per_transaction': str(PG_MAX_PRED_LOCKS_PER_TXN),
+        'idle_in_transaction_session_timeout': str(PG_IDLE_IN_TXN_TIMEOUT_MS)
+    };
+}
+
+
 impl PgRuntime._server_opts -> str {
     listen = "-c listen_addresses=127.0.0.1" if self.tcp else "-c listen_addresses=''";
+    tuning = ' '.join(f"-c {k}={v}" for (k, v) in pg_tuning_settings().items());
     return (
         f"-p {self.port} {listen} "
         f"-c unix_socket_directories='{self._sock_dir()}' "
-        "-c dynamic_shared_memory_type=posix "
-        f"-c max_connections={PG_MAX_CONNECTIONS} "
-        "-c max_pred_locks_per_transaction=1024 "
-        "-c idle_in_transaction_session_timeout=300000"
+        f"-c dynamic_shared_memory_type=posix {tuning}"
     );
 }
 

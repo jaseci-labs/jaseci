@@ -2,6 +2,7 @@ import json;
 import logging;
 import os;
 import threading;
+import from enum { StrEnum }
 import from typing { Any }
 import from uuid { UUID }
 
@@ -15,10 +16,18 @@ glob logger = logging.getLogger(__name__),
          'Store',
          'PgStore',
          'ConnInfo',
+         'TxnIsolation',
          'SCHEMA_VERSION',
          'SCHEMA_STAMP_KEY',
          'SessionConflictError'
      ];
+
+
+enum TxnIsolation(StrEnum) {
+    SERIALIZABLE = 'ISOLATION LEVEL SERIALIZABLE',
+    READ_COMMITTED = 'ISOLATION LEVEL READ COMMITTED',
+    SNAPSHOT_READ_ONLY = 'ISOLATION LEVEL REPEATABLE READ READ ONLY'
+}
 
 
 class SessionConflictError(Exception) {
@@ -63,10 +72,11 @@ obj Store {
     def is_available -> bool abst;
     def server_version -> int abst;
     def ensure_schema(promotions: dict[str, list[str]]) -> None abst;
-    def begin(serializable: bool = True, read_only: bool = False) -> None abst;
+    def begin(isolation: TxnIsolation = TxnIsolation.SERIALIZABLE) -> None abst;
     def commit -> None abst;
     def rollback -> None abst;
     def in_txn -> bool abst;
+    def txn_isolation -> (TxnIsolation | None) abst;
     def load_full(ids: list[UUID]) -> dict[UUID, AnchorRow] abst;
     def upsert(rows_in: list[AnchorRow]) -> None abst;
     def delete(ids: list[UUID]) -> None abst;
@@ -96,6 +106,7 @@ obj PgStore(Store) {
         _lock: threading.RLock postinit,
         _server_version: (int | None) postinit,
         _in_txn: bool postinit,
+        _isolation: (TxnIsolation | None) postinit,
         _known_types: set[str] postinit,
         _listeners: list[tuple[str, Any]] postinit,
         _listen_thread: (Any | None) postinit,
@@ -106,10 +117,11 @@ obj PgStore(Store) {
     def server_version -> int;
     def ensure_schema(promotions: dict[str, list[str]]) -> None;
     def takeover -> int;
-    def begin(serializable: bool = True, read_only: bool = False) -> None;
+    def begin(isolation: TxnIsolation = TxnIsolation.SERIALIZABLE) -> None;
     def commit -> None;
     def rollback -> None;
     def in_txn -> bool;
+    def txn_isolation -> (TxnIsolation | None);
     def load_full(ids: list[UUID]) -> dict[UUID, AnchorRow];
     def upsert(rows_in: list[AnchorRow]) -> None;
     def delete(ids: list[UUID]) -> None;

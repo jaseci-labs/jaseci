@@ -91,6 +91,7 @@ impl PgStore.postinit -> None {
     self._lock = threading.RLock();
     self._server_version = None;
     self._in_txn = False;
+    self._isolation = None;
     self._known_types = set();
     self._listeners = [];
     self._listen_thread = None;
@@ -481,21 +482,14 @@ impl PgStore.takeover -> int {
 }
 
 
-impl PgStore.begin(serializable: bool = True, read_only: bool = False) -> None {
+impl PgStore.begin(isolation: TxnIsolation = TxnIsolation.SERIALIZABLE) -> None {
     with self._lock {
         if self._in_txn {
             return;
         }
-        if read_only {
-            level = 'REPEATABLE READ';
-        } elif serializable {
-            level = 'SERIALIZABLE';
-        } else {
-            level = 'READ COMMITTED';
-        }
-        suffix = ' READ ONLY' if read_only else '';
-        self._run(f"BEGIN ISOLATION LEVEL {level}{suffix}", {});
+        self._run(f"BEGIN {isolation.value}", {});
         self._in_txn = True;
+        self._isolation = isolation;
         try {
             self._run("SET LOCAL lock_timeout = '10s'", {});
         } except Exception { }
@@ -508,8 +502,12 @@ impl PgStore.commit -> None {
         if not self._in_txn {
             return;
         }
-        self._run('COMMIT', {});
-        self._in_txn = False;
+        try {
+            self._run('COMMIT', {});
+        } finally {
+            self._in_txn = False;
+            self._isolation = None;
+        }
     }
 }
 
@@ -523,6 +521,7 @@ impl PgStore.rollback -> None {
             self._run('ROLLBACK', {});
         } finally {
             self._in_txn = False;
+            self._isolation = None;
         }
     }
 }
@@ -530,6 +529,11 @@ impl PgStore.rollback -> None {
 
 impl PgStore.in_txn -> bool {
     return self._in_txn;
+}
+
+
+impl PgStore.txn_isolation -> (TxnIsolation | None) {
+    return self._isolation if self._in_txn else None;
 }
 
 
@@ -781,6 +785,9 @@ impl PgStore.kv_delete(key: str) -> None {
 impl PgStore.quarantine(
     missing_id: UUID, referrer_id: (UUID | None), kind: str
 ) -> None {
+    if self._isolation is TxnIsolation.SNAPSHOT_READ_ONLY {
+        return;
+    }
     self._run(
         """
         INSERT INTO quarantine (missing_id, referrer_id, kind)

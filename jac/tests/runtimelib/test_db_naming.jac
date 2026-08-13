@@ -14,7 +14,7 @@ import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
 import from jaclang.runtimelib.pgembed { PgRuntime }
 import from jaclang.runtimelib.session { project_db_name, shared_pg_data_dir }
-import from jaclang.runtimelib.store { PgStore }
+import from jaclang.runtimelib.store { PgStore, TxnIsolation }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures");
 
@@ -22,7 +22,7 @@ glob FIXTURES = str(Path(__file__).parent / "fixtures");
 def _database_names -> list[str] {
     rt = PgRuntime(data_dir=shared_pg_data_dir(), database="postgres");
     st = PgStore(conninfo=rt.ensure());
-    st.begin(serializable=False);
+    st.begin(TxnIsolation.READ_COMMITTED);
     names = [str(r[0]) for r in st.rows("SELECT datname FROM pg_database", {})];
     st.commit();
     st.close();
