@@ -743,7 +743,7 @@ def generate(
     g.emit_list("v_dl", "items", prof.diag_class, dl_body, "    ", "dl");
     cl_body: list[str] = [];
     g.emit_list("v_cl", "items", prof.comment_class, cl_body, "    ", "cl");
-    crossing = nl.join(list(_CROSSING_LINES));
+    crossing: str = nl.join(list(_CROSSING_LINES));
     crossing = crossing.replace("@DIAG_LIST_BODY@", nl.join(dl_body));
     crossing = crossing.replace("@COMMENT_LIST_BODY@", nl.join(cl_body));
     crossing = crossing.replace("@DIAG@", prof.diag_class);
@@ -768,7 +768,7 @@ def generate(
         }
     }
 
-    header = nl.join(list(_HEADER_LINES));
+    header: str = nl.join(list(_HEADER_LINES));
     header = header.replace(
         "@ENTRY_IMPORT@",
         f"import from {prof.parse_entry_module} {{ {prof.parse_entry} }}"
