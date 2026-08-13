@@ -14,7 +14,9 @@ import from jaclang.jac0core.unitree {
     CtName,
     CtSplice,
     DictVal,
+    Expr,
     Float,
+    GlobalVars,
     Int,
     KVPair,
     ListVal,
@@ -202,7 +204,10 @@ obj CtEval {
         }
     }
 
-    def cls_name(i: UniNode) -> str {
+    def cls_name(i: (UniNode | None)) -> str {
+        if i is None {
+            return "";
+        }
         return type(i).__name__;
     }
 
@@ -211,7 +216,18 @@ obj CtEval {
         return got if isinstance(got, UniNode) else None;
     }
 
-    def list_arg(i: UniNode, pname: str) -> list {
+    def req(got: (UniNode | None), what: str) -> UniNode {
+        if got is None {
+            raise RuntimeError(f"comptime: missing {what}");
+        }
+        return got;
+    }
+
+    def req_arg(i: UniNode, pname: str) -> UniNode {
+        return self.req(self.node_arg(i, pname), f"'{pname}' on {type(i).__name__}");
+    }
+
+    def list_arg(i: (UniNode | None), pname: str) -> list {
         got = getattr(i, pname, None);
         if got is None or isinstance(got, UniNode) {
             return [];
@@ -365,10 +381,10 @@ obj CtEval {
                 if pcn == "String" {
                     out += str(self.tok_value(p));
                 } elif pcn == "FormattedValue" {
-                    fv = self.eval(self.node_arg(p, "format_part"));
+                    fv = self.eval(self.req_arg(p, "format_part"));
                     out += str(fv);
                 } elif pcn == "ExprStmt" {
-                    out += str(self.eval(self.node_arg(p, "expr")));
+                    out += str(self.eval(self.req_arg(p, "expr")));
                 } else {
                     out += str(self.eval(p));
                 }
@@ -376,20 +392,20 @@ obj CtEval {
             return out;
         }
         if cn == "CtBlock" or cn == "CfgExpr" {
-            return self.eval(self.node_arg(i, "expr"));
+            return self.eval(self.req_arg(i, "expr"));
         }
         if cn == "AtomUnit" {
-            return self.eval(self.node_arg(i, "value"));
+            return self.eval(self.req_arg(i, "value"));
         }
         if cn == "BinaryExpr" {
             return self._binop(
                 self.tok_value(self.node_arg(i, "op")),
-                self.eval(self.node_arg(i, "left")),
-                self.eval(self.node_arg(i, "right"))
+                self.eval(self.req_arg(i, "left")),
+                self.eval(self.req_arg(i, "right"))
             );
         }
         if cn == "CompareExpr" {
-            left = self.eval(self.node_arg(i, "left"));
+            left = self.eval(self.req_arg(i, "left"));
             rights = self.list_arg(i, "rights");
             ops = self.list_arg(i, "ops");
             idx = 0;
@@ -427,7 +443,7 @@ obj CtEval {
         }
         if cn == "UnaryExpr" {
             op = self.tok_value(self.node_arg(i, "op"));
-            v = self.eval(self.node_arg(i, "operand"));
+            v = self.eval(self.req_arg(i, "operand"));
             if op == "-" {
                 return -v;
             }
@@ -443,10 +459,10 @@ obj CtEval {
             _ct_err(f"unary operator '{op}' not supported in comptime");
         }
         if cn == "IfElseExpr" {
-            if self.eval(self.node_arg(i, "condition")) {
-                return self.eval(self.node_arg(i, "value"));
+            if self.eval(self.req_arg(i, "condition")) {
+                return self.eval(self.req_arg(i, "value"));
             }
-            return self.eval(self.node_arg(i, "else_value"));
+            return self.eval(self.req_arg(i, "else_value"));
         }
         if cn == "ListVal" {
             return [self.eval(v) for v in self.list_arg(i, "values")];
@@ -462,9 +478,11 @@ obj CtEval {
             for kv in self.list_arg(i, "kv_pairs") {
                 key = self.node_arg(kv, "key");
                 if key is None {
-                    _ct_err("dict spread not supported in comptime");
+                    raise RuntimeError(
+                        "comptime: dict spread not supported in comptime"
+                    );
                 }
-                out2[self.eval(key)] = self.eval(self.node_arg(kv, "value"));
+                out2[self.eval(key)] = self.eval(self.req_arg(kv, "value"));
             }
             return out2;
         }
@@ -500,16 +518,16 @@ obj CtEval {
     ) -> list {
         if depth >= len(comprs) {
             if kv_pair is not None {
-                k = self.eval(self.node_arg(kv_pair, "key"));
-                v = self.eval(self.node_arg(kv_pair, "value"));
+                k = self.eval(self.req_arg(kv_pair, "key"));
+                v = self.eval(self.req_arg(kv_pair, "value"));
                 return [(k, v, )];
             }
-            return [self.eval(out_expr)];
+            return [self.eval(self.req(out_expr, "comprehension output expression"))];
         }
         c = comprs[depth];
-        coll = self.eval(self.node_arg(c, "collection"));
+        coll = self.eval(self.req_arg(c, "collection"));
         conds = self.list_arg(c, "conditional");
-        tgt = self.node_arg(c, "target");
+        tgt = self.req_arg(c, "target");
         out: list = [];
         for item in coll {
             self.push_frame();
@@ -571,7 +589,7 @@ obj CtEval {
             return;
         }
         if cn == "AtomTrailer" {
-            tv = self.eval(self.node_arg(tgt, "target"));
+            tv = self.eval(self.req_arg(tgt, "target"));
             right = self.node_arg(tgt, "right");
             if self.cls_name(right) == "IndexSlice" {
                 slices = self.list_arg(right, "slices");
@@ -606,8 +624,8 @@ obj CtEval {
     }
 
     def _eval_trailer(i: UniNode) -> any {
-        tv = self.eval(self.node_arg(i, "target"));
-        right = self.node_arg(i, "right");
+        tv = self.eval(self.req_arg(i, "target"));
+        right = self.req_arg(i, "right");
         rcn = self.cls_name(right);
         if rcn == "Name" {
             return self._attr_get(tv, self.tok_value(right));
@@ -629,7 +647,9 @@ obj CtEval {
                 st = self.node_arg(s0, "step");
                 if not is_range {
                     if lo is None {
-                        _ct_err("empty index not supported in comptime");
+                        raise RuntimeError(
+                            "comptime: empty index not supported in comptime"
+                        );
                     }
                     return tv[self.eval(lo)];
                 }
@@ -663,7 +683,7 @@ obj CtEval {
                 if key is None {
                     _ct_err("** spread not supported in comptime calls");
                 }
-                kwargs[self.tok_value(key)] = self.eval(self.node_arg(p, "value"));
+                kwargs[self.tok_value(key)] = self.eval(self.req_arg(p, "value"));
             } else {
                 args.append(self.eval(p));
             }
@@ -672,10 +692,10 @@ obj CtEval {
     }
 
     def _eval_call(i: UniNode) -> any {
-        tgt = self.node_arg(i, "target");
+        tgt = self.req_arg(i, "target");
         tcn = self.cls_name(tgt);
         if tcn == "AtomTrailer" {
-            tv = self.eval(self.node_arg(tgt, "target"));
+            tv = self.eval(self.req_arg(tgt, "target"));
             right = self.node_arg(tgt, "right");
             if self.cls_name(right) == "Name" {
                 fn = self._attr_get(tv, self.tok_value(right));
@@ -730,7 +750,9 @@ obj CtEval {
                 dflt = self.node_arg(pid, "value");
                 if dflt is None {
                     self.pop_frame();
-                    _ct_err(f"missing comptime argument '{pname}'");
+                    raise RuntimeError(
+                        f"comptime: missing comptime argument '{pname}'"
+                    );
                 }
                 self.bind(pname, self.eval(dflt));
             }
@@ -773,7 +795,7 @@ obj CtEval {
         if cn == "Assignment" {
             aug = self.node_arg(i, "aug_op");
             targets = self.list_arg(i, "target");
-            val = self.eval(self.node_arg(i, "value"));
+            val = self.eval(self.req_arg(i, "value"));
             if aug is not None {
                 op = self.tok_value(aug);
                 cur = self.eval(targets[0]);
@@ -786,11 +808,11 @@ obj CtEval {
             return 0;
         }
         if cn == "ExprStmt" {
-            self.eval(self.node_arg(i, "expr"));
+            self.eval(self.req_arg(i, "expr"));
             return 0;
         }
         if cn in ("IfStmt", "ElseIf") {
-            if self.eval(self.node_arg(i, "condition")) {
+            if self.eval(self.req_arg(i, "condition")) {
                 return self.exec_block(self.list_arg(i, "body"));
             }
             eb = self.node_arg(i, "else_body");
@@ -803,7 +825,7 @@ obj CtEval {
             return self.exec_block(self.list_arg(i, "body"));
         }
         if cn == "WhileStmt" {
-            while self.eval(self.node_arg(i, "condition")) {
+            while self.eval(self.req_arg(i, "condition")) {
                 self.burn(2);
                 sig = self.exec_block(self.list_arg(i, "body"));
                 if sig == 1 {
@@ -816,8 +838,8 @@ obj CtEval {
             return 0;
         }
         if cn == "InForStmt" {
-            tgt = self.node_arg(i, "target");
-            coll = self.eval(self.node_arg(i, "collection"));
+            tgt = self.req_arg(i, "target");
+            coll = self.eval(self.req_arg(i, "collection"));
             for item in coll {
                 self.burn(2);
                 self.push_frame();
@@ -962,7 +984,7 @@ obj CtExpander {
         }
     }
 
-    def _tok(mk_name: str, tok_name: str, text: str, loc: tuple) -> UniNode {
+    def _tok(mk_name: str, tok_name: str, text: str, loc: tuple) -> Expr {
         (line, end_line, cs, ce) = (loc[0], loc[1], loc[2], loc[3]);
         src = self.ev.source();
         if mk_name == "NAME" {
@@ -1043,13 +1065,19 @@ obj CtExpander {
                 pos_end=0
             );
         }
-        _ct_err(f"internal: unknown token builder {mk_name}");
+        raise RuntimeError(f"comptime: internal: unknown token builder {mk_name}");
     }
 
-    def value_to_nodes(v: any, loc: tuple) -> UniNode {
+    def value_to_nodes(v: any, loc: tuple) -> Expr {
         self.ev.burn(2);
         if isinstance(v, CtFragment) {
-            return self.parse_frag(v, loc);
+            frag_node = self.parse_frag(v, loc);
+            if not isinstance(frag_node, Expr) {
+                raise RuntimeError(
+                    "comptime: fragment in value position is not an expression"
+                );
+            }
+            return frag_node;
         }
         if isinstance(v, bool) {
             return self._tok("BOOL", "BOOL", "True" if v else "False", loc);
@@ -1073,7 +1101,7 @@ obj CtExpander {
             return self._tok("NULL", "NULL", "None", loc);
         }
         if isinstance(v, (list, tuple)) {
-            vals: list[UniNode] = [];
+            vals: list[Expr] = [];
             for item in v {
                 vals.append(self.value_to_nodes(item, loc));
             }
@@ -1087,7 +1115,7 @@ obj CtExpander {
             return ListVal(values=vals, kid=[lt2] + vals + [rt2]);
         }
         if isinstance(v, dict) {
-            pairs: list[UniNode] = [];
+            pairs: list[KVPair] = [];
             for entry in v.items() {
                 kk = self.value_to_nodes(entry[0], loc);
                 vv = self.value_to_nodes(entry[1], loc);
@@ -1097,16 +1125,16 @@ obj CtExpander {
             rb = self._punct("RBRACE", "}", loc);
             return DictVal(kv_pairs=pairs, kid=[lb] + pairs + [rb]);
         }
-        _ct_err(
-            f"comptime value of type '{type(v).__name__}' cannot lower to a literal"
+        raise RuntimeError(
+            f"comptime: value of type '{type(v).__name__}' cannot lower to a literal"
         );
     }
 
-    def _minus_tok(loc: tuple) -> UniNode {
+    def _minus_tok(loc: tuple) -> Token {
         return self._punct("MINUS", "-", loc);
     }
 
-    def _punct(name: str, text: str, loc: tuple) -> UniNode {
+    def _punct(name: str, text: str, loc: tuple) -> Token {
         return Token(
             orig_src=self.ev.source(),
             name=name,
@@ -1172,7 +1200,7 @@ obj CtExpander {
         out = "";
         for p in self.ev.list_arg(i, "parts") {
             if isinstance(p, CtSplice) {
-                v = self.ev.eval(self.ev.node_arg(p, "expr"));
+                v = self.ev.eval(self.ev.req_arg(p, "expr"));
                 if isinstance(v, CtFragment) and v.kind == "name" {
                     v = v.text;
                 }
@@ -1195,7 +1223,7 @@ obj CtExpander {
         if isinstance(i, CtName) {
             return self._tok("NAME", "NAME", self.ct_name_text(i), loc);
         }
-        v = self.ev.eval(self.ev.node_arg(i, "expr"));
+        v = self.ev.eval(self.ev.req_arg(i, "expr"));
         if isinstance(i, CtSplice) and isinstance(v, CtFragment) {
             if v.kind == "name" {
                 if not _is_ident(v.text) {
@@ -1293,7 +1321,7 @@ obj CtExpander {
         ev = self.ev;
         tgt = ev.node_arg(i, "target");
         tname = ev.tok_value(tgt);
-        coll = ev.eval(ev.node_arg(i, "iter"));
+        coll = ev.eval(ev.req_arg(i, "iter"));
         body = ev.list_arg(i, "body");
         out: list = [];
         for v in coll {
@@ -1311,7 +1339,7 @@ obj CtExpander {
 
     def expand_ct_if(i: UniNode, parent: UniNode) -> list {
         ev = self.ev;
-        if ev.eval(ev.node_arg(i, "condition")) {
+        if ev.eval(ev.req_arg(i, "condition")) {
             return self.expand_items(ev.list_arg(i, "body"), i);
         }
         eb = ev.node_arg(i, "else_body");
@@ -1349,19 +1377,21 @@ obj CtExpander {
     def collect_module(mod: Module) {
         ev = self.ev;
         for item in mod.body {
-            cn = ev.cls_name(item);
-            if cn == "Ability" {
+            if isinstance(item, Ability) {
                 nref = ev.node_arg(item, "name_ref");
                 if nref is not None and ev.cls_name(nref) == "Name" {
                     ev.module_defs[ev.tok_value(nref)] = item;
                 }
-            } elif cn == "GlobalVars" {
+            } elif isinstance(item, GlobalVars) {
                 for asg in ev.list_arg(item, "assignments") {
                     tgts = ev.list_arg(asg, "target");
-                    if len(tgts) == 1 and ev.cls_name(tgts[0]) == "Name" {
-                        ev.module_glob_ids[ev.tok_value(tgts[0])] = ev.node_arg(
-                            asg, "value"
-                        );
+                    gval = ev.node_arg(asg, "value");
+                    if (
+                        gval is not None
+                        and len(tgts) == 1
+                        and ev.cls_name(tgts[0]) == "Name"
+                    ) {
+                        ev.module_glob_ids[ev.tok_value(tgts[0])] = gval;
                     }
                 }
             }
