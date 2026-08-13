@@ -12,7 +12,11 @@ import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { JSCodeGenerator, es_to_js }
+import from jaclang.compiler.passes.ecmascript.es_unparse {
+    JSCodeGenerator,
+    es_to_js,
+    template_element_raw
+}
 import from jaclang.compiler.passes.ecmascript.primitives_es {
     ESDictEmitter,
     ESEmitCtx
@@ -717,6 +721,54 @@ test "fstring edge cases" {
         os.unlink(temp_path);
     }
 }
+
+"""Each case is (f-string as written in Jac, the template literal it must emit)."""
+glob FSTRING_LITERAL_SEGMENTS = [
+         ("f'x \"{a}\" y'", "`x \"${a}\" y`"),
+         ("f\"a {a}'c'\"", "`a ${a}'c'`"),
+         ("f'\"{a}\"'", "`\"${a}\"`"),
+         ("f\"\"\"tri \"{a}\" end\"\"\"", "`tri \"${a}\" end`"),
+         ("f\"{a} `tick`\"", "`${a} \\`tick\\``"),
+         ("f\"{a} ${a}\"", "`${a} $${a}`"),
+         ("f\"C:\\\\dir {a}\"", "`C:\\\\dir ${a}`"),
+         ("f\"a\\nb {a}\"", "`a\\nb ${a}`"),
+         ("rf\"\\d+ {a}\"", "`\\\\d+ ${a}`")
+     ];
+
+
+test "fstring literal segments keep quotes and escape template syntax" {
+    lines = ["\"\"\"Literal segments around interpolations (#8071).\"\"\""];
+    for (idx, (expr, _)) in enumerate(FSTRING_LITERAL_SEGMENTS) {
+        lines.append(
+            "def case" + str(idx) + "(a: str) -> str { return " + expr + "; }"
+        );
+    }
+    temp_path = write_temp_jac("\n".join(lines) + "\n");
+
+    try {
+        js_code = compile_fixture_to_js(temp_path);
+
+        for (expr, expected) in FSTRING_LITERAL_SEGMENTS {
+            assert expected in js_code , (
+                f"{expr} should emit {expected}, got:\n{js_code}"
+            );
+        }
+        assert_balanced_syntax(js_code, temp_path);
+    } finally {
+        os.unlink(temp_path);
+    }
+}
+
+
+test "template element raw escapes only what is syntax between backticks" {
+    assert template_element_raw("plain text") == "plain text";
+    assert template_element_raw("a `b` c") == "a \\`b\\` c";
+    assert template_element_raw("cost ${x}") == "cost \\${x}";
+    assert template_element_raw("trailing $") == "trailing $";
+    assert template_element_raw("C:\\dir") == "C:\\\\dir";
+    assert template_element_raw("a\r\nb\tc") == "a\\r\\nb\\tc";
+}
+
 
 test "fstring no concatenation operators" {
     jac_code = "\"\"\"Test that f-strings use template literals, not concatenation.\"\"\"\n\ndef format_message(user: str, count: int) -> str {\n    return f\"User {user} has {count} items\";\n}\n";
