@@ -960,18 +960,13 @@ def _note_native_closure_cap(root_path: str, cap: int) {
 
 
 obj JacCompiler {
-    with entry {
-        _jaclang_root: (str | None) = None;
-    }
-
     has _internal_program: (JacProgram | None) = None,
-        _internal_bytecode_depth: int = 0;
+        _internal_bytecode_depth: int = 0,
+        _jaclang_root: (str | None) = None;
 
     has internal_program: JacProgram { getter; }
 
-    @classmethod
-    def _get_jaclang_root(cls: any) -> str;
-
+    def _get_jaclang_root -> str;
     def _resolve_program(file_path: str, target_program: JacProgram) -> JacProgram;
     def get_native_interop_setup(
         full_target: str, target_program: JacProgram

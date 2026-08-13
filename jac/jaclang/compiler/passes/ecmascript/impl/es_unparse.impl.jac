@@ -172,9 +172,23 @@ impl JSCodeGenerator.gen_spread_element(nd: es.SpreadElement) -> str {
     return f"...{self.generate(nd.argument)}";
 }
 
+impl template_element_raw(text: str) -> str {
+    return text.replace('\\', '\\\\').replace('`', '\\`').replace('${', '\\${').replace(
+        '\r', '\\r'
+    ).replace(
+        '\n', '\\n'
+    ).replace(
+        '\t', '\\t'
+    );
+}
+
 impl JSCodeGenerator.gen_template_element(nd: es.TemplateElement) -> str {
-    value = nd.value.get('raw') if nd.value else '';
-    return (value or '');
+    value = nd.value or {};
+    raw = value.get('raw');
+    if raw is not None {
+        return raw;
+    }
+    return template_element_raw(value.get('cooked') or '');
 }
 
 impl JSCodeGenerator.gen_template_literal(nd: es.TemplateLiteral) -> str {

@@ -47,15 +47,12 @@ factor ::= ("~" | "-" | "+") factor | connect
 connect ::= atomic_pipe (connect_op atomic_pipe)*
 
 connect_op ::=
-    (
-        "del" edge_op_ref
-        | "++>"
-        | "+>:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? ":+>"
-        | "<++"
-        | "<+:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)?
-          (":<+" | ":+>")
-        | "<++>"
-    )?
+    "del" edge_op_ref
+    | "++>"
+    | "+>:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? ":+>"
+    | "<++"
+    | "<+:" expression (":" ((NAME | KWESC_NAME) "=" expression ","?)*)? (":<+" | ":+>")
+    | "<++>"
 
 atomic_pipe ::= atomic_pipe_back (":>" atomic_pipe_back)*
 
@@ -108,52 +105,48 @@ assign_compr_inner ::=
     "=" ((NAME | KWESC_NAME) "=" expression ("," (NAME | KWESC_NAME) "=" expression)*)?
     ")"
 
-atom_literal ::= (INT | HEX | BIN | OCT | FLOAT | BOOL | NULL | ELLIPSIS)?
+atom_literal ::= INT | HEX | BIN | OCT | FLOAT | BOOL | NULL | ELLIPSIS
 
 multistring ::= (NAME STRING | STRING | fstring) (NAME STRING | STRING | fstring)*
 
 builtin_type ::=
-    (
-        "str"
-        | "int"
-        | "float"
-        | "list"
-        | "tuple"
-        | "set"
-        | "dict"
-        | "bool"
-        | "bytes"
-        | "any"
-        | "type"
-        | "i8"
-        | "u8"
-        | "i16"
-        | "u16"
-        | "i32"
-        | "u32"
-        | "i64"
-        | "u64"
-        | "f32"
-        | "f64"
-    )?
+    "str"
+    | "int"
+    | "float"
+    | "list"
+    | "tuple"
+    | "set"
+    | "dict"
+    | "bool"
+    | "bytes"
+    | "any"
+    | "type"
+    | "i8"
+    | "u8"
+    | "i16"
+    | "u16"
+    | "i32"
+    | "u32"
+    | "i64"
+    | "u64"
+    | "f32"
+    | "f64"
 
 special_ref ::=
-    (
-        "self"
-        | "super"
-        | "here"
-        | "root"
-        | "visitor"
-        | "props"
-        | "init"
-        | "postinit"
-        | "node"
-        | "edge"
-        | "walker"
-        | "obj"
-        | "class"
-        | "enum"
-    )?
+    "self"
+    | "super"
+    | "here"
+    | "root"
+    | "visitor"
+    | "props"
+    | "init"
+    | "postinit"
+    | "node"
+    | "edge"
+    | "walker"
+    | "obj"
+    | "class"
+    | "enum"
 
 atom ::=
     ct_block
@@ -201,13 +194,11 @@ edge_ref_chain ::=
     )* "]"
 
 edge_op_ref ::=
-    (
-        "-->"
-        | "<--"
-        | "<-->"
-        | "->:" atom? (":" (compare ("," compare)*)?)? ":->"
-        | "<-:" atom? (":" (compare ("," compare)*)?)? ":<-"
-    )?
+    "-->"
+    | "<--"
+    | "<-->"
+    | "->:" atom? (":" (compare ("," compare)*)?)? ":->"
+    | "<-:" atom? (":" (compare ("," compare)*)?)? ":<-"
 
 dict_or_set ::=
     "}"
@@ -248,12 +239,10 @@ jsx_attributes ::=
 jsx_children ::= jsx_child*
 
 jsx_child ::=
-    (
-        JSX_TEXT jsx_child?
-        | JSX_COMMENT
-        | "{" (code_block_stmts "}" | expression (";"? code_block_stmts "}" | "}"))
-        | jsx_element
-    )?
+    JSX_TEXT jsx_child?
+    | JSX_COMMENT
+    | "{" (code_block_stmts "}" | expression (";"? code_block_stmts "}" | "}"))
+    | jsx_element
 
 element_stmt ::=
     ";"
@@ -279,7 +268,7 @@ module_code ::=
 
 code_block_stmts ::= (statement ";"?)*
 
-ctrl_stmt ::= (("break" | "continue" | "skip") ";" | "disengage" ";")?
+ctrl_stmt ::= ("break" | "continue" | "skip") ";" | "disengage" ";"
 
 statement ::=
     ct_element
@@ -467,36 +456,9 @@ func_signature ::= ("(" func_params? ")")? ("->" pipe)?
 func_params ::= ("*" ","? | "/" ","? | ct_element ","? | param_var ","?)*
 
 param_var ::=
-    ("*" | "**")? (
-        ct_name
-        | NAME
-        | KWESC_NAME
-        | "self"
-        | "props"
-        | "here"
-        | "visitor"
-        | "str"
-        | "int"
-        | "float"
-        | "list"
-        | "tuple"
-        | "set"
-        | "dict"
-        | "bool"
-        | "bytes"
-        | "any"
-        | "type"
-        | "i8"
-        | "u8"
-        | "i16"
-        | "u16"
-        | "i32"
-        | "u32"
-        | "i64"
-        | "u64"
-        | "f32"
-        | "f64"
-    ) (":" ownership_prefix pipe)? ("=" expression)?
+    ("*" | "**")?
+    (ct_name | NAME | KWESC_NAME | "self" | "props" | "here" | "visitor" | builtin_type)
+    (":" ownership_prefix pipe)? ("=" expression)?
 
 enum ::=
     ("@" atomic_chain)* "enum" access_tag (NAME | KWESC_NAME)
