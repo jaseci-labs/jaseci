@@ -160,26 +160,39 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
 }
 
 impl JacProgram._forget_paired_mtir(self: JacProgram, mod_key: str) -> None {
-    compiler = self._compiler;
-    if compiler is None {
-        return;
-    }
-    internal = compiler._internal_program;
-    if internal is None {
-        return;
-    }
-    if internal is self {
-        try {
-            import from jaclang.jac0core.runtime { JacRuntime }
-            rt = JacRuntime.program;
-            if rt is not None and rt is not self and mod_key in rt.mtir_by_module {
-                del (rt.mtir_by_module[mod_key], );
+    targets: list[JacProgram] = [];
+    try {
+        import from jaclang.jac0core.runtime { JacRuntime }
+        rt = JacRuntime.program;
+        if rt is not None {
+            targets.append(rt);
+            if rt._compiler is not None {
+                internal = rt._compiler._internal_program;
+                if internal is not None {
+                    targets.append(internal);
+                }
             }
-        } except Exception {
-            ;
         }
-    } elif mod_key in internal.mtir_by_module {
-        del (internal.mtir_by_module[mod_key], );
+    } except Exception {
+        ;
+    }
+    compiler = self._compiler;
+    if compiler is not None {
+        internal = compiler._internal_program;
+        if internal is not None {
+            targets.append(internal);
+        }
+    }
+    seen: set[int] = set();
+    for prog in targets {
+        pid = id(prog);
+        if pid in seen or prog is self {
+            continue;
+        }
+        seen.add(pid);
+        if mod_key in prog.mtir_by_module {
+            del (prog.mtir_by_module[mod_key], );
+        }
     }
 }
 

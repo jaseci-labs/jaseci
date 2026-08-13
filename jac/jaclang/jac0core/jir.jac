@@ -216,17 +216,62 @@ def store_module_mtir(prog: any, source_path: str, module_mtir: dict[(str, Info)
     prog.mtir_by_module[key] = module_mtir;
 }
 
+def _mtir_scope_qualnames_from_bytecode(bytecode_bytes: bytes) -> set[str] {
+    import marshal;
+    import types;
+    try {
+        code = marshal.loads(bytecode_bytes);
+    } except Exception {
+        return set();
+    }
+    names: set[str] = set();
+    stack: list = [code];
+    while stack {
+        co = stack.pop();
+        qn = co?.co_qualname or co.co_name;
+        if qn {
+            names.add(qn);
+        }
+        for const in co.co_consts {
+            if isinstance(const, types.CodeType) {
+                stack.append(const);
+            }
+        }
+    }
+    return names;
+}
+
 def filter_module_mtir(
-    source_path: str, module_mtir: dict[(str, Info)]
+    source_path: str,
+    module_mtir: dict[(str, Info)],
+    bytecode_bytes: (bytes | None) = None
 ) -> dict[(str, Info)] {
     if not isinstance(module_mtir, dict) {
         return {};
     }
     stem = mtir_module_stem(source_path);
     prefix = stem + ".";
-    out: dict[(str, Info)] = {};
+    stem_filtered: dict[(str, Info)] = {};
     for (scope, info) in module_mtir.items() {
         if scope == stem or scope.startswith(prefix) {
+            stem_filtered[scope] = info;
+        }
+    }
+    if bytecode_bytes is None {
+        return stem_filtered;
+    }
+    qualnames = _mtir_scope_qualnames_from_bytecode(bytecode_bytes);
+    if not qualnames {
+        return stem_filtered;
+    }
+    out: dict[(str, Info)] = {};
+    for (scope, info) in stem_filtered.items() {
+        if scope == stem {
+            out[scope] = info;
+            continue;
+        }
+        suffix = scope[len(prefix):];
+        if suffix in qualnames {
             out[scope] = info;
         }
     }

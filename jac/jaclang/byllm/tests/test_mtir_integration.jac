@@ -545,6 +545,54 @@ test "filter_module_mtir keeps only the target module's scopes" {
     assert len(kept) == 2 , f"expected 2 kept scopes, got {len(kept)}";
 }
 
+test "filter_module_mtir disambiguates same-stem dirs via bytecode" {
+    import shutil;
+    import from jaclang.jac0core.compiler { JacCompiler }
+    import from jaclang.jac0core.jir {
+        filter_module_mtir,
+        find_sections,
+        get_module_cache_path,
+        SEC_BYTECODE,
+    }
+
+    # Same stem in different directories: stem-only filtering cannot tell
+    # utils.gen_a from utils.gen_b, but bytecode symtab validation can.
+    tmp_path = Path(tempfile.mkdtemp());
+    dir_a = tmp_path / "pkg_a";
+    dir_b = tmp_path / "pkg_b";
+    dir_a.mkdir();
+    dir_b.mkdir();
+    file_a = dir_a / "utils.jac";
+    file_b = dir_b / "utils.jac";
+    src = fixture_path("basic_compile.jac");
+    file_a.write_text(Path(src).read_text().replace("generate_person", "gen_a"));
+    file_b.write_text(Path(src).read_text().replace("generate_person", "gen_b"));
+
+    assert JacRuntime.program is not None;
+    prog = JacRuntime.program;
+    compiler = JacCompiler();
+    path_a = str(file_a);
+
+    marker = FunctionInfo(name="f", semstr="s");
+    collision: dict = {"utils.gen_a": marker, "utils.gen_b": marker,};
+    try {
+        assert compiler.get_bytecode(path_a, prog) is not None;
+        bc = find_sections(get_module_cache_path(path_a).read_bytes())[SEC_BYTECODE];
+        kept = filter_module_mtir(path_a, collision, bc);
+        assert "utils.gen_a" in kept , "keep scope defined in this module";
+        assert "utils.gen_b" not in kept , (
+            "drop same-stem foreign scope not in bytecode symtab"
+        );
+        assert len(kept) == 1 , f"expected 1 kept scope, got {len(kept)}";
+    } finally {
+        cache_path = get_module_cache_path(path_a);
+        if cache_path.exists() {
+            cache_path.unlink();
+        }
+        shutil.rmtree(str(tmp_path), ignore_errors=True);
+    }
+}
+
 test "invalidate internal clears runtime mtir without shared compiler identity" {
     import from jaclang.jac0core.compiler { JacCompiler }
     import from jaclang.jac0core.jir { mtir_module_key }

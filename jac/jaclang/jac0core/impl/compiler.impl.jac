@@ -464,7 +464,9 @@ impl JacCompiler._restore_sections(
     if mtir_bytes is not None {
         try {
             module_mtir = pickle.loads(mtir_bytes);
-            module_mtir = filter_module_mtir(full_target, module_mtir);
+            module_mtir = filter_module_mtir(
+                full_target, module_mtir, secs.get(SEC_BYTECODE)
+            );
             store_module_mtir(actual_program, full_target, module_mtir);
             if mtir_fallback is not None and mtir_fallback is not actual_program {
                 store_module_mtir(mtir_fallback, full_target, module_mtir);
