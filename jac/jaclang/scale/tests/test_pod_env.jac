@@ -1,3 +1,4 @@
+import os;
 import json;
 import unittest.mock as mock;
 import from pathlib { Path }
@@ -9,6 +10,10 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.config.app_config { AppConfig }
+import from jaclang.scale.deploy.target.kubernetes.runtime_resolver {
+    build_k8s_registry
+}
+import from jaclang.runtimelib.sv_client { peer_url_env_key }
 
 
 glob _K8S_E2E_FIXTURE: Path = Path(__file__).parent / "fixtures" / "k8s_e2e",
@@ -173,5 +178,168 @@ test "a single-file full-stack app still gets its client bundle built" {
         builder = ManifestBuilder(k8s_config=cfg, project_dir=tmp);
         assert builder._has_client_source();
         assert builder._client_entry() == "main.jac";
+    }
+}
+
+
+# Peer URL resolution. jac-scale injects a JAC_SV_<PEER>_URL for every peer, so
+# the registry must read it rather than deriving every URL from the route name.
+# The env key keeps the raw route name while Kubernetes names are RFC1123-safe,
+# so orders_app injects JAC_SV_ORDERS_APP_URL beside an orders-app-service; a
+# reader keyed off the safe name would miss and fall back to the derived URL.
+
+glob _PEER_ROUTES: dict[str, str] = {"orders_app": "/orders", "cart_app": "/cart"},
+     _PEER_NS: str = "shop",
+     _PEER_PORT: int = 8000,
+     _ORDERS_DERIVED: str =
+         "http://orders-app-service.shop.svc.cluster.local:8000",
+     _CART_DERIVED: str = "http://cart-app-service.shop.svc.cluster.local:8000";
+
+
+def _peer_env_snapshot -> dict[str, str | None] {
+    keys = [peer_url_env_key(name) for name in _PEER_ROUTES.keys()];
+    keys.append("POD_NAMESPACE");
+    return {key: os.environ.get(key) for key in keys};
+}
+
+
+def _peer_env_restore(saved: dict[str, str | None]) {
+    for (key, value) in saved.items() {
+        if value is None {
+            os.environ.pop(key, None);
+        } else {
+            os.environ[key] = value;
+        }
+    }
+}
+
+
+def _peer_env_isolate {
+    for name in _PEER_ROUTES.keys() {
+        os.environ.pop(peer_url_env_key(name), None);
+    }
+    os.environ["POD_NAMESPACE"] = _PEER_NS;
+}
+
+
+def _peer_builder -> ManifestBuilder {
+    cfg = KubernetesConfig(
+        app_name="jac-shop", namespace=_PEER_NS, container_port=_PEER_PORT
+    );
+    return ManifestBuilder(
+        k8s_config=cfg,
+        project_dir=str(_K8S_E2E_FIXTURE),
+        microservices_config={"routes": dict(_PEER_ROUTES)}
+    );
+}
+
+
+def _peer_env_of(svc_name: str) -> dict[str, str] {
+    app_cfg = AppConfig(code_folder=str(_K8S_E2E_FIXTURE), app_name="jac-shop");
+    specs = _peer_builder().generate_service_pod_specs(app_cfg, "img");
+    return {
+        entry["name"]: entry["value"]
+        for entry in specs[svc_name]["containers"][0]["env"]
+    };
+}
+
+
+test "a peer with no override resolves by naming convention" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+
+        registry = build_k8s_registry(_PEER_ROUTES, _PEER_PORT);
+
+        assert registry["orders_app"] == _ORDERS_DERIVED , (
+            f"expected the derived URL, got {registry['orders_app']}"
+        );
+        assert registry["cart_app"] == _CART_DERIVED;
+    } finally {
+        _peer_env_restore(saved);
+    }
+}
+
+
+test "an override wins for its own peer and leaves the others derived" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+        standby = "http://orders-app-standby-service.shop.svc.cluster.local:8000";
+        os.environ[peer_url_env_key("orders_app")] = standby;
+
+        registry = build_k8s_registry(_PEER_ROUTES, _PEER_PORT);
+
+        assert registry["orders_app"] == standby;
+        assert registry["cart_app"] == _CART_DERIVED , (
+            "an override for one peer must not affect another"
+        );
+    } finally {
+        _peer_env_restore(saved);
+    }
+}
+
+
+# A pod never given an override and one whose override was blanked must behave
+# the same, or clearing a value would break routing instead of restoring it.
+test "a blank override falls back to the derived URL" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+        os.environ[peer_url_env_key("orders_app")] = "   ";
+
+        registry = build_k8s_registry(_PEER_ROUTES, _PEER_PORT);
+
+        assert registry["orders_app"] == _ORDERS_DERIVED;
+    } finally {
+        _peer_env_restore(saved);
+    }
+}
+
+
+# The literal is asserted rather than derived from peer_url_env_key, so a change
+# to that helper fails here instead of moving both sides together. The override
+# is a value the derivation cannot produce, so reading the wrong key shows up as
+# a failure rather than an accidental match.
+test "the key the builder injects is the key the registry reads" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+        cart_env = _peer_env_of("cart_app");
+
+        assert "JAC_SV_ORDERS_APP_URL" in cart_env , (
+            "the builder no longer injects the underscore-preserving key; "
+            f"it wrote {sorted(cart_env.keys())}"
+        );
+
+        standby = "http://orders-app-standby-service.shop.svc.cluster.local:8000";
+        os.environ["JAC_SV_ORDERS_APP_URL"] = standby;
+        registry = build_k8s_registry(_PEER_ROUTES, _PEER_PORT);
+
+        assert registry["orders_app"] == standby , (
+            "the registry did not read the key the builder wrote, so it "
+            f"resolved {registry['orders_app']}"
+        );
+    } finally {
+        _peer_env_restore(saved);
+    }
+}
+
+
+# Reading the env must be a no-op for existing deployments, which holds only
+# while the injector and the resolver agree on namespace and port.
+test "the injected default equals the derived URL under matching config" {
+    saved = _peer_env_snapshot();
+    try {
+        _peer_env_isolate();
+
+        cart_env = _peer_env_of("cart_app");
+
+        assert cart_env[peer_url_env_key("orders_app")] == _ORDERS_DERIVED , (
+            "injected and derived URLs diverged, so reading the env would "
+            "change behavior for existing pods"
+        );
+    } finally {
+        _peer_env_restore(saved);
     }
 }
