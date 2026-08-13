@@ -99,6 +99,21 @@ def _http_500(conn: any) {
 }
 
 
+def _sse_one_event_then_reset(conn: any) {
+    import time;
+    conn.recv(65536);
+    conn.sendall(
+        b"HTTP/1.1 200 OK\r\n"
+            + b"Content-Type: text/event-stream\r\n"
+            + b"Connection: close\r\n\r\n"
+            + b"data: {\"n\": 1}\n\n"
+    );
+    time.sleep(0.5);
+    conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0));
+    conn.close();
+}
+
+
 test "retry-unsafe types are not OSErrors" {
     assert not issubclass(ClientRequestSent, OSError);
     assert not issubclass(ClientRequestNotSent, OSError);
@@ -206,6 +221,32 @@ test "post_stream_aware_sync classifies HTTP 500 as ClientRequestSent" {
         assert caught is not None;
         assert not isinstance(caught, ClientRequestNotSent);
         assert "HTTP 500" in str(caught);
+        assert caught.status_code == 500;
+    } finally {
+        _stop_server(srv, held);
+    }
+}
+
+
+test "mid-stream connection loss raises from the consumer's iterator" {
+    (srv, held, port) = _start_server(_sse_one_event_then_reset);
+    try {
+        (kind, gen) = post_stream_aware_sync(
+            f"http://127.0.0.1:{port}/x", json_body={}, timeout=2.0
+        );
+        assert kind == 'sse';
+        got: list = [];
+        raised: any = None;
+        try {
+            for item in gen {
+                got.append(item);
+            }
+        } except RuntimeError as e {
+            raised = e;
+        }
+        assert raised is not None;
+        assert "raised" in str(raised);
+        assert got == [{"n": 1}];
     } finally {
         _stop_server(srv, held);
     }

@@ -265,9 +265,7 @@ async def arequest(
         } except Exception {
             ;
         }
-        raise ClientRequestSent(
-            detail=f"connection lost after request was sent: {e!r}"
-        );
+        raise ClientRequestSent(detail=f"connection lost during or after send: {e!r}");
     }
     transfer = (resp_headers.get('Transfer-Encoding') or '').lower();
     chunked = 'chunked' in transfer;
@@ -414,7 +412,13 @@ def post_stream_aware_sync(
                 response.body = b''.join(collected);
                 if response.status_code >= 400 {
                     handshake.put(
-                        ('error', f"HTTP {response.status_code}: {response.text()}")
+                        (
+                            'exc',
+                            ClientRequestSent(
+                                detail=f"HTTP {response.status_code}: {response.text()}",
+                                status_code=response.status_code
+                            )
+                        )
                     );
                 } else {
                     handshake.put(('json', response.json()));
@@ -470,9 +474,6 @@ def post_stream_aware_sync(
             raise exc;
         }
         raise ClientRequestSent(detail=f"stream '{label}' failed: {exc!r}");
-    }
-    if kind == 'error' {
-        raise ClientRequestSent(detail=str(first[1]));
     }
     if kind == 'json' {
         return ('json', first[1]);

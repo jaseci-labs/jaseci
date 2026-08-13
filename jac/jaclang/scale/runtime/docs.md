@@ -541,12 +541,12 @@ seconds will time out, matching the behavior we want for a hung
 producer; a fast-stepping stream of any total duration is fine.
 
 Retries happen only for connect-phase failures (DNS, refused,
-connect timeout), where the request provably never reached the peer;
-those retry + count against the breaker. Any failure after the
-request is sent - a read timeout, a dropped connection, an HTTP
-error - fails fast without a replay, because the peer may already
-have executed the call. This applies to streaming and non-streaming
-RPC alike.
+connect timeout), where the request provably never reached the peer.
+Any failure after the request is sent - a read timeout, a dropped
+connection, an HTTP error - fails fast without a replay, because the
+peer may already have executed the call. Every failed round trip in
+either phase records one circuit-breaker failure. This applies to
+streaming and non-streaming RPC alike.
 
 ### WebSockets + SSE proxy at the gateway
 

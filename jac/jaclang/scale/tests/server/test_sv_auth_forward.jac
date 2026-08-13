@@ -825,6 +825,7 @@ test "walker_call sends exactly one POST to a peer that never replies" {
             raised_msg = str(e);
         }
         assert counts["n"] == 1;
+        assert "after 1 attempts" in raised_msg;
         assert "no response head within" in raised_msg;
     } finally {
         rpc_mod._sv_rpc_timeout = original_timeout;
@@ -851,6 +852,7 @@ test "service_call sends exactly one POST to a peer that never replies" {
             raised_msg = str(e);
         }
         assert counts["n"] == 1;
+        assert "after 1 attempts" in raised_msg;
         assert "no response head within" in raised_msg;
     } finally {
         rpc_mod._sv_rpc_timeout = original_timeout;
@@ -883,6 +885,7 @@ test "service_call does not retry an HTTP 500" {
             raised_msg = str(e);
         }
         assert counts["n"] == 1;
+        assert "after 1 attempts" in raised_msg;
         assert "HTTP 500" in raised_msg;
     } finally {
         rpc_mod._sv_rpc_timeout = original_timeout;
