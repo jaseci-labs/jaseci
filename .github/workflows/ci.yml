@@ -524,7 +524,12 @@ jobs:
       - name: Run jac check (using .jacignore)
         run: |
           set -euo pipefail
-          IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
+          # .jac-xdg is the dev lane's runtime cache root (setup-jac-dev points
+          # XDG_CACHE_HOME inside the workspace so actions/cache can save it).
+          # It materializes a full sealed jaclang tree in-place, which the
+          # full-repo `jac check .` walk would otherwise sweep as if it were
+          # source. Bare name -> any .jac-xdg path component is skipped.
+          IGNORE_ARGS="tests checker_*.jac *_err.jac .jac-xdg $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
           if [ "${{ steps.changes.outputs.mode }}" = "scoped" ]; then
             if [ "${{ steps.changes.outputs.any }}" != "true" ]; then
               echo "No .jac files changed in this PR; skipping jac check."
@@ -540,7 +545,9 @@ jobs:
         run: |
           set +e
           echo "Scanning the whole codebase (no ignores) for an error-code breakdown..."
-          jac check . --nowarn > jac-check-full.log 2>&1
+          # Only .jac-xdg is excluded -- it is the dev lane's runtime cache, not
+          # repo source, and its sealed tree would double-count every code.
+          jac check . --ignore .jac-xdg --nowarn > jac-check-full.log 2>&1
 
           {
             echo "## jac check error-code breakdown (whole codebase, no ignores)"

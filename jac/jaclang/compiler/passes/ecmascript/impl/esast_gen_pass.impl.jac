@@ -1,3 +1,4 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     StateField,
     RefField,
@@ -306,30 +307,24 @@ impl EsastGenPass.exit_if_else_expr(nd: uni.IfElseExpr) -> None {
     nd.gen.es_ast = cond_expr;
 }
 
+impl EsastGenPass._template_element(
+    text: str, tail: bool, jac_node: uni.UniNode
+) -> es.TemplateElement {
+    return self.sync_loc(
+        es.TemplateElement(tail=tail, value={'cooked': text}), jac_node=jac_node
+    );
+}
+
 impl EsastGenPass.exit_f_string(nd: uni.FString) -> None {
     quasis: list[es.TemplateElement] = [];
     expressions: list[es.Expression] = [];
     for (i, part) in enumerate(nd.parts) {
         is_last = i == (len(nd.parts) - 1);
         if isinstance(part, uni.String) {
-            value = part.value;
-            if value.startswith(('"""', "'''")) {
-                value = value[3:-3];
-            } elif value.startswith(('"', "'")) {
-                value = value[1:-1];
-            }
-            elem = self.sync_loc(
-                es.TemplateElement(tail=is_last, value={'cooked': value, 'raw': value}),
-                jac_node=part
-            );
-            quasis.append(elem);
+            quasis.append(self._template_element(str(part.lit_value), is_last, part));
         } elif isinstance(part, uni.FormattedValue) {
             if ((i == 0) or not isinstance(nd.parts[(i - 1)], uni.String)) {
-                empty_elem = self.sync_loc(
-                    es.TemplateElement(tail=False, value={'cooked': '', 'raw': ''}),
-                    jac_node=part
-                );
-                quasis.append(empty_elem);
+                quasis.append(self._template_element('', False, part));
             }
             expr = cast(
                 es.Expression,
@@ -337,29 +332,15 @@ impl EsastGenPass.exit_f_string(nd: uni.FString) -> None {
             );
             expressions.append(expr);
             if is_last {
-                empty_elem = self.sync_loc(
-                    es.TemplateElement(tail=True, value={'cooked': '', 'raw': ''}),
-                    jac_node=part
-                );
-                quasis.append(empty_elem);
+                quasis.append(self._template_element('', True, part));
             }
         }
     }
     if not quasis {
-        quasis.append(
-            self.sync_loc(
-                es.TemplateElement(tail=True, value={'cooked': '', 'raw': ''}),
-                jac_node=nd
-            )
-        );
+        quasis.append(self._template_element('', True, nd));
     }
     while (len(quasis) < (len(expressions) + 1)) {
-        quasis.append(
-            self.sync_loc(
-                es.TemplateElement(tail=True, value={'cooked': '', 'raw': ''}),
-                jac_node=nd
-            )
-        );
+        quasis.append(self._template_element('', True, nd));
     }
     template_lit = self.sync_loc(
         es.TemplateLiteral(quasis=quasis, expressions=expressions), jac_node=nd
@@ -1646,7 +1627,7 @@ impl EsastGenPass._try_lower_server_rpc_call(
                 if (
                     _p.type_tag is not None
                     and _p.type_tag.tag is not None
-                    and re.search(r"\bCallable\b", _p.type_tag.tag.unparse())
+                    and re.search(r"\bCallable\b", unparse_node(_p.type_tag.tag))
                 ) {
                     self.emit(
                         W6005, node_override=nd, func=func_name, param=_p.name.sym_name

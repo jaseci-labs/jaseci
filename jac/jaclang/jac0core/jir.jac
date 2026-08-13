@@ -197,8 +197,9 @@ def compute_module_key(source_path: str) -> str {
     h.update(schema_digest().encode());
     h.update(_module_client_kind(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
-    import from jaclang.jac0core.placement_pins { pins_digest }
+    import from jaclang.jac0core.placement_pins { pins_digest, config_kind_space }
     h.update(pins_digest(source_path).encode());
+    h.update(config_kind_space(source_path).encode());
     import from jaclang.jac0core.service_cut { cut_digest }
     h.update(cut_digest(source_path).encode());
     import from jaclang.jac0core.compile_options { effective_codegen_fingerprint }
@@ -522,7 +523,11 @@ def read_module_jir_cache(source_path: str) -> (object | None) {
         }
         data = cache_path.read_bytes();
         reader = JirReader(_source_path=resolved_path);
-        return reader.read_module(data);
+        cached = reader.read_module(data);
+        if cached is not None and cached.parse_failed {
+            return None;
+        }
+        return cached;
     } except Exception {
         if os.environ.get("JAC_JIR_DEBUG") {
             traceback.print_exc();
@@ -546,6 +551,9 @@ def write_module_jir_cache(
         return False;
     }
     mod_any: any = mod;
+    if mod_any.parse_failed {
+        return False;
+    }
     if resolved_path.endswith('.pyi') and not mod_any.stub_only {
         mod_any.stub_only = True;
     }
