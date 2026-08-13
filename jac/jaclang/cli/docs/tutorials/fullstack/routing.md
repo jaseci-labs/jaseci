@@ -524,6 +524,17 @@ def:pub ProtectedShell() -> JsxLayout {
 
 Any pages in the `(protected)` group will require authentication.
 
+With manual routing, put the guard above the routes it protects:
+
+```jac
+<Route element={<AuthGuard redirect="/login" />}>
+    <Route path="/dashboard" element={<Dashboard />} />
+</Route>
+```
+
+A single page can be wrapped directly instead:
+`<Route path="/dashboard" element={<AuthGuard redirect="/login"><Dashboard /></AuthGuard>} />`.
+
 ### Custom Protected Routes
 
 ```jac
