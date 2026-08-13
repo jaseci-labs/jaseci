@@ -412,11 +412,13 @@ obj NaIRGenPass(ModuleCodegenPass) {
         closure_thunks: dict[str, ir.Function] = {},
         _closure_uid: int = 0,
         _opt_struct_types: dict[str, ir.Type] = {},
-        _loop_rebind_memo: dict[tuple, bool] = {};
+        _loop_rebind_memo: dict[tuple, bool] = {},
+        _expr_narrow_memo: dict[int, any] = {};
 
     def _jac_optional_type(payload: ir.Type) -> ir.Type;
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None);
     def _opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None);
+    def _flow_narrowed_type_of(expr: (uni.UniNode | None)) -> (any | None);
     def _narrowed_flow_type(nd: uni.UniNode) -> (any | None);
     def _narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool;
     def _narrowing_stable_in_loops(nd: uni.UniNode, name: str) -> bool;
