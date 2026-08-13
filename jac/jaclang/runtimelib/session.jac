@@ -7,7 +7,13 @@ import from uuid { UUID }
 
 import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
 import from jaclang.runtimelib.pgembed { PgRuntime }
-import from jaclang.runtimelib.store { AnchorRow, ConnInfo, PgStore, Store }
+import from jaclang.runtimelib.store {
+    AnchorRow,
+    ConnInfo,
+    PgStore,
+    Store,
+    TxnIsolation
+}
 
 glob logger = logging.getLogger(__name__),
      MAX_RETRIES = 5,
@@ -42,7 +48,9 @@ obj Session {
         _lock: threading.RLock postinit,
         _fetch_count: int postinit,
         _active_units: int postinit,
-        _flushing: (int | None) postinit;
+        _flushing: (int | None) postinit,
+        _read_scopes: int postinit,
+        _snapshot_reads: set[UUID] postinit;
 
     def postinit -> None;
     def data_location -> (str | None);
@@ -82,12 +90,16 @@ obj Session {
     def get_fetch_count -> int;
     def unit_enter -> None;
     def unit_exit -> None;
+    def read_scope_enter -> None;
+    def read_scope_exit -> None;
     def on_commit(callback: Callable) -> None;
     def flush(full: bool = False) -> None;
     def _flush_locked(full: bool) -> None;
     def read_barrier -> None;
     def _recover_conflict -> None;
     def _ensure_txn -> None;
+    def _txn_isolation -> TxnIsolation;
+    def _drop_snapshot_reads -> None;
     def _materialize(
         row: AnchorRow, edge_ids: (list[UUID] | None) = None
     ) -> (Anchor | None);

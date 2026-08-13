@@ -2,6 +2,7 @@ import json;
 import logging;
 import os;
 import threading;
+import from enum { StrEnum }
 import from typing { Any }
 import from uuid { UUID }
 
@@ -17,10 +18,18 @@ glob logger = logging.getLogger(__name__),
          'Store',
          'PgStore',
          'ConnInfo',
+         'TxnIsolation',
          'SCHEMA_VERSION',
          'SCHEMA_STAMP_KEY',
          'SessionConflictError'
      ];
+
+
+enum TxnIsolation(StrEnum) {
+    SERIALIZABLE = 'ISOLATION LEVEL SERIALIZABLE',
+    READ_COMMITTED = 'ISOLATION LEVEL READ COMMITTED',
+    SNAPSHOT_READ_ONLY = 'ISOLATION LEVEL REPEATABLE READ READ ONLY'
+}
 
 
 class SessionConflictError(Exception) {
@@ -61,14 +70,28 @@ obj AnchorRow {
 }
 
 
+obj ChannelListener {
+    has channel: str,
+        ident: str,
+        callback: Any;
+}
+
+
+obj ChannelMessage {
+    has channel: str,
+        payload: str;
+}
+
+
 obj Store {
     def is_available -> bool abst;
     def server_version -> int abst;
     def ensure_schema(promotions: dict[str, list[str]]) -> None abst;
-    def begin(serializable: bool = True, read_only: bool = False) -> None abst;
+    def begin(isolation: TxnIsolation = TxnIsolation.SERIALIZABLE) -> None abst;
     def commit -> None abst;
     def rollback -> None abst;
     def in_txn -> bool abst;
+    def txn_isolation -> (TxnIsolation | None) abst;
     def load_full(ids: list[UUID]) -> dict[UUID, AnchorRow] abst;
     def upsert(rows_in: list[AnchorRow]) -> None abst;
     def delete(ids: list[UUID]) -> None abst;
@@ -99,8 +122,9 @@ obj PgStore(Store) {
         _lock: threading.RLock postinit,
         _server_version: (int | None) postinit,
         _in_txn: bool postinit,
+        _isolation: (TxnIsolation | None) postinit,
         _known_types: set[str] postinit,
-        _listeners: list[tuple[str, Any]] postinit,
+        _listeners: list[ChannelListener] postinit,
         _listen_thread: (Any | None) postinit,
         _listen_stop: (Any | None) postinit,
         _booted: bool postinit,
@@ -112,10 +136,11 @@ obj PgStore(Store) {
     def server_version -> int;
     def ensure_schema(promotions: dict[str, list[str]]) -> None;
     def takeover -> int;
-    def begin(serializable: bool = True, read_only: bool = False) -> None;
+    def begin(isolation: TxnIsolation = TxnIsolation.SERIALIZABLE) -> None;
     def commit -> None;
     def rollback -> None;
     def in_txn -> bool;
+    def txn_isolation -> (TxnIsolation | None);
     def load_full(ids: list[UUID]) -> dict[UUID, AnchorRow];
     def upsert(rows_in: list[AnchorRow]) -> None;
     def delete(ids: list[UUID]) -> None;
@@ -130,6 +155,7 @@ obj PgStore(Store) {
     def quarantine(missing_id: UUID, referrer_id: (UUID | None), kind: str) -> None;
     def notify(channel: str, payload: str) -> None;
     def listen(channel: str, callback: Any) -> None;
+    def unlisten(channel: str) -> None;
     def close -> None;
     def _ensure_ready -> None;
     def _connect -> Any;
@@ -140,6 +166,9 @@ obj PgStore(Store) {
     def _apply_promotions -> None;
     def _property_graph_ddl -> None;
     def _listen_loop -> None;
+    def _dispatch_notification(channel: str, payload: str) -> None;
+    def _stop_listen_thread -> Any;
+    def _join_listen_thread(parked: Any) -> None;
     def _schema_fingerprint -> str;
     def _schema_stamp -> (str | None);
     def _apply_schema_ddl -> None;
