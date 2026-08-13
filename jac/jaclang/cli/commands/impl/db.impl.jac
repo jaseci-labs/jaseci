@@ -250,8 +250,11 @@ def _db_prune(data_dir: str, yes: bool, empty: bool) -> int {
     if _cluster_missing(data_dir) {
         return 0;
     }
-    import from jaclang.runtimelib.dbcatalog { connect_admin, drop_database }
-    import from jaclang.runtimelib.dbcatalog { list_databases }
+    import from jaclang.runtimelib.dbcatalog {
+        connect_admin,
+        drop_database,
+        list_databases
+    }
     rt = _catalog_runtime(data_dir);
     conn: Any = connect_admin(rt.ensure());
     try {
