@@ -370,15 +370,15 @@ def resolve_module(
         target_jac = actual_parts[-1] + '.jac';
         target_py = actual_parts[-1] + '.py';
         target_js = actual_parts[-1] + '.js';
-        for (root, _, files) in os.walk(jacpath) {
+        for (walk_dir, _, files) in os.walk(jacpath) {
             if (target_jac in files) {
-                return (os.path.join(root, target_jac), 'jac');
+                return (os.path.join(walk_dir, target_jac), 'jac');
             }
             if (target_py in files) {
-                return (os.path.join(root, target_py), 'py');
+                return (os.path.join(walk_dir, target_py), 'py');
             }
             if (target_js in files) {
-                return (os.path.join(root, target_js), 'js');
+                return (os.path.join(walk_dir, target_js), 'js');
             }
         }
     }

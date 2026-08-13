@@ -4,7 +4,8 @@ import from jaclang.runtimelib.serving.endpoint { JEndPoint, WSEndPoint }
 import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME, ServingServer }
 
 
-glob logger: logging.Logger = logging.getLogger(__name__);
+glob logger: logging.Logger = logging.getLogger(__name__),
+     LIVENESS_PATHS: set[str] = {'/healthz', '/healthz/live'};
 
 
 class ConsoleLogHandler(logging.Handler) {
@@ -83,7 +84,23 @@ obj NativeJServer {
 
         async def request_context_middleware(request: any, call_next: any) -> any {
             import from jaclang.scale.memory.context { JScaleExecutionContext }
-            ctx = JScaleExecutionContext();
+            import from jaclang.scale.runtime.context.errors { service_unavailable }
+            url = request?.url;
+            path = str(getattr(url, 'path', '') or '') if url is not None else '';
+            if path in LIVENESS_PATHS {
+                live_next: any = call_next;
+                return await live_next(request);
+            }
+            try {
+                ctx = JScaleExecutionContext();
+            } except Exception as ctx_err {
+                logger.error(
+                    f"request context unavailable for {path}: "
+                    f"{type(ctx_err).__name__}: {ctx_err}",
+                    exc_info=True
+                );
+                return service_unavailable('service', 'unable to reach its database');
+            }
             req_token = JacRuntime.push_request_context(ctx);
             import from jaclang.scale.runtime.context.auth_ctx {
                 set_current_auth,

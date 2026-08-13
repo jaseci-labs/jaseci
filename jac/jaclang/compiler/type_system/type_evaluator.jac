@@ -590,6 +590,13 @@ obj TypeEvaluator {
 
     def _type_matches_isinstance(t: TypeBase, target_type: TypeBase) -> bool;
     def _union_narrowed_types(types_list: list) -> TypeBase;
+    def _if_exit_type(
+        target: NarrowingTarget,
+        stmt: uni.IfStmt,
+        entry_type: (TypeBase | None),
+        visited: set
+    ) -> (TypeBase | None);
+
     def exclude_type_from_union(original: TypeBase, to_exclude: TypeBase) -> TypeBase;
     def _get_type_from_match_pattern(pattern: uni.MatchPattern) -> TypeBase | None;
     def _union_contains_none(union_type: TypeBase) -> bool;

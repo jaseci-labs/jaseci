@@ -860,7 +860,9 @@ test_fixtures/
 *.generated.jac
 ```
 
-Each line is a filename or pattern that should be skipped during Jac compilation passes (type checking, formatting, etc.).
+Each line is a filename or pattern that should be skipped during Jac compilation passes (type checking, formatting, etc.). Blank lines and `#` comments are ignored; a pattern containing `/` is matched against the path relative to the project root, a bare pattern against any path component.
+
+A `--scale` deploy reads the same file when it stages the app bundle, so a parked tree is not copied to the pods and is never compiled there. Because `.jacignore` itself ships in the bundle, editing it changes the bundle's content address and the next deploy re-ships.
 
 ---
 
