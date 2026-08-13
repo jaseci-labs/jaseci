@@ -302,6 +302,46 @@ test "opening a scratch store reaps scratch databases of dead processes" {
 }
 
 
+test "a new scratch base starts empty in every table, not just the core ones" {
+    cluster = _start_cluster();
+    # jac-scale keeps identities and jobs in tables the core schema never
+    # names (jac_docs). A fresh temp path used to hand every test a brand new
+    # database, so anything a plugin wrote was gone too; reusing one scratch
+    # database only matches that if the wipe covers the whole schema.
+    script = (
+        "import tempfile;"
+        "from jaclang.runtimelib.session import mark_scratch_base;"
+        "from jaclang.runtimelib.context import ExecutionContext;"
+        "b1 = tempfile.mkdtemp(); b2 = tempfile.mkdtemp();"
+        "mark_scratch_base(b1); mark_scratch_base(b2);"
+        "c1 = ExecutionContext(base_path_dir=b1);"
+        "s = c1.mem.store;"
+        "s.rows('CREATE TABLE IF NOT EXISTS plugin_docs (id text PRIMARY KEY)', {});"
+        "s.rows(\"INSERT INTO plugin_docs (id) VALUES ('user1')\", {});"
+        "print('ROWS', len(s.rows('SELECT id FROM plugin_docs', {})));"
+        "c1.close();"
+        "c2 = ExecutionContext(base_path_dir=b2);"
+        "print('ROWS', len(c2.mem.store.rows('SELECT id FROM plugin_docs', {})));"
+        "c2.close()"
+    );
+    try {
+        (rc, out, err) = _run_python(cluster, script);
+        assert rc == 0 , f"scratch-base child failed: {err}";
+        counts = [
+            line.split(" ", 1)[1]
+            for line in out.splitlines()
+            if line.startswith("ROWS ")
+        ];
+        assert counts == ["1", "0"] , (
+            f"a plugin table must survive its own base and be empty for the "
+            f"next one: {counts} ({out!r})"
+        );
+    } finally {
+        _stop_cluster(cluster);
+    }
+}
+
+
 test "a created database records its owning absolute path" {
     import from jaclang.runtimelib.dbcatalog { REGISTRY_TABLE }
     cluster = _start_cluster();

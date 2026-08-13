@@ -340,10 +340,19 @@ impl PgStore.reset_data -> None {
         if self._in_txn {
             self.rollback();
         }
-        self._run('TRUNCATE anchors, graph_types, quarantine RESTART IDENTITY', {});
-        self._run(
-            'DELETE FROM kv_state WHERE key <> :stamp', {'stamp': SCHEMA_STAMP_KEY}
+        rows = self._run(
+            'SELECT tablename FROM pg_tables WHERE schemaname = current_schema()', {}
         );
+        tables = [str(row[0]) for row in rows];
+        if not tables {
+            return;
+        }
+        stamp = self._schema_stamp();
+        targets = ', '.join(f'"{name}"' for name in sorted(tables));
+        self._run(f"TRUNCATE {targets} RESTART IDENTITY CASCADE", {});
+        if stamp {
+            self.kv_put(SCHEMA_STAMP_KEY, stamp);
+        }
         self._known_types = set();
     }
 }
