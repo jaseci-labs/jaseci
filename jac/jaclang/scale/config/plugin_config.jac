@@ -461,6 +461,11 @@ class JacScalePluginConfig {
                             "type": "bool",
                             "default": False,
                             "description": "Suppress health-check endpoint access log entries (/docs, /, /openapi.json, /health, /healthz, /healthz/ready, /healthz/live) from CLI output and Kubernetes pod logs. Off by default."
+                        },
+                        "structured_logs": {
+                            "type": "bool",
+                            "default": True,
+                            "description": "Install jac-scale's JSON log handler on the root logger at serving startup (the format Kubernetes pod log collection expects). Set false when embedding jac-scale in an application that owns its own logging configuration: handlers, levels and formatters are then left untouched."
                         }
                     }
                 },
