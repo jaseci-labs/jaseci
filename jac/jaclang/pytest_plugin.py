@@ -19,6 +19,7 @@ tests with zero configuration.
 
 from __future__ import annotations
 
+import atexit
 import contextlib
 import importlib
 import importlib.machinery
@@ -195,6 +196,20 @@ def _module_is_client(file_path: Path) -> bool:
 
 _jac_runtime_ready = False
 
+# Temp base paths minted by _fresh_jac_state; removed when the worker exits so
+# a suite run does not leave one empty directory per test behind.
+_TEST_BASES: list[str] = []
+
+
+def _remove_test_bases() -> None:
+    import shutil
+
+    while _TEST_BASES:
+        shutil.rmtree(_TEST_BASES.pop(), ignore_errors=True)
+
+
+atexit.register(_remove_test_bases)
+
 
 def _ensure_jac_runtime():
     """Verify that the Jac runtime can be imported, once per pytest session.
@@ -229,6 +244,7 @@ def _fresh_jac_state(*, clear_modules: bool = True):
     """
     from jaclang.jac0core.program import JacProgram
     from jaclang.jac0core.runtime import JacRuntime, JacRuntimeInterface
+    from jaclang.runtimelib.session import mark_scratch_base
 
     # Close any existing execution context
     if JacRuntime.exec_ctx is not None:
@@ -241,12 +257,19 @@ def _fresh_jac_state(*, clear_modules: bool = True):
                 sys.modules.pop(mod.__name__, None)
         JacRuntime.loaded_modules.clear()
 
-    # Set up fresh state with isolated storage (temp directory avoids
-    # stale SQLite data from previous tests). Seed the bootstrap default
-    # so any subsequent `ExecutionContext()` without explicit args picks
-    # it up. The session-wide exec_ctx is constructed with the seed
-    # passed explicitly so its L3 path is locked in at construction.
-    fresh_base = tempfile.mkdtemp()
+    # Set up fresh state with isolated storage: a fresh temp base path per
+    # test keeps one test's graph out of the next one's. Marking it as a
+    # scratch base is what keeps that isolation from costing a permanent 8 MB
+    # database per test in the machine-wide cluster (issue #8094): every
+    # scratch base in this process shares one database that is wiped when the
+    # base changes and dropped when the worker exits. Seed the bootstrap
+    # default so any subsequent `ExecutionContext()` without explicit args
+    # picks it up (and lands on the same scratch store). The session-wide
+    # exec_ctx is constructed with the seed passed explicitly so its store is
+    # locked in at construction.
+    fresh_base = tempfile.mkdtemp(prefix="jac-test-base-")
+    _TEST_BASES.append(fresh_base)
+    mark_scratch_base(fresh_base)
     JacRuntime.set_base_path(fresh_base)
     JacRuntime.set_full_target_path(None)
     JacRuntime.program = JacProgram()
