@@ -166,7 +166,15 @@ impl UniNode.gen_token(name: Tok, value: (str | None) = None) -> Token {
 
 
 impl UniNode.codespace -> CodeContext {
-    nd: (UniNode | None) = self;
+    if isinstance(self, ContextAwareNode) {
+        if (self.code_context == CodeContext.CLIENT) {
+            return CodeContext.CLIENT;
+        }
+        if (self.code_context == CodeContext.NATIVE) {
+            return CodeContext.NATIVE;
+        }
+    }
+    nd: (UniNode | None) = self.parent;
     while (nd is not None) {
         if isinstance(nd, ContextAwareNode) {
             context = nd.code_context;
@@ -177,8 +185,7 @@ impl UniNode.codespace -> CodeContext {
                 return CodeContext.NATIVE;
             }
         }
-
-        if isinstance(nd, Module) and (nd is not self) {
+        if isinstance(nd, Module) {
             if nd.decided_codespace == CodeContext.NATIVE.value {
                 return CodeContext.NATIVE;
             }
