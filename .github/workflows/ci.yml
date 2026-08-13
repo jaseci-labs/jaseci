@@ -689,7 +689,8 @@ jobs:
       run: jac test jac/tests/runtimelib/client/test_desktop_binding.jac
 
   test-client:
-    needs: build-jac
+    needs: [changes, build-jac]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
     # (serve/client/cli tests). Under the dev lane each such spawn would

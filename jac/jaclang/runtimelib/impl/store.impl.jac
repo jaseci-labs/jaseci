@@ -85,6 +85,11 @@ def _sanitize_ident(name: str) -> str {
 }
 
 
+def _store_ns(info: ConnInfo) -> str {
+    return f"{info.unix_socket_dir or info.host}:{info.port}/{info.database}";
+}
+
+
 glob _PG_CHANNEL_LIMIT = 63,
      _CHANNEL_DIGEST_LEN = 16,
      _CHANNEL_ENVELOPE_KEY = '__jac_channel',
@@ -155,10 +160,45 @@ impl PgStore.postinit -> None {
     self._lock = threading.RLock();
     self._server_version = None;
     self._in_txn = False;
+    self._isolation = None;
     self._known_types = set();
     self._listeners = [];
     self._listen_thread = None;
     self._listen_stop = None;
+    self._booted = False;
+    self._ready = False;
+    self._readying = None;
+}
+
+
+impl PgStore._ensure_ready -> None {
+    if self._ready {
+        return;
+    }
+    with self._lock {
+        if self._ready or self._readying == threading.get_ident() {
+            return;
+        }
+        self._readying = threading.get_ident();
+        try {
+            if self.ensure_cb is not None and not self._booted {
+                self.conninfo = self.ensure_cb();
+                self._booted = True;
+            }
+            if self.auto_schema {
+                ns = _store_ns(self.conninfo);
+                with _schema_gate {
+                    if ns not in _schema_ready {
+                        self.ensure_schema(self.promotions);
+                        _schema_ready.add(ns);
+                    }
+                }
+            }
+            self._ready = True;
+        } finally {
+            self._readying = None;
+        }
+    }
 }
 
 
@@ -272,6 +312,7 @@ impl PgStore._main -> Any {
 
 
 impl PgStore._side -> Any {
+    self._ensure_ready();
     if self._side_conn is None {
         self._side_conn = self._connect();
     }
@@ -294,6 +335,7 @@ def _conn_dead(e: Exception) -> bool {
 
 
 impl PgStore._run(sql: str, params: dict) -> list {
+    self._ensure_ready();
     with self._lock {
         conn: Any = None;
         try {
@@ -395,6 +437,29 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
         }
         self.kv_put(SCHEMA_STAMP_KEY, fp);
         self._load_known_types();
+    }
+}
+
+
+impl PgStore.reset_data -> None {
+    with self._lock {
+        if self._in_txn {
+            self.rollback();
+        }
+        listed = self._run(
+            'SELECT tablename FROM pg_tables WHERE schemaname = current_schema()', {}
+        );
+        tables = [str(row[0]) for row in listed];
+        if not tables {
+            return;
+        }
+        stamp = self._schema_stamp();
+        targets = ', '.join(f'"{name}"' for name in sorted(tables));
+        self._run(f"TRUNCATE {targets} RESTART IDENTITY CASCADE", {});
+        if stamp {
+            self.kv_put(SCHEMA_STAMP_KEY, stamp);
+        }
+        self._known_types = set();
     }
 }
 
@@ -545,21 +610,14 @@ impl PgStore.takeover -> int {
 }
 
 
-impl PgStore.begin(serializable: bool = True, read_only: bool = False) -> None {
+impl PgStore.begin(isolation: TxnIsolation = TxnIsolation.SERIALIZABLE) -> None {
     with self._lock {
         if self._in_txn {
             return;
         }
-        if read_only {
-            level = 'REPEATABLE READ';
-        } elif serializable {
-            level = 'SERIALIZABLE';
-        } else {
-            level = 'READ COMMITTED';
-        }
-        suffix = ' READ ONLY' if read_only else '';
-        self._run(f"BEGIN ISOLATION LEVEL {level}{suffix}", {});
+        self._run(f"BEGIN {isolation.value}", {});
         self._in_txn = True;
+        self._isolation = isolation;
         try {
             self._run("SET LOCAL lock_timeout = '10s'", {});
         } except Exception { }
@@ -572,8 +630,12 @@ impl PgStore.commit -> None {
         if not self._in_txn {
             return;
         }
-        self._run('COMMIT', {});
-        self._in_txn = False;
+        try {
+            self._run('COMMIT', {});
+        } finally {
+            self._in_txn = False;
+            self._isolation = None;
+        }
     }
 }
 
@@ -587,6 +649,7 @@ impl PgStore.rollback -> None {
             self._run('ROLLBACK', {});
         } finally {
             self._in_txn = False;
+            self._isolation = None;
         }
     }
 }
@@ -594,6 +657,11 @@ impl PgStore.rollback -> None {
 
 impl PgStore.in_txn -> bool {
     return self._in_txn;
+}
+
+
+impl PgStore.txn_isolation -> (TxnIsolation | None) {
+    return self._isolation if self._in_txn else None;
 }
 
 
@@ -845,6 +913,9 @@ impl PgStore.kv_delete(key: str) -> None {
 impl PgStore.quarantine(
     missing_id: UUID, referrer_id: (UUID | None), kind: str
 ) -> None {
+    if self._isolation is TxnIsolation.SNAPSHOT_READ_ONLY {
+        return;
+    }
     self._run(
         """
         INSERT INTO quarantine (missing_id, referrer_id, kind)
