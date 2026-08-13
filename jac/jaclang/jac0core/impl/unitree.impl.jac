@@ -108,11 +108,7 @@ impl UniNode.add_kids_right(
 impl UniNode.insert_kids_at_pos(
     nodes: Sequence[UniNode], pos: int, pos_update: bool = True
 ) -> UniNode {
-    new_kid: list[UniNode] = [];
-    new_kid.extend(self.kid[:pos]);
-    new_kid.extend(nodes);
-    new_kid.extend(self.kid[pos:]);
-    self.kid = new_kid;
+    self.kid = [*self.kid[:pos], *nodes, *self.kid[pos:]];
     if pos_update {
         for i in nodes {
             i.parent = self;
@@ -124,9 +120,7 @@ impl UniNode.insert_kids_at_pos(
 }
 
 impl UniNode.set_kids(nodes: Sequence[UniNode]) -> UniNode {
-    new_kid: list[UniNode] = [];
-    new_kid.extend(nodes);
-    self.kid = new_kid;
+    self.kid = [*nodes];
     for i in nodes {
         i.parent = self;
     }
