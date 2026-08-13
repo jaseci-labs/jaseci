@@ -1,5 +1,28 @@
 import from jaclang.jac0core.constant { OwnershipKind }
 
+impl NaIRGenPass._arch_alias_target(nd: (uni.UniNode | None)) -> (str | None) {
+    if not isinstance(nd, uni.NameAtom) {
+        return None;
+    }
+    sym = nd.sym;
+    if sym is None {
+        return None;
+    }
+    d = sym.decl;
+    if d is None {
+        return None;
+    }
+    nof = d.name_of;
+    if isinstance(nof, uni.Archetype) and nof.name.value != self._get_name(nd) {
+        return nof.name.value;
+    }
+    par = d.parent;
+    if isinstance(par, uni.ModuleItem) and par.alias is d {
+        return self._get_name(par.name);
+    }
+    return None;
+}
+
 impl NaIRGenPass._callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None) {
     decl = nd.callee_decl;
     sig = decl.signature if decl is not None else None;
@@ -1719,6 +1742,10 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if func_name in self.struct_types {
         return self._codegen_instantiation(nd);
     }
+    _alias_arch = self._arch_alias_target(nd.target);
+    if _alias_arch is not None and _alias_arch in self.struct_types {
+        return self._codegen_instantiation(nd, type_name_override=_alias_arch);
+    }
     if func_name in self.decorated_fns {
         return self._codegen_decorated_call(nd, func_name);
     }
@@ -1919,7 +1946,10 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     if self._nogc_headerless() {
         _skip_own: set = set();
         _is_ctor = isinstance(nd.target, uni.Name)
-            and nd.target.sym_name in self.arch_ast_map;
+            and (
+                nd.target.sym_name in self.arch_ast_map
+                or self._arch_alias_target(nd.target) in self.arch_ast_map
+            );
         _sig = None if _is_ctor else self._callee_sig_of(nd);
         _sig_params = _sig.get_parameters() if _sig is not None else [];
         if _is_ctor {
@@ -2053,7 +2083,86 @@ impl NaIRGenPass._isinstance_type_name(nd: uni.UniNode) -> (str | None) {
         }
         return None;
     }
+    _alias_nm = self._arch_alias_target(nd);
+    if _alias_nm is not None {
+        return _alias_nm;
+    }
     return self._get_name(nd);
+}
+
+impl NaIRGenPass._enum_union_tags(
+    operand_expr: uni.UniNode, names: list[str]
+) -> tuple {
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _EnClassType,
+            EnumMemberType as _EnMemberType,
+            UnionType as _EnUnionType
+        }
+    } except ImportError {
+        return ([], names, );
+    }
+    t = operand_expr.type if isinstance(operand_expr, uni.Expr) else None;
+    members: list = [];
+    if isinstance(t, _EnUnionType) {
+        members = list(t.types or []);
+    } elif t is not None {
+        members = [t];
+    }
+    if not members {
+        return ([], names, );
+    }
+    member_rows: list = [];
+    for m in members {
+        cls = m.enum_class if isinstance(m, _EnMemberType) else m;
+        if not isinstance(cls, _EnClassType) or cls._shared is None {
+            return ([], names, );
+        }
+        cn = cls.shared.class_name;
+        if cls.is_enum_class() {
+            member_rows.append((cn, True, [0], ));
+        } elif cn in ("NoneType", "None") {
+            member_rows.append((cn, False, [8], ));
+        } elif cn == "bool" {
+            member_rows.append((cn, False, [7], ));
+        } elif cn == "int" {
+            member_rows.append((cn, False, [0, 7], ));
+        } elif cn == "float" {
+            member_rows.append((cn, False, [1], ));
+        } elif cn == "str" {
+            member_rows.append((cn, False, [2], ));
+        } elif cn in ("list", "dict", "set", "tuple") {
+            member_rows.append((cn, False, [3, 4, 5], ));
+        } else {
+            member_rows.append((cn, False, [6], ));
+        }
+    }
+    resolved: list[int] = [];
+    still: list[str] = [];
+    for nm in names {
+        hit = False;
+        for row in member_rows {
+            if row[0] == nm and row[1] {
+                clash = False;
+                for other in member_rows {
+                    if other[0] != nm and (0 in other[2]) {
+                        clash = True;
+                        break;
+                    }
+                }
+                hit = not clash;
+                break;
+            }
+        }
+        if hit {
+            if 0 not in resolved {
+                resolved.append(0);
+            }
+        } else {
+            still.append(nm);
+        }
+    }
+    return (resolved, still, );
 }
 
 impl NaIRGenPass._emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None) {
@@ -2069,7 +2178,30 @@ impl NaIRGenPass._emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None) {
         return None;
     }
     if self._opt_payload_of(operand.type) is None {
-        return self._emit_isinstance_core(nd, operand);
+        if not isinstance(operand.type, ir.PointerType) {
+            return self._emit_isinstance_core(nd, operand);
+        }
+
+        _nn_fn = self.builder.block.function;
+        _nn_bb = _nn_fn.append_basic_block("isinst.nn");
+        _nn_done_bb = _nn_fn.append_basic_block("isinst.nn.done");
+        _nn_ok = self.builder.icmp_unsigned(
+            "!=", operand, ir.Constant(operand.type, None), name="isinst.nonnull"
+        );
+        _nn_entry = self.builder.block;
+        self.builder.cbranch(_nn_ok, _nn_bb, _nn_done_bb);
+        self.builder.position_at_end(_nn_bb);
+        _nn_inner = self._emit_isinstance_core(nd, operand);
+        _nn_inner_bb = self.builder.block;
+        self.builder.branch(_nn_done_bb);
+        self.builder.position_at_end(_nn_done_bb);
+        if _nn_inner is None {
+            return None;
+        }
+        _nn_res = self.builder.phi(i1, name="isinst.nn.res");
+        _nn_res.add_incoming(ir.Constant(i1, 0), _nn_entry);
+        _nn_res.add_incoming(_nn_inner, _nn_inner_bb);
+        return _nn_res;
     }
     fn = self.builder.block.function;
     some_bb = fn.append_basic_block("isinst.opt.some");
@@ -2131,6 +2263,14 @@ impl NaIRGenPass._emit_isinstance_core(
         }
     }
     if unresolved {
+        (_enum_tags, unresolved) = self._enum_union_tags(params[0], unresolved);
+        for _et in _enum_tags {
+            if _et not in tags {
+                tags.append(_et);
+            }
+        }
+    }
+    if unresolved {
         if not tags {
             return self._emit_isinstance_user(nd, operand, unresolved);
         }
@@ -2139,6 +2279,13 @@ impl NaIRGenPass._emit_isinstance_core(
     if not tags {
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
+    }
+    if isinstance(operand.type, ir.PointerType) {
+        _pt_res = self._emit_isinstance_ptr_tags(operand, tags);
+        if self._is_owned(operand) {
+            self._emit_rc_release_simple(operand, op="isinstance_arg", loc="");
+        }
+        return _pt_res;
     }
     boxed = self._box_to_jacval(operand);
     tag = self.builder.extract_value(boxed, 0, name="isinst.tag");
@@ -2158,6 +2305,73 @@ impl NaIRGenPass._emit_isinstance_core(
     return result;
 }
 
+impl NaIRGenPass._emit_isinstance_ptr_tags(
+    operand: ir.Value, tags: list[int]
+) -> ir.Value {
+    i1 = ir.IntType(1);
+    i32 = ir.IntType(32);
+    i64 = ir.IntType(64);
+    i8p = ir.IntType(8).as_pointer();
+
+    _prefixes: dict[int, str] = {3: "list_", 4: "dict_", 5: "set_"};
+    if 6 in tags {
+        return ir.Constant(i1, 1);
+    }
+    _want = [
+        t
+        for t in sorted(tags)
+        if t in _prefixes
+    ];
+    if not _want {
+        return ir.Constant(i1, 0);
+    }
+    b = self.builder;
+    raw = b.bitcast(operand, i8p, name="isinst.hdr.raw");
+    fn = b.block.function;
+    pre_bb = b.block;
+    tag_bb = fn.append_basic_block("isinst.hdr.tag");
+    cmp_bb = fn.append_basic_block("isinst.hdr.cmp");
+    done_bb = fn.append_basic_block("isinst.hdr.done");
+    magic_ok = self._emit_magic_check(b, raw, name_prefix="isinst.mc");
+    b.cbranch(magic_ok, tag_bb, done_bb);
+
+    b.position_at_end(tag_bb);
+    tag_slot = b.gep(raw, [ir.Constant(i64, HDR_TAG_OFF)], name="isinst.tag.slot");
+    tag_pp = b.bitcast(tag_slot, i8p.as_pointer(), name="isinst.tag.pp");
+    tag_ptr = b.load(tag_pp, name="isinst.tag.name");
+    tag_nn = b.icmp_unsigned(
+        "!=", tag_ptr, ir.Constant(i8p, None), name="isinst.tag.nn"
+    );
+    b.cbranch(tag_nn, cmp_bb, done_bb);
+
+    b.position_at_end(cmp_bb);
+    memcmp_fn = self._get_or_declare_extern("memcmp", i32, [i8p, i8p, i64]);
+    matched: (ir.Value | None) = None;
+    for t in _want {
+        pfx = _prefixes[t];
+        pfx_gv = self._get_snprintf_fmt(pfx);
+        pfx_ptr = b.gep(
+            pfx_gv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="isinst.pfx"
+        );
+        cmp_res = b.call(
+            memcmp_fn,
+            [tag_ptr, pfx_ptr, ir.Constant(i64, len(pfx))],
+            name="isinst.memcmp"
+        );
+        eq = b.icmp_signed("==", cmp_res, ir.Constant(i32, 0), name="isinst.pfx.eq");
+        matched = eq if matched is None else b.or_(matched, eq, name="isinst.pfx.or");
+    }
+    cmp_end_bb = b.block;
+    b.branch(done_bb);
+
+    b.position_at_end(done_bb);
+    res = b.phi(i1, name="isinst.hdr.res");
+    res.add_incoming(ir.Constant(i1, 0), pre_bb);
+    res.add_incoming(ir.Constant(i1, 0), tag_bb);
+    res.add_incoming(matched, cmp_end_bb);
+    return res;
+}
+
 impl NaIRGenPass._emit_isinstance_mixed(
     nd: uni.FuncCall, operand: ir.Value, tags: list[int], names: list[str]
 ) -> (ir.Value | None) {
@@ -2165,16 +2379,7 @@ impl NaIRGenPass._emit_isinstance_mixed(
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
 
-    target_vtables: list[ir.GlobalVariable] = [];
-    for cand in self.vtable_globals {
-        cand_mro = self._mro_of(cand);
-        for name in names {
-            if name in cand_mro {
-                target_vtables.append(self.vtable_globals[cand]);
-                break;
-            }
-        }
-    }
+    target_vtables = self._vtable_candidates(names);
     if not target_vtables {
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
@@ -2190,6 +2395,9 @@ impl NaIRGenPass._emit_isinstance_mixed(
             "==", tag, ir.Constant(i8, t), name="isinst.cmp"
         );
         prim = cmp if prim is None else self.builder.or_(prim, cmp, name="isinst.or");
+    }
+    if prim is None {
+        prim = ir.Constant(i1, 0);
     }
 
     pre_bb = self.builder.block;
@@ -2246,31 +2454,25 @@ impl NaIRGenPass._emit_isinstance_user(
     i32 = ir.IntType(32);
 
     if not isinstance(operand.type, ir.PointerType) {
+        if self?.jacval_type and operand.type == self.jacval_type {
+            return self._emit_isinstance_mixed(nd, operand, [], names);
+        }
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
     }
 
-    target_vtables: list[ir.GlobalVariable] = [];
-    for cand in self.vtable_globals {
-        cand_mro = self._mro_of(cand);
-        for name in names {
-            if name in cand_mro {
-                target_vtables.append(self.vtable_globals[cand]);
-                break;
-            }
-        }
-    }
+    target_vtables = self._vtable_candidates(names);
     if not target_vtables {
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
     }
 
     struct_name = self._struct_name_of(nd.params[0] if nd.params else None);
-    if struct_name is None or struct_name not in self.struct_types {
-        self._emit_unsupported_builtin_call(nd, "isinstance");
-        return None;
-    }
-    if struct_name not in self.vtable_globals {
+    if (
+        struct_name is not None
+        and struct_name in self.struct_types
+        and not self._arch_has_vtable(struct_name)
+    ) {
         if self._is_owned(operand) {
             self._emit_rc_release_simple(operand, op="isinstance_arg", loc="");
         }

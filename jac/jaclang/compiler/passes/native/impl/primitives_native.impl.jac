@@ -2611,7 +2611,22 @@ impl NativeListEmitter.emit_extend(
     at_end = b.icmp_unsigned(">=", idx, src_len, name="ext.atend");
     b.cbranch(at_end, done_bb, body_bb);
     b.position_at_start(body_bb);
-    elem = b.call(helpers["get"], [src, idx], name="ext.elem");
+    src_helpers = helpers;
+    if src.type != target.type {
+        for (_sk, _sty) in p.list_types.items() {
+            if src.type == _sty.as_pointer() {
+                _sh = p.list_helpers.get(_sk);
+                if _sh is not None {
+                    src_helpers = _sh;
+                }
+                break;
+            }
+        }
+    }
+    elem = b.call(src_helpers["get"], [src, idx], name="ext.elem");
+    if elem.type != helpers["elem_type"] {
+        elem = p._coerce_type(elem, helpers["elem_type"]);
+    }
     b.call(helpers["append"], [target, elem]);
     next_idx = b.add(idx, ir.Constant(i64, 1), name="ext.next");
     idx.add_incoming(next_idx, body_bb);

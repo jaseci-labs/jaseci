@@ -1,5 +1,6 @@
 import re;
-import from jaclang.jac0core.unitree { Module, Ability }
+import from jaclang.jac0core.unitree { Module, Ability, UniNode }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
 glob _SCALAR_MAP: dict[str, str] = {
          "int": "number",
@@ -111,11 +112,11 @@ def _param_type(param: any) -> str | None {
         return None;
     }
     inner = tag?.tag;
-    if inner is None or not hasattr(inner, "unparse") {
+    if not isinstance(inner, UniNode) {
         return None;
     }
     try {
-        return inner.unparse();
+        return unparse_node(inner);
     } except Exception {
         return None;
     }
@@ -141,9 +142,9 @@ def _block_for_ability(ability: Ability) -> str | None {
     }
 
     ret = sig?.return_type if sig else None;
-    if ret is not None and hasattr(ret, "unparse") {
+    if isinstance(ret, UniNode) {
         try {
-            rt_str = ret.unparse();
+            rt_str = unparse_node(ret);
         } except Exception {
             rt_str = "";
         }

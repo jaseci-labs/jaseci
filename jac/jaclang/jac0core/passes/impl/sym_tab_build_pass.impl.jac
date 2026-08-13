@@ -689,6 +689,17 @@ impl find_python_scope_node_of(nd: uni.UniNode) -> (UniScopeNode | None) {
     return None;
 }
 
+impl find_typed_decl_scope_of(nd: uni.AstSymbolNode) -> UniScopeNode {
+    if uni.UniScopeNode.is_python_scoping(nd.sym_tab) {
+        return nd.sym_tab;
+    }
+    py_scope = find_python_scope_node_of(nd);
+    if isinstance(py_scope, (uni.Ability, uni.ImplDef, uni.Test)) {
+        return py_scope;
+    }
+    return nd.sym_tab;
+}
+
 impl def_insert_unpacking(
     nd: uni.Expr, sym_tab: UniScopeNode, rebind_in_python_scope: bool = False
 ) -> None {
@@ -766,7 +777,7 @@ impl bind_assignment_targets(nd: uni.Assignment) -> None {
                 if isinstance(i.sym_tab, uni.Enum) {
                     i.name_spec._sym_category = SymbolType.ENUM_MEMBER;
                 }
-                i.sym_tab.def_insert(i, single_decl='local var');
+                find_typed_decl_scope_of(i).def_insert(i, single_decl='local var');
             }
         }
     }
