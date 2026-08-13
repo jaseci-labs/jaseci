@@ -12,6 +12,7 @@ second new group replays independently, and latest on a new group skips what
 was already published while still delivering what comes after.
 """
 
+import threading;
 import uuid;
 import from jaclang.runtimelib.pgembed { PgRuntime }
 import from jaclang.runtimelib.session { shared_pg_data_dir }
@@ -166,6 +167,30 @@ test "start_from latest bookmarks a new group past published events" {
         );
         assert len(fresh) == 1 , f"latest group got {len(fresh)} of 1 new event";
         assert fresh[0].data["n"] == 99;
+    } finally {
+        stream.stop(drain=False);
+    }
+}
+
+
+test "register_handler shares the same positioning rule as consume" {
+    stream = _stream();
+    if stream is None {
+        return;
+    }
+    topic = _topic();
+    received: list[Event] = [];
+    done = threading.Event();
+
+    def handler(ev: Event) {
+        received.append(ev);
+        done.set();
+    }
+    try {
+        _publish(stream, topic, 1);
+        stream.register_handler(topic, handler, group="g_push", start_from="earliest");
+        assert done.wait(timeout=15.0) , "handler never received the replayed event";
+        assert received[0].data["n"] == 0;
     } finally {
         stream.stop(drain=False);
     }
