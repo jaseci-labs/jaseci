@@ -210,6 +210,50 @@ def registry_field -> int {
     );
 }
 
+"""`UniPass.get_all_sub_nodes`' shape: a `type[T]` probe plus a runtime filter."""
+def collect[T](tab: dict[type, list[Node]], typ: type[T]) -> list[T] {
+    out: list[T] = [];
+    if typ in tab {
+        for it in tab[typ] {
+            if isinstance(it, typ) {
+                out.append(it);
+            }
+        }
+    }
+    return out;
+}
+
+def generic_collect -> int {
+    tab = index_by_type(sample());
+    return (
+        len(collect(tab, Node)) * 1000
+        + len(collect(tab, Alpha)) * 100
+        + len(collect(tab, AlphaLeaf)) * 10
+        + len(collect(tab, Beta))
+    );
+}
+
+"""`isinstance` against a class value carried in a variable, not a literal."""
+def isa_runtime[T](it: Node, typ: type[T]) -> int {
+    return 1 if isinstance(it, typ) else 0;
+}
+
+# A runtime class value has to answer with subclass semantics, not identity:
+# an AlphaLeaf is an Alpha and a Node, a Node is neither an Alpha nor a Beta.
+def runtime_isinstance -> int {
+    leaf = AlphaLeaf(n=5);
+    base = Node(n=1);
+    beta = Beta(n=3);
+    return (
+        isa_runtime(leaf, Alpha) * 100000
+        + isa_runtime(leaf, Node) * 10000
+        + isa_runtime(leaf, AlphaLeaf) * 1000
+        + isa_runtime(base, Alpha) * 100
+        + isa_runtime(beta, Alpha) * 10
+        + isa_runtime(beta, Node)
+    );
+}
+
 """A class never inserted must miss, and must not alias a class that was."""
 def absent_key -> int {
     tab: dict[type, list[Node]] = {};

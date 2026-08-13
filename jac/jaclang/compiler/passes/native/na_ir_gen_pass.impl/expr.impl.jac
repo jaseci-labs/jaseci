@@ -819,6 +819,7 @@ impl NaIRGenPass._codegen_compare_link(
         is_not_in = op == Tok.KW_NIN;
         left = self._str_norm(left);
         right = self._str_norm(right);
+        right = self._unwrap_opt_container(right);
         _in_key_nd = left_node.expr
             if isinstance(left_node, uni.CfgExpr)
             else left_node;

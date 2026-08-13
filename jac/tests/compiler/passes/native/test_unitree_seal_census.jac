@@ -58,11 +58,6 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
      # that class's field offsets -- so one un-lowerable accessor is listed
      # once per class that inherits it, and the reason is shared.
      SEAM_WAIVERS: dict[(str, str)] = {
-         "unitree.jac::UniNode._construct_sub_node_tab": (
-             "#8068: a dict keyed by `type` is not layout-compatible, and "
-             "`UniNode.__sub_node_tab` is exactly that -- the per-node "
-             "sub-node index behind `UniPass.get_all_sub_nodes`."
-         ),
          "unitree.jac::ModulePath.resolve_relative_path": (
              "Python-only: import resolution runs through "
              "`jac0core.modresolver` (importlib / sys.path / pathlib), which "
@@ -112,10 +107,6 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
          ),
          "unitree.jac::ModulePath.base_module_name.__get__": (
              "Python-only: built on `string_path_value`, waived above."
-         ),
-         "unitree.jac::FuncSignature.is_in_py_class.__get__": (
-             "#8068 again: `find_parent_of_type` walks `_sub_node_tab`, the "
-             "dict keyed by `type` that has no native layout."
          ),
          "unitree.jac::DeleteStmt.py_ast_targets.__get__": (
              "Python-only: reads `gen.py_ast`, a list of CPython `ast` "

@@ -276,7 +276,6 @@ glob NATIVE_SEAL_MODULES: tuple = (
      );
 
 glob _UNITREE_SEAM_WAIVERS: tuple = (
-         "jac0core/unitree.jac::UniNode._construct_sub_node_tab",
          "jac0core/unitree.jac::ModulePath.resolve_relative_path",
          "jac0core/unitree.jac::ModulePath.native_bundled_path",
          "jac0core/unitree.jac::Ability.event_trigger_type_names",
@@ -288,7 +287,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::ModulePath.string_path_value.__get__",
          "jac0core/unitree.jac::ModulePath.dot_path_str.__get__",
          "jac0core/unitree.jac::ModulePath.base_module_name.__get__",
-         "jac0core/unitree.jac::FuncSignature.is_in_py_class.__get__",
          "jac0core/unitree.jac::DeleteStmt.py_ast_targets.__get__",
          "jac0core/unitree.jac::AstAccessNode.access_type.__get__",
          "jac0core/unitree.jac::TypeAlias.access_type.__get__",

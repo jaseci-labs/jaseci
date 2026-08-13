@@ -2245,6 +2245,12 @@ impl NaIRGenPass._emit_isinstance_core(
     params = nd.params or [];
 
     type_arg = params[1];
+    if not isinstance(type_arg, uni.TupleVal) {
+        _rt_res = self._emit_isinstance_runtime(nd, operand, type_arg);
+        if _rt_res is not None {
+            return _rt_res;
+        }
+    }
     names: list[str] = [];
     if isinstance(type_arg, uni.TupleVal) {
         for v in (type_arg.values or []) {

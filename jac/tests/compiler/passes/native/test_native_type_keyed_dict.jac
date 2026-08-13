@@ -162,3 +162,16 @@ test "the table survives as an object field" {
 test "a class that was never inserted misses, and aliases nothing" {
     _same_int("absent_key");
 }
+
+
+test "a `type[T]` parameter carries a class through a generic call" {
+    _same_int("generic_collect");
+}
+
+
+test "isinstance against a class value keeps subclass semantics" {
+    assert _same_int("runtime_isinstance") == 111001 , (
+        "a runtime class value must answer isinstance by the hierarchy, not "
+        "by class identity"
+    );
+}
