@@ -4,6 +4,7 @@ import from jaclang.scale.runtime.gateway.service_registry {
     ServiceRegistry,
     ServiceEntry
 }
+import from jaclang.runtimelib { sv_client }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { k8s_safe_name }
 import from jaclang.scale.runtime.context.util {
     k8s_service_dns_url,
@@ -87,7 +88,8 @@ def build_k8s_registry(
     namespace: str = in_cluster_namespace();
     registry: dict[str, str] = {};
     for svc_name in routes.keys() {
-        registry[svc_name] = k8s_service_dns_url(
+        override: str = sv_client.peer_url_from_env(svc_name);
+        registry[svc_name] = override or k8s_service_dns_url(
             k8s_safe_name(svc_name), namespace, port
         );
     }
