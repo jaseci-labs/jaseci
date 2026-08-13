@@ -271,9 +271,45 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 glob NATIVE_SEAL_MODULES: tuple = (
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
+         "jac0core/unitree.jac",
+
+     );
+
+glob _UNITREE_SEAM_WAIVERS: tuple = (
+         "jac0core/unitree.jac::UniNode._construct_sub_node_tab",
+         "jac0core/unitree.jac::ModulePath.resolve_relative_path",
+         "jac0core/unitree.jac::ModulePath.native_bundled_path",
+         "jac0core/unitree.jac::Ability.event_trigger_type_names",
+         "jac0core/unitree.jac::UniNode.gen.__get__",
+         "jac0core/unitree.jac::Module.annexable_by.__get__",
+         "jac0core/unitree.jac::Import.is_jac.__get__",
+         "jac0core/unitree.jac::Import.__jac_detected.__get__",
+         "jac0core/unitree.jac::Import.is_service_import.__get__",
+         "jac0core/unitree.jac::ModulePath.string_path_value.__get__",
+         "jac0core/unitree.jac::ModulePath.dot_path_str.__get__",
+         "jac0core/unitree.jac::ModulePath.base_module_name.__get__",
+         "jac0core/unitree.jac::FuncSignature.is_in_py_class.__get__",
+         "jac0core/unitree.jac::DeleteStmt.py_ast_targets.__get__",
+         "jac0core/unitree.jac::AstAccessNode.access_type.__get__",
+         "jac0core/unitree.jac::TypeAlias.access_type.__get__",
+         "jac0core/unitree.jac::GlobalVars.access_type.__get__",
+         "jac0core/unitree.jac::Archetype.access_type.__get__",
+         "jac0core/unitree.jac::Enum.access_type.__get__",
+         "jac0core/unitree.jac::Ability.access_type.__get__",
+         "jac0core/unitree.jac::NameAtom.sem_token.__get__",
+         "jac0core/unitree.jac::Name.sem_token.__get__",
+         "jac0core/unitree.jac::SpecialVarRef.sem_token.__get__",
+         "jac0core/unitree.jac::BuiltinType.sem_token.__get__",
+         "jac0core/unitree.jac::String.lit_value.__get__",
+         "jac0core/unitree.jac::MultiString.lit_value.__get__",
+         "jac0core/unitree.jac::BuiltinType.lit_value.__get__",
+         "jac0core/unitree.jac::Ellipsis.lit_value.__get__",
 
      ),
-     NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {};
+     NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
+         "jac0core/parser/parser.jac": _UNITREE_SEAM_WAIVERS,
+         "jac0core/unitree.jac": _UNITREE_SEAM_WAIVERS
+     };
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
     if pkg_path is not None {
@@ -621,10 +657,26 @@ def seal_native_artifacts(
         llvm_ir_text = str(ir.gen.llvm_ir);
 
         (_qualified, allowed_bare) = seal_waiver_names(rel, waivers);
+
+        allowed_stub_names: set[str] = set(allowed_bare);
+        reg = ir.gen.layout_registry;
+        if reg is not None {
+            for bare in allowed_bare {
+                (owner, dot, meth) = bare.partition(".");
+                if not dot {
+                    continue;
+                }
+                for (cls, mro) in reg.mro_order.items() {
+                    if owner in mro {
+                        allowed_stub_names.add(f"{cls}.{meth}");
+                    }
+                }
+            }
+        }
         shipped_stubs = [
             s
             for s in seal_abort_stubs(llvm_ir_text)
-            if s not in allowed_bare
+            if s not in allowed_stub_names
         ];
         if shipped_stubs {
             console.error(
@@ -646,6 +698,28 @@ def seal_native_artifacts(
             purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
+
+        layout_dict = native_layout_to_dict(layout);
+        _stub_syms = set(seal_abort_stubs(llvm_ir_text));
+        accessor_syms: set[str] = set();
+        for _sd in layout_dict["structs"].values() {
+            _live = {
+                _fname: {
+                    _kind: _sym
+                    for (_kind, _sym) in _kinds.items()
+                    if _sym not in _stub_syms
+                } for (_fname, _kinds) in (_sd.get("accessors") or {}).items()
+            };
+            _sd["accessors"] = {
+                _fname: _kinds
+                for (_fname, _kinds) in _live.items()
+                if _kinds
+            };
+            for _kinds in _sd["accessors"].values() {
+                accessor_syms.update(_kinds.values());
+            }
+        }
+        exports = sorted(set(exports) | accessor_syms);
         triple = llvm.get_default_triple();
         out_dir = precompiled_dir / "native" / triple;
         out_dir.mkdir(parents=True, exist_ok=True);
@@ -679,8 +753,7 @@ def seal_native_artifacts(
         }
         layout_path = out_dir / f"{stem}.layout.json";
         layout_path.write_text(
-            json.dumps(native_layout_to_dict(layout), sort_keys=True) + "\n",
-            encoding="utf-8"
+            json.dumps(layout_dict, sort_keys=True) + "\n", encoding="utf-8"
         );
         parts = [
             p

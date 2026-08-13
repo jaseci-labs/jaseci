@@ -1,6 +1,7 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
 impl LayoutPass.postinit -> None {
     self.registry = LayoutRegistry();
@@ -308,6 +309,10 @@ impl LayoutPass._build_layout(arch: uni.Archetype) -> ArchetypeLayout {
             continue;
         }
 
+        if var.accessors {
+            continue;
+        }
+
         _archhas = var.find_parent_of_type(uni.ArchHas);
         if _archhas is not None and _archhas.is_static {
             continue;
@@ -317,7 +322,7 @@ impl LayoutPass._build_layout(arch: uni.Archetype) -> ArchetypeLayout {
         type_node: (uni.UniNode | None) = None;
         if var.type_tag and var.type_tag.tag {
             type_node = var.type_tag.tag;
-            type_tag = var.type_tag.tag?.unparse() or str(var.type_tag.tag);
+            type_tag = unparse_node(type_node) or str(type_node);
         }
         is_fn_ptr = type_node is not None and isinstance(type_node, uni.FuncSignature);
         new_field = FieldInfo(
@@ -471,6 +476,13 @@ impl LayoutPass._build_vtable_layout(
                 seen_methods.add(method_name);
             }
         }
+
+        for (slot_name, _var, _acc) in archetype_accessors(arch) {
+            if slot_name not in seen_methods {
+                method_list.append(slot_name);
+                seen_methods.add(slot_name);
+            }
+        }
     }
 
     methods: list[MethodSlot] = [];
@@ -480,18 +492,31 @@ impl LayoutPass._build_vtable_layout(
         owner = arch_name;
         for check_name in mro {
             check_arch = arch_map.get(check_name);
-            if check_arch is not None {
-                for method in check_arch.get_methods() {
-                    mn = method.name_ref.sym_name if method.name_ref else None;
-                    if mn == mname {
-                        sig_node = method.signature;
+            if check_arch is None {
+                continue;
+            }
+            found = False;
+            for method in check_arch.get_methods() {
+                mn = method.name_ref.sym_name if method.name_ref else None;
+                if mn == mname {
+                    sig_node = method.signature;
+                    owner = check_name;
+                    found = True;
+                    break;
+                }
+            }
+            if not found {
+                for (slot_name, _var, acc) in archetype_accessors(check_arch) {
+                    if slot_name == mname {
+                        sig_node = acc.signature;
                         owner = check_name;
+                        found = True;
                         break;
                     }
                 }
-                if sig_node is not None {
-                    break;
-                }
+            }
+            if found {
+                break;
             }
         }
         slot = MethodSlot(name=mname, index=i, owner=owner, signature=sig_node);
@@ -685,13 +710,17 @@ impl LayoutPass._validate_obj_fields(
     for var in arch.get_has_vars() {
         fname = var.name.value if var.name else "field";
 
+        if var.accessors {
+            continue;
+        }
+
         if not var.type_tag or not var.type_tag.tag {
             self.emit(W5031, node_override=var, arch=aname, field=fname);
             continue;
         }
         type_node = var.type_tag.tag;
         if not self._is_layout_compatible_type(type_node, arch_map) {
-            type_str = type_node?.unparse() or str(type_node);
+            type_str = unparse_node(type_node) or str(type_node);
             self.emit(W5032, node_override=var, arch=aname, field=fname, type=type_str);
         }
     }

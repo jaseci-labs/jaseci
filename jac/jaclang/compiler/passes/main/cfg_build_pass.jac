@@ -10,6 +10,7 @@ obj CFGBuildPass(UniPass) {
     def before_pass -> None;
     def link_bbs(source: uni.UniCFGNode, target: uni.UniCFGNode) -> None;
     def _link_sequential(body: Sequence[uni.CodeBlockStmt]) -> None;
+    def _exit_wired(nd: uni.UniCFGNode) -> bool;
     def _connect_tails(parent: uni.UniNode, target: uni.UniCFGNode) -> None;
     def _link_body_tails_to_header(
         nd: uni.WhileStmt | uni.ForeverStmt | uni.InForStmt | uni.IterForStmt
