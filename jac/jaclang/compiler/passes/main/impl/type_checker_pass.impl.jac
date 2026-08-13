@@ -372,7 +372,8 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
         } elif isinstance(target, (uni.TupleVal, uni.ListVal)) {
             self._eval_unpacking_names(target);
             right_type = self.evaluator.get_type_of_expression(nd.value);
-            if not isinstance(right_type, (types.UnknownType, types.AnyType)) {
+            if not isinstance(right_type, types.UnknownType)
+                and not right_type.is_any_instance() {
                 iter_result = self.evaluator.get_type_of_magic_method_call(
                     right_type, "__iter__", [], nd.value
                 );

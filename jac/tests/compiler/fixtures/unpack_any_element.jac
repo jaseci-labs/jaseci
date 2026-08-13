@@ -1,5 +1,5 @@
-glob BARE_TUPLE: tuple = (("a", int), ("b", str));
-glob BARE_LIST: list = [(1, "x"), (2, "y")];
+glob BARE_TUPLE: tuple = (("a", int), ("b", str)),
+     BARE_LIST: list = [(1, "x"), (2, "y")];
 
 def takes_type(t: type) -> str {
     return t.__name__;
@@ -19,4 +19,16 @@ def loop_unpack_list -> str {
         out += str(num) + label;
     }
     return out;
+}
+
+def assign_unpack_annotated_any -> str {
+    pair: any = ("a", int);
+    (nm, ty) = pair;
+    return str(nm) + takes_type(ty);
+}
+
+def assign_unpack_bare_generic_element -> str {
+    ctx: dict = {"slots": [("a", 0, int)]};
+    (nm, off, ty) = ctx["slots"][-1];
+    return str(nm) + str(off) + takes_type(ty);
 }
