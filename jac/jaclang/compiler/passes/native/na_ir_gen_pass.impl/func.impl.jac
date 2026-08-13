@@ -129,11 +129,9 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
 }
 
 impl NaIRGenPass._normalize_type_key(key: str) -> str {
-    if key.startswith("type[") and key.endswith("]") {
-        key = key[5:-1];
-    }
-    if " | " in key {
-        for part in key.split(" | ") {
+    if " | " in key or ("|" in key and "type[" in key) {
+        sep = " | " if " | " in key else "|";
+        for part in key.split(sep) {
             _p = part.strip();
             if _p.startswith("type[") and _p.endswith("]") {
                 _p = _p[5:-1];
@@ -143,12 +141,25 @@ impl NaIRGenPass._normalize_type_key(key: str) -> str {
             }
         }
     }
+    if key.startswith("type[") and key.endswith("]") {
+        key = key[5:-1];
+    }
     return key;
 }
 
 impl NaIRGenPass._elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | None) {
     if ann is None {
         return None;
+    }
+
+    if isinstance(ann, uni.AtomUnit) {
+        return self._elem_keys_of_annotation(ann.value);
+    }
+    if (isinstance(ann, uni.BinaryExpr) and getattr(ann.op, 'value', '') == "|") {
+        return (
+            self._elem_keys_of_annotation(ann.left)
+            or self._elem_keys_of_annotation(ann.right)
+        );
     }
     elems: list = [];
     if isinstance(ann, uni.TupleVal) {
@@ -168,6 +179,9 @@ impl NaIRGenPass._elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | 
     }
     keys: list = [];
     for e in elems {
+        while (isinstance(e, uni.BinaryExpr) and getattr(e.op, 'value', '') == "|") {
+            e = e.left;
+        }
         _ek: (str | None) = None;
         _etb = e?.type if isinstance(e, uni.Expr) else None;
         if _etb is not None {
@@ -437,10 +451,8 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         ret_type = func.return_value.type;
         if isinstance(ret_type, ir.VoidType) {
             self.builder.ret_void();
-        } elif isinstance(ret_type, ir.PointerType) {
-            self.builder.ret(ir.Constant(ret_type, None));
         } else {
-            self.builder.ret(ir.Constant(ret_type, 0));
+            self.builder.ret(self._zero_const(ret_type));
         }
     }
 
@@ -703,10 +715,8 @@ impl NaIRGenPass._codegen_nested_ability(nd: uni.Ability) -> None {
             tb = ir.IRBuilder(bb);
             if isinstance(ret_type, ir.VoidType) {
                 tb.ret_void();
-            } elif isinstance(ret_type, ir.PointerType) {
-                tb.ret(ir.Constant(ret_type, None));
             } else {
-                tb.ret(ir.Constant(ret_type, 0));
+                tb.ret(self._zero_const(ret_type));
             }
         }
     }

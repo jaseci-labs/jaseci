@@ -66,7 +66,8 @@ def _field_info(f: any) -> any {
         is_func_ptr=f.get("is_func_ptr", False),
         func_param_types=f.get("func_param_types"),
         func_ret_type=f.get("func_ret_type"),
-        elem_keys=f.get("elem_keys")
+        elem_keys=f.get("elem_keys"),
+        foreign=f.get("foreign", False)
     );
 }
 
@@ -85,6 +86,7 @@ def layout_from_dict(data: any) -> any {
         structs[name] = SimpleNamespace(
             name=sd["name"],
             has_vtable=sd.get("has_vtable", False),
+            accessors=dict(sd.get("accessors") or {}),
             fields=[_field_info(f) for f in (sd.get("fields") or [])]
         );
     }
