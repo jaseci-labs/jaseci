@@ -11,7 +11,6 @@ import os;
 import shutil;
 import tempfile;
 import from pathlib { Path }
-import from jaclang.project.pyvenv { get_venv_site_packages }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
@@ -72,25 +71,22 @@ def _project(dependencies: str, server_import: str) -> str {
 
 test "the host client build installs the app's declared dependencies" {
     project_dir = _project(f'{APP_DEP} = ">=1.10"', APP_DEP);
+    raised = None;
     try {
         _builder(project_dir)._build_client_bundle(project_dir);
-        installed = [
-            p.name
-            for p in get_venv_site_packages(Path(project_dir) / ".jac" / "venv").glob(
-                f"{APP_DEP}*"
-            )
-        ];
+    } except Exception as e {
+        raised = e;
+    } finally {
         built = (
             Path(project_dir) / ".jac" / "client" / "dist" / "index.html"
         ).is_file();
-    } finally {
         shutil.rmtree(project_dir, ignore_errors=True);
     }
 
-    assert installed , (
-        "the deploy never installed the app's [dependencies] into the host "
-        f"build env, so any client entry reaching a {APP_DEP}-backed module "
-        "cannot build here"
+    assert raised is None , (
+        "the deploy never installed the app's [dependencies] into the build "
+        f"env, so a client entry reaching a {APP_DEP}-backed module cannot "
+        f"build: {raised}"
     );
     assert built , "the gateway would have nothing to serve";
 }

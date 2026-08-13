@@ -52,6 +52,55 @@ def _is_transient_client_build_failure(output: str) -> bool {
 }
 
 
+def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
+    import re;
+    import from pathlib { Path }
+    base_prefix = str(base).replace("\\", "/").rstrip("/") + "/";
+    lines: list[str] = [];
+    seen: set[str] = set();
+    for token in re.findall(r"[\w.\\/-]+", output) {
+        cand = token.replace("\\", "/").rstrip(".,;:");
+        if cand.startswith(base_prefix) {
+            cand = cand[len(base_prefix):];
+        }
+        variants = [cand];
+        if "/" not in cand and "." in cand and not cand.startswith(".") {
+            stem = cand.replace(".", "/");
+            variants.extend([f"{stem}.jac", f"{stem}.py", stem]);
+        }
+        for variant in variants {
+            if not variant or variant.startswith("/") or ".." in variant.split("/") {
+                continue;
+            }
+            rel = Path(variant);
+            if rel.name == "jac.toml" or rel.as_posix() in seen {
+                continue;
+            }
+            if not (base / rel).exists() or not excluded.excludes(rel) {
+                continue;
+            }
+            seen.add(rel.as_posix());
+            lines.append(f"  - {rel.as_posix()}: {excluded.exclusion_reason(rel)}");
+            break;
+        }
+        if len(lines) >= 3 {
+            break;
+        }
+    }
+    if not lines {
+        return "";
+    }
+    return (
+        "\nThe client build ran on the bundle's staged sources, and these "
+        "files it references never ship:\n"
+            + "\n".join(lines)
+            + "\nDrop the exclusion or remove the reference; build-time "
+            "values belong in [scale.secrets] or pod env, not in files the "
+            "bundle strips."
+    );
+}
+
+
 def k8s_safe_name(svc_name: str) -> str {
     if svc_name == GATEWAY_NAME {
         return "gateway";
@@ -203,18 +252,58 @@ obj ManifestBuilder {
 
     def _build_client_bundle(project_dir: str) {
         import os;
+        import shutil;
         import subprocess;
+        import from pathlib { Path }
         import from jaclang.cli.console { console }
         import from jaclang.scale.injector.binary { host_toolchain_path }
-        import from jaclang.scale.injector.bundle { release_binary_env }
+        import from jaclang.scale.injector.bundle {
+            _stage_app,
+            release_binary_env,
+            remove_stage_root,
+            sanitized_jac_toml,
+            source_filter_for
+        }
         import from jaclang.scale.runtime.context.util { jac_executable }
         client_entry = self._client_entry();
         if not client_entry {
             return;
         }
-        entry_abs = os.path.join(project_dir, client_entry);
-        if not os.path.isfile(entry_abs) {
+        base = Path(project_dir);
+        entry_rel = Path(client_entry);
+        if entry_rel.is_absolute() {
+            try {
+                entry_rel = entry_rel.relative_to(base);
+            } except ValueError {
+                raise ValueError(
+                    f"The client entry '{client_entry}' is outside the project "
+                    f"tree, so the bundle cannot ship it. Point "
+                    f"[scale.microservices.client] entry at a path relative to "
+                    f"the project root."
+                );
+            }
+        }
+        if ".." in entry_rel.parts {
+            raise ValueError(
+                f"The client entry '{client_entry}' reaches outside the project "
+                f"tree, so the bundle cannot ship it. Point "
+                f"[scale.microservices.client] entry at a path relative to "
+                f"the project root."
+            );
+        }
+        if not (base / entry_rel).is_file() {
             return;
+        }
+        excluded = source_filter_for(base);
+        if excluded.excludes(entry_rel) {
+            raise ValueError(
+                f"The client entry '{entry_rel.as_posix()}' never ships: "
+                f"{excluded.exclusion_reason(entry_rel)}. The client build runs "
+                f"on exactly what the bundle ships, so it cannot build from "
+                f"this file. Drop the exclusion, or point "
+                f"[scale.microservices.client] entry at a module the bundle "
+                f"ships."
+            );
         }
         if self.dry_run {
             console.print(
@@ -223,7 +312,6 @@ obj ManifestBuilder {
             return;
         }
         import time;
-        dist = os.path.join(project_dir, ".jac", "client", "dist");
         pinned = host_toolchain_path(project_dir);
         jac_bin = pinned or jac_executable();
         jac_env = release_binary_env() if pinned else None;
@@ -233,76 +321,99 @@ obj ManifestBuilder {
                 f"running this deploy ({pinned})."
             );
         }
-        dep_error = self._install_app_deps(project_dir, jac_bin, jac_env);
-        if dep_error {
-            console.warning(
-                f"The app's dependencies did not install on the build host, so "
-                f"the client build may fail on a missing import. {dep_error}"
-            );
-        }
-        console.print(f"Building the client bundle on the host ({client_entry}).");
-        attempt = 0;
-        while True {
-            attempt += 1;
-            try {
-                result = subprocess.run(
-                    [jac_bin, "build", client_entry, "--client", "web"],
-                    cwd=project_dir,
-                    capture_output=True,
-                    text=True,
-                    timeout=900,
-                    env=jac_env
+        stage_root = _stage_app(base, sanitized_jac_toml(base));
+        stage = str(stage_root / "app");
+        dist = os.path.join(stage, ".jac", "client", "dist");
+        try {
+            shutil.rmtree(dist, ignore_errors=True);
+            dep_error = self._install_app_deps(stage, jac_bin, jac_env);
+            if dep_error {
+                console.warning(
+                    f"The app's dependencies did not install on the build host, "
+                    f"so the client build may fail on a missing import. "
+                    f"{dep_error}"
                 );
-            } except subprocess.TimeoutExpired {
-                if attempt >= _CLIENT_BUILD_ATTEMPTS {
-                    raise RuntimeError(
-                        f"client build timed out ({client_entry}) on all "
-                        f"{_CLIENT_BUILD_ATTEMPTS} attempts. The pod serves the "
-                        f"bundle built here and never rebuilds it - fix the "
-                        f"client build and redeploy."
+            }
+            console.print(
+                f"Building the client bundle on the host, from the bundle's "
+                f"staged sources ({client_entry})."
+            );
+            attempt = 0;
+            while True {
+                attempt += 1;
+                try {
+                    result = subprocess.run(
+                        [jac_bin, "build", entry_rel.as_posix(), "--client", "web"],
+                        cwd=stage,
+                        capture_output=True,
+                        text=True,
+                        timeout=900,
+                        env=jac_env
                     );
+                } except subprocess.TimeoutExpired {
+                    if attempt >= _CLIENT_BUILD_ATTEMPTS {
+                        raise RuntimeError(
+                            f"client build timed out ({client_entry}) on all "
+                            f"{_CLIENT_BUILD_ATTEMPTS} attempts. The pod serves "
+                            f"the bundle built here and never rebuilds it - fix "
+                            f"the client build and redeploy."
+                        );
+                    }
+                    console.print(
+                        f"Client build timed out (attempt {attempt} of "
+                        f"{_CLIENT_BUILD_ATTEMPTS}); retrying."
+                    );
+                    time.sleep(_CLIENT_BUILD_RETRY_PAUSE_S);
+                    continue;
                 }
-                console.print(
-                    f"Client build timed out (attempt {attempt} of "
-                    f"{_CLIENT_BUILD_ATTEMPTS}); retrying."
+                if result.returncode == 0 {
+                    break;
+                }
+                output = (
+                    (result.stdout or "") + "\n" + (result.stderr or "")
+                ).strip();
+                tail = _output_tail(result);
+                if (
+                    attempt < _CLIENT_BUILD_ATTEMPTS
+                    and _is_transient_client_build_failure(output)
+                ) {
+                    console.print(
+                        f"Client build hit a transient install/network failure "
+                        f"(attempt {attempt} of {_CLIENT_BUILD_ATTEMPTS}); "
+                        f"retrying.\n{tail}"
+                    );
+                    time.sleep(_CLIENT_BUILD_RETRY_PAUSE_S);
+                    continue;
+                }
+                cause = (
+                    f"\nIts dependencies did not install on this host first, "
+                    f"which is the likely cause: {dep_error}"
+                        if dep_error
+                        else ""
                 );
-                time.sleep(_CLIENT_BUILD_RETRY_PAUSE_S);
-                continue;
-            }
-            if result.returncode == 0 {
-                break;
-            }
-            output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip();
-            tail = _output_tail(result);
-            if (
-                attempt < _CLIENT_BUILD_ATTEMPTS
-                and _is_transient_client_build_failure(output)
-            ) {
-                console.print(
-                    f"Client build hit a transient install/network failure "
-                    f"(attempt {attempt} of {_CLIENT_BUILD_ATTEMPTS}); "
-                    f"retrying.\n{tail}"
+                parked = _membership_diagnosis(output, base, excluded);
+                raise RuntimeError(
+                    f"client build failed ({client_entry}, exit "
+                    f"{result.returncode}). The pod serves the bundle built "
+                    f"here and never rebuilds it - fix the client build and "
+                    f"redeploy.\n{tail}{cause}{parked}"
                 );
-                time.sleep(_CLIENT_BUILD_RETRY_PAUSE_S);
-                continue;
             }
-            cause = (
-                f"\nIts dependencies did not install on this host first, which "
-                f"is the likely cause: {dep_error}"
-                    if dep_error
-                    else ""
-            );
-            raise RuntimeError(
-                f"client build failed ({client_entry}, exit {result.returncode}). "
-                f"The pod serves the bundle built here and never rebuilds it - "
-                f"fix the client build and redeploy.\n{tail}{cause}"
-            );
-        }
-        if not os.path.isfile(os.path.join(dist, "index.html")) {
-            raise RuntimeError(
-                f"client build produced no index.html under {dist} "
-                f"({client_entry}); the gateway would have nothing to serve."
-            );
+            if not os.path.isfile(os.path.join(dist, "index.html")) {
+                raise RuntimeError(
+                    f"client build produced no index.html under "
+                    f".jac/client/dist ({client_entry}); the gateway would "
+                    f"have nothing to serve."
+                );
+            }
+            target = os.path.join(project_dir, ".jac", "client", "dist");
+            if os.path.isdir(target) {
+                shutil.rmtree(target);
+            }
+            os.makedirs(os.path.dirname(target), exist_ok=True);
+            shutil.copytree(dist, target);
+        } finally {
+            remove_stage_root(stage_root);
         }
         console.print("Client bundle built; shipping it to the gateway pod.");
     }
