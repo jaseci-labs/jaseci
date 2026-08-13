@@ -505,7 +505,7 @@ obj CodeGenTarget {
         js: str = '',
         css: str = '',
         _client_manifest: (ClientManifest | None) = None,
-        py_ast: list = field(default_factory=`list),
+        py_ast: list[any] = field(default_factory=`list),
         py_bytecode: (bytes | None) = None,
         es_ast: EsNode | Sequence[EsNode] | SliceInfo | IndexInfo | None = None,
         llvm_ir: (ModuleRef | None) = None,
