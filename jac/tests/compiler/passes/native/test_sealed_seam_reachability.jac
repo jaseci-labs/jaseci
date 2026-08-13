@@ -32,7 +32,6 @@ closure reaches accessors a parse demonstrably needs (`CodeLocInfo`'s spans,
 
 import os;
 import jaclang;
-import pytest;
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -90,10 +89,9 @@ def reachable -> set {
     if _CLOSURE_MEMO {
         return _CLOSURE_MEMO[0];
     }
-    if "/.cache/jac/rt/"
-        in str(Path(jaclang.__file__).resolve()).replace(os.sep, "/") {
-        pytest.skip("sealed-payload runtime: the compiler's own sources are absent");
-    }
+    # Runs in dev trees AND inside the sealed payload lanes: sources ship in
+    # the payload and match the checkout that built it, so the reachability
+    # walk proves the same closure a payload build seals.
     (arch_of, mod_funcs, glob_roots, reg) = _sealed_program();
 
     methods_named: dict = {};

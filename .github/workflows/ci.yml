@@ -33,7 +33,6 @@ jobs:
       desktop: ${{ steps.filter.outputs.desktop }}
       installer: ${{ steps.filter.outputs.installer }}
       native: ${{ steps.filter.outputs.native }}
-      seal: ${{ steps.filter.outputs.seal }}
     steps:
       - uses: actions/checkout@v5
       - uses: dorny/paths-filter@v3
@@ -74,26 +73,6 @@ jobs:
               - 'jac/native/**'
               - 'jac/build.zig'
               - 'jac/build.zig.zon'
-            # Seal-gate lane trigger: everything the sealed parser artifact is
-            # made of. Unlike `native` this deliberately INCLUDES the jac0core
-            # seal surface: these suites are the only place the parser seal,
-            # the unitree census, the seam walk, and the jacmat materializer
-            # execute, so a jac0core/parser change must fire them.
-            seal:
-              - 'jac/jaclang/compiler/passes/native/**'
-              - 'jac/tests/compiler/passes/native/**'
-              - 'jac/jaclang/jac0core/parser/**'
-              - 'jac/jaclang/jac0core/unitree.jac'
-              - 'jac/jaclang/jac0core/impl/unitree.impl.jac'
-              - 'jac/jaclang/jac0core/unitree.impl/**'
-              - 'jac/jaclang/jac0core/native_marshal.jac'
-              - 'jac/jaclang/jac0core/impl/native_marshal.impl.jac'
-              - 'jac/jaclang/jac0core/native_dylib.jac'
-              - 'jac/jaclang/jac0core/native_src/**'
-              - 'jac/jaclang/jac0core/sealed.py'
-              - 'jac/jaclang/jac0core/srcloc.jac'
-              - 'jac/jaclang/jac0core/constant.jac'
-              - 'jac/jaclang/utils/precompile_bytecode.jac'
 
   # Build (or cache-restore) the jac binary ONCE per run, smoke it hermetically,
   # and publish it (plus the gitignored typeshed stubs) as artifacts. Every
@@ -863,41 +842,6 @@ jobs:
           .jac-xdg/jac/jir
           jac/.jac/cache
         key: jac-jir-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
-
-  # Seal static gates. Functional coverage of the sealed parser needs no lane
-  # of its own: setup-jac builds the sealed payload from THIS checkout, so
-  # every payload lane compiles through native parse + materialization and a
-  # broken seal fails the build or the suites. What functional passes cannot
-  # catch, by construction, is a demotion waiver whose abort stub becomes
-  # REACHABLE: every test passes until a rare input hits the stub and kills
-  # the process. The census (closure membership, exact waiver list) and the
-  # seam-reachability walk (no waiver inside the parser's call closure) are
-  # static proofs over the whole grammar, and they need the source tree, so
-  # they run here in a dev lane. The full parity + materializer suite
-  # (test_sealed_native_parser.jac) stays a local diagnostic: run it when
-  # touching the seal to get divergence attribution instead of downstream
-  # test fallout.
-  test-native-seal:
-    needs: changes
-    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.seal == 'true' }}
-    runs-on: ubuntu-latest
-    # Dev lane: run THIS checkout's compiler (see test-compiler).
-    env:
-      JAC_NO_DEV_SOURCE: ""
-    steps:
-    - name: Check out code
-      uses: actions/checkout@v5
-      with:
-        submodules: true
-
-    - name: Set up jac (dev lane)
-      uses: ./.github/actions/setup-jac-dev
-
-    - name: Run the unitree seal census
-      run: jac test jac/tests/compiler/passes/native/test_unitree_seal_census.jac
-
-    - name: Run the sealed seam-reachability walk
-      run: jac test jac/tests/compiler/passes/native/test_sealed_seam_reachability.jac
 
   # aarch64 cross lane (#7626 C1): cross-compile with the in-house ELF linker
   # (MOVW_UABS relocation family) + arch-parameterized vendored musl, run the
