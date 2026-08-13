@@ -407,6 +407,7 @@ def _forget_package(tmp: str, pkg_name: str) {
     os.environ.pop(FAIL, None);
     shutil.rmtree(tmp, ignore_errors=True);
     Serializer._reset_warn_cache();
+    Serializer._reset_import_failures();
 }
 
 
@@ -414,7 +415,7 @@ test "a module that failed to import once is retried later" {
     pkg_name = "jac8117_retry";
     mod_name = f"{pkg_name}.nodes";
     tmp = _flaky_package(pkg_name);
-    saved_window = getattr(serializer_mod, "_IMPORT_RETRY_SECONDS", None);
+    saved_window = serializer_mod._IMPORT_RETRY_SECONDS;
     os.environ[FAIL] = "1";
     Serializer._reset_warn_cache();
     try {
@@ -437,13 +438,7 @@ test "a module that failed to import once is retried later" {
             "anchor whose class lives there stays invisible until a restart"
         );
     } finally {
-        if saved_window is None {
-            if hasattr(serializer_mod, "_IMPORT_RETRY_SECONDS") {
-                delattr(serializer_mod, "_IMPORT_RETRY_SECONDS");
-            }
-        } else {
-            serializer_mod._IMPORT_RETRY_SECONDS = saved_window;
-        }
+        serializer_mod._IMPORT_RETRY_SECONDS = saved_window;
         _forget_package(tmp, pkg_name);
     }
 }
