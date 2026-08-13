@@ -11,9 +11,6 @@ import from jaclang.runtimelib.cl_test_runner { module_is_client, run_cl_test_fi
 glob FIXTURES = Path(__file__).parent / "fixtures" / "cl_npm";
 
 test "a client test importing only an npm module runs under bun" {
-    # Regression guard: npm stubbing used to sit inside the `@jac/runtime`
-    # branch of _run_harness, so a client test with no backend import kept its
-    # bare `fake-npm-pkg` spec and bun failed to resolve it.
     fixture = str(FIXTURES / "test_npm_only.jac");
     assert module_is_client(fixture) , f"{fixture} is not in the client codespace";
 
