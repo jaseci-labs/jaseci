@@ -132,6 +132,8 @@ obj Archetype {
     def __jac__ -> Anchor;
 
     def __init_subclass__(cls: any, **kwargs: object) -> None;
+    static def install_subclass_hook(hook: Callable[[type], None]) -> None;
+    static def _subclass_tree -> list[type];
     def postinit -> None;
     def __setattr__(name: str, value: any) -> None;
     def __repr__ -> str;

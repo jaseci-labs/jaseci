@@ -10,10 +10,12 @@ the existing subclass tree, and resolution falls back to the class's own module
 so an unregistered-but-resolvable archetype is never refused.
 """
 
+import importlib;
 import os;
 import shutil;
 import sys;
 import from tempfile { mkdtemp }
+import from types { ModuleType }
 import from uuid { uuid4 }
 import from jaclang.jac0core.archetype { Archetype, NodeAnchor, Root }
 import from jaclang.runtimelib.serializer { Serializer }
@@ -31,6 +33,31 @@ obj _EarlyChild(_EarlyNode) {
 
 def _key(cls: type) -> str {
     return f"{cls.__module__}.{cls.__name__}";
+}
+
+
+def _publish_home_module -> (object | None) {
+    # The jac test collector imports a test file twice, so the module object
+    # sitting in sys.modules under this file's name is not the one whose
+    # classes are running here, and resolution would hand back a same-named
+    # twin. Publish the live classes under their own module name for the
+    # duration of a test, which is what an ordinary application module that
+    # defines archetypes looks like to the runtime.
+    shim = ModuleType(_EarlyNode.__module__);
+    setattr(shim, '_EarlyNode', _EarlyNode);
+    setattr(shim, '_EarlyChild', _EarlyChild);
+    previous = sys.modules.get(_EarlyNode.__module__);
+    sys.modules[_EarlyNode.__module__] = shim;
+    return previous;
+}
+
+
+def _restore_home_module(previous: (object | None)) -> None {
+    if previous is None {
+        sys.modules.pop(_EarlyNode.__module__, None);
+    } else {
+        sys.modules[_EarlyNode.__module__] = previous;
+    }
 }
 
 
@@ -123,6 +150,7 @@ test "an anchor whose class is not registered round-trips instead of dropping" {
     # serializer's hook is installed: the class object exists, the registry
     # has never heard of it.
     saved = Serializer._registry.pop(key, None);
+    previous_home = _publish_home_module();
     Serializer._reset_warn_cache();
     try {
         anchor = Serializer.deserialize(blob);
@@ -138,6 +166,7 @@ test "an anchor whose class is not registered round-trips instead of dropping" {
             "resolved class was not registered for subsequent reads"
         );
     } finally {
+        _restore_home_module(previous_home);
         if saved is not None {
             Serializer._registry[key] = saved;
         }
@@ -149,11 +178,15 @@ test "an anchor whose class is not registered round-trips instead of dropping" {
 test "_get_class resolves an unregistered archetype from its own module" {
     key = _key(_EarlyChild);
     saved = Serializer._registry.pop(key, None);
+    previous_home = _publish_home_module();
     Serializer._reset_warn_cache();
     try {
         resolved = Serializer._get_class(_EarlyChild.__module__, "_EarlyChild");
-        assert resolved is _EarlyChild , f"resolution refused a live class: {resolved}";
+        assert resolved is _EarlyChild , (
+            f"resolution refused a live class: {resolved}"
+        );
     } finally {
+        _restore_home_module(previous_home);
         if saved is not None {
             Serializer._registry[key] = saved;
         }
@@ -172,9 +205,17 @@ test "resolution refuses names that are not archetype classes" {
         assert Serializer._get_class("builtins", "dict") is None , (
             "non-archetype types must never resolve"
         );
+        # Every Jac `obj` is an Archetype subclass, so the runtime's own
+        # internals are archetypes too. Auto-registration deliberately skips
+        # `jaclang.*` (except `jaclang.scale.*`) and resolution honors the same
+        # line: a runtime-internal class resolves only if it was registered
+        # explicitly, exactly as before this fallback existed.
+        assert not Serializer.is_auto_registered_module("jaclang.runtimelib.serializer");
+        assert Serializer.is_auto_registered_module("jaclang.scale.something");
+        assert Serializer.is_auto_registered_module("myapp.nodes");
         assert Serializer._get_class(
             "jaclang.runtimelib.serializer", "Serializer"
-        ) is None , "non-archetype runtime types must never resolve";
+        ) is None , "runtime-internal archetypes must not resolve implicitly";
         assert Serializer._get_class("os", "does_not_exist") is None;
         assert Serializer._get_class("definitely.not", "Present") is None;
     } finally {
@@ -216,6 +257,48 @@ test "resolution never imports a module whose package the process never loaded" 
     } finally {
         if tmp in sys.path {
             sys.path.remove(tmp);
+        }
+        os.environ.pop(marker, None);
+        shutil.rmtree(tmp, ignore_errors=True);
+        Serializer._reset_warn_cache();
+    }
+}
+
+
+test "resolution does load a submodule of a package the process already uses" {
+    # The other side of the same gate: a lazily loaded submodule of a package
+    # the application itself imported is inside the trust boundary, so a stored
+    # anchor whose class lives there is still resolvable.
+    tmp = mkdtemp();
+    pkg_name = "jac8049_app";
+    marker = "JAC_8049_APP_SUBMODULE_RAN";
+    pkg_dir = os.path.join(tmp, pkg_name);
+    os.makedirs(pkg_dir);
+    with open(os.path.join(pkg_dir, "__init__.py"), "w") as fh {
+        fh.write("");
+    }
+    with open(os.path.join(pkg_dir, "nodes.py"), "w") as fh {
+        fh.write(f"import os\nos.environ[{marker!r}] = '1'\n");
+    }
+    sys.path.insert(0, tmp);
+    Serializer._reset_warn_cache();
+    try {
+        importlib.import_module(pkg_name);
+        assert os.environ.get(marker) is None , "submodule loaded too early";
+        # No such class, so resolution still refuses, but the gate let the
+        # import through because the top-level package was already loaded.
+        assert Serializer._get_class(f"{pkg_name}.nodes", "Ghost") is None;
+        assert os.environ.get(marker) == "1" , (
+            "resolution did not load the submodule of an already-loaded package"
+        );
+    } finally {
+        if tmp in sys.path {
+            sys.path.remove(tmp);
+        }
+        for loaded in list(sys.modules.keys()) {
+            if loaded == pkg_name or loaded.startswith(f"{pkg_name}.") {
+                sys.modules.pop(loaded, None);
+            }
         }
         os.environ.pop(marker, None);
         shutil.rmtree(tmp, ignore_errors=True);
