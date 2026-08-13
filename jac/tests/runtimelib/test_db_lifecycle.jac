@@ -593,6 +593,106 @@ test "the retention sweep is off by default and sweeps when configured" {
 }
 
 
+"""A scratch registry record as a container would leave one: the recorded host
+never comes back, so the recorded pid can never be checked from here."""
+def _scratch_record(host: str, pid: int, heartbeat_age: int) -> Any {
+    import from jaclang.runtimelib.dbcatalog { DbKind, DbRecord }
+    return DbRecord(
+        database="jac_scratch_4242_abc",
+        recorded=True,
+        kind=DbKind.SCRATCH.value,
+        host=host,
+        pid=pid,
+        heartbeat_age_seconds=heartbeat_age
+    );
+}
+
+
+test "a scratch record from a host that never comes back is still reapable" {
+    import from jaclang.runtimelib.dbcatalog {
+        LIVE_PID_GRACE_SECONDS,
+        UNREACHABLE_HOST_GRACE_SECONDS,
+        this_host
+    }
+    # Every pod gets a fresh hostname, so a record written by a previous pod
+    # reads as alive forever and is never reaped: the self-healing property is
+    # weakest exactly where crashed runs are most common.
+    gone = _scratch_record(
+        "pod-that-crashed", 4242, UNREACHABLE_HOST_GRACE_SECONDS + 60
+    );
+    assert gone.is_dead_scratch() , (
+        "a scratch record whose host is unreachable and whose heartbeat stopped "
+        "long ago must become reapable"
+    );
+    fresh = _scratch_record("pod-still-running", 4242, 30);
+    assert not fresh.is_dead_scratch() , (
+        "a heartbeat that is still being written must protect the database"
+    );
+    # Rows that predate the heartbeat column carry no age at all, and an
+    # unknown age never authorises a drop.
+    unknown = _scratch_record("pod-from-an-older-release", 4242, -1);
+    assert not unknown.is_dead_scratch() , (
+        "an unknown heartbeat age must fail in the safe direction"
+    );
+    # A pid this host can actually check answers the question outright, so a
+    # stale heartbeat cannot condemn a live local run.
+    mine = _scratch_record(this_host(), os.getpid(), UNREACHABLE_HOST_GRACE_SECONDS + 60);
+    assert not mine.is_dead_scratch() , (
+        "a live local pid must outweigh a stale heartbeat"
+    );
+    # Unless nothing has touched it for far longer than any run could go
+    # unheard, which is what a recycled pid looks like.
+    recycled = _scratch_record(this_host(), os.getpid(), LIVE_PID_GRACE_SECONDS + 60);
+    assert recycled.is_dead_scratch() , (
+        "a pid that answers but has not heartbeaten in a day is a reused pid"
+    );
+    assert LIVE_PID_GRACE_SECONDS > UNREACHABLE_HOST_GRACE_SECONDS , (
+        "a checkable pid must earn more patience than an uncheckable one"
+    );
+}
+
+
+test "db prune reaps a scratch database whose heartbeat stopped elsewhere" {
+    import from jaclang.cli.commands { db }
+    import from jaclang.runtimelib.dbcatalog { DbKind, REGISTRY_TABLE }
+    cluster = _start_cluster();
+    stale = "jac_scratch_4242_stale";
+    live = "jac_scratch_4243_live";
+    try {
+        for name in [stale, live] {
+            _exec(cluster, f'CREATE DATABASE "{name}"');
+            _exec(
+                cluster,
+                f"INSERT INTO {REGISTRY_TABLE} "
+                "(database, kind, owner_path, host, pid) "
+                f"VALUES ('{name}', '{DbKind.SCRATCH.value}', '', "
+                f"'pod-{name}', 4242)"
+            );
+        }
+        _exec(
+            cluster,
+            f"UPDATE {REGISTRY_TABLE} "
+            "SET last_heartbeat_at = now() - interval '2 hours' "
+            f"WHERE database = '{stale}'"
+        );
+
+        (code, text) = _capture(
+            lambda { db.db(action="prune", data_dir=cluster.data_dir, yes=True); }
+        );
+        assert code == 0 , f"db prune -y failed: {text}";
+        names = _jac_databases(cluster);
+        assert stale not in names , (
+            f"{stale} was left by a pod that is gone and must be reaped: {text}"
+        );
+        assert live in names , (
+            f"{live} is still heartbeating and must survive prune: {text}"
+        );
+    } finally {
+        _stop_cluster(cluster);
+    }
+}
+
+
 test "retention days come from [database] retention_days, off by default" {
     import from jaclang.runtimelib.session { retention_days_for }
     base = tempfile.mkdtemp(prefix="jac-retention-");

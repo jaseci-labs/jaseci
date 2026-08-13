@@ -26,6 +26,7 @@ import from jaclang.cli.commands { execution }
 import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.runtimelib.pgembed { PgRuntime }
 import from jaclang.runtimelib.session { Session }
+import from jaclang.runtimelib.store { PgStore }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures"),
      REPO_ROOT = Path(__file__).resolve().parents[3],
@@ -185,6 +186,77 @@ test "the official image defaults to a real non-root account" {
     );
     assert re.search(r"--uid\s+\d+|--gid\s+\d+", text) is not None , (
         "pin the account's uid so an explicit runAsUser matches it"
+    );
+}
+
+
+# --- First-use schema DDL has exactly one gate (#8117 item 2) --------------
+obj _CountingStore(PgStore) {
+    has ddl_runs: int = 0;
+
+    def ensure_schema(promotions: dict[str, list[str]]) -> None {
+        self.ddl_runs += 1;
+    }
+}
+
+
+test "first-use schema DDL runs once per database, even from many threads" {
+    import threading;
+    import from uuid { uuid4 }
+    import from jaclang.runtimelib.store { ConnInfo }
+
+    store = _CountingStore(
+        conninfo=ConnInfo(
+            host="127.0.0.1", port=1, database=f"jac_gate_{uuid4().hex[:8]}"
+        )
+    );
+    racers = 8;
+    ready = threading.Barrier(racers);
+
+    def race {
+        ready.wait(10);
+        store.ensure_schema_once({});
+    }
+    threads = [
+        threading.Thread(target=race, name="jac-gate-racer")
+        for _ in range(racers)
+    ];
+    for t in threads {
+        t.start();
+    }
+    for t in threads {
+        t.join(30);
+    }
+    assert store.ddl_runs == 1 , (
+        f"{racers} concurrent first uses ran schema DDL {store.ddl_runs} time(s); "
+        "each one past the first can take the DDL lock timeout and surface a "
+        "SessionConflictError on an ordinary first request"
+    );
+    store.ensure_schema_once({});
+    assert store.ddl_runs == 1 , "the gate forgot that the schema was already up";
+}
+
+
+test "no production module runs first-use schema DDL outside the gate" {
+    # PgStore.ensure_schema_once owns the _schema_gate + _schema_ready pair.
+    # A second caller that reaches straight for ensure_schema races it, and
+    # whichever side loses the DDL lock raises SessionConflictError at what is,
+    # to the operator, a plain first request against a fresh database.
+    src = REPO_ROOT / "jac" / "jaclang";
+    owner = {"runtimelib/store.jac", "runtimelib/impl/store.impl.jac"};
+    offenders: list[str] = [];
+    for path in sorted(src.rglob("*.jac")) {
+        rel = path.relative_to(src).as_posix();
+        if rel in owner or "tests/" in rel {
+            continue;
+        }
+        if ".ensure_schema(" in path.read_text() {
+            offenders.append(rel);
+        }
+    }
+    assert offenders == [] , (
+        f"these call first-use schema DDL past the gate: {offenders}; call "
+        "PgStore.ensure_schema_once instead"
     );
 }
 
