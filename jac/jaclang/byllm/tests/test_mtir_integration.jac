@@ -593,35 +593,42 @@ test "filter_module_mtir disambiguates same-stem dirs via bytecode" {
     }
 }
 
-test "invalidate internal clears runtime mtir without shared compiler identity" {
+test "invalidate internal clears mirrored runtime mtir for owning compiler" {
     import from jaclang.jac0core.compiler { JacCompiler }
     import from jaclang.jac0core.jir { mtir_module_key }
 
-    # Cache restore mirrors into runtime via a standalone JacCompiler; the
-    # runtime program must not need rt._compiler is compiler for cleanup.
+    # The JIR restore path runs inside get_bytecode, which records the owning
+    # compiler on the runtime program (rt._compiler = compiler) before it
+    # mirrors a module's MTIR slice there. So a standalone JacCompiler that
+    # mirrored into the runtime is the same compiler family, and invalidating
+    # its internal program must clear the mirrored runtime slice. This is the
+    # flip side of the cross-family isolation test: pairing is anchored on the
+    # compiler identity that get_bytecode records, not on the runtime singleton.
     assert JacRuntime.program is not None;
     prog = JacRuntime.program;
-    assert prog._compiler is None , "runtime program starts without a compiler";
+    saved_compiler = prog._compiler;
     compiler = JacCompiler();
     internal = compiler.internal_program;
     assert internal._compiler is compiler;
+    prog._compiler = compiler;
 
-    path = os.path.realpath("/tmp/coord_probe/identityless.jac");
+    path = os.path.realpath("/tmp/coord_probe/mirrored.jac");
     mod_key = mtir_module_key(path);
     marker = FunctionInfo(name="f", semstr="s");
     try {
-        prog.mtir_by_module[mod_key] = {"identityless.run": marker};
-        internal.mtir_by_module[mod_key] = {"identityless.run": marker};
-        assert prog._compiler is None , (
-            "mirroring must not require attaching compiler to runtime"
+        prog.mtir_by_module[mod_key] = {"mirrored.run": marker};
+        internal.mtir_by_module[mod_key] = {"mirrored.run": marker};
+        assert prog._compiler is compiler , (
+            "runtime program records the mirroring compiler"
         );
 
         internal.invalidate_module(path);
         assert mod_key not in internal.mtir_by_module , "internal slice cleared";
         assert mod_key not in prog.mtir_by_module , (
-            "runtime slice must clear even without shared compiler identity"
+            "mirrored runtime slice cleared within the owning compiler family"
         );
     } finally {
+        prog._compiler = saved_compiler;
         if mod_key in prog.mtir_by_module {
             del (prog.mtir_by_module[mod_key], );
         }
@@ -673,6 +680,47 @@ test "invalidate_module clears mirrored mtir across program pair" {
         }
         if mod_key in internal.mtir_by_module {
             del (internal.mtir_by_module[mod_key], );
+        }
+    }
+}
+
+test "invalidate_module spares unrelated runtime mtir" {
+    import from jaclang.jac0core.jir { mtir_module_key }
+
+    # An independent analysis program (CodeIntelligence's prog: a fresh
+    # JacProgram that owns its own compiler) must not erase the live runtime
+    # program's same-path MTIR slice when it invalidates a module. The two do
+    # not share compiler or cache ownership, so a CodeIntelligence refresh must
+    # leave runtime fetch_mtir lookups intact.
+    assert JacRuntime.program is not None;
+    rt = JacRuntime.program;
+    rt_compiler = rt._get_compiler();
+
+    ci_prog = JacProgram();
+    ci_compiler = ci_prog._get_compiler();
+    assert ci_compiler is not rt_compiler , (
+        "analysis compiler must be distinct from the runtime compiler"
+    );
+
+    path = os.path.realpath("/tmp/coord_probe/independent.jac");
+    mod_key = mtir_module_key(path);
+    marker = FunctionInfo(name="g", semstr="s");
+    try {
+        rt.mtir_by_module[mod_key] = {"independent.g": marker};
+        ci_prog.mtir_by_module[mod_key] = {"independent.g": marker};
+        assert mod_key in rt.mtir_by_module , "seeded runtime slice";
+        assert mod_key in ci_prog.mtir_by_module , "seeded analysis slice";
+
+        ci_prog.invalidate_module(path);
+        assert mod_key not in ci_prog.mtir_by_module , (
+            "analysis slice cleared by its own invalidation"
+        );
+        assert mod_key in rt.mtir_by_module , (
+            "runtime slice must survive an unrelated program's invalidation"
+        );
+    } finally {
+        if mod_key in rt.mtir_by_module {
+            del (rt.mtir_by_module[mod_key], );
         }
     }
 }
