@@ -2,6 +2,16 @@ impl JacScaleConfig.get_plugin_name(self: JacScaleConfig) -> str {
     return "scale";
 }
 
+impl JacScaleConfig.get_config_schema(self: JacScaleConfig) -> dict[str, any] {
+    import from jaclang.scale.config.validation { scale_schema_options }
+    return {"section": "scale", "options": scale_schema_options()};
+}
+
+impl JacScaleConfig.get_config_strict_env(self: JacScaleConfig) -> str {
+    import from jaclang.scale.config.validation { STRICT_ENV }
+    return STRICT_ENV;
+}
+
 impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
     return {
         'jwt': {
@@ -559,7 +569,7 @@ impl normalize_microservices_config(
         }
     }
 
-    return {
+    normalized = {
         'enabled': ms_config.get('enabled', None),
         'gateway_port': int(ms_config.get('gateway_port', 8000)),
         'gateway_host': ms_config.get('gateway_host', '0.0.0.0'),
@@ -588,13 +598,24 @@ impl normalize_microservices_config(
         'client': {
             'entry': resolved_client_entry,
             'dist_dir': client_config.get('dist_dir', '.jac/client/dist'),
-            'base_route': client_config.get('base_route', '/')
+            'base_route': client_config.get('base_route', '/'),
+            'static_mounts': list(client_config.get('static_mounts', []) or [])
         },
         'ingress': dict(ms_config.get('ingress', {})),
         'shared_volumes': list(ms_config.get('shared_volumes', [])),
         'logs': dict(ms_config.get('logs', {})),
         'tracing': dict(ms_config.get('tracing', {}))
     };
+    for boot_key in (
+        'boot_health_timeout',
+        'boot_max_wait',
+        'health_monitor_interval'
+    ) {
+        if boot_key in ms_config {
+            normalized[boot_key] = ms_config[boot_key];
+        }
+    }
+    return normalized;
 }
 
 impl JacScaleConfig.get_admin_config(self: JacScaleConfig) -> dict[str, any] {
