@@ -528,6 +528,30 @@ test "effect lambda local hoists its declaration into the effect body" {
     assert_balanced_syntax(js_code, temp_path);
 }
 
+test "lambda returning dict literal parenthesises the arrow body" {
+    jac_code = "def:pub app -> str {\n    style_of = lambda (kind: str) { {\"color\": \"red\" if kind == \"warn\" else \"blue\"}; };\n    return style_of(\"warn\")[\"color\"];\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert 'kind => ({"color":' in js_code , (
+        "an object-literal arrow body must be parenthesised; "
+        "`kind => {...}` parses as a function block and breaks the bundle"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda body starting with dict literal parenthesises the arrow body" {
+    jac_code = "def:pub app -> int {\n    f = lambda (k: str) { {\"a\": 1}[k]; };\n    return f(\"a\");\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert 'k => ({"a": 1}[k])' in js_code , (
+        "an arrow body whose leftmost token is `{` must be parenthesised "
+        "even when the body is not itself an object literal"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
 test "hyphenated package imports generate correct js" {
     fixture_file_path = os.path.join(FIXTURES, "hyphenated_imports.jac");
     js_code = compile_fixture_to_js(fixture_file_path);
