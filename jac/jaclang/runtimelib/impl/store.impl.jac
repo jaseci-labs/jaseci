@@ -88,7 +88,9 @@ def _sanitize_ident(name: str) -> str {
 glob _PG_CHANNEL_LIMIT = 63,
      _CHANNEL_DIGEST_LEN = 16,
      _CHANNEL_ENVELOPE_KEY = '__jac_channel',
-     _CHANNEL_ENVELOPE_VERSION = 1;
+     _CHANNEL_ENVELOPE_VERSION = 1,
+     _LISTEN_POLL_SECONDS = 1.0,
+     _LISTEN_JOIN_SECONDS = 5.0;
 
 
 def _channel_travels_verbatim(channel: str) -> bool {
@@ -891,6 +893,63 @@ impl PgStore.listen(channel: str, callback: Any) -> None {
 }
 
 
+impl PgStore.unlisten(channel: str) -> None {
+    parked: Any = None;
+    with self._lock {
+        ident = _channel_ident(channel);
+        kept: list[ChannelListener] = [];
+        for lst in self._listeners {
+            if lst.channel != channel {
+                kept.append(lst);
+            }
+        }
+        if len(kept) == len(self._listeners) {
+            return;
+        }
+        self._listeners = kept;
+        shared = False;
+        for lst in kept {
+            if lst.ident == ident {
+                shared = True;
+            }
+        }
+        conn: Any = self._side_conn;
+        if conn is not None and not shared {
+            try {
+                conn.run(f"UNLISTEN {_quote_channel(ident)}");
+            } except Exception as e {
+                logger.debug(f"unlisten {channel} failed: {e}");
+            }
+        }
+        if not self._listeners {
+            parked = self._stop_listen_thread();
+        }
+    }
+    self._join_listen_thread(parked);
+}
+
+
+impl PgStore._stop_listen_thread -> Any {
+    if self._listen_stop is not None {
+        self._listen_stop.set();
+    }
+    parked = self._listen_thread;
+    self._listen_thread = None;
+    return parked;
+}
+
+
+impl PgStore._join_listen_thread(parked: Any) -> None {
+    if parked is None or parked is threading.current_thread() {
+        return;
+    }
+    parked.join(timeout=_LISTEN_JOIN_SECONDS);
+    if parked.is_alive() {
+        logger.warning('pg listen thread did not stop within its join window');
+    }
+}
+
+
 impl PgStore._listen_loop -> None {
     import select;
     stop: Any = self._listen_stop;
@@ -902,7 +961,10 @@ impl PgStore._listen_loop -> None {
         sock: Any = None;
         try {
             with self._lock {
-                conn: Any = self._side();
+                conn: Any = self._side_conn;
+                if conn is None {
+                    break;
+                }
                 if conn.notifications {
                     pending = list(conn.notifications);
                     conn.notifications.clear();
@@ -912,10 +974,10 @@ impl PgStore._listen_loop -> None {
             }
             if not pending {
                 if sock is None {
-                    stop.wait(1.0);
+                    stop.wait(_LISTEN_POLL_SECONDS);
                     continue;
                 }
-                readable = select.select([sock], [], [], 10.0)[0];
+                readable = select.select([sock], [], [], _LISTEN_POLL_SECONDS)[0];
                 if stop.is_set() {
                     break;
                 }
@@ -923,7 +985,10 @@ impl PgStore._listen_loop -> None {
                     continue;
                 }
                 with self._lock {
-                    conn2: Any = self._side();
+                    conn2: Any = self._side_conn;
+                    if conn2 is None {
+                        break;
+                    }
                     conn2.run('SELECT 1');
                     pending = list(conn2.notifications);
                     conn2.notifications.clear();
@@ -934,7 +999,7 @@ impl PgStore._listen_loop -> None {
             }
         } except Exception as e {
             logger.debug(f"listen loop hiccup: {e}");
-            stop.wait(1.0);
+            stop.wait(_LISTEN_POLL_SECONDS);
         }
     }
 }
@@ -1049,10 +1114,10 @@ impl PgStore._property_graph_ddl -> None {
 
 
 impl PgStore.close -> None {
+    parked: Any = None;
     with self._lock {
-        if self._listen_stop is not None {
-            self._listen_stop.set();
-        }
+        parked = self._stop_listen_thread();
+        self._listeners = [];
         for c in [self._conn, self._side_conn] {
             if c is not None {
                 try {
@@ -1064,4 +1129,5 @@ impl PgStore.close -> None {
         self._side_conn = None;
         self._in_txn = False;
     }
+    self._join_listen_thread(parked);
 }

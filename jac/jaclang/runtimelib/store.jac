@@ -137,6 +137,7 @@ obj PgStore(Store) {
     def quarantine(missing_id: UUID, referrer_id: (UUID | None), kind: str) -> None;
     def notify(channel: str, payload: str) -> None;
     def listen(channel: str, callback: Any) -> None;
+    def unlisten(channel: str) -> None;
     def close -> None;
     def _connect -> Any;
     def _main -> Any;
@@ -147,6 +148,8 @@ obj PgStore(Store) {
     def _property_graph_ddl -> None;
     def _listen_loop -> None;
     def _dispatch_notification(channel: str, payload: str) -> None;
+    def _stop_listen_thread -> Any;
+    def _join_listen_thread(parked: Any) -> None;
     def _schema_fingerprint -> str;
     def _schema_stamp -> (str | None);
     def _apply_schema_ddl -> None;
