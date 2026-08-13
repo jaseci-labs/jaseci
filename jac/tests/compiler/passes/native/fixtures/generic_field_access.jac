@@ -8,13 +8,17 @@ argument to say what came back. Every function below is a shape that has to
 survive that retyping, and each returns a payload read off the far side so a
 dropped or mistyped load cannot pass: directly off a local, through a
 `| None` option, through a union arm reached by `isinstance`, out of a
-method's `self`, and back after a store into the erased slot.
+method's `self`, out of a `{ getter; }` accessor (the waived shape itself,
+and a different lowering path from a plain method), and back after a store
+into the erased slot.
 
 `kind` sits after the erased slot in the layout so a wrong offset shows up as
 a wrong value rather than a crash, and the trailing `Other` union member is
 laid out with `num` first so a union arm read at the wrong offset returns
 `Other.num` instead of failing.
 """
+
+enum Rank { LOW = "low", MID = "mid", HIGH = "high" }
 
 obj Leaf {
     has num: int = 0,
@@ -34,6 +38,8 @@ obj Holder {
     has one: (Cell[Leaf] | None) = None,
         pick: (Cell[Leaf] | Other | None) = None;
 
+    has rank: Rank { getter; }
+
     def one_num -> int;
     def one_name_len -> int;
 }
@@ -50,6 +56,12 @@ impl Holder.one_name_len -> int {
         return len(self.one.slot.name);
     }
     return -1;
+}
+
+impl Holder.rank.getter -> Rank {
+    return Rank.HIGH
+        if (self.one and (self.one.slot.name == "hi"))
+        else Rank.MID if (self.one and (self.one.slot.name == "mid")) else Rank.LOW;
 }
 
 def make_cell(n: int) -> Cell[Leaf] {
@@ -104,6 +116,30 @@ def method_name_len(k: int) -> int {
     return h.one_name_len();
 }
 
+"""The waived shape itself: a `{ getter; }` accessor reading through the slot.
+
+`AstAccessNode.access_type` is exactly this -- a property whose body compares a
+str field reached through `SubTag[Token]` and answers with an enum member --
+and it is a property, not a plain method, so it lowers through the accessor
+call path rather than the method one.
+"""
+def rank_ord(k: int) -> int {
+    h = Holder();
+    if k == 1 {
+        h.one = Cell[Leaf](slot=Leaf(num=1, name="hi"), kind=1);
+    } elif k == 2 {
+        h.one = Cell[Leaf](slot=Leaf(num=2, name="mid"), kind=2);
+    }
+    r = h.rank;
+    if r == Rank.HIGH {
+        return 3;
+    }
+    if r == Rank.MID {
+        return 2;
+    }
+    return 1;
+}
+
 """Through a union arm narrowed by `isinstance`."""
 def union_num(k: int) -> int {
     h = Holder();
@@ -155,6 +191,9 @@ with entry {
     assert method_num(1) == 21;
     assert method_num(0) == -1;
     assert method_name_len(1) == 6;
+    assert rank_ord(1) == 3;
+    assert rank_ord(2) == 2;
+    assert rank_ord(0) == 1;
     assert union_num(1) == 31;
     assert union_num(2) == 55;
     assert union_num(0) == -1;

@@ -43,6 +43,7 @@ glob FIXTURES = os.path.join(
          "opt_num",
          "method_num",
          "method_name_len",
+         "rank_ord",
          "union_num",
          "store_num",
          "returned_num",
@@ -148,6 +149,18 @@ test "the same read off `self` inside a method" {
     assert f(1) == 21 , "`self.one.slot.num` is the sealed parser's own shape";
     assert f(0) == -1 , "the unset option inside the method";
     assert g(1) == 6 , "'pqrstu' through `self.one.slot.name`";
+}
+
+
+test "a `{ getter; }` accessor reads through the erased slot" {
+    # The waived shape itself: `AstAccessNode.access_type` is a property
+    # whose body compares a str reached through `SubTag[Token]` and answers
+    # with an enum member, and a property lowers through the accessor call
+    # path rather than the method one.
+    f = _get(_compile(FIXTURE), "rank_ord");
+    assert f(1) == 3 , "'hi' behind the erased slot selects HIGH";
+    assert f(2) == 2 , "'mid' selects MID";
+    assert f(0) == 1 , "an unset option falls through to LOW";
 }
 
 
