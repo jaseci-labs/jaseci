@@ -404,14 +404,12 @@ impl UniScopeNode.insert(
     collision = self.names_in_scope[nd.sym_name].defn[-1]
         if (single and (nd.sym_name in self.names_in_scope))
         else None;
-    resolved_access: SymbolAccess = SymbolAccess.PUBLIC;
-    if isinstance(access_spec, SymbolAccess) {
-        resolved_access = access_spec;
-    } elif isinstance(access_spec, AstAccessNode) {
-        resolved_access = access_spec.access_type;
-    }
     symbol = nd.name_spec.create_symbol(
-        access=resolved_access, parent_tab=self, imported=imported
+        access=access_spec
+            if isinstance(access_spec, SymbolAccess)
+            else access_spec.access_type if access_spec else SymbolAccess.PUBLIC,
+        parent_tab=self,
+        imported=imported
     );
     if (nd.sym_name in self.names_in_scope) {
         self.names_in_scope_overload.setdefault(nd.sym_name, []).append(symbol);
@@ -1289,6 +1287,13 @@ impl Archetype.postinit -> None {
 
 
 impl Archetype._get_impl_resolved_body -> list[UniNode] {
+    """The nested ternary this replaced lowers natively now, but not here:
+    `Archetype.body` is the `T` of the generic `AstImplNeedingNode[T]`, whose
+    layout is type-erased, so the narrow can say "a list" and not what of.
+    Both copies then unify at `list[jacval]` and the coercion to the declared
+    `list[UniNode]` is refused. The typed local below is what pins the element
+    type, so the flat form stays until a generic archetype's layout carries
+    its argument.""";
     src = self.body.body if isinstance(self.body, ImplDef) else self.body;
     out: list[UniNode] = [];
     if isinstance(src, list) {
