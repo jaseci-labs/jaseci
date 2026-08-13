@@ -238,6 +238,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         free_fn: (ir.Function | None) = None,
         rc_safe_free_fn: (ir.Function | None) = None,
         str_len_fn: (ir.Function | None) = None,
+        str_truthy_fn: (ir.Function | None) = None,
         str_stamp_fn: (ir.Function | None) = None,
         str_new_fn: (ir.Function | None) = None,
         str_cmp_fn: (ir.Function | None) = None,
@@ -1372,6 +1373,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_str_len_helpers -> None;
     def _emit_str_stamp_and_new -> None;
     def _call_str_len(b: ir.IRBuilder, ptr: ir.Value, name: str = "s.len") -> ir.Value;
+    def _call_str_truthy(
+        b: ir.IRBuilder, ptr: ir.Value, name: str = "s.truthy"
+    ) -> ir.Value;
+
     def _stamp_str_len(b: ir.IRBuilder, ptr: ir.Value, len_val: ir.Value) -> None;
     def _emit_str_cmp_helper -> None;
     def _call_str_cmp(

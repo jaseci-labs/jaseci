@@ -977,6 +977,10 @@ impl NaIRGenPass._to_bool(val: ir.Value) -> ir.Value {
             return self._emit_bytes_truthy(val);
         }
 
+        if val.type == ir.IntType(8).as_pointer() {
+            return self._call_str_truthy(self.builder, val, name="tobool.str");
+        }
+
         null_ptr = ir.Constant(val.type, None);
         return self.builder.icmp_unsigned("!=", val, null_ptr, name="tobool");
     }
@@ -999,11 +1003,16 @@ impl NaIRGenPass._jacval_truthy(jv: ir.Value) -> ir.Value {
     merge_bb = func.append_basic_block(name="jv.truthy.end");
 
     is_str = b.icmp_unsigned("==", tag, ir.Constant(i8, 2), name="jv.truthy.isstr");
-    b.cbranch(is_str, str_bb, cont_chk_bb);
+    str_nn = b.icmp_unsigned(
+        "!=", payload, ir.Constant(i64, 0), name="jv.truthy.str.nn"
+    );
+    do_str = b.and_(is_str, str_nn, name="jv.truthy.dostr");
+    b.cbranch(do_str, str_bb, cont_chk_bb);
 
     b.position_at_end(str_bb);
     str_ptr = b.inttoptr(payload, i8.as_pointer(), name="jv.truthy.strp");
-    str_res = self._to_bool(str_ptr);
+    _slen = self._call_str_len(b, str_ptr, name="jv.truthy.slen");
+    str_res = b.icmp_unsigned("!=", _slen, ir.Constant(i64, 0), name="jv.truthy.snz");
     str_exit_bb = b.block;
     b.branch(merge_bb);
 
