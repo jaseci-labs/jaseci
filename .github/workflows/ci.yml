@@ -864,13 +864,19 @@ jobs:
           jac/.jac/cache
         key: jac-jir-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
 
-  # Seal-gate lane: the ONLY place the parser seal actually executes in CI.
-  # The payload lanes (test-compiler, nightly) run inside the sealed runtime,
-  # which trips these suites' source-environment self-skips, and no other
-  # dev-source lane collects them -- so before this lane existed the parity
-  # gate, the unitree census, the seam-reachability walk, and the jacmat
-  # materializer parity ran nowhere. With parse trees serving natively and no
-  # bytecode fallback in sealed builds, these gates are load-bearing.
+  # Seal static gates. Functional coverage of the sealed parser needs no lane
+  # of its own: setup-jac builds the sealed payload from THIS checkout, so
+  # every payload lane compiles through native parse + materialization and a
+  # broken seal fails the build or the suites. What functional passes cannot
+  # catch, by construction, is a demotion waiver whose abort stub becomes
+  # REACHABLE: every test passes until a rare input hits the stub and kills
+  # the process. The census (closure membership, exact waiver list) and the
+  # seam-reachability walk (no waiver inside the parser's call closure) are
+  # static proofs over the whole grammar, and they need the source tree, so
+  # they run here in a dev lane. The full parity + materializer suite
+  # (test_sealed_native_parser.jac) stays a local diagnostic: run it when
+  # touching the seal to get divergence attribution instead of downstream
+  # test fallout.
   test-native-seal:
     needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.seal == 'true' }}
@@ -886,23 +892,6 @@ jobs:
 
     - name: Set up jac (dev lane)
       uses: ./.github/actions/setup-jac-dev
-
-    # The jacmat materializer is a CPython extension built at seal time; the
-    # launcher's bundled runtime ships no headers, so fetch a matching 3.14
-    # toolchain include dir. Keep the version pinned to the bundled runtime's
-    # minor (payload.zig / python-build-standalone), or the seal will build an
-    # extension the runtime cannot load.
-    - name: Provide CPython 3.14 headers for the jacmat build
-      uses: astral-sh/setup-uv@v5
-    - name: Export JAC_PY_INCLUDE
-      run: |
-        uv python install 3.14
-        INC="$(uv run --python 3.14 python -c 'import sysconfig; print(sysconfig.get_paths()["include"])')"
-        [ -f "$INC/Python.h" ] || { echo "::error::no Python.h under $INC"; exit 1; }
-        echo "JAC_PY_INCLUDE=$INC" >> "$GITHUB_ENV"
-
-    - name: Run the parser seal parity + materializer suite
-      run: jac test jac/tests/compiler/passes/native/test_sealed_native_parser.jac
 
     - name: Run the unitree seal census
       run: jac test jac/tests/compiler/passes/native/test_unitree_seal_census.jac
