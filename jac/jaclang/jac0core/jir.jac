@@ -254,10 +254,20 @@ def filter_module_mtir(
     if not isinstance(module_mtir, dict) {
         return {};
     }
+    target_key = mtir_module_key(source_path);
     stem = mtir_module_stem(source_path);
     prefix = stem + ".";
     stem_filtered: dict[(str, Info)] = {};
     for (scope, info) in module_mtir.items() {
+        # Ownership guard: a stamped entry carries the source path of the module
+        # it was generated for. Reject it when it belongs to a different
+        # filesystem identity, even if that module shares this stem and an
+        # identical qualified scope (the legacy program-wide blob collision).
+        # Unstamped entries (old caches) fall through to stem+bytecode filtering.
+        owner = getattr(info, 'mod_path', None);
+        if owner is not None and mtir_module_key(owner) != target_key {
+            continue;
+        }
         if scope == stem or scope.startswith(prefix) {
             stem_filtered[scope] = info;
         }

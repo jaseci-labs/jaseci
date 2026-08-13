@@ -27,7 +27,8 @@ obj MTIR {
 
 obj Info {
     has name: str,
-        semstr: (str | None);
+        semstr: (str | None),
+        mod_path: (str | None) = None;
 }
 
 obj VarInfo(Info) {

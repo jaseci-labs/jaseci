@@ -593,6 +593,39 @@ test "filter_module_mtir disambiguates same-stem dirs via bytecode" {
     }
 }
 
+test "filter_module_mtir rejects foreign same-stem identical-qualname survivors" {
+    # Two modules share the stem "utils" but live in different directories and
+    # each exposes a function with the identical qualified scope "utils.gen".
+    # A legacy program-wide blob collapses them to one surviving entry, and the
+    # stem+bytecode filter cannot tell it belongs to the other module, so the
+    # survivor would be stored as this module's slice. The per-entry mod_path
+    # stamp (set at generation) lets the restore path reject it even though
+    # stem and qualified scope both match.
+    import from jaclang.jac0core.jir { filter_module_mtir }
+
+    target = os.path.realpath("/tmp/pkg_a/utils.jac");
+    foreign_path = os.path.realpath("/tmp/pkg_b/utils.jac");
+    foreign = FunctionInfo(name="gen", semstr="b", mod_path=foreign_path);
+    legacy: dict = {"utils.gen": foreign};
+
+    kept = filter_module_mtir(target, legacy);
+    assert "utils.gen" not in kept , "foreign survivor must be rejected";
+    assert len(kept) == 0 , "expected empty slice";
+
+    own_entry = FunctionInfo(name="gen", semstr="a", mod_path=target);
+    legacy_own: dict = {"utils.gen": own_entry};
+    kept_own = filter_module_mtir(target, legacy_own);
+    assert "utils.gen" in kept_own , "own entry must survive";
+
+    # A same-dir .impl annex shares the module key (the stem rekey collapses
+    # .impl onto the base), so its entry belongs to the same logical module.
+    impl_path = os.path.realpath("/tmp/pkg_a/utils.impl.jac");
+    impl_entry = FunctionInfo(name="gen_impl", semstr="impl", mod_path=impl_path);
+    legacy_impl: dict = {"utils.gen_impl": impl_entry};
+    kept_impl = filter_module_mtir(target, legacy_impl);
+    assert "utils.gen_impl" in kept_impl , "same-dir impl annex must be kept";
+}
+
 test "invalidate internal clears mirrored runtime mtir for owning compiler" {
     import from jaclang.jac0core.compiler { JacCompiler }
     import from jaclang.jac0core.jir { mtir_module_key }
