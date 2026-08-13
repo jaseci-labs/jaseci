@@ -1519,10 +1519,7 @@ impl JacLLM.add_mtir_to_map(mod_path: str, scope: str, mtir: Info) -> None {
     prog = JacRuntime.program;
     import from jaclang.jac0core.jir { mtir_module_key }
     key = mtir_module_key(mod_path);
-    # Stamp the owning module's source path onto the entry so the restore path
-    # can reject foreign same-stem survivors (e.g. pkg_b/utils.jac entries that
-    # share the "utils" stem with pkg_a/utils.jac) even when their qualified
-    # scope collides. Legacy/unstamped entries fall back to stem filtering.
+
     mtir.mod_path = mod_path;
     prog.mtir_by_module.setdefault(key, {})[scope] = mtir;
 }

@@ -97,12 +97,6 @@ def _slash_alternate(path: str) -> (str | None) {
 
 
 def _raw_body_bytes(payload: any) -> bytes {
-    # Framework-native raw-body path (@restspec envelope=False / produces=...):
-    # the handler's return value must reach the wire verbatim, not JSON-encoded
-    # through the transport envelope. Plain Response.body_bytes() would str()
-    # structured payloads into Python repr (e.g. {'a': 1}), so mirror the
-    # canonical serialization: bytes as-is, str as text, None empty, everything
-    # else as JSON.
     if isinstance(payload, bytes) {
         return payload;
     }
