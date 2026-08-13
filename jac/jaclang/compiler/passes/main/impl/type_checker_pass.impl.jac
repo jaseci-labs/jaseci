@@ -372,7 +372,8 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
         } elif isinstance(target, (uni.TupleVal, uni.ListVal)) {
             self._eval_unpacking_names(target);
             right_type = self.evaluator.get_type_of_expression(nd.value);
-            if not isinstance(right_type, (types.UnknownType, types.AnyType)) {
+            if not isinstance(right_type, types.UnknownType)
+                and not right_type.is_any_instance() {
                 iter_result = self.evaluator.get_type_of_magic_method_call(
                     right_type, "__iter__", [], nd.value
                 );
@@ -400,6 +401,17 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
                 left_type = declared_inst;
             } else {
                 left_type = self.evaluator.get_type_of_expression(target);
+                if isinstance(target, uni.Name) and target.sym is not None {
+                    sym_declared = self.evaluator.get_type_of_symbol(target.sym);
+                    if (
+                        sym_declared is not None
+                        and not isinstance(
+                            sym_declared, (types.UnknownType, types.AnyType)
+                        )
+                    ) {
+                        left_type = sym_declared;
+                    }
+                }
                 if isinstance(target, uni.AtomTrailer) and target.is_attr {
                     if isinstance(target.right, uni.Name) and target.right.sym {
                         import from jaclang.compiler.type_system.type_utils {
