@@ -657,14 +657,18 @@ def _command_routes -> list[CommandMeta] {
                     'jac db serve',
                     'Run Postgres in the foreground (pod / container mode)'
                 ),
-                ('jac db stop', "Stop the project's embedded server")
+                ('jac db stop', "Stop the project's embedded server"),
+                (
+                    'jac db fetch',
+                    'Pre-download the embedded Postgres distribution (air-gapped / image builds)'
+                )
             ],
             args=[
                 ArgMeta(
                     name='action',
                     kind=ArgKind.POSITIONAL,
                     default='status',
-                    help='Action: status, serve, stop, inspect, sql'
+                    help='Action: status, serve, stop, inspect, sql, fetch'
                 ),
                 ArgMeta(
                     name='query',

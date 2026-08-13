@@ -47,7 +47,13 @@ test "different standalone files get separate databases" {
     try {
         Jac.set_base_path(FIXTURES);
 
-        execution.run(filename=os.path.join(FIXTURES, "simple_persistent.jac"));
+        # The database is provisioned by the first access to persistent state,
+        # so these files have to actually touch the graph: simple_persistent
+        # declares walkers only, hence the explicit spawn.
+        execution.enter(
+            filename=os.path.join(FIXTURES, "simple_persistent.jac"),
+            entrypoint="create"
+        );
         execution.run(filename=os.path.join(FIXTURES, "simple_node_connection.jac"));
 
         rc = execution.run(filename=os.path.join(FIXTURES, "simple_persistent.jac"));
@@ -75,7 +81,9 @@ test "running file with same name as project uses project DB name" {
     try {
         Jac.set_base_path(FIXTURES);
 
-        execution.run(filename=os.path.join(file_path, "main.jac"));
+        execution.enter(
+            filename=os.path.join(file_path, "main.jac"), entrypoint="create"
+        );
 
         # jac.toml names the project test_db_naming; the database carries
         # that name (suffixed with the base-path digest), not "main".

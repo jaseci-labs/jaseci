@@ -85,6 +85,11 @@ def _sanitize_ident(name: str) -> str {
 }
 
 
+def _store_ns(info: ConnInfo) -> str {
+    return f"{info.unix_socket_dir or info.host}:{info.port}/{info.database}";
+}
+
+
 glob _PG_CHANNEL_LIMIT = 63,
      _CHANNEL_DIGEST_LEN = 16,
      _CHANNEL_ENVELOPE_KEY = '__jac_channel',
@@ -160,6 +165,40 @@ impl PgStore.postinit -> None {
     self._listeners = [];
     self._listen_thread = None;
     self._listen_stop = None;
+    self._booted = False;
+    self._ready = False;
+    self._readying = None;
+}
+
+
+impl PgStore._ensure_ready -> None {
+    if self._ready {
+        return;
+    }
+    with self._lock {
+        if self._ready or self._readying == threading.get_ident() {
+            return;
+        }
+        self._readying = threading.get_ident();
+        try {
+            if self.ensure_cb is not None and not self._booted {
+                self.conninfo = self.ensure_cb();
+                self._booted = True;
+            }
+            if self.auto_schema {
+                ns = _store_ns(self.conninfo);
+                with _schema_gate {
+                    if ns not in _schema_ready {
+                        self.ensure_schema(self.promotions);
+                        _schema_ready.add(ns);
+                    }
+                }
+            }
+            self._ready = True;
+        } finally {
+            self._readying = None;
+        }
+    }
 }
 
 
@@ -273,6 +312,7 @@ impl PgStore._main -> Any {
 
 
 impl PgStore._side -> Any {
+    self._ensure_ready();
     if self._side_conn is None {
         self._side_conn = self._connect();
     }
@@ -295,6 +335,7 @@ def _conn_dead(e: Exception) -> bool {
 
 
 impl PgStore._run(sql: str, params: dict) -> list {
+    self._ensure_ready();
     with self._lock {
         conn: Any = None;
         try {
