@@ -6,19 +6,41 @@ import from typing { Any }
 import from uuid { UUID }
 
 import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
+import from jaclang.runtimelib.dbcatalog { DbKind, MAINTENANCE_DB, SCRATCH_PREFIX }
 import from jaclang.runtimelib.pgembed { PgRuntime }
 import from jaclang.runtimelib.store { AnchorRow, ConnInfo, PgStore, Store }
 
 glob logger = logging.getLogger(__name__),
      MAX_RETRIES = 5,
+     SCRATCH_ENV = 'JAC_DB_SCRATCH',
+     RETENTION_ENV = 'JAC_DB_RETENTION_DAYS',
      __all__ = [
          'Session',
          'promotions_for',
          'conninfo_from_url',
          'shared_pg_data_dir',
          'project_db_name',
-         'takeover_project'
+         'takeover_project',
+         'mark_scratch_base',
+         'scratch_requested',
+         'scratch_lease',
+         'drop_scratch_database',
+         'retention_days_for',
+         'SCRATCH_ENV',
+         'RETENTION_ENV'
      ];
+
+
+obj ScratchLease {
+    has database: str,
+        reset: bool = False;
+}
+
+
+obj ScratchState {
+    has database: str,
+        base_path: str;
+}
 
 
 def promotions_for(base_path: (str | None)) -> dict[str, list[str]];
@@ -26,6 +48,11 @@ def shared_pg_data_dir -> str;
 def project_db_name(base_path: str, target_path: (str | None)) -> str;
 def conninfo_from_url(url: str) -> ConnInfo;
 def takeover_project(base_path: str, target_path: (str | None) = None) -> int;
+def mark_scratch_base(base_path: str) -> None;
+def scratch_requested(base_path: (str | None)) -> bool;
+def scratch_lease(base_path: str) -> ScratchLease;
+def drop_scratch_database -> None;
+def retention_days_for(base_path: (str | None)) -> int;
 
 
 obj Session {

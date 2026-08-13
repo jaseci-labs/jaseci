@@ -27,7 +27,8 @@ glob APP = "node Item {\n"
      "with entry {\n"
      "    root ++> Item(name=\"x\");\n"
      "    print(\"items\", len([root-->]));\n"
-     "}\n";
+     "}\n",
+     BARE_APP = "with entry {\n    print(\"items 0\");\n}\n";
 
 
 obj Cluster {
@@ -121,9 +122,9 @@ def _jac_databases(cluster: Cluster) -> set[str] {
 
 
 """A project directory whose app writes one node into its own store."""
-def _seed_project(name: str) -> str {
+def _seed_project(name: str, app: str = "") -> str {
     proj = tempfile.mkdtemp(prefix=f"jac-{name}-");
-    Path(os.path.join(proj, "app.jac")).write_text(APP);
+    Path(os.path.join(proj, "app.jac")).write_text(app or APP);
     _write_jac_toml(proj, name);
     return proj;
 }
@@ -174,9 +175,9 @@ def _run_python(cluster: Cluster, script: str) -> tuple {
 
 
 """Run an app in a fresh project and return the database it created."""
-def _project_database(cluster: Cluster, name: str) -> tuple[str, str] {
+def _project_database(cluster: Cluster, name: str, app: str = "") -> tuple[str, str] {
     before = _jac_databases(cluster);
-    proj = _seed_project(name);
+    proj = _seed_project(name, app=app);
     (rc, out, err) = _run_app(cluster, proj);
     assert rc == 0 , f"run in {proj} failed: {err}";
     created = _jac_databases(cluster) - before;
@@ -232,9 +233,12 @@ test "marked scratch bases share one database that dies with the process" {
         "mark_scratch_base(b1); mark_scratch_base(b2);"
         "c1 = ExecutionContext(base_path_dir=b1);"
         "print('LOC', c1.mem.data_location());"
+        "c1.mem.store.kv_put('probe', 'kept');"
+        "print('PROBE', c1.mem.store.kv_get('probe'));"
         "c1.close();"
         "c2 = ExecutionContext(base_path_dir=b2);"
         "print('LOC', c2.mem.data_location());"
+        "print('PROBE', c2.mem.store.kv_get('probe'));"
         "c2.close()"
     );
     try {
@@ -246,12 +250,21 @@ test "marked scratch bases share one database that dies with the process" {
             for line in out.splitlines()
             if line.startswith("LOC ")
         ];
-        assert len(locs) == 2 , f"child printed {out!r}";
+        probes = [
+            line.split(" ", 1)[1]
+            for line in out.splitlines()
+            if line.startswith("PROBE ")
+        ];
+        assert len(locs) == 2 and len(probes) == 2 , f"child printed {out!r}";
         assert "jac_scratch" in locs[0] , (
             f"a marked scratch base must not open a project database: {locs[0]}"
         );
         assert locs[0] == locs[1] , (
             f"every scratch base in one process shares one database: {locs}"
+        );
+        assert probes[0] == "kept" , f"the scratch store did not persist a write: {probes}";
+        assert probes[1] == "None" , (
+            f"a new scratch base must start empty, the way a fresh path did: {probes}"
         );
         names = _jac_databases(cluster);
         assert names == before , f"the scratch database outlived its process: {names}";
@@ -274,7 +287,7 @@ test "a created database records its owning absolute path" {
         assert len(rows) == 1 , (
             f"{db_name} recorded no owner in {REGISTRY_TABLE}: {rows}"
         );
-        assert str(rows[0][0]) == os.path.realpath(proj) , (
+        assert str(rows[0][0]) in (os.path.abspath(proj), os.path.realpath(proj)) , (
             f"recorded owner {rows[0][0]!r} is not {proj!r}"
         );
         assert str(rows[0][1]) == "project" , f"kind was {rows[0][1]!r}";
@@ -297,7 +310,7 @@ test "db list reports every database without creating one" {
         );
         assert code == 0 , f"db list failed: {text}";
         assert db_name in text , f"db list omitted {db_name}: {text}";
-        assert os.path.realpath(proj) in text , (
+        assert os.path.abspath(proj) in text or os.path.realpath(proj) in text , (
             f"db list omitted the owning path {proj}: {text}"
         );
         assert _jac_databases(cluster) == before , (
@@ -367,6 +380,49 @@ test "db prune reaps a scratch database whose process is gone" {
         assert orphan not in _jac_databases(cluster) , (
             f"{orphan} belongs to dead pid {dead.pid} and must be reaped: {text}"
         );
+    } finally {
+        _stop_cluster(cluster);
+    }
+}
+
+
+test "db prune --empty reclaims pre-tracking databases that hold no data" {
+    import from jaclang.cli.commands { db }
+    import from jaclang.runtimelib.dbcatalog { REGISTRY_TABLE }
+    cluster = _start_cluster();
+    try {
+        (with_data, data_db) = _project_database(cluster, "legacydata");
+        (no_data, bare_db) = _project_database(cluster, "legacybare", app=BARE_APP);
+        # Databases created before owner tracking have no registry row at all.
+        _exec(
+            cluster,
+            f"DELETE FROM {REGISTRY_TABLE} WHERE database IN "
+            f"('{data_db}', '{bare_db}')"
+        );
+
+        (code, text) = _capture(
+            lambda { db.db(action="prune", data_dir=cluster.data_dir, yes=True); }
+        );
+        assert code == 0 , f"db prune -y failed: {text}";
+        assert bare_db in _jac_databases(cluster) , (
+            "plain prune must leave unattributed databases alone"
+        );
+
+        (code, text) = _capture(
+            lambda { db.db(
+                action="prune", data_dir=cluster.data_dir, yes=True, empty=True
+            ); }
+        );
+        assert code == 0 , f"db prune --empty -y failed: {text}";
+        names = _jac_databases(cluster);
+        assert bare_db not in names , (
+            f"{bare_db} holds no data and --empty should reclaim it: {text}"
+        );
+        assert data_db in names , (
+            f"{data_db} holds user data and must survive --empty: {text}"
+        );
+        shutil.rmtree(with_data, ignore_errors=True);
+        shutil.rmtree(no_data, ignore_errors=True);
     } finally {
         _stop_cluster(cluster);
     }

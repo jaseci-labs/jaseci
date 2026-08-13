@@ -17,7 +17,10 @@ glob APP_VOLUME_NAME: str = "jac-app",
      JAC_HOME: str = "/app/.jachome",
      TOOLCHAIN_SUBDIR: str = ".jactoolchain",
      DEFAULT_SEAL_TIMEOUT_S: int = 1800,
-     PLACEHOLDER_JAC_TOML: str = "[project]\nname = \"app\"\n";
+     PLACEHOLDER_JAC_TOML: str = "[project]\nname = \"app\"\n",
+     STAGE_PREFIX: str = "jac-app-precompile-";
+
+glob _stage_roots: list[str] = [];
 
 glob _EXCLUDE_DIRS: set[str] = {
          ".jac",
@@ -186,8 +189,102 @@ def nested_sanitized_tomls(base: Path) -> dict[str, str] {
 }
 
 
+def stage_roots_in_use -> list[str] {
+    return list(_stage_roots);
+}
+
+
+def _stage_root_prefix -> str {
+    return f"jac-app-precompile-{os.getpid()}-";
+}
+
+
+def _stage_root_pid(name: str) -> int {
+    if not name.startswith(STAGE_PREFIX) {
+        return 0;
+    }
+    parts = name[len(STAGE_PREFIX):].split("-");
+    if len(parts) < 2 or not parts[0].isdigit() {
+        return 0;
+    }
+    return int(parts[0]);
+}
+
+
+def _pid_alive(pid: int) -> bool {
+    try {
+        os.kill(pid, 0);
+        return True;
+    } except ProcessLookupError {
+        return False;
+    } except OSError {
+        return True;
+    }
+}
+
+
+def reap_stale_stage_roots -> int {
+    removed = 0;
+    holder = Path(tempfile.gettempdir());
+    try {
+        entries = sorted(holder.iterdir());
+    } except OSError {
+        return 0;
+    }
+    for entry in entries {
+        if not entry.is_dir() or not entry.name.startswith(STAGE_PREFIX) {
+            continue;
+        }
+        pid = _stage_root_pid(entry.name);
+        if pid == 0 or _pid_alive(pid) {
+            continue;
+        }
+        shutil.rmtree(str(entry), ignore_errors=True);
+        if not entry.exists() {
+            removed += 1;
+        }
+    }
+    if removed {
+        logger.info(
+            f"removed {removed} deploy staging director(ies) left by dead runs"
+        );
+    }
+    return removed;
+}
+
+
+def remove_stage_root(stage_root: Path) {
+    shutil.rmtree(str(stage_root), ignore_errors=True);
+    if str(stage_root) in _stage_roots {
+        _stage_roots.remove(str(stage_root));
+    }
+}
+
+
+def _remove_stage_roots {
+    for path in list(_stage_roots) {
+        shutil.rmtree(path, ignore_errors=True);
+    }
+    _stage_roots.clear();
+}
+
+
+def seal_step_env -> dict[str, str] {
+    import from jaclang.runtimelib.session { SCRATCH_ENV }
+    env = release_binary_env();
+    env[SCRATCH_ENV] = "1";
+    return env;
+}
+
+
 def _stage_app(base: Path, sanitized_toml: (str | None)) -> Path {
-    stage_root = Path(tempfile.mkdtemp(prefix="jac-app-precompile-"));
+    reap_stale_stage_roots();
+    stage_root = Path(tempfile.mkdtemp(prefix=_stage_root_prefix()));
+    if not _stage_roots {
+        import atexit;
+        atexit.register(_remove_stage_roots);
+    }
+    _stage_roots.append(str(stage_root));
     stage = stage_root / "app";
     try {
         for path in sorted(base.rglob("*")) {
@@ -215,7 +312,7 @@ def _stage_app(base: Path, sanitized_toml: (str | None)) -> Path {
         }
         return stage_root;
     } except Exception {
-        shutil.rmtree(str(stage_root), ignore_errors=True);
+        remove_stage_root(stage_root);
         raise;
     }
 }
@@ -248,7 +345,7 @@ def _precompile_app(
             capture_output=True,
             text=True,
             timeout=timeout_s,
-            env=release_binary_env(),
+            env=seal_step_env(),
             cwd=str(stage_root)
         );
         jac_path.unlink();
@@ -268,7 +365,7 @@ def _precompile_app(
         }
         return stage;
     } except Exception {
-        shutil.rmtree(str(stage_root), ignore_errors=True);
+        remove_stage_root(stage_root);
         raise;
     }
 }
@@ -345,7 +442,12 @@ def _vendor_stage(stage: Path, seal_binary: bytes, platform_tag: str = "") {
     }
     try {
         result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=900, env=release_binary_env()
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            env=seal_step_env(),
+            cwd=str(stage.parent)
         );
     } finally {
         jac_path.unlink(missing_ok=True);
@@ -463,7 +565,7 @@ def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes 
         }
         return buf.getvalue();
     } finally {
-        shutil.rmtree(str(staged.parent), ignore_errors=True);
+        remove_stage_root(staged.parent);
     }
 }
 

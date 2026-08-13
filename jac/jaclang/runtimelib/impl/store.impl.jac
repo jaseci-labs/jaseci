@@ -335,6 +335,20 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
 }
 
 
+impl PgStore.reset_data -> None {
+    with self._lock {
+        if self._in_txn {
+            self.rollback();
+        }
+        self._run('TRUNCATE anchors, graph_types, quarantine RESTART IDENTITY', {});
+        self._run(
+            'DELETE FROM kv_state WHERE key <> :stamp', {'stamp': SCHEMA_STAMP_KEY}
+        );
+        self._known_types = set();
+    }
+}
+
+
 impl PgStore._apply_schema_ddl -> None {
     self._run("SET lock_timeout = '5s'", {});
     try {

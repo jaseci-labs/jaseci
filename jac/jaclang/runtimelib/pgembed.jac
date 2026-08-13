@@ -13,6 +13,7 @@ import zipfile;
 import from pathlib { Path }
 import from typing { Any }
 
+import from jaclang.runtimelib.dbcatalog { DbKind }
 import from jaclang.runtimelib.store { ConnInfo }
 
 glob logger = logging.getLogger(__name__),
@@ -42,6 +43,9 @@ obj PgRuntime {
         tcp: bool = False,
         superuser: str = 'jac',
         database: str = 'jac',
+        owner_path: str = '',
+        kind: DbKind = DbKind.PROJECT,
+        retention_days: int = 0,
         _bin_dir: (str | None) postinit,
         _proc: (Any | None) postinit,
         _lock: threading.RLock postinit;
@@ -52,6 +56,8 @@ obj PgRuntime {
     def stop -> None;
     def is_running -> bool;
     def conninfo -> ConnInfo;
+    def drop_database(database: str, force: bool = False) -> bool;
+    def databases -> list;
     def _sock_dir -> str;
     def _resolve_binaries -> str;
     def _resolve_from_env -> (str | None);
@@ -68,4 +74,5 @@ obj PgRuntime {
     def _start(bin_dir: str) -> None;
     def _wait_ready(timeout: float = 60.0) -> None;
     def _ensure_database -> None;
+    def _sweep_on_start -> None;
 }
