@@ -10,13 +10,6 @@ import from jaclang.jac0core.unitree { CommentToken, Module, Source, Token as Un
 
 glob _NATIVE_PARSE_MEMO: list = [];
 
-"""Bind the sealed native parser, memoized. None only when no image carries
-a materializer artifact -- the bootstrap/dev tier by construction. When an
-artifact exists, every load, integrity, or binding failure RAISES: under the
-#8139 invariant a sealed build has no bytecode tier to degrade to, and the
-runtime correctness canary this binding once carried now runs at seal time
-(precompile_bytecode.seal_parse_parity_canary), where a bad artifact fails
-the build instead of shipping."""
 def _native_parse -> any {
     if _NATIVE_PARSE_MEMO {
         return _NATIVE_PARSE_MEMO[0];
@@ -34,10 +27,6 @@ def _native_parse -> any {
     return np;
 }
 
-"""The #8139 tripwire: parity proves the native path is right, only this
-proves it RAN. Reaching the bytecode parser inside an image that sealed
-native roots means the artifact resolution above was bypassed -- damage,
-not a tier."""
 def _require_bootstrap_tier(op: str) {
     import from jaclang.jac0core.sealed { native_tier_required }
     if native_tier_required() {

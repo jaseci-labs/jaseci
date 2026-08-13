@@ -1,18 +1,3 @@
-"""The one seam between the sealed native parser and the Python pipeline.
-
-`bind_native_parser` turns a sealed materializer artifact into a
-`NativeParser` whose two entries return only Python-owned objects:
-`parse` gives the full materialized tree plus its diagnostic envelope,
-`parse_diags` gives the envelope alone while the native tree dies inside
-the native call. Every failure raises -- under the #8139 invariant a
-sealed build has no bytecode tier to fall back to, so a binding problem
-is a broken install, never a downgrade.
-
-The same binding serves the runtime (frontend) and the seal-time parity
-canary (precompile_bytecode), so what the build proves is exactly what
-ships.
-"""
-
 import ctypes;
 import sys;
 
@@ -22,10 +7,6 @@ import jaclang.jac0core.parser.tokens as _mat_tokens;
 import jaclang.jac0core.srcloc as _mat_srcloc;
 import jaclang.jac0core.unitree as uni;
 
-"""Python-side reconstruction the native representation cannot carry yet.
-The one part of the crossing that knows what the native tree erases; #8139
-Step 2 pins this enumeration -- entries only ever retire, tracked one issue
-each, and the count is asserted by test_sealed_native_parser."""
 glob MATERIALIZE_FIXUPS: tuple = (
          ("body-union-reconstruction", 8141),
          ("symbol-stub-replay", 8142),
@@ -65,8 +46,6 @@ def materialize_fixups(module: any) {
         }
     }
     for nd in nodes {
-        # Fixup 1 (#8141): body unions erase to dead native slots; rebuild
-        # the statement-list arm from the kid list.
         elem = body_elem.get(type(nd).__name__);
         if elem is not None and nd.__dict__.get("body") is None {
             lb = -1;
@@ -84,8 +63,7 @@ def materialize_fixups(module: any) {
                 ];
             }
         }
-        # Fixup 2 (#8142): construction-time stub wiring skipped by
-        # __new__-based materialization.
+
         if isinstance(nd, uni.AstSymbolStubNode)
             and nd.__dict__.get("name_spec") is None {
             st = type(nd)?.SYMBOL_TYPE;
@@ -96,8 +74,7 @@ def materialize_fixups(module: any) {
             }
             continue;
         }
-        # Fixup 3 (#8143): bind_sym's string/enum stores do not persist
-        # natively; re-run the symbol wiring with the category table.
+
         rebind = _SYM_REBIND.get(type(nd).__name__);
         if rebind is not None {
             spec = nd.__dict__.get("name_spec");
@@ -122,8 +99,6 @@ def _bind_error(lib_path: str, reason: str) -> RuntimeError {
     );
 }
 
-"""Convert Python strings to jac-native string arguments per the layout's
-calling convention (jacstr3 = root/data/len, jacstr2 = data/len)."""
 def _native_str_args(str_new: any, param_types: list, args: tuple) -> list {
     c_args: list = [];
     ai = 0;
@@ -185,26 +160,18 @@ obj NativeParser {
         return out;
     }
 
-    """Native parse + full materialization in one GIL-held native call.
-    Returns (module, p_errs, p_diags, comments, lex_diags, lex_errs), all
-    Python-owned; the native tree does not outlive the call."""
     def parse(src: str, path: str) -> tuple {
         r = self._call(self._parse, self._parse_types, src, path);
         materialize_fixups(r[0]);
         return (r[0], r[1], r[2], r[3], r[4], r[5], );
     }
 
-    """Diagnostic envelope only: (p_errs, lex_errs, p_diags, lex_diags).
-    The native tree lives and dies inside the native call."""
     def parse_diags(src: str, path: str) -> tuple {
         r = self._call(self._diags, self._diags_types, src, path);
         return (r[0], r[1], r[2], r[3], );
     }
 }
 
-"""Bind a sealed materializer artifact into a NativeParser. Raises on any
-missing symbol, absent manifest, or unresolvable class/enum -- the artifact
-and the runtime were built from the same tree, so disagreement is damage."""
 def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
     import from jaclang.jac0core.native_dylib { DylibEngine, layout_from_dict }
 
@@ -237,19 +204,16 @@ def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
             raise _bind_error(lib_path, f"{entry_name} did not link");
         }
         entries[entry_name] = (
-            ctypes.PYFUNCTYPE(ctypes.c_uint64, *_entry_argtypes(fl.param_types))(
-                addr
-            ),
+            ctypes.PYFUNCTYPE(ctypes.c_uint64, *_entry_argtypes(fl.param_types))(addr),
             list(fl.param_types),
+
         );
     }
 
     cdll = eng._cdll;
     i64 = ctypes.c_int64;
     mat_reset = ctypes.PYFUNCTYPE(None, i64, i64, i64)(("mat_reset", cdll, ));
-    mat_set_class = ctypes.PYFUNCTYPE(None, i64, i64, i64)(
-        ("mat_set_class", cdll, )
-    );
+    mat_set_class = ctypes.PYFUNCTYPE(None, i64, i64, i64)(("mat_set_class", cdll, ));
     mat_set_key = ctypes.PYFUNCTYPE(None, i64, i64)(("mat_set_key", cdll, ));
     mat_set_enum = ctypes.PYFUNCTYPE(None, i64, i64)(("mat_set_enum", cdll, ));
     pydec = ctypes.pythonapi.Py_DecRef;
@@ -266,6 +230,7 @@ def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
         uni.__dict__,
         _mat_srcloc.__dict__,
         _mat_tokens.__dict__,
+
     );
     enum_ns = (uni, _mat_constant, _mat_srcloc, _mat_tokens);
     keep: list = [];
@@ -286,7 +251,9 @@ def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
             enum_handles.append(getattr(ecls, mn));
         }
     }
-    mat_reset(len(manifest["class_names"]), len(manifest["key_names"]), len(enum_handles));
+    mat_reset(
+        len(manifest["class_names"]), len(manifest["key_names"]), len(enum_handles)
+    );
     for (mat_ci, mat_cn) in enumerate(manifest["class_names"]) {
         mat_cls: any = None;
         for ns in class_ns {

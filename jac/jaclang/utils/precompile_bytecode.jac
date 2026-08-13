@@ -268,13 +268,6 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     return failed;
 }
 
-# The native seal is described by two lists with different jobs. ROOTS is the
-# build input: each entry is compiled AOT into its own shared-library artifact,
-# in order (later roots may consume earlier roots' layouts). CLOSURE is the
-# invariant's accounting: every module whose compile-path code must serve
-# natively in a sealed image, including modules subsumed into another root's
-# artifact by import. Roots are what the runtime can check for (artifacts
-# exist per root); the closure is what "sealed means served" is asserted over.
 glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/unitree.jac",
          "compiler/native_materialize.jac",
@@ -599,15 +592,8 @@ glob _PARITY_CANARY_LINES: tuple = (
          "test \"canary t\" { assert Canary(a=5).m(2) >= -1; }",
          "with entry { print({'k': [1, 2.5, True, None]}); }",
 
-     );
-
-# The rich parity corpus. Same construct coverage as the generator's mask
-# corpus with one deliberate difference: the test is STRING-named. An
-# identifier-named test (`test box_holds`) takes its symbol name from the
-# process-global Test.TEST_COUNT, so two parses of the same source in one
-# process can never agree on it -- parser-tier nondeterminism, not a
-# materializer defect -- which makes it unusable in a parity fingerprint.
-glob _PARITY_CORPUS_LINES: tuple = (
+     ),
+     _PARITY_CORPUS_LINES: tuple = (
          "import os;",
          "glob G: int = 42, H: (str | None) = None;",
          "enum Hue { RED = 1, GREEN = 2 }",
@@ -643,13 +629,6 @@ glob _PARITY_CORPUS_LINES: tuple = (
 
      );
 
-"""The relocated runtime canary (#8139 Step 1): bind the just-built
-materializer artifact through the REAL runtime seam and prove its parses
-match the bytecode parser -- error counts, node counts, unparse
-fingerprints -- over the control-flow harness and the rich parity corpus.
-A bad artifact fails the BUILD here; the shipped binary carries no
-correctness canary because a sealed install has no tier to fall back to.
-Returns '' on success or the failure reason."""
 def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
     import traceback;
     import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
@@ -672,6 +651,7 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
     corpora = [
         (nl.join(list(_PARITY_CANARY_LINES)), "__seal_parity_harness__.jac", ),
         (nl.join(list(_PARITY_CORPUS_LINES)), "__seal_parity_corpus__.jac", ),
+
     ];
     for (canary_src, canary_path) in corpora {
         try {
@@ -751,11 +731,7 @@ def seal_native_artifacts(
     if stale_native.is_dir() {
         shutil.rmtree(stale_native, ignore_errors=True);
     }
-    # Platform-derived only: no env knob. "A source tree with no sealed image
-    # is the bootstrap tier by construction -- a build stage, not a mode
-    # anyone selects" (#8139). Windows has no native backend yet, and the
-    # manifest records that fact so the runtime can tell a legitimately
-    # bytecode-tier image from a build that silently lost its native seal.
+
     if sys.platform.startswith("win") {
         return artifacts;
     }
@@ -1270,8 +1246,7 @@ def write_manifest(
         if native_seal.get("artifacts") {
             manifest["native_artifacts"] = native_seal["artifacts"];
         }
-        # The build's own statement of what it sealed natively; load_image
-        # enforces it for jaclang images (#8139 Step 1, "sealed means served").
+
         manifest["native"] = {
             "roots": native_seal.get("roots") or [],
             "skip_reason": native_seal.get("skip_reason")

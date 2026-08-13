@@ -1,22 +1,3 @@
-"""Generates the native materializer root at seal time (#8139 Step 2).
-
-The generated module is the parser artifact's seal root: importing the parser
-pulls `parse_program` (and the whole unitree closure) into one native unit,
-and the emitters below rebuild everything that crosses the boundary as real
-CPython objects through libpython externs resolved from the host process.
-
-The crossing is two complete entries, not a protocol: `mat_parse` runs the
-native parse AND the materialization in one GIL-held native call and returns
-fully Python-owned objects; `mat_parse_diags` materializes only the
-diagnostic envelope and lets the tree die natively. Nothing native outlives
-the call, so there is no handle lifetime to manage and no view layer to
-consult -- deletion (#8139 Step 5) is `rm` plus one call site.
-
-`generate` is parameterized by a MaterializeProfile (target modules, mask
-sources, crossing spec); `unitree_profile()` is the one profile the seal
-uses today. Nothing in the generator itself names unitree.
-"""
-
 import re;
 import sys;
 
@@ -25,9 +6,6 @@ import from pathlib { Path }
 
 glob _MASK_MEMO: dict = {};
 
-"""What the generator needs to know about its target schema: where classes
-and enums live, which sources to parse for the instance-shape mask, and the
-names of the parse entry plus envelope element classes for the crossing."""
 obj MaterializeProfile {
     has class_modules: list[str],
         enum_modules: list[str],
@@ -90,10 +68,7 @@ def unitree_profile -> MaterializeProfile {
         envelope_modules=["jaclang.jac0core.parser.tokens"],
         chain_base_module="jaclang.jac0core.unitree",
         chain_base_class="UniNode",
-        mask_sources=[
-            "jac0core/unitree.jac",
-            "jac0core/parser/impl/parser.impl.jac"
-        ],
+        mask_sources=["jac0core/unitree.jac", "jac0core/parser/impl/parser.impl.jac"],
         mask_corpus=nl.join(list(_UNITREE_MASK_CORPUS_LINES)),
         parse_entry="parse_program",
         parse_entry_module="jaclang.jac0core.parser.parser",
@@ -102,11 +77,9 @@ def unitree_profile -> MaterializeProfile {
     );
 }
 
-"""Parse the mask corpus plus the profile's in-tree sources with the
-bytecode parser and record, per class, which instance-dict keys actually
-occur (plus the private-name mangling map). Emitters write exactly these
-keys so materialized instances carry the bytecode parser's dict shape."""
-def _materialize_mask(pkg_path: Path, profile: MaterializeProfile) -> tuple[dict, dict] {
+def _materialize_mask(
+    pkg_path: Path, profile: MaterializeProfile
+) -> tuple[dict, dict] {
     memo_key = str(pkg_path);
     cached = _MASK_MEMO.get(memo_key);
     if cached is not None {
@@ -450,9 +423,6 @@ obj _MatGen {
             ann_by_name[base] = str(f.type);
         }
         if sn in self.envelope {
-            # Envelope classes are plain data objects the parse entry returns
-            # beside the tree; they have no layout row and no erased slots,
-            # so their dataclass fields ARE their instance shape.
             return [(f.name, f.name, str(f.type), ) for f in dc_fields(cls)];
         }
         keep = self.observed.get(sn);
@@ -564,10 +534,6 @@ glob _HEADER_LINES: tuple = (
 
      );
 
-"""The two crossing entries. Complete by design: each runs the native parse
-and hands back only Python-owned objects, so the native tree's lifetime is
-the call frame and nothing else. `@DIAG@`/`@COMMENT@` are the envelope
-element classes; the tuple shape is the parse entry's contract."""
 glob _CROSSING_LINES: tuple = (
          'def _emit_diag_list(items: list[@DIAG@]) -> int {',
          '@DIAG_LIST_BODY@',
@@ -808,7 +774,9 @@ def generate(
         "@ENTRY_IMPORT@",
         f"import from {prof.parse_entry_module} {{ {prof.parse_entry} }}"
     );
-    header = header.replace("@UNI_IMPORT@", _import_block(prof.chain_base_module, by_module));
+    header = header.replace(
+        "@UNI_IMPORT@", _import_block(prof.chain_base_module, by_module)
+    );
     const_mods = [
         m
         for m in prof.enum_modules
@@ -852,13 +820,7 @@ def generate(
     header = header.replace("@CHAIN_BASE@", prof.chain_base_class);
 
     sep = nl + nl;
-    parts = [
-        header,
-        sep.join(enum_fns),
-        sep.join(emit_fns),
-        nl.join(chain),
-        crossing
-    ];
+    parts = [header, sep.join(enum_fns), sep.join(emit_fns), nl.join(chain), crossing];
     out_jac.write_text(
         sep.join(
             [
