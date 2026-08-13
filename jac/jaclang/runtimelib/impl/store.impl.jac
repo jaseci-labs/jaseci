@@ -85,9 +85,6 @@ def _sanitize_ident(name: str) -> str {
 }
 
 
-glob _schema_ready: set[str] = set();
-
-
 def _store_ns(info: ConnInfo) -> str {
     return f"{info.unix_socket_dir or info.host}:{info.port}/{info.database}";
 }
@@ -125,9 +122,11 @@ impl PgStore._ensure_ready -> None {
             }
             if self.auto_schema {
                 ns = _store_ns(self.conninfo);
-                if ns not in _schema_ready {
-                    self.ensure_schema(self.promotions);
-                    _schema_ready.add(ns);
+                with _schema_gate {
+                    if ns not in _schema_ready {
+                        self.ensure_schema(self.promotions);
+                        _schema_ready.add(ns);
+                    }
                 }
             }
             self._ready = True;
