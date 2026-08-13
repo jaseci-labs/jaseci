@@ -191,8 +191,7 @@ test "a single-file full-stack app still gets its client bundle built" {
 glob _PEER_ROUTES: dict[str, str] = {"orders_app": "/orders", "cart_app": "/cart"},
      _PEER_NS: str = "shop",
      _PEER_PORT: int = 8000,
-     _ORDERS_DERIVED: str =
-         "http://orders-app-service.shop.svc.cluster.local:8000",
+     _ORDERS_DERIVED: str = "http://orders-app-service.shop.svc.cluster.local:8000",
      _CART_DERIVED: str = "http://cart-app-service.shop.svc.cluster.local:8000";
 
 

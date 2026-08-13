@@ -89,9 +89,8 @@ def build_k8s_registry(
     registry: dict[str, str] = {};
     for svc_name in routes.keys() {
         override: str = sv_client.peer_url_from_env(svc_name);
-        registry[svc_name] = override or k8s_service_dns_url(
-            k8s_safe_name(svc_name), namespace, port
-        );
+        registry[svc_name] = override
+            or k8s_service_dns_url(k8s_safe_name(svc_name), namespace, port);
     }
     return registry;
 }
