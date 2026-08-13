@@ -51,9 +51,7 @@ test "provisioning: the tuning budget covers the isolation level jac uses" {
 
 test "provisioning: one tuning source of truth feeds every Postgres jac starts" {
     settings = pg_tuning_settings();
-    assert settings['max_pred_locks_per_transaction'] == str(
-        PG_MAX_PRED_LOCKS_PER_TXN
-    );
+    assert settings['max_pred_locks_per_transaction'] == str(PG_MAX_PRED_LOCKS_PER_TXN);
     assert settings['max_connections'] == str(PG_MAX_CONNECTIONS);
     import from jaclang.runtimelib.pgembed { PgRuntime }
     import from jaclang.runtimelib.session { shared_pg_data_dir }

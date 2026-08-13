@@ -17,17 +17,17 @@ import from jaclang.scale.memory { context as scale_ctx_mod }
 import from jaclang.scale.tests.scale_test_client { make_client }
 
 glob PRED_LOCK_EXHAUSTION = {
-    'S': 'ERROR',
-    'C': '53200',
-    'M': 'out of shared memory',
-    'H': 'You might need to increase "max_pred_locks_per_transaction".',
-    'F': 'predicate.c',
-    'R': 'CreatePredicateLock'
-};
+         'S': 'ERROR',
+         'C': '53200',
+         'M': 'out of shared memory',
+         'H': 'You might need to increase "max_pred_locks_per_transaction".',
+         'F': 'predicate.c',
+         'R': 'CreatePredicateLock'
+     };
 
 
 class _ExhaustedContext {
-    def init(self: _ExhaustedContext) -> None {
+    def init(self: _ExhaustedContext) {
         raise PgWireError(PRED_LOCK_EXHAUSTION);
     }
 }
