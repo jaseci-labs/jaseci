@@ -354,6 +354,32 @@ def path_matches_exclude(
 }
 
 
+glob JACIGNORE_FILENAME: str = '.jacignore';
+
+
+def normalize_exclude_patterns(patterns: list) -> list[str] {
+    normalized: list[str] = [];
+    for raw in (patterns or []) {
+        stripped = raw.strip();
+        if stripped and not stripped.startswith('#') {
+            normalized.append(stripped.rstrip('/'));
+        }
+    }
+    return normalized;
+}
+
+
+def read_jacignore_patterns(project_root: str) -> list[str] {
+    ignore_file = os.path.join(project_root, JACIGNORE_FILENAME);
+    if not os.path.isfile(ignore_file) {
+        return [];
+    }
+    return normalize_exclude_patterns(
+        read_file_with_encoding(ignore_file).splitlines()
+    );
+}
+
+
 def _is_version_info_access(expr: 'uni.Expr') -> bool {
     import jaclang.jac0core.unitree as uni;
 

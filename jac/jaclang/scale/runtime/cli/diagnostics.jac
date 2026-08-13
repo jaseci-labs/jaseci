@@ -82,6 +82,7 @@ obj PlanValidator {
         routes = dget(self.ms_cfg, "routes");
         deployments = dget(self.bundle, "deployments");
 
+        self._check_config_keys(out);
         self._check_routes(routes, out);
 
         cfgs: dict[str, any] = self.svc_configs
@@ -114,6 +115,28 @@ obj PlanValidator {
             self._check_image(svc_name, deployment, out);
         }
         return out;
+    }
+
+    def _check_config_keys(out: list[Diagnostic]) {
+        import from jaclang.scale.config.config_loader { get_scale_config }
+        import from jaclang.scale.config.validation { validate_scale_config }
+        try {
+            raw = get_scale_config().get_jac_config().get_plugin_config("scale");
+        } except Exception as e {
+            out.append(
+                Diagnostic(
+                    severity="warn",
+                    message=(
+                        f"could not read [scale] from jac.toml to check for "
+                        f"unknown keys: {e}"
+                    )
+                )
+            );
+            return;
+        }
+        for msg in validate_scale_config(raw) {
+            out.append(Diagnostic(severity="warn", message=msg));
+        }
     }
 
     def _check_routes(routes: dict[str, any], out: list[Diagnostic]) {

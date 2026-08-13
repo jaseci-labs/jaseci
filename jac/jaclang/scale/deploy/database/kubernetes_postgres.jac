@@ -132,6 +132,12 @@ obj KubernetesPostgresProvider {
                 }
             ];
         } else {
+            import from jaclang.runtimelib.pgembed { pg_tuning_settings }
+            server_args: list[str] = ['postgres'];
+            for (setting, value) in pg_tuning_settings().items() {
+                server_args.extend(['-c', f"{setting}={value}"]);
+            }
+            container['args'] = server_args;
             container['env'] = [
                 {'name': 'POSTGRES_USER', 'value': 'jac'},
                 {'name': 'POSTGRES_DB', 'value': 'jac'},

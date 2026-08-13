@@ -1,26 +1,143 @@
 import from .tokens { LexToken, TokenKind, SourceLoc, SrcDiag, CommentData }
 import from .lexer { tokenize_full }
 
-import from jaclang.jac0core.arena { NIL, NodeId, SyntaxArena }
-import from jaclang.jac0core.arena {
-    Kind,
-    DOC_SLOTS,
-    ENUM_STMT_SLOTS,
-    KS_CONTEXT_AWARE_NODE,
-    KS_EMPTY_TOKEN,
-    KS_EVENT_SIGNATURE,
-    KS_EXPR_STMT,
-    KS_FUNC_SIGNATURE,
-    KS_GEN_COMPR,
-    KS_JSX_ELEMENT,
-    KS_K_W_PAIR,
-    KS_MULTI_STRING,
-    KS_NAME,
-    KS_PARAM_VAR,
-    KS_SEMI,
-    KS_STRING,
-    KS_TOKEN
+import from jaclang.jac0core.unitree {
+    Ability,
+    AstDocNode,
+    ArchHas,
+    Archetype,
+    AssignCompr,
+    Assignment,
+    AtomTrailer,
+    AtomUnit,
+    AwaitExpr,
+    AwaitingClause,
+    BinaryExpr,
+    Bool,
+    BoolExpr,
+    BuiltinType,
+    CastExpr,
+    CfgExpr,
+    CodeBlockStmt,
+    CommentToken,
+    CompareExpr,
+    ConcurrentExpr,
+    ConnectOp,
+    ContextAwareNode,
+    CtBlock,
+    CtElse,
+    CtFor,
+    CtIf,
+    CtName,
+    CtSplice,
+    CtrlStmt,
+    DeleteStmt,
+    DictCompr,
+    DictVal,
+    DisconnectOp,
+    DisengageStmt,
+    EdgeOpRef,
+    EdgeRefTrailer,
+    ElseIf,
+    ElseStmt,
+    ElementStmt,
+    EmptyToken,
+    EnumBlockStmt,
+    Enum,
+    EventSignature,
+    Except,
+    Expr,
+    ExprAsItem,
+    ExprStmt,
+    FString,
+    FilterCompr,
+    FinallyStmt,
+    Float,
+    ForeverStmt,
+    FormattedValue,
+    FuncCall,
+    FuncSignature,
+    GenCompr,
+    GlobalVars,
+    HasVar,
+    IfElseExpr,
+    IfStmt,
+    ImplDef,
+    Import,
+    InForStmt,
+    IndexSlice,
+    InnerCompr,
+    Int,
+    IterForStmt,
+    JsxAttribute,
+    JsxChild,
+    JsxComment,
+    JsxElement,
+    JsxElementName,
+    JsxExpression,
+    JsxNormalAttribute,
+    JsxSlot,
+    JsxSpreadAttribute,
+    JsxText,
+    KVPair,
+    KWPair,
+    LambdaExpr,
+    ListCompr,
+    ListVal,
+    MatchArch,
+    MatchAs,
+    MatchCase,
+    MatchKVPair,
+    MatchMapping,
+    MatchOr,
+    MatchPattern,
+    MatchSequence,
+    MatchSingleton,
+    MatchStar,
+    MatchStmt,
+    MatchValue,
+    MatchWild,
+    Module,
+    ModuleCode,
+    ModuleItem,
+    ModulePath,
+    MultiString,
+    Name,
+    NameAtom,
+    Null,
+    OpenStmt,
+    ParamVar,
+    PyInlineCode,
+    RaiseStmt,
+    ReportStmt,
+    ReturnStmt,
+    SemDef,
+    Semi,
+    SetCompr,
+    SetVal,
+    Slice,
+    Source,
+    SpecialVarRef,
+    String,
+    SubTag,
+    SwitchCase,
+    SwitchStmt,
+    Test,
+    Token,
+    TryStmt,
+    TupleVal,
+    TypeAlias,
+    TypeParam,
+    TypedCtxBlock,
+    UnaryExpr,
+    UniNode,
+    VisitStmt,
+    WhileStmt,
+    WithStmt,
+    YieldExpr,
+    AssertStmt
 }
+import from jaclang.jac0core.unitree { Ellipsis as EllipsisLit }
 
 import from jaclang.jac0core.constant {
     Tokens as Tok,
@@ -240,11 +357,11 @@ obj Parser {
         error_count: int = 0,
         file_path: str = "<input>",
         source_code: str = "",
-        b: SyntaxArena postinit,
+        source: Source postinit,
         diags: list[SrcDiag] = [],
         _view_body_depth: int = 0,
         _gen_test_idx: int = 0,
-        _impl_enum_comma_unis: list[NodeId] = [];
+        _impl_enum_comma_unis: list[Token] = [];
 
     def postinit;
     def current -> LexToken;
@@ -263,7 +380,7 @@ obj Parser {
     def match_any(*kinds: TokenKind) -> LexToken | None;
     def expect(kind: TokenKind) -> LexToken;
     def expect_any(*kinds: TokenKind) -> LexToken;
-    def consume_uni(kind: TokenKind) -> NodeId;
+    def consume_uni(kind: TokenKind) -> Token;
     def expect_name -> LexToken;
     def error(message: str);
     def emit_diag(
@@ -274,169 +391,170 @@ obj Parser {
         message: str, code_str: str, loc: SourceLoc | None = None, help: str = ""
     );
 
-    def make_uni_token(tok: LexToken) -> NodeId;
-    def make_name(tok: LexToken, is_enum_stmt: bool = False) -> NodeId;
-    def make_special_name(tok: LexToken) -> NodeId;
-    def make_name_or_special(tok: LexToken) -> NodeId;
-    def parse_access_tag -> NodeId;
-    def make_string(tok: LexToken) -> NodeId;
-    def make_string_from_value(value: str) -> NodeId;
-    def make_int(tok: LexToken) -> NodeId;
-    def make_float(tok: LexToken) -> NodeId;
-    def make_bool(tok: LexToken) -> NodeId;
-    def make_null(tok: LexToken) -> NodeId;
-    def make_ellipsis(tok: LexToken) -> NodeId;
-    def make_semi -> NodeId;
+    def make_uni_token(tok: LexToken) -> Token;
+    def make_name(tok: LexToken, is_enum_stmt: bool = False) -> Name;
+    def make_special_name(tok: LexToken) -> Name;
+    def make_name_or_special(tok: LexToken) -> Name;
+    def parse_access_tag -> SubTag | None;
+    def make_string(tok: LexToken) -> String;
+    def make_string_from_value(value: str) -> String;
+    def make_int(tok: LexToken) -> Int;
+    def make_float(tok: LexToken) -> Float;
+    def make_bool(tok: LexToken) -> Bool;
+    def make_null(tok: LexToken) -> Null;
+    def make_ellipsis(tok: LexToken) -> EllipsisLit;
+    def make_semi -> Semi;
     def synchronize;
-    def parse -> NodeId;
-    def parse_module -> NodeId;
-    def parse_expression(allow_cast: bool = True) -> NodeId;
+    def parse -> Module;
+    def parse_module -> Module;
+    def parse_expression(allow_cast: bool = True) -> Expr;
     def _check_js_arrow_fault -> bool;
-    def _recover_js_arrow_fault(left: NodeId) -> NodeId;
-    def _recover_removed_marker -> NodeId;
+    def _recover_js_arrow_fault(left: Expr) -> Expr;
+    def _recover_removed_marker -> ElementStmt | EmptyToken | None;
     def _recover_missing_connect_rhs -> bool;
     def _recover_misplaced_disconnect -> None;
-    def parse_concurrent_expr(allow_cast: bool = True) -> NodeId;
-    def parse_walrus_assign(allow_cast: bool = True) -> NodeId;
-    def parse_by_expr(allow_cast: bool = True) -> NodeId;
-    def parse_cast(allow_cast: bool = True) -> NodeId;
-    def parse_cast_type -> NodeId;
-    def parse_pipe(allow_cast: bool = True) -> NodeId;
-    def parse_pipe_back(allow_cast: bool = True) -> NodeId;
-    def parse_bitwise_or -> NodeId;
-    def parse_bitwise_xor -> NodeId;
-    def parse_bitwise_and -> NodeId;
-    def parse_shift -> NodeId;
-    def parse_logical_or(allow_cast: bool = True) -> NodeId;
-    def parse_logical_and(allow_cast: bool = True) -> NodeId;
-    def parse_logical_not(allow_cast: bool = True) -> NodeId;
-    def parse_compare(allow_cast: bool = True) -> NodeId;
-    def parse_arithmetic -> NodeId;
-    def parse_term -> NodeId;
-    def parse_power -> NodeId;
-    def parse_factor -> NodeId;
-    def parse_connect -> NodeId;
-    def parse_connect_op -> NodeId;
-    def parse_edge_op_ref_inline -> NodeId;
-    def parse_atomic_pipe -> NodeId;
-    def parse_atomic_pipe_back -> NodeId;
-    def parse_spawn -> NodeId;
-    def parse_unpack -> NodeId;
-    def parse_ref -> NodeId;
-    def parse_await_expr -> NodeId;
-    def parse_pipe_call -> NodeId;
-    def parse_atomic_chain -> NodeId;
-    def _make_attr_from_keyword(name_tok: LexToken) -> (NodeId);
-    def parse_index_slice -> NodeId;
-    def parse_call_args(kid: list[NodeId]) -> list[NodeId];
-    def parse_call_arg -> NodeId;
-    def parse_filter_compr_inner -> NodeId;
-    def parse_filter_compr_bracket -> NodeId;
-    def parse_assign_compr_inner -> NodeId;
-    def parse_atom_literal -> NodeId;
-    def parse_multistring -> NodeId;
-    def parse_builtin_type -> NodeId;
-    def parse_special_ref -> NodeId;
-    def parse_atom -> NodeId;
-    def parse_tuple_item -> NodeId;
-    def parse_paren_expr -> NodeId;
-    def parse_bracket_expr -> NodeId;
+    def parse_concurrent_expr(allow_cast: bool = True) -> Expr;
+    def parse_walrus_assign(allow_cast: bool = True) -> Expr;
+    def parse_by_expr(allow_cast: bool = True) -> Expr;
+    def parse_cast(allow_cast: bool = True) -> Expr;
+    def parse_cast_type -> Expr;
+    def parse_pipe(allow_cast: bool = True) -> Expr;
+    def parse_pipe_back(allow_cast: bool = True) -> Expr;
+    def parse_bitwise_or -> Expr;
+    def parse_bitwise_xor -> Expr;
+    def parse_bitwise_and -> Expr;
+    def parse_shift -> Expr;
+    def parse_logical_or(allow_cast: bool = True) -> Expr;
+    def parse_logical_and(allow_cast: bool = True) -> Expr;
+    def parse_logical_not(allow_cast: bool = True) -> Expr;
+    def parse_compare(allow_cast: bool = True) -> Expr;
+    def parse_arithmetic -> Expr;
+    def parse_term -> Expr;
+    def parse_power -> Expr;
+    def parse_factor -> Expr;
+    def parse_connect -> Expr;
+    def parse_connect_op -> ConnectOp | DisconnectOp | None;
+    def parse_edge_op_ref_inline -> EdgeOpRef | None;
+    def parse_atomic_pipe -> Expr;
+    def parse_atomic_pipe_back -> Expr;
+    def parse_spawn -> Expr;
+    def parse_unpack -> Expr;
+    def parse_ref -> Expr;
+    def parse_await_expr -> Expr;
+    def parse_pipe_call -> Expr;
+    def parse_atomic_chain -> Expr;
+    def _make_attr_from_keyword(name_tok: LexToken) -> Name;
+    def parse_index_slice -> IndexSlice;
+    def parse_call_args(kid: list[UniNode]) -> list[Expr | KWPair];
+    def parse_call_arg -> Expr | KWPair;
+    def parse_filter_compr_inner -> FilterCompr;
+    def parse_filter_compr_bracket -> FilterCompr;
+    def parse_assign_compr_inner -> AssignCompr;
+    def parse_atom_literal -> Expr | None;
+    def parse_multistring -> Expr | None;
+    def parse_builtin_type -> Expr | None;
+    def parse_special_ref -> Expr | None;
+    def parse_atom -> Expr;
+    def parse_tuple_item -> Expr | KWPair;
+    def parse_paren_expr -> Expr;
+    def parse_bracket_expr -> Expr;
     def _is_edge_ref_start -> bool;
-    def parse_brace_expr -> NodeId;
-    def parse_fstring -> NodeId;
-    def parse_list_or_compr -> NodeId;
-    def parse_dict_or_set -> NodeId;
-    def parse_dict_with_spread(lbrace_uni: NodeId) -> NodeId;
-    def parse_dict_spread_entry -> NodeId;
-    def parse_edge_ref_chain -> NodeId;
-    def parse_edge_op_ref -> NodeId;
-    def _continue_edge_ref_chain(start_expr: NodeId, lsquare_uni: NodeId) -> NodeId;
-    def parse_comprehension_clauses -> list[NodeId];
-    def parse_compr_clause -> NodeId;
-    def parse_lambda_expr -> NodeId;
-    def parse_jsx_element -> NodeId;
-    def _parse_jsx_dynamic_tag(open_kid: list[NodeId]) -> NodeId;
-    def _consume_jsx_dynamic_close(close_kid: list[NodeId]);
-    def parse_jsx_attributes -> list[NodeId];
-    def parse_jsx_children -> list[NodeId];
-    def parse_jsx_child -> NodeId;
-    def parse_element_stmt -> NodeId;
-    def _dispatch_decorated -> NodeId;
-    def _dispatch_async -> (NodeId);
-    def _attach_doc(nd: NodeId, elem_doc: NodeId) -> NodeId;
-    def parse_docstring_target -> NodeId;
-    def parse_module_code -> NodeId;
-    def parse_code_block_stmts -> list[NodeId];
-    def _apply_implicit_return(body: list[NodeId]) -> list[NodeId];
-    def parse_ctrl_stmt -> NodeId;
-    def parse_statement -> NodeId;
-    def parse_ct_element(mode: int) -> NodeId;
-    def parse_ct_for(mode: int, ct_uni: NodeId) -> NodeId;
-    def parse_ct_if(mode: int, ct_uni: NodeId) -> NodeId;
-    def parse_ct_elif(mode: int) -> NodeId;
-    def parse_ct_else(mode: int) -> NodeId;
-    def parse_ct_body(mode: int, kid: list[NodeId]) -> list[NodeId];
-    def parse_ct_block -> NodeId;
-    def parse_ct_splice -> NodeId;
-    def parse_ct_name(as_name: bool = True) -> NodeId;
+    def parse_brace_expr -> Expr;
+    def parse_fstring -> FString;
+    def parse_list_or_compr -> Expr;
+    def parse_dict_or_set -> Expr;
+    def parse_dict_with_spread(lbrace_uni: Token) -> DictVal;
+    def parse_dict_spread_entry -> KVPair;
+    def parse_edge_ref_chain -> Expr;
+    def parse_edge_op_ref -> EdgeOpRef | None;
+    def _continue_edge_ref_chain(start_expr: Expr, lsquare_uni: Token) -> Expr;
+    def parse_comprehension_clauses -> list[InnerCompr];
+    def parse_compr_clause -> InnerCompr;
+    def parse_lambda_expr -> Expr;
+    def parse_jsx_element -> JsxElement;
+    def _parse_jsx_dynamic_tag(open_kid: list[UniNode]) -> Expr | None;
+    def _consume_jsx_dynamic_close(close_kid: list[UniNode]);
+    def parse_jsx_attributes -> list[JsxAttribute];
+    def parse_jsx_children -> list[JsxChild | JsxElement];
+    def parse_jsx_child -> JsxChild | JsxElement | None;
+    def parse_element_stmt -> ElementStmt | EmptyToken | None;
+    def _dispatch_decorated -> ElementStmt | None;
+    def _dispatch_decorated_stmt -> CodeBlockStmt | None;
+    def _dispatch_async -> ElementStmt | None;
+    def _attach_doc(nd: AstDocNode, elem_doc: String) -> None;
+    def parse_docstring_target -> ElementStmt | None;
+    def parse_module_code -> ModuleCode;
+    def parse_code_block_stmts -> list[CodeBlockStmt];
+    def _apply_implicit_return(body: list[CodeBlockStmt]) -> list[CodeBlockStmt];
+    def parse_ctrl_stmt -> CtrlStmt | DisengageStmt | None;
+    def parse_statement -> CodeBlockStmt | None;
+    def parse_ct_element(mode: int) -> CtFor | CtIf | Ability | None;
+    def parse_ct_for(mode: int, ct_uni: Token) -> CtFor | None;
+    def parse_ct_if(mode: int, ct_uni: Token) -> CtIf | None;
+    def parse_ct_elif(mode: int) -> CtIf | None;
+    def parse_ct_else(mode: int) -> CtElse | None;
+    def parse_ct_body(mode: int, kid: list[UniNode]) -> list[UniNode];
+    def parse_ct_block -> Expr | None;
+    def parse_ct_splice -> Expr | None;
+    def parse_ct_name(as_name: bool = True) -> Expr | None;
     def _ct_name_follows -> bool;
     def _ct_body_recover -> None;
     def _lookahead_advance -> None;
-    def parse_if_stmt -> NodeId;
-    def parse_elif_stmt -> NodeId;
-    def parse_else_stmt -> NodeId;
-    def parse_while_stmt -> NodeId;
-    def parse_open_stmt -> NodeId;
-    def parse_forever_stmt -> NodeId;
-    def parse_for_stmt -> (NodeId);
-    def parse_try_stmt -> NodeId;
-    def parse_except_handler -> NodeId;
-    def parse_with_stmt -> NodeId;
-    def parse_match_stmt -> NodeId;
-    def parse_match_case -> NodeId;
-    def parse_pattern -> NodeId;
-    def parse_or_pattern -> NodeId;
-    def parse_single_pattern -> NodeId;
-    def parse_literal_pattern -> NodeId;
-    def parse_expression_pattern -> NodeId;
-    def parse_name_pattern -> NodeId;
-    def parse_sequence_pattern -> NodeId;
-    def parse_tuple_sequence_pattern -> NodeId;
-    def parse_mapping_pattern -> NodeId;
-    def parse_literal_for_mapping -> (NodeId);
+    def parse_if_stmt -> IfStmt;
+    def parse_elif_stmt -> ElseIf;
+    def parse_else_stmt -> ElseStmt;
+    def parse_while_stmt -> WhileStmt;
+    def parse_open_stmt -> OpenStmt;
+    def parse_forever_stmt -> ForeverStmt;
+    def parse_for_stmt -> IterForStmt | InForStmt;
+    def parse_try_stmt -> TryStmt;
+    def parse_except_handler -> Except;
+    def parse_with_stmt -> WithStmt;
+    def parse_match_stmt -> MatchStmt;
+    def parse_match_case -> MatchCase;
+    def parse_pattern -> MatchPattern;
+    def parse_or_pattern -> MatchPattern;
+    def parse_single_pattern -> MatchPattern;
+    def parse_literal_pattern -> MatchValue;
+    def parse_expression_pattern -> MatchValue;
+    def parse_name_pattern -> MatchPattern;
+    def parse_sequence_pattern -> MatchPattern;
+    def parse_tuple_sequence_pattern -> MatchPattern;
+    def parse_mapping_pattern -> MatchPattern;
+    def parse_literal_for_mapping -> MatchPattern | NameAtom | None;
     def parse_class_pattern_args(
-        names: list[NodeId], dot_unis: (list[NodeId] | None) = None
-    ) -> NodeId;
+        names: list[Name], dot_unis: (list[Token] | None) = None
+    ) -> MatchPattern;
 
-    def parse_switch_stmt -> NodeId;
-    def parse_switch_case -> NodeId;
-    def parse_return_stmt -> NodeId;
-    def parse_yield_stmt -> NodeId;
-    def parse_raise_stmt -> NodeId;
-    def parse_assert_stmt -> NodeId;
-    def parse_delete_stmt -> NodeId;
-    def parse_visit_stmt -> NodeId;
-    def parse_report_stmt -> NodeId;
+    def parse_switch_stmt -> SwitchStmt;
+    def parse_switch_case -> SwitchCase;
+    def parse_return_stmt -> ReturnStmt;
+    def parse_yield_stmt -> YieldExpr;
+    def parse_raise_stmt -> RaiseStmt;
+    def parse_assert_stmt -> AssertStmt;
+    def parse_delete_stmt -> DeleteStmt;
+    def parse_visit_stmt -> VisitStmt;
+    def parse_report_stmt -> ReportStmt;
     def parse_assignment_with_target(
-        target: NodeId, require_semi: bool = True
-    ) -> NodeId;
+        target: Expr, require_semi: bool = True
+    ) -> Assignment;
 
-    def parse_ownership_prefix(kids: list[NodeId]) -> OwnershipKind;
-    def parse_import_stmt -> NodeId;
-    def parse_from_path -> tuple[(int, bool)];
+    def parse_ownership_prefix(kids: list[UniNode]) -> OwnershipKind;
+    def parse_import_stmt -> Import;
+    def parse_from_path -> tuple[(ModulePath | None, bool)];
     def parse_import_items(
-        kid: list[NodeId], is_clib_import: bool
-    ) -> tuple[(list[NodeId], list[NodeId])];
+        kid: list[UniNode], is_clib_import: bool
+    ) -> tuple[(list, list)];
 
-    def parse_archetype -> NodeId;
-    def parse_archetype_member -> (NodeId);
+    def parse_archetype -> Archetype;
+    def parse_archetype_member -> UniNode | None;
     def _skip_semicolons;
     def _error_unexpected_member;
-    def parse_has_stmt -> NodeId;
-    def parse_has_var -> NodeId;
-    def parse_accessor -> NodeId;
+    def parse_has_stmt -> ArchHas;
+    def parse_has_var -> HasVar;
+    def parse_accessor -> Ability;
     def _consume_accessor_kind -> tuple[(str, LexToken)];
-    def parse_ability -> NodeId;
+    def parse_ability -> Ability;
     def _parse_post_async_modifiers(
         is_override: bool,
         override_tok: (LexToken | None),
@@ -444,48 +562,40 @@ obj Parser {
         static_tok: (LexToken | None)
     ) -> tuple[(bool, (LexToken | None), bool, (LexToken | None))];
 
-    def parse_func_signature -> NodeId;
-    def parse_func_params(kid: list[NodeId]) -> list[NodeId];
-    def parse_param_var -> NodeId;
-    def parse_enum -> NodeId;
-    def parse_enum_member -> NodeId;
-    def parse_test -> NodeId;
-    def parse_global_var -> NodeId;
-    def parse_global_var_assignment -> NodeId;
-    def parse_impl_def -> NodeId;
+    def parse_func_signature -> FuncSignature;
+    def parse_func_params(kid: list[UniNode]) -> list[ParamVar | CtFor | CtIf];
+    def parse_param_var -> ParamVar | None;
+    def parse_enum -> Enum;
+    def parse_enum_member -> Assignment;
+    def parse_test -> Test;
+    def parse_global_var -> GlobalVars;
+    def parse_global_var_assignment -> Assignment;
+    def parse_impl_def -> ImplDef;
     def _is_impl_enum_body -> bool;
-    def parse_impl_target_name -> NodeId;
-    def parse_impl_enum_body -> list[NodeId];
-    def parse_sem_def -> NodeId;
-    def parse_type_alias -> NodeId;
-    def parse_type_params -> tuple[(list[NodeId], list[NodeId])];
+    def parse_impl_target_name -> NameAtom;
+    def parse_impl_enum_body -> list[Assignment];
+    def parse_sem_def -> SemDef;
+    def parse_type_alias -> TypeAlias;
+    def parse_type_params -> tuple[(list, list)];
 }
 
 def parse_source(
     tokens: list[LexToken], file_path: str, source_code: str
-) -> tuple[(SyntaxArena, int, list[SrcDiag])] {
+) -> tuple[(Module, int, list[SrcDiag])] {
     parser = Parser(tokens=tokens, file_path=file_path, source_code=source_code);
-    parser.parse();
-    return (parser.b, parser.error_count, parser.diags);
-}
-
-def arena_strtab_blob(a: SyntaxArena) -> str {
-    parts: list[str] = [];
-    for entry in a.strtab {
-        parts.append(f"{len(entry)}:{entry}");
-    }
-    return "".join(parts);
+    mod = parser.parse();
+    return (mod, parser.error_count, parser.diags);
 }
 
 
 def parse_program(
     source: str, file_path: str
-) -> tuple[(SyntaxArena, int, list[SrcDiag], list[CommentData], list[SrcDiag], int)] {
+) -> tuple[(Module, int, list[SrcDiag], list[CommentData], list[SrcDiag], int)] {
     (tokens, comments, lex_diags, lex_error_count) = tokenize_full(source, file_path);
     parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
-    parser.parse();
+    mod = parser.parse();
     return (
-        parser.b,
+        mod,
         parser.error_count,
         parser.diags,
         comments,

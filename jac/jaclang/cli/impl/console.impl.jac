@@ -725,3 +725,28 @@ impl _get_console -> JacConsole {
     }
     return _console_instance;
 }
+
+"""Switch block-buffered text streams to line buffering.
+
+A container's stdout is a pipe, so CPython block-buffers it, and a process that
+dies before the buffer fills loses everything it printed -- which is why a
+crash-looped pod shows empty `kubectl logs` unless PYTHONUNBUFFERED=1 is set.
+The long-running and crash-prone modes (`jac run`, `jac start`) call this so
+every line reaches the log as it is written. Streams that are already
+line-buffered (a TTY) or that cannot be reconfigured (a captured StringIO) are
+left untouched. Returns how many streams were switched."""
+impl use_line_buffered_output(streams: (list[any] | None) = None) -> int {
+    targets = streams if streams is not None else [sys.stdout, sys.stderr];
+    switched = 0;
+    for stream in targets {
+        reconfigure = stream?.reconfigure;
+        if reconfigure is None or getattr(stream, 'line_buffering', True) {
+            continue;
+        }
+        try {
+            reconfigure(line_buffering=True);
+            switched += 1;
+        } except (OSError, ValueError) { }
+    }
+    return switched;
+}

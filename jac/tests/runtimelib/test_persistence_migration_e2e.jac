@@ -105,11 +105,11 @@ test "added field survives schema drift end-to-end" {
         import os;
         import from jaclang.runtimelib.pgembed { PgRuntime }
         import from jaclang.runtimelib.session { shared_pg_data_dir }
-        import from jaclang.runtimelib.store { PgStore }
+        import from jaclang.runtimelib.store { PgStore, TxnIsolation }
         digest = hashlib.sha1(os.path.abspath(tmpdir).encode('utf-8')).hexdigest()[:8];
         admin_rt = PgRuntime(data_dir=shared_pg_data_dir(), database='postgres');
         admin = PgStore(conninfo=admin_rt.ensure());
-        admin.begin(serializable=False);
+        admin.begin(TxnIsolation.READ_COMMITTED);
         names = [
             str(r[0])
             for r in admin.rows(
