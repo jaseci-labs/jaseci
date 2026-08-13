@@ -528,6 +528,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (str | None);
 
     def _struct_name_of(expr: (uni.UniNode | None)) -> (str | None);
+    def _struct_name_for_key(tk: (str | None)) -> (str | None);
+    def _erased_arch_base(tk: str) -> (str | None);
+    def _split_union_key(tk: str) -> list[str];
     def _struct_ptr_pointee_name(val: ir.Value) -> (str | None);
     def _struct_array_elem_ptr(ptr: ir.Value, idx_val: ir.Value) -> ir.Value;
     def _list_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | None);
@@ -537,6 +540,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Type | None);
 
     def _elem_spec_of(expr: (uni.UniNode | None)) -> (str | None);
+    def _erased_generic_ctor(nd: uni.FuncCall) -> (str | None);
     def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
     def _arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None);
     def _codegen_call_args(nd: uni.FuncCall) -> list;

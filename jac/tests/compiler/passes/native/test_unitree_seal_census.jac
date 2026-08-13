@@ -89,12 +89,6 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
              "Python-only: calls `jac0core.bccache.discover_base_file`, which "
              "walks the filesystem. Read by the compile driver, not a parse."
          ),
-         "unitree.jac::Import.is_jac.__get__": (
-             "Backend gap: `self.hint.tag.value` reads a field of "
-             "`SubTag[Token]`, and a generic archetype's layout is "
-             "type-erased, so the attribute has no native offset. Import "
-             "classification runs in the import passes, never in a parse."
-         ),
          "unitree.jac::Import.__jac_detected.__get__": (
              "Python-only: resolves each import path through "
              "`ModulePath.resolve_relative_path`, itself waived above."
@@ -120,32 +114,6 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
          "unitree.jac::DeleteStmt.py_ast_targets.__get__": (
              "Python-only: reads `gen.py_ast`, a list of CPython `ast` "
              "objects. Reached only from `PyastGenPass`."
-         ),
-         "unitree.jac::AstAccessNode.access_type.__get__": (
-             "Backend gap: reads `self.access.tag.name` through "
-             "`SubTag[Token]`, a generic whose layout is type-erased, so the "
-             "attribute has no native offset. Access levels are resolved by "
-             "the symbol-table pass, never during a parse."
-         ),
-         "unitree.jac::TypeAlias.access_type.__get__": (
-             "Same generic-layout gap, inherited from "
-             "`AstAccessNode.access_type` above."
-         ),
-         "unitree.jac::GlobalVars.access_type.__get__": (
-             "Same generic-layout gap, inherited from "
-             "`AstAccessNode.access_type` above."
-         ),
-         "unitree.jac::Archetype.access_type.__get__": (
-             "Same generic-layout gap, inherited from "
-             "`AstAccessNode.access_type` above."
-         ),
-         "unitree.jac::Enum.access_type.__get__": (
-             "Same generic-layout gap, inherited from "
-             "`AstAccessNode.access_type` above."
-         ),
-         "unitree.jac::Ability.access_type.__get__": (
-             "Same generic-layout gap, inherited from "
-             "`AstAccessNode.access_type` above."
          ),
          "unitree.jac::NameAtom.sem_token.__get__": (
              "Backend gap: returns `tuple[SemTokType, SemTokMod] | None` and "
