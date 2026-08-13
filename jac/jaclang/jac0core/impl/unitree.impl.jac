@@ -442,11 +442,11 @@ impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
             continue;
         }
         tab = sym.parent_tab;
-        tab_captures = isinstance(tab, Ability)
-            or isinstance(tab, ImplDef)
-            or isinstance(tab, LambdaExpr)
-            or isinstance(tab, Test);
-        if ((tab is None) or (tab is self) or not tab_captures) {
+        if (
+            (tab is None)
+            or (tab is self)
+            or not isinstance(tab, (Ability, ImplDef, LambdaExpr, Test))
+        ) {
             continue;
         }
 

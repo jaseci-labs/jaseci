@@ -361,6 +361,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         release_operands: bool = True
     ) -> (ir.Value | None);
 
+    def _identity_over_optional(
+        left: ir.Value, right: ir.Value, negate: bool
+    ) -> (ir.Value | None);
+
     def _codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None);
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
     def _codegen_intrinsic(nd: uni.FuncCall, intr: object) -> (ir.Value | None);
