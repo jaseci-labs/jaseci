@@ -12,7 +12,7 @@ glob registry = get_registry();
             "action",
             kind=ArgKind.POSITIONAL,
             default="status",
-            help="Action: status, serve, stop, inspect, sql"
+            help="Action: status, serve, stop, inspect, sql, fetch"
         ),
         Arg.create(
             "query",
@@ -41,6 +41,10 @@ glob registry = get_registry();
         ("jac db sql \"SELECT count(*) FROM anchors\"", "Run one SQL statement"),
         ("jac db serve", "Run Postgres in the foreground (pod / container mode)"),
         ("jac db stop", "Stop the project's embedded server"),
+        (
+            "jac db fetch",
+            "Pre-download the embedded Postgres distribution (air-gapped / image builds)"
+        ),
 
     ],
     group="db"

@@ -5,9 +5,47 @@ import from .breaker {
     _BREAKER_COOLDOWN_SECONDS
 }
 
+glob _RPC_MAX_ATTEMPTS: int = 3,
+     _RPC_INITIAL_BACKOFF_SECONDS: float = 0.1;
+
+def _rpc_with_retries(module_name: str, label: str, send: any) -> any {
+    import time;
+    import from jaclang.runtimelib.serving.client { ClientConnectionError }
+
+    backoff: float = _RPC_INITIAL_BACKOFF_SECONDS;
+    last_err: Exception | None = None;
+    attempts: int = 0;
+    tripped: bool = False;
+
+    for attempt in range(_RPC_MAX_ATTEMPTS) {
+        attempts = attempt + 1;
+        try {
+            payload = send();
+            breaker_record_success(module_name);
+            return payload;
+        } except (ClientConnectionError, OSError) as e {
+            err_ref: any = e;
+            last_err = err_ref;
+            breaker_record_failure(module_name);
+            if breaker_should_skip(module_name) {
+                tripped = True;
+                break;
+            }
+            if attempt < _RPC_MAX_ATTEMPTS - 1 {
+                time.sleep(backoff);
+                backoff = backoff * 2.0;
+            }
+        }
+    }
+
+    stopped_by = " (stopped by open circuit breaker)" if tripped else "";
+    raise RuntimeError(
+        f"sv-to-sv {label} failed after {attempts} attempts{stopped_by}: {last_err}"
+    );
+}
+
 
 def service_call(module_name: str, func_name: str, args: dict) -> any {
-    import time;
     import from jaclang.runtimelib { sv_client }
     import from jaclang.scale.runtime.context.auth_ctx { get_current_auth }
     import from jaclang.scale.runtime.context.trace_ctx { get_current_trace }
@@ -38,10 +76,7 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
     if not url {
         url = sv_client.resolve_url(module_name);
     }
-    import from jaclang.runtimelib.serving.client {
-        ClientConnectionError,
-        post_stream_aware_sync
-    }
+    import from jaclang.runtimelib.serving.client { post_stream_aware_sync }
 
     headers: dict[str, str] = {};
     auth = get_current_auth();
@@ -60,49 +95,29 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
         headers["traceparent"] = tp;
     }
 
-    max_attempts: int = 3;
-    backoff: float = 0.1;
-    last_err: Exception | None = None;
-
     rpc_timeout: float = _sv_rpc_timeout(module_name);
 
-    for attempt in range(max_attempts) {
-        try {
-            (kind, payload) = post_stream_aware_sync(
-                f"{url}/function/{func_name}",
-                json_body=args,
-                headers=headers,
-                timeout=rpc_timeout,
-                label=func_label
-            );
-            breaker_record_success(module_name);
-            if kind == 'sse' {
-                return payload;
-            }
-            return _unwrap_sv_envelope(payload, module_name, func_name);
-        } except (ClientConnectionError, OSError) as e {
-            err_ref: any = e;
-            last_err = err_ref;
-            if attempt < max_attempts - 1 {
-                time.sleep(backoff);
-                backoff = backoff * 2.0;
-            }
-        }
+    def send -> any {
+        return post_stream_aware_sync(
+            f"{url}/function/{func_name}",
+            json_body=args,
+            headers=headers,
+            timeout=rpc_timeout,
+            label=func_label
+        );
     }
 
-    breaker_record_failure(module_name);
-
-    raise RuntimeError(
-        f"sv-to-sv RPC '{module_name}.{func_name}' failed after "
-            + f"{max_attempts} attempts: {last_err}"
-    );
+    (kind, payload) = _rpc_with_retries(module_name, f"RPC '{func_label}'", send);
+    if kind == 'sse' {
+        return payload;
+    }
+    return _unwrap_sv_envelope(payload, module_name, func_name);
 }
 
 
 def walker_call(
     module_name: str, walker_name: str, args: dict, stub_cls: any = None
 ) -> any {
-    import time;
     import from jaclang.runtimelib { sv_client }
     import from jaclang.scale.runtime.context.auth_ctx { get_current_auth }
     import from jaclang.scale.runtime.context.trace_ctx { get_current_trace }
@@ -124,10 +139,7 @@ def walker_call(
     }
 
     url = sv_client.resolve_url(module_name);
-    import from jaclang.runtimelib.serving.client {
-        ClientConnectionError,
-        request_sync
-    }
+    import from jaclang.runtimelib.serving.client { request_sync }
 
     headers: dict[str, str] = {};
     auth = get_current_auth();
@@ -145,40 +157,21 @@ def walker_call(
         headers["traceparent"] = tp;
     }
 
-    max_attempts: int = 3;
-    backoff: float = 0.1;
-    last_err: Exception | None = None;
-
     rpc_timeout: float = _sv_rpc_timeout(module_name);
 
-    for attempt in range(max_attempts) {
-        try {
-            resp = request_sync(
-                'POST',
-                f"{url}/walker/{walker_name}",
-                json_body=args,
-                headers=headers,
-                timeout=rpc_timeout
-            );
-            data = resp.json();
-            breaker_record_success(module_name);
-            return _hydrate_walker_envelope(data, module_name, walker_name, stub_cls);
-        } except (ClientConnectionError, OSError) as e {
-            err_ref: any = e;
-            last_err = err_ref;
-            if attempt < max_attempts - 1 {
-                time.sleep(backoff);
-                backoff = backoff * 2.0;
-            }
-        }
+    def send -> any {
+        resp = request_sync(
+            'POST',
+            f"{url}/walker/{walker_name}",
+            json_body=args,
+            headers=headers,
+            timeout=rpc_timeout
+        );
+        return resp.json();
     }
 
-    breaker_record_failure(module_name);
-
-    raise RuntimeError(
-        f"sv-to-sv walker spawn '{label}' failed after "
-            + f"{max_attempts} attempts: {last_err}"
-    );
+    data = _rpc_with_retries(module_name, f"walker spawn '{label}'", send);
+    return _hydrate_walker_envelope(data, module_name, walker_name, stub_cls);
 }
 
 

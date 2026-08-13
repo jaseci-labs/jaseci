@@ -14,7 +14,7 @@ import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from jaclang.runtimelib.pgembed { PgRuntime }
 import from jaclang.runtimelib.session { Session, shared_pg_data_dir, project_db_name }
-import from jaclang.runtimelib.store { PgStore }
+import from jaclang.runtimelib.store { PgStore, TxnIsolation }
 import from jaclang.runtimelib.pgwire { PgWireError }
 
 
@@ -73,7 +73,7 @@ test "uow: read-only transactions take zero SIREAD predicate locks" {
         store = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
         try {
             store.ensure_schema({});
-            store.begin(read_only=True);  # read_only wins over the serializable default
+            store.begin(TxnIsolation.SNAPSHOT_READ_ONLY);  # the declared read tier, not the serializable default
             store.rows('SELECT count(*) FROM anchors', {});
             si = store.rows(
                 "SELECT count(*) FROM pg_locks"

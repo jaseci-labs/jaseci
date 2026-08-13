@@ -2,6 +2,7 @@ import os;
 import from pathlib { Path }
 import from typing { Any }
 import from jaclang.cli.console { console }
+import from jaclang.runtimelib.store { TxnIsolation }
 
 
 def _project_data_dir(explicit: str) -> str {
@@ -53,7 +54,7 @@ def _db_status(data_dir: str) -> int {
     }
     store = _open_store(rt);
     try {
-        store.begin(serializable=False);
+        store.begin(TxnIsolation.READ_COMMITTED);
         rows = store.rows(
             'SELECT kind, count(*) FROM anchors GROUP BY kind ORDER BY kind', {}
         );
@@ -73,7 +74,7 @@ def _db_inspect(data_dir: str) -> int {
     rt = _runtime_for(data_dir);
     store = _open_store(rt);
     try {
-        store.begin(serializable=False);
+        store.begin(TxnIsolation.READ_COMMITTED);
         rows = store.rows(
             """
             SELECT kind, arch_type, count(*) FROM anchors
@@ -102,7 +103,7 @@ def _db_sql(data_dir: str, query: str) -> int {
     rt = _runtime_for(data_dir);
     store = _open_store(rt);
     try {
-        store.begin(serializable=False);
+        store.begin(TxnIsolation.READ_COMMITTED);
         for row in store.rows(query, {}) {
             console.print(' | '.join(str(c) for c in row));
         }
@@ -110,6 +111,14 @@ def _db_sql(data_dir: str, query: str) -> int {
     } finally {
         store.close();
     }
+    return 0;
+}
+
+
+def _db_fetch -> int {
+    import from jaclang.runtimelib.pgembed { PgRuntime, dist_cache_dir }
+    bin_dir = PgRuntime(data_dir=dist_cache_dir()).fetch_dist();
+    console.success(f"embedded postgres binaries ready at {bin_dir}");
     return 0;
 }
 
@@ -128,6 +137,9 @@ impl db(
 ) -> int {
     if action == 'serve' {
         return _db_serve(data_dir, port);
+    }
+    if action == 'fetch' {
+        return _db_fetch();
     }
     dd = _project_data_dir(data_dir);
     if action == 'status' {

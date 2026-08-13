@@ -680,14 +680,24 @@ impl SymTabBuildPass.exit_switch_case(
 }
 
 impl find_python_scope_node_of(nd: uni.UniNode) -> (UniScopeNode | None) {
-    scope_types = uni.UniScopeNode.get_python_scoping_nodes();
     while nd.parent {
-        if isinstance(nd.parent, scope_types) {
+        if uni.UniScopeNode.is_python_scoping(nd.parent) {
             return nd.parent;
         }
         nd = nd.parent;
     }
     return None;
+}
+
+impl find_typed_decl_scope_of(nd: uni.AstSymbolNode) -> UniScopeNode {
+    if uni.UniScopeNode.is_python_scoping(nd.sym_tab) {
+        return nd.sym_tab;
+    }
+    py_scope = find_python_scope_node_of(nd);
+    if isinstance(py_scope, (uni.Ability, uni.ImplDef, uni.Test)) {
+        return py_scope;
+    }
+    return nd.sym_tab;
 }
 
 impl def_insert_unpacking(
@@ -743,9 +753,7 @@ impl bind_assignment_targets(nd: uni.Assignment) -> None {
                 outer_has.add_use(i.name_spec);
             } elif (
                 (nd.type_tag is None)
-                and not isinstance(
-                    i.sym_tab, uni.UniScopeNode.get_python_scoping_nodes()
-                )
+                and not uni.UniScopeNode.is_python_scoping(i.sym_tab)
             ) {
                 py_scope = find_python_scope_node_of(i);
                 if py_scope is not None {
@@ -769,7 +777,7 @@ impl bind_assignment_targets(nd: uni.Assignment) -> None {
                 if isinstance(i.sym_tab, uni.Enum) {
                     i.name_spec._sym_category = SymbolType.ENUM_MEMBER;
                 }
-                i.sym_tab.def_insert(i, single_decl='local var');
+                find_typed_decl_scope_of(i).def_insert(i, single_decl='local var');
             }
         }
     }

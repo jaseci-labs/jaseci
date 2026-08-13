@@ -114,18 +114,6 @@ def _is_serialization_conflict(e: Exception) -> bool {
 }
 
 
-glob _schema_ready: set[str] = set();
-
-
-def _store_ns(store: (Any | None)) -> str {
-    if isinstance(store, PgStore) {
-        info = store.conninfo;
-        return (f"{info.unix_socket_dir or info.host}:" f"{info.port}/{info.database}");
-    }
-    return '';
-}
-
-
 def _json_default(o: object) -> str {
     return str(o);
 }
@@ -158,25 +146,29 @@ impl Session.postinit -> None {
     self._txn_changed = set();
     self._runtime = None;
     self._active_units = 0;
+    self._flushing = None;
+    self._read_scopes = 0;
+    self._snapshot_reads = set();
     if self.store is None and self.base_path {
         url = os.environ.get('JAC_DB_URL', '');
         promos = promotions_for(self.base_path);
         if url {
-            pgs = PgStore(conninfo=conninfo_from_url(url));
+            self.store = PgStore(
+                conninfo=conninfo_from_url(url), promotions=promos, auto_schema=True
+            );
         } else {
             rt = PgRuntime(
                 data_dir=shared_pg_data_dir(),
                 database=project_db_name(self.base_path, self.target_path)
             );
             self._runtime = rt;
-            pgs = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
+            self.store = PgStore(
+                conninfo=rt.conninfo(),
+                ensure_cb=rt.ensure,
+                promotions=promos,
+                auto_schema=True
+            );
         }
-        ns = _store_ns(pgs);
-        if ns not in _schema_ready {
-            pgs.ensure_schema(promos);
-            _schema_ready.add(ns);
-        }
-        self.store = pgs;
     }
 }
 
@@ -492,10 +484,48 @@ impl Session._fire_on_commit -> None {
 }
 
 
+impl Session._txn_isolation -> TxnIsolation {
+    if self._read_scopes > 0
+        and self._active_units == 0
+        and not self._dirty
+        and not self._deleted {
+        return TxnIsolation.SNAPSHOT_READ_ONLY;
+    }
+    return TxnIsolation.SERIALIZABLE;
+}
+
+
+impl Session._drop_snapshot_reads -> None {
+    import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
+    for id in self._snapshot_reads {
+        if id in self._dirty or id in self._deleted {
+            continue;
+        }
+        stale = self.__mem__.pop(id, None);
+        self._flushed_hash.pop(id, None);
+        if isinstance(stale, EdgeAnchor) {
+            sv_forget_edge(stale, self);
+        }
+    }
+    self._snapshot_reads.clear();
+}
+
+
 impl Session._ensure_txn -> None {
     with self._lock {
-        if self.store is not None and not self.store.in_txn() {
-            self.store.begin(serializable=True);
+        if self.store is None {
+            return;
+        }
+        wanted = self._txn_isolation();
+        if not self.store.in_txn() {
+            self.store.begin(wanted);
+            return;
+        }
+        if wanted is TxnIsolation.SERIALIZABLE
+            and self.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
+            self.store.commit();
+            self._drop_snapshot_reads();
+            self.store.begin(TxnIsolation.SERIALIZABLE);
         }
     }
 }
@@ -504,6 +534,40 @@ impl Session._ensure_txn -> None {
 impl Session.unit_enter -> None {
     with self._lock {
         self._active_units += 1;
+        if self.store is not None and self.store.in_txn() {
+            self._ensure_txn();
+        }
+    }
+}
+
+
+impl Session.read_scope_enter -> None {
+    with self._lock {
+        self._read_scopes += 1;
+    }
+}
+
+
+impl Session.read_scope_exit -> None {
+    with self._lock {
+        self._read_scopes = max(0, self._read_scopes - 1);
+        if self._read_scopes > 0 or self.store is None {
+            return;
+        }
+        if self.store.txn_isolation() is not TxnIsolation.SNAPSHOT_READ_ONLY {
+            return;
+        }
+        try {
+            self.store.commit();
+        } except Exception as e {
+            logger.warning(
+                f"read snapshot close failed; rolling back: {type(e).__name__}: {e}"
+            );
+            try {
+                self.store.rollback();
+            } except Exception { }
+        }
+        self._drop_snapshot_reads();
     }
 }
 
@@ -577,12 +641,27 @@ impl Session.read_barrier -> None {
 
 
 impl Session.flush(full: bool = False) -> None {
+    import threading;
     import from jaclang.runtimelib.serializer { Serializer }
     if self.store is None {
         return;
     }
     with self._lock {
-        self._ensure_txn();
+        if self._flushing == threading.get_ident() {
+            return;
+        }
+        self._flushing = threading.get_ident();
+        try {
+            self._flush_locked(full);
+        } finally {
+            self._flushing = None;
+        }
+    }
+}
+
+
+impl Session._flush_locked(full: bool) -> None {
+    if self.store is not None {
         candidates: list[UUID];
         if full {
             candidates = list(self.__mem__.keys());
@@ -607,6 +686,9 @@ impl Session.flush(full: bool = False) -> None {
             }
             rows.append(self._serialize(anchor));
             pending.append((anchor, h));
+        }
+        if rows or self._deleted {
+            self._ensure_txn();
         }
         if rows {
             self.store.upsert(rows);
@@ -708,6 +790,10 @@ impl Session._materialize(
     self.__mem__[row.id] = anchor;
     self._flushed_hash[row.id] = _persist_hash(anchor);
     anchor.hash = self._flushed_hash[row.id];
+    if self.store is not None
+        and self.store.txn_isolation() is TxnIsolation.SNAPSHOT_READ_ONLY {
+        self._snapshot_reads.add(row.id);
+    }
     return anchor;
 }
 
@@ -716,7 +802,6 @@ impl Session.run_request(body: Callable) -> Any {
     attempt = 0;
     while True {
         try {
-            self._ensure_txn();
             result = body();
             self.commit();
             return result;
