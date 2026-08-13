@@ -436,7 +436,7 @@ impl MicroserviceGateway.forward_to(
     }
 
     fwd_headers = self.build_forward_headers(request);
-    client_addr: str = getattr(request?.client, "host", "unknown");
+    client_addr: str = request.client_host or "unknown";
     fwd_headers["X-Forwarded-For"] = client_addr;
 
     body: bytes = request.body;
