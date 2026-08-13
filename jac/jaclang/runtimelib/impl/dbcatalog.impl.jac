@@ -61,11 +61,33 @@ impl holds_no_data(info: ConnInfo, database: str) -> bool {
         return False;
     }
     try {
-        rows = conn.run(
-            'SELECT count(*) FROM anchors WHERE id::text <> :sysroot',
-            sysroot=str(Con.SUPER_ROOT_UUID)
-        );
-        return int(rows[0][0]) == 0;
+        listed = conn.run(
+            'SELECT tablename FROM pg_tables WHERE schemaname = current_schema()'
+        )
+            or [];
+        tables = [str(row[0]) for row in listed];
+        for table in sorted(tables) {
+            if table in DERIVED_TABLES {
+                continue;
+            }
+            if table == 'anchors' {
+                rows = conn.run(
+                    'SELECT count(*) FROM anchors WHERE id::text <> :sysroot',
+                    sysroot=str(Con.SUPER_ROOT_UUID)
+                );
+            } elif table == 'kv_state' {
+                rows = conn.run(
+                    'SELECT count(*) FROM kv_state WHERE key <> :stamp',
+                    stamp=SCHEMA_STAMP_KEY
+                );
+            } else {
+                rows = conn.run(f'SELECT count(*) FROM "{table}"');
+            }
+            if int(rows[0][0]) > 0 {
+                return False;
+            }
+        }
+        return True;
     } except Exception as e {
         if sqlstate_of(e) == '42P01' {
             return True;

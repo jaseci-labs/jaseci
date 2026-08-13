@@ -2,17 +2,19 @@ import logging;
 import from enum { StrEnum }
 import from typing { Any }
 
-import from jaclang.runtimelib.store { ConnInfo }
+import from jaclang.runtimelib.store { ConnInfo, SCHEMA_STAMP_KEY }
 
 glob logger = logging.getLogger(__name__),
      REGISTRY_TABLE = 'jac_databases',
      MAINTENANCE_DB = 'postgres',
      DB_PREFIX = 'jac_',
      SCRATCH_PREFIX = 'jac_scratch_',
+     DERIVED_TABLES = {'graph_types'},
      __all__ = [
          'DbKind',
          'DbRecord',
          'DB_PREFIX',
+         'DERIVED_TABLES',
          'MAINTENANCE_DB',
          'REGISTRY_TABLE',
          'SCRATCH_PREFIX',

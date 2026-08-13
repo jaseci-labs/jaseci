@@ -111,6 +111,24 @@ def _exec(cluster: Cluster, sql: str) {
 }
 
 
+def _exec_in(cluster: Cluster, database: str, sql: str) {
+    import from jaclang.vendor.pgload { connect }
+    info = cluster.rt.conninfo();
+    conn: Any = connect(
+        info.user,
+        host=info.host,
+        port=info.port,
+        unix_socket_dir=info.unix_socket_dir,
+        database=database
+    );
+    try {
+        conn.run(sql);
+    } finally {
+        conn.close();
+    }
+}
+
+
 def _jac_databases(cluster: Cluster) -> set[str] {
     return {
         str(r[0])
@@ -461,11 +479,20 @@ test "db prune --empty reclaims pre-tracking databases that hold no data" {
     try {
         (with_data, data_db) = _project_database(cluster, "legacydata");
         (no_data, bare_db) = _project_database(cluster, "legacybare", app=BARE_APP);
+        # A store whose only content is a plugin's own table (jac-scale keeps
+        # identities and jobs in jac_docs) is not empty either.
+        (plugin, plugin_db) = _project_database(cluster, "legacyplugin", app=BARE_APP);
+        _exec_in(
+            cluster,
+            plugin_db,
+            "CREATE TABLE IF NOT EXISTS jac_docs (id text PRIMARY KEY)"
+        );
+        _exec_in(cluster, plugin_db, "INSERT INTO jac_docs (id) VALUES ('user1')");
         # Databases created before owner tracking have no registry row at all.
         _exec(
             cluster,
             f"DELETE FROM {REGISTRY_TABLE} WHERE database IN "
-            f"('{data_db}', '{bare_db}')"
+            f"('{data_db}', '{bare_db}', '{plugin_db}')"
         );
 
         (code, text) = _capture(
@@ -489,8 +516,12 @@ test "db prune --empty reclaims pre-tracking databases that hold no data" {
         assert data_db in names , (
             f"{data_db} holds user data and must survive --empty: {text}"
         );
+        assert plugin_db in names , (
+            f"{plugin_db} holds plugin rows and must survive --empty: {text}"
+        );
         shutil.rmtree(with_data, ignore_errors=True);
         shutil.rmtree(no_data, ignore_errors=True);
+        shutil.rmtree(plugin, ignore_errors=True);
     } finally {
         _stop_cluster(cluster);
     }
