@@ -52,7 +52,11 @@ import from ast_nodes {
 import from compiler_diagnostics {
     compiler_diagnostic,
     validation_diagnostic,
+    compiler_diag_kind,
+    compiler_diag_message,
 }
+import from parser { parse_file }
+import from ast_nodes { Module }
 
 obj validation_result {
     has diag: compiler_diagnostic | None = None;
@@ -74,7 +78,37 @@ def validation_error(
 
 # --- expression context ---
 
-def validate_load_expr(e: expr) -> validation_result {
+def validate_load_expr(e: expr, in_function: bool) -> validation_result {
+    if isinstance(e, Yield) or isinstance(e, YieldFrom) {
+        if not in_function {
+            lineno = 1;
+            col = 0;
+            if isinstance(e, Yield) {
+                yy = e as Yield;
+                lineno = yy.lineno;
+                col = yy.col_offset;
+            }
+            if isinstance(e, YieldFrom) {
+                yf = e as YieldFrom;
+                lineno = yf.lineno;
+                col = yf.col_offset;
+            }
+            return validation_error(
+                "SyntaxError",
+                "'yield' outside function",
+                lineno,
+                col
+            );
+        }
+        if isinstance(e, Yield) {
+            y = e as Yield;
+            if y.value is not None {
+                return validate_load_expr(y.value, in_function);
+            }
+            return validation_ok();
+        }
+        return validate_load_expr((e as YieldFrom).value, in_function);
+    }
     if isinstance(e, Name) {
         n = e as Name;
         if not isinstance(n.ctx, Load) {
@@ -97,7 +131,7 @@ def validate_load_expr(e: expr) -> validation_result {
                 a.col_offset
             );
         }
-        inner = validate_load_expr(a.value);
+        inner = validate_load_expr(a.value, in_function);
         if inner.diag is not None {
             return inner;
         }
@@ -113,35 +147,35 @@ def validate_load_expr(e: expr) -> validation_result {
                 s.col_offset
             );
         }
-        inner = validate_load_expr(s.value);
+        inner = validate_load_expr(s.value, in_function);
         if inner.diag is not None {
             return inner;
         }
-        return validate_subscript_slice(s.slice);
+        return validate_subscript_slice(s.slice, in_function);
     }
     if isinstance(e, Constant) {
         return validation_ok();
     }
     if isinstance(e, BinOp) {
         b = e as BinOp;
-        left = validate_load_expr(b.left);
+        left = validate_load_expr(b.left, in_function);
         if left.diag is not None {
             return left;
         }
-        return validate_load_expr(b.right);
+        return validate_load_expr(b.right, in_function);
     }
     if isinstance(e, UnaryOp) {
-        return validate_load_expr((e as UnaryOp).operand);
+        return validate_load_expr((e as UnaryOp).operand, in_function);
     }
     if isinstance(e, Compare) {
         c = e as Compare;
-        left = validate_load_expr(c.left);
+        left = validate_load_expr(c.left, in_function);
         if left.diag is not None {
             return left;
         }
         ci = 0;
         while ci < len(c.comparators) {
-            cmp = validate_load_expr(c.comparators[ci]);
+            cmp = validate_load_expr(c.comparators[ci], in_function);
             if cmp.diag is not None {
                 return cmp;
             }
@@ -151,7 +185,7 @@ def validate_load_expr(e: expr) -> validation_result {
     }
     if isinstance(e, Call) {
         ca = e as Call;
-        func = validate_load_expr(ca.func);
+        func = validate_load_expr(ca.func, in_function);
         if func.diag is not None {
             return func;
         }
@@ -161,7 +195,7 @@ def validate_load_expr(e: expr) -> validation_result {
         }
         ai = 0;
         while ai < len(args) {
-            arg = validate_load_expr(args[ai]);
+            arg = validate_load_expr(args[ai], in_function);
             if arg.diag is not None {
                 return arg;
             }
@@ -173,7 +207,7 @@ def validate_load_expr(e: expr) -> validation_result {
         bo = e as BoolOp;
         vi = 0;
         while vi < len(bo.values) {
-            vr = validate_load_expr(bo.values[vi]);
+            vr = validate_load_expr(bo.values[vi], in_function);
             if vr.diag is not None {
                 return vr;
             }
@@ -185,7 +219,7 @@ def validate_load_expr(e: expr) -> validation_result {
         li = e as List;
         ei = 0;
         while ei < len(li.elts) {
-            vr = validate_load_expr(li.elts[ei]);
+            vr = validate_load_expr(li.elts[ei], in_function);
             if vr.diag is not None {
                 return vr;
             }
@@ -197,7 +231,7 @@ def validate_load_expr(e: expr) -> validation_result {
         tu = e as Tuple;
         ei = 0;
         while ei < len(tu.elts) {
-            vr = validate_load_expr(tu.elts[ei]);
+            vr = validate_load_expr(tu.elts[ei], in_function);
             if vr.diag is not None {
                 return vr;
             }
@@ -206,10 +240,10 @@ def validate_load_expr(e: expr) -> validation_result {
         return validation_ok();
     }
     if isinstance(e, Starred) {
-        return validate_load_expr((e as Starred).value);
+        return validate_load_expr((e as Starred).value, in_function);
     }
     if isinstance(e, Slice) {
-        return validate_subscript_slice(e);
+        return validate_subscript_slice(e, in_function);
     }
     return validation_ok();
 }
@@ -250,35 +284,35 @@ def validate_duplicate_names(
     return validation_ok();
 }
 
-def validate_subscript_slice(key: expr) -> validation_result {
+def validate_subscript_slice(key: expr, in_function: bool) -> validation_result {
     if isinstance(key, Slice) {
         sl = key as Slice;
         if sl.lower is not None {
-            lo = validate_load_expr(sl.lower);
+            lo = validate_load_expr(sl.lower, in_function);
             if lo.diag is not None {
                 return lo;
             }
         }
         if sl.upper is not None {
-            up = validate_load_expr(sl.upper);
+            up = validate_load_expr(sl.upper, in_function);
             if up.diag is not None {
                 return up;
             }
         }
         if sl.step is not None {
-            st = validate_load_expr(sl.step);
+            st = validate_load_expr(sl.step, in_function);
             if st.diag is not None {
                 return st;
             }
         }
         return validation_ok();
     }
-    return validate_load_expr(key);
+    return validate_load_expr(key, in_function);
 }
 
 # --- store / delete targets ---
 
-def validate_store_target(t: expr) -> validation_result {
+def validate_store_target(t: expr, in_function: bool) -> validation_result {
     if isinstance(t, Name) {
         n = t as Name;
         if not isinstance(n.ctx, Store) {
@@ -301,7 +335,7 @@ def validate_store_target(t: expr) -> validation_result {
                 a.col_offset
             );
         }
-        return validate_load_expr(a.value);
+        return validate_load_expr(a.value, in_function);
     }
     if isinstance(t, Subscript) {
         s = t as Subscript;
@@ -313,18 +347,18 @@ def validate_store_target(t: expr) -> validation_result {
                 s.col_offset
             );
         }
-        inner = validate_load_expr(s.value);
+        inner = validate_load_expr(s.value, in_function);
         if inner.diag is not None {
             return inner;
         }
-        return validate_subscript_slice(s.slice);
+        return validate_subscript_slice(s.slice, in_function);
     }
     # Unsupported but syntactically valid targets (tuple unpacking, etc.) are
     # codegen's job with NotImplementedError, not validation SyntaxError.
     return validation_ok();
 }
 
-def validate_delete_target(t: expr) -> validation_result {
+def validate_delete_target(t: expr, in_function: bool) -> validation_result {
     if isinstance(t, Name) {
         n = t as Name;
         if not isinstance(n.ctx, Del) {
@@ -347,7 +381,7 @@ def validate_delete_target(t: expr) -> validation_result {
                 a.col_offset
             );
         }
-        return validate_load_expr(a.value);
+        return validate_load_expr(a.value, in_function);
     }
     if isinstance(t, Subscript) {
         s = t as Subscript;
@@ -359,11 +393,11 @@ def validate_delete_target(t: expr) -> validation_result {
                 s.col_offset
             );
         }
-        inner = validate_load_expr(s.value);
+        inner = validate_load_expr(s.value, in_function);
         if inner.diag is not None {
             return inner;
         }
-        return validate_subscript_slice(s.slice);
+        return validate_subscript_slice(s.slice, in_function);
     }
     return validation_ok();
 }
@@ -384,7 +418,7 @@ def validate_stmt(
             );
         }
         if r.value is not None {
-            return validate_load_expr(r.value);
+            return validate_load_expr(r.value, in_function);
         }
         return validation_ok();
     }
@@ -405,7 +439,7 @@ def validate_stmt(
         if not in_loop {
             return validation_error(
                 "SyntaxError",
-                "'continue' outside loop",
+                "'continue' not properly in loop",
                 c.lineno,
                 c.col_offset
             );
@@ -437,13 +471,13 @@ def validate_stmt(
     }
     if isinstance(s, Assign) {
         a = s as Assign;
-        val = validate_load_expr(a.value);
+        val = validate_load_expr(a.value, in_function);
         if val.diag is not None {
             return val;
         }
         ti = 0;
         while ti < len(a.targets) {
-            tgt = validate_store_target(a.targets[ti]);
+            tgt = validate_store_target(a.targets[ti], in_function);
             if tgt.diag is not None {
                 return tgt;
             }
@@ -453,20 +487,20 @@ def validate_stmt(
     }
     if isinstance(s, AugAssign) {
         aa = s as AugAssign;
-        tgt = validate_store_target(aa.target);
+        tgt = validate_store_target(aa.target, in_function);
         if tgt.diag is not None {
             return tgt;
         }
-        return validate_load_expr(aa.value);
+        return validate_load_expr(aa.value, in_function);
     }
     if isinstance(s, AnnAssign) {
         an = s as AnnAssign;
-        tgt = validate_store_target(an.target);
+        tgt = validate_store_target(an.target, in_function);
         if tgt.diag is not None {
             return tgt;
         }
         if an.value is not None {
-            return validate_load_expr(an.value);
+            return validate_load_expr(an.value, in_function);
         }
         return validation_ok();
     }
@@ -474,7 +508,7 @@ def validate_stmt(
         d = s as Delete;
         ti = 0;
         while ti < len(d.targets) {
-            tgt = validate_delete_target(d.targets[ti]);
+            tgt = validate_delete_target(d.targets[ti], in_function);
             if tgt.diag is not None {
                 return tgt;
             }
@@ -483,7 +517,7 @@ def validate_stmt(
         return validation_ok();
     }
     if isinstance(s, Expr) {
-        return validate_load_expr((s as Expr).value);
+        return validate_load_expr((s as Expr).value, in_function);
     }
     if isinstance(s, Pass) {
         return validation_ok();
@@ -506,11 +540,11 @@ def validate_stmt(
     }
     if isinstance(s, For) {
         fo = s as For;
-        tgt = validate_store_target(fo.target);
+        tgt = validate_store_target(fo.target, in_function);
         if tgt.diag is not None {
             return tgt;
         }
-        it = validate_load_expr(fo.iter);
+        it = validate_load_expr(fo.iter, in_function);
         if it.diag is not None {
             return it;
         }
@@ -531,11 +565,11 @@ def validate_stmt(
             );
         }
         afo = s as AsyncFor;
-        tgt = validate_store_target(afo.target);
+        tgt = validate_store_target(afo.target, in_function);
         if tgt.diag is not None {
             return tgt;
         }
-        it = validate_load_expr(afo.iter);
+        it = validate_load_expr(afo.iter, in_function);
         if it.diag is not None {
             return it;
         }
@@ -547,7 +581,7 @@ def validate_stmt(
     }
     if isinstance(s, While) {
         wh = s as While;
-        te = validate_load_expr(wh.test);
+        te = validate_load_expr(wh.test, in_function);
         if te.diag is not None {
             return te;
         }
@@ -559,7 +593,7 @@ def validate_stmt(
     }
     if isinstance(s, If) {
         iff = s as If;
-        te = validate_load_expr(iff.test);
+        te = validate_load_expr(iff.test, in_function);
         if te.diag is not None {
             return te;
         }
@@ -586,12 +620,12 @@ def validate_stmt(
         ii = 0;
         while ii < len(wi.items) {
             item = wi.items[ii];
-            ce = validate_load_expr(item.context_expr);
+            ce = validate_load_expr(item.context_expr, in_function);
             if ce.diag is not None {
                 return ce;
             }
             if item.optional_vars is not None {
-                ov = validate_store_target(item.optional_vars);
+                ov = validate_store_target(item.optional_vars, in_function);
                 if ov.diag is not None {
                     return ov;
                 }
@@ -614,12 +648,12 @@ def validate_stmt(
         ii = 0;
         while ii < len(awi.items) {
             item = awi.items[ii];
-            ce = validate_load_expr(item.context_expr);
+            ce = validate_load_expr(item.context_expr, in_function);
             if ce.diag is not None {
                 return ce;
             }
             if item.optional_vars is not None {
-                ov = validate_store_target(item.optional_vars);
+                ov = validate_store_target(item.optional_vars, in_function);
                 if ov.diag is not None {
                     return ov;
                 }
@@ -648,12 +682,35 @@ def validate_module_body(body: list[stmt]) -> validation_result {
 }
 
 def validate_eval_expr(e: expr) -> validation_result {
-    return validate_load_expr(e);
+    return validate_load_expr(e, False);
 }
 
 # ---------------- tests ----------------
 
-import from compiler_diagnostics { compiler_diag_kind, compiler_diag_message }
+::py::
+def _host_compile_syntax_error(source, mode="exec"):
+    try:
+        _compile = compile
+        _compile(source, "<t>", mode)
+    except SyntaxError as e:
+        return e.msg
+    return None
+::py::
+
+def host_compile_syntax_error(source: str, mode: str = "exec") -> str | None {
+    return _host_compile_syntax_error(source, mode) as str | None;
+}
+
+def assert_validate_rejects_like_compile(source: str) {
+    m = parse_file(source, "<t>");
+    assert m is not None;
+    r = validate_module_body((m as Module).body);
+    assert r.diag is not None;
+    expected = host_compile_syntax_error(source, "exec");
+    assert expected is not None;
+    assert compiler_diag_message(r.diag) == expected;
+}
+
 import from objects { PyInt }
 import from ast_nodes { USub }
 
@@ -790,5 +847,32 @@ test "compiler_validate: break inside while accepted" {
             )
         ]
     );
+    assert r.diag is None;
+}
+
+test "compiler_validate: parsed return outside function matches compile oracle" {
+    assert_validate_rejects_like_compile("return 1\n");
+}
+
+test "compiler_validate: parsed break outside loop matches compile oracle" {
+    assert_validate_rejects_like_compile("break\n");
+}
+
+test "compiler_validate: parsed nonlocal at module matches compile oracle" {
+    assert_validate_rejects_like_compile("nonlocal x\n");
+}
+
+test "compiler_validate: parsed continue outside loop matches compile oracle" {
+    assert_validate_rejects_like_compile("continue\n");
+}
+
+test "compiler_validate: parsed yield outside function matches compile oracle" {
+    assert_validate_rejects_like_compile("yield 1\n");
+}
+
+test "compiler_validate: parsed x=1 module accepted via parser" {
+    m = parse_file("x = 1\n", "<t>");
+    assert m is not None;
+    r = validate_module_body((m as Module).body);
     assert r.diag is None;
 }

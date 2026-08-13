@@ -39,13 +39,20 @@ import from ast_nodes {
     AsyncFunctionDef,
     AsyncFor,
     AsyncWith,
+    ListComp,
+    SetComp,
+    DictComp,
+    GeneratorExp,
+    comprehension,
+    Yield,
+    YieldFrom,
     Load,
     Store,
     Del,
     arg,
     arguments,
 }
-import from compiler_diagnostics { symbol_diagnostic, compiler_diagnostic }
+import from compiler_diagnostics { symbol_diagnostic, compiler_diagnostic, compiler_diag_kind, compiler_diag_message }
 
 # CPython symtable flag bits (Include/internal/pycore_symtable.h).
 glob DEF_GLOBAL: int = 1,
@@ -68,8 +75,12 @@ obj sym_block {
         nested: bool = False,
         generator: bool = False,
         coroutine: bool = False,
+        can_see_class_scope: bool = False,
+        comprehension: str | None = None,
         symbols: dict[str, int] = {},
         varnames: list[str] = [],
+        directive_lineno: dict[str, int] = {},
+        directive_col: dict[str, int] = {},
         children: list[sym_block] = [];
 }
 
@@ -207,6 +218,10 @@ obj sym_builder {
             );
         }
         self.cur.symbols[mangled] = sym_flag_add(cur_flags, flags);
+        if sym_flag_set(flags, DEF_GLOBAL) or sym_flag_set(flags, DEF_NONLOCAL) {
+            self.cur.directive_lineno[mangled] = lineno;
+            self.cur.directive_col[mangled] = col_offset;
+        }
         if self.cur.block_type == "module" {
             self.module_global[mangled] = self.cur.symbols[mangled];
         }
@@ -223,9 +238,19 @@ obj sym_builder {
         return True;
     }
 
-    def push_block(block_type: str, name: str, lineno: int, nested: bool) -> bool {
+    def push_block(
+        block_type: str,
+        name: str,
+        lineno: int,
+        nested: bool,
+        can_see_class_scope: bool = False
+    ) -> bool {
         child = sym_block(
-            block_type=block_type, name=name, lineno=lineno, nested=nested
+            block_type=block_type,
+            name=name,
+            lineno=lineno,
+            nested=nested,
+            can_see_class_scope=can_see_class_scope
         );
         self.cur.children.append(child);
         self.stack.append(self.cur);
@@ -240,6 +265,110 @@ obj sym_builder {
         self.cur = self.stack.pop();
         return True;
     }
+}
+
+def sym_visit_comprehension_generators(b: sym_builder, generators: list[comprehension]) -> bool {
+    if len(generators) == 0 {
+        return True;
+    }
+    outer = generators[0];
+    if not sym_visit_load_expr(b, outer.iter) {
+        return False;
+    }
+    gi = 0;
+    while gi < len(generators) {
+        g = generators[gi];
+        if gi > 0 {
+            if not sym_visit_load_expr(b, g.iter) {
+                return False;
+            }
+        }
+        if not sym_visit_store_target(b, g.target) {
+            return False;
+        }
+        fi = 0;
+        while fi < len(g.ifs) {
+            if not sym_visit_load_expr(b, g.ifs[fi]) {
+                return False;
+            }
+            fi = fi + 1;
+        }
+        gi = gi + 1;
+    }
+    return True;
+}
+
+def sym_visit_inline_comprehension(
+    b: sym_builder, generators: list[comprehension], elt: expr, value: expr | None
+) -> bool {
+    if not sym_visit_comprehension_generators(b, generators) {
+        return False;
+    }
+    if value is not None and not sym_visit_load_expr(b, value) {
+        return False;
+    }
+    return sym_visit_load_expr(b, elt);
+}
+
+def sym_visit_genexp(b: sym_builder, e: GeneratorExp) -> bool {
+    if len(e.generators) == 0 {
+        return True;
+    }
+    outer = e.generators[0];
+    if not sym_visit_load_expr(b, outer.iter) {
+        return False;
+    }
+    nested = sym_compute_nested(b);
+    in_class = b.cur.block_type == "class" or b.cur.can_see_class_scope;
+    if not b.push_block("function", "genexpr", e.lineno, nested, in_class) {
+        return False;
+    }
+    b.cur.comprehension = "gen";
+    dot0 = arg(
+        arg=".0",
+        annotation=None,
+        type_comment=None,
+        lineno=e.lineno,
+        col_offset=e.col_offset,
+        end_lineno=e.end_lineno,
+        end_col_offset=e.end_col_offset
+    );
+    if not b.add_def(".0", DEF_PARAM, dot0.lineno, dot0.col_offset) {
+        return False;
+    }
+    if not sym_visit_store_target(b, outer.target) {
+        return False;
+    }
+    fi = 0;
+    while fi < len(outer.ifs) {
+        if not sym_visit_load_expr(b, outer.ifs[fi]) {
+            return False;
+        }
+        fi = fi + 1;
+    }
+    gi = 1;
+    while gi < len(e.generators) {
+        g = e.generators[gi];
+        if not sym_visit_load_expr(b, g.iter) {
+            return False;
+        }
+        if not sym_visit_store_target(b, g.target) {
+            return False;
+        }
+        fj = 0;
+        while fj < len(g.ifs) {
+            if not sym_visit_load_expr(b, g.ifs[fj]) {
+                return False;
+            }
+            fj = fj + 1;
+        }
+        gi = gi + 1;
+    }
+    if not sym_visit_load_expr(b, e.elt) {
+        return False;
+    }
+    b.cur.generator = True;
+    return b.pop_block();
 }
 
 def sym_visit_load_expr(b: sym_builder, e: expr) -> bool {
@@ -343,6 +472,36 @@ def sym_visit_load_expr(b: sym_builder, e: expr) -> bool {
     }
     if isinstance(e, Starred) {
         return sym_visit_load_expr(b, (e as Starred).value);
+    }
+    if isinstance(e, ListComp) {
+        lc = e as ListComp;
+        return sym_visit_inline_comprehension(b, lc.generators, lc.elt, None);
+    }
+    if isinstance(e, SetComp) {
+        sc = e as SetComp;
+        return sym_visit_inline_comprehension(b, sc.generators, sc.elt, None);
+    }
+    if isinstance(e, DictComp) {
+        dc = e as DictComp;
+        if not sym_visit_inline_comprehension(b, dc.generators, dc.key, dc.value) {
+            return False;
+        }
+        return True;
+    }
+    if isinstance(e, GeneratorExp) {
+        return sym_visit_genexp(b, e as GeneratorExp);
+    }
+    if isinstance(e, Yield) {
+        b.cur.generator = True;
+        y = e as Yield;
+        if y.value is not None {
+            return sym_visit_load_expr(b, y.value);
+        }
+        return True;
+    }
+    if isinstance(e, YieldFrom) {
+        b.cur.generator = True;
+        return sym_visit_load_expr(b, (e as YieldFrom).value);
     }
     return True;
 }
@@ -516,6 +675,18 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
         }
         return True;
     }
+    if isinstance(s, Yield) {
+        b.cur.generator = True;
+        y = s as Yield;
+        if y.value is not None {
+            return sym_visit_load_expr(b, y.value);
+        }
+        return True;
+    }
+    if isinstance(s, YieldFrom) {
+        b.cur.generator = True;
+        return sym_visit_load_expr(b, (s as YieldFrom).value);
+    }
     if isinstance(s, Delete) {
         d = s as Delete;
         ti = 0;
@@ -642,7 +813,8 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
             return False;
         }
         nested = sym_compute_nested(b);
-        if not b.push_block("function", fd.name, fd.lineno, nested) {
+        in_class = b.cur.block_type == "class" or b.cur.can_see_class_scope;
+        if not b.push_block("function", fd.name, fd.lineno, nested, in_class) {
             return False;
         }
         if not sym_visit_params(b, fd.args) {
@@ -663,7 +835,8 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
             return False;
         }
         nested = sym_compute_nested(b);
-        if not b.push_block("function", afd.name, afd.lineno, nested) {
+        in_class = b.cur.block_type == "class" or b.cur.can_see_class_scope;
+        if not b.push_block("function", afd.name, afd.lineno, nested, in_class) {
             return False;
         }
         b.cur.coroutine = True;
@@ -704,6 +877,17 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
     return True;
 }
 
+def sym_directive_loc(block: sym_block, name: str) -> tuple[int, int] {
+    if name in block.directive_lineno {
+        col = 0;
+        if name in block.directive_col {
+            col = block.directive_col[name];
+        }
+        return (block.directive_lineno[name], col);
+    }
+    return (block.lineno, 0);
+}
+
 def sym_analyze_name(
     block: sym_block,
     name: str,
@@ -712,58 +896,89 @@ def sym_analyze_name(
     local: dict[str, int],
     free: dict[str, int],
     global_set: dict[str, int],
-    scopes: dict[str, int]
-) -> bool {
+    scopes: dict[str, int],
+    class_entry: sym_block | None
+) -> compiler_diagnostic | None {
     if sym_flag_set(flags, DEF_GLOBAL) {
         if sym_flag_set(flags, DEF_NONLOCAL) {
-            return False;
+            loc = sym_directive_loc(block, name);
+            return symbol_diagnostic(
+                kind="SyntaxError",
+                message="name '" + name + "' is nonlocal and global",
+                lineno=loc[0],
+                col_offset=loc[1]
+            );
         }
         scopes[name] = SCOPE_GLOBAL_EXPLICIT;
         sym_set_add(global_set, name);
         if bound is not None {
             sym_set_discard(bound, name);
         }
-        return True;
+        return None;
     }
     if sym_flag_set(flags, DEF_NONLOCAL) {
         if bound is None {
-            return False;
+            loc = sym_directive_loc(block, name);
+            return symbol_diagnostic(
+                kind="SyntaxError",
+                message="nonlocal declaration not allowed at module level",
+                lineno=loc[0],
+                col_offset=loc[1]
+            );
         }
         if not sym_set_contains(bound, name) {
-            return False;
+            loc = sym_directive_loc(block, name);
+            return symbol_diagnostic(
+                kind="SyntaxError",
+                message="no binding for nonlocal '" + name + "' found",
+                lineno=loc[0],
+                col_offset=loc[1]
+            );
         }
         scopes[name] = SCOPE_FREE;
         sym_set_add(free, name);
-        return True;
+        return None;
     }
     if sym_flag_set(flags, DEF_LOCAL) or sym_flag_set(flags, DEF_PARAM) {
         scopes[name] = SCOPE_LOCAL;
         sym_set_add(local, name);
         sym_set_discard(global_set, name);
-        return True;
+        return None;
     }
-    if bound is not None and  sym_set_contains(bound, name) {
+    if class_entry is not None {
+        class_flags = sym_dict_get(class_entry.symbols, name, 0);
+        if sym_flag_set(class_flags, DEF_GLOBAL) {
+            scopes[name] = SCOPE_GLOBAL_EXPLICIT;
+            return None;
+        }
+        if sym_flag_set(class_flags, DEF_BOUND) and not sym_flag_set(class_flags, DEF_NONLOCAL) {
+            scopes[name] = SCOPE_GLOBAL_IMPLICIT;
+            return None;
+        }
+    }
+    if bound is not None and sym_set_contains(bound, name) {
         scopes[name] = SCOPE_FREE;
         sym_set_add(free, name);
-        return True;
+        return None;
     }
     if sym_set_contains(global_set, name) {
         scopes[name] = SCOPE_GLOBAL_IMPLICIT;
-        return True;
+        return None;
     }
     if block.block_type == "module" {
         scopes[name] = SCOPE_GLOBAL_IMPLICIT;
-        return True;
+        return None;
     }
     scopes[name] = SCOPE_GLOBAL_IMPLICIT;
-    return True;
+    return None;
 }
 
 def sym_analyze_block(
     block: sym_block,
     bound: dict[str, int] | None,
-    inherited_global: dict[str, int]
-) -> dict[str, int] {
+    inherited_global: dict[str, int],
+    class_entry: sym_block | None
+) -> tuple[dict[str, int], compiler_diagnostic | None] {
     local: dict[str, int] = {};
     free: dict[str, int] = {};
     global_set: dict[str, int] = sym_set_union({}, inherited_global);
@@ -773,7 +988,12 @@ def sym_analyze_block(
     while ni < len(names) {
         name = names[ni];
         raw = block.symbols[name];
-        sym_analyze_name(block, name, raw, bound, local, free, global_set, scopes);
+        ad = sym_analyze_name(
+            block, name, raw, bound, local, free, global_set, scopes, class_entry
+        );
+        if ad is not None {
+            return ({}, ad);
+        }
         ni = ni + 1;
     }
     newbound: dict[str, int] = {};
@@ -786,7 +1006,17 @@ def sym_analyze_block(
     ci = 0;
     while ci < len(block.children) {
         child = block.children[ci];
-        cf = sym_analyze_block(child, newbound, global_set);
+        child_class: sym_block | None = class_entry;
+        if child.can_see_class_scope {
+            if block.block_type == "class" {
+                child_class = block;
+            }
+        }
+        cf_result = sym_analyze_block(child, newbound, global_set, child_class);
+        if cf_result[1] is not None {
+            return ({}, cf_result[1]);
+        }
+        cf = cf_result[0];
         child_free = sym_set_union(child_free, cf);
         ci = ci + 1;
     }
@@ -798,7 +1028,7 @@ def sym_analyze_block(
                 SCOPE_CELL
             );
             sym_set_discard(child_free, fname);
-        } elif not sym_set_contains(local, fname) and  sym_set_contains(newbound, fname) {
+        } elif not sym_set_contains(local, fname) and sym_set_contains(newbound, fname) {
             block.symbols[fname] = sym_set_scope(
                 sym_flag_add(sym_dict_get(block.symbols, fname, 0), SYM_USE),
                 SCOPE_FREE
@@ -810,7 +1040,7 @@ def sym_analyze_block(
         raw = sym_dict_get(block.symbols, name, 0);
         block.symbols[name] = sym_set_scope(raw, scope);
     }
-    return child_free;
+    return (child_free, None);
 }
 
 def sym_propagate_module_globals(top: sym_block) {
@@ -843,7 +1073,10 @@ def build_module_symtable(body: list[stmt]) -> symtable_result {
         }
         si = si + 1;
     }
-    sym_analyze_block(top, None, {});
+    sym_result = sym_analyze_block(top, None, {}, None);
+    if sym_result[1] is not None {
+        return symtable_result(diag=sym_result[1]);
+    }
     sym_propagate_module_globals(top);
     return symtable_ok(top);
 }
@@ -948,7 +1181,6 @@ def sym_normalize(top: sym_block) -> dict[str, any] {
 # ---------------- tests ----------------
 
 import from compiler_diagnostics { compiler_diag_message }
-import from compiler_validate { validate_module_body }
 import from objects { PyInt }
 import from ast_nodes { Constant, Assign, USub }
 
@@ -1389,13 +1621,6 @@ def ast_class_method -> list[stmt] {
 
 import from parser { parse_file }
 
-test "compiler_validate: parsed x=1 module accepted" {
-    m = parse_file("x = 1\n", "<t>");
-    assert m is not None;
-    r = validate_module_body((m as Module).body);
-    assert r.diag is None;
-}
-
 test "compiler_symtable: parsed x=1 symtable accepted" {
     m = parse_file("x = 1\n", "<t>");
     assert m is not None;
@@ -1425,8 +1650,347 @@ test "compiler_symtable: closure free var matches oracle" {
     );
 }
 
+def ast_class_mangle -> list[stmt] {
+    priv_x = Name(
+        id="__x", ctx=Store(), lineno=2, col_offset=1, end_lineno=2, end_col_offset=4
+    );
+    one = Constant(
+        value=PyInt(t="int", val=1),
+        kind=None,
+        lineno=2,
+        col_offset=7,
+        end_lineno=2,
+        end_col_offset=8
+    );
+    selfparam = arg(
+        arg="self",
+        annotation=None,
+        type_comment=None,
+        lineno=3,
+        col_offset=8,
+        end_lineno=3,
+        end_col_offset=12
+    );
+    xload = Name(
+        id="__x", ctx=Load(), lineno=4, col_offset=9, end_lineno=4, end_col_offset=12
+    );
+    mbody = [
+        Return(value=xload, lineno=4, col_offset=2, end_lineno=4, end_col_offset=12),
+    ];
+    margs = arguments(
+        posonlyargs=[],
+        args=[selfparam],
+        vararg=None,
+        kwonlyargs=[],
+        kw_defaults=[],
+        kwarg=None,
+        defaults=[]
+    );
+    m = FunctionDef(
+        name="m",
+        args=margs,
+        body=mbody,
+        decorator_list=[],
+        returns=None,
+        type_comment=None,
+        type_params=[],
+        lineno=3,
+        col_offset=1,
+        end_lineno=4,
+        end_col_offset=12
+    );
+    c = ClassDef(
+        name="C",
+        bases=[],
+        keywords=[],
+        body=[
+            Assign(
+                targets=[priv_x],
+                value=one,
+                type_comment=None,
+                lineno=2,
+                col_offset=1,
+                end_lineno=2,
+                end_col_offset=8
+            ),
+            m,
+        ],
+        decorator_list=[],
+        type_params=[],
+        lineno=1,
+        col_offset=0,
+        end_lineno=4,
+        end_col_offset=12
+    );
+    return [c];
+}
+
 test "compiler_symtable: class method matches oracle" {
     assert_sym_matches_oracle("class C:\n def m(self):\n  return 1\n", ast_class_method());
+}
+
+test "compiler_symtable: class name mangling matches oracle" {
+    assert_sym_matches_oracle(
+        "class C:\n __x = 1\n def m(self):\n  return __x\n",
+        ast_class_mangle()
+    );
+}
+
+test "compiler_symtable: genexpr matches oracle" {
+    m = parse_file("x = (y for y in range(3))\n", "<t>");
+    assert m is not None;
+    sr = build_module_symtable((m as Module).body);
+    assert sr.diag is None;
+    native = sym_normalize(sr.top);
+    expected = host_sym_normalize("x = (y for y in range(3))\n", "exec");
+    assert _sym_oracle_equal_py(native, expected);
+}
+
+test "compiler_symtable: listcomp inlined at module matches oracle" {
+    m = parse_file("x = [y for y in range(3)]\n", "<t>");
+    assert m is not None;
+    sr = build_module_symtable((m as Module).body);
+    assert sr.diag is None;
+    native = sym_normalize(sr.top);
+    expected = host_sym_normalize("x = [y for y in range(3)]\n", "exec");
+    assert _sym_oracle_equal_py(native, expected);
+}
+
+test "compiler_symtable: setcomp inlined at module matches oracle" {
+    m = parse_file("x = {y for y in range(3)}\n", "<t>");
+    assert m is not None;
+    sr = build_module_symtable((m as Module).body);
+    assert sr.diag is None;
+    native = sym_normalize(sr.top);
+    expected = host_sym_normalize("x = {y for y in range(3)}\n", "exec");
+    assert _sym_oracle_equal_py(native, expected);
+}
+
+test "compiler_symtable: dictcomp inlined at module matches oracle" {
+    kload = Name(
+        id="k", ctx=Load(), lineno=1, col_offset=5, end_lineno=1, end_col_offset=6
+    );
+    vload = Name(
+        id="v", ctx=Load(), lineno=1, col_offset=8, end_lineno=1, end_col_offset=9
+    );
+    kstore = Name(
+        id="k", ctx=Store(), lineno=1, col_offset=16, end_lineno=1, end_col_offset=17
+    );
+    vstore = Name(
+        id="v", ctx=Store(), lineno=1, col_offset=19, end_lineno=1, end_col_offset=20
+    );
+    pair = Tuple(
+        elts=[
+            Constant(
+                value=PyInt(t="int", val=1),
+                kind=None,
+                lineno=1,
+                col_offset=25,
+                end_lineno=1,
+                end_col_offset=26
+            ),
+            Constant(
+                value=PyInt(t="int", val=2),
+                kind=None,
+                lineno=1,
+                col_offset=28,
+                end_lineno=1,
+                end_col_offset=29
+            ),
+        ],
+        ctx=Load(),
+        lineno=1,
+        col_offset=24,
+        end_lineno=1,
+        end_col_offset=30
+    );
+    pairs = List(
+        elts=[pair],
+        ctx=Load(),
+        lineno=1,
+        col_offset=23,
+        end_lineno=1,
+        end_col_offset=31
+    );
+    target = Tuple(
+        elts=[kstore, vstore],
+        ctx=Store(),
+        lineno=1,
+        col_offset=16,
+        end_lineno=1,
+        end_col_offset=20
+    );
+    gen = comprehension(target=target, iter=pairs, ifs=[], is_async=0);
+    dc = DictComp(
+        key=kload,
+        value=vload,
+        generators=[gen],
+        lineno=1,
+        col_offset=4,
+        end_lineno=1,
+        end_col_offset=32
+    );
+    x = Name(
+        id="x", ctx=Store(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1
+    );
+    body = [
+        Assign(
+            targets=[x],
+            value=dc,
+            type_comment=None,
+            lineno=1,
+            col_offset=0,
+            end_lineno=1,
+            end_col_offset=32
+        ),
+    ];
+    assert_sym_matches_oracle("x = {k: v for k, v in [(1, 2)]}\n", body);
+}
+
+def sym_first_function(top: sym_block) -> sym_block | None {
+    ci = 0;
+    while ci < len(top.children) {
+        ch = top.children[ci];
+        if ch.block_type == "function" {
+            return ch;
+        }
+        ci = ci + 1;
+    }
+    return None;
+}
+
+test "compiler_symtable: yield marks generator flag" {
+    one = Constant(
+        value=PyInt(t="int", val=1),
+        kind=None,
+        lineno=2,
+        col_offset=7,
+        end_lineno=2,
+        end_col_offset=8
+    );
+    fbody = [
+        Expr(
+            value=Yield(
+                value=one,
+                lineno=2,
+                col_offset=1,
+                end_lineno=2,
+                end_col_offset=8
+            ),
+            lineno=2,
+            col_offset=1,
+            end_lineno=2,
+            end_col_offset=8
+        ),
+    ];
+    f = FunctionDef(
+        name="f",
+        args=empty_args(),
+        body=fbody,
+        decorator_list=[],
+        returns=None,
+        type_comment=None,
+        type_params=[],
+        lineno=1,
+        col_offset=0,
+        end_lineno=2,
+        end_col_offset=8
+    );
+    sr = build_module_symtable([f]);
+    assert sr.diag is None;
+    assert sr.top is not None;
+    fn = sym_first_function(sr.top);
+    assert fn is not None;
+    assert fn.generator;
+    assert not fn.coroutine;
+}
+
+test "compiler_symtable: async def marks coroutine flag" {
+    afd = AsyncFunctionDef(
+        name="f",
+        args=empty_args(),
+        body=[Pass(lineno=2, col_offset=1, end_lineno=2, end_col_offset=5)],
+        decorator_list=[],
+        returns=None,
+        type_comment=None,
+        type_params=[],
+        lineno=1,
+        col_offset=0,
+        end_lineno=2,
+        end_col_offset=5
+    );
+    sr = build_module_symtable([afd]);
+    assert sr.diag is None;
+    assert sr.top is not None;
+    fn = sym_first_function(sr.top);
+    assert fn is not None;
+    assert fn.coroutine;
+}
+
+test "compiler_symtable: genexpr child marks generator flag" {
+    m = parse_file("x = (y for y in range(3))\n", "<t>");
+    assert m is not None;
+    sr = build_module_symtable((m as Module).body);
+    assert sr.diag is None;
+    assert sr.top is not None;
+    g = sym_first_function(sr.top);
+    assert g is not None;
+    assert g.name == "genexpr";
+    assert g.generator;
+}
+
+def ast_invalid_nonlocal -> list[stmt] {
+    fbody = [
+        Nonlocal(names=["x"], lineno=2, col_offset=1, end_lineno=2, end_col_offset=13),
+    ];
+    f = FunctionDef(
+        name="f",
+        args=empty_args(),
+        body=fbody,
+        decorator_list=[],
+        returns=None,
+        type_comment=None,
+        type_params=[],
+        lineno=1,
+        col_offset=0,
+        end_lineno=2,
+        end_col_offset=13
+    );
+    return [f];
+}
+
+def ast_global_nonlocal_conflict -> list[stmt] {
+    fbody = [
+        Global(names=["x"], lineno=2, col_offset=1, end_lineno=2, end_col_offset=10),
+        Nonlocal(names=["x"], lineno=3, col_offset=1, end_lineno=3, end_col_offset=13),
+    ];
+    f = FunctionDef(
+        name="f",
+        args=empty_args(),
+        body=fbody,
+        decorator_list=[],
+        returns=None,
+        type_comment=None,
+        type_params=[],
+        lineno=1,
+        col_offset=0,
+        end_lineno=3,
+        end_col_offset=13
+    );
+    return [f];
+}
+
+test "compiler_symtable: invalid nonlocal is SyntaxError" {
+    sr = build_module_symtable(ast_invalid_nonlocal());
+    assert sr.diag is not None;
+    assert compiler_diag_kind(sr.diag) == "SyntaxError";
+    assert compiler_diag_message(sr.diag) == "no binding for nonlocal 'x' found";
+}
+
+test "compiler_symtable: global and nonlocal conflict is SyntaxError" {
+    sr = build_module_symtable(ast_global_nonlocal_conflict());
+    assert sr.diag is not None;
+    assert compiler_diag_message(sr.diag) == "name 'x' is nonlocal and global";
 }
 
 test "compiler_symtable: nonlocal at module is SyntaxError" {
