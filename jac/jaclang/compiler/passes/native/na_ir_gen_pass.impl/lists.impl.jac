@@ -187,8 +187,8 @@ impl NaIRGenPass._empty_list_dest_spec(nd: uni.ListVal) -> (str | None) {
     }
     if isinstance(_dp, uni.Assignment) and _dp.value is _child {
         for _tgt in (_dp.target or []) {
-            if not isinstance(_tgt, uni.AtomTrailer) and _tgt.type is not None {
-                _spec = self._spec_from_list_slot_type(self._lower_type(_tgt.type));
+            if not isinstance(_tgt, uni.AtomTrailer) {
+                _spec = self._elem_spec_of(_tgt);
                 if _spec is not None {
                     return _spec;
                 }
@@ -256,9 +256,15 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             }
             _bare_list_decl = _lt_name == "list";
         }
-        _own_spec = self._empty_list_dest_spec(nd);
+        _own_spec = self._elem_spec_of(nd);
+        _dest_spec = self._empty_list_dest_spec(nd);
         if _own_spec is None {
-            _own_spec = self._elem_spec_of(nd);
+            _own_spec = _dest_spec;
+        } elif (
+            _dest_spec is not None
+            and (_own_spec == "jacval") != (_dest_spec == "jacval")
+        ) {
+            _own_spec = _dest_spec;
         }
         if _own_spec is not None {
             elem_type_name = _own_spec;
