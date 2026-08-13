@@ -897,22 +897,16 @@ impl PgStore.unlisten(channel: str) -> None {
     parked: Any = None;
     with self._lock {
         ident = _channel_ident(channel);
-        kept: list[ChannelListener] = [];
-        for lst in self._listeners {
-            if lst.channel != channel {
-                kept.append(lst);
-            }
-        }
+        kept = [
+            lst
+            for lst in self._listeners
+            if lst.channel != channel
+        ];
         if len(kept) == len(self._listeners) {
             return;
         }
         self._listeners = kept;
-        shared = False;
-        for lst in kept {
-            if lst.ident == ident {
-                shared = True;
-            }
-        }
+        shared = any((lst.ident == ident) for lst in kept);
         conn: Any = self._side_conn;
         if conn is not None and not shared {
             try {
