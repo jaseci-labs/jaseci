@@ -33,11 +33,6 @@ def _native_parse -> any {
         build_enum_maps,
         wrap_native_function
     }
-    import from jaclang.compiler.native_materialize_manifest {
-        CLASS_NAMES,
-        ENUM_MEMBERS,
-        KEY_NAMES
-    }
     eng = DylibEngine(lib_path);
     eng.initialize();
     layout = layout_from_dict(layout_dict);
@@ -79,6 +74,16 @@ def _native_parse -> any {
     pydec = ctypes.pythonapi.Py_DecRef;
     setattr(pydec, "argtypes", [ctypes.py_object]);
 
+    manifest = layout_dict.get("materialize_manifest");
+    if not manifest {
+        raise RuntimeError(
+            "sealed parser artifact carries no materializer manifest "
+            f"({lib_path}); rebuild the payload."
+        );
+    }
+    CLASS_NAMES = manifest["class_names"];
+    KEY_NAMES = manifest["key_names"];
+    ENUM_MEMBERS = manifest["enums"];
     keep: list = [];
     enum_handles: list = [];
     for em_pair in ENUM_MEMBERS {

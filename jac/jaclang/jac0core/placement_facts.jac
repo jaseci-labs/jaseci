@@ -172,10 +172,6 @@ def sealed_spaces_for(source_path: str) -> (set[str] | None) {
 
 def toolchain_native_by_policy(package_dir: str, source_path: str) -> bool {
     rel = os.path.relpath(os.path.abspath(source_path), os.path.abspath(package_dir));
-
-    if rel == os.path.join("compiler", "native_materialize.jac") {
-        return True;
-    }
     native_only = os.path.join(*TOOLCHAIN_NATIVE_ONLY_REL) + os.sep;
     if rel.startswith(native_only) {
         return True;

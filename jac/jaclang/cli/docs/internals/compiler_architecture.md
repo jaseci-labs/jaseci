@@ -460,8 +460,9 @@ closure carries the parser, lexer and `unitree` -- and
 `jac0core/unitree.jac` into per-platform shared libraries at
 `_precompiled/native/<triple>/libjac_native_materialize.*` /
 `libjac_unitree.*`, alongside persisted `NativeModuleLayout` JSON. The
-materializer is native jac (generated per-class emitters, see
-`jaclang/utils/gen_native_materialize.py`) that rebuilds the parsed tree as
+materializer is native jac, generated at seal time from the unitree
+layout by `jaclang/utils/gen_native_materialize.py` (never checked in),
+with per-class emitters that rebuild the parsed tree as
 real Python `unitree` objects through CPython C-API clib externs resolved
 from the host process (ELF lazy PLT / Mach-O flat lookup), feeding the
 unchanged downstream pipeline. Everything is recorded in `MANIFEST.json`

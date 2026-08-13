@@ -270,8 +270,8 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 }
 
 glob NATIVE_SEAL_MODULES: tuple = (
-         "compiler/native_materialize.jac",
          "jac0core/unitree.jac",
+         "compiler/native_materialize.jac",
 
      );
 
@@ -691,8 +691,29 @@ def seal_native_artifacts(
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
     pkg_name = pkg_path.name;
+    _seal_layouts: dict[str, dict] = {};
+    _mat_manifest: (dict | None) = None;
+    _gen_root_src: (Path | None) = None;
     for rel in (NATIVE_SEAL_MODULES if modules is None else modules) {
-        src = pkg_path / rel;
+        src: Path = pkg_path / str(rel);
+        if rel == "compiler/native_materialize.jac" {
+            unitree_layout = _seal_layouts.get("jac0core/unitree.jac");
+            if unitree_layout is None {
+                console.error(
+                    "NATIVE SEAL: the materializer root is generated from "
+                    "the unitree layout; seal jac0core/unitree.jac first "
+                    "(NATIVE_SEAL_MODULES order, or include it in the "
+                    "modules argument)."
+                );
+                return None;
+            }
+            import from jaclang.utils.gen_native_materialize {
+                generate as generate_materialize_root
+            }
+
+            _mat_manifest = generate_materialize_root(unitree_layout, src);
+            _gen_root_src = src;
+        }
         if not src.is_file() {
             console.error(f"NATIVE SEAL: missing source {src}");
             return None;
@@ -812,6 +833,10 @@ def seal_native_artifacts(
         }
 
         layout_dict = native_layout_to_dict(layout);
+        _seal_layouts[rel] = layout_dict;
+        if rel == "compiler/native_materialize.jac" and _mat_manifest is not None {
+            layout_dict["materialize_manifest"] = _mat_manifest;
+        }
         _stub_syms = set(seal_abort_stubs(llvm_ir_text));
         accessor_syms: set[str] = set();
         for _sd in layout_dict["structs"].values() {
@@ -881,6 +906,10 @@ def seal_native_artifacts(
             "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest()
         };
         artifacts[fullname] = entry;
+        if _gen_root_src is not None and rel == "compiler/native_materialize.jac" {
+            _gen_root_src.unlink(missing_ok=True);
+            _gen_root_src = None;
+        }
         console.print(
             f"  Native artifact: {fullname} -> {lib_path.name} "
             f"({lib_path.stat().st_size:,} bytes, {len(exports)} exports)"

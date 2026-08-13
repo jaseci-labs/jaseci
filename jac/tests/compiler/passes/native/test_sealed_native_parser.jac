@@ -95,7 +95,9 @@ def _build_binding -> tuple {
     }
     out_dir = Path(tempfile.mkdtemp(prefix="jac_sealed_parser_"));
     artifacts = seal_native_artifacts(
-        PKG_PATH, out_dir, modules=("compiler/native_materialize.jac", )
+        PKG_PATH,
+        out_dir,
+        modules=("jac0core/unitree.jac", "compiler/native_materialize.jac", )
     );
     assert artifacts , (
         "seal_native_artifacts refused the materializer root on this platform"
