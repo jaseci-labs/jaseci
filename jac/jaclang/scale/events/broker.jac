@@ -9,9 +9,6 @@ def starts_at_earliest(start_from: any) -> bool {
     return token == StreamPosition.EARLIEST.value;
 }
 
-glob _POSITIONAL_KINDS = {'POSITIONAL_ONLY', 'POSITIONAL_OR_KEYWORD'},
-     _VARIADIC_KINDS = {'VAR_POSITIONAL', 'VAR_KEYWORD'};
-
 obj Event {
     has event_type: str = "",
         data: dict[str, any] = {},
@@ -36,6 +33,9 @@ obj HealthStatus {
         broker: str,
         details: dict[str, any] = {};
 }
+
+glob _POSITIONAL_KINDS = {'POSITIONAL_ONLY', 'POSITIONAL_OR_KEYWORD'},
+     _VARIADIC_KINDS = {'VAR_POSITIONAL', 'VAR_KEYWORD'};
 
 obj MethodParam {
     has name: str,
