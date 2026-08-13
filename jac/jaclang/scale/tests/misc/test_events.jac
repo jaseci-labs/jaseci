@@ -317,7 +317,7 @@ def _interface_methods -> list[str] {
 """Every broker implementation that ships in jaclang.scale.events.streams."""
 def _shipped_brokers -> list[type] {
     found: list[type] = [];
-    pending: list = list(EventStreamBroker.__subclasses__());
+    pending: list = list(getattr(EventStreamBroker, "__subclasses__")());
     while pending {
         candidate = pending.pop();
         pending.extend(candidate.__subclasses__());
@@ -334,8 +334,8 @@ def _shipped_brokers -> list[type] {
 test "every shipped broker matches the interface signatures" {
     brokers = _shipped_brokers();
     found = sorted([b.__name__ for b in brokers]);
-    assert LocalEventStream.__name__ in found , f"discovery found only {found}";
-    assert PgEventStream.__name__ in found , f"discovery found only {found}";
+    assert LocalEventStream in brokers , f"discovery found only {found}";
+    assert PgEventStream in brokers , f"discovery found only {found}";
 
     methods = _interface_methods();
     assert "consume" in methods , f"interface methods not discovered: {methods}";

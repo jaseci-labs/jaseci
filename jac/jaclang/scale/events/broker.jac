@@ -1,4 +1,4 @@
-import from typing { Callable }
+import from typing { Callable, cast }
 import from datetime { datetime, UTC }
 import uuid;
 
@@ -145,7 +145,7 @@ def _assert_signature_parity(broker_cls: type) {
 obj EventStreamBroker {
     class def __init_subclass__(**kwargs: object) {
         super.__init_subclass__(**kwargs);
-        _assert_signature_parity(cls);
+        _assert_signature_parity(cast(type, cls));
     }
 
     def start -> None;
