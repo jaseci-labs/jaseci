@@ -12,7 +12,7 @@ glob registry = get_registry();
             "action",
             kind=ArgKind.POSITIONAL,
             default="status",
-            help="Action: status, serve, stop, inspect, sql, list, drop, prune"
+            help="Action: status, serve, stop, inspect, sql, fetch, list, drop, prune"
         ),
         Arg.create(
             "query",
@@ -62,6 +62,10 @@ glob registry = get_registry();
         ("jac db drop jac_app_1a2b3c4d -y", "Drop one database by name"),
         ("jac db serve", "Run Postgres in the foreground (pod / container mode)"),
         ("jac db stop", "Stop the shared embedded server"),
+        (
+            "jac db fetch",
+            "Pre-download the embedded Postgres distribution (air-gapped / image builds)"
+        ),
 
     ],
     group="db"

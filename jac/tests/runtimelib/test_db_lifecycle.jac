@@ -28,7 +28,11 @@ glob APP = "node Item {\n"
      "    root ++> Item(name=\"x\");\n"
      "    print(\"items\", len([root-->]));\n"
      "}\n",
-     BARE_APP = "with entry {\n    print(\"items 0\");\n}\n";
+     # Reads root and writes nothing, so the database exists but holds only the
+     # system root. It has to touch the graph at all: since #8101 the embedded
+     # Postgres boots lazily, so a program that merely prints creates no
+     # database for these fixtures to find.
+     BARE_APP = "with entry {\n    print(\"items\", len([root-->]));\n}\n";
 
 
 obj Cluster {

@@ -1,11 +1,6 @@
 impl JScaleExecutionContext.init(self: JScaleExecutionContext) -> None {
     import os;
-    import from jaclang.jac0core.constructs {
-        Anchor,
-        NodeAnchor,
-        PermissionDenied,
-        Root
-    }
+    import from jaclang.jac0core.constructs { PermissionDenied }
     import from jaclang.jac0core.runtime { JacRuntime }
     import from jaclang.runtimelib.session {
         Session,
@@ -19,8 +14,11 @@ impl JScaleExecutionContext.init(self: JScaleExecutionContext) -> None {
     url = scale_db_url();
     if url and not os.environ.get('JAC_DB_URL') {
         import from jaclang.runtimelib.store { PgStore }
-        store = PgStore(conninfo=conninfo_from_url(url));
-        store.ensure_schema(promotions_for(base));
+        store = PgStore(
+            conninfo=conninfo_from_url(url),
+            promotions=promotions_for(base),
+            auto_schema=True
+        );
         self.mem = Session(store=store, base_path=base, target_path=target);
     } else {
         self.mem = Session(base_path=base, target_path=target);
@@ -30,21 +28,5 @@ impl JScaleExecutionContext.init(self: JScaleExecutionContext) -> None {
     self.pending_effects = [];
     self.read_versions = {};
     self.custom: any = MISSING;
-    system_root_anchor: (Anchor | None) = None;
-    self.mem.read_scope_enter();
-    try {
-        system_root_anchor = self.mem.get(UUID(Con.SUPER_ROOT_UUID));
-    } finally {
-        self.mem.read_scope_exit();
-    }
-    if not isinstance(system_root_anchor, NodeAnchor) {
-        system_root_anchor = Root().__jac__;
-        system_root_anchor.id = UUID(Con.SUPER_ROOT_UUID);
-        self.mem.put(system_root_anchor);
-    }
-    self.system_root = system_root_anchor;
-
-    self.user_root = self.system_root;
-    self.entry_node = self.system_root;
     self.call_state: ContextVar[CallState] = ContextVar('call_state');
 }

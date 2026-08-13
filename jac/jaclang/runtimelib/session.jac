@@ -83,6 +83,7 @@ obj Session {
         _lock: threading.RLock postinit,
         _fetch_count: int postinit,
         _active_units: int postinit,
+        _flushing: (int | None) postinit,
         _read_scopes: int postinit,
         _snapshot_reads: set[UUID] postinit;
 
@@ -128,6 +129,7 @@ obj Session {
     def read_scope_exit -> None;
     def on_commit(callback: Callable) -> None;
     def flush(full: bool = False) -> None;
+    def _flush_locked(full: bool) -> None;
     def read_barrier -> None;
     def _recover_conflict -> None;
     def _ensure_txn -> None;

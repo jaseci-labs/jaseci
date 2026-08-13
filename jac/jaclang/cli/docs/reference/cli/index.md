@@ -70,7 +70,7 @@ A task-first index into the commands below. The full alphabetical list follows i
 | `jac guide` | Show curated Jac reference guides |
 | `jac lsp` | Language server |
 | `jac setup` | Setup client build target (jac-client) |
-| `jac db` | Manage the project's Postgres store (embedded or external): status, inspect, sql, serve, stop |
+| `jac db` | Manage the project's Postgres store (embedded or external): status, inspect, sql, serve, stop, fetch |
 
 ---
 
@@ -1075,6 +1075,16 @@ Stop the shared embedded server.
 ```bash
 jac db stop
 ```
+
+### jac db fetch
+
+Download the embedded Postgres distribution into the cache and print where it landed. The runtime does this on demand, so this command exists for the cases where "on demand" is too late: baking the binaries into a container image, or priming a host that will later run offline.
+
+```bash
+jac db fetch
+```
+
+Set `JAC_PG_DIST` to an already-populated distribution directory (one containing `bin/postgres`) to use it instead of the cache -- that is how the official image ships the binaries. See [Persistence & Schema Migration](../persistence.md#the-embedded-engine-in-containers) for the container rules.
 
 ## Configuration Management
 
