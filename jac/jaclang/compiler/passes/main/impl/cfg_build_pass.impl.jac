@@ -204,7 +204,9 @@ impl CoalesceBBPass._node_label(nd: uni.UniNode) -> str {
 impl CoalesceBBPass.enter_node(nd: uni.UniNode) -> None {
     is_cfg_node = (
         isinstance(nd, (uni.CodeBlockStmt, uni.Archetype))
-        and not isinstance(nd, uni.Semi)
+        and not isinstance(
+            nd, (uni.Semi, uni.ModuleCode, uni.GlobalVars, uni.SemDef, uni.TypeAlias)
+        )
         and not _is_structural_child(nd)
     );
 
@@ -556,7 +558,9 @@ impl _is_structural_child(nd: uni.UniNode) -> bool {
 impl CFGBuildPass.enter_node(nd: uni.UniNode) -> None {
     import from jaclang.compiler.symbol_utils { collect_assigned_symbols }
     if isinstance(nd, (uni.CodeBlockStmt, uni.Archetype))
-        and not isinstance(nd, uni.Semi)
+        and not isinstance(
+            nd, (uni.Semi, uni.ModuleCode, uni.GlobalVars, uni.SemDef, uni.TypeAlias)
+        )
         and not _is_structural_child(nd) {
         nd.affected_symbols.update(collect_assigned_symbols(nd));
     }
