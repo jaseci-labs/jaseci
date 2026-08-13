@@ -139,7 +139,7 @@ def same_expr(a: expr, b: expr) -> bool {
     return False;
 }
 
-def assert_parse_matches(source: str, expected: expr) -> None {
+def assert_parse_matches(source: str, expected: expr) {
     got = parse_eval_expr(source, "<parser-test>");
     assert got is not None;
     assert same_expr(got, expected);

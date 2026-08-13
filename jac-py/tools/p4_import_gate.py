@@ -54,6 +54,9 @@ PRODUCT_PREFIXES = (
     "assembler",
     "flowgraph",
     "compiler",
+    "compiler_diagnostics",
+    "compiler_validate",
+    "compiler_symtable",
 )
 
 # Forbidden in product modules: host bootstrap imports and obvious host API use.

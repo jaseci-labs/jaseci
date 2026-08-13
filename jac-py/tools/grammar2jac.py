@@ -222,7 +222,7 @@ class JacCallMakerVisitor(GrammarVisitor):
             if node.value.endswith("'"):
                 kw = self.gen.keywords[val]
                 return "kw", f"peg_expect_token(p, {kw})"
-            return "soft", f"peg_expect_soft_keyword(p, {node.value.replace('\"', '')})"
+            return "soft", f"peg_expect_soft_keyword(p, {node.value})"
         tok = self.exact_tokens[val]
         return "lit", f"peg_expect_token(p, {tok})"
 
@@ -390,7 +390,15 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         self.print('"""')
         self.print("")
         self.print("import from token_model {")
-        self.print("    ENDMARKER, NAME, NUMBER, STRING, OP, NT_OFFSET, NEWLINE, TYPE_COMMENT,")
+        self.print(
+            "    ENDMARKER, NAME, NUMBER, STRING, OP, NT_OFFSET, NEWLINE, TYPE_COMMENT,"
+        )
+        self.print(
+            "    INDENT, DEDENT, FSTRING_START, FSTRING_MIDDLE, FSTRING_END,"
+        )
+        self.print(
+            "    TSTRING_START, TSTRING_MIDDLE, TSTRING_END,"
+        )
         self.print("}")
         self.print("import from peg_runtime {")
         self.print("    peg_parser, peg_parser_from_source, peg_set_keywords,")

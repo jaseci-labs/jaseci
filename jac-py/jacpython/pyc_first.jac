@@ -986,7 +986,7 @@ import from opcode_meta {
     OP_LOAD_CLOSURE,
     OP_LOAD_FAST,
     OP_LOAD_FAST_BORROW,
-    OP_LOAD_FAST_BORROW_2,
+    OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW,
     OP_LOAD_FAST_LOAD_FAST,
     OP_LOAD_GLOBAL,
     OP_LOAD_NAME,
@@ -6327,7 +6327,7 @@ def run_frame(frame: PyFrame) -> PyObj {
             assigned[second_index] = True;
             continue;
         }
-        if op == OP_LOAD_FAST_BORROW_2 or op == OP_LOAD_FAST_LOAD_FAST {
+        if op == OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW or op == OP_LOAD_FAST_LOAD_FAST {
             first = arg // 16;
             second = arg % 16;
             first_result = fast_value(co, first, fast, cells, closure);

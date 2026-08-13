@@ -11,7 +11,7 @@
 #
 # Test harness only: host_oracle is used solely to produce the expected PyCode.
 
-import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, is_error }
+import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, is_error, PyError }
 import from product_compile { compile_source }
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code }
@@ -43,7 +43,7 @@ def consts_equal(a: list[PyObj], b: list[PyObj]) -> bool {
 # Byte-exact slice: co_code, tables, stack depth, PEP 626 linetable. Oracle
 # marshal currently mis-loads co_flags (pyc_first read_code); skip flags until
 # that lands -- same carve-out as compiler_slice.assert_matches_oracle.
-def assert_matches_oracle(source: str, filename: str = "<f>") -> None {
+def assert_matches_oracle(source: str, filename: str = "<f>") {
     actual = product_eval(source, filename);
     assert not is_error(actual);
     assert isinstance(actual, PyCode);
@@ -110,6 +110,7 @@ test "layer8: a*b+c executes in ceval" {
         "a": PyInt(t="int", val=2),
         "b": PyInt(t="int", val=3),
         "c": PyInt(t="int", val=4),
+
     };
     out = exec_code(co as PyCode, [], ns);
     assert not is_error(out);
@@ -119,7 +120,9 @@ test "layer8: a*b+c executes in ceval" {
 
 test "layer8: f(x,1) executes in ceval" {
     setup = unmarshal(
-        host_compile_marshal("def f(x, y):\n    return x * 10 + y\n", "<setup>", "exec", 0)
+        host_compile_marshal(
+            "def f(x, y):\n    return x * 10 + y\n", "<setup>", "exec", 0
+        )
     );
     ns: dict[str, PyObj] = {};
     setup_out = exec_code(setup, [], ns);
@@ -138,6 +141,7 @@ test "layer8: x<y<z executes in ceval (true chain)" {
         "x": PyInt(t="int", val=1),
         "y": PyInt(t="int", val=2),
         "z": PyInt(t="int", val=3),
+
     };
     out = exec_code(co as PyCode, [], ns);
     assert not is_error(out);
@@ -151,6 +155,7 @@ test "layer8: x<y<z executes in ceval (short-circuit false)" {
         "x": PyInt(t="int", val=1),
         "y": PyInt(t="int", val=5),
         "z": PyInt(t="int", val=3),
+
     };
     out = exec_code(co as PyCode, [], ns);
     assert not is_error(out);
@@ -163,6 +168,6 @@ test "layer8: x<y<z executes in ceval (short-circuit false)" {
 test "layer8: parse error returns SyntaxError PyObj" {
     res = compile_source("1+", "<f>", "eval", 0);
     assert is_error(res);
-    assert (res as any).exception.type_name == "SyntaxError";
+    assert isinstance(res, PyError);
+    assert (res as PyError).exception.type_name == "SyntaxError";
 }
-

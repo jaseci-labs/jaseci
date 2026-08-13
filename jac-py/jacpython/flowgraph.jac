@@ -17,35 +17,31 @@ import from opcode_meta {
     OP_POP_JUMP_IF_TRUE,
     OP_POP_JUMP_IF_NONE,
     OP_POP_JUMP_IF_NOT_NONE,
-    OP_LOAD_NAME,
-    OP_LOAD_ATTR,
-    OP_STORE_NAME,
-    OP_STORE_ATTR,
-    OP_STORE_SUBSCR,
-    OP_DELETE_NAME,
-    OP_DELETE_ATTR,
-    OP_DELETE_SUBSCR,
-    OP_BINARY_OP,
-    OP_COMPARE_OP,
-    OP_CALL,
-    OP_POP_TOP,
-    OP_RETURN_VALUE,
-    OP_PUSH_NULL,
-    OP_COPY,
-    OP_SWAP,
-    OP_TO_BOOL,
+    OP_END_ASYNC_FOR,
+    stack_effect,
+    has_target,
+    is_unconditional_jump_opcode,
+    is_scope_exit_opcode,
 }
 import from compiler_ir {
-    compile_unit,
+    unverified_cfg,
+    basicblock,
     cinstr,
     mk_instr,
     instr_size_codeunits,
 }
+import from compiler_diagnostics {
+    compiler_diagnostic,
+    internal_compiler_diagnostic,
+}
 
-# Output of prepare_cfg: flat IR plus verified stack depth.
-obj prepared_cfg {
-    has flat: list[cinstr],
-        stacksize: int;
+# Verified CFG: flat instruction stream with stack depth, ready for assembly.
+# Phase 3 adds hard errors on underflow and inconsistent joins via diag.
+obj verified_cfg {
+    has unit: unverified_cfg,
+        flat: list[cinstr],
+        stacksize: int,
+        diag: compiler_diagnostic | None = None;
 }
 
 # Intermediate flatten result.
@@ -71,7 +67,7 @@ def is_conditional_jump(opcode: int) -> bool {
 }
 
 # Lay blocks out in allocation order and record each block's code-unit start.
-def flatten_blocks(u: compile_unit) -> flatten_result {
+def flatten_blocks(u: unverified_cfg) -> flatten_result {
     flat: list[cinstr] = [];
     block_starts: list[int] = [];
     cur = 0;
@@ -96,7 +92,7 @@ def flatten_blocks(u: compile_unit) -> flatten_result {
 
 # CPython flowgraph.c: after each forward conditional jump, insert NOT_TAKEN
 # (backward jump reversal is deferred to a later slice).
-def normalize_jumps(u: compile_unit) -> None {
+def normalize_jumps(u: unverified_cfg) {
     bi = 0;
     while bi < len(u.blocks) {
         b = u.blocks[bi];
@@ -119,7 +115,7 @@ def normalize_jumps(u: compile_unit) -> None {
 
 # POP_JUMP_* targets are forward code-unit offsets from the next instruction:
 #   ip += 2 * oparg. target_block ids map to block starts laid out in order.
-def resolve_jump_offsets(flat: list[cinstr], block_starts: list[int]) -> None {
+def resolve_jump_offsets(flat: list[cinstr], block_starts: list[int]) {
     offsets: list[int] = [];
     cur = 0;
     i = 0;
@@ -142,7 +138,7 @@ def resolve_jump_offsets(flat: list[cinstr], block_starts: list[int]) -> None {
 
 # CPython's maybe_instr_make_load_smallint rewrites LOAD_CONST <int in 0..255> to
 # LOAD_SMALL_INT <value>. The const remains in the table (now unreferenced).
-def rewrite_small_ints(u: compile_unit, flat: list[cinstr]) -> None {
+def rewrite_small_ints(u: unverified_cfg, flat: list[cinstr]) {
     i = 0;
     while i < len(flat) {
         ins = flat[i];
@@ -162,83 +158,188 @@ def rewrite_small_ints(u: compile_unit, flat: list[cinstr]) -> None {
     }
 }
 
-# Net stack effect of one instruction for the expression-slice opcode set.
-def stack_effect(ins: cinstr) -> int {
-    op = ins.opcode;
-    if op == OP_LOAD_NAME or op == OP_LOAD_CONST or op == OP_LOAD_SMALL_INT
-    or op == OP_PUSH_NULL {
-        return 1;
+glob UNSET_STARTDEPTH: int = -1000000;
+
+def block_last_instr(b: basicblock) -> cinstr | None {
+    if len(b.instrs) == 0 {
+        return None;
     }
-    if op == OP_LOAD_ATTR {
-        return 0;
-    }
-    if op == OP_STORE_NAME {
-        return -1;
-    }
-    if op == OP_STORE_ATTR {
-        return -2;
-    }
-    if op == OP_STORE_SUBSCR {
-        return -3;
-    }
-    if op == OP_DELETE_NAME {
-        return 0;
-    }
-    if op == OP_DELETE_ATTR {
-        return -1;
-    }
-    if op == OP_DELETE_SUBSCR {
-        return -2;
-    }
-    if op == OP_BINARY_OP or op == OP_COMPARE_OP {
-        return -1;
-    }
-    if op == OP_CALL {
-        return -(ins.oparg + 1);
-    }
-    if op == OP_POP_TOP or op == OP_RETURN_VALUE {
-        return -1;
-    }
-    if op == OP_POP_JUMP_IF_FALSE or op == OP_POP_JUMP_IF_TRUE
-    or op == OP_POP_JUMP_IF_NONE or op == OP_POP_JUMP_IF_NOT_NONE {
-        return -1;
-    }
-    if op == OP_COPY {
-        return 1;
-    }
-    if op == OP_SWAP or op == OP_TO_BOOL {
-        return 0;
-    }
-    # RESUME, UNARY_*, CACHE, NOT_TAKEN, NOP, EXTENDED_ARG: no net effect.
-    return 0;
+    return b.instrs[len(b.instrs) - 1];
 }
 
-# Linear stack-depth scan (CFG join verification deferred to a later slice).
-def verify_stackdepth(flat: list[cinstr]) -> int {
-    depth = 0;
-    maxd = 0;
+def block_has_fallthrough(b: basicblock) -> bool {
+    last = block_last_instr(b);
+    if last is None {
+        return True;
+    }
+    if is_scope_exit_opcode(last.opcode) or is_unconditional_jump_opcode(last.opcode) {
+        return False;
+    }
+    return True;
+}
+
+def find_block(u: unverified_cfg, block_id: int) -> basicblock | None {
     i = 0;
-    while i < len(flat) {
-        depth = depth + stack_effect(flat[i]);
-        if depth > maxd {
-            maxd = depth;
-        }
-        if depth < 0 {
-            depth = 0;
+    while i < len(u.blocks) {
+        if u.blocks[i].id == block_id {
+            return u.blocks[i];
         }
         i = i + 1;
     }
-    return maxd;
+    return None;
 }
 
-# Full CFG preparation pipeline (PLAN.md P0.11).
-def prepare_cfg(u: compile_unit) -> prepared_cfg {
+def stackdepth_diag(kind: str, message: str) -> internal_compiler_diagnostic {
+    return internal_compiler_diagnostic(kind=kind, message=message);
+}
+
+def stackdepth_push(
+    startdepths: list[int], work: list[int], b: basicblock, depth: int
+) -> bool {
+    idx = b.id;
+    if idx < 0 or idx >= len(startdepths) {
+        return False;
+    }
+    cur = startdepths[idx];
+    if cur != UNSET_STARTDEPTH and cur != depth {
+        return False;
+    }
+    if cur == UNSET_STARTDEPTH {
+        startdepths[idx] = depth;
+        work.append(idx);
+    }
+    return True;
+}
+
+# CPython flowgraph.c calculate_stackdepth: worklist over block edges with
+# generated stack_effect metadata (INTEGRATION_PLAN Phase 3).
+def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | None] {
+    if len(u.blocks) == 0 {
+        return (0, None);
+    }
+    n = len(u.blocks);
+    startdepths: list[int] = [];
+    i = 0;
+    while i < n {
+        startdepths.append(UNSET_STARTDEPTH);
+        i = i + 1;
+    }
+    work: list[int] = [];
+    maxdepth = 0;
+    entry = u.blocks[0];
+
+    if not stackdepth_push(startdepths, work, entry, 0) {
+        return (0, stackdepth_diag("ValueError", "Invalid CFG, inconsistent stackdepth"));
+    }
+    while len(work) > 0 {
+        bid = work[len(work) - 1];
+        work = work[0 : len(work) - 1];
+        b = find_block(u, bid);
+        if b is None {
+            return (0, stackdepth_diag("ValueError", "Invalid CFG, missing basic block"));
+        }
+        depth = startdepths[bid];
+        next_id = b.id + 1;
+        next_blk = None;
+        if next_id < n {
+            next_blk = find_block(u, next_id);
+        }
+        ii = 0;
+        while ii < len(b.instrs) {
+            ins = b.instrs[ii];
+            eff = stack_effect(ins.opcode, ins.oparg, 0);
+            if eff is None {
+                return (
+                    0,
+                    stackdepth_diag(
+                        "SystemError",
+                        "Invalid stack effect for opcode="
+                            + str(ins.opcode)
+                            + ", arg="
+                            + str(ins.oparg)
+                    )
+                );
+            }
+            new_depth = depth + eff;
+            if new_depth < 0 {
+                return (0, stackdepth_diag("ValueError", "Invalid CFG, stack underflow"));
+            }
+            if new_depth > maxdepth {
+                maxdepth = new_depth;
+            }
+            if has_target(ins.opcode) and ins.opcode != OP_END_ASYNC_FOR {
+                if ins.target_block < 0 {
+                    return (
+                        0,
+                        stackdepth_diag("ValueError", "Invalid CFG, jump missing target block")
+                    );
+                }
+                target = find_block(u, ins.target_block);
+                if target is None {
+                    return (
+                        0,
+                        stackdepth_diag("ValueError", "Invalid CFG, invalid jump target")
+                    );
+                }
+                jeff = stack_effect(ins.opcode, ins.oparg, 1);
+                if jeff is None {
+                    return (
+                        0,
+                        stackdepth_diag(
+                            "SystemError",
+                            "Invalid stack effect for opcode="
+                                + str(ins.opcode)
+                                + ", arg="
+                                + str(ins.oparg)
+                        )
+                    );
+                }
+                target_depth = depth + jeff;
+                if target_depth < 0 {
+                    return (0, stackdepth_diag("ValueError", "Invalid CFG, stack underflow"));
+                }
+                if target_depth > maxdepth {
+                    maxdepth = target_depth;
+                }
+                if not stackdepth_push(startdepths, work, target, target_depth) {
+                    return (
+                        0,
+                        stackdepth_diag("ValueError", "Invalid CFG, inconsistent stackdepth")
+                    );
+                }
+            }
+            depth = new_depth;
+            if is_unconditional_jump_opcode(ins.opcode) or is_scope_exit_opcode(ins.opcode) {
+                next_blk = None;
+                break;
+            }
+            ii = ii + 1;
+        }
+        if next_blk is not None and block_has_fallthrough(b) {
+            if not stackdepth_push(startdepths, work, next_blk, depth) {
+                return (
+                    0,
+                    stackdepth_diag("ValueError", "Invalid CFG, inconsistent stackdepth")
+                );
+            }
+        }
+    }
+    return (maxdepth, None);
+}
+
+# UnverifiedCFG -> VerifiedCFG (Phase 2 contract; Phase 3 worklist stack proof).
+def verify_cfg(u: unverified_cfg) -> verified_cfg {
     normalize_jumps(u);
+    sd = calculate_stackdepth(u);
+    stacksize = sd[0];
+    sdiag = sd[1];
+    if sdiag is not None {
+        return verified_cfg(unit=u, flat=[], stacksize=0, diag=sdiag);
+    }
     fr = flatten_blocks(u);
     flat = fr.flat;
     block_starts = fr.block_starts;
     resolve_jump_offsets(flat, block_starts);
     rewrite_small_ints(u, flat);
-    stacksize = verify_stackdepth(flat);
-    return prepared_cfg(flat=flat, stacksize=stacksize);
+    return verified_cfg(unit=u, flat=flat, stacksize=stacksize);
 }

@@ -221,8 +221,8 @@ def pa_ast_binop(
         left=left,
         op=op,
         right=right,
-        lineno=lineno,
-        col_offset=col_offset,
+        lineno=left.lineno,
+        col_offset=left.col_offset,
         end_lineno=end_lineno,
         end_col_offset=end_col_offset
     );
@@ -254,11 +254,17 @@ def pa_ast_boolop(
     end_lineno: int,
     end_col_offset: int
 ) -> BoolOp {
+    start_lineno = lineno;
+    start_col = col_offset;
+    if len(values) > 0 {
+        start_lineno = values[0].lineno;
+        start_col = values[0].col_offset;
+    }
     return BoolOp(
         op=op,
         values=values,
-        lineno=lineno,
-        col_offset=col_offset,
+        lineno=start_lineno,
+        col_offset=start_col,
         end_lineno=end_lineno,
         end_col_offset=end_col_offset
     );
@@ -277,8 +283,8 @@ def pa_ast_compare(
         left=left,
         ops=ops,
         comparators=comparators,
-        lineno=lineno,
-        col_offset=col_offset,
+        lineno=left.lineno,
+        col_offset=left.col_offset,
         end_lineno=end_lineno,
         end_col_offset=end_col_offset
     );
@@ -297,8 +303,8 @@ def pa_ast_call(
         func=func,
         args=args,
         keywords=keywords,
-        lineno=lineno,
-        col_offset=col_offset,
+        lineno=func.lineno,
+        col_offset=func.col_offset,
         end_lineno=end_lineno,
         end_col_offset=end_col_offset
     );
@@ -801,9 +807,9 @@ def pa_dummy_name(lineno: int, col_offset: int, end_lineno: int, end_col_offset:
 }
 def pa_interactive_exit(p: peg_parser) -> list[stmt] { return []; }
 def pa_aug_op(target: expr) -> operator { return Add(); }
-def pa_call_args(node: expr) -> list[expr] { return []; }
-def pa_call_keywords(node: expr) -> list[keyword] { return []; }
-def pa_comp_field(node: expr, field: str) -> expr { return node; }
+def pa_call_args(`node: expr) -> list[expr] { return []; }
+def pa_call_keywords(`node: expr) -> list[keyword] { return []; }
+def pa_comp_field(`node: expr, field: str) -> expr { return `node; }
 def pa_seq_first(seq: list[object]) -> expr | None { return None; }
 def pa_seq_last(seq: list[object]) -> expr | None { return None; }
 def pa_seq_len(seq: list[object]) -> int { return len(seq); }
@@ -812,9 +818,9 @@ def pa_or_pattern_singleton(patterns: list[pattern], lineno: int, col_offset: in
     return MatchOr(patterns=patterns, lineno=lineno, col_offset=col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
 }
 def pa_err_occurred(p: peg_parser) -> bool { return peg_has_error(p); }
-def pa_expr_lineno(node: expr) -> int { return node.lineno; }
-def pa_expr_end_col_offset(node: expr) -> int { return node.end_col_offset; }
-def pa_expr_end_lineno(node: expr) -> int { return node.end_lineno; }
+def pa_expr_lineno(`node: expr) -> int { return `node.lineno; }
+def pa_expr_end_col_offset(`node: expr) -> int { return `node.end_col_offset; }
+def pa_expr_end_lineno(`node: expr) -> int { return `node.end_lineno; }
 
 def pa_raise_syntax(p: peg_parser, on_next: bool, message: str) -> None {
     if peg_has_error(p) { return None; }
@@ -822,7 +828,7 @@ def pa_raise_syntax(p: peg_parser, on_next: bool, message: str) -> None {
     return None;
 }
 
-def pa_raise_syntax_known_expr(p: peg_parser, on_next: bool, node: expr, message: str) -> None {
+def pa_raise_syntax_known_expr(p: peg_parser, on_next: bool, `node: expr, message: str) -> None {
     return pa_raise_syntax(p, on_next, message);
 }
 
@@ -830,15 +836,15 @@ def pa_raise_syntax_known_range(p: peg_parser, on_next: bool, a: expr, b: expr, 
     return pa_raise_syntax(p, on_next, message);
 }
 
-def pa_raise_invalid_target(p: peg_parser, kind: object, node: expr) -> None {
+def pa_raise_invalid_target(p: peg_parser, kind: object, `node: expr) -> None {
     return pa_raise_syntax(p, False, "invalid assignment target");
 }
 
-def pa_raise_type_param_error(colon: object, node: expr, is_tuple: bool) -> None {
+def pa_raise_type_param_error(colon: object, `node: expr, is_tuple: bool) -> None {
     return None;
 }
 
-def pa_raise_kvpair_error(p: peg_parser, node: expr) -> None {
+def pa_raise_kvpair_error(p: peg_parser, `node: expr) -> None {
     return pa_raise_syntax(p, False, "':' expected after dictionary key");
 }
 
@@ -846,24 +852,24 @@ def pa_check_legacy_stmt_or_raise(p: peg_parser, a: object, b: object) -> None {
 
 def pa_checked_future_import(module: object, names: object, level: object) -> object { return None; }
 def pa_nonparen_genexp_in_call(a: object, b: object) -> object { return None; }
-def pa_arguments_parsing_error(node: object) -> object { return None; }
-def pa_check_legacy_stmt(p: peg_parser, node: object) -> bool { return False; }
+def pa_arguments_parsing_error(`node: object) -> object { return None; }
+def pa_check_legacy_stmt(p: peg_parser, `node: object) -> bool { return False; }
 def pa_concatenate_strings(parts: list[object]) -> expr | None { return None; }
 def pa_concatenate_tstrings(parts: list[object]) -> expr | None { return None; }
 def pa_constant_from_string(spelling: str) -> Constant | None { return None; }
 def pa_constant_from_token(tok: peg_token | None) -> Constant | None { return None; }
 def pa_decoded_constant_from_token(tok: peg_token | None) -> Constant | None { return None; }
-def pa_ensure_imaginary(node: expr) -> expr { return node; }
-def pa_ensure_real(node: expr) -> expr { return node; }
-def pa_get_expr_name(node: expr) -> str { return ""; }
-def pa_get_last_comprehension_item(node: object) -> object { return None; }
+def pa_ensure_imaginary(`node: expr) -> expr { return `node; }
+def pa_ensure_real(`node: expr) -> expr { return `node; }
+def pa_get_expr_name(`node: expr) -> str { return ""; }
+def pa_get_last_comprehension_item(`node: object) -> object { return None; }
 def pa_join_names_with_dot(a: expr, b: expr) -> expr { return a; }
 def pa_join_sequences(a: list[object], b: list[object]) -> list[object] { return a; }
-def pa_alias_for_star(node: object) -> alias | None { return None; }
+def pa_alias_for_star(`node: object) -> alias | None { return None; }
 def pa_add_type_comment_to_arg(arg: arg, comment: object) -> arg { return arg; }
 def pa_seq_delete_starred_exprs(seq: list[object]) -> list[object] { return seq; }
 def pa_seq_extract_starred_exprs(seq: list[object]) -> list[object] { return seq; }
-def pa_setup_full_format_spec(node: object) -> object { return node; }
+def pa_setup_full_format_spec(`node: object) -> object { return `node; }
 def pa_check_fstring_conversion(a: object, b: object) -> object { return a; }
 def pa_function_def_decorators(decs: list[expr], stmt: stmt) -> stmt { return stmt; }
 def pa_class_def_decorators(decs: list[expr], stmt: stmt) -> stmt { return stmt; }
@@ -873,8 +879,8 @@ def pa_key_value_pair(key: expr, value: expr, lineno: int, col_offset: int, end_
 def pa_key_pattern_pair(key: expr, pat: pattern, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_key_pattern_pair {
     return pa_key_pattern_pair(key=key, pattern=pat);
 }
-def pa_name_default_pair(arg: arg, default: expr | None, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_name_default_pair {
-    return pa_name_default_pair(arg=arg, default=default);
+def pa_name_default_pair(arg: arg, `default: expr | None, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_name_default_pair {
+    return pa_name_default_pair(arg=arg, default=`default);
 }
 def pa_keyword_or_starred(arg: str | None, value: expr, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_keyword_or_starred {
     return pa_keyword_or_starred(arg=arg, value=value);

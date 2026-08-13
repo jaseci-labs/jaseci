@@ -9,6 +9,8 @@
 
 import from objects { PyObj }
 import from opcode_meta { opcode_cache_count }
+import from compiler_diagnostics { compiler_diagnostic }
+import from compiler_symtable { sym_block }
 
 # A source location. lineno/end_lineno are 1-based; col_offset/end_col_offset are
 # 0-based. Matches CPython's `location` struct (Python/compile.c).
@@ -72,6 +74,46 @@ def mk_jump(opcode: int, target: int, lc: cloc) -> cinstr {
     return cinstr(opcode=opcode, oparg=0, loc=lc, target_block=target);
 }
 
+# CFG builder: owns the current block and emits into unverified_cfg (Phase 4).
+obj cfg_builder {
+    has u: unverified_cfg,
+        cur: basicblock,
+        sym_top: sym_block | None = None;
+
+    def emit(ins: cinstr) {
+        self.cur.instrs.append(ins);
+    }
+
+    def emit_op(opcode: int, oparg: int, lc: cloc) {
+        self.emit(mk_instr(opcode, oparg, lc));
+    }
+
+    def emit_jump(opcode: int, target: int, lc: cloc) {
+        self.emit(mk_jump(opcode, target, lc));
+    }
+
+    def new_block -> basicblock {
+        return self.u.add_block();
+    }
+
+    def use(b: basicblock) {
+        self.cur = b;
+    }
+}
+
+def new_cfg_builder(
+    u: unverified_cfg, start_blk: basicblock, sym_top: sym_block | None = None
+) -> cfg_builder {
+    return cfg_builder(u=u, cur=start_blk, sym_top=sym_top);
+}
+
+# Statement lowering result: continuation location and whether the CFG path
+# terminated (no fallthrough to the next statement).
+obj stmt_cont {
+    has loc: cloc,
+        terminated: bool = False;
+}
+
 # A basic block: an ordered instruction list. The assembler lays blocks out in
 # allocation order and resolves each jump's target_block to a code-unit offset.
 obj basicblock {
@@ -79,9 +121,9 @@ obj basicblock {
         instrs: list[cinstr];
 }
 
-# One compile unit == one PyCode. The expression slice is module/eval scope only
-# (no locals, no cells/freevars, no nested code); later bands extend this.
-obj compile_unit {
+# Unverified CFG plus compile metadata from codegen. Flowgraph verification
+# produces verified_cfg; assembly accepts verified CFG only (Phase 2 contract).
+obj unverified_cfg {
     has filename: str,
         name: str,
         qualname: str,
@@ -97,9 +139,9 @@ obj compile_unit {
         names: list[str] = [],
         blocks: list[basicblock] = [],
         next_block_id: int = 0,
-        # Set by codegen on unsupported nodes / illegal placement; product_compile
-        # checks before assembly (PLAN.md: no silent codegen paths).
-        diag: PyObj | None = None;
+        # Set by codegen on unsupported nodes; product_compile checks before
+        # flowgraph verification (PLAN.md: no silent codegen paths).
+        diag: compiler_diagnostic | None = None;
 
     def add_block -> basicblock {
         b = basicblock(id=self.next_block_id, instrs=[]);

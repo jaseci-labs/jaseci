@@ -17,6 +17,10 @@ import from ast_nodes {
     Compare,
     Assign,
     Return,
+    BoolOp,
+    And,
+    Attribute,
+    Subscript,
     Lt,
     Load,
     Store,
@@ -25,7 +29,10 @@ import from ast_nodes {
     USub,
 }
 import from compiler_codegen { compile_eval, compile_exec }
+import from flowgraph { verify_cfg }
 import from assembler { assemble }
+import from compiler_validate { validate_module_body }
+import from compiler_diagnostics { compiler_diag_kind, compiler_diag_message }
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code }
 
@@ -40,31 +47,23 @@ def oracle_exec(source: str, filename: str) -> PyObj {
 def compile_handbuilt(e: expr, filename: str = "<f>") -> PyCode {
     u = compile_eval(e, filename, "<module>", 1);
     assert u.diag is None;
-    return assemble(u);
+    return assemble(verify_cfg(u));
 }
 
 def compile_handbuilt_exec(body: list[stmt], filename: str = "<f>") -> PyCode {
+    vr = validate_module_body(body);
+    assert vr.diag is None;
     u = compile_exec(body, filename, "<module>", 1);
     assert u.diag is None;
-    return assemble(u);
+    return assemble(verify_cfg(u));
 }
 
 def ast_chained_assign -> list[stmt] {
     x = Name(
-        id="x",
-        ctx=Store(),
-        lineno=1,
-        col_offset=0,
-        end_lineno=1,
-        end_col_offset=1
+        id="x", ctx=Store(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1
     );
     y = Name(
-        id="y",
-        ctx=Store(),
-        lineno=1,
-        col_offset=4,
-        end_lineno=1,
-        end_col_offset=5
+        id="y", ctx=Store(), lineno=1, col_offset=4, end_lineno=1, end_col_offset=5
     );
     one = Constant(
         value=PyInt(t="int", val=1),
@@ -87,6 +86,56 @@ def ast_chained_assign -> list[stmt] {
     ];
 }
 
+def ast_chained_compare_assign_false -> list[stmt] {
+    a = Name(
+        id="a", ctx=Store(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1
+    );
+    one = Constant(
+        value=PyInt(t="int", val=1),
+        kind=None,
+        lineno=1,
+        col_offset=4,
+        end_lineno=1,
+        end_col_offset=5
+    );
+    five = Constant(
+        value=PyInt(t="int", val=5),
+        kind=None,
+        lineno=1,
+        col_offset=8,
+        end_lineno=1,
+        end_col_offset=9
+    );
+    three = Constant(
+        value=PyInt(t="int", val=3),
+        kind=None,
+        lineno=1,
+        col_offset=12,
+        end_lineno=1,
+        end_col_offset=13
+    );
+    cmp = Compare(
+        left=one,
+        ops=[Lt(), Lt()],
+        comparators=[five, three],
+        lineno=1,
+        col_offset=4,
+        end_lineno=1,
+        end_col_offset=13
+    );
+    return [
+        Assign(
+            targets=[a],
+            value=cmp,
+            type_comment=None,
+            lineno=1,
+            col_offset=0,
+            end_lineno=1,
+            end_col_offset=13
+        )
+    ];
+}
+
 def consts_equal(a: list[PyObj], b: list[PyObj]) -> bool {
     if len(a) != len(b) {
         return False;
@@ -101,7 +150,7 @@ def consts_equal(a: list[PyObj], b: list[PyObj]) -> bool {
     return True;
 }
 
-def assert_matches_oracle(e: expr, source: str, filename: str = "<f>") -> None {
+def assert_matches_oracle(e: expr, source: str, filename: str = "<f>") {
     actual = compile_handbuilt(e, filename);
     expected = oracle_eval(source, filename);
     assert isinstance(expected, PyCode);
@@ -125,47 +174,22 @@ def assert_matches_oracle(e: expr, source: str, filename: str = "<f>") -> None {
 
 def ast_neg_x -> expr {
     x = Name(
-        id="x",
-        ctx=Load(),
-        lineno=1,
-        col_offset=1,
-        end_lineno=1,
-        end_col_offset=2
+        id="x", ctx=Load(), lineno=1, col_offset=1, end_lineno=1, end_col_offset=2
     );
     return UnaryOp(
-        op=USub(),
-        operand=x,
-        lineno=1,
-        col_offset=0,
-        end_lineno=1,
-        end_col_offset=2
+        op=USub(), operand=x, lineno=1, col_offset=0, end_lineno=1, end_col_offset=2
     );
 }
 
 def ast_add_mul -> expr {
     a = Name(
-        id="a",
-        ctx=Load(),
-        lineno=1,
-        col_offset=0,
-        end_lineno=1,
-        end_col_offset=1
+        id="a", ctx=Load(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1
     );
     b = Name(
-        id="b",
-        ctx=Load(),
-        lineno=1,
-        col_offset=2,
-        end_lineno=1,
-        end_col_offset=3
+        id="b", ctx=Load(), lineno=1, col_offset=2, end_lineno=1, end_col_offset=3
     );
     c = Name(
-        id="c",
-        ctx=Load(),
-        lineno=1,
-        col_offset=4,
-        end_lineno=1,
-        end_col_offset=5
+        id="c", ctx=Load(), lineno=1, col_offset=4, end_lineno=1, end_col_offset=5
     );
     prod = BinOp(
         left=a,
@@ -189,20 +213,10 @@ def ast_add_mul -> expr {
 
 def ast_call_fx1 -> expr {
     f = Name(
-        id="f",
-        ctx=Load(),
-        lineno=1,
-        col_offset=0,
-        end_lineno=1,
-        end_col_offset=1
+        id="f", ctx=Load(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1
     );
     x = Name(
-        id="x",
-        ctx=Load(),
-        lineno=1,
-        col_offset=2,
-        end_lineno=1,
-        end_col_offset=3
+        id="x", ctx=Load(), lineno=1, col_offset=2, end_lineno=1, end_col_offset=3
     );
     one = Constant(
         value=PyInt(t="int", val=1),
@@ -225,28 +239,13 @@ def ast_call_fx1 -> expr {
 
 def ast_cmp_chain -> expr {
     x = Name(
-        id="x",
-        ctx=Load(),
-        lineno=1,
-        col_offset=0,
-        end_lineno=1,
-        end_col_offset=1
+        id="x", ctx=Load(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1
     );
     y = Name(
-        id="y",
-        ctx=Load(),
-        lineno=1,
-        col_offset=2,
-        end_lineno=1,
-        end_col_offset=3
+        id="y", ctx=Load(), lineno=1, col_offset=2, end_lineno=1, end_col_offset=3
     );
     z = Name(
-        id="z",
-        ctx=Load(),
-        lineno=1,
-        col_offset=4,
-        end_lineno=1,
-        end_col_offset=5
+        id="z", ctx=Load(), lineno=1, col_offset=4, end_lineno=1, end_col_offset=5
     );
     return Compare(
         left=x,
@@ -257,6 +256,141 @@ def ast_cmp_chain -> expr {
         end_lineno=1,
         end_col_offset=5
     );
+}
+
+def ast_cmp_in_call -> expr {
+    f = Name(
+        id="f", ctx=Load(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1
+    );
+    return Call(
+        func=f,
+        args=[ast_cmp_chain()],
+        keywords=[],
+        lineno=1,
+        col_offset=0,
+        end_lineno=1,
+        end_col_offset=10
+    );
+}
+
+def ast_cmp_and_q -> expr {
+    q = Name(
+        id="q", ctx=Load(), lineno=1, col_offset=13, end_lineno=1, end_col_offset=14
+    );
+    return BoolOp(
+        op=And(),
+        values=[ast_cmp_chain(), q],
+        lineno=1,
+        col_offset=0,
+        end_lineno=1,
+        end_col_offset=14
+    );
+}
+
+def ast_chained_side_effect_assign -> list[stmt] {
+    x = Name(
+        id="x", ctx=Store(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1
+    );
+    y = Name(
+        id="y", ctx=Store(), lineno=1, col_offset=4, end_lineno=1, end_col_offset=5
+    );
+    rhs = Call(
+        func=Name(
+            id="side_effect",
+            ctx=Load(),
+            lineno=1,
+            col_offset=8,
+            end_lineno=1,
+            end_col_offset=19
+        ),
+        args=[],
+        keywords=[],
+        lineno=1,
+        col_offset=8,
+        end_lineno=1,
+        end_col_offset=21
+    );
+    return [
+        Assign(
+            targets=[x, y],
+            value=rhs,
+            type_comment=None,
+            lineno=1,
+            col_offset=0,
+            end_lineno=1,
+            end_col_offset=21
+        )
+    ];
+}
+
+def ast_chained_attr_subscript_assign -> list[stmt] {
+    obj_ref = Name(
+        id="obj", ctx=Load(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=3
+    );
+    attr_tgt = Attribute(
+        value=obj_ref,
+        attr="x",
+        ctx=Store(),
+        lineno=1,
+        col_offset=0,
+        end_lineno=1,
+        end_col_offset=5
+    );
+    seq = Name(
+        id="seq", ctx=Load(), lineno=1, col_offset=8, end_lineno=1, end_col_offset=11
+    );
+    index_call = Call(
+        func=Name(
+            id="index",
+            ctx=Load(),
+            lineno=1,
+            col_offset=12,
+            end_lineno=1,
+            end_col_offset=17
+        ),
+        args=[],
+        keywords=[],
+        lineno=1,
+        col_offset=12,
+        end_lineno=1,
+        end_col_offset=19
+    );
+    sub_tgt = Subscript(
+        value=seq,
+        slice=index_call,
+        ctx=Store(),
+        lineno=1,
+        col_offset=8,
+        end_lineno=1,
+        end_col_offset=20
+    );
+    value_call = Call(
+        func=Name(
+            id="value",
+            ctx=Load(),
+            lineno=1,
+            col_offset=23,
+            end_lineno=1,
+            end_col_offset=28
+        ),
+        args=[],
+        keywords=[],
+        lineno=1,
+        col_offset=23,
+        end_lineno=1,
+        end_col_offset=30
+    );
+    return [
+        Assign(
+            targets=[attr_tgt, sub_tgt],
+            value=value_call,
+            type_comment=None,
+            lineno=1,
+            col_offset=0,
+            end_lineno=1,
+            end_col_offset=30
+        )
+    ];
 }
 
 def ast_one_plus_one -> expr {
@@ -305,6 +439,24 @@ test "compiler_slice: x<y<z matches oracle PyCode" {
     assert_matches_oracle(ast_cmp_chain(), "x<y<z");
 }
 
+test "compiler_slice: f(x<y<z) matches oracle PyCode" {
+    actual = compile_handbuilt(ast_cmp_in_call());
+    expected = oracle_eval("f(x<y<z)", "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: (x<y<z) and q matches oracle PyCode" {
+    actual = compile_handbuilt(ast_cmp_and_q());
+    expected = oracle_eval("(x < y < z) and q", "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.stacksize == exp.stacksize;
+}
+
 test "compiler_slice: 1+1 matches oracle PyCode" {
     assert_matches_oracle(ast_one_plus_one(), "1+1");
 }
@@ -318,7 +470,59 @@ test "compiler_slice: x = y = 1 matches oracle PyCode" {
     assert actual.stacksize == exp.stacksize;
 }
 
-test "compiler_slice: module return sets compile diagnostic" {
+test "compiler_slice: x = y = side_effect() matches oracle PyCode" {
+    actual = compile_handbuilt_exec(ast_chained_side_effect_assign());
+    expected = oracle_exec("x = y = side_effect()\n", "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: side_effect chained assignment evaluates RHS once" {
+    setup = unmarshal(
+        host_compile_marshal(
+            "count = 0\n"
+                + "def side_effect():\n"
+                + "    global count\n"
+                + "    count = count + 1\n"
+                + "    return 42\n",
+            "<setup>",
+            "exec",
+            0
+        )
+    );
+    ns: dict[str, PyObj] = {};
+    setup_out = exec_code(setup, [], ns);
+    assert not is_error(setup_out);
+    co = compile_handbuilt_exec(ast_chained_side_effect_assign());
+    outcome = exec_code(co, [], ns);
+    assert not is_error(outcome);
+    assert expect_int(ns["x"]) == 42;
+    assert expect_int(ns["y"]) == 42;
+    assert expect_int(ns["count"]) == 1;
+}
+
+test "compiler_slice: obj.x = seq[index()] = value() matches oracle PyCode" {
+    actual = compile_handbuilt_exec(ast_chained_attr_subscript_assign());
+    expected = oracle_exec("obj.x = seq[index()] = value()\n", "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: chained compare assign false short-circuit executes" {
+    co = compile_handbuilt_exec(ast_chained_compare_assign_false());
+    ns: dict[str, PyObj] = {};
+    outcome = exec_code(co, [], ns);
+    assert not is_error(outcome);
+    assert "a" in ns;
+    assert isinstance(ns["a"], PyBool);
+    assert not (ns["a"] as PyBool).val;
+}
+
+test "compiler_slice: module return rejected by validation" {
     one = Constant(
         value=PyInt(t="int", val=1),
         kind=None,
@@ -327,15 +531,12 @@ test "compiler_slice: module return sets compile diagnostic" {
         end_lineno=1,
         end_col_offset=8
     );
-    u = compile_exec(
-        [Return(value=one, lineno=1, col_offset=0, end_lineno=1, end_col_offset=8)],
-        "<f>",
-        "<module>",
-        1
+    vr = validate_module_body(
+        [Return(value=one, lineno=1, col_offset=0, end_lineno=1, end_col_offset=8)]
     );
-    assert u.diag is not None;
-    assert is_error(u.diag);
-    assert (u.diag as any).exception.message == "'return' outside function";
+    assert vr.diag is not None;
+    assert compiler_diag_kind(vr.diag) == "SyntaxError";
+    assert compiler_diag_message(vr.diag) == "'return' outside function";
 }
 
 # ---------------- VM execution ----------------
@@ -355,6 +556,7 @@ test "compiler_slice: a*b+c executes in ceval" {
         "a": PyInt(t="int", val=2),
         "b": PyInt(t="int", val=3),
         "c": PyInt(t="int", val=4),
+
     };
     outcome = exec_code(co, [], ns);
     assert not is_error(outcome);
@@ -365,10 +567,7 @@ test "compiler_slice: a*b+c executes in ceval" {
 test "compiler_slice: f(x,1) executes in ceval" {
     setup = unmarshal(
         host_compile_marshal(
-            "def f(x, y):\n    return x * 10 + y\n",
-            "<setup>",
-            "exec",
-            0
+            "def f(x, y):\n    return x * 10 + y\n", "<setup>", "exec", 0
         )
     );
     ns: dict[str, PyObj] = {};
@@ -388,6 +587,7 @@ test "compiler_slice: x<y<z executes in ceval (true chain)" {
         "x": PyInt(t="int", val=1),
         "y": PyInt(t="int", val=2),
         "z": PyInt(t="int", val=3),
+
     };
     outcome = exec_code(co, [], ns);
     assert not is_error(outcome);
@@ -401,6 +601,7 @@ test "compiler_slice: x<y<z executes in ceval (short-circuit false)" {
         "x": PyInt(t="int", val=1),
         "y": PyInt(t="int", val=5),
         "z": PyInt(t="int", val=3),
+
     };
     outcome = exec_code(co, [], ns);
     assert not is_error(outcome);

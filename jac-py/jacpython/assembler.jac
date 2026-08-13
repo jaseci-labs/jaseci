@@ -14,7 +14,6 @@ import from opcode_meta {
     opcode_cache_count,
 }
 import from compiler_ir {
-    compile_unit,
     cinstr,
     cloc,
     loc,
@@ -22,7 +21,7 @@ import from compiler_ir {
     NO_LINE,
     instr_size_codeunits,
 }
-import from flowgraph { prepare_cfg }
+import from flowgraph { verified_cfg }
 
 # ---------------- bytecode emission ----------------
 def emit_instr(code: list[int], ins: cinstr) -> None {
@@ -179,8 +178,8 @@ def assemble_linetable(flat: list[cinstr], firstlineno: int) -> list[int] {
 }
 
 # ---------------- assemble ----------------
-def assemble(u: compile_unit) -> PyCode {
-    cfg = prepare_cfg(u);
+def assemble(cfg: verified_cfg) -> PyCode {
+    u = cfg.unit;
     flat = cfg.flat;
     stacksize = cfg.stacksize;
     code: list[int] = [];

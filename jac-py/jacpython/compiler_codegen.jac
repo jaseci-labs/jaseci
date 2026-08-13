@@ -1,7 +1,7 @@
 # Compiler codegen for the P4 back track (PLAN.md P0.10).
 #
 # Walks a hand-built (later: parser-produced) ast_nodes.jac tree and emits IR
-# into a compile_unit. Dispatch is locked to na-legal ordered isinstance
+# into a unverified_cfg. Dispatch is locked to na-legal ordered isinstance
 # if-chains (PLAN.md dispatch decision). Covers the expression slice only:
 # Constant, Name, BinOp, UnaryOp, Call, plus the eval/module wrapper.
 #
@@ -13,13 +13,14 @@
 # Product module: imports compiler_ir + opcode_meta + ast_nodes only. No host
 # tokenize/ast/compile/marshal.
 
-import from objects { PyObj, PyInt, py_none, PySlice, py_error }
+import from objects { PyObj, PyInt, py_none, PySlice }
 import from opcode_meta {
     OP_RESUME,
     OP_RETURN_VALUE,
     OP_LOAD_CONST,
     OP_LOAD_SMALL_INT,
     OP_LOAD_NAME,
+    OP_LOAD_GLOBAL,
     OP_BINARY_OP,
     OP_UNARY_NEGATIVE,
     OP_UNARY_INVERT,
@@ -36,6 +37,8 @@ import from opcode_meta {
     OP_DELETE_ATTR,
     OP_DELETE_SUBSCR,
     OP_POP_JUMP_IF_FALSE,
+    OP_POP_JUMP_IF_TRUE,
+    OP_JUMP_FORWARD,
     OP_COPY,
     OP_SWAP,
     OP_TO_BOOL,
@@ -108,6 +111,8 @@ import from ast_nodes {
     Invert,
     Not,
     BoolOp,
+    And,
+    Or,
     NamedExpr,
     Lambda,
     IfExp,
@@ -151,23 +156,44 @@ import from ast_nodes {
 }
 import from compiler_ir {
     cloc,
-    compile_unit,
+    unverified_cfg,
     basicblock,
     cinstr,
     loc,
     mk_instr,
     mk_jump,
+    cfg_builder,
+    stmt_cont,
+    new_cfg_builder,
 }
+import from compiler_symtable { sym_block, sym_dict_get, sym_scope_of, SCOPE_GLOBAL_EXPLICIT, SCOPE_GLOBAL_IMPLICIT }
+import from compiler_diagnostics { lowering_diagnostic }
 
-# Record the first codegen diagnostic on u (PLAN.md: no silent skips).
-def codegen_fail(u: compile_unit, kind: str, message: str) -> None {
+# Record the first codegen diagnostic on the builder's unit.
+def codegen_fail(g: cfg_builder, kind: str, message: str) {
+    u = g.u;
     if u.diag is None {
-        u.diag = py_error(kind, message);
+        u.diag = lowering_diagnostic(kind=kind, message=message);
     }
 }
 
-def codegen_busy(u: compile_unit) -> bool {
-    return u.diag is not None;
+def codegen_busy(g: cfg_builder) -> bool {
+    return g.u.diag is not None;
+}
+
+# Name load opcode from symtable facts. Module scope always uses LOAD_NAME
+# (CPython: implicit globals are still LOAD_NAME at module level). LOAD_GLOBAL
+# is for nested scopes with explicit/implicit global classification.
+def name_load_opcode(g: cfg_builder, name: str) -> int {
+    if g.sym_top is None or g.sym_top.block_type == "module" {
+        return OP_LOAD_NAME;
+    }
+    flags = sym_dict_get(g.sym_top.symbols, name, 0);
+    scope = sym_scope_of(flags);
+    if scope == SCOPE_GLOBAL_EXPLICIT or scope == SCOPE_GLOBAL_IMPLICIT {
+        return OP_LOAD_GLOBAL;
+    }
+    return OP_LOAD_NAME;
 }
 
 # AST class name for unsupported-node diagnostics (ordered isinstance chain).
@@ -512,16 +538,31 @@ def fold_slice_const(sl: Slice) -> PyObj | None {
 }
 
 # Emit the subscript key (index or constant slice) onto the stack.
-def visit_subscript_index(u: compile_unit, blk: basicblock, key: expr, lc: cloc) -> None {
+# register_small_int: CPython keeps small-index literals in co_consts for
+# BINARY_OP[] loads but not for STORE_SUBSCR stores (byte-exact parity).
+def visit_subscript_index(
+    g: cfg_builder, key: expr, lc: cloc, register_small_int: bool = False
+) {
     if isinstance(key, Slice) {
         folded = fold_slice_const(key as Slice);
         if folded is not None {
-            idx = u.add_const(folded);
-            blk.instrs.append(mk_instr(OP_LOAD_CONST, idx, lc));
+            idx = g.u.add_const(folded);
+            g.emit_op(OP_LOAD_CONST, idx, lc);
             return;
         }
     }
-    visit_expr(u, blk, key);
+    if isinstance(key, Constant) {
+        cv = (key as Constant).value;
+        if isinstance(cv, PyInt) {
+            kloc = expr_loc(key);
+            if register_small_int {
+                g.u.add_const((key as Constant).value);
+            }
+            emit_folded_int(g, (cv as PyInt).val, kloc);
+            return;
+        }
+    }
+    visit_expr(g, key);
 }
 
 # UnaryOp AST node -> opcode (None if the operator maps to no instruction in
@@ -549,43 +590,70 @@ def cmpop_oparg(op: PyObj) -> int {
 
 # Chained-compare lowering (compile.c): keep the middle operand on the stack
 # across links; short-circuit on the first false with SWAP/POP cleanup.
-def visit_compare(u: compile_unit, blk: basicblock, c: Compare) -> None {
+# false_shortcircuit_returns: only the eval-mode top-level expression may return
+# from the module on a false chain link. use_join: fall through to a shared join
+# block (BoolOp rhs); otherwise return the cleanup block for suffix duplication.
+def visit_compare(
+    g: cfg_builder, c: Compare, false_shortcircuit_returns: bool, use_join: bool = True
+) -> basicblock | None {
     n = len(c.ops);
     cloc_cmp = nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
-    visit_expr(u, blk, c.left);
+    visit_expr(g, c.left, false_shortcircuit_returns=false_shortcircuit_returns);
     cleanup: basicblock | None = None;
     if n > 1 {
-        cleanup = u.add_block();
+        cleanup = g.new_block();
     }
     ei = 0;
     while ei < n {
-        visit_expr(u, blk, c.comparators[ei]);
+        visit_expr(g, c.comparators[ei]);
         if n > 1 and ei == 0 {
-            blk.instrs.append(mk_instr(OP_SWAP, 2, cloc_cmp));
-            blk.instrs.append(mk_instr(OP_COPY, 2, cloc_cmp));
+            g.emit_op(OP_SWAP, 2, cloc_cmp);
+            g.emit_op(OP_COPY, 2, cloc_cmp);
         }
         oparg = cmpop_oparg(c.ops[ei]);
         if oparg < 0 {
-            return;
+            codegen_fail(g, "NotImplementedError", "unsupported comparison operator");
+            return None;
         }
-        blk.instrs.append(mk_instr(OP_COMPARE_OP, oparg, cloc_cmp));
+        g.emit_op(OP_COMPARE_OP, oparg, cloc_cmp);
         if ei < n - 1 {
-            blk.instrs.append(mk_instr(OP_COPY, 1, cloc_cmp));
-            blk.instrs.append(mk_instr(OP_TO_BOOL, 0, cloc_cmp));
+            g.emit_op(OP_COPY, 1, cloc_cmp);
+            g.emit_op(OP_TO_BOOL, 0, cloc_cmp);
             if cleanup is not None {
-                blk.instrs.append(
-                    mk_jump(OP_POP_JUMP_IF_FALSE, cleanup.id, cloc_cmp)
-                );
+                g.emit_jump(OP_POP_JUMP_IF_FALSE, cleanup.id, cloc_cmp);
             }
-            blk.instrs.append(mk_instr(OP_POP_TOP, 0, cloc_cmp));
+            g.emit_op(OP_POP_TOP, 0, cloc_cmp);
         }
         ei = ei + 1;
     }
     if cleanup is not None {
-        cleanup.instrs.append(mk_instr(OP_SWAP, 2, cloc_cmp));
-        cleanup.instrs.append(mk_instr(OP_POP_TOP, 0, cloc_cmp));
-        cleanup.instrs.append(mk_instr(OP_RETURN_VALUE, 0, cloc_cmp));
+        if false_shortcircuit_returns {
+            main_blk = g.cur;
+            g.use(cleanup);
+            g.emit_op(OP_SWAP, 2, cloc_cmp);
+            g.emit_op(OP_POP_TOP, 0, cloc_cmp);
+            g.emit_op(OP_RETURN_VALUE, 0, cloc_cmp);
+            g.use(main_blk);
+            return None;
+        }
+        if use_join {
+            join = g.new_block();
+            g.emit_jump(OP_JUMP_FORWARD, join.id, cloc_cmp);
+            g.use(cleanup);
+            g.emit_op(OP_SWAP, 2, cloc_cmp);
+            g.emit_op(OP_POP_TOP, 0, cloc_cmp);
+            g.use(join);
+            return None;
+        }
+        return cleanup;
     }
+    return None;
+}
+
+def emit_compare_cleanup(g: cfg_builder, cleanup: basicblock, lc: cloc) {
+    g.use(cleanup);
+    g.emit_op(OP_SWAP, 2, lc);
+    g.emit_op(OP_POP_TOP, 0, lc);
 }
 
 # Constant-fold a BinOp when both operands are literal ints (CPython peephole).
@@ -613,116 +681,195 @@ def try_fold_binop(left: expr, op: PyObj, right: expr) -> PyObj | None {
 }
 
 # Emit a folded literal: LOAD_SMALL_INT for 0..255, else LOAD_CONST.
-def emit_folded_int(u: compile_unit, blk: basicblock, v: int, lc: cloc) -> None {
+def emit_folded_int(g: cfg_builder, v: int, lc: cloc) {
     if v >= 0 and v <= 255 {
-        blk.instrs.append(mk_instr(OP_LOAD_SMALL_INT, v, lc));
+        g.emit_op(OP_LOAD_SMALL_INT, v, lc);
         return;
     }
-    idx = u.add_const(PyInt(t="int", val=v));
-    blk.instrs.append(mk_instr(OP_LOAD_CONST, idx, lc));
+    idx = g.u.add_const(PyInt(t="int", val=v));
+    g.emit_op(OP_LOAD_CONST, idx, lc);
 }
 
-# Visit one expression, appending IR into the current block. Consumes no host
-# objects; constants/names are registered in the unit's deterministic tables.
-def visit_expr(u: compile_unit, blk: basicblock, e: expr) -> None {
-    if codegen_busy(u) {
-        return;
+# BoolOp lowering (compile.c): short-circuit and/or chains with COPY/TO_BOOL.
+# Returns the false-exit block when false_shortcircuit_returns so the caller
+# can place its RETURN after the true-path suffix (CPython block layout).
+def visit_boolop(
+    g: cfg_builder, b: BoolOp, false_shortcircuit_returns: bool
+) -> basicblock | None {
+    bl = nloc(b.lineno, b.end_lineno, b.col_offset, b.end_col_offset);
+    n = len(b.values);
+    if n < 2 {
+        codegen_fail(g, "NotImplementedError", "BoolOp requires at least two values");
+        return None;
+    }
+    is_and = isinstance(b.op, And);
+    is_or = isinstance(b.op, Or);
+    if not is_and and not is_or {
+        codegen_fail(g, "NotImplementedError", "unsupported boolean operator");
+        return None;
+    }
+    jump_op = OP_POP_JUMP_IF_FALSE;
+    if is_or {
+        jump_op = OP_POP_JUMP_IF_TRUE;
+    }
+    join: basicblock | None = None;
+    if not false_shortcircuit_returns {
+        join = g.new_block();
+    }
+    false_exit: basicblock | None = None;
+    vi = 0;
+    while vi < n - 1 {
+        visit_expr(g, b.values[vi]);
+        if false_shortcircuit_returns and false_exit is None {
+            false_exit = g.new_block();
+        }
+        g.emit_op(OP_COPY, 1, bl);
+        g.emit_op(OP_TO_BOOL, 0, bl);
+        if false_shortcircuit_returns {
+            false_target = false_exit.id;
+        } else {
+            false_target = join.id;
+        }
+        g.emit_jump(jump_op, false_target, bl);
+        g.emit_op(OP_POP_TOP, 0, bl);
+        vi = vi + 1;
+    }
+    visit_expr(g, b.values[n - 1]);
+    if join is not None {
+        g.emit_jump(OP_JUMP_FORWARD, join.id, bl);
+        g.use(join);
+        return None;
+    }
+    if false_shortcircuit_returns {
+        return false_exit;
+    }
+    return None;
+}
+
+# Visit one expression. Returns a chained-compare cleanup block when the caller
+# must duplicate its suffix (CALL / STORE), else None.
+def visit_expr(
+    g: cfg_builder,
+    e: expr,
+    false_shortcircuit_returns: bool = False,
+    compare_use_join: bool = True,
+    register_int_const: bool = True
+) -> basicblock | None {
+    if codegen_busy(g) {
+        return None;
     }
     if isinstance(e, Constant) {
         c = e as Constant;
-        idx = u.add_const(c.value);
-        blk.instrs.append(
-            mk_instr(OP_LOAD_CONST, idx, nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset))
-        );
-        return;
+        cloc = nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
+        if isinstance(c.value, PyInt) {
+            v = (c.value as PyInt).val;
+            if register_int_const {
+                g.u.add_const(c.value);
+            }
+            emit_folded_int(g, v, cloc);
+            return None;
+        }
+        idx = g.u.add_const(c.value);
+        g.emit_op(OP_LOAD_CONST, idx, cloc);
+        return None;
     }
     if isinstance(e, Name) {
         n = e as Name;
-        idx = u.add_name(n.id);
-        blk.instrs.append(
-            mk_instr(OP_LOAD_NAME, idx, nloc(n.lineno, n.end_lineno, n.col_offset, n.end_col_offset))
+        idx = g.u.add_name(n.id);
+        g.emit_op(
+            name_load_opcode(g, n.id),
+            idx,
+            nloc(n.lineno, n.end_lineno, n.col_offset, n.end_col_offset)
         );
-        return;
+        return None;
     }
     if isinstance(e, BinOp) {
         b = e as BinOp;
         bl = nloc(b.lineno, b.end_lineno, b.col_offset, b.end_col_offset);
-        # Operand literals stay in the const table even when folded (CPython).
         if isinstance(b.left, Constant) {
-            u.add_const((b.left as Constant).value);
+            g.u.add_const((b.left as Constant).value);
         }
         if isinstance(b.right, Constant) {
-            u.add_const((b.right as Constant).value);
+            g.u.add_const((b.right as Constant).value);
         }
         folded = try_fold_binop(b.left, b.op, b.right);
         if folded is not None and isinstance(folded, PyInt) {
-            emit_folded_int(u, blk, (folded as PyInt).val, bl);
-            return;
+            emit_folded_int(g, (folded as PyInt).val, bl);
+            return None;
         }
-        visit_expr(u, blk, b.left);
-        visit_expr(u, blk, b.right);
+        visit_expr(g, b.left);
+        visit_expr(g, b.right);
         opid = binop_id(b.op);
         if opid < 0 {
-            codegen_fail(u, "SyntaxError", "unsupported binary operator");
-            return;
+            codegen_fail(g, "NotImplementedError", "unsupported binary operator");
+            return None;
         }
-        blk.instrs.append(mk_instr(OP_BINARY_OP, opid, bl));
-        return;
+        g.emit_op(OP_BINARY_OP, opid, bl);
+        return None;
     }
     if isinstance(e, UnaryOp) {
         un = e as UnaryOp;
-        visit_expr(u, blk, un.operand);
+        visit_expr(g, un.operand);
         opc = unary_opcode(un.op);
         if opc < 0 {
-            codegen_fail(u, "SyntaxError", "unsupported unary operator");
-            return;
+            codegen_fail(g, "NotImplementedError", "unsupported unary operator");
+            return None;
         }
-        blk.instrs.append(
-            mk_instr(opc, 0, nloc(un.lineno, un.end_lineno, un.col_offset, un.end_col_offset))
+        g.emit_op(
+            opc, 0, nloc(un.lineno, un.end_lineno, un.col_offset, un.end_col_offset)
         );
-        return;
+        return None;
     }
     if isinstance(e, Compare) {
-        visit_compare(u, blk, e as Compare);
-        return;
+        return visit_compare(
+            g, e as Compare, false_shortcircuit_returns, compare_use_join
+        );
+    }
+    if isinstance(e, BoolOp) {
+        return visit_boolop(g, e as BoolOp, false_shortcircuit_returns);
     }
     if isinstance(e, Call) {
         ca = e as Call;
-        # Plain call lowering (codegen_call, non-method): load callable, push the
-        # NULL marker, load args left-to-right, then CALL(argc). PUSH_NULL and the
-        # callable share the callable's span; CALL spans the whole call.
         floc = call_func_loc(ca.func);
-        visit_expr(u, blk, ca.func);
-        blk.instrs.append(mk_instr(OP_PUSH_NULL, 0, floc));
+        visit_expr(g, ca.func);
+        g.emit_op(OP_PUSH_NULL, 0, floc);
+        cmp_cleanup: basicblock | None = None;
+        call_args = ca.args;
+        if call_args is None {
+            call_args = [];
+        }
         ai = 0;
-        while ai < len(ca.args) {
-            visit_expr(u, blk, ca.args[ai]);
+        while ai < len(call_args) {
+            arg_cleanup = visit_expr(g, call_args[ai], False, False);
+            if arg_cleanup is not None {
+                cmp_cleanup = arg_cleanup;
+            }
             ai = ai + 1;
         }
-        blk.instrs.append(
-            mk_instr(OP_CALL, len(ca.args), nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset))
-        );
-        return;
+        cloc_call = nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset);
+        g.emit_op(OP_CALL, len(call_args), cloc_call);
+        return cmp_cleanup;
     }
     if isinstance(e, Attribute) {
         a = e as Attribute;
         aloc = expr_loc(a);
-        visit_expr(u, blk, a.value);
-        idx = u.add_name(a.attr);
-        blk.instrs.append(mk_instr(OP_LOAD_ATTR, idx * 2, aloc));
-        return;
+        visit_expr(g, a.value);
+        idx = g.u.add_name(a.attr);
+        g.emit_op(OP_LOAD_ATTR, idx * 2, aloc);
+        return None;
     }
     if isinstance(e, Subscript) {
         s = e as Subscript;
         sloc = expr_loc(s);
-        visit_expr(u, blk, s.value);
-        visit_subscript_index(u, blk, s.slice, sloc);
-        blk.instrs.append(mk_instr(OP_BINARY_OP, NB_SUBSCR, sloc));
-        return;
+        visit_expr(g, s.value);
+        visit_subscript_index(g, s.slice, sloc, True);
+        g.emit_op(OP_BINARY_OP, NB_SUBSCR, sloc);
+        return None;
     }
     codegen_fail(
-        u, "SyntaxError", "unsupported expression: " + ast_node_name(e as ast_node)
+        g, "NotImplementedError", "unsupported expression: " + ast_node_name(e as ast_node)
     );
+    return None;
 }
 
 # The callable's location, used for PUSH_NULL. For the slice the callable is a
@@ -737,25 +884,34 @@ def top_loc(e: expr) -> cloc {
     return expr_loc(e);
 }
 
-# Build a compile_unit for an eval-mode expression. Emits RESUME (module/eval
+# Build a unverified_cfg for an eval-mode expression. Emits RESUME (module/eval
 # scope: lineno 0), the expression, then RETURN_VALUE carrying the expression's
 # span. addNone is false for eval (no trailing None push).
-def compile_eval(
-    e: expr, filename: str, name: str, firstlineno: int
-) -> compile_unit {
-    u = compile_unit(
-        filename=filename,
-        name=name,
-        qualname=name,
-        firstlineno=firstlineno
+def compile_eval(e: expr, filename: str, name: str, firstlineno: int) -> unverified_cfg {
+    u = unverified_cfg(
+        filename=filename, name=name, qualname=name, firstlineno=firstlineno
     );
     entry = u.add_block();
-    entry.instrs.append(mk_instr(OP_RESUME, 0, loc(0, firstlineno, 0, 0)));
-    visit_expr(u, entry, e);
-    if codegen_busy(u) {
+    g = new_cfg_builder(u, entry);
+    g.emit_op(OP_RESUME, 0, loc(0, firstlineno, 0, 0));
+    cleanup = visit_expr(g, e, false_shortcircuit_returns=True);
+    if codegen_busy(g) {
         return u;
     }
-    entry.instrs.append(mk_instr(OP_RETURN_VALUE, 0, top_loc(e)));
+    eloc = top_loc(e);
+    g.emit_op(OP_RETURN_VALUE, 0, eloc);
+    if cleanup is not None {
+        if isinstance(e, Call) {
+            ca = e as Call;
+            cloc_call = nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset);
+            emit_compare_cleanup(g, cleanup, cloc_call);
+            g.emit_op(OP_CALL, len(ca.args), cloc_call);
+            g.emit_op(OP_RETURN_VALUE, 0, eloc);
+        } else {
+            g.use(cleanup);
+            g.emit_op(OP_RETURN_VALUE, 0, eloc);
+        }
+    }
     return u;
 }
 
@@ -805,229 +961,302 @@ def stmt_loc(s: stmt) -> cloc {
 # Store value already on the stack into an assignment target (name / attribute /
 # subscript). CPython stack layout before STORE_ATTR / STORE_SUBSCR: value below
 # owner (and index for subscript), with owner/index on TOS.
-def visit_store_target_tos(u: compile_unit, blk: basicblock, t: expr) -> cloc {
-    if codegen_busy(u) {
-        return expr_loc(t);
+def visit_store_target_tos(g: cfg_builder, t: expr) -> stmt_cont {
+    if codegen_busy(g) {
+        return stmt_cont(loc=expr_loc(t));
     }
     if isinstance(t, Name) {
         n = t as Name;
-        idx = u.add_name(n.id);
+        idx = g.u.add_name(n.id);
         tloc = expr_loc(n);
-        blk.instrs.append(mk_instr(OP_STORE_NAME, idx, tloc));
-        return tloc;
+        g.emit_op(OP_STORE_NAME, idx, tloc);
+        return stmt_cont(loc=tloc);
     }
     if isinstance(t, Attribute) {
         a = t as Attribute;
-        visit_expr(u, blk, a.value);
-        idx = u.add_name(a.attr);
+        visit_expr(g, a.value);
+        idx = g.u.add_name(a.attr);
         tloc = expr_loc(a);
-        blk.instrs.append(mk_instr(OP_STORE_ATTR, idx, tloc));
-        return tloc;
+        g.emit_op(OP_STORE_ATTR, idx, tloc);
+        return stmt_cont(loc=tloc);
     }
     if isinstance(t, Subscript) {
         s = t as Subscript;
         sloc = expr_loc(s);
-        visit_expr(u, blk, s.value);
-        visit_subscript_index(u, blk, s.slice, sloc);
-        blk.instrs.append(mk_instr(OP_STORE_SUBSCR, 0, sloc));
-        return sloc;
+        visit_expr(g, s.value);
+        visit_subscript_index(g, s.slice, sloc);
+        g.emit_op(OP_STORE_SUBSCR, 0, sloc);
+        return stmt_cont(loc=sloc);
     }
     codegen_fail(
-        u,
-        "SyntaxError",
+        g,
+        "NotImplementedError",
         "unsupported assignment target: " + ast_node_name(t as ast_node)
     );
-    return expr_loc(t);
+    return stmt_cont(loc=expr_loc(t));
 }
 
 # Store value into an assignment target (name / attribute / subscript).
-def visit_store_target(u: compile_unit, blk: basicblock, t: expr, value: expr) -> cloc {
-    visit_expr(u, blk, value);
-    return visit_store_target_tos(u, blk, t);
+def visit_store_target(g: cfg_builder, t: expr, value: expr) -> stmt_cont {
+    visit_expr(g, value);
+    return visit_store_target_tos(g, t);
 }
 
 # Delete one target (name / attribute / subscript).
-def visit_delete_target(u: compile_unit, blk: basicblock, t: expr) -> cloc {
-    if codegen_busy(u) {
-        return expr_loc(t);
+def visit_delete_target(g: cfg_builder, t: expr) -> stmt_cont {
+    if codegen_busy(g) {
+        return stmt_cont(loc=expr_loc(t));
     }
     if isinstance(t, Name) {
         n = t as Name;
-        idx = u.add_name(n.id);
+        idx = g.u.add_name(n.id);
         tloc = expr_loc(n);
-        blk.instrs.append(mk_instr(OP_DELETE_NAME, idx, tloc));
-        return tloc;
+        g.emit_op(OP_DELETE_NAME, idx, tloc);
+        return stmt_cont(loc=tloc);
     }
     if isinstance(t, Attribute) {
         a = t as Attribute;
-        visit_expr(u, blk, a.value);
-        idx = u.add_name(a.attr);
+        visit_expr(g, a.value);
+        idx = g.u.add_name(a.attr);
         tloc = expr_loc(a);
-        blk.instrs.append(mk_instr(OP_DELETE_ATTR, idx, tloc));
-        return tloc;
+        g.emit_op(OP_DELETE_ATTR, idx, tloc);
+        return stmt_cont(loc=tloc);
     }
     if isinstance(t, Subscript) {
         s = t as Subscript;
-        visit_expr(u, blk, s.value);
-        visit_subscript_index(u, blk, s.slice, expr_loc(s));
+        visit_expr(g, s.value);
+        visit_subscript_index(g, s.slice, expr_loc(s));
         tloc = expr_loc(s);
-        blk.instrs.append(mk_instr(OP_DELETE_SUBSCR, 0, tloc));
-        return tloc;
+        g.emit_op(OP_DELETE_SUBSCR, 0, tloc);
+        return stmt_cont(loc=tloc);
     }
     codegen_fail(
-        u,
-        "SyntaxError",
-        "unsupported deletion target: " + ast_node_name(t as ast_node)
+        g, "NotImplementedError", "unsupported deletion target: " + ast_node_name(t as ast_node)
     );
-    return expr_loc(t);
+    return stmt_cont(loc=expr_loc(t));
 }
 
-# Lower one statement, appending IR into blk. Returns the location of the last
-# instruction emitted (used for the module epilogue).
-def visit_stmt(u: compile_unit, blk: basicblock, s: stmt) -> cloc {
-    if codegen_busy(u) {
-        return stmt_loc(s);
+# True when any statement from from_idx onward emits bytecode (Pass alone does not).
+def exec_tail_emits_code(body: list[stmt], from_idx: int) -> bool {
+    si = from_idx;
+    while si < len(body) {
+        if not isinstance(body[si], Pass) {
+            return True;
+        }
+        si = si + 1;
+    }
+    return False;
+}
+
+# Lower one statement into the builder's current block.
+def visit_stmt(g: cfg_builder, s: stmt, more_code_follows: bool = False) -> stmt_cont {
+    if codegen_busy(g) {
+        return stmt_cont(loc=stmt_loc(s));
     }
     if isinstance(s, Assign) {
-        a = s as Assign;
+        asgn = s as Assign;
         last = stmt_loc(s);
-        visit_expr(u, blk, a.value);
-        ti = 0;
-        while ti < len(a.targets) {
-            if ti < len(a.targets) - 1 {
-                tloc = expr_loc(a.targets[ti]);
-                blk.instrs.append(mk_instr(OP_COPY, 1, tloc));
+        copy_loc = nloc(
+            asgn.lineno, asgn.end_lineno, asgn.col_offset, asgn.end_col_offset
+        );
+        cmp_cleanup = visit_expr(g, asgn.value, False, False);
+        if cmp_cleanup is not None and more_code_follows {
+            join = g.new_block();
+            cmp_loc = expr_loc(asgn.value);
+            g.emit_jump(OP_JUMP_FORWARD, join.id, cmp_loc);
+            emit_compare_cleanup(g, cmp_cleanup, cmp_loc);
+            g.use(join);
+            ti = 0;
+            while ti < len(asgn.targets) {
+                if ti < len(asgn.targets) - 1 {
+                    g.emit_op(OP_COPY, 1, copy_loc);
+                }
+                emit = visit_store_target_tos(g, asgn.targets[ti]);
+                last = emit.loc;
+                ti = ti + 1;
             }
-            last = visit_store_target_tos(u, blk, a.targets[ti]);
+            return stmt_cont(loc=last);
+        }
+        ti = 0;
+        while ti < len(asgn.targets) {
+            if ti < len(asgn.targets) - 1 {
+                g.emit_op(OP_COPY, 1, copy_loc);
+            }
+            emit = visit_store_target_tos(g, asgn.targets[ti]);
+            last = emit.loc;
             ti = ti + 1;
         }
-        return last;
+        if cmp_cleanup is not None {
+            none_idx = g.u.add_const(py_none());
+            g.emit_op(OP_LOAD_CONST, none_idx, last);
+            g.emit_op(OP_RETURN_VALUE, 0, last);
+            emit_compare_cleanup(g, cmp_cleanup, expr_loc(asgn.value));
+            ti = 0;
+            while ti < len(asgn.targets) {
+                if ti < len(asgn.targets) - 1 {
+                    g.emit_op(OP_COPY, 1, copy_loc);
+                }
+                emit = visit_store_target_tos(g, asgn.targets[ti]);
+                last = emit.loc;
+                ti = ti + 1;
+            }
+            g.emit_op(OP_LOAD_CONST, none_idx, last);
+            g.emit_op(OP_RETURN_VALUE, 0, last);
+            return stmt_cont(loc=last, terminated=True);
+        }
+        return stmt_cont(loc=last);
     }
     if isinstance(s, AugAssign) {
         aa = s as AugAssign;
         opid = inplace_binop_id(aa.op);
         aloc = nloc(aa.lineno, aa.end_lineno, aa.col_offset, aa.end_col_offset);
         if opid < 0 {
-            codegen_fail(u, "SyntaxError", "unsupported augmented assignment operator");
-            return stmt_loc(s);
+            codegen_fail(g, "NotImplementedError", "unsupported augmented assignment operator");
+            return stmt_cont(loc=stmt_loc(s));
         }
         if isinstance(aa.target, Name) {
             n = aa.target as Name;
-            visit_expr(u, blk, n);
-            visit_expr(u, blk, aa.value);
-            blk.instrs.append(mk_instr(OP_BINARY_OP, opid, aloc));
-            idx = u.add_name(n.id);
+            visit_expr(g, n);
+            visit_expr(g, aa.value);
+            g.emit_op(OP_BINARY_OP, opid, aloc);
+            idx = g.u.add_name(n.id);
             tloc = expr_loc(n);
-            blk.instrs.append(mk_instr(OP_STORE_NAME, idx, tloc));
-            return tloc;
+            g.emit_op(OP_STORE_NAME, idx, tloc);
+            return stmt_cont(loc=tloc);
         }
         if isinstance(aa.target, Attribute) {
-            a = aa.target as Attribute;
-            tloc = expr_loc(a);
-            visit_expr(u, blk, a.value);
-            blk.instrs.append(mk_instr(OP_COPY, 1, tloc));
-            idx = u.add_name(a.attr);
-            blk.instrs.append(mk_instr(OP_LOAD_ATTR, idx * 2, tloc));
-            visit_expr(u, blk, aa.value);
-            blk.instrs.append(mk_instr(OP_BINARY_OP, opid, aloc));
-            blk.instrs.append(mk_instr(OP_SWAP, 2, tloc));
-            blk.instrs.append(mk_instr(OP_STORE_ATTR, idx, tloc));
-            return tloc;
+            attr = aa.target as Attribute;
+            tloc = expr_loc(attr);
+            visit_expr(g, attr.value);
+            g.emit_op(OP_COPY, 1, tloc);
+            idx = g.u.add_name(attr.attr);
+            g.emit_op(OP_LOAD_ATTR, idx * 2, tloc);
+            visit_expr(g, aa.value);
+            g.emit_op(OP_BINARY_OP, opid, aloc);
+            g.emit_op(OP_SWAP, 2, tloc);
+            g.emit_op(OP_STORE_ATTR, idx, tloc);
+            return stmt_cont(loc=tloc);
         }
         if isinstance(aa.target, Subscript) {
             sub = aa.target as Subscript;
             sloc = expr_loc(sub);
-            visit_expr(u, blk, sub.value);
-            visit_subscript_index(u, blk, sub.slice, sloc);
-            blk.instrs.append(mk_instr(OP_COPY, 2, sloc));
-            blk.instrs.append(mk_instr(OP_COPY, 2, sloc));
-            blk.instrs.append(mk_instr(OP_BINARY_OP, NB_SUBSCR, sloc));
-            visit_expr(u, blk, aa.value);
-            blk.instrs.append(mk_instr(OP_BINARY_OP, opid, aloc));
-            blk.instrs.append(mk_instr(OP_SWAP, 3, sloc));
-            blk.instrs.append(mk_instr(OP_SWAP, 2, sloc));
-            blk.instrs.append(mk_instr(OP_STORE_SUBSCR, 0, sloc));
-            return sloc;
+            visit_expr(g, sub.value);
+            visit_subscript_index(g, sub.slice, sloc, True);
+            g.emit_op(OP_COPY, 2, sloc);
+            g.emit_op(OP_COPY, 2, sloc);
+            g.emit_op(OP_BINARY_OP, NB_SUBSCR, sloc);
+            visit_expr(g, aa.value, register_int_const=False);
+            g.emit_op(OP_BINARY_OP, opid, aloc);
+            g.emit_op(OP_SWAP, 3, sloc);
+            g.emit_op(OP_SWAP, 2, sloc);
+            g.emit_op(OP_STORE_SUBSCR, 0, sloc);
+            return stmt_cont(loc=sloc);
         }
         codegen_fail(
-            u,
-            "SyntaxError",
+            g,
+            "NotImplementedError",
             "unsupported augmented assignment target: "
-            + ast_node_name(aa.target as ast_node)
+                + ast_node_name(aa.target as ast_node)
         );
-        return stmt_loc(s);
+        return stmt_cont(loc=stmt_loc(s));
     }
     if isinstance(s, Delete) {
         d = s as Delete;
         last = stmt_loc(s);
         ti = 0;
         while ti < len(d.targets) {
-            last = visit_delete_target(u, blk, d.targets[ti]);
+            emit = visit_delete_target(g, d.targets[ti]);
+            last = emit.loc;
             ti = ti + 1;
         }
-        return last;
+        return stmt_cont(loc=last);
     }
     if isinstance(s, Expr) {
         x = s as Expr;
-        visit_expr(u, blk, x.value);
+        cmp_cleanup = visit_expr(g, x.value, False, False);
         eloc = nloc(x.lineno, x.end_lineno, x.col_offset, x.end_col_offset);
-        blk.instrs.append(mk_instr(OP_POP_TOP, 0, eloc));
-        return eloc;
+        if cmp_cleanup is not None and isinstance(x.value, Call) {
+            ca = x.value as Call;
+            cloc_call = nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset);
+            g.emit_op(OP_POP_TOP, 0, eloc);
+            after = g.new_block();
+            g.emit_jump(OP_JUMP_FORWARD, after.id, eloc);
+            emit_compare_cleanup(g, cmp_cleanup, cloc_call);
+            g.emit_op(OP_CALL, len(ca.args), cloc_call);
+            g.emit_op(OP_POP_TOP, 0, eloc);
+            g.use(after);
+        } elif cmp_cleanup is not None {
+            g.emit_op(OP_POP_TOP, 0, eloc);
+            after = g.new_block();
+            g.emit_jump(OP_JUMP_FORWARD, after.id, eloc);
+            emit_compare_cleanup(g, cmp_cleanup, eloc);
+            g.emit_op(OP_POP_TOP, 0, eloc);
+            g.use(after);
+        } else {
+            g.emit_op(OP_POP_TOP, 0, eloc);
+        }
+        return stmt_cont(loc=eloc);
     }
     if isinstance(s, Pass) {
-        return stmt_loc(s);
+        return stmt_cont(loc=stmt_loc(s));
     }
     codegen_fail(
-        u, "SyntaxError", "unsupported statement: " + ast_node_name(s as ast_node)
+        g, "NotImplementedError", "unsupported statement: " + ast_node_name(s as ast_node)
     );
-    return stmt_loc(s);
+    return stmt_cont(loc=stmt_loc(s));
 }
 
 # Emit a Return statement and finish the compile unit (no module epilogue).
-def visit_return_stmt(u: compile_unit, blk: basicblock, r: Return) -> None {
+def visit_return_stmt(g: cfg_builder, r: Return) {
     rloc = nloc(r.lineno, r.end_lineno, r.col_offset, r.end_col_offset);
     if r.value is not None {
-        visit_expr(u, blk, r.value);
-        blk.instrs.append(mk_instr(OP_RETURN_VALUE, 0, rloc));
+        visit_expr(g, r.value);
+        g.emit_op(OP_RETURN_VALUE, 0, rloc);
         return;
     }
-    none_idx = u.add_const(py_none());
-    blk.instrs.append(mk_instr(OP_LOAD_CONST, none_idx, rloc));
-    blk.instrs.append(mk_instr(OP_RETURN_VALUE, 0, rloc));
+    none_idx = g.u.add_const(py_none());
+    g.emit_op(OP_LOAD_CONST, none_idx, rloc);
+    g.emit_op(OP_RETURN_VALUE, 0, rloc);
 }
 
-# Build a compile_unit for an exec-mode module body. Emits RESUME (module scope:
+# Build a unverified_cfg for an exec-mode module body. Emits RESUME (module scope:
 # lineno 0), each statement, then the implicit LOAD_CONST None; RETURN_VALUE
 # epilogue. The epilogue carries the last-emitted instruction's location (or the
 # last statement's location when it emitted nothing, e.g. Pass), matching
 # CPython's NO_LOCATION inheritance at the end of _PyCodegen_AddReturnAtEnd.
 def compile_exec(
-    body: list[stmt], filename: str, name: str, firstlineno: int
-) -> compile_unit {
-    u = compile_unit(
-        filename=filename,
-        name=name,
-        qualname=name,
-        firstlineno=firstlineno
+    body: list[stmt],
+    filename: str,
+    name: str,
+    firstlineno: int,
+    sym_top: sym_block | None = None
+) -> unverified_cfg {
+    u = unverified_cfg(
+        filename=filename, name=name, qualname=name, firstlineno=firstlineno
     );
     entry = u.add_block();
-    entry.instrs.append(mk_instr(OP_RESUME, 0, loc(0, firstlineno, 0, 0)));
+    g = new_cfg_builder(u, entry, sym_top);
+    g.emit_op(OP_RESUME, 0, loc(0, firstlineno, 0, 0));
     last = loc(0, firstlineno, 0, 0);
+    terminated = False;
     si = 0;
     while si < len(body) {
         s = body[si];
-        if isinstance(s, Return) {
-            codegen_fail(u, "SyntaxError", "'return' outside function");
-            return u;
+        cont = visit_stmt(g, s, exec_tail_emits_code(body, si + 1));
+        last = cont.loc;
+        if cont.terminated {
+            terminated = True;
         }
-        last = visit_stmt(u, entry, s);
-        if codegen_busy(u) {
+        if codegen_busy(g) {
             return u;
         }
         si = si + 1;
     }
+    if terminated {
+        return u;
+    }
     none_idx = u.add_const(py_none());
-    entry.instrs.append(mk_instr(OP_LOAD_CONST, none_idx, last));
-    entry.instrs.append(mk_instr(OP_RETURN_VALUE, 0, last));
+    g.emit_op(OP_LOAD_CONST, none_idx, last);
+    g.emit_op(OP_RETURN_VALUE, 0, last);
     return u;
 }
