@@ -314,7 +314,7 @@ def on_order_placed(event: Event) -> None {
 
 Handlers register at import time. At server startup, the framework walks the registry and wires each handler into the active broker. A daemon consumer thread is spawned per subscription.
 
-`@subscribe` accepts optional `group=` and `retry=` arguments to override the defaults from `jac.toml`, plus `start_from=` to control where a brand-new consumer group begins reading. Default is `"latest"` (only events produced after the group is created); pass `"earliest"` to replay everything still retained, or a broker-specific position token to resume from a specific offset. `start_from` is a one-time bookmark: existing groups always resume from their stored position and ignore this argument.
+`@subscribe` accepts optional `group=` and `retry=` arguments to override the defaults from `jac.toml`, plus `start_from=` to control where a brand-new consumer group begins reading. Default is `"latest"` (only events produced after the group is created); pass `"earliest"` to replay everything still retained. The argument is a plain `str`; the two positions the shipped brokers understand are named by the `StreamPosition` enum in `jaclang.scale.events.broker`, so `start_from=StreamPosition.EARLIEST.value` says the same thing as `start_from="earliest"`. Any other token is treated as `"latest"`. `start_from` is a one-time bookmark: existing groups always resume from their stored position and ignore this argument.
 
 ```jac
 @subscribe("orders.placed", start_from="earliest")
@@ -340,7 +340,9 @@ def drain(broker: EventStreamBroker) -> int {
 }
 ```
 
-`consume()` blocks for up to `timeout_seconds` waiting for at least one event, then returns whatever has arrived (up to `max_messages`). Each event must be acked individually via `ack(event)` or the broker will redeliver it after its visibility timeout. `consume()` accepts the same `start_from=` argument as `subscribe()`; it only affects the first call that creates the consumer group, subsequent calls resume from the stored position.
+`consume()` blocks for up to `timeout_seconds` (default `5.0`) waiting for at least one event, then returns whatever has arrived (up to `max_messages`). Pass `timeout_seconds=0.0` for a non-blocking poll. Each event must be acked individually via `ack(event)` or the broker will redeliver it after its visibility timeout. `consume()` accepts the same `start_from=` argument as `subscribe()`; it only affects the first call that creates the consumer group, subsequent calls resume from the stored position.
+
+Every broker honors that contract identically, whichever backend is selected: `EventStreamBroker` checks each implementation's method signatures against its own declarations when the subclass is defined, so a broker that drops a parameter, changes a default, or adds a required parameter raises `TypeError` at import instead of failing on a call at runtime. An implementation may widen with additional defaulted parameters.
 
 ### Configuration reference
 
