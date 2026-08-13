@@ -1989,15 +1989,16 @@ impl LambdaExpr.tail_return_expr -> Expr | None {
         for s in body
         if not isinstance(s, Semi)
     ];
-    if len(stmts) != 1 {
-        return None;
+    if (len(stmts) == 1 and isinstance(stmts[0], ExprStmt)) {
+        return stmts[0].expr;
     }
-    only = stmts[0];
-    if isinstance(only, ExprStmt) {
-        return only.expr;
-    }
-    if isinstance(only, ReturnStmt) and only.is_implicit {
-        return only.expr;
+    if (
+        len(stmts) == 1
+        and isinstance(stmts[0], ReturnStmt)
+        and stmts[0].is_implicit
+        and stmts[0].expr is not None
+    ) {
+        return stmts[0].expr;
     }
     return None;
 }
