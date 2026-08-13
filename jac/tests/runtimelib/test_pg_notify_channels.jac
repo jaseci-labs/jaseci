@@ -18,6 +18,8 @@ stop` in test_db_cli), and a NOTIFY is not durable across a restart, so
 sharing that lifecycle would make delivery assertions racy.
 """
 
+import atexit;
+import shutil;
 import time;
 import from tempfile { mkdtemp }
 import from typing { Any }
@@ -28,9 +30,28 @@ glob _holder: dict = {},
      _LONG_STEM = 'cache:' + ('x' * 70) + ':';
 
 
+def _discard_runtime {
+    # The cluster belongs to this worker process, so it leaves with it
+    # instead of lingering as an orphan server on the machine.
+    rt = _holder.pop('rt', None);
+    home = _holder.pop('home', None);
+    if rt is not None {
+        try {
+            rt.stop();
+        } except Exception { }
+    }
+    if home is not None {
+        shutil.rmtree(home, ignore_errors=True);
+    }
+}
+
+
 def _runtime -> Any {
     if 'rt' not in _holder {
-        _holder['rt'] = PgRuntime(data_dir=mkdtemp(prefix='jacnotify_') + '/data');
+        home = mkdtemp(prefix='jacnotify_');
+        _holder['home'] = home;
+        _holder['rt'] = PgRuntime(data_dir=home + '/data');
+        atexit.register(_discard_runtime);
     }
     return _holder['rt'];
 }
