@@ -493,7 +493,8 @@ impl NaIRGenPass._forward_declare_method(
     if struct_type is None or (sig is None and field is None) {
         return;
     }
-    _is_static = method.is_static;
+
+    _is_static = method.is_static or method.is_classmethod;
 
     _m_params = sig.get_parameters() if sig is not None else [];
     if (
@@ -501,6 +502,14 @@ impl NaIRGenPass._forward_declare_method(
         and _m_params
         and _m_params[0].name
         and _m_params[0].name.value == "self"
+    ) {
+        _m_params = _m_params[1:];
+    }
+    if (
+        method.is_classmethod
+        and _m_params
+        and _m_params[0].name
+        and _m_params[0].name.value == "cls"
     ) {
         _m_params = _m_params[1:];
     }
@@ -586,7 +595,7 @@ impl NaIRGenPass._codegen_method(
         self._scan_closure_escapes(_scan_owner, _scan_body);
     }
 
-    _is_static = method.is_static;
+    _is_static = method.is_static or method.is_classmethod;
     _base = 0;
     if not _is_static {
         self_alloca = self.builder.alloca(func.args[0].type, name="self");
@@ -603,6 +612,14 @@ impl NaIRGenPass._codegen_method(
         and _body_params
         and _body_params[0].name
         and _body_params[0].name.value == "self"
+    ) {
+        _body_params = _body_params[1:];
+    }
+    if (
+        method.is_classmethod
+        and _body_params
+        and _body_params[0].name
+        and _body_params[0].name.value == "cls"
     ) {
         _body_params = _body_params[1:];
     }
