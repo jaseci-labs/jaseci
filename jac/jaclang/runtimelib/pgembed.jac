@@ -20,6 +20,8 @@ glob logger = logging.getLogger(__name__),
      PG_MAJOR = 19,
      SOCK_PORT = 5432,
      PG_MAX_CONNECTIONS = 256,
+     PG_MAX_PRED_LOCKS_PER_TXN = 1024,
+     PG_IDLE_IN_TXN_TIMEOUT_MS = 300000,
      ZONKY_BASE = (
          'https://repo1.maven.org/maven2/io/zonky/test/postgres/'
          'embedded-postgres-binaries-'
@@ -28,6 +30,9 @@ glob logger = logging.getLogger(__name__),
          'PgRuntime',
          'PG_MAJOR',
          'PG_MAX_CONNECTIONS',
+         'PG_MAX_PRED_LOCKS_PER_TXN',
+         'PG_IDLE_IN_TXN_TIMEOUT_MS',
+         'pg_tuning_settings',
          'pinned_major',
          'dist_cache_dir'
      ];
@@ -35,6 +40,7 @@ glob logger = logging.getLogger(__name__),
 
 def pinned_major -> int;
 def dist_cache_dir -> str;
+def pg_tuning_settings -> dict[str, str];
 
 
 obj PgRuntime {

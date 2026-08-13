@@ -3,6 +3,7 @@ import from enum { StrEnum }
 import from pathlib { Path }
 import from typing { Any }
 import from jaclang.cli.console { console }
+import from jaclang.runtimelib.store { TxnIsolation }
 import from jaclang.runtimelib.dbcatalog { DbRecord, MAINTENANCE_DB }
 
 
@@ -116,7 +117,7 @@ def _db_status(data_dir: str) -> int {
     }
     store = _open_store(rt);
     try {
-        store.begin(serializable=False);
+        store.begin(TxnIsolation.READ_COMMITTED);
         rows = store.rows(
             'SELECT kind, count(*) FROM anchors GROUP BY kind ORDER BY kind', {}
         );
@@ -136,7 +137,7 @@ def _db_inspect(data_dir: str) -> int {
     rt = _runtime_for(data_dir);
     store = _open_store(rt);
     try {
-        store.begin(serializable=False);
+        store.begin(TxnIsolation.READ_COMMITTED);
         rows = store.rows(
             """
             SELECT kind, arch_type, count(*) FROM anchors
@@ -165,7 +166,7 @@ def _db_sql(data_dir: str, query: str) -> int {
     rt = _runtime_for(data_dir);
     store = _open_store(rt);
     try {
-        store.begin(serializable=False);
+        store.begin(TxnIsolation.READ_COMMITTED);
         for row in store.rows(query, {}) {
             console.print(' | '.join(str(c) for c in row));
         }

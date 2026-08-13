@@ -88,7 +88,7 @@ byLLM, scale, the client/desktop framework, and the MCP server all ship inside t
 
 ## .jacignore
 
-`.jacignore` at the project root excludes files from compilation/analysis - one pattern per line, `.gitignore`-style (`*.generated.jac`, `test_fixtures/`).
+`.jacignore` at the project root excludes files from compilation/analysis - one pattern per line, `.gitignore`-style (`*.generated.jac`, `test_fixtures/`). A `--scale` deploy honors it too: a parked tree is not staged into the app bundle, so it never reaches the pods or their boot compile.
 
 ## Pitfalls
 
