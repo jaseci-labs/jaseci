@@ -154,12 +154,12 @@ def generate -> str {
     lines.append('        is_scope: bool,');
     lines.append('        is_cfg: bool,');
     lines.append('        is_name_atom: bool,');
-    lines.append('        fields: tuple;');
+    lines.append('        fields: tuple[FieldDesc, ...];');
     lines.append('}');
     lines.append('');
     lines.append('');
     lines.append('"""Registry data: node specs, name/index lookup tables."""');
-    lines.append('glob NODE_SPECS: tuple = (');
+    lines.append('glob NODE_SPECS: tuple[NodeSpec, ...] = (');
 
     for (idx, entry) in enumerate(all_classes) {
         (name, cls) = entry;
