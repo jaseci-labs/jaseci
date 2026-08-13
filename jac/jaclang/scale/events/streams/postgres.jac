@@ -11,7 +11,8 @@ import from jaclang.scale.events.broker {
     Event,
     RetryPolicy,
     HealthStatus,
-    StreamPosition
+    StreamPosition,
+    starts_at_earliest
 }
 
 def _jsonable(o: any) -> str {
@@ -117,7 +118,7 @@ obj PgEventStream(EventStreamBroker) {
             return;
         }
         store = self._ensure_store();
-        if start_from == StreamPosition.EARLIEST.value {
+        if starts_at_earliest(start_from) {
             store.rows(
                 """
                 INSERT INTO jac_event_offsets (topic, grp, last_id)

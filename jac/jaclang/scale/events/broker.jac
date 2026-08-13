@@ -4,6 +4,11 @@ import uuid;
 
 enum StreamPosition { EARLIEST = 'earliest', LATEST = 'latest', }
 
+def starts_at_earliest(start_from: any) -> bool {
+    token = start_from.value if isinstance(start_from, StreamPosition) else start_from;
+    return token == StreamPosition.EARLIEST.value;
+}
+
 glob _POSITIONAL_KINDS = {'POSITIONAL_ONLY', 'POSITIONAL_OR_KEYWORD'},
      _VARIADIC_KINDS = {'VAR_POSITIONAL', 'VAR_KEYWORD'};
 

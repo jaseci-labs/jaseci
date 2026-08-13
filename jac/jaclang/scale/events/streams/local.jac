@@ -5,7 +5,8 @@ import from jaclang.scale.events.broker {
     Event,
     RetryPolicy,
     HealthStatus,
-    StreamPosition
+    StreamPosition,
+    starts_at_earliest
 }
 import from jaclang.scale.events.streams._stream_common { consumer_loop, wait_or_stop }
 import logging;
@@ -80,7 +81,7 @@ obj LocalEventStream(EventStreamBroker) {
                 return;
             }
             log = self._topics.get(topic, []);
-            if start_from == StreamPosition.EARLIEST.value {
+            if starts_at_earliest(start_from) {
                 self._offsets[key] = 0;
             } else {
                 self._offsets[key] = len(log);

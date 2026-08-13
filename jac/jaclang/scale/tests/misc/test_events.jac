@@ -7,7 +7,9 @@ import from jaclang.scale.events.broker {
     EventStreamBroker,
     Event,
     RetryPolicy,
-    HealthStatus
+    HealthStatus,
+    StreamPosition,
+    starts_at_earliest
 }
 import from typing { Callable }
 import from threading { Event as _ThreadStop }
@@ -265,6 +267,19 @@ test "consumer_loop defaults start_from to latest" {
     broker = _StartFromRecorder();
     consumer_loop(broker, "topic", "grp", _noop_handler, RetryPolicy());
     assert broker.seen_start_from == "latest";
+}
+
+
+# --- position tokens ---
+# One predicate decides "replay from the beginning" for every backend, so the
+# two brokers cannot drift apart on what a position token means.
+test "the earliest position is recognized as a string or an enum member" {
+    assert starts_at_earliest("earliest");
+    assert starts_at_earliest(StreamPosition.EARLIEST.value);
+    assert starts_at_earliest(StreamPosition.EARLIEST);
+    assert not starts_at_earliest("latest");
+    assert not starts_at_earliest(StreamPosition.LATEST);
+    assert not starts_at_earliest("some-broker-token");
 }
 
 

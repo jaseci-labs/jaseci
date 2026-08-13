@@ -314,7 +314,7 @@ def on_order_placed(event: Event) -> None {
 
 Handlers register at import time. At server startup, the framework walks the registry and wires each handler into the active broker. A daemon consumer thread is spawned per subscription.
 
-`@subscribe` accepts optional `group=` and `retry=` arguments to override the defaults from `jac.toml`, plus `start_from=` to control where a brand-new consumer group begins reading. Default is `"latest"` (only events produced after the group is created); pass `"earliest"` to replay everything still retained. The two positions are also available as `StreamPosition.LATEST` / `StreamPosition.EARLIEST` from `jaclang.scale.events.broker`, and the shipped brokers treat any other token as `"latest"`. `start_from` is a one-time bookmark: existing groups always resume from their stored position and ignore this argument.
+`@subscribe` accepts optional `group=` and `retry=` arguments to override the defaults from `jac.toml`, plus `start_from=` to control where a brand-new consumer group begins reading. Default is `"latest"` (only events produced after the group is created); pass `"earliest"` to replay everything still retained. The argument is a plain `str`; the two positions the shipped brokers understand are named by the `StreamPosition` enum in `jaclang.scale.events.broker`, so `start_from=StreamPosition.EARLIEST.value` says the same thing as `start_from="earliest"`. Any other token is treated as `"latest"`. `start_from` is a one-time bookmark: existing groups always resume from their stored position and ignore this argument.
 
 ```jac
 @subscribe("orders.placed", start_from="earliest")
