@@ -325,7 +325,6 @@ impl JSCodeGenerator.gen_arrow_function_expression(
     }
     body = self.generate(nd.body);
     if not isinstance(nd.body, es.BlockStatement) and body.startswith('{') {
-        # An expression body whose leftmost token is `{` parses as a block.
         body = f"({body})";
     }
     return f"{async_str}{params} => {body}";
