@@ -13,6 +13,7 @@ enum DbAction(StrEnum) {
     STOP = 'stop',
     INSPECT = 'inspect',
     SQL = 'sql',
+    FETCH = 'fetch',
     LIST = 'list',
     DROP = 'drop',
     PRUNE = 'prune'
@@ -385,7 +386,7 @@ impl db(
     if verb == DbAction.SERVE {
         return _db_serve(data_dir, port);
     }
-    if action == 'fetch' {
+    if verb == DbAction.FETCH {
         return _db_fetch();
     }
     dd = _project_data_dir(data_dir);
