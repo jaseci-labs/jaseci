@@ -1061,19 +1061,39 @@ def materialize_fixups(module: any) {
         elem = body_elem.get(type(nd).__name__);
         if elem is not None and nd.__dict__.get("body") is None {
             lb = -1;
+            rb = -1;
             for (ki, k) in enumerate(nd.kid) {
-                if getattr(k, "name", "") == "LBRACE" {
+                knm = getattr(k, "name", "");
+                if knm == "LBRACE" and lb < 0 {
                     lb = ki;
-                    break;
+                }
+                if knm == "RBRACE" {
+                    rb = ki;
                 }
             }
             if lb >= 0 {
+                if rb < lb {
+                    rb = len(nd.kid);
+                }
                 nd.body = [
                     k
-                    for k in nd.kid[lb + 1:]
-                    if isinstance(k, elem) and type(k).__name__ != "Semi"
+                    for k in nd.kid[lb + 1:rb]
+                    if type(k) is not uni.Token
                 ];
+            } elif nd.kid {
+                last = nd.kid[len(nd.kid) - 1];
+                lkids = last?.kid;
+                if lkids and getattr(lkids[0], "name", "") == "KW_BY" {
+                    nd.body = last;
+                }
             }
+        }
+        if isinstance(nd, uni.SpecialVarRef) {
+            spec0 = nd.__dict__.get("name_spec");
+            if spec0 is not nd {
+                nd.name_spec = nd;
+            }
+            continue;
         }
         if isinstance(nd, uni.AstSymbolStubNode)
             and nd.__dict__.get("name_spec") is None {
@@ -1091,7 +1111,13 @@ def materialize_fixups(module: any) {
 
             if spec is not None and spec is not nd {
                 name_child = nd.__dict__.get("name");
+                if isinstance(name_child, uni.AstSymbolNode) {
+                    spec = name_child;
+                }
                 sym_name = str(name_child?.value or getattr(spec, "value", ""));
+                if rebind == "TEST" and not sym_name.startswith("test_") {
+                    sym_name = f"test_{sym_name}";
+                }
                 getattr(uni.AstSymbolNode, "_init_symbol")(
                     nd,
                     sym_name=sym_name,

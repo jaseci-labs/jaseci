@@ -5059,7 +5059,10 @@ impl NativeBuiltinEmitter.emit_str(
         is_null = b.icmp_unsigned(
             "==", arg_val, ir.Constant(i8p, None), name="str.isnone"
         );
-        return b.select(is_null, none_s, arg_val, name="str.ornone");
+        _pass_through: ir.Value = b.select(is_null, none_s, arg_val, name="str.ornone");
+
+        p._emit_rc_retain(_pass_through, op="str_passthrough");
+        return p._mark_owned(_pass_through);
     }
 
     if isinstance(arg_val.type, ir.DoubleType) {

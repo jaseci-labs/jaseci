@@ -407,6 +407,41 @@ test "field-level parity holds on a compiler source module" {
     _assert_full_parity(mod_src.read_text(encoding="utf-8"), str(mod_src));
 }
 
+test "field-level parity: test blocks, class fields, by-abilities, impl enums" {
+    # The CI-found gap corpus (#8109): quoted test names must lower with the
+    # test_ prefix (an unprefixed `test "getcwd"` shadows the import and
+    # every later call hits the zero-arg test wrapper), python-style class
+    # bodies keep their annotated Assignments, `by` abilities keep their
+    # expression body, impl-enum kids keep their comma tokens, and special
+    # keyword params (props/self/init) keep SpecialVarRef symbol wiring.
+    nl = chr(10);
+    src = nl.join(
+        [
+            "import from os { getcwd }",
+            "import from dataclasses { dataclass }",
+            "test \"getcwd\" { assert getcwd() is not None; }",
+            "test \"getcwd resolves the import, not this test\" {",
+            "    assert getcwd() is not None;",
+            "}",
+            "@dataclass",
+            "class _Simple {",
+            "    name: str = '';",
+            "    count: int = 0;",
+            "}",
+            "def JsProps(props: dict) -> int { return 1; }",
+            "def summarize(text: str) -> str by llm();",
+            "enum Color;",
+            "impl Color {",
+            "    RED = 1,",
+            "    GREEN = 2,",
+            "    BLUE = 3",
+            "}",
+
+        ]
+    );
+    _assert_full_parity(src, "__gap_corpus__.jac");
+}
+
 test "materialized trees compile to RUNNABLE bytecode (obj __init__)" {
     # The payload smoke that caught #8109's body-slot gap: an obj compiled
     # through a materialized tree must construct with its has-var __init__.
