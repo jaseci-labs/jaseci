@@ -554,24 +554,16 @@ impl UniScopeNode._fix_store_ctx(item: UniNode) -> None {
         if isinstance(item.operand, AstSymbolNode) {
             item.operand.name_spec.expr_ctx = ExprCtx.STORE;
         }
-    } elif isinstance(item, TupleVal) {
-        self._fix_store_items(list(item.values));
-    } elif isinstance(item, ListVal) {
-        self._fix_store_items(list(item.values));
-    }
-}
-
-impl UniScopeNode._fix_store_items(items: Sequence[UniNode]) -> None {
-    for i in items {
-        if isinstance(i, AstSymbolNode) {
-            i.name_spec.expr_ctx = ExprCtx.STORE;
-        } elif isinstance(i, AtomTrailer) {
-            self.chain_def_insert(i.as_attr_list);
-        }
-        if isinstance(i, TupleVal)
-            or isinstance(i, ListVal)
-            or isinstance(i, UnaryExpr) {
-            self._fix_store_ctx(i);
+    } elif isinstance(item, (TupleVal, ListVal)) {
+        for i in item.values {
+            if isinstance(i, AstSymbolNode) {
+                i.name_spec.expr_ctx = ExprCtx.STORE;
+            } elif isinstance(i, AtomTrailer) {
+                self.chain_def_insert(i.as_attr_list);
+            }
+            if isinstance(i, (TupleVal, ListVal, UnaryExpr)) {
+                self._fix_store_ctx(i);
+            }
         }
     }
 }

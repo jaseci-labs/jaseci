@@ -392,13 +392,31 @@ impl NaIRGenPass._iter_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | No
 impl NaIRGenPass._typed_elem_llvm_of(
     expr: (uni.UniNode | None), prefix: str
 ) -> (ir.Type | None) {
-    if not isinstance(expr, uni.Expr) or expr.type is None {
+    """Element storage for a container-typed expression.
+
+    The type reaching here can be a union: a field read off a joined narrow
+    (`isinstance(item, (TupleVal, ListVal))` then `item.values`) has one
+    member type per narrowed class, and a union carries no `private` of its
+    own. Members that agree on the container shape agree on its element type
+    too, so the first matching member answers for all of them.
+    """;
+    _ty = self._flow_narrowed_type_of(expr);
+    if _ty is None {
         return None;
     }
-    if not self._mangled_of(expr.type).startswith(prefix) {
+    _mg = self._mangled_of(_ty);
+    if _mg is None or not _mg.startswith(prefix) {
         return None;
     }
-    args = expr.type.private.type_args or [];
+    for _cand in (_ty?.types or [_ty]) {
+        _priv = _cand?.private;
+        if _priv is not None and (_priv?.type_args or []) {
+            _ty = _cand;
+            break;
+        }
+    }
+    _priv = _ty?.private;
+    args = (_priv?.type_args or []) if _priv is not None else [];
     if not args {
         return None;
     }
