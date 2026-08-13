@@ -91,8 +91,17 @@ glob _PG_CHANNEL_LIMIT = 63,
      _CHANNEL_ENVELOPE_VERSION = 1;
 
 
+def _channel_travels_verbatim(channel: str) -> bool {
+    return (
+        bool(channel)
+        and '\x00' not in channel
+        and len(channel.encode('utf-8')) <= _PG_CHANNEL_LIMIT
+    );
+}
+
+
 def _channel_ident(channel: str) -> str {
-    if channel and len(channel.encode('utf-8')) <= _PG_CHANNEL_LIMIT {
+    if _channel_travels_verbatim(channel) {
         return channel;
     }
     import hashlib;

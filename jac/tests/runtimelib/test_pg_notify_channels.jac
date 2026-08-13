@@ -106,16 +106,22 @@ test "channels that sanitize alike never cross-deliver" {
 
 
 test "both directions of a namespaced pair stay separated" {
+    # The old sanitizer also lowercased, so 'CACHE:INVALIDATE' collapsed onto
+    # the same identifier as the other two.
     with TemporaryDirectory() as td {
         (sub, pub) = _pair(td);
         colon: list[str] = [];
         plain: list[str] = [];
+        upper: list[str] = [];
         try {
             sub.listen(
                 'cache:invalidate', lambda (payload: str) { colon.append(payload); }
             );
             sub.listen(
                 'cache_invalidate', lambda (payload: str) { plain.append(payload); }
+            );
+            sub.listen(
+                'CACHE:INVALIDATE', lambda (payload: str) { upper.append(payload); }
             );
             _settle();
             pub.notify('cache:invalidate', 'A');
@@ -129,6 +135,9 @@ test "both directions of a namespaced pair stay separated" {
         }
         assert colon == ['A'] , f"expected only 'A' on 'cache:invalidate', got {colon}";
         assert plain == ['B'] , f"expected only 'B' on 'cache_invalidate', got {plain}";
+        assert upper == [] , (
+            f"'CACHE:INVALIDATE' is a distinct channel but received {upper}"
+        );
     }
 }
 
@@ -158,6 +167,36 @@ test "channel names past the postgres identifier limit round trip intact" {
         assert got_one == [] , (
             "two channel names sharing their first 63 bytes cross-delivered: "
             f"{got_one}"
+        );
+    }
+}
+
+
+test "a name postgres cannot carry verbatim still routes to one listener" {
+    # A NUL byte terminates a string on the wire, so this name can never be a
+    # postgres channel; it must still reach its own listener and nobody else.
+    with TemporaryDirectory() as td {
+        (sub, pub) = _pair(td);
+        one = 'cache:\x00:one';
+        two = 'cache:\x00:two';
+        got_one: list[str] = [];
+        got_two: list[str] = [];
+        try {
+            sub.listen(one, lambda (payload: str) { got_one.append(payload); });
+            sub.listen(two, lambda (payload: str) { got_two.append(payload); });
+            _settle();
+            pub.notify(one, 'nul-one');
+            _wait_for(got_one, 1);
+            time.sleep(0.5);
+        } finally {
+            sub.close();
+            pub.close();
+        }
+        assert got_one == ['nul-one'] , (
+            f"the unrepresentable channel name lost its message, got {got_one}"
+        );
+        assert got_two == [] , (
+            f"a sibling unrepresentable name cross-delivered: {got_two}"
         );
     }
 }
