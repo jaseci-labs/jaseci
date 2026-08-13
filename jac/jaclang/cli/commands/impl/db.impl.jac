@@ -80,7 +80,7 @@ def _catalog_runtime(data_dir: str) -> Any {
 def _open_store(rt: Any) -> Any {
     import from jaclang.runtimelib.store { PgStore }
     store = PgStore(conninfo=rt.ensure());
-    store.ensure_schema({});
+    store.ensure_schema_once({});
     return store;
 }
 

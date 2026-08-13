@@ -194,7 +194,7 @@ test "the official image defaults to a real non-root account" {
 obj _CountingStore(PgStore) {
     has ddl_runs: int = 0;
 
-    def ensure_schema(promotions: dict[str, list[str]]) -> None {
+    def ensure_schema(promotions: dict[str, list[str]]) {
         self.ddl_runs += 1;
     }
 }
@@ -218,8 +218,7 @@ test "first-use schema DDL runs once per database, even from many threads" {
         store.ensure_schema_once({});
     }
     threads = [
-        threading.Thread(target=race, name="jac-gate-racer")
-        for _ in range(racers)
+        threading.Thread(target=race, name="jac-gate-racer") for _ in range(racers)
     ];
     for t in threads {
         t.start();
