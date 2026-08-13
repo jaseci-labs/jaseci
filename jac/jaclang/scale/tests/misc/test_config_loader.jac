@@ -1,5 +1,12 @@
 import os;
-import from jaclang.scale.config.config_loader { JacScaleConfig }
+import shutil;
+import tempfile;
+import from pathlib { Path }
+import from jaclang.scale.config.config_loader {
+    JacScaleConfig,
+    get_scale_config,
+    reset_scale_config
+}
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
@@ -209,5 +216,57 @@ test "config sections read by config_loader are schema-declared (#8000 1.2)" {
         "server"
     ] {
         assert section in schema_sections , f"[scale.{section}] is read by config_loader but has no schema entry";
+    }
+}
+
+
+test "get_kubernetes_config leaves the cached config dict unmutated" {
+    # load() returns the cached dict by reference; deriving kubernetes keys
+    # must not write them back, or later readers of the raw config see
+    # derived values as if the user had configured them.
+    cfg = JacScaleConfig();
+    cfg._config = {
+        "kubernetes": {"namespace": "demo"},
+        "monitoring": {"namespace": "demo_metrics"}
+    };
+    cfg.get_kubernetes_config();
+    leaked = cfg._config["kubernetes"];
+    assert leaked == {"namespace": "demo"} , f"derived keys leaked into the cached config: {leaked}";
+}
+
+
+test "repeated get_kubernetes_config calls return equal results" {
+    # Pre-copy, every call stacked derived keys onto the cached dict, so the
+    # result depended on how many times it had been called before.
+    cfg = JacScaleConfig();
+    cfg._config = {
+        "kubernetes": {"namespace": "demo"},
+        "monitoring": {"namespace": "demo_metrics"}
+    };
+    first = cfg.get_kubernetes_config();
+    second = cfg.get_kubernetes_config();
+    assert first == second;
+}
+
+
+test "get_scale_config raises on a different project_dir instead of silently reusing" {
+    reset_scale_config();
+    dir_a = tempfile.mkdtemp(prefix="jac-cfg-a-");
+    dir_b = tempfile.mkdtemp(prefix="jac-cfg-b-");
+    try {
+        first = get_scale_config(project_dir=Path(dir_a));
+        assert get_scale_config() is first;
+        assert get_scale_config(project_dir=Path(dir_a)) is first;
+        raised = False;
+        try {
+            get_scale_config(project_dir=Path(dir_b));
+        } except RuntimeError {
+            raised = True;
+        }
+        assert raised , "a second project_dir was silently ignored and the first project's config returned";
+    } finally {
+        reset_scale_config();
+        shutil.rmtree(dir_a, ignore_errors=True);
+        shutil.rmtree(dir_b, ignore_errors=True);
     }
 }
