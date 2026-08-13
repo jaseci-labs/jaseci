@@ -114,6 +114,14 @@ def _db_sql(data_dir: str, query: str) -> int {
 }
 
 
+def _db_fetch -> int {
+    import from jaclang.runtimelib.pgembed { PgRuntime, dist_cache_dir }
+    bin_dir = PgRuntime(data_dir=dist_cache_dir()).fetch_dist();
+    console.success(f"embedded postgres binaries ready at {bin_dir}");
+    return 0;
+}
+
+
 def _db_serve(data_dir: str, port: int) -> int {
     serve_dir = data_dir or os.environ.get('JAC_PGDATA') or '/var/lib/jac/pgdata';
     serve_port = int(os.environ.get('JAC_DB_PORT', str(port)));
@@ -128,6 +136,9 @@ impl db(
 ) -> int {
     if action == 'serve' {
         return _db_serve(data_dir, port);
+    }
+    if action == 'fetch' {
+        return _db_fetch();
     }
     dd = _project_data_dir(data_dir);
     if action == 'status' {

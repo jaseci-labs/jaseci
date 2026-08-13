@@ -114,18 +114,6 @@ def _is_serialization_conflict(e: Exception) -> bool {
 }
 
 
-glob _schema_ready: set[str] = set();
-
-
-def _store_ns(store: (Any | None)) -> str {
-    if isinstance(store, PgStore) {
-        info = store.conninfo;
-        return (f"{info.unix_socket_dir or info.host}:" f"{info.port}/{info.database}");
-    }
-    return '';
-}
-
-
 def _json_default(o: object) -> str {
     return str(o);
 }
@@ -158,25 +146,27 @@ impl Session.postinit -> None {
     self._txn_changed = set();
     self._runtime = None;
     self._active_units = 0;
+    self._flushing = None;
     if self.store is None and self.base_path {
         url = os.environ.get('JAC_DB_URL', '');
         promos = promotions_for(self.base_path);
         if url {
-            pgs = PgStore(conninfo=conninfo_from_url(url));
+            self.store = PgStore(
+                conninfo=conninfo_from_url(url), promotions=promos, auto_schema=True
+            );
         } else {
             rt = PgRuntime(
                 data_dir=shared_pg_data_dir(),
                 database=project_db_name(self.base_path, self.target_path)
             );
             self._runtime = rt;
-            pgs = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
+            self.store = PgStore(
+                conninfo=rt.conninfo(),
+                ensure_cb=rt.ensure,
+                promotions=promos,
+                auto_schema=True
+            );
         }
-        ns = _store_ns(pgs);
-        if ns not in _schema_ready {
-            pgs.ensure_schema(promos);
-            _schema_ready.add(ns);
-        }
-        self.store = pgs;
     }
 }
 
@@ -577,12 +567,27 @@ impl Session.read_barrier -> None {
 
 
 impl Session.flush(full: bool = False) -> None {
+    import threading;
     import from jaclang.runtimelib.serializer { Serializer }
     if self.store is None {
         return;
     }
     with self._lock {
-        self._ensure_txn();
+        if self._flushing == threading.get_ident() {
+            return;
+        }
+        self._flushing = threading.get_ident();
+        try {
+            self._flush_locked(full);
+        } finally {
+            self._flushing = None;
+        }
+    }
+}
+
+
+impl Session._flush_locked(full: bool) -> None {
+    if self.store is not None {
         candidates: list[UUID];
         if full {
             candidates = list(self.__mem__.keys());
@@ -607,6 +612,9 @@ impl Session.flush(full: bool = False) -> None {
             }
             rows.append(self._serialize(anchor));
             pending.append((anchor, h));
+        }
+        if rows or self._deleted {
+            self._ensure_txn();
         }
         if rows {
             self.store.upsert(rows);
@@ -716,7 +724,6 @@ impl Session.run_request(body: Callable) -> Any {
     attempt = 0;
     while True {
         try {
-            self._ensure_txn();
             result = body();
             self.commit();
             return result;

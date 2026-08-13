@@ -12,9 +12,6 @@ impl ExecutionContext.postinit -> None {
     import from jaclang.jac0core.runtime { JacRuntime }
     if self._parent is not None {
         self.mem = self._parent.mem;
-        self.system_root = self._parent.system_root;
-        self.user_root = self._parent.user_root;
-        self.entry_node = self._parent.entry_node;
         self.base_path_dir = self._parent.base_path_dir;
         self.full_target_path = self._parent.full_target_path;
         return;
@@ -28,18 +25,46 @@ impl ExecutionContext.postinit -> None {
     }
 
     self.mem = Session(base_path=self.base_path_dir, target_path=self.full_target_path);
+}
 
-    system_root = cast((NodeAnchor | None), self.mem.get(UUID(Con.SUPER_ROOT_UUID)));
 
-    if not isinstance(system_root, NodeAnchor) {
-        system_root = cast(NodeAnchor, Root().__jac__);
-        system_root.id = UUID(Con.SUPER_ROOT_UUID);
-        self.mem.put(system_root);
+impl ExecutionContext.__getattr__(name: str) -> object {
+    if name in LAZY_ROOTS {
+        self._resolve_roots();
+        return object.__getattribute__(self, name);
     }
-    self.system_root = system_root;
+    raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'");
+}
 
-    self.user_root = self.system_root;
-    self.entry_node = self.system_root;
+
+impl ExecutionContext._resolve_roots -> None {
+    if 'system_root' in self.__dict__ {
+        return;
+    }
+    outer = self._parent;
+    if outer is not None {
+        self.system_root = outer.system_root;
+        self.user_root = outer.user_root;
+        self.entry_node = outer.entry_node;
+        return;
+    }
+    seed = cast(NodeAnchor, Root().__jac__);
+    seed.id = UUID(Con.SUPER_ROOT_UUID);
+    self.system_root = seed;
+    self.user_root = seed;
+    self.entry_node = seed;
+    stored = cast((NodeAnchor | None), self.mem.get(UUID(Con.SUPER_ROOT_UUID)));
+    if not isinstance(stored, NodeAnchor) {
+        self.mem.put(seed);
+        return;
+    }
+    self.system_root = stored;
+    if self.user_root is seed {
+        self.user_root = stored;
+    }
+    if self.entry_node is seed {
+        self.entry_node = stored;
+    }
 }
 
 impl ExecutionContext._get_anchor(anchor_id: str) -> NodeAnchor {
@@ -53,12 +78,14 @@ impl ExecutionContext._get_anchor(anchor_id: str) -> NodeAnchor {
 }
 
 impl ExecutionContext.set_user_root(root_id: str) -> None {
+    self._resolve_roots();
     self.user_root = self._get_anchor(root_id);
 
     self.entry_node = self.user_root;
 }
 
 impl ExecutionContext.set_entry_node(entry_node: (str | None)) -> None {
+    self._resolve_roots();
     self.entry_node = self._get_anchor(entry_node) if entry_node else self.user_root;
 }
 
@@ -113,6 +140,7 @@ impl ExecutionContext._aget_anchor(anchor_id: str) -> NodeAnchor {
 }
 
 impl ExecutionContext.aset_user_root(root_id: str) -> None {
+    self._resolve_roots();
     self.user_root = await self._aget_anchor(root_id);
     self.entry_node = self.user_root;
 }
