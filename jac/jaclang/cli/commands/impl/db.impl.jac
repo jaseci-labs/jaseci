@@ -234,7 +234,7 @@ def _prune_candidates(rt: Any, records: list, empty: bool) -> list[PruneCandidat
                     PruneCandidate(
                         record=rec,
                         reason=f"scratch store, {rec.dead_scratch_reason()}",
-                        force=True
+                        force=rec.pid_confirmed_dead()
                     )
                 );
             }
@@ -261,8 +261,10 @@ def _db_prune(data_dir: str, yes: bool, empty: bool) -> int {
         return 0;
     }
     import from jaclang.runtimelib.dbcatalog {
+        condemn_stale_scratch,
         connect_admin,
         drop_database,
+        drop_if_still_dead,
         list_databases
     }
     rt = _catalog_runtime(data_dir);
@@ -270,6 +272,7 @@ def _db_prune(data_dir: str, yes: bool, empty: bool) -> int {
     try {
         records = list_databases(conn);
         candidates = _prune_candidates(rt, records, empty);
+        marked = condemn_stale_scratch(conn, records) if yes else [];
         unattributed = len(
             [
                 rec
@@ -278,8 +281,14 @@ def _db_prune(data_dir: str, yes: bool, empty: bool) -> int {
             ]
         );
         console.print(f"data dir : {data_dir}");
-        if not candidates {
+        if not candidates and not marked {
             console.print("nothing to prune");
+        }
+        for name in marked {
+            console.print(
+                f"marked {name}: its heartbeat stopped, so a later prune will "
+                "reclaim it if it is still silent and unused by then"
+            );
         }
         reclaim = 0;
         dropped = 0;
@@ -293,7 +302,12 @@ def _db_prune(data_dir: str, yes: bool, empty: bool) -> int {
                 );
                 continue;
             }
-            if drop_database(conn, rec.database, force=cand.force) {
+            gone = (
+                drop_if_still_dead(conn, rec.database)
+                    if rec.is_scratch()
+                    else drop_database(conn, rec.database, force=cand.force)
+            );
+            if gone {
                 dropped += 1;
                 console.print(
                     f"dropped {rec.database} ({_human_size(rec.size_bytes)}): "

@@ -705,14 +705,23 @@ impl PgRuntime._ensure_database -> None {
 
 impl PgRuntime._reap_scratch(conn: Any) -> int {
     import from jaclang.runtimelib.dbcatalog {
+        condemn_stale_scratch,
         dead_scratch_databases,
-        drop_database,
+        drop_if_still_dead,
         list_databases
     }
     reaped = 0;
     try {
-        for name in dead_scratch_databases(list_databases(conn)) {
-            if name != self.database and drop_database(conn, name, force=True) {
+        records = list_databases(conn);
+        if (marked := condemn_stale_scratch(conn, records)) {
+            logger.info(
+                f"{len(marked)} scratch database(s) have stopped heartbeating; "
+                'they will be reclaimed by a later start if they are still '
+                'silent and unused by then'
+            );
+        }
+        for name in dead_scratch_databases(records) {
+            if name != self.database and drop_if_still_dead(conn, name) {
                 reaped += 1;
             }
         }
