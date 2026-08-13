@@ -154,8 +154,27 @@ impl NaIRGenPass._spec_from_list_slot_type(t: (ir.Type | None)) -> (str | None) 
 }
 
 impl NaIRGenPass._empty_list_dest_spec(nd: uni.ListVal) -> (str | None) {
+    _child: uni.UniNode = nd;
     _dp = nd.parent;
-    if isinstance(_dp, uni.HasVar) and _dp.value is nd {
+    while (
+        (isinstance(_dp, uni.CfgExpr) and _dp.expr is _child)
+        or (
+            isinstance(_dp, uni.IfElseExpr)
+            and (_dp.value is _child or _dp.else_value is _child)
+        )
+    ) {
+        _child = _dp;
+        _dp = _dp.parent;
+    }
+    if isinstance(_dp, uni.ReturnStmt) and _dp.expr is _child {
+        if self._builder is not None and self._builder.function is not None {
+            return self._spec_from_list_slot_type(
+                self._builder.function.function_type.return_type
+            );
+        }
+        return None;
+    }
+    if isinstance(_dp, uni.HasVar) and _dp.value is _child {
         _hv_spec = self._spec_from_list_slot_type(self._resolve_field_type(_dp));
         if self._na_debug_on() {
             import sys;
@@ -166,15 +185,14 @@ impl NaIRGenPass._empty_list_dest_spec(nd: uni.ListVal) -> (str | None) {
         }
         return _hv_spec;
     }
-    if isinstance(_dp, uni.Assignment) and _dp.value is nd {
-        if _dp.type_tag is not None
-            and _dp.type_tag.tag is not None
-            and _dp.type_tag.tag.type is not None {
-            return self._spec_from_list_slot_type(
-                self._lower_type(_dp.type_tag.tag.type)
-            );
-        }
+    if isinstance(_dp, uni.Assignment) and _dp.value is _child {
         for _tgt in (_dp.target or []) {
+            if not isinstance(_tgt, uni.AtomTrailer) and _tgt.type is not None {
+                _spec = self._spec_from_list_slot_type(self._lower_type(_tgt.type));
+                if _spec is not None {
+                    return _spec;
+                }
+            }
             if isinstance(_tgt, uni.AtomTrailer) and _tgt.is_attr {
                 _cls = self._struct_name_of(_tgt.target);
                 _fld = self._get_name(_tgt.right);
@@ -202,7 +220,7 @@ impl NaIRGenPass._empty_list_dest_spec(nd: uni.ListVal) -> (str | None) {
             }
         }
     }
-    if isinstance(_dp, uni.KWPair) and _dp.value is nd {
+    if isinstance(_dp, uni.KWPair) and _dp.value is _child {
         _fc = _dp.parent;
         if isinstance(_fc, uni.FuncCall) {
             _cn = self._get_name(_fc.target);
@@ -238,9 +256,9 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
             }
             _bare_list_decl = _lt_name == "list";
         }
-        _own_spec = self._elem_spec_of(nd);
+        _own_spec = self._empty_list_dest_spec(nd);
         if _own_spec is None {
-            _own_spec = self._empty_list_dest_spec(nd);
+            _own_spec = self._elem_spec_of(nd);
         }
         if _own_spec is not None {
             elem_type_name = _own_spec;
