@@ -1088,7 +1088,7 @@ def materialize_fixups(module: any) {
                 }
             }
         }
-        if isinstance(nd, uni.SpecialVarRef) {
+        if isinstance(nd, uni.NameAtom) {
             spec0 = nd.__dict__.get("name_spec");
             if spec0 is not nd {
                 nd.name_spec = nd;

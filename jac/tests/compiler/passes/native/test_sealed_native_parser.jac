@@ -328,6 +328,13 @@ def _assert_field_parity(a: any, b: any, path: str = "mod") {
         for k in kx & ky {
             vx = dx[k];
             vy = dy[k];
+            if k == "name_spec" and ((vx is x) != (vy is y)) {
+                # NameAtom constructors wire name_spec to the node itself; a
+                # same-typed detached copy silently breaks symbol lookups
+                # (defs land on the copy), so compare the self-reference,
+                # not just the class.
+                diffs.append(f"{p}.name_spec: self-ref {vx is x} vs {vy is y}");
+            }
             if isinstance(vx, (int, str, bool, float))
                 or vx is None
                 or isinstance(vx, _py_enum.Enum) {
@@ -440,6 +447,40 @@ test "field-level parity: test blocks, class fields, by-abilities, impl enums" {
         ]
     );
     _assert_full_parity(src, "__gap_corpus__.jac");
+}
+
+test "the checker types init-assigned members over materialized trees" {
+    # The langserve regression (#8109): NameAtom name_spec self-references
+    # came back as detached copies, so member defs recorded during the
+    # symbol pass landed on the copy and `self.r` typed Unknown in sibling
+    # methods. The full type check over a materialized tree must be clean.
+    _build_binding();
+    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    nl = chr(10);
+    src = nl.join(
+        [
+            "obj A {",
+            "    def init(r: float) {",
+            "        self.r = r;",
+            "    }",
+            "    def m -> float {",
+            "        return self.r * 2.0;",
+            "    }",
+            "}",
+
+        ]
+    );
+    with tempfile.TemporaryDirectory(prefix="jac_mat_check_") as td {
+        target = Path(td) / "initmember.jac";
+        target.write_text(src + nl, encoding="utf-8");
+        prog = JacProgram();
+        prog.compile(
+            file_path=str(target), options=CompileOptions(type_check=True, no_cgen=True)
+        );
+        errs = [str(e) for e in prog.errors_had];
+        assert not errs , str(errs[:4]);
+    }
 }
 
 test "materialized trees compile to RUNNABLE bytecode (obj __init__)" {
