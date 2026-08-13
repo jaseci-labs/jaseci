@@ -81,6 +81,7 @@ obj Serializer {
     static def _resolve_class_by_import(
         module_name: str, class_name: str
     ) -> (type | None);
+
     static def _warn_occurrence(scope: str, key: str) -> int;
     static def _is_report_threshold(n: int) -> bool;
     static def _occurrence_note(n: int) -> str;

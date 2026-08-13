@@ -52,7 +52,7 @@ def _publish_home_module -> (object | None) {
 }
 
 
-def _restore_home_module(previous: (object | None)) -> None {
+def _restore_home_module(previous: (object | None)) {
     if previous is None {
         sys.modules.pop(_EarlyNode.__module__, None);
     } else {
@@ -81,7 +81,7 @@ def _anchor_blob(arch: object) -> dict {
 test "installing a hook back-fills archetype classes that already exist" {
     seen: list = [];
 
-    def recorder(cls: type) -> None {
+    def recorder(cls: type) {
         seen.append(_key(cls));
     }
     Archetype.install_subclass_hook(recorder);
@@ -103,7 +103,7 @@ test "installing a hook back-fills archetype classes that already exist" {
 test "installing the same hook twice neither duplicates it nor re-runs it" {
     calls: list = [];
 
-    def recorder(cls: type) -> None {
+    def recorder(cls: type) {
         calls.append(cls);
     }
     Archetype.install_subclass_hook(recorder);
@@ -125,7 +125,7 @@ test "installing the same hook twice neither duplicates it nor re-runs it" {
 test "an installed hook still fires for classes created afterwards" {
     seen: list = [];
 
-    def recorder(cls: type) -> None {
+    def recorder(cls: type) {
         seen.append(cls.__name__);
     }
     Archetype.install_subclass_hook(recorder);
@@ -210,12 +210,13 @@ test "resolution refuses names that are not archetype classes" {
         # `jaclang.*` (except `jaclang.scale.*`) and resolution honors the same
         # line: a runtime-internal class resolves only if it was registered
         # explicitly, exactly as before this fallback existed.
-        assert not Serializer.is_auto_registered_module("jaclang.runtimelib.serializer");
+        assert not Serializer.is_auto_registered_module(
+            "jaclang.runtimelib.serializer"
+        );
         assert Serializer.is_auto_registered_module("jaclang.scale.something");
         assert Serializer.is_auto_registered_module("myapp.nodes");
-        assert Serializer._get_class(
-            "jaclang.runtimelib.serializer", "Serializer"
-        ) is None , "runtime-internal archetypes must not resolve implicitly";
+        assert Serializer._get_class("jaclang.runtimelib.serializer", "Serializer")
+            is None , "runtime-internal archetypes must not resolve implicitly";
         assert Serializer._get_class("os", "does_not_exist") is None;
         assert Serializer._get_class("definitely.not", "Present") is None;
     } finally {
@@ -229,7 +230,8 @@ test "deserialize still refuses a non-archetype class named in the payload" {
     try {
         assert Serializer.deserialize(
             {'__type__': 'dict', '__module__': 'builtins', 'a': 1}
-        ) is None;
+        )
+            is None;
     } finally {
         Serializer._reset_warn_cache();
     }
