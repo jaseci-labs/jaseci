@@ -59,6 +59,19 @@ obj AnchorRow {
 }
 
 
+obj ChannelListener {
+    has channel: str,
+        ident: str,
+        callback: Any;
+}
+
+
+obj ChannelMessage {
+    has channel: str,
+        payload: str;
+}
+
+
 obj Store {
     def is_available -> bool abst;
     def server_version -> int abst;
@@ -97,7 +110,7 @@ obj PgStore(Store) {
         _server_version: (int | None) postinit,
         _in_txn: bool postinit,
         _known_types: set[str] postinit,
-        _listeners: list[tuple[str, Any]] postinit,
+        _listeners: list[ChannelListener] postinit,
         _listen_thread: (Any | None) postinit,
         _listen_stop: (Any | None) postinit;
 
@@ -133,6 +146,7 @@ obj PgStore(Store) {
     def _apply_promotions -> None;
     def _property_graph_ddl -> None;
     def _listen_loop -> None;
+    def _dispatch_notification(channel: str, payload: str) -> None;
     def _schema_fingerprint -> str;
     def _schema_stamp -> (str | None);
     def _apply_schema_ddl -> None;
