@@ -1566,8 +1566,7 @@ impl Ability.event_trigger_type_names -> (list[str] | None) {
     }
     names: list[str] = [];
     for t in self.event_triggers {
-        parts = t.mangle().split("|");
-        for part in parts {
+        for part in t.mangle().split("|") {
             name = part.strip();
             if name.startswith("type[") and name.endswith("]") {
                 name = name[5:-1];
