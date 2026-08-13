@@ -6,6 +6,7 @@ import time;
 import uuid;
 import from threading { Thread, Event as _ThreadStop }
 import from typing { Any, Callable, cast }
+import from jaclang.runtimelib.store { TxnIsolation }
 import from jaclang.scale.events.broker {
     EventStreamBroker,
     Event,
@@ -110,7 +111,7 @@ obj PgEventStream(EventStreamBroker) {
 
     def _claim(topic: str, group: str, max_messages: int) -> list {
         store = self._ensure_store();
-        store.begin(serializable=False);
+        store.begin(TxnIsolation.READ_COMMITTED);
         try {
             store.rows(
                 """

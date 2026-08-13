@@ -393,9 +393,21 @@ Graph persistence is **Postgres-native** and there is exactly one stack:
 
 Credentials are never hardcoded in pod specs: the provisioned password lives in a Kubernetes `Secret` (`{app}-postgres-secret`) and pods receive `JAC_DB_URL` via `valueFrom.secretKeyRef`.
 
+#### Server tuning
+
+Every Postgres jac starts -- the embedded server, `jac db serve`, and the provisioned StatefulSet -- is started with the same three settings, because jac's write transactions are `SERIALIZABLE` and stock Postgres is not sized for that:
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| `max_connections` | `256` | Absorbs a default `jac test` fan-out plus interactive commands without starving either. |
+| `max_pred_locks_per_transaction` | `1024` | SERIALIZABLE takes one SIReadLock per row/page read, and the pool is `max_pred_locks_per_transaction` x `max_connections` entries -- 262,144 here, against a stock 64 x 100 = 6,400. Overflowing the pool fails **every** statement with `53200 out of shared memory ... CreatePredicateLock`, not just the transaction that overran it. |
+| `idle_in_transaction_session_timeout` | `300000` (5 min) | Disconnects any process that regresses on the no-idle-transaction invariant instead of letting it pin predicate-lock reclamation cluster-wide. The store heals the resulting `25P03` transparently. |
+
+If you point `[scale.database].url` at a managed Postgres, set `max_pred_locks_per_transaction` there yourself; keep the product of it and `max_connections` comfortably above the peak SIReadLock count your workload holds (`SELECT count(*) FROM pg_locks WHERE mode = 'SIReadLock'`).
+
 ### Consistency model
 
-There is no cache tier and no cross-pod invalidation protocol to configure: each request reads and writes inside one `SERIALIZABLE` Postgres transaction, and **the transaction is the single source of truth**. Racing requests converge via abort-and-replay; see [Persistence -> Concurrent writes](../persistence.md#concurrent-writes-check-then-create-and-convergence). Cross-pod signaling (WebSocket broadcasts, event delivery) rides Postgres `LISTEN`/`NOTIFY` on the same database.
+There is no cache tier and no cross-pod invalidation protocol to configure: each request's unit of work reads and writes inside one `SERIALIZABLE` Postgres transaction, and **the transaction is the single source of truth**. Racing requests converge via abort-and-replay; see [Persistence -> Concurrent writes](../persistence.md#concurrent-writes-check-then-create-and-convergence). The infrastructure reads that precede your code (resolving the request context's root anchor, and health probes) run in a declared `REPEATABLE READ READ ONLY` transaction that takes no predicate locks, and the transaction is restarted at SERIALIZABLE before a unit of work can write. Cross-pod signaling (WebSocket broadcasts, event delivery) rides Postgres `LISTEN`/`NOTIFY` on the same database.
 
 The admin dashboard's Ops page (`/admin/ops`) renders a Postgres health card driven by a live `SELECT 1` probe, so a database incident is visible without kubectl.
 
