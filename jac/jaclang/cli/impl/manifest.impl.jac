@@ -703,7 +703,7 @@ def _command_routes -> list[CommandMeta] {
                     name='empty',
                     typ='bool',
                     default=False,
-                    help='With `prune`: also drop databases that predate owner tracking and hold no data beyond the system root',
+                    help='With `prune`: also drop databases with no recorded owner that hold no data beyond the system root',
                     short=''
                 ),
 

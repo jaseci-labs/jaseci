@@ -248,7 +248,7 @@ impl dead_scratch_databases(records: list[DbRecord]) -> list[str] {
     return [
         rec.database
         for rec in records
-        if rec.is_scratch() and not process_alive(rec.host, rec.pid)
+        if rec.is_dead_scratch()
     ];
 }
 
@@ -286,6 +286,14 @@ impl DbRecord.is_scratch -> bool {
 }
 
 
+impl DbRecord.is_dead_scratch -> bool {
+    if not self.is_scratch() or not self.recorded or self.pid <= 0 {
+        return False;
+    }
+    return not process_alive(self.host, self.pid);
+}
+
+
 impl DbRecord.is_orphaned -> bool {
     if not self.recorded or self.is_scratch() or not self.owner_path {
         return False;
@@ -296,7 +304,7 @@ impl DbRecord.is_orphaned -> bool {
 
 impl DbRecord.state -> str {
     if self.is_scratch() {
-        return 'scratch' if process_alive(self.host, self.pid) else 'dead scratch';
+        return 'dead scratch' if self.is_dead_scratch() else 'scratch';
     }
     if not self.recorded {
         return 'unattributed';

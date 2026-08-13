@@ -26,6 +26,7 @@ glob logger = logging.getLogger(__name__),
          'scratch_lease',
          'drop_scratch_database',
          'retention_days_for',
+         'runtime_for_base',
          'SCRATCH_ENV',
          'RETENTION_ENV'
      ];
@@ -33,6 +34,12 @@ glob logger = logging.getLogger(__name__),
 
 obj ScratchLease {
     has database: str,
+        reset: bool = False;
+}
+
+
+obj RuntimeLease {
+    has runtime: PgRuntime,
         reset: bool = False;
 }
 
@@ -53,6 +60,7 @@ def scratch_requested(base_path: (str | None)) -> bool;
 def scratch_lease(base_path: str) -> ScratchLease;
 def drop_scratch_database -> None;
 def retention_days_for(base_path: (str | None)) -> int;
+def runtime_for_base(base_path: str, target_path: (str | None) = None) -> RuntimeLease;
 
 
 obj Session {

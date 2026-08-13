@@ -214,12 +214,12 @@ def _db_list(data_dir: str) -> int {
 
 
 def _prune_candidates(rt: Any, records: list, empty: bool) -> list[PruneCandidate] {
-    import from jaclang.runtimelib.dbcatalog { holds_no_data, process_alive }
+    import from jaclang.runtimelib.dbcatalog { holds_no_data }
     info = rt.conninfo();
     out: list[PruneCandidate] = [];
     for rec in records {
         if rec.is_scratch() {
-            if not process_alive(rec.host, rec.pid) {
+            if rec.is_dead_scratch() {
                 out.append(
                     PruneCandidate(
                         record=rec,
@@ -236,7 +236,7 @@ def _prune_candidates(rt: Any, records: list, empty: bool) -> list[PruneCandidat
             );
             continue;
         }
-        if empty and not rec.recorded and holds_no_data(info, rec.database) {
+        if empty and not rec.owner_path and holds_no_data(info, rec.database) {
             out.append(
                 PruneCandidate(record=rec, reason="no recorded owner and no data")
             );
@@ -261,7 +261,7 @@ def _db_prune(data_dir: str, yes: bool, empty: bool) -> int {
             [
                 rec
                 for rec in records
-                if not rec.recorded
+                if not rec.owner_path and not rec.is_scratch()
             ]
         );
         console.print(f"data dir : {data_dir}");
@@ -304,7 +304,7 @@ def _db_prune(data_dir: str, yes: bool, empty: bool) -> int {
         }
         if unattributed and not empty {
             console.print(
-                f"{unattributed} database(s) predate owner tracking and were left "
+                f"{unattributed} database(s) have no recorded owner and were left "
                 "alone; `jac db prune --empty` also considers the ones holding no "
                 "data, and `jac db drop <name>` handles the rest"
             );

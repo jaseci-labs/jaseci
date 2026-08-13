@@ -528,13 +528,44 @@ impl PgRuntime._ensure_database -> None {
         rows = conn.run(
             "SELECT 1 FROM pg_database WHERE datname = :n", n=self.database
         );
-        if not rows {
+        created = not rows;
+        if created {
             conn.run(f'CREATE DATABASE "{self.database}"');
         }
         record_database(conn, self.database, self.kind, self.owner_path);
+        if created and self.kind == DbKind.SCRATCH {
+            self._reap_scratch(conn);
+        }
     } finally {
         conn.close();
     }
+}
+
+
+impl PgRuntime._reap_scratch(conn: Any) -> int {
+    import from jaclang.runtimelib.dbcatalog {
+        dead_scratch_databases,
+        drop_database,
+        list_databases
+    }
+    reaped = 0;
+    try {
+        for name in dead_scratch_databases(list_databases(conn)) {
+            if name != self.database and drop_database(conn, name, force=True) {
+                reaped += 1;
+            }
+        }
+    } except Exception as e {
+        logger.debug(f"scratch reap failed: {e}");
+        return reaped;
+    }
+    if reaped {
+        logger.info(
+            f"reclaimed {reaped} scratch database(s) left by processes that "
+            'are no longer running'
+        );
+    }
+    return reaped;
 }
 
 
@@ -564,10 +595,8 @@ impl PgRuntime.databases -> list {
 impl PgRuntime._sweep_on_start -> None {
     import from jaclang.runtimelib.dbcatalog {
         connect_admin,
-        dead_scratch_databases,
         drop_database,
-        expired_databases,
-        list_databases
+        expired_databases
     }
     try {
         conn: Any = connect_admin(self.conninfo());
@@ -576,18 +605,7 @@ impl PgRuntime._sweep_on_start -> None {
         return;
     }
     try {
-        reaped = 0;
-        for name in dead_scratch_databases(list_databases(conn)) {
-            if name != self.database and drop_database(conn, name, force=True) {
-                reaped += 1;
-            }
-        }
-        if reaped {
-            logger.info(
-                f"reclaimed {reaped} scratch database(s) left by processes that "
-                'are no longer running'
-            );
-        }
+        self._reap_scratch(conn);
         if self.retention_days > 0 {
             swept = 0;
             for name in expired_databases(conn, self.retention_days, self.database) {

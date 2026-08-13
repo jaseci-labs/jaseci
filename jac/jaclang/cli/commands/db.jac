@@ -45,8 +45,8 @@ glob registry = get_registry();
             typ=bool,
             default=False,
             help=(
-                "With `prune`: also drop databases that predate owner tracking "
-                "and hold no data beyond the system root"
+                "With `prune`: also drop databases with no recorded owner that "
+                "hold no data beyond the system root"
             ),
             short=""
         ),

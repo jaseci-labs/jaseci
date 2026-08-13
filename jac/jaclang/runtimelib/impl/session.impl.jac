@@ -133,16 +133,36 @@ impl retention_days_for(base_path: (str | None)) -> int {
 }
 
 
+impl runtime_for_base(
+    base_path: str, target_path: (str | None) = None
+) -> RuntimeLease {
+    lease: (ScratchLease | None) = None;
+    if scratch_requested(base_path) {
+        lease = scratch_lease(base_path);
+    }
+    return RuntimeLease(
+        runtime=PgRuntime(
+            data_dir=shared_pg_data_dir(),
+            database=(
+                lease.database
+                    if lease is not None
+                    else project_db_name(base_path, target_path)
+            ),
+            owner_path=os.path.abspath(base_path),
+            kind=DbKind.SCRATCH if lease is not None else DbKind.PROJECT,
+            retention_days=(0 if lease is not None else retention_days_for(base_path))
+        ),
+        reset=lease is not None and lease.reset
+    );
+}
+
+
 impl takeover_project(base_path: str, target_path: (str | None) = None) -> int {
     url = os.environ.get('JAC_DB_URL', '');
     if url {
         store = PgStore(conninfo=conninfo_from_url(url));
     } else {
-        rt = PgRuntime(
-            data_dir=shared_pg_data_dir(),
-            database=project_db_name(base_path, target_path),
-            owner_path=os.path.abspath(base_path)
-        );
+        rt = runtime_for_base(base_path, target_path).runtime;
         store = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
     }
     try {
@@ -240,35 +260,23 @@ impl Session.postinit -> None {
     if self.store is None and self.base_path {
         url = os.environ.get('JAC_DB_URL', '');
         promos = promotions_for(self.base_path);
-        lease: (ScratchLease | None) = None;
+        reset = False;
         if url {
             pgs = PgStore(conninfo=conninfo_from_url(url));
         } else {
-            if scratch_requested(self.base_path) {
-                lease = scratch_lease(self.base_path);
-            }
-            rt = PgRuntime(
-                data_dir=shared_pg_data_dir(),
-                database=(
-                    lease.database
-                        if lease is not None
-                        else project_db_name(self.base_path, self.target_path)
-                ),
-                owner_path=os.path.abspath(self.base_path),
-                kind=DbKind.SCRATCH if lease is not None else DbKind.PROJECT,
-                retention_days=(
-                    0 if lease is not None else retention_days_for(self.base_path)
-                )
+            lease = runtime_for_base(self.base_path, self.target_path);
+            reset = lease.reset;
+            self._runtime = lease.runtime;
+            pgs = PgStore(
+                conninfo=lease.runtime.ensure(), ensure_cb=lease.runtime.ensure
             );
-            self._runtime = rt;
-            pgs = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
         }
         ns = _store_ns(pgs);
         if ns not in _schema_ready {
             pgs.ensure_schema(promos);
             _schema_ready.add(ns);
         }
-        if lease is not None and lease.reset {
+        if reset {
             pgs.reset_data();
         }
         self.store = pgs;

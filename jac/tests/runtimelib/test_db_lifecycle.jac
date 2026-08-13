@@ -274,6 +274,34 @@ test "marked scratch bases share one database that dies with the process" {
 }
 
 
+test "opening a scratch store reaps scratch databases of dead processes" {
+    import from jaclang.runtimelib.dbcatalog { DbKind, REGISTRY_TABLE }
+    cluster = _start_cluster();
+    scratch_proj = _seed_project("selfheal");
+    dead = subprocess.Popen([sys.executable, "-c", "pass"]);
+    dead.wait();
+    orphan = f"jac_scratch_{dead.pid}_crash";
+    try {
+        # A process killed hard (no atexit) leaves its scratch database behind.
+        _exec(cluster, f'CREATE DATABASE "{orphan}"');
+        _exec(
+            cluster,
+            f"INSERT INTO {REGISTRY_TABLE} (database, kind, owner_path, host, pid) "
+            f"VALUES ('{orphan}', '{DbKind.SCRATCH.value}', '', "
+            f"'{os.uname().nodename}', {dead.pid})"
+        );
+        (rc, out, err) = _run_app(cluster, scratch_proj, scratch=True);
+        assert rc == 0 , f"scratch run failed: {err}";
+        assert orphan not in _jac_databases(cluster) , (
+            f"the next scratch store must reclaim {orphan}, whose process is gone"
+        );
+    } finally {
+        shutil.rmtree(scratch_proj, ignore_errors=True);
+        _stop_cluster(cluster);
+    }
+}
+
+
 test "a created database records its owning absolute path" {
     import from jaclang.runtimelib.dbcatalog { REGISTRY_TABLE }
     cluster = _start_cluster();

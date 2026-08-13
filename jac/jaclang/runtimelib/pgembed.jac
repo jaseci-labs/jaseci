@@ -74,5 +74,6 @@ obj PgRuntime {
     def _start(bin_dir: str) -> None;
     def _wait_ready(timeout: float = 60.0) -> None;
     def _ensure_database -> None;
+    def _reap_scratch(conn: Any) -> int;
     def _sweep_on_start -> None;
 }

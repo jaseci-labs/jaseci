@@ -48,6 +48,7 @@ obj DbRecord {
         last_used_at: str = '';
 
     def is_scratch -> bool;
+    def is_dead_scratch -> bool;
     def is_orphaned -> bool;
     def state -> str;
 }

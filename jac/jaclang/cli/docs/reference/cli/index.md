@@ -1021,7 +1021,7 @@ jac_scratch_3142_9f1c           7.7 MB  scratch  dead scratch  2026-08-12 20:02:
 jac_oldapp_5e6f7a8b             7.6 MB  project  orphaned      2026-07-30 11:48:12  /home/you/deleted-app
 ```
 
-The states are `live` (the owning directory still exists), `orphaned` (it does not), `scratch` / `dead scratch` (a throwaway store for internal work, see below), and `unattributed` (created before the runtime recorded owners). Listing never creates a database, so it is safe to run for a look around.
+The states are `live` (the owning directory still exists), `orphaned` (it does not), `scratch` / `dead scratch` (a throwaway store for internal work, see below), and `unattributed` (no owner recorded, e.g. created before the runtime tracked owners). Listing never creates a database, so it is safe to run for a look around.
 
 ### jac db prune
 
@@ -1030,10 +1030,10 @@ Drop databases that nothing owns any more. **Prune reports and exits without dro
 ```bash
 jac db prune             # report what would go
 jac db prune -y          # drop it
-jac db prune --empty -y  # also drop pre-tracking databases that hold no data
+jac db prune --empty -y  # also drop unattributed databases that hold no data
 ```
 
-Candidates are scratch databases whose process is gone, and project databases whose recorded owning path has been deleted. Databases created before the runtime recorded owners cannot be attributed at all; they are reported and left alone. `--empty` additionally considers those, but only the ones holding nothing beyond the system root, so an old cluster full of empty test-worker databases can be reclaimed without risking anyone's data.
+Candidates are scratch databases whose process is gone, and project databases whose recorded owning path has been deleted. Databases with no recorded owner at all (created before the runtime recorded owners, or by tooling that opened the cluster directly) cannot be attributed; they are reported and left alone. `--empty` additionally considers those, but only the ones holding nothing beyond the system root, so an old cluster full of empty test-worker databases can be reclaimed without risking anyone's data.
 
 ### jac db drop
 
