@@ -24,7 +24,7 @@ walker create {
 
 **The store is Postgres, always.** There is exactly one persistence stack:
 
-- **Local development**: the runtime provisions an **embedded Postgres server** automatically, one database per project, under a shared data directory. No installation, no configuration, no daemon to manage -- `jac run` and `jac start` just work. `jac db status` shows the server state and row counts; `jac db stop` shuts it down.
+- **Local development**: the runtime provisions an **embedded Postgres server** automatically. It is one cluster for the whole machine (`~/.cache/jac/pg/main`) holding one database per project, keyed to the project's absolute path. No installation, no configuration, no daemon to manage -- `jac run` and `jac start` just work. `jac db status` shows the server state and row counts; `jac db stop` shuts it down. Because the key is the path, a project that moves or is deleted leaves its database behind: `jac db list` shows what the cluster holds and who owns it, and `jac db prune` reclaims the ones whose project is gone (see [Database Operations](cli/index.md#database-operations)).
 - **External server**: set the `JAC_DB_URL` environment variable (or `[scale.database] url` in `jac.toml`) to a `postgresql://user:pass@host:port/db` URL and the runtime connects there instead. Kubernetes deploys provision a Postgres StatefulSet and inject `JAC_DB_URL` into every pod.
 
 Anchors live in an `anchors` table with `jsonb` payloads; the same database also carries the `quarantine` sidecar, a `kv_state` utility table, and (under jac-scale) the `jac_docs` table for scheduler jobs and webhook API keys. `jac db inspect` summarizes anchors by kind and archetype; `jac db sql "..."` runs one SQL statement against the project store when you need to look closer.
@@ -189,6 +189,8 @@ jac db sql "SELECT * FROM quarantine"
 A recoverable quarantine (say, a class-missing row) heals on a later load once the cause is fixed -- deploy the code with the right [`@archetype_alias`](#class-renames-the-alias-decorator) or [`__jac_schema__`](#declared-drift-rules-__jac_schema__) declarations and touch the data again.
 
 If you've used Jac before and remember "delete the data directory to run again after editing a node," that workflow is no longer required. Schema edits don't wipe data; they at worst quarantine rows until the fixed code loads them.
+
+The same contract governs whole databases: nothing on the write path ever drops one. Reclaiming disk is always an explicit act (`jac db prune`, `jac db drop`, both of which report and exit unless you pass `-y`), with one opt-in exception you have to configure yourself, `[database] retention_days`. The only deletions the runtime performs on its own are the throwaway scratch databases it creates for its own internal work, which never hold your data.
 
 ---
 
