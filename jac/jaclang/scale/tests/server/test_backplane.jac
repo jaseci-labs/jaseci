@@ -159,6 +159,54 @@ test "publishing pod delivers exactly one copy to its own subscriber (#8000 f2)"
 }
 
 
+test "channels that used to sanitize alike stay distinct broadcasts (#8046)" {
+    # 'room-x' and 'room_x' both folded to the pg channel jac_ws_room_x, so a
+    # subscriber of one was woken by the other's broadcasts. The backplane now
+    # only namespaces the channel and the store keeps the name intact.
+    async def scenario -> (dict | None) {
+        pods = await _pods();
+        if pods is None {
+            return None;
+        }
+        (a, b, sa, sb) = pods;
+        hyphen: list[dict] = [];
+        under: list[dict] = [];
+
+        async def on_hyphen(channel: str, message: dict) {
+            hyphen.append(message);
+        }
+        async def on_under(channel: str, message: dict) {
+            under.append(message);
+        }
+        await b.subscribe('room-x', on_hyphen);
+        await b.subscribe('room_x', on_under);
+        await a.publish('room_x', {'to': 'underscore'});
+        deadline = 40;
+        while deadline > 0 and not under {
+            await asyncio.sleep(0.25);
+            deadline -= 1;
+        }
+        # Let any stray cross-delivery land before counting.
+        await asyncio.sleep(0.5);
+        await a.close();
+        await b.close();
+        sa.close();
+        sb.close();
+        return {'under': under, 'hyphen': hyphen};
+    }
+    result = asyncio.run(scenario());
+    if result is not None {
+        assert result['under'] == [{'to': 'underscore'}] , (
+            f"the 'room_x' subscriber missed its own broadcast: {result['under']}"
+        );
+        assert result['hyphen'] == [] , (
+            "the 'room-x' subscriber received a broadcast published to the "
+            f"distinct 'room_x' channel: {result['hyphen']}"
+        );
+    }
+}
+
+
 test "oversized publish from inside an open store transaction is delivered (#8000 f2)" {
     # The kv spill used to ride the main connection, so a publish issued while
     # that connection had an open transaction wrote an uncommitted row the
