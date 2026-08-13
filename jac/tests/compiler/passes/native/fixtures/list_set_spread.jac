@@ -18,6 +18,9 @@ set order is not part of the language and the native and bytecode tables
 need not agree on it.
 """
 
+glob SPREAD_SRC: list[int] = [2, 3],
+     SPREAD_GLOB: list[int] = [1, *SPREAD_SRC, 4];
+
 """Fold a list of ints to one number; the leading 1 pins the length."""
 def fold(c: list[int]) -> int {
     acc = 1;
@@ -253,6 +256,31 @@ def list_from_set(flag: int) -> int {
 }
 
 
+"""A spread in a module-level initializer, which runs inside glob init."""
+def glob_spread(flag: int) -> int {
+    return fold(SPREAD_GLOB);
+}
+
+
+"""A spread in a display that is an argument rather than a binding."""
+def call_arg_spread(flag: int) -> int {
+    a: list[int] = [2, 3];
+    return fold([1, *a, 4]);
+}
+
+
+"""A spread inside a comprehension's output expression."""
+def compr_spread(flag: int) -> int {
+    a: list[int] = [2, 3];
+    rows = [[0, *a] for _ in range(2)];
+    total = 1;
+    for r in rows {
+        total = total * 10 + len(r);
+    }
+    return total;
+}
+
+
 """A list spread whose source is reused afterwards, so the copy must be a copy."""
 def source_survives(flag: int) -> int {
     a: list[int] = [2, 3];
@@ -278,6 +306,9 @@ with entry:__main__ {
     assert str_spread(0) == 11234;
     assert float_spread(0) == 175;
     assert spread_then_mutate(0) == 11234;
+    assert glob_spread(0) == 11234;
+    assert call_arg_spread(0) == 11234;
+    assert compr_spread(0) == 133;
     assert set_tail(0) == 3014;
     assert set_head(0) == 3028;
     assert set_mid(0) == 4046;

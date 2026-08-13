@@ -49,6 +49,9 @@ glob FIXTURES = os.path.join(
          "str_spread",
          "float_spread",
          "spread_then_mutate",
+         "glob_spread",
+         "call_arg_spread",
+         "compr_spread",
          "source_survives"
      ],
      SET_FNS = [
@@ -75,6 +78,10 @@ def _compile -> object {
     assert not prog.errors_had , f"Compilation errors in {FIXTURE}: {errors}";
     eng = ir.gen.native_engine;
     assert eng is not None , f"No native engine produced for {FIXTURE}";
+    gi_addr = eng.get_function_address("__jac_glob_init");
+    if gi_addr {
+        ctypes.CFUNCTYPE(None)(gi_addr)();
+    }
     return eng;
 }
 
@@ -164,6 +171,20 @@ test "a spread source that is a literal, a spread result, or runtime-sized" {
     assert dyn(0) == 178 , "an empty runtime source";
     assert dyn(1) == 1718 , "a one-element runtime source";
     assert dyn(3) == 171238 , "a three-element runtime source";
+}
+
+
+test "a spread lowers wherever a display can appear" {
+    eng = _compile();
+    assert _get(eng, "glob_spread")(0) == 11234 , (
+        "a module-level initializer, whose copy loop lands in glob init"
+    );
+    assert _get(eng, "call_arg_spread")(0) == 11234 , (
+        "a display passed straight to a call"
+    );
+    assert _get(eng, "compr_spread")(0) == 133 , (
+        "a display as a comprehension's output expression"
+    );
 }
 
 
