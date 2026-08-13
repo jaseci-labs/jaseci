@@ -1422,14 +1422,8 @@ def _iter_jac_files(
 }
 
 def _normalize_ignore_patterns(ignore: list) -> list {
-    normalized = [];
-    for p in (ignore or []) {
-        stripped = p.strip();
-        if stripped {
-            normalized.append(stripped.rstrip('/'));
-        }
-    }
-    return normalized;
+    import from jaclang.jac0core.helpers { normalize_exclude_patterns }
+    return normalize_exclude_patterns(ignore);
 }
 
 def _should_ignore(file_path: str, ignore_patterns: list) -> bool {

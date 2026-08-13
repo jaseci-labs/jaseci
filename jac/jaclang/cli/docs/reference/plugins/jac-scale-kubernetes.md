@@ -49,11 +49,13 @@ Use this for air-gapped clusters, to pin an exact build, or to deploy a binary y
 
 The app is packed on the deploy driver into a sealed **`.jab`** image, seeded to the bundle PVC, and extracted into the pod's `/app` volume. The `.jab` contains the project source, a `_precompiled/` sealed image (`MANIFEST.json` + content-keyed `.jir` modules built with the pod binary), and the sanitized `jac.toml` (root and nested project tomls, secrets and `[dev]` sections stripped).
 
+The source copy honors the project's [`.jacignore`](../config/index.md#jacignore) with the same patterns and semantics as `jac check`, on top of a fixed floor of paths that never ship (VCS and build directories, `.env` files, private keys and certificates). A tree parked in `.jacignore` reaches neither the seal stage, the `.jab`, nor the pod, and its nested `jac.toml` is not enumerated either. `.jacignore` itself ships, so editing it moves the bundle's content address and the next deploy re-ships instead of hitting the content-addressed skip.
+
 The seal stage is a valid, sanitized copy of the project: sanitized tomls are written into it before the seal runs, so `[placement.pins]` and nested-project scoping are visible at seal time. The seal compiles exactly the modules that emit server code -- client-only modules (pinned or inferred) produce JS, not pod bytecode, and are skipped via the placement facts API. The per-module placement verdict is recorded in the sealed `MANIFEST.json` (`placement` map, manifest format 5). The seal subprocess timeout defaults to 1800s and is configurable with `[scale] seal_timeout` in `jac.toml`.
 
 Sealing is **mandatory**: if the app cannot be sealed into a valid image, the deploy fails rather than shipping a bundle that cold-compiles on the pod's first boot. When a pod starts, the compiler auto-loads the sibling `_precompiled/` image, so services run from precompiled modules with no on-pod compile step - for both single-app and microservice deployments.
 
-If a module in your project cannot be sealed (for example, a file that fails to compile), the deploy aborts with the seal error. Fix or exclude the offending module and redeploy.
+If a module in your project cannot be sealed (for example, a file that fails to compile), the deploy aborts with the seal error. Fix the offending module, or park its tree in `.jacignore` if it is not part of the served app, and redeploy.
 
 ---
 
