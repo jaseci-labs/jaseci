@@ -1033,7 +1033,7 @@ jac db prune -y          # drop it
 jac db prune --empty -y  # also drop unattributed databases that hold no data
 ```
 
-Candidates are scratch databases whose process is gone, and project databases whose recorded owning path has been deleted. Databases with no recorded owner at all (created before the runtime recorded owners, or by tooling that opened the cluster directly) cannot be attributed; they are reported and left alone. `--empty` additionally considers those, but only the ones holding nothing beyond the system root, so an old cluster full of empty test-worker databases can be reclaimed without risking anyone's data.
+Candidates are scratch databases whose owning process is gone, and project databases whose recorded owning path has been deleted. "Gone" means one of two things: the recorded pid is checkable from here and no longer exists, or the record has stopped being heartbeated (see [Scratch stores](#scratch-stores)). Databases with no recorded owner at all (created before the runtime recorded owners, or by tooling that opened the cluster directly) cannot be attributed; they are reported and left alone. `--empty` additionally considers those, but only the ones holding nothing beyond the system root, so an old cluster full of empty test-worker databases can be reclaimed without risking anyone's data.
 
 ### jac db drop
 
@@ -1047,7 +1047,7 @@ Only `jac_*` databases can be dropped, and a database another process is connect
 
 ### Retention
 
-By default the runtime never deletes a project database: it is created on first contact and stays until you drop it. A cluster start always reaps scratch databases left by processes that are gone, and, if you opt in, sweeps stale project databases too:
+By default the runtime never deletes a project database: it is created on first contact and stays until you drop it. A cluster start always reaps scratch databases whose owning process is gone, and, if you opt in, sweeps stale project databases too:
 
 ```toml
 [database]
@@ -1059,6 +1059,8 @@ With `retention_days` set (or `JAC_DB_RETENTION_DAYS` in the environment), start
 ### Scratch stores
 
 Work that keeps nothing across invocations should not leave a database behind. A process launched with `JAC_DB_SCRATCH=1` opens a single scratch database (`jac_scratch_<pid>_<nonce>`) instead of one per project path, and drops it when the process exits. The test runner and the deploy seal / vendor steps use this, which is why running tests or deploying no longer grows the cluster.
+
+A process that dies without running its exit handler (a `SIGKILL`, an OOM, a container that is replaced) cannot drop its own scratch database, so the next scratch store to open reclaims it. Deciding that its owner is really gone takes more than the recorded pid, which is only meaningful on the host that recorded it: while a scratch database is open its registry record is heartbeated once a minute, so a record is reapable either when the recorded pid is checkable here and gone, or when nothing is connected to the database *and* its heartbeat has been silent for 30 minutes on a host that cannot be checked (24 hours when the pid does answer, which is what a recycled pid looks like). A record with no heartbeat information at all is never reaped. Every one of those signals fails towards leaving the database alone, which is the bias you want from something that drops databases; `jac db list` shows every scratch database either way, and `jac db drop` handles the rest.
 
 ### jac db serve
 

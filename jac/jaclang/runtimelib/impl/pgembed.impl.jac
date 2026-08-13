@@ -676,7 +676,11 @@ impl PgRuntime._wait_ready(timeout: float = 60.0) -> None {
 
 
 impl PgRuntime._ensure_database -> None {
-    import from jaclang.runtimelib.dbcatalog { connect_admin, record_database }
+    import from jaclang.runtimelib.dbcatalog {
+        connect_admin,
+        record_database,
+        start_heartbeat
+    }
     conn: Any = connect_admin(self.conninfo());
     try {
         rows = conn.run(
@@ -687,6 +691,9 @@ impl PgRuntime._ensure_database -> None {
             conn.run(f'CREATE DATABASE "{self.database}"');
         }
         record_database(conn, self.database, self.kind, self.owner_path);
+        if self.kind == DbKind.SCRATCH {
+            start_heartbeat(self.conninfo(), self.database);
+        }
         if created and self.kind == DbKind.SCRATCH {
             self._reap_scratch(conn);
         }

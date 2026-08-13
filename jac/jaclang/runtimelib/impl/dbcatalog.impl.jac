@@ -1,17 +1,31 @@
 import os;
 import platform;
+import from threading { Event, Lock, Thread }
+
+glob _heartbeats: dict[str, Any] = {},
+     _heartbeat_lock = Lock();
+
 
 def _registry_ddl -> str {
     return f"""
         CREATE TABLE IF NOT EXISTS {REGISTRY_TABLE} (
-            database     text PRIMARY KEY,
-            kind         text NOT NULL DEFAULT '{DbKind.PROJECT.value}',
-            owner_path   text NOT NULL DEFAULT '',
-            host         text NOT NULL DEFAULT '',
-            pid          integer NOT NULL DEFAULT 0,
-            created_at   timestamptz NOT NULL DEFAULT now(),
-            last_used_at timestamptz NOT NULL DEFAULT now()
+            database          text PRIMARY KEY,
+            kind              text NOT NULL DEFAULT '{DbKind.PROJECT.value}',
+            owner_path        text NOT NULL DEFAULT '',
+            host              text NOT NULL DEFAULT '',
+            pid               integer NOT NULL DEFAULT 0,
+            created_at        timestamptz NOT NULL DEFAULT now(),
+            last_used_at      timestamptz NOT NULL DEFAULT now(),
+            last_heartbeat_at timestamptz NOT NULL DEFAULT now()
         )
+        """;
+}
+
+
+def _heartbeat_column_ddl -> str {
+    return f"""
+        ALTER TABLE {REGISTRY_TABLE}
+        ADD COLUMN IF NOT EXISTS last_heartbeat_at timestamptz NOT NULL DEFAULT now()
         """;
 }
 
@@ -129,6 +143,7 @@ impl connect_admin(info: ConnInfo) -> Any {
 impl ensure_registry(conn: Any) -> bool {
     try {
         conn.run(_registry_ddl());
+        conn.run(_heartbeat_column_ddl());
         return True;
     } except Exception as e {
         logger.debug(f"database registry unavailable: {e}");
@@ -147,6 +162,7 @@ impl record_database(conn: Any, database: str, kind: DbKind, owner_path: str) ->
         VALUES (:db, :kind, :owner, :host, :pid)
         ON CONFLICT (database) DO UPDATE SET
             last_used_at = now(),
+            last_heartbeat_at = now(),
             kind = excluded.kind,
             host = excluded.host,
             pid = excluded.pid,
@@ -200,7 +216,11 @@ impl list_databases(conn: Any) -> list[DbRecord] {
                coalesce(r.host, ''),
                coalesce(r.pid, 0),
                coalesce(r.created_at::text, ''),
-               coalesce(r.last_used_at::text, '')
+               coalesce(r.last_used_at::text, ''),
+               floor(extract(epoch FROM now() - r.last_heartbeat_at))::bigint,
+               EXISTS (
+                   SELECT 1 FROM pg_stat_activity a WHERE a.datname = d.datname
+               )
         FROM pg_database d
         LEFT JOIN {REGISTRY_TABLE} r ON r.database = d.datname
         WHERE d.datname LIKE :pattern AND NOT d.datistemplate
@@ -211,6 +231,7 @@ impl list_databases(conn: Any) -> list[DbRecord] {
         or [];
     out: list[DbRecord] = [];
     for row in rows {
+        age = row[9];
         out.append(
             DbRecord(
                 database=str(row[0]),
@@ -221,7 +242,9 @@ impl list_databases(conn: Any) -> list[DbRecord] {
                 host=str(row[5] or ''),
                 pid=int(row[6] or 0),
                 created_at=str(row[7] or ''),
-                last_used_at=str(row[8] or '')
+                last_used_at=str(row[8] or ''),
+                heartbeat_age_seconds=int(age) if age is not None else -1,
+                has_sessions=bool(row[10])
             )
         );
     }
@@ -275,6 +298,68 @@ impl dead_scratch_databases(records: list[DbRecord]) -> list[str] {
 }
 
 
+impl touch_heartbeat(conn: Any, database: str) -> None {
+    try {
+        conn.run(
+            f"UPDATE {REGISTRY_TABLE} SET last_heartbeat_at = now() "
+            "WHERE database = :db",
+            db=database
+        );
+    } except Exception as e {
+        logger.debug(f"could not refresh the heartbeat for {database}: {e}");
+    }
+}
+
+
+def _heartbeat_loop(info: ConnInfo, database: str, stop: Any) {
+    while not stop.wait(SCRATCH_HEARTBEAT_SECONDS) {
+        conn: (Any | None) = None;
+        try {
+            conn = connect_admin(info);
+            touch_heartbeat(conn, database);
+        } except Exception as e {
+            logger.debug(f"heartbeat for {database} skipped: {e}");
+        } finally {
+            if conn is not None {
+                try {
+                    conn.close();
+                } except Exception { }
+            }
+        }
+    }
+}
+
+
+impl start_heartbeat(info: ConnInfo, database: str) -> None {
+    if not is_jac_database(database) {
+        return;
+    }
+    stop = Event();
+    with _heartbeat_lock {
+        if database in _heartbeats {
+            return;
+        }
+        _heartbeats[database] = stop;
+    }
+    Thread(
+        target=_heartbeat_loop,
+        args=(info, database, stop),
+        daemon=True,
+        name='jac-db-heartbeat'
+    ).start();
+}
+
+
+impl stop_heartbeat(database: str) -> None {
+    with _heartbeat_lock {
+        stop = _heartbeats.pop(database, None);
+    }
+    if stop is not None {
+        stop.set();
+    }
+}
+
+
 impl expired_databases(conn: Any, days: int, keep: str) -> list[str] {
     if days <= 0 {
         return [];
@@ -312,7 +397,32 @@ impl DbRecord.is_dead_scratch -> bool {
     if not self.is_scratch() or not self.recorded or self.pid <= 0 {
         return False;
     }
-    return not process_alive(self.host, self.pid);
+    if not process_alive(self.host, self.pid) {
+        return True;
+    }
+    return self.heartbeat_stopped() and not self.has_sessions;
+}
+
+
+impl DbRecord.heartbeat_stopped -> bool {
+    if self.heartbeat_age_seconds < 0 {
+        return False;
+    }
+    checkable = not self.host or self.host == this_host();
+    grace = LIVE_PID_GRACE_SECONDS if checkable else UNREACHABLE_HOST_GRACE_SECONDS;
+    return self.heartbeat_age_seconds >= grace;
+}
+
+
+impl DbRecord.dead_scratch_reason -> str {
+    if not process_alive(self.host, self.pid) {
+        return f"its process (pid {self.pid}) is gone";
+    }
+    return (
+        f"nothing is connected to it and nothing has heartbeated it for "
+        f"{self.heartbeat_age_seconds // 60} minute(s) (recorded pid {self.pid} "
+        f"on {self.host or 'this host'})"
+    );
 }
 
 

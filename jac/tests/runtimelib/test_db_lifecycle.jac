@@ -595,7 +595,9 @@ test "the retention sweep is off by default and sweeps when configured" {
 
 """A scratch registry record as a container would leave one: the recorded host
 never comes back, so the recorded pid can never be checked from here."""
-def _scratch_record(host: str, pid: int, heartbeat_age: int) -> Any {
+def _scratch_record(
+    host: str, pid: int, heartbeat_age: int, has_sessions: bool = False
+) -> Any {
     import from jaclang.runtimelib.dbcatalog { DbKind, DbRecord }
     return DbRecord(
         database="jac_scratch_4242_abc",
@@ -603,7 +605,8 @@ def _scratch_record(host: str, pid: int, heartbeat_age: int) -> Any {
         kind=DbKind.SCRATCH.value,
         host=host,
         pid=pid,
-        heartbeat_age_seconds=heartbeat_age
+        heartbeat_age_seconds=heartbeat_age,
+        has_sessions=has_sessions
     );
 }
 
@@ -628,6 +631,18 @@ test "a scratch record from a host that never comes back is still reapable" {
     assert not fresh.is_dead_scratch() , (
         "a heartbeat that is still being written must protect the database"
     );
+    # A stale heartbeat alone never condemns a database: an owner that is still
+    # connected to it is alive whatever its heartbeat says, and dropping a
+    # scratch store is forced, so it would kill a live run's own connections.
+    connected = _scratch_record(
+        "pod-with-a-wedged-heartbeat",
+        4242,
+        UNREACHABLE_HOST_GRACE_SECONDS + 60,
+        has_sessions=True
+    );
+    assert not connected.is_dead_scratch() , (
+        "a scratch database something is connected to must never be reaped"
+    );
     # Rows that predate the heartbeat column carry no age at all, and an
     # unknown age never authorises a drop.
     unknown = _scratch_record("pod-from-an-older-release", 4242, -1);
@@ -636,7 +651,9 @@ test "a scratch record from a host that never comes back is still reapable" {
     );
     # A pid this host can actually check answers the question outright, so a
     # stale heartbeat cannot condemn a live local run.
-    mine = _scratch_record(this_host(), os.getpid(), UNREACHABLE_HOST_GRACE_SECONDS + 60);
+    mine = _scratch_record(
+        this_host(), os.getpid(), UNREACHABLE_HOST_GRACE_SECONDS + 60
+    );
     assert not mine.is_dead_scratch() , (
         "a live local pid must outweigh a stale heartbeat"
     );
@@ -688,6 +705,62 @@ test "db prune reaps a scratch database whose heartbeat stopped elsewhere" {
             f"{live} is still heartbeating and must survive prune: {text}"
         );
     } finally {
+        _stop_cluster(cluster);
+    }
+}
+
+
+test "an open scratch database keeps its own registry heartbeat fresh" {
+    import time;
+    import from jaclang.runtimelib { dbcatalog as catalog }
+    import from jaclang.runtimelib.dbcatalog {
+        DbKind,
+        REGISTRY_TABLE,
+        start_heartbeat,
+        stop_heartbeat
+    }
+    cluster = _start_cluster();
+    beating = "jac_scratch_4244_beat";
+    saved = catalog.SCRATCH_HEARTBEAT_SECONDS;
+    catalog.SCRATCH_HEARTBEAT_SECONDS = 1;
+    try {
+        _exec(cluster, f'CREATE DATABASE "{beating}"');
+        _exec(
+            cluster,
+            f"INSERT INTO {REGISTRY_TABLE} "
+            "(database, kind, owner_path, host, pid) "
+            f"VALUES ('{beating}', '{DbKind.SCRATCH.value}', '', 'pod-x', 4244)"
+        );
+        # Backdate it far enough that only a real heartbeat can explain a
+        # fresh timestamp.
+        _exec(
+            cluster,
+            f"UPDATE {REGISTRY_TABLE} "
+            "SET last_heartbeat_at = now() - interval '2 hours' "
+            f"WHERE database = '{beating}'"
+        );
+        start_heartbeat(cluster.rt.conninfo(), beating);
+        deadline = time.monotonic() + 30;
+        age = -1;
+        while time.monotonic() < deadline {
+            rows = _query(
+                cluster,
+                "SELECT floor(extract(epoch FROM now() - last_heartbeat_at))"
+                f"::bigint FROM {REGISTRY_TABLE} WHERE database = '{beating}'"
+            );
+            age = int(rows[0][0]);
+            if age < 60 {
+                break;
+            }
+            time.sleep(0.5);
+        }
+        assert age >= 0 and age < 60 , (
+            f"the heartbeat never refreshed the record (age {age}s), so a live "
+            f"scratch database would eventually look reapable"
+        );
+    } finally {
+        stop_heartbeat(beating);
+        catalog.SCRATCH_HEARTBEAT_SECONDS = saved;
         _stop_cluster(cluster);
     }
 }

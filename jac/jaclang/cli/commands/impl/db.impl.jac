@@ -233,7 +233,7 @@ def _prune_candidates(rt: Any, records: list, empty: bool) -> list[PruneCandidat
                 out.append(
                     PruneCandidate(
                         record=rec,
-                        reason=f"scratch store of pid {rec.pid}, which is gone",
+                        reason=f"scratch store, {rec.dead_scratch_reason()}",
                         force=True
                     )
                 );
