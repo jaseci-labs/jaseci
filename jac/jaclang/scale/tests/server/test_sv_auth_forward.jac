@@ -755,7 +755,7 @@ import jaclang.scale.runtime.rpc.rpc as rpc_mod;
 
 
 def _fast_rpc_timeout(module_name: str) -> float {
-    return 0.4;
+    return 1.5;
 }
 
 

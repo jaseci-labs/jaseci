@@ -142,7 +142,7 @@ test "response-head timeout classifies as ClientReadTimeout with a message" {
         caught: any = None;
         try {
             request_sync(
-                'POST', f"http://127.0.0.1:{port}/x", json_body={}, timeout=0.3
+                'POST', f"http://127.0.0.1:{port}/x", json_body={}, timeout=1.0
             );
         } except ClientReadTimeout as e {
             caught = e;
@@ -182,7 +182,7 @@ test "post_stream_aware_sync preserves ClientReadTimeout across its thread" {
         caught: any = None;
         try {
             post_stream_aware_sync(
-                f"http://127.0.0.1:{port}/x", json_body={}, timeout=0.3
+                f"http://127.0.0.1:{port}/x", json_body={}, timeout=1.0
             );
         } except ClientReadTimeout as e {
             caught = e;

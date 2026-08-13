@@ -494,7 +494,8 @@ rpc_timeout = 120.0
 ```
 
 The override is read on every service RPC and applied as the
-transport request timeout.
+transport timeout for connection setup and for reads while waiting
+on the response head.
 
 ### Streaming sv-to-sv RPC (generator returns)
 
