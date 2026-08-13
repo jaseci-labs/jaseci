@@ -6,8 +6,17 @@ import zlib;
 import from pathlib { Path }
 import from jaclang.jac0core.mtp { Info }
 
+# Bumped 18 -> 19: the cached Info schema gained a mod_path ownership stamp
+# (SEC_MTIR) so filter_module_mtir can reject foreign same-stem survivors.
+# Legacy program-wide v18 blobs carry unstamped entries, and a foreign
+# same-stem module with an identical qualified symbol is indistinguishable
+# from the target's own entry by stem + bytecode qualname alone, so it would
+# be restored as the target's MTIR slice. There is no sound way to attribute
+# such an unstamped survivor at restore time, so the v18 blobs are invalidated
+# at the header check and recompiled fresh (every entry then carries mod_path,
+# which the ownership guard in filter_module_mtir enforces).
 glob MAGIC = b"JIR\x00",
-     FORMAT_VERSION: int = 18,
+     FORMAT_VERSION: int = 19,
      HEADER_SIZE: int = 32,
      HEADER_FMT: str = "<4sHHIIIIII",
      EXTERNAL_REF: int = 0xFFFFFF,
@@ -259,6 +268,16 @@ def filter_module_mtir(
     prefix = stem + ".";
     stem_filtered: dict[(str, Info)] = {};
     for (scope, info) in module_mtir.items() {
+        # Ownership guard: a stamped entry (mod_path set at generation) is kept
+        # only when it belongs to this module's filesystem identity. This is the
+        # authoritative disambiguator for same-stem identical-qualname survivors.
+        # Unstamped entries (owner is None) fall through to the stem + bytecode
+        # qualname heuristic below, which is intentionally best-effort: a foreign
+        # same-stem entry whose qualified symbol the target also defines is
+        # indistinguishable from the target's own and cannot be rejected here.
+        # FORMAT_VERSION was bumped to 19 so legacy program-wide v18 blobs (the
+        # only source of unstamped survivors) fail the header check and are
+        # recompiled with stamps before reaching this path.
         owner = info?.mod_path;
         if owner is not None and mtir_module_key(owner) != target_key {
             continue;

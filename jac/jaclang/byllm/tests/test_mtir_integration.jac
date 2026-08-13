@@ -626,6 +626,79 @@ test "filter_module_mtir rejects foreign same-stem identical-qualname survivors"
     assert "utils.gen_impl" in kept_impl , "same-dir impl annex must be kept";
 }
 
+test "format bump rejects legacy program-wide MTIR blobs with unstamped survivors" {
+    # A legacy program-wide v18 SEC_MTIR blob can carry an UNSTAMPED foreign
+    # same-stem survivor: Info entries predate the mod_path ownership stamp, so
+    # the entry has no mod_path to disambiguate it. filter_module_mtir cannot
+    # reject such an entry -- its stem matches the target and its qualified
+    # symbol is in the target's bytecode (the target defines the same symbol),
+    # so it is information-identical to the target's own entry. Closing this at
+    # the filter is impossible, so FORMAT_VERSION was bumped 18 -> 19 to
+    # invalidate v18 blobs at the header check and force a recompile that stamps
+    # every entry (the ownership guard then rejects foreign survivors).
+    import pickle;
+    import struct;
+    import from jaclang.jac0core.jir {
+        FORMAT_VERSION,
+        MAGIC,
+        HEADER_FMT,
+        HEADER_SIZE,
+        SEC_MTIR,
+        parse_header,
+        is_module_cache_valid,
+        filter_module_mtir,
+        write_precompiled_jir,
+    }
+
+    assert FORMAT_VERSION == 19 , "FORMAT_VERSION must be bumped past legacy 18";
+
+    target = os.path.realpath("/tmp/pkg_a/utils.jac");
+    # Unstamped foreign survivor: identical stem + qualified symbol as the target.
+    foreign = FunctionInfo(name="gen", semstr="b");
+    legacy_mtir: dict = {"utils.gen": foreign};
+
+    # Positive control -- the filter ALONE cannot reject this unstamped survivor
+    # (no mod_path, stem and qualname both match). This is the hole the format
+    # bump exists to close; asserting it leaks guards the design rationale.
+    leaked = filter_module_mtir(target, legacy_mtir);
+    assert "utils.gen" in leaked , (
+        "unstamped survivor must leak through the filter (no ownership signal)"
+    );
+
+    # Pack the same dangerous payload into a v18-shaped JIR blob by rewriting
+    # only the header's format_version field of an otherwise-valid current blob.
+    v19_blob = write_precompiled_jir(
+        b"\x00\x00\x00\x00",
+        module_key="k",
+        extra_sections={SEC_MTIR: pickle.dumps(legacy_mtir)},
+    );
+    legacy_blob = v19_blob[:4] + struct.pack("<H", 18) + v19_blob[6:];
+    assert len(legacy_blob) == len(v19_blob) , "header rewrite must preserve length";
+
+    # The header check rejects the v18 blob outright, so the restore path never
+    # reaches the SEC_MTIR payload -- the foreign survivor cannot be restored.
+    assert parse_header(legacy_blob[:HEADER_SIZE]) is None , (
+        "legacy v18 blob must fail the format-version check"
+    );
+    assert parse_header(v19_blob[:HEADER_SIZE]) is not None , (
+        "current v19 blob must still be accepted"
+    );
+
+    tmp = Path(tempfile.mkdtemp());
+    try {
+        src = tmp / "utils.jac";
+        src.write_text("test foo {}\n");
+        cache = tmp / "utils.jir";
+        cache.write_bytes(legacy_blob);
+        assert not is_module_cache_valid(str(src), cache) , (
+            "legacy v18 cache must be invalid -> recompiled, not restored"
+        );
+    } finally {
+        import shutil;
+        shutil.rmtree(str(tmp), ignore_errors=True);
+    }
+}
+
 test "invalidate internal clears mirrored runtime mtir for owning compiler" {
     import from jaclang.jac0core.compiler { JacCompiler }
     import from jaclang.jac0core.jir { mtir_module_key }
