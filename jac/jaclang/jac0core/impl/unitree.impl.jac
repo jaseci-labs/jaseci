@@ -1966,6 +1966,10 @@ impl BoolExpr.postinit -> None {
 
 
 impl LambdaExpr.postinit -> None {
+    lam_body = self.body;
+    if isinstance(lam_body, list) {
+        self.body = `list(lam_body);
+    }
     UniNode.postinit(self);
     Expr.postinit(self);
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");

@@ -588,6 +588,10 @@ obj TypeEvaluator {
         base_type: TypeBase, target_type: TypeBase
     ) -> TypeBase | None;
 
+    def _specialize_narrow_from_base(
+        base_type: TypeBase, narrow_type: TypeBase
+    ) -> TypeBase;
+
     def _type_matches_isinstance(t: TypeBase, target_type: TypeBase) -> bool;
     def _union_narrowed_types(types_list: list) -> TypeBase;
     def _if_exit_type(
