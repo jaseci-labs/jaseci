@@ -136,6 +136,11 @@ impl NaIRGenPass._codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None) {
         }
     }
 
+    if val_type_name == "i64" and self._struct_name_of(val_expr) is not None {
+        val_type_name = "ptr";
+        val_type = ir.IntType(8).as_pointer();
+    }
+
     self._emit_dict_helpers(key_type_name, val_type_name, key_type, val_type, key_size);
     dict_key = f"{key_type_name}:{val_type_name}";
     helpers = self.dict_helpers.get(dict_key);
@@ -209,6 +214,11 @@ impl NaIRGenPass._codegen_set_compr(nd: uni.SetCompr) -> (ir.Value | None) {
                 }
             }
         }
+    }
+
+    if elem_type_name == "i64" and self._struct_name_of(out_expr) is not None {
+        elem_type_name = "ptr";
+        elem_type = ir.IntType(8).as_pointer();
     }
 
     self._emit_set_helpers(elem_type_name, elem_type, elem_size);

@@ -5801,3 +5801,21 @@ test "native positional construction maps has fields (parity with sv)" {
     label_count = get_func(eng, "label_count", ctypes.c_int64, ctypes.c_int64);
     assert label_count(9) == 12 , f"Expected 12, got {label_count(9)}";
 }
+
+# ─── #8090: inherited postinit must run on cross-module construction ─────────
+# `Leaf` inherits its postinit from `Mid` in an imported module (the unitree
+# `ElseIf(IfStmt)` shape). The constructor resolves the postinit owner along
+# the MRO exactly like an inherited `init`; before the fix the exact-name
+# lookup missed in the importing module, the chain never ran, and the
+# postinit-set field read back as its zero default.
+test "cross-module construction runs an inherited postinit chain" {
+    (eng, _) = compile_native("postinit_inherited_xmod_main.jac");
+    make_leaf = get_func(eng, "make_leaf", ctypes.c_int64);
+    assert make_leaf() == 42 , f"Expected 42, got {make_leaf()}";
+}
+
+test "cross-module construction runs an own postinit" {
+    (eng, _) = compile_native("postinit_inherited_xmod_main.jac");
+    make_mid = get_func(eng, "make_mid", ctypes.c_int64);
+    assert make_mid() == 42 , f"Expected 42, got {make_mid()}";
+}
