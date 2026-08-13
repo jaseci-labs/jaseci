@@ -116,7 +116,7 @@ impl drop_scratch_database -> None {
 
 
 impl retention_days_for(base_path: (str | None)) -> int {
-    raw = os.environ.get(RETENTION_ENV, '').strip();
+    raw: str = os.environ.get(RETENTION_ENV, '').strip();
     if not raw {
         raw = str(_toml_section(base_path, 'database').get('retention_days') or '');
     }

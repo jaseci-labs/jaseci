@@ -197,7 +197,7 @@ def stage_roots_in_use -> list[str] {
 
 
 def _stage_root_prefix -> str {
-    return f"jac-app-precompile-{os.getpid()}-";
+    return f"{STAGE_PREFIX}{os.getpid()}-";
 }
 
 
