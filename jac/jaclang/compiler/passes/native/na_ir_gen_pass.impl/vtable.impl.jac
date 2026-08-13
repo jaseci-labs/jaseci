@@ -242,6 +242,119 @@ impl NaIRGenPass._emit_class_name_const(arch_name: str) -> ir.Value {
     return ptr;
 }
 
+impl NaIRGenPass._emit_runtime_class_name_fn -> (ir.Function | None) {
+    _cached = self?._runtime_class_name_fn;
+    if _cached is not None {
+        return _cached;
+    }
+    i8_ptr = ir.IntType(8).as_pointer();
+    i64 = ir.IntType(64);
+    i64_ptr = i64.as_pointer();
+
+    fn = self._define_function("__jac_class_name", ir.FunctionType(i8_ptr, [i8_ptr]));
+    fn.linkage = "private";
+    fn.args[0].name = "obj";
+
+    _entry = fn.append_basic_block("entry");
+    _sentinel = fn.append_basic_block("sentinel");
+    _read = fn.append_basic_block("read");
+    _none = fn.append_basic_block("none");
+    _unknown = fn.append_basic_block("unknown");
+    _done = fn.append_basic_block("done");
+
+    b = ir.IRBuilder(_entry);
+    _null = b.icmp_unsigned(
+        "==", fn.args[0], ir.Constant(i8_ptr, None), name="cn.null"
+    );
+    b.cbranch(_null, _none, _sentinel);
+
+    b = ir.IRBuilder(_sentinel);
+    _rc_slot = b.gep(fn.args[0], [ir.Constant(i64, HDR_RC_OFF)], name="cn.rc.slot");
+    _rc_val = b.load(b.bitcast(_rc_slot, i64_ptr, name="cn.rc.p"), name="cn.rc");
+    _is_stk = b.icmp_unsigned(
+        "==", _rc_val, ir.Constant(i64, RC_SENTINEL), name="cn.stk"
+    );
+    _has_magic = self._emit_magic_check(b, fn.args[0], name_prefix="cn.mc");
+    b.cbranch(b.or_(_is_stk, _has_magic, name="cn.hdr.ok"), _read, _unknown);
+
+    b = ir.IRBuilder(_read);
+    _tag_slot = b.gep(fn.args[0], [ir.Constant(i64, HDR_TAG_OFF)], name="cn.tag.slot");
+    _tag = b.load(
+        b.bitcast(_tag_slot, i8_ptr.as_pointer(), name="cn.tag.pp"), name="cn.tag"
+    );
+    _tag_null = b.icmp_unsigned(
+        "==", _tag, ir.Constant(i8_ptr, None), name="cn.tag.null"
+    );
+    b.cbranch(_tag_null, _unknown, _done);
+    _read_end = b.block;
+
+    _i32 = ir.IntType(32);
+    b = ir.IRBuilder(_none);
+    _none_name = b.gep(
+        self._get_snprintf_fmt("NoneType"),
+        [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
+        name="cn.nonetype"
+    );
+    b.branch(_done);
+    _none_end = b.block;
+
+    b = ir.IRBuilder(_unknown);
+    _empty = b.gep(
+        self._get_snprintf_fmt(""),
+        [ir.Constant(_i32, 0), ir.Constant(_i32, 0)],
+        name="cn.empty"
+    );
+    b.branch(_done);
+    _unknown_end = b.block;
+
+    b = ir.IRBuilder(_done);
+    _res = b.phi(i8_ptr, name="cn.name");
+    _res.add_incoming(_tag, _read_end);
+    _res.add_incoming(_none_name, _none_end);
+    _res.add_incoming(_empty, _unknown_end);
+    b.ret(_res);
+
+    self._runtime_class_name_fn = fn;
+    return fn;
+}
+
+impl NaIRGenPass._codegen_runtime_class_name(obj_val: ir.Value) -> (ir.Value | None) {
+    i8_ptr = ir.IntType(8).as_pointer();
+    if self._opt_payload_of(obj_val.type) is not None {
+        if self._opt_ptr_payload_of(obj_val.type) is None {
+            return None;
+        }
+        _tag = self.builder.extract_value(obj_val, 0, name="clsname.opt.tag");
+        _some = self.builder.icmp_signed(
+            "!=", _tag, ir.Constant(ir.IntType(8), 0), name="clsname.opt.some"
+        );
+        _payload = self.builder.extract_value(obj_val, 1, name="clsname.opt.val");
+        obj_val = self.builder.select(
+            _some,
+            self.builder.bitcast(_payload, i8_ptr, name="clsname.opt.i8"),
+            ir.Constant(i8_ptr, None),
+            name="clsname.opt.ptr"
+        );
+    }
+    if not isinstance(obj_val.type, ir.PointerType)
+        or isinstance(obj_val.type.pointee, ir.FunctionType) {
+        return None;
+    }
+    _pointee_arch = self._struct_ptr_pointee_name(obj_val);
+    if _pointee_arch is not None and self._arch_has_vtable(_pointee_arch) {
+        return self._class_id_of_value(_pointee_arch, obj_val);
+    }
+    _fn = self._emit_runtime_class_name_fn();
+    if _fn is None {
+        return None;
+    }
+    return self.builder.call(
+        _fn,
+        [self.builder.bitcast(obj_val, i8_ptr, name="clsname.i8")],
+        name="clsname.rt"
+    );
+}
+
 impl NaIRGenPass._codegen_class_name(nd: uni.AtomTrailer) -> (ir.Value | None) {
     if not (nd.is_attr and self._get_name(nd.right) == "__name__") {
         return None;
@@ -267,11 +380,8 @@ impl NaIRGenPass._codegen_class_name(nd: uni.AtomTrailer) -> (ir.Value | None) {
 
 impl NaIRGenPass._codegen_class_id(receiver: uni.UniNode) -> (ir.Value | None) {
     arch_name = self._struct_name_of(receiver);
-    if arch_name is None {
-        return None;
-    }
 
-    if not self._arch_has_vtable(arch_name) {
+    if arch_name is not None and not self._arch_has_vtable(arch_name) {
         return self._emit_class_name_const(arch_name);
     }
 
@@ -279,7 +389,13 @@ impl NaIRGenPass._codegen_class_id(receiver: uni.UniNode) -> (ir.Value | None) {
     if obj_val is None {
         return None;
     }
-    return self._class_id_of_value(arch_name, obj_val);
+    if arch_name is not None
+        and isinstance(obj_val.type, ir.PointerType)
+        and isinstance(obj_val.type.pointee, ir.IdentifiedStructType) {
+        return self._class_id_of_value(arch_name, obj_val);
+    }
+
+    return self._codegen_runtime_class_name(obj_val);
 }
 
 impl NaIRGenPass._class_id_of_value(arch_name: str, obj_val: ir.Value) -> ir.Value {

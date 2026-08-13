@@ -13,12 +13,15 @@ E5092; a Jac `enum` kept the member and gave it `0`, which is a wrong answer
 with no diagnostic attached. The `kind_of` assertions below are the ones that
 catch the silent half: they would pass a "did it compile?" check.
 
-*`__class__.__name__` refused a receiver whose static type names no
-archetype.* `sem_token` reads `type(self.type).__name__`, and `self.type` is
-`TypeBase | None` -- a class reached through a typing-only import, so there
-is no struct to freeze a name against and no known vtable to walk. The read
-has to resolve the runtime class the way `get_struct_view` does, off the
-class-name stamp in the rc header.
+*`__class__.__name__` refused a receiver that did not lower to a pointer to a
+struct the unit knows.* `sem_token` reads `type(self.type).__name__`, and
+`self.type` is `TypeBase | None` -- a class reached through a typing-only
+import, so the slot is an opaque object pointer with no struct to freeze a
+name against and no known vtable to walk, exactly like a type-erased generic
+slot. The read has to resolve the runtime class the way `get_struct_view`
+does, off the class-name stamp in the rc header. An option is here for the
+same reason with different storage: its JacOpt payload has to be unwrapped
+before anything can be read off it, and the absent arm is `NoneType`.
 
 Every function is additionally compared against the sv/bytecode result of the
 same fixture, the parity idiom `union_slot_ops` uses: a class-name read that
@@ -49,6 +52,7 @@ glob FIXTURES = os.path.join(
          "kind_and_mod",
          "open_name_rank",
          "open_dunder_rank",
+         "opt_name_rank",
          "known_name_rank",
          "sem_token_rank"
      ],
@@ -128,14 +132,28 @@ test "both enums combined answer the way the pair of reads does" {
 }
 
 
-test "__class__.__name__ off an open receiver answers the runtime class" {
+test "__class__.__name__ off an opaque object pointer answers the runtime class" {
     eng = _compile();
     for name in ("open_name_rank", "open_dunder_rank") {
         f = _get(eng, name);
-        assert f(1) == 1 , f"{name}: an `any` slot holding a Leaf reports Leaf";
+        assert f(1) == 1 , (
+            f"{name}: a type-erased generic slot holding a Leaf reports Leaf"
+        );
         assert f(2) == 2 , f"{name}: the same slot holding a Branch reports Branch";
         assert f(0) == 3 , f"{name}: and a Node reports Node, not a subclass";
     }
+}
+
+
+test "the same read off an option unwraps before it resolves" {
+    f = _get(_compile(), "opt_name_rank");
+    assert f(1) == 1 , "the present arm carries a Leaf";
+    assert f(2) == 2 , "and a Branch";
+    assert f(3) == 3 , "and a Node";
+    assert f(0) == 9 , (
+        "an unset option is None, whose class is NoneType -- the payload slot "
+        "on that arm holds nothing worth dereferencing"
+    );
 }
 
 
@@ -150,7 +168,7 @@ test "the class name off an open receiver is the name, not a stand-in" {
 
 test "a receiver whose static type names an archetype is unaffected" {
     f = _get(_compile(), "known_name_rank");
-    assert f(1) == 1 , "a Node-typed local holding a Leaf still reports Leaf";
+    assert f(1) == 1 , "a Node-typed parameter holding a Leaf still reports Leaf";
     assert f(2) == 2 , "and a Branch still reports Branch";
     assert f(0) == 3 , "and a Node reports Node";
 }

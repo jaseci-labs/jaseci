@@ -5,23 +5,27 @@ seam count cannot see.
 
 An enum member's value is derived from the *syntax* of its initialiser, so a
 member written `1 << 0` has no value at all. For a Jac `enum` that silently
-becomes `0` -- `CLASS`, `ENUM` and `NAMESPACE` all answer `0`, and no
-diagnostic says so -- while a class-form enum (`class M(IntFlag)`, which is
-what `JacSemTokenModifier` is) drops the member from its layout entirely and
-the read refuses with E5092. `NAMESPACE` and `PARAM` are literals so they
-lower today; every other member here is a constant expression, and the ones
-below collide with a literal member's value when the fold is missing.
+becomes `0` -- `CLASS` and `ENUM` both answer `0`, colliding with the literal
+`NAMESPACE`, and no diagnostic says so -- while a class-form enum
+(`class M(IntFlag)`, which is what `JacSemTokenModifier` is) drops the member
+from its layout entirely and the read refuses with E5092. `NAMESPACE`,
+`PARAM` and `LITERAL_ONE` are literals so they lower today; every other
+member here is a constant expression.
 
-`__class__.__name__` needs the *runtime* class of its receiver. That works
-off a receiver whose static type names one archetype (`known_*` below), and
-does not work when the static type names none -- `sem_token` reads
-`type(self.type).__name__` where `self.type` is `TypeBase | None`, a class
-reached through a typing-only import that no native unit holds a struct for.
-An `any` slot is the same open receiver in one file.
+`__class__.__name__` needs the *runtime* class of its receiver, and that
+works off a receiver whose static type names one archetype and lowers to a
+pointer to it (`known_name_rank` below, which walks vtable slot 0). It did
+not work when the receiver lowers to something else. Two such storages are
+here, and `sem_token` reads through the first: `type(self.type).__name__`,
+where `self.type` is `TypeBase | None` -- a class reached through a
+typing-only import, so the slot is an opaque object pointer with no struct
+behind it, which is what a type-erased generic slot (`Box[T].held`) is too.
+The second is an option, a JacOpt whose payload only means anything on the
+present arm.
 
-`sem_token_of` puts both in the shape the real accessor has, including the
-`tuple[A, B] | None` return: an absent answer is `None`, and a present one is
-a tuple of one member from each enum.
+`sem_token_of` puts both halves in the shape the real accessor has, including
+the `tuple[A, B] | None` return: an absent answer is `None`, and a present one
+is a tuple of one member from each enum.
 
 Refs #8039, #8052
 """
@@ -51,9 +55,14 @@ obj Branch(Node) {
     has b: int = 5;
 }
 
-"""An `any` slot: the receiver's static type names no archetype at all."""
-obj Holder {
-    has held: any = None;
+"""A type-erased generic slot: the receiver is an opaque object pointer."""
+obj Box[T] {
+    has held: T;
+}
+
+"""An option: the receiver is a JacOpt, not the payload pointer."""
+obj Slot {
+    has held: (Node | None) = None;
 }
 
 
@@ -93,26 +102,6 @@ def kind_and_mod(pick: int) -> int {
 }
 
 
-"""Fill the open slot: 1 -> Leaf, 2 -> Branch, anything else -> Node."""
-def _fill(pick: int) -> Holder {
-    h = Holder();
-    if pick == 1 {
-        h.held = Leaf();
-    } elif pick == 2 {
-        h.held = Branch();
-    } else {
-        h.held = Node();
-    }
-    return h;
-}
-
-
-"""`type(x).__name__` where `x`'s static type names no archetype."""
-def open_name(pick: int) -> str {
-    return type(_fill(pick).held).__name__;
-}
-
-
 def _rank(name: str) -> int {
     if name == "Leaf" {
         return 1;
@@ -123,7 +112,22 @@ def _rank(name: str) -> int {
     if name == "Node" {
         return 3;
     }
+    if name == "NoneType" {
+        return 9;
+    }
     return 0;
+}
+
+
+"""`type(x).__name__` off the opaque generic slot."""
+def open_name(pick: int) -> str {
+    if pick == 1 {
+        return type(Box(held=Leaf()).held).__name__;
+    }
+    if pick == 2 {
+        return type(Box(held=Branch()).held).__name__;
+    }
+    return type(Box(held=Node()).held).__name__;
 }
 
 
@@ -134,23 +138,54 @@ def open_name_rank(pick: int) -> int {
 
 """The `__class__` spelling of the same open read."""
 def open_dunder_rank(pick: int) -> int {
-    return _rank(_fill(pick).held.__class__.__name__);
+    if pick == 1 {
+        return _rank(Box(held=Leaf()).held.__class__.__name__);
+    }
+    if pick == 2 {
+        return _rank(Box(held=Branch()).held.__class__.__name__);
+    }
+    return _rank(Box(held=Node()).held.__class__.__name__);
 }
 
 
-"""The control: a receiver whose static type does name an archetype.
+"""Fill the option slot: 0 leaves it unset, so its class is `NoneType`."""
+def _fill(pick: int) -> Slot {
+    s = Slot();
+    if pick == 1 {
+        s.held = Leaf();
+    } elif pick == 2 {
+        s.held = Branch();
+    } elif pick == 3 {
+        s.held = Node();
+    }
+    return s;
+}
+
+
+"""The same read off an option, whose payload is only live on one arm."""
+def opt_name_rank(pick: int) -> int {
+    return _rank(type(_fill(pick).held).__name__);
+}
+
+
+"""The control: a receiver whose static type names an archetype it lowers to.
 
 This lowers today, through the class-name constant in vtable slot 0, and has
 to keep answering the runtime class rather than the declared one.
 """
+def _declared_name(n: Node) -> str {
+    return n.__class__.__name__;
+}
+
+
 def known_name_rank(pick: int) -> int {
-    n: Node = Node();
     if pick == 1 {
-        n = Leaf();
-    } elif pick == 2 {
-        n = Branch();
+        return _rank(_declared_name(Leaf()));
     }
-    return _rank(n.__class__.__name__);
+    if pick == 2 {
+        return _rank(_declared_name(Branch()));
+    }
+    return _rank(_declared_name(Node()));
 }
 
 

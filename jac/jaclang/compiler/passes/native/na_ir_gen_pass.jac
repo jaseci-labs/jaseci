@@ -174,6 +174,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _native_skipped_methods: set[str] = set(),
         _class_name_consts: dict[str, ir.Value] = {},
         _isa_fn: (ir.Function | None) = None,
+        _runtime_class_name_fn: (ir.Function | None) = None,
         osp_type_tag_field: dict[str, int] = {},
         osp_reports_field: dict[str, int] = {},
         osp_thunk_funcs: dict[str, ir.Function] = {},
@@ -1058,6 +1059,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None);
     def _vtable_candidates(names: list[str]) -> list[ir.GlobalVariable];
     def _emit_class_name_const(arch_name: str) -> ir.Value;
+    def _emit_runtime_class_name_fn -> (ir.Function | None);
+    def _codegen_runtime_class_name(obj_val: ir.Value) -> (ir.Value | None);
     def _codegen_class_name(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _codegen_class_id(receiver: uni.UniNode) -> (ir.Value | None);
     def _class_id_of_value(arch_name: str, obj_val: ir.Value) -> ir.Value;
