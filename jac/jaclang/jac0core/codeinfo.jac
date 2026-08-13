@@ -253,12 +253,12 @@ def is_client_by_location(file_path: str) -> bool {
 
 def is_bundled_native_module(module_name: str) -> bool {
     import os;
-    root = native_stdlib_root();
-    if root is None or not module_name {
+    stdlib_dir = native_stdlib_root();
+    if stdlib_dir is None or not module_name {
         return False;
     }
     path_name = module_name.lstrip('.').replace('.', os.sep);
-    return _native_variant_path(os.path.join(root, path_name)) is not None;
+    return _native_variant_path(os.path.join(stdlib_dir, path_name)) is not None;
 }
 
 def native_target_os -> str {
