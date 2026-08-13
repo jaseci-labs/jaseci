@@ -12,8 +12,7 @@ import from jaclang.runtimelib.session { Session }
 import from jaclang.runtimelib.query_planner { resolve_query as _rq_anchor }
 
 glob __all__ = ['ExecutionContext'],
-     logger = getLogger(__name__),
-     LAZY_ROOTS = frozenset({'system_root', 'user_root', 'entry_node'});
+     logger = getLogger(__name__);
 
 obj CallState {
     has reports: Queue = Queue(),
@@ -27,16 +26,20 @@ obj ExecutionContext {
         pending_effects: list[Callable] = [],
         read_versions: dict[UUID, int] = {},
         custom: any = MISSING,
-        system_root: NodeAnchor postinit,
-        user_root: NodeAnchor postinit,
-        entry_node: NodeAnchor postinit,
         call_state: ContextVar[CallState] = ContextVar('call_state'),
         base_path_dir: (str | None) = None,
         full_target_path: (str | None) = None,
-        _parent: (ExecutionContext | None) = None;
+        _parent: (ExecutionContext | None) = None,
+        _system_root: (NodeAnchor | None) = None,
+        _user_root: (NodeAnchor | None) = None,
+        _entry_node: (NodeAnchor | None) = None;
 
     def postinit -> None;
-    def __getattr__(name: str) -> object;
+
+    has system_root: NodeAnchor { getter; }
+    has user_root: NodeAnchor { getter; }
+    has entry_node: NodeAnchor { getter; }
+
     def _resolve_roots -> None;
     def _get_anchor(anchor_id: str) -> NodeAnchor;
     def set_user_root(root_id: str) -> None;
