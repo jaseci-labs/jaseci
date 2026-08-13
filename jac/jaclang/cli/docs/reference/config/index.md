@@ -331,6 +331,62 @@ When `directory` is set, `jac test` with no file argument collects tests only
 from that directory (resolved against the project root), so application modules
 whose top-level `with entry` runs on import are not pulled into test collection.
 
+#### [test.client]
+
+Client (`cl`) tests run under bun in a temp directory with no `node_modules`, so
+every bare import specifier has to be given something to resolve to. The runner
+resolves each spec through ordered tiers:
+
+1. **Mock** -- a module you supply, by convention or by explicit mapping.
+2. **Virtual** -- `@jac/*` resolves to the staged Jac client runtime.
+3. **Proxy** -- everything else falls back to a universal stub that absorbs any
+   call and returns nothing.
+
+Resolution is materialized as a generated `tsconfig.json` in the harness
+directory, which bun honours natively. The compiled JavaScript is never
+rewritten, so every static import form -- including side-effect
+`import "pkg/theme.css"` and `export ... from "pkg"` -- resolves normally.
+
+**Supplying a mock.** Zero config is the happy path: drop a file into
+`tests/__mocks__/`, named for the spec it stands in for. Scoped packages nest as
+directories, the way jest lays them out:
+
+```
+tests/__mocks__/vscode.js
+tests/__mocks__/@scope/telemetry.jac
+```
+
+For a mock that lives elsewhere, map it explicitly. An entry here overrides
+anything found by the convention, and paths are relative to the `jac.toml` that
+declares them:
+
+```toml
+[test.client.mocks]
+vscode = "tests/doubles/editor.js"
+```
+
+Mocks may be JavaScript or Jac. A `.jac` mock compiles through the ordinary
+client pipeline, so `:pub` is what makes a name importable. Because placement is
+inferred, a mock containing no client-only syntax lands in the server codespace
+and compiles to no JS -- the runner detects exactly that and asks for a pin:
+
+```toml
+[placement.pins]
+"tests.__mocks__.telemetry" = "client"
+```
+
+**Reporting what got stubbed.** A spec that reaches the Proxy makes assertions
+against it vacuous, so the runner reports which ones did. `on_stub` sets how
+loudly:
+
+```toml
+[test.client]
+on_stub = "note"    # note (default) | warn | error
+```
+
+`error` turns an accidentally unmocked dependency into a failure rather than a
+test that passes without checking anything -- useful in CI for library authors.
+
 ---
 
 ### [format]

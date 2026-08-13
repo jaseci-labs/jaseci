@@ -6,12 +6,26 @@ glob _COLOR_CACHE: dict[(str, bool)] = {};
 
 glob _RESULT_SENTINEL: str = "__JAC_CL_TEST_RESULTS__",
      _NPM_STUB_FILE: str = "__jac_npm_stub.js",
+     _TSCONFIG_FILE: str = "tsconfig.json",
+     _MOCKS_DIR: str = "__mocks__",
+     _MOCK_SEARCH_DIR: tuple = ("tests", "__mocks__"),
+     _VIRTUAL_PREFIX: str = "@jac/",
+     _RUNTIME_SPEC: str = "@jac/runtime",
      _SERVER_ENTRY_NAMES: tuple = ("server.jac", "main.jac"),
-     _IMPORT_LINE = re.compile(r"^\s*import\b.*?;?\s*$", re.MULTILINE),
-     _IMPORT_FROM = re.compile(
+     _IMPORT_LINE: re.Pattern = re.compile(r"^\s*import\b.*?;?\s*$", re.MULTILINE),
+     _IMPORT_FROM: re.Pattern = re.compile(
          r"import\s+(?P<clause>[^;]*?)\s+from\s+[\"'](?P<spec>[^\"']+)[\"']\s*;?"
      ),
-     _NAMED_BINDING = re.compile(r"([A-Za-z_$][\w$]*)\s*(?:as\s+[A-Za-z_$][\w$]*)?"),
+     _EXPORT_FROM: re.Pattern = re.compile(
+         r"export\s+(?P<clause>\*(?:\s+as\s+[A-Za-z_$][\w$]*)?|\{[^}]*\})"
+         r"\s*from\s*[\"'](?P<spec>[^\"']+)[\"']\s*;?"
+     ),
+     _BARE_IMPORT: re.Pattern = re.compile(
+         r"import\s+[\"'](?P<spec>[^\"']+)[\"']\s*;?"
+     ),
+     _NAMED_BINDING: re.Pattern = re.compile(
+         r"([A-Za-z_$][\w$]*)\s*(?:as\s+[A-Za-z_$][\w$]*)?"
+     ),
      _PRELUDE_TEMPLATE: str = """
 // --- jac cl test prelude (injected by cl_test_runner) ---
 globalThis.__JAC_API_BASE_URL__ = %%BASE_URL%%;
@@ -74,11 +88,30 @@ def _compile_runtime_js -> str;
 
 def _compile_runtime_core_js -> str;
 
-def _point_at_staged_runtime(js: str) -> str;
+obj ClImportPlan {
+    has paths: dict[str, str] postinit,
+        staged: dict[str, str] postinit,
+        stubbed: list[str] postinit,
+        uses_runtime: bool = False;
 
-def _stub_npm_imports(
-    entry_js: str, staged: dict[str, str]
-) -> tuple[str, dict[str, str], str, bool];
+    def postinit -> None;
+}
+
+def _scan_import_specs(js: str) -> dict[str, dict];
+
+def _mock_target(spec: str) -> str;
+
+def _mock_sources_for(source_path: (str | None)) -> dict[str, str];
+
+def _render_tsconfig(paths: dict[str, str]) -> str;
+
+def _render_npm_stub(named: set, needs_default: bool) -> str;
+
+def _resolve_client_imports(
+    source_path: (str | None), entry_js: str, dep_files: dict[str, str]
+) -> ClImportPlan;
+
+def _report_stubbed(source_path: (str | None), stubbed: list[str]) -> None;
 
 def _build_harness(
     module_js: str, tests: list, api_base_url: str = "", storage: (dict | None) = None

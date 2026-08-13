@@ -134,6 +134,17 @@ def _under_test_root(file_path: Path, config: pytest.Config) -> bool:
     return any(resolved.is_relative_to(root) for root in roots)
 
 
+#: Directories whose ``.jac`` files are test *inputs*, never test suites --
+#: ``fixtures/`` holds compilation inputs, ``__mocks__/`` holds npm module
+#: doubles staged by the cl test runner.
+_SUPPORT_DIRS = ("fixtures", "__mocks__")
+
+
+def _is_excluded_support_dir(file_path: Path) -> bool:
+    """Return whether ``file_path`` sits inside a support directory."""
+    return any(p.name in _SUPPORT_DIRS for p in file_path.parents)
+
+
 def pytest_collect_file(
     parent: pytest.Collector, file_path: Path
 ) -> JacFile | ClJacFile | None:
@@ -149,9 +160,9 @@ def pytest_collect_file(
     # fixtures/ input or a non-`test_` name -- so `jac test <file>` runs it.
     explicit = str(file_path.resolve()) in _explicit_targets(parent.config)
 
-    # Otherwise skip .jac files inside fixtures/ directories: during directory
+    # Otherwise skip .jac files inside support directories: during directory
     # recursion those are test inputs, not test suites.
-    if not explicit and any(p.name == "fixtures" for p in file_path.parents):
+    if not explicit and _is_excluded_support_dir(file_path):
         return None
 
     # A .jac file beneath a declared [test] root directory is a test suite

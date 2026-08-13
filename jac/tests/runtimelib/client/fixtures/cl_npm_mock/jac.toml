@@ -1,0 +1,15 @@
+[project]
+name = "cl-npm-mock-fixture"
+version = "0.0.0"
+description = "Fixture project exercising cl test runner mock resolution"
+
+# Explicit mapping. Paths are relative to this file, and override anything
+# found by the tests/__mocks__/ convention.
+[test.client.mocks]
+"fake-editor" = "mocks/editor.js"
+"@fake/telemetry" = "mocks/telemetry.jac"
+
+# telemetry.jac holds no client-only syntax of its own, so placement inference
+# would put it in the server codespace and it would compile to no JS.
+[placement.pins]
+"mocks.telemetry" = "client"

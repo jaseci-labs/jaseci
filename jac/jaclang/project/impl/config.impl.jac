@@ -1183,12 +1183,29 @@ impl _parse_toml_data(
     }
     if "test" in data {
         test_data = data["test"];
+        client_data = dict(test_data.get("client", {}) or {});
+        on_stub = str(client_data.get("on_stub", "note")).strip().lower();
+        if on_stub not in ("note", "warn", "error") {
+            import from jaclang.cli.console { console }
+            console.warning(
+                f"[test.client] on_stub='{client_data.get('on_stub')}' is not "
+                "'note', 'warn' or 'error'; defaulting to 'note'."
+            );
+            on_stub = "note";
+        }
         config.test = TestConfig(
             directory=test_data.get("directory", ""),
             filter=test_data.get("filter", ""),
             verbose=test_data.get("verbose", False),
             fail_fast=test_data.get("fail_fast", False),
-            max_failures=test_data.get("max_failures", 0)
+            max_failures=test_data.get("max_failures", 0),
+            client=ClientTestConfig(
+                on_stub=on_stub,
+                mocks={
+                    str(spec): str(path)
+                    for (spec, path) in dict(client_data.get("mocks", {}) or {}).items()
+                }
+            )
         );
     }
     if "serve" in data {
