@@ -1,4 +1,4 @@
-impl promotions_for(base_path: (str | None)) -> dict[str, list[str]] {
+def _toml_section(base_path: (str | None), section: str) -> dict {
     if not base_path {
         return {};
     }
@@ -11,18 +11,23 @@ impl promotions_for(base_path: (str | None)) -> dict[str, list[str]] {
         with open(manifest, 'rb') as f {
             data = tomllib.load(f);
         }
-        raw = (data.get('database') or {}).get('indexes') or {};
-        out: dict[str, list[str]] = {};
-        for (arch, fields_l) in raw.items() {
-            if isinstance(fields_l, list) {
-                out[str(arch)] = [str(x) for x in fields_l];
-            }
-        }
-        return out;
+        return data.get(section) or {};
     } except Exception as e {
-        logger.warning(f"could not read [database.indexes] from {manifest}: {e}");
+        logger.warning(f"could not read [{section}] from {manifest}: {e}");
         return {};
     }
+}
+
+
+impl promotions_for(base_path: (str | None)) -> dict[str, list[str]] {
+    raw = _toml_section(base_path, 'database').get('indexes') or {};
+    out: dict[str, list[str]] = {};
+    for (arch, fields_l) in raw.items() {
+        if isinstance(fields_l, list) {
+            out[str(arch)] = [str(x) for x in fields_l];
+        }
+    }
+    return out;
 }
 
 
@@ -55,15 +60,109 @@ impl project_db_name(base_path: str, target_path: (str | None)) -> str {
 }
 
 
+glob _scratch_bases: set[str] = set(),
+     _scratch: list[ScratchState] = [];
+
+
+impl mark_scratch_base(base_path: str) -> None {
+    _scratch_bases.add(os.path.abspath(base_path));
+}
+
+
+impl scratch_requested(base_path: (str | None)) -> bool {
+    if os.environ.get(SCRATCH_ENV, '').strip().lower()
+        not in ('', '0', 'false', 'no') {
+        return True;
+    }
+    return bool(base_path) and os.path.abspath(base_path) in _scratch_bases;
+}
+
+
+impl scratch_lease(base_path: str) -> ScratchLease {
+    import secrets;
+    base = os.path.abspath(base_path);
+    if not _scratch {
+        import atexit;
+        _scratch.append(
+            ScratchState(
+                database=f"{SCRATCH_PREFIX}{os.getpid()}_{secrets.token_hex(3)}",
+                base_path=base
+            )
+        );
+        atexit.register(drop_scratch_database);
+        return ScratchLease(database=_scratch[0].database);
+    }
+    state = _scratch[0];
+    reset = state.base_path != base;
+    state.base_path = base;
+    return ScratchLease(database=state.database, reset=reset);
+}
+
+
+impl drop_scratch_database -> None {
+    if not _scratch {
+        return;
+    }
+    state = _scratch.pop();
+    try {
+        rt = PgRuntime(data_dir=shared_pg_data_dir(), database=MAINTENANCE_DB);
+        if rt.is_running() {
+            rt.drop_database(state.database, force=True);
+        }
+    } except Exception as e {
+        logger.debug(f"could not drop the scratch database {state.database}: {e}");
+    }
+}
+
+
+impl retention_days_for(base_path: (str | None)) -> int {
+    raw: str = os.environ.get(RETENTION_ENV, '').strip();
+    if not raw {
+        raw = str(_toml_section(base_path, 'database').get('retention_days') or '');
+    }
+    if not raw {
+        return 0;
+    }
+    try {
+        days = int(raw);
+    } except ValueError {
+        logger.warning(f"ignoring non-integer database retention setting {raw!r}");
+        return 0;
+    }
+    return days if days > 0 else 0;
+}
+
+
+impl runtime_for_base(
+    base_path: str, target_path: (str | None) = None
+) -> RuntimeLease {
+    lease: (ScratchLease | None) = None;
+    if scratch_requested(base_path) {
+        lease = scratch_lease(base_path);
+    }
+    return RuntimeLease(
+        runtime=PgRuntime(
+            data_dir=shared_pg_data_dir(),
+            database=(
+                lease.database
+                    if lease is not None
+                    else project_db_name(base_path, target_path)
+            ),
+            owner_path=os.path.abspath(base_path),
+            kind=DbKind.SCRATCH if lease is not None else DbKind.PROJECT,
+            retention_days=(0 if lease is not None else retention_days_for(base_path))
+        ),
+        reset=lease is not None and lease.reset
+    );
+}
+
+
 impl takeover_project(base_path: str, target_path: (str | None) = None) -> int {
     url = os.environ.get('JAC_DB_URL', '');
     if url {
         store = PgStore(conninfo=conninfo_from_url(url));
     } else {
-        rt = PgRuntime(
-            data_dir=shared_pg_data_dir(),
-            database=project_db_name(base_path, target_path)
-        );
+        rt = runtime_for_base(base_path, target_path).runtime;
         store = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
     }
     try {
@@ -157,17 +256,18 @@ impl Session.postinit -> None {
                 conninfo=conninfo_from_url(url), promotions=promos, auto_schema=True
             );
         } else {
-            rt = PgRuntime(
-                data_dir=shared_pg_data_dir(),
-                database=project_db_name(self.base_path, self.target_path)
-            );
-            self._runtime = rt;
-            self.store = PgStore(
-                conninfo=rt.conninfo(),
-                ensure_cb=rt.ensure,
+            lease = runtime_for_base(self.base_path, self.target_path);
+            self._runtime = lease.runtime;
+            pgs = PgStore(
+                conninfo=lease.runtime.conninfo(),
+                ensure_cb=lease.runtime.ensure,
                 promotions=promos,
                 auto_schema=True
             );
+            if lease.reset {
+                pgs.reset_data();
+            }
+            self.store = pgs;
         }
     }
 }
