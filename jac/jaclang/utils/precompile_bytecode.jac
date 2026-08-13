@@ -268,7 +268,21 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
     return failed;
 }
 
-glob NATIVE_SEAL_MODULES: tuple = (
+# The native seal is described by two lists with different jobs. ROOTS is the
+# build input: each entry is compiled AOT into its own shared-library artifact,
+# in order (later roots may consume earlier roots' layouts). CLOSURE is the
+# invariant's accounting: every module whose compile-path code must serve
+# natively in a sealed image, including modules subsumed into another root's
+# artifact by import. Roots are what the runtime can check for (artifacts
+# exist per root); the closure is what "sealed means served" is asserted over.
+glob NATIVE_SEAL_ROOTS: tuple = (
+         "jac0core/parser/lexer.jac",
+         "jac0core/parser/parser.jac",
+         "jac0core/unitree.jac",
+
+     );
+
+glob NATIVE_SEAL_CLOSURE: tuple = (
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
          "jac0core/unitree.jac",
@@ -585,7 +599,7 @@ def seal_native_artifacts(
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
     pkg_name = pkg_path.name;
-    for rel in (NATIVE_SEAL_MODULES if modules is None else modules) {
+    for rel in (NATIVE_SEAL_ROOTS if modules is None else modules) {
         src = pkg_path / rel;
         if not src.is_file() {
             console.error(f"NATIVE SEAL: missing source {src}");

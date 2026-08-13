@@ -1,6 +1,6 @@
 """A0 gate: `unitree.jac` and its whole native closure lower with no seams.
 
-`unitree` cannot join `NATIVE_SEAL_MODULES` until every module the native
+`unitree` cannot join `NATIVE_SEAL_ROOTS` until every module the native
 compile drags in with it lowers in full: a seam in a sealed artifact ships as
 an `abort()` stub, so one un-lowered method kills the process on first call.
 The seal's own refusal (`seal_demotion_report`) reads the same census this
@@ -48,7 +48,7 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
      # `<module>::<Type>.<method>` exactly as `_seal_demotions` keys them, so
      # an entry reads the same as one in `NATIVE_SEAL_DEMOTION_WAIVERS` --
      # all of these are mirrored there (as `_UNITREE_SEAM_WAIVERS`) now that
-     # `unitree` is in `NATIVE_SEAL_MODULES`.
+     # `unitree` is in `NATIVE_SEAL_ROOTS`.
      #
      # A `<field>.__get__` entry is a property. #8074 made accessors lower as
      # methods, so their bodies reach the backend for the first time; before it
