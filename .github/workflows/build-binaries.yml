@@ -43,42 +43,59 @@ permissions:
   contents: write
 
 jobs:
+  # Emits the per-channel leg list the build matrix consumes. A matrix
+  # `exclude` cannot drop a leg here: exclude keys must name matrix *vector*
+  # keys, and this matrix is include-only, so strategy evaluation fails
+  # outright ("Matrix exclude key 'platform' does not match any key within
+  # the matrix"). Promoting `platform` to a vector key would not help either:
+  # include entries are re-applied after exclude, re-adding the dropped leg.
+  #
+  # One native runner per target so the smoke test runs on real hardware.
+  # zig_target pins each Linux binary's glibc floor (2.17, manylinux2014)
+  # on the release channel; the dev channel builds host-native so it can
+  # reuse the native-ABI LLVMPY shim cache (the shim cache key does not
+  # encode a target triple). macOS-ARM builds host-native on both
+  # channels. The Intel-Mac leg pins the macOS floor (12.0) the same way
+  # the Linux legs pin glibc -- unpinned it would inherit the runner's
+  # macOS 15 and exclude older Intel Macs; its LLVM slice is llvm-slice's
+  # from-source build (upstream ships no macOS-x64 for the pinned
+  # release). macos-15-intel is GitHub's last Intel image (retires Fall
+  # 2027).
+  #
+  # The Intel-Mac leg is release-only: it exists to pin the macOS 12.0
+  # floor for versioned releases, and on the dev channel it was the
+  # critical path (~24 min/merge on the slow Intel runners) for a
+  # rolling prerelease Intel users don't consume. Versioned releases
+  # still ship macos-x86_64: inputs.channel is empty on release/dispatch
+  # events, so those keep the full list.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.legs.outputs.include }}
+    steps:
+      - name: Select build legs for the channel
+        id: legs
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          LEGS='[
+            {"os": "ubuntu-latest",    "platform": "linux-x86_64",  "zig_target": "x86_64-linux-gnu.2.17"},
+            {"os": "ubuntu-24.04-arm", "platform": "linux-aarch64", "zig_target": "aarch64-linux-gnu.2.17"},
+            {"os": "macos-14",         "platform": "macos-aarch64"},
+            {"os": "macos-15-intel",   "platform": "macos-x86_64",  "zig_target": "x86_64-macos.12.0"}
+          ]'
+          if [ "$CHANNEL" = "dev" ]; then
+            LEGS="$(jq -c 'map(select(.platform != "macos-x86_64"))' <<<"$LEGS")"
+          fi
+          echo "include=$(jq -c . <<<"$LEGS")" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: plan
     strategy:
       fail-fast: false
       matrix:
-        # One native runner per target so the smoke test runs on real hardware.
-        # zig_target pins each Linux binary's glibc floor (2.17, manylinux2014)
-        # on the release channel; the dev channel builds host-native so it can
-        # reuse the native-ABI LLVMPY shim cache (the shim cache key does not
-        # encode a target triple). macOS-ARM builds host-native on both
-        # channels. The Intel-Mac leg pins the macOS floor (12.0) the same way
-        # the Linux legs pin glibc -- unpinned it would inherit the runner's
-        # macOS 15 and exclude older Intel Macs; its LLVM slice is llvm-slice's
-        # from-source build (upstream ships no macOS-x64 for the pinned
-        # release). macos-15-intel is GitHub's last Intel image (retires Fall
-        # 2027).
-        include:
-          - os: ubuntu-latest
-            platform: linux-x86_64
-            zig_target: x86_64-linux-gnu.2.17
-          - os: ubuntu-24.04-arm
-            platform: linux-aarch64
-            zig_target: aarch64-linux-gnu.2.17
-          - os: macos-14
-            platform: macos-aarch64
-          - os: macos-15-intel
-            platform: macos-x86_64
-            zig_target: x86_64-macos.12.0
-        # The Intel-Mac leg is release-only: it exists to pin the macOS 12.0
-        # floor for versioned releases, and on the dev channel it was the
-        # critical path (~24 min/merge on the slow Intel runners) for a
-        # rolling prerelease Intel users don't consume. Versioned releases
-        # still ship macos-x86_64. The expression matches nothing ('none')
-        # on the release channel and on release/dispatch events, where
-        # inputs.channel is empty.
-        exclude:
-          - platform: ${{ inputs.channel == 'dev' && 'macos-x86_64' || 'none' }}
+        include: ${{ fromJSON(needs.plan.outputs.include) }}
     runs-on: ${{ matrix.os }}
     env:
       # -Dtarget flag for zig build: set on release-channel Linux legs, empty
