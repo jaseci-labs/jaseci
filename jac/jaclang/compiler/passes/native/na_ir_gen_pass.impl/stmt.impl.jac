@@ -3881,6 +3881,14 @@ impl NaIRGenPass._codegen_for_indexed(
         self.builder.store(collection_val, _gen_coll_slot);
     }
 
+    _coll_slot_var: (str | None) = None;
+    if _gen_coll_slot is None
+        and coll_release_op
+        and kind != "range"
+        and self._is_owned(collection_val) {
+        _coll_slot_var = self._bind_loop_coll_slot(collection_val);
+    }
+
     if kind == "range" {
         len_val = collection_val;
         idx_alloca = self._entry_alloca(i64, var_names[0]);
@@ -4110,6 +4118,8 @@ impl NaIRGenPass._codegen_for_indexed(
             _coll_end, op=coll_release_op or "for_coll", loc=_for_loc
         );
         self.builder.store(ir.Constant(_coll_end.type, None), _gen_coll_slot);
+    } elif _coll_slot_var is not None {
+        self._release_loop_coll_slot(_coll_slot_var, op=coll_release_op, loc=_for_loc);
     } elif coll_release_op
         and isinstance(collection_val.type, ir.PointerType)
         and self._is_owned(collection_val) {
