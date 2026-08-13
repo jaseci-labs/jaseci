@@ -340,10 +340,10 @@ impl PgStore.reset_data -> None {
         if self._in_txn {
             self.rollback();
         }
-        rows = self._run(
+        listed = self._run(
             'SELECT tablename FROM pg_tables WHERE schemaname = current_schema()', {}
         );
-        tables = [str(row[0]) for row in rows];
+        tables = [str(row[0]) for row in listed];
         if not tables {
             return;
         }
