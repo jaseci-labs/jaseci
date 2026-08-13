@@ -575,8 +575,8 @@ impl PyastGenPass._ancestor_is_one_of(
             return False;
         }
         seen.add(cur);
-        for root in roots {
-            if cur is root {
+        for cand_root in roots {
+            if cur is cand_root {
                 return True;
             }
         }

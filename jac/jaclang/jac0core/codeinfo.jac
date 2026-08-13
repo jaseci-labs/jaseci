@@ -78,13 +78,15 @@ obj NativeFieldInfo {
         is_func_ptr: bool = False,
         func_param_types: (list[str] | None) = None,
         func_ret_type: (str | None) = None,
-        elem_keys: (list | None) = None;
+        elem_keys: (list | None) = None,
+        foreign: bool = False;
 }
 
 obj NativeStructLayout {
     has name: str,
         fields: list[NativeFieldInfo] = field(default_factory=`list),
-        has_vtable: bool = False;
+        has_vtable: bool = False,
+        accessors: dict[(str, dict[(str, str)])] = field(default_factory=`dict);
 }
 
 obj NativeEnumLayout {
@@ -202,8 +204,10 @@ def native_stdlib_root -> (str | None) {
     if not jaclang?.__file__ {
         return None;
     }
-    root = os.path.join(os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib");
-    return root if os.path.isdir(root) else None;
+    stdlib_dir = os.path.join(
+        os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib"
+    );
+    return stdlib_dir if os.path.isdir(stdlib_dir) else None;
 }
 
 def is_native_by_location(file_path: str) -> bool {
@@ -249,12 +253,12 @@ def is_client_by_location(file_path: str) -> bool {
 
 def is_bundled_native_module(module_name: str) -> bool {
     import os;
-    root = native_stdlib_root();
-    if root is None or not module_name {
+    stdlib_dir = native_stdlib_root();
+    if stdlib_dir is None or not module_name {
         return False;
     }
     path_name = module_name.lstrip('.').replace('.', os.sep);
-    return _native_variant_path(os.path.join(root, path_name)) is not None;
+    return _native_variant_path(os.path.join(stdlib_dir, path_name)) is not None;
 }
 
 def native_target_os -> str {
@@ -402,6 +406,9 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
             name: {
                 "name": s.name,
                 "has_vtable": s.has_vtable,
+                "accessors": {
+                    fname: dict(kinds) for (fname, kinds) in s.accessors.items()
+                },
                 "fields": [
                     {
                         "name": fld.name,
@@ -417,7 +424,8 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
                         "func_ret_type": fld.func_ret_type,
                         "elem_keys": (
                             list(fld.elem_keys) if fld.elem_keys is not None else None
-                        )
+                        ),
+                        "foreign": fld.foreign
                     } for fld in s.fields
                 ]
             } for (name, s) in layout.structs.items()
