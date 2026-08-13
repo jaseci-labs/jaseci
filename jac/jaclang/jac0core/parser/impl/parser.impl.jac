@@ -5614,10 +5614,12 @@ impl Parser.parse_has_var -> HasVar {
             );
         }
         acc_lb_uni = self.consume_uni(TokenKind.LBRACE);
-        acc_list = [];
+
+        accs: list[Ability] = [];
         while not self.check(TokenKind.RBRACE) {
-            acc_list.append(self.parse_accessor());
+            accs.append(self.parse_accessor());
         }
+        acc_list = accs;
         acc_rb_uni = self.consume_uni(TokenKind.RBRACE);
         if len(acc_list) == 0 {
             self.emit_diag(
