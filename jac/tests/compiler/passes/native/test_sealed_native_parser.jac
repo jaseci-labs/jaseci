@@ -333,3 +333,176 @@ test "materializer parity holds across the jac0core source corpus" {
         _assert_parity(src_file.read_text(encoding="utf-8"), str(src_file));
     }
 }
+
+"""Field-level tree equality: unparse fingerprints see kid text but not
+field VALUES (an erased `body` slot decoding to None, a wrong enum member,
+a missing name_spec wiring are all unparse-invisible while being fatal to
+codegen). This walker compares every scalar, enum, list length, dict key
+set, and class name across both trees."""
+def _assert_field_parity(a: any, b: any, path: str = "mod") {
+    import enum as _py_enum;
+    stack = [(a, b, path, )];
+    seen: set = set();
+    diffs: list = [];
+    while stack {
+        (x, y, p) = stack.pop();
+        if id(x) in seen {
+            continue;
+        }
+        seen.add(id(x));
+        if type(x).__name__ != type(y).__name__ {
+            diffs.append(f"{p}: class {type(x).__name__} vs {type(y).__name__}");
+            continue;
+        }
+        dx = x?.__dict__;
+        dy = y?.__dict__;
+        if dx is None {
+            continue;
+        }
+        kx = set(dx.keys());
+        ky = set(dy.keys());
+        if kx != ky {
+            missing = {
+                k
+                for k in (ky - kx)
+                if not hasattr(type(x), k)
+            };
+            extra = kx - ky;
+            if missing or extra {
+                diffs.append(f"{p}: keys +{sorted(extra)} -{sorted(missing)}");
+            }
+        }
+        for k in kx & ky {
+            vx = dx[k];
+            vy = dy[k];
+            if isinstance(vx, (int, str, bool, float))
+                or vx is None
+                or isinstance(vx, _py_enum.Enum) {
+                if vx != vy or type(vx).__name__ != type(vy).__name__ {
+                    diffs.append(f"{p}.{k}: {repr(vx)[:60]} vs {repr(vy)[:60]}");
+                }
+            } elif isinstance(vx, list) {
+                if not isinstance(vy, list) or len(vx) != len(vy) {
+                    diffs.append(
+                        f"{p}.{k} [{type(x).__name__}]: list "
+                        f"{len(vx)}x{[type(i).__name__ for i in vx][:6]} vs "
+                        f"{len(vy) if isinstance(vy, list) else vy}"
+                        f"{[type(i).__name__ for i in vy][:6]
+                            if isinstance(vy, list)
+                            else ''}"
+                    );
+                }
+            } elif isinstance(vx, dict) {
+                if not isinstance(vy, dict)
+                    or set(map(str, vx.keys())) != set(map(str, vy.keys())) {
+                    diffs.append(f"{p}.{k}: dict keys diverged");
+                }
+            } elif type(vx).__name__ != type(vy).__name__ {
+                diffs.append(
+                    f"{p}.{k}: type {type(vx).__name__} vs {type(vy).__name__}"
+                );
+            }
+        }
+        if hasattr(x, "kid") {
+            for (i, (cx, cy)) in enumerate(zip(x.kid, y.kid)) {
+                stack.append((cx, cy, f"{p}.kid[{i}]", ));
+            }
+        }
+    }
+    assert not diffs , chr(10).join(diffs[:12]);
+}
+
+def _assert_full_parity(src: str, path: str) {
+    _assert_parity(src, path);
+    (native_mod, _e1, _m) = _materialize(src, path);
+    (py_mod, _e2) = _bytecode_parse(src, path);
+    import from jaclang.jac0core.native_marshal { materialize_fixups }
+    materialize_fixups(native_mod);
+    _assert_field_parity(native_mod, py_mod);
+    for (nx, ny) in zip(native_mod._in_mod_nodes, py_mod._in_mod_nodes) {
+        _assert_field_parity(nx, ny, type(nx).__name__);
+    }
+}
+
+test "field-level parity: archetypes, enums, walkers, edge ops" {
+    nl = chr(10);
+    src = nl.join(
+        [
+            "enum Hue { RED = 1, GREEN = 2 }",
+            "node Spot { has label: str = ''; }",
+            "edge Road { has miles: int = 0; }",
+            "obj P { has x: int = 8, y: (str | None) = None; def m -> int; }",
+            "impl P.m -> int { return self.x; }",
+            "walker Tour {",
+            "    can step with Spot entry;",
+            "}",
+            "impl Tour.step with Spot entry {",
+            "    visit [-->];",
+            "}",
+            "def pick(h: Hue) -> int {",
+            "    return 1 if h == Hue.GREEN else 0;",
+            "}",
+            "with entry { print(P(x=3).m(), pick(Hue.GREEN)); }",
+
+        ]
+    );
+    _assert_full_parity(src, "__field_parity__.jac");
+}
+
+test "field-level parity holds on a compiler source module" {
+    mod_src = PKG_PATH / "jac0core" / "srcloc.jac";
+    _assert_full_parity(mod_src.read_text(encoding="utf-8"), str(mod_src));
+}
+
+test "materialized trees compile to RUNNABLE bytecode (obj __init__)" {
+    # The payload smoke that caught #8109's body-slot gap: an obj compiled
+    # through a materialized tree must construct with its has-var __init__.
+    (fn, matmod, _eng, out_dir, rec) = _build_binding();
+    import jaclang.jac0core.sealed as sealed;
+    import jaclang.jac0core.parser.frontend as frontend;
+    import from jaclang.jac0core.program { JacProgram }
+    import types as _pytypes;
+    lib_path = str(out_dir / rec["lib"]);
+    layout_dict = json.loads((out_dir / rec["layout"]).read_text(encoding="utf-8"));
+    mat_path = str(out_dir / rec["materializer"]);
+    real_naf = sealed.native_artifact_for;
+    saved_memo = list(frontend._NATIVE_PARSE_MEMO);
+    sealed.native_artifact_for = _ServeLocalArtifact(
+        lib_path=lib_path, layout_dict=layout_dict, mat_path=mat_path, real=real_naf
+    );
+    frontend._NATIVE_PARSE_MEMO.clear();
+    try {
+        with tempfile.TemporaryDirectory(prefix="jac_mat_exec_") as td {
+            target = Path(td) / "objinit.jac";
+            nl = chr(10);
+            target.write_text(
+                "obj P { has x: int = 8; }"
+                    + nl
+                    + "def probe -> int { return P(x=3).x + P().x; }"
+                    + nl,
+                encoding="utf-8"
+            );
+            prog = JacProgram();
+            prog.compile(str(target));
+            assert len(prog.errors_had) == 0 , str(prog.errors_had[:3]);
+            code = prog.get_bytecode(str(target));
+            assert code is not None;
+            m = _pytypes.ModuleType("objinit_probe");
+            m.__file__ = str(target);
+            import sys as _pysys;
+            _pysys.modules["objinit_probe"] = m;
+            try {
+                exec(code, m.__dict__);
+                assert m.probe() == 11 , f"probe() gave {m.probe()}";
+            } finally {
+                _pysys.modules.pop("objinit_probe", None);
+            }
+        }
+    } finally {
+        sealed.native_artifact_for = real_naf;
+        frontend._NATIVE_PARSE_MEMO.clear();
+        for mm in saved_memo {
+            frontend._NATIVE_PARSE_MEMO.append(mm);
+        }
+    }
+}

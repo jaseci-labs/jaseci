@@ -805,14 +805,6 @@ def _bake_materialize(layout: NativeModuleLayout, layout_dict: dict, pkg_path: P
 
     enums_out: dict = {};
     for et in sorted(needed_enums) {
-        enum_layout = layout.enums.get(et);
-        if enum_layout is not None {
-            mem_pairs: list[tuple[int, str]] = [
-                (int(m[2]), str(m[0]), ) for m in enum_layout.members
-            ];
-            enums_out[et] = [nm for (_o, nm) in sorted(mem_pairs)];
-            continue;
-        }
         py_cls = None;
         for ns in (_bk_unitree.__dict__, _bk_constant.__dict__, _bk_srcloc.__dict__) {
             if ns.get(et) is not None {
@@ -820,9 +812,18 @@ def _bake_materialize(layout: NativeModuleLayout, layout_dict: dict, pkg_path: P
                 break;
             }
         }
-        if py_cls is not None {
-            enums_out[et] = [str(getattr(m, "name")) for m in list(py_cls)];
+        if py_cls is None {
+            continue;
         }
+
+        sample = [getattr(m, "value") for m in list(py_cls)];
+        is_str = bool(sample and isinstance(sample[0], str));
+        enums_out[et] = {
+            "string_valued": is_str,
+            "members": [
+                [str(getattr(m, "name")), getattr(m, "value")] for m in list(py_cls)
+            ]
+        };
     }
     layout_dict["materialize"] = {
         "version": 1,

@@ -414,12 +414,18 @@ static PyObject *decode_field(uintptr_t base, FieldRec *f) {
         case K_DICT: return decode_ptr_field((uintptr_t)rd_u64(fa), K_DICT, f->aux1, f->aux2, f->hint);
         case K_SET: return decode_ptr_field((uintptr_t)rd_u64(fa), K_SET, f->aux1, 0, f->hint);
         case K_ENUM: {
-            int64_t v = rd_i64(fa);
-            if (f->extra && v >= 0 && v < PyList_GET_SIZE(f->extra)) {
-                PyObject *m = PyList_GET_ITEM(f->extra, v);
-                if (m != Py_None) { Py_INCREF(m); return m; }
+            /* the native slot holds the declaration ordinal for
+             * string-valued enums and the raw int value otherwise; extra is
+             * the matching {key: member} dict baked at seal time */
+            if (f->extra) {
+                PyObject *keyo = PyLong_FromLongLong(rd_i64(fa));
+                if (keyo) {
+                    PyObject *m = PyDict_GetItem(f->extra, keyo); /* borrowed */
+                    Py_DECREF(keyo);
+                    if (m) { Py_INCREF(m); return m; }
+                }
             }
-            return PyLong_FromLongLong(v);
+            return PyLong_FromLongLong(rd_i64(fa));
         }
         case K_RAWPTR: Py_RETURN_NONE;
     }

@@ -1060,8 +1060,9 @@ def materialize_recipes(layout_dict: dict, namespaces: tuple) -> (list | None) {
     structs = baked["structs"];
     names = list(structs.keys());
     name_idx = {n: i for (i, n) in enumerate(names)};
-    enum_members: dict = {};
-    for (enum_name, member_names) in (baked.get("enums") or {}).items() {
+    enum_tables: dict = {};
+    enum_is_str: dict = {};
+    for (enum_name, spec) in (baked.get("enums") or {}).items() {
         py_cls = None;
         for ns in namespaces {
             if ns.get(enum_name) is not None {
@@ -1069,11 +1070,22 @@ def materialize_recipes(layout_dict: dict, namespaces: tuple) -> (list | None) {
                 break;
             }
         }
-        names_list: list[str] = list(member_names);
-        enum_members[enum_name] = [
-            getattr(py_cls, mn, None) if py_cls is not None else None
-            for mn in names_list
-        ];
+
+        table: dict = {};
+        ordinal = 0;
+        for mv in list(spec["members"]) {
+            member = getattr(py_cls, str(mv[0]), None) if py_cls is not None else None;
+            if member is not None {
+                if spec["string_valued"] {
+                    table[ordinal] = member;
+                } else {
+                    table[mv[1]] = member;
+                }
+            }
+            ordinal += 1;
+        }
+        enum_tables[enum_name] = table;
+        enum_is_str[enum_name] = False;
     }
     recipes: list = [];
     for sname in names {
@@ -1088,10 +1100,93 @@ def materialize_recipes(layout_dict: dict, namespaces: tuple) -> (list | None) {
         for f in structs[sname] {
             (key, kind, off, a1, a2, hint_name, enum_name) = f;
             hint = name_idx.get(hint_name, -1) if hint_name else -1;
-            extra = enum_members.get(enum_name) if enum_name else None;
+            extra = enum_tables.get(enum_name) if enum_name else None;
+            if enum_name {
+                a2 = 1 if enum_is_str.get(enum_name) else 0;
+            }
             fields.append((key, kind, off, a1, a2, hint, extra, ));
         }
         recipes.append((sname, cls, fields, ));
     }
     return recipes;
+}
+
+
+glob _SYM_REBIND: dict[str, str] = {
+         "ParamVar": "VAR",
+         "HasVar": "HAS_VAR",
+         "TypeParam": "TYPE",
+         "TypeAlias": "TYPE",
+         "SemDef": "SEM",
+         "ImplDef": "IMPL",
+         "Test": "TEST"
+     };
+
+def materialize_fixups(module: any) {
+    import jaclang.jac0core.unitree as uni;
+    body_elem: dict[str, type] = {
+        "Archetype": uni.ArchBlockStmt,
+        "Ability": uni.CodeBlockStmt,
+        "Enum": uni.EnumBlockStmt
+    };
+    stack: list = [module];
+    visited: set = set();
+    nodes: list = [];
+    while stack {
+        cur = stack.pop();
+        if id(cur) in visited {
+            continue;
+        }
+        visited.add(id(cur));
+        nodes.append(cur);
+        for k in (cur?.kid or []) {
+            if k is not None {
+                stack.append(k);
+            }
+        }
+    }
+    for nd in nodes {
+        elem = body_elem.get(type(nd).__name__);
+        if elem is not None and nd.__dict__.get("body") is None {
+            lb = -1;
+            for (ki, k) in enumerate(nd.kid) {
+                if getattr(k, "name", "") == "LBRACE" {
+                    lb = ki;
+                    break;
+                }
+            }
+            if lb >= 0 {
+                nd.body = [
+                    k
+                    for k in nd.kid[lb + 1:]
+                    if isinstance(k, elem) and type(k).__name__ != "Semi"
+                ];
+            }
+        }
+        if isinstance(nd, uni.AstSymbolStubNode)
+            and nd.__dict__.get("name_spec") is None {
+            st = type(nd)?.SYMBOL_TYPE;
+            if st is not None {
+                getattr(uni.AstSymbolStubNode, "_init_stub")(nd, st);
+            } else {
+                nd.__post_init__();
+            }
+            continue;
+        }
+        rebind = _SYM_REBIND.get(type(nd).__name__);
+        if rebind is not None {
+            spec = nd.__dict__.get("name_spec");
+
+            if spec is not None and spec is not nd {
+                name_child = nd.__dict__.get("name");
+                sym_name = str(name_child?.value or getattr(spec, "value", ""));
+                getattr(uni.AstSymbolNode, "_init_symbol")(
+                    nd,
+                    sym_name=sym_name,
+                    name_spec=spec,
+                    sym_category=getattr(uni.SymbolType, rebind)
+                );
+            }
+        }
+    }
 }

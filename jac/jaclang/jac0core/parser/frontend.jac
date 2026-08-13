@@ -140,6 +140,8 @@ def parse(
         (fn, mat) = _np;
         r = fn(source, file_path);
         module = mat.materialize(r[0].addr);
+        import from jaclang.jac0core.native_marshal { materialize_fixups }
+        materialize_fixups(module);
         p_errs = r[1];
         p_diags = r[2];
         comments = r[3];
