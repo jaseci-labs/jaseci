@@ -137,7 +137,7 @@ impl NaIRGenPass._spec_from_list_slot_type(t: (ir.Type | None)) -> (str | None) 
     if t is None {
         return None;
     }
-    # An optional slot keeps the flavor in its payload half.
+
     _pl = self._opt_payload_of(t);
     if _pl is not None {
         return self._spec_from_list_slot_type(_pl);
@@ -154,12 +154,6 @@ impl NaIRGenPass._spec_from_list_slot_type(t: (ir.Type | None)) -> (str | None) 
 }
 
 impl NaIRGenPass._empty_list_dest_spec(nd: uni.ListVal) -> (str | None) {
-    # An empty literal carries no element to infer from, but its slot shape
-    # is an ABI commitment: every later use site picks helpers from the
-    # DESTINATION's static type, so a mismatched creation (a 16-byte-slot
-    # jacval list behind a `list[UniNode]` field) leaves half-written slots
-    # that the list's own destructor then walks. The destination's declared
-    # slot type is therefore the authority for the flavor.
     _dp = nd.parent;
     if isinstance(_dp, uni.HasVar) and _dp.value is nd {
         _hv_spec = self._spec_from_list_slot_type(self._resolve_field_type(_dp));
@@ -193,9 +187,7 @@ impl NaIRGenPass._empty_list_dest_spec(nd: uni.ListVal) -> (str | None) {
                     }
                 }
             }
-            # A rebind of an existing local (`body_l = [];` after
-            # `body_l: (list[UniNode] | None) = None;`) commits to the
-            # slot's declared shape.
+
             _tn = self._get_name(_tgt)
                 if not isinstance(_tgt, uni.AtomTrailer)
                 else None;
@@ -211,8 +203,6 @@ impl NaIRGenPass._empty_list_dest_spec(nd: uni.ListVal) -> (str | None) {
         }
     }
     if isinstance(_dp, uni.KWPair) and _dp.value is nd {
-        # A constructor keyword argument's destination is the named field's
-        # slot on the class being built (`Module(body=[], ...)`).
         _fc = _dp.parent;
         if isinstance(_fc, uni.FuncCall) {
             _cn = self._get_name(_fc.target);

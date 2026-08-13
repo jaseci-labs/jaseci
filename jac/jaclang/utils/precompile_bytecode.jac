@@ -275,22 +275,6 @@ glob NATIVE_SEAL_MODULES: tuple = (
 
      );
 
-# Waived seams ship as abort stubs, so an entry is sound only for a method the
-# sealed entry points cannot reach. These are unitree's frontier, mirrored from
-# `test_unitree_seal_census.jac`, which documents each one: backend gaps named
-# by the construct they cannot lower (#8068: a dict keyed by `type` has no
-# native layout, behind `UniNode._sub_node_tab`'s lazy build), and methods that
-# call Python-only infrastructure (import resolution through
-# `modresolver`/`codeinfo`, CPython `ast` handles, `eval`, and the type
-# system's `TypeBase.mangle`), none of which a parse ever calls -- the parity
-# corpus and the dlopen canary exercise the artifacts to hold that line.
-#
-# Every `.__get__` entry is a property. #8074 made accessors lower as methods,
-# so these bodies reach the backend for the first time; before it a property
-# read loaded an unwritten data slot, which is why they were invisible rather
-# than absent. A property declared on a non-primary ancestor is re-emitted per
-# concrete class (its body addresses that class's offsets), so one un-lowerable
-# accessor lists once per class that inherits it.
 glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::UniNode._construct_sub_node_tab",
          "jac0core/unitree.jac::ModulePath.resolve_relative_path",
@@ -673,17 +657,11 @@ def seal_native_artifacts(
         llvm_ir_text = str(ir.gen.llvm_ir);
 
         (_qualified, allowed_bare) = seal_waiver_names(rel, waivers);
-        # The backend lowers inherited methods per concrete class, so one
-        # demoted source method ships a stub in every subclass. The census
-        # keys the seam by its defining class; the shipped-IR scan accepts the
-        # same method on any class whose MRO reaches a waived owner, and the
-        # layout registry the compile just populated is the authority on that.
+
         allowed_stub_names: set[str] = set(allowed_bare);
         reg = ir.gen.layout_registry;
         if reg is not None {
             for bare in allowed_bare {
-                # Split at the first dot: a class name never contains one, but
-                # an accessor's method slot does (`gen.__get__`).
                 (owner, dot, meth) = bare.partition(".");
                 if not dot {
                     continue;
@@ -720,13 +698,7 @@ def seal_native_artifacts(
             purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
-        # Accessor bodies are part of the marshalling ABI (#8092): a view
-        # reads a `{ getter; }` field by calling the symbol the layout
-        # advertises under `structs[cls].accessors`, so those symbols join
-        # the export list (the canary then proves each resolves). An
-        # accessor whose body ships as a waived abort stub is dropped from
-        # the advertised table instead: a Python-side read of it must keep
-        # raising AttributeError, never abort the process.
+
         layout_dict = native_layout_to_dict(layout);
         _stub_syms = set(seal_abort_stubs(llvm_ir_text));
         accessor_syms: set[str] = set();

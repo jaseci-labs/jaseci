@@ -18,13 +18,7 @@ impl NaIRGenPass._native_archetypes(module: uni.Module) -> list[uni.Archetype] {
             result[aname] = arch;
         }
     }
-    # A generic archetype is emitted iff the central layout registry carries a
-    # (type-erased) layout for it: everything downstream -- imported-method
-    # declarations, ctor field stores, rc hooks -- already follows the
-    # registry, so withholding only the definitions would strand those
-    # references as undefined symbols at link time. A generic the registry
-    # does not lay out stays dropped, and a method body the erased layout
-    # cannot host demotes through the normal seam machinery.
+
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
     layout_reg = get_layout_registry(self.ir_in, self.prog);
     out: list[uni.Archetype] = [];
@@ -278,9 +272,7 @@ impl NaIRGenPass._visit_nonprimary_ancestor_methods(
                 }
             }
         }
-        # Accessors need the same receiver-specialized copy: the ancestor's
-        # body reads its own field offsets, which a non-primary ancestor does
-        # not share with this class.
+
         for (_slot, _accvar, _acc) in archetype_accessors(ancestor_arch) {
             if _slot in provided_methods {
                 continue;
@@ -524,11 +516,7 @@ impl NaIRGenPass._forward_declare_method(
     ret_type = self._resolve_sig_type(sig.return_type)
         if sig is not None
         else ir.IntType(64);
-    # An accessor declared bare (`getter;`) names no signature: the field's
-    # declared type is the getter's result and the setter's one argument, and
-    # that argument is `value`. This is the substitution
-    # `PyastGenPass.exit_ability` makes for the `@property` it emits, so the
-    # two backends agree on the accessor's shape.
+
     if sig is None and field is not None {
         if method.accessor_kind == "property" {
             ret_type = self._resolve_sig_type(field);
@@ -564,10 +552,7 @@ impl NaIRGenPass._codegen_method(
     field: (uni.HasVar | None) = None
 ) -> None {
     method_name = self._method_slot_name(method, field);
-    # A symbol override lowers this body specialized to `arch_name`'s layout
-    # under its own name -- the receiver-class copy an unbound
-    # `Ancestor.method(self)` call needs when the ancestor is not
-    # layout-prefix-compatible with the receiver.
+
     full_name = symbol_override or f"{arch_name}.{method_name}";
     func = self.method_funcs.get(full_name);
     if func is None {
@@ -621,8 +606,7 @@ impl NaIRGenPass._codegen_method(
     ) {
         _body_params = _body_params[1:];
     }
-    # A bare `setter;` binds its one argument as `value` -- `_forward_declare_method`
-    # named the slot that way for the same reason.
+
     _bound_params: list[tuple[(str, bool)]] = [
         ((p.name.value if p.name else f"arg{i}"), bool(p.name?.sym?.param_rebound), )
         for (i, p) in enumerate(_body_params)
@@ -904,8 +888,6 @@ impl NaIRGenPass._mro_of(arch_name: str) -> list[str] {
 impl NaIRGenPass._arch_layout(arch_name: str) -> (ArchetypeLayout | None) {
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
 
-    # Only the module that declares a class computes its layout, so an
-    # imported class is resolved through its defining module's registry.
     _owner = None;
     _arch_nd = self.arch_ast_map.get(arch_name);
     if _arch_nd is not None {
@@ -1540,10 +1522,6 @@ impl NaIRGenPass._codegen_instantiation(
         }
     }
 
-    # An explicit `init` may be inherited (`EmptyToken()` runs `Token.init`),
-    # so resolution walks the MRO. A layout-prefix-compatible owner runs
-    # directly on the bitcast receiver; a non-primary owner's body would
-    # address the wrong offsets, so that shape fails loud instead.
     init_fn: (ir.Function | None) = None;
     _init_owner: str = type_name;
     for _init_cls in self._mro_of(type_name) {
@@ -1649,15 +1627,6 @@ impl NaIRGenPass._codegen_instantiation(
         self.builder.call(init_fn, coerced_args, name="call.init");
     }
 
-    # A postinit runs only under a generated init: the first MRO class that
-    # carries its own explicit `init` or its own has-fields decides which
-    # init `T()` effectively runs. An explicit init owns its whole
-    # construction chain (`Name.init` seeds the symbol fields itself and
-    # must not be run over), while a generated one assigns fields and then
-    # dispatches the MRO-nearest postinit on the constructed class -- so a
-    # postinit may be inherited the same way an `init` is (`ElseIf()` runs
-    # `IfStmt.__post_init__`), through the class-routed path that
-    # specializes the body when the owner is not layout-prefix-compatible.
     _pi_auto = init_fn is None;
     for _pi_cls in self._mro_of(type_name) {
         _pi_arch = self.arch_ast_map.get(_pi_cls);
@@ -1681,8 +1650,6 @@ impl NaIRGenPass._codegen_instantiation(
         }
         _pi_fielded = False;
         for _pi_var in _pi_arch.get_has_vars() {
-            # An accessor var lowers to a property, not a stored field, so
-            # it does not give the class a generated init of its own.
             if not _pi_var.accessors {
                 _pi_fielded = True;
                 break;
@@ -1702,9 +1669,6 @@ impl NaIRGenPass._codegen_instantiation(
                     break;
                 }
                 if pname in self._native_skipped_methods {
-                    # The chain's nearest owner demoted; running an
-                    # ancestor's postinit instead would silently skip a
-                    # level of the chain, so the construction fails loud.
                     self.emit(
                         E5092,
                         node_override=nd,
@@ -1744,10 +1708,6 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return None;
     }
     if target_name == "super" and self._self_arch is not None {
-        # `super.method(args)` resolves to the nearest MRO ancestor that
-        # provides the method and runs it on this method's own receiver,
-        # through the same class-routed path (which specializes the body
-        # when the ancestor is not layout-prefix-compatible).
         _sup_names = [method_name];
         if method_name == "postinit" {
             _sup_names.append("__post_init__");
@@ -1861,12 +1821,6 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
             return None;
         }
         if _sfull is None {
-            # An unbound instance-method call routes through the class the
-            # same way (`UniNode.postinit(self)`): resolve along the MRO
-            # under the lowered dunder names and pass the call's own
-            # arguments, the first of which is the receiver. Without this
-            # the call fell through every branch and the statement dropped
-            # silently -- invisible even to the demotion gate.
             for _cn in self._mro_of(target_name) {
                 for _mn in _mnames {
                     _icand = f"{_cn}.{_mn}";
@@ -2519,17 +2473,10 @@ impl NaIRGenPass._accessor_slot_of(
     if _lay is not None and _slot in _lay.method_index {
         return _slot;
     }
-    # A class without a vtable carries no method slots, so the declared
-    # function is the authority there.
+
     return _slot if self._resolve_method(type_name, _slot) is not None else None;
 }
 
-"""Call an accessor on `obj_val`, virtually when the class dispatches virtually.
-
-The receiver has already been narrowed by the caller, so this mirrors
-`_codegen_method_call`'s tail: prefer the vtable slot, fall back to the
-statically resolved function, and coerce every argument to the callee's type.
-"""
 impl NaIRGenPass._codegen_accessor_call(
     obj_val: ir.Value, type_name: str, slot: str, args: list[ir.Value]
 ) -> (ir.Value | None) {
@@ -2556,11 +2503,6 @@ impl NaIRGenPass._codegen_accessor_call(
 impl NaIRGenPass._emit_dispatched_field_ptr(
     obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
 ) -> (ir.Value | None) {
-    # A mixin's fields sit at class-specific slots, so a field access whose
-    # static receiver class is a non-primary ancestor somewhere in the
-    # hierarchy cannot use one static index. When the subtree disagrees on
-    # the slot, dispatch on vtable identity and gep at each concrete class's
-    # own index -- the compiler-emitted form of the dispatched-setter idiom.
     import from jaclang.compiler.passes.main.layout_pass {
         get_layout_registry as _df_glr
     }
@@ -2631,8 +2573,7 @@ impl NaIRGenPass._emit_dispatched_field_ptr(
         b.branch(_df_done);
         b.position_at_end(_df_nxt);
     }
-    # Unmatched class: the static class's own slot, the same answer the
-    # undispatched path would have produced.
+
     _df_fb_recv = obj_val;
     if type_name in self.struct_types {
         _df_fb_recv = b.bitcast(
@@ -2668,8 +2609,6 @@ impl NaIRGenPass._codegen_field_access(
         and obj_val.type == self.jacval_type
         and type_name in self.struct_types
     ) {
-        # The checker narrowed a boxed union to this class; unbox before
-        # touching fields.
         obj_val = self._unbox_from_jacval(
             obj_val, self.struct_types[type_name].as_pointer()
         );
@@ -2888,8 +2827,7 @@ impl NaIRGenPass._codegen_field_assign(
         }
         return;
     }
-    # A property's write runs its setter: there is no slot to store into, and
-    # the setter is where a validating or backing-field write lives.
+
     if _setter is not None {
         _fs_struct = self.struct_types.get(type_name);
         if _fs_struct is not None
@@ -2914,9 +2852,7 @@ impl NaIRGenPass._codegen_field_assign(
     field_types = self.struct_field_types.get(type_name);
     idx = field_indices[field_name];
     ftype = field_types[field_name];
-    # A union-typed receiver travels as a common pointer (e.g. an i8* list
-    # element); the checker's narrowing names the concrete class, so retype
-    # the pointer before any field gep.
+
     _fa_struct = self.struct_types.get(type_name);
     if (
         _fa_struct is not None
@@ -2927,9 +2863,7 @@ impl NaIRGenPass._codegen_field_assign(
             obj_val, _fa_struct.as_pointer(), name="fa.recv.cast"
         );
     }
-    # The identified struct is shared across module compiles; if another
-    # module registered it first with a different field lowering, the
-    # physical slot type is the authority the store must match.
+
     _slot_struct = self.struct_types.get(type_name);
     _slot_elems = _slot_struct?.elements if _slot_struct is not None else None;
     if _slot_elems is not None
@@ -3012,14 +2946,7 @@ impl NaIRGenPass._receiver_routed_method_fn(
     nd: uni.UniNode, _sfull: str, _mnames: list[str], _recv_cls: (str | None)
 ) -> (ir.Function | None) {
     _sfunc = self.method_funcs[_sfull];
-    # An inherited method resolved on another class (`Expr.postinit(self)`
-    # inside `Name.init`, or a constructed class's inherited postinit) runs
-    # the ancestor's body on the receiver, and the receiver's mixin fields
-    # live at class-specific offsets. When the ancestor is not a
-    # layout-prefix of the receiver's class, lower a receiver-specialized
-    # copy of the body instead of calling the ancestor's own lowering,
-    # which would read and write through the ancestor's layout and corrupt
-    # the object.
+
     _owner_cls = _sfull.partition(".")[0];
     if (
         _recv_cls is not None
@@ -3027,8 +2954,6 @@ impl NaIRGenPass._receiver_routed_method_fn(
         and _recv_cls in self.struct_types
         and _sfull not in self.static_methods
     ) {
-        # A static method has no receiver -- its first argument is data --
-        # so only unbound instance calls specialize to the receiver class.
         import from jaclang.compiler.passes.main.layout_pass {
             get_layout_registry as _sc_glr
         }
@@ -3087,9 +3012,6 @@ impl NaIRGenPass._receiver_routed_method_fn(
             }
             _spec_ready = self.method_funcs.get(_spec_key);
             if _spec_ready is None {
-                # The specialized body demoted, so the call cannot
-                # lower; failing loud demotes this caller too rather
-                # than dropping the statement.
                 self.emit(E5092, node_override=nd, kind="call", name=_spec_key);
                 return None;
             }
@@ -3120,11 +3042,7 @@ impl NaIRGenPass._emit_class_routed_call(
     if _sfunc is None {
         return None;
     }
-    # Keyword arguments are routine on these calls
-    # (`Token.init(self, orig_src=..., ...)`), and `nd.callee_decl`
-    # is not bound for a class-routed callee, so map them here
-    # against the callee's own argument names. The source signature,
-    # when the class AST is at hand, supplies unpassed defaults.
+
     _spos: list[uni.UniNode] = [];
     _skw: dict[str, uni.UniNode] = {};
     for _p in (nd.params or []) {
@@ -3178,8 +3096,6 @@ impl NaIRGenPass._emit_class_routed_call(
             _used_kw.add(_an);
             _sargs.append(_pv);
         } elif _an in _sdefaults {
-            # A bare `None` default has no standalone lowering; the
-            # slot's zero value is exactly what it denotes.
             _pv = self._codegen_expr(_sdefaults[_an]);
             if _pv is None {
                 _pv = self._default_arg_fallback(_sfunc.args[_ai].type);

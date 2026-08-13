@@ -204,8 +204,10 @@ def native_stdlib_root -> (str | None) {
     if not jaclang?.__file__ {
         return None;
     }
-    root = os.path.join(os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib");
-    return root if os.path.isdir(root) else None;
+    stdlib_dir = os.path.join(
+        os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib"
+    );
+    return stdlib_dir if os.path.isdir(stdlib_dir) else None;
 }
 
 def is_native_by_location(file_path: str) -> bool {

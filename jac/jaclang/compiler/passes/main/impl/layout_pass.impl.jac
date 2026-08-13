@@ -308,10 +308,7 @@ impl LayoutPass._build_layout(arch: uni.Archetype) -> ArchetypeLayout {
         if fname in seen_fields {
             continue;
         }
-        # A property has no instance storage: it lays out as the method slots
-        # `_build_vtable_layout` gives it. A data slot here would put a
-        # never-written word in every instance, and a field read would resolve
-        # to that word instead of running the getter.
+
         if var.accessors {
             continue;
         }
@@ -479,9 +476,7 @@ impl LayoutPass._build_vtable_layout(
                 seen_methods.add(method_name);
             }
         }
-        # Accessors dispatch like any other method: `AstSymbolNode.sym_name`
-        # and `NameAtom.sym_name` are two getters for one field name, and the
-        # one that runs is the receiver's.
+
         for (slot_name, _var, _acc) in archetype_accessors(arch) {
             if slot_name not in seen_methods {
                 method_list.append(slot_name);
@@ -511,8 +506,6 @@ impl LayoutPass._build_vtable_layout(
                 }
             }
             if not found {
-                # An accessor declared bare (`getter;`) has no signature of its
-                # own, so the owner search cannot key off one.
                 for (slot_name, _var, acc) in archetype_accessors(check_arch) {
                     if slot_name == mname {
                         sig_node = acc.signature;
@@ -716,8 +709,7 @@ impl LayoutPass._validate_obj_fields(
     aname = arch.name.value if arch.name else "unknown";
     for var in arch.get_has_vars() {
         fname = var.name.value if var.name else "field";
-        # A property's declared type is its getter's result, never a stored
-        # word, so layout compatibility does not apply to it.
+
         if var.accessors {
             continue;
         }

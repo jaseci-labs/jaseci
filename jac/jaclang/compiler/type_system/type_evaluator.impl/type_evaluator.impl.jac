@@ -3795,8 +3795,6 @@ impl TypeEvaluator._get_type_from_flow_node(
     }
 
     if len(visited) > 256 {
-        # Fuel exhausted: this walk gives up, but the result depends on this
-        # walk's visited set, so it must not poison the cache.
         return None;
     }
     visited.add(flow_node_id);
@@ -3839,11 +3837,6 @@ impl TypeEvaluator._get_type_from_flow_node(
             pred, (uni.WhileStmt, uni.ForeverStmt, uni.InForStmt, uni.IterForStmt)
         )
             and self._loop_body_writes_target(pred, target) {
-            # A body that writes the target makes every body node see the
-            # back-edge merge, including body[0]: an iteration-one view there
-            # would leak the pre-loop assignment's type into later iterations.
-            # The loop condition still narrows entry into the body, applied
-            # over the conservative (declared) merge.
             if (
                 isinstance(pred, uni.WhileStmt)
                 and pred.body
@@ -4062,8 +4055,6 @@ impl TypeEvaluator._get_type_from_flow_node(
             }
         }
         if _after_if_write {
-            # The branch bodies assign the target, so the if's exit type is
-            # the join over its arm tails, not its entry-time narrow.
             exit_t = self._if_exit_type(target, pred, pred_narrowed, set());
             if exit_t is not None {
                 incoming_types.append(exit_t);
@@ -4103,10 +4094,7 @@ impl TypeEvaluator._get_type_from_flow_node(
 }
 
 impl TypeEvaluator._if_exit_type(
-    target: NarrowingTarget,
-    stmt: uni.IfStmt,
-    entry_type: TypeBase | None,
-    visited: set
+    target: NarrowingTarget, stmt: uni.IfStmt, entry_type: TypeBase | None, visited: set
 ) -> TypeBase | None {
     import from jaclang.compiler.type_system.type_evaluator { NarrowingTarget }
     arm_types: list[TypeBase] = [];

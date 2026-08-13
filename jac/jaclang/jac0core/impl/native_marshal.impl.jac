@@ -18,20 +18,14 @@ impl NativeStructView.__getattr__(name: str) -> any {
     try {
         raw = getattr(native, name);
     } except AttributeError {
-        # Not a data slot: an accessor field has none (#8074), so the read
-        # routes through the emitted getter when a bridge is bound.
-        bridge = getattr(self.layout, "_accessor_bridge", None)
-            if self.layout is not None
-            else None;
+        bridge = self.layout?._accessor_bridge if self.layout is not None else None;
         if bridge is not None {
             (hit, val) = bridge.read_through(self, name);
             if hit {
                 return val;
             }
         }
-        # A demoted (waived Python-only) accessor has no callable native
-        # body; the declared Python property computes it, re-entering this
-        # view for the stored fields it derives from.
+
         _py_cls = _ACCESSOR_CLASSES.get(self.struct_name);
         if _py_cls is not None {
             _desc = getattr(_py_cls, name, None);
@@ -51,20 +45,22 @@ impl NativeStructView.__setattr__(name: str, value: any) -> None {
     }
     finfo = self._field_meta.get(name);
     if finfo is not None and getattr(finfo, "foreign", False) {
-        # A foreign slot holds Python-only state the native side cannot
-        # carry; it lives on the view's overlay.
         self._py_overlay[name] = value;
         return;
     }
     if finfo is None {
-        bridge = getattr(self.layout, "_accessor_bridge", None)
-            if self.layout is not None
-            else None;
+        bridge = self.layout?._accessor_bridge if self.layout is not None else None;
         if bridge is not None and bridge.write_through(self, name, value) {
             return;
         }
-        # An attribute the native layout never carried is Python-side
-        # annotation state; it lives on the overlay too.
+        _py_cls = _ACCESSOR_CLASSES.get(self.struct_name);
+        if _py_cls is not None {
+            _desc = getattr(_py_cls, name, None);
+            if isinstance(_desc, property) and _desc.fset is not None {
+                _desc.fset(self, value);
+                return;
+            }
+        }
         self._py_overlay[name] = value;
         return;
     }
@@ -104,8 +100,6 @@ impl NativeStructView._resolve(name: str, raw: any) -> any {
         return raw;
     }
     if getattr(finfo, "foreign", False) {
-        # A foreign slot holds Python-only state the native side cannot
-        # carry; its live value is whatever this view's Python overlay has.
         return self._py_overlay.get(name);
     }
     lt = finfo.llvm_type;
@@ -122,10 +116,7 @@ impl NativeStructView._resolve(name: str, raw: any) -> any {
         if (raw is None or int(raw.tag) == 0) {
             return None;
         }
-        # Keep the field's own metadata across the unwrap: an optional
-        # list's element hints live on `finfo`, and dropping it here made
-        # every `opt.List.ptr*` field marshal its elements as bare
-        # pointers (#8093).
+
         return marshal_value(
             raw.payload,
             lt[4:],
@@ -153,11 +144,6 @@ impl NativeStructView._resolve(name: str, raw: any) -> any {
             return ctypes.string_at(_a, stamped).decode("utf-8", errors="replace");
         }
         if _hs {
-            # An `i8*` slot is also how an opaque value lands (a generic
-            # `has held: T`), so a header-stamped allocation that is not a
-            # tagged str resolves through the rc header's class-name stamp
-            # -- the same authority `get_struct_view` re-keys with (#8093).
-            # A C string can never match: it carries no verified header.
             _rt = runtime_struct_name(_a, self.layout);
             _rt_ct = self.ctypes_classes.get(_rt) if _rt is not None else None;
             if _rt_ct is not None {
@@ -251,11 +237,6 @@ impl NativeStructView.__contains__(key: str) -> bool {
     return key in self._field_meta;
 }
 
-# NB: no `keys`/`items` mapping helpers on the view -- a method of those
-# names would shadow real node fields (`Import.items`), and Python-side
-# consumers read fields by plain attribute access (#8093). `["field"]` and
-# `in` remain via `__getitem__`/`__contains__`.
-
 impl NativeStructView.__repr__ -> str {
     return f"<NativeStructView {self.struct_name}>";
 }
@@ -271,8 +252,6 @@ impl NativeAccessorBridge.runtime_class(struct_name: str, addr: int) -> str {
     }
     nm = self._cls_names.get(vt);
     if nm is None {
-        # Vtable slot 0 is the class-name constant the compiler stamps ahead
-        # of the method slots (`_emit_class_name_const`).
         namep = ctypes.c_void_p.from_address(vt).value;
         nm = ctypes.string_at(namep).decode("utf-8", errors="replace") if namep else "";
         self._cls_names[vt] = nm;
@@ -291,7 +270,7 @@ impl NativeAccessorBridge._accessor_symbol(
     candidates = [cls] if cls == view.struct_name else [cls, view.struct_name];
     for cand in candidates {
         sl = self.layout.structs.get(cand);
-        amap = getattr(sl, "accessors", None) if sl is not None else None;
+        amap = sl?.accessors if sl is not None else None;
         entry = amap.get(name) if amap else None;
         sym = entry.get(kind) if entry else None;
         if sym is not None {

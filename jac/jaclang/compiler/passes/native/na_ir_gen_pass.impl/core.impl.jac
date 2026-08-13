@@ -447,16 +447,6 @@ impl NaIRGenPass._export_native_layout -> None {
     self.ir_in.gen.native_layout = layout;
 }
 
-"""The accessor table a marshalled view dispatches through, per class (#8092).
-
-`{ getter; }` fields have no data slot (#8074), so a Python-side read must
-call the emitted accessor body. For every accessor slot the class answers to
--- own or inherited, the registry's vtable layout lists both -- this records
-the symbol `_resolve_method` binds, which is the same function the class's
-vtable slot holds, so a static call to the recorded symbol and a virtual
-dispatch agree for every runtime class. A body this unit demoted is omitted:
-advertising an abort stub would turn a Python-side read into a process abort.
-"""
 impl NaIRGenPass._exported_accessors(arch_name: str) -> dict[(str, dict[(str, str)])] {
     out: dict[(str, dict[(str, str)])] = {};
     lay = self._arch_layout(arch_name);
@@ -859,9 +849,7 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
                 }
             }
         }
-        # Accessors are methods under a dotted slot name, so an accessor the
-        # imported unit could not lower is just as unusable here as a demoted
-        # method: the artifact ships an abort stub for it either way.
+
         for (_ia_slot, _ia_var, _ia_acc) in archetype_accessors(_imp_arch) {
             _im_full = f"{_ia_name}.{_ia_slot}";
             if (_imp_layout is not None and _im_full not in _imp_layout.methods)

@@ -29,9 +29,6 @@ impl NaIRGenPass._emit_vtable_global(arch_name: str) -> None {
     }
     vtable_init = ir.Constant(vtable_type, entries);
 
-    # A module that imports this class references the same symbol (see
-    # `_vtable_global_for`), so a reference emitted before the definition is
-    # the declaration this call turns into a definition.
     vtable_global = self.vtable_globals.get(arch_name);
     if vtable_global is None {
         vtable_global = ir.GlobalVariable(
@@ -41,8 +38,6 @@ impl NaIRGenPass._emit_vtable_global(arch_name: str) -> None {
     }
     vtable_global.global_constant = True;
 
-    # Externally visible: the vtable address is the class identity every
-    # importer compares against, so it has to resolve at link time.
     vtable_global.linkage = "";
     vtable_global.initializer = vtable_init;
 }
@@ -57,12 +52,6 @@ impl NaIRGenPass._vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None
         return None;
     }
 
-    # An imported class's vtable is defined by the module that declares the
-    # class; the layout registry gives its length, so this module can name the
-    # symbol without a local definition. Method indices are deliberately not
-    # recorded here: `_codegen_virtual_call` keys off `vtable_method_indices`,
-    # and populating it from a reference would make dispatch depend on whether
-    # some earlier expression happened to mention the class.
     i8_ptr = ir.IntType(8).as_pointer();
     vtable_type = ir.ArrayType(i8_ptr, len(lay.methods) + VTABLE_HEADER_SLOTS);
     vtable_ref = ir.GlobalVariable(
@@ -77,10 +66,6 @@ impl NaIRGenPass._vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None
 impl NaIRGenPass._vtable_candidates(names: list[str]) -> list[ir.GlobalVariable] {
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
 
-    # The candidates are every class whose MRO reaches one of `names`, drawn
-    # from the program-wide hierarchy the layout registry carries (imported
-    # hierarchies are merged into it by `_register_imported_hierarchy`) rather
-    # than from the classes this module happens to define.
     reg = get_layout_registry(self.ir_in, self.prog);
     out: list[ir.GlobalVariable] = [];
     for cand in reg.mro_order {
@@ -133,12 +118,6 @@ impl NaIRGenPass._codegen_virtual_call(
     i32 = ir.IntType(32);
     i8_ptr = ir.IntType(8).as_pointer();
 
-    # A slot index is only meaningful when every class the receiver could be
-    # keeps the method at the same index. A method reached through a
-    # non-primary base sits at class-specific slots (Name appends its primary
-    # chain's methods before NameAtom's), so the static class's index would
-    # select an unrelated function from the runtime vtable. Those calls
-    # dispatch on vtable identity instead, the way `isinstance` does.
     _vd_variants: list[tuple] = [];
     _vd_uniform = True;
     import from jaclang.compiler.passes.main.layout_pass {
@@ -202,18 +181,13 @@ impl NaIRGenPass._codegen_virtual_call(
             self.builder.branch(_vd_done);
             self.builder.position_at_end(_vd_next);
         }
-        # Unmatched class: fall through to the statically resolved copy, the
-        # same answer the uniform slot path would have produced.
+
         _vd_fb = self.builder.call(func, coerced, name=f"vd.fb.{method_name}");
         _vd_incoming.append((_vd_fb, self.builder.block));
         self.builder.branch(_vd_done);
         self.builder.position_at_end(_vd_done);
         _vd_ret_t = fn_type.return_type;
         if isinstance(_vd_ret_t, ir.VoidType) {
-            # A None return reads as "could not lower" to the call sites,
-            # which would emit a second, undispatched call; hand back the
-            # fallback call instruction the way the slot path returns its
-            # (possibly void) call.
             self._release_owned_args(coerced, op="vcall_arg");
             return _vd_fb;
         }
@@ -350,9 +324,6 @@ impl NaIRGenPass._generate_inherited_method_wrappers -> None {
 
                 orig_fn_type = impl_func.function_type;
 
-                # A wrapper exists to retype `self`; static methods have no
-                # self (arg0, if any, is a real parameter such as a JacOpt),
-                # so the ancestor's function serves the child directly.
                 _has_self = False;
                 if len(orig_fn_type.args) > 0
                     and isinstance(orig_fn_type.args[0], ir.PointerType) {

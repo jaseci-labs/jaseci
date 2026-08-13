@@ -131,10 +131,7 @@ def unparse_node(nd: uni.UniNode) -> str {
     }
     _kids = list(nd.kid);
     if not _kids {
-        # A marshalled view of a token is not a `uni.Token` instance, but a
-        # leaf carrying a string `value` is a token by shape; this keeps the
-        # walk read-only over native trees.
-        _v = getattr(nd, "value", None);
+        _v = nd?.value;
         if isinstance(_v, str) {
             return _v;
         }

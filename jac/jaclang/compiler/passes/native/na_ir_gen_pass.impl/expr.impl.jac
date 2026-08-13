@@ -1351,9 +1351,7 @@ impl NaIRGenPass._bool_expr_unify_type(a: ir.Type, b: ir.Type) -> (ir.Type | Non
     if _pb is not None and _pb == a {
         return a;
     }
-    # An optional-of-pointer against any other pointer shape unifies as the
-    # erased common pointer: `a or b` must yield an operand, and degrading
-    # to the boolean fallback would hand a flag bit to a value context.
+
     _a_ptrish = isinstance(a, ir.PointerType)
         or (_pa is not None and isinstance(_pa, ir.PointerType));
     _b_ptrish = isinstance(b, ir.PointerType)

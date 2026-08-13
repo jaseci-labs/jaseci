@@ -14,8 +14,6 @@ impl NaIRGenPass._arch_alias_target(nd: (uni.UniNode | None)) -> (str | None) {
     }
     nof = d.name_of;
     if isinstance(nof, uni.Archetype) and nof.name.value != self._get_name(nd) {
-        # The import symbol chains to the defining archetype; its declared
-        # name is the canonical struct key.
         return nof.name.value;
     }
     par = d.parent;
@@ -2041,9 +2039,7 @@ impl NaIRGenPass._emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None) {
         if not isinstance(operand.type, ir.PointerType) {
             return self._emit_isinstance_core(nd, operand);
         }
-        # A union that erases to a nullable pointer carries None as null;
-        # the class test derefs the object header, so null short-circuits
-        # to False the way `isinstance(None, X)` answers in Python.
+
         _nn_fn = self.builder.block.function;
         _nn_bb = _nn_fn.append_basic_block("isinst.nn");
         _nn_done_bb = _nn_fn.append_basic_block("isinst.nn.done");
@@ -2143,10 +2139,6 @@ impl NaIRGenPass._emit_isinstance_core(
         return None;
     }
     if isinstance(operand.type, ir.PointerType) {
-        # A raw rc pointer carries no jacval tag, and boxing one stamps a
-        # tag from the slot's static type -- for a union slot that is just
-        # the first member, which would answer the class test statically
-        # and wrongly. The rc header's type-name stamp is the runtime truth.
         _pt_res = self._emit_isinstance_ptr_tags(operand, tags);
         if self._is_owned(operand) {
             self._emit_rc_release_simple(operand, op="isinstance_arg", loc="");
@@ -2178,14 +2170,9 @@ impl NaIRGenPass._emit_isinstance_ptr_tags(
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
     i8p = ir.IntType(8).as_pointer();
-    # The header stamp names the concrete runtime type: containers carry
-    # their helper flavor ("list_ptr", "dict_i64_ptr", ...), so a prefix
-    # compare answers the container test; comparing characters rather than
-    # global identity keeps the answer stable across separately compiled
-    # units, each of which interns its own tag globals.
+
     _prefixes: dict[int, str] = {3: "list_", 4: "dict_", 5: "set_"};
     if 6 in tags {
-        # `object` accepts every non-null rc value, containers included.
         return ir.Constant(i1, 1);
     }
     _want = [
@@ -2194,7 +2181,6 @@ impl NaIRGenPass._emit_isinstance_ptr_tags(
         if t in _prefixes
     ];
     if not _want {
-        # Scalar tags (int/float/str/bool/None) never describe an rc pointer.
         return ir.Constant(i1, 0);
     }
     b = self.builder;

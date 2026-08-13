@@ -401,9 +401,6 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
             } else {
                 left_type = self.evaluator.get_type_of_expression(target);
                 if isinstance(target, uni.Name) and target.sym is not None {
-                    # Reassignment checks against the symbol's declared type:
-                    # a branch-narrowed view of the old value must not
-                    # constrain what the name may be rebound to.
                     sym_declared = self.evaluator.get_type_of_symbol(target.sym);
                     if (
                         sym_declared is not None

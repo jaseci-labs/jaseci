@@ -542,7 +542,10 @@ obj Parser {
     def parse_ownership_prefix(kids: list[UniNode]) -> OwnershipKind;
     def parse_import_stmt -> Import;
     def parse_from_path -> tuple[(ModulePath | None, bool)];
-    def parse_import_items(kid: list[UniNode], is_clib_import: bool) -> tuple[(list, list)];
+    def parse_import_items(
+        kid: list[UniNode], is_clib_import: bool
+    ) -> tuple[(list, list)];
+
     def parse_archetype -> Archetype;
     def parse_archetype_member -> UniNode | None;
     def _skip_semicolons;

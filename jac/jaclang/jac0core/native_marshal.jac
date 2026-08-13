@@ -25,12 +25,6 @@ glob logger = logging.getLogger(__name__),
          "void": None
      };
 
-"""The ctypes argument row for a native signature.
-
-A Jac str crosses the boundary decomposed: `jacstr3` is the by-value
-{root, data, len} descriptor and `jacstr2` its headerless {data, len} form,
-so one declared parameter widens to three (or two) scalar slots.
-"""
 def _c_arg_types(param_types: any) -> list {
     out: list = [];
     for pt in (param_types or []) {
@@ -73,7 +67,6 @@ def _build_cfunctype(finfo: any) -> type {
 }
 
 
-"""The `jac_str_new` constructor of an artifact, or None if it exports none."""
 def _resolve_str_new(engine: any) -> any {
     _sn_addr = 0;
     for _sn_name in ("jac_str_new", "__jac_str_new") {
@@ -287,19 +280,6 @@ obj NativeListView {
 }
 
 
-"""Engine-bound dispatch for accessor fields on marshalled views (#8092).
-
-An accessor-only `has` occupies no data slot (#8074): the layout advertises
-it under `structs[cls].accessors` as the symbol the class's dispatch binds,
-and the artifact exports that body. One bridge per binding hangs off the
-layout (`install_accessor_bridge`), holding the engine handle, the
-per-symbol ctypes bindings and the vtable-pointer -> class-name memo, so a
-plain field read pays nothing new and an accessor read resolves its symbol
-once. Dispatch is virtual where the class dispatches virtually: a vtabled
-receiver is re-keyed to its runtime class -- vtable slot 0 is the class-name
-constant the compiler stamps -- and that class's recorded symbol is by
-construction the function its vtable slot holds.
-"""
 obj NativeAccessorBridge {
     has engine: any,
         layout: any,
@@ -316,9 +296,8 @@ obj NativeAccessorBridge {
 }
 
 
-"""Hang a NativeAccessorBridge off `layout` once per binding."""
 def install_accessor_bridge(engine: any, layout: any) -> None {
-    if (layout is None or getattr(layout, "_accessor_bridge", None) is not None) {
+    if (layout is None or layout?._accessor_bridge is not None) {
         return;
     }
     layout._accessor_bridge = NativeAccessorBridge(engine=engine, layout=layout);
@@ -326,9 +305,6 @@ def install_accessor_bridge(engine: any, layout: any) -> None {
 
 
 def runtime_struct_name(addr: int, layout: any) -> (str | None) {
-    # The rc header stamps every object with its class name; a field or list
-    # slot statically typed at a base class still holds a concrete instance,
-    # and the view must carry the runtime class for its fields to resolve.
     if not addr {
         return None;
     }
@@ -348,7 +324,7 @@ def runtime_struct_name(addr: int, layout: any) -> (str | None) {
     } except Exception {
         return None;
     }
-    if layout is not None and hasattr(layout, "structs") and _name in layout.structs {
+    if layout is not None and layout?.structs and _name in layout.structs {
         return _name;
     }
     return None;
@@ -590,14 +566,8 @@ def _marshal_set(
 }
 
 
-glob _OPT_CTYPES: dict = {};
-
-# The declared Python classes behind the marshalled structs, registered when
-# a native function is bound. An accessor field carries no native slot (it is
-# a property, not storage), so a view read that misses the ctypes fields
-# falls back to the Python property, whose body re-enters the view for the
-# stored fields it derives from.
-glob _ACCESSOR_CLASSES: dict = {};
+glob _OPT_CTYPES: dict = {},
+     _ACCESSOR_CLASSES: dict = {};
 
 def _opt_ctype(payload_type: str) -> type {
     cached = _OPT_CTYPES.get(payload_type);
@@ -617,14 +587,6 @@ def _opt_ctype(payload_type: str) -> type {
     return cls;
 }
 
-"""ctypes mirrors of the native structs, keyed by archetype name.
-
-A field's `index` is its slot in the LLVM struct, and the named fields do not
-cover every slot: the vtable pointer, and an OSP type tag, sit ahead of them
-and belong to no `has`. Each is one machine word, so an unnamed slot is
-mirrored by a `c_void_p` filler. Without it every field past the gap reads its
-neighbour, which is a silently wrong value rather than a failure.
-"""
 def build_ctypes_classes(layout: any) -> dict {
     classes: dict = {};
     for (name, struct_layout) in layout.structs.items() {

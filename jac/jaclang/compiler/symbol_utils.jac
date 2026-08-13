@@ -462,8 +462,7 @@ def collect_method_names(arch: uni.Archetype) -> set[str] {
             }
         }
     }
-    # An accessor is a method under a dotted slot name, so a class that
-    # declares one provides that slot and must not inherit an ancestor's.
+
     for (slot_name, _var, _acc) in archetype_accessors(arch) {
         names.add(slot_name);
     }

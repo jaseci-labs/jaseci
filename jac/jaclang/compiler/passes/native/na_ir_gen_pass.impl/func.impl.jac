@@ -129,9 +129,6 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
 }
 
 impl NaIRGenPass._normalize_type_key(key: str) -> str {
-    # A mangled union arrives space-joined (`A | B`) or tight-joined
-    # (`type[A]|type[B]`); either way the key is its first non-None arm,
-    # never a slice through the joined string (#8093).
     if " | " in key or ("|" in key and "type[" in key) {
         sep = " | " if " | " in key else "|";
         for part in key.split(sep) {
@@ -154,10 +151,7 @@ impl NaIRGenPass._elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | 
     if ann is None {
         return None;
     }
-    # A container annotation can hide behind grouping parens or optionality
-    # (`(Sequence[X] | None)`): unwrap to whichever union arm carries the
-    # element slices, or every marshalled element of the field reads as a
-    # bare pointer instead of a struct view (#8093).
+
     if isinstance(ann, uni.AtomUnit) {
         return self._elem_keys_of_annotation(ann.value);
     }
@@ -185,9 +179,6 @@ impl NaIRGenPass._elem_keys_of_annotation(ann: (uni.UniNode | None)) -> (list | 
     }
     keys: list = [];
     for e in elems {
-        # A union element type (`Sequence[A | B]`) keys on its first arm:
-        # elem hints are single-valued by contract, and the bridge re-keys
-        # each element to its runtime class from the vtable anyway.
         while (isinstance(e, uni.BinaryExpr) and getattr(e.op, 'value', '') == "|") {
             e = e.left;
         }

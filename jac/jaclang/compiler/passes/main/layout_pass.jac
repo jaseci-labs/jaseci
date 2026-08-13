@@ -81,19 +81,11 @@ glob ACCESSOR_SLOT_SUFFIX: dict[str, str] = {
          "deleter": "__del__"
      };
 
-"""The method slot an accessor occupies, `<field>.__get__` and its siblings.
-
-A property carries no instance storage -- `has x: T { getter; }` declares
-behavior, and any backing store is a separately declared `has` -- so it
-contributes method slots rather than a data slot. The dotted slot name cannot
-collide with a declared method because `.` is not an identifier character.
-"""
 def accessor_slot_name(field_name: str, acc: uni.Ability) -> (str | None) {
     suffix = ACCESSOR_SLOT_SUFFIX.get(acc.accessor_kind);
     return None if suffix is None else f"{field_name}.{suffix}";
 }
 
-"""Every accessor an archetype declares, as (slot name, field, accessor)."""
 def archetype_accessors(
     arch: uni.Archetype
 ) -> list[tuple[(str, uni.HasVar, uni.Ability)]] {

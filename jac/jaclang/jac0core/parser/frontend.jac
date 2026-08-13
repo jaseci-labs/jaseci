@@ -33,11 +33,7 @@ def _native_parse -> any {
             ns = na_parser.__dict__;
             cc = build_ctypes_classes(layout);
             em = build_enum_maps(layout, ns);
-            # Classes resolve across the sealed closure's modules: the parser
-            # namespace re-exports most unitree names, but accessor-bearing
-            # helpers (`CodeLocInfo`) live only in their defining modules, and
-            # the marshal views need each declared class to serve accessor
-            # reads.
+
             import jaclang.jac0core.unitree as _sc_unitree;
             import jaclang.jac0core.srcloc as _sc_srcloc;
             pc: dict = {};
@@ -182,7 +178,8 @@ def parse(
     prog: (JacProgram | None) = None,
     expand: bool = True
 ) -> tuple[Module, bool] {
-    _np = _native_parse();
+    import os as _fe_os;
+    _np = _native_parse() if _fe_os.environ.get("JAC_NATIVE_PARSE_TREES") else None;
     if _np is not None {
         (module, p_errs, p_diags, comments, lex_diags, lex_errs) = _np(
             source, file_path

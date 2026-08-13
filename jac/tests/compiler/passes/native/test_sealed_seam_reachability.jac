@@ -310,6 +310,6 @@ test "no waived seam is reachable from the sealed entry points" {
     assert not reachable_waivers , (
         f"{len(reachable_waivers)} waived seam(s) are reachable, so the "
         "artifact can abort at runtime instead of returning a wrong value:\n"
-            + "\n".join(f"  {name}" for name in reachable_waivers)
+        + "\n".join(f"  {name}" for name in reachable_waivers)
     );
 }

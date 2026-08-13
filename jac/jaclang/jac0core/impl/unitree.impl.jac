@@ -617,9 +617,6 @@ impl UniScopeNode.__repr__ -> str {
 }
 
 impl AstDocNode.set_doc(elem_doc: (String | None)) -> None {
-    # Mixin fields live at class-specific offsets, so a write through a
-    # base-typed reference goes through this dispatched setter rather than
-    # a static store (the `set_code_context` idiom).
     self.doc = elem_doc;
 }
 
@@ -627,9 +624,6 @@ impl AstDocNode.set_doc(elem_doc: (String | None)) -> None {
 impl NameAtom.bind_sym(
     name_of: AstSymbolNode, sym_name: str, sym_category: SymbolType
 ) -> None {
-    # Mixin fields live at class-specific offsets, so a write through a
-    # base-typed reference goes through this dispatched setter rather than
-    # a static store (the `set_code_context` idiom).
     self.name_of = name_of;
     self._sym_name = sym_name;
     self._sym_category = sym_category;
@@ -693,8 +687,6 @@ impl ContextAwareNode.postinit -> None {
 
 
 impl ContextAwareNode.set_code_context(ctx: CodeContext) -> None {
-    # Mixin fields live at class-specific offsets, so a polymorphic write
-    # goes through this dispatched setter rather than a base-typed store.
     self.code_context = ctx;
 }
 

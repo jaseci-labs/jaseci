@@ -30,11 +30,8 @@ import from jaclang.jac0core.unitree {
 }
 import jaclang.jac0core.ct_reflect as ct_reflect;
 
-glob CT_FUEL_DEFAULT: int = 50000000;
-
-# Structural fields owned by the tree infrastructure rather than the node's
-# own constructor surface: never walked for comptime constructs.
-glob _CT_SKIP_FIELDS: tuple = (
+glob CT_FUEL_DEFAULT: int = 50000000,
+     _CT_SKIP_FIELDS: tuple = (
          "parent",
          "kid",
          "loc",
@@ -618,7 +615,7 @@ obj CtEval {
         if rcn == "IndexSlice" {
             slices = self.list_arg(right, "slices");
             is_range = False;
-            got_r = getattr(right, "is_range", None);
+            got_r = right?.is_range;
             if got_r is not None {
                 is_range = bool(got_r);
             }
@@ -926,9 +923,6 @@ obj CtEval {
 }
 
 obj CtExpander {
-    # subst and _visited key nodes by id(); each entry also pins the keyed
-    # node object so a collected node's address can never be reused by a
-    # fresh node and matched against a stale entry mid-expansion.
     has ev: CtEval,
         subst: dict[int, tuple] = {},
         _visited: dict[int, UniNode] = {};
@@ -1415,8 +1409,6 @@ def _jac_str_lit(s: str) -> str {
 
 
 def _refresh_locs(mod: Module) {
-    # Post-order loc recompute: substitutions changed subtree token ranges,
-    # and a parent's span must be derived from refreshed children.
     stack: list = [(mod, False)];
     while stack {
         entry: tuple = stack.pop();

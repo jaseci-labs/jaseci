@@ -179,8 +179,6 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
                 self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
             }
         } elif isinstance(target_expr, uni.AtomTrailer) and target_expr.is_attr {
-            # `del obj.prop` runs the property's deleter -- the only write path
-            # a property has besides its setter.
             _del_cls = self._struct_name_of(target_expr.target);
             _del_fld = self._get_name(target_expr.right);
             _del_slot = self._accessor_slot_of(_del_cls, _del_fld, "deleter")
@@ -292,9 +290,6 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
     }
     func_ret_type = self.builder.function.return_value.type;
     if nd.expr is not None and isinstance(func_ret_type, ir.VoidType) {
-        # A `-> None` signature lowers to a void function, so `return None`
-        # (or `return f()` for a void call) still has to `ret void`; the
-        # expression is evaluated first because it may have effects.
         self._codegen_expr(nd.expr);
         self._emit_scope_cleanup(
             skip_var=None,
