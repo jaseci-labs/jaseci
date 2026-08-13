@@ -588,7 +588,12 @@ def seal_native_artifacts(
     if stale_native.is_dir() {
         shutil.rmtree(stale_native, ignore_errors=True);
     }
-    if os.environ.get("JAC_SEAL_NO_NATIVE") or sys.platform.startswith("win") {
+    # Platform-derived only: no env knob. "A source tree with no sealed image
+    # is the bootstrap tier by construction -- a build stage, not a mode
+    # anyone selects" (#8139). Windows has no native backend yet, and the
+    # manifest records that fact so the runtime can tell a legitimately
+    # bytecode-tier image from a build that silently lost its native seal.
+    if sys.platform.startswith("win") {
         return artifacts;
     }
     import from jaclang.jac0core.program { JacProgram }
@@ -949,13 +954,22 @@ def seal_finalize(
         return 1;
     }
 
-    native_artifacts: (dict[str, dict] | None) = {};
+    native_seal: (dict[str, any] | None) = None;
     if pkg_name == "jaclang" {
         console.print("  Sealing AOT native artifacts...");
         native_artifacts = seal_native_artifacts(pkg_path, precompiled_dir);
         if native_artifacts is None {
             console.error("Seal aborted: native artifact build failed.");
             return 1;
+        }
+        if sys.platform.startswith("win") {
+            native_seal = {"artifacts": {}, "roots": [], "skip_reason": "platform:win"};
+        } else {
+            native_seal = {
+                "artifacts": native_artifacts,
+                "roots": sorted(native_artifacts.keys()),
+                "skip_reason": None
+            };
         }
     }
 
@@ -1001,7 +1015,7 @@ def seal_finalize(
         manifest_modules,
         payloads,
         app_meta,
-        native_artifacts
+        native_seal
     );
     console.print(f"  Manifest: {precompiled_dir / MANIFEST_NAME}");
     return 0;
@@ -1014,7 +1028,7 @@ def write_manifest(
     modules: dict[str, dict],
     payloads: (dict[str, str] | None) = None,
     app_meta: (dict | None) = None,
-    native_artifacts: (dict[str, dict] | None) = None
+    native_seal: (dict[str, any] | None) = None
 ) {
     import from importlib.metadata { version as pkg_version }
     try {
@@ -1036,8 +1050,16 @@ def write_manifest(
     if app_meta {
         manifest.update(app_meta);
     }
-    if native_artifacts {
-        manifest["native_artifacts"] = native_artifacts;
+    if native_seal is not None {
+        if native_seal.get("artifacts") {
+            manifest["native_artifacts"] = native_seal["artifacts"];
+        }
+        # The build's own statement of what it sealed natively; load_image
+        # enforces it for jaclang images (#8139 Step 1, "sealed means served").
+        manifest["native"] = {
+            "roots": native_seal.get("roots") or [],
+            "skip_reason": native_seal.get("skip_reason")
+        };
     }
     (precompiled_dir / MANIFEST_NAME).write_text(
         json.dumps(manifest, sort_keys=True, indent=1) + "\n", encoding="utf-8"
