@@ -25,7 +25,6 @@ closure from the sealed entry points and fails if any name below is in it.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -187,13 +186,12 @@ def _waived_seams -> dict[(str, str)] {
 
 """Compile `unitree.jac` the way `seal_native_artifacts` does, up to the census."""
 def _unitree_census -> tuple[(dict, bool)] {
-    if "/.cache/jac/rt/"
-        in str(Path(jaclang.__file__).resolve()).replace(os.sep, "/") {
-        pytest.skip(
-            "sealed-payload runtime: the compiler's own sources are not the "
-            "ones a payload build would seal"
-        );
-    }
+    # Runs in dev trees AND inside the sealed payload lanes: the payload is
+    # built from this checkout, so the site sources it compiles here are the
+    # exact sources a payload build seals, and the LLVM backend ships (jac
+    # nacompile is a payload feature). This census is a static proof no
+    # functional pass can substitute for: a demotion waiver whose abort stub
+    # is reachable passes every test until a rare input hits the stub.
     if _CENSUS_MEMO {
         return _CENSUS_MEMO[0];
     }

@@ -276,16 +276,19 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 # artifact by import. Roots are what the runtime can check for (artifacts
 # exist per root); the closure is what "sealed means served" is asserted over.
 glob NATIVE_SEAL_ROOTS: tuple = (
-         "jac0core/parser/lexer.jac",
-         "jac0core/parser/parser.jac",
          "jac0core/unitree.jac",
+         "compiler/native_materialize.jac",
 
      );
 
 glob NATIVE_SEAL_CLOSURE: tuple = (
+         "jac0core/constant.jac",
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
+         "jac0core/parser/tokens.jac",
+         "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
+         "compiler/native_materialize.jac",
 
      );
 
@@ -321,7 +324,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
 
      ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
-         "jac0core/parser/parser.jac": _UNITREE_SEAM_WAIVERS,
+         "compiler/native_materialize.jac": _UNITREE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _UNITREE_SEAM_WAIVERS
      };
 
@@ -567,6 +570,166 @@ def seal_native_canary(lib_path: str, exports: list[str]) -> str {
     return "";
 }
 
+glob _PARITY_CANARY_LINES: tuple = (
+         "import os;",
+         "glob G: int = 42, H: str = 'control-flow harness (Branch 4)';",
+         "enum E { A = 1, B = 2 }",
+         "obj Canary {",
+         "    has a: int = 0, b: (str | None) = None, c: list[int] = [];",
+         "    def m(p: int = 3) -> int;",
+         "}",
+         "impl Canary.m(p: int = 3) -> int {",
+         "    if p > 1 and p < 10 or not p {",
+         "        for i in range(p) {",
+         "            self.a += i * 2 - 1;",
+         "        }",
+         "    } elif p == 0 {",
+         "        while self.a {",
+         "            self.a -= 1;",
+         "        }",
+         "    } else {",
+         "        try {",
+         "            self.b = f'v={p} w={self.a}';",
+         "        } except Exception as e {",
+         "            raise;",
+         "        }",
+         "    }",
+         "    return self.a if self.a else -1;",
+         "}",
+         "test \"canary t\" { assert Canary(a=5).m(2) >= -1; }",
+         "with entry { print({'k': [1, 2.5, True, None]}); }",
+
+     );
+
+# The rich parity corpus. Same construct coverage as the generator's mask
+# corpus with one deliberate difference: the test is STRING-named. An
+# identifier-named test (`test box_holds`) takes its symbol name from the
+# process-global Test.TEST_COUNT, so two parses of the same source in one
+# process can never agree on it -- parser-tier nondeterminism, not a
+# materializer defect -- which makes it unusable in a parity fingerprint.
+glob _PARITY_CORPUS_LINES: tuple = (
+         "import os;",
+         "glob G: int = 42, H: (str | None) = None;",
+         "enum Hue { RED = 1, GREEN = 2 }",
+         "node Spot { has label: str = ''; }",
+         "edge Road { has miles: int = 0; }",
+         "walker Tour {",
+         "    can step with Spot entry;",
+         "}",
+         "impl Tour.step with Spot entry {",
+         "    visit [-->];",
+         "}",
+         "obj Box { has x: int = 0, y: list[int] = [], z: dict[str, int] = {}; ",
+         "    def m(p: int = 1) -> int; }",
+         "impl Box.m(p: int = 1) -> int {",
+         "    if p > 1 and p < 9 or not p { for i in range(p) { self.x += i; } }",
+         "    elif p == 0 { while self.x { self.x -= 1; } }",
+         "    else { try { raise ValueError('v'); } except ValueError as e { } }",
+         "    return self.x if self.x else -1;",
+         "}",
+         "def pick(v: any) -> int {",
+         "    match v {",
+         "        case [1, 2]: return 1;",
+         "        case {'k': 2}: return 2;",
+         "        case _: return 0;",
+         "    }",
+         "}",
+         "def:pub View(t: str) -> JsxElement {",
+         "    return <div id='a'>{t}</div>;",
+         "}",
+         "async def later -> None {}",
+         "test \"box holds\" { assert Box(x=1).m() >= -1; }",
+         "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }",
+
+     );
+
+"""The relocated runtime canary (#8139 Step 1): bind the just-built
+materializer artifact through the REAL runtime seam and prove its parses
+match the bytecode parser -- error counts, node counts, unparse
+fingerprints -- over the control-flow harness and the rich parity corpus.
+A bad artifact fails the BUILD here; the shipped binary carries no
+correctness canary because a sealed install has no tier to fall back to.
+Returns '' on success or the failure reason."""
+def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
+    import traceback;
+    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+    import from jaclang.jac0core.compile_options { env_na_debug }
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.materialize { bind_native_parser }
+    import from jaclang.jac0core.parser.parser { Parser }
+
+    nl = chr(10);
+    sys.stderr.write(f"    canary: parse parity in {os.path.basename(lib_path)}\n");
+    sys.stderr.flush();
+    try {
+        np = bind_native_parser(lib_path, layout_dict);
+    } except Exception as bind_exc {
+        if env_na_debug() {
+            traceback.print_exc(file=sys.stderr);
+        }
+        return f"binding failed: {type(bind_exc).__name__}: {bind_exc}";
+    }
+    corpora = [
+        (nl.join(list(_PARITY_CANARY_LINES)), "__seal_parity_harness__.jac", ),
+        (nl.join(list(_PARITY_CORPUS_LINES)), "__seal_parity_corpus__.jac", ),
+    ];
+    for (canary_src, canary_path) in corpora {
+        try {
+            (native_mod, n_errs, _pd, _cm, _ld, n_lex_errs) = np.parse(
+                canary_src, canary_path
+            );
+        } except Exception as parse_exc {
+            if env_na_debug() {
+                traceback.print_exc(file=sys.stderr);
+            }
+            return (
+                f"native parse of {canary_path} raised "
+                f"{type(parse_exc).__name__}: {parse_exc}"
+            );
+        }
+        (tokens, _c, _lex_d, lex_errs) = tokenize_full(canary_src, canary_path);
+        pyp = Parser(tokens=tokens, file_path=canary_path, source_code=canary_src);
+        py_mod = pyp.parse();
+        if n_errs != pyp.error_count or n_lex_errs != lex_errs {
+            return (
+                f"{canary_path}: error counts diverged "
+                f"(native {n_errs}/{n_lex_errs}, bytecode "
+                f"{pyp.error_count}/{lex_errs})"
+            );
+        }
+        if len(native_mod._in_mod_nodes) != len(py_mod._in_mod_nodes) {
+            return (
+                f"{canary_path}: node counts diverged "
+                f"({len(native_mod._in_mod_nodes)} != "
+                f"{len(py_mod._in_mod_nodes)})"
+            );
+        }
+        native_up = unparse_node(native_mod);
+        py_up = unparse_node(py_mod);
+        if native_up != py_up {
+            n_lines = native_up.splitlines();
+            p_lines = py_up.splitlines();
+            at = -1;
+            for (li, pair) in enumerate(zip(n_lines, p_lines)) {
+                if pair[0] != pair[1] {
+                    at = li;
+                    break;
+                }
+            }
+            if at < 0 {
+                at = min(len(n_lines), len(p_lines));
+            }
+            n_show = n_lines[at] if at < len(n_lines) else "<end>";
+            p_show = p_lines[at] if at < len(p_lines) else "<end>";
+            return (
+                f"{canary_path}: unparse fingerprints diverged at line "
+                f"{at + 1}: native {n_show!r} vs bytecode {p_show!r}"
+            );
+        }
+    }
+    return "";
+}
+
 def _native_lib_filename(stem: str) -> str {
     if sys.platform.startswith("win") {
         return f"jac_{stem}.dll";
@@ -604,8 +767,31 @@ def seal_native_artifacts(
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
     pkg_name = pkg_path.name;
+    _seal_layouts: dict[str, dict] = {};
+    _mat_manifest: (dict[str, any] | None) = None;
+    _gen_root_src: (Path | None) = None;
     for rel in (NATIVE_SEAL_ROOTS if modules is None else modules) {
-        src = pkg_path / rel;
+        src: Path = pkg_path / str(rel);
+        if rel == "compiler/native_materialize.jac" {
+            unitree_layout = _seal_layouts.get("jac0core/unitree.jac");
+            if unitree_layout is None {
+                console.error(
+                    "NATIVE SEAL: the materializer root is generated from "
+                    "the unitree layout; seal jac0core/unitree.jac first "
+                    "(NATIVE_SEAL_ROOTS order, or include it in the "
+                    "modules argument)."
+                );
+                return None;
+            }
+            import from jaclang.utils.gen_native_materialize {
+                generate as generate_materialize_root
+            }
+
+            _mat_manifest = generate_materialize_root(
+                unitree_layout, src, _UNITREE_SEAM_WAIVERS
+            );
+            _gen_root_src = src;
+        }
         if not src.is_file() {
             console.error(f"NATIVE SEAL: missing source {src}");
             return None;
@@ -711,7 +897,13 @@ def seal_native_artifacts(
             return None;
         }
         layout = ir.gen.native_layout;
-        exports = sorted(layout.functions.keys());
+
+        _clib_syms = set((ir.gen._clib_symbol_lib or {}).keys());
+        exports = sorted(
+            fn_name
+            for fn_name in layout.functions.keys()
+            if fn_name not in _clib_syms
+        );
         if not exports {
             console.error(f"NATIVE SEAL: {rel} exports no module functions");
             purge_native_ir_cache(str(src), closure_deps);
@@ -719,6 +911,10 @@ def seal_native_artifacts(
         }
 
         layout_dict = native_layout_to_dict(layout);
+        _seal_layouts[rel] = layout_dict;
+        if rel == "compiler/native_materialize.jac" and _mat_manifest is not None {
+            layout_dict["materialize_manifest"] = _mat_manifest;
+        }
         _stub_syms = set(seal_abort_stubs(llvm_ir_text));
         accessor_syms: set[str] = set();
         for _sd in layout_dict["structs"].values() {
@@ -774,6 +970,22 @@ def seal_native_artifacts(
         layout_path.write_text(
             json.dumps(layout_dict, sort_keys=True) + "\n", encoding="utf-8"
         );
+        if rel == "compiler/native_materialize.jac" {
+            parity = seal_parse_parity_canary(str(lib_path), layout_dict);
+            if parity {
+                console.error(
+                    f"NATIVE SEAL: {rel}: the emitted artifact "
+                    f"{lib_path.name} failed its parse parity canary: "
+                    f"{parity}. The seal refuses artifacts whose parses do "
+                    "not match the bytecode parser; set JAC_NA_DEBUG=1 for "
+                    "the traceback."
+                );
+                lib_path.unlink(missing_ok=True);
+                layout_path.unlink(missing_ok=True);
+                purge_native_ir_cache(str(src), closure_deps);
+                return None;
+            }
+        }
         parts = [
             p
             for p in os.path.dirname(rel).split("/")
@@ -787,6 +999,10 @@ def seal_native_artifacts(
             "lib_sha256": hashlib.sha256(lib_path.read_bytes()).hexdigest(),
             "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest()
         };
+        if _gen_root_src is not None and rel == "compiler/native_materialize.jac" {
+            _gen_root_src.unlink(missing_ok=True);
+            _gen_root_src = None;
+        }
         console.print(
             f"  Native artifact: {fullname} -> {lib_path.name} "
             f"({lib_path.stat().st_size:,} bytes, {len(exports)} exports)"

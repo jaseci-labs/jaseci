@@ -527,6 +527,22 @@ def _jaclang_image() -> SealedImage | None:
     return None
 
 
+def native_tier_required() -> bool:
+    """Whether this process runs from a jaclang image that sealed native roots.
+
+    True means the bytecode tier is not a legal answer for sealed modules:
+    the #8139 tripwire raises instead of letting a compile path quietly run
+    the Python body of a module the image claims to serve natively. False
+    covers dev source trees (no image) and images legitimately built without
+    a native seal (platforms with no native backend).
+    """
+    image = _jaclang_image()
+    if image is None:
+        return False
+    native = image.manifest.get("native") or {}
+    return bool(native.get("roots"))
+
+
 def register_image(precompiled_dir: str | Path) -> SealedImage | None:
     """Register an additional sealed image (e.g. a sealed user app).
 
