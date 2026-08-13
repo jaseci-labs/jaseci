@@ -28,7 +28,9 @@ def _app(jacignore: (str | None)) -> Path {
     (d / "svc.jac").write_text("def:pub ping -> str { return \"pong\"; }\n");
     (d / "docsite").mkdir();
     (d / "docsite" / "jac.toml").write_text("[project]\nname = \"docs\"\n");
-    (d / "docsite" / "main.jac").write_text("cl {\n    def page -> str { return \"x\"; }\n}\n");
+    (d / "docsite" / "main.jac").write_text(
+        "cl {\n    def page -> str { return \"x\"; }\n}\n"
+    );
     (d / "evaluation").mkdir();
     (d / "evaluation" / "broken.jac").write_text("this is not valid jac\n");
     if jacignore is not None {
@@ -39,12 +41,7 @@ def _app(jacignore: (str | None)) -> Path {
 
 
 def _rels(base: Path) -> list[str] {
-    return sorted(
-        [
-            p.relative_to(base).as_posix()
-            for p in bundle_source_files(base)
-        ]
-    );
+    return sorted([p.relative_to(base).as_posix() for p in bundle_source_files(base)]);
 }
 
 
@@ -103,6 +100,26 @@ test "editing .jacignore alone moves the content-addressed bundle digest" {
     # digest still moves and the deploy re-ships instead of hitting the
     # content-addressed skip.
     assert parked != _source_digest(_app("docsite/\nevaluation/\n"));
+}
+
+
+test "parking the entry module fails the pack, not the fleet" {
+    # The one failure mode honoring .jacignore introduces: a project that
+    # parks its own entry point would ship a bundle with nothing to boot.
+    base = _app("main.jac\n");
+    (base / "main.jac").write_text("with entry { print(\"hi\"); }\n");
+    caught = "";
+    try {
+        pack_jab(str(base), b"binary");
+    } except ValueError as e {
+        caught = str(e);
+    }
+    assert "entry module" in caught , caught;
+    assert ".jacignore" in caught , caught;
+    # An entry module the bundle ships is not flagged.
+    ok = _app(_PARKED);
+    (ok / "main.jac").write_text("with entry { print(\"hi\"); }\n");
+    assert "main.jac" in _rels(ok);
 }
 
 
