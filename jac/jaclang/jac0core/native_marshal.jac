@@ -1022,3 +1022,76 @@ def install_native_wrappers(
 
     return wrapped_count;
 }
+
+
+glob MATERIALIZE_K_NONE: int = 0,
+     MATERIALIZE_K_I64: int = 1,
+     MATERIALIZE_K_I1: int = 2,
+     MATERIALIZE_K_F64: int = 3,
+     MATERIALIZE_K_STR: int = 4,
+     MATERIALIZE_K_STRUCT: int = 5,
+     MATERIALIZE_K_OPT: int = 6,
+     MATERIALIZE_K_LIST: int = 7,
+     MATERIALIZE_K_DICT: int = 8,
+     MATERIALIZE_K_SET: int = 9,
+     MATERIALIZE_K_ENUM: int = 10,
+     MATERIALIZE_K_RAWPTR: int = 11;
+
+
+def load_materializer(mat_path: str) -> any {
+    import importlib.machinery as _ilm;
+    import importlib.util as _ilu;
+    loader = _ilm.ExtensionFileLoader("jacmat", mat_path);
+    spec = _ilu.spec_from_file_location("jacmat", mat_path, loader=loader);
+    if spec is None {
+        raise RuntimeError(f"cannot load materializer extension: {mat_path}");
+    }
+    module = _ilu.module_from_spec(spec);
+    loader.exec_module(module);
+    return module;
+}
+
+
+def materialize_recipes(layout_dict: dict, namespaces: tuple) -> (list | None) {
+    baked = layout_dict.get("materialize");
+    if not baked {
+        return None;
+    }
+    structs = baked["structs"];
+    names = list(structs.keys());
+    name_idx = {n: i for (i, n) in enumerate(names)};
+    enum_members: dict = {};
+    for (enum_name, member_names) in (baked.get("enums") or {}).items() {
+        py_cls = None;
+        for ns in namespaces {
+            if ns.get(enum_name) is not None {
+                py_cls = ns[enum_name];
+                break;
+            }
+        }
+        names_list: list[str] = list(member_names);
+        enum_members[enum_name] = [
+            getattr(py_cls, mn, None) if py_cls is not None else None
+            for mn in names_list
+        ];
+    }
+    recipes: list = [];
+    for sname in names {
+        cls = None;
+        for ns in namespaces {
+            if ns.get(sname) is not None {
+                cls = ns[sname];
+                break;
+            }
+        }
+        fields: list = [];
+        for f in structs[sname] {
+            (key, kind, off, a1, a2, hint_name, enum_name) = f;
+            hint = name_idx.get(hint_name, -1) if hint_name else -1;
+            extra = enum_members.get(enum_name) if enum_name else None;
+            fields.append((key, kind, off, a1, a2, hint, extra, ));
+        }
+        recipes.append((sname, cls, fields, ));
+    }
+    return recipes;
+}

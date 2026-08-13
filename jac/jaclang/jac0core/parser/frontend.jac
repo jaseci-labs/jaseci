@@ -14,113 +14,71 @@ def _native_parse -> any {
     if _NATIVE_PARSE_MEMO {
         return _NATIVE_PARSE_MEMO[0];
     }
-    fn: any = None;
-    try {
-        import from jaclang.jac0core.sealed { native_artifact_for }
-        found = native_artifact_for("jaclang.jac0core.parser.parser");
-        if found is not None {
-            import jaclang.jac0core.parser.parser as na_parser;
-            import from jaclang.jac0core.native_dylib { DylibEngine, layout_from_dict }
-            import from jaclang.jac0core.native_marshal {
-                build_ctypes_classes,
-                build_enum_maps,
-                wrap_native_function
-            }
-            (lib_path, layout_dict) = found;
-            eng = DylibEngine(lib_path);
-            eng.initialize();
-            layout = layout_from_dict(layout_dict);
-            ns = na_parser.__dict__;
-            cc = build_ctypes_classes(layout);
-            em = build_enum_maps(layout, ns);
-
-            import jaclang.jac0core.unitree as _sc_unitree;
-            import jaclang.jac0core.srcloc as _sc_srcloc;
-            pc: dict = {};
-            for sn in layout.structs {
-                for _sc_ns in (ns, _sc_unitree.__dict__, _sc_srcloc.__dict__) {
-                    if _sc_ns.get(sn) is not None {
-                        pc[sn] = _sc_ns[sn];
-                        break;
-                    }
-                }
-            }
-            fl = layout.functions.get("parse_program");
-            if fl is not None {
-                fn = wrap_native_function(eng, fl, cc, em, pc, layout=layout);
-                if fn is not None {
-                    fn.__jac_engine__ = eng;
-                }
-            }
-            if fn is not None and not _canary_ok(fn) {
-                fn = None;
+    import from jaclang.jac0core.sealed { native_artifact_for }
+    found = native_artifact_for("jaclang.jac0core.parser.parser");
+    if found is None {
+        _NATIVE_PARSE_MEMO.append(None);
+        return None;
+    }
+    (lib_path, layout_dict, mat_path) = found;
+    if mat_path is None {
+        raise RuntimeError(
+            "sealed parser artifact carries no jacmat materializer "
+            f"({lib_path}); this build cannot serve parse trees. "
+            "Reinstall or rebuild the payload."
+        );
+    }
+    import jaclang.jac0core.parser.parser as na_parser;
+    import from jaclang.jac0core.native_dylib { DylibEngine, layout_from_dict }
+    import from jaclang.jac0core.native_marshal {
+        build_ctypes_classes,
+        build_enum_maps,
+        load_materializer,
+        materialize_recipes,
+        wrap_native_function
+    }
+    import jaclang.jac0core.srcloc as _sc_srcloc;
+    import jaclang.jac0core.unitree as _sc_unitree;
+    eng = DylibEngine(lib_path);
+    eng.initialize();
+    layout = layout_from_dict(layout_dict);
+    ns = na_parser.__dict__;
+    cc = build_ctypes_classes(layout);
+    em = build_enum_maps(layout, ns);
+    pc: dict = {};
+    for sn in layout.structs {
+        for _sc_ns in (ns, _sc_unitree.__dict__, _sc_srcloc.__dict__) {
+            if _sc_ns.get(sn) is not None {
+                pc[sn] = _sc_ns[sn];
+                break;
             }
         }
-    } except Exception {
-        fn = None;
     }
-    _NATIVE_PARSE_MEMO.append(fn);
-    return fn;
-}
-
-
-glob _CANARY_LINES: tuple = (
-         "import os;",
-         "glob G: int = 42, H: str = 'control-flow harness (Branch 4)';",
-         "enum E { A = 1, B = 2 }",
-         "obj Canary {",
-         "    has a: int = 0, b: (str | None) = None, c: list[int] = [];",
-         "    def m(p: int = 3) -> int;",
-         "}",
-         "impl Canary.m(p: int = 3) -> int {",
-         "    if p > 1 and p < 10 or not p {",
-         "        for i in range(p) {",
-         "            self.a += i * 2 - 1;",
-         "        }",
-         "    } elif p == 0 {",
-         "        while self.a {",
-         "            self.a -= 1;",
-         "        }",
-         "    } else {",
-         "        try {",
-         "            self.b = f'v={p} w={self.a}';",
-         "        } except Exception as e {",
-         "            raise;",
-         "        }",
-         "    }",
-         "    return self.a if self.a else -1;",
-         "}",
-         "test \"canary t\" { assert Canary(a=5).m(2) >= -1; }",
-         "with entry { print({'k': [1, 2.5, True, None]}); }",
-
-     );
-
-def _canary_src -> str {
-    nl = chr(10);
-    return nl.join(list(_CANARY_LINES));
-}
-
-
-def _canary_ok(fn: any) -> bool {
-    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
-    try {
-        r = fn(_canary_src(), "__seal_selfcheck__.jac");
-        native_mod = r[0];
-        (tokens, _c, _ld, _le) = na_lexer.tokenize_full(
-            _canary_src(), "__seal_selfcheck__.jac"
+    fl = layout.functions.get("parse_program");
+    if fl is None {
+        raise RuntimeError(
+            f"sealed parser artifact exports no parse_program ({lib_path})"
         );
-        pyp = Parser(
-            tokens=tokens, file_path="__seal_selfcheck__.jac", source_code=_canary_src()
-        );
-        py_mod = pyp.parse();
-        return (
-            r[1] == pyp.error_count
-            and len(native_mod._in_mod_nodes) == len(py_mod._in_mod_nodes)
-            and unparse_node(native_mod) == unparse_node(py_mod)
-        );
-    } except Exception {
-        return False;
     }
+    fn = wrap_native_function(eng, fl, cc, em, pc, layout=layout);
+    if fn is None {
+        raise RuntimeError(f"sealed parser artifact could not be bound ({lib_path})");
+    }
+    fn.__jac_engine__ = eng;
+    recipes = materialize_recipes(
+        layout_dict, (ns, _sc_unitree.__dict__, _sc_srcloc.__dict__)
+    );
+    if recipes is None {
+        raise RuntimeError(
+            "sealed parser artifact predates the materializer layout "
+            f"({lib_path}); rebuild the payload."
+        );
+    }
+    matmod = load_materializer(mat_path);
+    matmod.install(recipes);
+    bound = (fn, matmod, );
+    _NATIVE_PARSE_MEMO.append(bound);
+    return bound;
 }
 
 
@@ -158,9 +116,8 @@ def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Sourc
 def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, list)] {
     _np = _native_parse();
     if _np is not None {
-        (_mod, p_errs, p_diags, _comments, lex_diags, lex_errs) = _np(
-            source, file_path
-        );
+        (fn, _mat) = _np;
+        (_mod, p_errs, p_diags, _comments, lex_diags, lex_errs) = fn(source, file_path);
         return (p_errs > 0 or lex_errs > 0, list(p_diags), list(lex_diags));
     }
     (tokens, _comments, lex_diags, lex_errs) = na_lexer.tokenize_full(
@@ -178,12 +135,16 @@ def parse(
     prog: (JacProgram | None) = None,
     expand: bool = True
 ) -> tuple[Module, bool] {
-    import os as _fe_os;
-    _np = _native_parse() if _fe_os.environ.get("JAC_NATIVE_PARSE_TREES") else None;
+    _np = _native_parse();
     if _np is not None {
-        (module, p_errs, p_diags, comments, lex_diags, lex_errs) = _np(
-            source, file_path
-        );
+        (fn, mat) = _np;
+        r = fn(source, file_path);
+        module = mat.materialize(r[0].addr);
+        p_errs = r[1];
+        p_diags = r[2];
+        comments = r[3];
+        lex_diags = r[4];
+        lex_errs = r[5];
     } else {
         (tokens, comments, lex_diags, lex_errs) = na_lexer.tokenize_full(
             source, file_path

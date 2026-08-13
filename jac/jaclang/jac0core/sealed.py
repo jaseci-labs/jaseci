@@ -131,6 +131,39 @@ def python_tag() -> str:
     return f"cpython-{sys.version_info.major}{sys.version_info.minor}"
 
 
+_ARCH_ALIASES = {
+    "arm64": "aarch64",
+    "aarch64": "aarch64",
+    "x86_64": "x86_64",
+    "amd64": "x86_64",
+}
+
+
+def _triple_matches_host(triple: str) -> bool:
+    """Whether an artifact's LLVM target triple matches this machine.
+
+    Checks the arch token and the OS token; anything unparseable passes so an
+    unusual but working triple never bricks a build. This is the check that
+    rejects a wrong-platform artifact by name instead of leaving it to an
+    incidental dlopen failure.
+    """
+    import platform
+
+    arch = triple.split("-", 1)[0].lower()
+    want = _ARCH_ALIASES.get(platform.machine().lower())
+    have = _ARCH_ALIASES.get(arch)
+    if want and have and want != have:
+        return False
+    low = triple.lower()
+    if "darwin" in low or "macos" in low:
+        return sys.platform == "darwin"
+    if "linux" in low:
+        return sys.platform.startswith("linux")
+    if "windows" in low or "win32" in low:
+        return sys.platform.startswith("win")
+    return True
+
+
 def _patch_code_filenames(
     code: types.CodeType, find: str, replace: str
 ) -> types.CodeType:
@@ -266,41 +299,72 @@ class SealedImage:
                     f"sealed image: payload {path} does not match its manifest sha256"
                 )
 
-    def native_artifact(self, fullname: str) -> tuple[str, dict] | None:
+    def native_artifact(
+        self, fullname: str
+    ) -> tuple[str, dict, str | None] | None:
         """Resolve a sealed AOT native artifact for ``fullname``.
 
-        Returns ``(lib_abspath, layout_dict)`` after hash-verifying both files
-        against the manifest, or None when the image carries no artifact for
-        the module (or it targets another platform). Any integrity or read
-        problem returns None -- callers fall back to the bytecode tier, which
-        is always present and semantically identical.
+        Returns ``(lib_abspath, layout_dict, materializer_abspath_or_None)``
+        after hash-verifying every file against the manifest, or None only
+        when the image carries no artifact entry for the module at all.
+        An entry that exists but is corrupt, unreadable, or built for another
+        platform RAISES: sealed builds serve the native tier with no bytecode
+        fallback, so a broken artifact is a broken install and must be loud,
+        never a silent downgrade.
         """
         entry = self.native_artifacts.get(fullname)
         if not entry:
             return None
+
+        def _bad(reason: str) -> RuntimeError:
+            return RuntimeError(
+                f"sealed native artifact for {fullname} is unusable: {reason}."
+                " Reinstall or rebuild this jac payload."
+            )
+
         lib_rel = entry.get("lib", "")
         layout_rel = entry.get("layout", "")
         if not lib_rel or not layout_rel:
-            return None
-        for rel in (lib_rel, layout_rel):
+            raise _bad("manifest entry lacks lib/layout paths")
+        expected_triple = entry.get("triple", "")
+        if expected_triple and not _triple_matches_host(expected_triple):
+            raise _bad(
+                f"artifact targets {expected_triple}, not this platform"
+            )
+        mat_rel = entry.get("materializer", "")
+        rels = [lib_rel, layout_rel] + ([mat_rel] if mat_rel else [])
+        for rel in rels:
             if os.path.isabs(rel) or ".." in Path(rel).parts:
-                return None
+                raise _bad(f"illegal artifact path {rel!r}")
         lib_path = self.precompiled_dir / lib_rel
         layout_path = self.precompiled_dir / layout_rel
         try:
             lib_bytes = lib_path.read_bytes()
             layout_bytes = layout_path.read_bytes()
-        except OSError:
-            return None
+        except OSError as exc:
+            raise _bad(f"cannot read artifact files ({exc})") from exc
         if hashlib.sha256(lib_bytes).hexdigest() != entry.get("lib_sha256"):
-            return None
-        if hashlib.sha256(layout_bytes).hexdigest() != entry.get("layout_sha256"):
-            return None
+            raise _bad(f"{lib_path.name} fails its manifest sha256")
+        if hashlib.sha256(layout_bytes).hexdigest() != entry.get(
+            "layout_sha256"
+        ):
+            raise _bad(f"{layout_path.name} fails its manifest sha256")
         try:
             layout_dict = json.loads(layout_bytes)
-        except ValueError:
-            return None
-        return (str(lib_path), layout_dict)
+        except ValueError as exc:
+            raise _bad(f"{layout_path.name} is not valid JSON") from exc
+        mat_path: Path | None = None
+        if mat_rel:
+            mat_path = self.precompiled_dir / mat_rel
+            try:
+                mat_bytes = mat_path.read_bytes()
+            except OSError as exc:
+                raise _bad(f"cannot read {mat_rel} ({exc})") from exc
+            if hashlib.sha256(mat_bytes).hexdigest() != entry.get(
+                "materializer_sha256"
+            ):
+                raise _bad(f"{mat_path.name} fails its manifest sha256")
+        return (str(lib_path), layout_dict, str(mat_path) if mat_path else None)
 
     def bootstrap_code(self, fullname: str) -> types.CodeType | None:
         """Code object for a bootstrap-tier module, extracted from its JIR's
@@ -415,11 +479,14 @@ def source_for(fullname: str) -> str | None:
     return found[0].debug_source(fullname)
 
 
-def native_artifact_for(fullname: str) -> tuple[str, dict] | None:
+def native_artifact_for(
+    fullname: str,
+) -> tuple[str, dict, str | None] | None:
     """Sealed AOT native artifact for ``fullname`` across all images.
 
-    Returns ``(lib_abspath, layout_dict)`` or None. See
-    ``SealedImage.native_artifact`` for the integrity rules.
+    Returns ``(lib_abspath, layout_dict, materializer_abspath_or_None)`` or
+    None when no image carries an entry. Integrity problems raise; see
+    ``SealedImage.native_artifact``.
     """
     _jaclang_image()
     for img in _images:

@@ -304,13 +304,22 @@ path (below), where the native side is packaged as a real `.so` and a host (Pyth
 it across the process boundary.
 
 The compiler itself ships this way: sealing a release AOT-compiles
-`jac0core/parser/lexer.jac` (plus its `tokens.jac` closure) into a
-per-platform shared library (`_precompiled/native/<triple>/libjac_lexer.*`)
-with a persisted `NativeModuleLayout` JSON, recorded in `MANIFEST.json`
-format 4 under `native_artifacts` (sha256-verified, fail-closed). The
-sealed runtime binds it with plain ctypes via `jac0core/native_dylib.jac` --
-no LLVM on the boot path -- and `parse()` uses it when present; unsealed
-dev trees fall back to the bytecode lexer.
+`jac0core/parser/parser.jac` (whose native closure carries the lexer and
+`unitree`) and `jac0core/unitree.jac` into per-platform shared libraries
+(`_precompiled/native/<triple>/libjac_parser.*`, `libjac_unitree.*`) with
+persisted `NativeModuleLayout` JSON, recorded in `MANIFEST.json` format 4
+under `native_artifacts` (sha256-verified, fail-closed). Beside them sits
+`jacmat`, a CPython extension compiled at seal time from
+`jac0core/native_src/jacmat.c`: it walks the native parser's finished tree
+and materializes it into real Python `unitree` objects (about 1 us per
+node), so the unmodified bytecode pipeline consumes native parses with no
+view layer in between. The sealed runtime binds the library with plain
+ctypes via `jac0core/native_dylib.jac` -- no LLVM on the boot path -- and
+`parse()` and `parse_diags()` serve natively wherever an artifact exists,
+with no bytecode fallback: an artifact that fails to load or verify raises.
+Environments with no artifact at all (dev source trees, platforms the seal
+skips) parse on the bytecode tier, which also remains the bootstrap that
+builds the seal itself.
 
 ---
 

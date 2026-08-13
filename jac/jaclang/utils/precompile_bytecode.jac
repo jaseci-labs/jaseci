@@ -9,6 +9,7 @@ import zlib;
 import from pathlib { Path }
 import from jaclang.cli.console { console }
 import from jaclang.jac0core { ext_registry }
+import type from jaclang.jac0core.codeinfo { NativeModuleLayout }
 import from jaclang.jac0core.compiler { patch_co_filenames_bytes }
 import from jaclang.jac0core.jir {
     write_precompiled_jir,
@@ -269,7 +270,6 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 }
 
 glob NATIVE_SEAL_MODULES: tuple = (
-         "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
          "jac0core/unitree.jac",
 
@@ -563,6 +563,312 @@ def _native_lib_filename(stem: str) -> str {
     return f"libjac_{stem}.so";
 }
 
+glob _MATERIALIZE_CORPUS_LINES: tuple = (
+         "import os;",
+         "glob G: int = 42, H: (str | None) = None;",
+         "enum Hue { RED = 1, GREEN = 2 }",
+         "node Spot { has label: str = ''; }",
+         "edge Road { has miles: int = 0; }",
+         "walker Tour {",
+         "    can step with Spot entry;",
+         "}",
+         "impl Tour.step with Spot entry {",
+         "    visit [-->];",
+         "}",
+         "obj Box { has x: int = 0, y: list[int] = [], z: dict[str, int] = {}; ",
+         "    def m(p: int = 1) -> int; }",
+         "impl Box.m(p: int = 1) -> int {",
+         "    if p > 1 and p < 9 or not p { for i in range(p) { self.x += i; } }",
+         "    elif p == 0 { while self.x { self.x -= 1; } }",
+         "    else { try { raise ValueError('v'); } except ValueError as e { } }",
+         "    return self.x if self.x else -1;",
+         "}",
+         "def pick(v: any) -> int {",
+         "    match v {",
+         "        case [1, 2]: return 1;",
+         "        case {'k': 2}: return 2;",
+         "        case _: return 0;",
+         "    }",
+         "}",
+         "def:pub View(t: str) -> JsxElement {",
+         "    return <div id='a'>{t}</div>;",
+         "}",
+         "async def later -> None {}",
+         "test box_holds { assert Box(x=1).m() >= -1; }",
+         "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }",
+
+     ),
+     _MATERIALIZE_MASK_MEMO: dict = {};
+
+def _materialize_mask(pkg_path: Path) -> tuple[dict, dict] {
+    memo_key = str(pkg_path);
+    cached = _MATERIALIZE_MASK_MEMO.get(memo_key);
+    if cached is not None {
+        return cached;
+    }
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.parser { Parser }
+    nl = chr(10);
+    sources: list[tuple[str, str]] = [
+        (nl.join(list(_MATERIALIZE_CORPUS_LINES)), "__mask_corpus__.jac", )
+    ];
+    for rel in ("jac0core/unitree.jac", "jac0core/parser/impl/parser.impl.jac") {
+        src_file = pkg_path / rel;
+        if src_file.is_file() {
+            sources.append((src_file.read_text(encoding="utf-8"), rel, ));
+        }
+    }
+    observed: dict[str, set] = {};
+    mangle: dict[str, str] = {};
+    for (src, path) in sources {
+        (tokens, _c, _ld, _le) = tokenize_full(src, path);
+        parser = Parser(tokens=tokens, file_path=path, source_code=src);
+        mod = parser.parse();
+        stack = [mod];
+        seen: set = set();
+        while stack {
+            objn = stack.pop();
+            if id(objn) in seen {
+                continue;
+            }
+            seen.add(id(objn));
+            d = objn?.__dict__;
+            if d is None {
+                continue;
+            }
+            cname = type(objn).__name__;
+            keys = observed.get(cname);
+            if keys is None {
+                keys = set();
+                observed[cname] = keys;
+            }
+            for k in d.keys() {
+                keys.add(k);
+                if k.startswith("_") and "__" in k[1:] {
+                    priv = k[k.index("__", 1):];
+                    mangle[priv] = k;
+                }
+            }
+            for v in d.values() {
+                if hasattr(v, "__dict__") and hasattr(v, "kid") {
+                    stack.append(v);
+                } elif type(v).__name__ == "CodeLocInfo" {
+                    stack.append(v);
+                } elif isinstance(v, list) {
+                    for it in v {
+                        if hasattr(it, "__dict__") and hasattr(it, "kid") {
+                            stack.append(it);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    result = (observed, mangle);
+    _MATERIALIZE_MASK_MEMO[memo_key] = result;
+    return result;
+}
+
+def _bake_materialize(layout: NativeModuleLayout, layout_dict: dict, pkg_path: Path) {
+    import from jaclang.jac0core.native_marshal {
+        MATERIALIZE_K_DICT,
+        MATERIALIZE_K_ENUM,
+        MATERIALIZE_K_F64,
+        MATERIALIZE_K_I1,
+        MATERIALIZE_K_I64,
+        MATERIALIZE_K_LIST,
+        MATERIALIZE_K_NONE,
+        MATERIALIZE_K_OPT,
+        MATERIALIZE_K_RAWPTR,
+        MATERIALIZE_K_SET,
+        MATERIALIZE_K_STR,
+        MATERIALIZE_K_STRUCT,
+        _opt_ctype,
+        build_ctypes_classes
+    }
+    import jaclang.jac0core.constant as _bk_constant;
+    import jaclang.jac0core.srcloc as _bk_srcloc;
+    import jaclang.jac0core.unitree as _bk_unitree;
+
+    (observed, mangle) = _materialize_mask(pkg_path);
+    cc = build_ctypes_classes(layout);
+    struct_names = set(layout.structs.keys());
+    needed_enums: set = set();
+    structs_out: dict = {};
+    for (sname, sl) in layout.structs.items() {
+        ct_cls = cc[sname];
+        keep = observed.get(sname);
+        fields_out: list = [];
+        for f in sl.fields {
+            fname: str = str(f.name);
+            key = mangle.get(fname, fname)
+                if (fname.startswith("__") and not fname.endswith("__"))
+                else fname;
+            if keep is not None and key not in keep {
+                continue;
+            }
+            off: int = int(getattr(ct_cls, fname).offset);
+            lt: str = str(f.llvm_type);
+            ek: list[str] = [str(x) for x in (f.elem_keys or [])];
+            kind = MATERIALIZE_K_NONE;
+            a1 = 0;
+            a2 = 0;
+            hint = "";
+            enum_name = "";
+            if getattr(f, "foreign", False) or f.is_func_ptr {
+                kind = MATERIALIZE_K_NONE;
+            } elif lt in ("i64", "i32") {
+                if f.enum_type {
+                    kind = MATERIALIZE_K_ENUM;
+                    enum_name = str(f.enum_type);
+                    needed_enums.add(enum_name);
+                } else {
+                    kind = MATERIALIZE_K_I64;
+                }
+            } elif lt == "i1" {
+                kind = MATERIALIZE_K_I1;
+            } elif lt in ("f64", "f32") {
+                kind = MATERIALIZE_K_F64;
+            } elif lt == "i8*" {
+                kind = MATERIALIZE_K_STR;
+            } elif lt.startswith("opt.") {
+                kind = MATERIALIZE_K_OPT;
+                payload = lt[4:];
+                a2 = int(getattr(_opt_ctype(payload), "payload").offset);
+                if payload == "i64" {
+                    a1 = MATERIALIZE_K_I64;
+                } elif payload == "i8*" {
+                    a1 = MATERIALIZE_K_STR;
+                } elif payload.startswith("List.") and payload.endswith("*") {
+                    a1 = MATERIALIZE_K_LIST;
+                    if ek and ek[0] in struct_names {
+                        hint = ek[0];
+                    }
+                } elif payload.endswith("*") {
+                    a1 = MATERIALIZE_K_STRUCT;
+                    if payload[:-1] in struct_names {
+                        hint = payload[:-1];
+                    }
+                } else {
+                    kind = MATERIALIZE_K_NONE;
+                }
+            } elif lt.startswith("List.") and lt.endswith("*") {
+                kind = MATERIALIZE_K_LIST;
+                if lt[5:-1] == "i64" {
+                    a1 = MATERIALIZE_K_I64;
+                } elif ek and len(ek) == 1 and ek[0] == "str" {
+                    a1 = MATERIALIZE_K_STR;
+                } else {
+                    a1 = MATERIALIZE_K_STRUCT;
+                    if ek and ek[0] in struct_names {
+                        hint = ek[0];
+                    }
+                }
+            } elif lt.startswith("Dict.") and lt.endswith("*") {
+                kind = MATERIALIZE_K_DICT;
+                a1 = MATERIALIZE_K_STR
+                    if (ek and ek[0] == "str")
+                    else MATERIALIZE_K_I64;
+                vspec = ek[1] if (ek and len(ek) > 1) else "";
+                if vspec.startswith("list[") {
+                    a2 = MATERIALIZE_K_LIST;
+                    if vspec[5:-1] in struct_names {
+                        hint = vspec[5:-1];
+                    }
+                } elif vspec.startswith("set[") {
+                    a2 = MATERIALIZE_K_SET;
+                } elif vspec == "str" {
+                    a2 = MATERIALIZE_K_STR;
+                } elif vspec in struct_names {
+                    a2 = MATERIALIZE_K_STRUCT;
+                    hint = vspec;
+                } else {
+                    a2 = MATERIALIZE_K_RAWPTR;
+                }
+            } elif lt.startswith("Set.") and lt.endswith("*") {
+                kind = MATERIALIZE_K_SET;
+                a1 = MATERIALIZE_K_STR
+                    if (ek and ek[0] == "str")
+                    else MATERIALIZE_K_I64;
+            } elif lt.endswith("*") {
+                kind = MATERIALIZE_K_STRUCT;
+                if lt[:-1] in struct_names {
+                    hint = lt[:-1];
+                }
+            } elif lt == "ptr" {
+                kind = MATERIALIZE_K_RAWPTR;
+            }
+            fields_out.append([key, kind, off, a1, a2, hint, enum_name]);
+        }
+        structs_out[sname] = fields_out;
+    }
+
+    enums_out: dict = {};
+    for et in sorted(needed_enums) {
+        enum_layout = layout.enums.get(et);
+        if enum_layout is not None {
+            mem_pairs: list[tuple[int, str]] = [
+                (int(m[2]), str(m[0]), ) for m in enum_layout.members
+            ];
+            enums_out[et] = [nm for (_o, nm) in sorted(mem_pairs)];
+            continue;
+        }
+        py_cls = None;
+        for ns in (_bk_unitree.__dict__, _bk_constant.__dict__, _bk_srcloc.__dict__) {
+            if ns.get(et) is not None {
+                py_cls = ns[et];
+                break;
+            }
+        }
+        if py_cls is not None {
+            enums_out[et] = [str(getattr(m, "name")) for m in list(py_cls)];
+        }
+    }
+    layout_dict["materialize"] = {
+        "version": 1,
+        "structs": structs_out,
+        "enums": enums_out
+    };
+}
+
+def build_native_materializer(
+    pkg_path: Path, precompiled_dir: Path, out_dir: Path
+) -> tuple[(str | None), (str | None)] {
+    import subprocess;
+    import sysconfig;
+    csrc = pkg_path / "jac0core" / "native_src" / "jacmat.c";
+    if not csrc.is_file() {
+        return (None, f"materializer source missing: {csrc}");
+    }
+    inc = os.environ.get("JAC_PY_INCLUDE") or sysconfig.get_paths().get("include", "");
+    if not inc or not (Path(inc) / "Python.h").is_file() {
+        return (
+            None,
+            "no CPython headers (set JAC_PY_INCLUDE to an include dir "
+            "holding Python.h for this interpreter version)"
+        );
+    }
+    cc = os.environ.get("JAC_CC")
+        or shutil.which("cc")
+        or shutil.which("clang")
+        or shutil.which("gcc");
+    if not cc {
+        return (None, "no C compiler on PATH (set JAC_CC)");
+    }
+    ext = sysconfig.get_config_var("EXT_SUFFIX") or ".so";
+    out_path = out_dir / f"jacmat{ext}";
+    argv = [cc, "-O2", "-shared", "-fPIC", f"-I{inc}", str(csrc), "-o", str(out_path)];
+    if sys.platform == "darwin" {
+        argv = argv + ["-undefined", "dynamic_lookup"];
+    }
+    proc = subprocess.run(argv, capture_output=True, text=True);
+    if proc.returncode != 0 or not out_path.is_file() {
+        tail = (proc.stderr or proc.stdout or "").strip()[-400:];
+        return (None, f"cc failed ({proc.returncode}): {tail}");
+    }
+    return (out_path.relative_to(precompiled_dir).as_posix(), None);
+}
+
 def seal_native_artifacts(
     pkg_path: Path,
     precompiled_dir: Path,
@@ -570,6 +876,7 @@ def seal_native_artifacts(
     waivers: (dict | None) = None
 ) -> (dict[str, dict] | None) {
     artifacts: dict[str, dict] = {};
+    _mat_built: dict[str, str] = {};
     stale_native = precompiled_dir / "native";
     if stale_native.is_dir() {
         shutil.rmtree(stale_native, ignore_errors=True);
@@ -720,6 +1027,7 @@ def seal_native_artifacts(
             }
         }
         exports = sorted(set(exports) | accessor_syms);
+        _bake_materialize(layout, layout_dict, pkg_path);
         triple = llvm.get_default_triple();
         out_dir = precompiled_dir / "native" / triple;
         out_dir.mkdir(parents=True, exist_ok=True);
@@ -761,13 +1069,36 @@ def seal_native_artifacts(
             if p
         ];
         fullname = ".".join([pkg_name] + parts + [stem]);
-        artifacts[fullname] = {
+        entry = {
             "lib": lib_path.relative_to(precompiled_dir).as_posix(),
             "layout": layout_path.relative_to(precompiled_dir).as_posix(),
             "triple": triple,
             "lib_sha256": hashlib.sha256(lib_path.read_bytes()).hexdigest(),
             "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest()
         };
+        mat_rel = _mat_built.get(str(out_dir));
+        if mat_rel is None {
+            (mat_rel, mat_err) = build_native_materializer(
+                pkg_path, precompiled_dir, Path(str(out_dir))
+            );
+            if mat_rel is None {
+                console.error(
+                    f"NATIVE SEAL: materializer not built: {mat_err}. "
+                    "Artifacts without a materializer cannot serve parse "
+                    "trees; a payload seal fails on this (seal_finalize)."
+                );
+                mat_rel = "";
+            }
+            _mat_built[str(out_dir)] = mat_rel;
+        }
+        if mat_rel {
+            mat_path = precompiled_dir / mat_rel;
+            entry["materializer"] = mat_rel;
+            entry["materializer_sha256"] = hashlib.sha256(
+                mat_path.read_bytes()
+            ).hexdigest();
+        }
+        artifacts[fullname] = entry;
         console.print(
             f"  Native artifact: {fullname} -> {lib_path.name} "
             f"({lib_path.stat().st_size:,} bytes, {len(exports)} exports)"
@@ -942,6 +1273,18 @@ def seal_finalize(
         if native_artifacts is None {
             console.error("Seal aborted: native artifact build failed.");
             return 1;
+        }
+        for (art_name, art_entry) in native_artifacts.items() {
+            if "materializer" not in art_entry {
+                console.error(
+                    f"Seal aborted: artifact {art_name} shipped without the "
+                    "jacmat materializer. Sealed payloads serve parse trees "
+                    "natively with no bytecode fallback, so an artifact "
+                    "without its materializer is a broken build. Check the "
+                    "NATIVE SEAL messages above for the cc or header issue."
+                );
+                return 1;
+            }
         }
     }
 

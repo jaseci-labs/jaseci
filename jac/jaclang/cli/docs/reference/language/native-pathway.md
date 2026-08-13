@@ -943,6 +943,15 @@ The codegen options carry a canonical identity string and a short hash of it, th
 | `JAC_NA_DEBUG` | (none) | Explains every native demotion: `NA_DEBUG demote <Type>.<method>` followed by the full diagnostics that made the method un-lowerable, and `NA_DEBUG raise <Type>.<method>` plus a Python traceback when the emitter raised. Forces the "native seam" warning on regardless of `[check] warn_native_seams`, and prints the traceback behind a failed seal canary. |
 | `JAC_SYMMAP` | (none) | Writes a `<binary>.symmap` symbol map beside a linked ELF executable. |
 
+### Sealed compiler artifacts (build-time switches)
+
+| Environment override | Effect |
+|---|---|
+| `JAC_NO_SEAL` | Disables sealed-image discovery entirely at runtime; with no artifact found, parsing runs on the bytecode tier. Set by the payload build itself while regenerating the image. |
+| `JAC_SEAL_NO_NATIVE` | Build-time: `seal_native_artifacts` emits nothing, so the sealed image ships without native parser artifacts (also implied on Windows). |
+| `JAC_PY_INCLUDE` | Build-time: CPython include directory for compiling the `jacmat` materializer extension when the running interpreter's `sysconfig` carries no headers. |
+| `JAC_CC` | Build-time: C compiler used for the `jacmat` build (defaults to `cc`, then `clang`, then `gcc` from PATH). |
+
 Toolchain location variables are read through the same boundary module, never inside passes: `JAC_LLVM_SHIM`, `JAC_LLVM_TYPED_POINTERS` (with `LLVMLITE_ENABLE_IR_LAYER_TYPED_POINTERS` honored as a fallback), `JAC_NATIVE_WASM_LIBC_DIR`, `JAC_NATIVE_MUSL_DIR`, `JAC_NATIVE_FLOOR_DIR`, `JAC_NATIVE_CA_BUNDLE`.
 
 `JAC_NO_GC` and `JAC_GC_CYCLES` are runtime switches read by the compiled binary itself, not by the compiler; the Memory Management section above describes them.
@@ -977,7 +986,7 @@ A demotion is only a speed cost while Python is still there to catch it. In a se
 
 ```jac
 glob NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
-    "jac0core/parser/lexer.jac": ("jac0core/parser/lexer.jac::Lexer.debug_dump", )
+    "jac0core/parser/parser.jac": ("jac0core/unitree.jac::UniNode.gen.__get__", )
 };
 ```
 
