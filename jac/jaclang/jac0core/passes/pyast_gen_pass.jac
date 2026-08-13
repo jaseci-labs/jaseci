@@ -133,7 +133,10 @@ obj PyastGenPass(BaseAstGenPass[ast3.AST]) {
     def builtin_name(name: str) -> ast3.Name;
     def _is_edge_ref_target(target: uni.UniNode) -> bool;
     def _cmp_op_str(op: object) -> (str | None);
-    def _query_filter_kws(fc: uni.FilterCompr, type_arg: str, preds_arg: str) -> list[ast3.keyword];
+    def _query_filter_kws(
+        fc: uni.FilterCompr, type_arg: str, preds_arg: str
+    ) -> list[ast3.keyword];
+
     def _add_preamble_once(key: str, nd: ast3.AST) -> None;
     def needs_enum_kind(kind: str) -> None;
     def _next_temp_name(prefix: str) -> str;

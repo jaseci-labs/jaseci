@@ -190,7 +190,9 @@ def decode_jacval(tag: int, payload: int, header_stamped: bool = False) -> any {
 }
 
 
-def _decode_jacval_at(addr: any, slots: list[int], header_stamped: bool = False) -> list[any] {
+def _decode_jacval_at(
+    addr: any, slots: list[int], header_stamped: bool = False
+) -> list[any] {
     if (not slots or not addr) {
         return [];
     }

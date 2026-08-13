@@ -397,7 +397,12 @@ def resolve_relative_path(
     return path;
 }
 
-glob NPM_RUNTIME_CONDITIONS: tuple[str, ...] = ('browser', 'module', 'import', 'default'),
+glob NPM_RUNTIME_CONDITIONS: tuple[str, ...] = (
+         'browser',
+         'module',
+         'import',
+         'default'
+     ),
      NPM_TYPES_CONDITIONS: tuple[str, ...] = ('types', 'import', 'default'),
      NPM_DTS_SUFFIXES: tuple[str, ...] = ('.d.ts', '.d.mts', '.d.cts');
 
@@ -452,7 +457,10 @@ def _read_package_json(pkg_dir: str) -> dict[str, any] {
 }
 
 def _resolve_export_target(
-    target: object, conditions: tuple[str, ...], pkg_dir: str, star_sub: (str | None) = None
+    target: object,
+    conditions: tuple[str, ...],
+    pkg_dir: str,
+    star_sub: (str | None) = None
 ) -> (str | None) {
     if isinstance(target, str) {
         rel = target;

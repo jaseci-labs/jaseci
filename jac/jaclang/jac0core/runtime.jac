@@ -343,7 +343,9 @@ class JacIntrospection {
     static def list_nodes(module_name: str) -> list[str];
     static def list_edges(module_name: str) -> list[str];
     static def spawn_node(
-        node_name: str, attributes: (dict[str, any] | None) = None, module_name: str = '__main__'
+        node_name: str,
+        attributes: (dict[str, any] | None) = None,
+        module_name: str = '__main__'
     ) -> NodeArchetype;
 
     static def spawn_walker(
@@ -386,7 +388,10 @@ class JacServe {
 
     static def get_api_server_class -> type;
     static def ensure_sv_service(module_name: str, base_path: str) -> None;
-    static def sv_service_call(module_name: str, func_name: str, args: dict[str, any]) -> any;
+    static def sv_service_call(
+        module_name: str, func_name: str, args: dict[str, any]
+    ) -> any;
+
     static def sv_walker_call(
         module_name: str, walker_name: str, args: dict[str, any], stub_cls: any
     ) -> any;
