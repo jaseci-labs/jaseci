@@ -5112,7 +5112,7 @@ impl Parser.parse_import_items(
                 clib_decls.append(stmt);
                 kid.append(stmt);
                 if isinstance(stmt, ContextAwareNode) {
-                    stmt.set_code_context(CodeContext.NATIVE);
+                    stmt.code_context = CodeContext.NATIVE;
                 }
             }
         }
