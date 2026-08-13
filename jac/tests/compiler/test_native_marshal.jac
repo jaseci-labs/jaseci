@@ -287,7 +287,7 @@ test "struct view scalar write goes through to native memory" {
     assert fresh.val == 99;
 }
 
-test "struct view write rejects pointer fields and unknown names" {
+test "struct view write rejects pointer fields; unknown names annotate" {
     layout = _pair_layout();
     classes = build_ctypes_classes(layout);
     child = classes["Child"]();
@@ -302,9 +302,14 @@ test "struct view write rejects pointer fields and unknown names" {
         got_type_error = True;
     }
     assert got_type_error;
+    # A name the native layout never carried is Python-side annotation
+    # state: the store lands on the view's overlay instead of raising.
+    v.missing = 1;
+    assert v._py_overlay.get("missing") == 1;
     got_attr_error = False;
     try {
-        v.missing = 1;
+        v.missing;
+        assert False , "unknown-name reads keep the AttributeError shape";
     } except AttributeError {
         got_attr_error = True;
     }

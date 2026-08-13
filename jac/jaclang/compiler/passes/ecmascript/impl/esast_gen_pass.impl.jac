@@ -1,3 +1,4 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     StateField,
     RefField,
@@ -1626,7 +1627,7 @@ impl EsastGenPass._try_lower_server_rpc_call(
                 if (
                     _p.type_tag is not None
                     and _p.type_tag.tag is not None
-                    and re.search(r"\bCallable\b", _p.type_tag.tag.unparse())
+                    and re.search(r"\bCallable\b", unparse_node(_p.type_tag.tag))
                 ) {
                     self.emit(
                         W6005, node_override=nd, func=func_name, param=_p.name.sym_name

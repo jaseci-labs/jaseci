@@ -23,6 +23,16 @@ obj Counter {
     }
 }
 
+obj Factory {
+    class def base -> int {
+        return 7;
+    }
+
+    class def scale(v: int) -> int {
+        return v * 2;
+    }
+}
+
 def call_abstract_impl(n: int) -> int {
     sq = Square();
     return sq.area(n);
@@ -35,4 +45,8 @@ def call_abstract_through_base(n: int) -> int {
 
 def call_staticmethod(n: int) -> int {
     return Counter.bump(n);
+}
+
+def call_classmethod(n: int) -> int {
+    return Factory.base() + Factory.scale(n);
 }
