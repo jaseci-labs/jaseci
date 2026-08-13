@@ -263,3 +263,62 @@ test "openapi carries response content blocks and WS routes (#8000 f3)" {
     );
     assert "101" in doc["paths"]["/ws/echo"]["get"]["responses"];
 }
+
+
+test "raw-body endpoint serializes structured returns as JSON, not repr" {
+    # Regression: ServingApp._to_response built raw-body responses with a plain
+    # Response whose body_bytes() str()s the payload, so a dict return under
+    # media_type=application/json hit the wire as Python repr ("{'a': 1}"),
+    # which is not valid JSON. The framework-native raw-body path
+    # (@restspec envelope=False / produces=...) must json.dumps structured
+    # payloads so it round-trips through a JSON client.
+    import json;
+    def raw_json -> dict {
+        return {"a": 1};
+    }
+    def raw_str -> str {
+        return "plain body";
+    }
+    app = ServingApp();
+    app.add_endpoint(
+        JEndPoint(
+            method=HTTPMethod.GET,
+            path="/raw/json",
+            callback=raw_json,
+            media_type="application/json"
+        )
+    );
+    app.add_endpoint(
+        JEndPoint(
+            method=HTTPMethod.GET,
+            path="/raw/text",
+            callback=raw_str,
+            media_type="text/plain"
+        )
+    );
+    server = ServingServer(app=app, host="127.0.0.1", port=0);
+    stop = server.serve_background();
+    try {
+        conn = http.client.HTTPConnection("127.0.0.1", server.bound_port, timeout=10);
+        conn.request("GET", "/raw/json");
+        resp = conn.getresponse();
+        body = resp.read();
+        ct = resp.getheader("Content-Type");
+        conn.close();
+        assert resp.status == 200 , f"status={resp.status}";
+        assert ct is not None and ct.startswith("application/json") , f"ct={ct!r}";
+        expected = b'{"a": 1}';
+        assert body == expected , f"expected valid JSON {expected!r}, got {body!r}";
+        assert json.loads(body) == {"a": 1} , "body must parse as JSON";
+
+        conn2 = http.client.HTTPConnection("127.0.0.1", server.bound_port, timeout=10);
+        conn2.request("GET", "/raw/text");
+        resp2 = conn2.getresponse();
+        body2 = resp2.read();
+        conn2.close();
+        assert resp2.status == 200;
+        assert body2 == b"plain body" , f"expected verbatim text, got {body2!r}";
+    } finally {
+        stop();
+    }
+}

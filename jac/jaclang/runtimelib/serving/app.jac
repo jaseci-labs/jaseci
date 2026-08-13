@@ -1,5 +1,6 @@
 import asyncio;
 import inspect;
+import json;
 import logging;
 import traceback;
 import from jaclang.runtimelib.serving.coerce {
@@ -94,6 +95,25 @@ def _slash_alternate(path: str) -> (str | None) {
     return None;
 }
 
+
+def _raw_body_bytes(payload: any) -> bytes {
+    # Framework-native raw-body path (@restspec envelope=False / produces=...):
+    # the handler's return value must reach the wire verbatim, not JSON-encoded
+    # through the transport envelope. Plain Response.body_bytes() would str()
+    # structured payloads into Python repr (e.g. {'a': 1}), so mirror the
+    # canonical serialization: bytes as-is, str as text, None empty, everything
+    # else as JSON.
+    if isinstance(payload, bytes) {
+        return payload;
+    }
+    if payload is None {
+        return b"";
+    }
+    if isinstance(payload, str) {
+        return payload.encode('utf-8');
+    }
+    return json.dumps(payload).encode('utf-8');
+}
 
 def _declares_body(ep: JEndPoint) -> bool {
     for param in (ep.parameters or []) {
@@ -314,7 +334,9 @@ obj ServingApp {
         status = ep.status_code if ep.status_code is not None else 200;
         if ep.media_type {
             return Response(
-                content=result, status_code=status, media_type=ep.media_type
+                content=_raw_body_bytes(result),
+                status_code=status,
+                media_type=ep.media_type
             );
         }
         return JSONResponse(content=result, status_code=status);
