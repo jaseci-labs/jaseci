@@ -96,7 +96,10 @@ obj compile_unit {
         consts: list[PyObj] = [],
         names: list[str] = [],
         blocks: list[basicblock] = [],
-        next_block_id: int = 0;
+        next_block_id: int = 0,
+        # Set by codegen on unsupported nodes / illegal placement; product_compile
+        # checks before assembly (PLAN.md: no silent codegen paths).
+        diag: PyObj | None = None;
 
     def add_block -> basicblock {
         b = basicblock(id=self.next_block_id, instrs=[]);

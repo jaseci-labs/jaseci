@@ -5,9 +5,9 @@ reference/cpython/Tools/peg_generator to parse the frozen grammar, then emits
 checked-in Jac rule functions that call peg_runtime + parser_actions.
 
 Usage:
-    python jac-py/tools/grammar2jac.py --profile expr
+    python jac-py/tools/grammar2jac.py
     python jac-py/tools/grammar2jac.py --check
-    python jac-py/tools/grammar2jac.py --stdout --profile expr
+    python jac-py/tools/grammar2jac.py --stdout
 """
 
 from __future__ import annotations
@@ -17,8 +17,7 @@ import ast as py_ast
 import os
 import re
 import sys
-import tokenize
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 from io import StringIO
 from typing import IO, Any
 
@@ -26,7 +25,9 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.dirname(os.path.dirname(_HERE))
 _PEGEN = os.path.join(_REPO, "reference", "cpython", "Tools", "peg_generator")
 sys.path.insert(0, _PEGEN)
+sys.path.insert(0, _HERE)
 
+from action_translate import ActionTranslationError, ActionTranslator  # noqa: E402
 from pegen.build import build_parser, generate_token_definitions  # noqa: E402
 from pegen.grammar import (  # noqa: E402
     Alt,
@@ -56,28 +57,52 @@ from pegen.parser_generator import (  # noqa: E402
 
 GRAMMAR_PATH = os.path.join(_REPO, "reference", "cpython", "Grammar", "python.gram")
 TOKENS_PATH = os.path.join(_REPO, "reference", "cpython", "Grammar", "Tokens")
-OUT_PATH = os.path.join(_REPO, "jac-py", "jacpython", "parser_expr.jac")
+OUT_PATH = os.path.join(_REPO, "jac-py", "jacpython", "parser.jac")
+GRAMMAR_PROVENANCE = "reference/cpython/Grammar/python.gram"
+START_RULES: list[str] = ["eval", "file"]
 
-# Jac type mapping for grammar return types.
+
+class GrammarTypeError(ValueError):
+    """Raised when a grammar return type is not in the pinned type registry."""
+
+
 JAC_TYPES: dict[str, str] = {
     "expr_ty": "expr",
     "mod_ty": "mod",
     "stmt_ty": "stmt",
+    "pattern_ty": "pattern",
     "arguments_ty": "arguments",
-    "asdl_expr_seq*": "list[expr]",
-    "asdl_stmt_seq*": "list[stmt]",
-    "asdl_int_seq*": "list[cmpop]",
-    "CmpopExprPair*": "pa_cmpop_expr_pair",
-    "Token*": "peg_token",
-    "comprehension_ty": "comprehension",
-    "asdl_comprehension_seq*": "list[comprehension]",
-    "keyword_ty": "keyword",
+    "alias_ty": "alias",
     "arg_ty": "arg",
+    "comprehension_ty": "comprehension",
+    "excepthandler_ty": "excepthandler",
+    "match_case_ty": "match_case",
+    "type_param_ty": "type_param",
+    "withitem_ty": "withitem",
+    "AugOperator*": "operator",
+    "CmpopExprPair*": "pa_cmpop_expr_pair",
     "KeyValuePair*": "pa_key_value_pair",
+    "KeyPatternPair*": "pa_key_pattern_pair",
     "KeywordOrStarred*": "pa_keyword_or_starred",
+    "NameDefaultPair*": "pa_name_default_pair",
+    "ResultTokenWithMetadata*": "peg_token",
+    "SlashWithDefault*": "object",
+    "StarEtc*": "object",
+    "Token*": "peg_token",
+    "asdl_alias_seq*": "list[alias]",
+    "asdl_arg_seq*": "list[arg]",
+    "asdl_comprehension_seq*": "list[comprehension]",
+    "asdl_expr_seq*": "list[expr]",
+    "asdl_identifier_seq*": "list[str]",
+    "asdl_int_seq*": "list[cmpop]",
+    "asdl_keyword_seq*": "list[keyword]",
+    "asdl_pattern_seq*": "list[pattern]",
+    "asdl_seq*": "list[object]",
+    "asdl_stmt_seq*": "list[stmt]",
+    "asdl_type_param_seq*": "list[type_param]",
 }
 
-BINOP_OPS = {
+BINOP_OPSBINOP_OPS = {
     "Add": "Add",
     "Sub": "Sub",
     "Mult": "Mult",
@@ -138,91 +163,23 @@ def _alt_uses_rule(alt: Alt, name: str) -> bool:
     return name in _refs_in_node(alt)
 
 
-def _filter_rule(rule: Rule, allowed: set[str], all_rules: dict[str, Rule]) -> Rule:
-    """Drop alternatives that reference disallowed or invalid_* rules."""
-    kept: list[Alt] = []
-    for alt in rule.rhs.alts:
-        refs = _refs_in_node(alt)
-        if any(r.startswith("invalid") for r in refs):
-            continue
-        if any(r in all_rules and r not in allowed for r in refs):
-            continue
-        kept.append(alt)
-    if not kept:
-        kept = list(rule.rhs.alts[:1])
-    return Rule(rule.name, rule.type, Rhs(kept), rule.memo)
-
-
-# Expression-eval profile: rules required for compiler_slice fixtures
-# (1+1, -x, a*b+c, f(x,1), x<y<z) plus transitive deps inside this band.
-EXPR_PROFILE_RULES: set[str] = {
-    "eval",
-    "expressions",
-    "expression",
-    "disjunction",
-    "conjunction",
-    "inversion",
-    "comparison",
-    "compare_op_bitwise_or_pair",
-    "eq_bitwise_or",
-    "noteq_bitwise_or",
-    "lte_bitwise_or",
-    "lt_bitwise_or",
-    "gte_bitwise_or",
-    "gt_bitwise_or",
-    "notin_bitwise_or",
-    "in_bitwise_or",
-    "isnot_bitwise_or",
-    "is_bitwise_or",
-    "bitwise_or",
-    "bitwise_xor",
-    "bitwise_and",
-    "shift_expr",
-    "sum",
-    "term",
-    "factor",
-    "power",
-    "await_primary",
-    "primary",
-    "atom",
-    "arguments",
-    "args",
-    "named_expression",
-    "assignment_expression",
-    "starred_expression",
-    "kwarg_or_starred",
-    "kwarg_or_double_starred",
-    "kwargs",
-}
-
-
-def rule_closure_bounded(
-    grammar: Grammar, start: str, allowed_names: set[str]
-) -> set[str]:
-    needed: set[str] = set()
-    queue = [start]
-    while queue:
-        name = queue.pop()
-        if name in needed or name not in allowed_names or name not in grammar.rules:
-            continue
-        needed.add(name)
-        for ref in _refs_in_node(grammar.rules[name]):
-            if ref in allowed_names and ref in grammar.rules and ref not in needed:
-                queue.append(ref)
-    return needed
-
-
 def jac_type(c_type: str | None, *, is_seq: bool = False) -> str:
     if c_type is None:
         return "object"
     if c_type in JAC_TYPES:
         return JAC_TYPES[c_type]
     if c_type.endswith("*"):
-        inner = jac_type(c_type[:-1])
+        inner_name = c_type[:-1]
+        if inner_name in JAC_TYPES:
+            inner = JAC_TYPES[inner_name]
+        elif inner_name.endswith("_ty"):
+            inner = inner_name[: -len("_ty")]
+        else:
+            raise GrammarTypeError(f"unknown pointer grammar type: {c_type!r}")
         if inner.startswith("list["):
             return inner
         return f"list[{inner}]"
-    return "object"
+    raise GrammarTypeError(f"unknown grammar type: {c_type!r}")
 
 
 def jac_cast_type(ret: str) -> str:
@@ -234,141 +191,6 @@ def jac_return_type(c_type: str | None, *, is_seq: bool = False) -> str:
     if base.endswith("| None"):
         return base
     return f"{base} | None"
-
-
-class ActionLowerer:
-    """Translate C grammar actions to Jac parser_actions calls."""
-
-    def __init__(self) -> None:
-        self._loc = "start_lineno, start_col_offset, end_lineno, end_col_offset"
-
-    def lower(self, action: str) -> str:
-        action = " ".join(action.split())
-        if re.fullmatch(r"[a-zA-Z_]\w*", action):
-            return action
-        action = action.replace("p->arena", "")
-        action = re.sub(r"p\s*->\s*arena", "", action)
-        action = re.sub(r",\s*\)", ")", action)
-        action = action.replace("NULL", "None")
-        action = re.sub(r"\bp\s*,\s*", "", action)
-        action = action.replace("EXTRA", self._loc)
-        action = re.sub(r"->v\.Name\.id", "", action)
-        action = re.sub(r"\(expr_ty\)\s*", "", action)
-        action = re.sub(r"\(asdl_expr_seq\*\)\s*", "", action)
-        action = re.sub(r"CHECK_NULL_ALLOWED\s*\(\s*[^,]+,\s*([^)]+)\)", r"pa_check(\1)", action)
-        action = re.sub(r"CHECK\s*\(\s*[^,]+,\s*([^)]+)\)", r"pa_check(\1)", action)
-        action = re.sub(
-            r"CHECK_VERSION\([^,]+,\s*\d+,\s*\"[^\"]*\",\s*",
-            'pa_check_version("", ',
-            action,
-        )
-        for c_name, j_name in {**BINOP_OPS, **UNARY_OPS, **BOOL_OPS, **CMP_OPS}.items():
-            action = re.sub(rf"\b{c_name}\b", f"{j_name}()", action)
-        action = re.sub(r"\bLoad\b", "Load()", action)
-        action = re.sub(r"\bStore\b", "Store()", action)
-        action = action.replace("Py_True", "True")
-        action = action.replace("Py_False", "False")
-        action = action.replace("Py_None", "None")
-        action = action.replace("Py_Ellipsis", "None")
-        action = re.sub(
-            r"_PyAST_BinOp\s*\(\s*(\w+)\s*,\s*(\w+)\(\)\s*,\s*(\w+)\s*,\s*",
-            r"pa_ast_binop(\1, \2(), \3, ",
-            action,
-        )
-        action = re.sub(
-            r"_PyAST_UnaryOp\s*\(\s*(\w+)\(\)\s*,\s*(\w+)\s*,\s*",
-            r"pa_ast_unaryop(\1(), \2, ",
-            action,
-        )
-        action = re.sub(
-            r"_PyAST_BoolOp\s*\(\s*(\w+)\(\)\s*,\s*([^,]+)\s*,\s*",
-            r"pa_ast_boolop(\1(), \2, ",
-            action,
-        )
-        action = re.sub(
-            r"_PyAST_Compare\s*\(\s*(\w+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*",
-            r"pa_ast_compare(\1, \2, \3, ",
-            action,
-        )
-        if "_PyAST_Call" in action and "?" in action:
-            m = re.search(r"_PyAST_Call\s*\(\s*(\w+)\s*,", action)
-            if m:
-                return f"pa_call_from_optional_args({m.group(1)}, b, {self._loc})"
-        action = re.sub(
-            r"_PyAST_Call\s*\(\s*(\w+)\s*,\s*([^,]+)\s*,\s*([^,]+)\s*,\s*",
-            r"pa_ast_call(\1, \2, \3, ",
-            action,
-        )
-        action = re.sub(
-            r"_PyAST_IfExp\s*\(\s*(\w+)\s*,\s*(\w+)\s*,\s*(\w+)\s*,\s*",
-            r"pa_ast_ifexp(\1, \2, \3, ",
-            action,
-        )
-        action = re.sub(
-            r"_PyAST_Starred\s*\(\s*(\w+)\s*,\s*Load\(\)\s*,\s*",
-            r"pa_ast_starred(\1, ",
-            action,
-        )
-        action = re.sub(
-            r"_PyAST_Starred\s*\(\s*(\w+)\s*,\s*Load\s*,\s*",
-            r"pa_ast_starred(\1, ",
-            action,
-        )
-        action = re.sub(
-            r"_PyAST_Constant\(True,\s*None,\s*",
-            "pa_constant_bool(True, ",
-            action,
-        )
-        action = re.sub(
-            r"_PyAST_Constant\(False,\s*None,\s*",
-            "pa_constant_bool(False, ",
-            action,
-        )
-        action = re.sub(
-            r"_PyAST_Constant\(None,\s*None,\s*",
-            "pa_constant_none(",
-            action,
-        )
-        action = re.sub(
-            r"_PyPegen_singleton_seq\s*\(\s*(\w+)\s*\)",
-            r"pa_singleton_seq(\1)",
-            action,
-        )
-        action = re.sub(
-            r"_PyPegen_seq_insert_in_front\s*\(\s*(\w+)\s*,\s*(\w+)\s*\)",
-            r"pa_seq_insert_front(\1, \2)",
-            action,
-        )
-        action = re.sub(
-            r"_PyPegen_get_cmpops\s*\(\s*(\w+)\s*\)",
-            r"pa_get_cmpops(\1)",
-            action,
-        )
-        action = re.sub(
-            r"_PyPegen_get_exprs\s*\(\s*(\w+)\s*\)",
-            r"pa_get_exprs(\1)",
-            action,
-        )
-        action = re.sub(
-            r"_PyPegen_cmpop_expr_pair\s*\(\s*(\w+)\(\)\s*,\s*(\w+)\s*\)",
-            r"pa_make_cmpop_pair(\1(), \2)",
-            action,
-        )
-        action = re.sub(
-            r"_PyPegen_collect_call_seqs\s*\(\s*(\w+)\s*,\s*(\w+)\s*,\s*",
-            r"pa_collect_call_seqs(\1, \2, ",
-            action,
-        )
-        action = re.sub(
-            r"_PyAST_Expression\s*\(\s*(\w+)\s*\)",
-            r"pa_ast_expression(\1)",
-            action,
-        )
-        action = action.replace("( b )", "(b)")
-        if "_PyAST_" in action or "_PyPegen_" in action or "RAISE_" in action:
-            safe = action.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
-            return f'pa_unsupported_action(p, "{safe[:80]}")'
-        return action
 
 
 def _rule_fn(name: str) -> str:
@@ -505,7 +327,7 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         self.allowed_rules = allowed_rules
         self.exact_token_map: dict[str, int] = {}
         self.callmakervisitor = JacCallMakerVisitor(self, self.exact_token_map)
-        self.action_lower = ActionLowerer()
+        self.action_translator = ActionTranslator()
         self.rule_ids: dict[str, int] = {}
         self._rule_name = ""
         self._rule_ret = "object | None"
@@ -559,16 +381,16 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
 
     def _emit_header(self, filename: str) -> None:
         base = os.path.basename(filename)
-        self.print('"""jacpython generated PEG parser (expression eval profile).')
+        self.print('"""jacpython generated PEG parser (unified eval + file profile).')
         self.print("")
         self.print(
-            f"GENERATED by jac-py/tools/grammar2jac.py from {GRAMMAR_PATH}"
+            f"GENERATED by jac-py/tools/grammar2jac.py from {GRAMMAR_PROVENANCE}"
         )
-        self.print(f"(profile expr, source tag: {base}). Do not edit by hand.")
+        self.print(f"(starts: eval, file; source tag: {base}). Do not edit by hand.")
         self.print('"""')
         self.print("")
         self.print("import from token_model {")
-        self.print("    ENDMARKER, NAME, NUMBER, STRING, OP, NT_OFFSET, NEWLINE,")
+        self.print("    ENDMARKER, NAME, NUMBER, STRING, OP, NT_OFFSET, NEWLINE, TYPE_COMMENT,")
         self.print("}")
         self.print("import from peg_runtime {")
         self.print("    peg_parser, peg_parser_from_source, peg_set_keywords,")
@@ -580,18 +402,43 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         self.print("    peg_left_rec_finish, peg_token,")
         self.print("}")
         self.print("import from parser_actions {")
-        self.print("    pa_cmpop_expr_pair, pa_make_cmpop_pair, pa_name_from_token, pa_number_from_token,")
-        self.print("    pa_ast_expression, pa_ast_binop, pa_ast_unaryop, pa_ast_boolop,")
-        self.print("    pa_ast_compare, pa_ast_call, pa_ast_ifexp, pa_constant_bool,")
-        self.print("    pa_constant_none, pa_singleton_seq, pa_seq_insert_front,")
-        self.print("    pa_get_cmpops, pa_get_exprs,")
-        self.print("    pa_collect_call_seqs, pa_call_from_optional_args, pa_ast_starred,")
-        self.print("    pa_check, pa_check_version, pa_unsupported_action,")
+        self.print("    pa_cmpop_expr_pair, pa_key_value_pair, pa_key_pattern_pair, pa_keyword_or_starred,")
+        self.print("    pa_name_default_pair, pa_make_cmpop_pair, pa_name_from_token, pa_name_id, pa_number_from_token,")
+        self.print("    pa_ast_expression, pa_ast_binop, pa_ast_unaryop, pa_ast_boolop, pa_ast_compare, pa_ast_call,")
+        self.print("    pa_ast_ifexp, pa_constant_bool, pa_constant_none, pa_constant_from_expr, pa_singleton_seq,")
+        self.print("    pa_seq_insert_front, pa_seq_append_to_end, pa_get_cmpops, pa_get_exprs, pa_get_keys, pa_get_values,")
+        self.print("    pa_get_patterns, pa_get_pattern_keys, pa_collect_call_seqs, pa_call_from_optional_args,")
+        self.print("    pa_ast_starred, pa_check, pa_make_module, pa_seq_flatten, pa_set_context, pa_map_names_to_ids,")
+        self.print("    pa_ast_expr_stmt, pa_ast_assign, pa_ast_annassign, pa_ast_return, pa_ast_pass, pa_ast_break,")
+        self.print("    pa_ast_continue, pa_ast_tuple, pa_ast_attribute, pa_ast_subscript, pa_ast_slice, pa_ast_augassign,")
+        self.print("    pa_ast_delete, pa_raise_syntax, pa_raise_syntax_known_expr, pa_raise_syntax_known_range,")
+        self.print("    pa_raise_invalid_target, pa_aug_op, pa_call_args, pa_call_keywords, pa_comp_field,")
+        self.print("    pa_empty_arguments, pa_dummy_name, pa_interactive_exit, pa_seq_count_dots, pa_seq_first,")
+        self.print("    pa_seq_last, pa_seq_len, pa_seq_get, pa_or_pattern_singleton, pa_check_legacy_stmt_or_raise,")
+        self.print("    pa_raise_type_param_error, pa_raise_kvpair_error, pa_checked_future_import, pa_nonparen_genexp_in_call,")
+        self.print("    pa_arguments_parsing_error, pa_check_legacy_stmt, pa_concatenate_strings, pa_concatenate_tstrings,")
+        self.print("    pa_constant_from_string, pa_constant_from_token, pa_decoded_constant_from_token, pa_ensure_imaginary,")
+        self.print("    pa_ensure_real, pa_get_expr_name, pa_get_last_comprehension_item, pa_join_names_with_dot,")
+        self.print("    pa_join_sequences, pa_alias_for_star, pa_add_type_comment_to_arg, pa_seq_delete_starred_exprs,")
+        self.print("    pa_seq_extract_starred_exprs, pa_setup_full_format_spec, pa_check_fstring_conversion,")
+        self.print("    pa_function_def_decorators, pa_class_def_decorators, pa_make_arguments, pa_star_etc, pa_slash_with_default,")
+        self.print("    pa_joined_str, pa_template_str, pa_formatted_value, pa_interpolation, pa_err_occurred,")
+        self.print("    pa_expr_lineno, pa_expr_end_col_offset, pa_expr_end_lineno,")
         self.print("}")
         self.print("import from ast_nodes {")
-        self.print("    expr, mod, Expression, Name, Load,")
-        self.print("    Add, Sub, Mult, Div, USub, UAdd, Not, Invert,")
-        self.print("    Or, And, Lt, LtE, Gt, GtE, Eq, NotEq, In, NotIn, Is, IsNot,")
+        self.print("    ast_node, expr, mod, stmt, pattern, operator, cmpop, expr_context,")
+        self.print("    arguments, alias, arg, keyword, comprehension, excepthandler, match_case, type_param, withitem,")
+        self.print("    Expression, Interactive, FunctionType, Module, Name, Load, Store, Del,")
+        self.print("    Assign, AnnAssign, AugAssign, Expr, Return, Pass, Break, Continue, Delete, Raise,")
+        self.print("    Import, ImportFrom, Global, Nonlocal, Assert, If, For, AsyncFor, While, With, AsyncWith,")
+        self.print("    FunctionDef, AsyncFunctionDef, ClassDef, Try, TryStar, Match, TypeAlias,")
+        self.print("    Attribute, Subscript, Slice, Tuple, List, Dict, Set, Starred, NamedExpr, Lambda,")
+        self.print("    BinOp, UnaryOp, BoolOp, Compare, Call, IfExp, Await, Yield, YieldFrom,")
+        self.print("    ListComp, SetComp, DictComp, GeneratorExp, Constant, JoinedStr, TemplateStr,")
+        self.print("    FormattedValue, Interpolation, MatchAs, MatchOr, MatchSequence, MatchMapping, MatchClass,")
+        self.print("    MatchStar, MatchSingleton, MatchValue,")
+        self.print("    Add, Sub, Mult, Div, FloorDiv, Mod, MatMult, Pow, LShift, RShift, BitOr, BitXor, BitAnd,")
+        self.print("    USub, UAdd, Not, Invert, Or, And, Lt, LtE, Gt, GtE, Eq, NotEq, In, IsNot, Is,")
         self.print("}")
         self.print("")
 
@@ -662,6 +509,42 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
             self.print("if isinstance(mod, Expression) {")
             with self.indent():
                 self.print("return (mod as Expression).body;")
+            self.print("}")
+            self.print("return None;")
+        self.print("}")
+        self.print("")
+        self.print("def parse_file_module(p: peg_parser) -> mod | None {")
+        with self.indent():
+            self.print("res = rule_file(p);")
+            self.print("if res is None {")
+            with self.indent():
+                self.print("return None;")
+            self.print("}")
+            self.print("if peg_expect_token(p, ENDMARKER) is None {")
+            with self.indent():
+                self.print("return None;")
+            self.print("}")
+            self.print("return res;")
+        self.print("}")
+        self.print("")
+        self.print("def parse_file_source(source: str, filename: str) -> mod | None {")
+        with self.indent():
+            self.print("p = peg_parser_from_source(source, filename, True);")
+            self.print("peg_set_keywords(p, _build_keyword_lists());")
+            self.print("peg_set_soft_keywords(p, SOFT_KEYWORDS);")
+            self.print("return parse_file_module(p);")
+        self.print("}")
+        self.print("")
+        self.print("def parse_file(source: str, filename: str) -> Module | None {")
+        with self.indent():
+            self.print("mod = parse_file_source(source, filename);")
+            self.print("if mod is None {")
+            with self.indent():
+                self.print("return None;")
+            self.print("}")
+            self.print("if isinstance(mod, Module) {")
+            with self.indent():
+                self.print("return mod as Module;")
             self.print("}")
             self.print("return None;")
         self.print("}")
@@ -902,9 +785,9 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
     def _emit_action(self, node: Alt, is_gather: bool) -> str:
         if node.action:
             try:
-                return self.action_lower.lower(node.action)
-            except ValueError as err:
-                raise ValueError(f"in alt {node!s}: {err}") from err
+                return self.action_translator.translate(node.action)
+            except ActionTranslationError as err:
+                raise ActionTranslationError(f"in alt {node!s}: {err}") from err
         names = list(self.local_variable_names)
         if is_gather:
             return f"pa_seq_insert_front({names[0]}, {names[1]})"
@@ -920,25 +803,40 @@ def load_token_sets() -> tuple[set[str], dict[str, int]]:
     return tokens, exact
 
 
-def filtered_grammar(grammar: Grammar, profile: str) -> tuple[Grammar, set[str]]:
-    if profile != "expr":
-        raise ValueError(f"unknown profile {profile!r}")
-    allowed = rule_closure_bounded(grammar, "eval", EXPR_PROFILE_RULES)
-    new_rules: dict[str, Rule] = {}
-    for name in allowed:
-        new_rules[name] = _filter_rule(grammar.rules[name], allowed, grammar.rules)
-    return Grammar(new_rules.values(), grammar.metas.items()), allowed
+def _reorder_simple_stmt(rule: Rule) -> Rule:
+    order = ("assignment", "return_stmt", "pass_stmt", "del_stmt", "star_expressions")
+    buckets: dict[str, list[Alt]] = {name: [] for name in order}
+    other: list[Alt] = []
+    for alt in rule.rhs.alts:
+        refs = _refs_in_node(alt)
+        placed = False
+        for name in order:
+            if name in refs:
+                buckets[name].append(alt)
+                placed = True
+                break
+        if not placed:
+            other.append(alt)
+    kept: list[Alt] = []
+    for name in order:
+        kept.extend(buckets[name])
+    kept.extend(other)
+    return Rule(rule.name, rule.type, Rhs(kept), rule.memo)
 
 
-def generate_text(*, profile: str = "expr") -> str:
+def prepare_grammar(grammar: Grammar) -> Grammar:
+    rules = dict(grammar.rules)
+    if "simple_stmt" in rules:
+        rules["simple_stmt"] = _reorder_simple_stmt(rules["simple_stmt"])
+    return Grammar(rules.values(), grammar.metas.items())
+
+
+def generate_text() -> str:
     grammar, _, _ = build_parser(GRAMMAR_PATH)
-    if profile:
-        grammar, allowed = filtered_grammar(grammar, profile)
-    else:
-        allowed = set(grammar.rules)
+    grammar = prepare_grammar(grammar)
     tokens, exact = load_token_sets()
     buf = StringIO()
-    gen = JacParserGenerator(grammar, tokens, buf, allowed_rules=allowed)
+    gen = JacParserGenerator(grammar, tokens, buf, allowed_rules=None)
     gen.set_exact_tokens(exact)
     gen.generate(OUT_PATH)
     return buf.getvalue()
@@ -948,9 +846,8 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description="Emit Jac parser from python.gram")
     parser.add_argument("--stdout", action="store_true")
     parser.add_argument("--check", action="store_true")
-    parser.add_argument("--profile", default="expr", help="grammar profile (expr)")
     args = parser.parse_args(argv)
-    text = generate_text(profile=args.profile)
+    text = generate_text()
     if args.stdout:
         sys.stdout.write(text)
         return 0

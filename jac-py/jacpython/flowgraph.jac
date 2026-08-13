@@ -18,6 +18,13 @@ import from opcode_meta {
     OP_POP_JUMP_IF_NONE,
     OP_POP_JUMP_IF_NOT_NONE,
     OP_LOAD_NAME,
+    OP_LOAD_ATTR,
+    OP_STORE_NAME,
+    OP_STORE_ATTR,
+    OP_STORE_SUBSCR,
+    OP_DELETE_NAME,
+    OP_DELETE_ATTR,
+    OP_DELETE_SUBSCR,
     OP_BINARY_OP,
     OP_COMPARE_OP,
     OP_CALL,
@@ -161,6 +168,27 @@ def stack_effect(ins: cinstr) -> int {
     if op == OP_LOAD_NAME or op == OP_LOAD_CONST or op == OP_LOAD_SMALL_INT
     or op == OP_PUSH_NULL {
         return 1;
+    }
+    if op == OP_LOAD_ATTR {
+        return 0;
+    }
+    if op == OP_STORE_NAME {
+        return -1;
+    }
+    if op == OP_STORE_ATTR {
+        return -2;
+    }
+    if op == OP_STORE_SUBSCR {
+        return -3;
+    }
+    if op == OP_DELETE_NAME {
+        return 0;
+    }
+    if op == OP_DELETE_ATTR {
+        return -1;
+    }
+    if op == OP_DELETE_SUBSCR {
+        return -2;
     }
     if op == OP_BINARY_OP or op == OP_COMPARE_OP {
         return -1;

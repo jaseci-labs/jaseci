@@ -166,8 +166,3 @@ test "layer8: parse error returns SyntaxError PyObj" {
     assert (res as any).exception.type_name == "SyntaxError";
 }
 
-test "layer8: exec mode returns NotImplementedError" {
-    res = compile_source("x = 1", "<f>", "exec", 0);
-    assert is_error(res);
-    assert (res as any).exception.type_name == "NotImplementedError";
-}

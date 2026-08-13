@@ -20,7 +20,7 @@ import from ast_nodes {
     Load,
 }
 import from objects { PyInt }
-import from parser_expr { parse_eval_expr }
+import from parser { parse_eval_expr }
 import from compiler_slice {
     ast_one_plus_one,
     ast_neg_x,

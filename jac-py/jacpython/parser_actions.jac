@@ -9,15 +9,24 @@ import from ast_nodes {
     ast_node,
     expr,
     mod,
+    stmt,
     operator,
     unaryop,
     boolop,
     cmpop,
+    expr_context,
     Expression,
+    Module,
     Constant,
     Name,
     Load,
     Store,
+    Del,
+    Attribute,
+    Subscript,
+    Slice,
+    AugAssign,
+    Delete,
     BinOp,
     UnaryOp,
     BoolOp,
@@ -25,6 +34,12 @@ import from ast_nodes {
     Call,
     IfExp,
     Starred,
+    Assign,
+    AnnAssign,
+    Expr,
+    Return,
+    Pass,
+    Tuple,
     Add,
     Sub,
     Mult,
@@ -56,12 +71,44 @@ import from ast_nodes {
     NotIn,
     cmpop,
     keyword,
+    Break,
+    Continue,
+    pattern,
+    arguments,
+    alias,
+    arg,
+    comprehension,
+    excepthandler,
+    match_case,
+    type_param,
+    withitem,
+    MatchOr,
 }
 import from peg_runtime { peg_parser, peg_token, peg_has_error, peg_raise_syntax_error }
 
 obj pa_cmpop_expr_pair {
     has cmpop: cmpop,
         expr: expr;
+}
+
+obj pa_key_value_pair {
+    has key: expr,
+        value: expr;
+}
+
+obj pa_key_pattern_pair {
+    has key: expr,
+        pattern: pattern;
+}
+
+obj pa_keyword_or_starred {
+    has arg: str | None,
+        value: expr;
+}
+
+obj pa_name_default_pair {
+    has arg: arg,
+        default: expr | None;
 }
 
 def pa_extra(
@@ -396,10 +443,6 @@ def pa_call_from_optional_args(
     );
 }
 
-def pa_check_version(_msg: str, body: expr) -> expr {
-    return body;
-}
-
 def pa_check(body: expr) -> expr {
     return body;
 }
@@ -411,3 +454,437 @@ def pa_unsupported_action(p: peg_parser, label: str) -> None {
     peg_raise_syntax_error(p, False, f"unsupported grammar action: {label}");
     return None;
 }
+
+# ---------------- statement actions (file/exec profile, P0.12 band 2) ----------------
+# These lower the straight-line statement grammar actions into ast_nodes.jac
+# objects. Locations arrive as the EXTRA quad (start_lineno, start_col_offset,
+# end_lineno, end_col_offset). Type comments are disabled (None).
+
+# file -> Module. _PyPegen_make_module wraps the flattened statement list. A
+# missing statement list (empty file) yields an empty module body.
+def pa_make_module(body: list[stmt] | None) -> Module {
+    stmts: list[stmt] = [];
+    if body is not None {
+        stmts = body;
+    }
+    return Module(body=stmts, type_ignores=[]);
+}
+
+# statements: statement+ -> flatten list[list[stmt]] into list[stmt]. Each
+# `statement` result is itself a seq (compound -> singleton, simple_stmts -> the
+# ';' separated list). _PyPegen_seq_flatten concatenates them in source order.
+def pa_seq_flatten(parts: list[object]) -> list[stmt] {
+    out: list[stmt] = [];
+    i = 0;
+    while i < len(parts) {
+        chunk = parts[i];
+        if isinstance(chunk, list) {
+            inner = chunk as list[object];
+            j = 0;
+            while j < len(inner) {
+                s = inner[j];
+                if isinstance(s, stmt) {
+                    out.append(s as stmt);
+                }
+                j = j + 1;
+            }
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+# target / RHS context switch: _PyPegen_set_expr_context rewrites a Name's ctx.
+# Jac values are immutable, so rebuild the Name with the requested context.
+def pa_set_context(target: expr, ctx: expr_context) -> expr {
+    if isinstance(target, Name) {
+        n = target as Name;
+        return Name(
+            id=n.id,
+            ctx=ctx,
+            lineno=n.lineno,
+            col_offset=n.col_offset,
+            end_lineno=n.end_lineno,
+            end_col_offset=n.end_col_offset
+        );
+    }
+    if isinstance(target, Attribute) {
+        a = target as Attribute;
+        return Attribute(
+            value=a.value,
+            attr=a.attr,
+            ctx=ctx,
+            lineno=a.lineno,
+            col_offset=a.col_offset,
+            end_lineno=a.end_lineno,
+            end_col_offset=a.end_col_offset
+        );
+    }
+    if isinstance(target, Subscript) {
+        s = target as Subscript;
+        return Subscript(
+            value=s.value,
+            slice=s.slice,
+            ctx=ctx,
+            lineno=s.lineno,
+            col_offset=s.col_offset,
+            end_lineno=s.end_lineno,
+            end_col_offset=s.end_col_offset
+        );
+    }
+    return target;
+}
+
+# star_expressions as a statement -> Expr (expression statement).
+def pa_ast_expr_stmt(
+    value: expr,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> Expr {
+    return Expr(
+        value=value,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+# star_targets '=' annotated_rhs -> Assign. NEW_TYPE_COMMENT is lowered to None
+# (type comments disabled).
+def pa_ast_assign(
+    targets: list[expr],
+    value: expr,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> Assign {
+    return Assign(
+        targets=targets,
+        value=value,
+        type_comment=None,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+# NAME ':' expression ['=' rhs] -> AnnAssign. Faithful AST build; codegen for
+# annotated assignment lands in a later P0.12 band and fails loud if hit first.
+def pa_ast_annassign(
+    target: expr,
+    annotation: expr,
+    value: expr | None,
+    simple: int,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> AnnAssign {
+    return AnnAssign(
+        target=target,
+        annotation=annotation,
+        value=value,
+        simple=simple,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+# return [expr] -> Return.
+def pa_ast_return(
+    value: expr | None,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> Return {
+    return Return(
+        value=value,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+# pass -> Pass.
+def pa_ast_pass(
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> Pass {
+    return Pass(
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+# tuple literal / target -> Tuple. ctx is Load (RHS) or Store (multi-target).
+def pa_ast_tuple(
+    elts: list[expr],
+    ctx: expr_context,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> Tuple {
+    return Tuple(
+        elts=elts,
+        ctx=ctx,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+def pa_ast_attribute(
+    value: expr,
+    attr_name: str,
+    ctx: expr_context,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> Attribute {
+    return Attribute(
+        value=value,
+        attr=attr_name,
+        ctx=ctx,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+def pa_ast_subscript(
+    value: expr,
+    slice_expr: expr,
+    ctx: expr_context,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> Subscript {
+    return Subscript(
+        value=value,
+        slice=slice_expr,
+        ctx=ctx,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+def pa_ast_slice(
+    lower: expr | None,
+    upper: expr | None,
+    step: expr | None,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> Slice {
+    return Slice(
+        lower=lower,
+        upper=upper,
+        step=step,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+def pa_ast_augassign(
+    target: expr,
+    op: operator,
+    value: expr,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> AugAssign {
+    return AugAssign(
+        target=target,
+        op=op,
+        value=value,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+def pa_ast_delete(
+    targets: list[expr],
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> Delete {
+    return Delete(
+        targets=targets,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+# ---------------- full-grammar parser action helpers (Phase 1) ----------------
+
+def pa_ast_break(
+    lineno: int, col_offset: int, end_lineno: int, end_col_offset: int
+) -> Break {
+    return Break(
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+def pa_ast_continue(
+    lineno: int, col_offset: int, end_lineno: int, end_col_offset: int
+) -> Continue {
+    return Continue(
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+def pa_constant_from_expr(value: expr, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> Constant {
+    return Constant(
+        value=py_none(),
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+def pa_seq_append_to_end(head: list[expr], item: expr) -> list[expr] {
+    out: list[expr] = [];
+    i = 0;
+    while i < len(head) {
+        out.append(head[i]);
+        i = i + 1;
+    }
+    out.append(item);
+    return out;
+}
+
+def pa_get_keys(pairs: list[object]) -> list[expr] { return []; }
+def pa_get_values(pairs: list[object]) -> list[expr] { return []; }
+def pa_get_patterns(pairs: list[object]) -> list[pattern] { return []; }
+def pa_get_pattern_keys(pairs: list[object]) -> list[expr] { return []; }
+def pa_map_names_to_ids(names: list[expr]) -> list[str] { return []; }
+def pa_seq_count_dots(name: expr) -> int { return 0; }
+def pa_empty_arguments() -> arguments { return arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]); }
+def pa_dummy_name(lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> Name {
+    return Name(id="_", ctx=Load(), lineno=lineno, col_offset=col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
+}
+def pa_interactive_exit(p: peg_parser) -> list[stmt] { return []; }
+def pa_aug_op(target: expr) -> operator { return Add(); }
+def pa_call_args(node: expr) -> list[expr] { return []; }
+def pa_call_keywords(node: expr) -> list[keyword] { return []; }
+def pa_comp_field(node: expr, field: str) -> expr { return node; }
+def pa_seq_first(seq: list[object]) -> expr | None { return None; }
+def pa_seq_last(seq: list[object]) -> expr | None { return None; }
+def pa_seq_len(seq: list[object]) -> int { return len(seq); }
+def pa_seq_get(seq: list[object], index: int) -> object | None { return None; }
+def pa_or_pattern_singleton(patterns: list[pattern], lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pattern {
+    return MatchOr(patterns=patterns, lineno=lineno, col_offset=col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
+}
+def pa_err_occurred(p: peg_parser) -> bool { return peg_has_error(p); }
+def pa_expr_lineno(node: expr) -> int { return node.lineno; }
+def pa_expr_end_col_offset(node: expr) -> int { return node.end_col_offset; }
+def pa_expr_end_lineno(node: expr) -> int { return node.end_lineno; }
+
+def pa_raise_syntax(p: peg_parser, on_next: bool, message: str) -> None {
+    if peg_has_error(p) { return None; }
+    peg_raise_syntax_error(p, on_next, message);
+    return None;
+}
+
+def pa_raise_syntax_known_expr(p: peg_parser, on_next: bool, node: expr, message: str) -> None {
+    return pa_raise_syntax(p, on_next, message);
+}
+
+def pa_raise_syntax_known_range(p: peg_parser, on_next: bool, a: expr, b: expr, message: str) -> None {
+    return pa_raise_syntax(p, on_next, message);
+}
+
+def pa_raise_invalid_target(p: peg_parser, kind: object, node: expr) -> None {
+    return pa_raise_syntax(p, False, "invalid assignment target");
+}
+
+def pa_raise_type_param_error(colon: object, node: expr, is_tuple: bool) -> None {
+    return None;
+}
+
+def pa_raise_kvpair_error(p: peg_parser, node: expr) -> None {
+    return pa_raise_syntax(p, False, "':' expected after dictionary key");
+}
+
+def pa_check_legacy_stmt_or_raise(p: peg_parser, a: object, b: object) -> None { return None; }
+
+def pa_checked_future_import(module: object, names: object, level: object) -> object { return None; }
+def pa_nonparen_genexp_in_call(a: object, b: object) -> object { return None; }
+def pa_arguments_parsing_error(node: object) -> object { return None; }
+def pa_check_legacy_stmt(p: peg_parser, node: object) -> bool { return False; }
+def pa_concatenate_strings(parts: list[object]) -> expr | None { return None; }
+def pa_concatenate_tstrings(parts: list[object]) -> expr | None { return None; }
+def pa_constant_from_string(spelling: str) -> Constant | None { return None; }
+def pa_constant_from_token(tok: peg_token | None) -> Constant | None { return None; }
+def pa_decoded_constant_from_token(tok: peg_token | None) -> Constant | None { return None; }
+def pa_ensure_imaginary(node: expr) -> expr { return node; }
+def pa_ensure_real(node: expr) -> expr { return node; }
+def pa_get_expr_name(node: expr) -> str { return ""; }
+def pa_get_last_comprehension_item(node: object) -> object { return None; }
+def pa_join_names_with_dot(a: expr, b: expr) -> expr { return a; }
+def pa_join_sequences(a: list[object], b: list[object]) -> list[object] { return a; }
+def pa_alias_for_star(node: object) -> alias | None { return None; }
+def pa_add_type_comment_to_arg(arg: arg, comment: object) -> arg { return arg; }
+def pa_seq_delete_starred_exprs(seq: list[object]) -> list[object] { return seq; }
+def pa_seq_extract_starred_exprs(seq: list[object]) -> list[object] { return seq; }
+def pa_setup_full_format_spec(node: object) -> object { return node; }
+def pa_check_fstring_conversion(a: object, b: object) -> object { return a; }
+def pa_function_def_decorators(decs: list[expr], stmt: stmt) -> stmt { return stmt; }
+def pa_class_def_decorators(decs: list[expr], stmt: stmt) -> stmt { return stmt; }
+def pa_key_value_pair(key: expr, value: expr, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_key_value_pair {
+    return pa_key_value_pair(key=key, value=value);
+}
+def pa_key_pattern_pair(key: expr, pat: pattern, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_key_pattern_pair {
+    return pa_key_pattern_pair(key=key, pattern=pat);
+}
+def pa_name_default_pair(arg: arg, default: expr | None, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_name_default_pair {
+    return pa_name_default_pair(arg=arg, default=default);
+}
+def pa_keyword_or_starred(arg: str | None, value: expr, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_keyword_or_starred {
+    return pa_keyword_or_starred(arg=arg, value=value);
+}
+def pa_make_arguments(a: object, b: object, c: object, d: object, e: object, f: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> arguments {
+    return pa_empty_arguments();
+}
+def pa_star_etc(a: object, b: object, c: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> object { return None; }
+def pa_slash_with_default(a: object, b: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> object { return None; }
+def pa_joined_str(a: object, b: list[expr], c: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> expr | None { return None; }
+def pa_template_str(a: object, b: list[expr], c: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> expr | None { return None; }
+def pa_formatted_value(a: object, b: object, c: object, d: object, e: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> expr | None { return None; }
+def pa_interpolation(a: object, b: object, c: object, d: object, e: object, f: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> expr | None { return None; }

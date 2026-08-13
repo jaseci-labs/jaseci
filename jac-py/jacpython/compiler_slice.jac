@@ -8,19 +8,23 @@
 import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, is_error }
 import from ast_nodes {
     expr,
+    stmt,
     Constant,
     Name,
     BinOp,
     UnaryOp,
     Call,
     Compare,
+    Assign,
+    Return,
     Lt,
     Load,
+    Store,
     Add,
     Mult,
     USub,
 }
-import from compiler_codegen { compile_eval }
+import from compiler_codegen { compile_eval, compile_exec }
 import from assembler { assemble }
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code }
@@ -29,9 +33,58 @@ def oracle_eval(source: str, filename: str) -> PyObj {
     return unmarshal(host_compile_marshal(source, filename, "eval", 0));
 }
 
+def oracle_exec(source: str, filename: str) -> PyObj {
+    return unmarshal(host_compile_marshal(source, filename, "exec", 0));
+}
+
 def compile_handbuilt(e: expr, filename: str = "<f>") -> PyCode {
     u = compile_eval(e, filename, "<module>", 1);
+    assert u.diag is None;
     return assemble(u);
+}
+
+def compile_handbuilt_exec(body: list[stmt], filename: str = "<f>") -> PyCode {
+    u = compile_exec(body, filename, "<module>", 1);
+    assert u.diag is None;
+    return assemble(u);
+}
+
+def ast_chained_assign -> list[stmt] {
+    x = Name(
+        id="x",
+        ctx=Store(),
+        lineno=1,
+        col_offset=0,
+        end_lineno=1,
+        end_col_offset=1
+    );
+    y = Name(
+        id="y",
+        ctx=Store(),
+        lineno=1,
+        col_offset=4,
+        end_lineno=1,
+        end_col_offset=5
+    );
+    one = Constant(
+        value=PyInt(t="int", val=1),
+        kind=None,
+        lineno=1,
+        col_offset=8,
+        end_lineno=1,
+        end_col_offset=9
+    );
+    return [
+        Assign(
+            targets=[x, y],
+            value=one,
+            type_comment=None,
+            lineno=1,
+            col_offset=0,
+            end_lineno=1,
+            end_col_offset=9
+        )
+    ];
 }
 
 def consts_equal(a: list[PyObj], b: list[PyObj]) -> bool {
@@ -254,6 +307,35 @@ test "compiler_slice: x<y<z matches oracle PyCode" {
 
 test "compiler_slice: 1+1 matches oracle PyCode" {
     assert_matches_oracle(ast_one_plus_one(), "1+1");
+}
+
+test "compiler_slice: x = y = 1 matches oracle PyCode" {
+    actual = compile_handbuilt_exec(ast_chained_assign());
+    expected = oracle_exec("x = y = 1\n", "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: module return sets compile diagnostic" {
+    one = Constant(
+        value=PyInt(t="int", val=1),
+        kind=None,
+        lineno=1,
+        col_offset=7,
+        end_lineno=1,
+        end_col_offset=8
+    );
+    u = compile_exec(
+        [Return(value=one, lineno=1, col_offset=0, end_lineno=1, end_col_offset=8)],
+        "<f>",
+        "<module>",
+        1
+    );
+    assert u.diag is not None;
+    assert is_error(u.diag);
+    assert (u.diag as any).exception.message == "'return' outside function";
 }
 
 # ---------------- VM execution ----------------
