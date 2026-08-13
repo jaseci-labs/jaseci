@@ -563,112 +563,6 @@ def _native_lib_filename(stem: str) -> str {
     return f"libjac_{stem}.so";
 }
 
-glob _MATERIALIZE_CORPUS_LINES: tuple = (
-         "import os;",
-         "glob G: int = 42, H: (str | None) = None;",
-         "enum Hue { RED = 1, GREEN = 2 }",
-         "node Spot { has label: str = ''; }",
-         "edge Road { has miles: int = 0; }",
-         "walker Tour {",
-         "    can step with Spot entry;",
-         "}",
-         "impl Tour.step with Spot entry {",
-         "    visit [-->];",
-         "}",
-         "obj Box { has x: int = 0, y: list[int] = [], z: dict[str, int] = {}; ",
-         "    def m(p: int = 1) -> int; }",
-         "impl Box.m(p: int = 1) -> int {",
-         "    if p > 1 and p < 9 or not p { for i in range(p) { self.x += i; } }",
-         "    elif p == 0 { while self.x { self.x -= 1; } }",
-         "    else { try { raise ValueError('v'); } except ValueError as e { } }",
-         "    return self.x if self.x else -1;",
-         "}",
-         "def pick(v: any) -> int {",
-         "    match v {",
-         "        case [1, 2]: return 1;",
-         "        case {'k': 2}: return 2;",
-         "        case _: return 0;",
-         "    }",
-         "}",
-         "def:pub View(t: str) -> JsxElement {",
-         "    return <div id='a'>{t}</div>;",
-         "}",
-         "async def later -> None {}",
-         "test box_holds { assert Box(x=1).m() >= -1; }",
-         "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }",
-
-     ),
-     _MATERIALIZE_MASK_MEMO: dict = {};
-
-def _materialize_mask(pkg_path: Path) -> tuple[dict, dict] {
-    memo_key = str(pkg_path);
-    cached = _MATERIALIZE_MASK_MEMO.get(memo_key);
-    if cached is not None {
-        return cached;
-    }
-    import from jaclang.jac0core.parser.lexer { tokenize_full }
-    import from jaclang.jac0core.parser.parser { Parser }
-    nl = chr(10);
-    sources: list[tuple[str, str]] = [
-        (nl.join(list(_MATERIALIZE_CORPUS_LINES)), "__mask_corpus__.jac", )
-    ];
-    for rel in ("jac0core/unitree.jac", "jac0core/parser/impl/parser.impl.jac") {
-        src_file = pkg_path / rel;
-        if src_file.is_file() {
-            sources.append((src_file.read_text(encoding="utf-8"), rel, ));
-        }
-    }
-    observed: dict[str, set] = {};
-    mangle: dict[str, str] = {};
-    for (src, path) in sources {
-        (tokens, _c, _ld, _le) = tokenize_full(src, path);
-        parser = Parser(tokens=tokens, file_path=path, source_code=src);
-        mod = parser.parse();
-        stack = [mod];
-        seen: set = set();
-        while stack {
-            objn = stack.pop();
-            if id(objn) in seen {
-                continue;
-            }
-            seen.add(id(objn));
-            d = objn?.__dict__;
-            if d is None {
-                continue;
-            }
-            cname = type(objn).__name__;
-            keys = observed.get(cname);
-            if keys is None {
-                keys = set();
-                observed[cname] = keys;
-            }
-            for k in d.keys() {
-                keys.add(k);
-                if k.startswith("_") and "__" in k[1:] {
-                    priv = k[k.index("__", 1):];
-                    mangle[priv] = k;
-                }
-            }
-            for v in d.values() {
-                if hasattr(v, "__dict__") and hasattr(v, "kid") {
-                    stack.append(v);
-                } elif type(v).__name__ == "CodeLocInfo" {
-                    stack.append(v);
-                } elif isinstance(v, list) {
-                    for it in v {
-                        if hasattr(it, "__dict__") and hasattr(it, "kid") {
-                            stack.append(it);
-                        }
-                    }
-                }
-            }
-        }
-    }
-    result = (observed, mangle);
-    _MATERIALIZE_MASK_MEMO[memo_key] = result;
-    return result;
-}
-
 def seal_native_artifacts(
     pkg_path: Path,
     precompiled_dir: Path,
@@ -711,7 +605,9 @@ def seal_native_artifacts(
                 generate as generate_materialize_root
             }
 
-            _mat_manifest = generate_materialize_root(unitree_layout, src);
+            _mat_manifest = generate_materialize_root(
+                unitree_layout, src, _UNITREE_SEAM_WAIVERS
+            );
             _gen_root_src = src;
         }
         if not src.is_file() {

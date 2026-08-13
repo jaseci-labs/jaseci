@@ -1,0 +1,686 @@
+import re;
+import sys;
+
+import from dataclasses { fields as dc_fields }
+import from pathlib { Path }
+
+glob _MATERIALIZE_CORPUS_LINES: tuple = (
+         "import os;",
+         "glob G: int = 42, H: (str | None) = None;",
+         "enum Hue { RED = 1, GREEN = 2 }",
+         "node Spot { has label: str = ''; }",
+         "edge Road { has miles: int = 0; }",
+         "walker Tour {",
+         "    can step with Spot entry;",
+         "}",
+         "impl Tour.step with Spot entry {",
+         "    visit [-->];",
+         "}",
+         "obj Box { has x: int = 0, y: list[int] = [], z: dict[str, int] = {}; ",
+         "    def m(p: int = 1) -> int; }",
+         "impl Box.m(p: int = 1) -> int {",
+         "    if p > 1 and p < 9 or not p { for i in range(p) { self.x += i; } }",
+         "    elif p == 0 { while self.x { self.x -= 1; } }",
+         "    else { try { raise ValueError('v'); } except ValueError as e { } }",
+         "    return self.x if self.x else -1;",
+         "}",
+         "def pick(v: any) -> int {",
+         "    match v {",
+         "        case [1, 2]: return 1;",
+         "        case {'k': 2}: return 2;",
+         "        case _: return 0;",
+         "    }",
+         "}",
+         "def:pub View(t: str) -> JsxElement {",
+         "    return <div id='a'>{t}</div>;",
+         "}",
+         "async def later -> None {}",
+         "test box_holds { assert Box(x=1).m() >= -1; }",
+         "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }",
+
+     ),
+     _MATERIALIZE_MASK_MEMO: dict = {};
+
+def _materialize_mask(pkg_path: Path) -> tuple[dict, dict] {
+    memo_key = str(pkg_path);
+    cached = _MATERIALIZE_MASK_MEMO.get(memo_key);
+    if cached is not None {
+        return cached;
+    }
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.parser { Parser }
+    nl = chr(10);
+    sources: list[tuple[str, str]] = [
+        (nl.join(list(_MATERIALIZE_CORPUS_LINES)), "__mask_corpus__.jac", )
+    ];
+    for rel in ("jac0core/unitree.jac", "jac0core/parser/impl/parser.impl.jac") {
+        src_file = pkg_path / rel;
+        if src_file.is_file() {
+            sources.append((src_file.read_text(encoding="utf-8"), rel, ));
+        }
+    }
+    observed: dict[str, set] = {};
+    mangle: dict[str, str] = {};
+    for (src, path) in sources {
+        (tokens, _c, _ld, _le) = tokenize_full(src, path);
+        parser = Parser(tokens=tokens, file_path=path, source_code=src);
+        mod = parser.parse();
+        stack = [mod];
+        seen: set = set();
+        while stack {
+            objn = stack.pop();
+            if id(objn) in seen {
+                continue;
+            }
+            seen.add(id(objn));
+            d = objn?.__dict__;
+            if d is None {
+                continue;
+            }
+            cname = type(objn).__name__;
+            keys = observed.get(cname);
+            if keys is None {
+                keys = set();
+                observed[cname] = keys;
+            }
+            for k in d.keys() {
+                keys.add(k);
+                if k.startswith("_") and "__" in k[1:] {
+                    priv = k[k.index("__", 1):];
+                    mangle[priv] = k;
+                }
+            }
+            for v in d.values() {
+                if hasattr(v, "__dict__") and hasattr(v, "kid") {
+                    stack.append(v);
+                } elif type(v).__name__ == "CodeLocInfo" {
+                    stack.append(v);
+                } elif isinstance(v, list) {
+                    for it in v {
+                        if hasattr(it, "__dict__") and hasattr(it, "kid") {
+                            stack.append(it);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    result = (observed, mangle);
+    _MATERIALIZE_MASK_MEMO[memo_key] = result;
+    return result;
+}
+
+glob _SCALARS: tuple = ("int", "bool", "float", "str");
+
+def _norm(t: str) -> str {
+    return t.replace("Sequence[", "list[").strip("() ");
+}
+
+def _base_of(t: str) -> str {
+    m = re.match(r"^(\w+)", t);
+    return m.group(1) if m else "";
+}
+
+def _inner(t: str) -> str {
+    m = re.match(r"^\w+\[(.*)\]$", t);
+    return m.group(1) if m else "";
+}
+
+def _split_union(s: str) -> list[str] {
+    out: list[str] = [];
+    depth = 0;
+    cur = "";
+    for ch in s {
+        if ch == "[" {
+            depth += 1;
+        } elif ch == "]" {
+            depth -= 1;
+        }
+        if ch == "|" and depth == 0 {
+            out.append(cur.strip());
+            cur = "";
+        } else {
+            cur += ch;
+        }
+    }
+    out.append(cur.strip());
+    return [
+        a.strip("() ")
+        for a in out
+        if a.strip("() ")
+    ];
+}
+
+def _split_kv(kv: str) -> tuple[str, str] {
+    depth = 0;
+    cur = "";
+    parts: list[str] = [];
+    for ch in kv {
+        if ch == "[" {
+            depth += 1;
+        } elif ch == "]" {
+            depth -= 1;
+        }
+        if ch == "," and depth == 0 {
+            parts.append(cur.strip());
+            cur = "";
+        } else {
+            cur += ch;
+        }
+    }
+    parts.append(cur.strip());
+    while len(parts) < 2 {
+        parts.append("");
+    }
+    return (_norm(parts[0]), _norm(parts[1]));
+}
+
+obj _MatGen {
+    has ns: dict = {},
+        enum_ns: dict = {},
+        uni_mod: any = None,
+        observed: dict = {},
+        mangle: dict = {},
+        foreign: dict = {},
+        layout_fields: dict = {},
+        struct_names: set = set(),
+        keys: list[str] = [],
+        key_idx: dict = {},
+        enum_sites: list[str] = [],
+        warnings: list[str] = [];
+
+    def is_uninode(name: str) -> bool {
+        import jaclang.jac0core.unitree as uni;
+        cls = self.ns.get(name);
+        return cls is not None and issubclass(cls, uni.UniNode);
+    }
+
+    def kidx(name: str) -> int {
+        if name not in self.key_idx {
+            self.key_idx[name] = len(self.keys);
+            self.keys.append(name);
+        }
+        return self.key_idx[name];
+    }
+
+    def register_enum(en: str) {
+        if en not in self.enum_sites {
+            self.enum_sites.append(en);
+        }
+    }
+
+    def scalar_expr(expr: str, a: str) -> str {
+        a = a.strip();
+        if a == "int" {
+            return f"PyLong_FromLongLong({expr})";
+        }
+        if a == "bool" {
+            return f"PyBool_FromLong(1 if {expr} else 0)";
+        }
+        if a == "float" {
+            return f"PyFloat_FromDouble({expr})";
+        }
+        if a == "str" {
+            return f"_py_str({expr})";
+        }
+        return "_py_none()";
+    }
+
+    def emit_list(v: str, expr: str, elem: str, out: list, ind: str, uid: str) {
+        elem = _norm(elem);
+        eb = _base_of(elem);
+        u = uid + "l";
+        out.append(ind + f"{v} = PyList_New(len({expr}));");
+        out.append(ind + f"li_{u} = 0;");
+        out.append(ind + f"for it_{u} in {expr} {{");
+        if elem in _SCALARS {
+            out.append(ind + f"    e_{u} = " + self.scalar_expr(f"it_{u}", elem) + ";");
+        } elif eb in self.ns and not self.is_uninode(eb) {
+            out.append(ind + f"    e_{u} = _emit_{eb}(it_{u});");
+        } else {
+            out.append(ind + f"    e_{u} = _emit_node(it_{u});");
+        }
+        out.append(ind + f"    PyList_SetItem({v}, li_{u}, e_{u});");
+        out.append(ind + f"    li_{u} += 1;");
+        out.append(ind + "}");
+    }
+
+    def emit_dict(v: str, expr: str, kv: str, out: list, ind: str, uid: str) {
+        (kt, vt) = _split_kv(kv);
+        u = uid + "d";
+        out.append(ind + f"{v} = PyDict_New();");
+        out.append(ind + f"for (dk_{u}, dv_{u}) in {expr}.items() {{");
+        kexpr = self.scalar_expr(f"dk_{u}", kt if kt in _SCALARS else "int");
+        out.append(ind + f"    kh_{u} = {kexpr};");
+        vb = _base_of(vt);
+        if vt in _SCALARS {
+            out.append(ind + f"    vh_{u} = " + self.scalar_expr(f"dv_{u}", vt) + ";");
+        } elif vb == "list" {
+            self.emit_list(f"vh_{u}", f"dv_{u}", _inner(vt), out, ind + "    ", u);
+        } elif vb == "set" {
+            out.append(ind + f"    vh_{u} = PySet_New(0);");
+            out.append(ind + f"    if len(dv_{u}) != 0 {{");
+            out.append(ind + f"        Py_DecRef(vh_{u});");
+            out.append(ind + "        return 0;");
+            out.append(ind + "    }");
+        } elif vb in self.ns and not self.is_uninode(vb) {
+            out.append(ind + f"    vh_{u} = _emit_{vb}(dv_{u});");
+        } else {
+            out.append(ind + f"    vh_{u} = _emit_node(dv_{u});");
+        }
+        out.append(ind + f"    PyDict_SetItem({v}, kh_{u}, vh_{u});");
+        out.append(ind + f"    Py_DecRef(kh_{u});");
+        out.append(ind + f"    Py_DecRef(vh_{u});");
+        out.append(ind + "}");
+    }
+
+    def emit_value(expr: str, ann: str, out: list, ind: str, uid: str) -> str {
+        v = f"v_{uid}";
+        ann = _norm(ann);
+        arms = _split_union(ann);
+        has_none = "None" in arms;
+        arms = [
+            a
+            for a in arms
+            if a != "None"
+        ];
+        pre = ind;
+        if not arms {
+            out.append(pre + f"{v} = _py_none();");
+            return v;
+        }
+        fv = f"fv_{uid}";
+        out.append(pre + f"{fv} = {expr};");
+        expr = fv;
+        if has_none {
+            out.append(pre + f"if {expr} is None {{");
+            out.append(pre + f"    {v} = _py_none();");
+            out.append(pre + "} else {");
+            pre = ind + "    ";
+        }
+        if len(arms) == 1 {
+            a = arms[0];
+            ab = _base_of(a);
+            if a in _SCALARS {
+                out.append(pre + f"{v} = " + self.scalar_expr(expr, a) + ";");
+            } elif ab == "list" {
+                self.emit_list(v, expr, _inner(a), out, pre, uid);
+            } elif ab == "dict" {
+                self.emit_dict(v, expr, _inner(a), out, pre, uid);
+            } elif ab == "set" {
+                out.append(pre + f"{v} = PySet_New(0);");
+                out.append(pre + f"if len({expr}) != 0 {{");
+                out.append(pre + f"    Py_DecRef({v});");
+                out.append(pre + "    return 0;");
+                out.append(pre + "}");
+            } elif ab in self.enum_ns {
+                self.register_enum(ab);
+                out.append(pre + f"{v} = _enum_{ab}({expr});");
+            } elif ab == "SubTag" or (ab in self.ns and self.is_uninode(ab)) {
+                out.append(pre + f"{v} = _emit_node({expr});");
+            } elif ab in self.ns {
+                out.append(pre + f"{v} = _emit_{ab}({expr});");
+            } else {
+                self.warnings.append(f"unhandled annotation {repr(ann)} -> None");
+                out.append(pre + f"{v} = _py_none();");
+            }
+        } else {
+            list_arms = [
+                a
+                for a in arms
+                if _norm(a).startswith("list[")
+            ];
+            cls_arms: list[str] = [];
+            for a in arms {
+                ab = _base_of(_norm(a));
+                if ab != "list" and ab in self.ns {
+                    cls_arms.append(ab);
+                }
+            }
+            first_kw = "if";
+            if list_arms {
+                la_elem = _inner(_norm(list_arms[0]));
+                la_base = _base_of(la_elem) if la_elem else "UniNode";
+                out.append(pre + f"if isinstance({expr}, list) {{");
+                out.append(pre + f"    tl_{uid}: list[{la_base}] = {expr};");
+                self.emit_list(v, f"tl_{uid}", la_elem, out, pre + "    ", uid);
+                first_kw = "} elif";
+            }
+            for ab in cls_arms {
+                out.append(pre + f"{first_kw} isinstance({expr}, {ab}) {{");
+                out.append(pre + f"    {v} = _emit_node({expr});");
+                first_kw = "} elif";
+            }
+            if first_kw == "if" {
+                out.append(pre + f"{v} = _py_none();");
+            } else {
+                out.append(pre + "} else {");
+                out.append(pre + f"    {v} = _py_none();");
+                out.append(pre + "}");
+            }
+        }
+        if has_none {
+            out.append(ind + "}");
+        }
+        return v;
+    }
+
+    def class_fields(sn: str) -> list[tuple] {
+        cls = self.ns[sn];
+        inv_mangle = {v: k for (k, v) in self.mangle.items()};
+        ann_by_name: dict = {};
+        for f in dc_fields(cls) {
+            base = inv_mangle.get(f.name, f.name);
+            ann_by_name[base] = str(f.type);
+        }
+        keep = self.observed.get(sn);
+        out: list[tuple] = [];
+        for lf in self.layout_fields.get(sn, []) {
+            dict_key = self.mangle.get(lf, lf);
+            if keep is not None and dict_key not in keep {
+                continue;
+            }
+            out.append((lf, dict_key, ann_by_name.get(lf), ));
+        }
+        return out;
+    }
+}
+
+glob _HEADER_LINES: tuple = (
+         '\'\'\'GENERATED at seal time by jaclang/utils/gen_native_materialize.jac.',
+         '',
+         'The seal root for the native parser artifact: importing the parser pulls',
+         'parse_program (and the whole unitree closure) into this native unit, and',
+         'the emitters below rebuild a parsed tree as real CPython objects through',
+         'libpython externs resolved from the host process (ELF lazy PLT / Mach-O',
+         'flat lookup). Bound with the GIL HELD (PYFUNCTYPE); see',
+         'frontend._native_parse. Erased native slots stay None here and are',
+         'reconstructed by native_marshal.materialize_fixups.',
+         '\'\'\'',
+         'import from jaclang.jac0core.parser.parser { parse_program }',
+         '@UNI_IMPORT@',
+         '@CONST_IMPORT@',
+         '@SRC_IMPORT@',
+         '',
+         'import from python {',
+         '    def PyLong_FromLongLong(v: int) -> int;',
+         '    def PyBool_FromLong(v: int) -> int;',
+         '    def PyFloat_FromDouble(v: float) -> int;',
+         '    def PyUnicode_FromStringAndSize(s: str, n: int) -> int;',
+         '    def PyList_New(n: int) -> int;',
+         '    def PyList_SetItem(l: int, i: int, v: int) -> i32;',
+         '    def PyDict_New() -> int;',
+         '    def PyDict_SetItem(d: int, k: int, v: int) -> i32;',
+         '    def PySet_New(i: int) -> int;',
+         '    def PySet_Add(s: int, v: int) -> i32;',
+         '    def PyObject_CallOneArg(f: int, a: int) -> int;',
+         '    def PyObject_GenericGetDict(o: int, ctx: int) -> int;',
+         '    def Py_IncRef(o: int) -> None;',
+         '    def Py_DecRef(o: int) -> None;',
+         '    def Py_GetConstant(cid: int) -> int;',
+         '}',
+         '',
+         'glob _mat_classes: list[int] = [],',
+         '     _mat_news: list[int] = [],',
+         '     _mat_keys: list[int] = [],',
+         '     _mat_enums: list[int] = [],',
+         '     _mat_memo: dict[int, int] = {};',
+         '',
+         'def _py_none -> int {',
+         '    return Py_GetConstant(0);',
+         '}',
+         '',
+         'def _py_str(s: str) -> int {',
+         '    return PyUnicode_FromStringAndSize(s, len(s));',
+         '}',
+         '',
+         'def mat_reset(ncls: int, nkeys: int, nenums: int) -> None {',
+         '    _mat_classes.clear();',
+         '    _mat_news.clear();',
+         '    _mat_keys.clear();',
+         '    _mat_enums.clear();',
+         '    i = 0;',
+         '    while i < ncls {',
+         '        _mat_classes.append(0);',
+         '        _mat_news.append(0);',
+         '        i += 1;',
+         '    }',
+         '    i = 0;',
+         '    while i < nkeys {',
+         '        _mat_keys.append(0);',
+         '        i += 1;',
+         '    }',
+         '    i = 0;',
+         '    while i < nenums {',
+         '        _mat_enums.append(0);',
+         '        i += 1;',
+         '    }',
+         '}',
+         '',
+         'def mat_set_class(i: int, cls_h: int, new_h: int) -> None {',
+         '    _mat_classes[i] = cls_h;',
+         '    _mat_news[i] = new_h;',
+         '}',
+         '',
+         'def mat_set_key(i: int, key_h: int) -> None {',
+         '    _mat_keys[i] = key_h;',
+         '}',
+         '',
+         'def mat_set_enum(i: int, member_h: int) -> None {',
+         '    _mat_enums[i] = member_h;',
+         '}',
+         '',
+         'def mat_materialize(mod: Module) -> int {',
+         '    root_h = _emit_node(mod);',
+         '    for (_addr, h) in _mat_memo.items() {',
+         '        Py_DecRef(h);',
+         '    }',
+         '    _mat_memo.clear();',
+         '    return root_h;',
+         '}',
+
+     );
+
+def generate(layout: dict, out_jac: Path, waivers: tuple) -> dict {
+    import jaclang;
+    import jaclang.jac0core.constant as constant_mod;
+    import jaclang.jac0core.srcloc as srcloc_mod;
+    import jaclang.jac0core.unitree as uni_mod;
+
+    g = _MatGen();
+    g.uni_mod = uni_mod;
+    for mod in (uni_mod, srcloc_mod) {
+        for (k, v) in vars(mod).items() {
+            if isinstance(v, type) and v.__module__ == mod.__name__ {
+                g.ns.setdefault(k, v);
+            }
+        }
+    }
+    for mod in (uni_mod, constant_mod, srcloc_mod) {
+        for (k, v) in vars(mod).items() {
+            if isinstance(v, type) and hasattr(v, "__members__") {
+                g.enum_ns.setdefault(k, v);
+            }
+        }
+    }
+    pkg_path = Path(str(jaclang.__file__)).parent;
+    (g.observed, g.mangle) = _materialize_mask(pkg_path);
+
+    structs = layout["structs"];
+    for (sn, sd) in structs.items() {
+        flds: list[dict] = list(sd["fields"]);
+        for f in flds {
+            g.foreign[(sn, f["name"], )] = bool(f.get("foreign"));
+        }
+        g.layout_fields[sn] = [f["name"] for f in flds];
+    }
+    g.struct_names = set(structs.keys());
+
+    chain_classes: list[str] = [];
+    direct_classes: list[str] = [];
+    for sn in structs {
+        if sn not in g.ns {
+            continue;
+        }
+        if g.is_uninode(sn) {
+            chain_classes.append(sn);
+        } else {
+            direct_classes.append(sn);
+        }
+    }
+
+    freq = {"Name": 0, "Token": 1, "String": 2, "Int": 3, "Semi": 4};
+    deco = [(-len(g.ns[n].__mro__), freq.get(n, 50), n, ) for n in chain_classes];
+    deco.sort();
+    chain_classes = [t[2] for t in deco];
+    all_emit = chain_classes + sorted(direct_classes);
+
+    emit_fns: list[str] = [];
+    for (ci, sn) in enumerate(all_emit) {
+        lines: list[str] = [];
+        lines.append(f"def _emit_{sn}(nd: {sn}) -> int {{");
+        lines.append("    h = _mat_memo.get(id(nd), 0);");
+        lines.append("    if h != 0 {");
+        lines.append("        Py_IncRef(h);");
+        lines.append("        return h;");
+        lines.append("    }");
+        lines.append(
+            f"    obj_h = PyObject_CallOneArg(_mat_news[{ci}], _mat_classes[{ci}]);"
+        );
+        lines.append("    if obj_h == 0 {");
+        lines.append("        return 0;");
+        lines.append("    }");
+        lines.append("    _mat_memo[id(nd)] = obj_h;");
+        lines.append("    d_h = PyObject_GenericGetDict(obj_h, 0);");
+        lines.append("    if d_h == 0 {");
+        lines.append("        return 0;");
+        lines.append("    }");
+        for (fi, fld) in enumerate(g.class_fields(sn)) {
+            (lf, dict_key, ann) = fld;
+            ki = g.kidx(dict_key);
+            uid = f"{ci}_{fi}";
+            lines.append(f"    # {dict_key}: {ann}");
+            if g.foreign.get((sn, lf, )) or ann is None {
+                vname = f"v_{uid}";
+                lines.append(f"    {vname} = _py_none();");
+            } elif sn == "SubTag" and lf == "tag" {
+                vname = f"v_{uid}";
+                lines.append(f"    {vname} = _emit_node(nd.kid[len(nd.kid) - 1]);");
+            } else {
+                body: list[str] = [];
+                vname = g.emit_value(f"nd.{lf}", ann, body, "    ", uid);
+                lines.extend(body);
+            }
+            lines.append(f"    PyDict_SetItem(d_h, _mat_keys[{ki}], {vname});");
+            lines.append(f"    Py_DecRef({vname});");
+        }
+        lines.append("    Py_DecRef(d_h);");
+        lines.append("    Py_IncRef(obj_h);");
+        lines.append("    return obj_h;");
+        lines.append("}");
+        emit_fns.append("\n".join(lines));
+    }
+
+    chain: list[str] = ["def _emit_node(nd: UniNode) -> int {"];
+    first = True;
+    for sn in chain_classes {
+        kw = "if" if first else "} elif";
+        chain.append(f"    {kw} isinstance(nd, {sn}) {{");
+        chain.append(f"        return _emit_{sn}(nd);");
+        first = False;
+    }
+    chain.append("    }");
+    chain.append("    return _py_none();");
+    chain.append("}");
+
+    enum_fns: list[str] = [];
+    enum_members_manifest: list[tuple] = [];
+    base = 0;
+    for en in g.enum_sites {
+        ecls = g.enum_ns[en];
+        members = [m for m in ecls.__members__];
+        enum_members_manifest.append((en, members, ));
+        fl: list[str] = [f"def _enum_{en}(v: {en}) -> int {{"];
+        for (mi, mn) in enumerate(members) {
+            kw = "if" if mi == 0 else "} elif";
+            fl.append(f"    {kw} v == {en}.{mn} {{");
+            fl.append(f"        h = _mat_enums[{base + mi}];");
+            fl.append("        Py_IncRef(h);");
+            fl.append("        return h;");
+        }
+        fl.append("    }");
+        fl.append("    return PyLong_FromLongLong(0);");
+        fl.append("}");
+        enum_fns.append("\n".join(fl));
+        base += len(members);
+    }
+
+    uni_names = sorted(
+        {
+            sn
+            for sn in all_emit
+            if g.ns[sn].__module__ == uni_mod.__name__
+        }
+            | {"UniNode"}
+    );
+    src_names = sorted(
+        {
+            sn
+            for sn in all_emit
+            if g.ns[sn].__module__ == srcloc_mod.__name__
+        }
+    );
+    const_enums = sorted(
+        {
+            en
+            for en in g.enum_sites
+            if g.enum_ns[en].__module__ == constant_mod.__name__
+        }
+    );
+    nl = chr(10);
+    header = nl.join(list(_HEADER_LINES));
+    header = header.replace(
+        "@UNI_IMPORT@",
+        "import from jaclang.jac0core.unitree {"
+            + nl
+            + "    "
+            + ("," + nl + "    ").join(uni_names)
+            + nl
+            + "}"
+    );
+    header = header.replace(
+        "@SRC_IMPORT@",
+        "import from jaclang.jac0core.srcloc { " + ", ".join(src_names) + " }"
+    );
+    header = header.replace(
+        "@CONST_IMPORT@",
+        ("import from jaclang.jac0core.constant { " + ", ".join(const_enums) + " }")
+            if const_enums
+            else ""
+    );
+
+    sep = nl + nl;
+    parts = [header, sep.join(enum_fns), sep.join(emit_fns), nl.join(chain)];
+    out_jac.write_text(
+        sep.join(
+            [
+                p
+                for p in parts
+                if p
+            ]
+        )
+            + nl,
+        encoding="utf-8"
+    );
+
+    waived_attrs = {str(w).split("::")[-1].split(".")[1] for w in waivers};
+    emitted_reads = set(re.findall(r"nd\.(\w+)", sep.join(emit_fns)));
+    collisions = (emitted_reads - {"kid"}) & waived_attrs;
+    assert not collisions , f"emitters read waived accessors: {collisions}";
+
+    return {
+        "class_names": all_emit,
+        "key_names": g.keys,
+        "enums": enum_members_manifest
+    };
+}
