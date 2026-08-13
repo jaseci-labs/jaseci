@@ -1215,7 +1215,7 @@ impl ModulePath.resolve_relative_path_list -> list[str] {
     }
     for i in range(len(parts) - 2, -1, -1) {
         init_found = False;
-        for init_name in ['__init__.jac', '__init__.py', '__init__.pyi'] {
+        for init_name in ('__init__.jac', '__init__.py', '__init__.pyi') {
             init_path = os.path.join(cur_dir, init_name);
             if os.path.isfile(init_path) {
                 paths[i] = init_path;
