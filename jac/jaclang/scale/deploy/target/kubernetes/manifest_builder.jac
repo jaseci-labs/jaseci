@@ -93,10 +93,10 @@ def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
     return (
         "\nThe client build ran on the bundle's staged sources, and these "
         "files it references never ship:\n"
-            + "\n".join(lines)
-            + "\nDrop the exclusion or remove the reference; build-time "
-            "values belong in [scale.secrets] or pod env, not in files the "
-            "bundle strips."
+        + "\n".join(lines)
+        + "\nDrop the exclusion or remove the reference; build-time "
+        "values belong in [scale.secrets] or pod env, not in files the "
+        "bundle strips."
     );
 }
 
@@ -369,9 +369,7 @@ obj ManifestBuilder {
                 if result.returncode == 0 {
                     break;
                 }
-                output = (
-                    (result.stdout or "") + "\n" + (result.stderr or "")
-                ).strip();
+                output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip();
                 tail = _output_tail(result);
                 if (
                     attempt < _CLIENT_BUILD_ATTEMPTS

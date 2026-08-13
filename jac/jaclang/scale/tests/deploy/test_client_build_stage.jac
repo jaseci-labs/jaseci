@@ -184,9 +184,7 @@ test "the build runs in an ephemeral stage and the dist is copied back" {
         assert not os.path.isdir(build_cwd) , (
             "the deploy left its staging directory behind"
         );
-        index_html = os.path.join(
-            project_dir, ".jac", "client", "dist", "index.html"
-        );
+        index_html = os.path.join(project_dir, ".jac", "client", "dist", "index.html");
         assert os.path.isfile(index_html) , (
             "the built dist never made it back to where the bundle pack "
             "ships it from"
@@ -250,9 +248,7 @@ test "the same reference fails silently nowhere: unparked, it just builds" {
             staged = set(f.read().splitlines());
         }
         assert "docsite/util.jac" in staged , staged;
-        assert ".env" not in staged , (
-            ".env never ships, .jacignore or not"
-        );
+        assert ".env" not in staged , (".env never ships, .jacignore or not");
     } finally {
         shutil.rmtree(project_dir, ignore_errors=True);
         shutil.rmtree(rec, ignore_errors=True);
