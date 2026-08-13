@@ -1270,6 +1270,21 @@ impl NaIRGenPass._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Val
         return val;
     }
     _want = self._lower_type(_nt);
+    if _nt.shared.class_name in ("list", "Sequence") and self?.jacval_type {
+        _nt_args = _nt.private.type_args or [];
+        _nt_bare = not _nt_args;
+        if not _nt_bare and len(_nt_args) == 1 {
+            _a0 = _nt_args[0];
+            _nt_bare = (
+                isinstance(_a0, _ClassType)
+                and _a0.shared.class_name in ("any", "Any", "object")
+            );
+        }
+        if _nt_bare {
+            self._emit_list_helpers("jacval", self.jacval_type);
+            _want = self.list_types["jacval"].as_pointer();
+        }
+    }
     if _want is None or isinstance(_want, ir.VoidType) or _want == val.type {
         return val;
     }

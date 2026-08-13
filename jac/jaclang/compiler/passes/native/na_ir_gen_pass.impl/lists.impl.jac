@@ -258,11 +258,10 @@ impl NaIRGenPass._codegen_list_val(nd: uni.ListVal) -> (ir.Value | None) {
         }
         _own_spec = self._elem_spec_of(nd);
         _dest_spec = self._empty_list_dest_spec(nd);
-        if _own_spec is None {
-            _own_spec = _dest_spec;
-        } elif (
+        if (
             _dest_spec is not None
-            and (_own_spec == "jacval") != (_dest_spec == "jacval")
+            and _dest_spec != "jacval"
+            and (_own_spec is None or _own_spec == "jacval")
         ) {
             _own_spec = _dest_spec;
         }
