@@ -70,6 +70,15 @@ jobs:
           - os: macos-15-intel
             platform: macos-x86_64
             zig_target: x86_64-macos.12.0
+        # The Intel-Mac leg is release-only: it exists to pin the macOS 12.0
+        # floor for versioned releases, and on the dev channel it was the
+        # critical path (~24 min/merge on the slow Intel runners) for a
+        # rolling prerelease Intel users don't consume. Versioned releases
+        # still ship macos-x86_64. The expression matches nothing ('none')
+        # on the release channel and on release/dispatch events, where
+        # inputs.channel is empty.
+        exclude:
+          - platform: ${{ inputs.channel == 'dev' && 'macos-x86_64' || 'none' }}
     runs-on: ${{ matrix.os }}
     env:
       # -Dtarget flag for zig build: set on release-channel Linux legs, empty
@@ -121,6 +130,75 @@ jobs:
           restore-keys: |
             jac-precompiled-${{ runner.os }}-${{ runner.arch }}-
 
+      # pbs + bun: the two read-mostly runtime trees `zig build` otherwise
+      # re-downloads and re-extracts on every push to main (the ~600 MB
+      # python-build-standalone tree is the slow one; measured at several
+      # minutes per leg). Keys mirror setup-jac verbatim so the Linux-x86_64
+      # leg shares the entry main seeds; the other legs self-seed here (no
+      # other workflow runs on their runners). Dev channel only: the release
+      # channel builds cold on purpose.
+      - name: Restore cached python-build-standalone tree (dev channel)
+        if: inputs.channel == 'dev'
+        uses: actions/cache@v4
+        with:
+          path: jac/.pbs-build
+          key: pbs-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/payload.zig') }}
+
+      - name: Restore cached bun runtime (dev channel)
+        if: inputs.channel == 'dev'
+        uses: actions/cache@v4
+        with:
+          path: jac/.bun-build
+          key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
+
+      # The payload's compressed deps-layer frame (mkpayload --layer-cache):
+      # content-addressed and verified by decompress + byte-compare before
+      # reuse, so a stale restore can only miss, never mis-serve (same
+      # contract as the JIR tree above). Key mirrors setup-jac verbatim.
+      - name: Restore cached payload deps-layer frame (dev channel)
+        if: inputs.channel == 'dev'
+        uses: actions/cache@v4
+        with:
+          path: jac/.payload-layers
+          key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/editor/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+          restore-keys: |
+            payload-layers-${{ runner.os }}-${{ runner.arch }}-
+
+      # Release channel: fetch the prebuilt, target-pinned shim that
+      # build-shims.yml publishes on the rolling `deps` prerelease instead of
+      # range-fetching the ~0.5 GB LLVM slice and re-linking the shim cold
+      # (the most expensive step of a release build). The asset name embeds
+      # the hash of the shim's complete input set, so a hit means "built from
+      # exactly these inputs"; the sha256 sidecar guards transport, and the
+      # floor-verification steps below re-check whatever shim gets bundled.
+      # A miss (e.g. right after a shim-input change, before build-shims has
+      # run on a matching tree) falls back to today's cold from-source build,
+      # which then self-seeds the asset.
+      - name: Fetch prebuilt shim from the deps release (release channel)
+        if: inputs.channel != 'dev'
+        id: shim-fetch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHIM_KEY: ${{ hashFiles('jac/native/**', 'jac/build.zig', 'jac/launcher/llvm_release.zig') }}
+        run: |
+          set -euo pipefail
+          EXT=so
+          [ "$RUNNER_OS" = "macOS" ] && EXT=dylib
+          ASSET="libjacllvm-${{ matrix.platform }}-${SHIM_KEY}.${EXT}"
+          mkdir -p .shim-fetch
+          if gh release download deps --repo "$GITHUB_REPOSITORY" \
+               --pattern "$ASSET" --pattern "$ASSET.sha256" \
+               --dir .shim-fetch --clobber 2>/dev/null \
+             && [ -f ".shim-fetch/$ASSET" ] && [ -f ".shim-fetch/$ASSET.sha256" ] \
+             && ( cd .shim-fetch && shasum -a 256 -c "$ASSET.sha256" ); then
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            echo "file=$GITHUB_WORKSPACE/.shim-fetch/$ASSET" >> "$GITHUB_OUTPUT"
+          else
+            echo "No usable prebuilt shim asset $ASSET; falling back to the cold from-source build."
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "asset=$ASSET" >> "$GITHUB_OUTPUT"
+
       # The Zig package store (.zig-cache/p): the neovim fork + its transitive
       # PUC Lua source off lua.org's FTP (the build's flakiest fetch), mini.nvim,
       # tree-sitter-jac, etc. Content-addressed source packages -- immutable, so
@@ -159,12 +237,17 @@ jobs:
         run: echo "version=$(grep -m1 '^version' jac.toml | sed -E 's/.*"([^"]+)".*/\1/')" >> "$GITHUB_OUTPUT"
 
       # The native backend statically links a pinned LLVM; fetch it per target
-      # before `zig build`. Skipped on a dev-channel shim-cache hit (-Dshim-bin
-      # needs no LLVM at all) or LLVM-cache hit (tree already restored). Both
-      # gates are vacuous on the release channel: the restore steps are
-      # skipped there, so their cache-hit outputs are empty and the fetch runs.
+      # before `zig build`. Skipped when a prebuilt shim is in hand (-Dshim-bin
+      # needs no LLVM at all): the dev-channel shim cache, the release-channel
+      # deps-release fetch, or a dev-channel LLVM-cache hit (tree already
+      # restored). The cross-channel gates are vacuous: each channel's skipped
+      # restore/fetch steps leave their outputs empty, so only its own paths
+      # decide.
       - name: Fetch LLVM for the jacllvm shim
-        if: steps.shim-cache.outputs.cache-hit != 'true' && steps.llvm-cache.outputs.cache-hit != 'true'
+        if: >-
+          steps.shim-cache.outputs.cache-hit != 'true' &&
+          steps.llvm-cache.outputs.cache-hit != 'true' &&
+          steps.shim-fetch.outputs.hit != 'true'
         working-directory: jac
         run: zig build fetch-llvm $DTARGET --summary all
 
@@ -172,13 +255,16 @@ jobs:
         working-directory: jac
         # On a dev-channel shim-cache hit, stage the shim outside its in-tree
         # place path: the build copies -Dshim-bin back there, and a self-copy
-        # would read the file it is truncating. Mirrors setup-jac.
+        # would read the file it is truncating. Mirrors setup-jac. The
+        # release-channel deps-release fetch already lives outside the tree.
         run: |
           SHIM_ARG=()
           if [ "${{ steps.shim-cache.outputs.cache-hit }}" = "true" ]; then
             mkdir -p .shim-build
             cp jaclang/compiler/passes/native/llvm/libjacllvm.* .shim-build/
             SHIM_ARG=(-Dshim-bin=".shim-build/$(ls .shim-build | head -1)")
+          elif [ "${{ steps.shim-fetch.outputs.hit }}" = "true" ]; then
+            SHIM_ARG=(-Dshim-bin="${{ steps.shim-fetch.outputs.file }}")
           fi
           zig build $DTARGET "${SHIM_ARG[@]}" --summary all
 
@@ -296,6 +382,30 @@ jobs:
           if otool -L "$ART" | grep -E "/opt/homebrew|/usr/local"; then
             echo "::error::$ART links Homebrew dylibs."; exit 1
           fi
+
+      # A release-channel cold build just produced (and floor-verified) the
+      # shim the deps release was missing: publish it so the next release with
+      # the same inputs skips the LLVM fetch + link. Best-effort -- shipping
+      # the release binaries must not fail on a seeding hiccup. Runs after the
+      # floor checks on purpose: a floor regression fails the job before
+      # anything is published.
+      - name: Seed the deps release with the built shim (release channel)
+        if: inputs.channel != 'dev' && steps.shim-fetch.outputs.hit != 'true'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ASSET="${{ steps.shim-fetch.outputs.asset }}"
+          mkdir -p dist-shim
+          cp jac/jaclang/compiler/passes/native/llvm/libjacllvm.* "dist-shim/$ASSET"
+          ( cd dist-shim && shasum -a 256 "$ASSET" > "$ASSET.sha256" )
+          gh release create deps --repo "$GITHUB_REPOSITORY" --prerelease \
+            --title "Prebuilt build dependencies (rolling)" \
+            --notes "Content-addressed prebuilt build artifacts (LLVMPY shims). Consumed by build-binaries.yml; not for direct download." \
+            2>/dev/null || true
+          gh release upload deps --repo "$GITHUB_REPOSITORY" \
+            "dist-shim/$ASSET" "dist-shim/$ASSET.sha256" --clobber
 
       - name: Package asset (+ checksum)
         id: pkg

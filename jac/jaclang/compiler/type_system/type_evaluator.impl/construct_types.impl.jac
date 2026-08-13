@@ -101,7 +101,7 @@ impl TypeEvaluator._extract_tuple_element_type(
     if idx < 0 {
         return None;
     }
-    if isinstance(tuple_type, types.AnyType) {
+    if tuple_type.is_any_instance() {
         return tuple_type;
     }
     if not isinstance(tuple_type, types.ClassType) {

@@ -151,6 +151,26 @@ runs:
         restore-keys: |
           jac-precompiled-${{ runner.os }}-${{ runner.arch }}-
 
+    # The payload's compressed deps-layer frame (mkpayload --layer-cache): the
+    # level-19 zstd of the ~600 MB dependency layer, the pack's single most
+    # expensive stage after the JIR precompile. mkpayload content-addresses the
+    # frame and VERIFIES it by decompress + byte-compare before reuse, so like
+    # the precompile tree a stale restore can only miss, never mis-serve --
+    # restore-keys is safe. The key names every pinned input that feeds the
+    # layer (pbs/pip/bun pins and pack code in launcher/**, shim inputs in
+    # native/** + build.zig, the editor closure in editor/** + build.zig.zon,
+    # the wasm_rt floor); unpinned pip releases can still drift the content
+    # mid-key, which just recompresses until the key next rolls.
+    - name: Restore cached payload deps-layer frame
+      id: layers-cache
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/restore@v4
+      with:
+        path: jac/.payload-layers
+        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/editor/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
+        restore-keys: |
+          payload-layers-${{ runner.os }}-${{ runner.arch }}-
+
     # The Zig package store (.zig-cache/p): every git/tarball dependency
     # `zig build` fetches -- the pinned neovim fork and, transitively, its PUC
     # Lua source off lua.org's FTP (historically the flakiest fetch in the whole
@@ -332,6 +352,17 @@ runs:
       with:
         path: jac/.precompiled-build
         key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+
+    # Same prefix-hit re-save logic as the precompile cache above.
+    - name: Save payload deps-layer cache (main only)
+      if: >-
+        github.ref == 'refs/heads/main' &&
+        steps.cache.outputs.cache-hit != 'true' &&
+        steps.layers-cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: jac/.payload-layers
+        key: payload-layers-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/**', 'jac/build.zig', 'jac/build.zig.zon', 'jac/native/**', 'jac/editor/**', 'jac/jaclang/runtimelib/client/bun_installer.jac', 'jac/jaclang/compiler/passes/native/wasm_rt/**') }}
 
     # Seed the Zig package store from main only (see the restore note). Like the
     # precompile cache, a restore-keys prefix hit still leaves cache-hit != true,
