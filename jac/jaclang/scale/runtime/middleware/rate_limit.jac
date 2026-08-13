@@ -13,6 +13,8 @@ glob _mw_seq = itertools.count();
 glob logger = logging.getLogger(__name__),
      _rl_lock = _RLLock();
 
+glob _untrusted_xff_warned = threading.Event();
+
 
 obj TokenBucket {
     has rate_per_sec: float,
@@ -156,17 +158,26 @@ def _is_trusted(ip: any, networks: list) -> bool {
 }
 
 
-def _resolve_peer(request: any) -> str {
-    peer = request?.client_host or "";
-    if not peer {
-        peer = request?.client?.host or "";
+def _warn_dropped_xff_once(request: any) -> None {
+    if _untrusted_xff_warned.is_set() {
+        return;
     }
-    return peer or "unknown";
+    if request.headers.get("X-Forwarded-For") is None {
+        return;
+    }
+    _untrusted_xff_warned.set();
+    peer: str = request.client_host or "unknown";
+    logger.warning(
+        f"Ignoring X-Forwarded-For from peer {peer!r}: no trusted_proxies "
+        "are configured, so requests are rate-limited by TCP peer address. "
+        "If a proxy or ingress fronts this server, set "
+        "[scale.microservices.rate_limit] trusted_proxies to its address."
+    );
 }
 
 
 def _resolve_client_ip(request: any, trusted_networks: list | None = None) -> str {
-    peer: str = _resolve_peer(request);
+    peer: str = request.client_host or "unknown";
     if not trusted_networks {
         return peer;
     }
@@ -249,6 +260,9 @@ def build_rate_limit_middleware(cfg: dict[str, any]) -> any {
         }
         retry_after: float = 0.0;
         if ip_limiter is not None {
+            if not trusted_networks {
+                _warn_dropped_xff_once(request);
+            }
             key = f"{ns}:ip:{_resolve_client_ip(request, trusted_networks)}";
             (ok, ra) = ip_limiter.consume(key);
             if not ok {

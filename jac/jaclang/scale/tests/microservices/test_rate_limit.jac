@@ -5,7 +5,9 @@ import from jaclang.scale.runtime.middleware.rate_limit {
     InProcessRateLimiter,
     build_rate_limit_middleware,
     _parse_trusted_proxies,
-    _resolve_client_ip
+    _resolve_client_ip,
+    _untrusted_xff_warned,
+    logger as _rl_logger
 }
 
 
@@ -344,4 +346,46 @@ test "distinct clients behind a trusted proxy get distinct buckets" {
     assert codes[0] == 200;
     assert codes[1] == 200;
     assert codes[2] == 429;
+}
+
+
+test "dropped X-Forwarded-For without trusted_proxies warns exactly once" {
+    import from logging.handlers { MemoryHandler }
+
+    mw = build_rate_limit_middleware(
+        {
+            "enabled": True,
+            "per_ip_rpm": 600,
+            "per_user_rpm": 0,
+            "burst_multiplier": 1.0,
+            "exempt_paths": []
+        }
+    );
+    async def next_handler(req: object) -> object {
+        import from jaclang.runtimelib.serving.datatypes { JSONResponse }
+        return JSONResponse({"ok": True});
+    }
+    handler = MemoryHandler(capacity=100);
+    _rl_logger.addHandler(handler);
+    _untrusted_xff_warned.clear();
+    try {
+        plain = _req(path="/api/x", client_host="9.9.9.9");
+        forwarded = _req(
+            path="/api/x", headers={"X-Forwarded-For": "6.6.6.6"}, client_host="9.9.9.9"
+        );
+        async def run -> None {
+            await mw(plain, next_handler);
+            await mw(forwarded, next_handler);
+            await mw(forwarded, next_handler);
+        }
+        _run(run());
+        warned = [
+            rec
+            for rec in handler.buffer
+            if "trusted_proxies" in rec.getMessage()
+        ];
+        assert len(warned) == 1;
+    } finally {
+        _rl_logger.removeHandler(handler);
+    }
 }
