@@ -461,13 +461,16 @@ closure carries the parser, lexer and `unitree` -- and
 `_precompiled/native/<triple>/libjac_native_materialize.*` /
 `libjac_unitree.*`, alongside persisted `NativeModuleLayout` JSON. The
 materializer is native jac, generated at seal time from the unitree
-layout by `jaclang/utils/gen_native_materialize.py` (never checked in),
+layout by `jaclang/utils/gen_native_materialize.jac` (never checked in),
 with per-class emitters that rebuild the parsed tree as
 real Python `unitree` objects through CPython C-API clib externs resolved
 from the host process (ELF lazy PLT / Mach-O flat lookup), feeding the
 unchanged downstream pipeline. Everything is recorded in `MANIFEST.json`
-(format 4) under `native_artifacts` with sha256 digests that fail closed on
-mismatch. A sealed runtime binds the library with plain ctypes
+(format 6): `native_artifacts` carries per-file sha256 digests that fail
+closed on mismatch, and the `native` record ({roots, skip_reason}) is the
+build's own statement of what it sealed, which `load_image` enforces at
+startup -- a jaclang image that cannot serve its declared roots on this
+host refuses to load. A sealed runtime binds the library with plain ctypes
 (`jac0core/native_dylib.jac`) at startup -- no LLVM on the boot path, the
 materializer entries GIL-held via PYFUNCTYPE -- and `parse()` serves
 natively with no bytecode fallback: artifact damage raises rather than
