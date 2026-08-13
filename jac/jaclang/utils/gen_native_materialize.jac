@@ -532,9 +532,8 @@ glob _HEADER_LINES: tuple = (
          '    return root_h;',
          '}',
 
-     );
-
-glob _CROSSING_LINES: tuple = (
+     ),
+     _CROSSING_LINES: tuple = (
          'def _emit_diag_list(items: list[@DIAG@]) -> int {',
          '@DIAG_LIST_BODY@',
          '    return v_dl;',

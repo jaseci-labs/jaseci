@@ -6651,11 +6651,11 @@ impl Parser.parse_impl_def -> ImplDef {
     body_expr3: Expr | None = None;
     lb_uni: Token | None = None;
     rb_uni: Token | None = None;
+    impl_enum_commas: list[Token] = [];
     if self.match_tok(TokenKind.LBRACE) {
         lb_uni = self.make_uni_token(self.previous());
         if self._is_impl_enum_body() {
-            self._impl_enum_comma_unis = [];
-            body_stmts3 = self.parse_impl_enum_body();
+            (body_stmts3, impl_enum_commas) = self.parse_impl_enum_body();
         } else {
             body_stmts3 = self._apply_implicit_return(self.parse_code_block_stmts());
         }
@@ -6697,19 +6697,12 @@ impl Parser.parse_impl_def -> ImplDef {
         if lb_uni {
             kid.append(lb_uni);
         }
-        impl_enum_commas = self._impl_enum_comma_unis;
-        comma_idx = 0;
         for (i, raw_item) in enumerate(body_stmts3) {
             item: UniNode = raw_item;
             kid.append(item);
 
-            if isinstance(item, EnumBlockStmt)
-                and item.is_enum_stmt
-                and i < len(body_stmts3) - 1 {
-                if comma_idx < len(impl_enum_commas) {
-                    kid.append(impl_enum_commas[comma_idx]);
-                    comma_idx += 1;
-                }
+            if i < len(body_stmts3) - 1 and i < len(impl_enum_commas) {
+                kid.append(impl_enum_commas[i]);
             }
         }
         if rb_uni {
@@ -6858,8 +6851,9 @@ impl Parser.parse_impl_target_name -> NameAtom {
     }
 }
 
-impl Parser.parse_impl_enum_body -> list[Assignment] {
+impl Parser.parse_impl_enum_body -> tuple[(list[Assignment], list[Token])] {
     members: list[Assignment] = [];
+    comma_unis: list[Token] = [];
     while not self.check(TokenKind.RBRACE) and not self.at_end() {
         if self.check_name() {
             name_tok = self.expect_name();
@@ -6898,13 +6892,13 @@ impl Parser.parse_impl_enum_body -> list[Assignment] {
             );
 
             if self.match_tok(TokenKind.COMMA) {
-                self._impl_enum_comma_unis.append(self.make_uni_token(self.previous()));
+                comma_unis.append(self.make_uni_token(self.previous()));
             }
         } else {
             break;
         }
     }
-    return members;
+    return (members, comma_unis);
 }
 
 impl Parser.parse_sem_def -> SemDef {

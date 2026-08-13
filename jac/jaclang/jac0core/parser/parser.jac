@@ -360,8 +360,7 @@ obj Parser {
         source: Source postinit,
         diags: list[SrcDiag] = [],
         _view_body_depth: int = 0,
-        _gen_test_idx: int = 0,
-        _impl_enum_comma_unis: list[Token] = [];
+        _gen_test_idx: int = 0;
 
     def postinit;
     def current -> LexToken;
@@ -573,7 +572,7 @@ obj Parser {
     def parse_impl_def -> ImplDef;
     def _is_impl_enum_body -> bool;
     def parse_impl_target_name -> NameAtom;
-    def parse_impl_enum_body -> list[Assignment];
+    def parse_impl_enum_body -> tuple[(list[Assignment], list[Token])];
     def parse_sem_def -> SemDef;
     def parse_type_alias -> TypeAlias;
     def parse_type_params -> tuple[(list, list)];
