@@ -169,9 +169,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                         list_inst.private.type_args = [expected_elem];
                     } else {
                         flow_elem = self._infer_list_elem_from_mutations(expr);
-                        if flow_elem is not None {
-                            list_inst.private.type_args = [flow_elem];
-                        }
+                        list_inst.private.type_args = [
+                            flow_elem if flow_elem is not None else types.AnyType()
+                        ];
                     }
                 }
                 if isinstance(list_inst, types.ClassType) and expr.values {
@@ -228,6 +228,11 @@ impl TypeEvaluator._get_type_of_expression_core(
                     );
                     if expected_kv_e is not None {
                         dict_inst.private.type_args = list(expected_kv_e);
+                    } else {
+                        dict_inst.private.type_args = [
+                            types.AnyType(),
+                            types.AnyType()
+                        ];
                     }
                 }
                 if isinstance(dict_inst, types.ClassType) and expr.kv_pairs {

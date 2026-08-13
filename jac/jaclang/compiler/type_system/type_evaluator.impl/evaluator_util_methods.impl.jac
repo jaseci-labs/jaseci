@@ -465,15 +465,6 @@ impl TypeEvaluator._get_expected_element_type(
     if expected_type is None {
         return None;
     }
-    if isinstance(expected_type, types.UnionType) {
-        for member in (expected_type.types or []) {
-            member_elem = self._get_expected_element_type(member, container_class);
-            if member_elem is not None {
-                return member_elem;
-            }
-        }
-        return None;
-    }
     if (
         isinstance(expected_type, types.ClassType)
         and isinstance(container_class, types.ClassType)
@@ -490,15 +481,6 @@ impl TypeEvaluator._get_expected_kv_types(
     expected_type: TypeBase | None, dict_class: TypeBase
 ) -> tuple[TypeBase, TypeBase] | None {
     if expected_type is None {
-        return None;
-    }
-    if isinstance(expected_type, types.UnionType) {
-        for member in (expected_type.types or []) {
-            member_kv = self._get_expected_kv_types(member, dict_class);
-            if member_kv is not None {
-                return member_kv;
-            }
-        }
         return None;
     }
     if (
