@@ -19,6 +19,7 @@ glob logger = logging.getLogger(__name__),
      PG_MAJOR = 19,
      SOCK_PORT = 5432,
      PG_MAX_CONNECTIONS = 256,
+     PG_RUN_USERS = ['jac', 'postgres', 'nobody'],
      PG_MAX_PRED_LOCKS_PER_TXN = 1024,
      PG_IDLE_IN_TXN_TIMEOUT_MS = 300000,
      ZONKY_BASE = (
@@ -27,18 +28,43 @@ glob logger = logging.getLogger(__name__),
      ),
      __all__ = [
          'PgRuntime',
+         'PgPrivMode',
+         'PgPrivPlan',
+         'PgRunAs',
          'PG_MAJOR',
          'PG_MAX_CONNECTIONS',
+         'PG_RUN_USERS',
          'PG_MAX_PRED_LOCKS_PER_TXN',
          'PG_IDLE_IN_TXN_TIMEOUT_MS',
          'pg_tuning_settings',
          'pinned_major',
-         'dist_cache_dir'
+         'dist_cache_dir',
+         'pg_priv_plan',
+         'pg_run_candidates'
      ];
+
+
+enum PgPrivMode { AS_IS = 'as_is', DROP = 'drop', BLOCKED = 'blocked' }
+
+
+obj PgRunAs {
+    has name: str,
+        uid: int,
+        gid: int;
+}
+
+
+obj PgPrivPlan {
+    has mode: PgPrivMode,
+        run_as: (PgRunAs | None) = None,
+        reason: str = '';
+}
 
 
 def pinned_major -> int;
 def dist_cache_dir -> str;
+def pg_run_candidates -> list[PgRunAs];
+def pg_priv_plan(euid: int, candidates: list[PgRunAs]) -> PgPrivPlan;
 def pg_tuning_settings -> dict[str, str];
 
 
@@ -50,7 +76,8 @@ obj PgRuntime {
         database: str = 'jac',
         _bin_dir: (str | None) postinit,
         _proc: (Any | None) postinit,
-        _lock: threading.RLock postinit;
+        _lock: threading.RLock postinit,
+        _priv: (PgPrivPlan | None) postinit;
 
     def postinit -> None;
     def ensure -> ConnInfo;
@@ -58,7 +85,12 @@ obj PgRuntime {
     def stop -> None;
     def is_running -> bool;
     def conninfo -> ConnInfo;
+    def fetch_dist -> str;
     def _sock_dir -> str;
+    def _priv_plan -> PgPrivPlan;
+    def _run_as -> (PgRunAs | None);
+    def _as_user -> dict;
+    def _grant_dir(path: str) -> None;
     def _resolve_binaries -> str;
     def _resolve_from_env -> (str | None);
     def _resolve_from_path -> (str | None);

@@ -11,6 +11,8 @@ import from jaclang.runtimelib.pgwire { PgWireError }
 glob logger = logging.getLogger(__name__),
      SCHEMA_VERSION = 1,
      SCHEMA_STAMP_KEY = 'schema_fingerprint',
+     _schema_ready: set[str] = set(),
+     _schema_gate = threading.Lock(),
      __all__ = [
          'AnchorRow',
          'Store',
@@ -114,6 +116,7 @@ obj PgStore(Store) {
     has conninfo: ConnInfo,
         ensure_cb: (Any | None) = None,
         promotions: dict[str, list[str]] = {},
+        auto_schema: bool = False,
         _conn: (Any | None) postinit,
         _side_conn: (Any | None) postinit,
         _lock: threading.RLock postinit,
@@ -123,7 +126,10 @@ obj PgStore(Store) {
         _known_types: set[str] postinit,
         _listeners: list[ChannelListener] postinit,
         _listen_thread: (Any | None) postinit,
-        _listen_stop: (Any | None) postinit;
+        _listen_stop: (Any | None) postinit,
+        _booted: bool postinit,
+        _ready: bool postinit,
+        _readying: (int | None) postinit;
 
     def postinit -> None;
     def is_available -> bool;
@@ -151,6 +157,7 @@ obj PgStore(Store) {
     def listen(channel: str, callback: Any) -> None;
     def unlisten(channel: str) -> None;
     def close -> None;
+    def _ensure_ready -> None;
     def _connect -> Any;
     def _main -> Any;
     def _side -> Any;
