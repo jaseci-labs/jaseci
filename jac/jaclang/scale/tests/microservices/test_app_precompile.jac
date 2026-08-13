@@ -220,12 +220,25 @@ test "staging roots left by dead processes are reaped (issue 8094)" {
         Path(stale, "app").mkdir();
         mine = Path(holder, f"jac-app-precompile-{os.getpid()}-efgh");
         mine.mkdir();
+        # Staging roots from releases that did not name their pid: only age
+        # can tell those apart, and a seal never runs for a day.
+        legacy_old = Path(holder, "jac-app-precompile-oldrelease");
+        legacy_old.mkdir();
+        os.utime(str(legacy_old), (0, 0));
+        legacy_new = Path(holder, "jac-app-precompile-newrelease");
+        legacy_new.mkdir();
         removed = reap_stale_stage_roots();
         assert not stale.exists() , (
             f"a staging root owned by dead pid {dead.pid} must be reaped"
         );
+        assert not legacy_old.exists() , (
+            "a day-old staging root with no pid in its name must be reaped"
+        );
         assert mine.exists() , "a live process's staging root must be left alone";
-        assert removed == 1 , f"expected 1 reaped staging root, got {removed}";
+        assert legacy_new.exists() , (
+            "a fresh staging root with no pid in its name may still be in use"
+        );
+        assert removed == 2 , f"expected 2 reaped staging roots, got {removed}";
     } finally {
         tempfile.tempdir = saved_tempdir;
         shutil.rmtree(holder, ignore_errors=True);

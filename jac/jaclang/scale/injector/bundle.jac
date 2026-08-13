@@ -7,6 +7,7 @@ import shutil;
 import subprocess;
 import tarfile;
 import tempfile;
+import time;
 import tomllib;
 import from pathlib { Path }
 
@@ -18,7 +19,8 @@ glob APP_VOLUME_NAME: str = "jac-app",
      TOOLCHAIN_SUBDIR: str = ".jactoolchain",
      DEFAULT_SEAL_TIMEOUT_S: int = 1800,
      PLACEHOLDER_JAC_TOML: str = "[project]\nname = \"app\"\n",
-     STAGE_PREFIX: str = "jac-app-precompile-";
+     STAGE_PREFIX: str = "jac-app-precompile-",
+     STAGE_REAP_AGE_S: int = 86400;
 
 glob _stage_roots: list[str] = [];
 
@@ -223,6 +225,15 @@ def _pid_alive(pid: int) -> bool {
 }
 
 
+def _stage_root_expired(stage_root: Path) -> bool {
+    try {
+        return (time.time() - stage_root.stat().st_mtime) > STAGE_REAP_AGE_S;
+    } except OSError {
+        return False;
+    }
+}
+
+
 def reap_stale_stage_roots -> int {
     removed = 0;
     holder = Path(tempfile.gettempdir());
@@ -236,7 +247,11 @@ def reap_stale_stage_roots -> int {
             continue;
         }
         pid = _stage_root_pid(entry.name);
-        if pid == 0 or _pid_alive(pid) {
+        if pid == 0 {
+            if not _stage_root_expired(entry) {
+                continue;
+            }
+        } elif _pid_alive(pid) {
             continue;
         }
         shutil.rmtree(str(entry), ignore_errors=True);
