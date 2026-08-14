@@ -955,6 +955,21 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: (uni.UniNode | None), value: ir.Value, elem_type: ir.Type, what: str
     ) -> bool;
 
+    def _spread_operand(nd: (uni.UniNode | None)) -> (uni.Expr | None);
+    def _container_src_info(val: (ir.Value | None)) -> (dict | None);
+    def _reject_spread_slot_mismatch(
+        nd: (uni.UniNode | None), src_elem: ir.Type, dest_elem: ir.Type, what: str
+    ) -> bool;
+
+    def _emit_spread_copy(
+        src: ir.Value,
+        src_helpers: dict,
+        dest: ir.Value,
+        dest_helpers: dict,
+        dest_kind: str,
+        loc: str
+    ) -> None;
+
     def _emit_elem_retain(b: ir.IRBuilder, elem_type: ir.Type, val: ir.Value) -> None;
     def _emit_elem_release(b: ir.IRBuilder, elem_type: ir.Type, val: ir.Value) -> None;
     def _emit_jacval_slot_drop_fn(elem_mangle: str) -> (ir.Function | None);
