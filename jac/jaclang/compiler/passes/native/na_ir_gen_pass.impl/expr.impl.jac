@@ -1995,7 +1995,14 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             0 if self._nogc_headerless() else 1,
                             name="chr.data"
                         );
-                        return self._codegen_string_index(_ddata, _didx_val);
+                        _dlen = self.builder.extract_value(
+                            target_val,
+                            1 if self._nogc_headerless() else 2,
+                            name="chr.len"
+                        );
+                        return self._codegen_string_index(
+                            _ddata, _didx_val, len_val=_dlen
+                        );
                     }
                 }
             }
@@ -2046,7 +2053,13 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                                 idx_val = self._codegen_expr(idx_node.start);
                             }
                             if idx_val is not None {
-                                return self._codegen_string_index(target_val, idx_val);
+                                return self._codegen_string_index(
+                                    target_val,
+                                    idx_val,
+                                    len_val=self._call_str_len(
+                                        self.builder, target_val, name="chr.len"
+                                    )
+                                );
                             }
                         }
                     }
