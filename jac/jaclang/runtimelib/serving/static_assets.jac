@@ -39,7 +39,11 @@ def asset_root_table(
 def _remainder(url_path: str, prefix: str) -> (str | None) {
     p = prefix.strip("/");
     if p == "" {
-        return url_path.lstrip("/");
+        rel = url_path.lstrip("/");
+        if rel.startswith("static/") {
+            return None;
+        }
+        return rel;
     }
     marker = "/" + p;
     if url_path == marker {
