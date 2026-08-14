@@ -115,6 +115,25 @@ test "tensor-bool guard without a receiver proof is declined" {
     assert _break_count("guard_unproven_receiver.jac") == 1;
 }
 
+test "a comparison guard lowers on the negated condition" {
+    # `if a != b: raise` is the same guard as `if not (a == b)`, so it lowers;
+    # the assert takes the negation, keeping the guard's original truth value.
+    src = _pysrc("val_guard_compare.jac", True);
+    assert "torch._assert_async(torch.logical_not(mask.sum() != 4)" in src;
+    assert "raise ValueError('mask must have four set entries')" not in src;
+    assert "@__jac_trap_guard__" in src;
+}
+
+test "a comparison guard without a tensor operand is declined" {
+    # Detected, but the receiver has no tensor proof, so the assert would
+    # receive a Python bool; the guard keeps its original form.
+    src = _pysrc("guard_compare_unproven.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "raise ValueError('mask must have four set entries')" in src;
+    assert "if mask.sum() != 4:" in src;
+    assert _break_count("guard_compare_unproven.jac") == 1;
+}
+
 test "a guard inside a lexical try declines to keep the handler live" {
     # The lowered assert fails at the boundary, outside the enclosing except,
     # so the handler would silently stop firing; the guard stays.

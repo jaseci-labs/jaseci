@@ -223,6 +223,9 @@ impl PredicateCtrlFlowPass._body_pure_nonraising(
         if (ctx is not None) and self._ctx_dict_get(call, ctx) {
             continue;
         }
+        if self._witnessed_dict_get(call, fn) {
+            continue;
+        }
         t = call.target;
         if isinstance(t, uni.AtomTrailer)
             and isinstance(t.right, uni.Name)
@@ -240,6 +243,78 @@ impl PredicateCtrlFlowPass._body_pure_nonraising(
     }
     marks.discard(id(fn));
     return True;
+}
+
+impl PredicateCtrlFlowPass._witnessed_dict_get(
+    call: uni.FuncCall, fn: uni.Ability
+) -> bool {
+    t = call.target;
+    if not (
+        isinstance(t, uni.AtomTrailer)
+        and isinstance(t.right, uni.Name)
+        and (t.right.value == 'get')
+    ) {
+        return False;
+    }
+    (pos, kw) = self._split_params(call.params);
+    if kw or (not pos) or (len(pos) > 2) {
+        return False;
+    }
+    for p in pos {
+        if self._has_call(p) {
+            return False;
+        }
+    }
+    recv = t.target;
+    if not isinstance(recv, uni.AtomTrailer) {
+        return False;
+    }
+    base: any = recv;
+    while isinstance(base, uni.AtomTrailer) {
+        base = base.target;
+    }
+    if (not isinstance(base, uni.Name)) or (base.value not in self._param_names(fn)) {
+        return False;
+    }
+    mod = fn.find_parent_of_type(uni.Module);
+    if mod is None {
+        return False;
+    }
+    return self._mapping_witnessed(mod, unparse_node(recv).replace(' ', ''));
+}
+
+impl PredicateCtrlFlowPass._param_names(fn: uni.Ability) -> set[str] {
+    out: set[str] = set();
+    sig = fn.signature;
+    if (sig is None) or (not isinstance(sig, uni.FuncSignature)) {
+        return out;
+    }
+    for p in (sig.get_parameters() or []) {
+        if p?.name is not None {
+            out.add(p.name.value);
+        }
+    }
+    return out;
+}
+
+impl PredicateCtrlFlowPass._mapping_witnessed(mod: uni.Module, key: str) -> bool {
+    for tr in mod.get_all_sub_nodes(uni.AtomTrailer) {
+        if isinstance(tr.right, uni.IndexSlice)
+            and (unparse_node(tr.target).replace(' ', '') == key) {
+            return True;
+        }
+    }
+    for cmp in mod.get_all_sub_nodes(uni.CompareExpr) {
+        for i in range(len(cmp.ops or [])) {
+            if (cmp.ops[i].value != 'in') or (i >= len(cmp.rights or [])) {
+                continue;
+            }
+            if unparse_node(cmp.rights[i]).replace(' ', '') == key {
+                return True;
+            }
+        }
+    }
+    return False;
 }
 
 impl PredicateCtrlFlowPass._impure_writes(

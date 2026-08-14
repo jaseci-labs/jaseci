@@ -118,6 +118,9 @@ obj PredicateCtrlFlowPass(UniPass) {
 
     def _self_classes(c: uni.FuncCall) -> list[uni.Archetype];
     def _ctx_dict_get(call: uni.FuncCall, ctx: dict[str, list[uni.Archetype]]) -> bool;
+    def _witnessed_dict_get(call: uni.FuncCall, fn: uni.Ability) -> bool;
+    def _param_names(fn: uni.Ability) -> set[str];
+    def _mapping_witnessed(mod: uni.Module, key: str) -> bool;
     def _hasattr_key(c: uni.Expr) -> (tuple[str, str] | None);
     def _writes_attr(s: uni.Assignment, recv: str, key: str) -> bool;
     def _attr_confined(region: uni.IfStmt, key: str) -> bool;

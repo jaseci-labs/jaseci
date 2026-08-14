@@ -20,7 +20,16 @@ impl GraphBreakDetectPass.before_pass -> None {
     self._entry_ids |= compiled_region_ids(
         self.prog, self.ir_in, self.prog.graphmend_scoped_compile, self._mat_seen
     );
-    if not self._entry_ids {
+    if self.prog.graphmend_scoped_compile {
+        self._whole_module = True;
+        for ab in self.ir_in.get_all_sub_nodes(uni.Ability) {
+            if id(ab) in self._entry_ids {
+                self._whole_module = False;
+                break;
+            }
+        }
+    }
+    if (not self._entry_ids) and (not self._whole_module) {
         self._enabled = False;
         self.prune_signal = True;
     }
@@ -117,6 +126,9 @@ impl GraphBreakDetectPass._var_assignment(
 }
 
 impl GraphBreakDetectPass._in_torch_compiled_scope(nd: uni.UniNode) -> bool {
+    if self._whole_module {
+        return True;
+    }
     cur = nd.parent;
     while cur {
         if id(cur) in self._entry_ids {

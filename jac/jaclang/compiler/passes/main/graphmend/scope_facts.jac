@@ -178,10 +178,13 @@ def materialize_module(
     if existing is not None {
         return existing;
     }
+    _saved_opts = prog._compile_options;
     try {
         return prog.compile(file_path=path, no_cgen=True, type_check=False);
     } except Exception {
         return None;
+    } finally {
+        prog._compile_options = _saved_opts;
     }
 }
 

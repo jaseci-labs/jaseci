@@ -86,13 +86,19 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         return;
     }
     cond = nd.condition;
-    if not isinstance(cond, uni.UnaryExpr) {
+    negated_compare = False;
+    x: (uni.Expr | None) = None;
+    if isinstance(cond, uni.UnaryExpr)
+        and (cond.op is not None)
+        and (cond.op.value == 'not') {
+        x = cond.operand;
+    } elif self._condition_is_tensor(cond, nd) {
+        x = self._torch_call(nd, 'logical_not', [cond]);
+        negated_compare = True;
+    }
+    if x is None {
         return;
     }
-    if (cond.op is None) or (cond.op.value != 'not') {
-        return;
-    }
-    x = cond.operand;
     msg = self._raise_message(rs);
     wrap = self._enclosing_compiled_fn(nd);
     covered = (wrap is not None) or self.prog.graphmend_scoped_compile;
@@ -113,6 +119,9 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         (a, b) = eq;
         self._need_helper(nd, GraphMendHelper.EQ_ASSERT);
         self._replace(nd, [self._eq_assert_stmt(nd, a, b, marked)]);
+        self._mark_guard(wrap);
+    } elif negated_compare {
+        self._replace(nd, [self._assert_async_stmt(nd, x, marked)]);
         self._mark_guard(wrap);
     } elif self._returns_tensor_bool(x) and self._tensor_receiver_provable(x, nd) {
         self._replace(nd, [self._assert_async_stmt(nd, x, marked)]);
@@ -316,6 +325,56 @@ impl TrapLoweringPass._assert_async_stmt(
         target=target, params=params, genai_call=None, kid=[target] + params
     );
     return self._call_stmt(call);
+}
+
+impl TrapLoweringPass._condition_is_tensor(cond: uni.Expr, site: uni.UniNode) -> bool {
+    if isinstance(cond, uni.AtomUnit) and isinstance(cond.value, uni.Expr) {
+        return self._condition_is_tensor(cond.value, site);
+    }
+    if isinstance(cond, uni.CompareExpr) {
+        if len(cond.ops or []) != 1 {
+            return False;
+        }
+        if cond.ops[0].value not in {'==', '!=', '<', '>', '<=', '>='} {
+            return False;
+        }
+        operands = [cond.left] + list(cond.rights or []);
+        for e in operands {
+            if self._operand_is_tensor(e, site) {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+impl TrapLoweringPass._operand_is_tensor(e: uni.Expr, site: uni.UniNode) -> bool {
+    if isinstance(e, uni.AtomUnit) and isinstance(e.value, uni.Expr) {
+        return self._operand_is_tensor(e.value, site);
+    }
+    if self._returns_tensor_bool(e) or isinstance(e, uni.FuncCall) {
+        if self._tensor_receiver_provable(e, site) {
+            return True;
+        }
+    }
+    return self._tensor_expr_provable(e, site);
+}
+
+impl TrapLoweringPass._torch_call(
+    at: uni.UniNode, fname: str, args: list
+) -> uni.FuncCall {
+    torch_nm = self._gen_name(at, 'torch');
+    fn_nm = self._gen_name(at, fname);
+    target = uni.AtomTrailer(
+        target=torch_nm,
+        right=fn_nm,
+        is_attr=True,
+        is_null_ok=False,
+        kid=[torch_nm, fn_nm]
+    );
+    return uni.FuncCall(
+        target=target, params=args, genai_call=None, kid=[target] + args
+    );
 }
 
 impl TrapLoweringPass._tensor_receiver_provable(
