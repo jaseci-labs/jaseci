@@ -659,7 +659,10 @@ impl PredicateCtrlFlowPass._is_device_move(s: uni.Assignment) -> bool {
         return False;
     }
     recv = v.target.target;
-    return (unparse_node(recv).replace(' ', '') == unparse_node(s.target[0]).replace(' ', ''));
+    return (
+        unparse_node(recv).replace(' ', '')
+        == unparse_node(s.target[0]).replace(' ', '')
+    );
 }
 
 impl PredicateCtrlFlowPass._move_consumed(

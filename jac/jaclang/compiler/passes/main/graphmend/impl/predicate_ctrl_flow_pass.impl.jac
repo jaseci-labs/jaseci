@@ -108,7 +108,10 @@ impl PredicateCtrlFlowPass._merge_common_call(
     if (not isinstance(ca, uni.FuncCall)) or (not isinstance(cb, uni.FuncCall)) {
         return;
     }
-    if (unparse_node(ca.target).replace(' ', '') != unparse_node(cb.target).replace(' ', '')) {
+    if (
+        unparse_node(ca.target).replace(' ', '')
+        != unparse_node(cb.target).replace(' ', '')
+    ) {
         return;
     }
     (a_pos, a_kw) = self._split_params(ca.params);
