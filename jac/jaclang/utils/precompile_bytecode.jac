@@ -667,6 +667,65 @@ glob _PARITY_CANARY_LINES: tuple = (
 
      );
 
+glob _PARITY_IDENT_PROBES: tuple = (
+         '"abc"',
+         '"ABC"',
+         '"a1"',
+         '"a b"',
+         '" ab"',
+         '"ab "',
+         "'abc'",
+         '"a-b"',
+         '"..."'
+     );
+
+def _parity_test_names(mod: any) -> list[str] {
+    import jaclang.jac0core.unitree as uni;
+    out: list[str] = [];
+    for nd in mod._in_mod_nodes {
+        if isinstance(nd, uni.Test) {
+            out.append(str(getattr(nd.__dict__.get("name"), "value", "<none>")));
+        }
+    }
+    return out;
+}
+
+
+def _parity_ident_probe(np: any) -> str {
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.parser { Parser }
+
+    nl = chr(10);
+    rows: list[str] = [
+        "    ident-derivation probe: a described test whose ident derives "
+        "must not consume a generated ordinal, so the trailing bare test "
+        "must be _jac_gen_1 on both tiers"
+    ];
+    for pi in range(len(_PARITY_IDENT_PROBES)) {
+        desc = _PARITY_IDENT_PROBES[pi];
+        path = f"__seal_parity_probe_{pi}__.jac";
+        src = nl.join(["test " + desc + " { assert 1; }", "test { assert 1; }"]);
+        n_names: list[str] = [];
+        try {
+            (n_mod, _ne, _npd, _nc, _nld, _nle) = np.parse(src, path);
+            n_names = _parity_test_names(n_mod);
+        } except Exception as probe_exc {
+            n_names = [f"<{type(probe_exc).__name__}: {probe_exc}>"];
+        }
+        (toks, _pc, _pld, _ple) = tokenize_full(src, path);
+        p_names = _parity_test_names(
+            Parser(tokens=toks, file_path=path, source_code=src).parse()
+        );
+        verdict = "ok" if n_names == p_names else "DIVERGED";
+        rows.append(
+            f"      test {desc:<8} native {n_names} vs bytecode {p_names}"
+            f"  {verdict}"
+        );
+    }
+    return nl.join(rows);
+}
+
+
 def _parity_diff_at(left: any, right: any) -> int {
     limit = min(len(left), len(right));
     for i in range(limit) {
@@ -692,6 +751,24 @@ def _parity_window(items: list, at: int, span: int, sep: str = " ") -> str {
 }
 
 
+def _parity_pairwise(left: list, right: list, cap: int) -> tuple[(list[str], int)] {
+    shown: list[str] = [];
+    total = 0;
+    for i in range(max(len(left), len(right))) {
+        l_at = str(left[i]) if i < len(left) else "<end>";
+        r_at = str(right[i]) if i < len(right) else "<end>";
+        if l_at == r_at {
+            continue;
+        }
+        total += 1;
+        if len(shown) < cap {
+            shown.append(f"[{i + 1}] native {l_at!r} vs bytecode {r_at!r}");
+        }
+    }
+    return (shown, total, );
+}
+
+
 def _parity_text_report(canary_path: str, native_up: str, py_up: str) -> str {
     nl = chr(10);
     off = _parity_diff_at(native_up, py_up);
@@ -700,18 +777,22 @@ def _parity_text_report(canary_path: str, native_up: str, py_up: str) -> str {
     n_toks = native_up.split();
     p_toks = py_up.split();
     at = _parity_diff_at(n_toks, p_toks);
-    n_tok = n_toks[at] if at < len(n_toks) else "<end>";
-    p_tok = p_toks[at] if at < len(p_toks) else "<end>";
-    return nl.join(
-        [
-            f"{canary_path}: unparse diverged at line {line}, col {col} "
-            f"(char {off} of {len(native_up)} native / {len(py_up)} bytecode)",
-            f"    first differing token {at + 1} of {len(n_toks)} native / "
-            f"{len(p_toks)} bytecode: native {n_tok!r} vs bytecode {p_tok!r}",
-            f"    native   {_parity_window(n_toks, at, 8)}",
-            f"    bytecode {_parity_window(p_toks, at, 8)}"
-        ]
-    );
+    (shown, total) = _parity_pairwise(n_toks, p_toks, 6);
+    out = [
+        f"{canary_path}: unparse diverged at line {line}, col {col} "
+        f"(char {off} of {len(native_up)} native / {len(py_up)} bytecode)",
+        f"    {total} differing token(s) of {len(n_toks)} native / "
+        f"{len(p_toks)} bytecode",
+        f"    native   {_parity_window(n_toks, at, 8)}",
+        f"    bytecode {_parity_window(p_toks, at, 8)}"
+    ];
+    for entry in shown {
+        out.append(f"    {entry}");
+    }
+    if total > len(shown) {
+        out.append(f"    ... and {total - len(shown)} more");
+    }
+    return nl.join(out);
 }
 
 
@@ -808,6 +889,14 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
             }
             if n_syms != p_syms {
                 detail.append(_parity_sym_report(canary_path, n_syms, p_syms));
+            }
+            try {
+                detail.append(_parity_ident_probe(np));
+            } except Exception as probe_exc {
+                detail.append(
+                    f"    ident-derivation probe unavailable: "
+                    f"{type(probe_exc).__name__}: {probe_exc}"
+                );
             }
             return nl.join(detail);
         }
