@@ -1066,9 +1066,15 @@ fn mkPayload(
     // is seeded from it before the precompile and the refreshed tree is copied
     // back after -- the precompiler validates every seeded .jir by its
     // content-addressed module key and recompiles only stale ones, so the
-    // multi-minute full precompile shrinks to just the changed modules. A
-    // stale or partial dir is harmless (it only misses reuse), which is why
-    // CI can restore it with prefix-fallback keys unlike the binary cache.
+    // multi-minute full precompile shrinks to just the changed modules. That
+    // key names the compiler that wrote the .jir (a digest over jac0core +
+    // compiler sources, #8178), so a seed from a different compiler misses
+    // per module and the seal refuses any survivor -- before #8178 the key
+    // carried only the VERSION, and a same-version compiler change silently
+    // inherited its predecessor's bytecode (#8140 shipped 201/639 such
+    // modules). A stale or partial dir therefore costs reuse, never
+    // correctness, which is why CI can restore it with prefix-fallback keys
+    // unlike the binary cache -- scoped to one compiler tree.
     precompiled_cache: ?[]const u8,
     // Persistent compressed-frame cache for the payload's deps layer (the
     // CPython tree, pip helpers, editor closure, native shims -- everything

@@ -183,6 +183,75 @@ def schema_digest -> str {
     return _SCHEMA_DIGEST_CACHE[0];
 }
 
+glob COMPILER_DIGEST_ROOTS: tuple = (
+         "jac0.py",
+         "jac0core",
+         "compiler",
+         "utils/precompile_bytecode.jac"
+     ),
+     COMPILER_DIGEST_SUFFIXES: tuple = (".jac", ".py"),
+     COMPILER_DIGEST_SKIP_DIRS: tuple = ("tests", "test", "__pycache__"),
+     COMPILER_DIGEST_SKIP: tuple = ("compiler/native_materialize.jac", );
+
+def compiler_source_files(pkg_dir: str) -> list[str] {
+    base = str(Path(pkg_dir));
+    rels: list[str] = [];
+    for entry in COMPILER_DIGEST_ROOTS {
+        target = os.path.join(base, entry.replace("/", os.sep));
+        if os.path.isfile(target) {
+            rels.append(entry);
+            continue;
+        }
+        if not os.path.isdir(target) {
+            continue;
+        }
+        for (walk_dir, dirs, files) in os.walk(target) {
+            dirs[:] = [
+                d
+                for d in dirs
+                if not d.startswith(".") and d not in COMPILER_DIGEST_SKIP_DIRS
+            ];
+            for name in files {
+                if not name.endswith(COMPILER_DIGEST_SUFFIXES) or ".test." in name {
+                    continue;
+                }
+                rel = os.path.relpath(os.path.join(walk_dir, name), base).replace(
+                    os.sep, "/"
+                );
+                if rel in COMPILER_DIGEST_SKIP {
+                    continue;
+                }
+                rels.append(rel);
+            }
+        }
+    }
+    return sorted(rels);
+}
+
+def compiler_source_digest(pkg_dir: str) -> str {
+    base = str(Path(pkg_dir));
+    rels = compiler_source_files(base);
+    h = hashlib.sha256();
+    for rel in rels {
+        h.update(rel.encode());
+        h.update(
+            compute_content_sha256(
+                os.path.join(base, rel.replace("/", os.sep))
+            ).encode()
+        );
+    }
+    return f"{len(rels)}:{h.hexdigest()}";
+}
+
+glob _COMPILER_DIGEST_CACHE: list = [];
+
+def running_compiler_digest -> str {
+    if not _COMPILER_DIGEST_CACHE {
+        _COMPILER_DIGEST_CACHE.append(compiler_source_digest(_jaclang_pkg_dir));
+    }
+    return _COMPILER_DIGEST_CACHE[0];
+}
+
 def compute_module_key(source_path: str) -> str {
     import from importlib.metadata { version as pkg_version }
     try {
@@ -256,6 +325,24 @@ def jir_matches_source(jir_data: bytes, source_path: str) -> bool {
         return False;
     }
     return stored == module_cache_key(source_path);
+}
+
+def compute_precompile_module_key(source_path: str, compiler_digest: str = "") -> str {
+    h = hashlib.sha256();
+    h.update(module_cache_key(source_path).encode());
+    h.update(b"|compiler=");
+    h.update((compiler_digest or running_compiler_digest()).encode());
+    return h.hexdigest();
+}
+
+def precompiled_jir_matches_source(
+    jir_data: bytes, source_path: str, compiler_digest: str = ""
+) -> bool {
+    stored = read_modkey(jir_data);
+    if stored is None {
+        return False;
+    }
+    return stored == compute_precompile_module_key(source_path, compiler_digest);
 }
 
 def jir_cacheable_source_path(source_path: str) -> bool {

@@ -18,7 +18,7 @@ import from jaclang.jac0core.jir {
     FLAG_PRECOMPILED,
     get_module_cache_path,
     is_module_cache_valid,
-    jir_matches_source,
+    precompiled_jir_matches_source,
     compute_module_key,
     cache_mode,
     read_bytecode_only,

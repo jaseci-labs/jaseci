@@ -214,7 +214,6 @@ obj ContextAwareNode(UniNode) {
         codespace_dual: bool = False;
 
     def postinit -> None;
-    def set_code_context(ctx: CodeContext) -> None;
 }
 
 obj AstDocNode(UniNode) {
