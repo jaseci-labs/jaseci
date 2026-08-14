@@ -5,20 +5,18 @@ already children-aware -- which is how two defects shipped: children discarded
 (blank protected page) and `auth_redirect` dropped by the generated entry.
 
 These assert the LOGGED-IN render, not just the logged-out redirect: a guard
-rendering nothing still blocks anonymous users, so a redirect-only test passes
-on the broken code.
-
-`fixtures/react_auth/manual_routing_app.jac`, each in both auth states (logged
-out must land on `/login`):
+rendering nothing still blocks anonymous users, so a redirect-only test passes on
+the broken code. Every scenario runs in both auth states (logged out must land on
+`/login`), against `fixtures/react_auth/manual_routing_app.jac`:
 
     /wrapped         guard wraps a page as a route `element` -> page renders
     /nested          pathless PARENT route -> child route renders
     /layout-guarded  layout wraps `<Outlet/>` in the guard -> child renders
     /bare            neither children nor child routes -> no crash
 
-Elsewhere on purpose: the entry's calling convention (`test_react_backend.jac`)
-and react-native's signature (`test_client_runtime_parity.jac`), both ungated.
-Real `bun install`, so this runs only under `JAC_CLIENT_INTEGRATION`.
+Real `bun install`, so this runs only under `JAC_CLIENT_INTEGRATION`; the entry
+(`test_react_backend.jac`) and react-native (`test_client_runtime_parity.jac`)
+are covered ungated elsewhere.
 """
 
 import os;
@@ -37,11 +35,6 @@ import from .react_jsdom_harness {
 }
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures" / "react_auth"),
-     # Shared jsdom bootstrap: build a DOM AT THE SCENARIO'S URL (BrowserRouter
-     # reads `window.location`), seed/clear the `jac_token` `jacIsLoggedIn()`
-     # reads, and publish the browser globals react-dom needs. `mountId` differs
-     # per harness, so each one prepends its own `const mountId = ...`.
-     # A plain (non-f) string so JS `${}` / `{}` need no escaping.
      _JSDOM_BOOT: str = """
 import { JSDOM } from "jsdom";
 
@@ -97,11 +90,6 @@ const assertExpectation = (expect, html) => {
     `got: ${window.location.pathname}`);
 };
 """,
-     # Manual-routing harness: mount the fixture app directly (no generated
-     # entry) and assert the guard's four shapes in both auth states. `chrome`
-     # is outside `<Routes>`, so "guard rendered nothing" stays distinguishable
-     # from "the app never mounted" -- which is exactly the failure mode of the
-     # children bug: a mounted app with an empty route slot.
      _MANUAL_HARNESS: str = "const mountId = \"__jac_root\";\n"
          + _JSDOM_BOOT
          + """
