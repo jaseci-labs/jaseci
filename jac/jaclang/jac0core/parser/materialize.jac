@@ -59,7 +59,7 @@ def materialize_fixups(module: any) {
                 nd.body = [
                     k
                     for k in nd.kid[lb + 1:]
-                    if isinstance(k, elem) and type(k).__name__ != "Semi"
+                    if isinstance(k, elem)
                 ];
             } elif type(nd).__name__ == "Ability" {
                 for k in nd.kid {
