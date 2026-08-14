@@ -723,7 +723,7 @@ obj ManifestBuilder {
 
         extra: dict[str, any] = svc_cfg.get("env", {});
         for (k, v) in extra.items() {
-            if k == "JAC_SV_NAME" {
+            if k in ("JAC_SV_NAME", "JAC_SV_FILE") {
                 continue;
             }
             if k.startswith("JAC_SV_") and k.endswith("_URL") {
@@ -1073,9 +1073,17 @@ obj ManifestBuilder {
                 "else "
                 '  SV_FILE="${JAC_SV_FILE:-}"; '
                 '  if [ -z "$SV_FILE" ]; then '
-                '    SV_FILE="$(find . -name "${JAC_SV_NAME}.jac" -not -path "*/.*" -print 2>/dev/null | head -n1)"; '
-                '  fi; '
-                '  exec jac start "${SV_FILE:-${JAC_SV_NAME}.jac}"; '
+                "    if [ ! -f manifest.json ]; then "
+                '      echo "jac-scale boot: the bundle shipped without manifest.json, so service $JAC_SV_NAME cannot resolve its module; re-deploy with a matching jac version." >&2; '
+                "      exit 1; "
+                "    fi; "
+                "    SV_FILE=\"$(python3 -c 'import json, os; print(json.load(open(\"manifest.json\")).get(\"services\", {}).get(os.environ[\"JAC_SV_NAME\"], \"\"))')\"; "
+                "  fi; "
+                '  if [ -z "$SV_FILE" ] || [ ! -f "$SV_FILE" ]; then '
+                '    echo "jac-scale boot: service $JAC_SV_NAME resolves to ${SV_FILE:-<none>}, which the bundle does not ship; fix [scale.microservices] and re-deploy." >&2; '
+                "    exit 1; "
+                "  fi; "
+                '  exec jac start "$SV_FILE"; '
                 "fi"
             ]
         };

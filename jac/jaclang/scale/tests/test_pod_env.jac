@@ -162,6 +162,40 @@ test "no client entry means no client build in the gateway entrypoint" {
 }
 
 
+test "a service pod resolves its module from the bundle manifest, not find" {
+    # #8105: the bundle declares its members and services; booting by
+    # guessing over the extracted tree picked same-named strays
+    # nondeterministically.
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg);
+    args: str = builder._pod_entrypoint()["args"][0];
+    assert "find " not in args , args;
+    assert "manifest.json" in args , args;
+    assert 'exec jac start "$SV_FILE"' in args , args;
+}
+
+
+test "the entrypoint refuses a service file the bundle does not ship" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg);
+    args: str = builder._pod_entrypoint()["args"][0];
+    assert '[ ! -f "$SV_FILE" ]' in args , args;
+    assert "exit 1" in args , args;
+}
+
+
+test "user env cannot point a pod at an arbitrary service file" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg);
+    env = builder._build_env(
+        "orders", {"env": {"JAC_SV_FILE": "evil.jac", "JAC_SV_NAME": "evil"}}
+    );
+    values: dict[str, str] = {e["name"]: e["value"] for e in env};
+    assert values["JAC_SV_NAME"] == "orders";
+    assert "JAC_SV_FILE" not in values;
+}
+
+
 test "a single-file full-stack app still gets its client bundle built" {
     import tempfile;
     import os;

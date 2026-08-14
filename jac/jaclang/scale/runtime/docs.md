@@ -433,7 +433,11 @@ kubectl delete deployment,service,hpa,pdb,ingress -l managed=jac-scale -n <ns>
 
 Every pod runs the same image, only needs `jac` + `jac-scale[deploy]`.
 The pod-spec's `command`/`args` reads `JAC_SV_NAME` and dispatches:
-`<svc>` -> `jac start <svc>.jac`, `__gateway__` -> `jac scale gateway`.
+`__gateway__` -> `jac scale gateway`; any other service resolves its module
+from the bundle's `/app/manifest.json` (`JAC_SV_FILE`, set from
+`[scale.microservices.services.NAME] file`, wins when present) and runs
+`jac start <resolved file>`, refusing to boot a file the bundle does not
+ship.
 `JAC_SV_SIBLING=1` is set so the JacScalePlugin pre-hook skips the
 local-mode orchestrator.
 
