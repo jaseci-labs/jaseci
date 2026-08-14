@@ -208,18 +208,59 @@ impl NaIRGenPass._struct_name_of(expr: (uni.UniNode | None)) -> (str | None) {
     if not isinstance(expr, uni.Expr) or expr.type is None {
         return None;
     }
-    tk = self._mangled_of(expr.type);
+    return self._struct_name_for_key(self._mangled_of(expr.type));
+}
+
+impl NaIRGenPass._struct_name_for_key(tk: (str | None)) -> (str | None) {
+    if tk is None {
+        return None;
+    }
     if tk in self.struct_types {
         return tk;
     }
-    if "|" in tk {
-        for part in tk.split("|") {
-            if part in self.struct_types {
-                return part;
-            }
+    for part in self._split_union_key(tk) {
+        if part in self.struct_types {
+            return part;
+        }
+    }
+    for part in self._split_union_key(tk) {
+        _base = self._erased_arch_base(part);
+        if _base is not None {
+            return _base;
         }
     }
     return None;
+}
+
+impl NaIRGenPass._erased_arch_base(tk: str) -> (str | None) {
+    _open = tk.find("[");
+    if _open <= 0 or not tk.endswith("]") {
+        return None;
+    }
+    _base = tk[:_open];
+    return _base if _base in self.struct_types else None;
+}
+
+impl NaIRGenPass._split_union_key(tk: str) -> list[str] {
+    if "|" not in tk {
+        return [tk];
+    }
+    out: list[str] = [];
+    depth = 0;
+    start = 0;
+    for i in range(len(tk)) {
+        ch = tk[i];
+        if ch == "[" {
+            depth += 1;
+        } elif ch == "]" {
+            depth -= 1;
+        } elif ch == "|" and depth == 0 {
+            out.append(tk[start:i]);
+            start = i + 1;
+        }
+    }
+    out.append(tk[start:]);
+    return out;
 }
 
 impl NaIRGenPass._struct_ptr_pointee_name(val: ir.Value) -> (str | None) {
