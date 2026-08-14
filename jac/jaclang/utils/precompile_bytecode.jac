@@ -667,6 +667,71 @@ glob _PARITY_CANARY_LINES: tuple = (
 
      );
 
+def _parity_diff_at(left: any, right: any) -> int {
+    limit = min(len(left), len(right));
+    for i in range(limit) {
+        if left[i] != right[i] {
+            return i;
+        }
+    }
+    return limit;
+}
+
+
+def _parity_window(items: list, at: int, span: int, sep: str = " ") -> str {
+    lo = max(0, at - span);
+    hi = min(len(items), at + span + 1);
+    out = sep.join([str(x) for x in items[lo:hi]]);
+    if lo > 0 {
+        out = f"...{out}";
+    }
+    if hi < len(items) {
+        out = f"{out}...";
+    }
+    return out;
+}
+
+
+def _parity_text_report(canary_path: str, native_up: str, py_up: str) -> str {
+    nl = chr(10);
+    off = _parity_diff_at(native_up, py_up);
+    line = native_up.count(nl, 0, off) + 1;
+    col = off - native_up.rfind(nl, 0, off);
+    n_toks = native_up.split();
+    p_toks = py_up.split();
+    at = _parity_diff_at(n_toks, p_toks);
+    n_tok = n_toks[at] if at < len(n_toks) else "<end>";
+    p_tok = p_toks[at] if at < len(p_toks) else "<end>";
+    return nl.join(
+        [
+            f"{canary_path}: unparse diverged at line {line}, col {col} "
+            f"(char {off} of {len(native_up)} native / {len(py_up)} bytecode)",
+            f"    first differing token {at + 1} of {len(n_toks)} native / "
+            f"{len(p_toks)} bytecode: native {n_tok!r} vs bytecode {p_tok!r}",
+            f"    native   {_parity_window(n_toks, at, 8)}",
+            f"    bytecode {_parity_window(p_toks, at, 8)}"
+        ]
+    );
+}
+
+
+def _parity_sym_report(canary_path: str, n_syms: list, p_syms: list) -> str {
+    nl = chr(10);
+    at = _parity_diff_at(n_syms, p_syms);
+    n_show = n_syms[at] if at < len(n_syms) else "<end>";
+    p_show = p_syms[at] if at < len(p_syms) else "<end>";
+    return nl.join(
+        [
+            f"{canary_path}: symbol names diverged at entry {at + 1} of "
+            f"{len(n_syms)} native / {len(p_syms)} bytecode: "
+            f"native {n_show!r} vs bytecode {p_show!r}",
+            f"    native   {_parity_window(n_syms, at, 3, sep=', ')}",
+            f"    bytecode {_parity_window(p_syms, at, 3, sep=', ')}"
+        ]
+    );
+}
+
+
 def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
     import traceback;
     import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
@@ -727,45 +792,24 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
         }
         native_up = unparse_node(native_mod);
         py_up = unparse_node(py_mod);
-        if native_up != py_up {
-            n_lines = native_up.splitlines();
-            p_lines = py_up.splitlines();
-            at = -1;
-            for (li, pair) in enumerate(zip(n_lines, p_lines)) {
-                if pair[0] != pair[1] {
-                    at = li;
-                    break;
-                }
-            }
-            if at < 0 {
-                at = min(len(n_lines), len(p_lines));
-            }
-            n_show = n_lines[at] if at < len(n_lines) else "<end>";
-            p_show = p_lines[at] if at < len(p_lines) else "<end>";
-            return (
-                f"{canary_path}: unparse fingerprints diverged at line "
-                f"{at + 1}: native {n_show!r} vs bytecode {p_show!r}"
-            );
-        }
         n_syms = _sym_name_fingerprint(native_mod);
         p_syms = _sym_name_fingerprint(py_mod);
-        if n_syms != p_syms {
-            at = -1;
-            for (si, sym_pair) in enumerate(zip(n_syms, p_syms)) {
-                if sym_pair[0] != sym_pair[1] {
-                    at = si;
-                    break;
-                }
+        if native_up != py_up or n_syms != p_syms {
+            if env_na_debug() {
+                sys.stderr.write(
+                    f"--- {canary_path}: native unparse ---{nl}{native_up}{nl}"
+                    f"--- {canary_path}: bytecode unparse ---{nl}{py_up}{nl}"
+                );
+                sys.stderr.flush();
             }
-            if at < 0 {
-                at = min(len(n_syms), len(p_syms));
+            detail: list[str] = [];
+            if native_up != py_up {
+                detail.append(_parity_text_report(canary_path, native_up, py_up));
             }
-            n_show = n_syms[at] if at < len(n_syms) else "<end>";
-            p_show = p_syms[at] if at < len(p_syms) else "<end>";
-            return (
-                f"{canary_path}: symbol names diverged at entry {at + 1}: "
-                f"native {n_show!r} vs bytecode {p_show!r}"
-            );
+            if n_syms != p_syms {
+                detail.append(_parity_sym_report(canary_path, n_syms, p_syms));
+            }
+            return nl.join(detail);
         }
     }
     return "";
@@ -1056,10 +1100,10 @@ def seal_native_artifacts(
             if parity {
                 console.error(
                     f"NATIVE SEAL: {rel}: the emitted artifact "
-                    f"{lib_path.name} failed its parse parity canary: "
-                    f"{parity}. The seal refuses artifacts whose parses do "
-                    "not match the bytecode parser; set JAC_NA_DEBUG=1 for "
-                    "the traceback."
+                    f"{lib_path.name} failed its parse parity canary. The "
+                    "seal refuses artifacts whose parses do not match the "
+                    "bytecode parser; set JAC_NA_DEBUG=1 for the full "
+                    f"unparsed texts and the traceback.{chr(10)}{parity}"
                 );
                 lib_path.unlink(missing_ok=True);
                 layout_path.unlink(missing_ok=True);
