@@ -70,9 +70,14 @@ jobs:
               - 'jac/jaclang/compiler/passes/native/**'
               - 'jac/tests/compiler/passes/native/**'
               - 'jac/jaclang/compiler/tests/test_prim_equivalence.jac'
+              - 'jac/jaclang/compiler/tests/fixtures/prim_*.jac'
               - 'jac/native/**'
               - 'jac/build.zig'
               - 'jac/build.zig.zon'
+              # The native lanes' own definitions live here, so a change to
+              # what they run must run them -- `core` already lists this file
+              # for the same reason.
+              - '.github/workflows/ci.yml'
 
   # Build (or cache-restore) the jac binary ONCE per run, smoke it hermetically,
   # and publish it (plus the gitignored typeshed stubs) as artifacts. Every
