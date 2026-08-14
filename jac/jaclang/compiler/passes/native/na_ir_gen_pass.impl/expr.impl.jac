@@ -509,7 +509,7 @@ impl NaIRGenPass._codegen_name(nd: uni.Name) -> (ir.Value | None) {
         global_var = self.global_vars[var_name];
         return self.builder.load(global_var, name=f"glob.{var_name}");
     }
-    return None;
+    return self._codegen_class_ref(nd);
 }
 
 impl NaIRGenPass._codegen_pipe_fwd(nd: uni.BinaryExpr) -> (ir.Value | None) {
@@ -819,6 +819,7 @@ impl NaIRGenPass._codegen_compare_link(
         is_not_in = op == Tok.KW_NIN;
         left = self._str_norm(left);
         right = self._str_norm(right);
+        right = self._unwrap_opt_container(right);
         _in_key_nd = left_node.expr
             if isinstance(left_node, uni.CfgExpr)
             else left_node;

@@ -17,28 +17,14 @@ obj UniPass(ModuleCodegenPass) {
     def default_exit(nd: uni.UniNode) -> None;
     def prune -> None;
     static def get_all_sub_nodes(nd: uni.UniNode, typ: type[T]) -> list[T] {
-        result: list[T] = [];
         if not nd {
-            return result;
+            return [];
         }
-        if (typ in nd._sub_node_tab) {
-            for i in nd._sub_node_tab[typ] {
-                if isinstance(i, typ) {
-                    result.append(i);
-                }
-            }
-        }
-        return result;
+        return nd.get_all_sub_nodes(typ);
     }
 
     static def find_parent_of_type(nd: uni.UniNode, typ: type[T]) -> (T | None) {
-        while nd.parent {
-            if isinstance(nd.parent, typ) {
-                return nd.parent;
-            }
-            nd = nd.parent;
-        }
-        return None;
+        return nd.find_parent_of_type(typ);
     }
 
     def recalculate_parents(nd: uni.UniNode) -> None;

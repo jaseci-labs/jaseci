@@ -1228,6 +1228,16 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             return self._emit_isinstance(nd);
         }
 
+        if func_name == "type" {
+            _cid_params = nd.params or [];
+            if len(_cid_params) == 1 {
+                _cid = self._codegen_class_id(_cid_params[0]);
+                if _cid is not None {
+                    return _cid;
+                }
+            }
+        }
+
         if func_name == "len" {
             params_l = nd.params or [];
             if params_l {
@@ -2257,6 +2267,12 @@ impl NaIRGenPass._emit_isinstance_core(
     params = nd.params or [];
 
     type_arg = params[1];
+    if not isinstance(type_arg, uni.TupleVal) {
+        _rt_res = self._emit_isinstance_runtime(nd, operand, type_arg);
+        if _rt_res is not None {
+            return _rt_res;
+        }
+    }
     names: list[str] = [];
     if isinstance(type_arg, uni.TupleVal) {
         for v in (type_arg.values or []) {

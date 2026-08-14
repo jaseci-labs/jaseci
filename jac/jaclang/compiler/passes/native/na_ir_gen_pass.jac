@@ -173,6 +173,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _struct_source_mod: dict[str, str] = {},
         _native_skipped_methods: set[str] = set(),
         _class_name_consts: dict[str, ir.Value] = {},
+        _isa_fn: (ir.Function | None) = None,
         osp_type_tag_field: dict[str, int] = {},
         osp_reports_field: dict[str, int] = {},
         osp_thunk_funcs: dict[str, ir.Function] = {},
@@ -945,6 +946,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _dict_key_spec(key_type: ir.Type) -> tuple;
     def _dict_val_spec(val_type: ir.Type) -> str;
+    def _unwrap_opt_container(val: ir.Value) -> ir.Value;
+    def _spec_name_match(tk: str, names: tuple) -> bool;
+    def _opt_sole_member(t: any) -> (any | None);
     def _elem_kind(elem_type: ir.Type) -> str;
     def _elem_storage_llvm(t: any) -> (ir.Type | None);
     def _emit_jacval_retain_fn -> ir.Function;
@@ -1055,6 +1059,16 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _vtable_candidates(names: list[str]) -> list[ir.GlobalVariable];
     def _emit_class_name_const(arch_name: str) -> ir.Value;
     def _codegen_class_name(nd: uni.AtomTrailer) -> (ir.Value | None);
+    def _codegen_class_id(receiver: uni.UniNode) -> (ir.Value | None);
+    def _class_id_of_value(arch_name: str, obj_val: ir.Value) -> ir.Value;
+    def _codegen_class_ref(nd: uni.Name) -> (ir.Value | None);
+    def _is_enum_arch(name: str) -> bool;
+    def _emit_isa_fn -> ir.Function;
+    def _runtime_class_value(expr: (uni.UniNode | None)) -> (ir.Value | None);
+    def _emit_isinstance_runtime(
+        nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
+    ) -> (ir.Value | None);
+
     def _mro_of(arch_name: str) -> list[str];
     def _arch_layout(arch_name: str) -> (ArchetypeLayout | None);
     def _arch_has_vtable(arch_name: str) -> bool;

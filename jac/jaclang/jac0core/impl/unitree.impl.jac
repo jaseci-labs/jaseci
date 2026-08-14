@@ -366,15 +366,9 @@ impl UniScopeNode.lookup(
         }
     }
 
-    impl_def: ImplDef | None = None;
-    _walk: UniNode | None = self;
-    while _walk is not None {
-        if isinstance(_walk, ImplDef) {
-            impl_def = _walk;
-            break;
-        }
-        _walk = _walk.parent;
-    }
+    impl_def: ImplDef | None = (
+        self if isinstance(self, ImplDef) else self.find_parent_of_type(ImplDef)
+    );
     if (impl_def and impl_def.decl_link and impl_def.decl_link.sym_tab) {
         return impl_def.decl_link.sym_tab.lookup(
             name, deep=True, incl_inner_scope=False
@@ -440,20 +434,9 @@ impl UniScopeNode.find_scope(name: str) -> (UniScopeNode | None) {
     return None;
 }
 
-impl UniScopeNode._capture_names(nd: UniNode, out: list[Name]) -> None {
-    for k in nd.kid {
-        self._capture_names(k, out);
-        if isinstance(k, Name) {
-            out.append(k);
-        }
-    }
-}
-
 impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
     out: list[Symbol] = [];
-    sub_names: list[Name] = [];
-    self._capture_names(self, sub_names);
-    for name in sub_names {
+    for name in self.get_all_sub_nodes(Name) {
         sym = name.sym;
         if (sym is None) {
             continue;
