@@ -47,7 +47,7 @@ test "complex" {
 }
 
 test "str" {
-    run_with_both("prim_str.jac", "str_py", "str_cl", "str_na");
+    run_with_both("prim_str.jac", "str_py", "str_cl", "str_na", require=["na"]);
 }
 
 test "string escapes" {
@@ -62,22 +62,42 @@ test "string escapes" {
 
 test "bytes search" {
     run_with_both(
-        "prim_bytes.jac", "bytes_search_py", "bytes_search_cl", "bytes_search_na"
+        "prim_bytes.jac",
+        "bytes_search_py",
+        "bytes_search_cl",
+        "bytes_search_na",
+        require=["na"]
     );
 }
 
 test "bytes modify" {
     run_with_both(
-        "prim_bytes.jac", "bytes_modify_py", "bytes_modify_cl", "bytes_modify_na"
+        "prim_bytes.jac",
+        "bytes_modify_py",
+        "bytes_modify_cl",
+        "bytes_modify_na",
+        require=["na"]
     );
 }
 
 test "bytes case" {
-    run_with_both("prim_bytes.jac", "bytes_case_py", "bytes_case_cl", "bytes_case_na");
+    run_with_both(
+        "prim_bytes.jac",
+        "bytes_case_py",
+        "bytes_case_cl",
+        "bytes_case_na",
+        require=["na"]
+    );
 }
 
 test "bytes test methods" {
-    run_with_both("prim_bytes.jac", "bytes_test_py", "bytes_test_cl", "bytes_test_na");
+    run_with_both(
+        "prim_bytes.jac",
+        "bytes_test_py",
+        "bytes_test_cl",
+        "bytes_test_na",
+        require=["na"]
+    );
 }
 
 test "bytearray core" {
