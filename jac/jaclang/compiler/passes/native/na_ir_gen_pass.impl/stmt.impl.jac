@@ -3097,6 +3097,36 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
         return;
     }
 
+    if self._tuple_iter_shape(nd.collection, _coll_memo) {
+        _tup_seq = self._tuple_iter_seq(nd.collection, _coll_memo);
+        if _tup_seq is None {
+            if len(self.errors_had) == _for_errs0 {
+                self.emit(
+                    E5092,
+                    node_override=nd.collection or nd,
+                    kind="for-loop iterable",
+                    name="tuple with mixed element storage",
+                    help_text="Every element of an iterated tuple must share one storage width, because the loop variable is a single slot and the checker types it from the tuple's FIRST element -- boxing the elements instead would answer `isinstance` in the body against the wrong member. Use a list literal, whose element type widens to a union, or bind the elements individually."
+                );
+            }
+            return;
+        }
+        (_ts_val, _ts_spec, _ts_elem, _ts_cast) = _tup_seq;
+        self._codegen_for_indexed(
+            nd,
+            kind="list",
+            collection_val=_ts_val,
+            helpers=self.list_helpers[_ts_spec],
+            var_names=[loop_var_name],
+            var_types=[_ts_elem],
+            rc_vars=True,
+            coll_release_op="fort_coll",
+            elem_cast=_ts_cast,
+            unpack_target=_unpack_target
+        );
+        return;
+    }
+
     if _coll_memo is None {
         if len(self.errors_had) == _for_errs0 {
             self.emit(

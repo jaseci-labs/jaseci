@@ -1140,6 +1140,16 @@ obj NaIRGenPass(ModuleCodegenPass) {
         tuple_val: ir.Value, idx_val: ir.Value, struct_type: ir.LiteralStructType
     ) -> (ir.Value | None);
 
+    def _tuple_struct_of_value(
+        val: (ir.Value | None)
+    ) -> (ir.LiteralStructType | None);
+
+    def _tuple_iter_shape(expr: (uni.UniNode | None), val: (ir.Value | None)) -> bool;
+    def _tuple_seq_flavor(elem_types: list) -> (tuple | None);
+    def _tuple_iter_seq(
+        expr: (uni.UniNode | None), val: (ir.Value | None)
+    ) -> (tuple | None);
+
     def _get_struct_size(struct_type: ir.LiteralStructType) -> int;
     def _sizeof_llvm(ty: ir.Type) -> ir.Value;
     def _box_value_tuple(val: ir.Value, loc: str = "") -> ir.Value;
