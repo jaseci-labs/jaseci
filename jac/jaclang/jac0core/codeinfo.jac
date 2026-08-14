@@ -111,7 +111,8 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "time",
          "os",
          "random",
-         "struct"
+         "struct",
+         "builtins"
      },
      _effective_codespace_ctx: ContextVar[str] = ContextVar(
          "jac_effective_default_codespace", default=""

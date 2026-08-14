@@ -2065,6 +2065,8 @@ impl PyastBuildPass.proc_module(nd: py_ast.Module) -> uni.Module {
     if not nd.body {
         return uni.Module.make_stub(inject_src=self.ir_in.orig_src);
     }
+
+    self._builtins_alias = self._choose_builtins_alias(nd);
     elements: list[uni.UniNode] = [self.convert(i) for i in nd.body];
     elements[0] = elements[0].expr
         if (
@@ -2081,6 +2083,14 @@ impl PyastBuildPass.proc_module(nd: py_ast.Module) -> uni.Module {
         else self.extract_with_entry(elements[:], (uni.ElementStmt, uni.EmptyToken));
     doc_str = elements[0] if isinstance(elements[0], uni.String) else None;
     self.convert_to_doc(doc_str) if doc_str else None;
+    if self._needs_builtins_import {
+        imp = self._make_builtins_import();
+        if valid and isinstance(valid[0], uni.String) {
+            valid = [valid[0], imp] + valid[1:];
+        } else {
+            valid = [imp] + valid;
+        }
+    }
     ret = uni.Module(
         name=self.mod_path.split(os.path.sep)[-1].split('.')[0],
         source=uni.Source('', mod_path=self.mod_path),
@@ -2179,6 +2189,8 @@ impl PyastBuildPass.postinit -> None {
     self.in_type_annotation = False;
     self.in_match_pattern = False;
     self.in_fstring_expr = False;
+    self._needs_builtins_import = False;
+    self._builtins_alias = "";
     super.postinit();
 }
 
@@ -2245,7 +2257,7 @@ impl PyastBuildPass._make_number_literal(
 }
 
 impl PyastBuildPass._emit_float_call(nd: py_ast.AST, arg: str) -> uni.FuncCall {
-    func = self.name_node(nd, 'float');
+    func = self._builtin_attr_ref(nd, 'float');
     arg_lit = uni.String(
         orig_src=self.orig_src,
         name='STRING',
@@ -2278,7 +2290,7 @@ impl PyastBuildPass._numeric_literal(nd: py_ast.AST, n: float) -> uni.Expr {
 impl PyastBuildPass._emit_complex_call(
     nd: py_ast.AST, re: float, im: float
 ) -> uni.FuncCall {
-    func = self.name_node(nd, 'complex');
+    func = self._builtin_attr_ref(nd, 'complex');
     real_lit = self._numeric_literal(nd, re);
     imag_lit = self._numeric_literal(nd, im);
     return uni.FuncCall(
@@ -2287,6 +2299,79 @@ impl PyastBuildPass._emit_complex_call(
         genai_call=None,
         kid=[func, real_lit, imag_lit]
     );
+}
+
+impl PyastBuildPass._builtin_attr_ref(nd: py_ast.AST, attr: str) -> uni.AtomTrailer {
+    self._needs_builtins_import = True;
+    mod = self.name_node(nd, self._builtins_alias);
+    name = self.name_node(
+        nd, attr, col_start=nd.col_offset, col_end=nd.col_offset + len(attr)
+    );
+    return uni.AtomTrailer(
+        target=mod, right=name, is_attr=True, is_null_ok=False, kid=[mod, name]
+    );
+}
+
+impl PyastBuildPass._make_builtins_import -> uni.Import {
+    alias_name = uni.Name(
+        orig_src=self.orig_src,
+        name=Tok.NAME,
+        value=self._builtins_alias,
+        line=1,
+        end_line=1,
+        col_start=0,
+        col_end=len(self._builtins_alias),
+        pos_start=0,
+        pos_end=0
+    );
+    mod_seg = uni.Name(
+        orig_src=self.orig_src,
+        name=Tok.NAME,
+        value='builtins',
+        line=1,
+        end_line=1,
+        col_start=0,
+        col_end=8,
+        pos_start=0,
+        pos_end=0
+    );
+    path = uni.ModulePath(
+        path=[mod_seg], level=0, alias=alias_name, kid=[mod_seg, alias_name]
+    );
+    return uni.Import(from_loc=None, items=[path], is_absorb=False, kid=[path]);
+}
+
+impl PyastBuildPass._collect_used_identifiers(ast_root: py_ast.AST) -> set[str] {
+    used: set[str] = set();
+    for node in py_ast.walk(ast_root) {
+        if isinstance(node, py_ast.Name) {
+            used.add(node.id);
+        } elif isinstance(node, py_ast.arg) {
+            used.add(node.arg);
+        } elif isinstance(
+            node, (py_ast.FunctionDef, py_ast.AsyncFunctionDef, py_ast.ClassDef)
+        ) {
+            used.add(node.name);
+        } elif isinstance(node, (py_ast.Import, py_ast.ImportFrom)) {
+            for alias in node.names {
+                bound = alias.asname or alias.name.split('.')[0];
+                used.add(bound);
+            }
+        }
+    }
+    return used;
+}
+
+impl PyastBuildPass._choose_builtins_alias(ast_root: py_ast.AST) -> str {
+    used = self._collect_used_identifiers(ast_root);
+    base = "_jac_py2jac_builtins";
+    candidate = base;
+    i = 1;
+    while candidate in used {
+        i += 1;
+        candidate = base + str(i);
+    }
+    return candidate;
 }
 
 impl PyastBuildPass._eval_complex_literal_ast(

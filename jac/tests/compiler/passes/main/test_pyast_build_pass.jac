@@ -191,7 +191,9 @@ test "py2jac binop operator precedence" {
     assert "(w - title_len - 1) // 2" in code , f"Expected correct floor-div grouping in: {code}";
 }
 
-"""Complex number literals must emit complex(re, im) instead of ICE."""
+"""Complex number literals must emit a shadow-proof `<alias>.complex(re, im)`
+qualified through a collision-free `import builtins as <alias>`, instead of a
+bare (shadowable) `complex(...)` call or an ICE."""
 test "py2jac complex literals" {
     file_source = read_fixture("py2jac_complex.py");
     code = PyastBuildPass(
@@ -201,18 +203,39 @@ test "py2jac complex literals" {
         prog=JacProgram()
     ).ir_out.unparse();
 
-    assert "complex(0, 1)" in code , f"Expected bare 1j as complex(0, 1) in:\n{code}";
-    assert "complex(0, 2)" in code , f"Expected 2.0j conversion in:\n{code}";
-    assert "complex(1, 2)" in code , f"Expected 1+2j as complex(1, 2) in:\n{code}";
-    assert "complex(-1, -2)" in code , f"Expected -1-2j as complex(-1, -2) in:\n{code}";
-    assert "complex(3, 0)" in code , f"Expected 3+0j as complex(3, 0) in:\n{code}";
-    assert "complex(1, 2)" in code , f"Expected 2j+1 as complex(1, 2) in:\n{code}";
-    assert "complex(4, 2)" in code , f"Expected 1+2j+3 as complex(4, 2) in:\n{code}";
-    assert "complex(-1, 2)" in code , f"Expected 2j-1 as complex(-1, 2) in:\n{code}";
-    assert "complex(0, 2) + 1" not in code , (
+    # Shadow-proof qualified reference: a single aliased builtins-module import
+    # anchors `<alias>.complex(...)` so a source `def complex` cannot reach it.
+    assert "import builtins as" in code , (
+        f"Expected an aliased builtins import in:\n{code}"
+    );
+    assert "return complex(" not in code , (
+        f"Must not emit a bare (shadowable) complex call in:\n{code}"
+    );
+    assert "_jac_py2jac_builtins.complex(0, 1)" in code , (
+        f"Expected bare 1j as <alias>.complex(0, 1) in:\n{code}"
+    );
+    assert "_jac_py2jac_builtins.complex(0, 2)" in code , (
+        f"Expected 2.0j conversion in:\n{code}"
+    );
+    assert "_jac_py2jac_builtins.complex(1, 2)" in code , (
+        f"Expected 1+2j as <alias>.complex(1, 2) in:\n{code}"
+    );
+    assert "_jac_py2jac_builtins.complex(-1, -2)" in code , (
+        f"Expected -1-2j as <alias>.complex(-1, -2) in:\n{code}"
+    );
+    assert "_jac_py2jac_builtins.complex(3, 0)" in code , (
+        f"Expected 3+0j as <alias>.complex(3, 0) in:\n{code}"
+    );
+    assert "_jac_py2jac_builtins.complex(4, 2)" in code , (
+        f"Expected 1+2j+3 as <alias>.complex(4, 2) in:\n{code}"
+    );
+    assert "_jac_py2jac_builtins.complex(-1, 2)" in code , (
+        f"Expected 2j-1 as <alias>.complex(-1, 2) in:\n{code}"
+    );
+    assert ".complex(0, 2) + 1" not in code , (
         f"Reversed complex add must fold, got native-broken binop in:\n{code}"
     );
-    assert "complex(1, 2) + 3" not in code , (
+    assert ".complex(1, 2) + 3" not in code , (
         f"Nested complex add must fold, got native-broken binop in:\n{code}"
     );
 
@@ -226,9 +249,10 @@ test "py2jac complex literals" {
 
 """py2jac complex output must run in the server (Python) codespace.
 
-Qualifying the constructor as `builtins.complex` only works where the native
-backend pattern-matches the name; `builtins` is not defined in the Python
-codespace, so the generated code crashed at runtime with NameError. This test
+The constructor is qualified as `<alias>.complex` through a real
+`import builtins as <alias>`; the alias resolves to the builtins module in the
+Python codespace, so the converted code runs instead of crashing with NameError
+(the failure mode when the qualified ref had no import anchor). This test
 imports and executes the converted module to guard against that regression.
 """
 test "py2jac complex literals run in server codespace" {
@@ -317,6 +341,180 @@ test "py2jac complex literals native lowering" {
     );
     assert mod.gen.llvm_ir is not None , (
         "Expected native IR for folded complex literals"
+    );
+}
+
+"""Source-name shadowing must not reach folded complex/float literals.
+
+The source defines its own `complex`/`float` AND collides with the default
+alias `_jac_py2jac_builtins`. py2jac must pick a fresh suffix, qualify the
+constructors through the real builtins module, and the folded literal must still
+produce the true complex value at runtime -- not the source's `EVIL` function.
+"""
+test "py2jac builtin shadowing is resolved through the alias" {
+    source = (
+        "_jac_py2jac_builtins = 1\n"
+        "def complex(re, im):\n"
+        "    return 'EVIL'\n"
+        "def float(x):\n"
+        "    return 'EVIL'\n"
+        "def make():\n"
+        "    return 1 + 2j\n"
+    );
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(source), orig_src=Source(source, "py2jac_shadow.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse();
+
+    # Collision-free suffix: the source stole the base alias, so a fresh one is used.
+    assert "import builtins as _jac_py2jac_builtins2;" in code , (
+        f"Expected suffixed alias under collision in:\n{code}"
+    );
+    assert "as _jac_py2jac_builtins;" not in code , (
+        f"Must not reuse the colliding alias in:\n{code}"
+    );
+    # The folded literal is qualified through the real builtins module, not bare.
+    assert "_jac_py2jac_builtins2.complex(1, 2)" in code , (
+        f"Expected <alias>.complex(1, 2) in:\n{code}"
+    );
+    assert "return complex(1, 2)" not in code , (
+        f"Must not emit a bare (shadowable) complex call in:\n{code}"
+    );
+    # The source's own shadowing definitions are preserved verbatim.
+    assert "def complex" in code and "'EVIL'" in code , (
+        f"Source complex/float must be preserved in:\n{code}"
+    );
+
+    # Runtime proof: the folded literal yields the true complex value, not 'EVIL'.
+    tmp = tempfile.mkdtemp();
+    mod_name = "py2jac_shadow_rt";
+    open(os.path.join(tmp, f"{mod_name}.jac"), "w").write(code);
+    JacRuntime.jac_import(target=mod_name, base_path=tmp);
+    mod = sys.modules[mod_name];
+    result = mod.make();
+    assert result == complex(1, 2) , (
+        f"Shadowed complex leaked into folded literal; got {result!r}"
+    );
+}
+
+"""NaN (unreachable from source literals) lowers to `<alias>.float('nan')`.
+
+Python source cannot spell a NaN literal, so the non-finite branch of
+_numeric_literal is exercised by mutating a Constant's value to float('nan').
+The emitted call must be qualified through the alias and produce a real NaN.
+"""
+test "py2jac nan lowers to aliased float call" {
+    tree = py_ast.parse("def f():\n    return 0.0\n");
+    tree.body[0].body[0].value.value = float('nan');
+    source = "def f():\n    return 0.0\n";
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(tree, orig_src=Source(source, "py2jac_nan.py")),
+        prog=JacProgram()
+    ).ir_out.unparse();
+
+    assert "import builtins as" in code , (
+        f"Expected an aliased builtins import for nan in:\n{code}"
+    );
+    assert "_jac_py2jac_builtins.float('nan')" in code , (
+        f"Expected <alias>.float('nan') in:\n{code}"
+    );
+    assert "float('nan')" in code , f"Expected a nan construction in:\n{code}";
+
+    tmp = tempfile.mkdtemp();
+    mod_name = "py2jac_nan_rt";
+    open(os.path.join(tmp, f"{mod_name}.jac"), "w").write(code);
+    JacRuntime.jac_import(target=mod_name, base_path=tmp);
+    mod = sys.modules[mod_name];
+    nan_val = mod.f();
+    assert nan_val != nan_val , (
+        f"Expected a real NaN (self-inequality); got {nan_val!r}"
+    );
+}
+
+"""Modules without complex/nan literals must not receive the builtins import."""
+test "py2jac no builtins import for plain and inf numbers" {
+    source = "def pos():\n    return 1e309\ndef neg():\n    return -1e309\ndef n():\n    return 7\n";
+    code = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(source), orig_src=Source(source, "py2jac_noinf.py")
+        ),
+        prog=JacProgram()
+    ).ir_out.unparse();
+    assert "import builtins" not in code , (
+        f"Plain/inf-only module must not inject a builtins import in:\n{code}"
+    );
+}
+
+"""qualified_builtin_name must use symbol identity, not the textual name.
+
+A real `import builtins; builtins.len(...)` must classify as the builtin; a user
+object that merely happens to be named `builtins` must NOT (it would mis-dispatch
+native codegen onto a method). Compiled server-side so `.sym` is resolved; this
+exercises the fix in symbol_utils directly without native execution.
+"""
+test "qualified builtin recognition is symbol-based" {
+    import jaclang.jac0core.unitree as uni;
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.compiler.symbol_utils { qualified_builtin_name }
+
+    def find_len_call(mod: uni.Module) -> (uni.FuncCall | None) {
+        for fc in mod.get_all_sub_nodes(uni.FuncCall) {
+            if (
+                isinstance(fc.target, uni.AtomTrailer)
+                and isinstance(fc.target.right, uni.Name)
+                and fc.target.right.value == "len"
+            ) {
+                return fc;
+            }
+        }
+        return None;
+    }
+
+    tmp = tempfile.mkdtemp();
+
+    # Case A: a genuine `import builtins` -> the call is the builtin `len`.
+    path_a = os.path.join(tmp, "real_builtins.jac");
+    open(path_a, "w").write(
+        "import builtins;\n" "def f(x: list[int]) -> int { return builtins.len(x); }\n"
+    );
+    mod_a = JacProgram().compile(
+        file_path=path_a, options=CompileOptions(default_codespace='server')
+    );
+    fc_a = find_len_call(mod_a);
+    assert fc_a is not None , "real-builtins case produced no builtins.len call";
+    assert qualified_builtin_name(fc_a.target) == "len" , (
+        f"Real `import builtins` must resolve to builtin len; target sym: "
+        f"{fc_a.target.target.sym}"
+    );
+    assert fc_a.call_kind == "builtin" , (
+        f"Real builtins.len must classify as BUILTIN, got {fc_a.call_kind}"
+    );
+
+    # Case B: a user object named `builtins` -> NOT the builtin module.
+    path_b = os.path.join(tmp, "user_builtins.jac");
+    open(path_b, "w").write(
+        "obj Holder {\n"
+        "    has n: int = 9;\n"
+        "    def len(self) -> int { return self.n; }\n"
+        "}\n"
+        "def f() -> int {\n"
+        "    builtins: Holder = Holder();\n"
+        "    return builtins.len();\n"
+        "}\n"
+    );
+    mod_b = JacProgram().compile(
+        file_path=path_b, options=CompileOptions(default_codespace='server')
+    );
+    fc_b = find_len_call(mod_b);
+    assert fc_b is not None , "user-object case produced no builtins.len call";
+    assert qualified_builtin_name(fc_b.target) is None , (
+        f"User object named builtins must NOT be treated as the builtin module"
+    );
+    assert fc_b.call_kind != "builtin" , (
+        f"builtins.len() on a user object must not classify as BUILTIN, "
+        f"got {fc_b.call_kind}"
     );
 }
 

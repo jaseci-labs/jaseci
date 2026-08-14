@@ -88,22 +88,49 @@ def qualified_builtin_name(target: uni.Expr) -> (str | None) {
     if isinstance(target.target, uni.AtomTrailer) {
         return None;
     }
-    mod_name: (str | None) = None;
     attr_name: (str | None) = None;
-    if isinstance(target.target, uni.Name) {
-        mod_name = target.target.value;
-    }
     if isinstance(target.right, uni.Name) {
         attr_name = target.right.value;
     }
-    if (
-        mod_name == "builtins"
-        and attr_name is not None
-        and JAC_TYPE_REGISTRY.is_builtin(attr_name)
-    ) {
-        return attr_name;
+    if attr_name is None or not JAC_TYPE_REGISTRY.is_builtin(attr_name) {
+        return None;
     }
-    return None;
+
+    if not _is_builtins_module_ref(target.target) {
+        return None;
+    }
+    return attr_name;
+}
+
+def _is_builtins_module_ref(prefix: uni.Expr) -> bool {
+    if not isinstance(prefix, uni.Name) or prefix.sym is None {
+        return False;
+    }
+
+    for d in prefix.sym.defn {
+        if not _def_is_bare_builtins_import(d) {
+            return False;
+        }
+    }
+    return bool(prefix.sym.defn);
+}
+
+def _def_is_bare_builtins_import(d: uni.NameAtom) -> bool {
+    mp = d.find_parent_of_type(uni.ModulePath);
+    if mp is None {
+        return False;
+    }
+    imp = mp.find_parent_of_type(uni.Import);
+    if imp is None or imp.from_loc is not None {
+        return False;
+    }
+
+    is_alias = mp.alias is not None and d is mp.alias;
+    is_path0 = mp.alias is None and bool(mp.path) and d is mp.path[0];
+    if not (is_alias or is_path0) {
+        return False;
+    }
+    return mp.dot_path_str == "builtins";
 }
 
 def classify_call(nd: uni.FuncCall) -> CallKind {
