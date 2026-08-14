@@ -927,26 +927,7 @@ impl GlobalVars.postinit -> None {
 
 
 impl Test.postinit -> None {
-    if isinstance(self.name, Token) {
-        Test.TEST_COUNT = Test.TEST_COUNT + 1;
-    }
-    raw_name = self.name;
-    if isinstance(raw_name, Name) {
-        name_node = raw_name;
-    } else {
-        name_node = Name(
-            orig_src=raw_name.orig_src,
-            name=Tok.NAME.value,
-            value=f"_jac_gen_{Test.TEST_COUNT}",
-            col_start=raw_name.loc.col_start,
-            col_end=raw_name.loc.col_end,
-            line=raw_name.loc.first_line,
-            end_line=raw_name.loc.last_line,
-            pos_start=raw_name.pos_start,
-            pos_end=raw_name.pos_end
-        );
-    }
-    self.name = name_node;
+    name_node = self.name;
     name_node.parent = self;
     name_node._sym_name = f"test_{name_node.value}"
         if not name_node.value.startswith('test_')
