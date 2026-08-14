@@ -538,6 +538,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      - name: Set up pinned CPython for jac-py gates
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Pin CPython reference checkout
+        run: python3 jac-py/tools/fetch_cpython_reference.py
+
       - name: P4 import boundary gate
         run: python3 jac-py/tools/p4_import_gate.py
 
@@ -553,6 +561,15 @@ jobs:
       - name: P0.10 compiler slice tests
         run: jac test jac-py/jacpython/compiler_slice.jac
 
+      - name: Phase 2 validation contract tests
+        run: jac test jac-py/jacpython/compiler_validate.jac
+
+      - name: Phase 5 symtable contract tests
+        run: jac test jac-py/jacpython/compiler_symtable.jac
+
+      - name: layer9 product exec slice tests
+        run: jac test jac-py/jacpython/layer9_product_exec.jac
+
       - name: P0.4 token model contract tests
         run: jac test jac-py/jacpython/layer5_token_model.jac
 
@@ -564,6 +581,27 @@ jobs:
 
       - name: grammar2jac check
         run: python3 jac-py/tools/grammar2jac.py --check
+
+      - name: grammar2jac Phase 1 tests
+        run: python3 -m unittest jac-py/tools/test_grammar2jac.py
+
+      - name: opcode_meta2jac check
+        run: python3 jac-py/tools/opcode_meta2jac.py --check
+
+      - name: opcode_meta2jac Phase 3 tests
+        run: python3 -m unittest jac-py/tools/test_opcode_meta2jac.py
+
+      - name: Phase 3 flowgraph verification tests
+        run: jac test jac-py/jacpython/layer_flowgraph_verify.jac
+
+      - name: Phase 6 VM opcode fixture coverage gate
+        run: python3 jac-py/tools/vm_opcode_fixtures.py --check
+
+      - name: Phase 6 VM opcode fixture gate tests
+        run: python3 -m unittest jac-py/tools/test_vm_opcode_fixtures.py
+
+      - name: Phase 6 independent VM conformance tests
+        run: jac test jac-py/jacpython/layer_vm_conformance.jac
 
       - name: layer7 parser expr tests
         run: jac test jac-py/jacpython/layer7_parser_expr.jac
