@@ -873,8 +873,17 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
         }
         native_up = unparse_node(native_mod);
         py_up = unparse_node(py_mod);
-        n_syms = _sym_name_fingerprint(native_mod);
-        p_syms = _sym_name_fingerprint(py_mod);
+        n_syms: list[str] = [];
+        p_syms: list[str] = [];
+        try {
+            n_syms = _sym_name_fingerprint(native_mod);
+            p_syms = _sym_name_fingerprint(py_mod);
+        } except Exception as sym_exc {
+            return (
+                f"{canary_path}: symbol fingerprint raised "
+                f"{type(sym_exc).__name__}: {sym_exc}"
+            );
+        }
         if native_up != py_up or n_syms != p_syms {
             if env_na_debug() {
                 sys.stderr.write(
