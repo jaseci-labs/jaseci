@@ -84,10 +84,14 @@ jactastic/**
 .mcp.json
 .gstack/
 
-# Docs "Build Anything" track pages live under docs/docs/build/ -- the bare
-# `build` rule above would otherwise ignore them. Keep this content tracked.
-!docs/docs/build/
-!docs/docs/build/**
+# Docs "Build Anything" track pages live under jac/jaclang/cli/docs/build/ --
+# the bare `build` rule above would otherwise ignore them. Keep this content
+# tracked.
+!jac/jaclang/cli/docs/build/
+!jac/jaclang/cli/docs/build/**
 
 # Zig 0.16 project-local package cache (fetched, hash-pinned deps)
 zig-pkg/
+
+# Seal-time generated materializer root (see jaclang/utils/gen_native_materialize.jac)
+jac/jaclang/compiler/native_materialize.jac

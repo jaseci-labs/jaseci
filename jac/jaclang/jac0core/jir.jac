@@ -6,7 +6,7 @@ import zlib;
 import from pathlib { Path }
 
 glob MAGIC = b"JIR\x00",
-     FORMAT_VERSION: int = 17,
+     FORMAT_VERSION: int = 19,
      HEADER_SIZE: int = 32,
      HEADER_FMT: str = "<4sHHIIIIII",
      EXTERNAL_REF: int = 0xFFFFFF,
@@ -19,6 +19,7 @@ glob MAGIC = b"JIR\x00",
      SEC_SYMINDEX: int = 0x07,
      SEC_MODKEY: int = 0x08,
      SEC_DEBUG_SRC: int = 0x09,
+     SEC_PLACEMENT: int = 0x0A,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
@@ -112,17 +113,12 @@ def compute_content_sha256(file_path: str) -> str {
 }
 
 def _related_files(source_path: str) -> list[tuple[str, str]] {
-    import from jaclang.jac0core.bccache {
-        discover_annex_files,
-        discover_variant_files,
-        discover_style_annex
-    }
+    import from jaclang.jac0core.bccache { discover_annex_files, discover_style_annex }
     src = Path(source_path).resolve();
     base_dir = src.parent;
     paths: set = set();
     paths |= set(discover_annex_files(str(src), '.impl.jac'));
     paths |= set(discover_annex_files(str(src), '.test.jac'));
-    paths |= set(discover_variant_files(str(src)));
     style = discover_style_annex(str(src));
     if style is not None {
         paths.add(style);
@@ -138,10 +134,6 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
 glob _client_kind_probe: dict = {"active": False};
 
 def _module_codespace_mode(source_path: str) -> str {
-    import from jaclang.jac0core.ext_registry { codespace_of }
-    if codespace_of(source_path) is not None {
-        return "explicit";
-    }
     try {
         import from jaclang.jac0core.codeinfo { effective_default_codespace }
         return effective_default_codespace();
@@ -175,11 +167,16 @@ def schema_digest -> str {
     import from jaclang.jac0core.jir_registry { NODE_SPECS }
     h = hashlib.sha256();
     for spec in NODE_SPECS {
-        h.update(str(getattr(spec, 'type_idx', -1)).encode());
-        h.update(getattr(spec, 'class_name', '').encode());
-        for fd in (getattr(spec, 'fields', ()) or ()) {
-            h.update(getattr(fd, 'name', '').encode());
-            h.update(str(getattr(fd, 'kind', -1)).encode());
+        ti_txt: str = str(getattr(spec, 'type_idx', -1));
+        h.update(ti_txt.encode());
+        cn_txt: str = getattr(spec, 'class_name', '');
+        h.update(cn_txt.encode());
+        flds: tuple = getattr(spec, 'fields', ()) or ();
+        for fd in flds {
+            fn_txt: str = getattr(fd, 'name', '');
+            h.update(fn_txt.encode());
+            fk_txt: str = str(getattr(fd, 'kind', -1));
+            h.update(fk_txt.encode());
         }
     }
     _SCHEMA_DIGEST_CACHE.append(h.hexdigest());
@@ -200,6 +197,13 @@ def compute_module_key(source_path: str) -> str {
     h.update(schema_digest().encode());
     h.update(_module_client_kind(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
+    import from jaclang.jac0core.placement_pins { pins_digest, config_kind_space }
+    h.update(pins_digest(source_path).encode());
+    h.update(config_kind_space(source_path).encode());
+    import from jaclang.jac0core.service_cut { cut_digest }
+    h.update(cut_digest(source_path).encode());
+    import from jaclang.jac0core.compile_options { effective_codegen_fingerprint }
+    h.update(effective_codegen_fingerprint().encode());
     h.update(compute_content_sha256(source_path).encode());
     for (rel, digest) in _related_files(source_path) {
         h.update(rel.encode());
@@ -223,12 +227,40 @@ def read_modkey(data: bytes) -> (str | None) {
     }
 }
 
+def compute_stub_module_key(source_path: str) -> str {
+    import from importlib.metadata { version as pkg_version }
+    try {
+        jac_ver = pkg_version('jaclang');
+    } except Exception {
+        jac_ver = "0.0.0";
+    }
+    h = hashlib.sha256();
+    h.update(jac_ver.encode());
+    h.update(struct.pack('<H', (sys.version_info.major << 8) | sys.version_info.minor));
+    h.update(struct.pack('<H', FORMAT_VERSION));
+    h.update(schema_digest().encode());
+    h.update(compute_content_sha256(source_path).encode());
+    return h.hexdigest();
+}
+
+def module_cache_key(source_path: str) -> str {
+    if source_path.endswith('.pyi') {
+        return compute_stub_module_key(source_path);
+    }
+    return compute_module_key(source_path);
+}
+
 def jir_matches_source(jir_data: bytes, source_path: str) -> bool {
     stored = read_modkey(jir_data);
     if stored is None {
         return False;
     }
-    return stored == compute_module_key(source_path);
+    return stored == module_cache_key(source_path);
+}
+
+def jir_cacheable_source_path(source_path: str) -> bool {
+    return source_path.endswith('.pyi')
+        or (source_path.endswith('.jac') and not source_path.endswith('.na.jac'));
 }
 
 def cache_mode -> tuple[bool, bool] {
@@ -238,7 +270,7 @@ def cache_mode -> tuple[bool, bool] {
     return (rebuild, no_precompile);
 }
 
-glob _jaclang_pkg_dir: str = str(Path(__file__).resolve().parent.parent);
+glob _jaclang_pkg_dir: str = str(Path(str(__file__)).resolve().parent.parent);
 
 def _get_module_cache_dir(source_path: str) -> Path {
     resolved = Path(source_path).resolve();
@@ -411,11 +443,7 @@ def read_debug_source(data: bytes) -> (str | None) {
 }
 
 def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
-    import from jaclang.jac0core.bccache {
-        discover_annex_files,
-        discover_variant_files,
-        discover_style_annex
-    }
+    import from jaclang.jac0core.bccache { discover_annex_files, discover_style_annex }
     if not cache_path.exists() {
         return False;
     }
@@ -427,15 +455,14 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         }
         cache_mtime = os.path.getmtime(cache_path);
 
-        related = (
-            discover_annex_files(source_path, '.impl.jac') + discover_annex_files(
-                source_path, '.test.jac'
-            ) + discover_variant_files(source_path)
-        );
+        related = discover_annex_files(source_path, '.impl.jac')
+            + discover_annex_files(source_path, '.test.jac');
         style = discover_style_annex(source_path);
         if style is not None {
             related.append(style);
         }
+        reflect_deps = _ct_reflect_deps(source_path);
+        related.extend(reflect_deps);
         fresh = cache_mtime > os.path.getmtime(source_path);
         if fresh {
             for f in related {
@@ -453,9 +480,113 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         if fresh {
             return True;
         }
+        if reflect_deps {
+            return False;
+        }
 
         return jir_matches_source(data, source_path);
     } except OSError {
+        return False;
+    }
+}
+
+
+def _ct_reflect_deps(source_path: str) -> list[str] {
+    try {
+        src = open(source_path, encoding="utf-8").read();
+    } except OSError {
+        return [];
+    }
+    if "comptime" not in src or "reflect" not in src {
+        return [];
+    }
+    import from jaclang.jac0 { ct_reflect_source_deps }
+    return ct_reflect_source_deps(src);
+}
+
+def read_module_jir_cache(source_path: str) -> (object | None) {
+    import from jaclang.jac0core.jir_passes { JirReader }
+    import traceback;
+
+    resolved_path = str(Path(source_path).resolve());
+    if not jir_cacheable_source_path(resolved_path) {
+        return None;
+    }
+    (rebuild, _) = cache_mode();
+    if rebuild {
+        return None;
+    }
+    try {
+        cache_path = get_module_cache_path(resolved_path);
+        if not is_module_cache_valid(resolved_path, cache_path) {
+            return None;
+        }
+        data = cache_path.read_bytes();
+        reader = JirReader(_source_path=resolved_path);
+        cached = reader.read_module(data);
+        if cached is not None and cached.parse_failed {
+            return None;
+        }
+        return cached;
+    } except Exception {
+        if os.environ.get("JAC_JIR_DEBUG") {
+            traceback.print_exc();
+        }
+        try {
+            get_module_cache_path(resolved_path).unlink(missing_ok=True);
+        } except Exception {
+            ;
+        }
+        return None;
+    }
+}
+
+def write_module_jir_cache(
+    source_path: str, mod: object, extra_sections: (dict[int, bytes] | None) = None
+) -> bool {
+    import from jaclang.jac0core.jir_passes { JirWriter }
+
+    resolved_path = str(Path(source_path).resolve());
+    if not jir_cacheable_source_path(resolved_path) {
+        return False;
+    }
+    mod_any: any = mod;
+    if mod_any.parse_failed {
+        return False;
+    }
+    if resolved_path.endswith('.pyi') and not mod_any.stub_only {
+        mod_any.stub_only = True;
+    }
+    try {
+        cache_path = get_module_cache_path(resolved_path);
+        if is_module_cache_valid(resolved_path, cache_path) {
+            return False;
+        }
+        cache_path.parent.mkdir(parents=True, exist_ok=True);
+        writer = JirWriter();
+        sections: dict[int, bytes] = {
+            SEC_MODKEY: module_cache_key(resolved_path).encode('utf-8')
+        };
+        if extra_sections is not None {
+            for (k, v) in extra_sections.items() {
+                sections[k] = v;
+            }
+        }
+        bc: any = mod_any.gen?.py_bytecode;
+        if bc is not None and SEC_BYTECODE not in sections {
+            bc_bytes: bytes = bc;
+            sections[SEC_BYTECODE] = bc_bytes;
+        }
+        jir_bytes = writer.write_module(mod_any, sections=sections);
+        tmp_path = cache_path.with_suffix(f'.{os.getpid()}.tmp');
+        try {
+            tmp_path.write_bytes(jir_bytes);
+            tmp_path.rename(cache_path);
+        } finally {
+            tmp_path.unlink(missing_ok=True);
+        }
+        return True;
+    } except Exception {
         return False;
     }
 }

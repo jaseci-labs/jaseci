@@ -19,6 +19,7 @@ import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.helpers { add_line_numbers }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.runtimelib.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
 
@@ -65,7 +66,7 @@ def micro_suite_combined_test(rel_path: str) -> None {
 
     # --- Phase 3: Unparse roundtrip ---
     before = ast3.dump(code_gen.gen.py_ast[0], indent=2);
-    unparsed = code_gen.unparse();
+    unparsed = unparse_module(code_gen);
     code_gen_unparsed = JacProgram().compile(use_str=unparsed, file_path=filename);
     assert code_gen_unparsed is not None and code_gen_unparsed.gen.py_ast is not None , (
         f"Re-compilation from unparse failed for {filename}"
@@ -106,7 +107,7 @@ def micro_suite_combined_test(rel_path: str) -> None {
             before_fmt = ast3.dump(code_gen.gen.py_ast[0], indent=2);
             after_fmt = ast3.dump(code_gen_fmt.gen.py_ast[0], indent=2);
             assert isinstance(code_gen, uni.Module)
-            and isinstance(code_gen_fmt, uni.Module) , "Parsed objects are not modules.";
+                and isinstance(code_gen_fmt, uni.Module) , "Parsed objects are not modules.";
             diff = "\n".join(
                 unified_diff(before_fmt.splitlines(), after_fmt.splitlines())
             );

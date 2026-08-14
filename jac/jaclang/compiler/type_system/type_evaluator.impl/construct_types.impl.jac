@@ -98,7 +98,13 @@ impl TypeEvaluator._get_type_of_lhs_assignment(expr: uni.Name) -> TypeBase | Non
 impl TypeEvaluator._extract_tuple_element_type(
     tuple_type: TypeBase, idx: int
 ) -> TypeBase | None {
-    if not isinstance(tuple_type, types.ClassType) or idx < 0 {
+    if idx < 0 {
+        return None;
+    }
+    if tuple_type.is_any_instance() {
+        return tuple_type;
+    }
+    if not isinstance(tuple_type, types.ClassType) {
         return None;
     }
     cls: types.ClassType = tuple_type;
@@ -141,7 +147,7 @@ impl TypeEvaluator._tuple_literal_index_type(
     base_type: TypeBase, subscript_arg: uni.Expr
 ) -> TypeBase | None {
     if not isinstance(base_type, types.ClassType)
-    or not base_type.is_class_instance() {
+        or not base_type.is_class_instance() {
         return None;
     }
     cls: types.ClassType = base_type;
@@ -192,13 +198,13 @@ impl TypeEvaluator._get_iterable_element_type(
         return self._convert_to_instance(next_type);
     }
     if iter_type.private
-    and iter_type.private.type_args
-    and len(iter_type.private.type_args) == 1 {
+        and iter_type.private.type_args
+        and len(iter_type.private.type_args) == 1 {
         elem_type = iter_type.private.type_args[0];
 
         if isinstance(elem_type, types.TypeVarType)
-        and isinstance(iterable_type, types.ClassType)
-        and iterable_type.private.type_args {
+            and isinstance(iterable_type, types.ClassType)
+            and iterable_type.private.type_args {
             specialized = iter_type.specialize_generics(
                 iterable_type.private.type_args
             );
@@ -372,15 +378,10 @@ impl TypeEvaluator.get_type_of_ability(node_: uni.Ability) -> TypeBase {
                 or (
                     node_.is_method
                     and node_.signature.is_in_py_class
-                    and param.param_kind in (
-                        uni.ParamKind.POSONLY,
-                        uni.ParamKind.NORMAL
-                    )
-                    and node_.name_spec.sym_name not in (
-                        "__new__",
-                        "__init_subclass__",
-                        "__class_getitem__"
-                    )
+                    and param.param_kind
+                        in (uni.ParamKind.POSONLY, uni.ParamKind.NORMAL)
+                    and node_.name_spec.sym_name
+                        not in ("__new__", "__init_subclass__", "__class_getitem__")
                     and not self._is_ability_staticmethod(node_)
                 )
             )
@@ -433,8 +434,8 @@ impl TypeEvaluator._apply_function_decorators(
         params = decorator_type.parameters or [];
 
         if len(params) != 1
-        or not isinstance(params[0].param_type, types.FunctionType)
-        or not isinstance(decorator_type.return_type, types.FunctionType) {
+            or not isinstance(params[0].param_type, types.FunctionType)
+            or not isinstance(decorator_type.return_type, types.FunctionType) {
             continue;
         }
         bindings: dict[str, TypeBase] = {};
@@ -498,15 +499,15 @@ impl TypeEvaluator.get_type_of_class(node_: uni.Archetype) -> types.ClassType {
 
     is_namedtuple = any(
         isinstance(base, types.ClassType)
-        and base.shared.is_builtin_class
-        and base.shared.class_name == "NamedTuple" for base in base_classes
+            and base.shared.is_builtin_class
+            and base.shared.class_name == "NamedTuple" for base in base_classes
     );
 
     is_typeddict = any(
         isinstance(base, types.ClassType) and base.shared.is_typeddict
         for base in base_classes
     )
-    or self._has_typeddict_special_form_base(node_);
+        or self._has_typeddict_special_form_base(node_);
     enum_members: dict[str, types.EnumMemberInfo] | None = None;
     enum_value_type: types.TypeBase | None = None;
     if is_enum_class {
@@ -594,9 +595,8 @@ impl TypeEvaluator.get_type_of_enum(node_: uni.Enum) -> types.ClassType {
 }
 
 impl TypeEvaluator._get_type_from_module(module: uni.Module, name: str) -> TypeBase {
-    if (
-        symbol := type_utils.lookup_symtab(module, name, self.builtins_module)
-    ) is not None {
+    if (symbol := type_utils.lookup_symtab(module, name, self.builtins_module))
+        is not None {
         return self.get_type_of_symbol(symbol);
     }
     return types.UnknownType();

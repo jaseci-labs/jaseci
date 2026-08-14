@@ -3,6 +3,7 @@ import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.passes { UniPass }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.jac0core.mtp {
     ClassInfo,
@@ -53,11 +54,9 @@ impl MTIRGenPass._parse_type_expr(
         return str(type_expr);
     }
     try {
-        if type_expr?.unparse {
-            text = type_expr.unparse();
-        } else {
-            text = str(type_expr);
-        }
+        text = unparse_node(type_expr)
+            if isinstance(type_expr, uni.UniNode)
+            else str(type_expr);
         if ('[' in text) and (']' in text) {
             base = text.split('[', 1)[0].strip();
             inner = text[(text.find('[') + 1):text.rfind(']')].strip();
@@ -69,7 +68,7 @@ impl MTIRGenPass._parse_type_expr(
             resolved_parts: list[object] = [];
             for p in parts {
                 try_sym = None;
-                if isinstance(scope, uni.UniScopeNode) and scope?.lookup {
+                if isinstance(scope, uni.UniScopeNode) {
                     try {
                         try_sym = scope.lookup(p, deep=True);
                     } except Exception {
@@ -146,7 +145,7 @@ impl MTIRGenPass._extract_enum_info(symbol: uni.Symbol) -> EnumInfo {
                 if enum_stmt.target and len(enum_stmt.target) > 0 {
                     target = enum_stmt.target[0];
                     if isinstance(target, uni.NameAtom)
-                    or isinstance(target, uni.Name) {
+                        or isinstance(target, uni.Name) {
                         member_name = target.value;
 
                         type_info = None;
@@ -237,7 +236,7 @@ impl MTIRGenPass._extract_class_info(symbol: uni.Symbol) -> ClassInfo | None {
             if isinstance(base, uni.Name) {
                 base_name = base.value;
             } elif isinstance(base, uni.AtomTrailer) {
-                base_name = base.unparse();
+                base_name = unparse_node(base);
             } else {
                 base_name = str(base);
             }
@@ -384,8 +383,8 @@ impl MTIRGenPass._extract_tools_from_expr(
 
     for param in params_to_check {
         if isinstance(param, uni.KWPair)
-        and param?.key
-        and param.key.value == 'tools' {
+            and param?.key
+            and param.key.value == 'tools' {
             if param.value?.values {
                 for tool in param.value.values {
                     try {
@@ -393,7 +392,7 @@ impl MTIRGenPass._extract_tools_from_expr(
                         if isinstance(tool, uni.NameAtom) {
                             tool_sym = scope.lookup(tool.value, deep=True);
                         } elif isinstance(tool, uni.AtomTrailer)
-                        and isinstance(tool.right, uni.NameAtom) {
+                            and isinstance(tool.right, uni.NameAtom) {
                             tool_sym = scope.lookup(tool.right.value, deep=True);
                         } elif tool?.symbol_table {
                             tool_sym = tool.symbol_table;
@@ -506,9 +505,9 @@ impl MTIRGenPass._archetype_of_type_expr(
 ) -> uni.Archetype | None {
     sym = self._extract_type_symbol(type_expr, scope);
     if sym
-    and sym?.decl
-    and sym.decl?.name_of
-    and isinstance(sym.decl.name_of, uni.Archetype) {
+        and sym?.decl
+        and sym.decl?.name_of
+        and isinstance(sym.decl.name_of, uni.Archetype) {
         return sym.decl.name_of;
     }
     return None;

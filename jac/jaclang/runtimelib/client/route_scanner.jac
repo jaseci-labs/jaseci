@@ -52,8 +52,10 @@ def describe_pages_without_routes(pages_dir: Path) -> list[str] {
         return [];
     }
     lines: list[str] = [
-        f"{pages_dir} contains {len(candidates)} module(s) but no recognized " + "routes — the app will mount without a router and render a blank page.",
-        "A route is an export returning JsxPage (JsxLayout for layouts); " + "the export name and filename are free."
+        f"{pages_dir} contains {len(candidates)} module(s) but no recognized "
+            + "routes — the app will mount without a router and render a blank page.",
+        "A route is an export returning JsxPage (JsxLayout for layouts); "
+            + "the export name and filename are free."
     ];
     lines.extend(_unrouted_jsx_exports(pages_dir, set()));
     return lines;

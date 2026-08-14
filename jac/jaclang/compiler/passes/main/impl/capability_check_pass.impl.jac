@@ -165,10 +165,29 @@ impl static_fstring_spec_text(spec: uni.UniNode) -> (str | None) {
     return None;
 }
 
+impl call_has_kwargs_sink(call: uni.FuncCall) -> bool {
+    tgt = call.target;
+    sym = None;
+    if isinstance(tgt, uni.Name) {
+        sym = tgt.sym;
+    } elif isinstance(tgt, uni.AtomTrailer) and isinstance(tgt.right, uni.Name) {
+        sym = tgt.right.sym;
+    }
+    if sym is None or sym.decl is None {
+        return False;
+    }
+    owner = sym.decl.name_of;
+    if not isinstance(owner, uni.Ability)
+        or not isinstance(owner.signature, uni.FuncSignature) {
+        return False;
+    }
+    return owner.signature.kwargs is not None;
+}
+
+
 impl native_capability_violations(mod: uni.Module) -> list {
     import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
-    import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
-    import ast as ast3;
+    import from jaclang.jac0core.constant { CodeContext, ExprCtx, Tokens as Tok }
     out: list = [];
     _stdlib_help: (str | None) = None;
 
@@ -182,7 +201,7 @@ impl native_capability_violations(mod: uni.Module) -> list {
             continue;
         }
         for _nm in _stmt.get_all_sub_nodes(typ=uni.Name) {
-            if _nm._py_ctx_func != ast3.Load {
+            if _nm.expr_ctx != ExprCtx.LOAD {
                 continue;
             }
             if _nm.find_parent_of_type(uni.Import) is not None {
@@ -200,62 +219,69 @@ impl native_capability_violations(mod: uni.Module) -> list {
     _base_dir = os.path.dirname(os.path.abspath(mod.loc.mod_path))
         if (mod?.loc and mod.loc.mod_path)
         else '.';
+    for stmt in ModuleCodegenPass.iter_module_imports(mod, CodeContext.NATIVE)
+        + ModuleCodegenPass.iter_nested_imports(mod, CodeContext.NATIVE) {
+        if stmt.clib_decls or not stmt.items {
+            continue;
+        }
+        for item in stmt.items {
+            (mod_name, _ok) = classify_native_import(item);
+            if mod_name is not None and not _ok {
+                import from jaclang.jac0core.codeinfo {
+                    is_bundled_native_module,
+                    resolve_native_module
+                }
+                if is_bundled_native_module(mod_name) {
+                    continue;
+                }
+                _plain_bare = (
+                    not stmt.is_absorb
+                    and isinstance(item, uni.ModulePath)
+                    and item.alias is None
+                    and len(item.path) == 1
+                );
+                if (stmt.is_absorb or _plain_bare)
+                    and resolve_native_module(mod_name, _base_dir)[1] is not None {
+                    continue;
+                }
+
+                _bound = import_bound_name(item);
+                if (
+                    _bound is not None
+                    and _bound in _type_used
+                    and _bound not in _runtime_used
+                ) {
+                    continue;
+                }
+                if _stdlib_help is None {
+                    _supported_list = ", ".join(
+                        f"`import {m}`" for m in sorted(NATIVE_SUPPORTED_STDLIB)
+                    );
+                    _stdlib_help = (
+                        f"Native compilation supports these stdlib imports: "
+                        f"{_supported_list}; C-library imports "
+                        f"(`import from \"lib\" {{...}}`); and other Jac "
+                        f"modules on the native pathway (`import mod` or "
+                        f"`import from mod {{...}}`, unaliased). Move "
+                        f"Python-dependent code to a @sv/Python context."
+                    );
+                }
+                out.append((item, "Python module import", mod_name, _stdlib_help));
+            }
+        }
+    }
+
     for stmt in _native_stmts {
         if isinstance(stmt, uni.Import) {
-            if stmt.clib_decls or not stmt.items {
-                continue;
-            }
-            for item in stmt.items {
-                (mod_name, _ok) = classify_native_import(item);
-                if mod_name is not None and not _ok {
-                    import from jaclang.jac0core.codeinfo {
-                        is_bundled_native_module,
-                        resolve_native_module
-                    }
-                    if is_bundled_native_module(mod_name) {
-                        continue;
-                    }
-                    _plain_bare = (
-                        not stmt.is_absorb
-                        and isinstance(item, uni.ModulePath)
-                        and item.alias is None
-                        and len(item.path) == 1
-                    );
-                    if (stmt.is_absorb or _plain_bare)
-                    and resolve_native_module(mod_name, _base_dir)[1] is not None {
-                        continue;
-                    }
-
-                    _bound = import_bound_name(item);
-                    if (
-                        _bound is not None
-                        and _bound in _type_used
-                        and _bound not in _runtime_used
-                    ) {
-                        continue;
-                    }
-                    if _stdlib_help is None {
-                        _supported_list = ", ".join(
-                            f"`import {m}`" for m in sorted(NATIVE_SUPPORTED_STDLIB)
-                        );
-                        _stdlib_help = (
-                            f"Native compilation supports these stdlib imports: "
-                            f"{_supported_list}; C-library imports "
-                            f"(`import from \"lib\" {{...}}`); and other Jac "
-                            f"modules on the native pathway (`import mod` or "
-                            f"`import from mod {{...}}`, unaliased). Move "
-                            f"Python-dependent code to a @sv/Python context."
-                        );
-                    }
-                    out.append((item, "Python module import", mod_name, _stdlib_help));
-                }
-            }
             continue;
         }
 
         work: list = [stmt];
         while work {
             nd = work.pop();
+            if isinstance(nd, uni.Import) {
+                continue;
+            }
             if isinstance(nd, NATIVE_REJECT_NODES) {
                 kind = "expression" if isinstance(nd, uni.Expr) else "statement";
                 out.append((nd, kind, type(nd).__name__, None));
@@ -263,15 +289,15 @@ impl native_capability_violations(mod: uni.Module) -> list {
             }
 
             if isinstance(nd, uni.CtrlStmt)
-            and isinstance(nd.ctrl, uni.Token)
-            and (nd.ctrl.name == Tok.KW_SKIP) {
+                and isinstance(nd.ctrl, uni.Token)
+                and (nd.ctrl.name == Tok.KW_SKIP) {
                 _encl = nd.find_parent_of_type(uni.Ability);
                 _in_event = (_encl is not None)
-                and isinstance(_encl.signature, uni.EventSignature);
+                    and isinstance(_encl.signature, uni.EventSignature);
                 if (_encl is None) {
                     _encl_impl = nd.find_parent_of_type(uni.ImplDef);
                     _in_event = (_encl_impl is not None)
-                    and isinstance(_encl_impl.spec, uni.EventSignature);
+                        and isinstance(_encl_impl.spec, uni.EventSignature);
                 }
                 if not _in_event {
                     out.append((nd, "statement", "SkipStmt", _NATIVE_SKIP_HELP));
@@ -280,7 +306,7 @@ impl native_capability_violations(mod: uni.Module) -> list {
             }
 
             if isinstance(nd, (uni.Ability, uni.ArchSpec, uni.ImplDef))
-            and nd.decorators {
+                and nd.decorators {
                 _dec_static_fn = (
                     isinstance(nd, uni.Ability)
                     and not isinstance(nd.parent, uni.Archetype)
@@ -319,7 +345,7 @@ impl native_capability_violations(mod: uni.Module) -> list {
                 if _vp_encl is None {
                     _vp_impl = nd.find_parent_of_type(uni.ImplDef);
                     if _vp_impl is not None
-                    and isinstance(_vp_impl.decl_link, uni.Ability) {
+                        and isinstance(_vp_impl.decl_link, uni.Ability) {
                         _vp_encl = _vp_impl.decl_link;
                     }
                 }
@@ -385,10 +411,11 @@ impl native_capability_violations(mod: uni.Module) -> list {
             }
 
             if isinstance(nd, uni.UnaryExpr)
-            and isinstance(nd.op, uni.Token)
-            and nd.op.name == Tok.STAR_POW
-            and isinstance(nd.parent, uni.FuncCall)
-            and nd in (nd.parent.params or []) {
+                and isinstance(nd.op, uni.Token)
+                and nd.op.name == Tok.STAR_POW
+                and isinstance(nd.parent, uni.FuncCall)
+                and nd in (nd.parent.params or [])
+                and not call_has_kwargs_sink(nd.parent) {
                 out.append(
                     (nd, "call argument unpacking", nd.op.value, _NATIVE_UNPACK_HELP)
                 );
@@ -396,15 +423,18 @@ impl native_capability_violations(mod: uni.Module) -> list {
             }
 
             if isinstance(nd, uni.KWPair)
-            and nd.key is None
-            and isinstance(nd.parent, uni.FuncCall) {
+                and nd.key is None
+                and isinstance(nd.parent, uni.FuncCall)
+                and not call_has_kwargs_sink(nd.parent) {
                 out.append((nd, "call argument unpacking", "**", _NATIVE_UNPACK_HELP));
                 continue;
             }
 
             if isinstance(nd, uni.Ability)
-            and not isinstance(nd.signature, (uni.FuncSignature, uni.EventSignature))
-            and isinstance(nd.parent, uni.Archetype) {
+                and not isinstance(
+                    nd.signature, (uni.FuncSignature, uni.EventSignature)
+                )
+                and isinstance(nd.parent, uni.Archetype) {
                 _sig_kind = (
                     type(nd.signature).__name__
                         if nd.signature is not None
@@ -442,10 +472,10 @@ impl native_capability_violations(mod: uni.Module) -> list {
             }
 
             if isinstance(nd, uni.AtomTrailer)
-            and nd.is_attr
-            and isinstance(nd.right, uni.Name)
-            and (nd.target.type is not None)
-            and nd.target.type.is_any_type() {
+                and nd.is_attr
+                and isinstance(nd.right, uni.Name)
+                and (nd.target.type is not None)
+                and nd.target.type.is_any_type() {
                 _fld = nd.right.value;
                 if (
                     _fld == "environ"
@@ -480,8 +510,8 @@ impl native_capability_violations(mod: uni.Module) -> list {
                     _hops += 1;
                     _ci += 1;
                     if (_ci < len(_chain))
-                    and isinstance(_chain[_ci], uni.FilterCompr)
-                    and (_chain[_ci].f_type is not None) {
+                        and isinstance(_chain[_ci], uni.FilterCompr)
+                        and (_chain[_ci].f_type is not None) {
                         _ci += 1;
                     }
                 }
@@ -529,6 +559,24 @@ impl NativeCapabilityCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     return ir_in;
 }
 
+impl ClientCapabilityCheckPass.postinit -> None {
+    super.postinit();
+}
+
+impl ClientCapabilityCheckPass.transform(ir_in: uni.Module) -> uni.Module {
+    import from jaclang.jac0core.passes.module_codegen_pass {
+        client_capability_violations
+    }
+    if not ir_in.gen.client_viols_reported {
+        for (_vnode, _vkind) in client_capability_violations(ir_in) {
+            self.emit(E5096, node_override=_vnode, kind=_vkind);
+        }
+        ir_in.gen.client_viols_reported = True;
+    }
+    return ir_in;
+}
+
+
 impl PortabilityWarnPass.postinit -> None {
     super.postinit();
 }
@@ -542,10 +590,10 @@ impl PortabilityWarnPass.transform(ir_in: uni.Module) -> uni.Module {
 }
 
 impl PortabilityWarnPass._check_js_globals(mod: uni.Module) -> None {
-    import ast as ast3;
+    import from jaclang.jac0core.constant { ExprCtx }
     all_names = mod.get_all_sub_nodes(typ=uni.Name);
     for name_nd in all_names {
-        if name_nd._py_ctx_func != ast3.Load {
+        if name_nd.expr_ctx != ExprCtx.LOAD {
             continue;
         }
 
@@ -584,23 +632,45 @@ impl PortabilityWarnPass._check_js_methods(mod: uni.Module) -> None {
 
         parent = trailer.parent;
         is_method_call = isinstance(parent, uni.FuncCall) and parent.target is trailer;
-
-        if is_method_call {
-            self.emit(
-                W6002,
-                node_override=trailer.right,
-                method=method_name,
-                alternative=JS_METHODS[method_name]
-            );
+        if not is_method_call {
+            continue;
         }
+
+        if trailer.right.sym is not None {
+            continue;
+        }
+        if method_name == "find" and not self._find_call_is_js_style(parent) {
+            continue;
+        }
+        self.emit(
+            W6002,
+            node_override=trailer.right,
+            method=method_name,
+            alternative=JS_METHODS[method_name]
+        );
     }
 }
 
+impl PortabilityWarnPass._find_call_is_js_style(call: uni.FuncCall) -> bool {
+    params = call.params;
+    if params is None or len(params) != 1 {
+        return False;
+    }
+    arg = params[0];
+    if isinstance(arg, uni.LambdaExpr) {
+        return True;
+    }
+    if isinstance(arg, uni.Name) and arg.sym is not None {
+        return arg.sym.sym_type in (SymbolType.ABILITY, SymbolType.METHOD);
+    }
+    return False;
+}
+
 impl PortabilityWarnPass._check_js_keywords(mod: uni.Module) -> None {
-    import ast as ast3;
+    import from jaclang.jac0core.constant { ExprCtx }
     all_names = mod.get_all_sub_nodes(typ=uni.Name);
     for name_nd in all_names {
-        if name_nd._py_ctx_func != ast3.Load {
+        if name_nd.expr_ctx != ExprCtx.LOAD {
             continue;
         }
 
@@ -614,8 +684,8 @@ impl PortabilityWarnPass._check_js_keywords(mod: uni.Module) -> None {
 
         parent = name_nd.parent;
         if isinstance(parent, uni.AtomTrailer)
-        and parent.is_attr
-        and parent.right is name_nd {
+            and parent.is_attr
+            and parent.right is name_nd {
             continue;
         }
         if name_nd.value in JS_KEYWORDS {
@@ -640,6 +710,10 @@ impl PortabilityWarnPass._check_js_properties(mod: uni.Module) -> None {
         }
         prop_name = trailer.right.value;
         if prop_name not in JS_PROPERTIES {
+            continue;
+        }
+
+        if trailer.right.sym is not None {
             continue;
         }
 

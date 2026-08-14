@@ -12,6 +12,14 @@ def _jac_client_plugin_dir -> Path {
     return Path(paths[0]);
 }
 
+def _atomic_write_text(path: Any, text: str) {
+    import os;
+    tmp = path.with_name(path.name + '.tmp');
+    tmp.write_text(text, encoding='utf-8');
+    os.replace(str(tmp), str(path));
+}
+
+
 impl JacClientCompiler._get_client_dir(self: JacClientCompiler) -> Path {
     try {
         import from jaclang.project.config { get_config }
@@ -41,7 +49,7 @@ impl JacClientCompiler._native_variant(self: JacClientCompiler, path: Path) -> P
         return path;
     }
     stem = base_stem(name);
-    for suffix in (".native.cl.jac", ".native.jac") {
+    for suffix in (".native.jac", ) {
         candidate = path.with_name(stem + suffix);
         if candidate.exists() {
             return candidate.resolve();
@@ -57,6 +65,7 @@ impl JacClientCompiler.compile(
     target_name: str = "web"
 ) -> tuple[list[str], list[str]] {
     (module_js, mod, module_manifest) = self.jac_compiler.compile_module(module_path);
+    self._collect_na_modules(mod);
     collected_exports: set[str] = set(
         self.jac_compiler.extract_exports(module_manifest)
     );
@@ -145,7 +154,7 @@ impl JacClientCompiler._copy_ts_file(
             output_path = self.compiled_dir / ts_path.name;
         }
         output_path.parent.mkdir(parents=True, exist_ok=True);
-        output_path.write_text(ts_code, encoding='utf-8');
+        _atomic_write_text(output_path, ts_code);
     } except (FileNotFoundError, OSError) as e {
         console.warning(f"Failed to copy TS dependency '{ts_path}': {e}");
     }
@@ -163,7 +172,7 @@ impl JacClientCompiler._copy_js_file(
             output_path = self.compiled_dir / js_path.name;
         }
         output_path.parent.mkdir(parents=True, exist_ok=True);
-        output_path.write_text(js_code, encoding='utf-8');
+        _atomic_write_text(output_path, js_code);
     } except (FileNotFoundError, OSError) as e {
         console.warning(f"Failed to copy JS dependency '{js_path}': {e}");
     }
@@ -211,6 +220,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         source_root = module_path.parent.resolve();
     }
     (module_js, mod, manifest) = self.jac_compiler.compile_module(module_path);
+    self._collect_na_modules(mod);
     exports_list = self.jac_compiler.extract_exports(manifest);
     collected_exports.update(exports_list);
     non_root_globals: dict[(str, Any)] = {};
@@ -231,7 +241,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
     }
     output_path.parent.mkdir(parents=True, exist_ok=True);
     source_header = f"/* Source: {module_path} */\n";
-    output_path.write_text(source_header + combined_js, encoding='utf-8');
+    _atomic_write_text(output_path, source_header + combined_js);
     self._write_source_map(
         mod, str(module_path), output_path, source_header + combined_js
     );
@@ -248,7 +258,7 @@ impl JacClientCompiler.compile_dependencies_recursively(
         }
         if (path_obj.suffix == '.jac') {
             if skip_existing
-            and self._output_path_for(path_obj, source_root).exists() {
+                and self._output_path_for(path_obj, source_root).exists() {
                 continue;
             }
             self.compile_dependencies_recursively(
@@ -390,17 +400,17 @@ impl JacClientCompiler.compile_runtime_utils(
     self: JacClientCompiler, runtime_filename: str
 ) -> tuple[str, list[str]] {
     plugin_dir = _jac_client_plugin_dir();
-    core_path = plugin_dir / 'client_runtime_core.cl.jac';
+    core_path = plugin_dir / 'client_runtime_core.jac';
     runtime_utils_path = plugin_dir / runtime_filename;
     if not core_path.exists() {
         raise ClientBundleError(
-            f'Runtime core not found: {core_path}. Expected client_runtime_core.cl.jac.'
+            f'Runtime core not found: {core_path}. Expected client_runtime_core.jac.'
         );
     }
     if not runtime_utils_path.exists() {
         raise ClientBundleError(
             f'Runtime file not found: {runtime_utils_path}. '
-            'Expected a platform runtime beside client_runtime_core.cl.jac.'
+            'Expected a platform runtime beside client_runtime_core.jac.'
         );
     }
     (core_js, _core_mod, core_manifest) = self.jac_compiler.compile_module(core_path);
@@ -449,7 +459,7 @@ impl JacClientCompiler.compile_runtime_utils(
         }
         dep_out = self.compiled_dir / rel;
         dep_out.parent.mkdir(parents=True, exist_ok=True);
-        dep_out.write_text(dep_js, encoding='utf-8');
+        _atomic_write_text(dep_out, dep_js);
     }
 
     self.compile_mobui_utils();
@@ -461,7 +471,7 @@ impl JacClientCompiler.compile_pwa_runtime(
 ) -> tuple[str, list[str]] {
     import jaclang;
     pwa_runtime_path: Path = (
-        Path(jaclang.__file__).parent / "runtimelib" / "pwa_runtime.cl.jac"
+        Path(jaclang.__file__).parent / "runtimelib" / "pwa_runtime.jac"
     );
     if not pwa_runtime_path.exists() {
         return ('', []);
@@ -523,7 +533,7 @@ impl JacClientCompiler.compile_mobui_utils(
     self: JacClientCompiler
 ) -> tuple[str, list[str]] {
     plugin_dir = _jac_client_plugin_dir();
-    ui_path = plugin_dir / 'client_mobui.cl.jac';
+    ui_path = plugin_dir / 'client_mobui.jac';
     if not ui_path.exists() {
         return ('', []);
     }
@@ -680,7 +690,7 @@ impl JacClientCompiler._generate_routes_manifest(self: JacClientCompiler) -> Non
 
     try {
         if manifest_path.exists()
-        and manifest_path.read_text(encoding='utf-8') == new_content {
+            and manifest_path.read_text(encoding='utf-8') == new_content {
             return;
         }
     } except OSError { }
@@ -708,4 +718,18 @@ impl JacClientCompiler.init(
     self.asset_processor = AssetProcessor();
     self._has_pages = False;
     self._route_scanner = None;
+    self.na_wasm_modules = set();
+}
+
+impl JacClientCompiler._collect_na_modules(self: JacClientCompiler, mod: any) -> None {
+    import from jaclang.jac0core.codeinfo { InteropManifest }
+    manifest = mod?.gen?.interop_manifest;
+    if not isinstance(manifest, InteropManifest) {
+        return;
+    }
+    for binding in manifest.client_native_imports {
+        if binding.source_module {
+            self.na_wasm_modules.add(str(binding.source_module));
+        }
+    }
 }

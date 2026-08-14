@@ -1,6 +1,6 @@
 import os;
 import from jaclang.project.config { JacConfig }
-import from jaclang.jac0core.ext_registry { base_stem, codespace_of, MODULE_SUFFIXES }
+import from jaclang.jac0core.ext_registry { base_stem, MODULE_SUFFIXES }
 
 obj KindSpec {
     has name: str,
@@ -11,7 +11,8 @@ obj KindSpec {
         summary: str,
         flags: dict[str, any] = {},
         needs_entry: bool = True,
-        output_dir: str = "";
+        output_dir: str = "",
+        codespace: str = "";
 }
 
 glob KIND_SPECS: dict[str, KindSpec] = {
@@ -28,7 +29,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="cli-native",
                  description="Natively-compiled Jac program (compiled and run)",
-                 entry="main.na.jac",
+                 entry="main.jac",
                  action="execute",
                  verb="run",
                  summary="Execute {kind} entry-point {entry}"
@@ -36,7 +37,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="native-binary",
                  description="Natively-compiled standalone binary (built into dist/)",
-                 entry="main.na.jac",
+                 entry="main.jac",
                  action="build",
                  verb="nacompile",
                  summary="Build native binary -> {output}",
@@ -45,7 +46,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="native-lib",
                  description="Natively-compiled shared library (.so / .dylib / .dll)",
-                 entry="main.na.jac",
+                 entry="main.jac",
                  action="build",
                  verb="nacompile",
                  summary="Build shared library (.so / .dylib / .dll)",
@@ -54,7 +55,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="service",
                  description="Headless Jac API service (server walkers, no client)",
-                 entry="main.sv.jac",
+                 entry="main.jac",
                  action="serve",
                  verb="start",
                  summary="Serve headless API service",
@@ -63,7 +64,7 @@ glob KIND_SPECS: dict[str, KindSpec] = {
              KindSpec(
                  name="service-mesh",
                  description="Jac microservice (server walkers; auto-starts providers)",
-                 entry="main.sv.jac",
+                 entry="main.jac",
                  action="serve",
                  verb="start",
                  summary="Serve microservice consumer (auto-starts providers)"
@@ -86,7 +87,8 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  verb="build",
                  summary="Build npm package into dist/",
                  flags={"as": "npm"},
-                 needs_entry=False
+                 needs_entry=False,
+                 codespace="client"
              ),
              KindSpec(
                  name="web-app",
@@ -223,14 +225,12 @@ def resolve_project_kind(config: JacConfig, entry_path: str) -> str {
     if explicit {
         return explicit;
     }
-    entry_codespace = codespace_of(entry_path);
-    if (entry_codespace == 'native') {
+    import from jaclang.jac0core.placement_facts { pinned_module_space }
+    entry_pin = pinned_module_space(entry_path) if entry_path else '';
+    if (entry_pin == 'native') {
         return "cli-native";
     }
-    if (entry_codespace == 'server') {
-        return "service";
-    }
-    if (entry_codespace == 'client') {
+    if (entry_pin == 'client') {
         return "web-app";
     }
     if _has_client(config) {

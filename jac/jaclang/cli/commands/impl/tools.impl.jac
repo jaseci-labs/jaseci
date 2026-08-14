@@ -3,18 +3,24 @@ import from jaclang.cli.console { console }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 
 impl tool(tool: str, args: list = []) -> int {
+    import importlib;
     import from jaclang.utils.lang_tools { AstTool }
     if tool in ("jac2py", "py2jac", "jac2js") {
-        import from jaclang.cli.commands.transform { jac2py, py2jac, jac2js }
+        _transform = importlib.import_module("jaclang.cli.commands.transform");
         if not args {
             console.error(f"Usage: jac tool {tool} <file>");
             return 1;
         }
-        fwd = {"jac2py": jac2py, "py2jac": py2jac, "jac2js": jac2js};
+        fwd = {
+            "jac2py": _transform.jac2py,
+            "py2jac": _transform.py2jac,
+            "jac2js": _transform.jac2js,
+
+        };
         return fwd[tool](args[0]);
     }
     if tool == "grammar" {
-        import from jaclang.cli.commands.analysis { grammar }
+        _analysis = importlib.import_module("jaclang.cli.commands.analysis");
         output = "";
         strict = False;
         i = 0;
@@ -37,7 +43,7 @@ impl tool(tool: str, args: list = []) -> int {
             }
             i += 1;
         }
-        return grammar(output=output, strict=strict);
+        return _analysis.grammar(output=output, strict=strict);
     }
     if hasattr(AstTool, tool) {
         try {
@@ -181,7 +187,8 @@ def _extract_commands(registry: any) -> list {
                 } else {
                     flags.append((f"--{arg.name}", short, arg.help or ""));
                 }
-            } elif arg.kind in (ArgKind.POSITIONAL, ArgKind.MULTI, ArgKind.REMAINDER) {
+            } elif arg.kind
+                in (ArgKind.POSITIONAL, ArgKind.MULTI_POSITIONAL, ArgKind.REMAINDER) {
                 has_file_positional = True;
             }
         }
@@ -235,7 +242,14 @@ def _install_completion(shell: str, code: str) -> int {
     if shell == "fish" {
         source_line = "source " + comp_file;
     } else {
-        source_line = "[[ -f " + q + comp_file + q + " ]] && source " + q + comp_file + q;
+        source_line = "[[ -f "
+            + q
+            + comp_file
+            + q
+            + " ]] && source "
+            + q
+            + comp_file
+            + q;
     }
     new_block = f"{start_marker}\n{source_line}\n{end_marker}\n";
     if os.path.exists(config_file) {
@@ -274,10 +288,8 @@ def _install_completion(shell: str, code: str) -> int {
 
 impl gen_jir_registry(verify: bool = False) -> int {
     import from jaclang.jac0core.gen_jir_registry { generate }
+    import from jaclang.jac0core.program { JacProgram }
     import from pathlib { Path }
-    import tempfile;
-    import subprocess;
-    import sys;
     import jaclang;
 
     registry_path = Path(jaclang.__file__).parent / "jac0core" / "jir_registry.jac";
@@ -289,28 +301,20 @@ impl gen_jir_registry(verify: bool = False) -> int {
         return 1;
     }
 
-    import os;
-    try {
-        with tempfile.TemporaryDirectory() as fmt_dir {
-            tmp_path = os.path.join(fmt_dir, "jir_registry.jac");
-            with open(tmp_path, 'w', encoding='utf-8') as tmp {
-                tmp.write(content);
-            }
-            with open(
-                os.path.join(fmt_dir, "jac.toml"), 'w', encoding='utf-8'
-            ) as cfg {
-                cfg.write("[check.lint]\nselect = [\"all\"]\n");
-            }
-            subprocess.run(
-                [sys.executable, '-m', 'jaclang', 'fmt', '--lintfix', tmp_path],
-                capture_output=True,
-                cwd=fmt_dir
-            );
-            content = Path(tmp_path).read_text(encoding="utf-8");
+    prog = JacProgram.jac_str_formatter(content, str(registry_path), auto_lint=True);
+    if prog.errors_had {
+        for e in prog.errors_had {
+            console.error(str(e));
         }
-    } except Exception {
-        ;
+        console.error("Failed to format the generated registry.");
+        return 1;
     }
+    formatted = prog.mod.main.gen.jac;
+    if not formatted or not formatted.strip() {
+        console.error("Formatter returned empty output for the registry.");
+        return 1;
+    }
+    content = formatted;
 
     if verify {
         current = registry_path.read_text(encoding="utf-8")
@@ -350,5 +354,24 @@ impl gen_uni_dispatch(verify: bool = False) -> int {
     for msg in write_all() {
         console.print(msg);
     }
+    return 0;
+}
+
+impl gen_cli_manifest(verify: bool = False) -> int {
+    import from jaclang.cli.gen_cli_manifest { write_routes, verify_drift }
+    if verify {
+        drift = verify_drift();
+        for msg in drift {
+            console.error(f"{msg}");
+        }
+        if drift {
+            console.error("Run `jac gen-cli-manifest` to update.");
+            return 1;
+        }
+        console.print("Manifest route table is up to date.");
+        return 0;
+    }
+    out = write_routes();
+    console.print(f"Generated {out}");
     return 0;
 }

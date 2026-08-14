@@ -25,11 +25,13 @@ import from jaclang.jac0core.diagnostics {
     E0071,
     E0075,
     E0076,
+    E0082,
     E2019,
     E2020,
     E2021,
     E2022,
     E2024,
+    E2084,
     W2019,
     W2020,
     W2021
@@ -47,6 +49,15 @@ class ASTValidationPass(UniPass) {
     def enter_enum(self: ASTValidationPass, nd: uni.Enum) -> None;
     def enter_switch_stmt(self: ASTValidationPass, nd: uni.SwitchStmt) -> None;
     def enter_assignment(self: ASTValidationPass, nd: uni.Assignment) -> None;
+    def _check_render_phase_state_write(
+        self: ASTValidationPass, nd: uni.Assignment
+    ) -> None;
+
+    def _scope_declares_state(
+        self: ASTValidationPass, scope: uni.UniNode, name: str
+    ) -> bool;
+
+    def _returns_jsx(self: ASTValidationPass, scope: uni.UniNode) -> bool;
     def enter_in_for_stmt(self: ASTValidationPass, nd: uni.InForStmt) -> None;
     def enter_inner_compr(self: ASTValidationPass, nd: uni.InnerCompr) -> None;
     def enter_has_var(self: ASTValidationPass, nd: uni.HasVar) -> None;
@@ -60,6 +71,7 @@ class ASTValidationPass(UniPass) {
     def enter_func_call(self: ASTValidationPass, nd: uni.FuncCall) -> None;
     def enter_archetype(self: ASTValidationPass, nd: uni.Archetype) -> None;
     def enter_jsx_slot(self: ASTValidationPass, nd: uni.JsxSlot) -> None;
+    def enter_expr_stmt(self: ASTValidationPass, nd: uni.ExprStmt) -> None;
     def _check_slot_body(
         self: ASTValidationPass, stmts: list, in_loop: bool, loop_kw: str
     ) -> None;

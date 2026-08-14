@@ -29,7 +29,10 @@
 //!
 //!   payload mkpayload <pbs-python-dir> <repo-root> <out.tar.zst>
 //!       Assemble the runtime payload: jaclang site + private CPython, tarred
-//!       and zstd-compressed (the format runtime.zig decompresses).
+//!       and zstd-compressed (the format runtime.zig decompresses) as two
+//!       concatenated frames -- a content-addressed deps frame reusable
+//!       across builds via --layer-cache, and a small per-commit jac frame
+//!       (see tarZstDir).
 //!
 //!   payload typeshed-sha <commit>
 //!       Print the decompressed-tar sha256 for a typeshed commit -- the value to
@@ -99,7 +102,7 @@ pub fn main(init: std.process.Init) !void {
     const io = init.io;
     const gpa = init.gpa;
 
-    var argv: [16][]const u8 = undefined;
+    var argv: [20][]const u8 = undefined;
     var n: usize = 0;
     var it = init.minimal.args.iterate();
     // Cap at argv.len: every subcommand here takes a fixed, small set of args, so
@@ -145,7 +148,7 @@ pub fn main(init: std.process.Init) !void {
             try fetchTypeshed(io, gpa, a, argv[2]);
         },
         .mkpayload => {
-            if (n < 5) die("usage: payload mkpayload <pbs-python-dir> <repo-root> <out.tar.zst> [--shim=PATH] [--skip-precompile] [--link-source=PATH] [--precompiled-cache=DIR] [--nvim=DIR] [--seal] [--debug-src]\n(--seal: freeze bootstrap + emit MANIFEST.json; the payload boots from JIR, sources ship for tracebacks)", .{});
+            if (n < 5) die("usage: payload mkpayload <pbs-python-dir> <repo-root> <out.tar.zst> [--shim=PATH] [--skip-precompile] [--link-source=PATH] [--precompiled-cache=DIR] [--layer-cache=DIR] [--nvim=DIR] [--seal] [--debug-src]\n(--seal: freeze bootstrap + emit MANIFEST.json; the payload boots from JIR, sources ship for tracebacks)", .{});
             // Trailing flags (after the positional pbs/root/out, see build.zig):
             var shim_so: ?[]const u8 = null;
             var pyembed_so: ?[]const u8 = null;
@@ -155,6 +158,7 @@ pub fn main(init: std.process.Init) !void {
             var musl_dir: ?[]const u8 = null;
             var wasm_libc_dir: ?[]const u8 = null;
             var precompiled_cache: ?[]const u8 = null;
+            var layer_cache: ?[]const u8 = null;
             var nvim_dir: ?[]const u8 = null;
             var ninja_link: ?[]const u8 = null;
             var seal = false;
@@ -178,6 +182,8 @@ pub fn main(init: std.process.Init) !void {
                     wasm_libc_dir = arg["--wasm-libc=".len..];
                 } else if (std.mem.startsWith(u8, arg, "--precompiled-cache=")) {
                     precompiled_cache = arg["--precompiled-cache=".len..];
+                } else if (std.mem.startsWith(u8, arg, "--layer-cache=")) {
+                    layer_cache = arg["--layer-cache=".len..];
                 } else if (std.mem.startsWith(u8, arg, "--nvim=")) {
                     nvim_dir = arg["--nvim=".len..];
                 } else if (std.mem.startsWith(u8, arg, "--ninja-link=")) {
@@ -188,7 +194,7 @@ pub fn main(init: std.process.Init) !void {
                     debug_src = true;
                 }
             }
-            try mkPayload(io, gpa, a, init.environ_map, argv[2], argv[3], argv[4], shim_so, pyembed_so, bun_bin, skip_precompile, link_source, musl_dir, wasm_libc_dir, precompiled_cache, nvim_dir, ninja_link, seal, debug_src);
+            try mkPayload(io, gpa, a, init.environ_map, argv[2], argv[3], argv[4], shim_so, pyembed_so, bun_bin, skip_precompile, link_source, musl_dir, wasm_libc_dir, precompiled_cache, layer_cache, nvim_dir, ninja_link, seal, debug_src);
         },
         .@"typeshed-sha" => {
             if (n < 3) die("usage: payload typeshed-sha <commit>", .{});
@@ -272,10 +278,12 @@ fn fetchPbs(io: Io, gpa: Allocator, a: Allocator, osarch: []const u8, dest: []co
 fn fetchLlvm(io: Io, gpa: Allocator, a: Allocator, dest: []const u8) !void {
     const rel = llvmRelease() orelse
         die("fetch-llvm: no pinned LLVM release for this host ({s}-{s}); add a row to llvmRelease().", .{ @tagName(builtin.cpu.arch), @tagName(builtin.os.tag) });
-    // Presence marker / success check. On macOS the shim link needs the release's
-    // own libLTO.dylib (ThinLTO bitcode archives; see build.zig macosShim, #6938),
-    // so require it there. A missing marker re-fetches (self-heals a stale cache).
-    const marker_lib = if (builtin.os.tag == .macos) "libLTO.dylib" else "libLLVMCore.a";
+    // Presence marker / success check. On macOS an UPSTREAM slice's shim link
+    // needs the release's own libLTO.dylib (ThinLTO bitcode archives; see
+    // build.zig macosShim, #6938), so require it there; a from-source slice
+    // (e.g. macos-x86_64) ships plain archives and no libLTO. A missing marker
+    // re-fetches (self-heals a stale cache).
+    const marker_lib = if (builtin.os.tag == .macos and rel.upstream) "libLTO.dylib" else "libLLVMCore.a";
     const marker = try std.fmt.allocPrint(a, "{s}/{s}/lib/{s}", .{ dest, rel.dirname, marker_lib });
     if (fileExists(io, marker)) {
         log("fetch-llvm: already present at {s}/{s}", .{ dest, rel.dirname });
@@ -675,7 +683,12 @@ fn buildWasmLibc(io: Io, gpa: Allocator, a: Allocator, src_root: []const u8, des
     defer srcs.deinit(gpa);
     var outs: std.ArrayList([]const u8) = .empty; // matching .bc basenames
     defer outs.deinit(gpa);
-    var hdr_m: i96 = 0; // newest non-.c file (headers/prelude) under wasm_rt
+    var rels: std.ArrayList([]const u8) = .empty; // manifest key per source
+    defer rels.deinit(gpa);
+    var hdrs: std.ArrayList([]const u8) = .empty; // non-.c inputs (headers/prelude)
+    defer hdrs.deinit(gpa);
+    var hdr_rels: std.ArrayList([]const u8) = .empty;
+    defer hdr_rels.deinit(gpa);
     {
         var root = Dir.cwd().openDir(io, src_root, .{ .iterate = true }) catch
             die("build-wasm-libc: wasm_rt source dir missing at {s}", .{src_root});
@@ -685,10 +698,16 @@ fn buildWasmLibc(io: Io, gpa: Allocator, a: Allocator, src_root: []const u8, des
             if (entry.kind != .file) continue;
             const full = try std.fmt.allocPrint(a, "{s}/{s}", .{ src_root, entry.name });
             if (!std.mem.startsWith(u8, entry.name, "jac_") or !std.mem.endsWith(u8, entry.name, ".c")) {
-                hdr_m = @max(hdr_m, mtimeNs(io, full) orelse 0);
+                // Only .h participates; README/LICENSE are not build inputs and
+                // must not force a full rebuild of every translation unit.
+                if (std.mem.endsWith(u8, entry.name, ".h")) {
+                    try hdrs.append(gpa, full);
+                    try hdr_rels.append(gpa, try a.dupe(u8, entry.name));
+                }
                 continue;
             }
             try srcs.append(gpa, full);
+            try rels.append(gpa, try a.dupe(u8, entry.name));
             try outs.append(gpa, try std.fmt.allocPrint(a, "{s}bc", .{entry.name[0 .. entry.name.len - 1]}));
         }
         const vendor = try std.fmt.allocPrint(a, "{s}/vendor", .{src_root});
@@ -700,11 +719,19 @@ fn buildWasmLibc(io: Io, gpa: Allocator, a: Allocator, src_root: []const u8, des
         while (walker.next(io) catch null) |entry| {
             if (entry.kind != .file) continue;
             const full = try std.fmt.allocPrint(a, "{s}/{s}", .{ vendor, entry.path });
+            const rel = try std.fmt.allocPrint(a, "vendor/{s}", .{entry.path});
+            for (rel) |*ch| {
+                if (ch.* == '\\') ch.* = '/';
+            }
             if (!std.mem.endsWith(u8, entry.path, ".c")) {
-                hdr_m = @max(hdr_m, mtimeNs(io, full) orelse 0);
+                if (std.mem.endsWith(u8, entry.path, ".h")) {
+                    try hdrs.append(gpa, full);
+                    try hdr_rels.append(gpa, rel);
+                }
                 continue;
             }
             try srcs.append(gpa, full);
+            try rels.append(gpa, rel);
             const flat = try a.dupe(u8, entry.path);
             for (flat) |*ch| {
                 if (ch.* == '/' or ch.* == '\\') ch.* = '_';
@@ -715,16 +742,59 @@ fn buildWasmLibc(io: Io, gpa: Allocator, a: Allocator, src_root: []const u8, des
     if (srcs.items.len == 0) die("build-wasm-libc: no sources found under {s}", .{src_root});
 
     try Dir.cwd().createDirPath(io, dest);
-    var stale: usize = 0;
-    for (srcs.items, outs.items) |src, out_name| {
-        const out_path = try std.fmt.allocPrint(a, "{s}/{s}", .{ dest, out_name });
-        const out_m = mtimeNs(io, out_path) orelse {
-            stale += 1;
-            continue;
+
+    // Staleness is decided by content, not mtime. A `git checkout` that
+    // rewrites timestamps without changing bytes must not force a rebuild,
+    // and an edit that leaves the mtime alone must not be missed. The file
+    // written here is the same one wasm_build.jac reads back to decide
+    // whether the floor it is about to link matches this source tree, so the
+    // producer's incremental key and the consumer's staleness check are one
+    // artifact rather than two mechanisms that can disagree.
+    var digest_of = std.StringHashMap([64]u8).init(gpa);
+    defer digest_of.deinit();
+    for (rels.items, srcs.items) |rel, full| {
+        const bytes = try Dir.cwd().readFileAlloc(io, full, a, .unlimited);
+        try digest_of.put(rel, sha256Hex(bytes));
+    }
+    for (hdr_rels.items, hdrs.items) |rel, full| {
+        const bytes = try Dir.cwd().readFileAlloc(io, full, a, .unlimited);
+        try digest_of.put(rel, sha256Hex(bytes));
+    }
+
+    var prev = std.StringHashMap([64]u8).init(gpa);
+    defer prev.deinit();
+    const manifest_path = try std.fmt.allocPrint(a, "{s}/{s}", .{ dest, wasm_floor_manifest });
+    if (Dir.cwd().readFileAlloc(io, manifest_path, a, .unlimited) catch null) |txt| {
+        var lines = std.mem.tokenizeScalar(u8, txt, '\n');
+        while (lines.next()) |ln| {
+            if (ln.len < 67 or ln[64] != ' ') continue;
+            var d: [64]u8 = undefined;
+            @memcpy(&d, ln[0..64]);
+            try prev.put(std.mem.trim(u8, ln[65..], " \r"), d);
+        }
+    }
+
+    // Headers are inputs to every translation unit, so any header change
+    // rebuilds the whole floor; a .c change rebuilds only its own object.
+    var hdrs_changed = false;
+    for (hdr_rels.items) |rel| {
+        const now = digest_of.get(rel).?;
+        const was = prev.get(rel) orelse {
+            hdrs_changed = true;
+            break;
         };
-        if (@max(mtimeNs(io, src) orelse 0, hdr_m) > out_m) stale += 1;
+        if (!std.mem.eql(u8, &now, &was)) {
+            hdrs_changed = true;
+            break;
+        }
+    }
+
+    var stale: usize = 0;
+    for (rels.items, outs.items) |rel, out_name| {
+        if (wasmFloorUnitStale(io, a, dest, out_name, rel, digest_of, prev, hdrs_changed)) stale += 1;
     }
     if (stale == 0) {
+        try writeWasmFloorManifest(io, gpa, manifest_path, rels.items, hdr_rels.items, digest_of);
         log("==> wasm libc bitcode up to date in {s}; skipping", .{dest});
         return;
     }
@@ -741,11 +811,9 @@ fn buildWasmLibc(io: Io, gpa: Allocator, a: Allocator, src_root: []const u8, des
     const inc_private = try std.fmt.allocPrint(a, "-I{s}/vendor/private", .{src_root});
     const inc_math = try std.fmt.allocPrint(a, "-I{s}/vendor/math", .{src_root});
     var built: usize = 0;
-    for (srcs.items, outs.items) |src, out_name| {
+    for (srcs.items, outs.items, rels.items) |src, out_name, rel| {
         const out_path = try std.fmt.allocPrint(a, "{s}/{s}", .{ dest, out_name });
-        if (mtimeNs(io, out_path)) |out_m| {
-            if (@max(mtimeNs(io, src) orelse 0, hdr_m) <= out_m) continue;
-        }
+        if (!wasmFloorUnitStale(io, a, dest, out_name, rel, digest_of, prev, hdrs_changed)) continue;
         if (!runChild(io, &.{
             zig_exe,                                                                       "cc",         "-target",    "wasm32-wasi",  "-O2",      "-g0",
             "-w",                                                                          "-c",         "-emit-llvm", "-fno-builtin", "-include", prelude,
@@ -758,7 +826,71 @@ fn buildWasmLibc(io: Io, gpa: Allocator, a: Allocator, src_root: []const u8, des
     // The merged-module cache is derived from the parts; a fresh compile
     // invalidates it.
     Dir.cwd().deleteFile(io, try std.fmt.allocPrint(a, "{s}/_merged.bc", .{dest})) catch {};
+
+    // Written only after every unit compiled: a manifest is a claim that the
+    // floor beside it was built from exactly these bytes, so a half-finished
+    // build must not leave one behind. sha256sum's format, so it stays
+    // readable (and `shasum -c`-able) and needs no parser on either side.
+    try writeWasmFloorManifest(io, gpa, manifest_path, rels.items, hdr_rels.items, digest_of);
     log("==> compiled {d} wasm libc bitcode file(s) -> {s}", .{ built, dest });
+}
+
+/// Record the exact bytes the floor beside it was built from, in sha256sum's
+/// format so it stays readable (and `shasum -c`-able) and needs no parser on
+/// either side. Rewritten on every run, including the no-op path, so it never
+/// describes a stale input set: a manifest that outlived one of its entries
+/// would make the consumer's verification answer a question nobody asked.
+fn writeWasmFloorManifest(
+    io: Io,
+    gpa: Allocator,
+    manifest_path: []const u8,
+    srcs: []const []const u8,
+    hdrs: []const []const u8,
+    digest_of: std.StringHashMap([64]u8),
+) !void {
+    var all: std.ArrayList([]const u8) = .empty;
+    defer all.deinit(gpa);
+    try all.appendSlice(gpa, srcs);
+    try all.appendSlice(gpa, hdrs);
+    std.mem.sort([]const u8, all.items, {}, struct {
+        fn lt(_: void, x: []const u8, y: []const u8) bool {
+            return std.mem.lessThan(u8, x, y);
+        }
+    }.lt);
+    var man: std.ArrayList(u8) = .empty;
+    defer man.deinit(gpa);
+    for (all.items) |rel| {
+        const d = digest_of.get(rel) orelse continue;
+        try man.appendSlice(gpa, &d);
+        try man.append(gpa, ' ');
+        try man.appendSlice(gpa, rel);
+        try man.append(gpa, '\n');
+    }
+    try Dir.cwd().writeFile(io, .{ .sub_path = manifest_path, .data = man.items });
+}
+
+/// Name of the floor's source manifest; `wasm_build.jac` resolves the same
+/// constant to verify a floor before linking it.
+const wasm_floor_manifest = "SOURCES.sha256";
+
+/// One translation unit is stale when its object is missing, its own source
+/// hash moved, or any header changed (headers feed every unit).
+fn wasmFloorUnitStale(
+    io: Io,
+    a: Allocator,
+    dest: []const u8,
+    out_name: []const u8,
+    rel: []const u8,
+    digest_of: std.StringHashMap([64]u8),
+    prev: std.StringHashMap([64]u8),
+    hdrs_changed: bool,
+) bool {
+    const out_path = std.fmt.allocPrint(a, "{s}/{s}", .{ dest, out_name }) catch return true;
+    if (mtimeNs(io, out_path) == null) return true; // object missing
+    if (hdrs_changed) return true;
+    const now = digest_of.get(rel) orelse return true;
+    const was = prev.get(rel) orelse return true;
+    return !std.mem.eql(u8, &now, &was);
 }
 
 /// Extract the single zip member whose name ends with `suffix` from an in-memory
@@ -938,6 +1070,14 @@ fn mkPayload(
     // stale or partial dir is harmless (it only misses reuse), which is why
     // CI can restore it with prefix-fallback keys unlike the binary cache.
     precompiled_cache: ?[]const u8,
+    // Persistent compressed-frame cache for the payload's deps layer (the
+    // CPython tree, pip helpers, editor closure, native shims -- everything
+    // except the jaclang tree). Level-19 zstd over ~600 MB is the pack's
+    // dominant cost and its input rarely changes; entries are content-
+    // addressed by the sha256 of the exact tar bytes and re-verified by
+    // decompress + compare on reuse, so like the precompile cache a stale or
+    // corrupt dir can never change the payload -- only how fast it packs.
+    layer_cache: ?[]const u8,
     // The assembled ninja editor tree (jac/build.zig composes it from the
     // neovim dependency's exported runtime + the jac/editor/ninja config
     // layer). Staged verbatim under stage/nvim/ -- the launcher's `jac ninja`
@@ -1138,8 +1278,7 @@ fn mkPayload(
         }
     }
 
-    log("==> packing tar | zstd -{d}", .{PAYLOAD_ZSTD_LEVEL});
-    try tarZstDir(io, gpa, a, stage, out);
+    try tarZstDir(io, gpa, a, stage, out, layer_cache);
     log("==> payload: {s}", .{out});
 }
 
@@ -1170,11 +1309,24 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
     // is compile-only (--seal-compile excludes jac0core and does NOT finalize),
     // so a mid-loop crash on an un-precompilable native module leaves the
     // generated JIRs intact for the crash-isolated --seal-finalize pass below.
+    //
+    // The shim's first act removes any MANIFEST.json under the staged site's
+    // _precompiled dir (argv[2] is the site path): the seed from a prior
+    // build's cache carries one, --seal-finalize regenerates it last, and the
+    // staged jaclang must run UNSEALED while rebuilding its own image. With
+    // the stale manifest gone that happens by construction -- no manifest IS
+    // the build tier -- which is what let JAC_NO_SEAL be deleted outright
+    // (#8139 Step 1: a sealed image either loads or raises; no env escape).
     const boot = try std.fmt.allocPrint(a, "{s}/precompile_boot.py", .{site});
     try Dir.cwd().writeFile(io, .{
         .sub_path = boot,
         .data =
-        \\import sys
+        \\import os, sys
+        \\if len(sys.argv) > 2:
+        \\    try:
+        \\        os.unlink(os.path.join(sys.argv[2], 'jaclang', '_precompiled', 'MANIFEST.json'))
+        \\    except OSError:
+        \\        pass
         \\import _jac_finder; _jac_finder.install()
         \\sys.argv = ['jac', 'run'] + sys.argv[1:]
         \\from jaclang.jac0core.cli_boot import start_cli
@@ -1207,7 +1359,18 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
     try env.put("PYTHONPATH", site);
     try env.put("PYTHONUTF8", "1");
     try env.put("PYTHONDONTWRITEBYTECODE", "1");
-    try env.put("HOME", site);
+    // Hermetic $HOME for the precompiler -- but NOT the site dir itself. The
+    // precompiler boots the full runtime, which drops per-run state under `~`
+    // (the embedded-postgres data dir with its WAL/postmaster.pid/server.log,
+    // the JIR bootstrap jbc cache); with HOME=site those droppings were staged
+    // into every shipped payload as dead weight, made the payload
+    // build-nondeterministic (defeating the deps-layer frame cache), and left
+    // a live postmaster writing under site/ while stageTree copied it. The
+    // precompiler's actual product lands in site/jaclang/_precompiled via
+    // explicit paths and does not depend on HOME.
+    const scratch_home = try std.fmt.allocPrint(a, "{s}.home", .{site});
+    try Dir.cwd().createDirPath(io, scratch_home);
+    try env.put("HOME", scratch_home);
     try env.put("PATH", "/usr/bin:/bin");
     // Pin the precompiler to the bundled (staged-site) jaclang, NOT a dev-source
     // tree. The build runs inside the repo whose jac.toml carries
@@ -1218,10 +1381,10 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
     // bundle fail validation at runtime and every module recompiles on first run.
     // JAC_NO_DEV_SOURCE keeps pkg_version reading the staged dist-info we ship.
     try env.put("JAC_NO_DEV_SOURCE", "1");
-    // The staged jaclang imports itself to run the precompiler; it must run
-    // UNSEALED (from source), never sealed-load the manifest it is regenerating
-    // (which may still be a seeded, older-format image). #7135.
-    try env.put("JAC_NO_SEAL", "1");
+    // The staged jaclang imports itself to run the precompiler and must run
+    // UNSEALED (from source). The boot shim above removes any seeded manifest
+    // before jaclang can probe for it, so the staged tree is the build tier
+    // by construction; no JAC_NO_SEAL-style env escape exists anymore (#8139).
 
     _ = runChild(io, argv_buf[0..argc], &env, true); // non-zero exit is by design
 
@@ -1265,6 +1428,20 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
     }
 }
 
+/// Stage the relocatable pbs `python3.x` launcher under `python/bin/`. Project
+/// venvs created by the fused `jac` binary use this as their base interpreter.
+/// Only the versioned binary is copied; aliases are unnecessary because
+/// `_bundled_runtime_python` prefers `python{major}.{minor}`. Do not strip: plain
+/// `strip` corrupts the PBS launcher (versioned-symbol lookup fails at runtime).
+fn stagePythonBin(io: Io, a: Allocator, pbs_py_dir: []const u8, stage: []const u8) !void {
+    const py = try resolvePython(io, a, pbs_py_dir);
+    const bare = std.fs.path.basename(py);
+    const bin_dst = try std.fmt.allocPrint(a, "{s}/python/bin", .{stage});
+    try Dir.cwd().createDirPath(io, bin_dst);
+    const dst = try std.fmt.allocPrint(a, "{s}/{s}", .{ bin_dst, bare });
+    try Dir.cwd().copyFile(py, Dir.cwd(), dst, io, .{ .permissions = .fromMode(0o755) });
+    log("==> staged project venv interpreter -> python/bin/{s}", .{bare});
+}
 
 /// Stage the runtime tree: shared libpython + stdlib + the assembled site.
 fn stageTree(io: Io, gpa: Allocator, a: Allocator, pbs_py_dir: []const u8, site: []const u8, stage: []const u8, musl_dir: ?[]const u8, wasm_libc_dir: ?[]const u8) !void {
@@ -1323,6 +1500,11 @@ fn stageTree(io: Io, gpa: Allocator, a: Allocator, pbs_py_dir: []const u8, site:
     // The LLVMPY_* shim statically links LLVM (~130 MiB); strip it (best-effort).
     stripBestEffort(io, try std.fmt.allocPrint(a, "{s}/site/jaclang/compiler/passes/native/llvm/{s}", .{ stage, shimFileName() }));
 
+    // Relocatable pbs python launcher for project venv creation. The fused `jac`
+    // binary is not a pip/venv base interpreter; project `.jac/venv` must use
+    // real CPython so normal `pip install` works.
+    try stagePythonBin(io, a, pbs_py_dir, stage);
+
     // Static C-floor archives + CA bundle so an installed binary can static-link
     // a bundled C floor at `nacompile` time, not just dev builds (#6978 0.2).
     try stageFloor(io, gpa, a, pbs_py_dir, stage);
@@ -1359,11 +1541,19 @@ fn precompilePyc(io: Io, a: Allocator, py: []const u8, stage: []const u8) void {
     log("==> precompiling stdlib + site -> hash-based .pyc (survives materialize)", .{});
     const stdlib = std.fmt.allocPrint(a, "{s}/python/lib/python{s}", .{ stage, py_ver }) catch return;
     const site_dir = std.fmt.allocPrint(a, "{s}/site", .{stage}) catch return;
+    // -s/-p rewrite each code object's co_filename from the absolute staging
+    // dir (a per-build zig-cache path) to a stable /jac-rt/... form. The
+    // staging path never exists at runtime anyway (the payload extracts under
+    // <cache>/jac/rt), so this only trades one dead path in tracebacks for a
+    // stable, readable one -- and it is what makes the deps layer's bytes
+    // build-independent, i.e. what lets tarZstDir's content-addressed frame
+    // cache ever hit.
     _ = runChild(io, &.{
-        py,       "-m",              "compileall",
-        "--invalidation-mode", "unchecked-hash",
-        "-q",     "-f",              "-j",
-        "0",      stdlib,            site_dir,
+        py,                    "-m",             "compileall",
+        "--invalidation-mode", "unchecked-hash", "-q",
+        "-f",                  "-j",             "0",
+        "-s",                  stage,            "-p",
+        "/jac-rt",             stdlib,           site_dir,
     }, null, true);
 }
 
@@ -1685,9 +1875,18 @@ fn skipJaclang(p: []const u8) bool {
 }
 
 /// macOS hygiene: AppleDouble (._*) sidecars break jaclang's .impl scanner.
+/// Also drop top-level home-dir droppings (`.cache/`, `Library/`, `.local/`):
+/// nothing at runtime reads them from the payload, so anything a build step
+/// writes there (see precompile's scratch_home note) is dead weight that would
+/// also make the payload nondeterministic.
 fn skipStageSite(p: []const u8) bool {
     const base = std.fs.path.basename(p);
-    return std.mem.startsWith(u8, base, "._") or std.mem.eql(u8, base, ".DS_Store");
+    if (std.mem.startsWith(u8, base, "._") or std.mem.eql(u8, base, ".DS_Store")) return true;
+    for ([_][]const u8{ ".cache", "Library", ".local" }) |top| {
+        if (std.mem.eql(u8, p, top)) return true;
+        if (std.mem.startsWith(u8, p, top) and p.len > top.len and p[top.len] == '/') return true;
+    }
+    return false;
 }
 
 /// jac.toml `key = "value"` -> value (first match; good enough for the flat
@@ -1736,12 +1935,14 @@ fn runChild(io: Io, argv: []const []const u8, env: ?*const std.process.Environ.M
     return ok;
 }
 
-// ----------------------------------------------------- libzstd (encode only)
+// ---------------------------------------------------------------- libzstd
 // Upstream libzstd, pinned in build.zig.zon and compiled into this build-time
-// tool by build.zig's linkLibzstdCompress. ONLY the encoder is bound here:
-// everything this tool DECODES (pbs, typeshed, zips) stays std, and the
-// shipped launcher decodes the payload with pure `std.compress.zstd`. Zig std
-// has no zstd encoder -- that gap is this dependency's entire reason to exist.
+// tool by build.zig's linkLibzstd (`.both`). The encoder is the dependency's
+// reason to exist (Zig std has no zstd encoder); everything this tool DECODES
+// from the network (pbs, typeshed, zips) stays std. The one libzstd decode
+// here is frameDecodesTo's verification of cached deps-layer frames, where
+// std's pure-Zig decoder would burn seconds per pack on a ~600 MB tar.
+extern fn ZSTD_decompress(dst: [*]u8, dst_cap: usize, src: [*]const u8, src_len: usize) usize;
 extern fn ZSTD_createCCtx() ?*anyopaque;
 extern fn ZSTD_freeCCtx(cctx: ?*anyopaque) usize;
 extern fn ZSTD_CCtx_setParameter(cctx: ?*anyopaque, param: c_int, value: c_int) usize;
@@ -1801,37 +2002,172 @@ fn sourceFileMode(io: Io, dir: Dir, sub_path: []const u8) u32 {
     return 0;
 }
 
-/// tar `stage` (its top-level `python` + `site`) and zstd it to `out`. The
-/// runtime side (runtime.zig extractPayload) decompresses this exact format
-/// with pure std. The full tar is built in memory (~430 MB plus the compress
-/// bound) -- a build-machine-only cost that buys one-shot multithreaded
-/// ZSTD_compress2 instead of a hand-rolled streaming Io.Writer adapter.
-fn tarZstDir(io: Io, gpa: Allocator, a: Allocator, stage: []const u8, out: []const u8) !void {
-    var aw: Io.Writer.Allocating = .init(gpa);
-    defer aw.deinit();
-    var tw: std.tar.Writer = .{ .underlying_writer = &aw.writer };
+/// The payload's VOLATILE layer: the jaclang compiler/runtime tree and its
+/// site shims, which change on nearly every commit. Everything else is the
+/// DEPS layer: the CPython tree, pip helpers, the ninja editor closure, the C
+/// floors -- and the LLVMPY shim + contained bun, which live under jaclang/'s
+/// path but are dependency-pinned artifacts. Routing is a performance choice,
+/// not a correctness one: the deps frame is content-addressed by the sha256
+/// of its exact tar bytes and verified on reuse (see depsFrameCached), so a
+/// wrong-side entry costs compression time or cache hits, never payload
+/// correctness.
+fn isVolatilePath(p: []const u8) bool {
+    if (std.mem.startsWith(u8, p, "site/jaclang")) {
+        if (std.mem.indexOf(u8, p, "compiler/passes/native/llvm") != null) return false;
+        if (std.mem.indexOf(u8, p, "runtimelib/client/_bun") != null) return false;
+        return true;
+    }
+    return std.mem.startsWith(u8, p, "site/_jac_finder.py") or
+        std.mem.startsWith(u8, p, "site/sitecustomize.py") or
+        std.mem.startsWith(u8, p, "site/jac_linked_source") or
+        std.mem.startsWith(u8, p, "site/__pycache__");
+}
 
+/// tar `stage` (its top-level `python` + `site`) and zstd it to `out`, as TWO
+/// concatenated zstd frames: a big, rarely-changing deps frame and a small
+/// per-commit jac frame. The runtime side needs no format change: its
+/// PayloadDecoder already resets between frames (`frame_done`), std.tar reads
+/// the decoded stream as one continuous archive (std.tar.Writer emits no
+/// end-of-archive blocks, so frame boundaries are invisible to it), and the
+/// trailer sha256 still covers the whole concatenation. Splitting exists so
+/// the deps frame -- level-19 zstd over ~600 MB, the pack's dominant cost --
+/// can be reused from `layer_cache` when its content is unchanged, which is
+/// every build that doesn't bump a dependency pin.
+///
+/// Entries are SORTED before writing: the deps frame is keyed on its exact
+/// tar bytes, so fs-dependent walk order must not leak into the key. Each
+/// tar is built in memory (a build-machine-only cost that buys one-shot
+/// multithreaded ZSTD_compress2 instead of a hand-rolled streaming adapter);
+/// extraction is order-independent (std.tar.extract creates parent dirs for
+/// file entries).
+fn tarZstDir(io: Io, gpa: Allocator, a: Allocator, stage: []const u8, out: []const u8, layer_cache: ?[]const u8) !void {
     var stage_dir = try Dir.cwd().openDir(io, stage, .{ .iterate = true });
     defer stage_dir.close(io);
-    var walker = try stage_dir.walk(gpa);
-    defer walker.deinit();
-    while (try walker.next(io)) |entry| {
-        switch (entry.kind) {
-            .directory => try tw.writeDir(entry.path, .{}),
-            else => {
-                const bytes = try stage_dir.readFileAlloc(io, entry.path, a, .unlimited);
-                defer a.free(bytes);
-                // Carry the real on-disk mode so executable scripts keep their
-                // exec bit; `mode = 0` would strip IXUSR (see runtime.zig
-                // extractPayload's matching .executable_bit_only).
-                try tw.writeFileBytes(entry.path, bytes, .{ .mode = sourceFileMode(io, stage_dir, entry.path) });
-            },
+
+    const Entry = struct { path: []const u8, dir: bool };
+    var entries = std.array_list.Managed(Entry).init(gpa);
+    defer {
+        for (entries.items) |e| gpa.free(e.path);
+        entries.deinit();
+    }
+    {
+        var walker = try stage_dir.walk(gpa);
+        defer walker.deinit();
+        while (try walker.next(io)) |entry| {
+            const path = try gpa.dupe(u8, entry.path);
+            errdefer gpa.free(path);
+            try entries.append(.{ .path = path, .dir = entry.kind == .directory });
+        }
+    }
+    std.mem.sort(Entry, entries.items, {}, struct {
+        fn lt(_: void, x: Entry, y: Entry) bool {
+            return std.mem.lessThan(u8, x.path, y.path);
+        }
+    }.lt);
+
+    var deps_aw: Io.Writer.Allocating = .init(gpa);
+    defer deps_aw.deinit();
+    var jac_aw: Io.Writer.Allocating = .init(gpa);
+    defer jac_aw.deinit();
+    var deps_tw: std.tar.Writer = .{ .underlying_writer = &deps_aw.writer };
+    var jac_tw: std.tar.Writer = .{ .underlying_writer = &jac_aw.writer };
+
+    for (entries.items) |e| {
+        const tw = if (isVolatilePath(e.path)) &jac_tw else &deps_tw;
+        if (e.dir) {
+            try tw.writeDir(e.path, .{});
+        } else {
+            const bytes = try stage_dir.readFileAlloc(io, e.path, a, .unlimited);
+            defer a.free(bytes);
+            // Carry the real on-disk mode so executable scripts keep their
+            // exec bit; `mode = 0` would strip IXUSR (see runtime.zig
+            // extractPayload's matching .executable_bit_only).
+            try tw.writeFileBytes(e.path, bytes, .{ .mode = sourceFileMode(io, stage_dir, e.path) });
         }
     }
 
-    const frame = try zstdCompressAlloc(gpa, aw.written());
-    defer gpa.free(frame);
-    try Dir.cwd().writeFile(io, .{ .sub_path = out, .data = frame });
+    const deps_frame = try depsFrameCached(io, gpa, a, layer_cache, deps_aw.written());
+    defer gpa.free(deps_frame);
+
+    log("==> packing jac layer | zstd -{d}", .{PAYLOAD_ZSTD_LEVEL});
+    const jac_frame = try zstdCompressAlloc(gpa, jac_aw.written());
+    defer gpa.free(jac_frame);
+
+    var f = try Dir.cwd().createFile(io, out, .{ .truncate = true });
+    defer f.close(io);
+    try f.writeStreamingAll(io, deps_frame);
+    try f.writeStreamingAll(io, jac_frame);
+}
+
+/// The compressed deps frame for `tar_bytes`, reusing a verified cache entry
+/// when one exists. Entries are content-addressed
+/// (`deps-<sha256 of the tar bytes>.tar.zst`) and re-verified by decompress +
+/// byte-compare on EVERY reuse, so a truncated, stale, or tampered cache file
+/// can never reach a shipped payload -- it just falls back to a fresh
+/// compress (which also rewrites the entry). No cache dir = always compress;
+/// that is the release channel's cold-by-policy path on fresh runners.
+fn depsFrameCached(io: Io, gpa: Allocator, a: Allocator, layer_cache: ?[]const u8, tar_bytes: []const u8) ![]u8 {
+    var digest: [32]u8 = undefined;
+    std.crypto.hash.sha2.Sha256.hash(tar_bytes, &digest, .{});
+    const key_buf = runtime.hexDigest(&digest);
+    const key: []const u8 = &key_buf;
+
+    const cache_path: ?[]const u8 = if (layer_cache) |lc|
+        try std.fmt.allocPrint(a, "{s}/deps-{s}.tar.zst", .{ lc, key })
+    else
+        null;
+
+    if (cache_path) |cp| {
+        if (Dir.cwd().readFileAlloc(io, cp, gpa, .unlimited)) |frame| {
+            if (frameDecodesTo(gpa, frame, tar_bytes)) {
+                log("==> deps layer: reusing cached frame (key {s})", .{key[0..16]});
+                return frame;
+            }
+            gpa.free(frame);
+            log("==> deps layer: cached frame failed verification; recompressing", .{});
+        } else |_| {
+            log("==> deps layer: no cached frame (key {s}); compressing", .{key[0..16]});
+        }
+    }
+
+    log("==> packing deps layer | zstd -{d}", .{PAYLOAD_ZSTD_LEVEL});
+    const frame = try zstdCompressAlloc(gpa, tar_bytes);
+    if (cache_path) |cp| {
+        // Single-entry cache, like .precompiled-build: drop other keys before
+        // writing so the dir never accumulates ~150 MB frames from old pins.
+        // Best-effort throughout -- a cache write failure only costs speed.
+        pruneLayerCache(io, a, layer_cache.?, std.fs.path.basename(cp));
+        Dir.cwd().createDirPath(io, layer_cache.?) catch {};
+        Dir.cwd().writeFile(io, .{ .sub_path = cp, .data = frame }) catch |err|
+            log("==> deps layer: cache write failed ({s}); continuing", .{@errorName(err)});
+    }
+    return frame;
+}
+
+/// True when `frame` zstd-decompresses to exactly `expect`. Decode-side
+/// libzstd is linked into this tool for this one check (build.zig linkLibzstd
+/// `.both`): it is what makes deps-frame cache reuse as trustworthy as a
+/// fresh compress.
+fn frameDecodesTo(gpa: Allocator, frame: []const u8, expect: []const u8) bool {
+    const dst = gpa.alloc(u8, expect.len) catch return false;
+    defer gpa.free(dst);
+    const n = ZSTD_decompress(dst.ptr, dst.len, frame.ptr, frame.len);
+    if (ZSTD_isError(n) != 0) return false;
+    return n == expect.len and std.mem.eql(u8, dst[0..n], expect);
+}
+
+/// Delete every `deps-*.tar.zst` in `dir_path` except `keep`. Best-effort.
+fn pruneLayerCache(io: Io, a: Allocator, dir_path: []const u8, keep: []const u8) void {
+    var dir = Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return;
+    defer dir.close(io);
+    var it = dir.iterate();
+    while (it.next(io) catch null) |e| {
+        if (e.kind != .file) continue;
+        if (!std.mem.startsWith(u8, e.name, "deps-") or !std.mem.endsWith(u8, e.name, ".tar.zst")) continue;
+        if (std.mem.eql(u8, e.name, keep)) continue;
+        const stale = std.fmt.allocPrint(a, "{s}/{s}", .{ dir_path, e.name }) catch continue;
+        Dir.cwd().deleteFile(io, stale) catch {};
+    }
 }
 
 // ----------------------------------------------------------------- tests
@@ -1929,7 +2265,7 @@ test "tarZstDir round-trips through the launcher's payload decoder" {
     });
 
     const out = try std.fmt.allocPrint(a, "{s}/payload.tar.zst", .{base});
-    try tarZstDir(io, gpa, a, stage, out);
+    try tarZstDir(io, gpa, a, stage, out, null);
 
     const frame = try Dir.cwd().readFileAlloc(io, out, gpa, .unlimited);
     defer gpa.free(frame);
@@ -1966,5 +2302,156 @@ test "tarZstDir round-trips through the launcher's payload decoder" {
         defer pf.close(io);
         const pst = try pf.stat(io);
         try testing.expect(pst.permissions.toMode() & 0o100 == 0);
+    }
+}
+
+/// Test helper: extract a packed (multi-frame) payload file through the
+/// launcher's real decode path and return the opened dest dir.
+fn extractForTest(io: Io, gpa: Allocator, packed_path: []const u8, dest: []const u8) !Dir {
+    const frame = try Dir.cwd().readFileAlloc(io, packed_path, gpa, .unlimited);
+    defer gpa.free(frame);
+    const dctx = runtime.ZSTD_createDCtx() orelse return error.OutOfMemory;
+    defer _ = runtime.ZSTD_freeDCtx(dctx);
+    const dbuf = try gpa.alloc(u8, 1 << 20);
+    defer gpa.free(dbuf);
+    var dec = runtime.PayloadDecoder.init(dctx, frame, dbuf);
+    try Dir.cwd().createDirPath(io, dest);
+    var dest_dir = try Dir.cwd().openDir(io, dest, .{});
+    errdefer dest_dir.close(io);
+    try std.tar.extract(io, dest_dir, &dec.reader, .{ .mode_mode = runtime.payload_extract_mode_mode, .strip_components = 0 });
+    return dest_dir;
+}
+
+/// Test helper: the single `deps-*.tar.zst` in the layer cache dir (fails the
+/// test if there is not exactly one -- pruning must keep the cache single-entry).
+fn soleCacheEntry(io: Io, a: Allocator, cache: []const u8) ![]const u8 {
+    var dir = try Dir.cwd().openDir(io, cache, .{ .iterate = true });
+    defer dir.close(io);
+    var found: ?[]const u8 = null;
+    var it = dir.iterate();
+    while (try it.next(io)) |e| {
+        if (e.kind != .file) continue;
+        try testing.expect(found == null);
+        found = try std.fmt.allocPrint(a, "{s}/{s}", .{ cache, e.name });
+    }
+    return found orelse error.TestUnexpectedResult;
+}
+
+// The layered-pack contract, end to end through the launcher's real decoder:
+//  1. the deps frame is the output's byte prefix and survives a jaclang-only
+//     edit unchanged (the steady-state reuse this exists for);
+//  2. a VALID cached frame is reused verbatim (proved with an alternative
+//     frame -- different bytes, same decoded tar -- planted in the cache);
+//  3. a CORRUPT cached frame is rejected and recompressed (a poisoned cache
+//     can never reach a payload);
+//  4. a deps-side edit rolls the key and prunes the old entry.
+test "layered payload: frame reuse is verified, corruption falls back" {
+    const io = testing.io;
+    const gpa = testing.allocator;
+    var arena_state = std.heap.ArenaAllocator.init(gpa);
+    defer arena_state.deinit();
+    const a = arena_state.allocator();
+
+    var tmp = testing.tmpDir(.{});
+    defer tmp.cleanup();
+    var base_buf: [MAX_PATH]u8 = undefined;
+    const base = base_buf[0..try tmp.dir.realPath(io, &base_buf)];
+
+    const stage = try std.fmt.allocPrint(a, "{s}/stage", .{base});
+    const cache = try std.fmt.allocPrint(a, "{s}/layers", .{base});
+    const wf = struct {
+        fn wf(io_: Io, a_: Allocator, stage_: []const u8, rel: []const u8, data: []const u8) !void {
+            const p = try std.fmt.allocPrint(a_, "{s}/{s}", .{ stage_, rel });
+            try Dir.cwd().createDirPath(io_, std.fs.path.dirname(p).?);
+            try Dir.cwd().writeFile(io_, .{ .sub_path = p, .data = data });
+        }
+    }.wf;
+    // Deps side: python tree, a pip helper, and the two dependency-pinned
+    // artifacts that live under jaclang/'s path on purpose.
+    try wf(io, a, stage, "python/lib/marker.txt", "pybytecode-marker\n");
+    try wf(io, a, stage, "site/pytest/helper.py", "helper = 1\n");
+    try wf(io, a, stage, "site/jaclang/compiler/passes/native/llvm/libjacllvm.so", "fake-shim-bytes");
+    try wf(io, a, stage, "site/jaclang/runtimelib/client/_bun/bun", "fake-bun-bytes");
+    // Volatile side: the compiler tree + site shims.
+    try wf(io, a, stage, "site/jaclang/mod.py", "version = 1\n");
+    try wf(io, a, stage, "site/_jac_finder.py", "finder\n");
+
+    const out1 = try std.fmt.allocPrint(a, "{s}/p1.tar.zst", .{base});
+    try tarZstDir(io, gpa, a, stage, out1, cache);
+    const entry1 = try soleCacheEntry(io, a, cache);
+    const frame1 = try Dir.cwd().readFileAlloc(io, entry1, a, .unlimited);
+    const p1 = try Dir.cwd().readFileAlloc(io, out1, a, .unlimited);
+    // The cached deps frame is the packed payload's byte prefix.
+    try testing.expect(p1.len > frame1.len);
+    try testing.expectEqualSlices(u8, frame1, p1[0..frame1.len]);
+    {
+        var d1 = try extractForTest(io, gpa, out1, try std.fmt.allocPrint(a, "{s}/x1", .{base}));
+        defer d1.close(io);
+        try testing.expectEqualStrings("pybytecode-marker\n", try d1.readFileAlloc(io, "python/lib/marker.txt", a, .unlimited));
+        try testing.expectEqualStrings("fake-shim-bytes", try d1.readFileAlloc(io, "site/jaclang/compiler/passes/native/llvm/libjacllvm.so", a, .unlimited));
+        try testing.expectEqualStrings("version = 1\n", try d1.readFileAlloc(io, "site/jaclang/mod.py", a, .unlimited));
+        try testing.expectEqualStrings("finder\n", try d1.readFileAlloc(io, "site/_jac_finder.py", a, .unlimited));
+    }
+
+    // (1) jaclang-only edit: deps frame identical, jac layer picks up the change.
+    try wf(io, a, stage, "site/jaclang/mod.py", "version = 2\n");
+    const out2 = try std.fmt.allocPrint(a, "{s}/p2.tar.zst", .{base});
+    try tarZstDir(io, gpa, a, stage, out2, cache);
+    const p2 = try Dir.cwd().readFileAlloc(io, out2, a, .unlimited);
+    try testing.expectEqualSlices(u8, frame1, p2[0..frame1.len]);
+    {
+        var d2 = try extractForTest(io, gpa, out2, try std.fmt.allocPrint(a, "{s}/x2", .{base}));
+        defer d2.close(io);
+        try testing.expectEqualStrings("version = 2\n", try d2.readFileAlloc(io, "site/jaclang/mod.py", a, .unlimited));
+    }
+
+    // (2) Reuse is verbatim, not a deterministic recompress: plant an
+    // alternative frame (level-1: different bytes, same decoded tar) and
+    // expect it embedded as-is.
+    const deps_tar = try a.alloc(u8, 1 << 20);
+    const deps_tar_len = ZSTD_decompress(deps_tar.ptr, deps_tar.len, frame1.ptr, frame1.len);
+    try testing.expect(ZSTD_isError(deps_tar_len) == 0);
+    const alt = alt: {
+        const cctx = ZSTD_createCCtx() orelse return error.OutOfMemory;
+        defer _ = ZSTD_freeCCtx(cctx);
+        setCParam(cctx, ZSTD_c_compressionLevel, 1);
+        setCParam(cctx, ZSTD_c_windowLog, runtime.PAYLOAD_WINDOW_LOG);
+        const dst = try a.alloc(u8, ZSTD_compressBound(deps_tar_len));
+        const m = ZSTD_compress2(cctx, dst.ptr, dst.len, deps_tar.ptr, deps_tar_len);
+        try testing.expect(ZSTD_isError(m) == 0);
+        break :alt dst[0..m];
+    };
+    try testing.expect(!std.mem.eql(u8, alt, frame1));
+    try Dir.cwd().writeFile(io, .{ .sub_path = entry1, .data = alt });
+    const out3 = try std.fmt.allocPrint(a, "{s}/p3.tar.zst", .{base});
+    try tarZstDir(io, gpa, a, stage, out3, cache);
+    const p3 = try Dir.cwd().readFileAlloc(io, out3, a, .unlimited);
+    try testing.expectEqualSlices(u8, alt, p3[0..alt.len]);
+    {
+        var d3 = try extractForTest(io, gpa, out3, try std.fmt.allocPrint(a, "{s}/x3", .{base}));
+        defer d3.close(io);
+        try testing.expectEqualStrings("pybytecode-marker\n", try d3.readFileAlloc(io, "python/lib/marker.txt", a, .unlimited));
+    }
+
+    // (3) Corrupt cache entry: verification must reject it and recompress to
+    // a correct payload (byte-identical to the honest level-19 pack).
+    const bad = try a.dupe(u8, alt);
+    bad[bad.len / 2] ^= 0xff;
+    try Dir.cwd().writeFile(io, .{ .sub_path = entry1, .data = bad });
+    const out4 = try std.fmt.allocPrint(a, "{s}/p4.tar.zst", .{base});
+    try tarZstDir(io, gpa, a, stage, out4, cache);
+    const p4 = try Dir.cwd().readFileAlloc(io, out4, a, .unlimited);
+    try testing.expectEqualSlices(u8, p2, p4);
+
+    // (4) Deps-side edit: new key, and the old entry is pruned away.
+    try wf(io, a, stage, "site/pytest/helper.py", "helper = 2\n");
+    const out5 = try std.fmt.allocPrint(a, "{s}/p5.tar.zst", .{base});
+    try tarZstDir(io, gpa, a, stage, out5, cache);
+    const entry2 = try soleCacheEntry(io, a, cache);
+    try testing.expect(!std.mem.eql(u8, entry1, entry2));
+    {
+        var d5 = try extractForTest(io, gpa, out5, try std.fmt.allocPrint(a, "{s}/x5", .{base}));
+        defer d5.close(io);
+        try testing.expectEqualStrings("helper = 2\n", try d5.readFileAlloc(io, "site/pytest/helper.py", a, .unlimited));
     }
 }

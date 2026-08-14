@@ -11,7 +11,17 @@ impl StaticAnalysisPass.transform(ir_in: uni.Module) -> uni.Module {
     self._check_semantic_patterns(self.ir_in);
     self._check_redundant_imports(self.ir_in);
     self._check_client_imports(self.ir_in);
+    self._check_placement_warnings(self.ir_in);
     return ir_in;
+}
+
+impl StaticAnalysisPass._check_placement_warnings(mod: uni.Module) -> None {
+    import from jaclang.compiler.symbol_utils { report_placement_warnings }
+    try {
+        report_placement_warnings(self, mod);
+    } except Exception {
+        ;
+    }
 }
 
 impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {
@@ -29,28 +39,30 @@ impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {
             continue;
         }
 
-        if sym.sym_type in (
-            SymbolType.MODULE,
-            SymbolType.MOD_VAR,
-            SymbolType.IMPL,
-            SymbolType.SEM,
-            SymbolType.TEST,
-            SymbolType.HAS_VAR,
-            SymbolType.CONSTRUCTOR,
-            SymbolType.ENUM_MEMBER,
-            SymbolType.ABILITY,
-            SymbolType.METHOD
-        ) {
+        if sym.sym_type
+            in (
+                SymbolType.MODULE,
+                SymbolType.MOD_VAR,
+                SymbolType.IMPL,
+                SymbolType.SEM,
+                SymbolType.TEST,
+                SymbolType.HAS_VAR,
+                SymbolType.CONSTRUCTOR,
+                SymbolType.ENUM_MEMBER,
+                SymbolType.ABILITY,
+                SymbolType.METHOD
+            ) {
             continue;
         }
 
-        if sym.sym_type in (
-            SymbolType.OBJECT_ARCH,
-            SymbolType.NODE_ARCH,
-            SymbolType.EDGE_ARCH,
-            SymbolType.WALKER_ARCH,
-            SymbolType.ENUM_ARCH
-        ) {
+        if sym.sym_type
+            in (
+                SymbolType.OBJECT_ARCH,
+                SymbolType.NODE_ARCH,
+                SymbolType.EDGE_ARCH,
+                SymbolType.WALKER_ARCH,
+                SymbolType.ENUM_ARCH
+            ) {
             continue;
         }
 
@@ -81,7 +93,7 @@ impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
             continue;
         }
 
-        if name_nd._py_ctx_func != ast3.Load {
+        if name_nd.expr_ctx != ExprCtx.LOAD {
             continue;
         }
 
@@ -121,6 +133,13 @@ impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
         }
 
         if name_nd.find_parent_of_type(uni.Import) is not None {
+            continue;
+        }
+
+        if (
+            name_nd.value == '_'
+            and name_nd.find_parent_of_type(uni.MatchPattern) is not None
+        ) {
             continue;
         }
 
@@ -201,7 +220,7 @@ impl StaticAnalysisPass._native_type_position(name_nd: uni.Name) -> (str | None)
             break;
         }
         if isinstance(parent, uni.SubTag)
-        or (isinstance(parent, uni.FuncSignature) and parent.return_type is cur) {
+            or (isinstance(parent, uni.FuncSignature) and parent.return_type is cur) {
             in_type_pos = True;
             break;
         }
@@ -319,7 +338,13 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
             if op.value in ("==", "!=", "is", "is not") {
                 right = nd.rights[i] if i < len(nd.rights) else None;
                 if isinstance(right, uni.Bool) {
-                    self.emit(W2075, node_override=nd);
+                    import from jaclang.compiler.type_system.type_utils {
+                        expr_primitive_name
+                    }
+                    left = nd.left if i == 0 else nd.rights[i - 1];
+                    if expr_primitive_name(self.prog, left) == "bool" {
+                        self.emit(W2075, node_override=nd);
+                    }
                 }
             }
         }
@@ -363,14 +388,77 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
 }
 
 impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
+    import from jaclang.jac0core.compiler { is_client_native_edge_import }
+    import from jaclang.jac0core.constant { CodeContext }
     import from jaclang.compiler.symbol_utils {
         ClientImportVerdict,
         classify_client_import_item,
+        decl_has_access,
+        import_target_pinned_server,
         is_client_boundary_import,
         report_dead_client_import,
         resolve_import_source_module
     }
     for nd in mod.get_all_sub_nodes(typ=uni.Import) {
+        if is_client_native_edge_import(nd, self.prog) {
+            continue;
+        }
+        if nd.code_context != CodeContext.CLIENT {
+            continue;
+        }
+        if (
+            nd.from_loc is not None
+            and nd.from_loc.string_path_value is None
+            and not nd.is_virtual_jac
+        ) {
+            resolved = None;
+            try {
+                resolved = nd.from_loc.resolve_relative_path();
+            } except Exception {
+                resolved = None;
+            }
+            if isinstance(resolved, str) and resolved.endswith('.jac') {
+                import from jaclang.jac0core.diagnostics { W1105 }
+                import from jaclang.jac0core.modresolver { is_client_npm_import }
+                spec = nd.from_loc.dot_path_str;
+                if is_client_npm_import(spec, nd.loc.mod_path or '') {
+                    self.emit(W1105, node_override=nd.from_loc, name=spec);
+                }
+            }
+        }
+        string_specs: list = [];
+        if (nd.from_loc is not None and nd.from_loc.string_path_value is not None) {
+            string_specs.append((nd.from_loc.string_path_value, nd.from_loc));
+        } elif nd.from_loc is None {
+            for item in nd.items {
+                if (
+                    isinstance(item, uni.ModulePath)
+                    and item.string_path_value is not None
+                ) {
+                    string_specs.append((item.string_path_value, item));
+                }
+            }
+        }
+        for (spv, spv_node) in string_specs {
+            if (spv.startswith('.') or nd.is_virtual_jac) {
+                continue;
+            }
+            import os;
+            import from jaclang.jac0core.diagnostics { W1106 }
+            import from jaclang.jac0core.modresolver {
+                is_client_npm_import,
+                is_path_alias_import
+            }
+            mod_path = nd.loc.mod_path or '';
+            sibling_file = os.path.join(os.path.dirname(mod_path), spv);
+            if (
+                not is_client_npm_import(spv, mod_path)
+                and not is_path_alias_import(spv, mod_path)
+                and not os.path.isfile(sibling_file)
+            ) {
+                self.emit(W1106, node_override=spv_node, name=spv);
+            }
+        }
         if not is_client_boundary_import(nd) {
             continue;
         }
@@ -378,9 +466,11 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
         if source_mod is None {
             continue;
         }
+        pinned_server = import_target_pinned_server(nd);
         for item in nd.items {
             verdict = classify_client_import_item(source_mod, item);
-            if verdict == ClientImportVerdict.DEAD {
+            if verdict == ClientImportVerdict.DEAD
+                and not (pinned_server and decl_has_access(source_mod, item)) {
                 report_dead_client_import(self, nd, item);
             }
         }

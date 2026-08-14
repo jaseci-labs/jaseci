@@ -108,8 +108,14 @@ def make_crossboundary_client(tmp_path: str) -> JacTestClient {
     dest.mkdir(parents=True, exist_ok=True);
     shutil.copy(fixtures_src / "crossbound_app.jac", dest / f"{module_name}.jac");
     shutil.copy(fixtures_src / "crossbound_server.jac", dest / "crossbound_server.jac");
+    with open(str(dest / "jac.toml"), "w") as tf {
+        tf.write(
+            "[project]\nname = \"crossbound\"\n\n[placement.pins]\n"
+            "\"crossbound_server\" = \"server\"\n"
+        );
+    }
     shutil.copy(
-        fixtures_src / "crossbound_frontend.cl.jac", dest / "crossbound_frontend.cl.jac"
+        fixtures_src / "crossbound_frontend.jac", dest / "crossbound_frontend.jac"
     );
     return JacTestClient.from_file(
         str(dest / f"{module_name}.jac"), base_path=str(dest), module_name=module_name
@@ -132,8 +138,17 @@ def make_dualrole_client(tmp_path: str) -> JacTestClient {
     dest = Path(tmp_path) / module_name;
     dest.mkdir(parents=True, exist_ok=True);
     shutil.copy(fixtures_src / "dualrole_app.jac", dest / f"{module_name}.jac");
+    with open(str(dest / "jac.toml"), "w") as tf {
+        tf.write(
+            "[project]\nname = \"dualrole\"\n\n[placement.pins]\n"
+            "\"dualrole_guestbook\" = \"server\"\n"
+            "\"dualrole_analytics\" = \"server\"\n"
+            "\n[scale.microservices.routes]\n"
+            "\"dualrole_analytics\" = \"/analytics\"\n"
+        );
+    }
     for name in [
-        "dualrole_frontend.cl.jac",
+        "dualrole_frontend.jac",
         "dualrole_guestbook.jac",
         "dualrole_analytics.jac"
     ] {
@@ -157,7 +172,13 @@ def make_failload_client(tmp_path: str) -> JacTestClient {
     dest = Path(tmp_path) / module_name;
     dest.mkdir(parents=True, exist_ok=True);
     shutil.copy(fixtures_src / "failload_app.jac", dest / f"{module_name}.jac");
-    for name in ["failload_frontend.cl.jac", "failload_server.jac"] {
+    with open(str(dest / "jac.toml"), "w") as tf {
+        tf.write(
+            "[project]\nname = \"failload\"\n\n[placement.pins]\n"
+            "\"failload_server\" = \"server\"\n"
+        );
+    }
+    for name in ["failload_frontend.jac", "failload_server.jac"] {
         shutil.copy(fixtures_src / name, dest / name);
     }
     return JacTestClient.from_file(
@@ -185,8 +206,14 @@ def make_bundled_crossboundary_client -> tuple {
     dest.mkdir(parents=True, exist_ok=True);
     shutil.copy(fixtures_src / "crossbound_app.jac", dest / f"{module_name}.jac");
     shutil.copy(fixtures_src / "crossbound_server.jac", dest / "crossbound_server.jac");
+    with open(str(dest / "jac.toml"), "w") as tf {
+        tf.write(
+            "[project]\nname = \"crossbound-bundled\"\n\n[placement.pins]\n"
+            "\"crossbound_server\" = \"server\"\n"
+        );
+    }
     shutil.copy(
-        fixtures_src / "crossbound_frontend.cl.jac", dest / "crossbound_frontend.cl.jac"
+        fixtures_src / "crossbound_frontend.jac", dest / "crossbound_frontend.jac"
     );
     client = JacTestClient.from_file(
         str(dest / f"{module_name}.jac"), base_path=str(dest), module_name=module_name
@@ -398,7 +425,7 @@ test "serve get user info requires auth" {
             assert "error" in response.data or "message" in response.data;
         } else {
             assert "error" in response.text.lower()
-            or "unauthorized" in response.text.lower();
+                or "unauthorized" in response.text.lower();
         }
         client.close();
     }
@@ -415,7 +442,7 @@ test "serve get user info invalid token" {
             assert "error" in response.data or "message" in response.data;
         } else {
             assert "error" in response.text.lower()
-            or "unauthorized" in response.text.lower();
+                or "unauthorized" in response.text.lower();
         }
         client.close();
     }
@@ -1686,7 +1713,7 @@ test "serve sync skips write access check on unchanged anchors" {
         # so a subsequent sync() should detect no drift and skip the
         # write-access check.
         import from typing { cast }
-        import from jaclang.runtimelib.memory { TieredMemory }
+        import from jaclang.runtimelib.session { Session }
         serialized = cast(dict, Serializer.serialize(sys_root, include_type=True));
         sys_root_copy = Serializer.deserialize(serialized);
         if sys_root_copy is not None {
@@ -1694,12 +1721,12 @@ test "serve sync skips write access check on unchanged anchors" {
         }
         sys_root.persistent = True;
         sys_root.hash = Serializer._compute_hash(sys_root);
-        # Ensure it is present in L3's __mem__ and on disk.
-        tiered = cast(TieredMemory, ctx.mem);
-        l3 = tiered.l3;
-        if l3 is not None {
-            l3.put(sys_root);
-        }
+        # Seed the session exactly as a load would: identity-mapped, flushed
+        # hash recorded, not dirty -- i.e. an unchanged anchor.
+        sess = cast(Session, ctx.mem);
+        sess.__mem__[sys_root.id] = sys_root;
+        sess._flushed_hash[sys_root.id] = sys_root.hash;
+        sess._dirty.pop(sys_root.id, None);
         # Capture logs
         logger = logging.getLogger("jaclang.jac0core.runtime");
         cap = capture_log_start(logger);
@@ -1714,7 +1741,7 @@ test "serve sync skips write access check on unchanged anchors" {
         } finally {
             capture_log_stop(logger, handler, old_level);
         }
-        assert "Current root doesn't have write access" not in buf.getvalue() , "SqliteMemory.sync() should not check write access on unchanged anchors";
+        assert "Current root doesn't have write access" not in buf.getvalue() , "Session.flush() should not check write access on unchanged anchors";
         client.close();
     }
 }
@@ -1873,76 +1900,68 @@ test "concurrent async walkers run concurrently end-to-end" {
     }
 }
 
-test "Memory async mirrors (aget/aput/adelete/ahas/acommit) work" {
-    # Every Memory backend gets async mirrors by default via to_thread.
-    # This verifies the base-class impls round-trip correctly and do not
-    # block the caller's event loop.
+test "Session async mirrors (aget/aput/adelete/ahas/acommit) work" {
+    # Every Memory backend gets async mirrors by default.
+    # This verifies the impls round-trip correctly for both the volatile
+    # (store-less) and Postgres-backed session.
     import asyncio;
     import from jaclang.jac0core.archetype { NodeAnchor, Root }
-    import from jaclang.runtimelib.memory { VolatileMemory, SqliteMemory }
+    import from jaclang.runtimelib.session { Session }
     import from uuid { uuid4 }
 
     with TemporaryDirectory() as tmpdir {
-        # Volatile backend (pure in-memory).
-        vol = VolatileMemory();
+        # Store-less session (pure in-memory).
+        vol = Session();
         anchor = NodeAnchor(id=uuid4(), archetype=Root(), edges=[]);
         async def exercise_volatile -> bool {
             await vol.aput(anchor);
             assert await vol.ahas(anchor.id);
             got = await vol.aget(anchor.id);
             assert got is anchor;
-            await vol.acommit(anchor);  # no-op for volatile
+            await vol.acommit(anchor);
             await vol.adelete(anchor.id);
             assert not await vol.ahas(anchor.id);
             return True;
         }
         assert asyncio.run(exercise_volatile());
-        # SQLite backend (blocking IO wrapped in to_thread by default).
-        import os;
-        db_path = os.path.join(tmpdir, "test.db");
-        sq = SqliteMemory(path=db_path);
+        # Postgres-backed session on the project database.
+        sess = Session(base_path=tmpdir);
         persist_anchor = NodeAnchor(id=uuid4(), archetype=Root(), edges=[]);
         persist_anchor.persistent = True;
-        async def exercise_sqlite -> bool {
-            await sq.aput(persist_anchor);
-            assert await sq.ahas(persist_anchor.id);
-            got = await sq.aget(persist_anchor.id);
+        async def exercise_store -> bool {
+            await sess.aput(persist_anchor);
+            assert await sess.ahas(persist_anchor.id);
+            got = await sess.aget(persist_anchor.id);
             assert got is not None;
             assert got.id == persist_anchor.id;
-            await sq.acommit(persist_anchor);
-            await sq.adelete(persist_anchor.id);
+            await sess.acommit(persist_anchor);
+            await sess.adelete(persist_anchor.id);
             return True;
         }
-        assert asyncio.run(exercise_sqlite());
-        sq.close();
+        assert asyncio.run(exercise_store());
+        sess.close();
     }
 }
 
-test "SqliteMemory concurrent writes from worker threads do not race" {
-    # Regression guard for the sqlite3 shared-connection race at sync().
+test "Session concurrent commits from worker threads do not race" {
+    # Regression guard for racing commits on one shared session.
     #
-    # When sync walkers finish, Jac.acommit offloads SqliteMemory.commit()
-    # (which calls sync()) to a worker thread via asyncio.to_thread.
-    # Multiple concurrent walker calls from one user share the same
-    # SqliteMemory instance and connection (opened with
-    # check_same_thread=False). sync() does a BEGIN IMMEDIATE; two racing
-    # invocations on one connection collide as "cannot start a
-    # transaction within a transaction" on Linux, or corrupt the stored
-    # row and surface as "stored anchor ... unreadable" later on macOS.
-    #
-    # A threading.RLock inside SqliteMemory serializes sync() and the
-    # other connection-touching methods. This test drives many concurrent
-    # commits and asserts both (a) no exceptions propagate and (b) every
-    # anchor reads back cleanly from a fresh connection.
+    # When sync walkers finish, Jac.acommit offloads Session.commit()
+    # to a worker thread. Multiple concurrent walker calls from one user
+    # can share one Session and therefore one store connection; two
+    # racing flush/commit cycles must not interleave on it. The
+    # session-level RLock serializes put/flush/commit; this test drives
+    # many concurrent commits and asserts both (a) no exceptions
+    # propagate and (b) every anchor reads back cleanly from a fresh
+    # session over the same project database.
     import asyncio;
     import os;
     import from uuid { uuid4 }
     import from jaclang.jac0core.archetype { NodeAnchor, Root }
-    import from jaclang.runtimelib.memory { SqliteMemory }
+    import from jaclang.runtimelib.session { Session }
 
     with TemporaryDirectory() as tmpdir {
-        db_path = os.path.join(tmpdir, "concurrent.db");
-        mem = SqliteMemory(path=db_path);
+        mem = Session(base_path=tmpdir);
         n_threads = 32;
         # Pre-build anchor ids on the main thread so the assertion loop
         # below knows exactly what to expect.
@@ -1958,13 +1977,10 @@ test "SqliteMemory concurrent writes from worker threads do not race" {
                 *[asyncio.to_thread(worker, i) for i in range(n_threads)]
             );
         }
-        # Without the lock, on Linux this raises OperationalError (the
-        # exact CI failure); on macOS it succeeds but leaves corrupted
-        # rows that fail the readback below.
         asyncio.run(run_concurrent());
-        # Fresh SqliteMemory reads from disk, bypassing any in-memory
-        # cache, so this genuinely exercises the stored rows.
-        reader = SqliteMemory(path=db_path);
+        # A fresh session reads through the store, bypassing the writer's
+        # identity map, so this genuinely exercises the committed rows.
+        reader = Session(base_path=tmpdir);
         for id in anchor_ids {
             got = reader.get(id);
             assert got is not None , f"anchor {id} missing after concurrent commit";
@@ -2214,7 +2230,7 @@ test "stdlib server answers health endpoints" {
 """A missing bun is an environmental precondition, cheap to re-check - the
 bundle layer must retry it on every request (so fetching bun fixes serving
 without a restart), while genuine build failures stay memoized."""
-test "ensure_bundle retries a missing-bun failure but memoizes build errors" {
+test "ensure_bundle retries a missing-bun failure and a build error alike" {
     import from unittest.mock { MagicMock }
     import from jaclang.runtimelib.server { ModuleIntrospector }
     import from jaclang.runtimelib.client_bundle { ClientBundleError, MissingBunError }
@@ -2242,7 +2258,87 @@ test "ensure_bundle retries a missing-bun failure but memoizes build errors" {
             assert False , "ensure_bundle should raise for a broken build";
         } except ClientBundleError { }
     }
-    assert broken.build.call_count == 1 , "a real build failure stays memoized until reload";
+    assert broken.build.call_count == 2 , (
+        "a build failure must be retried on the next call: the serving core builds "
+        "at boot and keeps serving when that fails, so memoizing the error left "
+        "every client page 503 until the process restarted"
+    );
+}
+
+"""A deliberately slow real builder: holds each build open long enough for
+other threads to pile in, then returns a distinct real bundle per call."""
+obj _SlowRealBuilder {
+    has hold: float = 0.4,
+        calls: int = 0;
+
+    def build(module: object, force: bool = False) -> object {
+        import time;
+        import from jaclang.runtimelib.client_bundle { ClientBundle }
+        self.calls += 1;
+        mine = self.calls;
+        time.sleep(self.hold);
+        return ClientBundle(
+            module_name="race_probe",
+            code=f"export const page = {mine};",
+            client_functions=[],
+            client_globals=[],
+            hash=f"hash-{mine}"
+        );
+    }
+}
+
+test "concurrent ensure_bundle callers share one build instead of each running their own" {
+    import from concurrent.futures { ThreadPoolExecutor }
+    import from jaclang.runtimelib.server { ModuleIntrospector }
+    intro = ModuleIntrospector("serve_api", FIXTURES);
+    intro._module = object();
+    builder = _SlowRealBuilder();
+    intro._bundle_builder = builder;
+
+    def _one(_i: int) -> str {
+        return intro.ensure_bundle();
+    }
+    executor = ThreadPoolExecutor(max_workers=6);
+    try {
+        results = list(executor.map(_one, range(6)));
+    } finally {
+        executor.shutdown(wait=True);
+    }
+    assert builder.calls == 1 , (
+        f"the bundle was built {builder.calls} times for 6 concurrent callers; "
+        "unlocked entry runs parallel builds into the same client tree"
+    );
+    assert set(results) == {"hash-1"} , (
+        f"concurrent callers got different bundles: {sorted(set(results))}"
+    );
+}
+
+test "a module reload during a build wins over the build's result" {
+    import threading;
+    import time;
+    import from jaclang.runtimelib.server { ModuleIntrospector }
+    intro = ModuleIntrospector("serve_api", FIXTURES);
+    intro._module = object();
+    builder = _SlowRealBuilder();
+    intro._bundle_builder = builder;
+
+    build_thread = threading.Thread(target=intro.ensure_bundle);
+    build_thread.start();
+    time.sleep(0.1);
+    # A reload arriving mid-build (load()/_check_module_freshness path) must not
+    # be overwritten when the in-flight build lands: it queues on the lock and
+    # then clears, so the next request rebuilds from the new module.
+    intro._invalidate_bundle();
+    build_thread.join(timeout=30);
+    assert not build_thread.is_alive() , "build thread never finished";
+
+    assert intro._bundle is None , (
+        "a bundle compiled from the pre-reload module survived the reload; "
+        "stale client code would be served until the next restart"
+    );
+    assert intro.ensure_bundle() == "hash-2" , (
+        "the request after the reload did not rebuild"
+    );
 }
 
 """/graph, /graph/data and /docs must be served by the stdlib server too -
@@ -2265,8 +2361,12 @@ test "stdlib server serves graph visualizer and docs" {
         assert len(payload["nodes"]) >= 1 , "graph data should include the root node";
         docs = client.get("/docs");
         assert docs.status_code == 200 , f"/docs: {docs.status_code}";
-        assert "/walker/leave_note" in docs.text , "docs page should list the module's walkers";
-        assert "/user/login" in docs.text , "docs page should list auth endpoints";
+        assert "swagger-ui" in docs.text.lower() , "/docs should serve the API explorer";
+        spec = client.get("/openapi.json");
+        assert spec.status_code == 200 , f"/openapi.json: {spec.status_code}";
+        paths = spec.json()["paths"];
+        assert "/walker/leave_note" in paths , "openapi should list the module's walkers";
+        assert "/user/login" in paths , "openapi should list auth endpoints";
         client.close();
     }
 }
@@ -2290,7 +2390,7 @@ def write_routed_pages(dest: Path) {
 }
 
 """The fallback answers 200 only for paths a scanned client route can serve;
-everything else is an honest 404. A stale long-poll client (e.g. an mkdocs
+everything else is an honest 404. A stale long-poll client (e.g. a docs-site
 livereload tab) previously got 200 in ~3ms and busy-looped at ~300 req/s -
 non-200 is what flips such clients into their backoff path."""
 test "spa fallback status is route aware when pages exist" {

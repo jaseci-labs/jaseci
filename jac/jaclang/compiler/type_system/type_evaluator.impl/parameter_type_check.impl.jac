@@ -27,6 +27,9 @@ impl TypeEvaluator.validate_arg_types(
         }
         value = arg.value if isinstance(arg, uni.KWPair) else arg;
         arg_type = self.get_type_of_expression(value, expected_type=expected);
+        if isinstance(arg_type, types.UnknownType) and arg_type.is_incomplete {
+            continue;
+        }
 
         if not self.assign_type(arg_type, expected, strict=self._is_strict_site(arg)) {
             has_errors = True;
@@ -52,15 +55,15 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
     }
 
     if isinstance(expr.target, uni.SpecialVarRef)
-    and expr.target.name == Tok.KW_ROOT
-    and (not expr.params or len(expr.params) == 0) {
+        and expr.target.name == Tok.KW_ROOT
+        and (not expr.params or len(expr.params) == 0) {
         self.emit_diag(E0049, expr);
         return caller_type;
     }
 
     if isinstance(caller_type, types.ClassType)
-    and caller_type.is_builtin("auto")
-    and (not expr.params or len(expr.params) == 0) {
+        and caller_type.is_builtin("auto")
+        and (not expr.params or len(expr.params) == 0) {
         return self.prefetch.int_class if self.prefetch else types.UnknownType();
     }
 
@@ -75,7 +78,8 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         return caller_type;
     }
 
-    if isinstance(caller_type, types.UnknownType) and caller_type.is_diagnosed {
+    if isinstance(caller_type, types.UnknownType)
+        and (caller_type.is_diagnosed or caller_type.is_incomplete) {
         return caller_type;
     }
 
@@ -238,7 +242,11 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
                 E1054,
                 expr,
                 help_text=(
-                    "Unannotated lambda parameter '" + lambda_param + "' could not be inferred from the call context, so it stays Unknown and no overload matches. Annotate it, e.g. `lambda " + lambda_param + ": <type> : ...`, or pass a typed `def` as the callback."
+                    "Unannotated lambda parameter '"
+                    + lambda_param
+                    + "' could not be inferred from the call context, so it stays Unknown and no overload matches. Annotate it, e.g. `lambda "
+                    + lambda_param
+                    + ": <type> : ...`, or pass a typed `def` as the callback."
                 )
             );
         } else {
@@ -279,15 +287,15 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
                 if isinstance(arg, uni.KWPair) {
                     if isinstance(arg.key, uni.Name) {
                         if arg.key.value == "covariant"
-                        and isinstance(arg.value, uni.Bool) {
+                            and isinstance(arg.value, uni.Bool) {
                             is_covariant = arg.value.value;
                         } elif arg.key.value == "contravariant"
-                        and isinstance(arg.value, uni.Bool) {
+                            and isinstance(arg.value, uni.Bool) {
                             is_contravariant = arg.value.value;
                         } elif arg.key.value == "bound" {
                             bound_type = self.get_type_of_expression(arg.value);
                             if isinstance(bound_type, types.ClassType)
-                            and bound_type.is_instantiable() {
+                                and bound_type.is_instantiable() {
                                 bound_type = bound_type.clone_as_instance();
                             }
                         }
@@ -297,7 +305,7 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
 
                 constraint_type = self.get_type_of_expression(arg);
                 if isinstance(constraint_type, types.ClassType)
-                and constraint_type.is_instantiable() {
+                    and constraint_type.is_instantiable() {
                     constraint_type = constraint_type.clone_as_instance();
                 }
                 constraint_types.append(constraint_type);
@@ -347,15 +355,15 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
                 arg = expr.params[i];
                 if isinstance(arg, uni.KWPair) and isinstance(arg.key, uni.Name) {
                     if arg.key.value == "covariant"
-                    and isinstance(arg.value, uni.Bool) {
+                        and isinstance(arg.value, uni.Bool) {
                         is_covariant = arg.value.value;
                     } elif arg.key.value == "contravariant"
-                    and isinstance(arg.value, uni.Bool) {
+                        and isinstance(arg.value, uni.Bool) {
                         is_contravariant = arg.value.value;
                     } elif arg.key.value == "bound" {
                         bound_type = self.get_type_of_expression(arg.value);
                         if isinstance(bound_type, types.ClassType)
-                        and bound_type.is_instantiable() {
+                            and bound_type.is_instantiable() {
                             bound_type = bound_type.clone_as_instance();
                         }
                     }
@@ -415,7 +423,7 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         if matched_method is None {
             init_method = self._lookup_class_member(caller_type, "init");
             is_from_object = init_method
-            and init_method.class_type.shared.class_name == "object";
+                and init_method.class_type.shared.class_name == "object";
 
             if init_method and not is_from_object {
                 method_ty = self._get_method_with_overloads(init_method, caller_type);
@@ -448,11 +456,7 @@ impl TypeEvaluator.validate_call_args(expr: uni.FuncCall) -> TypeBase {
         return caller_type.clone_as_instance();
     }
     if caller_type.is_class_instance() {
-        if (
-            isinstance(caller_type, types.ClassType)
-            and self.prefetch.any_class
-            and caller_type.shared == self.prefetch.any_class.shared
-        ) {
+        if caller_type.is_any_instance() {
             return caller_type;
         }
         magic_call_ret = self.get_type_of_magic_method_call(
@@ -493,10 +497,10 @@ impl TypeEvaluator.match_args_to_params(
         if len(func_type.parameters) >= 1 {
             first = func_type.parameters[0];
             if first.is_self
-            or (
-                first.is_cls
-                and func_type.function_flags & types.FunctionTypeFlags.ClassMethod
-            ) {
+                or (
+                    first.is_cls
+                    and func_type.function_flags & types.FunctionTypeFlags.ClassMethod
+                ) {
                 params_to_match.pop(0);
             }
         }
@@ -574,7 +578,9 @@ impl TypeEvaluator._validate_constructor_method(
     if isinstance(method_type, types.FunctionType) {
         has_params = len(method_type.parameters) > 0;
         if has_params
-        and (method_type.parameters[0].is_self or method_type.parameters[0].is_cls) {
+            and (
+                method_type.parameters[0].is_self or method_type.parameters[0].is_cls
+            ) {
             has_params = len(method_type.parameters) > 1;
         }
         if has_params {
@@ -707,13 +713,13 @@ impl TypeEvaluator.assign_type_to_type_var(
     }
 
     if isinstance(param_type, types.FunctionType)
-    and isinstance(arg_type, types.FunctionType) {
+        and isinstance(arg_type, types.FunctionType) {
         param_params = param_type.parameters or [];
         arg_params = arg_type.parameters or [];
         for (i, pp) in enumerate(param_params) {
             if i < len(arg_params)
-            and pp.param_type is not None
-            and arg_params[i].param_type is not None {
+                and pp.param_type is not None
+                and arg_params[i].param_type is not None {
                 self.assign_type_to_type_var(
                     arg_params[i].param_type, pp.param_type, bindings
                 );
@@ -740,7 +746,7 @@ impl TypeEvaluator.assign_type_to_type_var(
     }
 
     if isinstance(param_type, types.ClassType)
-    and isinstance(arg_type, types.ClassType) {
+        and isinstance(arg_type, types.ClassType) {
         param_type_args = param_type.private.type_args if param_type.private else [];
         specialized = type_utils.specialize_for_base_class(arg_type, param_type);
         arg_type_args = specialized.private.type_args if specialized.private else [];
@@ -947,27 +953,19 @@ impl TypeEvaluator._collect_type_var_bindings(
     } elif len(params) >= 1 {
         first = params[0];
         if first.is_self
-        or (
-            first.is_cls
-            and (
-                is_constructor_call
-                or method.function_flags & types.FunctionTypeFlags.ClassMethod
-            )
-        ) {
+            or (
+                first.is_cls
+                and (
+                    is_constructor_call
+                    or method.function_flags & types.FunctionTypeFlags.ClassMethod
+                )
+            ) {
             params.pop(0);
         }
     }
 
     def _effective_param_type(p: types.Parameter) -> TypeBase | None {
-        is_unannotated = (
-            p.param_type is None
-            or (
-                isinstance(p.param_type, types.ClassType)
-                and self.prefetch is not None
-                and self.prefetch.any_class is not None
-                and p.param_type.shared == self.prefetch.any_class.shared
-            )
-        );
+        is_unannotated = p.param_type is None or p.param_type.is_any_instance();
         if not is_unannotated {
             return p.param_type;
         }

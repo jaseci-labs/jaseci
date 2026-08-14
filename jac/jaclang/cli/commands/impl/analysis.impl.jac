@@ -6,7 +6,8 @@ import from jaclang.cli.check_report {
     print_failures,
     print_failed_summary,
     print_final_summary,
-    print_native_census
+    print_native_census,
+    print_placement_report
 }
 
 def _maybe_malloc_trim {
@@ -25,7 +26,8 @@ impl check(
     nowarn: bool = False,
     lint_only: bool = False,
     fix: bool = False,
-    native_census: bool = False
+    native_census: bool = False,
+    placements: bool = False
 ) -> int {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
@@ -43,9 +45,8 @@ impl check(
     );
     if unknown_codes {
         console.warning(
-            "Ignoring unknown diagnostic codes in --disable-error-code: " + ", ".join(
-                unknown_codes
-            )
+            "Ignoring unknown diagnostic codes in --disable-error-code: "
+                + ", ".join(unknown_codes)
         );
     }
     if native_census {
@@ -76,6 +77,7 @@ impl check(
     }
 
     failed_results: list[dict] = [];
+    placement_report: dict = {};
     def check_single_file(
         prog: JacProgram, file_path: str
     ) -> tuple[bool, int, int, list, list] {
@@ -97,16 +99,40 @@ impl check(
             import from jaclang.jac0core.compile_options { CompileOptions }
             console.print(f"  Checking {file_path}...");
             (err_start, warn_start) = (len(prog.errors_had), len(prog.warnings_had));
-            prog.compile(
-                file_path=file_path,
-                options=CompileOptions(
-                    type_check=not parse_only,
-                    no_cgen=not native_census,
-                    force_target_program=True,
-                    suppress_codes=suppressed_codes
-                )
-            );
+            if parse_only {
+                import from jaclang.jac0core.parser.frontend {
+                    parse_diags,
+                    _replay_diags
+                }
+                import from jaclang.jac0core.parser.lexer { Lexer }
+                import from jaclang.jac0core.parser.parser { Parser as _SyntaxParser }
+                import from jaclang.jac0core.unitree { Source as _Src }
+                import from jaclang.jac0core.helpers {
+                    read_file_with_encoding as _read_src
+                }
+                _src_txt = _read_src(file_path);
+                (_had, _pd, _ld) = parse_diags(_src_txt, file_path);
+                if _pd or _ld {
+                    _dsrc = _Src(_src_txt, mod_path=file_path);
+                    _replay_diags(_ld, Lexer, prog, _dsrc);
+                    _replay_diags(_pd, _SyntaxParser, prog, _dsrc);
+                }
+            } else {
+                prog.compile(
+                    file_path=file_path,
+                    options=CompileOptions(
+                        type_check=True,
+                        no_cgen=not native_census,
+                        force_target_program=True,
+                        suppress_codes=suppressed_codes
+                    )
+                );
+            }
 
+            if placements {
+                import from jaclang.jac0core.placement { collect_placement_rows }
+                placement_report.update(collect_placement_rows(prog));
+            }
             for m in prog.mod.hub.values() {
                 m.terminals = [];
                 m.src_terminals = [];
@@ -119,9 +145,9 @@ impl check(
                     i
                     for i in issues
                     if i.loc
-                    and i.loc.mod_path
-                    and i.loc.mod_path.endswith(".jac")
-                    and not _should_ignore(i.loc.mod_path, ignore_list)
+                        and i.loc.mod_path
+                        and i.loc.mod_path.endswith(".jac")
+                        and not _should_ignore(i.loc.mod_path, ignore_list)
                 ];
             }
             filtered_errors = filter_issues(new_errors);
@@ -153,7 +179,7 @@ impl check(
             console.error(f"Error checking '{file_path}': {e}");
             return (False, 1, 0, [], []);
         } finally {
-            prog.release_compile_closure();
+            prog.release_compile_closure(keep_stubs=True);
         }
     }
     prog = JacProgram();
@@ -168,6 +194,9 @@ impl check(
     if native_census {
         import from jaclang.jac0core.compiler { na_census_end }
         print_native_census(na_census_end());
+    }
+    if placements {
+        print_placement_report(placement_report);
     }
     if print_errs and len(failed_results) > 0 {
         print_failures(failed_results, nowarn);
@@ -265,9 +294,8 @@ impl lint(paths: list, fix: bool = False, ignore: (list | None) = None) -> int {
             import from jaclang.jac0core.bccache { discover_annex_files }
             import os;
             annex_paths = (
-                discover_annex_files(str(path_obj), '.impl.jac') + discover_annex_files(
-                    str(path_obj), '.test.jac'
-                )
+                discover_annex_files(str(path_obj), '.impl.jac')
+                + discover_annex_files(str(path_obj), '.test.jac')
             );
             for annex_path in annex_paths {
                 if os.path.realpath(annex_path) in covered {
@@ -393,9 +421,8 @@ def _format_single_file_worker(
         import from jaclang.jac0core.bccache { discover_annex_files }
 
         annex_paths = (
-            discover_annex_files(file_path, '.impl.jac') + discover_annex_files(
-                file_path, '.test.jac'
-            )
+            discover_annex_files(file_path, '.impl.jac')
+            + discover_annex_files(file_path, '.test.jac')
         );
         if logical_path {
             phys_parent = str(Path(file_path).resolve().parent);
@@ -506,7 +533,7 @@ def _format_single_file_worker(
             if lintfix {
                 for annex_path in annex_paths {
                     if covered is not None
-                    and (os.path.realpath(annex_path) in covered) {
+                        and (os.path.realpath(annex_path) in covered) {
                         continue;
                     }
                     annex_logical = annex_logical_map.get(annex_path, annex_path);
@@ -960,9 +987,8 @@ impl precommit(
                             continue;
                         }
                         for ap in (
-                            discover_annex_files(abs_t, '.impl.jac') + discover_annex_files(
-                                abs_t, '.test.jac'
-                            )
+                            discover_annex_files(abs_t, '.impl.jac')
+                            + discover_annex_files(abs_t, '.test.jac')
                         ) {
                             ap_rel = os.path.relpath(ap, git_root).replace(os.sep, "/");
                             if ap_rel not in rel_set {
@@ -994,7 +1020,8 @@ impl precommit(
                         "-f",
                         f"--prefix={tmp_root}{os.sep}",
                         "--"
-                    ] + checkout_paths,
+                    ]
+                        + checkout_paths,
                     check=True,
                     cwd=git_root
                 );
@@ -1045,10 +1072,10 @@ impl precommit(
         check_ret = 0;
     }
     if not verify
-    and check_ret == 0
-    and fmt_ret == 0
-    and staged
-    and _staged_dirty_files(git_root, rel_targets) {
+        and check_ret == 0
+        and fmt_ret == 0
+        and staged
+        and _staged_dirty_files(git_root, rel_targets) {
         fmt_ret = 1;
     }
     if not verify and check_ret == 0 and fmt_ret != 0 {
@@ -1395,14 +1422,8 @@ def _iter_jac_files(
 }
 
 def _normalize_ignore_patterns(ignore: list) -> list {
-    normalized = [];
-    for p in (ignore or []) {
-        stripped = p.strip();
-        if stripped {
-            normalized.append(stripped.rstrip('/'));
-        }
-    }
-    return normalized;
+    import from jaclang.jac0core.helpers { normalize_exclude_patterns }
+    return normalize_exclude_patterns(ignore);
 }
 
 def _should_ignore(file_path: str, ignore_patterns: list) -> bool {

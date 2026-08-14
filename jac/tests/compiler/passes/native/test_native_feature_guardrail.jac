@@ -1,4 +1,4 @@
-"""Guardrail tests for the .na.jac / na {} native pipeline.
+"""Guardrail tests for the .jac / na {} native pipeline.
 
 These tests verify that NaIRGenPass raises a clear E5090 error on AST
 node types it does not yet support, rather than silently dropping them
@@ -14,9 +14,10 @@ class of bug this guardrail exists to prevent.
 """
 
 import os;
-import from tests.support { TESTS_DIR }
+import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compile_options { CompileOptions }
 
 glob FIXTURES_DIR = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
@@ -24,13 +25,13 @@ glob FIXTURES_DIR = os.path.join(
 
 """Compile a snippet through the native pipeline and return the program.
 
-Uses a synthetic .na.jac path under the fixtures directory so the file
+Uses a synthetic .jac path under the fixtures directory so the file
 extension routes the compile through NaIRGenPass.
 """
 def compile_na_inline(label: str, code: str) -> JacProgram {
-    path = os.path.join(FIXTURES_DIR, f"_guardrail_{label}.na.jac");
+    path = os.path.join(FIXTURES_DIR, f"_guardrail_{label}.jac");
     prog = JacProgram();
-    prog.compile(file_path=path, use_str=code);
+    prog.compile(file_path=path, use_str=code, options=native_force_opts());
     return prog;
 }
 
@@ -40,9 +41,18 @@ historically did NOT surface native codegen-time E5090s, so structural native
 gaps stayed invisible at check time and only failed at `jac nacompile` (issue
 #6636 follow-up B). The native capability authority is now run here too."""
 def check_na_inline(label: str, code: str) -> JacProgram {
-    path = os.path.join(FIXTURES_DIR, f"_check_{label}.na.jac");
+    path = os.path.join(FIXTURES_DIR, f"_check_{label}.jac");
     prog = JacProgram();
-    prog.compile(file_path=path, use_str=code, type_check=True, no_cgen=True);
+    prog.compile(
+        file_path=path,
+        use_str=code,
+        options=CompileOptions(
+            type_check=True,
+            no_cgen=True,
+            force_codespace="native",
+            force_target_program=True
+        )
+    );
     return prog;
 }
 
@@ -219,14 +229,14 @@ test "guardrail: Python module import is rejected" {
     )}";
 }
 
-# A dotted non-bundled Python import (`import collections.abc;`) is equally
-# unsupported (a dotted bundled name like `os.path` now resolves, #6978).
+# A dotted non-bundled Python import is equally unsupported (a dotted
+# bundled name like `os.path` now resolves, #6978; `collections.abc`
+# joined NATIVE_SUPPORTED_STDLIB with the unitree lowering census).
 test "guardrail: dotted Python module import is rejected" {
     prog = compile_na_inline(
-        "py_import_dotted",
-        "import collections.abc;\n" "with entry { print(\"hi\"); }\n"
+        "py_import_dotted", "import xml.etree;\n" "with entry { print(\"hi\"); }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for unsupported Python import 'collections.abc', got: {fmt_errors(
+    assert has_error_code(prog, "E5090") , f"Expected E5090 for unsupported Python import 'xml.etree', got: {fmt_errors(
         prog
     )}";
 }
@@ -418,10 +428,14 @@ test "guardrail: foreign import used as a runtime value is still rejected" {
     )}";
 }
 
-# Edge disconnect has no native lowering (connect and traversal do - they
-# ride the OSP kernel adjacency). The capability sweep rejects it
-# pre-codegen.
-test "guardrail: edge disconnect is rejected" {
+# Scalar edge disconnect (`a del --> b` / `a del ->:E:-> b`) now lowers
+# natively through the central osp_disconn_between store call; behavioral
+# coverage lives in jaclang/compiler/tests/test_osp_equivalence.jac
+# (osp_disconn_between fixture). A LIST-valued endpoint is the residual
+# unlowered shape: the store call takes single node handles, so a list
+# operand would coerce to a meaningless address and silently disconnect
+# nothing. Codegen rejects it with a structured E5092 instead.
+test "guardrail: edge disconnect with a list endpoint is rejected" {
     prog = compile_na_inline(
         "disconnect",
         "node N {}\n"
@@ -432,7 +446,7 @@ test "guardrail: edge disconnect is rejected" {
         "}\n"
         "with entry { W() spawn N(); }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for DisconnectOp, got: {fmt_errors(
+    assert has_error_code(prog, "E5092") , f"Expected E5092 for list-endpoint DisconnectOp, got: {fmt_errors(
         prog
     )}";
 }
@@ -508,7 +522,7 @@ test "nacompile surfaces native E5090 help text, not just the generic message" {
     import tempfile;
     import from jaclang.cli.commands.nacompile { nacompile }
     with tempfile.TemporaryDirectory() as td {
-        src = os.path.join(td, "bad_import.na.jac");
+        src = os.path.join(td, "bad_import.jac");
         with open(src, "w") as f {
             f.write("import collections;\nwith entry { print(0); }\n");
         }
@@ -697,7 +711,7 @@ test "guardrail: open() with a non-string (POSIX flags) mode is a clean diagnost
 }
 
 # Positive control: with the libc `open(path, flags) -> i32` extern in scope
-# (the real native-build case, where cef_dispatch.na.jac declares it), the call
+# (the real native-build case, where cef_dispatch.jac declares it), the call
 # resolves to the POSIX extern rather than the file-open builtin — no crash and
 # no E5090. This is what lets the spliced CEF native modules compile.
 test "declared libc open(path, flags) extern resolves without the file-open builtin" {
@@ -721,7 +735,7 @@ test "declared libc open(path, flags) extern resolves without the file-open buil
 def compile_sv_inline(label: str, code: str) -> JacProgram {
     path = os.path.join(FIXTURES_DIR, f"_guardrail_{label}.jac");
     prog = JacProgram();
-    prog.compile(file_path=path, use_str=code);
+    prog.compile(file_path=path, use_str=code, options=native_force_opts());
     return prog;
 }
 

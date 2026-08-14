@@ -44,16 +44,15 @@ def generic_classes_py -> dict {
     return {"r1": 0 if r1 is None else r1.val, "r2": 0 if r2 is None else r2.val,};
 }
 
-cl def generic_classes_cl -> dict {
+def generic_classes_cl -> dict {
     return {};
 }
 
-na {
-    def generic_classes_na -> dict[str, any] {
-        em = BoxEmitter();
-        ctx = Ctx(scale=3);
-        r1 = em.emit(ctx, Box(val=7));
-        r2 = em.emit_pair(ctx, Box(val=1), [Box(val=2), Box(val=3)]);
-        return {"r1": 0 if r1 is None else r1.val, "r2": 0 if r2 is None else r2.val,};
-    }
+
+def generic_classes_na -> dict[str, any] {
+    em = BoxEmitter();
+    ctx = Ctx(scale=3);
+    r1 = em.emit(ctx, Box(val=7));
+    r2 = em.emit_pair(ctx, Box(val=1), [Box(val=2), Box(val=3)]);
+    return {"r1": 0 if r1 is None else r1.val, "r2": 0 if r2 is None else r2.val,};
 }

@@ -112,8 +112,8 @@ def _deep_merge(base: dict, `override: dict) -> dict {
     result = base.copy();
     for (key, value) in `override.items() {
         if key in result
-        and isinstance(result[key], dict)
-        and isinstance(value, dict) {
+            and isinstance(result[key], dict)
+            and isinstance(value, dict) {
             result[key] = _deep_merge(result[key], value);
         } else {
             result[key] = value;
@@ -326,6 +326,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
             }
         }
     }
+    _warn_legacy_plugins_table(data);
     for _feat in ("byllm", "scale", "client", "mcp", "desktop") {
         if _feat in data and isinstance(data[_feat], dict) {
             if _feat in self.plugins {
@@ -384,8 +385,8 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
 
     for (key, value) in data.items() {
         if key in self._raw_data
-        and isinstance(self._raw_data[key], dict)
-        and isinstance(value, dict) {
+            and isinstance(self._raw_data[key], dict)
+            and isinstance(value, dict) {
             self._raw_data[key].update(value);
         } else {
             self._raw_data[key] = value;
@@ -405,6 +406,22 @@ impl JacConfig.get_plugin_deps(dep_type: str) -> dict[str, any] {
 
 impl JacConfig.get_plugin_config(plugin_name: str) -> dict[str, any] {
     return self.plugins.get(plugin_name, {});
+}
+
+impl _warn_legacy_plugins_table(data: dict[str, any]) -> None {
+    plugins_table = data.get("plugins");
+    if not isinstance(plugins_table, dict) or not plugins_table {
+        return;
+    }
+    legacy: dict[str, any] = dict(plugins_table);
+    sections = ", ".join(sorted(str(k) for k in legacy.keys()));
+    import from jaclang.cli.console { console }
+    console.warning(
+        f"jac.toml has a [plugins] table ({sections}); the [plugins.*] "
+        "namespace was removed and these settings are ignored. Move "
+        "[plugins.X] to top-level [X], e.g. [plugins.scale.database] "
+        "-> [scale.database]."
+    );
 }
 
 impl JacConfig.get_section(name: str) -> dict[str, any] | None {
@@ -600,7 +617,9 @@ def _toml_token_alt(name: str) -> str {
 def _toml_find_span(lines: list[str], parts: tuple) -> tuple[int, int] | None {
     import re;
     header_re = re.compile(
-        r"^\s*\[\s*" + r"\s*\.\s*".join([_toml_token_alt(p) for p in parts]) + r"\s*\]\s*(?:#.*)?$"
+        r"^\s*\[\s*"
+            + r"\s*\.\s*".join([_toml_token_alt(p) for p in parts])
+            + r"\s*\]\s*(?:#.*)?$"
     );
     header = -1;
     for (i, line) in enumerate(lines) {
@@ -1093,7 +1112,6 @@ impl _parse_toml_data(
             session=run_data.get("session", ""),
             main=run_data.get("main", True),
             cache=run_data.get("cache", True),
-            topology_index=run_data.get("topology_index", True),
             diagnostics=run_data.get("diagnostics", "error")
         );
     }
@@ -1129,11 +1147,34 @@ impl _parse_toml_data(
             );
             _cap = _builtin_cap;
         }
+        _native_data = build_data.get("native", {});
+        if not isinstance(_native_data, dict) {
+            _native_data = {};
+        }
+        _builtin_native = NativeBuildConfig();
+        try {
+            _native_opt = int(_native_data.get("opt_level", _builtin_native.opt_level));
+        } except (TypeError, ValueError) {
+            import from jaclang.cli.console { console }
+            console.warning(
+                f"[build.native] opt_level="
+                f"'{_native_data.get('opt_level')}' must be an integer; "
+                f"defaulting to {_builtin_native.opt_level}."
+            );
+            _native_opt = _builtin_native.opt_level;
+        }
         config.build = BuildConfig(
             typecheck=build_data.get("typecheck", False),
             dir=build_data.get("dir", ".jac"),
             default_codespace=_default_cs,
-            native_closure_cap=_cap
+            native_closure_cap=_cap,
+            native=NativeBuildConfig(
+                opt_level=_native_opt,
+                dump_ir=str(_native_data.get("dump_ir", "")),
+                target=str(_native_data.get("target", "")),
+                debug=bool(_native_data.get("debug", False)),
+                rc_debug_codegen=bool(_native_data.get("rc_debug_codegen", False))
+            )
         );
     }
     if "gc" in data {
@@ -1263,6 +1304,7 @@ impl _parse_toml_data(
             test_jobs=str(dev_data.get("test_jobs", "auto"))
         );
     }
+    _warn_legacy_plugins_table(data);
     for _feat in ("byllm", "scale", "client", "mcp", "desktop") {
         if _feat in data and isinstance(data[_feat], dict) {
             config.plugins[_feat] = data[_feat];

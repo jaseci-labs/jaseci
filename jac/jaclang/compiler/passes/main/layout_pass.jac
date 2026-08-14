@@ -1,7 +1,7 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E5030, W5031, W5032 }
 
 glob LAYOUT_COMPATIBLE_PRIMITIVES: set[str] = {
@@ -23,6 +23,8 @@ glob LAYOUT_COMPATIBLE_PRIMITIVES: set[str] = {
 
      },
      VTABLE_HEADER_SLOTS: int = 1;
+
+glob LAYOUT_COMPATIBLE_SCALARS: set[str] = LAYOUT_COMPATIBLE_PRIMITIVES | {"type"};
 
 obj FieldInfo {
     has name: str,
@@ -71,7 +73,38 @@ obj EnumLayout {
     has name: str,
         underlying: str = "i64",
         is_string_enum: bool = False,
+        is_class_form: bool = False,
         members: list[EnumMemberLayout] = [];
+}
+
+glob ACCESSOR_SLOT_SUFFIX: dict[str, str] = {
+         "property": "__get__",
+         "setter": "__set__",
+         "deleter": "__del__"
+     };
+
+def accessor_slot_name(field_name: str, acc: uni.Ability) -> (str | None) {
+    suffix = ACCESSOR_SLOT_SUFFIX.get(acc.accessor_kind);
+    return None if suffix is None else f"{field_name}.{suffix}";
+}
+
+def archetype_accessors(
+    arch: uni.Archetype
+) -> list[tuple[(str, uni.HasVar, uni.Ability)]] {
+    out: list[tuple[(str, uni.HasVar, uni.Ability)]] = [];
+    for var in arch.get_has_vars() {
+        if not var.accessors {
+            continue;
+        }
+        fname = var.name.value if var.name else "field";
+        for acc in var.accessors {
+            slot = accessor_slot_name(fname, acc);
+            if slot is not None {
+                out.append((slot, var, acc, ));
+            }
+        }
+    }
+    return out;
 }
 
 def get_layout_registry(module: uni.Module, prog: any = None) -> LayoutRegistry {
@@ -82,6 +115,101 @@ def get_layout_registry(module: uni.Module, prog: any = None) -> LayoutRegistry 
 
     pass_inst = LayoutPass(ir_in=module, prog=prog);
     return module.gen.layout_registry or LayoutRegistry();
+}
+
+def is_enum_class_type(t: any) -> bool {
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _ClassType }
+    } except ImportError {
+        return False;
+    }
+    return isinstance(t, _ClassType)
+        and t._shared is not None
+        and t.shared.is_enum_class;
+}
+
+def enum_decl_of(t: any) -> (uni.Enum | uni.Archetype | None) {
+    if not is_enum_class_type(t) {
+        return None;
+    }
+    _scope = t.shared.symbol_table;
+    if isinstance(_scope, uni.Enum) {
+        return _scope;
+    }
+    return _scope if class_form_enum_scalar(t) is not None else None;
+}
+
+def enum_value_type_of(t: any) -> (any | None) {
+    return t.shared.enum_value_type if is_enum_class_type(t) else None;
+}
+
+def class_form_enum_scalar(t: any) -> (str | None) {
+    if not is_enum_class_type(t) {
+        return None;
+    }
+    if not isinstance(t.shared.symbol_table, uni.Archetype) {
+        return None;
+    }
+    _vt = t.shared.enum_value_type;
+    if _vt is None or not (_vt?.shared) {
+        return None;
+    }
+    _vname = _vt.shared.class_name;
+    return _vname if _vname in ("str", "int") else None;
+}
+
+def class_form_enum_decls(module: uni.Module) -> list[uni.Archetype] {
+    out: list[uni.Archetype] = [];
+    for nd in UniPass.get_all_sub_nodes(module, uni.Archetype) {
+        if nd.name is None {
+            continue;
+        }
+        if class_form_enum_scalar(nd.name.type) is not None {
+            out.append(nd);
+        }
+    }
+    return out;
+}
+
+def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
+    _scope = t.shared.symbol_table;
+    _sym = _scope.names_in_scope.get(member) if (_scope?.names_in_scope) else None;
+    _decl = _sym.decl if _sym is not None else None;
+    _asn = _decl.parent if (_decl is not None) else None;
+    if not isinstance(_asn, uni.Assignment) or _asn.value is None {
+        return None;
+    }
+    _v = _asn.value;
+    if isinstance(_v, (uni.String, uni.MultiString, uni.Int)) {
+        return _v.lit_value;
+    }
+    return None;
+}
+
+def class_form_enum_member(t: any) -> (tuple | None) {
+    try {
+        import from jaclang.compiler.type_system.types {
+            EnumMemberType as _EnumMemberType
+        }
+    } except ImportError {
+        return None;
+    }
+    if not isinstance(t, _EnumMemberType) or t.enum_class is None {
+        return None;
+    }
+    _scalar = class_form_enum_scalar(t.enum_class);
+    if _scalar is None or t.member_info is None {
+        return None;
+    }
+    _name = t.member_info.member_name;
+    _lit = class_form_enum_literal(t.enum_class, _name);
+    if _scalar == "str" and isinstance(_lit, str) {
+        return (_scalar, _lit, _name);
+    }
+    if _scalar == "int" and isinstance(_lit, int) and not isinstance(_lit, bool) {
+        return (_scalar, _lit, _name);
+    }
+    return None;
 }
 
 obj LayoutRegistry {

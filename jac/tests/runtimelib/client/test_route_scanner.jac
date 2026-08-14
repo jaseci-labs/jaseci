@@ -409,3 +409,29 @@ test "a JsxPage mention in text does not suppress an unmigrated export" {
         assert "'About'" in joined , "the unmigrated export must still be named";
     }
 }
+
+
+"""A dynamic [id] DIRECTORY translates to a `:id` URL segment exactly like a
+dynamic file stem does - react-router treats a literal "[id]" path segment as
+plain text, so an untranslated directory produces a route no URL can ever
+match (the page renders blank with no error)."""
+test "dynamic directory segment translates to a path parameter" {
+    with TemporaryDirectory() as tmp {
+        proj = Path(tmp);
+        _write(
+            proj,
+            "pages/videos/[id]/index.jac",
+            "def:pub VideoDetail() -> JsxPage { return <div>v</div>; }",
+        );
+        _write(
+            proj,
+            "pages/videos/[id]/edit.jac",
+            "def:pub VideoEdit() -> JsxPage { return <div>e</div>; }",
+        );
+        scanner = RouteScanner(proj, route_exports_of=_route_exports_from_source);
+        paths = _route_paths(scanner);
+        assert paths == {"/videos/:id", "/videos/:id/edit"} , (
+            f"dynamic directory must emit ':id', not a literal '[id]'; got {paths}"
+        );
+    }
+}
