@@ -97,45 +97,55 @@ test "the shared middleware chain runs in front of the dispatcher" {
 
 
 test "an embedded public/ asset is served at the web root (#8124 parity)" {
+    import shutil;
     project_root = tempfile.mkdtemp();
-    brand = os.path.join(project_root, "public", "brand");
-    os.makedirs(brand, exist_ok=True);
-    with open(os.path.join(brand, "logo.png"), "wb") as f {
-        f.write(b"PNG_DATA");
-    }
+    try {
+        brand = os.path.join(project_root, "public", "brand");
+        os.makedirs(brand, exist_ok=True);
+        with open(os.path.join(brand, "logo.png"), "wb") as f {
+            f.write(b"PNG_DATA");
+        }
 
-    gw = _make_gateway(base_path=project_root);
-    client = TestClient(getattr(gw, "app"));
-    resp = client.get("/brand/logo.png");
-    assert resp.status_code == 200 , "public/brand/logo.png must resolve at /brand/logo.png";
-    assert resp.content == b"PNG_DATA";
+        gw = _make_gateway(base_path=project_root);
+        client = TestClient(getattr(gw, "app"));
+        resp = client.get("/brand/logo.png");
+        assert resp.status_code == 200 , "public/brand/logo.png must resolve at /brand/logo.png";
+        assert resp.content == b"PNG_DATA";
+    } finally {
+        shutil.rmtree(project_root, ignore_errors=True);
+    }
 }
 
 
 test "resolution is split from the SPA fallback (resolve real files, index only for html navigations)" {
+    import shutil;
     dist = tempfile.mkdtemp();
-    with open(os.path.join(dist, "app.js"), "wb") as f {
-        f.write(b"CONSOLE_LOG");
+    try {
+        with open(os.path.join(dist, "app.js"), "wb") as f {
+            f.write(b"CONSOLE_LOG");
+        }
+        with open(os.path.join(dist, "index.html"), "w") as f {
+            f.write("<!doctype html><title>spa-shell</title>");
+        }
+
+        gw = _make_gateway(dist=dist);
+        client = TestClient(getattr(gw, "app"));
+
+        # the resolver serves the physical dist file, not the SPA shell
+        hit = client.get("/app.js");
+        assert hit.status_code == 200;
+        assert hit.content == b"CONSOLE_LOG";
+
+        # an extensionless html navigation with no matching file falls through to index.html
+        spa = client.get("/dashboard", headers={"accept": "text/html"});
+        assert spa.status_code == 200;
+        assert "spa-shell" in spa.text;
+
+        # a non-html asset miss is an honest 404, never the SPA shell
+        miss = client.get("/missing.png", headers={"accept": "image/png"});
+        assert miss.status_code == 404;
+        assert miss.json()["error"]["code"] == "NOT_FOUND";
+    } finally {
+        shutil.rmtree(dist, ignore_errors=True);
     }
-    with open(os.path.join(dist, "index.html"), "w") as f {
-        f.write("<!doctype html><title>spa-shell</title>");
-    }
-
-    gw = _make_gateway(dist=dist);
-    client = TestClient(getattr(gw, "app"));
-
-    # the resolver serves the physical dist file, not the SPA shell
-    hit = client.get("/app.js");
-    assert hit.status_code == 200;
-    assert hit.content == b"CONSOLE_LOG";
-
-    # an extensionless html navigation with no matching file falls through to index.html
-    spa = client.get("/dashboard", headers={"accept": "text/html"});
-    assert spa.status_code == 200;
-    assert "spa-shell" in spa.text;
-
-    # a non-html asset miss is an honest 404, never the SPA shell
-    miss = client.get("/missing.png", headers={"accept": "image/png"});
-    assert miss.status_code == 404;
-    assert miss.json()["error"]["code"] == "NOT_FOUND";
 }
