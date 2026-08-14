@@ -60,7 +60,6 @@ class JacProgram {
         use_str: (str | None) = None
     ) -> uni.Module;
 
-    def _relink_absorbed_imports(self: JacProgram, mod: uni.Module) -> None;
     def drop_module_alerts(self: JacProgram, resolved_path: str) -> None;
     static def hub_key(path: str) -> str;
     def has_failed_parse(self: JacProgram, path: str) -> bool;

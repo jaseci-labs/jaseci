@@ -1,5 +1,6 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.type_system { types }
+import from jaclang.jac0core.const_fold { fold_const }
 import from jaclang.jac0core.diagnostics { E1001 }
 import type from jaclang.compiler.type_system.type_evaluator {
     TypeEvaluator,
@@ -33,6 +34,10 @@ impl create_enum_member_info(
             literal_value = val.value;
         } else {
             value_type = evaluator.get_type_of_expression(val);
+            (folded, fval) = fold_const(val);
+            if folded and not isinstance(fval, bool) and isinstance(fval, (int, str)) {
+                literal_value = fval;
+            }
         }
     }
 

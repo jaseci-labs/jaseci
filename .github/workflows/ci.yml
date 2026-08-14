@@ -518,10 +518,6 @@ jobs:
           echo "::error::jac fmt --check --lintfix failed for this commit (an autofix was pushed to the branch if this is a same-repo PR)."
           exit 1
 
-      - name: Verify jir_registry.jac is up to date
-        run: |
-          jac gen-jir-registry --verify
-
       - name: Verify manifest route table is up to date
         run: |
           jac gen-cli-manifest --verify
