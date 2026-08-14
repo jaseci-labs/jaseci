@@ -24,10 +24,10 @@ glob MATERIALIZE_FIXUPS: tuple = (
      };
 
 def materialize_fixups(module: any) {
-    body_elem: dict[str, type] = {
-        "Archetype": uni.ArchBlockStmt,
-        "Ability": uni.CodeBlockStmt,
-        "Enum": uni.EnumBlockStmt
+    body_elem: dict[str, tuple] = {
+        "Archetype": (uni.ArchBlockStmt, uni.CodeBlockStmt, ),
+        "Ability": (uni.CodeBlockStmt, ),
+        "Enum": (uni.EnumBlockStmt, )
     };
     stack: list = [module];
     visited: set = set();
@@ -189,7 +189,7 @@ def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
     if not str_new_addr {
         raise _bind_error(lib_path, "jac_str_new is not exported");
     }
-    str_new = ctypes.PYFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(
+    str_new = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(
         str_new_addr
     );
 

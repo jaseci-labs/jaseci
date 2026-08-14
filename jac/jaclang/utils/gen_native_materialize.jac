@@ -17,7 +17,8 @@ obj MaterializeProfile {
         parse_entry: str,
         parse_entry_module: str,
         diag_class: str,
-        comment_class: str;
+        comment_class: str,
+        dead_fields: set;
 }
 
 glob _UNITREE_MASK_CORPUS_LINES: tuple = (
@@ -73,7 +74,8 @@ def unitree_profile -> MaterializeProfile {
         parse_entry="parse_program",
         parse_entry_module="jaclang.jac0core.parser.parser",
         diag_class="SrcDiag",
-        comment_class="CommentData"
+        comment_class="CommentData",
+        dead_fields={("Archetype", "body", ), ("Ability", "body", ), ("Enum", "body", )}
     );
 }
 
@@ -688,7 +690,9 @@ def generate(
             ki = g.kidx(dict_key);
             uid = f"{ci}_{fi}";
             lines.append(f"    # {dict_key}: {ann}");
-            if (sn not in g.envelope and g.foreign.get((sn, lf, ))) or ann is None {
+            if (sn, lf, ) in prof.dead_fields
+                or (sn not in g.envelope and g.foreign.get((sn, lf, )))
+                or ann is None {
                 vname = f"v_{uid}";
                 lines.append(f"    {vname} = _py_none();");
             } elif sn == "SubTag" and lf == "tag" {
