@@ -206,6 +206,24 @@ impl NaIRGenPass._container_src_info(val: (ir.Value | None)) -> (dict | None) {
     return None;
 }
 
+impl NaIRGenPass._spread_elem_storage(
+    src_info: dict, operand: (uni.Expr | None)
+) -> (ir.Type | None) {
+    _erased = src_info["helpers"]["elem_type"];
+    if src_info["kind"] != "list" or src_info["spec"] != "ptr" {
+        return _erased;
+    }
+    _static = self._static_elem_llvm_of(operand);
+    if _static is None {
+        return None;
+    }
+    if isinstance(_static, ir.PointerType)
+        and isinstance(_static.pointee, ir.LiteralStructType) {
+        return _static;
+    }
+    return _erased;
+}
+
 impl NaIRGenPass._reject_spread_slot_mismatch(
     nd: (uni.UniNode | None), src_elem: ir.Type, dest_elem: ir.Type, what: str
 ) -> bool {

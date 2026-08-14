@@ -375,9 +375,13 @@ impl LayoutPass._build_enum_layouts(module: uni.Module) -> None {
                 }
             }
         }
+
+        member_values: list = [
+            enum_member_literal(vnode) for (_, vnode) in raw_members
+        ];
         is_string_enum = False;
-        for (_, vnode) in raw_members {
-            if vnode is not None and isinstance(vnode, (uni.String, uni.MultiString)) {
+        for mval in member_values {
+            if isinstance(mval, str) {
                 is_string_enum = True;
                 break;
             }
@@ -386,17 +390,11 @@ impl LayoutPass._build_enum_layouts(module: uni.Module) -> None {
         for (ordinal, (mname, vnode)) in enumerate(raw_members) {
             str_value: (str | None) = None;
             int_value = 0;
+            mval = member_values[ordinal];
             if is_string_enum {
-                str_value = vnode.lit_value
-                    if (
-                        vnode is not None
-                        and isinstance(vnode, (uni.String, uni.MultiString))
-                    )
-                    else "";
+                str_value = mval if isinstance(mval, str) else "";
             } else {
-                int_value = vnode.lit_value
-                    if (vnode is not None and isinstance(vnode, uni.Int))
-                    else 0;
+                int_value = mval if isinstance(mval, int) else 0;
             }
             members.append(
                 EnumMemberLayout(

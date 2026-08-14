@@ -3202,6 +3202,7 @@ impl TypeEvaluator.get_type_of_expression(
             if isinstance(node_.type, (types.UnionType, types.ClassType)) {
                 if narrowed
                     := self.get_narrowed_type_for_expr(node_, node_.type, node_) {
+                    node_.narrowed_type = narrowed;
                     return narrowed;
                 }
             }
@@ -3227,6 +3228,7 @@ impl TypeEvaluator.get_type_of_expression(
 
     if isinstance(result, (types.UnionType, types.ClassType)) {
         if narrowed := self.get_narrowed_type_for_expr(node_, result, node_) {
+            node_.narrowed_type = narrowed;
             return narrowed;
         }
     }
@@ -4582,7 +4584,7 @@ impl TypeEvaluator._apply_narrowing(
             return filtered;
         }
 
-        return predicate.narrow_type;
+        return self._specialize_narrow_from_base(base_type, predicate.narrow_type);
     } else {
         base_type: TypeBase;
         if incoming is not None {
@@ -4596,6 +4598,48 @@ impl TypeEvaluator._apply_narrowing(
         }
         return result;
     }
+}
+
+impl TypeEvaluator._specialize_narrow_from_base(
+    base_type: TypeBase, narrow_type: TypeBase
+) -> TypeBase {
+    """Carry a filtered-out member's type arguments onto the narrow target.
+
+    `_filter_union_for_isinstance` keeps the members the target is a subtype
+    of, so a member the relation runs the *other* way for drops out and the
+    narrow falls back to the bare target class -- `isinstance(x, list)` over
+    an `Expr | Sequence[T]` yields `list`, losing `T`. The container
+    protocols are exactly that shape (`list` is a `Sequence`, `dict` a
+    `Mapping`), and a value that is both a `Sequence[T]` and a `list` is a
+    `list[T]`, so the member's arguments carry over when the target declares
+    the same number of parameters.
+    """;
+    if not isinstance(narrow_type, types.ClassType)
+        or (narrow_type.private.type_args or []) {
+        return narrow_type;
+    }
+    want = len(narrow_type.shared.type_params or []);
+    if want == 0 {
+        return narrow_type;
+    }
+    members = (
+        base_type.types
+            if isinstance(base_type, types.UnionType) and base_type.types
+            else [base_type]
+    );
+    for m in members {
+        if not isinstance(m, types.ClassType) {
+            continue;
+        }
+        args = m.private.type_args or [];
+        if len(args) != want or m.shared.same_class(narrow_type.shared) {
+            continue;
+        }
+        if self.is_sub_class(m, narrow_type) {
+            return narrow_type.specialize_generics(list(args));
+        }
+    }
+    return narrow_type;
 }
 
 impl TypeEvaluator._filter_union_for_isinstance(

@@ -130,7 +130,18 @@ impl NaIRGenPass._codegen_set_val(nd: uni.SetVal) -> (ir.Value | None) {
         elem_type = _first_src_info["helpers"]["elem_type"];
         elem_size = _first_src_info["helpers"]["elem_size"];
     } else {
-        elem_type = _first_src_info["helpers"]["elem_type"];
+        _spread_elem = self._spread_elem_storage(_first_src_info, _first_spread);
+        if _spread_elem is None {
+            self.emit(
+                E5092,
+                node_override=nd.values[0],
+                kind="expression",
+                name="leading spread into a set",
+                help_text="A native list erases every pointer element into one byte-pointer slot, so the layout a set has to hash and compare by can only come from the spread operand's static type -- and this one has none. Annotate the source's element type, or seed the display with an element written out before the spread."
+            );
+            return None;
+        }
+        elem_type = _spread_elem;
     }
     elem_type_name = "i64";
     if isinstance(elem_type, ir.DoubleType) {

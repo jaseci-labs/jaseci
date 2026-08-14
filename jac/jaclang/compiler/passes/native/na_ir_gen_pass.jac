@@ -174,6 +174,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _native_skipped_methods: set[str] = set(),
         _class_name_consts: dict[str, ir.Value] = {},
         _isa_fn: (ir.Function | None) = None,
+        _runtime_class_name_fn: (ir.Function | None) = None,
         osp_type_tag_field: dict[str, int] = {},
         osp_reports_field: dict[str, int] = {},
         osp_thunk_funcs: dict[str, ir.Function] = {},
@@ -361,6 +362,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         release_operands: bool = True
     ) -> (ir.Value | None);
 
+    def _identity_over_optional(
+        left: ir.Value, right: ir.Value, negate: bool
+    ) -> (ir.Value | None);
+
     def _codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None);
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
     def _codegen_intrinsic(nd: uni.FuncCall, intr: object) -> (ir.Value | None);
@@ -413,6 +418,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _jac_optional_type(payload: ir.Type) -> ir.Type;
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None);
     def _opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None);
+    def _flow_narrowed_type_of(expr: (uni.UniNode | None)) -> (any | None);
     def _narrowed_flow_type(nd: uni.UniNode) -> (any | None);
     def _narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool;
     def _narrowing_stable_in_loops(nd: uni.UniNode, name: str) -> bool;
@@ -542,6 +548,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         expr: (uni.UniNode | None), prefix: str
     ) -> (ir.Type | None);
 
+    def _static_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | None);
     def _elem_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _erased_generic_ctor(nd: uni.FuncCall) -> (str | None);
     def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
@@ -961,6 +968,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _spread_operand(nd: (uni.UniNode | None)) -> (uni.Expr | None);
     def _container_src_info(val: (ir.Value | None)) -> (dict | None);
+    def _spread_elem_storage(
+        src_info: dict, operand: (uni.Expr | None)
+    ) -> (ir.Type | None);
+
     def _reject_spread_slot_mismatch(
         nd: (uni.UniNode | None), src_elem: ir.Type, dest_elem: ir.Type, what: str
     ) -> bool;
@@ -1058,6 +1069,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None);
     def _vtable_candidates(names: list[str]) -> list[ir.GlobalVariable];
     def _emit_class_name_const(arch_name: str) -> ir.Value;
+    def _emit_runtime_class_name_fn -> (ir.Function | None);
+    def _codegen_runtime_class_name(obj_val: ir.Value) -> (ir.Value | None);
     def _codegen_class_name(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _codegen_class_id(receiver: uni.UniNode) -> (ir.Value | None);
     def _class_id_of_value(arch_name: str, obj_val: ir.Value) -> ir.Value;
