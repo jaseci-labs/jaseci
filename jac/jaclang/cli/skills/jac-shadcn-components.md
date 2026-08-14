@@ -149,16 +149,17 @@ Load `jac-cl-styling` for full conditional class patterns and cn() usage.
 
 ## Icon pattern
 
-⚠ **Never guess an icon name.** The package exports ~5,500 icons and most are
-number-suffixed, so the obvious name is usually wrong: there is no `SearchIcon`,
-`DocumentIcon`, `FolderIcon`, `PlusIcon`, `ArrowDownIcon`, or `TrendUpIcon`. A
-wrong name is NOT a compile error - `jac check` and the build both pass, and it
-fails only when the page loads, with `SyntaxError: ... does not provide an export
+⚠ **Never guess an icon name.** The package exports ~5,500 icons, each under a
+canonical number-suffixed name plus aliases, so some obvious names resolve and
+others do not: there is no `DocumentIcon`, `PlusIcon`, or `TrendUpIcon`. A wrong
+name is NOT a compile error - `jac check` and the build both pass, and it fails
+only when the page loads, with `SyntaxError: ... does not provide an export
 named 'DocumentIcon'`.
 
 **Numeric suffixes are always zero-padded** - `Calendar01Icon`, `ArrowDown01Icon`,
 never `Calendar1Icon` or `ArrowDown1Icon`. There is no single-digit form to fall
-back to. Use a name from the table below, or list the real ones:
+back to. Use a name from the table below, or list the canonical names (every
+file here is a valid export):
 
 ```bash
 ls .jac/client/node_modules/@hugeicons/core-free-icons/dist/esm/ | grep -v '\.map' | grep -i '^chart'
