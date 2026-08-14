@@ -255,8 +255,6 @@ def declared_service_files(project_dir: str) -> dict[str, str] {
 
 
 def _implicit_main_wanted(base: Path, declared: dict[str, str]) -> str {
-    # Mirrors ensure_main_service: a fleet with declared routes also deploys a
-    # 'main' service for the entry module, unless a route already covers '/'.
     if not declared or "main" in declared {
         return "";
     }
