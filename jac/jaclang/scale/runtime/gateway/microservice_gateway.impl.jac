@@ -548,41 +548,24 @@ impl MicroserviceGateway.handle_static(request: Request, path: str) -> Response 
     if request.method != "GET" {
         return None;
     }
-
-    file_path: str = path.lstrip("/");
-    if not file_path {
+    if not path.lstrip("/") {
         return None;
     }
 
-    mount_matched = False;
-    for mount in self.static_mounts {
-        prefix = str(mount.get("url_prefix", "")).lstrip("/").rstrip("/");
-        if not prefix or file_path == prefix {
-            continue;
-        }
-        if file_path.startswith(prefix + "/") {
-            mount_matched = True;
-            sub_path = file_path[len(prefix) + 1:];
-            local_dir = str(mount.get("local_path", ""));
-            mounted_resp = self.serve_extra_static(local_dir, sub_path);
-            if mounted_resp {
-                return mounted_resp;
-            }
-            break;
-        }
+    import from jaclang.runtimelib.serving.static_assets {
+        asset_root_table,
+        resolve_asset,
+        asset_response
     }
-
-    if not mount_matched {
-        static_resp = self.serve_static(file_path);
-        if static_resp {
-            return static_resp;
-        }
+    table = asset_root_table(
+        Path(self.base_path), Path(self.client_dist_dir), self.static_mounts
+    );
+    hit = resolve_asset(table, path);
+    if hit is None {
+        return None;
     }
-
-    if file_path.startswith("static/") {
-        return self.serve_project_static(file_path[len("static/"):]);
-    }
-    return None;
+    (target, _) = hit;
+    return asset_response(target, dict(request.headers.items()));
 }
 
 impl MicroserviceGateway.handle_spa_fallback(
