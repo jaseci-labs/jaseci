@@ -579,7 +579,7 @@ impl JacCompiler._get_precompiled_jir_bytecode(
                     jir_data = _Path(jir_path).read_bytes();
                     trusted = (
                         sealed_img is not None
-                        or jir_matches_source(jir_data, norm_file)
+                        or precompiled_jir_matches_source(jir_data, norm_file)
                     );
                     if trusted {
                         bc = read_bytecode_only(jir_data);

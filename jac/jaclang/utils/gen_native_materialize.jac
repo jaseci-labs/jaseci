@@ -260,6 +260,12 @@ obj _MatGen {
         }
     }
 
+    def warn(msg: str) {
+        if msg not in self.warnings {
+            self.warnings.append(msg);
+        }
+    }
+
     def scalar_expr(expr: str, a: str) -> str {
         a = a.strip();
         if a == "int" {
@@ -296,12 +302,38 @@ obj _MatGen {
         out.append(ind + "}");
     }
 
-    def emit_dict(v: str, expr: str, kv: str, out: list, ind: str, uid: str) {
+    def key_expr(expr: str, kt: str) -> (str | None) {
+        kt = _norm(kt);
+        kb = _base_of(kt);
+        if kt in _SCALARS {
+            return self.scalar_expr(expr, kt);
+        }
+        if kb in self.enum_ns {
+            self.register_enum(kb);
+            return f"_enum_{kb}({expr})";
+        }
+        if kb in self.ns {
+            if self.is_chain(kb) {
+                return f"_emit_node({expr})";
+            }
+            return f"_emit_{kb}({expr})";
+        }
+        return None;
+    }
+
+    def emit_dict(v: str, expr: str, kv: str, out: list, ind: str, uid: str) -> bool {
         (kt, vt) = _split_kv(kv);
         u = uid + "d";
+        kexpr = self.key_expr(f"dk_{u}", kt);
+        if kexpr is None {
+            self.warn(
+                f"dict key type {repr(kt)} has no materializer -> field erased to None"
+            );
+            out.append(ind + f"{v} = _py_none();");
+            return False;
+        }
         out.append(ind + f"{v} = PyDict_New();");
         out.append(ind + f"for (dk_{u}, dv_{u}) in {expr}.items() {{");
-        kexpr = self.scalar_expr(f"dk_{u}", kt if kt in _SCALARS else "int");
         out.append(ind + f"    kh_{u} = {kexpr};");
         vb = _base_of(vt);
         if vt in _SCALARS {
@@ -323,6 +355,7 @@ obj _MatGen {
         out.append(ind + f"    Py_DecRef(kh_{u});");
         out.append(ind + f"    Py_DecRef(vh_{u});");
         out.append(ind + "}");
+        return True;
     }
 
     def emit_value(expr: str, ann: str, out: list, ind: str, uid: str) -> str {
@@ -340,40 +373,42 @@ obj _MatGen {
             out.append(pre + f"{v} = _py_none();");
             return v;
         }
+        buf: list[str] = [];
         fv = f"fv_{uid}";
-        out.append(pre + f"{fv} = {expr};");
+        buf.append(pre + f"{fv} = {expr};");
         expr = fv;
         if has_none {
-            out.append(pre + f"if {expr} is None {{");
-            out.append(pre + f"    {v} = _py_none();");
-            out.append(pre + "} else {");
+            buf.append(pre + f"if {expr} is None {{");
+            buf.append(pre + f"    {v} = _py_none();");
+            buf.append(pre + "} else {");
             pre = ind + "    ";
         }
+        emitted = True;
         if len(arms) == 1 {
             a = arms[0];
             ab = _base_of(a);
             if a in _SCALARS {
-                out.append(pre + f"{v} = " + self.scalar_expr(expr, a) + ";");
+                buf.append(pre + f"{v} = " + self.scalar_expr(expr, a) + ";");
             } elif ab == "list" {
-                self.emit_list(v, expr, _inner(a), out, pre, uid);
+                self.emit_list(v, expr, _inner(a), buf, pre, uid);
             } elif ab == "dict" {
-                self.emit_dict(v, expr, _inner(a), out, pre, uid);
+                emitted = self.emit_dict(v, expr, _inner(a), buf, pre, uid);
             } elif ab == "set" {
-                out.append(pre + f"{v} = PySet_New(0);");
-                out.append(pre + f"if len({expr}) != 0 {{");
-                out.append(pre + f"    Py_DecRef({v});");
-                out.append(pre + "    return 0;");
-                out.append(pre + "}");
+                buf.append(pre + f"{v} = PySet_New(0);");
+                buf.append(pre + f"if len({expr}) != 0 {{");
+                buf.append(pre + f"    Py_DecRef({v});");
+                buf.append(pre + "    return 0;");
+                buf.append(pre + "}");
             } elif ab in self.enum_ns {
                 self.register_enum(ab);
-                out.append(pre + f"{v} = _enum_{ab}({expr});");
+                buf.append(pre + f"{v} = _enum_{ab}({expr});");
             } elif ab == "SubTag" or (ab in self.ns and self.is_chain(ab)) {
-                out.append(pre + f"{v} = _emit_node({expr});");
+                buf.append(pre + f"{v} = _emit_node({expr});");
             } elif ab in self.ns {
-                out.append(pre + f"{v} = _emit_{ab}({expr});");
+                buf.append(pre + f"{v} = _emit_{ab}({expr});");
             } else {
-                self.warnings.append(f"unhandled annotation {repr(ann)} -> None");
-                out.append(pre + f"{v} = _py_none();");
+                self.warn(f"unhandled annotation {repr(ann)} -> None");
+                emitted = False;
             }
         } else {
             list_arms = [
@@ -392,27 +427,32 @@ obj _MatGen {
             if list_arms {
                 la_elem = _inner(_norm(list_arms[0]));
                 la_base = _base_of(la_elem) if la_elem else "UniNode";
-                out.append(pre + f"if isinstance({expr}, list) {{");
-                out.append(pre + f"    tl_{uid}: list[{la_base}] = {expr};");
-                self.emit_list(v, f"tl_{uid}", la_elem, out, pre + "    ", uid);
+                buf.append(pre + f"if isinstance({expr}, list) {{");
+                buf.append(pre + f"    tl_{uid}: list[{la_base}] = {expr};");
+                self.emit_list(v, f"tl_{uid}", la_elem, buf, pre + "    ", uid);
                 first_kw = "} elif";
             }
             for ab in cls_arms {
-                out.append(pre + f"{first_kw} isinstance({expr}, {ab}) {{");
-                out.append(pre + f"    {v} = _emit_node({expr});");
+                buf.append(pre + f"{first_kw} isinstance({expr}, {ab}) {{");
+                buf.append(pre + f"    {v} = _emit_node({expr});");
                 first_kw = "} elif";
             }
             if first_kw == "if" {
-                out.append(pre + f"{v} = _py_none();");
+                emitted = False;
             } else {
-                out.append(pre + "} else {");
-                out.append(pre + f"    {v} = _py_none();");
-                out.append(pre + "}");
+                buf.append(pre + "} else {");
+                buf.append(pre + f"    {v} = _py_none();");
+                buf.append(pre + "}");
             }
         }
         if has_none {
-            out.append(ind + "}");
+            buf.append(ind + "}");
         }
+        if not emitted {
+            out.append(ind + f"{v} = _py_none();");
+            return v;
+        }
+        out.extend(buf);
         return v;
     }
 
@@ -849,6 +889,7 @@ def generate(
     return {
         "class_names": all_emit,
         "key_names": g.keys,
-        "enums": enum_members_manifest
+        "enums": enum_members_manifest,
+        "warnings": g.warnings
     };
 }
