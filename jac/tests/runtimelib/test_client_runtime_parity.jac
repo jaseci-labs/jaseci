@@ -1,17 +1,16 @@
-"""Signature parity across the `@jac/runtime` implementations.
+"""Contract parity across the `@jac/runtime` implementations.
 
-One public API, three runtimes (React, Solid, react-native) plus two cores. App
-code imports the same names on every target, so a name that takes different
-parameters per backend is a silent portability bug.
+One public API, three runtimes (React, Solid, react-native) plus two cores, so a
+name taking different parameters per target is a silent portability bug. Asserting
+each function merely *exists* (`test_solid_backend.jac`) stayed green right through
+#8023, while React's `AuthGuard(redirect)` and Solid's `AuthGuard(redirect,
+children)` disagreed.
 
-`test_solid_backend.jac` already asserted each function *exists*
-(`assert "function AuthGuard(" in js;`) -- which stayed green throughout #8023,
-while React's `AuthGuard(redirect)` and Solid's `AuthGuard(redirect, children)`
-disagreed. Name parity is not contract parity.
-
-These compare the declared parameter lists: for every name in more than one
-runtime, parameters must match in order, name, type, and default. Reading
-declarations rather than emitted JS keeps it to a parse, no codegen.
+Most tests here parse declarations and compare parameter lists. That alone cannot
+pin behavior: the compiler never checks an `impl/` body against its declaration,
+and the emitted destructuring comes from the declaration -- so deleting `children`
+from `impl AuthGuard(...)` compiles clean, keeps every signature test green, and
+revives #8023. The last test reads the compiled body instead.
 """
 
 import re;
@@ -19,6 +18,12 @@ import jaclang;
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.compiler.passes.ecmascript { EsastGenPass }
+import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
+import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
+import from jaclang.compiler.passes.ecmascript.backends.solid { SolidBackend }
+import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 
 glob _RT = Path(jaclang.__file__).parent / "runtimelib",
      # The three router/component runtimes: one public surface, three targets.
@@ -31,6 +36,14 @@ glob _RT = Path(jaclang.__file__).parent / "runtimelib",
      _RUNTIME_CORES: dict[str, Path] = {
          "web": _RT / "client_runtime_core.jac",
          "native": _RT / "client" / "client_runtime_core.jac"
+     },
+     # `target -> (backend, no-children fallback)` for the compiled-body test.
+     # react-native rides the React backend. Solid's fallback is None: its entry
+     # always passes `props.children`, so it has no `<Outlet/>` branch to keep.
+     _AUTHGUARD_TARGETS: dict[str, tuple[any, (str | None)]] = {
+         "react": (ReactBackend, "ReactRouterOutlet"),
+         "react-native": (ReactBackend, "__nativeOutlet"),
+         "solid": (SolidBackend, None)
      };
 
 """Source text of a node, whitespace-collapsed, or None.
@@ -83,6 +96,39 @@ def _signatures(path: Path) -> dict[str, list] {
         out[name] = params;
     }
     return out;
+}
+
+"""The emitted body of `name`, minus the props-destructuring line.
+
+That line is generated from the *declaration*, so it keeps naming every declared
+parameter even after the `impl/` body stops using one. Dropping it leaves only
+what the impl actually wrote -- which is where the behavior lives."""
+def _compiled_body(path: Path, backend: any, name: str) -> str {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=str(path), options=CompileOptions(type_check=True, no_cgen=True)
+    );
+    fatal = [
+        e
+        for e in prog.errors_had
+        if not issubclass(e.from_pass, TypeCheckPass)
+    ];
+    assert not fatal , f"{path.name} failed to compile: {[str(e) for e in fatal]}";
+    js = es_to_js(EsastGenPass(ir_in=ir, prog=prog, backend=backend).ir_out.gen.es_ast);
+    start = js.find(f"function {name}(");
+    assert start >= 0 , f"{path.name} emitted no `function {name}(`";
+    body = [];
+    # es_to_js closes a top-level function with a bare `}` in column 0.
+    for line in js[start:].splitlines()[1:] {
+        if line == "}" {
+            break;
+        }
+        if "= props;" in line {
+            continue;
+        }
+        body.append(line);
+    }
+    return "\n".join(body);
 }
 
 """Render one signature for a failure message."""
@@ -186,5 +232,27 @@ test "AuthGuard takes redirect and children on every target" {
         assert params[1][2] == "None" , (
             f"{target} AuthGuard children default drifted: {params[1][2]}"
         );
+    }
+}
+
+test "every target's compiled AuthGuard actually renders its children" {
+    # Declarations don't pin behavior (see module docstring): dropping
+    # `children` from `impl AuthGuard` keeps every signature test above green
+    # while wrapped pages blank again (#8023), so this reads the emitted body.
+    for (target, (backend, fallback)) in _AUTHGUARD_TARGETS.items() {
+        body = _compiled_body(_ROUTER_RUNTIMES[target], backend(), "AuthGuard");
+        assert "children" in body , (
+            f"{target}'s compiled AuthGuard never mentions `children` outside "
+            "the declared destructuring, so `<AuthGuard><Page/></AuthGuard>` "
+            "renders nothing. The declaration is not enough -- check impl/."
+        );
+        if fallback is not None {
+            assert fallback in body , (
+                f"{target}'s compiled AuthGuard lost its `{fallback}` fallback. "
+                "The `(auth)/` codegen and `<Route element={<AuthGuard/>}>` pass "
+                "no children and need it to resolve the matched child route; "
+                "without it every protected route group goes blank."
+            );
+        }
     }
 }
