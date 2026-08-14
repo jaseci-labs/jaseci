@@ -219,17 +219,32 @@ jobs:
         run: zig build -Dno-ninja vendor-musl --summary all
       - name: Compiler suite via the binary
         working-directory: jac
+        # Chunked into sequential invocations: the materializer crossing leaks
+        # its native parse tree per compile (unitree cycles defeat plain RC and
+        # the artifact's cycle collector is not yet multi-module-safe), so one
+        # long run accumulates until the worker set OOMs the 16GB runner and
+        # the agent dies with "runner lost communication". Fresh workers per
+        # chunk bound the accumulation; each chunk also reports its own
+        # summary, so a dead runner names its chunk.
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
           rc=0
-          HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/compiler | tee /tmp/compiler.log || rc=$?
-          {
-            echo "## binary compiler-suite result"
-            echo '```'
-            grep -E '^(FAILED|ERROR)|passed|failed' /tmp/compiler.log | tail -60 || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          run_chunk() {
+            local tag="$1"; shift
+            local crc=0
+            HOME="$WORK" JAC_TEST_JOBS=auto jac test "$@" | tee "/tmp/compiler-$tag.log" || crc=$?
+            {
+              echo "## binary compiler-suite result ($tag, rc=$crc)"
+              echo '```'
+              grep -E '^(FAILED|ERROR)|passed|failed' "/tmp/compiler-$tag.log" | tail -40 || true
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            return "$crc"
+          }
+          run_chunk passes-native tests/compiler/passes/native tests/compiler/passes/tool || rc=$?
+          run_chunk passes-main tests/compiler/passes/main tests/compiler/passes/ecmascript || rc=$?
+          run_chunk toplevel tests/compiler/test_*.jac || rc=$?
           exit "$rc"
       - name: Cross-backend equivalence suite (py/es/native congruence)
         working-directory: jac
