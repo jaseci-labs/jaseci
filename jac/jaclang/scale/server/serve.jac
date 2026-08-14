@@ -218,6 +218,7 @@ obj JacAPIServerScheduler {
 }
 
 obj JacAPIServerStatic {
+    def asset_base_path -> Path;
     def serve_static_file(file_path: str) -> Response;
     def register_static_file_endpoint -> None;
     def serve_client_js_callback -> Callable[..., Response];
