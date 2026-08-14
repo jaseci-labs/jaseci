@@ -766,7 +766,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                             overloaded_fns: list[types.FunctionType] = [member_ty];
                             for overload in member.overloads {
                                 overload_ty = self.specialize_member_type(
-                                    self.get_type_of_symbol(overload), lookup_type
+                                    self.get_type_of_symbol(overload),
+                                    lookup_type,
+                                    self.declaring_class_of(overload, lookup_type)
                                 );
                                 if isinstance(overload_ty, types.FunctionType) {
                                     overloaded_fns.append(overload_ty);
@@ -901,7 +903,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                             overloaded_fns: list[types.FunctionType] = [member_ty];
                             for overload in member.overloads {
                                 overload_ty = self.specialize_member_type(
-                                    self.get_type_of_symbol(overload), base_type
+                                    self.get_type_of_symbol(overload),
+                                    base_type,
+                                    self.declaring_class_of(overload, base_type)
                                 );
                                 if isinstance(overload_ty, types.FunctionType) {
                                     overloaded_fns.append(overload_ty);
@@ -917,7 +921,9 @@ impl TypeEvaluator._get_type_of_expression_core(
                         if prop_return_type
                             := self.get_getter_type_from_property(member.symbol) {
                             prop_return_type = self.specialize_member_type(
-                                prop_return_type, base_type
+                                prop_return_type,
+                                base_type,
+                                self.declaring_class_of(member.symbol, base_type)
                             );
                             member.symbol.add_use(expr.right);
 
@@ -2068,7 +2074,10 @@ impl TypeEvaluator._get_type_of_symbol(symbol: uni.Symbol) -> TypeBase {
             return self.get_type_of_class(node_);
 
         case uni.TypeParam():
-            return types.TypeVarType(name=node_.sym_name, is_class_type_param=True);
+            return types.TypeVarType(
+                name=node_.sym_name,
+                is_class_type_param=self._is_class_scoped_type_param(node_)
+            );
 
         case uni.TypeAlias():
             if node_.value is not None {
@@ -2687,14 +2696,23 @@ impl TypeEvaluator.get_type_of_magic_method_call(
                         arg_nodes, node_for_error, fn, checking_overload=True
                     );
                     if not arg_param_match.argument_errors {
+                        solved: dict[str, TypeBase] = {};
                         if self.validate_arg_types(
-                            arg_param_match, checking_overload=True
+                            arg_param_match,
+                            checking_overload=True,
+                            solved_type_vars=solved
                         ) {
-                            if not isinstance(fn.return_type, types.UnknownType) {
-                                return fn.return_type or types.UnknownType();
+                            ret_ty = fn.return_type;
+                            if solved and ret_ty is not None {
+                                ret_ty = type_utils.apply_solved_type_vars(
+                                    ret_ty, solved
+                                );
+                            }
+                            if not isinstance(ret_ty, types.UnknownType) {
+                                return ret_ty or types.UnknownType();
                             }
                             if _fallback_result is None {
-                                _fallback_result = fn.return_type;
+                                _fallback_result = ret_ty;
                             }
                         }
                     }

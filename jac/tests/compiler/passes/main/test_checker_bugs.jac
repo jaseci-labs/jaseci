@@ -64,6 +64,15 @@ Bug index:
                 off the statement), so a statement ending a block never reached
                 the statement after the block and its write stayed invisible to
                 the narrowing walk (#8059)
+  #TVARSCOPE-1 - a method's own TypeVar was substituted by the enclosing
+                 class's inherited type-var solution because solutions are
+                 keyed by TypeVar *name*; a generic base specialized anywhere
+                 in the MRO pinned every same-named method TypeVar in the
+                 whole subtree (#8201)
+  #OVLDTVAR-1 - a magic-method overload returned its declared return type
+                without solving the overload's own TypeVars from the
+                arguments, so `list[A] + list[B]` typed as `list[_S | A]`
+                with `_S` free (#8201)
   #BLOCKANN-1 - a typed declaration inside a block (a while/if/for/try body)
                 was inserted into that block's scope while bare assignments
                 hoist to the enclosing function, so one variable became two
@@ -1549,4 +1558,71 @@ test "bug_loopwiden1_body_reassign_forces_conservative_merge" {
             f"diagnosed type must be the full `Item | None`. Got: {e}"
         );
     }
+}
+
+# =========================================================================
+# Bug #TVARSCOPE-1 / #8201: TypeVar solutions are keyed by name, so a
+# method's own TypeVar collided with a same-named class type parameter
+# inherited from a specialized generic base.
+#
+# `Leaf(Mid)` and `Mid(Carrier[Alpha, Beta])` put `T -> Alpha` in the
+# solution built for `Leaf`. `Leaf.pick` declares its own module-level `T`,
+# a different type variable that merely shares the name, and it was
+# rewritten to `Alpha` at every call site. A static member also dropped the
+# receiver class entirely, which turned on the permissive "trust the name"
+# rule in apply_solved_type_vars.
+#
+# The rule is lexical: only the type parameters bound by the class that
+# *declares* the member (or one of its enclosing class scopes) may be
+# substituted, and a function's own type parameters shadow the class's.
+# =========================================================================
+test "bug_tvarscope1_method_typevar_not_bound_by_class_solution" {
+    program = compile_and_check("checker_bug_method_typevar_scope.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TVARSCOPE-1: a method's own TypeVar must stay free of the "
+        "enclosing class's inherited type-var solution. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARSCOPE-1, negative: the lexical restriction must not stop a real
+# class type parameter from being solved through the MRO. `Carrier.move`
+# and `Carrier.build` are declared on the generic class, so `T`/`R` are
+# theirs and `Leaf` must still see them as `Alpha`/`Beta`.
+# =========================================================================
+test "bug_tvarscope1_class_typevar_still_solved_through_mro" {
+    program = compile_and_check("checker_bug_method_typevar_scope_negative.jac");
+
+    error_text = "\n".join([str(e) for e in program.errors_had]);
+    assert len(program.errors_had) == 2 , (
+        "Bug #TVARSCOPE-1: an inherited class type parameter must still be "
+        "solved from the base specialization, so passing a Beta where Alpha "
+        f"is expected stays an error. Got errors: {error_text}"
+    );
+    assert "Alpha" in error_text , (
+        "Bug #TVARSCOPE-1: the expected parameter type must read Alpha, not "
+        f"the unsolved type variable. Got: {error_text}"
+    );
+}
+
+# =========================================================================
+# Bug #OVLDTVAR-1 / #8201: get_type_of_magic_method_call returned the
+# matched overload's declared return type verbatim. The overload had been
+# specialized for the receiver class, so `_T` was bound, but the overload's
+# *own* TypeVars were never solved from the arguments.
+#
+# `list[A] + list[B]` picks `__add__(self, value: list[_S]) -> list[_S | _T]`
+# and used to yield `list[_S | A]`, whose element type has no attributes at
+# all, so every member access on the result was a false E1099.
+# =========================================================================
+test "bug_ovldtvar1_magic_overload_solves_own_typevars" {
+    program = compile_and_check("checker_bug_magic_overload_typevar.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #OVLDTVAR-1: a magic-method overload must solve its own "
+        "TypeVars from the argument types before its return type is used. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
 }

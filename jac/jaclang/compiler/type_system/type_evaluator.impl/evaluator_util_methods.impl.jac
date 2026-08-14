@@ -379,18 +379,52 @@ impl TypeEvaluator.get_type_of_member(
         );
         if is_static_cls or is_static {
             solution = type_utils.build_type_var_solution(class_type);
-            return type_utils.apply_solved_type_vars(raw_type, solution);
+            return type_utils.apply_solved_type_vars(
+                raw_type,
+                solution,
+                None,
+                type_utils.shadowed_type_var_names(
+                    solution, self.declaring_class_of(member.symbol, class_type)
+                )
+            );
         }
     }
-    return self.specialize_member_type(raw_type, class_type);
+    return self.specialize_member_type(
+        raw_type, class_type, self.declaring_class_of(member.symbol, class_type)
+    );
+}
+
+impl TypeEvaluator.declaring_class_of(
+    symbol: uni.Symbol, base_type: types.ClassType
+) -> (types.ClassType | None) {
+    if symbol.decl is None {
+        return None;
+    }
+    arch = symbol.decl.find_parent_of_type(uni.Archetype);
+    if arch is None {
+        return None;
+    }
+    for cls in base_type.shared.mro {
+        if cls.shared.symbol_table is arch {
+            return cls;
+        }
+    }
+    return None;
 }
 
 impl TypeEvaluator.specialize_member_type(
-    member_type: TypeBase, class_type: types.ClassType
+    member_type: TypeBase,
+    class_type: types.ClassType,
+    declaring_class: (types.ClassType | None) = None
 ) -> TypeBase {
     solution = type_utils.build_type_var_solution(class_type);
 
-    return type_utils.apply_solved_type_vars(member_type, solution, class_type);
+    return type_utils.apply_solved_type_vars(
+        member_type,
+        solution,
+        class_type,
+        type_utils.shadowed_type_var_names(solution, declaring_class)
+    );
 }
 
 impl TypeEvaluator._get_getattr_return_type(
@@ -923,6 +957,20 @@ impl TypeEvaluator._extract_type_params(
         );
     }
     return type_params;
+}
+
+impl TypeEvaluator._is_class_scoped_type_param(node_: uni.TypeParam) -> bool {
+    owner: uni.UniNode | None = node_.parent;
+    while owner is not None {
+        if isinstance(owner, uni.Archetype) {
+            return True;
+        }
+        if isinstance(owner, (uni.Ability, uni.TypeAlias)) {
+            return False;
+        }
+        owner = owner.parent;
+    }
+    return False;
 }
 
 impl TypeEvaluator._collect_typevars_from_base(
