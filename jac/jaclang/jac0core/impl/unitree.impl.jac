@@ -108,11 +108,7 @@ impl UniNode.add_kids_right(
 impl UniNode.insert_kids_at_pos(
     nodes: Sequence[UniNode], pos: int, pos_update: bool = True
 ) -> UniNode {
-    new_kid: list[UniNode] = [];
-    new_kid.extend(self.kid[:pos]);
-    new_kid.extend(nodes);
-    new_kid.extend(self.kid[pos:]);
-    self.kid = new_kid;
+    self.kid = [*self.kid[:pos], *nodes, *self.kid[pos:]];
     if pos_update {
         for i in nodes {
             i.parent = self;
@@ -124,9 +120,7 @@ impl UniNode.insert_kids_at_pos(
 }
 
 impl UniNode.set_kids(nodes: Sequence[UniNode]) -> UniNode {
-    new_kid: list[UniNode] = [];
-    new_kid.extend(nodes);
-    self.kid = new_kid;
+    self.kid = [*nodes];
     for i in nodes {
         i.parent = self;
     }
@@ -372,15 +366,9 @@ impl UniScopeNode.lookup(
         }
     }
 
-    impl_def: ImplDef | None = None;
-    _walk: UniNode | None = self;
-    while _walk is not None {
-        if isinstance(_walk, ImplDef) {
-            impl_def = _walk;
-            break;
-        }
-        _walk = _walk.parent;
-    }
+    impl_def: ImplDef | None = (
+        self if isinstance(self, ImplDef) else self.find_parent_of_type(ImplDef)
+    );
     if (impl_def and impl_def.decl_link and impl_def.decl_link.sym_tab) {
         return impl_def.decl_link.sym_tab.lookup(
             name, deep=True, incl_inner_scope=False
@@ -446,20 +434,9 @@ impl UniScopeNode.find_scope(name: str) -> (UniScopeNode | None) {
     return None;
 }
 
-impl UniScopeNode._capture_names(nd: UniNode, out: list[Name]) -> None {
-    for k in nd.kid {
-        self._capture_names(k, out);
-        if isinstance(k, Name) {
-            out.append(k);
-        }
-    }
-}
-
 impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
     out: list[Symbol] = [];
-    sub_names: list[Name] = [];
-    self._capture_names(self, sub_names);
-    for name in sub_names {
+    for name in self.get_all_sub_nodes(Name) {
         sym = name.sym;
         if (sym is None) {
             continue;
@@ -683,11 +660,6 @@ impl AstAccessNode.public_access.getter -> bool {
 
 impl ContextAwareNode.postinit -> None {
     self.code_context = CodeContext.SERVER;
-}
-
-
-impl ContextAwareNode.set_code_context(ctx: CodeContext) -> None {
-    self.code_context = ctx;
 }
 
 
@@ -1215,7 +1187,7 @@ impl ModulePath.resolve_relative_path_list -> list[str] {
     }
     for i in range(len(parts) - 2, -1, -1) {
         init_found = False;
-        for init_name in ['__init__.jac', '__init__.py', '__init__.pyi'] {
+        for init_name in ('__init__.jac', '__init__.py', '__init__.pyi') {
             init_path = os.path.join(cur_dir, init_name);
             if os.path.isfile(init_path) {
                 paths[i] = init_path;
@@ -1566,8 +1538,7 @@ impl Ability.event_trigger_type_names -> (list[str] | None) {
     }
     names: list[str] = [];
     for t in self.event_triggers {
-        parts = t.mangle().split("|");
-        for part in parts {
+        for part in t.mangle().split("|") {
             name = part.strip();
             if name.startswith("type[") and name.endswith("]") {
                 name = name[5:-1];

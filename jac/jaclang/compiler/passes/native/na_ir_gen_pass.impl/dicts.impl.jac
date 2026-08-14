@@ -15,6 +15,14 @@ impl NaIRGenPass._dict_key_spec(key_type: ir.Type) -> tuple {
     return ("i64", 0);
 }
 
+impl NaIRGenPass._unwrap_opt_container(val: ir.Value) -> ir.Value {
+    _pay = self._opt_payload_of(val.type);
+    if _pay is None or not isinstance(_pay, ir.PointerType) {
+        return val;
+    }
+    return self._coerce_type(val, _pay);
+}
+
 impl NaIRGenPass._dict_val_spec(val_type: ir.Type) -> str {
     if isinstance(val_type, ir.DoubleType) {
         return "f64";
@@ -468,6 +476,7 @@ impl NaIRGenPass._codegen_dict_access(
     if helpers is None {
         return None;
     }
+    target_val = self._unwrap_opt_container(target_val);
     key_type = helpers["key_type"];
     key_val = self._coerce_type(key_val, key_type);
 
@@ -500,6 +509,7 @@ impl NaIRGenPass._codegen_dict_set(
     if helpers is None {
         return;
     }
+    target_val = self._unwrap_opt_container(target_val);
     key_type = helpers["key_type"];
     val_type = helpers["val_type"];
     if self._reject_ptr_into_raw_slot(None, value, val_type, "dict value assignment") {

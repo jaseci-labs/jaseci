@@ -520,11 +520,107 @@ test "effect lambda local hoists its declaration into the effect body" {
     temp_path = write_temp_jac(jac_code);
     js_code = compile_fixture_to_js(temp_path);
 
-    assert "let probe;" in js_code , (
+    assert 'let probe = "READY";' in js_code , (
         "a local first-assigned inside an effect lambda must keep its `let`; "
         "a bare assignment throws ReferenceError in a strict-mode bundle"
     );
     assert "let setup = () => {" in js_code;
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda-body local stays per-invocation so map closures capture their own item" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        tid = str(t.id);\n        return <button onClick={lambda { print(tid); }}>{tid}</button>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let tid = " in js_code , (
+        "an unannotated lambda-body local must be declared inside the lambda; "
+        "hoisting it to component scope makes every .map() closure share one "
+        "binding and capture the last item"
+    );
+    assert "let tid;" not in js_code , (
+        "no empty hoisted declaration of a lambda-body local may exist at "
+        "component-function scope"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "annotated lambda-body local stays per-invocation" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        aid: any = str(t.id);\n        return <button onClick={lambda { print(aid); }}>{aid}</button>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let aid = " in js_code;
+    assert "let aid;" not in js_code;
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "branch-assigned lambda local hoists to the lambda not the component" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        if ti > 0 { bid = str(t.id); } else { bid = \"zero\"; }\n        return <button onClick={lambda { print(bid); }}>{bid}</button>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    lambda_start = js_code.find("map((t, ti) =>");
+    assert lambda_start >= 0;
+    hoist_pos = js_code.find("let bid;");
+    assert hoist_pos > lambda_start , (
+        "a lambda local assigned only in branches must hoist to the top of "
+        "the lambda body, not past the lambda into the component function"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "walrus target inside a lambda binds in the lambda not the component" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        if (wid := str(t.id)) {\n            return <button onClick={lambda { print(wid); }}>{wid}</button>;\n        }\n        return <span>none</span>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    lambda_start = js_code.find("map((t, ti) =>");
+    assert lambda_start >= 0;
+    hoist_pos = js_code.find("let wid;");
+    assert hoist_pos > lambda_start , (
+        "a walrus-bound lambda name must be declared inside the lambda; "
+        "binding it in the enclosing component makes .map() closures share it"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda assignment to an enclosing local stays a closure rebind" {
+    jac_code = "def:pub app -> any {\n    can with entry {\n        count = 0;\n        inc = lambda -> int { count = count + 1; return count; };\n        inc();\n    }\n    return <div>ok</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let count = 0;" in js_code;
+    assert "count = (count + 1);" in js_code , (
+        "an assignment to a name that already has an enclosing binding must "
+        "rebind that binding (closure mutation), not shadow it with a fresh "
+        "lambda-local"
+    );
+    assert "let count = (count + 1);" not in js_code;
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda returning dict literal parenthesises the arrow body" {
+    jac_code = "def:pub app -> str {\n    style_of = lambda (kind: str) { {\"color\": \"red\" if kind == \"warn\" else \"blue\"}; };\n    return style_of(\"warn\")[\"color\"];\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert 'kind => ({"color":' in js_code , (
+        "an object-literal arrow body must be parenthesised; "
+        "`kind => {...}` parses as a function block and breaks the bundle"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda body starting with dict literal parenthesises the arrow body" {
+    jac_code = "def:pub app -> int {\n    f = lambda (k: str) { {\"a\": 1}[k]; };\n    return f(\"a\");\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert 'k => ({"a": 1}[k])' in js_code , (
+        "an arrow body whose leftmost token is `{` must be parenthesised "
+        "even when the body is not itself an object literal"
+    );
     assert_balanced_syntax(js_code, temp_path);
 }
 

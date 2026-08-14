@@ -23,6 +23,24 @@ impl NaIRGenPass._arch_alias_target(nd: (uni.UniNode | None)) -> (str | None) {
     return None;
 }
 
+impl NaIRGenPass._erased_generic_ctor(nd: uni.FuncCall) -> (str | None) {
+    _tgt = nd.target;
+    if not isinstance(_tgt, uni.AtomTrailer)
+        or _tgt.is_attr
+        or not isinstance(_tgt.right, uni.IndexSlice) {
+        return None;
+    }
+    _base_tk = self._type_key_of(_tgt.target);
+    if _base_tk is None or not _base_tk.startswith("type[") {
+        return None;
+    }
+    _tk = self._type_key_of(_tgt);
+    if _tk is None or not _tk.startswith("type[") or not _tk.endswith("]") {
+        return None;
+    }
+    return self._erased_arch_base(_tk[5:-1]);
+}
+
 impl NaIRGenPass._callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None) {
     decl = nd.callee_decl;
     sig = decl.signature if decl is not None else None;
@@ -1130,6 +1148,10 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     } else {
         func_name = self._get_name(nd.target);
         if func_name is None {
+            _erased_ctor = self._erased_generic_ctor(nd);
+            if _erased_ctor is not None {
+                return self._codegen_instantiation(nd, type_name_override=_erased_ctor);
+            }
             return None;
         }
     }
@@ -1204,6 +1226,16 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
 
         if func_name == "isinstance" {
             return self._emit_isinstance(nd);
+        }
+
+        if func_name == "type" {
+            _cid_params = nd.params or [];
+            if len(_cid_params) == 1 {
+                _cid = self._codegen_class_id(_cid_params[0]);
+                if _cid is not None {
+                    return _cid;
+                }
+            }
         }
 
         if func_name == "len" {
@@ -2235,6 +2267,12 @@ impl NaIRGenPass._emit_isinstance_core(
     params = nd.params or [];
 
     type_arg = params[1];
+    if not isinstance(type_arg, uni.TupleVal) {
+        _rt_res = self._emit_isinstance_runtime(nd, operand, type_arg);
+        if _rt_res is not None {
+            return _rt_res;
+        }
+    }
     names: list[str] = [];
     if isinstance(type_arg, uni.TupleVal) {
         for v in (type_arg.values or []) {

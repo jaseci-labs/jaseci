@@ -587,16 +587,18 @@ impl LayoutPass._acyclic_walk(name: str, state: dict[str, int]) -> int {
 }
 
 impl LayoutPass._expand_type_keys(key: str) -> (list[str] | None) {
-    import from jaclang.compiler.passes.main.layout_pass {
-        LAYOUT_COMPATIBLE_PRIMITIVES
-    }
+    import from jaclang.compiler.passes.main.layout_pass { LAYOUT_COMPATIBLE_SCALARS }
     out: list[str] = [];
     for raw in self._split_top_level(key, "|") {
         p = raw.strip();
         if not p {
             return None;
         }
-        if p in LAYOUT_COMPATIBLE_PRIMITIVES or p in ("None", "NoneType") {
+        if p in LAYOUT_COMPATIBLE_SCALARS or p in ("None", "NoneType") {
+            continue;
+        }
+
+        if p.startswith("type[") and p.endswith("]") {
             continue;
         }
         inner: (str | None) = None;
@@ -729,13 +731,10 @@ impl LayoutPass._validate_obj_fields(
 impl LayoutPass._is_layout_compatible_type(
     type_node: (uni.UniNode | None), arch_map: dict[str, uni.Archetype]
 ) -> bool {
-    import from jaclang.compiler.passes.main.layout_pass {
-        LAYOUT_COMPATIBLE_PRIMITIVES
-    }
+    import from jaclang.compiler.passes.main.layout_pass { LAYOUT_COMPATIBLE_SCALARS }
     if type_node is None {
         return False;
     }
-
     if isinstance(type_node, uni.FuncSignature) {
         return True;
     }
@@ -747,7 +746,7 @@ impl LayoutPass._is_layout_compatible_type(
 
     if isinstance(type_node, uni.Name) {
         tname = type_node.value;
-        if tname in LAYOUT_COMPATIBLE_PRIMITIVES {
+        if tname in LAYOUT_COMPATIBLE_SCALARS {
             return True;
         }
         if tname == "None" {
@@ -767,7 +766,7 @@ impl LayoutPass._is_layout_compatible_type(
 
     if uni?.BuiltinType and isinstance(type_node, uni.BuiltinType) {
         tname = type_node.value;
-        return tname in LAYOUT_COMPATIBLE_PRIMITIVES;
+        return tname in LAYOUT_COMPATIBLE_SCALARS;
     }
 
     if isinstance(type_node, uni.BinaryExpr) {
@@ -784,6 +783,10 @@ impl LayoutPass._is_layout_compatible_type(
         target_name: (str | None) = None;
         if isinstance(type_node.target, uni.Name) {
             target_name = type_node.target.value;
+        }
+
+        if target_name == "type" {
+            return True;
         }
         if target_name in {"list", "dict", "set", "frozenset", "tuple"} {
             if type_node?.right and type_node.right?.slices {
@@ -808,7 +811,7 @@ impl LayoutPass._is_layout_compatible_type(
 
     if type_node?.value and isinstance(type_node?.value, str) {
         tname = type_node.value;
-        if tname in LAYOUT_COMPATIBLE_PRIMITIVES {
+        if tname in LAYOUT_COMPATIBLE_SCALARS {
             return True;
         }
         if tname in arch_map {

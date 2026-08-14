@@ -171,11 +171,15 @@ impl NaIRGenPass._spec_of(
     if not isinstance(expr, uni.Expr) or expr.type is None {
         return None;
     }
-    tk = self._mangled_of(expr.type);
-    matched = tk in names;
-    for nm in names {
-        if tk.startswith(nm + "[") {
-            matched = True;
+    _t = expr.type;
+    tk = self._mangled_of(_t);
+    matched = self._spec_name_match(tk, names);
+    if not matched {
+        _sole = self._opt_sole_member(_t);
+        if _sole is not None {
+            _t = _sole;
+            tk = self._mangled_of(_t);
+            matched = self._spec_name_match(tk, names);
         }
     }
     if not matched {
@@ -185,7 +189,7 @@ impl NaIRGenPass._spec_of(
         }
         return None;
     }
-    lowered = self._lower_type(expr.type);
+    lowered = self._lower_type(_t);
     if lowered is None {
         return None;
     }
@@ -195,6 +199,46 @@ impl NaIRGenPass._spec_of(
         }
     }
     return None;
+}
+
+impl NaIRGenPass._spec_name_match(tk: str, names: tuple) -> bool {
+    if tk in names {
+        return True;
+    }
+    for nm in names {
+        if tk.startswith(nm + "[") {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl NaIRGenPass._opt_sole_member(t: any) -> (any | None) {
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _OsClassType,
+            UnionType as _OsUnionType
+        }
+    } except ImportError {
+        return None;
+    }
+    if not isinstance(t, _OsUnionType) {
+        return None;
+    }
+    _all = t.types or [];
+    _members = [
+        m
+        for m in _all
+        if not (
+            isinstance(m, _OsClassType)
+            and m._shared is not None
+            and m.shared.class_name in ("NoneType", "None")
+        )
+    ];
+    if len(_members) != 1 or len(_members) == len(_all) {
+        return None;
+    }
+    return _members[0];
 }
 
 impl NaIRGenPass._struct_name_of(expr: (uni.UniNode | None)) -> (str | None) {
@@ -208,18 +252,59 @@ impl NaIRGenPass._struct_name_of(expr: (uni.UniNode | None)) -> (str | None) {
     if not isinstance(expr, uni.Expr) or expr.type is None {
         return None;
     }
-    tk = self._mangled_of(expr.type);
+    return self._struct_name_for_key(self._mangled_of(expr.type));
+}
+
+impl NaIRGenPass._struct_name_for_key(tk: (str | None)) -> (str | None) {
+    if tk is None {
+        return None;
+    }
     if tk in self.struct_types {
         return tk;
     }
-    if "|" in tk {
-        for part in tk.split("|") {
-            if part in self.struct_types {
-                return part;
-            }
+    for part in self._split_union_key(tk) {
+        if part in self.struct_types {
+            return part;
+        }
+    }
+    for part in self._split_union_key(tk) {
+        _base = self._erased_arch_base(part);
+        if _base is not None {
+            return _base;
         }
     }
     return None;
+}
+
+impl NaIRGenPass._erased_arch_base(tk: str) -> (str | None) {
+    _open = tk.find("[");
+    if _open <= 0 or not tk.endswith("]") {
+        return None;
+    }
+    _base = tk[:_open];
+    return _base if _base in self.struct_types else None;
+}
+
+impl NaIRGenPass._split_union_key(tk: str) -> list[str] {
+    if "|" not in tk {
+        return [tk];
+    }
+    out: list[str] = [];
+    depth = 0;
+    start = 0;
+    for i in range(len(tk)) {
+        ch = tk[i];
+        if ch == "[" {
+            depth += 1;
+        } elif ch == "]" {
+            depth -= 1;
+        } elif ch == "|" and depth == 0 {
+            out.append(tk[start:i]);
+            start = i + 1;
+        }
+    }
+    out.append(tk[start:]);
+    return out;
 }
 
 impl NaIRGenPass._struct_ptr_pointee_name(val: ir.Value) -> (str | None) {

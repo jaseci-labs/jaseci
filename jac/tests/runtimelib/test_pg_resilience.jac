@@ -57,7 +57,11 @@ def _restartish(e: Exception) -> bool {
 
 def _mk_store(td: str) -> tuple {
     target = str(Path(td) / 'app.jac');
-    rt = PgRuntime(data_dir=shared_pg_data_dir(), database=project_db_name(td, target));
+    rt = PgRuntime(
+        data_dir=shared_pg_data_dir(),
+        database=project_db_name(td, target),
+        owner_path=td
+    );
     info = rt.ensure();
     return (PgStore(conninfo=info, ensure_cb=rt.ensure), info, target, rt);
 }

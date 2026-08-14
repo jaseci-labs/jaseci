@@ -60,13 +60,26 @@ obj UniNode {
     def resolve_tok_range -> tuple[(Token, Token)];
     def gen_token(name: Tok, value: (str | None) = None) -> Token;
     def get_all_sub_nodes[T](typ: type[T]) -> list[T] {
-        import from jaclang.jac0core.passes { UniPass }
-        return UniPass.get_all_sub_nodes(nd=self, typ=typ);
+        result: list[T] = [];
+        if typ in self._sub_node_tab {
+            for i in self._sub_node_tab[typ] {
+                if isinstance(i, typ) {
+                    result.append(i);
+                }
+            }
+        }
+        return result;
     }
 
     def find_parent_of_type[T](typ: type[T]) -> (T | None) {
-        import from jaclang.jac0core.passes { UniPass }
-        return UniPass.find_parent_of_type(nd=self, typ=typ);
+        nd: (UniNode | None) = self.parent;
+        while nd is not None {
+            if isinstance(nd, typ) {
+                return nd;
+            }
+            nd = nd.parent;
+        }
+        return None;
     }
 
     def parent_of_type[T](typ: type[T]) -> T {
@@ -131,7 +144,9 @@ obj UniScopeNode(UniNode) {
 
     def _init_scope(name: str, parent_scope: (UniScopeNode | None) = None) -> None;
     static def is_python_scoping(nd: (UniNode | None)) -> bool {
-        return isinstance(nd, (Module, Enum, Archetype, Ability, ImplDef, Test));
+        return isinstance(
+            nd, (Module, Enum, Archetype, Ability, ImplDef, Test, LambdaExpr)
+        );
     }
 
     def lookup(
@@ -167,7 +182,6 @@ obj UniScopeNode(UniNode) {
     def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
     def _fix_store_ctx(item: UniNode) -> None;
     def _fix_store_items(items: Sequence[UniNode]) -> None;
-    def _capture_names(nd: UniNode, out: list[Name]) -> None;
     def __repr__ -> str;
 }
 
@@ -201,7 +215,6 @@ obj ContextAwareNode(UniNode) {
         codespace_dual: bool = False;
 
     def postinit -> None;
-    def set_code_context(ctx: CodeContext) -> None;
 }
 
 obj AstDocNode(UniNode) {

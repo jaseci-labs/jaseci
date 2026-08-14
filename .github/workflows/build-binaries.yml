@@ -43,42 +43,59 @@ permissions:
   contents: write
 
 jobs:
+  # Emits the per-channel leg list the build matrix consumes. A matrix
+  # `exclude` cannot drop a leg here: exclude keys must name matrix *vector*
+  # keys, and this matrix is include-only, so strategy evaluation fails
+  # outright ("Matrix exclude key 'platform' does not match any key within
+  # the matrix"). Promoting `platform` to a vector key would not help either:
+  # include entries are re-applied after exclude, re-adding the dropped leg.
+  #
+  # One native runner per target so the smoke test runs on real hardware.
+  # zig_target pins each Linux binary's glibc floor (2.17, manylinux2014)
+  # on the release channel; the dev channel builds host-native so it can
+  # reuse the native-ABI LLVMPY shim cache (the shim cache key does not
+  # encode a target triple). macOS-ARM builds host-native on both
+  # channels. The Intel-Mac leg pins the macOS floor (12.0) the same way
+  # the Linux legs pin glibc -- unpinned it would inherit the runner's
+  # macOS 15 and exclude older Intel Macs; its LLVM slice is llvm-slice's
+  # from-source build (upstream ships no macOS-x64 for the pinned
+  # release). macos-15-intel is GitHub's last Intel image (retires Fall
+  # 2027).
+  #
+  # The Intel-Mac leg is release-only: it exists to pin the macOS 12.0
+  # floor for versioned releases, and on the dev channel it was the
+  # critical path (~24 min/merge on the slow Intel runners) for a
+  # rolling prerelease Intel users don't consume. Versioned releases
+  # still ship macos-x86_64: inputs.channel is empty on release/dispatch
+  # events, so those keep the full list.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      include: ${{ steps.legs.outputs.include }}
+    steps:
+      - name: Select build legs for the channel
+        id: legs
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          LEGS='[
+            {"os": "ubuntu-latest",    "platform": "linux-x86_64",  "zig_target": "x86_64-linux-gnu.2.17"},
+            {"os": "ubuntu-24.04-arm", "platform": "linux-aarch64", "zig_target": "aarch64-linux-gnu.2.17"},
+            {"os": "macos-14",         "platform": "macos-aarch64"},
+            {"os": "macos-15-intel",   "platform": "macos-x86_64",  "zig_target": "x86_64-macos.12.0"}
+          ]'
+          if [ "$CHANNEL" = "dev" ]; then
+            LEGS="$(jq -c 'map(select(.platform != "macos-x86_64"))' <<<"$LEGS")"
+          fi
+          echo "include=$(jq -c . <<<"$LEGS")" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: plan
     strategy:
       fail-fast: false
       matrix:
-        # One native runner per target so the smoke test runs on real hardware.
-        # zig_target pins each Linux binary's glibc floor (2.17, manylinux2014)
-        # on the release channel; the dev channel builds host-native so it can
-        # reuse the native-ABI LLVMPY shim cache (the shim cache key does not
-        # encode a target triple). macOS-ARM builds host-native on both
-        # channels. The Intel-Mac leg pins the macOS floor (12.0) the same way
-        # the Linux legs pin glibc -- unpinned it would inherit the runner's
-        # macOS 15 and exclude older Intel Macs; its LLVM slice is llvm-slice's
-        # from-source build (upstream ships no macOS-x64 for the pinned
-        # release). macos-15-intel is GitHub's last Intel image (retires Fall
-        # 2027).
-        include:
-          - os: ubuntu-latest
-            platform: linux-x86_64
-            zig_target: x86_64-linux-gnu.2.17
-          - os: ubuntu-24.04-arm
-            platform: linux-aarch64
-            zig_target: aarch64-linux-gnu.2.17
-          - os: macos-14
-            platform: macos-aarch64
-          - os: macos-15-intel
-            platform: macos-x86_64
-            zig_target: x86_64-macos.12.0
-        # The Intel-Mac leg is release-only: it exists to pin the macOS 12.0
-        # floor for versioned releases, and on the dev channel it was the
-        # critical path (~24 min/merge on the slow Intel runners) for a
-        # rolling prerelease Intel users don't consume. Versioned releases
-        # still ship macos-x86_64. The expression matches nothing ('none')
-        # on the release channel and on release/dispatch events, where
-        # inputs.channel is empty.
-        exclude:
-          - platform: ${{ inputs.channel == 'dev' && 'macos-x86_64' || 'none' }}
+        include: ${{ fromJSON(needs.plan.outputs.include) }}
     runs-on: ${{ matrix.os }}
     env:
       # -Dtarget flag for zig build: set on release-channel Linux legs, empty
@@ -336,13 +353,16 @@ jobs:
           [ -f "$SHIM" ] || zig build jacllvm -Dtarget=${{ matrix.zig_target }} --summary all
           [ -f "$SHIM" ] || SHIM="zig-out/lib/libjacllvm.so"
           check "$SHIM"
-          # Sealed AOT compiler artifacts (native lexer): materialize the
-          # payload once, then hold the artifact to the same glibc floor.
+          # Sealed AOT compiler artifacts (the materializer root carrying
+          # the parser, plus unitree): materialize the payload once, then
+          # hold EVERY shipped artifact to the same glibc floor. The sealed
+          # parser serves all parse trees with no bytecode fallback, so a
+          # missing artifact here is a broken binary.
           WORK="$(mktemp -d)"
           env -i HOME="$WORK" PATH=/usr/bin:/bin ./zig-out/bin/jac --version >/dev/null
-          ART="$(find "$WORK/.cache/jac/rt" -path '*/_precompiled/native/*' -name 'libjac_*.so' | head -1)"
-          [ -n "$ART" ] || { echo "::error::no sealed native artifact (libjac_*.so) in the payload"; exit 1; }
-          check "$ART"
+          ARTS="$(find "$WORK/.cache/jac/rt" -path '*/_precompiled/native/*' -name 'libjac_*.so')"
+          [ -n "$ARTS" ] || { echo "::error::no sealed native artifacts (libjac_*.so) in the payload"; exit 1; }
+          while IFS= read -r a; do check "$a"; done <<< "$ARTS"
 
       # Intel-mac mirror of the glibc check: neither the launcher nor the shim
       # may require a macOS newer than the zig_target floor, and the shim must
@@ -372,16 +392,21 @@ jobs:
           if otool -L "$SHIM" | grep -E "/opt/homebrew|/usr/local"; then
             echo "::error::$SHIM links Homebrew dylibs; the from-source slice must not."; exit 1
           fi
-          # Sealed AOT compiler artifacts (native lexer): materialize the
-          # payload once, then hold the artifact to the same minos floor and
-          # the no-Homebrew rule.
+          # Sealed AOT compiler artifacts (the materializer root carrying
+          # the parser, plus unitree): materialize the payload once, then
+          # hold EVERY shipped artifact to the minos floor and the
+          # no-Homebrew rule. The sealed parser serves all parse trees with
+          # no bytecode fallback, so a missing artifact is a broken binary.
           WORK="$(mktemp -d)"
           env -i HOME="$WORK" PATH=/usr/bin:/bin ./zig-out/bin/jac --version >/dev/null
-          ART="$(find "$WORK/.cache/jac/rt" -path '*/_precompiled/native/*' -name 'libjac_*.dylib' | head -1)"
-          [ -n "$ART" ] || { echo "::error::no sealed native artifact (libjac_*.dylib) in the payload"; exit 1; }
-          if otool -L "$ART" | grep -E "/opt/homebrew|/usr/local"; then
-            echo "::error::$ART links Homebrew dylibs."; exit 1
-          fi
+          ARTS="$(find "$WORK/.cache/jac/rt" -path '*/_precompiled/native/*' -name 'libjac_*.dylib')"
+          [ -n "$ARTS" ] || { echo "::error::no sealed native artifacts (libjac_*.dylib) in the payload"; exit 1; }
+          while IFS= read -r a; do
+            check "$a"
+            if otool -L "$a" | grep -E "/opt/homebrew|/usr/local"; then
+              echo "::error::$a links Homebrew dylibs."; exit 1
+            fi
+          done <<< "$ARTS"
 
       # A release-channel cold build just produced (and floor-verified) the
       # shim the deps release was missing: publish it so the next release with
