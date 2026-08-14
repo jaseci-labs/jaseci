@@ -129,3 +129,87 @@ test "static and pwa dev flows inherit the compile-before-serve fix" {
         "PWA projects compile before Vite starts"
     );
 }
+
+
+obj _FakeConfig {
+    has meta_data: dict;
+
+    def get_plugin_config(name: str) -> dict {
+        return {"app_meta_data": self.meta_data};
+    }
+}
+
+
+"""The dev server writes its own index.html rather than going through
+HeaderBuilder, so `[client.app_meta_data] scripts` has to be injected there too.
+Without it an SDK the app depends on is present in `jac build` output but
+silently missing under `jac start --dev`, which reads as a bug."""
+test "configured scripts reach the dev server index.html" {
+    import tempfile;
+    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+
+    def _fake_get_config -> any {
+        return _FakeConfig(
+            meta_data={
+                "title": "ignored in dev",
+                "scripts": [{"src": "https://js.stripe.com/v3", "defer": True}]
+            }
+        );
+    }
+
+    with tempfile.TemporaryDirectory() as tmp {
+        build_dir = Path(tmp);
+        bundler = ViteBundler(project_dir=build_dir);
+        with unittest.mock.patch(
+            "jaclang.project.config.get_config", _fake_get_config
+        ) {
+            bundler._ensure_dev_index_html(build_dir);
+        }
+        page = (build_dir / "index.html").read_text(encoding="utf-8");
+    }
+
+    assert '<script src="https://js.stripe.com/v3" defer></script>' in page , (
+        "scripts configured in jac.toml must be injected into the dev "
+        f"index.html; got:\n{page}"
+    );
+    assert page.index("js.stripe.com") < page.index("</head>") , (
+        "the injected script must land inside the head, not after it"
+    );
+    assert "ignored in dev" not in page , (
+        "only the scripts key is injected in dev; the dev index keeps its own "
+        "title and meta tags"
+    );
+}
+
+
+"""Dev serves the project's public/ dir at the web root (#8124): the generated
+Vite DEV config points publicDir at <projectRoot>/public so /brand/logo.png
+resolves natively, while the build config keeps publicDir disabled -- the
+runtime serves public/ from source, so copying it into dist would double the
+bytes and drift."""
+test "vite dev config serves the project public/ dir; build config does not" {
+    import tempfile;
+    import from jaclang.runtimelib.client.vite_bundler { ViteBundler }
+
+    with tempfile.TemporaryDirectory() as tmp {
+        bundler = ViteBundler(project_dir=Path(tmp), output_dir=Path(tmp) / "dist");
+        dev = bundler._generate_vite_config_content(
+            is_dev=True, entry_file=Path("_entry.js"), api_base_url="", base_path="/"
+        );
+        build = bundler._generate_vite_config_content(
+            is_dev=False, entry_file=Path("_entry.js"), api_base_url="", base_path="/"
+        );
+    }
+
+    assert 'publicDir: path.resolve(projectRoot, "public")' in dev , (
+        "the dev config must serve the project public/ dir at the web root so "
+        f"/brand/logo.png resolves natively; got:\n{dev}"
+    );
+    assert "publicDir: false" not in dev , (
+        "the dev config must not disable publicDir"
+    );
+    assert "publicDir: false" in build , (
+        "the build config must keep publicDir disabled -- the runtime serves "
+        "public/ from source, not a copy in dist"
+    );
+}
