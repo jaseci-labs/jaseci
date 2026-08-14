@@ -246,12 +246,20 @@ impl DeclImplMatchPass.validate_params_match(
             );
         } elif (params_decl and params_defn) {
             for idx in range(len(params_decl)) {
-                decl_name = params_decl[idx].name.value;
-                impl_name = params_defn[idx].name.value;
+                decl_param = params_decl[idx];
+                defn_param = params_defn[idx];
+                if not (
+                    isinstance(decl_param, uni.ParamVar)
+                    and isinstance(defn_param, uni.ParamVar)
+                ) {
+                    continue;
+                }
+                decl_name = decl_param.name.value;
+                impl_name = defn_param.name.value;
                 if decl_name != impl_name {
                     self.emit(
                         W2013,
-                        node_override=params_defn[idx].name,
+                        node_override=defn_param.name,
                         decl_name=decl_name,
                         impl_name=impl_name
                     );

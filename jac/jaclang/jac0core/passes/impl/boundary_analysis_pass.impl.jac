@@ -29,6 +29,9 @@ impl BoundaryAnalysisPass._signature_of_decl(
         sig = decl.signature;
         for plist in [sig.posonly_params, sig.params or [], sig.kwonlyargs] {
             for p in plist {
+                if not isinstance(p, uni.ParamVar) {
+                    continue;
+                }
                 param_names.append(p.sym_name);
                 if p.type_tag {
                     param_types.append(self._extract_type_name(p.type_tag.tag));
@@ -1238,7 +1241,7 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
                     }
                 }
                 for p in sig.params {
-                    if p.type_tag {
+                    if isinstance(p, uni.ParamVar) and p.type_tag {
                         for tn in self._extract_all_type_names(p.type_tag.tag) {
                             self._collect_boundary_type(tn, cl_src_mod);
                         }
@@ -1267,7 +1270,7 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
                     }
                 }
                 for p in sig.params {
-                    if p.type_tag {
+                    if isinstance(p, uni.ParamVar) and p.type_tag {
                         for tn in self._extract_all_type_names(p.type_tag.tag) {
                             self._collect_boundary_type(tn, source_mod_obj);
                         }

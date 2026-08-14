@@ -135,10 +135,15 @@ def synthesize_self_type_var -> types.TypeVarType;
 def apply_solved_type_vars(
     ty: types.TypeBase,
     solution: dict[str, types.TypeBase],
-    class_type: (types.ClassType | None) = None
+    class_type: (types.ClassType | None) = None,
+    shadowed: (set[str] | None) = None
 ) -> types.TypeBase;
 
 def build_type_var_solution(class_type: types.ClassType) -> dict[str, types.TypeBase];
+
+def shadowed_type_var_names(
+    solution: dict[str, types.TypeBase], declaring_class: (types.ClassType | None)
+) -> (set[str] | None);
 
 def build_solution_from_specialized_class(
     class_type: types.ClassType

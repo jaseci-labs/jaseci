@@ -64,6 +64,26 @@ Bug index:
                 off the statement), so a statement ending a block never reached
                 the statement after the block and its write stayed invisible to
                 the narrowing walk (#8059)
+  #TVARSCOPE-1 - a method's own TypeVar was substituted by the enclosing
+                 class's inherited type-var solution because solutions are
+                 keyed by TypeVar *name*; a generic base specialized anywhere
+                 in the MRO pinned every same-named method TypeVar in the
+                 whole subtree (#8201)
+  #OVLDTVAR-1 - a magic-method overload returned its declared return type
+                without solving the overload's own TypeVars from the
+                arguments, so `list[A] + list[B]` typed as `list[_S | A]`
+                with `_S` free (#8201)
+  #COMPRASSIGN-1 - a comprehension on an assignment RHS was linked into the
+                   CFG from an ancestor of the assignment instead of from the
+                   assignment itself, so the chain back to the preceding
+                   guards was cut and no enclosing narrowing reached the
+                   comprehension body (#8201)
+  #ELIFSC-1 - an elif (or a nested if) whose condition short-circuits got no
+              false target, because the search for the following statement
+              only looked in the immediate parent's body; the edge out of the
+              chain dangled and every narrowing before it was lost. A branch
+              edge that cannot compute a narrowing also collapsed the merge
+              instead of keeping what its predecessors established (#8201)
   #BLOCKANN-1 - a typed declaration inside a block (a while/if/for/try body)
                 was inserted into that block's scope while bare assignments
                 hoist to the enclosing function, so one variable became two
@@ -1549,4 +1569,121 @@ test "bug_loopwiden1_body_reassign_forces_conservative_merge" {
             f"diagnosed type must be the full `Item | None`. Got: {e}"
         );
     }
+}
+
+# =========================================================================
+# Bug #TVARSCOPE-1 / #8201: TypeVar solutions are keyed by name, so a
+# method's own TypeVar collided with a same-named class type parameter
+# inherited from a specialized generic base.
+#
+# `Leaf(Mid)` and `Mid(Carrier[Alpha, Beta])` put `T -> Alpha` in the
+# solution built for `Leaf`. `Leaf.pick` declares its own module-level `T`,
+# a different type variable that merely shares the name, and it was
+# rewritten to `Alpha` at every call site. A static member also dropped the
+# receiver class entirely, which turned on the permissive "trust the name"
+# rule in apply_solved_type_vars.
+#
+# The rule is lexical: only the type parameters bound by the class that
+# *declares* the member (or one of its enclosing class scopes) may be
+# substituted, and a function's own type parameters shadow the class's.
+# =========================================================================
+test "bug_tvarscope1_method_typevar_not_bound_by_class_solution" {
+    program = compile_and_check("checker_bug_method_typevar_scope.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TVARSCOPE-1: a method's own TypeVar must stay free of the "
+        "enclosing class's inherited type-var solution. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARSCOPE-1, negative: the lexical restriction must not stop a real
+# class type parameter from being solved through the MRO. `Carrier.move`
+# and `Carrier.build` are declared on the generic class, so `T`/`R` are
+# theirs and `Leaf` must still see them as `Alpha`/`Beta`.
+# =========================================================================
+test "bug_tvarscope1_class_typevar_still_solved_through_mro" {
+    program = compile_and_check("checker_bug_method_typevar_scope_negative.jac");
+
+    error_text = "\n".join([str(e) for e in program.errors_had]);
+    assert len(program.errors_had) == 2 , (
+        "Bug #TVARSCOPE-1: an inherited class type parameter must still be "
+        "solved from the base specialization, so passing a Beta where Alpha "
+        f"is expected stays an error. Got errors: {error_text}"
+    );
+    assert "Alpha" in error_text , (
+        "Bug #TVARSCOPE-1: the expected parameter type must read Alpha, not "
+        f"the unsolved type variable. Got: {error_text}"
+    );
+}
+
+# =========================================================================
+# Bug #OVLDTVAR-1 / #8201: get_type_of_magic_method_call returned the
+# matched overload's declared return type verbatim. The overload had been
+# specialized for the receiver class, so `_T` was bound, but the overload's
+# *own* TypeVars were never solved from the arguments.
+#
+# `list[A] + list[B]` picks `__add__(self, value: list[_S]) -> list[_S | _T]`
+# and used to yield `list[_S | A]`, whose element type has no attributes at
+# all, so every member access on the result was a false E1099.
+# =========================================================================
+test "bug_ovldtvar1_magic_overload_solves_own_typevars" {
+    program = compile_and_check("checker_bug_magic_overload_typevar.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #OVLDTVAR-1: a magic-method overload must solve its own "
+        "TypeVars from the argument types before its return type is used. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #COMPRASSIGN-1 / #8201: a comprehension sitting on an assignment RHS
+# was deliberately not linked from the assignment (#6061), to keep
+# `out = [t for t in out]` from resolving `out` through the write that is
+# still in flight. But the walk went to the assignment's *parent* rather
+# than to its predecessors, so the chain back to the preceding guards was
+# cut and the comprehension body saw only declared types.
+#
+# The comprehension now links from the enclosing statement, and the
+# narrowing walk treats an assignment predecessor that encloses the node
+# being evaluated as a pass-through: the RHS runs before the write, so the
+# write is not visible to it. That is both the fix and the original
+# protection, stated where it belongs.
+# =========================================================================
+test "bug_comprassign1_comprehension_on_assignment_rhs_keeps_narrowing" {
+    program = compile_and_check("checker_bug_compr_assign_narrowing.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #COMPRASSIGN-1: a comprehension on an assignment RHS must see "
+        "the narrowing that holds at the assignment, and must not resolve "
+        "its own target through the in-flight write. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #ELIFSC-1 / #8201: `elif <a> and <b>` produced no false target.
+# `exit_if_stmt` looked for the statement after the branch with
+# `_find_next_cfg_stmt_after(nd.parent, nd)`, but an elif is its parent's
+# `else_body`, not an entry in `parent.body`, so the search found nothing
+# and the edge out of the chain dangled. `_connect_tails` could not repair
+# it either: the short-circuit entry sitting in `bb_out` made the node look
+# like it already had a false branch. Everything after the chain then fell
+# back to declared types.
+#
+# The search now climbs out of the enclosing if/else nesting, and a branch
+# edge whose narrowing cannot be computed keeps what its predecessors
+# established instead of collapsing the merge -- which is what the
+# short-circuit edge case already did.
+# =========================================================================
+test "bug_elifsc1_short_circuit_elif_keeps_guard_narrowing" {
+    program = compile_and_check("checker_bug_elif_shortcircuit_narrowing.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #ELIFSC-1: the narrowing established by an if guard must "
+        "survive an elif whose condition short-circuits. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
 }

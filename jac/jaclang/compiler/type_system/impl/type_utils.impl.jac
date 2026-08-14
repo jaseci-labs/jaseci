@@ -577,11 +577,16 @@ impl synthesize_self_type_var -> types.TypeVarType {
 impl apply_solved_type_vars(
     ty: types.TypeBase,
     solution: dict[str, types.TypeBase],
-    class_type: (types.ClassType | None) = None
+    class_type: (types.ClassType | None) = None,
+    shadowed: (set[str] | None) = None
 ) -> types.TypeBase {
     if isinstance(ty, types.TypeVarType) {
         if ty.is_self and class_type is not None {
             return class_type.clone_as_instance();
+        }
+
+        if shadowed is not None and ty.name in shadowed {
+            return ty;
         }
 
         is_declared_class_param = ty.is_class_type_param;
@@ -636,14 +641,16 @@ impl apply_solved_type_vars(
     }
 
     if isinstance(ty, types.FunctionType) {
-        return _apply_to_function(ty, solution, class_type);
+        return _apply_to_function(ty, solution, class_type, shadowed);
     }
 
     if isinstance(ty, types.ClassType) and ty.private.type_args {
         new_args: list[types.TypeBase] = [];
         any_changed = False;
         for type_arg in ty.private.type_args {
-            specialized = apply_solved_type_vars(type_arg, solution, class_type);
+            specialized = apply_solved_type_vars(
+                type_arg, solution, class_type, shadowed
+            );
             new_args.append(specialized);
             if specialized is not type_arg {
                 any_changed = True;
@@ -655,11 +662,41 @@ impl apply_solved_type_vars(
     }
 
     if isinstance(ty, types.UnionType) {
-        new_types = [apply_solved_type_vars(t, solution, class_type) for t in ty.types];
+        new_types = [
+            apply_solved_type_vars(t, solution, class_type, shadowed) for t in ty.types
+        ];
         return types.UnionType(types=new_types);
     }
 
     return ty;
+}
+
+impl shadowed_type_var_names(
+    solution: dict[str, types.TypeBase], declaring_class: (types.ClassType | None)
+) -> (set[str] | None) {
+    if declaring_class is None {
+        return None;
+    }
+    declared: set[str] = set();
+    for tp in declaring_class.shared.type_params or [] {
+        if tp.name {
+            declared.add(tp.name);
+        }
+    }
+    scope: uni.UniNode | None = declaring_class.shared.symbol_table;
+    while scope is not None {
+        if isinstance(scope, uni.Archetype) {
+            for tp_node in scope.type_params or [] {
+                declared.add(tp_node.sym_name);
+            }
+        }
+        scope = scope.parent;
+    }
+    return {
+        name
+        for name in solution
+        if name not in declared
+    };
 }
 
 impl build_type_var_solution(class_type: types.ClassType) -> dict[str, types.TypeBase] {
@@ -820,7 +857,8 @@ def _apply_solution_to_class(
 def _apply_to_function(
     func: types.FunctionType,
     solution: dict[str, types.TypeBase],
-    class_type: (types.ClassType | None)
+    class_type: (types.ClassType | None),
+    shadowed: (set[str] | None) = None
 ) -> types.FunctionType {
     clone = types.FunctionType(
         func_name=func.func_name,
@@ -830,17 +868,27 @@ def _apply_to_function(
         type_params=func.type_params,
     );
 
+    own_shadowed = shadowed;
+    if shadowed is not None and func.type_params {
+        own_shadowed = shadowed
+            | {
+                tp.name
+                for tp in func.type_params
+                if tp.name
+            };
+    }
+
     for param in clone.parameters {
         if param.param_type {
             param.param_type = apply_solved_type_vars(
-                param.param_type, solution, class_type
+                param.param_type, solution, class_type, own_shadowed
             );
         }
     }
 
     if clone.return_type {
         clone.return_type = apply_solved_type_vars(
-            clone.return_type, solution, class_type
+            clone.return_type, solution, class_type, own_shadowed
         );
     }
 

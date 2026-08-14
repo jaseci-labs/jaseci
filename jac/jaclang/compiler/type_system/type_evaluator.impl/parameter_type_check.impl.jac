@@ -1,9 +1,13 @@
 impl TypeEvaluator.validate_arg_types(
-    args: MatchArgsToParamsResult, checking_overload: bool = False
+    args: MatchArgsToParamsResult,
+    checking_overload: bool = False,
+    solved_type_vars: (dict[str, TypeBase] | None) = None
 ) -> bool {
     has_errors: bool = False;
 
-    bindings: dict[str, TypeBase] = {};
+    bindings: dict[str, TypeBase] = solved_type_vars
+        if solved_type_vars is not None
+        else {};
     for (arg, param) in args.arg_params.items() {
         if param is None or param.param_type is None {
             continue;
