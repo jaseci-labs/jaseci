@@ -23,10 +23,14 @@ import from jaclang.jac0core.constant { SymbolType, Tokens as Tok }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 
 class EndpointEffectPass(UniPass) {
+    has _is_writer: bool,
+        _touches: set[str],
+        _visited: set[int];
+
     def before_pass(self: EndpointEffectPass) {
-        self._is_writer: bool = False;
-        self._touches: set[str] = set();
-        self._visited: set[int] = set();
+        self._is_writer = False;
+        self._touches = set();
+        self._visited = set();
     }
 
     def enter_ability(self: EndpointEffectPass, nd: Ability) {

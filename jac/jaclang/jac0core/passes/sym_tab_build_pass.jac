@@ -56,6 +56,8 @@ import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.diagnostics { E0064, E0077 }
 
 class SymTabBuildPass(UniPass) {
+    has cur_sym_tab: list[UniScopeNode];
+
     def before_pass(self: SymTabBuildPass) -> None;
     def push_scope_and_link(self: SymTabBuildPass, key_node: UniScopeNode) -> None;
     def pop_scope(self: SymTabBuildPass) -> UniScopeNode;

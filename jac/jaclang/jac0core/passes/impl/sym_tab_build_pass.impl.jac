@@ -1,5 +1,5 @@
 impl SymTabBuildPass.before_pass(self: SymTabBuildPass) -> None {
-    self.cur_sym_tab: list[UniScopeNode] = [];
+    self.cur_sym_tab = [];
 }
 
 impl SymTabBuildPass.push_scope_and_link(
