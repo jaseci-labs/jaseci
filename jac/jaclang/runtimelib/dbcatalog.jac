@@ -10,28 +10,42 @@ glob logger = logging.getLogger(__name__),
      DB_PREFIX = 'jac_',
      SCRATCH_PREFIX = 'jac_scratch_',
      DERIVED_TABLES = {'graph_types'},
+     SCRATCH_HEARTBEAT_SECONDS = 60,
+     UNREACHABLE_HOST_GRACE_SECONDS = 1800,
+     LIVE_PID_GRACE_SECONDS = 86400,
+     SCRATCH_CONDEMN_SEPARATION_SECONDS = 3600,
      __all__ = [
          'DbKind',
          'DbRecord',
          'DB_PREFIX',
          'DERIVED_TABLES',
+         'LIVE_PID_GRACE_SECONDS',
          'MAINTENANCE_DB',
          'REGISTRY_TABLE',
+         'SCRATCH_CONDEMN_SEPARATION_SECONDS',
+         'SCRATCH_HEARTBEAT_SECONDS',
          'SCRATCH_PREFIX',
+         'UNREACHABLE_HOST_GRACE_SECONDS',
          'admin_conninfo',
+         'condemn_stale_scratch',
          'connect_admin',
          'dead_scratch_databases',
          'drop_database',
+         'drop_if_still_dead',
          'ensure_registry',
          'expired_databases',
          'forget_database',
          'holds_no_data',
          'is_jac_database',
          'list_databases',
+         'load_record',
          'process_alive',
          'record_database',
          'sqlstate_of',
-         'this_host'
+         'start_heartbeat',
+         'stop_heartbeat',
+         'this_host',
+         'touch_heartbeat'
      ];
 
 
@@ -47,10 +61,18 @@ obj DbRecord {
         host: str = '',
         pid: int = 0,
         created_at: str = '',
-        last_used_at: str = '';
+        last_used_at: str = '',
+        heartbeat_age_seconds: int = -1,
+        has_sessions: bool = False,
+        condemned_age_seconds: int = -1;
 
     def is_scratch -> bool;
+    def is_tracked_scratch -> bool;
     def is_dead_scratch -> bool;
+    def pid_confirmed_dead -> bool;
+    def heartbeat_stopped -> bool;
+    def looks_abandoned -> bool;
+    def dead_scratch_reason -> str;
     def is_orphaned -> bool;
     def state -> str;
 }
@@ -67,7 +89,13 @@ def record_database(conn: Any, database: str, kind: DbKind, owner_path: str) -> 
 
 def forget_database(conn: Any, database: str) -> None;
 def list_databases(conn: Any) -> list[DbRecord];
+def load_record(conn: Any, database: str) -> (DbRecord | None);
 def drop_database(conn: Any, database: str, force: bool = False) -> bool;
+def drop_if_still_dead(conn: Any, database: str) -> bool;
+def condemn_stale_scratch(conn: Any, records: list[DbRecord]) -> list[str];
 def process_alive(host: str, pid: int) -> bool;
 def dead_scratch_databases(records: list[DbRecord]) -> list[str];
 def expired_databases(conn: Any, days: int, keep: str) -> list[str];
+def touch_heartbeat(conn: Any, database: str) -> bool;
+def start_heartbeat(info: ConnInfo, database: str) -> None;
+def stop_heartbeat(database: str) -> None;

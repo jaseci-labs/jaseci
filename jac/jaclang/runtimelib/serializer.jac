@@ -2,6 +2,7 @@ import importlib;
 import logging;
 import sys;
 import threading;
+import from time { monotonic }
 import from dataclasses { fields, is_dataclass, MISSING }
 import from datetime { date, datetime, time }
 import from enum { Enum }
@@ -34,14 +35,23 @@ import from jaclang.jac0core.constructs {
 glob logger = logging.getLogger(__name__),
      FINGERPRINT_LENGTH: int = 16,
      _MAX_WARNED_CLASS_KEYS: int = 1024,
-     _MAX_UNIMPORTABLE_MODULES: int = 1024;
+     _MAX_IMPORT_FAILURES: int = 1024,
+     _IMPORT_RETRY_SECONDS: float = 30.0,
+     _IMPORT_RETRY_CEILING_SECONDS: float = 900.0,
+     _IMPORT_RETRY_MAX_DOUBLINGS: int = 8;
+
+obj ImportFailure {
+    has attempts: int = 0,
+        failed_at: float = 0.0;
+}
 
 obj Serializer {
     static has _registry: dict[str, type] = {},
         _aliases: dict[str, str] = {},
         _warn_counts: dict[str, int] = {},
         _warn_dedup_saturated: bool = False,
-        _unimportable_modules: set[str] = set(),
+        _import_failures: dict[str, ImportFailure] = {},
+        _import_lock: threading.Lock = threading.Lock(),
         _warn_lock: any = threading.Lock();
 
     static def register(cls: type) -> None;
@@ -82,6 +92,10 @@ obj Serializer {
         module_name: str, class_name: str
     ) -> (type | None);
 
+    static def _import_allowed(module_name: str) -> bool;
+    static def _record_import_failure(module_name: str) -> float;
+    static def _clear_import_failure(module_name: str) -> None;
+    static def _reset_import_failures -> None;
     static def _warn_occurrence(scope: str, key: str) -> int;
     static def _is_report_threshold(n: int) -> bool;
     static def _occurrence_note(n: int) -> str;

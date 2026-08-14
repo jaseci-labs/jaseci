@@ -186,13 +186,7 @@ impl PgStore._ensure_ready -> None {
                 self._booted = True;
             }
             if self.auto_schema {
-                ns = _store_ns(self.conninfo);
-                with _schema_gate {
-                    if ns not in _schema_ready {
-                        self.ensure_schema(self.promotions);
-                        _schema_ready.add(ns);
-                    }
-                }
+                self.ensure_schema_once(self.promotions);
             }
             self._ready = True;
         } finally {
@@ -437,6 +431,21 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
         }
         self.kv_put(SCHEMA_STAMP_KEY, fp);
         self._load_known_types();
+    }
+}
+
+
+impl PgStore.ensure_schema_once(promotions: dict[str, list[str]]) -> None {
+    ns = _store_ns(self.conninfo);
+    if ns in _schema_ready {
+        return;
+    }
+    with _schema_gate {
+        if ns in _schema_ready {
+            return;
+        }
+        self.ensure_schema(promotions);
+        _schema_ready.add(ns);
     }
 }
 
