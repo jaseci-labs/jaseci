@@ -18,10 +18,11 @@ struct the unit knows.* `sem_token` reads `type(self.type).__name__`, and
 `self.type` is `TypeBase | None` -- a class reached through a typing-only
 import, so the slot is an opaque object pointer with no struct to freeze a
 name against and no known vtable to walk, exactly like a type-erased generic
-slot. The read has to resolve the runtime class the way `get_struct_view`
-does, off the class-name stamp in the rc header. An option is here for the
-same reason with different storage: its JacOpt payload has to be unwrapped
-before anything can be read off it, and the absent arm is `NoneType`.
+slot. The read has to resolve the runtime class the way
+`_emit_isinstance_ptr_tags` does, off the class-name stamp in the rc header.
+An option is here for the same reason with different storage: its JacOpt
+payload has to be unwrapped before anything can be read off it, and the absent
+arm is `NoneType`.
 
 Every function is additionally compared against the sv/bytecode result of the
 same fixture, the parity idiom `union_slot_ops` uses: a class-name read that
