@@ -2,8 +2,6 @@ import jaclang.jac0core.parser.lexer as na_lexer;
 
 import from .lexer { Lexer }
 import from .parser { Parser }
-import from jaclang.jac0core.arena { SyntaxArena }
-import from jaclang.jac0core.arena_materialize { materialize_module }
 import from jaclang.jac0core.codeinfo { CodeLocInfo }
 import from jaclang.jac0core.diagnostics { DIAGNOSTICS }
 import from jaclang.jac0core.passes.transform { Alert }
@@ -16,152 +14,28 @@ def _native_parse -> any {
     if _NATIVE_PARSE_MEMO {
         return _NATIVE_PARSE_MEMO[0];
     }
-    fn: any = None;
-    try {
-        import from jaclang.jac0core.sealed { native_artifact_for }
-        found = native_artifact_for("jaclang.jac0core.parser.parser");
-        if found is not None {
-            import jaclang.jac0core.parser.parser as na_parser;
-            import from jaclang.jac0core.native_dylib { DylibEngine, layout_from_dict }
-            import from jaclang.jac0core.native_marshal {
-                build_ctypes_classes,
-                build_enum_maps,
-                wrap_native_function
-            }
-            (lib_path, layout_dict) = found;
-            eng = DylibEngine(lib_path);
-            eng.initialize();
-            layout = layout_from_dict(layout_dict);
-            ns = na_parser.__dict__;
-            cc = build_ctypes_classes(layout);
-            em = build_enum_maps(layout, ns);
-            pc: dict = {};
-            for sn in layout.structs {
-                if ns.get(sn) is not None {
-                    pc[sn] = ns[sn];
-                }
-            }
-            fl = layout.functions.get("parse_program");
-            if fl is not None {
-                fn = wrap_native_function(eng, fl, cc, em, pc, layout=layout);
-                if fn is not None {
-                    fn.__jac_engine__ = eng;
-                    fn.__jac_strtab_blob__ = None;
-                }
-            }
-            if fn is not None and not _canary_ok(fn, None) {
-                fn = None;
-            }
-        }
-    } except Exception {
-        fn = None;
+    import from jaclang.jac0core.sealed { native_artifact_for }
+    found = native_artifact_for("jaclang.compiler.native_materialize");
+    if found is None {
+        _NATIVE_PARSE_MEMO.append(None);
+        return None;
     }
-    _NATIVE_PARSE_MEMO.append(fn);
-    return fn;
+    import from jaclang.jac0core.parser.materialize { bind_native_parser }
+    (lib_path, layout_dict) = found;
+    np = bind_native_parser(lib_path, layout_dict);
+    _NATIVE_PARSE_MEMO.append(np);
+    return np;
 }
 
-
-def _split_strtab(blob: str) -> list[str] {
-    out: list[str] = [];
-    i = 0;
-    n = len(blob);
-    while i < n {
-        j = blob.index(":", i);
-        ln = int(blob[i:j]);
-        out.append(blob[j + 1:j + 1 + ln]);
-        i = j + 1 + ln;
+def _require_bootstrap_tier(op: str) {
+    import from jaclang.jac0core.sealed { native_tier_required }
+    if native_tier_required() {
+        raise RuntimeError(
+            f"{op}: this sealed image declares native parser roots, but the "
+            "bytecode parser was reached. The install is broken; reinstall "
+            "or rebuild the payload."
+        );
     }
-    return out;
-}
-
-
-glob _CANARY_LINES: tuple = (
-         "import os;",
-         "glob G: int = 42, H: str = 'control-flow harness (Branch 4)';",
-         "enum E { A = 1, B = 2 }",
-         "obj Canary {",
-         "    has a: int = 0, b: (str | None) = None, c: list[int] = [];",
-         "    def m(p: int = 3) -> int;",
-         "}",
-         "impl Canary.m(p: int = 3) -> int {",
-         "    if p > 1 and p < 10 or not p {",
-         "        for i in range(p) {",
-         "            self.a += i * 2 - 1;",
-         "        }",
-         "    } elif p == 0 {",
-         "        while self.a {",
-         "            self.a -= 1;",
-         "        }",
-         "    } else {",
-         "        try {",
-         "            self.b = f'v={p} w={self.a}';",
-         "        } except Exception as e {",
-         "            raise;",
-         "        }",
-         "    }",
-         "    return self.a if self.a else -1;",
-         "}",
-         "test canary_t { assert Canary(a=5).m(2) >= -1; }",
-         "with entry { print({'k': [1, 2.5, True, None]}); }",
-
-     );
-
-def _canary_src -> str {
-    nl = chr(10);
-    return nl.join(list(_CANARY_LINES));
-}
-
-
-def _canary_ok(fn: any, blob_fn: any) -> bool {
-    try {
-        r = fn(_canary_src(), "__seal_selfcheck__.jac");
-        native_mod = materialize_module(
-            _arena_from_native(r[0], blob_fn),
-            Source(_canary_src(), mod_path="__seal_selfcheck__.jac")
-        );
-        (tokens, _c, _ld, _le) = na_lexer.tokenize_full(
-            _canary_src(), "__seal_selfcheck__.jac"
-        );
-        pyp = Parser(
-            tokens=tokens, file_path="__seal_selfcheck__.jac", source_code=_canary_src()
-        );
-        pyp.parse();
-        py_mod = materialize_module(
-            pyp.b, Source(_canary_src(), mod_path="__seal_selfcheck__.jac")
-        );
-        return (
-            r[1] == pyp.error_count
-            and len(native_mod._in_mod_nodes) == len(py_mod._in_mod_nodes)
-            and native_mod.unparse(requires_format=False)
-                == py_mod.unparse(requires_format=False)
-        );
-    } except Exception {
-        return False;
-    }
-}
-
-
-def _arena_from_native(view: any, blob_fn: any) -> SyntaxArena {
-    import from jaclang.jac0core.native_marshal { bulk_int_list, bulk_str_list }
-    a = SyntaxArena();
-    a.adopt_columns(
-        kinds=bulk_int_list(view.kinds),
-        kid_los=bulk_int_list(view.kid_los),
-        kid_ns=bulk_int_list(view.kid_ns),
-        arg_los=bulk_int_list(view.arg_los),
-        arg_ns=bulk_int_list(view.arg_ns),
-        kids=bulk_int_list(view.kids),
-        args=bulk_int_list(view.args),
-        seqs=bulk_int_list(view.seqs),
-        posts=bulk_int_list(view.posts),
-        strtab=(
-            _split_strtab(blob_fn(view))
-                if blob_fn is not None
-                else bulk_str_list(view.strtab)
-        ),
-        root_id=view.root_id
-    );
-    return a;
 }
 
 
@@ -199,11 +73,10 @@ def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Sourc
 def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, list)] {
     _np = _native_parse();
     if _np is not None {
-        (_arena_v, p_errs, p_diags, _comments, lex_diags, lex_errs) = _np(
-            source, file_path
-        );
+        (p_errs, lex_errs, p_diags, lex_diags) = _np.parse_diags(source, file_path);
         return (p_errs > 0 or lex_errs > 0, list(p_diags), list(lex_diags));
     }
+    _require_bootstrap_tier("parse_diags");
     (tokens, _comments, lex_diags, lex_errs) = na_lexer.tokenize_full(
         source, file_path
     );
@@ -221,43 +94,42 @@ def parse(
 ) -> tuple[Module, bool] {
     _np = _native_parse();
     if _np is not None {
-        (arena_v, p_errs, p_diags, comments, lex_diags, lex_errs) = _np(
+        (module, p_errs, p_diags, comments, lex_diags, lex_errs) = _np.parse(
             source, file_path
         );
-        arena = _arena_from_native(arena_v, _np.__jac_strtab_blob__);
     } else {
+        _require_bootstrap_tier("parse");
         (tokens, comments, lex_diags, lex_errs) = na_lexer.tokenize_full(
             source, file_path
         );
         parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
-        parser.parse();
-        arena = parser.b;
+        module = parser.parse();
         p_errs = parser.error_count;
         p_diags = parser.diags;
     }
 
     ct_errs: list = [];
     if expand and p_errs == 0 and lex_errs == 0 {
-        import from jaclang.jac0core.ct_expand { arena_has_ct, expand_arena }
-        if arena_has_ct(arena) {
-            ct_errs = expand_arena(arena, file_path);
+        import from jaclang.jac0core.ct_expand { expand_module, module_has_ct }
+        if module_has_ct(module) {
+            ct_errs = expand_module(module, file_path);
         }
     }
 
     diag_src: Source | None = None;
     if prog is not None and lex_diags {
-        diag_src = Source(source, mod_path=file_path);
+        diag_src = module.source;
         _replay_diags(lex_diags, Lexer, prog, diag_src);
     }
     if prog is not None and p_diags {
         if diag_src is None {
-            diag_src = Source(source, mod_path=file_path);
+            diag_src = module.source;
         }
         _replay_diags(p_diags, Parser, prog, diag_src);
     }
     if ct_errs {
         if diag_src is None {
-            diag_src = Source(source, mod_path=file_path);
+            diag_src = module.source;
         }
         for d in ct_errs {
             dtok = UniToken(
@@ -279,7 +151,6 @@ def parse(
             }
         }
     }
-    module = materialize_module(arena, Source(source, mod_path=file_path));
 
     if module.source and comments {
         for cdata in comments {

@@ -137,10 +137,52 @@ impl NaIRGenPass._codegen_required(nd: (uni.UniNode | None)) -> (ir.Value | None
     }
     _errs_before = len(self.errors_had);
     val = self._codegen_expr(nd);
-    if val is None and len(self.errors_had) == _errs_before {
+    if val is None
+        and len(self.errors_had) == _errs_before
+        and not self._reads_unlowered_local(nd) {
         self.emit(E5092, node_override=nd, kind="expression", name=type(nd).__name__);
     }
     return val;
+}
+
+impl NaIRGenPass._current_fn_key -> (str | None) {
+    _bb = self._builder.block if self._builder is not None else None;
+    _fn = _bb.parent if _bb is not None else None;
+    return _fn.name if _fn is not None else None;
+}
+
+impl NaIRGenPass._mark_local_unlowered(name: str) -> None {
+    _key = self._current_fn_key();
+    if _key is None {
+        return;
+    }
+    _names = self._unlowered_locals.get(_key);
+    if _names is None {
+        _names = set();
+        self._unlowered_locals[_key] = _names;
+    }
+    _names.add(name);
+}
+
+impl NaIRGenPass._reads_unlowered_local(nd: uni.UniNode) -> bool {
+    if not self._unlowered_locals {
+        return False;
+    }
+    _key = self._current_fn_key();
+    _names = self._unlowered_locals.get(_key) if _key is not None else None;
+    if not _names {
+        return False;
+    }
+    _reads = [nd] if isinstance(nd, uni.Name) else nd.get_all_sub_nodes(uni.Name);
+    for _sub in _reads {
+        if _sub.value in _names
+            and _sub.value not in self.local_vars
+            and _sub.value not in self.func_symtab
+            and _sub.value not in self.global_vars {
+            return True;
+        }
+    }
+    return False;
 }
 
 impl NaIRGenPass._codegen_yield(nd: uni.YieldExpr) -> (ir.Value | None) {
@@ -369,7 +411,7 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
                         help_text="An expression in this lambda body could not lower natively; an unresolvable name here usually means the lambda reads a variable its enclosing frame cannot expose (e.g. a module-entry local)."
                     );
                 }
-                self.builder.ret(ir.Constant(ret_type, 0));
+                self.builder.ret(self._zero_const(ret_type));
             }
         } else {
             self._codegen_body(body);
@@ -388,7 +430,7 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
                     help_text="An expression in this lambda body could not lower natively; an unresolvable name here usually means the lambda reads a variable its enclosing frame cannot expose (e.g. a module-entry local)."
                 );
             }
-            self.builder.ret(ir.Constant(ret_type, 0));
+            self.builder.ret(self._zero_const(ret_type));
         }
     }
 
@@ -398,7 +440,7 @@ impl NaIRGenPass._codegen_lambda(nd: uni.LambdaExpr) -> (ir.Value | None) {
             if ret_type == ir.VoidType() {
                 term_builder.ret_void();
             } else {
-                term_builder.ret(ir.Constant(ret_type, 0));
+                term_builder.ret(self._zero_const(ret_type));
             }
         }
     }
@@ -467,7 +509,7 @@ impl NaIRGenPass._codegen_name(nd: uni.Name) -> (ir.Value | None) {
         global_var = self.global_vars[var_name];
         return self.builder.load(global_var, name=f"glob.{var_name}");
     }
-    return None;
+    return self._codegen_class_ref(nd);
 }
 
 impl NaIRGenPass._codegen_pipe_fwd(nd: uni.BinaryExpr) -> (ir.Value | None) {
@@ -777,6 +819,7 @@ impl NaIRGenPass._codegen_compare_link(
         is_not_in = op == Tok.KW_NIN;
         left = self._str_norm(left);
         right = self._str_norm(right);
+        right = self._unwrap_opt_container(right);
         _in_key_nd = left_node.expr
             if isinstance(left_node, uni.CfgExpr)
             else left_node;
@@ -1317,6 +1360,14 @@ impl NaIRGenPass._bool_expr_unify_type(a: ir.Type, b: ir.Type) -> (ir.Type | Non
     _pb = self._opt_ptr_payload_of(b);
     if _pb is not None and _pb == a {
         return a;
+    }
+
+    _a_ptrish = isinstance(a, ir.PointerType)
+        or (_pa is not None and isinstance(_pa, ir.PointerType));
+    _b_ptrish = isinstance(b, ir.PointerType)
+        or (_pb is not None and isinstance(_pb, ir.PointerType));
+    if _a_ptrish and _b_ptrish and (_pa is not None or _pb is not None) {
+        return ir.IntType(8).as_pointer();
     }
     if isinstance(a, ir.DoubleType) and isinstance(b, ir.IntType) {
         return a;

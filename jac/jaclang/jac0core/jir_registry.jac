@@ -68,7 +68,8 @@ glob NODE_SPECS: tuple = (
                  FieldDesc(name="decorators", kind=5),
                  FieldDesc(name="type_params", kind=5),
                  FieldDesc(name="accessor_kind", kind=0),
-                 FieldDesc(name="event_triggers", kind=5)
+                 FieldDesc(name="event_triggers", kind=5),
+                 FieldDesc(name="is_ct_only", kind=2)
              )
          ),
          NodeSpec(
@@ -202,7 +203,7 @@ glob NODE_SPECS: tuple = (
              is_scope=False,
              is_cfg=False,
              is_name_atom=False,
-             fields=(FieldDesc(name="body", kind=6), )
+             fields=(FieldDesc(name="body", kind=5), )
          ),
          NodeSpec(
              type_idx=13,
@@ -804,7 +805,7 @@ glob NODE_SPECS: tuple = (
              type_idx=69,
              class_name="GlobalVars",
              is_scope=False,
-             is_cfg=False,
+             is_cfg=True,
              is_name_atom=False,
              fields=(
                  FieldDesc(name="access", kind=6),
@@ -1245,7 +1246,7 @@ glob NODE_SPECS: tuple = (
              type_idx=110,
              class_name="ModuleCode",
              is_scope=False,
-             is_cfg=False,
+             is_cfg=True,
              is_name_atom=False,
              fields=(
                  FieldDesc(name="is_enum_stmt", kind=2),
@@ -1415,7 +1416,7 @@ glob NODE_SPECS: tuple = (
              type_idx=125,
              class_name="SemDef",
              is_scope=True,
-             is_cfg=False,
+             is_cfg=True,
              is_name_atom=False,
              fields=(
                  FieldDesc(name="doc", kind=6),
@@ -1555,8 +1556,7 @@ glob NODE_SPECS: tuple = (
                  FieldDesc(name="name", kind=4),
                  FieldDesc(name="body", kind=5),
                  FieldDesc(name="description", kind=6),
-                 FieldDesc(name="decorators", kind=5),
-                 FieldDesc(name="TEST_COUNT", kind=1)
+                 FieldDesc(name="decorators", kind=5)
              )
          ),
          NodeSpec(
@@ -1603,7 +1603,7 @@ glob NODE_SPECS: tuple = (
              type_idx=140,
              class_name="TypeAlias",
              is_scope=True,
-             is_cfg=False,
+             is_cfg=True,
              is_name_atom=False,
              fields=(
                  FieldDesc(name="doc", kind=6),

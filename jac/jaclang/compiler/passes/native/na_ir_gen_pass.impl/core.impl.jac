@@ -76,6 +76,8 @@ impl NaIRGenPass.postinit -> None {
     self.type_map["LiteralString"] = self.type_map.get("str", _spec_map["i8*"]);
     self.type_map["Region"] = _spec_map["i8*"];
 
+    self.type_map["type"] = _spec_map["i8*"];
+
     self.complex_struct_type = self.llvm_module.context.get_identified_type(
         "JacComplex"
     );
@@ -278,6 +280,7 @@ impl NaIRGenPass._export_native_layout -> None {
         fields: list[NativeFieldInfo] = [];
         enum_types = self.struct_field_enum_type.get(arch_name, {});
         elem_keys = self.struct_field_elem_keys.get(arch_name, {});
+        _foreign_flds = self.struct_field_foreign.get(arch_name, set());
         for (fname, idx) in sorted(field_indices.items(), key=lambda (x) { x[1]; }) {
             ftype = field_types.get(fname);
             llvm_t = self._llvm_type_str(ftype) if ftype is not None else "i64";
@@ -303,12 +306,16 @@ impl NaIRGenPass._export_native_layout -> None {
                     is_func_ptr=is_fn_ptr,
                     func_param_types=fn_param_types,
                     func_ret_type=fn_ret_type,
-                    elem_keys=elem_keys.get(fname)
+                    elem_keys=elem_keys.get(fname),
+                    foreign=fname in _foreign_flds
                 )
             );
         }
         layout.structs[arch_name] = NativeStructLayout(
-            name=arch_name, fields=fields, has_vtable=self._arch_has_vtable(arch_name)
+            name=arch_name,
+            fields=fields,
+            has_vtable=self._arch_has_vtable(arch_name),
+            accessors=self._exported_accessors(arch_name)
         );
     }
 
@@ -440,6 +447,29 @@ impl NaIRGenPass._export_native_layout -> None {
         );
     }
     self.ir_in.gen.native_layout = layout;
+}
+
+impl NaIRGenPass._exported_accessors(arch_name: str) -> dict[(str, dict[(str, str)])] {
+    out: dict[(str, dict[(str, str)])] = {};
+    lay = self._arch_layout(arch_name);
+    if lay is None {
+        return out;
+    }
+    for slot in lay.method_index {
+        parts = slot.rsplit(".", 1);
+        if len(parts) != 2 or parts[1] not in ACCESSOR_SLOT_SUFFIX.values() {
+            continue;
+        }
+        fn = self._resolve_method(arch_name, slot);
+        if fn is None or fn.name in self._native_skipped_methods {
+            continue;
+        }
+        if parts[0] not in out {
+            out[parts[0]] = {};
+        }
+        out[parts[0]][parts[1]] = fn.name;
+    }
+    return out;
 }
 
 impl NaIRGenPass._ret_tuple_hints(fname: str, ret_tuple: any) -> (list | None) {
@@ -821,6 +851,14 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
                 }
             }
         }
+
+        for (_ia_slot, _ia_var, _ia_acc) in archetype_accessors(_imp_arch) {
+            _im_full = f"{_ia_name}.{_ia_slot}";
+            if (_imp_layout is not None and _im_full not in _imp_layout.methods)
+                or (_imp_layout is None and _wl_internal) {
+                self._native_skipped_methods.add(_im_full);
+            }
+        }
     }
     for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
         if (
@@ -864,6 +902,9 @@ impl NaIRGenPass._forward_declare_archetype_methods(arch: uni.Archetype) -> None
             }
         }
     }
+    for (_slot, _accvar, _acc) in archetype_accessors(arch) {
+        self._forward_declare_method(aname, _acc, field=_accvar);
+    }
 }
 
 impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None {
@@ -878,6 +919,11 @@ impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None 
     for (_name, _mro) in _imp_reg.mro_order.items() {
         if _name not in _cons_reg.mro_order {
             _cons_reg.mro_order[_name] = _mro;
+        }
+    }
+    for (_name, _lay) in _imp_reg.layouts.items() {
+        if _name not in _cons_reg.layouts {
+            _cons_reg.layouts[_name] = _lay;
         }
     }
 

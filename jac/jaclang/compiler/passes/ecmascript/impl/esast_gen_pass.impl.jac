@@ -1,3 +1,4 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang.compiler.passes.ecmascript.reactive_intent {
     StateField,
     RefField,
@@ -801,7 +802,9 @@ impl EsastGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
             tail.gen.es_ast or self.sync_loc(es.Literal(value=None), jac_node=tail)
         );
         nd.gen.es_ast = self.sync_loc(
-            es.ArrowFunctionExpression(params=params, body=body_expr, async_=False),
+            es.ArrowFunctionExpression(
+                params=params, body=body_expr, expression=True, async_=False
+            ),
             jac_node=nd
         );
     } elif isinstance(nd.body, list) {
@@ -829,7 +832,9 @@ impl EsastGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
                 or self.sync_loc(es.Literal(value=None), jac_node=nd.body)
         );
         arrow_func = self.sync_loc(
-            es.ArrowFunctionExpression(params=params, body=body_expr, async_=False),
+            es.ArrowFunctionExpression(
+                params=params, body=body_expr, expression=True, async_=False
+            ),
             jac_node=nd
         );
         nd.gen.es_ast = arrow_func;
@@ -1626,7 +1631,7 @@ impl EsastGenPass._try_lower_server_rpc_call(
                 if (
                     _p.type_tag is not None
                     and _p.type_tag.tag is not None
-                    and re.search(r"\bCallable\b", _p.type_tag.tag.unparse())
+                    and re.search(r"\bCallable\b", unparse_node(_p.type_tag.tag))
                 ) {
                     self.emit(
                         W6005, node_override=nd, func=func_name, param=_p.name.sym_name
@@ -7576,7 +7581,9 @@ impl EsastGenPass._declaring_scope_for(name_node: uni.UniNode) -> (ScopeInfo | N
         return None;
     }
     owner = sym.parent_tab;
-    if not isinstance(owner, (uni.Module, uni.Ability, uni.ImplDef, uni.Test)) {
+    if not isinstance(
+        owner, (uni.Module, uni.Ability, uni.ImplDef, uni.Test, uni.LambdaExpr)
+    ) {
         return None;
     }
     if isinstance(owner, uni.ImplDef) {

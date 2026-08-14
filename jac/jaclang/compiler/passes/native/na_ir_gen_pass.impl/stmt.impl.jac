@@ -178,6 +178,22 @@ impl NaIRGenPass._codegen_stmt(nd: uni.UniNode) -> None {
             } elif _disc_fn is None {
                 self.emit(E5092, node_override=nd, kind="statement", name="DeleteStmt");
             }
+        } elif isinstance(target_expr, uni.AtomTrailer) and target_expr.is_attr {
+            _del_cls = self._struct_name_of(target_expr.target);
+            _del_fld = self._get_name(target_expr.right);
+            _del_slot = self._accessor_slot_of(_del_cls, _del_fld, "deleter")
+                if (_del_cls is not None and _del_fld is not None)
+                else None;
+            if _del_slot is not None {
+                _del_recv = self._codegen_expr(target_expr.target);
+                if _del_recv is None
+                    or self._codegen_accessor_call(_del_recv, _del_cls, _del_slot, [])
+                        is None {
+                    self.emit(
+                        E5092, node_override=nd, kind="statement", name="DeleteStmt"
+                    );
+                }
+            }
         } elif (
             isinstance(target_expr, uni.AtomTrailer)
             and not target_expr.is_attr
@@ -273,6 +289,17 @@ impl NaIRGenPass._codegen_return(nd: uni.ReturnStmt) -> None {
         return;
     }
     func_ret_type = self.builder.function.return_value.type;
+    if nd.expr is not None and isinstance(func_ret_type, ir.VoidType) {
+        self._codegen_expr(nd.expr);
+        self._emit_scope_cleanup(
+            skip_var=None,
+            loc=f"{os.path.basename(self.ir_in.loc.mod_path)}:{nd.loc.first_line
+                if nd.loc
+                else 0}"
+        );
+        self.builder.ret_void();
+        return;
+    }
     if nd.expr is not None {
         val = self._codegen_required(nd.expr);
         if val is not None {
@@ -1155,11 +1182,7 @@ impl NaIRGenPass._match_arch_cond(
     if static_name == arch_name and not self._arch_has_vtable(static_name) {
         vt_mode = False;
     } elif self._arch_has_vtable(static_name) {
-        for cand in self.vtable_globals {
-            if arch_name in self._mro_of(cand) {
-                target_vtables.append(self.vtable_globals[cand]);
-            }
-        }
+        target_vtables = self._vtable_candidates([arch_name]);
         if not target_vtables {
             return ir.Constant(i1, 0);
         }
@@ -1589,13 +1612,27 @@ impl NaIRGenPass._codegen_assignment(nd: uni.Assignment) -> None {
         }
     }
     if value is None {
-        if nd.value is not None and len(self.errors_had) == _rhs_errs_before {
+        if nd.value is not None
+            and len(self.errors_had) == _rhs_errs_before
+            and not self._reads_unlowered_local(nd.value) {
             self.emit(
                 E5092,
                 node_override=nd.value,
                 kind="expression",
                 name=type(nd.value).__name__
             );
+        }
+
+        _unbound: list = list(nd.target)
+            if isinstance(nd.target, (list, tuple))
+            else [nd.target];
+        while _unbound {
+            _t = _unbound.pop();
+            if isinstance(_t, uni.Name) {
+                self._mark_local_unlowered(_t.value);
+            } elif isinstance(_t, uni.TupleVal) {
+                _unbound.extend(_t.values or []);
+            }
         }
         return;
     }
@@ -3060,6 +3097,36 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
         return;
     }
 
+    if self._tuple_iter_shape(nd.collection, _coll_memo) {
+        _tup_seq = self._tuple_iter_seq(nd.collection, _coll_memo);
+        if _tup_seq is None {
+            if len(self.errors_had) == _for_errs0 {
+                self.emit(
+                    E5092,
+                    node_override=nd.collection or nd,
+                    kind="for-loop iterable",
+                    name="tuple with mixed element storage",
+                    help_text="Every element of an iterated tuple must share one storage width, because the loop variable is a single slot and the checker types it from the tuple's FIRST element -- boxing the elements instead would answer `isinstance` in the body against the wrong member. Use a list literal, whose element type widens to a union, or bind the elements individually."
+                );
+            }
+            return;
+        }
+        (_ts_val, _ts_spec, _ts_elem, _ts_cast) = _tup_seq;
+        self._codegen_for_indexed(
+            nd,
+            kind="list",
+            collection_val=_ts_val,
+            helpers=self.list_helpers[_ts_spec],
+            var_names=[loop_var_name],
+            var_types=[_ts_elem],
+            rc_vars=True,
+            coll_release_op="fort_coll",
+            elem_cast=_ts_cast,
+            unpack_target=_unpack_target
+        );
+        return;
+    }
+
     if _coll_memo is None {
         if len(self.errors_had) == _for_errs0 {
             self.emit(
@@ -3844,6 +3911,14 @@ impl NaIRGenPass._codegen_for_indexed(
         self.builder.store(collection_val, _gen_coll_slot);
     }
 
+    _coll_slot_var: (str | None) = None;
+    if _gen_coll_slot is None
+        and coll_release_op
+        and kind != "range"
+        and self._is_owned(collection_val) {
+        _coll_slot_var = self._bind_loop_coll_slot(collection_val);
+    }
+
     if kind == "range" {
         len_val = collection_val;
         idx_alloca = self._entry_alloca(i64, var_names[0]);
@@ -4073,6 +4148,8 @@ impl NaIRGenPass._codegen_for_indexed(
             _coll_end, op=coll_release_op or "for_coll", loc=_for_loc
         );
         self.builder.store(ir.Constant(_coll_end.type, None), _gen_coll_slot);
+    } elif _coll_slot_var is not None {
+        self._release_loop_coll_slot(_coll_slot_var, op=coll_release_op, loc=_for_loc);
     } elif coll_release_op
         and isinstance(collection_val.type, ir.PointerType)
         and self._is_owned(collection_val) {

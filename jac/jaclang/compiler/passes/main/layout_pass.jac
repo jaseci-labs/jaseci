@@ -24,6 +24,8 @@ glob LAYOUT_COMPATIBLE_PRIMITIVES: set[str] = {
      },
      VTABLE_HEADER_SLOTS: int = 1;
 
+glob LAYOUT_COMPATIBLE_SCALARS: set[str] = LAYOUT_COMPATIBLE_PRIMITIVES | {"type"};
+
 obj FieldInfo {
     has name: str,
         index: int,
@@ -73,6 +75,36 @@ obj EnumLayout {
         is_string_enum: bool = False,
         is_class_form: bool = False,
         members: list[EnumMemberLayout] = [];
+}
+
+glob ACCESSOR_SLOT_SUFFIX: dict[str, str] = {
+         "property": "__get__",
+         "setter": "__set__",
+         "deleter": "__del__"
+     };
+
+def accessor_slot_name(field_name: str, acc: uni.Ability) -> (str | None) {
+    suffix = ACCESSOR_SLOT_SUFFIX.get(acc.accessor_kind);
+    return None if suffix is None else f"{field_name}.{suffix}";
+}
+
+def archetype_accessors(
+    arch: uni.Archetype
+) -> list[tuple[(str, uni.HasVar, uni.Ability)]] {
+    out: list[tuple[(str, uni.HasVar, uni.Ability)]] = [];
+    for var in arch.get_has_vars() {
+        if not var.accessors {
+            continue;
+        }
+        fname = var.name.value if var.name else "field";
+        for acc in var.accessors {
+            slot = accessor_slot_name(fname, acc);
+            if slot is not None {
+                out.append((slot, var, acc, ));
+            }
+        }
+    }
+    return out;
 }
 
 def get_layout_registry(module: uni.Module, prog: any = None) -> LayoutRegistry {

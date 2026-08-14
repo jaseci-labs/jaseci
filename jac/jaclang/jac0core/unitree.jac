@@ -60,13 +60,26 @@ obj UniNode {
     def resolve_tok_range -> tuple[(Token, Token)];
     def gen_token(name: Tok, value: (str | None) = None) -> Token;
     def get_all_sub_nodes[T](typ: type[T]) -> list[T] {
-        import from jaclang.jac0core.passes { UniPass }
-        return UniPass.get_all_sub_nodes(nd=self, typ=typ);
+        result: list[T] = [];
+        if typ in self._sub_node_tab {
+            for i in self._sub_node_tab[typ] {
+                if isinstance(i, typ) {
+                    result.append(i);
+                }
+            }
+        }
+        return result;
     }
 
     def find_parent_of_type[T](typ: type[T]) -> (T | None) {
-        import from jaclang.jac0core.passes { UniPass }
-        return UniPass.find_parent_of_type(nd=self, typ=typ);
+        nd: (UniNode | None) = self.parent;
+        while nd is not None {
+            if isinstance(nd, typ) {
+                return nd;
+            }
+            nd = nd.parent;
+        }
+        return None;
     }
 
     def parent_of_type[T](typ: type[T]) -> T {
@@ -80,9 +93,7 @@ obj UniNode {
     def codespace -> CodeContext;
     def in_client_context -> bool;
     def in_native_context -> bool;
-    def to_dict -> dict[(str, str)];
     def flatten -> list[UniNode];
-    def unparse -> str;
 }
 
 obj Symbol {
@@ -133,7 +144,9 @@ obj UniScopeNode(UniNode) {
 
     def _init_scope(name: str, parent_scope: (UniScopeNode | None) = None) -> None;
     static def is_python_scoping(nd: (UniNode | None)) -> bool {
-        return isinstance(nd, (Module, Enum, Archetype, Ability, ImplDef, Test));
+        return isinstance(
+            nd, (Module, Enum, Archetype, Ability, ImplDef, Test, LambdaExpr)
+        );
     }
 
     def lookup(
@@ -168,6 +181,7 @@ obj UniScopeNode(UniNode) {
     def chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None;
     def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
     def _fix_store_ctx(item: UniNode) -> None;
+    def _fix_store_items(items: Sequence[UniNode]) -> None;
     def __repr__ -> str;
 }
 
@@ -205,6 +219,8 @@ obj ContextAwareNode(UniNode) {
 
 obj AstDocNode(UniNode) {
     has doc: (String | None) = None;
+
+    def set_doc(elem_doc: (String | None)) -> None;
 }
 
 obj AstAsyncNode(UniNode) {
@@ -278,8 +294,8 @@ obj CodeBlockStmt(UniCFGNode) {
     def postinit -> None;
 }
 
-obj AstImplNeedingNode[T](AstSymbolNode) {
-    has body: (T | None);
+obj AstImplNeedingNode(AstSymbolNode) {
+    has body: (Sequence[UniNode] | UniNode | None);
     has needs_impl: bool { getter; }
 }
 
@@ -296,6 +312,10 @@ obj NameAtom(AtomExpr, EnumBlockStmt) {
     has sym: (Symbol | None) { getter; setter(sym: Symbol); }
     has sym_name: str { getter; }
     has sym_category: SymbolType { getter; }
+
+    def bind_sym(
+        name_of: AstSymbolNode, sym_name: str, sym_category: SymbolType
+    ) -> None;
 
     def create_symbol(
         access: SymbolAccess,
@@ -344,8 +364,6 @@ obj Module(AstDocNode, UniScopeNode) {
 
     has annexable_by: (str | None) { getter; }
 
-    def format -> str;
-    def unparse(requires_format: bool = True) -> str;
     def declares_codespace(ctx: CodeContext, path_hint: str = '') -> bool;
     static def make_stub(
         inject_name: (str | None) = None, inject_src: (Source | None) = None
@@ -381,7 +399,7 @@ obj TypeParam(AstSymbolNode, UniNode) {
     def postinit -> None;
 }
 
-obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniScopeNode) {
+obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -393,7 +411,7 @@ obj TypeAlias(ContextAwareNode, AstAccessNode, ElementStmt, AstSymbolNode, UniSc
     def postinit -> None;
 }
 
-obj GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode) {
+obj GlobalVars(ContextAwareNode, ElementStmt, AstAccessNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -407,17 +425,15 @@ obj Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNo
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (Name | Token),
+    has name: Name,
         body: Sequence[CodeBlockStmt],
         description: (String | None) = None,
         decorators: (Sequence[Expr] | None) = None;
 
-    static has TEST_COUNT: int = 0;
-
     def postinit -> None;
 }
 
-obj ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt) {
+obj ModuleCode(ContextAwareNode, ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -441,7 +457,7 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     def accept_enter(v: UniPass) -> None;
 
     has from_loc: (ModulePath | None),
-        items: (Sequence[ModuleItem] | Sequence[ModulePath]),
+        items: Sequence[(ModuleItem | ModulePath)],
         is_absorb: bool,
         is_typed: bool = False,
         clib_decls: (Sequence[UniNode] | None) = None,
@@ -509,7 +525,7 @@ obj Archetype(ContextAwareNode, ArchSpec, AstAccessNode, ArchBlockStmt, AstImplN
         tgt_endpoint: (Expr | None) = None;
 
     def postinit -> None;
-    def _get_impl_resolved_body -> list;
+    def _get_impl_resolved_body -> list[UniNode];
 
     has is_abstract: bool { getter; }
     has arch_kind: (str | None) { getter; }
@@ -532,7 +548,7 @@ obj ImplDef(ContextAwareNode, CodeBlockStmt, ElementStmt, ArchBlockStmt, AstSymb
     def create_impl_name_node -> Name;
 }
 
-obj SemDef(ElementStmt, AstSymbolNode, UniScopeNode) {
+obj SemDef(ElementStmt, AstSymbolNode, UniScopeNode, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
@@ -558,7 +574,7 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name_ref: (NameAtom | None),
+    has name_ref: (NameAtom | CtName | None),
         is_override: bool,
         is_static: bool,
         is_classmethod: bool,
@@ -567,7 +583,8 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
         decorators: (Sequence[Expr] | None) = None,
         type_params: (Sequence[TypeParam] | None) = None,
         accessor_kind: str = "",
-        event_triggers: (list[TypeBase] | None) = None;
+        event_triggers: (list[TypeBase] | None) = None,
+        is_ct_only: bool = False;
 
     def postinit -> None;
 
@@ -585,10 +602,10 @@ obj FuncSignature(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has posonly_params: Sequence[ParamVar],
-        params: (Sequence[ParamVar] | None),
+    has posonly_params: Sequence[(ParamVar | CtFor | CtIf)],
+        params: (Sequence[(ParamVar | CtFor | CtIf)] | None),
         varargs: (ParamVar | None),
-        kwonlyargs: Sequence[ParamVar],
+        kwonlyargs: Sequence[(ParamVar | CtFor | CtIf)],
         kwargs: (ParamVar | None),
         return_type: (Expr | None);
 
@@ -613,7 +630,7 @@ obj ParamVar(AstSymbolNode, AstTypedVarNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
+    has name: (Name | CtName),
         unpack: (Token | None),
         value: (Expr | None),
         param_kind: ParamKind postinit;
@@ -639,7 +656,7 @@ obj HasVar(AstSymbolNode, AstTypedVarNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: Name,
+    has name: (Name | CtName),
         value: (Expr | None),
         defer: bool,
         accessors: (Sequence[Ability] | None) = None;
@@ -1307,7 +1324,7 @@ obj FilterCompr(AtomExpr) {
     def accept_enter(v: UniPass) -> None;
 
     has f_type: (Expr | None),
-        compares: Sequence[CompareExpr];
+        compares: Sequence[Expr];
 
     def postinit -> None;
 }
@@ -1575,7 +1592,6 @@ obj Token(UniNode) {
     ) -> None;
 
     def __repr__ -> str;
-    def unparse -> str;
 }
 
 obj Name(Token, NameAtom) {

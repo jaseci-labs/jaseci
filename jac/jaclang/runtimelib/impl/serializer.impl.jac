@@ -337,6 +337,13 @@ impl Serializer.register(cls: type) -> None {
     }
 }
 
+impl Serializer.is_auto_registered_module(module_name: str) -> bool {
+    return (
+        not module_name.startswith('jaclang.')
+        or module_name.startswith('jaclang.scale.')
+    );
+}
+
 impl Serializer.register_alias(old_name: str, cls: type) -> None {
     new_name = f"{cls.__module__}.{cls.__name__}";
     if old_name == new_name {
@@ -514,14 +521,24 @@ impl Serializer._get_class(module_name: str, class_name: str) -> (type | None) {
     }
 
     if (aliased_key := Serializer._aliases.get(key)) {
-        if (cls := Serializer._registry.get(aliased_key)) {
+        aliased = Serializer._registry.get(aliased_key);
+        if aliased is None and '.' in aliased_key {
+            alias_parts = aliased_key.rsplit('.', 1);
+            aliased = Serializer._resolve_class_by_import(
+                alias_parts[0], alias_parts[1]
+            );
+            if aliased is not None {
+                Serializer.register(cast(type, aliased));
+            }
+        }
+        if aliased is not None {
             if (n := Serializer._warn_occurrence("alias-resolved", key)) {
                 logger.info(
                     f"Serializer: resolving aliased class {key} -> {aliased_key}"
                         + Serializer._occurrence_note(n)
                 );
             }
-            return cls;
+            return aliased;
         }
 
         if (n := Serializer._warn_occurrence("alias-missing", key)) {
@@ -533,14 +550,169 @@ impl Serializer._get_class(module_name: str, class_name: str) -> (type | None) {
         }
         return None;
     }
+    if (resolved := Serializer._resolve_class_by_import(module_name, class_name)) {
+        Serializer.register(resolved);
+        if (n := Serializer._warn_occurrence("import-resolved", key)) {
+            logger.info(
+                f"Serializer: {key} was not registered when it was first read; "
+                "resolved it from its own module and registered it. Archetype "
+                "classes normally register themselves as they are defined."
+                    + Serializer._occurrence_note(n)
+            );
+        }
+        return resolved;
+    }
     if (n := Serializer._warn_occurrence("unregistered", key)) {
         logger.warning(
-            f"Refused to deserialize unregistered class: {key}"
+            f"Refused to deserialize unregistered class: {key}; it is not "
+            "registered and could not be resolved from its own module "
+            "(enable DEBUG on this logger for the resolution attempt)."
                 + Serializer._occurrence_note(n)
         );
     }
     return None;
 }
+
+impl Serializer._resolve_class_by_import(
+    module_name: str, class_name: str
+) -> (type | None) {
+    if not class_name.isidentifier() {
+        return None;
+    }
+    module_parts = module_name.split('.');
+    for part in module_parts {
+        if not part.isidentifier() {
+            return None;
+        }
+    }
+    tracing = logger.isEnabledFor(logging.DEBUG);
+    if not Serializer.is_auto_registered_module(module_name) {
+        if tracing {
+            logger.debug(
+                f"Serializer: refusing {module_name}.{class_name}; runtime-internal "
+                "archetypes only resolve when they are registered explicitly"
+            );
+        }
+        return None;
+    }
+    mod = sys.modules.get(module_name);
+    if mod is None {
+        if not Serializer._import_allowed(module_name) {
+            if tracing {
+                logger.debug(
+                    f"Serializer: not importing {module_name} to resolve "
+                    f"{class_name}; a recent import of it failed and its retry "
+                    "window has not passed"
+                );
+            }
+            return None;
+        }
+        if module_parts[0] not in sys.modules {
+            if tracing {
+                logger.debug(
+                    f"Serializer: not importing {module_name} to resolve "
+                    f"{class_name}; its top-level package is not loaded here"
+                );
+            }
+            return None;
+        }
+        try {
+            mod = importlib.import_module(module_name);
+        } except Exception as e {
+            retry_in = Serializer._record_import_failure(module_name);
+            logger.debug(
+                f"Serializer: cannot import {module_name} to resolve "
+                f"{class_name}: {e}; retrying it in {retry_in:.0f}s"
+            );
+            return None;
+        }
+    }
+    Serializer._clear_import_failure(module_name);
+    try {
+        found = getattr(mod, class_name, None);
+    } except Exception as e {
+        logger.debug(f"Serializer: {module_name}.{class_name} is not readable: {e}");
+        return None;
+    }
+    if not isinstance(found, type) or not issubclass(found, Archetype) {
+        if tracing {
+            logger.debug(
+                f"Serializer: refusing {module_name}.{class_name}; it is not an "
+                "Archetype subclass"
+            );
+        }
+        return None;
+    }
+    if found.__module__ != module_name or found.__name__ != class_name {
+        if tracing {
+            logger.debug(
+                f"Serializer: refusing {module_name}.{class_name}; it resolves to "
+                f"{found.__module__}.{found.__name__}"
+            );
+        }
+        return None;
+    }
+    return cast(type, found);
+}
+
+def _import_retry_window(attempts: int) -> float {
+    doublings = min(max(attempts - 1, 0), _IMPORT_RETRY_MAX_DOUBLINGS);
+    return min(_IMPORT_RETRY_SECONDS * (2 ** doublings), _IMPORT_RETRY_CEILING_SECONDS);
+}
+
+
+def _import_retry_due(failure: ImportFailure) -> bool {
+    return monotonic() - failure.failed_at >= _import_retry_window(failure.attempts);
+}
+
+
+impl Serializer._import_allowed(module_name: str) -> bool {
+    failure = Serializer._import_failures.get(module_name);
+    return failure is None or _import_retry_due(failure);
+}
+
+
+impl Serializer._record_import_failure(module_name: str) -> float {
+    with Serializer._import_lock {
+        failures = Serializer._import_failures;
+        failure = failures.get(module_name);
+        if failure is None {
+            if len(failures) >= _MAX_IMPORT_FAILURES {
+                for (name, stale) in list(failures.items()) {
+                    if _import_retry_due(stale) {
+                        failures.pop(name, None);
+                    }
+                }
+                if len(failures) >= _MAX_IMPORT_FAILURES {
+                    return _import_retry_window(1);
+                }
+            }
+            failure = ImportFailure();
+            failures[module_name] = failure;
+        }
+        failure.attempts += 1;
+        failure.failed_at = monotonic();
+        return _import_retry_window(failure.attempts);
+    }
+}
+
+
+impl Serializer._clear_import_failure(module_name: str) -> None {
+    if module_name not in Serializer._import_failures {
+        return;
+    }
+    with Serializer._import_lock {
+        Serializer._import_failures.pop(module_name, None);
+    }
+}
+
+
+impl Serializer._reset_import_failures -> None {
+    with Serializer._import_lock {
+        Serializer._import_failures.clear();
+    }
+}
+
 
 impl Serializer._warn_occurrence(scope: str, key: str) -> int {
     dedup_key = f"{scope}:{key}";

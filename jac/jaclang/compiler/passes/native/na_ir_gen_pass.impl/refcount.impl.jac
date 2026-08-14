@@ -711,6 +711,79 @@ impl NaIRGenPass._emit_str_len_helpers -> None {
         b.ret(b.call(strlen_fn, [len_fn.args[0]], name="sl.strlen"));
     }
     self.str_len_fn = len_fn;
+
+    tr_fn = self._define_function(
+        "__jac_str_truthy", ir.FunctionType(ir.IntType(1), [i8_ptr])
+    );
+    tr_fn.linkage = "private";
+    tr_fn.args[0].name = "s";
+    _t_entry = tr_fn.append_basic_block("entry");
+    tb = ir.IRBuilder(_t_entry);
+    if _headerless {
+        tb.ret(
+            tb.icmp_unsigned(
+                "!=", tr_fn.args[0], ir.Constant(i8_ptr, None), name="st.nn"
+            )
+        );
+    } else {
+        _t_zero = tr_fn.append_basic_block("zero");
+        _t_sent = tr_fn.append_basic_block("check.sentinel");
+        _t_magic = tr_fn.append_basic_block("check.magic");
+        _t_hdr = tr_fn.append_basic_block("hdr");
+        _t_len = tr_fn.append_basic_block("stamped");
+        _t_obj = tr_fn.append_basic_block("object");
+        _t_cstr = tr_fn.append_basic_block("cstr");
+        _t_null = tb.icmp_unsigned(
+            "==", tr_fn.args[0], ir.Constant(i8_ptr, None), name="st.null"
+        );
+        tb.cbranch(_t_null, _t_zero, _t_sent);
+        tb = ir.IRBuilder(_t_zero);
+        tb.ret(ir.Constant(ir.IntType(1), 0));
+        tb = ir.IRBuilder(_t_sent);
+        _t_rc_slot = tb.gep(
+            tr_fn.args[0], [ir.Constant(i64, HDR_RC_OFF)], name="st.rc.slot"
+        );
+        _t_rc = tb.load(tb.bitcast(_t_rc_slot, i64_ptr, name="st.rc.p"), name="st.rc");
+        _t_static = tb.icmp_unsigned(
+            "==", _t_rc, ir.Constant(i64, RC_SENTINEL), name="st.static"
+        );
+        tb.cbranch(_t_static, _t_hdr, _t_magic);
+        tb = ir.IRBuilder(_t_magic);
+        _t_mc = self._emit_magic_check(tb, tr_fn.args[0], name_prefix="st.mc");
+        tb.cbranch(_t_mc, _t_hdr, _t_cstr);
+        tb = ir.IRBuilder(_t_hdr);
+        _t_dt_slot = tb.gep(
+            tr_fn.args[0], [ir.Constant(i64, HDR_DTOR_OFF)], name="st.dt.slot"
+        );
+        _t_dv = tb.load(tb.bitcast(_t_dt_slot, i64_ptr, name="st.dt.p"), name="st.dv");
+        _t_odd = tb.and_(_t_dv, ir.Constant(i64, STR_LEN_TAG_BIT), name="st.odd");
+        tb.cbranch(
+            tb.icmp_unsigned("!=", _t_odd, ir.Constant(i64, 0), name="st.has.len"),
+            _t_len,
+            _t_obj
+        );
+        tb = ir.IRBuilder(_t_len);
+        tb.ret(
+            tb.icmp_unsigned(
+                "!=",
+                tb.lshr(_t_dv, ir.Constant(i64, STR_LEN_TAG_SHIFT), name="st.len"),
+                ir.Constant(i64, 0),
+                name="st.len.nz"
+            )
+        );
+        tb = ir.IRBuilder(_t_obj);
+        tb.ret(ir.Constant(ir.IntType(1), 1));
+        tb = ir.IRBuilder(_t_cstr);
+        tb.ret(
+            tb.icmp_unsigned(
+                "!=",
+                tb.call(strlen_fn, [tr_fn.args[0]], name="st.strlen"),
+                ir.Constant(i64, 0),
+                name="st.strlen.nz"
+            )
+        );
+    }
+    self.str_truthy_fn = tr_fn;
     self._emit_str_stamp_and_new();
 }
 
@@ -807,6 +880,15 @@ impl NaIRGenPass._call_str_len(
         self._emit_str_len_helpers();
     }
     return b.call(self.str_len_fn, [ptr], name=name);
+}
+
+impl NaIRGenPass._call_str_truthy(
+    b: ir.IRBuilder, ptr: ir.Value, name: str = "s.truthy"
+) -> ir.Value {
+    if self.str_truthy_fn is None {
+        self._emit_str_len_helpers();
+    }
+    return b.call(self.str_truthy_fn, [ptr], name=name);
 }
 
 impl NaIRGenPass._stamp_str_len(
@@ -2031,6 +2113,31 @@ impl NaIRGenPass._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -> No
     for (var_name, alloca) in _region_handles {
         self._emit_region_handle_drop(alloca, var_name);
     }
+}
+
+impl NaIRGenPass._bind_loop_coll_slot(val: ir.Value) -> (str | None) {
+    if not isinstance(val.type, ir.PointerType) {
+        return None;
+    }
+    _name = f"for.coll.{self._loop_coll_seq}";
+    self._loop_coll_seq += 1;
+    _slot = self._entry_alloca(val.type, _name);
+    self.local_vars[_name] = _slot;
+    self.builder.store(val, _slot);
+    return _name;
+}
+
+impl NaIRGenPass._release_loop_coll_slot(
+    var_name: str, op: str = "", loc: str = ""
+) -> None {
+    _slot = self.local_vars.get(var_name);
+    if _slot is None {
+        return;
+    }
+    _val = self.builder.load(_slot, name=f"{var_name}.end");
+    self._mark_owned(_val);
+    self._emit_rc_release_simple(_val, op=op, loc=loc);
+    self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);
 }
 
 impl NaIRGenPass._rc_strdup(ptr: ir.Value, name: str = "rc.str") -> ir.Value {
