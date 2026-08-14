@@ -136,16 +136,38 @@ jobs:
           path: jac/.llvm-build
           key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/llvm_release.zig') }}
 
+      # Identity of the compiler this build runs, as git tree object ids over
+      # the same roots jir.jac hashes for its module keys. Git ids rather than
+      # hashFiles: they are immune to step ordering and to untracked artifacts
+      # restored into the tree (the shim cache lands in jaclang/compiler/**).
+      - name: Fingerprint the compiler tree (dev channel)
+        if: inputs.channel == 'dev'
+        id: compiler-fp
+        shell: bash
+        run: |
+          fp="$(git rev-parse \
+            "HEAD:jac/jaclang/jac0.py" \
+            "HEAD:jac/jaclang/jac0core" \
+            "HEAD:jac/jaclang/compiler" \
+            "HEAD:jac/jaclang/utils/precompile_bytecode.jac" \
+            | git hash-object --stdin)"
+          echo "fp=${fp:0:16}" >> "$GITHUB_OUTPUT"
+
       # mkpayload re-validates every seeded .jir per module, so a stale tree
-      # from the previous push is safe and exactly what restore-keys is for.
+      # from the previous push is safe and exactly what restore-keys is for --
+      # but only within one compiler. Module keys carry a compiler-content
+      # digest (#8178), so a seed from a different compiler tree can no longer
+      # be mis-served; the fingerprint in the key PREFIX keeps it from being
+      # inherited at all, since such a seed would only ever miss. A
+      # compiler-touching commit therefore forfeits the seed by construction.
       - name: Restore cached JIR precompile tree (dev channel)
         if: inputs.channel == 'dev'
         uses: actions/cache@v4
         with:
           path: jac/.precompiled-build
-          key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+          key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-c${{ steps.compiler-fp.outputs.fp }}-${{ hashFiles('jac/jaclang/**') }}
           restore-keys: |
-            jac-precompiled-${{ runner.os }}-${{ runner.arch }}-
+            jac-precompiled-${{ runner.os }}-${{ runner.arch }}-c${{ steps.compiler-fp.outputs.fp }}-
 
       # pbs + bun: the two read-mostly runtime trees `zig build` otherwise
       # re-downloads and re-extracts on every push to main (the ~600 MB

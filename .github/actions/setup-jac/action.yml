@@ -132,24 +132,45 @@ runs:
         path: jac/.bun-build
         key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
 
+    # Identity of the compiler this build runs, as git tree object ids over the
+    # same roots jir.jac hashes for its module keys. Git ids rather than
+    # hashFiles: they are immune to step ordering and to untracked artifacts
+    # restored into the tree (the shim cache above lands in jaclang/compiler/**,
+    # which a hashFiles glob would fold in only on a shim hit).
+    - name: Fingerprint the compiler tree
+      id: compiler-fp
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        fp="$(git rev-parse \
+          "HEAD:jac/jaclang/jac0.py" \
+          "HEAD:jac/jaclang/jac0core" \
+          "HEAD:jac/jaclang/compiler" \
+          "HEAD:jac/jaclang/utils/precompile_bytecode.jac" \
+          | git hash-object --stdin)"
+        echo "fp=${fp:0:16}" >> "$GITHUB_OUTPUT"
+
     # The JIR precompile is mkpayload's single most expensive stage (~24 min:
     # it compiles every bundled jaclang module). Each .jir embeds a
     # content-addressed module key (jaclang version + python version + source +
-    # annex hashes), and mkpayload seeds site/_precompiled from
-    # jac/.precompiled-build, recompiling ONLY the modules whose key no longer
-    # matches. A stale or partial tree is therefore useful rather than
-    # dangerous -- which is why, unlike the binary cache, this one uses
-    # restore-keys: any prior build's tree turns the full precompile into a
-    # recompile of just the changed modules.
+    # annex hashes + the compiler-content digest of #8178), and mkpayload seeds
+    # site/_precompiled from jac/.precompiled-build, recompiling ONLY the
+    # modules whose key no longer matches. Within one compiler tree a stale or
+    # partial tree is therefore useful rather than dangerous -- which is why,
+    # unlike the binary cache, this one uses restore-keys: any prior build's
+    # tree turns the full precompile into a recompile of just the changed
+    # modules. Across compiler trees it is neither: every key misses, so the
+    # compiler fingerprint scopes the prefix and a compiler-touching commit
+    # starts cold rather than dragging a tree it cannot use.
     - name: Restore cached JIR precompile tree
       id: precompiled-cache
       if: steps.cache.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v4
       with:
         path: jac/.precompiled-build
-        key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+        key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-c${{ steps.compiler-fp.outputs.fp }}-${{ hashFiles('jac/jaclang/**') }}
         restore-keys: |
-          jac-precompiled-${{ runner.os }}-${{ runner.arch }}-
+          jac-precompiled-${{ runner.os }}-${{ runner.arch }}-c${{ steps.compiler-fp.outputs.fp }}-
 
     # The payload's compressed deps-layer frame (mkpayload --layer-cache): the
     # level-19 zstd of the ~600 MB dependency layer, the pack's single most
@@ -351,7 +372,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: jac/.precompiled-build
-        key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+        key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-c${{ steps.compiler-fp.outputs.fp }}-${{ hashFiles('jac/jaclang/**') }}
 
     # Same prefix-hit re-save logic as the precompile cache above.
     - name: Save payload deps-layer cache (main only)

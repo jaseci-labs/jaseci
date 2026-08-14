@@ -19,8 +19,9 @@ import from jaclang.jac0core.jir {
     SEC_BYTECODE,
     SEC_DEBUG_SRC,
     FORMAT_VERSION,
-    compute_module_key,
-    jir_matches_source,
+    compute_precompile_module_key,
+    precompiled_jir_matches_source,
+    running_compiler_digest,
     PRECOMPILE_SENTINEL
 }
 import from jaclang.jac0core.sealed {
@@ -35,6 +36,20 @@ import from jaclang.jac0core.sealed {
 }
 
 glob RESULT_NAME: str = "PRECOMPILE_RESULT.json";
+
+def compiler_identity -> str {
+    digest = running_compiler_digest();
+    if digest.startswith("0:") {
+        raise RuntimeError(
+            "Precompile aborted: no compiler sources found under the running "
+            "jaclang package, so this build cannot state which compiler it is. "
+            "Every seeded .jir would then be reusable by any other compiler at "
+            "this version -- the #8178 failure mode. Check that jac0core/ and "
+            "compiler/ ship with the running jaclang."
+        );
+    }
+    return digest;
+}
 
 def find_package_dir(source_dir: str) -> str | None {
     src = Path(source_dir).resolve();
@@ -211,7 +226,7 @@ def precompile_unit(
         extra = {SEC_DEBUG_SRC: zlib.compress(Path(jac_path).read_bytes(), 9)};
     }
     return write_precompiled_jir(
-        patched, compute_module_key(jac_path), FLAG_PRECOMPILED, extra
+        patched, compute_precompile_module_key(jac_path), FLAG_PRECOMPILED, extra
     );
 }
 
@@ -1211,6 +1226,27 @@ def seal_finalize(
         return 1;
     }
 
+    identity = compiler_identity();
+    foreign: list[str] = [];
+    for p in sealable_sources(str(pkg_path)) {
+        rel = Path(p).relative_to(pkg_path);
+        jir = precompiled_dir / pyver / rel.with_suffix(".jir");
+        if not precompiled_jir_matches_source(jir.read_bytes(), p, identity) {
+            foreign.append(str(rel));
+        }
+    }
+    if foreign {
+        console.error(
+            f"Seal aborted: {len(foreign)} module(s) carry a JIR this compiler "
+            f"did not produce (first: {foreign[:5]}). Their module keys name a "
+            "different compiler content digest, so the seed served bytecode "
+            "built by another compiler at this same version (#8178). Delete "
+            f"{precompiled_dir} and re-run the precompile."
+        );
+        return 1;
+    }
+    console.print(f"  Compiler identity: {identity} (verified over every JIR)");
+
     out_dir = precompiled_dir / pyver;
 
     stale_boot = precompiled_dir / "bootstrap";
@@ -1313,6 +1349,7 @@ def write_manifest(
         "python_tag": pyver,
         "jir_format_version": FORMAT_VERSION,
         "jaclang_version": jac_ver,
+        "compiler_digest": compiler_identity(),
         "modules": modules
     };
     if payloads {
@@ -1412,6 +1449,7 @@ def main {
 
     console.print(f"Precompiling {pkg_name} for {pyver}...");
     console.print(f"  Package directory: {package_dir}");
+    console.print(f"  Compiler identity: {compiler_identity()}");
 
     jac_files = (
         sealable_sources(package_dir)
@@ -1463,7 +1501,7 @@ def main {
         try {
             if jir_path.is_file() {
                 existing = jir_path.read_bytes();
-                if jir_matches_source(existing, jac_path)
+                if precompiled_jir_matches_source(existing, jac_path)
                     and embed_src == (read_debug_source(existing) is not None) {
                     reused += 1;
                     continue;
@@ -1473,6 +1511,7 @@ def main {
             jir_bytes = precompile_unit(jac_path, package_dir, embed_src);
             if jir_bytes is None {
                 console.print(f"  SKIP (no bytecode): {rel}");
+                jir_path.unlink(missing_ok=True);
                 failed += 1;
                 continue;
             }
@@ -1482,6 +1521,7 @@ def main {
             compiled += 1;
         } except Exception as e {
             console.error(f"FAIL: {rel} - {e}");
+            jir_path.unlink(missing_ok=True);
             failed += 1;
         }
     }
