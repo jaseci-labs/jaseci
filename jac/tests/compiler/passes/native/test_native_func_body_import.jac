@@ -78,13 +78,53 @@ test "function-body imports lower and agree with sv" {
 }
 
 # Supporting the body-scoped spelling must not smuggle unsupported modules in:
-# a Python-only import written in a body earns the same E5090 (with the same
-# stdlib help text) a module-level one already earns, at check time as well as
-# at codegen, instead of lowering to a silent no-op statement.
-test "an unsupported body-scoped import is still a clean E5090" {
+# a Python-only import written in a body is the same capability violation a
+# module-level one is, but its owning function absorbs it as a granular seam
+# (epic #8201): the function demotes to its Python implementation with the
+# stdlib help text on the demotion diagnostic, instead of lowering to a
+# silent no-op statement -- and a native caller of the demoted function is a
+# structured E5092, never a silent bind to its abort stub.
+test "an unsupported body-scoped import demotes its function, callers stay loud" {
+    import contextlib;
+    import io;
     prog = JacProgram();
-    prog.compile(
-        file_path=os.path.join(FIXTURES, "_func_body_bad_import.jac"),
+    buf = io.StringIO();
+    _prev = os.environ.get("JAC_NA_DEBUG");
+    os.environ["JAC_NA_DEBUG"] = "1";
+    try {
+        with contextlib.redirect_stderr(buf) {
+            ir = prog.compile(
+                file_path=os.path.join(FIXTURES, "_func_body_bad_import.jac"),
+                use_str="def use() -> int {\n"
+                "    import collections;\n"
+                "    d = collections.OrderedDict();\n"
+                "    return len(d);\n"
+                "}\n",
+                options=native_force_opts()
+            );
+        }
+    } finally {
+        if _prev is None {
+            del os.environ["JAC_NA_DEBUG"];
+        } else {
+            os.environ["JAC_NA_DEBUG"] = _prev;
+        }
+    }
+    log = buf.getvalue();
+    assert not prog.errors_had , f"a function-owned import violation must demote, got: {[
+        str(e) for e in prog.errors_had
+    ]}";
+    assert "use" not in ir.gen.native_layout.functions , (
+        "the function with the Python-only import must leave the native layout"
+    );
+    assert "NA_DEBUG demote use" in log , f"no demotion recorded for use in:\n{log}";
+    assert "Native compilation supports these stdlib imports" in log , (
+        f"the demotion diagnostic should carry the stdlib help:\n{log}"
+    );
+
+    caller = JacProgram();
+    caller.compile(
+        file_path=os.path.join(FIXTURES, "_func_body_bad_import_caller.jac"),
         use_str="def use() -> int {\n"
         "    import collections;\n"
         "    d = collections.OrderedDict();\n"
@@ -93,28 +133,14 @@ test "an unsupported body-scoped import is still a clean E5090" {
         "with entry { print(use()); }\n",
         options=native_force_opts()
     );
-    codes = [
+    caller_codes = [
         alrt.code.code
-        for alrt in prog.errors_had
+        for alrt in caller.errors_had
         if alrt.code is not None
     ];
-    assert "E5090" in codes , f"expected E5090, got: {[
-        str(e) for e in prog.errors_had
+    assert "E5092" in caller_codes , f"expected E5092 for the native caller of the demoted function, got: {[
+        str(e) for e in caller.errors_had
     ]}";
-    hinted = False;
-    for alrt in prog.errors_had {
-        if (
-            alrt.code is not None
-            and alrt.code.code == "E5090"
-            and alrt.help_text is not None
-            and "Native compilation supports these stdlib imports" in alrt.help_text
-        ) {
-            hinted = True;
-        }
-    }
-    assert hinted , (
-        f"E5090 should carry the stdlib help: {[str(e) for e in prog.errors_had]}"
-    );
 }
 
 # Widening guard. Seeing body-scoped imports must not widen what gets REGISTERED:

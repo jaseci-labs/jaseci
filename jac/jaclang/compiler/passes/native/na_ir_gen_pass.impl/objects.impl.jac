@@ -568,6 +568,20 @@ impl NaIRGenPass._codegen_method(
         return;
     }
 
+    _pre_viols = self._capability_demotions.get(id(method));
+    if (
+        _pre_viols is not None
+        and method_name not in ("init", "__init__", "postinit", "__post_init__")
+    ) {
+        self._claimed_capability_demotions.add(id(method));
+        _pre_virtual = method_name in self.vtable_method_indices.get(arch_name, {});
+        if self._predemote_capability_unit(
+            full_name, func, _pre_viols, keep_func=_pre_virtual
+        ) {
+            return;
+        }
+    }
+
     block = func.append_basic_block(name="entry");
     saved_builder = self._builder;
     saved_locals = self.local_vars;
@@ -990,6 +1004,15 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     sig = method.signature;
     if func is None or not isinstance(sig, uni.EventSignature) {
         return;
+    }
+    _pre_viols = self._capability_demotions.get(id(method));
+    if _pre_viols is not None {
+        self._claimed_capability_demotions.add(id(method));
+        if self._predemote_capability_unit(
+            full_name, func, _pre_viols, keep_func=True
+        ) {
+            return;
+        }
     }
     block = func.append_basic_block(name="entry");
     saved_builder = self._builder;
