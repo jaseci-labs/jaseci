@@ -593,6 +593,366 @@ test "the retention sweep is off by default and sweeps when configured" {
 }
 
 
+"""A scratch registry record as a container would leave one: the recorded host
+never comes back, so the recorded pid can never be checked from here."""
+def _scratch_record(
+    host: str,
+    pid: int,
+    heartbeat_age: int,
+    has_sessions: bool = False,
+    condemned_age: int = -1
+) -> Any {
+    import from jaclang.runtimelib.dbcatalog { DbKind, DbRecord }
+    return DbRecord(
+        database="jac_scratch_4242_abc",
+        recorded=True,
+        kind=DbKind.SCRATCH.value,
+        host=host,
+        pid=pid,
+        heartbeat_age_seconds=heartbeat_age,
+        has_sessions=has_sessions,
+        condemned_age_seconds=condemned_age
+    );
+}
+
+
+test "a scratch record from a host that never comes back is still reapable" {
+    import from jaclang.runtimelib.dbcatalog {
+        LIVE_PID_GRACE_SECONDS,
+        SCRATCH_CONDEMN_SEPARATION_SECONDS,
+        UNREACHABLE_HOST_GRACE_SECONDS,
+        this_host
+    }
+    # Every pod gets a fresh hostname, so a record written by a previous pod
+    # reads as alive forever and is never reaped: the self-healing property is
+    # weakest exactly where crashed runs are most common. It takes a silent
+    # heartbeat plus an earlier pass that already found it silent (see below).
+    gone = _scratch_record(
+        "pod-that-crashed",
+        4242,
+        UNREACHABLE_HOST_GRACE_SECONDS + 60,
+        condemned_age=SCRATCH_CONDEMN_SEPARATION_SECONDS + 60
+    );
+    assert gone.is_dead_scratch() , (
+        "a scratch record whose host is unreachable and whose heartbeat stopped "
+        "long ago must become reapable"
+    );
+    fresh = _scratch_record("pod-still-running", 4242, 30);
+    assert not fresh.is_dead_scratch() , (
+        "a heartbeat that is still being written must protect the database"
+    );
+    # A stale heartbeat alone never condemns a database: an owner that is still
+    # connected to it is alive whatever its heartbeat says.
+    connected = _scratch_record(
+        "pod-with-a-wedged-heartbeat",
+        4242,
+        UNREACHABLE_HOST_GRACE_SECONDS + 60,
+        has_sessions=True,
+        condemned_age=SCRATCH_CONDEMN_SEPARATION_SECONDS + 60
+    );
+    assert not connected.is_dead_scratch() , (
+        "a scratch database something is connected to must never be reaped"
+    );
+    # Rows that predate the heartbeat column carry no age at all, and an
+    # unknown age never authorises a drop.
+    unknown = _scratch_record(
+        "pod-from-an-older-release",
+        4242,
+        -1,
+        condemned_age=SCRATCH_CONDEMN_SEPARATION_SECONDS + 60
+    );
+    assert not unknown.is_dead_scratch() , (
+        "an unknown heartbeat age must fail in the safe direction"
+    );
+    # A pid this host can actually check answers the question outright, so a
+    # stale heartbeat cannot condemn a live local run.
+    mine = _scratch_record(
+        this_host(),
+        os.getpid(),
+        UNREACHABLE_HOST_GRACE_SECONDS + 60,
+        condemned_age=SCRATCH_CONDEMN_SEPARATION_SECONDS + 60
+    );
+    assert not mine.is_dead_scratch() , (
+        "a live local pid must outweigh a stale heartbeat"
+    );
+    # Unless nothing has touched it for far longer than any run could go
+    # unheard, which is what a recycled pid looks like.
+    recycled = _scratch_record(
+        this_host(),
+        os.getpid(),
+        LIVE_PID_GRACE_SECONDS + 60,
+        condemned_age=SCRATCH_CONDEMN_SEPARATION_SECONDS + 60
+    );
+    assert recycled.is_dead_scratch() , (
+        "a pid that answers but has not heartbeaten in a day is a reused pid"
+    );
+    assert LIVE_PID_GRACE_SECONDS > UNREACHABLE_HOST_GRACE_SECONDS , (
+        "a checkable pid must earn more patience than an uncheckable one"
+    );
+}
+
+
+test "one silent window never condemns a live owner behind a partition" {
+    import from jaclang.runtimelib.dbcatalog {
+        SCRATCH_CONDEMN_SEPARATION_SECONDS,
+        UNREACHABLE_HOST_GRACE_SECONDS
+    }
+    # The two signals the reap rests on are not independent in the failure that
+    # matters. One partition, one saturated connection pool, one credential
+    # rotation stops the heartbeat AND drops the store's connection, at the same
+    # instant, for the same reason. So the moment a second opinion is most
+    # needed is the moment both signals lie together, and process_alive cannot
+    # break the tie because the host is not this one. Silence observed once is
+    # therefore never enough.
+    partitioned = _scratch_record(
+        "pod-behind-a-partition", 4242, UNREACHABLE_HOST_GRACE_SECONDS + 60
+    );
+    assert partitioned.looks_abandoned() , (
+        "a silent record must still be a candidate for condemnation"
+    );
+    assert not partitioned.is_dead_scratch() , (
+        "a single silent window must never authorise dropping a database that a "
+        "live owner may still be behind"
+    );
+    # Being condemned by an earlier pass is not enough either: the two
+    # observations have to be separated in time, so one partition window cannot
+    # supply both of them.
+    just_condemned = _scratch_record(
+        "pod-behind-a-partition",
+        4242,
+        UNREACHABLE_HOST_GRACE_SECONDS + 60,
+        condemned_age=60
+    );
+    assert not just_condemned.is_dead_scratch() , (
+        "a condemnation from moments ago is the same observation, not a second one"
+    );
+    confirmed = _scratch_record(
+        "pod-behind-a-partition",
+        4242,
+        UNREACHABLE_HOST_GRACE_SECONDS + 60,
+        condemned_age=SCRATCH_CONDEMN_SEPARATION_SECONDS + 60
+    );
+    assert confirmed.is_dead_scratch() , (
+        "silence that outlived an old condemnation is what a crashed run leaves"
+    );
+    # Any heartbeat at all clears the mark, so a partition the owner survives
+    # costs it nothing: it is back to being an ordinary live scratch store.
+    spoke_again = _scratch_record("pod-behind-a-partition", 4242, 30);
+    assert not spoke_again.looks_abandoned() and not spoke_again.is_dead_scratch() , (
+        "an owner that heartbeats again must start from a clean slate"
+    );
+    assert SCRATCH_CONDEMN_SEPARATION_SECONDS > 0 , (
+        "the two observations must be separated by a real interval"
+    );
+}
+
+
+test "silence is only ever read as abandonment on a scratch record" {
+    import from jaclang.runtimelib.dbcatalog {
+        DbKind,
+        DbRecord,
+        LIVE_PID_GRACE_SECONDS
+    }
+    # Only scratch stores heartbeat, so a project database is silent by
+    # construction between runs. Nothing may read that as abandonment: it would
+    # condemn every project database in the cluster on the first prune.
+    project = DbRecord(
+        database="jac_app_1a2b3c4d",
+        recorded=True,
+        kind=DbKind.PROJECT.value,
+        owner_path="/does/not/matter",
+        host="pod-that-ran-it",
+        pid=4242,
+        heartbeat_age_seconds=LIVE_PID_GRACE_SECONDS * 2
+    );
+    assert not project.looks_abandoned() , (
+        "a project database must never be condemned for not heartbeating"
+    );
+    assert not project.is_dead_scratch();
+    assert project.state() != "silent scratch";
+    # Nor is a scratch database nobody recorded: with no owner on file there is
+    # nothing to conclude from its silence.
+    unrecorded = DbRecord(
+        database="jac_scratch_4242_orphan",
+        kind=DbKind.SCRATCH.value,
+        host="pod-that-crashed",
+        pid=4242,
+        heartbeat_age_seconds=LIVE_PID_GRACE_SECONDS * 2
+    );
+    assert not unrecorded.looks_abandoned() and not unrecorded.is_dead_scratch();
+}
+
+
+"""Register *name* as a scratch database owned by a host this machine is not."""
+def _seed_scratch(cluster: Cluster, name: str, silent_for: str = "") {
+    import from jaclang.runtimelib.dbcatalog { DbKind, REGISTRY_TABLE }
+    _exec(cluster, f'CREATE DATABASE "{name}"');
+    _exec(
+        cluster,
+        f"INSERT INTO {REGISTRY_TABLE} (database, kind, owner_path, host, pid) "
+        f"VALUES ('{name}', '{DbKind.SCRATCH.value}', '', 'pod-{name}', 4242)"
+    );
+    if silent_for {
+        _exec(
+            cluster,
+            f"UPDATE {REGISTRY_TABLE} SET last_heartbeat_at = "
+            f"now() - interval '{silent_for}' WHERE database = '{name}'"
+        );
+    }
+}
+
+
+def _prune(cluster: Cluster) -> tuple[int, str] {
+    import from jaclang.cli.commands { db }
+    return _capture(
+        lambda { db.db(action="prune", data_dir=cluster.data_dir, yes=True); }
+    );
+}
+
+
+test "db prune reaps a silent scratch database only after a second pass" {
+    import from jaclang.runtimelib.dbcatalog { REGISTRY_TABLE }
+    cluster = _start_cluster();
+    stale = "jac_scratch_4242_stale";
+    live = "jac_scratch_4243_live";
+    try {
+        _seed_scratch(cluster, stale, silent_for="2 hours");
+        _seed_scratch(cluster, live);
+
+        (code, text) = _prune(cluster);
+        assert code == 0 , f"db prune -y failed: {text}";
+        assert stale in _jac_databases(cluster) , (
+            f"the first pass to find {stale} silent must only condemn it, since a "
+            f"live owner behind a partition looks exactly like this: {text}"
+        );
+        marks = _query(
+            cluster,
+            f"SELECT condemned_at IS NOT NULL FROM {REGISTRY_TABLE} "
+            f"WHERE database = '{stale}'"
+        );
+        assert bool(marks[0][0]) , f"the first pass recorded no condemnation: {text}";
+
+        # Time passes with the heartbeat still silent, so a later pass is now
+        # looking at a second, independent observation.
+        _exec(
+            cluster,
+            f"UPDATE {REGISTRY_TABLE} SET condemned_at = now() - interval '2 hours' "
+            f"WHERE database = '{stale}'"
+        );
+        (code, text) = _prune(cluster);
+        assert code == 0 , f"second db prune -y failed: {text}";
+        names = _jac_databases(cluster);
+        assert stale not in names , (
+            f"{stale} has been silent across two separated passes and must be "
+            f"reclaimed: {text}"
+        );
+        assert live in names , (
+            f"{live} is still heartbeating and must survive prune: {text}"
+        );
+    } finally {
+        _stop_cluster(cluster);
+    }
+}
+
+
+test "an owner that reconnects before the drop keeps its database" {
+    import from jaclang.runtimelib.dbcatalog { REGISTRY_TABLE }
+    import from jaclang.vendor.pgload { connect }
+    cluster = _start_cluster();
+    reconnected = "jac_scratch_4244_back";
+    try {
+        _seed_scratch(cluster, reconnected, silent_for="2 hours");
+        _exec(
+            cluster,
+            f"UPDATE {REGISTRY_TABLE} SET condemned_at = now() - interval '2 hours' "
+            f"WHERE database = '{reconnected}'"
+        );
+        # The owner is back and using its store again, whatever the registry
+        # still says. A forced drop would terminate this connection and delete
+        # the run's state underneath it.
+        info = cluster.rt.conninfo();
+        owner: Any = connect(
+            info.user,
+            host=info.host,
+            port=info.port,
+            unix_socket_dir=info.unix_socket_dir,
+            database=reconnected
+        );
+        try {
+            owner.run("SELECT 1");
+            (code, text) = _prune(cluster);
+            assert code == 0 , f"db prune -y failed: {text}";
+            assert reconnected in _jac_databases(cluster) , (
+                f"a live connection must veto the drop, not be killed by it: {text}"
+            );
+            assert owner.run("SELECT 1") , (
+                "the owner's session was terminated by the reap"
+            );
+        } finally {
+            owner.close();
+        }
+    } finally {
+        _stop_cluster(cluster);
+    }
+}
+
+
+test "an open scratch database keeps its own registry heartbeat fresh" {
+    import time;
+    import from jaclang.runtimelib { dbcatalog as catalog }
+    import from jaclang.runtimelib.dbcatalog {
+        DbKind,
+        REGISTRY_TABLE,
+        start_heartbeat,
+        stop_heartbeat
+    }
+    cluster = _start_cluster();
+    beating = "jac_scratch_4244_beat";
+    saved = catalog.SCRATCH_HEARTBEAT_SECONDS;
+    catalog.SCRATCH_HEARTBEAT_SECONDS = 1;
+    try {
+        _exec(cluster, f'CREATE DATABASE "{beating}"');
+        _exec(
+            cluster,
+            f"INSERT INTO {REGISTRY_TABLE} "
+            "(database, kind, owner_path, host, pid) "
+            f"VALUES ('{beating}', '{DbKind.SCRATCH.value}', '', 'pod-x', 4244)"
+        );
+        # Backdate it far enough that only a real heartbeat can explain a
+        # fresh timestamp.
+        _exec(
+            cluster,
+            f"UPDATE {REGISTRY_TABLE} "
+            "SET last_heartbeat_at = now() - interval '2 hours' "
+            f"WHERE database = '{beating}'"
+        );
+        start_heartbeat(cluster.rt.conninfo(), beating);
+        deadline = time.monotonic() + 30;
+        age = -1;
+        while time.monotonic() < deadline {
+            rows = _query(
+                cluster,
+                "SELECT floor(extract(epoch FROM now() - last_heartbeat_at))"
+                f"::bigint FROM {REGISTRY_TABLE} WHERE database = '{beating}'"
+            );
+            age = int(rows[0][0]);
+            if age < 60 {
+                break;
+            }
+            time.sleep(0.5);
+        }
+        assert age >= 0 and age < 60 , (
+            f"the heartbeat never refreshed the record (age {age}s), so a live "
+            f"scratch database would eventually look reapable"
+        );
+    } finally {
+        stop_heartbeat(beating);
+        catalog.SCRATCH_HEARTBEAT_SECONDS = saved;
+        _stop_cluster(cluster);
+    }
+}
+
+
 test "retention days come from [database] retention_days, off by default" {
     import from jaclang.runtimelib.session { retention_days_for }
     base = tempfile.mkdtemp(prefix="jac-retention-");

@@ -3053,6 +3053,12 @@ impl PyastGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
         body_stmts = [
             cast(ast3.stmt, stmt) for stmt in self.resolve_stmt_block(nd.body, doc=None)
         ];
+        directive_stmts = [
+            cast(ast3.stmt, stmt) for stmt in self.scope_directive_stmts([nd])
+        ];
+        if directive_stmts {
+            body_stmts = [*directive_stmts, *body_stmts];
+        }
         if not body_stmts {
             body_stmts = [self.sync(ast3.Pass(), jac_node=nd)];
         }
