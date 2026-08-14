@@ -1,28 +1,17 @@
 """Signature parity across the `@jac/runtime` implementations.
 
-`@jac/runtime` is one public API with three implementations behind it -- React
-for the web, Solid, and react-native -- plus two cores (web and native). App
-code imports the same names regardless of target, so a name that means
-different things on different backends is a silent portability bug.
+One public API, three runtimes (React, Solid, react-native) plus two cores. App
+code imports the same names on every target, so a name that takes different
+parameters per backend is a silent portability bug.
 
-A parity test already existed for this surface
-(`tests/compiler/passes/ecmascript/test_solid_backend.jac`, "solid runtime shim
-reaches router/form parity with the React shim"), but it asserts that each
-function *exists*:
+`test_solid_backend.jac` already asserted each function *exists*
+(`assert "function AuthGuard(" in js;`) -- which stayed green throughout #8023,
+while React's `AuthGuard(redirect)` and Solid's `AuthGuard(redirect, children)`
+disagreed. Name parity is not contract parity.
 
-    assert "function AuthGuard(" in js;
-
-That passed green for the entire time React's `AuthGuard(redirect)` and Solid's
-`AuthGuard(redirect, children)` disagreed about what the component does with a
-wrapped page -- the defect in #8023. Name parity is not contract parity.
-
-These tests compare the declared parameter lists themselves: for every name
-declared in more than one runtime, the parameters must match in order, name,
-type, and default. Reading declarations rather than emitted JS keeps this fast
-(a parse, no codegen) and pins the contract at the place authors actually edit.
-
-Adding a parameter to one backend and not the others now fails here, naming
-both the symbol and the two signatures that disagree.
+These compare the declared parameter lists: for every name in more than one
+runtime, parameters must match in order, name, type, and default. Reading
+declarations rather than emitted JS keeps it to a parse, no codegen.
 """
 
 import re;
@@ -46,8 +35,8 @@ glob _RT = Path(jaclang.__file__).parent / "runtimelib",
 
 """Source text of a node, whitespace-collapsed, or None.
 
-Types like `(str | dict)` are expression nodes with no stable rendering, so the
-declaration's own source slice is the comparable form."""
+Types like `(str | dict)` have no stable rendering, so the source slice is the
+comparable form."""
 def _node_text(src: str, nd: any) -> (str | None) {
     if nd is None {
         return None;
@@ -65,14 +54,12 @@ def _is_public(abl: any) -> bool {
     return tag?.value == "pub";
 }
 
-"""Map every `def:pub` reachable from a runtime module to its parameter list,
-as `[(name, type_text, default_text)]` in declaration order.
+"""Map every `def:pub` in a runtime module to `[(name, type, default)]`.
 
-Parsing with the module's real path pulls in its `impl/` annex too, so private
-helpers show up alongside the declarations. Those are deliberately excluded:
-targets are free to name an internal argument after whichever library object
-they wrap (react-form's `field` vs solid-form's `fieldApi`). Parity is a
-promise about the public surface, not about private plumbing."""
+Non-public helpers are excluded on purpose: parsing pulls in the `impl/` annex,
+and targets may name internal arguments after whatever library they wrap
+(react-form's `field` vs solid-form's `fieldApi`). Parity covers the public
+surface, not private plumbing."""
 def _signatures(path: Path) -> dict[str, list] {
     src = path.read_text(encoding="utf-8");
     prog = JacProgram();
@@ -114,9 +101,8 @@ def _render(name: str, params: list) -> str {
     return f"{name}({', '.join(parts)})";
 }
 
-"""Every name declared by two or more of `runtimes` must have the same
-parameter list in all of them. Returns the compared names so callers can
-assert the comparison was not vacuous."""
+"""Names declared by two or more `runtimes` must have identical parameter lists.
+Returns the compared names, so callers can assert the run was not vacuous."""
 def _assert_parity(runtimes: dict[str, Path], label: str) -> set {
     tables = {};
     for (target, path) in runtimes.items() {

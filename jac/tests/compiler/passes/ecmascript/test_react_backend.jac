@@ -2,13 +2,12 @@
 
 The Solid entry has had string-level coverage since it shipped
 (`test_solid_backend.jac`); the React entry had none, which is how it came to
-call `AuthGuard` with a positional string. `AuthGuard` compiles to
-`function AuthGuard(props)`, so `AuthGuard("/signin")` destructures a string,
-finds no `redirect` key, and silently falls back to `/login` -- the configured
-`[client.routing] auth_redirect` never reaches the guard.
+call `AuthGuard` positionally. `AuthGuard` compiles to `function AuthGuard(props)`,
+so `AuthGuard("/signin")` destructures a string, finds no `redirect`, and falls
+back to `/login` -- `[client.routing] auth_redirect` never reaches the guard.
 
-These pin the calling convention at the source level. The behavioral proof that
-the guard then routes correctly lives in `tests/runtimelib/test_react_auth_jsdom.jac`.
+These pin the calling convention; the behavioral proof lives in
+`tests/runtimelib/test_react_auth_jsdom.jac`.
 """
 
 import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }

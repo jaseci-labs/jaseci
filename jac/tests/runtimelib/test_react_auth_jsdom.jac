@@ -1,29 +1,24 @@
 """jsdom behavioral tests for `AuthGuard` on the React (web) backend.
 
-`AuthGuard` had no React test at all: the only executable coverage lived in
-`test_solid_jsdom.jac`, and Solid is the one backend whose implementation was
-already children-aware. That gap is what let two defects ship --
-`AuthGuard` discarding its JSX children (blank protected page in manual
-routing) and `[client.routing] auth_redirect` being dropped by the generated
-entry -- so this suite pins the guard's render contract for React.
+React had no `AuthGuard` coverage -- only `test_solid_jsdom.jac`, and Solid was
+already children-aware -- which is how two defects shipped: children discarded
+(blank protected page) and `auth_redirect` dropped by the generated entry.
 
-Crucially it asserts the LOGGED-IN render, not just the logged-out redirect: a
-guard that renders nothing blocks anonymous users perfectly well, so a
-redirect-only test passes on both broken implementations.
+These assert the LOGGED-IN render, not just the logged-out redirect: a guard
+rendering nothing still blocks anonymous users, so a redirect-only test passes
+on the broken code.
 
-  Manual routing (`_MANUAL_HARNESS`, `fixtures/react_auth/manual_routing_app.jac`)
-    /wrapped         guard wrapping a page as a route `element` -> page renders
-    /nested          guard as a pathless PARENT route -> child route renders
-    /layout-guarded  layout wrapping `<Outlet/>` in the guard -> child renders
-    /bare            guard with neither children nor child routes -> no crash
-    ...each in both auth states; logged out must land on `/login`.
+`fixtures/react_auth/manual_routing_app.jac`, each in both auth states (logged
+out must land on `/login`):
 
-Deliberately not here: the generated entry's calling convention (pinned by
-`test_react_backend.jac`) and react-native's matching signature (by
-`test_client_runtime_parity.jac`) -- both ungated, neither needs a bun install.
+    /wrapped         guard wraps a page as a route `element` -> page renders
+    /nested          pathless PARENT route -> child route renders
+    /layout-guarded  layout wraps `<Outlet/>` in the guard -> child renders
+    /bare            neither children nor child routes -> no crash
 
-Integration test: real `bun install` of react + react-router + jsdom, so it runs
-only when `JAC_CLIENT_INTEGRATION` is set (mirrors `test_react_state_semantics.jac`).
+Elsewhere on purpose: the entry's calling convention (`test_react_backend.jac`)
+and react-native's signature (`test_client_runtime_parity.jac`), both ungated.
+Real `bun install`, so this runs only under `JAC_CLIENT_INTEGRATION`.
 """
 
 import json;
@@ -205,8 +200,8 @@ def _rewrite_core_specifier(runtime_js: str) -> str {
     return runtime_js;
 }
 
-"""Rewrite every `@jac/runtime` specifier to the flat sibling the harness writes
-(`./jac_runtime.js`) -- mirrors how the bundler resolves the virtual module."""
+"""Point `@jac/runtime` at the flat sibling the harness writes, as the bundler
+resolves the virtual module."""
 def _wire_jac_runtime(js: str) -> str {
     for q in ['"', "'"] {
         js = js.replace(f"{q}@jac/runtime{q}", f"{q}./jac_runtime.js{q}");
@@ -215,7 +210,7 @@ def _wire_jac_runtime(js: str) -> str {
 }
 
 """Compile a page/layout/app `.jac`, prepend its `@jac/runtime` globals (the bare
-`__jacJsx` the compiler emits), and wire the runtime specifier."""
+`__jacJsx`), and wire the runtime specifier."""
 def _compile_page(path: str, backend: any) -> str {
     return _wire_jac_runtime(with_runtime_globals(_compile_react(path), backend));
 }
@@ -249,8 +244,8 @@ def _bun_install(bun: str, work: Path, name: str) {
     );
 }
 
-"""Run the harness once per scenario in a fresh process, so each starts at its
-own URL and auth state with a clean module graph (the entry renders on import)."""
+"""One fresh process per scenario, so each starts at its own URL and auth state
+with a clean module graph."""
 def _run_scenarios(bun: str, work: Path, scenarios: list, label: str) {
     node_bin = shutil.which("node");
     for sc in scenarios {

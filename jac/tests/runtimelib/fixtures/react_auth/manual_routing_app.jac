@@ -1,21 +1,17 @@
 """Manual-routing `AuthGuard` fixture for the React jsdom auth test.
 
-Wires every shape `AuthGuard` is used in outside file-based routing, side by
-side, so one fixture covers the whole matrix:
+Every shape the guard is used in outside file-based routing, side by side:
 
-  /wrapped         `<AuthGuard>...</AuthGuard>` as a route `element` (the form
-                   `jac-cl-auth` documents) -- the guard must render its own
-                   children, not a `<Outlet/>` that resolves to nothing.
-  /nested          `<AuthGuard/>` as a pathless PARENT route -- the guard has no
-                   children and must fall back to `<Outlet/>` so the matched
-                   child route renders.
-  /layout-guarded  a layout component that wraps `<Outlet/>` in `<AuthGuard>` --
-                   the file-based `(auth)/layout.jac` shape, expressed manually.
-  /bare            `<AuthGuard/>` with neither children nor child routes -- must
-                   render nothing rather than crash.
+  /wrapped         `<AuthGuard>...</AuthGuard>` as a route `element` -- must
+                   render its children, not an `<Outlet/>` resolving to nothing.
+  /nested          `<AuthGuard/>` as a pathless PARENT route -- no children, so
+                   it falls back to `<Outlet/>` and the child route renders.
+  /layout-guarded  a layout wrapping `<Outlet/>` in the guard -- the
+                   `(auth)/layout.jac` shape, written manually.
+  /bare            neither children nor child routes -- renders nothing, no crash.
 
-`chrome` sits outside `<Routes>` so the harness can tell "the guard rendered
-nothing" apart from "the app never mounted".
+`chrome` sits outside `<Routes>` so "the guard rendered nothing" is
+distinguishable from "the app never mounted".
 """
 
 import from "@jac/runtime" { Router, Routes, Route, AuthGuard, Outlet }
