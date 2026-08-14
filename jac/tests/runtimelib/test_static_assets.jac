@@ -109,7 +109,7 @@ test "no basename flattening: a deep URL does not match a shallow file" {
     proj = _project();
     _write(proj, "assets/logo.png", b"LOGO");
 
-    assert resolve_asset(_table(proj), "/static/x/deep/logo.png") is None , "must not alias assets/logo.png — exact path only";
+    assert resolve_asset(_table(proj), "/static/assets/x/deep/logo.png") is None , "must not alias assets/logo.png — exact path only";
 }
 
 
@@ -117,10 +117,10 @@ test "one URL maps to at most one file (exact path within a root)" {
     proj = _project();
     _write(proj, "assets/img/icon.svg", b"SVG");
 
-    # served at its real relative path under the /static space, not by basename
-    result = resolve_asset(_table(proj), "/static/img/icon.svg");
-    assert result is not None , "assets/img/icon.svg resolves at /static/img/icon.svg (exact relative path)";
-    assert resolve_asset(_table(proj), "/static/icon.svg") is None , "the same file must not also answer at /static/icon.svg";
+    # project assets are served under /static/assets/ at their real relative path
+    result = resolve_asset(_table(proj), "/static/assets/img/icon.svg");
+    assert result is not None , "assets/img/icon.svg resolves at /static/assets/img/icon.svg (the #6872 URL space)";
+    assert resolve_asset(_table(proj), "/static/assets/icon.svg") is None , "the same file must not also answer at /static/assets/icon.svg (no basename flattening)";
 }
 
 
@@ -184,10 +184,10 @@ test "a mount on the reserved static prefix still lets project /static assets re
         proj / ".jac" / "client" / "dist",
         [{"url_prefix": "static", "local_path": str(mount_dir)}]
     );
-    result = resolve_asset(table, "/static/logo.svg");
+    result = resolve_asset(table, "/static/assets/logo.svg");
     assert result is not None , (
         "a mount claiming 'static' must not shadow a real project /static asset "
-        "(#7020); the static->assets root still serves it"
+        "(#7020); the static/assets->assets root still serves it"
     );
     (path, _) = result;
     assert path.read_bytes() == b"<svg/>";

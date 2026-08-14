@@ -27,7 +27,9 @@ def asset_root_table(
     public = str(project_root / "public");
 
     table.append(AssetRoot(url_prefix="static", local_dir=dist, source="dist"));
-    table.append(AssetRoot(url_prefix="static", local_dir=assets, source="assets"));
+    table.append(
+        AssetRoot(url_prefix="static/assets", local_dir=assets, source="assets")
+    );
     table.append(AssetRoot(url_prefix="", local_dir=dist, source="dist"));
     table.append(AssetRoot(url_prefix="", local_dir=public, source="public"));
     table.append(AssetRoot(url_prefix="", local_dir=assets, source="assets"));
