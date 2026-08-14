@@ -1,7 +1,6 @@
 import logging;
-import mimetypes;
 import from pathlib { Path }
-import from fastapi { FastAPI, Request }
+import from fastapi { Request }
 import from fastapi.responses { JSONResponse, Response }
 import from jaclang.scale.runtime.gateway.gateway { Gateway }
 import from jaclang.scale.runtime.gateway.service_registry { ServiceRegistry }
@@ -26,7 +25,9 @@ obj EmbeddedGateway(Gateway) {
         port: int = DEFAULT_GATEWAY_PORT,
         host: str = DEFAULT_GATEWAY_HOST,
         client_dist_dir: str = DEFAULT_CLIENT_DIST_DIR,
-        app: FastAPI | None = None;
+        base_path: str = ".",
+        static_mounts: list[dict[str, str]] = [],
+        app: any = None;
 
     def setup -> None;
     def _service_prefixes -> list[str];
