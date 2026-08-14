@@ -22,6 +22,10 @@ need not agree on it.
 
 glob PAIRS: list[tuple[int, int]] = [(1, 2), (1, 3), (1, 2)];
 
+obj Rows {
+    has pairs: list[tuple[int, int]] = [];
+}
+
 """Duplicates must collapse by value: two members survive, not one."""
 def head_dup(flag: int) -> int {
     a: list[tuple[int, int]] = [(1, 2), (1, 3), (1, 2)];
@@ -118,6 +122,58 @@ def int_head_spread(flag: int) -> int {
 }
 
 
+"""A source that is a parameter, whose declared type sits on the ParamVar."""
+def _from_param(a: list[tuple[int, int]]) -> int {
+    s = {*a};
+    return len(s) * 10 + (1 if (1, 3) in s else 0);
+}
+
+
+def param_spread(flag: int) -> int {
+    return _from_param([(1, 2), (1, 3), (1, 2)]);
+}
+
+
+"""A string parameter, which must keep the C-string keys it always had."""
+def _from_str_param(a: list[str]) -> int {
+    s = {*a};
+    return len(s) * 10 + (1 if "cd" in s else 0);
+}
+
+
+def param_str_spread(flag: int) -> int {
+    return _from_str_param(["ab", "cd", "ab"]);
+}
+
+
+"""A source that is an object field rather than a binding."""
+def field_spread(flag: int) -> int {
+    b = Rows(pairs=[(1, 2), (1, 3), (1, 2)]);
+    s = {*b.pairs};
+    return len(s) * 10 + (1 if (1, 3) in s else 0);
+}
+
+
+"""A source that is a call result, which never has a binding at all."""
+def _pairs -> list[tuple[int, int]] {
+    return [(1, 2), (1, 3), (1, 2)];
+}
+
+
+def call_spread(flag: int) -> int {
+    s = {*_pairs()};
+    return len(s) * 10 + (1 if (1, 3) in s else 0);
+}
+
+
+"""A source that is a slice of a list of tuples."""
+def slice_spread(flag: int) -> int {
+    a: list[tuple[int, int]] = [(1, 2), (1, 3), (1, 4)];
+    s = {*a[0:2]};
+    return len(s) * 10 + (1 if (1, 3) in s else 0);
+}
+
+
 """The copy must be a copy: mutating the source afterwards leaves the set."""
 def source_survives(flag: int) -> int {
     a: list[tuple[int, int]] = [(1, 2), (1, 3)];
@@ -140,6 +196,11 @@ with entry:__main__ {
     assert two_list_spreads(0) == 31;
     assert str_head_spread(0) == 21;
     assert int_head_spread(0) == 21;
+    assert param_spread(0) == 21;
+    assert param_str_spread(0) == 21;
+    assert field_spread(0) == 21;
+    assert call_spread(0) == 21;
+    assert slice_spread(0) == 21;
     assert source_survives(0) == 230;
     print("OK set_spread_tuple");
 }

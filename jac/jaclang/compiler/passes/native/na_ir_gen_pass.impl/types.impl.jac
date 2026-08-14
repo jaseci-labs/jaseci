@@ -422,16 +422,20 @@ impl NaIRGenPass._static_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | 
     }
     _t = expr.type;
     if _t is None and isinstance(expr, uni.Name) and expr.sym is not None {
-        _t = expr.sym.decl?.type;
+        _decl = expr.sym.decl;
+        _t = _decl?.type;
+        if _t is None and isinstance(_decl?.parent, (uni.ParamVar, uni.HasVar)) {
+            _t = _decl.parent?.type;
+        }
     }
     if _t is None {
         return None;
     }
     _names = ("list", "set", "frozenset", "Sequence");
-    if not self._spec_name_match(self._mangled_of(_t), _names) {
+    if not self._spec_name_match(self._mangled_of(_t) or "", _names) {
         _sole = self._opt_sole_member(_t);
         if _sole is None
-            or not self._spec_name_match(self._mangled_of(_sole), _names) {
+            or not self._spec_name_match(self._mangled_of(_sole) or "", _names) {
             return None;
         }
         _t = _sole;

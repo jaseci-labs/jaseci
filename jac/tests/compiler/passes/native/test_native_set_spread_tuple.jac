@@ -49,6 +49,11 @@ glob FIXTURES = os.path.join(
          "two_list_spreads",
          "str_head_spread",
          "int_head_spread",
+         "param_spread",
+         "param_str_spread",
+         "field_spread",
+         "call_spread",
+         "slice_spread",
          "source_survives"
      ];
 
@@ -108,8 +113,8 @@ test "a leading spread of a list of tuples keeps its members distinct" {
         got = _get(eng, name)(0);
         assert got == want , (
             f"{name}: got {got}, want {want} -- a short set means the members "
-            f"were compared as C strings over the boxed tuple's bytes rather "
-            f"than by the tuple layout"
+            "were compared as C strings over the boxed tuple's bytes rather "
+            "than by the tuple layout"
         );
     }
 }
@@ -134,6 +139,25 @@ test "the shapes that already recovered the layout are unchanged" {
     assert _get(eng, "tail_list_spread")(0) == 21 , (
         "a list of tuples spread into a set whose flavour a set source " "already fixed"
     );
+}
+
+
+test "the layout is recovered whatever the source expression is" {
+    eng = _compile();
+    expect = {
+        "param_spread": 21,
+        "field_spread": 21,
+        "call_spread": 21,
+        "slice_spread": 21
+    };
+    for (name, want) in expect.items() {
+        got = _get(eng, name)(0);
+        assert got == want , (
+            f"{name}: got {got}, want {want} -- a parameter, a field, a call "
+            "result and a slice each reach their element type by a different "
+            "route, and none of them may fall back to pointer bytes"
+        );
+    }
 }
 
 
