@@ -58,23 +58,29 @@ test "a genuinely missing /static asset still 404s (no false-positive serving)" 
 
 
 test "public/ asset is served at the web root like vite and next serve it (#8124)" {
+    import shutil;
     project_root = tempfile.mkdtemp();
-    brand_dir = os.path.join(project_root, "public", "brand");
-    os.makedirs(brand_dir, exist_ok=True);
-    with open(os.path.join(brand_dir, "logo.png"), "wb") as f {
-        f.write(b"PNG_DATA");
-    }
     empty_dist = tempfile.mkdtemp();
+    try {
+        brand_dir = os.path.join(project_root, "public", "brand");
+        os.makedirs(brand_dir, exist_ok=True);
+        with open(os.path.join(brand_dir, "logo.png"), "wb") as f {
+            f.write(b"PNG_DATA");
+        }
 
-    gw = MicroserviceGateway(registry=ServiceRegistry());
-    gw.base_path = project_root;
-    gw.client_dist_dir = empty_dist;
+        gw = MicroserviceGateway(registry=ServiceRegistry());
+        gw.base_path = project_root;
+        gw.client_dist_dir = empty_dist;
 
-    import from jaclang.runtimelib.serving.datatypes { URL }
-    req = Request(method="GET", url=URL(path="/brand/logo.png"));
-    resp = gw.handle_static(req, "/brand/logo.png");
+        import from jaclang.runtimelib.serving.datatypes { URL }
+        req = Request(method="GET", url=URL(path="/brand/logo.png"));
+        resp = gw.handle_static(req, "/brand/logo.png");
 
-    assert resp is not None , "public/brand/logo.png must be reachable at /brand/logo.png (the amplify bug #6876)";
-    assert resp.status_code == 200;
-    assert resp.body_bytes() == b"PNG_DATA";
+        assert resp is not None , "public/brand/logo.png must be reachable at /brand/logo.png (the amplify bug #6876)";
+        assert resp.status_code == 200;
+        assert resp.body_bytes() == b"PNG_DATA";
+    } finally {
+        shutil.rmtree(project_root, ignore_errors=True);
+        shutil.rmtree(empty_dist, ignore_errors=True);
+    }
 }
