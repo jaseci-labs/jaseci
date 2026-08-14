@@ -88,6 +88,17 @@ obj ModuleCodegenPass(Transform[uni.Module, uni.Module]) {
         return bool(ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE));
     }
 
+    static def is_type_alias_decl(assign: uni.Assignment) -> bool {
+        if assign.type_tag is None or assign.value is None {
+            return False;
+        }
+        tag = assign.type_tag.tag;
+        if isinstance(tag, uni.AtomTrailer) {
+            tag = tag.right;
+        }
+        return isinstance(tag, uni.Name) and tag.value == "TypeAlias";
+    }
+
     static def archetype_refs(nd: uni.UniNode) -> list[str] {
         names: list[str] = [];
         for nm in nd.get_all_sub_nodes(uni.Name) {

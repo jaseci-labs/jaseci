@@ -33,17 +33,6 @@ impl NaIRGenPass._glob_native_use_exists(target: uni.UniNode) -> bool {
     return False;
 }
 
-impl NaIRGenPass._is_type_alias_decl(assign: uni.Assignment) -> bool {
-    if assign.type_tag is None or assign.value is None {
-        return False;
-    }
-    tag = assign.type_tag.tag;
-    if isinstance(tag, uni.AtomTrailer) {
-        tag = tag.right;
-    }
-    return isinstance(tag, uni.Name) and tag.value == "TypeAlias";
-}
-
 impl NaIRGenPass._register_globals(module: uni.Module) -> None {
     for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
         if isinstance(stmt, uni.GlobalVars) {
@@ -127,7 +116,7 @@ impl NaIRGenPass._register_entry_globals(module: uni.Module) -> None {
 
 impl NaIRGenPass._codegen_global_vars(nd: uni.GlobalVars) -> None {
     for assign in nd.assignments {
-        if self._is_type_alias_decl(assign) {
+        if ModuleCodegenPass.is_type_alias_decl(assign) {
             continue;
         }
         targets = assign.target
