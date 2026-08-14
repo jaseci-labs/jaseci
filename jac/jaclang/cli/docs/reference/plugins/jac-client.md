@@ -1030,6 +1030,7 @@ def:pub AuthShell() -> JsxLayout {
 
 In manual routing, use it as a pathless parent route to protect a group:
 
+<!-- jac-skip -->
 ```jac
 <Route element={<AuthGuard redirect="/login" />}>
     <Route path="/dashboard" element={<Dashboard />} />
@@ -1038,6 +1039,7 @@ In manual routing, use it as a pathless parent route to protect a group:
 
 ...or wrap a single page:
 
+<!-- jac-skip -->
 ```jac
 <Route path="/dashboard"
        element={<AuthGuard redirect="/login"><Dashboard /></AuthGuard>} />

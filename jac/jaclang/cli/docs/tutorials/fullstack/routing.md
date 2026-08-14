@@ -526,6 +526,7 @@ Any pages in the `(protected)` group will require authentication.
 
 With manual routing, put the guard above the routes it protects:
 
+<!-- jac-skip -->
 ```jac
 <Route element={<AuthGuard redirect="/login" />}>
     <Route path="/dashboard" element={<Dashboard />} />

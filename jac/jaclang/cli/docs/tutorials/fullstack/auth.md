@@ -455,6 +455,7 @@ The `AuthGuard` component:
 
 For manual routing, the same two shapes apply. Guard a whole group with a pathless parent route:
 
+<!-- jac-skip -->
 ```jac
 <Route element={<AuthGuard redirect="/login" />}>
     <Route path="/dashboard" element={<Dashboard />} />
@@ -464,6 +465,7 @@ For manual routing, the same two shapes apply. Guard a whole group with a pathle
 
 Or wrap a single page:
 
+<!-- jac-skip -->
 ```jac
 <Route path="/dashboard"
        element={<AuthGuard redirect="/login"><Dashboard /></AuthGuard>} />
