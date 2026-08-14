@@ -190,6 +190,7 @@ glob COMPILER_DIGEST_ROOTS: tuple = (
          "utils/precompile_bytecode.jac"
      ),
      COMPILER_DIGEST_SUFFIXES: tuple = (".jac", ".py"),
+     COMPILER_DIGEST_SKIP_DIRS: tuple = ("tests", "test", "__pycache__"),
      COMPILER_DIGEST_SKIP: tuple = ("compiler/native_materialize.jac", );
 
 def compiler_source_files(pkg_dir: str) -> list[str] {
@@ -208,10 +209,10 @@ def compiler_source_files(pkg_dir: str) -> list[str] {
             dirs[:] = [
                 d
                 for d in dirs
-                if not d.startswith(".") and d != "__pycache__"
+                if not d.startswith(".") and d not in COMPILER_DIGEST_SKIP_DIRS
             ];
             for name in files {
-                if not name.endswith(COMPILER_DIGEST_SUFFIXES) {
+                if not name.endswith(COMPILER_DIGEST_SUFFIXES) or ".test." in name {
                     continue;
                 }
                 rel = os.path.relpath(os.path.join(walk_dir, name), base).replace(

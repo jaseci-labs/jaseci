@@ -136,20 +136,22 @@ jobs:
           path: jac/.llvm-build
           key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/llvm_release.zig') }}
 
-      # Identity of the compiler this build runs, as git tree object ids over
-      # the same roots jir.jac hashes for its module keys. Git ids rather than
-      # hashFiles: they are immune to step ordering and to untracked artifacts
-      # restored into the tree (the shim cache lands in jaclang/compiler/**).
+      # Identity of the compiler this build runs, as git blob ids over the same
+      # file set jir.jac hashes for its module keys (jaclang.jac0core.jir:
+      # COMPILER_DIGEST_ROOTS, .jac/.py only, test material excluded). Verbatim
+      # twin of the step in .github/actions/setup-jac; keep them in lockstep.
       - name: Fingerprint the compiler tree (dev channel)
         if: inputs.channel == 'dev'
         id: compiler-fp
         shell: bash
         run: |
-          fp="$(git rev-parse \
-            "HEAD:jac/jaclang/jac0.py" \
-            "HEAD:jac/jaclang/jac0core" \
-            "HEAD:jac/jaclang/compiler" \
-            "HEAD:jac/jaclang/utils/precompile_bytecode.jac" \
+          fp="$(git ls-tree -r HEAD -- \
+            jac/jaclang/jac0.py \
+            jac/jaclang/jac0core \
+            jac/jaclang/compiler \
+            jac/jaclang/utils/precompile_bytecode.jac \
+            | grep -E '\.(jac|py)$' \
+            | grep -vE '(^|/)(tests|test)/|\.test\.jac$' \
             | git hash-object --stdin)"
           echo "fp=${fp:0:16}" >> "$GITHUB_OUTPUT"
 

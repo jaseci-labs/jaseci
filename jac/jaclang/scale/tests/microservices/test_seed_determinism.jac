@@ -54,7 +54,10 @@ def _stage_compiler_tree(where: str, codegen_body: str) -> str {
         "utils/precompile_bytecode.jac",
         "runtimelib/machine.jac",
         "compiler/__pycache__/stale.py",
-        "compiler/.jac/cache/hidden.jac"
+        "compiler/.jac/cache/hidden.jac",
+        "compiler/tests/test_lowering.jac",
+        "compiler/tests/fixtures/corpus.jac",
+        "jac0core/passes/pyast_gen_pass.test.jac"
     ] {
         f = pkg / rel;
         f.parent.mkdir(parents=True, exist_ok=True);
@@ -98,7 +101,10 @@ test "the compiler digest ignores build artifacts and non-compiler modules" {
             ("compiler/passes/native/llvm/libjacllvm.so", "relinked shim\n"),
             ("runtimelib/machine.jac", "runtime edit\n"),
             ("compiler/__pycache__/stale.py", "byte cache\n"),
-            ("compiler/.jac/cache/hidden.jac", "cache droppings\n")
+            ("compiler/.jac/cache/hidden.jac", "cache droppings\n"),
+            ("compiler/tests/test_lowering.jac", "new compiler test\n"),
+            ("compiler/tests/fixtures/corpus.jac", "new fixture\n"),
+            ("jac0core/passes/pyast_gen_pass.test.jac", "new annex test\n")
         ] {
             Path(a, rel).write_text(text);
             assert compiler_source_digest(a) == base , f"{rel} must not participate in the compiler digest";
@@ -161,8 +167,14 @@ test "the running compiler digest covers the real compiler tree" {
     ] {
         assert expected in rels , f"{expected} is outside the compiler digest";
     }
-    assert len(rels) > 300;
+    assert len(rels) > 250;
+    assert len(rels) == len(set(rels));
+    assert rels == sorted(rels);
     assert "compiler/native_materialize.jac" not in rels;
+    for rel in rels {
+        assert "/tests/" not in rel and not rel.startswith("tests/") , f"{rel} is test material and must not gate the seed";
+        assert rel.endswith(".jac") or rel.endswith(".py");
+    }
     assert running_compiler_digest() == compiler_source_digest(pkg);
     assert running_compiler_digest() == running_compiler_digest();
 }
