@@ -162,16 +162,25 @@ test "no client entry means no client build in the gateway entrypoint" {
 }
 
 
-test "a service pod resolves its module from the bundle manifest, not find" {
-    # #8105: the bundle declares its members and services; booting by
-    # guessing over the extracted tree picked same-named strays
-    # nondeterministically.
+test "a service pod boots the resolved module, not a find guess" {
+    # #8105: the bundle declares its members and services, the deploy
+    # resolves every service file against that declaration, and the pod
+    # stops guessing with find over the extracted tree.
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
     builder = ManifestBuilder(k8s_config=cfg);
     args: str = builder._pod_entrypoint()["args"][0];
     assert "find " not in args , args;
-    assert "manifest.json" in args , args;
     assert 'exec jac start "$SV_FILE"' in args , args;
+}
+
+
+test "every service pod env carries its bundle-resolved file" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE));
+    orders = {e["name"]: e["value"] for e in builder._build_env("orders_app", {})};
+    assert orders["JAC_SV_FILE"] == "orders_app.jac" , orders;
+    main_env = {e["name"]: e["value"] for e in builder._build_env("main", {})};
+    assert main_env["JAC_SV_FILE"] == "main.jac" , main_env;
 }
 
 

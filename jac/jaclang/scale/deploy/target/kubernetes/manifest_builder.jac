@@ -138,7 +138,8 @@ obj ManifestBuilder {
         _bundle_object_key: str = "",
         _toolchain_object_key: str = "",
         microservices_config: (dict[str, any] | None) = None,
-        dry_run: bool = False;
+        dry_run: bool = False,
+        _bundle_services_cache: (dict[str, str] | None) = None;
 
     def _ms_cfg -> dict[str, any] {
         if self.microservices_config is not None {
@@ -467,6 +468,27 @@ obj ManifestBuilder {
         }
     }
 
+    def _bundle_services -> dict[str, str] {
+        if self._bundle_services_cache is not None {
+            return self._bundle_services_cache;
+        }
+        resolved: dict[str, str] = {};
+        if self.project_dir {
+            try {
+                import from jaclang.scale.injector.bundle { resolved_bundle_services }
+                resolved = resolved_bundle_services(self.project_dir);
+            } except Exception as exc {
+                if self.logger {
+                    self.logger.warning(
+                        f"Could not resolve service files from the bundle: {exc}"
+                    );
+                }
+            }
+        }
+        self._bundle_services_cache = resolved;
+        return resolved;
+    }
+
     def _client_entry -> str {
         try {
             ms_cfg = self._ms_cfg();
@@ -681,6 +703,9 @@ obj ManifestBuilder {
             {"name": "K8S_NAMESPACE", "value": self.k8s_config.namespace}
         ];
         svc_file: str = str(svc_cfg.get("file") or "");
+        if not svc_file {
+            svc_file = self._bundle_services().get(svc_name, "");
+        }
         if svc_file {
             env.append({"name": "JAC_SV_FILE", "value": svc_file});
         }
@@ -1073,14 +1098,11 @@ obj ManifestBuilder {
                 "else "
                 '  SV_FILE="${JAC_SV_FILE:-}"; '
                 '  if [ -z "$SV_FILE" ]; then '
-                "    if [ ! -f manifest.json ]; then "
-                '      echo "jac-scale boot: the bundle shipped without manifest.json, so service $JAC_SV_NAME cannot resolve its module; re-deploy with a matching jac version." >&2; '
-                "      exit 1; "
-                "    fi; "
-                "    SV_FILE=\"$(python3 -c 'import json, os; print(json.load(open(\"manifest.json\")).get(\"services\", {}).get(os.environ[\"JAC_SV_NAME\"], \"\"))')\"; "
+                '    echo "jac-scale boot: no service file was resolved for $JAC_SV_NAME at deploy time; re-deploy with a matching jac version." >&2; '
+                "    exit 1; "
                 "  fi; "
-                '  if [ -z "$SV_FILE" ] || [ ! -f "$SV_FILE" ]; then '
-                '    echo "jac-scale boot: service $JAC_SV_NAME resolves to ${SV_FILE:-<none>}, which the bundle does not ship; fix [scale.microservices] and re-deploy." >&2; '
+                '  if [ ! -f "$SV_FILE" ]; then '
+                '    echo "jac-scale boot: service $JAC_SV_NAME resolves to $SV_FILE, which the shipped bundle does not contain; fix [scale.microservices] and re-deploy." >&2; '
                 "    exit 1; "
                 "  fi; "
                 '  exec jac start "$SV_FILE"; '

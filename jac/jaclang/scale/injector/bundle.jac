@@ -271,6 +271,14 @@ def _implicit_main_wanted(base: Path, declared: dict[str, str]) -> str {
 }
 
 
+def resolved_bundle_services(project_dir: str) -> dict[str, str] {
+    base = Path(project_dir).resolve();
+    excluded = source_filter_for(base);
+    members = [path.relative_to(base).as_posix() for path in bundle_source_files(base)];
+    return resolve_service_members(base, members, excluded);
+}
+
+
 def resolve_service_members(
     base: Path, members: list[str], excluded: BundleSourceFilter
 ) -> dict[str, str] {
