@@ -151,8 +151,12 @@ impl SolidBackend._jsx_attr(
             value = sync_loc(
                 es.JsxExpressionContainer(expression=attr.value), jac_node=attr.jac_node
             );
-        } else {
+        } elif isinstance(attr.value, es.Literal) {
             value = attr.value;
+        } else {
+            value = sync_loc(
+                es.JsxExpressionContainer(expression=attr.value), jac_node=attr.jac_node
+            );
         }
     } elif isinstance(attr, EventAttr) {
         value = sync_loc(
