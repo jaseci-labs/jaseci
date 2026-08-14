@@ -420,7 +420,7 @@ impl NaIRGenPass._register_static_fields(arch_name: str, archhas: uni.ArchHas) -
         }
         ftype: ir.Type = ir.IntType(64);
         if var.type_tag is not None {
-            ftype = self._resolve_jac_type(var.type_tag);
+            ftype = self._resolve_decl_type(var.type_tag, var.value);
         } elif var.value is not None {
             inferred = self._infer_global_init_type(var.value);
             if inferred is not None {
