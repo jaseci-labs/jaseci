@@ -299,9 +299,17 @@ obj _MatGen {
     def emit_dict(v: str, expr: str, kv: str, out: list, ind: str, uid: str) {
         (kt, vt) = _split_kv(kv);
         u = uid + "d";
+        if kt not in _SCALARS {
+            out.append(ind + f"{v} = PyDict_New();");
+            out.append(ind + f"if len({expr}) != 0 {{");
+            out.append(ind + f"    Py_DecRef({v});");
+            out.append(ind + "    return 0;");
+            out.append(ind + "}");
+            return;
+        }
         out.append(ind + f"{v} = PyDict_New();");
         out.append(ind + f"for (dk_{u}, dv_{u}) in {expr}.items() {{");
-        kexpr = self.scalar_expr(f"dk_{u}", kt if kt in _SCALARS else "int");
+        kexpr = self.scalar_expr(f"dk_{u}", kt);
         out.append(ind + f"    kh_{u} = {kexpr};");
         vb = _base_of(vt);
         if vt in _SCALARS {
