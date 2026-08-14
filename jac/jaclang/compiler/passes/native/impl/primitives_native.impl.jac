@@ -5052,14 +5052,18 @@ impl NativeBuiltinEmitter.emit_str(
             if cont_s is not None {
                 return cont_s;
             }
-            return b.bitcast(arg_val, i8p, name="str.identity");
+            identity = b.bitcast(arg_val, i8p, name="str.identity");
+            p._emit_rc_retain(identity, op="builtin_str_id");
+            return identity;
         }
 
         none_s = p._make_global_string("None", name_prefix=".str.none");
         is_null = b.icmp_unsigned(
             "==", arg_val, ir.Constant(i8p, None), name="str.isnone"
         );
-        return b.select(is_null, none_s, arg_val, name="str.ornone");
+        result = b.select(is_null, none_s, arg_val, name="str.ornone");
+        p._emit_rc_retain(result, op="builtin_str_id");
+        return result;
     }
 
     if isinstance(arg_val.type, ir.DoubleType) {
