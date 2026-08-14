@@ -25,11 +25,13 @@ closure from the sealed entry points and fails if any name below is in it.
 """
 
 import os;
+import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
      UNITREE_SRC = PKG_PATH / "jac0core" / "unitree.jac";
@@ -186,12 +188,19 @@ def _waived_seams -> dict[(str, str)] {
 
 """Compile `unitree.jac` the way `seal_native_artifacts` does, up to the census."""
 def _unitree_census -> tuple[(dict, bool)] {
-    # Runs in dev trees AND inside the sealed payload lanes: the payload is
-    # built from this checkout, so the site sources it compiles here are the
-    # exact sources a payload build seals, and the LLVM backend ships (jac
-    # nacompile is a payload feature). This census is a static proof no
-    # functional pass can substitute for: a demotion waiver whose abort stub
-    # is reachable passes every test until a rare input hits the stub.
+    # Runs in dev trees AND inside payload lanes that still compile from
+    # source. When THIS runtime serves unitree from its own native seal, a
+    # source measurement is not expressible: the compile is answered by the
+    # sealed artifact, so the census would read an empty closure and every
+    # assertion below would be vacuous. That build already ran this exact
+    # census at seal time (seal_demotion_report refuses un-waived seams),
+    # which is the invariant this file pins for source lanes.
+    if native_artifact_for("jaclang.jac0core.unitree") is not None {
+        pytest.skip(
+            "unitree is served from this runtime's native seal; the census "
+            "gated the build via seal_demotion_report"
+        );
+    }
     if _CENSUS_MEMO {
         return _CENSUS_MEMO[0];
     }
