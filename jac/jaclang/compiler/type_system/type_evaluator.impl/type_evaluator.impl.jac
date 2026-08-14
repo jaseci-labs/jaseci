@@ -3797,6 +3797,17 @@ impl TypeEvaluator.get_narrowed_type_for_expr(
     }
 }
 
+impl TypeEvaluator._node_encloses(outer: uni.UniNode, inner: uni.UniNode) -> bool {
+    cur: uni.UniNode | None = inner;
+    while cur is not None {
+        if cur is outer {
+            return True;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
 impl TypeEvaluator._get_type_from_flow_node(
     target: NarrowingTarget, flow_node: uni.UniCFGNode, visited: set
 ) -> TypeBase | None {
@@ -3838,19 +3849,8 @@ impl TypeEvaluator._get_type_from_flow_node(
         if isinstance(pred, uni.CfgExpr) and not pred.bb_in {
             continue;
         }
-        if is_loop_header {
-            is_back_edge: bool = False;
-            anc: uni.UniNode | None = pred;
-            while anc is not None {
-                if anc is flow_node {
-                    is_back_edge = True;
-                    break;
-                }
-                anc = anc.parent;
-            }
-            if is_back_edge {
-                continue;
-            }
+        if is_loop_header and self._node_encloses(flow_node, pred) {
+            continue;
         }
 
         if isinstance(
@@ -3907,22 +3907,14 @@ impl TypeEvaluator._get_type_from_flow_node(
             predicate = self._find_predicate_for(target, pred.condition);
             if predicate is not None {
                 edge_kind = self._classify_edge(pred, flow_node);
-                if edge_kind == "true" {
+                if edge_kind in ("true", "false") {
                     narrowed = self._apply_narrowing(
-                        predicate, pred_narrowed, True, target
+                        predicate, pred_narrowed, edge_kind == "true", target
                     );
                     if narrowed is not None {
                         incoming_types.append(narrowed);
-                    } else {
-                        has_unnarrowed_pred = True;
-                    }
-                    continue;
-                } elif edge_kind == "false" {
-                    narrowed = self._apply_narrowing(
-                        predicate, pred_narrowed, False, target
-                    );
-                    if narrowed is not None {
-                        incoming_types.append(narrowed);
+                    } elif pred_narrowed is not None {
+                        incoming_types.append(pred_narrowed);
                     } else {
                         has_unnarrowed_pred = True;
                     }
@@ -3961,7 +3953,9 @@ impl TypeEvaluator._get_type_from_flow_node(
             }
         }
 
-        if isinstance(pred, uni.Assignment) and pred.value {
+        if isinstance(pred, uni.Assignment)
+            and pred.value
+            and not self._node_encloses(pred, flow_node) {
             import from jaclang.compiler.symbol_utils {
                 collect_assignment_target_keys,
                 find_destructure_index_path,
@@ -4063,17 +4057,8 @@ impl TypeEvaluator._get_type_from_flow_node(
             isinstance(pred, uni.IfStmt)
             and not isinstance(flow_node, uni.CfgExpr)
             and self._loop_body_writes_target(pred, target)
+            and not self._node_encloses(pred, flow_node)
         );
-        if _after_if_write {
-            _anc2: uni.UniNode | None = flow_node;
-            while _anc2 is not None {
-                if _anc2 is pred {
-                    _after_if_write = False;
-                    break;
-                }
-                _anc2 = _anc2.parent;
-            }
-        }
         if _after_if_write {
             exit_t = self._if_exit_type(target, pred, pred_narrowed, set());
             if exit_t is not None {

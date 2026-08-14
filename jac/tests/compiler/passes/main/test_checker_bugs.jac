@@ -73,6 +73,17 @@ Bug index:
                 without solving the overload's own TypeVars from the
                 arguments, so `list[A] + list[B]` typed as `list[_S | A]`
                 with `_S` free (#8201)
+  #COMPRASSIGN-1 - a comprehension on an assignment RHS was linked into the
+                   CFG from an ancestor of the assignment instead of from the
+                   assignment itself, so the chain back to the preceding
+                   guards was cut and no enclosing narrowing reached the
+                   comprehension body (#8201)
+  #ELIFSC-1 - an elif (or a nested if) whose condition short-circuits got no
+              false target, because the search for the following statement
+              only looked in the immediate parent's body; the edge out of the
+              chain dangled and every narrowing before it was lost. A branch
+              edge that cannot compute a narrowing also collapsed the merge
+              instead of keeping what its predecessors established (#8201)
   #BLOCKANN-1 - a typed declaration inside a block (a while/if/for/try body)
                 was inserted into that block's scope while bare assignments
                 hoist to the enclosing function, so one variable became two
@@ -1623,6 +1634,56 @@ test "bug_ovldtvar1_magic_overload_solves_own_typevars" {
     assert len(program.errors_had) == 0 , (
         "Bug #OVLDTVAR-1: a magic-method overload must solve its own "
         "TypeVars from the argument types before its return type is used. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #COMPRASSIGN-1 / #8201: a comprehension sitting on an assignment RHS
+# was deliberately not linked from the assignment (#6061), to keep
+# `out = [t for t in out]` from resolving `out` through the write that is
+# still in flight. But the walk went to the assignment's *parent* rather
+# than to its predecessors, so the chain back to the preceding guards was
+# cut and the comprehension body saw only declared types.
+#
+# The comprehension now links from the enclosing statement, and the
+# narrowing walk treats an assignment predecessor that encloses the node
+# being evaluated as a pass-through: the RHS runs before the write, so the
+# write is not visible to it. That is both the fix and the original
+# protection, stated where it belongs.
+# =========================================================================
+test "bug_comprassign1_comprehension_on_assignment_rhs_keeps_narrowing" {
+    program = compile_and_check("checker_bug_compr_assign_narrowing.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #COMPRASSIGN-1: a comprehension on an assignment RHS must see "
+        "the narrowing that holds at the assignment, and must not resolve "
+        "its own target through the in-flight write. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #ELIFSC-1 / #8201: `elif <a> and <b>` produced no false target.
+# `exit_if_stmt` looked for the statement after the branch with
+# `_find_next_cfg_stmt_after(nd.parent, nd)`, but an elif is its parent's
+# `else_body`, not an entry in `parent.body`, so the search found nothing
+# and the edge out of the chain dangled. `_connect_tails` could not repair
+# it either: the short-circuit entry sitting in `bb_out` made the node look
+# like it already had a false branch. Everything after the chain then fell
+# back to declared types.
+#
+# The search now climbs out of the enclosing if/else nesting, and a branch
+# edge whose narrowing cannot be computed keeps what its predecessors
+# established instead of collapsing the merge -- which is what the
+# short-circuit edge case already did.
+# =========================================================================
+test "bug_elifsc1_short_circuit_elif_keeps_guard_narrowing" {
+    program = compile_and_check("checker_bug_elif_shortcircuit_narrowing.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #ELIFSC-1: the narrowing established by an if guard must "
+        "survive an elif whose condition short-circuits. "
         f"Got errors: {[str(e) for e in program.errors_had]}"
     );
 }

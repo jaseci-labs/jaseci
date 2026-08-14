@@ -577,6 +577,7 @@ obj TypeEvaluator {
         target: NarrowingTarget, flow_node: uni.UniCFGNode, visited: set
     ) -> TypeBase | None;
 
+    def _node_encloses(outer: uni.UniNode, inner: uni.UniNode) -> bool;
     def _loop_body_writes_target(
         loop_node: uni.UniCFGNode, target: NarrowingTarget
     ) -> bool;
