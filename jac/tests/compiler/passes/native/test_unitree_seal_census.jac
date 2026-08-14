@@ -107,20 +107,6 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
              "Python-only: reads `gen.py_ast`, a list of CPython `ast` "
              "objects. Reached only from `PyastGenPass`."
          ),
-         "unitree.jac::NameAtom.sem_token.__get__": (
-             "Backend gap: returns `tuple[SemTokType, SemTokMod] | None` and "
-             "reads enum members off a boxed union, plus `__class__.__name__` "
-             "on an open receiver. Only the LSP semantic-token pass calls it."
-         ),
-         "unitree.jac::Name.sem_token.__get__": (
-             "Same backend gap, inherited from `NameAtom.sem_token` above."
-         ),
-         "unitree.jac::SpecialVarRef.sem_token.__get__": (
-             "Same backend gap, inherited from `NameAtom.sem_token` above."
-         ),
-         "unitree.jac::BuiltinType.sem_token.__get__": (
-             "Same backend gap, inherited from `NameAtom.sem_token` above."
-         ),
          "unitree.jac::String.lit_value.__get__": (
              "Python-only: decodes literals with `eval` and an "
              "`isinstance(str_field, bytes)` narrowing. Literal values are "

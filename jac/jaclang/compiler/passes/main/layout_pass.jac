@@ -1,6 +1,7 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.jac0core.const_fold { fold_const }
 import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
 import from jaclang.jac0core.diagnostics { E5030, W5031, W5032 }
 
@@ -171,6 +172,14 @@ def class_form_enum_decls(module: uni.Module) -> list[uni.Archetype] {
     return out;
 }
 
+def enum_member_literal(value_expr: (uni.UniNode | None)) -> (str | int | None) {
+    (folded, val) = fold_const(value_expr);
+    if not folded or isinstance(val, bool) or not isinstance(val, (str, int)) {
+        return None;
+    }
+    return val;
+}
+
 def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
     _scope = t.shared.symbol_table;
     _sym = _scope.names_in_scope.get(member) if (_scope?.names_in_scope) else None;
@@ -179,11 +188,7 @@ def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
     if not isinstance(_asn, uni.Assignment) or _asn.value is None {
         return None;
     }
-    _v = _asn.value;
-    if isinstance(_v, (uni.String, uni.MultiString, uni.Int)) {
-        return _v.lit_value;
-    }
-    return None;
+    return enum_member_literal(_asn.value);
 }
 
 def class_form_enum_member(t: any) -> (tuple | None) {
