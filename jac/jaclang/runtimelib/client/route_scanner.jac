@@ -31,7 +31,8 @@ def _unrouted_jsx_exports(pages_dir: Path, skip_paths: set[Path]) -> list[str] {
                 if (is_layout or 'layout' in hit.group(1).lower())
                 else 'JsxPage';
             lines.append(
-                f"  {f}: '{hit.group(1)}' returns JsxElement and is not a route" + f" — return {kind} to route it, or leave it if it is a co-located component."
+                f"  {f}: '{hit.group(1)}' returns JsxElement and is not a route"
+                    + f" — return {kind} to route it, or leave it if it is a co-located component."
             );
         }
     }
