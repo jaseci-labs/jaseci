@@ -427,10 +427,20 @@ class JacFile(pytest.File):
                     raise self.CollectError(
                         f"failed to import Jac test module {self.path}: {exc_text}"
                     ) from exc
-                sys.stderr.write(
+                # Write to the real fd, not sys.stderr: under pytest-xdist a
+                # worker's Python-level stderr is captured by execnet and never
+                # reaches the terminal or CI log, which turns a broken test
+                # module into an invisible per-worker collection difference
+                # ("Different tests were collected") with no cause attached.
+                # fd 2 is inherited from the session leader and always lands.
+                msg = (
                     f"jac: skipping test file that failed to import: "
                     f"{self.path}: {exc_text}\n"
                 )
+                try:
+                    os.write(2, msg.encode("utf-8", "replace"))
+                except OSError:
+                    sys.stderr.write(msg)
                 return []
         finally:
             sys.stdout.close()

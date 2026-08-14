@@ -8,23 +8,31 @@ import from jaclang.jac0core.passes.transform { Alert }
 import type from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.unitree { CommentToken, Module, Source, Token as UniToken }
 
-glob _NATIVE_PARSE_MEMO: list = [];
+import threading;
+
+glob _NATIVE_PARSE_MEMO: list = [],
+     _BIND_LOCK = threading.Lock();
 
 def _native_parse -> any {
     if _NATIVE_PARSE_MEMO {
         return _NATIVE_PARSE_MEMO[0];
     }
-    import from jaclang.jac0core.sealed { native_artifact_for }
-    found = native_artifact_for("jaclang.compiler.native_materialize");
-    if found is None {
-        _NATIVE_PARSE_MEMO.append(None);
-        return None;
+    with _BIND_LOCK {
+        if _NATIVE_PARSE_MEMO {
+            return _NATIVE_PARSE_MEMO[0];
+        }
+        import from jaclang.jac0core.sealed { native_artifact_for }
+        found = native_artifact_for("jaclang.compiler.native_materialize");
+        if found is None {
+            _NATIVE_PARSE_MEMO.append(None);
+            return None;
+        }
+        import from jaclang.jac0core.parser.materialize { bind_native_parser }
+        (lib_path, layout_dict) = found;
+        np = bind_native_parser(lib_path, layout_dict);
+        _NATIVE_PARSE_MEMO.append(np);
+        return np;
     }
-    import from jaclang.jac0core.parser.materialize { bind_native_parser }
-    (lib_path, layout_dict) = found;
-    np = bind_native_parser(lib_path, layout_dict);
-    _NATIVE_PARSE_MEMO.append(np);
-    return np;
 }
 
 def _require_bootstrap_tier(op: str) {

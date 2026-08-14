@@ -189,7 +189,7 @@ def bind_native_parser(lib_path: str, layout_dict: dict) -> NativeParser {
     if not str_new_addr {
         raise _bind_error(lib_path, "jac_str_new is not exported");
     }
-    str_new = ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(
+    str_new = ctypes.PYFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(
         str_new_addr
     );
 
