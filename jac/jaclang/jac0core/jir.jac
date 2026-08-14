@@ -606,58 +606,12 @@ def _ct_reflect_deps(source_path: str) -> list[str] {
     return ct_reflect_source_deps(src);
 }
 
-def read_module_jir_cache(source_path: str) -> (object | None) {
-    import from jaclang.jac0core.jir_passes { JirReader }
-    import traceback;
-
-    resolved_path = str(Path(source_path).resolve());
-    if not jir_cacheable_source_path(resolved_path) {
-        return None;
-    }
-    (rebuild, _) = cache_mode();
-    if rebuild {
-        return None;
-    }
-    try {
-        cache_path = get_module_cache_path(resolved_path);
-        if not is_module_cache_valid(resolved_path, cache_path) {
-            return None;
-        }
-        data = cache_path.read_bytes();
-        reader = JirReader(_source_path=resolved_path);
-        cached = reader.read_module(data);
-        if cached is not None and cached.parse_failed {
-            return None;
-        }
-        return cached;
-    } except Exception {
-        if os.environ.get("JAC_JIR_DEBUG") {
-            traceback.print_exc();
-        }
-        try {
-            get_module_cache_path(resolved_path).unlink(missing_ok=True);
-        } except Exception {
-            ;
-        }
-        return None;
-    }
-}
-
-def write_module_jir_cache(
-    source_path: str, mod: object, extra_sections: (dict[int, bytes] | None) = None
+def write_module_cache(
+    source_path: str, bytecode: bytes, extra_sections: (dict[int, bytes] | None) = None
 ) -> bool {
-    import from jaclang.jac0core.jir_passes { JirWriter }
-
     resolved_path = str(Path(source_path).resolve());
     if not jir_cacheable_source_path(resolved_path) {
         return False;
-    }
-    mod_any: any = mod;
-    if mod_any.parse_failed {
-        return False;
-    }
-    if resolved_path.endswith('.pyi') and not mod_any.stub_only {
-        mod_any.stub_only = True;
     }
     try {
         cache_path = get_module_cache_path(resolved_path);
@@ -665,19 +619,13 @@ def write_module_jir_cache(
             return False;
         }
         cache_path.parent.mkdir(parents=True, exist_ok=True);
-        writer = JirWriter();
         sections: dict[int, bytes] = module_jir_key_sections(resolved_path);
         if extra_sections is not None {
             for (k, v) in extra_sections.items() {
                 sections[k] = v;
             }
         }
-        bc: any = mod_any.gen?.py_bytecode;
-        if bc is not None and SEC_BYTECODE not in sections {
-            bc_bytes: bytes = bc;
-            sections[SEC_BYTECODE] = bc_bytes;
-        }
-        jir_bytes = writer.write_module(mod_any, sections=sections);
+        jir_bytes = write_precompiled_jir(bytecode, "", 0, sections);
         tmp_path = cache_path.with_suffix(f'.{os.getpid()}.tmp');
         try {
             tmp_path.write_bytes(jir_bytes);

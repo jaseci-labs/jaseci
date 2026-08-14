@@ -2359,29 +2359,6 @@ test "bare lt in jsx content is treated as text" {
     assert result == 0 , f"should compile successfully, got errors: {stderr}";
 }
 
-"""Verify jir_registry.jac matches what gen_jir_registry.jac would generate.
-
-Fails with a descriptive message if the registry is out of date, e.g. because
-unitree node classes were added or changed without re-running `jac gen-jir-registry`.
-"""
-test "jir_registry is up to date" {
-    captured = io.StringIO();
-    old_stdout = sys.stdout;
-    sys.stdout = captured;
-
-    result: int;
-    try {
-        result = tools.gen_jir_registry(verify=True);
-    } finally {
-        sys.stdout = old_stdout;
-    }
-
-    assert result == 0 , (
-        "jir_registry.jac is out of date. "
-        "Run `jac gen-jir-registry` to regenerate it."
-    );
-}
-
 test "jac check reports errors for files inside jaclang source tree" {
     # Regression: _resolve_program routed jaclang-internal files to
     # internal_program, so errors were invisible to the caller's JacProgram.
@@ -2421,7 +2398,7 @@ test "jac check reports errors for files inside jaclang source tree" {
 }
 
 """Regression: JIR cache must preserve Archetype.body for generic type inference."""
-test "jir cache preserves generic type inference" {
+test "generic type inference is identical across fresh processes" {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime }
 
@@ -2460,7 +2437,7 @@ IndexSlice.Slice was previously a plain inner class without a node ID, so the
 JIR writer serialised the slices field as EXTERNAL_REF, reader discarded it,
 slices=[] on cache hit, list iteration type became Unknown.
 """
-test "jir cache preserves list iteration type through IndexSlice" {
+test "list iteration type through IndexSlice is identical across runs" {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime }
 
@@ -2499,7 +2476,7 @@ Instance variables defined in impl files (e.g., self.x in __init__) are added to
 the archetype's symbol table by DeclImplMatchPass._populate_self_member_symbols.
 Since impl_mod is not serialized in JIR, these symbols were lost on cache reload.
 """
-test "jir cache preserves impl defined instance variables" {
+test "impl defined instance variables resolve identically across runs" {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime }
 
@@ -2648,7 +2625,7 @@ cannot distinguish None from [] -- both round-trip to []. On a cache hit a plain
 accessors became [], so the property classifier saw a setter-less property and falsely
 raised E1005 on assignment.
 """
-test "jir cache preserves plain field vs property accessors" {
+test "field vs property accessor typing is identical across runs" {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime }
 
@@ -2741,7 +2718,7 @@ _coerce_client_module. The JIR serializer must persist this per-node context
 so that the ES code generator includes (not filters out) client statements
 when the module is loaded from cache.
 """
-test "jir cache preserves code context for cl jac files" {
+test "code context for cl jac files is identical across runs" {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.constant { CodeContext }
     import from jaclang.jac0core.jir_passes { JirWriter, JirReader }
