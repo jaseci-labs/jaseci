@@ -134,7 +134,7 @@ jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-g] [--graphmend]
 | `-s, --show` | Print the resolved project run-plan (kind, action, equivalent command) without executing | `False` |
 | `-m, --main` | Treat module as `__main__` | `True` |
 | `-c, --cache` | Enable compilation cache | `True` |
-| `-g, --graphmend` | Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental) | `False` |
+| `-g, --graphmend` | Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental). `jac.toml` `run.graphmend` also accepts `"auto"` to engage only for modules that import torch | `False` |
 | `--graphmend-scope` | Comma-separated module prefixes whose imported `.py` code GraphMend should also transform (implies `--graphmend`) | `""` |
 | `--graphmend-disable` | Comma-separated GraphMend transforms to skip: `trap` (guard lowering), `where` (branch predication), `defer` (side-effect deferral) | `""` |
 | `-e, --diagnostics` | Diagnostic verbosity: `error`, `all`, or `none` | `error` |
@@ -147,7 +147,7 @@ jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-g] [--graphmend]
 
 Like Python, everything after the filename is passed to the script. Jac flags must come **before** the filename.
 
-**GraphMend configuration.** All three GraphMend options can also be set project-wide in `jac.toml` under `[run]` (`graphmend`, `graphmend_scope`, `graphmend_disable`); an explicit CLI flag beats `jac.toml`, which beats the built-in default. `--graphmend-disable` turns individual transforms off while the rest of GraphMend stays active; it does not by itself enable GraphMend. Unknown transform names are ignored with a warning.
+**GraphMend configuration.** All three GraphMend options can also be set project-wide in `jac.toml` under `[run]` (`graphmend`, `graphmend_scope`, `graphmend_disable`); an explicit CLI flag beats `jac.toml`, which beats the built-in default. `--graphmend-disable` turns individual transforms off while the rest of GraphMend stays active; it does not by itself enable GraphMend. Unknown transform names are ignored with a warning. In `jac.toml`, `graphmend` is tri-state: `true`/`"on"` and `false`/`"off"` force GraphMend explicitly, while `"auto"` engages it per compiled module, exactly for modules that import `torch` or a `torch.*` submodule (detected syntactically at compile time; relative imports such as `.torch` do not count). Modules where auto does not engage compile byte-identically to a graphmend-off run, including cache behavior.
 
 **Project-aware run (no filename).** Inside a project, a bare `jac run` resolves the project *kind* from `[project] kind` in `jac.toml` (or infers it from the entry-point's codespace) and does the natural action for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). Use `jac run --show` to preview the plan and the equivalent primitive command (`run` / `start` / `nacompile` / `build`) without running it. See [project kinds](../../quick-guide/project-kinds.md) and [config `[project]`](../config/index.md).
 

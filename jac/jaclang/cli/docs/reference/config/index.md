@@ -200,10 +200,12 @@ session = ""            # Session name for persistence
 main = true             # Run as main module
 cache = true            # Use bytecode cache
 diagnostics = "error"   # Diagnostic verbosity: "error", "all", or "none"
-graphmend = false       # Apply GraphMend passes (jac run --graphmend)
+graphmend = false       # GraphMend: true/"on", false/"off", or "auto" (engage for torch-importing modules)
 graphmend_scope = ""    # Module prefixes GraphMend also transforms (comma-separated)
 graphmend_disable = ""  # GraphMend transforms to skip: "trap", "where", "defer"
 ```
+
+The `graphmend` key is tri-state. Besides the booleans (`--graphmend` on the command line), it accepts `"auto"`: GraphMend then engages per compiled module, exactly for modules that import `torch` or a `torch.*` submodule, detected syntactically at compile time (relative imports such as `.torch` do not count, and torch does not need to be installed). Modules where auto does not engage compile byte-identically to a graphmend-off run, including cache behavior.
 
 The `diagnostics` setting controls how compilation errors and warnings are reported during `jac run`:
 

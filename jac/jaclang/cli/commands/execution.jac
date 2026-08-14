@@ -42,7 +42,7 @@ glob registry = get_registry();
             "graphmend",
             typ=bool,
             default=False,
-            help="Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental)",
+            help="Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental). jac.toml run.graphmend also accepts 'auto' to engage only for modules that import torch",
             short="g",
             config_key="run.graphmend"
         ),
@@ -130,7 +130,7 @@ def run(
     show: bool = False,
     main: bool = True,
     cache: bool = True,
-    graphmend: bool = False,
+    graphmend: (bool | str) = False,
     graphmend_scope: str = "",
     graphmend_disable: str = "",
     diagnostics: str = "",
@@ -185,7 +185,7 @@ def enter(
     main: bool = True,
     `root: str = "",
     nd: str = "",
-    graphmend: bool = False,
+    graphmend: (bool | str) = False,
     graphmend_scope: str = "",
     graphmend_disable: str = ""
 ) -> int;

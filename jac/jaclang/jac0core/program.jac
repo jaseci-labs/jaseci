@@ -25,7 +25,7 @@ class JacProgram {
         type_evaluator: TypeEvaluator | None,
         _compiler: JacCompiler | None,
         _compile_options: CompileOptions,
-        graphmend_enabled: bool,
+        graphmend_enabled: (bool | str),
         graphmend_scope: list[str],
         graphmend_disable: list[str],
         graphmend_scoped_compile: bool,

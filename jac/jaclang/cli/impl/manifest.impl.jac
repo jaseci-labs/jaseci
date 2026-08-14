@@ -1664,7 +1664,7 @@ def _command_routes -> list[CommandMeta] {
                     name='graphmend',
                     typ='bool',
                     default=False,
-                    help='Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental)',
+                    help="Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental). jac.toml run.graphmend also accepts 'auto' to engage only for modules that import torch",
                     short='g',
                     config_key='run.graphmend'
                 ),

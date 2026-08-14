@@ -127,10 +127,14 @@ impl JacCompiler.get_bytecode(
     full_target: str, target_program: JacProgram
 ) -> (types.CodeType | None) {
     actual_program = self._resolve_program(full_target, target_program);
-    gm_active = (
-        actual_program is not self._internal_program
-        and target_program.graphmend_enabled
-    );
+    gm_setting: (bool | str) = target_program.graphmend_enabled;
+    if gm_setting == 'auto' and actual_program is not self._internal_program {
+        import from jaclang.compiler.passes.main.graphmend.auto_detect {
+            file_imports_torch
+        }
+        gm_setting = file_imports_torch(full_target);
+    }
+    gm_active = actual_program is not self._internal_program and gm_setting is True;
     if gm_active {
         actual_program.graphmend_breaks.clear();
         actual_program.graphmend_helpers.clear();
@@ -964,6 +968,12 @@ impl JacCompiler._compile_once(
         set_effective_default_codespace(options.default_codespace);
     }
     keep_str = use_str or read_file_with_encoding(file_path);
+    if options.graphmend == 'auto' {
+        import from jaclang.compiler.passes.main.graphmend.auto_detect {
+            module_imports_torch
+        }
+        options.graphmend = module_imports_torch(keep_str, file_path);
+    }
     had_parse_errors = len(actual_program.errors_had);
     mod_targ = self.parse_str(
         keep_str, file_path, actual_program, cancel_token=options.cancel_token

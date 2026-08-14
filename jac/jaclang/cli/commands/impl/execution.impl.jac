@@ -83,7 +83,7 @@ def _execute_plan(
     cache: bool,
     diagnostics: str,
     args: list,
-    graphmend: bool = False,
+    graphmend: (bool | str) = False,
     graphmend_scope: str = "",
     graphmend_disable: str = ""
 ) -> int {
@@ -99,7 +99,7 @@ def _execute_plan(
             graphmend_disable=graphmend_disable
         );
     }
-    if graphmend or graphmend_scope.strip() {
+    if graphmend is True or graphmend_scope.strip() {
         console.error(
             f"--graphmend cannot be combined with a '{plan.action}' run plan."
         );
@@ -228,9 +228,40 @@ def _jab_native_bin(img_root: object, entry_rel: str) -> (str | None) {
     return None;
 }
 
+def _graphmend_mode(graphmend: (bool | str)) -> (bool | str) {
+    if isinstance(graphmend, str) {
+        spelled = graphmend.strip().lower();
+        if spelled == 'on' {
+            return True;
+        }
+        if spelled == 'off' {
+            return False;
+        }
+        if spelled == 'auto' {
+            return 'auto';
+        }
+        console.warning(
+            f"run.graphmend ignores unknown mode '{graphmend}' "
+            f"(valid: auto, on, off, true, false)."
+        );
+        return False;
+    }
+    return bool(graphmend);
+}
+
+def _graphmend_may_engage(graphmend: (bool | str), filename: str) -> bool {
+    if graphmend == 'auto' {
+        import from jaclang.compiler.passes.main.graphmend.auto_detect {
+            file_imports_torch
+        }
+        return file_imports_torch(filename);
+    }
+    return bool(graphmend);
+}
+
 def _apply_graphmend(
-    graphmend: bool, graphmend_scope: str, graphmend_disable: str = ""
-) {
+    graphmend: (bool | str), graphmend_scope: str, graphmend_disable: str = ""
+) -> (bool | str) {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     gm_scope: list[str] = [];
     for part in graphmend_scope.split(',') {
@@ -254,13 +285,15 @@ def _apply_graphmend(
         }
         gm_disable.append(stripped);
     }
-    Jac.get_program().graphmend_enabled = graphmend or bool(gm_scope);
+    gm_mode = _graphmend_mode(graphmend);
+    Jac.get_program().graphmend_enabled = True if gm_scope else gm_mode;
     Jac.get_program().graphmend_scope = gm_scope;
     Jac.get_program().graphmend_disable = gm_disable;
     if gm_scope {
         import from jaclang.meta_importer { install_graphmend_loader_hook }
         install_graphmend_loader_hook();
     }
+    return gm_mode;
 }
 
 def _run_project(
@@ -269,7 +302,7 @@ def _run_project(
     cache: bool,
     diagnostics: str,
     args: list,
-    graphmend: bool = False,
+    graphmend: (bool | str) = False,
     graphmend_scope: str = "",
     graphmend_disable: str = ""
 ) -> int {
@@ -329,7 +362,7 @@ impl run(
     show: bool = False,
     main: bool = True,
     cache: bool = True,
-    graphmend: bool = False,
+    graphmend: (bool | str) = False,
     graphmend_scope: str = "",
     graphmend_disable: str = "",
     diagnostics: str = "",
@@ -343,12 +376,13 @@ impl run(
     import from jaclang.project.config { get_config }
 
     use_line_buffered_output();
+    graphmend = _graphmend_mode(graphmend);
     if debug_mode {
         if not filename {
             console.error("jac run --debug needs a file.");
             return 1;
         }
-        if graphmend or graphmend_scope.strip() {
+        if graphmend is True or graphmend_scope.strip() {
             console.error("jac run --debug cannot be combined with --graphmend.");
             return 1;
         }
@@ -390,7 +424,7 @@ impl run(
             );
             return 0;
         }
-        if graphmend or graphmend_scope.strip() {
+        if graphmend is True or graphmend_scope.strip() {
             console.error(
                 "--graphmend cannot be combined with a prebuilt .jab bundle."
             );
@@ -430,7 +464,12 @@ impl run(
                 and (_cfg_kind.project.kind or '').strip() == 'cli-native'
             );
             if (
-                (not (graphmend or graphmend_scope.strip()))
+                (
+                    not (
+                        _graphmend_may_engage(graphmend, filename)
+                        or graphmend_scope.strip()
+                    )
+                )
                 and (
                     _kind_forced
                     or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
@@ -541,7 +580,7 @@ impl enter(
     main: bool = True,
     `root: str = '',
     nd: str = '',
-    graphmend: bool = False,
+    graphmend: (bool | str) = False,
     graphmend_scope: str = '',
     graphmend_disable: str = ''
 ) -> int {

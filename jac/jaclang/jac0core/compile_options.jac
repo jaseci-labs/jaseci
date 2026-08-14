@@ -27,7 +27,7 @@ obj CompileOptions {
         resolve_annex_parent: bool = False,
         force_target_program: bool = False,
         aot_mode: bool = False,
-        graphmend: bool = False,
+        graphmend: (bool | str) = False,
         graphmend_disable: list[str] = field(default_factory=`list),
         force_codespace: str = "",
         na_gc_mode: (str | None) = None,
@@ -53,6 +53,11 @@ obj CompileOptions {
 
     def postinit {
         import os;
+        if self.graphmend == 'on' {
+            self.graphmend = True;
+        } elif self.graphmend == 'off' {
+            self.graphmend = False;
+        }
         cfg = _project_config();
         gc_cfg = cfg.gc if cfg is not None else None;
         native_cfg = cfg.build.native if cfg is not None else None;
