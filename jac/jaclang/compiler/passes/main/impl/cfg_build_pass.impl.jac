@@ -545,6 +545,22 @@ impl CFGBuildPass._find_next_cfg_stmt_after(
     return None;
 }
 
+impl CFGBuildPass._find_next_cfg_stmt_after_branch(
+    nd: uni.UniNode
+) -> (uni.UniCFGNode | None) {
+    cur: uni.UniNode = nd;
+    while cur.parent is not None {
+        if (nxt := self._find_next_cfg_stmt_after(cur.parent, cur)) is not None {
+            return nxt;
+        }
+        if not isinstance(cur.parent, (uni.IfStmt, uni.ElseStmt)) {
+            return None;
+        }
+        cur = cur.parent;
+    }
+    return None;
+}
+
 impl _is_structural_child(nd: uni.UniNode) -> bool {
     if isinstance(nd.parent, uni.IterForStmt) {
         p: uni.IterForStmt = nd.parent;
@@ -606,7 +622,7 @@ impl CFGBuildPass.exit_if_stmt(nd: uni.IfStmt) -> None {
 
     if cond_bool is not None and true_target {
         if not false_target and not nd.else_body and nd.parent {
-            false_target = self._find_next_cfg_stmt_after(nd.parent, nd);
+            false_target = self._find_next_cfg_stmt_after_branch(nd);
         }
         op_is_and = _bool_is_and(cond_bool);
         entry = self._wire_bool_operands(
@@ -741,8 +757,7 @@ impl CFGBuildPass._wire_compr_filters(
 
     encl: uni.UniNode | None = target_node.parent;
     while encl is not None {
-        if isinstance(encl, uni.UniCFGNode)
-            and not isinstance(encl, (uni.InnerCompr, uni.Assignment)) {
+        if isinstance(encl, uni.UniCFGNode) and not isinstance(encl, uni.InnerCompr) {
             self.link_bbs(encl, comprs[0]);
             break;
         }
