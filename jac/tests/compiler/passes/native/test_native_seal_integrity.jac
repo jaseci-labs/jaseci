@@ -57,12 +57,10 @@ glob FIXTURES = Path(TESTS_DIR) / "compiler" / "passes" / "native" / "fixtures";
 
 """Seal one fixture into a fresh temp tree.
 
-Returns (artifacts, captured_stderr, tmpdir). `JAC_SEAL_NO_NATIVE` is dropped
-for the duration so an ambient setting cannot turn the seal into a no-op.
+Returns (artifacts, captured_stderr, tmpdir).
 """
 def _seal(rel: str, waivers: (dict | None) = None, na_debug: bool = False) -> tuple {
     tmp = tempfile.mkdtemp(prefix="jac_seal_integrity_");
-    saved_skip = os.environ.pop("JAC_SEAL_NO_NATIVE", None);
     saved_dbg = os.environ.pop("JAC_NA_DEBUG", None);
     if na_debug {
         os.environ["JAC_NA_DEBUG"] = "1";
@@ -76,9 +74,6 @@ def _seal(rel: str, waivers: (dict | None) = None, na_debug: bool = False) -> tu
         }
     } finally {
         os.environ.pop("JAC_NA_DEBUG", None);
-        if saved_skip is not None {
-            os.environ["JAC_SEAL_NO_NATIVE"] = saved_skip;
-        }
         if saved_dbg is not None {
             os.environ["JAC_NA_DEBUG"] = saved_dbg;
         }

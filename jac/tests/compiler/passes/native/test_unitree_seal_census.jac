@@ -1,6 +1,6 @@
 """A0 gate: `unitree.jac` and its whole native closure lower with no seams.
 
-`unitree` cannot join `NATIVE_SEAL_MODULES` until every module the native
+`unitree` cannot join `NATIVE_SEAL_ROOTS` until every module the native
 compile drags in with it lowers in full: a seam in a sealed artifact ships as
 an `abort()` stub, so one un-lowered method kills the process on first call.
 The seal's own refusal (`seal_demotion_report`) reads the same census this
@@ -31,6 +31,7 @@ import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.sealed { native_artifact_for }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
      UNITREE_SRC = PKG_PATH / "jac0core" / "unitree.jac";
@@ -48,7 +49,7 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
      # `<module>::<Type>.<method>` exactly as `_seal_demotions` keys them, so
      # an entry reads the same as one in `NATIVE_SEAL_DEMOTION_WAIVERS` --
      # all of these are mirrored there (as `_UNITREE_SEAM_WAIVERS`) now that
-     # `unitree` is in `NATIVE_SEAL_MODULES`.
+     # `unitree` is in `NATIVE_SEAL_ROOTS`.
      #
      # A `<field>.__get__` entry is a property. #8074 made accessors lower as
      # methods, so their bodies reach the backend for the first time; before it
@@ -187,11 +188,17 @@ def _waived_seams -> dict[(str, str)] {
 
 """Compile `unitree.jac` the way `seal_native_artifacts` does, up to the census."""
 def _unitree_census -> tuple[(dict, bool)] {
-    if "/.cache/jac/rt/"
-        in str(Path(jaclang.__file__).resolve()).replace(os.sep, "/") {
+    # Runs in dev trees AND inside payload lanes that still compile from
+    # source. When THIS runtime serves unitree from its own native seal, a
+    # source measurement is not expressible: the compile is answered by the
+    # sealed artifact, so the census would read an empty closure and every
+    # assertion below would be vacuous. That build already ran this exact
+    # census at seal time (seal_demotion_report refuses un-waived seams),
+    # which is the invariant this file pins for source lanes.
+    if native_artifact_for("jaclang.jac0core.unitree") is not None {
         pytest.skip(
-            "sealed-payload runtime: the compiler's own sources are not the "
-            "ones a payload build would seal"
+            "unitree is served from this runtime's native seal; the census "
+            "gated the build via seal_demotion_report"
         );
     }
     if _CENSUS_MEMO {
