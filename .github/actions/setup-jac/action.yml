@@ -144,14 +144,22 @@ runs:
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       run: |
-        fp="$(git ls-tree -r HEAD -- \
+        list="$(git ls-tree -r HEAD -- \
           jac/jaclang/jac0.py \
           jac/jaclang/jac0core \
           jac/jaclang/compiler \
           jac/jaclang/utils/precompile_bytecode.jac \
           | grep -E '\.(jac|py)$' \
-          | grep -vE '(^|/)(tests|test)/|\.test\.jac$' \
-          | git hash-object --stdin)"
+          | grep -vE '(^|/)(tests|test)/|\.test\.jac$' || true)"
+        n="$(printf '%s\n' "$list" | grep -c . || true)"
+        # A moved root would silently fingerprint nothing, which is the
+        # unsoundness this scoping exists to remove. ~289 files today.
+        if [ "$n" -lt 100 ]; then
+          echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/jac0core/jir.jac together."
+          exit 1
+        fi
+        fp="$(printf '%s\n' "$list" | git hash-object --stdin)"
+        echo "fp=${fp:0:16} ($n compiler sources)"
         echo "fp=${fp:0:16}" >> "$GITHUB_OUTPUT"
 
     # The JIR precompile is mkpayload's single most expensive stage (~24 min:

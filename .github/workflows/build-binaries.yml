@@ -145,14 +145,20 @@ jobs:
         id: compiler-fp
         shell: bash
         run: |
-          fp="$(git ls-tree -r HEAD -- \
+          list="$(git ls-tree -r HEAD -- \
             jac/jaclang/jac0.py \
             jac/jaclang/jac0core \
             jac/jaclang/compiler \
             jac/jaclang/utils/precompile_bytecode.jac \
             | grep -E '\.(jac|py)$' \
-            | grep -vE '(^|/)(tests|test)/|\.test\.jac$' \
-            | git hash-object --stdin)"
+            | grep -vE '(^|/)(tests|test)/|\.test\.jac$' || true)"
+          n="$(printf '%s\n' "$list" | grep -c . || true)"
+          if [ "$n" -lt 100 ]; then
+            echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/jac0core/jir.jac together."
+            exit 1
+          fi
+          fp="$(printf '%s\n' "$list" | git hash-object --stdin)"
+          echo "fp=${fp:0:16} ($n compiler sources)"
           echo "fp=${fp:0:16}" >> "$GITHUB_OUTPUT"
 
       # mkpayload re-validates every seeded .jir per module, so a stale tree
