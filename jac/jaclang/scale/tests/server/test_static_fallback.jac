@@ -43,11 +43,11 @@ test "project /static asset resolves even when a static mount claims the prefix"
     empty_dist = tempfile.mkdtemp();
 
     gw = _make_gateway(project_root, shadow_mount, empty_dist);
-    # assets/logo.svg is served at /static/logo.svg (exact relative path); the old
-    # /static/assets/logo.svg only ever resolved via basename flattening, which the
-    # shared resolver removes (I5). #7020's intent — a static mount claiming the
-    # prefix must not shadow a real project asset — is unchanged.
-    resp = gw.handle_static(_get_request(), "/static/logo.svg");
+    # project assets/ is served under /static/assets/ (the #6872 URL space):
+    # assets/logo.svg resolves at /static/assets/logo.svg. A static mount claiming
+    # the 'static' prefix must not shadow that real project asset (#7020) -- the
+    # static/assets->assets root still serves it past the mount miss.
+    resp = gw.handle_static(_get_request(), "/static/assets/logo.svg");
 
     assert resp is not None , "a /static/* project asset must still resolve when a static mount "
     "claims the 'static' prefix but lacks the file (#7020)";
