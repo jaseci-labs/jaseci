@@ -619,7 +619,7 @@ test "the fixup enumeration is pinned: entries only ever retire" {
     # the native representation erases. Each entry carries its tracking
     # issue; the count NEVER rises -- growing it means teaching the crossing
     # new Python-side knowledge, which is the residue this plan deletes.
-    assert len(MATERIALIZE_FIXUPS) == 3 , (
+    assert len(MATERIALIZE_FIXUPS) == 2 , (
         f"fixup enumeration changed: {MATERIALIZE_FIXUPS}"
     );
     for (fixup_name, issue) in MATERIALIZE_FIXUPS {
