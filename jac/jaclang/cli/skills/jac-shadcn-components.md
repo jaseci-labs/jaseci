@@ -149,27 +149,19 @@ Load `jac-cl-styling` for full conditional class patterns and cn() usage.
 
 ## Icon pattern
 
-⚠ **Take every icon name from the table below, or from the export list.** Never
-write one from memory. `@hugeicons/core-free-icons` does not export
-`DocumentIcon`, `PlusIcon`, or `TrendUpIcon`. A wrong name passes `jac check`
-and passes the build, then blanks the whole page at load with `SyntaxError: ...
-does not provide an export named 'DocumentIcon'`.
+⚠ **Never guess an icon name.** The package exports ~5,500 icons and most are
+number-suffixed, so the obvious name is usually wrong: there is no `DocumentIcon`,
+`PlusIcon`, or `TrendUpIcon`. A wrong name is NOT a compile error - `jac check`
+and the build both pass, and it fails only when the page loads, with
+`SyntaxError: ... does not provide an export named 'DocumentIcon'`.
 
-**Numeric suffixes are zero-padded** - `Calendar01Icon`, `ArrowDown01Icon`.
-`Calendar1Icon` and `ArrowDown1Icon` do not exist.
+**Numeric suffixes are zero-padded** - `Calendar01Icon`, never `Calendar1Icon`.
 
-If the icon you need is not in the table, list the real exports and pick a name
-from the output:
+Use a name from the table below, or list the real ones:
 
 ```bash
-grep -oE '\b[A-Za-z0-9]+Icon\b' \
-  .jac/client/node_modules/@hugeicons/core-free-icons/dist/types/index.d.ts \
-  | sort -u | grep -i chart
+ls .jac/client/node_modules/@hugeicons/core-free-icons/dist/esm/ | grep -v '\.map' | grep -i '^chart'
 ```
-
-Grep `index.d.ts`. Do not list `dist/esm/` filenames - there is one file per
-canonical icon only, so aliases like `SearchIcon` and `ArrowDownIcon` look
-missing there even though the package exports them.
 
 | Need | Icon (verified) |
 |---|---|
