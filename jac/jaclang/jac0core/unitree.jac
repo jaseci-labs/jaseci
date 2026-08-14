@@ -60,13 +60,26 @@ obj UniNode {
     def resolve_tok_range -> tuple[(Token, Token)];
     def gen_token(name: Tok, value: (str | None) = None) -> Token;
     def get_all_sub_nodes[T](typ: type[T]) -> list[T] {
-        import from jaclang.jac0core.passes { UniPass }
-        return UniPass.get_all_sub_nodes(nd=self, typ=typ);
+        result: list[T] = [];
+        if typ in self._sub_node_tab {
+            for i in self._sub_node_tab[typ] {
+                if isinstance(i, typ) {
+                    result.append(i);
+                }
+            }
+        }
+        return result;
     }
 
     def find_parent_of_type[T](typ: type[T]) -> (T | None) {
-        import from jaclang.jac0core.passes { UniPass }
-        return UniPass.find_parent_of_type(nd=self, typ=typ);
+        nd: (UniNode | None) = self.parent;
+        while nd is not None {
+            if isinstance(nd, typ) {
+                return nd;
+            }
+            nd = nd.parent;
+        }
+        return None;
     }
 
     def parent_of_type[T](typ: type[T]) -> T {
@@ -168,8 +181,6 @@ obj UniScopeNode(UniNode) {
     def chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None;
     def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
     def _fix_store_ctx(item: UniNode) -> None;
-    def _fix_store_items(items: Sequence[UniNode]) -> None;
-    def _capture_names(nd: UniNode, out: list[Name]) -> None;
     def __repr__ -> str;
 }
 
@@ -203,7 +214,6 @@ obj ContextAwareNode(UniNode) {
         codespace_dual: bool = False;
 
     def postinit -> None;
-    def set_code_context(ctx: CodeContext) -> None;
 }
 
 obj AstDocNode(UniNode) {
@@ -250,6 +260,7 @@ obj ConditionalNode(UniCFGNode) {
 obj Expr(UniNode) {
     has _type_sym_tab: (UniScopeNode | None) postinit,
         type: (TypeBase | None) postinit,
+        narrowed_type: (TypeBase | None) postinit,
         attached_tokens: (list[Token] | None) postinit;
 
     def postinit -> None;
@@ -283,8 +294,8 @@ obj CodeBlockStmt(UniCFGNode) {
     def postinit -> None;
 }
 
-obj AstImplNeedingNode[T](AstSymbolNode) {
-    has body: (T | None);
+obj AstImplNeedingNode(AstSymbolNode) {
+    has body: (Sequence[UniNode] | UniNode | None);
     has needs_impl: bool { getter; }
 }
 
@@ -414,12 +425,10 @@ obj Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNo
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (Name | Token),
+    has name: Name,
         body: Sequence[CodeBlockStmt],
         description: (String | None) = None,
         decorators: (Sequence[Expr] | None) = None;
-
-    static has TEST_COUNT: int = 0;
 
     def postinit -> None;
 }

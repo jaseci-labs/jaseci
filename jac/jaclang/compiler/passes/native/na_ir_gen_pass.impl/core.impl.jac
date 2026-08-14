@@ -76,6 +76,8 @@ impl NaIRGenPass.postinit -> None {
     self.type_map["LiteralString"] = self.type_map.get("str", _spec_map["i8*"]);
     self.type_map["Region"] = _spec_map["i8*"];
 
+    self.type_map["type"] = _spec_map["i8*"];
+
     self.complex_struct_type = self.llvm_module.context.get_identified_type(
         "JacComplex"
     );
@@ -917,6 +919,11 @@ impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None 
     for (_name, _mro) in _imp_reg.mro_order.items() {
         if _name not in _cons_reg.mro_order {
             _cons_reg.mro_order[_name] = _mro;
+        }
+    }
+    for (_name, _lay) in _imp_reg.layouts.items() {
+        if _name not in _cons_reg.layouts {
+            _cons_reg.layouts[_name] = _lay;
         }
     }
 

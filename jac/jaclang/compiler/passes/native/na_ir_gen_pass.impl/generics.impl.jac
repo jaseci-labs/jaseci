@@ -44,6 +44,18 @@ impl NaIRGenPass._solve_generic_call(
             }
             return;
         }
+        if (
+            isinstance(decl, _CT)
+            and decl._shared is not None
+            and decl.shared.class_name == "type"
+            and (decl.private.type_args or [])
+            and isinstance(actual, _CT)
+            and actual.is_instantiable()
+            and not actual.is_instance()
+        ) {
+            unify(decl.private.type_args[0], actual.clone_as_instance());
+            return;
+        }
         if isinstance(decl, _CT) and isinstance(actual, _CT) {
             d_args = decl.private.type_args or [];
             a_args = actual.private.type_args or [];

@@ -143,11 +143,14 @@ def emit_shared_library(
             (_floor_members, _floor_handled) = collect_floor_archives(
                 clib_paths or [], clib_symbol_lib or {}, triple, True
             );
+            _proc_syms: dict[str, str] = {
+                _cs: "@process" for _cs in (clib_symbol_lib or {}).keys()
+            };
             ok = MachOLinker.link(
                 obj_bytes=obj_bytes,
                 output_path=output_path,
                 needed_libs=["/usr/lib/libSystem.B.dylib"],
-                symbol_lib_map={},
+                symbol_lib_map=_proc_syms,
                 shared=True,
                 export_symbols=exports,
                 init_funcs=init_funcs,

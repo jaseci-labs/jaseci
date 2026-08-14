@@ -1066,9 +1066,15 @@ fn mkPayload(
     // is seeded from it before the precompile and the refreshed tree is copied
     // back after -- the precompiler validates every seeded .jir by its
     // content-addressed module key and recompiles only stale ones, so the
-    // multi-minute full precompile shrinks to just the changed modules. A
-    // stale or partial dir is harmless (it only misses reuse), which is why
-    // CI can restore it with prefix-fallback keys unlike the binary cache.
+    // multi-minute full precompile shrinks to just the changed modules. That
+    // key names the compiler that wrote the .jir (a digest over jac0core +
+    // compiler sources, #8178), so a seed from a different compiler misses
+    // per module and the seal refuses any survivor -- before #8178 the key
+    // carried only the VERSION, and a same-version compiler change silently
+    // inherited its predecessor's bytecode (#8140 shipped 201/639 such
+    // modules). A stale or partial dir therefore costs reuse, never
+    // correctness, which is why CI can restore it with prefix-fallback keys
+    // unlike the binary cache -- scoped to one compiler tree.
     precompiled_cache: ?[]const u8,
     // Persistent compressed-frame cache for the payload's deps layer (the
     // CPython tree, pip helpers, editor closure, native shims -- everything
@@ -1309,11 +1315,24 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
     // is compile-only (--seal-compile excludes jac0core and does NOT finalize),
     // so a mid-loop crash on an un-precompilable native module leaves the
     // generated JIRs intact for the crash-isolated --seal-finalize pass below.
+    //
+    // The shim's first act removes any MANIFEST.json under the staged site's
+    // _precompiled dir (argv[2] is the site path): the seed from a prior
+    // build's cache carries one, --seal-finalize regenerates it last, and the
+    // staged jaclang must run UNSEALED while rebuilding its own image. With
+    // the stale manifest gone that happens by construction -- no manifest IS
+    // the build tier -- which is what let JAC_NO_SEAL be deleted outright
+    // (#8139 Step 1: a sealed image either loads or raises; no env escape).
     const boot = try std.fmt.allocPrint(a, "{s}/precompile_boot.py", .{site});
     try Dir.cwd().writeFile(io, .{
         .sub_path = boot,
         .data =
-        \\import sys
+        \\import os, sys
+        \\if len(sys.argv) > 2:
+        \\    try:
+        \\        os.unlink(os.path.join(sys.argv[2], 'jaclang', '_precompiled', 'MANIFEST.json'))
+        \\    except OSError:
+        \\        pass
         \\import _jac_finder; _jac_finder.install()
         \\sys.argv = ['jac', 'run'] + sys.argv[1:]
         \\from jaclang.jac0core.cli_boot import start_cli
@@ -1368,10 +1387,10 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
     // bundle fail validation at runtime and every module recompiles on first run.
     // JAC_NO_DEV_SOURCE keeps pkg_version reading the staged dist-info we ship.
     try env.put("JAC_NO_DEV_SOURCE", "1");
-    // The staged jaclang imports itself to run the precompiler; it must run
-    // UNSEALED (from source), never sealed-load the manifest it is regenerating
-    // (which may still be a seeded, older-format image). #7135.
-    try env.put("JAC_NO_SEAL", "1");
+    // The staged jaclang imports itself to run the precompiler and must run
+    // UNSEALED (from source). The boot shim above removes any seeded manifest
+    // before jaclang can probe for it, so the staged tree is the build tier
+    // by construction; no JAC_NO_SEAL-style env escape exists anymore (#8139).
 
     _ = runChild(io, argv_buf[0..argc], &env, true); // non-zero exit is by design
 

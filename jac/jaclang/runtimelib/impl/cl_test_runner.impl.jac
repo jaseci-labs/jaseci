@@ -572,7 +572,19 @@ impl module_is_client(filepath: str) -> bool {
         );
         result = mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
-    } except Exception {
+    } except Exception as probe_exc {
+        try {
+            os.write(
+                2,
+                (
+                    f"jac: client-codespace probe failed for {path}; "
+                    f"treating as server: {type(probe_exc).__name__}: "
+                    f"{probe_exc}\n"
+                ).encode(
+                    "utf-8", "replace"
+                )
+            );
+        } except OSError { }
         result = False;
     }
     _COLOR_CACHE[path] = result;

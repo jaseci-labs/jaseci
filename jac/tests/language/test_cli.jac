@@ -2359,29 +2359,6 @@ test "bare lt in jsx content is treated as text" {
     assert result == 0 , f"should compile successfully, got errors: {stderr}";
 }
 
-"""Verify jir_registry.jac matches what gen_jir_registry.jac would generate.
-
-Fails with a descriptive message if the registry is out of date, e.g. because
-unitree node classes were added or changed without re-running `jac gen-jir-registry`.
-"""
-test "jir_registry is up to date" {
-    captured = io.StringIO();
-    old_stdout = sys.stdout;
-    sys.stdout = captured;
-
-    result: int;
-    try {
-        result = tools.gen_jir_registry(verify=True);
-    } finally {
-        sys.stdout = old_stdout;
-    }
-
-    assert result == 0 , (
-        "jir_registry.jac is out of date. "
-        "Run `jac gen-jir-registry` to regenerate it."
-    );
-}
-
 test "jac check reports errors for files inside jaclang source tree" {
     # Regression: _resolve_program routed jaclang-internal files to
     # internal_program, so errors were invisible to the caller's JacProgram.
@@ -2421,7 +2398,7 @@ test "jac check reports errors for files inside jaclang source tree" {
 }
 
 """Regression: JIR cache must preserve Archetype.body for generic type inference."""
-test "jir cache preserves generic type inference" {
+test "generic type inference is identical across fresh processes" {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime }
 
@@ -2460,7 +2437,7 @@ IndexSlice.Slice was previously a plain inner class without a node ID, so the
 JIR writer serialised the slices field as EXTERNAL_REF, reader discarded it,
 slices=[] on cache hit, list iteration type became Unknown.
 """
-test "jir cache preserves list iteration type through IndexSlice" {
+test "list iteration type through IndexSlice is identical across runs" {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime }
 
@@ -2499,7 +2476,7 @@ Instance variables defined in impl files (e.g., self.x in __init__) are added to
 the archetype's symbol table by DeclImplMatchPass._populate_self_member_symbols.
 Since impl_mod is not serialized in JIR, these symbols were lost on cache reload.
 """
-test "jir cache preserves impl defined instance variables" {
+test "impl defined instance variables resolve identically across runs" {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime }
 
@@ -2537,62 +2514,6 @@ test "jir cache preserves impl defined instance variables" {
         ]}";
     }
 }
-
-"""Regression: JIR-reloaded FuncCall must keep its postinit fields.
-
-jaseci-labs/jaseci#6656 (Ask #2): the JIR reader builds nodes via
-`cls.__new__(cls)`, skipping postinit, then re-seeds postinit defaults per
-node type. FuncCall's `callee_decl`/`call_kind` had no such branch, so a
-FuncCall reloaded from JIR had no attribute at all -- native and client/JS
-codegen, which read `.callee_decl` off the call node, then crashed with
-`'FuncCall' object has no attribute 'callee_decl'` on a warm build.
-"""
-test "jir reload preserves FuncCall callee_decl and call_kind" {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core { unitree as uni }
-    import from jaclang.jac0core.jir_passes { JirWriter, JirReader }
-
-    with tempfile.TemporaryDirectory() as tmpdir {
-        src = os.path.join(tmpdir, "calls.jac");
-        with open(src, "w") as f {
-            f.write(
-                "def helper(x: int) -> int { return x + 1; }\n"
-                "def caller(x: int) -> int { return helper(x) + helper(x); }\n"
-            );
-        }
-        import from jaclang.jac0core.compile_options { CompileOptions }
-        mod = JacProgram().compile(
-            file_path=src,
-            options=CompileOptions(type_check=False, default_codespace='server')
-        );
-        fresh = mod.get_all_sub_nodes(uni.FuncCall);
-        assert len(fresh) >= 2 , f"expected FuncCalls in fresh AST, got {len(fresh)}";
-        for fc in fresh {
-            assert hasattr(fc, "callee_decl");
-            assert hasattr(fc, "call_kind");
-        }
-        # Round-trip the module AST through JIR and re-check.
-        reloaded = JirReader().read_module(JirWriter().write_module(mod));
-        assert reloaded is not None , "JIR reload returned None";
-        reborn = reloaded.get_all_sub_nodes(uni.FuncCall);
-        assert len(reborn) == len(fresh) , (
-            f"FuncCall count changed across JIR roundtrip: "
-            f"{len(fresh)} -> {len(reborn)}"
-        );
-        for fc in reborn {
-            # The crux: the attribute must exist (seeded to None), not be absent.
-            assert hasattr(fc, "callee_decl") , (
-                "JIR-reloaded FuncCall lost `callee_decl` (#6656 Ask #2)"
-            );
-            assert hasattr(fc, "call_kind") , (
-                "JIR-reloaded FuncCall lost `call_kind` (#6656 Ask #2)"
-            );
-            assert fc.callee_decl is None;
-            assert fc.call_kind is None;
-        }
-    }
-}
-
 
 """Regression: JIR cache must compute MRO for subtype checking.
 
@@ -2648,7 +2569,7 @@ cannot distinguish None from [] -- both round-trip to []. On a cache hit a plain
 accessors became [], so the property classifier saw a setter-less property and falsely
 raised E1005 on assignment.
 """
-test "jir cache preserves plain field vs property accessors" {
+test "field vs property accessor typing is identical across runs" {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.runtime { JacRuntime }
 
@@ -2731,74 +2652,6 @@ test "jac check on impl file redirects to base and filters errors" {
             f"Base file errors should be filtered out when checking impl file. "
             f"Output:\n{output}"
         );
-    }
-}
-
-"""Regression: JIR cache must preserve code_context for .jac modules.
-
-When a .jac file is compiled, its body items get code_context=CLIENT via
-_coerce_client_module. The JIR serializer must persist this per-node context
-so that the ES code generator includes (not filters out) client statements
-when the module is loaded from cache.
-"""
-test "jir cache preserves code context for cl jac files" {
-    import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.constant { CodeContext }
-    import from jaclang.jac0core.jir_passes { JirWriter, JirReader }
-    import from jaclang.jac0core.unitree { ContextAwareNode }
-
-    with tempfile.TemporaryDirectory() as tmpdir {
-        # Create a client-pinned .jac module with a pub global and a pub
-        # function; the module pin coerces the whole module client at parse,
-        # the way the retired .cl.jac suffix used to.
-        cl_jac_path = os.path.join(tmpdir, "api.jac");
-        with open(cl_jac_path, "w") as f {
-            f.write(
-                'glob:pub baseUrl = "http://localhost";\n'
-                'def:pub fetchData() -> str { return baseUrl; }\n'
-            );
-        }
-        with open(os.path.join(tmpdir, "jac.toml"), "w") as f {
-            f.write('[placement.pins]\n"api" = "client"\n');
-        }
-        # Compile the .jac file
-        program = JacProgram();
-        mod = program.compile(cl_jac_path);
-        # Verify code_context is CLIENT after compilation
-        client_stmts = [
-            s
-            for s in mod.body
-            if isinstance(s, ContextAwareNode)
-        ];
-        assert len(client_stmts) > 0 , "No ContextAwareNode statements found";
-        for stmt in client_stmts {
-            assert stmt.code_context == CodeContext.CLIENT , (
-                f"Before JIR: {type(stmt).__name__} has "
-                f"code_context={stmt.code_context}, expected CLIENT"
-            );
-        }
-        # Round-trip through JIR: write then read
-        writer = JirWriter();
-        jir_bytes = writer.write_module(mod);
-        reader = JirReader();
-        restored_mod = reader.read_module(jir_bytes);
-        # Verify code_context is preserved after JIR round-trip
-        restored_stmts = [
-            s
-            for s in restored_mod.body
-            if isinstance(s, ContextAwareNode)
-        ];
-        assert len(restored_stmts) == len(client_stmts) , (
-            f"JIR round-trip changed stmt count: "
-            f"{len(client_stmts)} -> {len(restored_stmts)}"
-        );
-        for stmt in restored_stmts {
-            assert stmt.code_context == CodeContext.CLIENT , (
-                f"After JIR: {type(stmt).__name__} has "
-                f"code_context={stmt.code_context}, expected CLIENT. "
-                f"JIR cache lost code_context."
-            );
-        }
     }
 }
 

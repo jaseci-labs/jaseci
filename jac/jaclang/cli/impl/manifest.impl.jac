@@ -958,32 +958,6 @@ def _command_routes -> list[CommandMeta] {
             ]
         ),
         CommandMeta(
-            name='gen-jir-registry',
-            help='Regenerate jir_registry.jac from unitree node classes',
-            group='tools',
-            tier='',
-            hidden=True,
-            handler_module='jaclang.cli.commands.tools',
-            handler_name='gen_jir_registry',
-            examples=[
-                ('jac gen-jir-registry', 'Regenerate jir_registry.jac'),
-                (
-                    'jac gen-jir-registry --verify',
-                    'Check registry is up to date (for CI)'
-                )
-            ],
-            args=[
-                ArgMeta(
-                    name='verify',
-                    typ='bool',
-                    default=False,
-                    help='Check that jir_registry.jac is up to date; exit 1 if not',
-                    short='v'
-                ),
-
-            ]
-        ),
-        CommandMeta(
             name='gen-uni-dispatch',
             help='Regenerate static enter_node/exit_node dispatch for UniPass subclasses',
             group='tools',
