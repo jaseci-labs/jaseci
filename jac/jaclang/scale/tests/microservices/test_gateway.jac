@@ -1117,6 +1117,28 @@ test "serve admin asset blocks path traversal" {
     shutil.rmtree(tmp);
 }
 
+test "serve admin asset responses go through the shared asset_response policy" {
+    tmp = tempfile.mkdtemp();
+    admin_dir = Path(tmp) / "admin";
+    assets = admin_dir / "assets";
+    assets.mkdir(parents=True);
+    (assets / "admin.js").write_text("var admin = true;");
+
+    reg = ServiceRegistry();
+    gw = MicroserviceGateway(registry=reg, admin_dist_dir=str(admin_dir));
+
+    resp = gw.serve_admin_asset("assets/admin.js");
+    assert resp is not None;
+    cache = resp.headers.get("Cache-Control") or "";
+    assert "must-revalidate" in cache , (
+        "admin assets must be built through the shared asset_response so the "
+        f"one response policy holds everywhere; got Cache-Control: {cache}"
+    );
+
+    import shutil;
+    shutil.rmtree(tmp);
+}
+
 test "admin redirect via testclient" {
     tmp = tempfile.mkdtemp();
     admin_dir = Path(tmp) / "admin";

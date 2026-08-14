@@ -208,26 +208,16 @@ impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
         return None;
     }
 
+    import from jaclang.runtimelib.serving.static_assets { asset_response }
     if not target.is_file() {
         index = admin_dist / "index.html";
         if index.is_file() {
-            return HTMLResponse(content=index.read_text(encoding="utf-8"));
+            return asset_response(index, {});
         }
         return None;
     }
 
-    (content_type, _) = mimetypes.guess_type(str(target));
-    if content_type is None {
-        content_type = "application/octet-stream";
-    }
-
-    if content_type.startswith("text/")
-    or content_type in ("application/javascript", "application/json") {
-        return Response(
-            content=target.read_text(encoding="utf-8"), media_type=content_type
-        );
-    }
-    return Response(content=target.read_bytes(), media_type=content_type);
+    return asset_response(target, {});
 }
 
 glob _BUILTIN_PREFIXES: tuple = (
