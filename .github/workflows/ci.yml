@@ -839,10 +839,11 @@ jobs:
     - name: Run bundled-stdlib equivalence pins (darwin, #7626 C3)
       env:
         JAC_TEST_JOBS: "0"
+        JAC_NA_DEBUG: "1"
         # os.path + textwrap + keyword are pure-compute na modules that must
         # agree on darwin; the shutil pin self-skips there until the stat
         # seam gets a per-OS floor (see test_prim_equivalence.jac).
-        PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword"
+        PYTEST_ADDOPTS: -s -k "shutil or path or textwrap or keyword"
       run: jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
 
     # macOS JIR seeder (jac-check seeds the Linux tier).
