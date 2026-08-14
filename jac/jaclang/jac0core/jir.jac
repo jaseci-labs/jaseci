@@ -48,17 +48,11 @@ def create_header(
     string_pool_size: int,
     flags: int = 0
 ) -> JirHeader {
-    import from importlib.metadata { version as pkg_version }
-    try {
-        jac_ver = pkg_version('jaclang');
-    } except Exception {
-        jac_ver = "0.0.0";
-    }
     return JirHeader(
         magic=MAGIC,
         format_version=FORMAT_VERSION,
         python_version=(sys.version_info.major << 8) | sys.version_info.minor,
-        jaclang_version_hash=zlib.crc32(jac_ver.encode()) & 0xFFFFFFFF,
+        jaclang_version_hash=zlib.crc32(jaclang_version().encode()) & 0xFFFFFFFF,
         source_content_hash=source_hash & 0xFFFFFFFF,
         node_count=node_count,
         symbol_count=symbol_count,
@@ -532,12 +526,7 @@ def write_precompiled_jir(
     flags: int = 0,
     extra_sections: (dict[int, bytes] | None) = None
 ) -> bytes {
-    import from importlib.metadata { version as pkg_version }
-    try {
-        jac_hash = zlib.crc32(pkg_version('jaclang').encode()) & 0xFFFFFFFF;
-    } except Exception {
-        jac_hash = 0;
-    }
+    jac_hash = zlib.crc32(jaclang_version().encode()) & 0xFFFFFFFF;
     header = struct.pack(
         HEADER_FMT,
         MAGIC,
