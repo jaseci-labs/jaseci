@@ -404,7 +404,11 @@ async def _run_function_with_occ(
             call_token = ctx.call_state.set(CallState());
             call_state = ctx.call_state.get();
             try {
-                return await run_attempt(call_state, ctx);
+                result = await run_attempt(call_state, ctx);
+                if isgenerator(result) or isinstance(result, AsyncGenerator) {
+                    return _stream_in_request_context(result, ctx);
+                }
+                return result;
             } except WriteConflict as wc {
                 ctx.mem.abort();
                 ctx.pending_effects.clear();
@@ -446,6 +450,119 @@ async def _run_function_with_occ(
             logger.warning(f"unit exit failed: {type(ue).__name__}: {ue}");
         }
         Jac.reset_request_context(req_token);
+    }
+}
+
+def _stream_in_request_context(gen: any, ctx: ExecutionContext) -> AsyncGenerator {
+    if isgenerator(gen) {
+        return _stream_sync_gen(gen, ctx);
+    }
+    return _stream_async_gen(gen, ctx);
+}
+
+async def _stream_sync_gen(gen: any, ctx: ExecutionContext) -> AsyncGenerator {
+    loop = asyncio.get_running_loop();
+    q: asyncio.Queue = asyncio.Queue();
+    capacity = threading.Semaphore(2);
+    stopped = [False];
+
+    def _put(msg: tuple) {
+        try {
+            loop.call_soon_threadsafe(q.put_nowait, msg);
+        } except RuntimeError {
+            ;
+        }
+    }
+
+    def _produce {
+        token = Jac.push_request_context(ctx);
+        ctx.mem.unit_enter();
+        try {
+            try {
+                while True {
+                    capacity.acquire();
+                    if stopped[0] {
+                        break;
+                    }
+                    try {
+                        item = next(gen);
+                    } except StopIteration {
+                        break;
+                    }
+                    _put(('item', item));
+                }
+            } finally {
+                gen.close();
+            }
+            if not stopped[0] {
+                Jac.commit();
+            }
+            _put(('done', None));
+        } except BaseException as e {
+            _put(('error', e));
+        } finally {
+            try {
+                ctx.mem.unit_exit();
+            } except Exception as ue {
+                logger.warning(f"stream unit exit failed: {type(ue).__name__}: {ue}");
+            }
+            Jac.reset_request_context(token);
+        }
+    }
+    worker = threading.Thread(target=_produce, daemon=True);
+    worker.start();
+    try {
+        while True {
+            (kind, payload) = await q.get();
+            if kind == 'done' {
+                break;
+            }
+            if kind == 'error' {
+                raise payload;
+            }
+            capacity.release();
+            yield payload;
+        }
+    } finally {
+        stopped[0] = True;
+        capacity.release();
+    }
+}
+
+async def _stream_async_gen(gen: any, ctx: ExecutionContext) -> AsyncGenerator {
+    ctx.mem.unit_enter();
+    try {
+        while True {
+            token = Jac.push_request_context(ctx);
+            try {
+                item = await gen.__anext__();
+            } except StopAsyncIteration {
+                break;
+            } finally {
+                Jac.reset_request_context(token);
+            }
+            yield item;
+        }
+        token = Jac.push_request_context(ctx);
+        try {
+            await Jac.acommit();
+        } finally {
+            Jac.reset_request_context(token);
+        }
+    } finally {
+        token = Jac.push_request_context(ctx);
+        try {
+            await gen.aclose();
+        } except Exception as ce {
+            logger.warning(f"stream close failed: {type(ce).__name__}: {ce}");
+        } finally {
+            Jac.reset_request_context(token);
+            try {
+                ctx.mem.unit_exit();
+            } except Exception as ue {
+                logger.warning(f"stream unit exit failed: {type(ue).__name__}: {ue}");
+            }
+        }
     }
 }
 

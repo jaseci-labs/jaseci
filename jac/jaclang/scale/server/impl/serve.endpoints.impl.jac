@@ -509,6 +509,11 @@ impl JacAPIServerEndpoints.create_webhook_callback(
             self.get_walkers()[walker_name], walker_kwargs, user_id
         );
 
+        if (isgenerator(result) or isinstance(result, AsyncGenerator)) {
+            return TransportResponse.success(
+                data=result, meta=Meta(extra={'http_status': 200})
+            );
+        }
         if 'error' in result {
             logger.error(
                 f"Webhook walker '{walker_name}' failed: "

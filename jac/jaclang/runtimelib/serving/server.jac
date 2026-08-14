@@ -503,6 +503,9 @@ obj ServingServer {
             head_lines.append(f"{name}: {value}");
         }
         blob = ('\r\n'.join(head_lines) + '\r\n\r\n').encode('latin-1');
+        if is_head and stream is not None {
+            await self._close_stream(stream);
+        }
         try {
             writer.write(blob);
             if chunked {
@@ -514,7 +517,22 @@ obj ServingServer {
             await writer.drain();
             return conn_override != 'close';
         } except (ConnectionError, OSError) {
+            if chunked {
+                await self._close_stream(stream);
+            }
             return False;
+        }
+    }
+
+    async def _close_stream(stream: any) {
+        try {
+            if hasattr(stream, 'aclose') {
+                await stream.aclose();
+            } elif hasattr(stream, 'close') {
+                stream.close();
+            }
+        } except Exception {
+            ;
         }
     }
 

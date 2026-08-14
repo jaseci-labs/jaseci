@@ -52,6 +52,16 @@ async def _sse_frame_stream_inner(source: any) -> AsyncIterator[str] {
             ),
             event='error'
         );
+    } finally {
+        try {
+            if hasattr(source, 'aclose') {
+                await source.aclose();
+            } elif hasattr(source, 'close') {
+                source.close();
+            }
+        } except Exception {
+            _logger.exception("SSE stream close failed");
+        }
     }
 }
 
