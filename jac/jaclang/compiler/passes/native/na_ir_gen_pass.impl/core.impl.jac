@@ -100,6 +100,8 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
         native_capability_violations,
         partition_native_capability_violations
     }
+    self._capability_demotions = {};
+    self._claimed_capability_demotions = set();
     _viols = native_capability_violations(self.ir_in);
     if _viols {
         (_fatal_viols, _demotable) = partition_native_capability_violations(_viols);
@@ -217,7 +219,6 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
 impl NaIRGenPass._predemote_capability_unit(
     full_name: str, func: ir.Function, viols: list, keep_func: bool = False
 ) -> bool {
-    _err_mark = len(self.prog.errors_had);
     _local_mark = len(self.errors_had);
     for (_vnode, _vkind, _vname, _vhelp) in viols {
         self.emit(
@@ -225,8 +226,16 @@ impl NaIRGenPass._predemote_capability_unit(
         );
     }
     return self._demote_method_if_unlowerable(
-        full_name, func, _err_mark, _local_mark, keep_func=keep_func
+        full_name, func, _local_mark, keep_func=keep_func
     );
+}
+
+impl NaIRGenPass._rename_demoted_symbol(name: str, func: ir.Function) -> None {
+    try {
+        self.llvm_module.globals.pop(func.name, None);
+        func.name = f"{name}.__jac_demoted";
+        self.llvm_module.globals[func.name] = func;
+    } except Exception { }
 }
 
 impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {

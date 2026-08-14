@@ -387,6 +387,7 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
     if _pre_viols is not None {
         self._claimed_capability_demotions.add(id(nd));
         if self._predemote_capability_unit(name, func, _pre_viols) {
+            self._rename_demoted_symbol(name, func);
             return;
         }
     }
@@ -401,7 +402,6 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         return;
     }
 
-    _err_mark = len(self.prog.errors_had);
     _local_mark = len(self.errors_had);
     try {
         block = func.append_basic_block(name="entry");
@@ -488,7 +488,8 @@ impl NaIRGenPass._codegen_ability(nd: uni.Ability) -> None {
         );
     }
     self._builder = None;
-    if self._demote_method_if_unlowerable(name, func, _err_mark, _local_mark) {
+    if self._demote_method_if_unlowerable(name, func, _local_mark) {
+        self._rename_demoted_symbol(name, func);
         return;
     }
 

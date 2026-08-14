@@ -455,7 +455,11 @@ def seal_abort_stubs(llvm_ir_text: str) -> list[str] {
             and abort_re.match(body[1]) is not None
             and body[2] == "unreachable"
         ) {
-            stubs.append(matched.group(1) or matched.group(2));
+            stub_name = matched.group(1) or matched.group(2);
+            if stub_name.endswith(".__jac_demoted") {
+                stub_name = stub_name[:-len(".__jac_demoted")];
+            }
+            stubs.append(stub_name);
         }
     }
     return sorted(set(stubs));

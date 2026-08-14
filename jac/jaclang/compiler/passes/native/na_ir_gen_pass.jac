@@ -833,17 +833,14 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Function | None);
 
     def _demote_method_if_unlowerable(
-        full_name: str,
-        func: ir.Function,
-        err_mark: int,
-        local_mark: int,
-        keep_func: bool = False
+        full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
     ) -> bool;
 
     def _predemote_capability_unit(
         full_name: str, func: ir.Function, viols: list, keep_func: bool = False
     ) -> bool;
 
+    def _rename_demoted_symbol(name: str, func: ir.Function) -> None;
     def _codegen_no_sig_method(arch_name: str, method: uni.Ability) -> None;
     def _forward_declare_event_method(arch_name: str, method: uni.Ability) -> None;
     def _codegen_event_method(arch_name: str, method: uni.Ability) -> None;

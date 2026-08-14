@@ -669,7 +669,6 @@ impl NaIRGenPass._codegen_method(
 
     _isolate = method_name not in ("init", "__init__", "postinit", "__post_init__");
     _is_virtual = method_name in self.vtable_method_indices.get(arch_name, {});
-    _err_mark = len(self.prog.errors_had) if _isolate else 0;
     _local_mark = len(self.errors_had) if _isolate else 0;
 
     try {
@@ -730,21 +729,18 @@ impl NaIRGenPass._codegen_method(
 
     if _isolate {
         self._demote_method_if_unlowerable(
-            full_name, func, _err_mark, _local_mark, keep_func=_is_virtual
+            full_name, func, _local_mark, keep_func=_is_virtual
         );
     }
 }
 
 impl NaIRGenPass._demote_method_if_unlowerable(
-    full_name: str,
-    func: ir.Function,
-    err_mark: int,
-    local_mark: int,
-    keep_func: bool = False
+    full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
 ) -> bool {
-    if len(self.prog.errors_had) <= err_mark {
+    if len(self.errors_had) <= local_mark {
         return False;
     }
+    _own = list(self.errors_had[local_mark:]);
 
     _na_debug = self._na_debug_on();
     _warn = _na_debug or bool(self.prog._compile_options.native_debug);
@@ -761,7 +757,7 @@ impl NaIRGenPass._demote_method_if_unlowerable(
     }
     if _warn {
         import sys;
-        _why = "; ".join(str(e) for e in self.prog.errors_had[err_mark:]);
+        _why = "; ".join(str(e) for e in _own);
         sys.stderr.write(
             f"warning: native seam -- demoting {full_name} to Python-only "
             f"(un-lowerable): {_why}\n"
@@ -770,18 +766,22 @@ impl NaIRGenPass._demote_method_if_unlowerable(
     if _na_debug {
         import sys;
         sys.stderr.write(f"NA_DEBUG demote {full_name}\n");
-        for _diag in self.prog.errors_had[err_mark:] {
+        for _diag in _own {
             sys.stderr.write(f"NA_DEBUG   {_diag.pretty_print()}\n");
         }
     }
     try {
         import from jaclang.jac0core.compiler { na_census_seam }
         na_census_seam(
-            self.ir_in.loc.mod_path,
-            f"{full_name}: " + str(self.prog.errors_had[err_mark]).split('\n')[0]
+            self.ir_in.loc.mod_path, f"{full_name}: " + str(_own[0]).split('\n')[0]
         );
     } except Exception { }
-    del self.prog.errors_had[err_mark:];
+    _own_ids = {id(_e) for _e in _own};
+    self.prog.errors_had = [
+        _e
+        for _e in self.prog.errors_had
+        if id(_e) not in _own_ids
+    ];
     del self.errors_had[local_mark:];
     func.blocks.clear();
     blk = func.append_basic_block(name="entry");
