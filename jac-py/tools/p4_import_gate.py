@@ -28,6 +28,7 @@ ALLOWED_HOST_ORACLE_IMPORTERS = {
     "compiler_slice.jac",
     "layer8_product_expr.jac",
     "layer9_product_exec.jac",
+    "layer_vm_conformance.jac",
     "layer0_replay.jac",
     "layer2_unittest.jac",
     "layer3_import.jac",
