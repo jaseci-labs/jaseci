@@ -57,12 +57,9 @@ test "a [placement.pins] change invalidates the cached module" {
     _write(toml, BASE + "\n[placement.pins]\n\"m.f\" = \"server\"\n");
     _bump(toml, str(cache_path));
 
-    assert module_cache_key(src) != key_before ,
-        "pins must change the module key";
-    assert not jir_matches_source(cache_path.read_bytes(), src) ,
-        "stored key must stop matching once pins change";
-    assert not is_module_cache_valid(src, cache_path) ,
-        "cache must not be served after a [placement.pins] change";
+    assert module_cache_key(src) != key_before , "pins must change the module key";
+    assert not jir_matches_source(cache_path.read_bytes(), src) , "stored key must stop matching once pins change";
+    assert not is_module_cache_valid(src, cache_path) , "cache must not be served after a [placement.pins] change";
 }
 
 test "a [project] kind change invalidates the cached module" {
@@ -72,10 +69,8 @@ test "a [project] kind change invalidates the cached module" {
     _write(toml, "[project]\nname = \"probe\"\nkind = \"js-package\"\n");
     _bump(toml, str(cache_path));
 
-    assert module_cache_key(src) != key_before ,
-        "project kind must change the module key";
-    assert not is_module_cache_valid(src, cache_path) ,
-        "cache must not be served after a [project] kind change";
+    assert module_cache_key(src) != key_before , "project kind must change the module key";
+    assert not is_module_cache_valid(src, cache_path) , "cache must not be served after a [project] kind change";
 }
 
 test "an environment-driven codegen change invalidates the cached module" {
@@ -85,10 +80,8 @@ test "an environment-driven codegen change invalidates the cached module" {
         os.environ["JAC_OPT_LEVEL"] = "0";
         key_o0 = module_cache_key(src);
         os.environ["JAC_OPT_LEVEL"] = "3";
-        assert module_cache_key(src) != key_o0 ,
-            "opt level must change the module key";
-        assert not is_module_cache_valid(src, cache_path) ,
-            "cache must not be served across a codegen flag change";
+        assert module_cache_key(src) != key_o0 , "opt level must change the module key";
+        assert not is_module_cache_valid(src, cache_path) , "cache must not be served across a codegen flag change";
     } finally {
         if prev {
             os.environ["JAC_OPT_LEVEL"] = prev;
@@ -106,11 +99,9 @@ test "a stale entry can be rewritten rather than needing a manual cache wipe" {
     _bump(toml, str(cache_path));
 
     mod = JacProgram().compile(src);
-    assert write_module_jir_cache(src, mod) ,
-        "a correct recompile must be allowed to overwrite the stale entry";
+    assert write_module_jir_cache(src, mod) , "a correct recompile must be allowed to overwrite the stale entry";
     assert os.path.getmtime(cache_path) != mtime_before , "entry should be rewritten";
-    assert jir_matches_source(cache_path.read_bytes(), src) ,
-        "rewritten entry should carry the current module key";
+    assert jir_matches_source(cache_path.read_bytes(), src) , "rewritten entry should carry the current module key";
     assert is_module_cache_valid(src, cache_path) , "rewritten entry should be valid";
 }
 
@@ -120,10 +111,8 @@ test "an untouched project keeps serving its cached module" {
 
     _write(toml, BASE);
     _bump(toml, str(cache_path));
-    assert is_module_cache_valid(src, cache_path) ,
-        "rewriting jac.toml with identical content must not invalidate";
+    assert is_module_cache_valid(src, cache_path) , "rewriting jac.toml with identical content must not invalidate";
 
     os.utime(src, None);
-    assert is_module_cache_valid(src, cache_path) ,
-        "touching the source without editing it must not invalidate";
+    assert is_module_cache_valid(src, cache_path) , "touching the source without editing it must not invalidate";
 }
