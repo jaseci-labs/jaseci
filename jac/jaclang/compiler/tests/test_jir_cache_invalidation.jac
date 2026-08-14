@@ -74,10 +74,10 @@ test "a [project] kind change invalidates the cached module" {
 }
 
 test "an environment-driven codegen change invalidates the cached module" {
-    (toml, src, cache_path) = _seed_project(BASE);
     prev = os.environ.get("JAC_OPT_LEVEL", "");
     try {
         os.environ["JAC_OPT_LEVEL"] = "0";
+        (toml, src, cache_path) = _seed_project(BASE);
         key_o0 = module_cache_key(src);
         os.environ["JAC_OPT_LEVEL"] = "3";
         assert module_cache_key(src) != key_o0 , "opt level must change the module key";
