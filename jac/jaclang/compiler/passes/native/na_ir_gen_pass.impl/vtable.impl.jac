@@ -243,6 +243,9 @@ impl NaIRGenPass._emit_class_name_const(arch_name: str) -> ir.Value {
 }
 
 impl NaIRGenPass._emit_runtime_class_name_fn -> (ir.Function | None) {
+    if self._nogc_headerless() {
+        return None;
+    }
     _cached = self?._runtime_class_name_fn;
     if _cached is not None {
         return _cached;
@@ -256,7 +259,8 @@ impl NaIRGenPass._emit_runtime_class_name_fn -> (ir.Function | None) {
     fn.args[0].name = "obj";
 
     _entry = fn.append_basic_block("entry");
-    _sentinel = fn.append_basic_block("sentinel");
+    _sentinel = fn.append_basic_block("check.sentinel");
+    _magic = fn.append_basic_block("check.magic");
     _read = fn.append_basic_block("read");
     _none = fn.append_basic_block("none");
     _unknown = fn.append_basic_block("unknown");
@@ -274,8 +278,12 @@ impl NaIRGenPass._emit_runtime_class_name_fn -> (ir.Function | None) {
     _is_stk = b.icmp_unsigned(
         "==", _rc_val, ir.Constant(i64, RC_SENTINEL), name="cn.stk"
     );
-    _has_magic = self._emit_magic_check(b, fn.args[0], name_prefix="cn.mc");
-    b.cbranch(b.or_(_is_stk, _has_magic, name="cn.hdr.ok"), _read, _unknown);
+    b.cbranch(_is_stk, _read, _magic);
+
+    b = ir.IRBuilder(_magic);
+    b.cbranch(
+        self._emit_magic_check(b, fn.args[0], name_prefix="cn.mc"), _read, _unknown
+    );
 
     b = ir.IRBuilder(_read);
     _tag_slot = b.gep(fn.args[0], [ir.Constant(i64, HDR_TAG_OFF)], name="cn.tag.slot");
@@ -320,8 +328,9 @@ impl NaIRGenPass._emit_runtime_class_name_fn -> (ir.Function | None) {
 
 impl NaIRGenPass._codegen_runtime_class_name(obj_val: ir.Value) -> (ir.Value | None) {
     i8_ptr = ir.IntType(8).as_pointer();
+    _headerless = self._nogc_headerless();
     if self._opt_payload_of(obj_val.type) is not None {
-        if self._opt_ptr_payload_of(obj_val.type) is None {
+        if _headerless or self._opt_ptr_payload_of(obj_val.type) is None {
             return None;
         }
         _tag = self.builder.extract_value(obj_val, 0, name="clsname.opt.tag");
