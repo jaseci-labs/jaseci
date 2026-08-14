@@ -372,7 +372,8 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
         } elif isinstance(target, (uni.TupleVal, uni.ListVal)) {
             self._eval_unpacking_names(target);
             right_type = self.evaluator.get_type_of_expression(nd.value);
-            if not isinstance(right_type, (types.UnknownType, types.AnyType)) {
+            if not isinstance(right_type, types.UnknownType)
+                and not right_type.is_any_instance() {
                 iter_result = self.evaluator.get_type_of_magic_method_call(
                     right_type, "__iter__", [], nd.value
                 );
@@ -400,6 +401,17 @@ impl TypeCheckPass.exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> N
                 left_type = declared_inst;
             } else {
                 left_type = self.evaluator.get_type_of_expression(target);
+                if isinstance(target, uni.Name) and target.sym is not None {
+                    sym_declared = self.evaluator.get_type_of_symbol(target.sym);
+                    if (
+                        sym_declared is not None
+                        and not isinstance(
+                            sym_declared, (types.UnknownType, types.AnyType)
+                        )
+                    ) {
+                        left_type = sym_declared;
+                    }
+                }
                 if isinstance(target, uni.AtomTrailer) and target.is_attr {
                     if isinstance(target.right, uni.Name) and target.right.sym {
                         import from jaclang.compiler.type_system.type_utils {
@@ -943,10 +955,40 @@ impl TypeCheckPass._check_explicit_any(
     }
 }
 
-impl TypeCheckPass.exit_type_alias(self: TypeCheckPass, nd: uni.TypeAlias) -> None { }
+impl TypeCheckPass.exit_type_alias(self: TypeCheckPass, nd: uni.TypeAlias) -> None {
+    import from jaclang.compiler.type_system { types }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    if not nd.is_distinct {
+        return;
+    }
+    resolved = self.evaluator._resolve_type_alias_rhs(nd.value);
+    if not isinstance(resolved, types.ClassType)
+        or not JAC_TYPE_REGISTRY.is_primitive(resolved.shared.class_name) {
+        self.emit(E1107, node_override=nd.value, base=str(resolved));
+    }
+}
 
 impl TypeCheckPass.exit_archetype(self: TypeCheckPass, nd: uni.Archetype) -> None {
-    self.evaluator.get_type_of_class(nd);
+    import from jaclang.compiler.type_system { types }
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    cls_type = self.evaluator.get_type_of_class(nd);
+    if isinstance(cls_type, types.ClassType)
+        and nd.arch_type.name == Tok.KW_OBJECT
+        and not cls_type.shared.is_from_stdlib_stub
+        and cls_type.shared.base_classes {
+        for base in cls_type.shared.base_classes {
+            if isinstance(base, types.ClassType)
+                and base.is_builtin()
+                and JAC_TYPE_REGISTRY.is_primitive(base.shared.class_name) {
+                self.emit(
+                    E1106,
+                    node_override=nd.name,
+                    name=nd.name.value,
+                    base=base.shared.class_name
+                );
+            }
+        }
+    }
     if (
         isinstance(nd.body, uni.ImplDef)
         and nd.body.find_parent_of_type(uni.Module) is not self.ir_in

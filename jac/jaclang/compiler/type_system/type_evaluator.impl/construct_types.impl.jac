@@ -98,7 +98,13 @@ impl TypeEvaluator._get_type_of_lhs_assignment(expr: uni.Name) -> TypeBase | Non
 impl TypeEvaluator._extract_tuple_element_type(
     tuple_type: TypeBase, idx: int
 ) -> TypeBase | None {
-    if not isinstance(tuple_type, types.ClassType) or idx < 0 {
+    if idx < 0 {
+        return None;
+    }
+    if tuple_type.is_any_instance() {
+        return tuple_type;
+    }
+    if not isinstance(tuple_type, types.ClassType) {
         return None;
     }
     cls: types.ClassType = tuple_type;

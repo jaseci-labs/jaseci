@@ -158,11 +158,6 @@ impl JacProgram.load_dependency_module(
     use_str: (str | None) = None
 ) -> uni.Module {
     import from pathlib { Path }
-    import from jaclang.jac0core.jir {
-        jir_cacheable_source_path,
-        read_module_jir_cache,
-        write_module_jir_cache,
-    }
 
     resolved_path = str(Path(source_path).resolve());
     compiler = self._get_compiler();
@@ -186,16 +181,7 @@ impl JacProgram.load_dependency_module(
     } elif resolved_path in target_hub {
         mod = target_hub[resolved_path];
     } else {
-        jir_mod: (object | None) = None;
-        if use_str is None {
-            jir_mod = read_module_jir_cache(resolved_path);
-        }
-        if jir_mod is not None {
-            mod = jir_mod;
-            if resolved_path.endswith('.pyi') and not mod.stub_only {
-                mod.stub_only = True;
-            }
-        } elif resolved_path.endswith('.pyi') {
+        if resolved_path.endswith('.pyi') {
             import ast as py_ast;
             import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
             import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
@@ -208,9 +194,6 @@ impl JacProgram.load_dependency_module(
             ).ir_out;
             SymTabBuildPass(ir_in=mod, prog=self);
             mod.stub_only = True;
-            if jir_cacheable_source_path(resolved_path) {
-                write_module_jir_cache(resolved_path, mod);
-            }
         } else {
             mod = self.compile(
                 source_path,
@@ -219,9 +202,6 @@ impl JacProgram.load_dependency_module(
                 type_check=False,
                 symtab_ir_only=True
             );
-            if jir_cacheable_source_path(resolved_path) {
-                write_module_jir_cache(resolved_path, mod);
-            }
         }
         target_hub[resolved_path] = mod;
         target_program.hub_cache_stamp(resolved_path);
@@ -231,6 +211,45 @@ impl JacProgram.load_dependency_module(
         self.record_dependency(importer_path, resolved_path);
     }
     return mod;
+}
+
+impl JacProgram.hub_key(path: str) -> str {
+    import from pathlib { Path }
+    return str(Path(path).resolve());
+}
+
+impl JacProgram.has_failed_parse(self: JacProgram, path: str) -> bool {
+    mod = self.mod.hub.get(JacProgram.hub_key(path));
+    return mod is not None and mod.parse_failed;
+}
+
+impl JacProgram.drop_module_alerts(self: JacProgram, resolved_path: str) -> None {
+    import os;
+    try {
+        norm = os.path.realpath(resolved_path);
+    } except OSError {
+        return;
+    }
+    import from jaclang.jac0core.ext_registry { is_annex_path_of }
+
+    def owned(alert: Alert) -> bool {
+        try {
+            alert_path = os.path.realpath(alert.loc.mod_path);
+        } except Exception {
+            return False;
+        }
+        return alert_path == norm or is_annex_path_of(alert_path, norm);
+    }
+    self.errors_had = [
+        a
+        for a in self.errors_had
+        if not owned(a)
+    ];
+    self.warnings_had = [
+        a
+        for a in self.warnings_had
+        if not owned(a)
+    ];
 }
 
 impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {
@@ -258,6 +277,7 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
         for mod in self.mod.hub.values() {
             for nd in mod.get_all_sub_nodes(uni.Expr) {
                 nd.type = None;
+                nd.narrowed_type = None;
             }
         }
     }

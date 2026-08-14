@@ -126,7 +126,9 @@ obj ModuleIntrospector {
         _client_manifest: dict[(str, Any)] = {},
         _bundle: any = None,
         _bundle_error: (str | None) = None,
+        _bundle_epoch: int = 0,
         _bundle_builder: any postinit,
+        _bundle_lock: any postinit,
         _function_access: dict[(str, bool)] = {},
         _walker_access: dict[(str, bool)] = {},
         _spa_routes_loaded: bool = False,
@@ -149,6 +151,7 @@ obj ModuleIntrospector {
     def introspect_callable(func: Callable[(..., Any)]) -> dict[str, any];
     def introspect_walker(walker_cls: type[WalkerArchetype]) -> dict[str, any];
     def ensure_bundle -> str;
+    def _invalidate_bundle -> None;
     def render_page(
         function_name: str, args: dict[(str, Any)], username: str
     ) -> dict[str, any];

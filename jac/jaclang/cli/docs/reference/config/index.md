@@ -860,7 +860,9 @@ test_fixtures/
 *.generated.jac
 ```
 
-Each line is a filename or pattern that should be skipped during Jac compilation passes (type checking, formatting, etc.).
+Each line is a filename or pattern that should be skipped during Jac compilation passes (type checking, formatting, etc.). Blank lines and `#` comments are ignored; a pattern containing `/` is matched against the path relative to the project root, a bare pattern against any path component.
+
+A `--scale` deploy reads the same file when it stages the app bundle, so a parked tree is not copied to the pods and is never compiled there. Because `.jacignore` itself ships in the bundle, editing it changes the bundle's content address and the next deploy re-ships.
 
 ---
 
@@ -892,6 +894,9 @@ Each line is a filename or pattern that should be skipped during Jac compilation
 | Variable | Description |
 |----------|-------------|
 | `JAC_DB_URL` | Postgres connection URL (overrides `[scale.database].url`) |
+| `JAC_CACHE_HOME` | Root of the machine-wide jac cache; the shared embedded Postgres cluster lives in `<JAC_CACHE_HOME>/pg/main` (default `~/.cache/jac`) |
+| `JAC_DB_RETENTION_DAYS` | Drop databases unused for this many days when the embedded cluster starts; overrides `[database] retention_days`, unset means never |
+| `JAC_DB_SCRATCH` | `1` makes this process open one throwaway database that is dropped when it exits, instead of a per-project one (used by the test runner and deploy staging) |
 | `FIRESTORE_PROJECT_ID` | Firestore / Firebase project ID |
 | `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO, Firestore, Storage |
 

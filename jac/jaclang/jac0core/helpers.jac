@@ -3,10 +3,8 @@ import marshal;
 import os;
 import pdb;
 import re;
-import from functools { lru_cache }
 import from traceback { TracebackException }
 
-@lru_cache(maxsize=256)
 def pascal_to_snake(pascal_string: str) -> str {
     snake_string = re.sub('(?<!^)(?=[A-Z])', '_', pascal_string).lower();
     return snake_string;
@@ -353,6 +351,32 @@ def path_matches_exclude(
         }
     }
     return False;
+}
+
+
+glob JACIGNORE_FILENAME: str = '.jacignore';
+
+
+def normalize_exclude_patterns(patterns: list) -> list[str] {
+    normalized: list[str] = [];
+    for raw in (patterns or []) {
+        stripped = raw.strip();
+        if stripped and not stripped.startswith('#') {
+            normalized.append(stripped.rstrip('/'));
+        }
+    }
+    return normalized;
+}
+
+
+def read_jacignore_patterns(project_root: str) -> list[str] {
+    ignore_file = os.path.join(project_root, JACIGNORE_FILENAME);
+    if not os.path.isfile(ignore_file) {
+        return [];
+    }
+    return normalize_exclude_patterns(
+        read_file_with_encoding(ignore_file).splitlines()
+    );
 }
 
 

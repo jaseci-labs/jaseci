@@ -1,3 +1,4 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 impl cfg_dot_from_file(file_name: str) -> str {
     import from jaclang.jac0core.program { JacProgram }
     with open(file_name, encoding="utf-8") as f {
@@ -96,12 +97,12 @@ impl CoalesceBBPass._node_label(nd: uni.UniNode) -> str {
     if isinstance(nd, uni.ElseIf) {
         return 'elif'
             if self._has_bool_sc(nd.condition)
-            else 'elif ' + nd.condition.unparse();
+            else 'elif ' + unparse_node(nd.condition);
     }
     if isinstance(nd, uni.IfStmt) {
         return 'if'
             if self._has_bool_sc(nd.condition)
-            else 'if ' + nd.condition.unparse();
+            else 'if ' + unparse_node(nd.condition);
     }
     if isinstance(nd, uni.ElseStmt) {
         return 'else';
@@ -110,39 +111,39 @@ impl CoalesceBBPass._node_label(nd: uni.UniNode) -> str {
     if isinstance(nd, uni.WhileStmt) {
         return 'while'
             if self._has_bool_sc(nd.condition)
-            else 'while ' + nd.condition.unparse();
+            else 'while ' + unparse_node(nd.condition);
     }
     if isinstance(nd, uni.ForeverStmt) {
         return 'forever';
     }
     if isinstance(nd, uni.InForStmt) {
-        return 'for ' + nd.target.unparse() + ' in ' + nd.collection.unparse();
+        return 'for ' + unparse_node(nd.target) + ' in ' + unparse_node(nd.collection);
     }
     if isinstance(nd, uni.IterForStmt) {
         return 'for '
-            + nd.iter.unparse()
-            + nd.condition.unparse()
-            + nd.count_by.unparse();
+            + unparse_node(nd.iter)
+            + unparse_node(nd.condition)
+            + unparse_node(nd.count_by);
     }
 
     if isinstance(nd, uni.MatchStmt) {
-        return 'match ' + nd.target.unparse();
+        return 'match ' + unparse_node(nd.target);
     }
     if isinstance(nd, uni.MatchCase) {
-        return 'case ' + nd.pattern.unparse() if nd.pattern else 'case';
+        return 'case ' + unparse_node(nd.pattern) if nd.pattern else 'case';
     }
     if isinstance(nd, uni.SwitchStmt) {
-        return 'switch ' + nd.target.unparse();
+        return 'switch ' + unparse_node(nd.target);
     }
     if isinstance(nd, uni.SwitchCase) {
-        return 'case ' + nd.pattern.unparse() if nd.pattern else 'default';
+        return 'case ' + unparse_node(nd.pattern) if nd.pattern else 'default';
     }
 
     if isinstance(nd, uni.TryStmt) {
         return 'try';
     }
     if isinstance(nd, uni.Except) {
-        return 'except ' + nd.ex_type.unparse() if nd.ex_type else 'except';
+        return 'except ' + unparse_node(nd.ex_type) if nd.ex_type else 'except';
     }
     if isinstance(nd, uni.FinallyStmt) {
         return 'finally';
@@ -154,13 +155,13 @@ impl CoalesceBBPass._node_label(nd: uni.UniNode) -> str {
             if idx > 0 {
                 label += ', ';
             }
-            label += str(e.unparse());
+            label += str(unparse_node(e));
         }
         return label;
     }
 
     if isinstance(nd, uni.Archetype) {
-        return 'obj ' + nd.name.unparse();
+        return 'obj ' + unparse_node(nd.name);
     }
     if isinstance(nd, uni.Ability) {
         kw: str = 'can';
@@ -173,9 +174,9 @@ impl CoalesceBBPass._node_label(nd: uni.UniNode) -> str {
             }
         }
         if nd.name_ref and nd.signature {
-            return kw + ' ' + nd.name_ref.unparse() + nd.signature.unparse();
+            return kw + ' ' + unparse_node(nd.name_ref) + unparse_node(nd.signature);
         } elif nd.name_ref {
-            return kw + ' ' + nd.name_ref.unparse();
+            return kw + ' ' + unparse_node(nd.name_ref);
         }
         return kw;
     }
@@ -184,7 +185,7 @@ impl CoalesceBBPass._node_label(nd: uni.UniNode) -> str {
         if nd.expr and isinstance(nd.expr, uni.IfElseExpr) {
             return "";
         }
-        return nd.unparse();
+        return unparse_node(nd);
     }
 
     if isinstance(nd, uni.CfgExpr) {
@@ -194,16 +195,18 @@ impl CoalesceBBPass._node_label(nd: uni.UniNode) -> str {
             and (nd is par.value or nd is par.else_value)
             and isinstance(par.parent, uni.ReturnStmt)
         ) {
-            return "return " + nd.unparse();
+            return "return " + unparse_node(nd);
         }
     }
-    return nd.unparse();
+    return unparse_node(nd);
 }
 
 impl CoalesceBBPass.enter_node(nd: uni.UniNode) -> None {
     is_cfg_node = (
         isinstance(nd, (uni.CodeBlockStmt, uni.Archetype))
-        and not isinstance(nd, uni.Semi)
+        and not isinstance(
+            nd, (uni.Semi, uni.ModuleCode, uni.GlobalVars, uni.SemDef, uni.TypeAlias)
+        )
         and not _is_structural_child(nd)
     );
 
@@ -318,6 +321,19 @@ impl CFGBuildPass._link_sequential(body: Sequence[uni.CodeBlockStmt]) -> None {
     }
 }
 
+impl CFGBuildPass._exit_wired(nd: uni.UniCFGNode) -> bool {
+    if isinstance(nd, uni.IfStmt) {
+        return bool(nd.bb_out);
+    }
+    for succ in nd.bb_out {
+        if not isinstance(succ, uni.CfgExpr)
+            or succ.find_parent_of_type(uni.UniCFGNode) is not nd {
+            return True;
+        }
+    }
+    return False;
+}
+
 impl CFGBuildPass._connect_tails(parent: uni.UniNode, target: uni.UniCFGNode) -> None {
     for k in parent.kid {
         if not k or isinstance(k, uni.Expr) or isinstance(k, uni.Semi) {
@@ -345,7 +361,7 @@ impl CFGBuildPass._connect_tails(parent: uni.UniNode, target: uni.UniCFGNode) ->
             continue;
         }
         if isinstance(k, uni.UniCFGNode) {
-            if not k.bb_out and not self._is_terminal(k) {
+            if not self._exit_wired(k) and not self._is_terminal(k) {
                 self.link_bbs(k, target);
             } elif isinstance(k, uni.IfStmt) and not k.else_body {
                 first_body = k.body[0] if k.body else None;
@@ -542,7 +558,9 @@ impl _is_structural_child(nd: uni.UniNode) -> bool {
 impl CFGBuildPass.enter_node(nd: uni.UniNode) -> None {
     import from jaclang.compiler.symbol_utils { collect_assigned_symbols }
     if isinstance(nd, (uni.CodeBlockStmt, uni.Archetype))
-        and not isinstance(nd, uni.Semi)
+        and not isinstance(
+            nd, (uni.Semi, uni.ModuleCode, uni.GlobalVars, uni.SemDef, uni.TypeAlias)
+        )
         and not _is_structural_child(nd) {
         nd.affected_symbols.update(collect_assigned_symbols(nd));
     }

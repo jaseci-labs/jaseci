@@ -15,6 +15,14 @@ impl NaIRGenPass._dict_key_spec(key_type: ir.Type) -> tuple {
     return ("i64", 0);
 }
 
+impl NaIRGenPass._unwrap_opt_container(val: ir.Value) -> ir.Value {
+    _pay = self._opt_payload_of(val.type);
+    if _pay is None or not isinstance(_pay, ir.PointerType) {
+        return val;
+    }
+    return self._coerce_type(val, _pay);
+}
+
 impl NaIRGenPass._dict_val_spec(val_type: ir.Type) -> str {
     if isinstance(val_type, ir.DoubleType) {
         return "f64";
@@ -172,13 +180,18 @@ impl NaIRGenPass._emit_dict_helpers(
     self.dict_helpers[dict_key] = {
         "new": new_fn,
         "set": core["insert"],
+        "set_ph": core["insert_ph"],
         "get": core["get"],
+        "get_ph": core["get_ph"],
         "len": len_fn,
         "contains": core["contains"],
+        "contains_ph": core["contains_ph"],
         "get_key": core["get_key"],
         "get_val": core["get_val"],
         "remove": core["remove"],
+        "remove_ph": core["remove_ph"],
         "pop": core["pop"],
+        "pop_ph": core["pop_ph"],
         "find": core["find"],
         "clear": core["clear"],
         "key_type": key_type,
@@ -264,6 +277,7 @@ impl NaIRGenPass._box_to_jacval(value: ir.Value) -> ir.Value {
         }
         b.store(payload, payload_ptr);
     } else {
+        self.emit(E5092, kind="expression", name=f"`any` box of {value.type}");
         b.store(ir.Constant(i8, 0), tag_ptr);
         b.store(ir.Constant(i64, 0), payload_ptr);
     }
@@ -399,12 +413,12 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
             if use_jacval
             else self._coerce_type(first_val, val_type)
     );
-    self._rc_call_with_ctx(
-        helpers["set"],
-        [dict_val, self._coerce_type(first_key, key_type), first_store_val],
-        op="dict_init",
-        loc=_dinit_loc
-    );
+    (_set_fn, _kh) = self._static_key_op(helpers, "set", first_pair.key);
+    _set_args = [dict_val, self._coerce_type(first_key, key_type), first_store_val];
+    if _kh is not None {
+        _set_args.append(_kh);
+    }
+    self._rc_call_with_ctx(_set_fn, _set_args, op="dict_init", loc=_dinit_loc);
 
     if isinstance(first_key.type, ir.PointerType) and self._is_owned(first_key) {
         self._emit_rc_release_simple(first_key, op="dict_init", loc=_dinit_loc);
@@ -431,9 +445,12 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
             } else {
                 v = self._coerce_type(v, val_type);
             }
-            self._rc_call_with_ctx(
-                helpers["set"], [dict_val, k, v], op="dict_init", loc=_dinit_loc
-            );
+            (_set_fn, _kh) = self._static_key_op(helpers, "set", pair.key);
+            _set_args = [dict_val, k, v];
+            if _kh is not None {
+                _set_args.append(_kh);
+            }
+            self._rc_call_with_ctx(_set_fn, _set_args, op="dict_init", loc=_dinit_loc);
 
             if isinstance(_orig_k.type, ir.PointerType) and self._is_owned(_orig_k) {
                 self._emit_rc_release_simple(_orig_k, op="dict_init", loc=_dinit_loc);
@@ -448,22 +465,35 @@ impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
 }
 
 impl NaIRGenPass._codegen_dict_access(
-    target_val: ir.Value, key_val: ir.Value, key_type_name: str, val_type_name: str
+    target_val: ir.Value,
+    key_val: ir.Value,
+    key_type_name: str,
+    val_type_name: str,
+    key_node: (uni.UniNode | None) = None
 ) -> (ir.Value | None) {
     dict_key = f"{key_type_name}:{val_type_name}";
     helpers = self.dict_helpers.get(dict_key);
     if helpers is None {
         return None;
     }
+    target_val = self._unwrap_opt_container(target_val);
     key_type = helpers["key_type"];
     key_val = self._coerce_type(key_val, key_type);
 
-    key_exists = self.builder.call(
-        helpers["contains"], [target_val, key_val], name="dict.has"
-    );
+    (_has_fn, _kh) = self._static_key_op(helpers, "contains", key_node);
+    _has_args = [target_val, key_val];
+    if _kh is not None {
+        _has_args.append(_kh);
+    }
+    key_exists = self.builder.call(_has_fn, _has_args, name="dict.has");
     not_exists = self.builder.not_(key_exists, name="dict.nokey");
     self._emit_runtime_raise(not_exists, "KeyError", "key not found");
-    return self.builder.call(helpers["get"], [target_val, key_val], name="dict.get");
+    (_get_fn, _gh) = self._static_key_op(helpers, "get", key_node);
+    _get_args = [target_val, key_val];
+    if _gh is not None {
+        _get_args.append(_gh);
+    }
+    return self.builder.call(_get_fn, _get_args, name="dict.get");
 }
 
 impl NaIRGenPass._codegen_dict_set(
@@ -471,13 +501,15 @@ impl NaIRGenPass._codegen_dict_set(
     key_val: ir.Value,
     value: ir.Value,
     key_type_name: str,
-    val_type_name: str
+    val_type_name: str,
+    key_node: (uni.UniNode | None) = None
 ) -> None {
     dict_key = f"{key_type_name}:{val_type_name}";
     helpers = self.dict_helpers.get(dict_key);
     if helpers is None {
         return;
     }
+    target_val = self._unwrap_opt_container(target_val);
     key_type = helpers["key_type"];
     val_type = helpers["val_type"];
     if self._reject_ptr_into_raw_slot(None, value, val_type, "dict value assignment") {
@@ -490,9 +522,12 @@ impl NaIRGenPass._codegen_dict_set(
     _dset_ctx_loc = getattr(
         _orig_value, 'jac_loc', f"{os.path.basename(self.ir_in.loc.mod_path)}:0"
     );
-    self._rc_call_with_ctx(
-        helpers["set"], [target_val, key_val, value], op="dict_set", loc=_dset_ctx_loc
-    );
+    (_set_fn, _kh) = self._static_key_op(helpers, "set", key_node);
+    _set_args = [target_val, key_val, value];
+    if _kh is not None {
+        _set_args.append(_kh);
+    }
+    self._rc_call_with_ctx(_set_fn, _set_args, op="dict_set", loc=_dset_ctx_loc);
 
     if (
         isinstance(_orig_key.type, ir.PointerType)
