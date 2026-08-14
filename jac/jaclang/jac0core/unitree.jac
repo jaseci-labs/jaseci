@@ -1,5 +1,4 @@
 import os;
-import re;
 import type from collections.abc { Sequence }
 import from enum { IntEnum }
 import type from jaclang.jac0core.passes.uni_pass { UniPass }
@@ -1820,17 +1819,65 @@ glob _HEX_DIGITS: str = '0123456789abcdefABCDEF',
          'v': '\x0b'
      };
 
-glob _STR_LIT_PAT = r'[rRbBuU]{0,2}(?:[\x22]{3}(?:\\[\s\S]|(?![\x22]{3})[\s\S])*[\x22]{3}|[\x27]{3}(?:\\[\s\S]|(?![\x27]{3})[\s\S])*[\x27]{3}|\x22(?:\\[\s\S]|[^\x22\\])*\x22|\x27(?:\\[\s\S]|[^\x27\\])*\x27)';
+glob _STR_LIT_PREFIXES: str = 'rRbBuU',
+     _STR_RUN_SEPS: str = ' \t\n\r\x0c\x0b\\';
 
-glob _STR_LIT_RE = re.compile(_STR_LIT_PAT);
-
-glob _STR_RUN_RE = re.compile(r'(?:[\s\\]*' + _STR_LIT_PAT + r')+[\s\\]*');
+def _scan_str_literal(text: str, start: int) -> int {
+    n = len(text);
+    i = start;
+    taken = 0;
+    while (taken < 2 and i < n and text[i] in _STR_LIT_PREFIXES) {
+        i += 1;
+        taken += 1;
+    }
+    if (i >= n or (text[i] != '"' and text[i] != "'")) {
+        return -1;
+    }
+    quote = text[i];
+    triple = (i + 2) < n and text[i + 1] == quote and text[i + 2] == quote;
+    i += 3 if triple else 1;
+    while (i < n) {
+        if (text[i] == '\\') {
+            i += 2;
+            continue;
+        }
+        if triple {
+            if (
+                ((i + 2) < n)
+                and (text[i] == quote)
+                and (text[i + 1] == quote)
+                and (text[i + 2] == quote)
+            ) {
+                return (i + 3);
+            }
+        } elif (text[i] == quote) {
+            return (i + 1);
+        }
+        i += 1;
+    }
+    return -1;
+}
 
 def _is_adjacent_literal_run(text: str) -> bool {
-    if ((text.count('"') + text.count("'")) <= 2 or not _STR_RUN_RE.fullmatch(text)) {
+    if ((text.count('"') + text.count("'")) <= 2) {
         return False;
     }
-    return (len(_STR_LIT_RE.findall(text)) > 1);
+    n = len(text);
+    i = 0;
+    found = 0;
+    while (i < n) {
+        if (text[i] in _STR_RUN_SEPS) {
+            i += 1;
+            continue;
+        }
+        nxt = _scan_str_literal(text, i);
+        if (nxt < 0) {
+            return False;
+        }
+        found += 1;
+        i = nxt;
+    }
+    return (found > 1);
 }
 
 def _decode_str_escapes(text: str) -> str {
