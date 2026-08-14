@@ -1,5 +1,4 @@
 import logging;
-import mimetypes;
 import from pathlib { Path }
 import from jaclang.runtimelib.serving.app { ServingApp }
 import from jaclang.runtimelib.serving.datatypes { JSONResponse, Request, Response }
@@ -26,6 +25,8 @@ obj EmbeddedGateway(Gateway) {
         port: int = DEFAULT_GATEWAY_PORT,
         host: str = DEFAULT_GATEWAY_HOST,
         client_dist_dir: str = DEFAULT_CLIENT_DIST_DIR,
+        base_path: str = ".",
+        static_mounts: list[dict[str, str]] = [],
         app: any = None;
 
     def setup -> None;
