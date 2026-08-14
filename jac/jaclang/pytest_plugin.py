@@ -173,11 +173,25 @@ def pytest_collect_file(
     # module's inferred codespace decides the collector: client placement
     # (npm string imports / JSX / browser globals) routes to bun.
     if _module_is_client(file_path):
+        # Routing is load-bearing for xdist: a per-worker disagreement here
+        # silently reshapes the collected set ("Different tests were
+        # collected" with no cause attached), so the decision is announced
+        # on the real fd where every worker's line reaches the log.
+        _fd2(f"jac: routing {file_path} to the bun collector\n")
         if explicit or name_test:
             return ClJacFile.from_parent(parent, path=file_path)
         return None
 
     return JacFile.from_parent(parent, path=file_path)
+
+
+def _fd2(msg: str) -> None:
+    """Write to the real stderr fd; under pytest-xdist a worker's Python-level
+    sys.stderr is captured by execnet and never reaches any log."""
+    try:
+        os.write(2, msg.encode("utf-8", "replace"))
+    except OSError:
+        sys.stderr.write(msg)
 
 
 def _module_is_client(file_path: Path) -> bool:
@@ -433,14 +447,10 @@ class JacFile(pytest.File):
                 # module into an invisible per-worker collection difference
                 # ("Different tests were collected") with no cause attached.
                 # fd 2 is inherited from the session leader and always lands.
-                msg = (
+                _fd2(
                     f"jac: skipping test file that failed to import: "
                     f"{self.path}: {exc_text}\n"
                 )
-                try:
-                    os.write(2, msg.encode("utf-8", "replace"))
-                except OSError:
-                    sys.stderr.write(msg)
                 return []
         finally:
             sys.stdout.close()
@@ -457,6 +467,13 @@ class JacFile(pytest.File):
                         callobj=test_info.test_case,
                     )
                 )
+        if not items:
+            # A successful import that registered nothing is legitimate only
+            # for a .jac file with no test blocks. Announce it on the real fd:
+            # under xdist this is the one silent shape that turns into a
+            # per-worker "Different tests were collected" failure with no
+            # cause in any log.
+            _fd2(f"jac: collected 0 tests from {self.path} (import ok)\n")
 
         # Remove the test module itself from sys.modules to avoid collisions
         # with Python test files that share the same basename (e.g.
