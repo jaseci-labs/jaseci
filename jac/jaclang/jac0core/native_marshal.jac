@@ -6,6 +6,7 @@ import from jaclang.jac0core.codeinfo {
     HDR_DTOR_OFF,
     HDR_MAGIC,
     HDR_RC_OFF,
+    HDR_TAG_OFF,
     RC_SENTINEL,
     STR_LEN_TAG_BIT,
     STR_LEN_TAG_SHIFT
@@ -24,28 +25,64 @@ glob logger = logging.getLogger(__name__),
          "void": None
      };
 
-def _build_cfunctype(finfo: any) -> type {
-    if finfo.func_ret_type == "jacstr3" {
-        ret_ct = JacStrRet3;
-    } elif finfo.func_ret_type == "jacstr2" {
-        ret_ct = JacStrRet2;
-    } else {
-        ret_ct = LLVM_TO_CTYPES.get(finfo.func_ret_type);
-        if ret_ct is None {
-            ret_ct = ctypes.c_void_p if finfo.func_ret_type != "void" else None;
-        }
-    }
-    param_cts: list = [];
-    for pt in (finfo.func_param_types or []) {
+def _c_arg_types(param_types: any) -> list {
+    out: list = [];
+    for pt in (param_types or []) {
         if pt == "jacstr3" {
-            param_cts.extend([ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64]);
+            out.extend([ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64]);
         } elif pt == "jacstr2" {
-            param_cts.extend([ctypes.c_void_p, ctypes.c_int64]);
+            out.extend([ctypes.c_void_p, ctypes.c_int64]);
         } else {
-            param_cts.append(LLVM_TO_CTYPES.get(pt, ctypes.c_void_p));
+            ct = LLVM_TO_CTYPES.get(pt);
+            out.append(ctypes.c_void_p if ct is None else ct);
         }
     }
-    return ctypes.CFUNCTYPE(ret_ct, *param_cts);
+    return out;
+}
+
+
+def _c_ret_type(ret_type: str) -> any {
+    if ret_type == "jacstr3" {
+        return JacStrRet3;
+    }
+    if ret_type == "jacstr2" {
+        return JacStrRet2;
+    }
+    if ret_type == "void" {
+        return None;
+    }
+    if ret_type.startswith("opt.") {
+        return _opt_ctype(ret_type[4:]);
+    }
+    ct = LLVM_TO_CTYPES.get(ret_type);
+    return ctypes.c_void_p if ct is None else ct;
+}
+
+
+def _build_cfunctype(finfo: any) -> type {
+    return ctypes.CFUNCTYPE(
+        _c_ret_type(finfo.func_ret_type or "void"),
+        *_c_arg_types(finfo.func_param_types)
+    );
+}
+
+
+def _resolve_str_new(engine: any) -> any {
+    _sn_addr = 0;
+    for _sn_name in ("jac_str_new", "__jac_str_new") {
+        try {
+            _sn_addr = engine.get_function_address(_sn_name);
+        } except Exception {
+            _sn_addr = 0;
+        }
+        if _sn_addr {
+            break;
+        }
+    }
+    if not _sn_addr {
+        return None;
+    }
+    return ctypes.CFUNCTYPE(ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64)(_sn_addr);
 }
 
 
@@ -199,7 +236,9 @@ obj NativeStructView {
         enum_maps: dict = field(default_factory=`dict),
         _native: any = field(default=None, repr=False),
         _field_meta: dict = field(default_factory=`dict, repr=False),
-        _view_memo: dict = field(default_factory=`dict, repr=False);
+        _view_memo: dict = field(default_factory=`dict, repr=False),
+        _acc_cls: (str | None) = field(default=None, repr=False),
+        _py_overlay: dict = field(default_factory=`dict, repr=False);
 
     def postinit -> None;
     def __getattr__(name: str) -> any;
@@ -209,8 +248,6 @@ obj NativeStructView {
     def __contains__(key: str) -> bool;
     def __eq__(other: any) -> any;
     def __hash__ -> int;
-    def keys -> any;
-    def items -> any;
     def __repr__ -> str;
 }
 
@@ -243,46 +280,54 @@ obj NativeListView {
 }
 
 
-def bulk_int_list(view: any) -> list[int] {
-    if isinstance(view, list) {
-        return view;
-    }
-    n = len(view);
-    if n == 0 {
-        return [];
-    }
-    import array as _array;
-    nl = NativeList.from_address(view.list_ptr);
-    buf = ctypes.string_at(nl.data, n * 8);
-    return list(_array.array("q", buf));
+obj NativeAccessorBridge {
+    has engine: any,
+        layout: any,
+        _bound: dict = field(default_factory=`dict, repr=False),
+        _cls_names: dict = field(default_factory=`dict, repr=False),
+        _str_new: any = field(default=None, repr=False);
+
+    def runtime_class(struct_name: str, addr: int) -> str;
+    def read_through(view: NativeStructView, name: str) -> tuple;
+    def write_through(view: NativeStructView, name: str, value: any) -> bool;
+    def _accessor_symbol(view: NativeStructView, name: str, kind: str) -> (str | None);
+    def _binding(symbol: str) -> any;
+    def _str_new_fn -> any;
 }
 
 
-def bulk_str_list(view: any) -> list[str] {
-    if isinstance(view, list) {
-        return view;
+def install_accessor_bridge(engine: any, layout: any) -> None {
+    if (layout is None or layout?._accessor_bridge is not None) {
+        return;
     }
-    out: list[str] = [];
-    for i in range(len(view)) {
-        p = view[i];
-        if isinstance(p, str) {
-            out.append(p);
-        } elif isinstance(p, int) and p {
-            desc = JacStrRet2.from_address(p);
-            if desc.data and desc.slen >= 0 {
-                out.append(
-                    ctypes.string_at(desc.data, int(desc.slen)).decode(
-                        "utf-8", errors="replace"
-                    )
-                );
-            } else {
-                out.append("");
-            }
-        } else {
-            out.append("");
+    layout._accessor_bridge = NativeAccessorBridge(engine=engine, layout=layout);
+}
+
+
+def runtime_struct_name(addr: int, layout: any) -> (str | None) {
+    if not addr {
+        return None;
+    }
+    _a = int(addr);
+    if ctypes.c_uint64.from_address(_a + HDR_RC_OFF).value != RC_SENTINEL {
+        _aid = ctypes.c_uint64.from_address(_a + HDR_ALLOC_ID_OFF).value;
+        if ((_aid >> 32) & 0xFFFF) != HDR_MAGIC {
+            return None;
         }
     }
-    return out;
+    _tag = ctypes.c_uint64.from_address(_a + HDR_TAG_OFF).value;
+    if not _tag {
+        return None;
+    }
+    try {
+        _name = ctypes.string_at(_tag).decode("utf-8", errors="replace");
+    } except Exception {
+        return None;
+    }
+    if layout is not None and layout?.structs and _name in layout.structs {
+        return _name;
+    }
+    return None;
 }
 
 
@@ -297,6 +342,15 @@ def get_struct_view(
 ) -> NativeStructView {
     if view_memo is None {
         view_memo = {};
+    }
+    _rt_name = runtime_struct_name(addr, layout);
+    if (
+        _rt_name is not None
+        and _rt_name != struct_name
+        and ctypes_classes.get(_rt_name) is not None
+    ) {
+        struct_name = _rt_name;
+        ct_cls = ctypes_classes[_rt_name];
     }
     memo_key = ("s", addr, struct_name);
     cached = view_memo.get(memo_key);
@@ -512,7 +566,8 @@ def _marshal_set(
 }
 
 
-glob _OPT_CTYPES: dict = {};
+glob _OPT_CTYPES: dict = {},
+     _ACCESSOR_CLASSES: dict = {};
 
 def _opt_ctype(payload_type: str) -> type {
     cached = _OPT_CTYPES.get(payload_type);
@@ -536,7 +591,13 @@ def build_ctypes_classes(layout: any) -> dict {
     classes: dict = {};
     for (name, struct_layout) in layout.structs.items() {
         fields: list = [];
+        next_slot = 0;
         for f in struct_layout.fields {
+            while next_slot < f.index {
+                fields.append((f"__slot{next_slot}", ctypes.c_void_p, ));
+                next_slot += 1;
+            }
+            next_slot = f.index + 1;
             if f.is_func_ptr {
                 ct = ctypes.c_void_p;
             } elif f.llvm_type.startswith("opt.") {
@@ -685,18 +746,23 @@ def marshal_value(
         return raw;
     }
 
+    _field_keys = field_info.elem_keys if field_info is not None else None;
     if (llvm_type.startswith("Dict.") and llvm_type.endswith("*")) {
         if (raw is None or raw == 0) {
             return {};
         }
-        return _marshal_dict(raw, llvm_type[5:-1], func_layout, layout=layout);
+        return _marshal_dict(
+            raw, llvm_type[5:-1], func_layout, elem_keys=_field_keys, layout=layout
+        );
     }
 
     if (llvm_type.startswith("Set.") and llvm_type.endswith("*")) {
         if (raw is None or raw == 0) {
             return set();
         }
-        return _marshal_set(raw, llvm_type[4:-1], func_layout, layout=layout);
+        return _marshal_set(
+            raw, llvm_type[4:-1], func_layout, elem_keys=_field_keys, layout=layout
+        );
     }
 
     if (llvm_type.endswith("*") and not llvm_type.startswith("List.")) {
@@ -725,6 +791,9 @@ def marshal_value(
             return NativeListView.empty();
         }
         ret_keys = func_layout?.ret_elem_keys if func_layout is not None else None;
+        if ret_keys is None {
+            ret_keys = _field_keys;
+        }
         (struct_hint, elem_hint) = elem_hints_for(elem_key, ret_keys, ctypes_classes);
         return get_list_view(
             raw,
@@ -807,51 +876,23 @@ def wrap_native_function(
     py_classes: dict,
     layout: any = None
 ) -> any {
+    install_accessor_bridge(engine, layout);
     addr = engine.get_function_address(func_layout.name);
     if not addr {
         return None;
+    }
+    if py_classes {
+        _ACCESSOR_CLASSES.update(py_classes);
     }
 
     if any(pt.startswith("opt.") for pt in func_layout.param_types) {
         return None;
     }
 
-    c_arg_types: list = [];
-    for pt in func_layout.param_types {
-        if pt == "jacstr3" {
-            c_arg_types.extend([ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int64]);
-            continue;
-        }
-        if pt == "jacstr2" {
-            c_arg_types.extend([ctypes.c_void_p, ctypes.c_int64]);
-            continue;
-        }
-        ct = LLVM_TO_CTYPES.get(pt);
-        if ct is None {
-            ct = ctypes.c_void_p;
-        }
-        c_arg_types.append(ct);
-    }
-
     ret_type = func_layout.ret_type;
-    if ret_type == "jacstr3" {
-        c_ret = JacStrRet3;
-    } elif ret_type == "jacstr2" {
-        c_ret = JacStrRet2;
-    } else {
-        c_ret = LLVM_TO_CTYPES.get(ret_type);
-    }
-    if c_ret is None {
-        if ret_type == "void" {
-            c_ret = None;
-        } elif ret_type.startswith("opt.") {
-            c_ret = _opt_ctype(ret_type[4:]);
-        } else {
-            c_ret = ctypes.c_void_p;
-        }
-    }
-
-    fn_type = ctypes.CFUNCTYPE(c_ret, *c_arg_types);
+    fn_type = ctypes.CFUNCTYPE(
+        _c_ret_type(ret_type), *_c_arg_types(func_layout.param_types)
+    );
     native_fn = fn_type(addr);
 
     param_types = func_layout.param_types;
@@ -859,23 +900,7 @@ def wrap_native_function(
 
     str_new_fn: any = None;
     if any(pt in ("i8*", "jacstr3", "jacstr2") for pt in param_types) {
-        _sn_addr = 0;
-        for _sn_name in ("jac_str_new", "__jac_str_new") {
-            try {
-                _sn_addr = engine.get_function_address(_sn_name);
-            } except Exception {
-                _sn_addr = 0;
-            }
-            if _sn_addr {
-                break;
-            }
-        }
-        if _sn_addr {
-            _sn_type = ctypes.CFUNCTYPE(
-                ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int64
-            );
-            str_new_fn = _sn_type(_sn_addr);
-        }
+        str_new_fn = _resolve_str_new(engine);
     }
 
     def wrapper(*args: any) -> any {

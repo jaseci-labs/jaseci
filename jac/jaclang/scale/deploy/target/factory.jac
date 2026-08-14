@@ -10,6 +10,13 @@ import from jaclang.project.capabilities {
 
 type TargetFactory = Callable[[dict[str, any], Logger | None], DeploymentTarget];
 
+glob BUILTIN_TARGET_TYPES: tuple = (
+         "kubernetes",
+         "kubernetes-microservice",
+         "aws",
+         "gcp"
+     );
+
 def ensure_deploy_tooling(dry_run: bool = False) {
     if dry_run {
         return;
@@ -43,6 +50,12 @@ class DeploymentTargetFactory {
 
     static def register(target_type: str, factory: TargetFactory) {
         DeploymentTargetFactory._registry[target_type] = factory;
+    }
+
+    static def known_targets -> list[str] {
+        names: set[str] = set(BUILTIN_TARGET_TYPES);
+        names.update(DeploymentTargetFactory._registry.keys());
+        return sorted(names);
     }
 
     static def create(

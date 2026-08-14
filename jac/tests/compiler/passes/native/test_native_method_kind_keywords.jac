@@ -103,6 +103,13 @@ test "static def: a staticmethod lowers and returns its value" {
     assert f(41) == 42;
 }
 
+test "class def: a classmethod lowers receiver-less and carries its arguments" {
+    (eng, _) = compile_native("method_kind_keywords.jac");
+    f = get_func(eng, "call_classmethod", ctypes.c_int64, ctypes.c_int64);
+    assert f(5) == 17;
+    assert f(0) == 7;
+}
+
 test "the keyword fixture compiles with no native diagnostics at all" {
     prog = JacProgram();
     prog.compile(
@@ -155,40 +162,7 @@ test "guardrail: @classmethod is rejected at the capability gate" {
     assert has_error_code(dec, "E5090") , f"expected E5090, got {fmt_errors(dec)}";
 }
 
-# `class def` clears the capability gate -- it sets `is_classmethod` rather than
-# populating `decorators` -- but codegen has no lowering for a classmethod call,
-# so calling one from a native function is a structured E5092 rather than a
-# silently wrong body. That is the honest state: the keyword is the right
-# spelling, and classmethod lowering is a separate, unbuilt native feature.
-#
-# No front-end module in the #8039 native closure needs it. `runtime.jac`
-# (JacRuntime.get_compiler / get_program) is not imported by the front end at
-# all, and `compiler.jac`'s single site memoized a constant path, which now
-# mirrors the plain-instance-method `_SetupProgress` twin in the same file.
-#
-# When classmethod lowering lands, delete this guardrail and add a behavioral
-# test to the block above.
-test "guardrail: class def clears the gate but codegen cannot lower the call" {
-    kw = check_na_inline(
-        "class_def_gate",
-        "obj Holder {\n"
-        "    class def make -> int { return 7; }\n"
-        "}\n"
-        "def use -> int { return Holder.make(); }\n"
-    );
-    assert not has_error_code(kw, "E5090") , (
-        f"class def should not hit the decorator gate: {fmt_errors(kw)}"
-    );
-    cg = JacProgram();
-    cg.compile(
-        file_path=os.path.join(FIXTURES, "_mkind_class_def_cgen.jac"),
-        use_str="obj Holder {\n"
-        "    class def make -> int { return 7; }\n"
-        "}\n"
-        "def use -> int { return Holder.make(); }\n",
-        options=native_force_opts()
-    );
-    assert has_error_code(cg, "E5092") , (
-        f"expected E5092 from codegen, got {fmt_errors(cg)}"
-    );
-}
+# `class def` sets `is_classmethod` rather than populating `decorators`, so
+# it clears the capability gate, and codegen lowers it receiver-less like a
+# static (a body that reads `cls` demotes through normal name resolution).
+# The behavioral pin lives in the block above (`call_classmethod`).

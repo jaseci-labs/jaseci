@@ -1618,8 +1618,27 @@ impl ExecutionHandler.spawn_walker(
     );
 }
 
+def _warm_persistence {
+    import logging;
+    log = logging.getLogger('jaclang.serve');
+    try {
+        ctx = Jac.get_context();
+        anchor = ctx.system_root;
+        ctx.mem.commit();
+        log.debug(f"persistent store ready (system root {anchor.id})");
+    } except Exception as e {
+        log.warning(
+            f"persistent store not reachable while starting up "
+            f"({type(e).__name__}: {e}); requests that touch graph state will "
+            "provision it on demand"
+        );
+    }
+}
+
+
 impl JacAPIServer.postinit -> None {
     import from jaclang.runtimelib.scheduler { Scheduler }
+    _warm_persistence();
     self.user_manager = self._make_user_manager();
 
     _um = self.user_manager;

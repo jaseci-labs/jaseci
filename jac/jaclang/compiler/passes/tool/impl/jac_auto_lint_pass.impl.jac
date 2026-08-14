@@ -1,3 +1,5 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+
 impl JacAutoLintPass.postinit -> None {
     import from jaclang.project.config {
         JacConfig,
@@ -1765,8 +1767,8 @@ impl JacAutoLintPass._check_identical_branches(nd: uni.IfStmt) -> None {
         }
     }
 
-    if_src = "".join(s.unparse() for s in if_body);
-    else_src = "".join(s.unparse() for s in else_body);
+    if_src = "".join(unparse_node(s) for s in if_body);
+    else_src = "".join(unparse_node(s) for s in else_body);
     if if_src == else_src {
         self.emit(W3025, node_override=nd);
     }
