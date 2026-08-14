@@ -22,15 +22,19 @@ import from jaclang.jac0core.diagnostics {
     E1093,
     E1094,
     E1095,
+    E1106,
+    E1107,
     E1112,
     E1113,
     E1116,
     E1117,
     E1119,
+    E5095,
     W1036,
     W1037,
     W1052,
     W2014,
+    W6008,
     E2015
 }
 
@@ -63,7 +67,10 @@ class TypeCheckPass(UniPass) {
     def exit_assignment(self: TypeCheckPass, nd: uni.Assignment) -> None;
     def exit_atom_trailer(self: TypeCheckPass, nd: uni.AtomTrailer) -> None;
     def exit_binary_expr(self: TypeCheckPass, nd: uni.BinaryExpr) -> None;
+    def exit_compare_expr(self: TypeCheckPass, nd: uni.CompareExpr) -> None;
     def exit_func_call(self: TypeCheckPass, nd: uni.FuncCall) -> None;
+    def _check_intrinsic_call(self: TypeCheckPass, nd: uni.FuncCall) -> None;
+    def _check_intrinsic_collision(self: TypeCheckPass, nd: uni.Ability) -> None;
     def exit_jsx_element(self: TypeCheckPass, nd: uni.JsxElement) -> None;
     def exit_filter_compr(self: TypeCheckPass, nd: uni.FilterCompr) -> None;
     def exit_return_stmt(self: TypeCheckPass, nd: uni.ReturnStmt) -> None;

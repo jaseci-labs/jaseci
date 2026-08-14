@@ -1,4 +1,8 @@
 import from jaclang.scale.config.app_config { AppConfig }
+import from jaclang.scale.config.config_loader {
+    get_scale_config,
+    normalize_microservices_config
+}
 import from jaclang.scale.models.deploy_context { DeployContext }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -10,14 +14,66 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 
 
 glob GATEWAY_NAME: str = "__gateway__",
-     _UVICORN_EXIT_CUSHION_S: int = 5;
+     _UVICORN_EXIT_CUSHION_S: int = 5,
+     _RFC1123_MAX_LEN: int = 253,
+     _CLIENT_BUILD_ATTEMPTS: int = 3,
+     _CLIENT_BUILD_RETRY_PAUSE_S: int = 3,
+     _DEP_INSTALL_TIMEOUT_S: int = 900,
+     _TRANSIENT_CLIENT_BUILD_MARKERS: tuple = (
+         "dependency installation failed",
+         "failed to install dependencies",
+         "bun install failed",
+         "econnreset",
+         "econnrefused",
+         "enotfound",
+         "etimedout",
+         "eai_again",
+         "socket hang up",
+         "i/o timeout",
+         "network request failed",
+
+     );
+
+
+def _output_tail(result: any, lines: int = 15) -> str {
+    combined = ((result.stdout or "") + "\n" + (result.stderr or "")).strip();
+    return "\n".join(combined.splitlines()[-lines:]);
+}
+
+
+def _is_transient_client_build_failure(output: str) -> bool {
+    lowered = output.lower();
+    for marker in _TRANSIENT_CLIENT_BUILD_MARKERS {
+        if marker in lowered {
+            return True;
+        }
+    }
+    return False;
+}
 
 
 def k8s_safe_name(svc_name: str) -> str {
     if svc_name == GATEWAY_NAME {
         return "gateway";
     }
-    return svc_name.lower().replace("_", "-");
+    import re;
+    if "${" in svc_name {
+        raise ValueError(
+            f"'{svc_name}' still contains an unresolved ${{...}} placeholder, so "
+            f"the environment variable it names was not set where this deploy "
+            f"ran. Export it, or replace it with a literal name."
+        );
+    }
+    safe = re.sub(r"[^a-z0-9.-]", "-", svc_name.lower().replace("_", "-"));
+    safe = re.sub(r"^[^a-z0-9]+|[^a-z0-9]+$", "", safe)[:_RFC1123_MAX_LEN];
+    safe = re.sub(r"[^a-z0-9]+$", "", safe);
+    if not safe {
+        raise ValueError(
+            f"'{svc_name}' has no characters usable in a Kubernetes name; names "
+            f"must contain at least one letter or digit."
+        );
+    }
+    return safe;
 }
 
 
@@ -81,16 +137,14 @@ obj ManifestBuilder {
         project_dir: str = "",
         _bundle_object_key: str = "",
         _toolchain_object_key: str = "",
-        microservices_config: dict[str, any] = {},
+        microservices_config: (dict[str, any] | None) = None,
         dry_run: bool = False;
 
     def _ms_cfg -> dict[str, any] {
-        import from jaclang.scale.config.config_loader {
-            get_scale_config,
-            normalize_microservices_config
-        }
-        if self.microservices_config {
-            return normalize_microservices_config(self.microservices_config);
+        if self.microservices_config is not None {
+            return normalize_microservices_config(
+                self.microservices_config, env_routes_fallback=False
+            );
         }
         try {
             return get_scale_config().get_microservices_config();
@@ -113,18 +167,46 @@ obj ManifestBuilder {
             k8s_safe_name(self.k8s_config.app_name),
             self.k8s_config.namespace,
             proj,
-            provisioned_database=("mongo" if self.k8s_config.mongodb_enabled else ""),
-            dry_run=self.dry_run
+            dry_run=self.dry_run,
+            access_mode=self.k8s_config.bundle_access_mode
         );
         injector: PvcInjector = selection[0];
         self._toolchain_object_key = str(selection[1]);
         return injector;
     }
 
+    def _install_app_deps(
+        project_dir: str, jac_bin: str, env: (dict[str, str] | None)
+    ) -> str {
+        import subprocess;
+        import from jaclang.cli.console { console }
+        console.print("Installing the app's dependencies on the build host.");
+        try {
+            result = subprocess.run(
+                [jac_bin, "install"],
+                cwd=project_dir,
+                capture_output=True,
+                text=True,
+                timeout=_DEP_INSTALL_TIMEOUT_S,
+                env=env
+            );
+        } except subprocess.TimeoutExpired {
+            return f"'jac install' timed out after {_DEP_INSTALL_TIMEOUT_S}s";
+        } except OSError as exc {
+            return f"'jac install' could not run: {exc}";
+        }
+        if result.returncode != 0 {
+            return f"'jac install' exited {result.returncode}:\n{_output_tail(result)}";
+        }
+        return "";
+    }
+
     def _build_client_bundle(project_dir: str) {
         import os;
         import subprocess;
         import from jaclang.cli.console { console }
+        import from jaclang.scale.injector.binary { host_toolchain_path }
+        import from jaclang.scale.injector.bundle { release_binary_env }
         import from jaclang.scale.runtime.context.util { jac_executable }
         client_entry = self._client_entry();
         if not client_entry {
@@ -140,24 +222,89 @@ obj ManifestBuilder {
             );
             return;
         }
+        import time;
         dist = os.path.join(project_dir, ".jac", "client", "dist");
-        console.print(f"Building the client bundle on the host ({client_entry}).");
-        try {
-            subprocess.run(
-                [jac_executable(), "build", client_entry, "--client", "web"],
-                cwd=project_dir,
-                check=True,
-                timeout=900
-            );
-            if os.path.isfile(os.path.join(dist, "index.html")) {
-                console.print("Client bundle built; shipping it to the gateway pod.");
-            }
-        } except Exception as exc {
+        pinned = host_toolchain_path(project_dir);
+        jac_bin = pinned or jac_executable();
+        jac_env = release_binary_env() if pinned else None;
+        if pinned {
             console.print(
-                f"Host client build did not complete ({exc}); the gateway pod "
-                f"will build it on boot instead."
+                "Building with the jac release this app pins, not the one "
+                f"running this deploy ({pinned})."
             );
         }
+        dep_error = self._install_app_deps(project_dir, jac_bin, jac_env);
+        if dep_error {
+            console.warning(
+                f"The app's dependencies did not install on the build host, so "
+                f"the client build may fail on a missing import. {dep_error}"
+            );
+        }
+        console.print(f"Building the client bundle on the host ({client_entry}).");
+        attempt = 0;
+        while True {
+            attempt += 1;
+            try {
+                result = subprocess.run(
+                    [jac_bin, "build", client_entry, "--client", "web"],
+                    cwd=project_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=900,
+                    env=jac_env
+                );
+            } except subprocess.TimeoutExpired {
+                if attempt >= _CLIENT_BUILD_ATTEMPTS {
+                    raise RuntimeError(
+                        f"client build timed out ({client_entry}) on all "
+                        f"{_CLIENT_BUILD_ATTEMPTS} attempts. The pod serves the "
+                        f"bundle built here and never rebuilds it - fix the "
+                        f"client build and redeploy."
+                    );
+                }
+                console.print(
+                    f"Client build timed out (attempt {attempt} of "
+                    f"{_CLIENT_BUILD_ATTEMPTS}); retrying."
+                );
+                time.sleep(_CLIENT_BUILD_RETRY_PAUSE_S);
+                continue;
+            }
+            if result.returncode == 0 {
+                break;
+            }
+            output = ((result.stdout or "") + "\n" + (result.stderr or "")).strip();
+            tail = _output_tail(result);
+            if (
+                attempt < _CLIENT_BUILD_ATTEMPTS
+                and _is_transient_client_build_failure(output)
+            ) {
+                console.print(
+                    f"Client build hit a transient install/network failure "
+                    f"(attempt {attempt} of {_CLIENT_BUILD_ATTEMPTS}); "
+                    f"retrying.\n{tail}"
+                );
+                time.sleep(_CLIENT_BUILD_RETRY_PAUSE_S);
+                continue;
+            }
+            cause = (
+                f"\nIts dependencies did not install on this host first, which "
+                f"is the likely cause: {dep_error}"
+                    if dep_error
+                    else ""
+            );
+            raise RuntimeError(
+                f"client build failed ({client_entry}, exit {result.returncode}). "
+                f"The pod serves the bundle built here and never rebuilds it - "
+                f"fix the client build and redeploy.\n{tail}{cause}"
+            );
+        }
+        if not os.path.isfile(os.path.join(dist, "index.html")) {
+            raise RuntimeError(
+                f"client build produced no index.html under {dist} "
+                f"({client_entry}); the gateway would have nothing to serve."
+            );
+        }
+        console.print("Client bundle built; shipping it to the gateway pod.");
     }
 
     def generate_manifests(app_config: AppConfig, image: str) -> dict[str, any] {
@@ -679,8 +826,16 @@ obj ManifestBuilder {
         };
     }
 
+    def _alb_deregistration_cushion -> int {
+        cfg = self.k8s_config;
+        is_alb = bool(getattr(cfg, "shared_ingress", False))
+            and str(getattr(cfg, "shared_ingress_class", "")).lower() == "alb";
+        return 20 if is_alb else 0;
+    }
+
     def _build_prestop_hook -> dict[str, any] {
-        return {"exec": {"command": ["sh", "-c", "sleep 5"]}};
+        cushion = 5 + self._alb_deregistration_cushion();
+        return {"exec": {"command": ["sh", "-c", f"sleep {cushion}"]}};
     }
 
     def _build_deployment_manifest(
@@ -773,6 +928,16 @@ obj ManifestBuilder {
                 raw_triggers.append(dict(item));
             }
         }
+        behavior = hpa.get("behavior", {});
+        if not isinstance(behavior, dict) {
+            if self.logger {
+                self.logger.warning(
+                    f"Ignoring malformed hpa.behavior for '{svc_name}': expected "
+                    f"a table, got {type(behavior).__name__}"
+                );
+            }
+            behavior = {};
+        }
         return {
             "min": int(hpa.get("min", 1)),
             "max": int(hpa.get("max", 3)),
@@ -783,7 +948,8 @@ obj ManifestBuilder {
             "has_memory_request": bool(
                 self._resolved_memory_request(svc, svc_name == GATEWAY_NAME)
             ),
-            "triggers": raw_triggers
+            "triggers": raw_triggers,
+            "behavior": dict(behavior)
         };
     }
 
@@ -894,17 +1060,6 @@ obj ManifestBuilder {
         import from jaclang.scale.deploy.target.kubernetes.runtime_bootstrap {
             build_service_apt_prefix
         }
-        gw_prefix = "";
-        client_entry = self._client_entry();
-
-        if client_entry {
-            gw_prefix = (
-                f'if [ ! -f .jac/client/dist/index.html ]; then '
-                f'echo "[jac-scale] building client bundle ({client_entry})"; '
-                f'jac build "{client_entry}" --client web; '
-                f'fi; '
-            );
-        }
         apt_prefix = build_service_apt_prefix(self.k8s_config);
         return {
             "command": ["bash", "-c"],
@@ -914,7 +1069,6 @@ obj ManifestBuilder {
                 f"{apt_prefix}"
                 "export JAC_SV_SIBLING=1; "
                 'if [ "$JAC_SV_NAME" = "__gateway__" ]; then '
-                f"  {gw_prefix}"
                 "  exec jac scale gateway; "
                 "else "
                 '  SV_FILE="${JAC_SV_FILE:-}"; '
@@ -976,7 +1130,9 @@ obj ManifestBuilder {
         }
         spec: dict[str, any] = {
             "containers": [container],
-            "terminationGracePeriodSeconds": drain_t + _UVICORN_EXIT_CUSHION_S
+            "terminationGracePeriodSeconds": drain_t
+                + _UVICORN_EXIT_CUSHION_S
+                + self._alb_deregistration_cushion()
         };
         sa_name = self._service_account_name();
         if sa_name {
@@ -1003,9 +1159,7 @@ obj ManifestBuilder {
         }
         spec["initContainers"].append(
             build_bootstrap_init_container(
-                self.k8s_config,
-                self.k8s_config.python_image,
-                is_gateway=(svc_name == GATEWAY_NAME)
+                self.k8s_config, self.k8s_config.python_image
             )
         );
         return spec;

@@ -136,6 +136,13 @@ impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
             continue;
         }
 
+        if (
+            name_nd.value == '_'
+            and name_nd.find_parent_of_type(uni.MatchPattern) is not None
+        ) {
+            continue;
+        }
+
         if name_nd.find_parent_of_type(uni.ModulePath) is not None {
             continue;
         }
@@ -331,7 +338,13 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
             if op.value in ("==", "!=", "is", "is not") {
                 right = nd.rights[i] if i < len(nd.rights) else None;
                 if isinstance(right, uni.Bool) {
-                    self.emit(W2075, node_override=nd);
+                    import from jaclang.compiler.type_system.type_utils {
+                        expr_primitive_name
+                    }
+                    left = nd.left if i == 0 else nd.rights[i - 1];
+                    if expr_primitive_name(self.prog, left) == "bool" {
+                        self.emit(W2075, node_override=nd);
+                    }
                 }
             }
         }
@@ -411,6 +424,39 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
                 if is_client_npm_import(spec, nd.loc.mod_path or '') {
                     self.emit(W1105, node_override=nd.from_loc, name=spec);
                 }
+            }
+        }
+        string_specs: list = [];
+        if (nd.from_loc is not None and nd.from_loc.string_path_value is not None) {
+            string_specs.append((nd.from_loc.string_path_value, nd.from_loc));
+        } elif nd.from_loc is None {
+            for item in nd.items {
+                if (
+                    isinstance(item, uni.ModulePath)
+                    and item.string_path_value is not None
+                ) {
+                    string_specs.append((item.string_path_value, item));
+                }
+            }
+        }
+        for (spv, spv_node) in string_specs {
+            if (spv.startswith('.') or nd.is_virtual_jac) {
+                continue;
+            }
+            import os;
+            import from jaclang.jac0core.diagnostics { W1106 }
+            import from jaclang.jac0core.modresolver {
+                is_client_npm_import,
+                is_path_alias_import
+            }
+            mod_path = nd.loc.mod_path or '';
+            sibling_file = os.path.join(os.path.dirname(mod_path), spv);
+            if (
+                not is_client_npm_import(spv, mod_path)
+                and not is_path_alias_import(spv, mod_path)
+                and not os.path.isfile(sibling_file)
+            ) {
+                self.emit(W1106, node_override=spv_node, name=spv);
             }
         }
         if not is_client_boundary_import(nd) {

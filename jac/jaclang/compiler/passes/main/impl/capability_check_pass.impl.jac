@@ -165,6 +165,26 @@ impl static_fstring_spec_text(spec: uni.UniNode) -> (str | None) {
     return None;
 }
 
+impl call_has_kwargs_sink(call: uni.FuncCall) -> bool {
+    tgt = call.target;
+    sym = None;
+    if isinstance(tgt, uni.Name) {
+        sym = tgt.sym;
+    } elif isinstance(tgt, uni.AtomTrailer) and isinstance(tgt.right, uni.Name) {
+        sym = tgt.right.sym;
+    }
+    if sym is None or sym.decl is None {
+        return False;
+    }
+    owner = sym.decl.name_of;
+    if not isinstance(owner, uni.Ability)
+        or not isinstance(owner.signature, uni.FuncSignature) {
+        return False;
+    }
+    return owner.signature.kwargs is not None;
+}
+
+
 impl native_capability_violations(mod: uni.Module) -> list {
     import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
     import from jaclang.jac0core.constant { CodeContext, ExprCtx, Tokens as Tok }
@@ -199,62 +219,69 @@ impl native_capability_violations(mod: uni.Module) -> list {
     _base_dir = os.path.dirname(os.path.abspath(mod.loc.mod_path))
         if (mod?.loc and mod.loc.mod_path)
         else '.';
+    for stmt in ModuleCodegenPass.iter_module_imports(mod, CodeContext.NATIVE)
+        + ModuleCodegenPass.iter_nested_imports(mod, CodeContext.NATIVE) {
+        if stmt.clib_decls or not stmt.items {
+            continue;
+        }
+        for item in stmt.items {
+            (mod_name, _ok) = classify_native_import(item);
+            if mod_name is not None and not _ok {
+                import from jaclang.jac0core.codeinfo {
+                    is_bundled_native_module,
+                    resolve_native_module
+                }
+                if is_bundled_native_module(mod_name) {
+                    continue;
+                }
+                _plain_bare = (
+                    not stmt.is_absorb
+                    and isinstance(item, uni.ModulePath)
+                    and item.alias is None
+                    and len(item.path) == 1
+                );
+                if (stmt.is_absorb or _plain_bare)
+                    and resolve_native_module(mod_name, _base_dir)[1] is not None {
+                    continue;
+                }
+
+                _bound = import_bound_name(item);
+                if (
+                    _bound is not None
+                    and _bound in _type_used
+                    and _bound not in _runtime_used
+                ) {
+                    continue;
+                }
+                if _stdlib_help is None {
+                    _supported_list = ", ".join(
+                        f"`import {m}`" for m in sorted(NATIVE_SUPPORTED_STDLIB)
+                    );
+                    _stdlib_help = (
+                        f"Native compilation supports these stdlib imports: "
+                        f"{_supported_list}; C-library imports "
+                        f"(`import from \"lib\" {{...}}`); and other Jac "
+                        f"modules on the native pathway (`import mod` or "
+                        f"`import from mod {{...}}`, unaliased). Move "
+                        f"Python-dependent code to a @sv/Python context."
+                    );
+                }
+                out.append((item, "Python module import", mod_name, _stdlib_help));
+            }
+        }
+    }
+
     for stmt in _native_stmts {
         if isinstance(stmt, uni.Import) {
-            if stmt.clib_decls or not stmt.items {
-                continue;
-            }
-            for item in stmt.items {
-                (mod_name, _ok) = classify_native_import(item);
-                if mod_name is not None and not _ok {
-                    import from jaclang.jac0core.codeinfo {
-                        is_bundled_native_module,
-                        resolve_native_module
-                    }
-                    if is_bundled_native_module(mod_name) {
-                        continue;
-                    }
-                    _plain_bare = (
-                        not stmt.is_absorb
-                        and isinstance(item, uni.ModulePath)
-                        and item.alias is None
-                        and len(item.path) == 1
-                    );
-                    if (stmt.is_absorb or _plain_bare)
-                        and resolve_native_module(mod_name, _base_dir)[1] is not None {
-                        continue;
-                    }
-
-                    _bound = import_bound_name(item);
-                    if (
-                        _bound is not None
-                        and _bound in _type_used
-                        and _bound not in _runtime_used
-                    ) {
-                        continue;
-                    }
-                    if _stdlib_help is None {
-                        _supported_list = ", ".join(
-                            f"`import {m}`" for m in sorted(NATIVE_SUPPORTED_STDLIB)
-                        );
-                        _stdlib_help = (
-                            f"Native compilation supports these stdlib imports: "
-                            f"{_supported_list}; C-library imports "
-                            f"(`import from \"lib\" {{...}}`); and other Jac "
-                            f"modules on the native pathway (`import mod` or "
-                            f"`import from mod {{...}}`, unaliased). Move "
-                            f"Python-dependent code to a @sv/Python context."
-                        );
-                    }
-                    out.append((item, "Python module import", mod_name, _stdlib_help));
-                }
-            }
             continue;
         }
 
         work: list = [stmt];
         while work {
             nd = work.pop();
+            if isinstance(nd, uni.Import) {
+                continue;
+            }
             if isinstance(nd, NATIVE_REJECT_NODES) {
                 kind = "expression" if isinstance(nd, uni.Expr) else "statement";
                 out.append((nd, kind, type(nd).__name__, None));
@@ -387,7 +414,8 @@ impl native_capability_violations(mod: uni.Module) -> list {
                 and isinstance(nd.op, uni.Token)
                 and nd.op.name == Tok.STAR_POW
                 and isinstance(nd.parent, uni.FuncCall)
-                and nd in (nd.parent.params or []) {
+                and nd in (nd.parent.params or [])
+                and not call_has_kwargs_sink(nd.parent) {
                 out.append(
                     (nd, "call argument unpacking", nd.op.value, _NATIVE_UNPACK_HELP)
                 );
@@ -396,7 +424,8 @@ impl native_capability_violations(mod: uni.Module) -> list {
 
             if isinstance(nd, uni.KWPair)
                 and nd.key is None
-                and isinstance(nd.parent, uni.FuncCall) {
+                and isinstance(nd.parent, uni.FuncCall)
+                and not call_has_kwargs_sink(nd.parent) {
                 out.append((nd, "call argument unpacking", "**", _NATIVE_UNPACK_HELP));
                 continue;
             }
@@ -529,6 +558,24 @@ impl NativeCapabilityCheckPass.transform(ir_in: uni.Module) -> uni.Module {
     ir_in.gen.native_viols_reported = True;
     return ir_in;
 }
+
+impl ClientCapabilityCheckPass.postinit -> None {
+    super.postinit();
+}
+
+impl ClientCapabilityCheckPass.transform(ir_in: uni.Module) -> uni.Module {
+    import from jaclang.jac0core.passes.module_codegen_pass {
+        client_capability_violations
+    }
+    if not ir_in.gen.client_viols_reported {
+        for (_vnode, _vkind) in client_capability_violations(ir_in) {
+            self.emit(E5096, node_override=_vnode, kind=_vkind);
+        }
+        ir_in.gen.client_viols_reported = True;
+    }
+    return ir_in;
+}
+
 
 impl PortabilityWarnPass.postinit -> None {
     super.postinit();

@@ -10,6 +10,7 @@ obj CFGBuildPass(UniPass) {
     def before_pass -> None;
     def link_bbs(source: uni.UniCFGNode, target: uni.UniCFGNode) -> None;
     def _link_sequential(body: Sequence[uni.CodeBlockStmt]) -> None;
+    def _exit_wired(nd: uni.UniCFGNode) -> bool;
     def _connect_tails(parent: uni.UniNode, target: uni.UniCFGNode) -> None;
     def _link_body_tails_to_header(
         nd: uni.WhileStmt | uni.ForeverStmt | uni.InForStmt | uni.IterForStmt
@@ -31,16 +32,17 @@ obj CFGBuildPass(UniPass) {
         false_target: (uni.UniCFGNode | None)
     ) -> uni.CfgExpr;
 
+    def _wire_bool_chain(
+        values: list[uni.CfgExpr],
+        op_is_and: bool,
+        true_target: (uni.UniCFGNode | None),
+        false_target: (uni.UniCFGNode | None)
+    ) -> uni.CfgExpr;
+
     def _set_and_link(
         cfg: uni.CfgExpr,
         true_target: (uni.UniCFGNode | None),
         false_target: (uni.UniCFGNode | None)
-    ) -> None;
-
-    def _patch_inner_bool(
-        nested: uni.BoolExpr,
-        my_true: (uni.UniCFGNode | None),
-        my_false: (uni.UniCFGNode | None)
     ) -> None;
 
     def enter_node(nd: uni.UniNode) -> None;

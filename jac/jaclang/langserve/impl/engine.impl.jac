@@ -1,3 +1,5 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+
 impl Task.postinit -> None {
     self.task_id = Task._task_id;
     self.cancel_token = threading.Event();
@@ -117,6 +119,29 @@ impl JacLangServer.type_check_file(
 
         import from jaclang.jac0core.compile_options { CompileOptions }
         main_doc = self.workspace.get_text_document(uris.from_fs_path(main_path));
+
+        import from jaclang.jac0core.parser.frontend { parse_diags, _replay_diags }
+        import from jaclang.jac0core.parser.lexer { Lexer as _Lexer }
+        import from jaclang.jac0core.parser.parser { Parser as _SyntaxParser }
+        import from jaclang.jac0core.unitree { Source as _Src }
+        (_syn_had, _pd, _ld) = parse_diags(main_doc.source, main_path);
+        if _pd or _ld {
+            _dsrc = _Src(main_doc.source, mod_path=main_path);
+            _replay_diags(_ld, _Lexer, self, _dsrc);
+            _replay_diags(_pd, _SyntaxParser, self, _dsrc);
+            _syn_errors = list(self.errors_had);
+            _syn_warnings = list(self.warnings_had);
+            self.publish_diagnostics(
+                uris.from_fs_path(main_path),
+                utils.gen_diagnostics(main_path, _syn_errors, _syn_warnings)
+            );
+            for f in files_to_check {
+                self._clear_alerts_for_file(f);
+            }
+        }
+        if cancel_token and cancel_token.is_set() {
+            return False;
+        }
         build = self.compile(
             file_path=main_path,
             use_str=main_doc.source,
@@ -555,25 +580,25 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
             sym_node = sym_node.name_of;
         }
         access = (sym_node.sym.access.value + ' ') if sym_node.sym else None;
-        node_info = f"'('{(access or '')}{sym_node.sym_category.value}') '{sym_node.sym_name}";
+        node_info = f"({(access or '')}{sym_node.sym_category.value}) {sym_node.sym_name}";
 
         if not isinstance(sym_node, uni.Ability) {
             if sym_node?.type and sym_node.type {
-                node_info += f"': '{sym_node.type}";
+                node_info += f": {sym_node.type}";
             } elif sym_node.name_spec.clean_type {
-                node_info += f"': '{sym_node.name_spec.clean_type}";
+                node_info += f": {sym_node.name_spec.clean_type}";
             } elif (
                 isinstance(sym_node, uni.AstSymbolNode)
                 and isinstance(sym_node.name_spec.type, ClassType)
             ) {
-                node_info += f"': '{sym_node.name_spec.type.shared.class_name}";
+                node_info += f": {sym_node.name_spec.type.shared.class_name}";
             }
         }
         if sym_node.sym and (doc := doc_of_sym(sym_node.sym)) {
-            node_info += f"'\n'{doc}";
+            node_info += f"\n{doc}";
         }
         if isinstance(sym_node, uni.Ability) and sym_node.signature {
-            node_info += f"'\n'{sym_node.signature.unparse()}";
+            node_info += f"\n{unparse_node(sym_node.signature)}";
         }
         try {
             top: (uni.UniNode | None) = sym_node;
@@ -591,13 +616,13 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
                     tags.append('dual');
                 }
                 tags.append('inferred');
-                node_info += f"'\n'placement: {space} ({', '.join(tags)})";
+                node_info += f"\nplacement: {space} ({', '.join(tags)})";
             }
         } except Exception {
             ;
         }
     } except AttributeError as e {
-        self.log_warning(f"'Attribute error when accessing node attributes: '{e}");
+        self.log_warning(f"Attribute error when accessing node attributes: {e}");
     }
     return node_info.strip() if node_info else None;
 }
@@ -956,7 +981,7 @@ impl JacLangServer.get_completion(
         }
         return lspt.CompletionList(is_incomplete=False, items=[]);
     } except Exception as e {
-        self.log_py(f"'Error during completion: '{e}");
+        self.log_py(f"Error during completion: {e}");
         return lspt.CompletionList(is_incomplete=False, items=[]);
     }
 }
@@ -993,7 +1018,7 @@ impl JacLangServer.update_modules(
     need: bool = True,
     files: (list[str] | None) = None
 ) -> None {
-    self.log_py(f"'Updating modules for '{file_path}");
+    self.log_py(f"Updating modules for {file_path}");
     with self._state_lock.write_lock() {
         self.module_manager.update(file_path, build, update_annexed=need, files=files);
     }

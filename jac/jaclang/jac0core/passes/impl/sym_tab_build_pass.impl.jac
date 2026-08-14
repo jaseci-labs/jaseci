@@ -87,7 +87,7 @@ impl lookup_enclosing_binding(from_scope: UniScopeNode, name: str) -> (Symbol | 
             }
             return None;
         }
-        if isinstance(scope, (uni.Ability, uni.ImplDef, uni.Test)) {
+        if isinstance(scope, (uni.Ability, uni.ImplDef, uni.Test, uni.LambdaExpr)) {
             sym = scope.names_in_scope.get(name);
             if sym is not None {
                 return sym;
@@ -124,7 +124,7 @@ impl record_cross_scope_rebind(py_scope: UniScopeNode, name: str, sym: Symbol) -
 impl rebind_or_def_insert(
     target: uni.AstSymbolNode, py_scope: UniScopeNode, single_decl: str
 ) -> None {
-    if isinstance(py_scope, (uni.Ability, uni.ImplDef, uni.Test)) {
+    if isinstance(py_scope, (uni.Ability, uni.ImplDef, uni.Test, uni.LambdaExpr)) {
         outer_sym = lookup_enclosing_binding(py_scope, target.sym_name);
         if outer_sym is not None {
             outer_sym.add_use(target.name_spec);
@@ -168,8 +168,14 @@ impl SymTabBuildPass.exit_binary_expr(
     }
     if isinstance(nd.left, uni.Name) {
         target_scope = nd.left.sym_tab;
-        if func := nd.find_parent_of_type(uni.Ability) {
-            target_scope = func.sym_tab;
+        owner: (uni.UniNode | None) = nd.parent;
+        while (
+            owner is not None and not isinstance(owner, (uni.Ability, uni.LambdaExpr))
+        ) {
+            owner = owner.parent;
+        }
+        if owner is not None {
+            target_scope = owner.sym_tab;
         }
         if ((sym := target_scope.lookup(nd.left.sym_name, deep=False)) is None) {
             rebind_or_def_insert(nd.left, target_scope, single_decl='walrus var');
@@ -680,14 +686,24 @@ impl SymTabBuildPass.exit_switch_case(
 }
 
 impl find_python_scope_node_of(nd: uni.UniNode) -> (UniScopeNode | None) {
-    scope_types = uni.UniScopeNode.get_python_scoping_nodes();
     while nd.parent {
-        if isinstance(nd.parent, scope_types) {
+        if uni.UniScopeNode.is_python_scoping(nd.parent) {
             return nd.parent;
         }
         nd = nd.parent;
     }
     return None;
+}
+
+impl find_typed_decl_scope_of(nd: uni.AstSymbolNode) -> UniScopeNode {
+    if uni.UniScopeNode.is_python_scoping(nd.sym_tab) {
+        return nd.sym_tab;
+    }
+    py_scope = find_python_scope_node_of(nd);
+    if isinstance(py_scope, (uni.Ability, uni.ImplDef, uni.Test, uni.LambdaExpr)) {
+        return py_scope;
+    }
+    return nd.sym_tab;
 }
 
 impl def_insert_unpacking(
@@ -743,9 +759,7 @@ impl bind_assignment_targets(nd: uni.Assignment) -> None {
                 outer_has.add_use(i.name_spec);
             } elif (
                 (nd.type_tag is None)
-                and not isinstance(
-                    i.sym_tab, uni.UniScopeNode.get_python_scoping_nodes()
-                )
+                and not uni.UniScopeNode.is_python_scoping(i.sym_tab)
             ) {
                 py_scope = find_python_scope_node_of(i);
                 if py_scope is not None {
@@ -762,14 +776,16 @@ impl bind_assignment_targets(nd: uni.Assignment) -> None {
                 }
             } elif (
                 (nd.type_tag is None)
-                and isinstance(i.sym_tab, (uni.Ability, uni.ImplDef, uni.Test))
+                and isinstance(
+                    i.sym_tab, (uni.Ability, uni.ImplDef, uni.Test, uni.LambdaExpr)
+                )
             ) {
                 rebind_or_def_insert(i, i.sym_tab, single_decl='local var');
             } else {
                 if isinstance(i.sym_tab, uni.Enum) {
                     i.name_spec._sym_category = SymbolType.ENUM_MEMBER;
                 }
-                i.sym_tab.def_insert(i, single_decl='local var');
+                find_typed_decl_scope_of(i).def_insert(i, single_decl='local var');
             }
         }
     }

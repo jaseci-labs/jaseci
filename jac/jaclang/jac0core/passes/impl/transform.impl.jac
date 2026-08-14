@@ -97,7 +97,6 @@ impl BaseTransform.post_transform -> None {
     ;
 }
 
-@abstractmethod
 impl BaseTransform.transform(ir_in: T_in) -> T_out {
     ;
 }

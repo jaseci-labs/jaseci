@@ -186,7 +186,7 @@ Version specifiers follow the same rules as `[dependencies]`. Use `"*"` or `"lat
 
 An entry whose name matches `<project-name>[group,...]` is not installed as a package - it expands the listed groups transitively. In the example above, `"mypkg[data,monitoring]" = "*"` under `[optional-dependencies.all]` means `--extras all` pulls in everything from both `data` and `monitoring`.
 
-Third-party extras syntax (e.g. `"testcontainers[mongodb,redis]"`) passes through to pip unchanged.
+Third-party extras syntax (e.g. `"moto[s3]"`) passes through to pip unchanged.
 
 ---
 
@@ -199,7 +199,6 @@ Defaults for `jac run`:
 session = ""            # Session name for persistence
 main = true             # Run as main module
 cache = true            # Use bytecode cache
-topology_index = true   # Build topology index for graph query optimization
 diagnostics = "error"   # Diagnostic verbosity: "error", "all", or "none"
 ```
 
@@ -816,7 +815,6 @@ pytest = ">=8.0.0"
 [run]
 main = true
 cache = true
-topology_index = true
 
 [serve]
 port = 8000
@@ -862,7 +860,9 @@ test_fixtures/
 *.generated.jac
 ```
 
-Each line is a filename or pattern that should be skipped during Jac compilation passes (type checking, formatting, etc.).
+Each line is a filename or pattern that should be skipped during Jac compilation passes (type checking, formatting, etc.). Blank lines and `#` comments are ignored; a pattern containing `/` is matched against the path relative to the project root, a bare pattern against any path component.
+
+A `--scale` deploy reads the same file when it stages the app bundle, so a parked tree is not copied to the pods and is never compiled there. Because `.jacignore` itself ships in the bundle, editing it changes the bundle's content address and the next deploy re-ships.
 
 ---
 
@@ -893,8 +893,10 @@ Each line is a filename or pattern that should be skipped during Jac compilation
 
 | Variable | Description |
 |----------|-------------|
-| `MONGODB_URI` | MongoDB connection URI |
-| `REDIS_URL` | Redis connection URL |
+| `JAC_DB_URL` | Postgres connection URL (overrides `[scale.database].url`) |
+| `JAC_CACHE_HOME` | Root of the machine-wide jac cache; the shared embedded Postgres cluster lives in `<JAC_CACHE_HOME>/pg/main` (default `~/.cache/jac`) |
+| `JAC_DB_RETENTION_DAYS` | Drop databases unused for this many days when the embedded cluster starts; overrides `[database] retention_days`, unset means never |
+| `JAC_DB_SCRATCH` | `1` makes this process open one throwaway database that is dropped when it exits, instead of a per-project one (used by the test runner and deploy staging) |
 | `FIRESTORE_PROJECT_ID` | Firestore / Firebase project ID |
 | `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO, Firestore, Storage |
 
