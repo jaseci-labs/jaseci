@@ -123,10 +123,20 @@ def:pub AuthShell() -> JsxLayout {
 In manual routing, the same idea is a pathless parent route - the guard runs once and every child route below it is protected:
 
 ```jac
-<Route element={<AuthGuard redirect="/login" />}>
-    <Route path="/dashboard" element={<Dashboard />} />
-    <Route path="/settings" element={<Settings />} />
-</Route>
+# frontend.jac - manual routing shell
+import from "@jac/runtime" { Router, Routes, Route, AuthGuard }
+
+def:pub AppShell() -> JsxElement {
+    <Router>
+        <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route element={<AuthGuard redirect="/login" />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/settings" element={<Settings />} />
+            </Route>
+        </Routes>
+    </Router>
+}
 ```
 
 **Guarding one page - wrap it.** `<Route path="/dashboard" element={<AuthGuard redirect="/login"><Dashboard /></AuthGuard>} />`. Reserve the inline `jacIsLoggedIn()` guard for one-off cases.
