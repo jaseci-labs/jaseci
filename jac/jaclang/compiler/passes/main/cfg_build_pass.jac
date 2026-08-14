@@ -26,7 +26,6 @@ obj CFGBuildPass(UniPass) {
     ) -> (uni.UniCFGNode | None);
 
     def _find_next_cfg_stmt_after_branch(nd: uni.UniNode) -> (uni.UniCFGNode | None);
-
     def _wire_bool_operands(
         values: list[uni.CfgExpr],
         op_is_and: bool,
