@@ -542,6 +542,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         expr: (uni.UniNode | None), prefix: str
     ) -> (ir.Type | None);
 
+    def _static_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | None);
     def _elem_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _erased_generic_ctor(nd: uni.FuncCall) -> (str | None);
     def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
@@ -961,6 +962,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _spread_operand(nd: (uni.UniNode | None)) -> (uni.Expr | None);
     def _container_src_info(val: (ir.Value | None)) -> (dict | None);
+    def _spread_elem_storage(
+        src_info: dict, operand: (uni.Expr | None)
+    ) -> (ir.Type | None);
+
     def _reject_spread_slot_mismatch(
         nd: (uni.UniNode | None), src_elem: ir.Type, dest_elem: ir.Type, what: str
     ) -> bool;

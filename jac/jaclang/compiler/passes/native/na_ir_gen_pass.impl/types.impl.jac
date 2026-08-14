@@ -416,6 +416,43 @@ impl NaIRGenPass._elem_storage_llvm(t: any) -> (ir.Type | None) {
     return _first;
 }
 
+impl NaIRGenPass._static_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | None) {
+    if not isinstance(expr, uni.Expr) {
+        return None;
+    }
+    _t = expr.type;
+    if _t is None and isinstance(expr, uni.Name) and expr.sym is not None {
+        _t = expr.sym.decl?.type;
+    }
+    if _t is None {
+        return None;
+    }
+    _names = ("list", "set", "frozenset", "Sequence");
+    if not self._spec_name_match(self._mangled_of(_t), _names) {
+        _sole = self._opt_sole_member(_t);
+        if _sole is None
+            or not self._spec_name_match(self._mangled_of(_sole), _names) {
+            return None;
+        }
+        _t = _sole;
+    }
+    _args = _t.private.type_args or [];
+    if not _args {
+        return None;
+    }
+    _low = self._elem_storage_llvm(_args[0]);
+    if _low is None or isinstance(_low, ir.VoidType) {
+        return None;
+    }
+    if self?.jacval_type and _low == self.jacval_type {
+        return None;
+    }
+    if self._str_desc_ty is not None and _low == self._str_desc_ty {
+        return ir.IntType(8).as_pointer();
+    }
+    return _low;
+}
+
 impl NaIRGenPass._elem_spec_of(expr: (uni.UniNode | None)) -> (str | None) {
     et = self._list_elem_llvm_of(expr);
     if et is None {
