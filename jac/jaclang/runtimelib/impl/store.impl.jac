@@ -85,6 +85,11 @@ def _sanitize_ident(name: str) -> str {
 }
 
 
+def _store_ns(info: ConnInfo) -> str {
+    return f"{info.unix_socket_dir or info.host}:{info.port}/{info.database}";
+}
+
+
 glob _PG_CHANNEL_LIMIT = 63,
      _CHANNEL_DIGEST_LEN = 16,
      _CHANNEL_ENVELOPE_KEY = '__jac_channel',
@@ -160,6 +165,34 @@ impl PgStore.postinit -> None {
     self._listeners = [];
     self._listen_thread = None;
     self._listen_stop = None;
+    self._booted = False;
+    self._ready = False;
+    self._readying = None;
+}
+
+
+impl PgStore._ensure_ready -> None {
+    if self._ready {
+        return;
+    }
+    with self._lock {
+        if self._ready or self._readying == threading.get_ident() {
+            return;
+        }
+        self._readying = threading.get_ident();
+        try {
+            if self.ensure_cb is not None and not self._booted {
+                self.conninfo = self.ensure_cb();
+                self._booted = True;
+            }
+            if self.auto_schema {
+                self.ensure_schema_once(self.promotions);
+            }
+            self._ready = True;
+        } finally {
+            self._readying = None;
+        }
+    }
 }
 
 
@@ -273,6 +306,7 @@ impl PgStore._main -> Any {
 
 
 impl PgStore._side -> Any {
+    self._ensure_ready();
     if self._side_conn is None {
         self._side_conn = self._connect();
     }
@@ -295,6 +329,7 @@ def _conn_dead(e: Exception) -> bool {
 
 
 impl PgStore._run(sql: str, params: dict) -> list {
+    self._ensure_ready();
     with self._lock {
         conn: Any = None;
         try {
@@ -396,6 +431,44 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
         }
         self.kv_put(SCHEMA_STAMP_KEY, fp);
         self._load_known_types();
+    }
+}
+
+
+impl PgStore.ensure_schema_once(promotions: dict[str, list[str]]) -> None {
+    ns = _store_ns(self.conninfo);
+    if ns in _schema_ready {
+        return;
+    }
+    with _schema_gate {
+        if ns in _schema_ready {
+            return;
+        }
+        self.ensure_schema(promotions);
+        _schema_ready.add(ns);
+    }
+}
+
+
+impl PgStore.reset_data -> None {
+    with self._lock {
+        if self._in_txn {
+            self.rollback();
+        }
+        listed = self._run(
+            'SELECT tablename FROM pg_tables WHERE schemaname = current_schema()', {}
+        );
+        tables = [str(row[0]) for row in listed];
+        if not tables {
+            return;
+        }
+        stamp = self._schema_stamp();
+        targets = ', '.join(f'"{name}"' for name in sorted(tables));
+        self._run(f"TRUNCATE {targets} RESTART IDENTITY CASCADE", {});
+        if stamp {
+            self.kv_put(SCHEMA_STAMP_KEY, stamp);
+        }
+        self._known_types = set();
     }
 }
 

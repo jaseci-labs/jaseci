@@ -131,7 +131,9 @@ obj UniScopeNode(UniNode) {
 
     def _init_scope(name: str, parent_scope: (UniScopeNode | None) = None) -> None;
     static def is_python_scoping(nd: (UniNode | None)) -> bool {
-        return isinstance(nd, (Module, Enum, Archetype, Ability, ImplDef, Test));
+        return isinstance(
+            nd, (Module, Enum, Archetype, Ability, ImplDef, Test, LambdaExpr)
+        );
     }
 
     def lookup(
