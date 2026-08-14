@@ -7581,7 +7581,9 @@ impl EsastGenPass._declaring_scope_for(name_node: uni.UniNode) -> (ScopeInfo | N
         return None;
     }
     owner = sym.parent_tab;
-    if not isinstance(owner, (uni.Module, uni.Ability, uni.ImplDef, uni.Test)) {
+    if not isinstance(
+        owner, (uni.Module, uni.Ability, uni.ImplDef, uni.Test, uni.LambdaExpr)
+    ) {
         return None;
     }
     if isinstance(owner, uni.ImplDef) {
