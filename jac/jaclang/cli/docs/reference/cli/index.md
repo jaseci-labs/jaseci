@@ -273,7 +273,7 @@ jac start [-h] [-p PORT] [-m] [--no-main] [-f] [--no-faux] [-d] [--no-dev] [-a A
 | `--platform` | Mobile start/dev platform selector for `--client mobile` (`auto`, `android`, `ios`) | `auto` |
 | `--scale` | Deploy to Kubernetes (built-in scale subsystem) | `False` |
 | `--target` | Deployment target (with `--scale`) | `kubernetes` |
-| `--wait` | How far to wait for the rollout: `ready` (a new-revision replica per service) or `full` (every replica available) | `ready` |
+| `--wait` | How far to wait for the rollout: `ready` (a new-revision replica per service) or `full` (every replica available) | `[scale.kubernetes] rollout_wait` in `jac.toml` (`ready`) |
 | `--enable-tls` | Enable HTTPS via Let's Encrypt (with `--scale`) | `False` |
 | `--dry-run` | Print the manifests that would be applied; change nothing (with `--scale`) | `False` |
 | `--show-yaml` | With `--dry-run`: dump the raw YAML stream | `False` |

@@ -124,6 +124,15 @@ obj RolloutStatus {
             if self.stall_message
             else self.stall_reason;
     }
+
+    def stall_note -> str {
+        stall = self.stall();
+        if not stall {
+            return "";
+        }
+        stamped = f"recorded {self.stall_marked_at}, " if self.stall_marked_at else "";
+        return f"{stall} ({stamped}may predate the current rollout)";
+    }
 }
 
 

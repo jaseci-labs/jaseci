@@ -29,6 +29,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
+import from jaclang.scale.runtime.realizer.kubernetes_realizer { KubernetesRealizer }
 import from jaclang.scale.deploy.target.kubernetes.ingress { IngressDeployer }
 import from jaclang.scale.deploy.autoscale.factory { AutoscalerFactory }
 import from jaclang.scale.deploy.autoscale.autoscaler { AutoscalerSpec, Trigger }
@@ -763,6 +764,22 @@ test "status is RUNNING only once the applied revision is fully available" {
     assert done.is_ready() , "a completed rollout is ready";
 }
 
+test "status stays PENDING while old replicas serve a redeploy that placed no pod" {
+    blocked = _status_for(
+        _revision_deployment(desired=3, updated=0, available=3, total=3)
+    );
+    assert blocked.status == ResourceStatus.PENDING , (
+        f"a redeploy still served by its predecessor is not failed: {blocked.status}"
+    );
+
+    down = _status_for(
+        _revision_deployment(desired=3, updated=0, available=0, total=0)
+    );
+    assert down.status == ResourceStatus.FAILED , (
+        f"nothing serving and nothing rolling out is failed: {down.status}"
+    );
+}
+
 test "status reports the stall the deploy gate would fail on" {
     stalled = _revision_deployment(desired=3, updated=1, available=3, total=4);
     stalled.status.conditions = [
@@ -780,6 +797,54 @@ test "status reports the stall the deploy gate would fail on" {
     assert info.status != ResourceStatus.RUNNING , f"got {info.status}";
     assert info.message and "ProgressDeadlineExceeded" in info.message , (
         f"the stall reason must reach the caller: {info.message!r}"
+    );
+    assert "2026-08-11T10:00:00Z" in info.message and "may predate" in info.message , (
+        "a status poller has no baseline, so the verdict must carry when it "
+        f"was stamped: {info.message!r}"
+    );
+}
+
+"""Run a dry-run realize and hand back the deployment target it built."""
+def _realized_target(toml_wait: str, wait_flag: str) -> any {
+    tmp_dir = Path(mkdtemp());
+    (tmp_dir / "main.jac").write_text("with entry {\n    print(\"ok\");\n}\n");
+    scale_cfg = unittest.mock.MagicMock();
+    scale_cfg.get_kubernetes_config.return_value = {
+        "app_name": "svc-a",
+        "namespace": "fleet-ns",
+        "rollout_wait": toml_wait
+    };
+    scale_cfg.get_secrets_config.return_value = {};
+    scale_cfg.load.return_value = {};
+    try {
+        with unittest.mock.patch(
+            "jaclang.scale.runtime.realizer.kubernetes_realizer.get_scale_config",
+            return_value=scale_cfg
+        ), unittest.mock.patch(
+            "jaclang.scale.runtime.cli.plan.print_plan", return_value=({}, [])
+        ) as print_plan {
+            rc = KubernetesRealizer(ms_config={}).realize(
+                str(tmp_dir / "main.jac"), dry_run=True, rollout_wait=wait_flag
+            );
+            assert rc == 0 , f"dry-run realize failed with {rc}";
+            return print_plan.call_args.args[0];
+        }
+    } finally {
+        shutil.rmtree(tmp_dir, ignore_errors=True);
+    }
+}
+
+test "--wait overrides jac.toml on the target that runs the deploy" {
+    overridden = _realized_target("ready", "full");
+    assert overridden.k8s_config.rollout_wait == "full" , (
+        "--wait full must reach the target, got "
+        f"{overridden.k8s_config.rollout_wait!r}"
+    );
+
+    configured = _realized_target("full", "");
+    assert configured.k8s_config.rollout_wait == "full" , (
+        "without --wait the configured mode stands, got "
+        f"{configured.k8s_config.rollout_wait!r}"
     );
 }
 

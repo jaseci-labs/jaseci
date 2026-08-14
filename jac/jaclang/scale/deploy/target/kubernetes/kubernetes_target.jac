@@ -590,7 +590,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
 
             if rollout.satisfies(ROLLOUT_WAIT_FULL) and replicas > 0 {
                 status = ResourceStatus.RUNNING;
-            } elif ready_replicas > 0 or rollout.updated > 0 {
+            } elif rollout.available > 0 or rollout.updated > 0 {
                 status = ResourceStatus.PENDING;
             } else {
                 status = ResourceStatus.FAILED;
@@ -600,7 +600,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
                 status=status,
                 replicas=replicas,
                 ready_replicas=ready_replicas,
-                message=rollout.stall() or None
+                message=rollout.stall_note() or None
             );
         } except Exception as e {
             if self.logger {
