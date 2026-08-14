@@ -672,9 +672,7 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
 }
 
 impl NaIRGenPass._codegen_string_index(
-    target_val: ir.Value,
-    index_val: ir.Value,
-    len_val: (ir.Value | None) = None
+    target_val: ir.Value, index_val: ir.Value, len_val: (ir.Value | None) = None
 ) -> (ir.Value | None) {
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);

@@ -1095,9 +1095,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _infer_compr_elem_struct(compr: object) -> (str | None);
     def _infer_unpack_struct_ptr(nd: object) -> (ir.Type | None);
     def _codegen_string_index(
-        target_val: ir.Value,
-        index_val: ir.Value,
-        len_val: (ir.Value | None) = None
+        target_val: ir.Value, index_val: ir.Value, len_val: (ir.Value | None) = None
     ) -> (ir.Value | None);
 
     def _emit_is_strip_char(ch: ir.Value, charset: (ir.Value | None)) -> ir.Value;
