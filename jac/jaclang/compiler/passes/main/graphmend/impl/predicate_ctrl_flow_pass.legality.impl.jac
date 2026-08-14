@@ -1,3 +1,4 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.main.graphmend.scope_facts {
@@ -458,7 +459,7 @@ impl PredicateCtrlFlowPass._hasattr_key(c: uni.Expr) -> (tuple[str, str] | None)
     if not isinstance(lit, str) {
         return None;
     }
-    return (recv.unparse().replace(' ', ''), lit);
+    return (unparse_node(recv).replace(' ', ''), lit);
 }
 
 impl PredicateCtrlFlowPass._writes_attr(
@@ -471,7 +472,7 @@ impl PredicateCtrlFlowPass._writes_attr(
                 isinstance(tg, uni.AtomTrailer)
                 and isinstance(tg.right, uni.Name)
                 and (tg.right.value == key)
-                and (tg.target.unparse().replace(' ', '') == recv)
+                and (unparse_node(tg.target).replace(' ', '') == recv)
             ) {
                 return True;
             }
@@ -658,18 +659,18 @@ impl PredicateCtrlFlowPass._is_device_move(s: uni.Assignment) -> bool {
         return False;
     }
     recv = v.target.target;
-    return (recv.unparse().replace(' ', '') == s.target[0].unparse().replace(' ', ''));
+    return (unparse_node(recv).replace(' ', '') == unparse_node(s.target[0]).replace(' ', ''));
 }
 
 impl PredicateCtrlFlowPass._move_consumed(
     s: uni.Assignment, region: uni.IfStmt
 ) -> bool {
-    tgt = s.target[0].unparse().replace(' ', '');
+    tgt = unparse_node(s.target[0]).replace(' ', '');
     for at in region.get_all_sub_nodes(uni.AtomTrailer) {
         if self._within(at, s) {
             continue;
         }
-        if at.unparse().replace(' ', '') == tgt {
+        if unparse_node(at).replace(' ', '') == tgt {
             return True;
         }
     }
@@ -679,7 +680,7 @@ impl PredicateCtrlFlowPass._move_consumed(
 impl PredicateCtrlFlowPass._consumers_harmless(
     s: uni.Assignment, region: uni.IfStmt
 ) -> bool {
-    tgt = s.target[0].unparse().replace(' ', '');
+    tgt = unparse_node(s.target[0]).replace(' ', '');
     mod = region.find_parent_of_type(uni.Module);
     if mod is None {
         return False;
@@ -687,7 +688,7 @@ impl PredicateCtrlFlowPass._consumers_harmless(
     region_ab = region.find_parent_of_type(uni.Ability);
     checked: set[int] = set();
     for at in mod.get_all_sub_nodes(uni.AtomTrailer) {
-        if at.unparse().replace(' ', '') != tgt {
+        if unparse_node(at).replace(' ', '') != tgt {
             continue;
         }
         if self._within(at, region) {
@@ -712,7 +713,7 @@ impl PredicateCtrlFlowPass._normalizes_first(ab: uni.Ability, tgt: str) -> bool 
     norms: list[tuple[int, int]] = [];
     reads: list[uni.AtomTrailer] = [];
     for at in ab.get_all_sub_nodes(uni.AtomTrailer) {
-        if at.unparse().replace(' ', '') != tgt {
+        if unparse_node(at).replace(' ', '') != tgt {
             continue;
         }
         cur: (uni.UniNode | None) = at;
@@ -721,7 +722,7 @@ impl PredicateCtrlFlowPass._normalizes_first(ab: uni.Ability, tgt: str) -> bool 
         }
         if isinstance(cur, uni.Assignment)
             and self._is_device_move(cur)
-            and (cur.target[0].unparse().replace(' ', '') == tgt) {
+            and (unparse_node(cur.target[0]).replace(' ', '') == tgt) {
             spot = self._stmt_spot(cur);
             if spot is not None {
                 norms.append(spot);
@@ -811,7 +812,7 @@ impl PredicateCtrlFlowPass._setup_writes(
             + list(s.get_all_sub_nodes(uni.Assignment));
         for a in assigns {
             for t in (a.target or []) {
-                out.add(t.unparse().replace(' ', ''));
+                out.add(unparse_node(t).replace(' ', ''));
             }
         }
     }

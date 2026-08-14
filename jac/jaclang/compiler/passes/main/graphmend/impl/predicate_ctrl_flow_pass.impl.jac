@@ -1,3 +1,4 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind }
@@ -107,7 +108,7 @@ impl PredicateCtrlFlowPass._merge_common_call(
     if (not isinstance(ca, uni.FuncCall)) or (not isinstance(cb, uni.FuncCall)) {
         return;
     }
-    if (ca.target.unparse().replace(' ', '') != cb.target.unparse().replace(' ', '')) {
+    if (unparse_node(ca.target).replace(' ', '') != unparse_node(cb.target).replace(' ', '')) {
         return;
     }
     (a_pos, a_kw) = self._split_params(ca.params);
@@ -119,13 +120,13 @@ impl PredicateCtrlFlowPass._merge_common_call(
         return;
     }
     for k in a_kw {
-        if a_kw[k].value.unparse() != b_kw[k].value.unparse() {
+        if unparse_node(a_kw[k].value) != unparse_node(b_kw[k].value) {
             return;
         }
     }
     diff = [];
     for i in range(len(a_pos)) {
-        if a_pos[i].unparse() != b_pos[i].unparse() {
+        if unparse_node(a_pos[i]) != unparse_node(b_pos[i]) {
             diff.append(i);
         }
     }
