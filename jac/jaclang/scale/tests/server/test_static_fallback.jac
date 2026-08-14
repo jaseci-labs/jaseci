@@ -55,6 +55,52 @@ test "project /static asset resolves even when a static mount claims the prefix"
 }
 
 
+test "a mount-owned asset miss 404s through full gateway dispatch (no leak, no SPA)" {
+    import shutil;
+    project_root = tempfile.mkdtemp();
+    empty_dist = tempfile.mkdtemp();
+    mount_dir = tempfile.mkdtemp();
+    try {
+        # a project public/ file at the exact path the mount claims: must NOT leak
+        media = os.path.join(project_root, "public", "media");
+        os.makedirs(media, exist_ok=True);
+        with open(os.path.join(media, "logo.png"), "wb") as f {
+            f.write(b"FROM_PUBLIC");
+        }
+        # an index.html so the SPA fallback is available -- to prove it is NOT used
+        with open(os.path.join(empty_dist, "index.html"), "w") as f {
+            f.write("<html>SPA</html>");
+        }
+
+        gw = MicroserviceGateway(
+            registry=ServiceRegistry(),
+            client_dist_dir=empty_dist,
+            static_mounts=[{"url_prefix": "media", "local_path": mount_dir}]
+        );
+        gw.base_path = project_root;
+        gw.setup();
+
+        import from jaclang.runtimelib.serving.testing {
+            ServingTestClient as TestClient
+        }
+        client = TestClient(gw.app);
+        resp = client.get("/media/logo.png", headers={"accept": "image/png"});
+
+        assert resp.status_code == 404 , (
+            "the 'media' mount owns /media exclusively; a miss must 404 through "
+            "the full dispatch -- not serve public/media/logo.png and not the SPA "
+            f"shell; got {resp.status_code}"
+        );
+        assert b"FROM_PUBLIC" not in resp.content;
+        assert b"SPA" not in resp.content;
+    } finally {
+        shutil.rmtree(project_root, ignore_errors=True);
+        shutil.rmtree(empty_dist, ignore_errors=True);
+        shutil.rmtree(mount_dir, ignore_errors=True);
+    }
+}
+
+
 test "a genuinely missing /static asset still 404s (no false-positive serving)" {
     project_root = tempfile.mkdtemp();
     os.makedirs(os.path.join(project_root, "assets"), exist_ok=True);
