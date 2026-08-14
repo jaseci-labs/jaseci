@@ -594,6 +594,8 @@ glob _PARITY_CANARY_LINES: tuple = (
 
      ),
      _PARITY_CORPUS_LINES: tuple = (
+         "# leading comment: crossing envelopes must carry comments, and a",
+         "# prior parse's envelope objects must never bleed into this tree",
          "import os;",
          "glob G: int = 42, H: (str | None) = None;",
          "enum Hue { RED = 1, GREEN = 2 }",
@@ -631,7 +633,7 @@ glob _PARITY_CANARY_LINES: tuple = (
          "}",
          "async def later -> None {}",
          "test \"box holds\" { assert Box(x=1).m() >= -1; }",
-         "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }",
+         "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }  # trailing",
 
      );
 
@@ -659,6 +661,9 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
         (nl.join(list(_PARITY_CORPUS_LINES)), "__seal_parity_corpus__.jac", ),
 
     ];
+
+    corpora = corpora
+        + [(src, p.replace(".jac", "_round2_.jac"), ) for (src, p) in corpora];
     for (canary_src, canary_path) in corpora {
         try {
             (native_mod, n_errs, _pd, _cm, _ld, n_lex_errs) = np.parse(

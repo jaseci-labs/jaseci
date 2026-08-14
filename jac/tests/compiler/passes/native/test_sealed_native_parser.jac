@@ -226,6 +226,49 @@ test "materialized instances carry exactly the bytecode parser's dict keys" {
     }
 }
 
+test "a prior parse's envelope objects never bleed into the next tree" {
+    # The materializer memo is keyed by native address. Envelope emitters
+    # (diags, comments) run after the tree flush, so without a per-entry
+    # flush their entries outlive the parse -- and the next parse, on a
+    # recycled native address, splices a stale CommentData into a kid slot.
+    # Heap-reuse-dependent in production; forced here by alternating a
+    # comment-heavy parse with tree parses and walking every kid.
+    (np, _out, _rec) = _build_binding();
+    nl = chr(10);
+    commented = nl.join(
+        [f"# filler comment number {i} padding the envelope" for i in range(64)]
+            + ["with entry { x = 1; }"]
+    );
+    probe_src = (PKG_PATH / "jac0core" / "srcloc.jac").read_text(encoding="utf-8");
+    for cycle in range(3) {
+        np.parse(commented, f"__bleed_comments_{cycle}__.jac");
+        (m2, _e, _pd, _cm, _ld, _le) = np.parse(
+            probe_src, f"__bleed_tree_{cycle}__.jac"
+        );
+        stack = [m2];
+        seen: set = set();
+        while stack {
+            nd = stack.pop();
+            if id(nd) in seen {
+                continue;
+            }
+            seen.add(id(nd));
+            for (ki, k) in enumerate(nd.kid) {
+                assert isinstance(k, uni.UniNode) , (
+                    f"cycle {cycle}: {type(nd).__name__}.kid[{ki}] is "
+                    f"{type(k).__name__} -- a stale envelope object crossed "
+                    "into the tree"
+                );
+                stack.append(k);
+            }
+        }
+        (pym, _pe) = _bytecode_parse(probe_src, f"__bleed_tree_{cycle}__.jac");
+        assert unparse_node(m2) == unparse_node(pym) , (
+            f"cycle {cycle}: unparse diverged after a comment-heavy parse"
+        );
+    }
+}
+
 test "the diagnostic envelope crosses as real Python objects" {
     (np, _out, _rec) = _build_binding();
     bad = "obj A { has x int = 1; }";

@@ -580,9 +580,11 @@ impl module_is_client(filepath: str) -> bool {
                     f"jac: client-codespace probe failed for {path}; "
                     f"treating as server: {type(probe_exc).__name__}: "
                     f"{probe_exc}\n"
-                ).encode("utf-8", "replace")
+                ).encode(
+                    "utf-8", "replace"
+                )
             );
-        } except OSError {}
+        } except OSError { }
         result = False;
     }
     _COLOR_CACHE[path] = result;
