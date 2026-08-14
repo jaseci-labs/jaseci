@@ -407,9 +407,7 @@ jobs:
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
           jac install \
-            "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-            "bcrypt>=4.0.0,<5.0.0" \
-            "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
+            "python-dotenv>=1.2.1,<2.0.0" \
             "prometheus-client>=0.21.0,<1.0.0" \
             "opentelemetry-sdk>=1.27.0,<2.0.0" \
             "opentelemetry-exporter-otlp-proto-http>=1.27.0,<2.0.0" \
@@ -526,7 +524,12 @@ jobs:
       - name: Run jac check (using .jacignore)
         run: |
           set -euo pipefail
-          IGNORE_ARGS="tests checker_*.jac *_err.jac $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
+          # .jac-xdg is the dev lane's runtime cache root (setup-jac-dev points
+          # XDG_CACHE_HOME inside the workspace so actions/cache can save it).
+          # It materializes a full sealed jaclang tree in-place, which the
+          # full-repo `jac check .` walk would otherwise sweep as if it were
+          # source. Bare name -> any .jac-xdg path component is skipped.
+          IGNORE_ARGS="tests checker_*.jac *_err.jac .jac-xdg $(grep -v '^#' .jacignore | grep -v '^[[:space:]]*$' | tr '\n' ' ')"
           if [ "${{ steps.changes.outputs.mode }}" = "scoped" ]; then
             if [ "${{ steps.changes.outputs.any }}" != "true" ]; then
               echo "No .jac files changed in this PR; skipping jac check."
@@ -542,7 +545,9 @@ jobs:
         run: |
           set +e
           echo "Scanning the whole codebase (no ignores) for an error-code breakdown..."
-          jac check . --nowarn > jac-check-full.log 2>&1
+          # Only .jac-xdg is excluded -- it is the dev lane's runtime cache, not
+          # repo source, and its sealed tree would double-count every code.
+          jac check . --ignore .jac-xdg --nowarn > jac-check-full.log 2>&1
 
           {
             echo "## jac check error-code breakdown (whole codebase, no ignores)"
@@ -684,7 +689,8 @@ jobs:
       run: jac test jac/tests/runtimelib/client/test_desktop_binding.jac
 
   test-client:
-    needs: build-jac
+    needs: [changes, build-jac]
+    if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     # Sealed lane: this suite spawns `jac` subprocesses with isolated env/HOME
     # (serve/client/cli tests). Under the dev lane each such spawn would
@@ -731,8 +737,7 @@ jobs:
       # Pins mirror jac/jaclang/project/capabilities.jac.
       run: |
         jac install \
-          "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-          "bcrypt>=4.0.0,<5.0.0" \
+          "python-dotenv>=1.2.1,<2.0.0" \
           --global
         jac test -vv jac/tests/runtimelib/client/test_inprocess_dispatch.jac
 
@@ -982,15 +987,13 @@ jobs:
       # Pins mirror jac/jaclang/project/capabilities.jac.
       run: |
         jac install \
-          "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-          "bcrypt>=4.0.0,<5.0.0" \
-          "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
+          "python-dotenv>=1.2.1,<2.0.0" \
           "prometheus-client>=0.21.0,<1.0.0" \
           "opentelemetry-sdk>=1.27.0,<2.0.0" \
           "opentelemetry-exporter-otlp-proto-http>=1.27.0,<2.0.0" \
           "apscheduler>=3.11.2,<4.0.0" "kubernetes>=34.1.0,<35.0.0" \
           "docker>=7.1.0,<8.0.0" "boto3>=1.40.0,<2.0.0" \
-          requests "testcontainers[mongodb,redis]>=4.15,<5" "moto[s3]>=5.0.0" \
+          requests "moto[s3]>=5.0.0" \
           --global
 
     - name: Run ${{ matrix.group }} tests
@@ -1011,7 +1014,7 @@ jobs:
     - name: Run root-level scale tests (identity password, firebase env)
       if: matrix.group == 'data'
       # Root-level test_*.jac files the matrix globs don't reach. Base scale
-      # deps only (bcrypt, config) - no firebase-admin needed here.
+      # deps only (config) - no firebase-admin needed here.
       env:
         JAC_TEST_JOBS: "0"
       run: |
@@ -1066,9 +1069,7 @@ jobs:
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
           jac install \
-            "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-            "bcrypt>=4.0.0,<5.0.0" \
-            "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
+            "python-dotenv>=1.2.1,<2.0.0" \
             "kubernetes>=34.1.0,<35.0.0" "docker>=7.1.0,<8.0.0" \
             --global
 
@@ -1169,8 +1170,7 @@ jobs:
       # Pins mirror jac/jaclang/project/capabilities.jac.
       run: |
         jac install \
-          "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-          "bcrypt>=4.0.0,<5.0.0" \
+          "python-dotenv>=1.2.1,<2.0.0" \
           "requests>=2.32.0,<3.0.0" \
           --global
 
@@ -1465,9 +1465,7 @@ jobs:
         # Pins mirror jac/jaclang/project/capabilities.jac.
         run: |
           jac install \
-            "sqlalchemy>=2.0.0,<3.0.0" "python-dotenv>=1.2.1,<2.0.0" \
-            "bcrypt>=4.0.0,<5.0.0" \
-            "pymongo>=4.15.4,<5.0.0" "redis>=7.1.0,<8.0.0" \
+            "python-dotenv>=1.2.1,<2.0.0" \
             "kubernetes>=34.1.0,<35.0.0" "docker>=7.1.0,<8.0.0" "humanize>=4.0.0" \
             --global
 

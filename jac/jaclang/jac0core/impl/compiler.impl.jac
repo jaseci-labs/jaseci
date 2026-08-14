@@ -56,13 +56,13 @@ impl JacCompiler.internal_program.getter -> JacProgram {
     return self._internal_program;
 }
 
-impl JacCompiler._get_jaclang_root(cls: any) -> str {
-    if (cls._jaclang_root is None) {
-        cls._jaclang_root = os.path.realpath(
+impl JacCompiler._get_jaclang_root -> str {
+    if (self._jaclang_root is None) {
+        self._jaclang_root = os.path.realpath(
             os.path.dirname(os.path.dirname(__file__))
         );
     }
-    return cls._jaclang_root;
+    return self._jaclang_root;
 }
 
 impl JacCompiler._resolve_program(
@@ -128,6 +128,7 @@ impl JacCompiler.get_bytecode(
 ) -> (types.CodeType | None) {
     actual_program = self._resolve_program(full_target, target_program);
     (rebuild, no_precompile) = cache_mode();
+    symtab_only_recovery = False;
 
     if (
         (not rebuild)
@@ -137,6 +138,13 @@ impl JacCompiler.get_bytecode(
         actual_program.invalidate_module(full_target);
     }
     if (
+        (not rebuild)
+        and (full_target in actual_program.mod.hub)
+        and not actual_program.mod.hub[full_target].gen.py_bytecode
+    ) {
+        actual_program.invalidate_module(full_target);
+        symtab_only_recovery = True;
+    } elif (
         (not rebuild)
         and (full_target in actual_program.mod.hub)
         and actual_program.mod.hub[full_target].gen.py_bytecode
@@ -197,6 +205,10 @@ impl JacCompiler.get_bytecode(
                 } else {
                     return marshal.loads(bc);
                 }
+            } else {
+                cache_path.unlink(missing_ok=True);
+                actual_program.invalidate_module(full_target);
+                symtab_only_recovery = True;
             }
         } except Exception {
             ;
@@ -232,19 +244,7 @@ impl JacCompiler.get_bytecode(
         setup_progress.on_internal_compile(full_target);
         self._internal_bytecode_depth += 1;
     }
-    can_typecheck = (
-        is_internal
-        and 'jaclang.compiler.passes.main.type_checker_pass' in sys.modules
-        and 'jaclang.compiler.type_system.type_evaluator' in sys.modules
-        and hasattr(
-            sys.modules['jaclang.compiler.passes.main.type_checker_pass'],
-            'TypeCheckPass'
-        )
-        and hasattr(
-            sys.modules['jaclang.compiler.type_system.type_evaluator'], 'TypeEvaluator'
-        )
-    );
-    options = CompileOptions(type_check=can_typecheck);
+    options = CompileOptions(type_check=False);
     result: (uni.Module | None) = None;
     try {
         result = self.compile(
@@ -253,7 +253,6 @@ impl JacCompiler.get_bytecode(
         if result.gen.py_bytecode {
             actual_program.hub_cache_stamp(full_target);
             try {
-                import from jaclang.jac0core.jir_passes { JirWriter }
                 import pickle;
                 import json;
                 import zlib;
@@ -296,18 +295,8 @@ impl JacCompiler.get_bytecode(
                 } except Exception {
                     ;
                 }
-                writer = JirWriter();
-                jir_bytes = writer.write_module(result, sections=sections);
-                cache_path.parent.mkdir(parents=True, exist_ok=True);
-
-                import os as _os;
-                tmp_path = cache_path.with_suffix(f'.{_os.getpid()}.tmp');
-                try {
-                    tmp_path.write_bytes(jir_bytes);
-                    tmp_path.rename(cache_path);
-                } finally {
-                    tmp_path.unlink(missing_ok=True);
-                }
+                import from jaclang.jac0core.jir { write_module_jir_cache }
+                write_module_jir_cache(full_target, result, extra_sections=sections);
             } except Exception {
                 ;
             }
@@ -744,6 +733,15 @@ impl JacCompiler.parse_str(
                 codespace = _forced_pre;
             }
         }
+        if not codespace and target_program is not self._internal_program {
+            import from jaclang.jac0core.placement_pins {
+                config_kind_space as _kind_space_of
+            }
+            _kind_space = _kind_space_of(file_path);
+            if _kind_space in ('client', 'native') {
+                codespace = _kind_space;
+            }
+        }
         if (codespace == 'client') {
             _coerce_client_module(mod);
         } elif (codespace == 'native') {
@@ -753,7 +751,11 @@ impl JacCompiler.parse_str(
             run_codespace_infer = True;
         }
     }
+    hub_key = target_program.hub_key(mod.loc.mod_path);
     if had_error {
+        mod.parse_failed = True;
+        target_program.mod.hub[hub_key] = mod;
+        target_program.hub_cache_stamp(hub_key);
         return mod;
     }
     if target_program.mod.main.stub_only {
@@ -761,8 +763,7 @@ impl JacCompiler.parse_str(
         target_program.mod = uni.ProgramModule(main_mod=mod);
         target_program.mod.hub.update(old_hub);
     }
-    import from pathlib { Path as _HubPath }
-    target_program.mod.hub[str(_HubPath(mod.loc.mod_path).resolve())] = mod;
+    target_program.mod.hub[hub_key] = mod;
 
     JacAnnexPass(ir_in=mod, prog=target_program);
     if run_codespace_infer {
@@ -842,6 +843,11 @@ impl JacCompiler.compile(
             }
             return _mod;
         }
+
+        _is_ice = _crash is not None and len(_wrap_prog.errors_had) == _pre_errs;
+        if _is_ice and os.environ.get('JAC_NATIVE_ICE_RAISE') {
+            raise _crash;
+        }
         _first_err = (
             _wrap_prog.errors_had[_pre_errs].pretty_print().split('\n')[0]
                 if len(_wrap_prog.errors_had) > _pre_errs
@@ -853,7 +859,9 @@ impl JacCompiler.compile(
                 if (_demote_alerts and _demote_alerts[0].code is not None)
                 else type(_crash).__name__
         );
-        na_census_record(_resolved, 'demoted', _demote_code, _first_err);
+        na_census_record(
+            _resolved, 'ice' if _is_ice else 'demoted', _demote_code, _first_err
+        );
         _mark_demoted_native(_resolved);
         _wrap_prog.errors_had = _wrap_prog.errors_had[:_pre_errs];
         _wrap_prog.warnings_had = _wrap_prog.warnings_had[:_pre_warns];
@@ -864,12 +872,8 @@ impl JacCompiler.compile(
         }
         try {
             import from jaclang.cli.console { console as _note_console }
-            _note_console.print(
-                f"note: {file_path} preferred native but did not lower; "
-                f"compiled in the server codespace ({_first_err})",
-                style="dim",
-                file=sys.stderr
-            );
+            (_note_msg, _note_style) = na_demotion_note(file_path, _first_err, _is_ice);
+            _note_console.print(_note_msg, style=_note_style, file=sys.stderr);
         } except Exception {
             ;
         }
@@ -1005,7 +1009,8 @@ impl JacCompiler._compile_once(
         import from dataclasses { replace as _replace_opts }
         for dep_mod in list(actual_program.mod.hub.values()) {
             if (dep_mod is mod_targ)
-                or (id(dep_mod) in actual_program._inferred_mods) {
+                or (id(dep_mod) in actual_program._inferred_mods)
+                or dep_mod.parse_failed {
                 continue;
             }
             if dep_mod.decided_codespace == 'native' {
@@ -1142,7 +1147,9 @@ impl JacCompiler._compile_once(
                     and cb_mod.gen.interop_manifest
                     and bool(cb_mod.gen.interop_manifest.bindings)
                 );
-                if not cb_has_facts {
+
+                cb_known_bad = actual_program.has_failed_parse(cb_src);
+                if not cb_has_facts and not cb_known_bad {
                     try {
                         cb_mod = self.compile(
                             file_path=cb_src,
@@ -1300,12 +1307,14 @@ impl JacCompiler._scrub_native_artifacts_on_error(
 }
 
 impl JacCompiler._prepare_tool_program(
-    source_str: str, file_path: str
+    source_str: str, file_path: str, expand: bool = False
 ) -> tuple[JacProgram, (uni.Module | None)] {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.parser { parse as rd_parse }
     prog = JacProgram();
-    (current_mod, had_error) = rd_parse(source_str, file_path, prog=prog);
+    (current_mod, had_error) = rd_parse(
+        source_str, file_path, prog=prog, expand=expand
+    );
     if had_error {
         prog.mod = uni.ProgramModule(main_mod=current_mod);
         return (prog, None);
@@ -1345,7 +1354,9 @@ impl JacCompiler.jac_str_formatter(
 
 impl JacCompiler.jac_file_linter(file_path: str) -> JacProgram {
     source_str = read_file_with_encoding(file_path);
-    (prog, current_mod) = JacCompiler._prepare_tool_program(source_str, file_path);
+    (prog, current_mod) = JacCompiler._prepare_tool_program(
+        source_str, file_path, expand=True
+    );
     if current_mod is None {
         return prog;
     }

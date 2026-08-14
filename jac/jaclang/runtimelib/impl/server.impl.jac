@@ -391,6 +391,7 @@ async def _run_function_with_occ(
         return resolved;
     }
     (ctx, req_token, root_id) = resolved;
+    ctx.mem.unit_enter();
     try {
         if deserialize_args {
             _deserialize_wire_args(args);
@@ -439,6 +440,11 @@ async def _run_function_with_occ(
             'http_status': 409
         };
     } finally {
+        try {
+            ctx.mem.unit_exit();
+        } except Exception as ue {
+            logger.warning(f"unit exit failed: {type(ue).__name__}: {ue}");
+        }
         Jac.reset_request_context(req_token);
     }
 }
@@ -1598,8 +1604,27 @@ impl ExecutionHandler.spawn_walker(
     );
 }
 
+def _warm_persistence {
+    import logging;
+    log = logging.getLogger('jaclang.serve');
+    try {
+        ctx = Jac.get_context();
+        anchor = ctx.system_root;
+        ctx.mem.commit();
+        log.debug(f"persistent store ready (system root {anchor.id})");
+    } except Exception as e {
+        log.warning(
+            f"persistent store not reachable while starting up "
+            f"({type(e).__name__}: {e}); requests that touch graph state will "
+            "provision it on demand"
+        );
+    }
+}
+
+
 impl JacAPIServer.postinit -> None {
     import from jaclang.runtimelib.scheduler { Scheduler }
+    _warm_persistence();
     self.user_manager = self._make_user_manager();
 
     _um = self.user_manager;
@@ -2210,6 +2235,27 @@ impl JacAPIServer.build_app -> ServingApp {
     } except Exception {
         _named_walkers = [];
         _named_functions = [];
+    }
+    try {
+        _all_targets = dict(server.introspector.get_walkers());
+        _all_targets.update(server.introspector.get_functions());
+        _spec_carriers = [
+            n
+            for (n, t) in _all_targets.items()
+            if t?.restspec is not None
+        ];
+        if _spec_carriers {
+            import logging;
+            logging.getLogger(__name__).warning(
+                "@restspec is ignored by the core server: "
+                f"{', '.join(sorted(_spec_carriers))} will serve at the "
+                "default /walker/ and /function/ POST routes only. Custom "
+                "methods, paths, webhooks, and websockets need the scale "
+                "serving stack (`jac start`)."
+            );
+        }
+    } except Exception {
+        ;
     }
     for _w_name in _named_walkers {
         def _mk_walker_ep(bound: str) -> Callable {

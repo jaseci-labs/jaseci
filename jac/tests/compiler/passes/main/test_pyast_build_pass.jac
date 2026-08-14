@@ -13,6 +13,7 @@ import tempfile;
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.jac0core.helpers { pascal_to_snake }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.runtime { JacRuntime }
@@ -73,12 +74,14 @@ test "str2doc" {
     with open(os.path.join(FIXTURES, "str2doc.py")) as f {
         file_source = f.read();
     }
-    code = PyastBuildPass(
-        ir_in=PythonModuleAst(
-            py_ast.parse(file_source), orig_src=Source(file_source, "str2doc.py")
-        ),
-        prog=JacProgram()
-    ).ir_out.unparse();
+    code = unparse_module(
+        PyastBuildPass(
+            ir_in=PythonModuleAst(
+                py_ast.parse(file_source), orig_src=Source(file_source, "str2doc.py")
+            ),
+            prog=JacProgram()
+        ).ir_out
+    );
     assert '"""This is a test function."""\ndef foo()' in code;
     # \n and \t must remain as escape sequences, not real control characters
     assert '"""hello\\nworld"""' in code;
@@ -89,13 +92,15 @@ test "fstring triple quotes" {
     with open(os.path.join(FIXTURES, "py2jac_fstrings.py")) as f {
         file_source = f.read();
     }
-    code = PyastBuildPass(
-        ir_in=PythonModuleAst(
-            py_ast.parse(file_source),
-            orig_src=Source(file_source, "py2jac_fstrings.py")
-        ),
-        prog=JacProgram()
-    ).ir_out.unparse();
+    code = unparse_module(
+        PyastBuildPass(
+            ir_in=PythonModuleAst(
+                py_ast.parse(file_source),
+                orig_src=Source(file_source, "py2jac_fstrings.py")
+            ),
+            prog=JacProgram()
+        ).ir_out
+    );
     assert 'f"""Hello\n{name}"""' in code;
     assert "f'''Hello\n{name}'''''''" not in code;
     assert 'f"""Hello\n{name}"""""""' not in code;
@@ -106,13 +111,15 @@ test "py2jac escape sequences" {
     with open(os.path.join(FIXTURES, "py2jac_escape_sequences.py")) as f {
         file_source = f.read();
     }
-    code = PyastBuildPass(
-        ir_in=PythonModuleAst(
-            py_ast.parse(file_source),
-            orig_src=Source(file_source, "py2jac_escape_sequences.py")
-        ),
-        prog=JacProgram()
-    ).ir_out.unparse();
+    code = unparse_module(
+        PyastBuildPass(
+            ir_in=PythonModuleAst(
+                py_ast.parse(file_source),
+                orig_src=Source(file_source, "py2jac_escape_sequences.py")
+            ),
+            prog=JacProgram()
+        ).ir_out
+    );
 
     # No actual ESC character (0x1b) should leak into output
     assert chr(0x1b) not in code;
@@ -140,13 +147,14 @@ test "py2jac line continuation string concat" {
     with open(os.path.join(FIXTURES, "py2jac_line_continuation.py")) as f {
         file_source = f.read();
     }
-    code = PyastBuildPass(
-        ir_in=PythonModuleAst(
-            py_ast.parse(file_source),
-            orig_src=Source(file_source, "py2jac_line_continuation.py")
-        ),
-        prog=JacProgram()
-    ).ir_out.unparse(
+    code = unparse_module(
+        PyastBuildPass(
+            ir_in=PythonModuleAst(
+                py_ast.parse(file_source),
+                orig_src=Source(file_source, "py2jac_line_continuation.py")
+            ),
+            prog=JacProgram()
+        ).ir_out,
         requires_format=False
     );
 
@@ -175,12 +183,15 @@ test "py2jac binop operator precedence" {
     with open(os.path.join(FIXTURES, "py2jac_binop.py")) as f {
         file_source = f.read();
     }
-    code = PyastBuildPass(
-        ir_in=PythonModuleAst(
-            py_ast.parse(file_source), orig_src=Source(file_source, "py2jac_binop.py")
-        ),
-        prog=JacProgram()
-    ).ir_out.unparse();
+    code = unparse_module(
+        PyastBuildPass(
+            ir_in=PythonModuleAst(
+                py_ast.parse(file_source),
+                orig_src=Source(file_source, "py2jac_binop.py")
+            ),
+            prog=JacProgram()
+        ).ir_out
+    );
 
     assert "((a + b) + c)" not in code , f"Same-op chain not flattened in: {code}";
     assert "((a - b) - c)" not in code , f"Same-op chain not flattened in: {code}";

@@ -194,7 +194,7 @@ impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {
         return "opt." + self._llvm_type_str(_opt_pt);
     }
     if self._str_desc_ty is not None and ty == self._str_desc_ty {
-        return "jacstr3" if len(list(self._str_desc_ty.elements)) == 3 else "jacstr2";
+        return self._str_desc_kind();
     }
     if isinstance(ty, ir.IntType) {
         if ty.width == 64 {
@@ -271,12 +271,14 @@ impl NaIRGenPass._export_native_layout -> None {
         NativeTupleLayout,
         NativeTestLayout
     }
-    layout = NativeModuleLayout();
+    layout = NativeModuleLayout(str_headerless=self._nogc_headerless());
 
     for (arch_name, field_indices) in self.struct_field_indices.items() {
         field_types = self.struct_field_types.get(arch_name, {});
         fields: list[NativeFieldInfo] = [];
         enum_types = self.struct_field_enum_type.get(arch_name, {});
+        elem_keys = self.struct_field_elem_keys.get(arch_name, {});
+        _foreign_flds = self.struct_field_foreign.get(arch_name, set());
         for (fname, idx) in sorted(field_indices.items(), key=lambda (x) { x[1]; }) {
             ftype = field_types.get(fname);
             llvm_t = self._llvm_type_str(ftype) if ftype is not None else "i64";
@@ -301,12 +303,17 @@ impl NaIRGenPass._export_native_layout -> None {
                     enum_type=enum_types.get(fname),
                     is_func_ptr=is_fn_ptr,
                     func_param_types=fn_param_types,
-                    func_ret_type=fn_ret_type
+                    func_ret_type=fn_ret_type,
+                    elem_keys=elem_keys.get(fname),
+                    foreign=fname in _foreign_flds
                 )
             );
         }
         layout.structs[arch_name] = NativeStructLayout(
-            name=arch_name, fields=fields, has_vtable=self._arch_has_vtable(arch_name)
+            name=arch_name,
+            fields=fields,
+            has_vtable=self._arch_has_vtable(arch_name),
+            accessors=self._exported_accessors(arch_name)
         );
     }
 
@@ -404,6 +411,9 @@ impl NaIRGenPass._export_native_layout -> None {
     }
 
     for (mname, func) in self.method_funcs.items() {
+        if mname in self._native_skipped_methods {
+            continue;
+        }
         param_types = [self._llvm_type_str(a) for a in func.function_type.args];
         param_names = [a.name for a in func.args];
         ret_type = self._llvm_type_str(func.function_type.return_type);
@@ -435,6 +445,29 @@ impl NaIRGenPass._export_native_layout -> None {
         );
     }
     self.ir_in.gen.native_layout = layout;
+}
+
+impl NaIRGenPass._exported_accessors(arch_name: str) -> dict[(str, dict[(str, str)])] {
+    out: dict[(str, dict[(str, str)])] = {};
+    lay = self._arch_layout(arch_name);
+    if lay is None {
+        return out;
+    }
+    for slot in lay.method_index {
+        parts = slot.rsplit(".", 1);
+        if len(parts) != 2 or parts[1] not in ACCESSOR_SLOT_SUFFIX.values() {
+            continue;
+        }
+        fn = self._resolve_method(arch_name, slot);
+        if fn is None or fn.name in self._native_skipped_methods {
+            continue;
+        }
+        if parts[0] not in out {
+            out[parts[0]] = {};
+        }
+        out[parts[0]][parts[1]] = fn.name;
+    }
+    return out;
 }
 
 impl NaIRGenPass._ret_tuple_hints(fname: str, ret_tuple: any) -> (list | None) {
@@ -816,6 +849,14 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
                 }
             }
         }
+
+        for (_ia_slot, _ia_var, _ia_acc) in archetype_accessors(_imp_arch) {
+            _im_full = f"{_ia_name}.{_ia_slot}";
+            if (_imp_layout is not None and _im_full not in _imp_layout.methods)
+                or (_imp_layout is None and _wl_internal) {
+                self._native_skipped_methods.add(_im_full);
+            }
+        }
     }
     for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
         if (
@@ -859,6 +900,9 @@ impl NaIRGenPass._forward_declare_archetype_methods(arch: uni.Archetype) -> None
             }
         }
     }
+    for (_slot, _accvar, _acc) in archetype_accessors(arch) {
+        self._forward_declare_method(aname, _acc, field=_accvar);
+    }
 }
 
 impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None {
@@ -896,6 +940,22 @@ impl NaIRGenPass._register_imported_archetype(arch: uni.Archetype) -> None {
     aname = arch.name.value if arch.name else None;
     if aname is None {
         return;
+    }
+
+    _arch_mod = arch.find_parent_of_type(uni.Module);
+    _arch_src = _arch_mod.loc.mod_path if _arch_mod?.loc else "";
+    _seen_src = self._struct_source_mod.get(aname);
+    if _seen_src is not None and _arch_src and _seen_src != _arch_src {
+        import sys as _rc_sys;
+        _rc_sys.stderr.write(
+            f"warning: native struct name collision -- '{aname}' from "
+            f"{_arch_src} shadows the one from {_seen_src}; skipping "
+            f"re-registration\n"
+        );
+        return;
+    }
+    if _arch_src {
+        self._struct_source_mod[aname] = _arch_src;
     }
 
     if aname not in self.struct_types {
@@ -941,6 +1001,12 @@ impl NaIRGenPass._register_imported_globals(
             }
             var_type: ir.Type = ir.IntType(64);
             if assign.type_tag and assign.type_tag.tag {
+                if (
+                    self._quiet_glob_type(assign.type_tag.tag) is None
+                    and not self._glob_native_use_exists(target)
+                ) {
+                    continue;
+                }
                 var_type = self._resolve_jac_type(assign.type_tag.tag);
             }
             global_var = ir.GlobalVariable(self.llvm_module, var_type, name=var_name);

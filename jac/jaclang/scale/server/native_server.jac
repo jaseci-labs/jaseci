@@ -4,7 +4,8 @@ import from jaclang.runtimelib.serving.endpoint { JEndPoint, WSEndPoint }
 import from jaclang.runtimelib.serving.server { ACCESS_LOGGER_NAME, ServingServer }
 
 
-glob logger: logging.Logger = logging.getLogger(__name__);
+glob logger: logging.Logger = logging.getLogger(__name__),
+     LIVENESS_PATHS: set[str] = {'/healthz', '/healthz/live'};
 
 
 class ConsoleLogHandler(logging.Handler) {
@@ -83,7 +84,23 @@ obj NativeJServer {
 
         async def request_context_middleware(request: any, call_next: any) -> any {
             import from jaclang.scale.memory.context { JScaleExecutionContext }
-            ctx = JScaleExecutionContext();
+            import from jaclang.scale.runtime.context.errors { service_unavailable }
+            url = request?.url;
+            path = str(getattr(url, 'path', '') or '') if url is not None else '';
+            if path in LIVENESS_PATHS {
+                live_next: any = call_next;
+                return await live_next(request);
+            }
+            try {
+                ctx = JScaleExecutionContext();
+            } except Exception as ctx_err {
+                logger.error(
+                    f"request context unavailable for {path}: "
+                    f"{type(ctx_err).__name__}: {ctx_err}",
+                    exc_info=True
+                );
+                return service_unavailable('service', 'unable to reach its database');
+            }
             req_token = JacRuntime.push_request_context(ctx);
             import from jaclang.scale.runtime.context.auth_ctx {
                 set_current_auth,
@@ -211,8 +228,14 @@ obj NativeJServer {
         );
         ms_cfg = get_scale_config().get_microservices_config();
         drain_timeout = float(ms_cfg.get("drain_timeout_seconds", 10));
+        ws_cfg = get_scale_config().get_websocket_config();
         self.serving = ServingServer(
-            app=self.app, host=host, port=port, drain_timeout=drain_timeout
+            app=self.app,
+            host=host,
+            port=port,
+            drain_timeout=drain_timeout,
+            ws_allowed_origins=[str(o) for o in (ws_cfg.get('allowed_origins') or [])],
+            ws_max_message_bytes=int(ws_cfg.get('max_message_bytes') or 0)
         );
         install_signal_drain(self.serving, timeout_s=drain_timeout);
         self.serving.run(on_ready=on_ready, port_retries=max_retries);

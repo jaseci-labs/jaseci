@@ -6,7 +6,24 @@ import from typing { Any }
 glob logger = logging.getLogger(__name__),
      _lock = threading.Lock(),
      _holder: dict[str, Any] = {},
-     __all__ = ['scale_db_url', 'shared_store'];
+     _DOCS_DDL = (
+         'CREATE TABLE IF NOT EXISTS jac_docs ('
+         'collection text NOT NULL, '
+         'id text NOT NULL, '
+         'doc jsonb NOT NULL, '
+         'PRIMARY KEY (collection, id))'
+     ),
+     __all__ = ['scale_db_url', 'shared_store', 'open_docs_store'];
+
+
+def open_docs_store -> (Any | None) {
+    store = shared_store();
+    if store is None {
+        return None;
+    }
+    store.rows(_DOCS_DDL, {});
+    return store;
+}
 
 
 def scale_db_url -> (str | None) {
@@ -44,30 +61,27 @@ def shared_store -> (Any | None) {
             } except Exception { }
         }
         store: (Any | None) = None;
+        reset = False;
         try {
             import from jaclang.runtimelib.session { conninfo_from_url }
             import from jaclang.runtimelib.store { PgStore }
             if url {
                 store = PgStore(conninfo=conninfo_from_url(url));
             } else {
-                import from jaclang.runtimelib.pgembed { PgRuntime }
-                import from jaclang.runtimelib.session {
-                    project_db_name,
-                    shared_pg_data_dir
-                }
+                import from jaclang.runtimelib.session { runtime_for_base }
                 base = JacRuntime.get_base_path_dir();
                 if base {
-                    rt = PgRuntime(
-                        data_dir=shared_pg_data_dir(),
-                        database=project_db_name(
-                            base, JacRuntime.get_full_target_path()
-                        )
-                    );
+                    lease = runtime_for_base(base, JacRuntime.get_full_target_path());
+                    rt = lease.runtime;
                     store = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
+                    reset = lease.reset;
                 }
             }
             if store is not None {
                 store.ensure_schema({});
+                if reset {
+                    store.reset_data();
+                }
             }
         } except Exception as e {
             logger.warning(f"scale shared store unavailable: {e}");

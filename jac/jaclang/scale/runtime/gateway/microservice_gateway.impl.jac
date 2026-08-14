@@ -2,6 +2,10 @@ import shutil;
 
 import from jaclang.runtimelib.serving.ws { WebSocket }
 import from jaclang.runtimelib.serving.endpoint { WSEndPoint }
+import from jaclang.scale.runtime.routing {
+    GATEWAY_BUILTIN_PREFIXES,
+    GATEWAY_BARE_API_PATHS
+}
 
 
 def _install_ws_catchall(gw: MicroserviceGateway) {
@@ -232,19 +236,8 @@ impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
     return Response(content=target.read_bytes(), media_type=content_type);
 }
 
-glob _BUILTIN_PREFIXES: tuple = (
-         "/user/",
-         "/cl/",
-         "/walker/",
-         "/function/",
-         "/sso/",
-         "/api-key/",
-         "/webhook/",
-         "/ws/",
-         "/jobs/",
-         "/graph/"
-     ),
-     _BUILTIN_EXACT: set[str] = {"/user", "/graph", "/jobs"};
+glob _BUILTIN_PREFIXES: tuple = GATEWAY_BUILTIN_PREFIXES,
+     _BUILTIN_EXACT: set[str] = GATEWAY_BARE_API_PATHS;
 
 impl MicroserviceGateway.build_forward_headers(request: Request) -> dict[str, str] {
     import from jaclang.scale.runtime.context.trace_ctx {
@@ -624,12 +617,11 @@ impl MicroserviceGateway.setup -> ServingApp {
         reset_current_trace,
         ensure_trace_id
     }
-    import from jaclang.scale.runtime.context.log_emit { install_structured_logging }
-    install_structured_logging();
-
     import from jaclang.scale.runtime.middleware.metrics { build_gateway_metrics }
     import from jaclang.scale.config.config_loader { get_scale_config }
     mon_cfg = get_scale_config().get_monitoring_config();
+    import from jaclang.scale.runtime.context.log_emit { install_structured_logging }
+    install_structured_logging();
     (self._metrics_registry, self._metrics_requests, self._metrics_duration) = (
         build_gateway_metrics(
             namespace=mon_cfg.get("namespace", "jaclang_scale"),

@@ -286,7 +286,6 @@ impl _serve_in_background(server_entry: str, base_path: str) -> Iterator[int] {
 
     env = dict(os.environ);
     env["JAC_DATA_PATH"] = base_path;
-    env.pop("MONGODB_URI", None);
 
     log_path = Path(base_path) / "cl_test_server.log";
     logf = open(str(log_path), "w+", encoding="utf-8");

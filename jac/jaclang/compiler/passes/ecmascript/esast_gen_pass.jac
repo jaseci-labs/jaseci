@@ -212,6 +212,10 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def enter_node(nd: uni.UniNode) -> None;
     def exit_node(nd: uni.UniNode) -> None;
     def sync_loc(es_node: _T, jac_node: (uni.UniNode | None) = None) -> _T;
+    def _template_element(
+        text: str, tail: bool, jac_node: uni.UniNode
+    ) -> es.TemplateElement;
+
     def _push_scope(nd: uni.UniScopeNode) -> None;
     def _pop_scope(nd: uni.UniScopeNode) -> None;
     def _alt_branch_scope_to_finalize(nd: uni.UniNode) -> (uni.UniScopeNode | None);

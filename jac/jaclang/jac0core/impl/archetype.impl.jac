@@ -212,6 +212,41 @@ impl Archetype.__init_subclass__(cls: any, **kwargs: object) -> None {
     }
 }
 
+impl Archetype._subclass_tree -> list[type] {
+    found: list[type] = [];
+    seen: set[type] = set();
+    pending: list[type] = list(Archetype.__subclasses__());
+    while pending {
+        cls = pending.pop();
+        if cls in seen {
+            continue;
+        }
+        seen.add(cls);
+        pending.extend(cls.__subclasses__());
+        if not cls.__dict__.get('__jac_base__', False) {
+            found.append(cls);
+        }
+    }
+    return found;
+}
+
+impl Archetype.install_subclass_hook(hook: Callable[[type], None]) -> None {
+    if `any(installed is hook for installed in Archetype._subclass_hooks) {
+        return;
+    }
+    Archetype._subclass_hooks.append(hook);
+    for cls in Archetype._subclass_tree() {
+        try {
+            hook(cls);
+        } except Exception as e {
+            logger.warning(
+                f"archetype subclass hook back-fill failed for "
+                f"{cls.__module__}.{cls.__name__}: {e}"
+            );
+        }
+    }
+}
+
 impl Archetype.postinit -> None { }
 
 impl Archetype.__setattr__(name: str, value: any) -> None {

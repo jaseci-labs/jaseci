@@ -288,10 +288,8 @@ def _install_completion(shell: str, code: str) -> int {
 
 impl gen_jir_registry(verify: bool = False) -> int {
     import from jaclang.jac0core.gen_jir_registry { generate }
+    import from jaclang.jac0core.program { JacProgram }
     import from pathlib { Path }
-    import tempfile;
-    import subprocess;
-    import sys;
     import jaclang;
 
     registry_path = Path(jaclang.__file__).parent / "jac0core" / "jir_registry.jac";
@@ -303,28 +301,20 @@ impl gen_jir_registry(verify: bool = False) -> int {
         return 1;
     }
 
-    import os;
-    try {
-        with tempfile.TemporaryDirectory() as fmt_dir {
-            tmp_path = os.path.join(fmt_dir, "jir_registry.jac");
-            with open(tmp_path, 'w', encoding='utf-8') as tmp {
-                tmp.write(content);
-            }
-            with open(
-                os.path.join(fmt_dir, "jac.toml"), 'w', encoding='utf-8'
-            ) as cfg {
-                cfg.write("[check.lint]\nselect = [\"all\"]\n");
-            }
-            subprocess.run(
-                [sys.executable, '-m', 'jaclang', 'fmt', '--lintfix', tmp_path],
-                capture_output=True,
-                cwd=fmt_dir
-            );
-            content = Path(tmp_path).read_text(encoding="utf-8");
+    prog = JacProgram.jac_str_formatter(content, str(registry_path), auto_lint=True);
+    if prog.errors_had {
+        for e in prog.errors_had {
+            console.error(str(e));
         }
-    } except Exception {
-        ;
+        console.error("Failed to format the generated registry.");
+        return 1;
     }
+    formatted = prog.mod.main.gen.jac;
+    if not formatted or not formatted.strip() {
+        console.error("Formatter returned empty output for the registry.");
+        return 1;
+    }
+    content = formatted;
 
     if verify {
         current = registry_path.read_text(encoding="utf-8")

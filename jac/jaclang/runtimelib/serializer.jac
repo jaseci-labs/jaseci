@@ -1,4 +1,6 @@
+import importlib;
 import logging;
+import sys;
 import threading;
 import from dataclasses { fields, is_dataclass, MISSING }
 import from datetime { date, datetime, time }
@@ -31,17 +33,20 @@ import from jaclang.jac0core.constructs {
 
 glob logger = logging.getLogger(__name__),
      FINGERPRINT_LENGTH: int = 16,
-     _MAX_WARNED_CLASS_KEYS: int = 1024;
+     _MAX_WARNED_CLASS_KEYS: int = 1024,
+     _MAX_UNIMPORTABLE_MODULES: int = 1024;
 
 obj Serializer {
     static has _registry: dict[str, type] = {},
         _aliases: dict[str, str] = {},
-        _warned_class_keys: set[str] = set(),
+        _warn_counts: dict[str, int] = {},
         _warn_dedup_saturated: bool = False,
+        _unimportable_modules: set[str] = set(),
         _warn_lock: any = threading.Lock();
 
     static def register(cls: type) -> None;
     static def register_alias(old_name: str, cls: type) -> None;
+    static def is_auto_registered_module(module_name: str) -> bool;
     static def fingerprint(cls: type) -> str;
     static def repair(data: dict[str, object], cls: type) -> tuple;
     static def coerce(val: object, target_type: object) -> tuple;
@@ -73,7 +78,13 @@ obj Serializer {
     static def _deserialize_value(val: object) -> object;
     static def _deserialize_jac_ref(data: dict[str, object]) -> (object | None);
     static def _get_class(module_name: str, class_name: str) -> (type | None);
-    static def _should_warn_once(scope: str, key: str) -> bool;
+    static def _resolve_class_by_import(
+        module_name: str, class_name: str
+    ) -> (type | None);
+
+    static def _warn_occurrence(scope: str, key: str) -> int;
+    static def _is_report_threshold(n: int) -> bool;
+    static def _occurrence_note(n: int) -> str;
     static def _reset_warn_cache -> None;
     static def _id_to_stub(anchor_cls: type, id_str: str) -> (object | None);
     static def _deserialize_anchor(data: dict[str, object]) -> (object | None);
@@ -89,12 +100,9 @@ obj Serializer {
     ) -> dict[str, object];
 }
 
-glob _register_hook: object = Archetype._subclass_hooks.append(
+glob _register_hook: object = Archetype.install_subclass_hook(
          lambda (cls: type) { Serializer.register(cls)
-             if (
-                 not cls.__module__.startswith('jaclang.')
-                 or cls.__module__.startswith('jaclang.scale.')
-             )
+             if Serializer.is_auto_registered_module(cls.__module__)
              else None; }
      ),
      _register_root: object = Serializer.register(cast(type, Root)),

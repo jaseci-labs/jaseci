@@ -48,6 +48,15 @@ def humanize_error(e: Exception) -> (tuple[str, (str | None)] | None) {
                 ' recently, restart the embedded Postgres to pick them up.'
             );
         }
+        if code == '53200' {
+            return (
+                'The database ran out of predicate-lock memory (serializable'
+                ' transaction tracking).',
+                'A long-lived open transaction is usually pinning lock cleanup;'
+                ' find it with ps (postgres: jac ... idle in transaction) and'
+                ' stop that process, or restart the embedded Postgres.'
+            );
+        }
         if code in ('08006', '08003') {
             return (
                 'Lost the connection to the Jac database mid-operation.',

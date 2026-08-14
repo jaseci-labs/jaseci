@@ -1,4 +1,11 @@
 import from jaclang.cli.console { console }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
+import from jaclang.jac0core.treeprinter {
+    print_ast_tree,
+    print_symtab_tree,
+    printgraph_ast_tree,
+    printgraph_symtab_tree
+}
 
 impl AstTool.autodoc_uninode -> str {
     output = '';
@@ -67,9 +74,10 @@ impl AstTool.ir(args: list[str]) -> str {
                     ),
                     prog=prog
                 ).ir_out;
-                console.print(rep.unparse());
+                rep_src = unparse_module(rep);
+                console.print(rep_src);
                 ir = prog.compile(
-                    use_str=rep.unparse(),
+                    use_str=rep_src,
                     file_path=(file_name[:-3] + '.jac'),
                     options=CompileOptions(
                         type_check=True, no_cgen=True, force_target_program=True
@@ -99,13 +107,13 @@ impl AstTool.ir(args: list[str]) -> str {
                         + ' #\n##'
                         + t
                         + '##\n'
-                        + module_.sym_tab.sym_pp()
+                        + print_symtab_tree(root_node=module_.sym_tab)
                         + '\n';
                 }
                 return out;
 
             case 'sym.':
-                return ir.sym_tab.sym_printgraph()
+                return printgraph_symtab_tree(ir.sym_tab)
                     if isinstance(ir.sym_tab, UniScopeNode)
                     else 'Sym_tab is None.';
 
@@ -121,19 +129,19 @@ impl AstTool.ir(args: list[str]) -> str {
                         + ' #\n##'
                         + t
                         + '##\n'
-                        + module_.pp()
+                        + print_ast_tree(module_)
                         + '\n';
                 }
                 return out;
 
             case 'ast.':
-                return ir.printgraph();
+                return printgraph_ast_tree(ir);
 
             case 'cfg.':
                 return cfg_dot_from_file(file_name);
 
             case 'unparse':
-                return ir.unparse();
+                return unparse_module(ir);
 
             case 'pyast':
                 ir = prog.compile(

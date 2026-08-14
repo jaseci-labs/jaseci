@@ -2,6 +2,16 @@ impl JacScaleConfig.get_plugin_name(self: JacScaleConfig) -> str {
     return "scale";
 }
 
+impl JacScaleConfig.get_config_schema(self: JacScaleConfig) -> dict[str, any] {
+    import from jaclang.scale.config.validation { scale_schema_options }
+    return {"section": "scale", "options": scale_schema_options()};
+}
+
+impl JacScaleConfig.get_config_strict_env(self: JacScaleConfig) -> str {
+    import from jaclang.scale.config.validation { STRICT_ENV }
+    return STRICT_ENV;
+}
+
 impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
     return {
         'jwt': {
@@ -18,8 +28,6 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'firebase': {'project_id': ''}
         },
         'database': {
-            'type': None,
-            'project_id': None,
             'url': None,
             'deploy_mode': 'image',
             'postgres_image': 'postgres:18',
@@ -27,6 +35,7 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         },
         'websocket': {
             'backplane': None,
+            'allowed_origins': [],
             'max_message_bytes': 65536,
             'max_connections_per_target': 5000,
             'max_connections_per_user': 10,
@@ -38,7 +47,6 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
             'namespace': 'default',
             'container_port': 8000,
             'postgres_enabled': True,
-            'postgres_storage_size': '2Gi',
             'ingress_node_port': 30080,
             'ingress_limit_rps': 20,
             'ingress_limit_burst_multiplier': 5,
@@ -187,7 +195,6 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
     config = self.load();
     db_config = config.get('database', {});
     return {
-        'type': db_config.get('type'),
         'url': os.environ.get('JAC_DB_URL') or db_config.get('url'),
         'deploy_mode': db_config.get('deploy_mode', 'image'),
         'postgres_image': db_config.get('postgres_image', 'postgres:18'),
@@ -197,7 +204,7 @@ impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] 
 
 impl JacScaleConfig.get_kubernetes_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
-    k8s_config = config.get('kubernetes', {});
+    k8s_config = dict(config.get('kubernetes', {}));
 
     monitoring = self.get_monitoring_config();
     k8s_config['monitoring_enabled'] = monitoring['enabled'];
@@ -234,7 +241,8 @@ impl JacScaleConfig.get_server_config(self: JacScaleConfig) -> dict[str, any] {
         'docs_enabled': server_config.get('docs_enabled', True),
         'suppress_health_check_logs': bool(
             server_config.get('suppress_health_check_logs', False)
-        )
+        ),
+        'structured_logs': bool(server_config.get('structured_logs', True))
     };
 }
 
@@ -371,6 +379,7 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
     }
     return {
         'backplane': backplane,
+        'allowed_origins': [str(o) for o in (ws_config.get('allowed_origins') or [])],
         'max_message_bytes': int(_ws_positive(ws_config, 'max_message_bytes', 65536)),
         'max_connections_per_target': int(
             _ws_positive(ws_config, 'max_connections_per_target', 5000)
@@ -388,11 +397,29 @@ impl JacScaleConfig.get_websocket_config(self: JacScaleConfig) -> dict[str, any]
 
 impl get_scale_config(project_dir: Path | None = None) -> JacScaleConfig {
     if _scale_config_instance is not None {
+        if (
+            project_dir is not None
+            and Path(project_dir).resolve()
+                != _scale_config_instance.project_dir.resolve()
+        ) {
+            raise RuntimeError(
+                f"get_scale_config(project_dir={project_dir}) called after the "
+                f"config was already loaded for "
+                f"{_scale_config_instance.project_dir}. Call "
+                "reset_scale_config() first, or pass the config explicitly; "
+                "returning the cached instance would silently read the wrong "
+                "project's config."
+            );
+        }
         return _scale_config_instance;
     }
     new_instance = JacScaleConfig(project_dir);
     _scale_config_instance = new_instance;
     return new_instance;
+}
+
+impl peek_scale_config -> JacScaleConfig | None {
+    return _scale_config_instance;
 }
 
 impl reset_scale_config -> None {
@@ -402,16 +429,16 @@ impl reset_scale_config -> None {
 impl resolve_password_hash_cost(configured_cost: int) -> int {
     env_val = os.environ.get('JAC_SCALE_PASSWORD_HASH_COST');
     if not env_val {
-        return max(10, min(17, configured_cost));
+        return max(10, min(15, configured_cost));
     }
     try {
         cost = int(env_val);
     } except ValueError as e {
         raise ValueError(
-            f"JAC_SCALE_PASSWORD_HASH_COST must be an integer in 10..17, got: {env_val!r}"
+            f"JAC_SCALE_PASSWORD_HASH_COST must be an integer in 10..15, got: {env_val!r}"
         ) from e;
     }
-    return max(10, min(17, cost));
+    return max(10, min(15, cost));
 }
 
 impl JacScaleConfig.get_telemetry_config(self: JacScaleConfig) -> dict[str, any] {
@@ -547,7 +574,7 @@ impl normalize_microservices_config(
         }
     }
 
-    return {
+    normalized = {
         'enabled': ms_config.get('enabled', None),
         'gateway_port': int(ms_config.get('gateway_port', 8000)),
         'gateway_host': ms_config.get('gateway_host', '0.0.0.0'),
@@ -576,13 +603,24 @@ impl normalize_microservices_config(
         'client': {
             'entry': resolved_client_entry,
             'dist_dir': client_config.get('dist_dir', '.jac/client/dist'),
-            'base_route': client_config.get('base_route', '/')
+            'base_route': client_config.get('base_route', '/'),
+            'static_mounts': list(client_config.get('static_mounts', []) or [])
         },
         'ingress': dict(ms_config.get('ingress', {})),
         'shared_volumes': list(ms_config.get('shared_volumes', [])),
         'logs': dict(ms_config.get('logs', {})),
         'tracing': dict(ms_config.get('tracing', {}))
     };
+    for boot_key in (
+        'boot_health_timeout',
+        'boot_max_wait',
+        'health_monitor_interval'
+    ) {
+        if boot_key in ms_config {
+            normalized[boot_key] = ms_config[boot_key];
+        }
+    }
+    return normalized;
 }
 
 impl JacScaleConfig.get_admin_config(self: JacScaleConfig) -> dict[str, any] {

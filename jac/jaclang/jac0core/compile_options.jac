@@ -190,6 +190,11 @@ def env_symmap_requested -> bool {
     return bool(os.environ.get("JAC_SYMMAP", ""));
 }
 
+def env_floor_dir -> str {
+    import os;
+    return os.environ.get("JAC_NATIVE_FLOOR_DIR", "");
+}
+
 def env_na_debug -> bool {
     import os;
     return os.environ.get("JAC_NA_DEBUG", "").strip().lower()

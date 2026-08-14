@@ -217,7 +217,6 @@ obj TypeEvaluator {
     ) -> uni.Module;
 
     def _resolve_importer_path(ast_node: uni.UniNode) -> (str | None);
-    def _try_read_jir_cache(resolved_path: str) -> (uni.Module | None);
     def forget_module(resolved_path: str) -> None;
     def _resolve_from_path(from_mod: uni.ModulePath) -> Path;
     def _resolve_client_npm_module(node_: uni.ModulePath) -> (str | None);
@@ -591,6 +590,13 @@ obj TypeEvaluator {
 
     def _type_matches_isinstance(t: TypeBase, target_type: TypeBase) -> bool;
     def _union_narrowed_types(types_list: list) -> TypeBase;
+    def _if_exit_type(
+        target: NarrowingTarget,
+        stmt: uni.IfStmt,
+        entry_type: (TypeBase | None),
+        visited: set
+    ) -> (TypeBase | None);
+
     def exclude_type_from_union(original: TypeBase, to_exclude: TypeBase) -> TypeBase;
     def _get_type_from_match_pattern(pattern: uni.MatchPattern) -> TypeBase | None;
     def _union_contains_none(union_type: TypeBase) -> bool;
@@ -610,6 +616,7 @@ obj TypeEvaluator {
     ) -> bool;
 
     def _resolve_type_alias_rhs(value: uni.Expr) -> TypeBase;
+    def _brand_distinct_alias(node_: uni.TypeAlias, resolved: TypeBase) -> TypeBase;
     def _resolve_string_type_expr(
         type_str: str, scope: uni.UniScopeNode
     ) -> TypeBase | None;

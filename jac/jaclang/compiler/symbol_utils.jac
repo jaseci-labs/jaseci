@@ -69,6 +69,23 @@ def _is_user_symbol(sym: uni.Symbol) -> bool {
     return False;
 }
 
+def _symbol_defining_module(sym: uni.Symbol) -> (uni.Module | None) {
+    decl = sym.decl;
+    if decl is None {
+        return None;
+    }
+    return decl.find_parent_of_type(uni.Module);
+}
+
+def _is_local_user_shadow(sym: uni.Symbol, call: uni.FuncCall) -> bool {
+    if not _is_user_symbol(sym) {
+        return False;
+    }
+    call_mod = call.find_parent_of_type(uni.Module);
+    sym_mod = _symbol_defining_module(sym);
+    return call_mod is not None and sym_mod is call_mod;
+}
+
 def intrinsic_registry_if_ready -> object | None {
     import sys;
     _mod = sys.modules.get("jaclang.compiler.intrinsic_registry");
@@ -167,7 +184,7 @@ def classify_call(nd: uni.FuncCall) -> CallKind {
             return CallKind.CLIB;
         }
     }
-    if sym is not None and _is_user_symbol(sym) {
+    if sym is not None and _is_local_user_shadow(sym, nd) {
         if sym.sym_type
             in (
                 SymbolType.OBJECT_ARCH,
@@ -490,6 +507,7 @@ def collect_assigned_symbols(nd: uni.UniNode) -> set[str] {
 }
 
 def collect_method_names(arch: uni.Archetype) -> set[str] {
+    import from jaclang.compiler.passes.main.layout_pass { archetype_accessors }
     names: set[str] = set();
     if arch.body is not None and isinstance(arch.body, Sequence) {
         for stmt in arch.body {
@@ -501,7 +519,27 @@ def collect_method_names(arch: uni.Archetype) -> set[str] {
             }
         }
     }
+
+    for (slot_name, _var, _acc) in archetype_accessors(arch) {
+        names.add(slot_name);
+    }
     return names;
+}
+
+def resolve_importer_path_from_node(nd: uni.UniNode) -> (str | None) {
+    importer_mod = nd.find_parent_of_type(uni.Module);
+    if (
+        importer_mod is None
+        or importer_mod.source is None
+        or not importer_mod.source.file_path
+    ) {
+        return None;
+    }
+    try {
+        return str(Path(importer_mod.source.file_path).resolve());
+    } except OSError {
+        return None;
+    }
 }
 
 def resolve_import_source_module(prog: any, nd: uni.Import) -> (uni.Module | None) {
@@ -509,26 +547,18 @@ def resolve_import_source_module(prog: any, nd: uni.Import) -> (uni.Module | Non
         return None;
     }
     resolved_path = nd.from_loc.resolve_relative_path();
-    abs_path = str(Path(resolved_path).resolve());
-    source_mod = prog.mod.hub.get(resolved_path) or prog.mod.hub.get(abs_path);
-    if source_mod {
-        return source_mod;
+    if not Path(resolved_path).exists() {
+        return None;
     }
-    if Path(resolved_path).exists() {
-        saved_opts = prog?._compile_options;
-        try {
-            source_mod = prog.compile(
-                resolved_path, no_cgen=True, type_check=False, symtab_ir_only=True
-            );
-        } finally {
-            if saved_opts is not None {
-                prog._compile_options = saved_opts;
-            }
+    importer_path = resolve_importer_path_from_node(nd);
+    saved_opts = prog?._compile_options;
+    try {
+        return prog.load_dependency_module(resolved_path, importer_path=importer_path);
+    } finally {
+        if saved_opts is not None {
+            prog._compile_options = saved_opts;
         }
-        prog.mod.hub[abs_path] = source_mod;
-        return source_mod;
     }
-    return None;
 }
 
 def import_target_pinned_server(nd: uni.Import) -> bool {
