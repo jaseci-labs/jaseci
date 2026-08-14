@@ -74,7 +74,11 @@ test "a method's capability violation demotes only that method" {
         "the violating method must be demoted out of the native layout"
     );
     seams = _seams_of(census, "granular_method_seam.jac");
-    bad_seams = [s for s in seams if s.startswith("Calc.bad: ")];
+    bad_seams = [
+        s
+        for s in seams
+        if s.startswith("Calc.bad: ")
+    ];
     assert len(bad_seams) == 1 , (
         f"expected exactly one census seam for Calc.bad, got: {seams}"
     );
@@ -101,7 +105,11 @@ test "a free function's capability violation demotes only that function" {
         "the violating function must be demoted out of the native layout"
     );
     seams = _seams_of(census, "granular_freefn_seam.jac");
-    fn_seams = [s for s in seams if s.startswith("pyonly: ")];
+    fn_seams = [
+        s
+        for s in seams
+        if s.startswith("pyonly: ")
+    ];
     assert len(fn_seams) == 1 , (
         f"expected exactly one census seam for pyonly, got: {seams}"
     );
@@ -128,7 +136,11 @@ test "an event ability's capability violation demotes only that ability" {
         "the violating ability must be demoted out of the native layout"
     );
     seams = _seams_of(census, "granular_event_seam.jac");
-    go_seams = [s for s in seams if s.startswith("W.go: ")];
+    go_seams = [
+        s
+        for s in seams
+        if s.startswith("W.go: ")
+    ];
     assert len(go_seams) == 1 , (
         f"expected exactly one census seam for W.go, got: {seams}"
     );

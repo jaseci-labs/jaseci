@@ -160,11 +160,7 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
         _unclaimed = True;
         for (_vnode, _vkind, _vname, _vhelp) in _cviols {
             self.emit(
-                E5090,
-                node_override=_vnode,
-                kind=_vkind,
-                name=_vname,
-                help_text=_vhelp
+                E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
             );
         }
     }

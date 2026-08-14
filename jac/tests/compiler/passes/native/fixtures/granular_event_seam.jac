@@ -16,7 +16,7 @@ walker W {
     has v: int = 0;
 
     can go with N entry {
-        nbrs = [here ->:Portal:->];
+        nbrs = [here->:Portal:->];
         if len(nbrs) > 0 {
             self.v = nbrs[0].tag;
         }

@@ -472,12 +472,7 @@ test "guardrail: edge disconnect with a list endpoint is rejected" {
 test "guardrail: inline Python block demotes its function, native callers stay loud" {
     (prog, ir, log) = compile_na_inline_demote(
         "pyinline",
-        "def f -> int {\n"
-        "    ::py::\n"
-        "x = 1\n"
-        "::py::\n"
-        "    return 1;\n"
-        "}\n"
+        "def f -> int {\n" "    ::py::\n" "x = 1\n" "::py::\n" "    return 1;\n" "}\n"
     );
     assert not prog.errors_had , f"A function-owned PyInlineCode must demote, got: {fmt_errors(
         prog
