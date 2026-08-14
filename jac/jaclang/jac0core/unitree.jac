@@ -294,8 +294,8 @@ obj CodeBlockStmt(UniCFGNode) {
     def postinit -> None;
 }
 
-obj AstImplNeedingNode[T](AstSymbolNode) {
-    has body: (T | None);
+obj AstImplNeedingNode(AstSymbolNode) {
+    has body: (Sequence[UniNode] | UniNode | None);
     has needs_impl: bool { getter; }
 }
 
@@ -425,12 +425,10 @@ obj Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNo
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (Name | Token),
+    has name: Name,
         body: Sequence[CodeBlockStmt],
         description: (String | None) = None,
         decorators: (Sequence[Expr] | None) = None;
-
-    static has TEST_COUNT: int = 0;
 
     def postinit -> None;
 }

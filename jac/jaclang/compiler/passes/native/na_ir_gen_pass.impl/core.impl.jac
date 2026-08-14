@@ -921,6 +921,11 @@ impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None 
             _cons_reg.mro_order[_name] = _mro;
         }
     }
+    for (_name, _lay) in _imp_reg.layouts.items() {
+        if _name not in _cons_reg.layouts {
+            _cons_reg.layouts[_name] = _lay;
+        }
+    }
 
     for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
         if (

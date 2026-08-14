@@ -8,7 +8,6 @@ import jaclang.jac0core.srcloc as _mat_srcloc;
 import jaclang.jac0core.unitree as uni;
 
 glob MATERIALIZE_FIXUPS: tuple = (
-         ("body-union-reconstruction", 8141),
          ("symbol-stub-replay", 8142),
          ("name-spec-rebinding", 8143),
 
@@ -24,11 +23,6 @@ glob MATERIALIZE_FIXUPS: tuple = (
      };
 
 def materialize_fixups(module: any) {
-    body_elem: dict[str, tuple] = {
-        "Archetype": (uni.ArchBlockStmt, uni.CodeBlockStmt, ),
-        "Ability": (uni.CodeBlockStmt, ),
-        "Enum": (uni.EnumBlockStmt, uni.CtIf, uni.CtFor, )
-    };
     stack: list = [module];
     visited: set = set();
     nodes: list = [];
@@ -46,33 +40,6 @@ def materialize_fixups(module: any) {
         }
     }
     for nd in nodes {
-        elem = body_elem.get(type(nd).__name__);
-        if elem is not None and nd.__dict__.get("body") is None {
-            lb = -1;
-            for (ki, k) in enumerate(nd.kid) {
-                if getattr(k, "name", "") == "LBRACE" {
-                    lb = ki;
-                    break;
-                }
-            }
-            if lb >= 0 {
-                nd.body = [
-                    k
-                    for k in nd.kid[lb + 1:]
-                    if isinstance(k, elem)
-                ];
-            } elif type(nd).__name__ == "Ability" {
-                for k in nd.kid {
-                    if isinstance(k, uni.Expr)
-                        and (k?.kid or [])
-                        and getattr(k.kid[0], "name", "") == "KW_BY" {
-                        nd.body = k;
-                        break;
-                    }
-                }
-            }
-        }
-
         if isinstance(nd, uni.Name) {
             if nd.__dict__.get("name_spec") is not nd {
                 nd.name_spec = nd;
