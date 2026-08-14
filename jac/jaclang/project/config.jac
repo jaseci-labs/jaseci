@@ -41,7 +41,7 @@ obj RunConfig {
         main: bool = True,
         cache: bool = True,
         diagnostics: str = "error",
-        graphmend: (bool | str) = False,
+        graphmend: (bool | str) = "auto",
         graphmend_scope: str = "",
         graphmend_disable: str = "";
 }

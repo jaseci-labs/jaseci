@@ -244,8 +244,17 @@ def _toolchain_env_fingerprint -> str {
     return h.hexdigest();
 }
 
+glob _GM_CACHE_VARIANT: list[str] = [""];
+
+def swap_graphmend_cache_variant(variant: str) -> str {
+    prev = _GM_CACHE_VARIANT[0];
+    _GM_CACHE_VARIANT[0] = variant;
+    return prev;
+}
+
 def _project_env_fingerprint(source_path: str) -> str {
     h = hashlib.sha256();
+    h.update(_GM_CACHE_VARIANT[0].encode());
     h.update(_module_client_kind(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
     import from jaclang.jac0core.placement_pins { pins_digest, config_kind_space }

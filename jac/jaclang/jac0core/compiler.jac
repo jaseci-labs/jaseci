@@ -18,6 +18,7 @@ import from jaclang.jac0core.jir {
     get_module_cache_path,
     is_module_cache_valid,
     precompiled_jir_matches_source,
+    swap_graphmend_cache_variant,
     cache_mode,
     read_bytecode_only,
     read_sections,
@@ -999,6 +1000,13 @@ obj JacCompiler {
     static def _check_native_abi(layout: any, full_target: str) -> None;
     def get_bytecode(
         full_target: str, target_program: JacProgram
+    ) -> (types.CodeType | None);
+
+    def _get_bytecode_variant(
+        full_target: str,
+        target_program: JacProgram,
+        actual_program: JacProgram,
+        gm_active: bool
     ) -> (types.CodeType | None);
 
     def _evict_internal_unit(

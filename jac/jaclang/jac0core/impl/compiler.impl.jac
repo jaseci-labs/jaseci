@@ -135,6 +135,33 @@ impl JacCompiler.get_bytecode(
         gm_setting = file_imports_torch(full_target);
     }
     gm_active = actual_program is not self._internal_program and gm_setting is True;
+    gm_variant = "";
+    if gm_active {
+        gm_variant = ";".join(
+            [
+                "graphmend",
+                "disable=" + ",".join(sorted(target_program.graphmend_disable)),
+                "scope=" + ",".join(target_program.graphmend_scope),
+                f"scoped={int(target_program.graphmend_scoped_compile)}"
+            ]
+        );
+    }
+    prev_variant = swap_graphmend_cache_variant(gm_variant);
+    try {
+        return self._get_bytecode_variant(
+            full_target, target_program, actual_program, gm_active
+        );
+    } finally {
+        swap_graphmend_cache_variant(prev_variant);
+    }
+}
+
+impl JacCompiler._get_bytecode_variant(
+    full_target: str,
+    target_program: JacProgram,
+    actual_program: JacProgram,
+    gm_active: bool
+) -> (types.CodeType | None) {
     if gm_active {
         actual_program.graphmend_breaks.clear();
         actual_program.graphmend_helpers.clear();
@@ -189,9 +216,7 @@ impl JacCompiler.get_bytecode(
     }
 
     cache_path = get_module_cache_path(full_target);
-    if (not gm_active)
-        and (not rebuild)
-        and is_module_cache_valid(full_target, cache_path) {
+    if (not rebuild) and is_module_cache_valid(full_target, cache_path) {
         try {
             jir_data = cache_path.read_bytes();
             bc = read_bytecode_only(jir_data);
@@ -280,9 +305,6 @@ impl JacCompiler.get_bytecode(
         );
         if result.gen.py_bytecode {
             actual_program.hub_cache_stamp(full_target);
-            if gm_active {
-                return marshal.loads(result.gen.py_bytecode);
-            }
             try {
                 import pickle;
                 import json;

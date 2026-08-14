@@ -212,6 +212,7 @@ def precompile_unit(
     compiler = Jac.get_compiler();
 
     program = JacProgram();
+    program.graphmend_enabled = False;
     code = compiler.get_bytecode(full_target=jac_path, target_program=program);
     compiler.internal_program.release_compile_closure();
     program.release_compile_closure();
