@@ -3202,6 +3202,7 @@ impl TypeEvaluator.get_type_of_expression(
             if isinstance(node_.type, (types.UnionType, types.ClassType)) {
                 if narrowed
                     := self.get_narrowed_type_for_expr(node_, node_.type, node_) {
+                    node_.narrowed_type = narrowed;
                     return narrowed;
                 }
             }
@@ -3227,6 +3228,7 @@ impl TypeEvaluator.get_type_of_expression(
 
     if isinstance(result, (types.UnionType, types.ClassType)) {
         if narrowed := self.get_narrowed_type_for_expr(node_, result, node_) {
+            node_.narrowed_type = narrowed;
             return narrowed;
         }
     }

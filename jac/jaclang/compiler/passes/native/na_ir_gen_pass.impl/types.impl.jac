@@ -324,39 +324,21 @@ impl NaIRGenPass._split_union_key(tk: str) -> list[str] {
 }
 
 impl NaIRGenPass._flow_narrowed_type_of(expr: (uni.UniNode | None)) -> (any | None) {
-    """The checker's flow-narrowed type for this expression occurrence.
+    """The narrow the analysis pipeline stamped on this occurrence.
 
-    `Expr.type` is where the evaluator records what it computed, and for a
-    `Name` that is already the narrowed view -- the symbol's narrow is folded
-    into the type that gets stored. A member or subscript reference is
-    different: `get_type_of_expression` stores the *member's* type and returns
-    the narrow to its caller, so an `isinstance(stmts[0], ExprStmt)` guard is
-    invisible to anything that only reads the field. Asking for it is the only
-    way to see it, and the answer is memoised per node because a reference is
-    re-resolved once per emitted read.
+    `Expr.type` records what the evaluator computed for the expression, and
+    for a `Name` that is already the narrowed view -- the symbol's narrow is
+    folded into the type that gets stored. A member or subscript reference is
+    different: the evaluator stores the *member's* type there and hands the
+    narrow to its caller, so `Expr.narrowed_type` is where that answer is
+    kept. Reading it is a consumption of a central fact; the backend never
+    asks analysis to compute one.
     """;
     if not isinstance(expr, uni.Expr) or expr.type is None {
         return None;
     }
-    if not isinstance(expr, (uni.AtomTrailer, uni.AtomUnit, uni.Name)) {
-        return expr.type;
-    }
-    _key = id(expr);
-    if _key in self._expr_narrow_memo {
-        return self._expr_narrow_memo[_key];
-    }
-    _out: any = expr.type;
-    try {
-        _te = self.prog.get_type_evaluator();
-        if _te is not None {
-            _nt = _te.get_narrowed_type_for_expr(expr, expr.type, expr);
-            if _nt is not None {
-                _out = _nt;
-            }
-        }
-    } except Exception { }
-    self._expr_narrow_memo[_key] = _out;
-    return _out;
+    _nt = expr.narrowed_type;
+    return _nt if _nt is not None else expr.type;
 }
 
 impl NaIRGenPass._struct_ptr_pointee_name(val: ir.Value) -> (str | None) {
@@ -1261,7 +1243,7 @@ impl NaIRGenPass._opt_payload_of(t: ir.Type) -> (ir.Type | None) {
 }
 
 impl NaIRGenPass._narrowed_flow_type(nd: uni.UniNode) -> (any | None) {
-    return self._flow_narrowed_type_of(nd);
+    return nd.type if isinstance(nd, uni.Expr) else None;
 }
 
 impl NaIRGenPass._narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool {
@@ -1398,14 +1380,18 @@ impl NaIRGenPass._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Val
     Three storages can arrive here. A `JacOpt` unwraps to its payload and a
     boxed `jacval` unboxes, both of which this has always done. A union whose
     members are all pointers keeps the *first* member's pointer layout rather
-    than boxing, so its narrow is a bitcast -- taken only for a container
-    target, since an object target is retyped by `_codegen_field_access`,
-    which casts the receiver itself.
+    than boxing, so its narrow is a bitcast -- gated below on the analysis
+    having actually stamped a narrow for this occurrence, because a bare
+    `dict` or `list` annotation lowers to a default flavour that is not the
+    one the value already carries, and re-typing to it would hand a jacval
+    container the helpers of an integer one.
 
-    A `Name` reads a slot, so its narrow only holds where the slot cannot be
-    rebound underneath it (the loop check). A member or subscript reference
-    narrows per occurrence -- there is no slot to re-read -- so that question
-    does not arise for it.
+    Only a `Name` is retyped. A member reference is narrowed by an
+    intra-procedural walk that cannot see a callee rebinding the attribute,
+    so consuming its narrow here would replace a checked unwrap with a blind
+    payload read -- `optional_narrowing.jac`'s `callee_rebinds_attr` is
+    exactly that hole. Class resolution off such a narrow is still fine and
+    happens in `_struct_name_of`; what is refused here is dropping the tag.
     """;
     _src_opt = self._opt_payload_of(val.type);
     _is_jv = bool(self?.jacval_type) and val.type == self.jacval_type;
@@ -1413,15 +1399,14 @@ impl NaIRGenPass._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Val
     if _src_opt is None and not _is_jv and not _is_ptr {
         return val;
     }
-    if isinstance(nd, uni.Name) {
-        _nm = nd.value;
-        if _nm not in self.local_vars or _nm in self.closure_cell_vars {
-            return val;
-        }
-        if not self._narrowing_stable_in_loops(nd, _nm) {
-            return val;
-        }
-    } elif not isinstance(nd, uni.AtomTrailer) {
+    if not isinstance(nd, uni.Name) {
+        return val;
+    }
+    _nm = nd.value;
+    if _nm not in self.local_vars or _nm in self.closure_cell_vars {
+        return val;
+    }
+    if not self._narrowing_stable_in_loops(nd, _nm) {
         return val;
     }
     if self._narrowing_blocked_by_none_test(nd) {
@@ -1461,7 +1446,10 @@ impl NaIRGenPass._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Val
         return val;
     }
     if _is_ptr {
-        if _nt_bare
+        if not (isinstance(nd, uni.Expr) and nd.narrowed_type is not None) {
+            return val;
+        }
+        if not (_nt.private.type_args or [])
             or _nt.shared.class_name
                 not in ("list", "Sequence", "dict", "set", "frozenset", "tuple")
             or not isinstance(_want, ir.PointerType) {

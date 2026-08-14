@@ -412,8 +412,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         closure_thunks: dict[str, ir.Function] = {},
         _closure_uid: int = 0,
         _opt_struct_types: dict[str, ir.Type] = {},
-        _loop_rebind_memo: dict[tuple, bool] = {},
-        _expr_narrow_memo: dict[int, any] = {};
+        _loop_rebind_memo: dict[tuple, bool] = {};
 
     def _jac_optional_type(payload: ir.Type) -> ir.Type;
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None);

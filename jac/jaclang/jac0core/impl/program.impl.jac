@@ -342,6 +342,7 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
         for mod in self.mod.hub.values() {
             for nd in mod.get_all_sub_nodes(uni.Expr) {
                 nd.type = None;
+                nd.narrowed_type = None;
             }
         }
     }
