@@ -62,42 +62,22 @@ test "string escapes" {
 
 test "bytes search" {
     run_with_both(
-        "prim_bytes.jac",
-        "bytes_search_py",
-        "bytes_search_cl",
-        "bytes_search_na",
-        require=["na"]
+        "prim_bytes.jac", "bytes_search_py", "bytes_search_cl", "bytes_search_na"
     );
 }
 
 test "bytes modify" {
     run_with_both(
-        "prim_bytes.jac",
-        "bytes_modify_py",
-        "bytes_modify_cl",
-        "bytes_modify_na",
-        require=["na"]
+        "prim_bytes.jac", "bytes_modify_py", "bytes_modify_cl", "bytes_modify_na"
     );
 }
 
 test "bytes case" {
-    run_with_both(
-        "prim_bytes.jac",
-        "bytes_case_py",
-        "bytes_case_cl",
-        "bytes_case_na",
-        require=["na"]
-    );
+    run_with_both("prim_bytes.jac", "bytes_case_py", "bytes_case_cl", "bytes_case_na");
 }
 
 test "bytes test methods" {
-    run_with_both(
-        "prim_bytes.jac",
-        "bytes_test_py",
-        "bytes_test_cl",
-        "bytes_test_na",
-        require=["na"]
-    );
+    run_with_both("prim_bytes.jac", "bytes_test_py", "bytes_test_cl", "bytes_test_na");
 }
 
 test "bytearray core" {
