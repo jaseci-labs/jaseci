@@ -33,6 +33,17 @@ impl NaIRGenPass._glob_native_use_exists(target: uni.UniNode) -> bool {
     return False;
 }
 
+impl NaIRGenPass._is_type_alias_decl(assign: uni.Assignment) -> bool {
+    if assign.type_tag is None or assign.value is None {
+        return False;
+    }
+    tag = assign.type_tag.tag;
+    if isinstance(tag, uni.AtomTrailer) {
+        tag = tag.right;
+    }
+    return isinstance(tag, uni.Name) and tag.value == "TypeAlias";
+}
+
 impl NaIRGenPass._register_globals(module: uni.Module) -> None {
     for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
         if isinstance(stmt, uni.GlobalVars) {
@@ -116,6 +127,9 @@ impl NaIRGenPass._register_entry_globals(module: uni.Module) -> None {
 
 impl NaIRGenPass._codegen_global_vars(nd: uni.GlobalVars) -> None {
     for assign in nd.assignments {
+        if self._is_type_alias_decl(assign) {
+            continue;
+        }
         targets = assign.target
             if isinstance(assign.target, (list, tuple))
             else [(assign.target)];
@@ -127,13 +141,15 @@ impl NaIRGenPass._codegen_global_vars(nd: uni.GlobalVars) -> None {
 
             var_type: ir.Type = ir.IntType(64);
             if assign.type_tag is not None {
+                _widened = self._widened_tuple_decl_type(assign.type_tag, assign.value);
                 if (
-                    self._quiet_glob_type(assign.type_tag) is None
+                    _widened is None
+                    and self._quiet_glob_type(assign.type_tag) is None
                     and not self._glob_native_use_exists(target)
                 ) {
                     continue;
                 }
-                var_type = self._resolve_jac_type(assign.type_tag);
+                var_type = self._resolve_decl_type(assign.type_tag, assign.value);
             } elif assign.value is not None {
                 inferred = self._infer_global_init_type(assign.value);
                 if inferred is not None {
@@ -239,6 +255,15 @@ impl NaIRGenPass._codegen_const_expr(
     import from jaclang.jac0core.const_fold { fold_const }
     if self?.jacval_type and target_type == self.jacval_type {
         return None;
+    }
+    if (
+        isinstance(nd, uni.TupleVal)
+        and not nd.values
+        and isinstance(target_type, ir.PointerType)
+        and isinstance(target_type.pointee, ir.LiteralStructType)
+        and not target_type.pointee.elements
+    ) {
+        return ir.Constant(target_type, None);
     }
     (ok, v) = fold_const(nd);
     if not ok {

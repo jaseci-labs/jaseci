@@ -27,7 +27,7 @@ impl SemanticAnalysisPass._check_archetype(
     if ((nd.arch_type.name != Tok.KW_CLASS) and isinstance(nd.body, Sequence)) {
         found_default_init = False;
         for stmnt in nd.body {
-            if not isinstance(stmnt, uni.ArchHas) {
+            if not isinstance(stmnt, uni.ArchHas) or stmnt.is_static {
                 continue;
             }
             for var in stmnt.vars {
@@ -46,6 +46,9 @@ impl SemanticAnalysisPass._check_archetype(
         postinit_method: (uni.Ability | None) = None;
         for item in nd.body {
             if isinstance(item, uni.ArchHas) {
+                if item.is_static {
+                    continue;
+                }
                 for var in item.vars {
                     if var.defer {
                         post_init_vars.append(var);

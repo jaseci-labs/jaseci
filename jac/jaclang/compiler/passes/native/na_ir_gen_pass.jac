@@ -514,6 +514,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_fmt_string(fmt: str) -> ir.GlobalVariable;
     def _get_snprintf_fmt(fmt: str) -> ir.GlobalVariable;
     def _resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type;
+    def _resolve_decl_type(
+        type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+    ) -> ir.Type;
+
+    def _widened_tuple_decl_type(
+        type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+    ) -> (ir.Type | None);
+
+    def _tuple_struct_of(elem_types: list) -> ir.Type;
     def _resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type;
     def _resolve_field_type(var: uni.UniNode) -> ir.Type;
     def _foreign_optional_field(tb: any) -> bool;
@@ -1247,6 +1256,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _register_globals(module: uni.Module) -> None;
     def _quiet_glob_type(type_expr: (uni.UniNode | None)) -> (ir.Type | None);
     def _glob_native_use_exists(target: uni.UniNode) -> bool;
+    def _is_type_alias_decl(assign: uni.Assignment) -> bool;
     def _register_entry_globals(module: uni.Module) -> None;
     def _codegen_global_vars(nd: uni.GlobalVars) -> None;
     def _infer_global_init_type(value_node: uni.UniNode) -> (ir.Type | None);
