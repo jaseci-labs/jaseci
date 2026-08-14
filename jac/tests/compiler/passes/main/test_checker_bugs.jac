@@ -43,6 +43,9 @@ Bug index:
                kind>), so a back edge originating inside a nested loop of the
                SAME kind was treated as a loop-entry pred and destroyed the
                header narrowing (#7853)
+  #LOOPWIDEN-1 - the first statement of a loop body was exempted from the
+                 conservative back-edge merge, so a symbol the body reassigns
+                 kept its iteration-one (pre-loop) narrowing there (#8039)
   #CYCLE-IMPORT-1 - re-entrant module import while that module's compile was
                     still on the stack fell into a fresh program.compile of the
                     same path instead of answering from the in-flight state
@@ -51,6 +54,24 @@ Bug index:
                    cached on the expression node and diagnosed (W1051 / E1032 /
                    E1053), freezing transient in-flight types that settle once
                    the cycle unwinds (#7853)
+  #CYCLE-PRECISION-1 - the #7853 fix suppressed via a global window counter,
+                       so ANY Unknown evaluated while a cycle was in flight got
+                       amnesty, including genuine unrelated errors; replaced by
+                       an is_incomplete flag carried on the Unknown itself
+                       (#7871 E)
+  #TERNTAIL-1 - a statement whose RHS holds a ternary or a short-circuit chain
+                looked wired to _connect_tails (that sub-expression CFG hangs
+                off the statement), so a statement ending a block never reached
+                the statement after the block and its write stayed invisible to
+                the narrowing walk (#8059)
+  #BLOCKANN-1 - a typed declaration inside a block (a while/if/for/try body)
+                was inserted into that block's scope while bare assignments
+                hoist to the enclosing function, so one variable became two
+                symbols and a reassignment was checked against the first
+                branch's type instead of the declared annotation; the
+                declaration now binds the function local, so its annotation
+                also holds after the block and a sibling block redeclaring
+                the name collides with it (#8060)
 """
 
 import os;
@@ -1086,12 +1107,24 @@ test "bug_7163_llvm_ir_boundary_resolves" {
 # `pred.find_parent_of_type(<kind of header>)`, i.e. the NEAREST same-kind
 # ancestor, so a back edge originating inside a nested loop of the SAME
 # kind (the tail of the inner loop's else clause links straight to the
-# outer header) resolved to the inner loop, was mistaken for a loop-entry
-# pred, and its widening assignment (`cur = start`, Item | None) erased the
-# entry narrowing (`cur = Item()`). `cur.val` in the outer body then raised
-# a spurious "Cannot access attribute ... missing from NoneType" error.
-# The fixture's single-loop control is the unnested equivalent that always
-# checked clean; nested same-kind loops must match it.
+# outer header) resolved to the inner loop and was mistaken for a
+# loop-entry pred. Merging it drops `cur` back to its declared
+# `Item | None`, and `cur.val` in the outer body raises a spurious
+# "Cannot access attribute ... missing from NoneType" error.
+#
+# No loop in the fixture reassigns `cur`, so its pre-loop narrowing to
+# `Item` is valid on every iteration and a sound checker has nothing to
+# report anywhere in the file. The whole file must therefore check clean:
+# any diagnostic at all is the bug. (Asserting a count instead would not
+# discriminate -- the same diagnostics appear whether or not back-edge
+# detection works, once the fixture is allowed to widen `cur` in the body.
+# That widening is what #LOOPWIDEN-1 covers, and it is kept out of here on
+# purpose so this fixture isolates back-edge detection alone.)
+#
+# The single-loop control is the unnested equivalent: its back edge
+# originates directly in the loop body, whose nearest same-kind ancestor IS
+# the header, so it was skipped correctly even by the buggy detection and
+# stays clean under both. The nested forms must match it.
 # =========================================================================
 test "bug_loophdr1_nested_same_kind_loop_back_edge" {
     program = compile_and_check("checker_nested_loop_backedge.jac");
@@ -1226,4 +1259,294 @@ test "bug_cyctaint1_settling_cycle_checks_clean_and_resolves" {
         "resolve the settled type (dict via Reg.defaults), not a frozen "
         f"Unknown. Got: {settled}"
     );
+}
+
+# =========================================================================
+# Bug #CYCLE-PRECISION-1 / #7871 E: the #7853 mechanism suppressed via a
+# global depth counter with caller-side window snapshots, which amnestied
+# EVERY Unknown evaluated inside a window that saw a cycle bump -- including
+# genuine, cycle-independent errors. Completeness now travels with the
+# result (UnknownType.is_incomplete), so only types actually contaminated
+# by an in-flight resolution are exempt.
+#
+# Fixture shape: the #CYCLE-TAINT-1 settling cycle, plus a sibling glob
+#   JUNK = (N if CONFIG is None else N)();   # N: int -- calling an int
+# whose resolution overlaps the cycle window (the condition re-enters
+# CONFIG) but whose Unknown-ness is genuine: calling a non-callable int
+# yields Unknown no matter what CONFIG settles to. JUNK.oops is a real
+# E1032. Under the counter design this fixture checked completely clean
+# (verified: zero errors); with the completeness flag the genuine error
+# fires while every cycle-transient suppression still holds.
+# =========================================================================
+test "bug_cycprec1_genuine_error_in_cycle_window_still_fires" {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_cycle_precision_main.jac"),
+        options=CompileOptions(type_check=False, default_codespace='server')
+    );
+    TypeCheckPass(ir_in=mod, prog=program);
+
+    oops_errors = [
+        e
+        for e in program.errors_had
+        if "oops" in str(e)
+    ];
+    assert len(oops_errors) == 1 , (
+        "Bug #CYCLE-PRECISION-1: the genuine attribute error on JUNK.oops "
+        "must still be diagnosed even though its evaluation overlaps a "
+        "resolution cycle. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert len(program.errors_had) == 1 , (
+        "Bug #CYCLE-PRECISION-1: the cycle-transient suppressions must "
+        "hold (no spurious assignment/argument errors) alongside the one "
+        "genuine error. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+
+    config_sym = mod.names_in_scope.get("CONFIG");
+    assert config_sym is not None , "CONFIG symbol missing from fixture module";
+    settled = program.get_type_evaluator().get_type_of_symbol(config_sym);
+    assert not isinstance(settled, UnknownType) and str(settled) == "dict" , (
+        "Bug #CYCLE-PRECISION-1: CONFIG must still settle to dict. " f"Got: {settled}"
+    );
+}
+
+# =========================================================================
+# Bug #CYCLE-PRECISION-1 / #7871 E, whitebox: the caching layer must never
+# store an incomplete result. Simulates the in-flight state by pushing
+# CONFIG onto the symbol-resolution stack, then queries the sibling's
+# CONFIG-use Name directly through the evaluator API: the answer is an
+# incomplete Unknown, nothing is frozen onto the node, and once the stack
+# unwinds the same query resolves and caches the settled type.
+# =========================================================================
+test "bug_cycprec1_node_type_never_stores_incomplete_result" {
+    import from pathlib { Path }
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    program = JacProgram();
+    mod = program.compile(
+        os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
+        options=CompileOptions(type_check=False, default_codespace='server')
+    );
+    evaluator = program.get_type_evaluator();
+    config_sym = mod.names_in_scope.get("CONFIG");
+    assert config_sym is not None , "CONFIG symbol missing from fixture module";
+
+    reg_path = str(
+        Path(os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_reg.jac")).resolve()
+    );
+    reg_mod = evaluator._import_module_from_path(reg_path);
+    registry_sym = reg_mod.names_in_scope.get("REGISTRY");
+    assert registry_sym is not None , "REGISTRY symbol missing from reg module";
+    config_use = registry_sym.decl.name_of.parent.value.condition.expr.left;
+    assert config_use.value == "CONFIG" , (
+        f"fixture navigation broke: expected the CONFIG use, got {config_use}"
+    );
+
+    assert evaluator.push_symbol_resolution(config_sym) , (
+        "pushing a symbol not on the resolution stack must succeed"
+    );
+    try {
+        during = evaluator.get_type_of_expression(config_use);
+    } finally {
+        evaluator.pop_symbol_resolution(config_sym);
+    }
+    assert isinstance(during, UnknownType) and during.is_incomplete , (
+        "Bug #CYCLE-PRECISION-1: querying a symbol mid-resolution must "
+        f"answer an incomplete Unknown. Got: {during}"
+    );
+    assert config_use.type is None , (
+        "Bug #CYCLE-PRECISION-1: an incomplete result must never be stored "
+        f"in node_.type. Got: {config_use.type}"
+    );
+
+    settled = evaluator.get_type_of_expression(config_use);
+    assert not isinstance(settled, UnknownType) and str(settled) == "dict" , (
+        "Bug #CYCLE-PRECISION-1: after the stack unwinds, the same query "
+        f"must resolve the settled type. Got: {settled}"
+    );
+    assert config_use.type is not None and str(config_use.type) == "dict" , (
+        "Bug #CYCLE-PRECISION-1: the settled (complete) type must be "
+        f"cached on the node. Got: {config_use.type}"
+    );
+}
+
+# =========================================================================
+# Bug #TERNTAIL-1 / #8059: `exit_if_else_expr` / `exit_bool_expr` hang the
+# sub-expression CFG of a ternary or a short-circuit chain off the statement
+# that contains it, so `v = a if c else b;` leaves the statement with a
+# `bb_out` that never leaves the statement. `_connect_tails` read that as
+# "already wired" and skipped the fall-through edge, so an assignment ending
+# an if arm, an elif arm, a while body or a try body never reached the
+# statement after the block: the narrowing walk resolved every later
+# `is not None` guard against the pre-block view of the symbol and kept the
+# `| NoneType` member inside the guard's own body.
+# =========================================================================
+test "bug_terntail1_ternary_rhs_at_block_tail_narrows" {
+    program = compile_and_check("checker_bug_ternary_rhs_tail.jac");
+
+    # Expected: 0 errors (every guard narrows out NoneType)
+    # Actual before the fix: 4 errors (both guards from the issue's repro,
+    # the try-body tail, and the short-circuit RHS tail)
+    assert program.errors_had == [] , "Bug #TERNTAIL-1: an assignment whose RHS routes through the sub-expression "
+    "CFG must still flow to the statement after the block it ends, so a later "
+    "'is not None' guard narrows it. "
+    f"Got errors: {[str(e) for e in program.errors_had]}";
+}
+
+# =========================================================================
+# Bug #TERNTAIL-1, negative side: the missing edge also swallowed genuine
+# errors. In `dropped_else_arm` the else arm's ternary write never reached
+# the join, so the walk saw only the then arm's Leaf2 and the call checked
+# clean. Both appends must be reported, and against the *narrowed* union --
+# a diagnostic still carrying NoneType would mean the guard never narrowed.
+# =========================================================================
+test "bug_terntail1_ternary_rhs_union_still_reported" {
+    program = compile_and_check("checker_bug_ternary_rhs_tail_err.jac");
+
+    # Expected: 2 errors (Leaf2 | Tok3 is not assignable to list[Leaf2])
+    # Actual before the fix: 1 error, and it read Leaf2 | Tok3 | NoneType
+    assert len(program.errors_had) == 2 , "Bug #TERNTAIL-1: a ternary-assigned union that outlives its guard must "
+    f"still be reported at every use. Expected 2 errors, got "
+    f"{len(program.errors_had)}: {[str(e) for e in program.errors_had]}";
+
+    assert not any(["NoneType" in str(e) for e in program.errors_had]) , "Bug #TERNTAIL-1: the guard must narrow NoneType away before the error is "
+    f"raised. Got errors: {[str(e) for e in program.errors_had]}";
+}
+
+# Bug #BLOCKANN-1: a block-scoped typed declaration lost its annotation
+#
+# Jac locals are python-scoped: a block (while/if/for/try body) is a symbol
+# table scope but not a binding scope, which is why bind_assignment_targets
+# hoists a bare assignment to the enclosing function. A typed declaration
+# took the other path and was inserted into the block's own scope, so the
+# branch assignments that followed it created a SECOND symbol on the
+# function, decl-ed by the first branch. get_type_of_symbol then answered
+# that branch's type and the next branch was rejected against it:
+#   while n > 0 {
+#       item: (A | B | None) = None;   # symbol on the WhileStmt scope
+#       if c { item = pa(c); }         # new symbol on the Ability, A | None
+#       else { item = pb(c); }         # E1001: cannot assign B | None
+#   }
+# The same declaration at function level was fine, since there the two
+# paths land in the same scope.
+# =========================================================================
+test "bug_blockann1_block_scoped_declaration_keeps_annotation" {
+    program = compile_and_check("checker_bug_block_scoped_annotation.jac");
+
+    # Expected: 0 errors, every branch assignment fits (A | B | None)
+    # Actual (before the fix): 2 errors, one for the while body and one for
+    # the if block; the function-level shape already passed.
+    assert len(program.errors_had) == 0 , (
+        "Bug #BLOCKANN-1: a typed declaration inside a while body or an if "
+        "block must declare in the enclosing function, so reassignments are "
+        "checked against the declared annotation. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #BLOCKANN-1, negative: the declared annotation must still constrain.
+# Widening a block-scoped declaration to Unknown would silence the bug too,
+# so assignments the annotation does not admit have to stay diagnosed.
+# =========================================================================
+test "bug_blockann1_block_scoped_declaration_still_rejects_bad_assignment" {
+    program = compile_and_check("checker_bug_block_scoped_annotation_negative.jac");
+
+    # Expected: 2 errors, one per block shape, for assigning (C | None) to a
+    # local declared (A | B | None).
+    assert len(program.errors_had) == 2 , (
+        "Bug #BLOCKANN-1: an assignment outside the declared annotation must "
+        "still be reported for block-scoped declarations. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #BLOCKANN-1, scoping consequences: because the declaration now lands
+# in the enclosing function, two shapes that were silently accepted while it
+# was stranded on the block scope are diagnosed.
+#
+#   1. The annotation outlives its block. `if c { z: int = 1; }` then
+#      `z = "oops";` after the block: `z` is a function local of type int,
+#      so the str is rejected. Jac has no block scope for locals, so the
+#      name was always live there; only its declared type was being lost.
+#   2. Sibling blocks declaring the same name are one variable. The first
+#      declaration owns the symbol and the second is checked against it.
+#
+# Shape 2 is reported today as an assignment failure at the second
+# declaration (E1001). The language reference specifies a redeclaration
+# diagnostic for "typed declaration after the name is already bound in this
+# scope" (E0064), whose trigger is currently limited to names that rebind an
+# *outer* binding, so the code is a known imprecision; the verdict (this is
+# an error) is what this test pins.
+# =========================================================================
+test "bug_blockann1_block_declaration_binds_the_function_local" {
+    program = compile_and_check("checker_bug_block_scoped_annotation_scope.jac");
+
+    # Expected: 2 errors, one per shape. Before the fix: 0, because each
+    # declaration was stranded on its own block scope.
+    assert len(program.errors_had) == 2 , (
+        "Bug #BLOCKANN-1: a block-scoped declaration binds a function local, "
+        "so its annotation constrains the name after the block and a sibling "
+        "block redeclaring it collides. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# Bug #LOOPWIDEN-1 / #8039: a loop body that reassigns a narrowed symbol
+# makes every body node see the conservative back-edge merge, `body[0]`
+# included. `body[0]` used to be exempted, so it kept the iteration-one
+# view: the pre-loop narrowing, leaked into iterations that reach the top
+# of the body over the back edge with the widened value instead.
+#
+# This is the converse of #LOOPHDR-1. There, skipping the back edge at the
+# header is right because nothing in the loop rewrites the symbol; here the
+# body does rewrite it, so the entry narrowing does not survive to the next
+# iteration and the read must fall back to the declared type. Locations are
+# asserted, not just counts: the fix must diagnose exactly the two bodies
+# that widen and leave the two that do not alone. In particular
+# `condition_renarrows` widens `cur` too, but `while cur is not None`
+# re-narrows entry into the body over the conservative merge, so a blanket
+# "loop bodies are conservative" rule would wrongly flag it.
+# =========================================================================
+test "bug_loopwiden1_body_reassign_forces_conservative_merge" {
+    program = compile_and_check("checker_loop_body_widening.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 2 , (
+        "Bug #LOOPWIDEN-1: exactly the two loop bodies that reassign `cur` "
+        "may be diagnosed. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 35 in error_lines , (
+        "Bug #LOOPWIDEN-1: `cur.val` at the top of a while body whose tail "
+        "rebinds `cur` to an `Item | None` must be diagnosed -- iteration "
+        "two reaches it over the back edge, not from the pre-loop "
+        f"`cur = Item()`. Got errors on lines: {error_lines}"
+    );
+    assert 46 in error_lines , (
+        "Bug #LOOPWIDEN-1: the same holds for a for body; the fallback is "
+        f"keyed on the loop kind, not on while alone. Got: {error_lines}"
+    );
+    assert 56 not in error_lines , (
+        "Bug #LOOPWIDEN-1: `while cur is not None` re-narrows entry into "
+        "the body on every iteration, so the conservative merge must still "
+        f"have the loop condition applied over it. Got: {error_lines}"
+    );
+    assert 67 not in error_lines , (
+        "Bug #LOOPWIDEN-1: a body that never writes `cur` has no back-edge "
+        "widening to merge, so the pre-loop narrowing must survive. "
+        f"Got: {error_lines}"
+    );
+    for e in program.errors_had {
+        assert "Item | NoneType" in str(e) , (
+            "Bug #LOOPWIDEN-1: the fallback is to the declared type, so the "
+            f"diagnosed type must be the full `Item | None`. Got: {e}"
+        );
+    }
 }

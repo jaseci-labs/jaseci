@@ -1,3 +1,5 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+
 impl JacAutoLintPass.postinit -> None {
     import from jaclang.project.config {
         JacConfig,
@@ -1765,8 +1767,8 @@ impl JacAutoLintPass._check_identical_branches(nd: uni.IfStmt) -> None {
         }
     }
 
-    if_src = "".join(s.unparse() for s in if_body);
-    else_src = "".join(s.unparse() for s in else_body);
+    if_src = "".join(unparse_node(s) for s in if_body);
+    else_src = "".join(unparse_node(s) for s in else_body);
     if if_src == else_src {
         self.emit(W3025, node_override=nd);
     }
@@ -1793,7 +1795,9 @@ impl JacAutoLintPass._check_too_many_params(nd: uni.FuncSignature) -> None {
     if nd.params {
         all_params.extend(nd.params);
     }
-    if all_params and all_params[0].name.value == "self" {
+    if all_params
+        and isinstance(all_params[0], uni.ParamVar)
+        and all_params[0].name.value == "self" {
         count -= 1;
     }
     if count > threshold {

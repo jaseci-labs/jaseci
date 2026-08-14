@@ -71,6 +71,31 @@ obj KubernetesTarget(KubernetesTargetBase) {
             );
         }
 
+        if not self.dry_run {
+            self._emit("runtime", "start", "Resolving the pod jac runtime");
+            try {
+                import from jaclang.scale.config.dev_config { resolve_dev_channel }
+                import from jaclang.scale.injector.binary {
+                    node_arch,
+                    preflight_pod_runtime
+                }
+                self._load_cluster_config();
+                pinned = preflight_pod_runtime(
+                    app_config.code_folder,
+                    resolve_dev_channel(app_config.code_folder).value,
+                    node_arch()
+                );
+            } except Exception as e {
+                self._emit("runtime", "error", str(e));
+                return DeploymentResult(success=False, message=str(e));
+            }
+            self._emit(
+                "runtime",
+                "ok",
+                f"Pod runtime jac {pinned}" if pinned else "Pod runtime resolved"
+            );
+        }
+
         self._emit("provision", "start", "Provisioning backends");
         try {
             self._deploy_context = DatabaseProvisioner(
@@ -162,7 +187,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _scan_for_crash_loop(
-        core_v1: any, ns: str, current_hashes: set, fleet_app_names: set
+        core_v1: any,
+        ns: str,
+        current_hashes: set,
+        fleet_app_names: set,
+        companion_app_names: set | None = None
     ) -> dict[str, any] {
         imagepull_reasons: set = {
             "ImagePullBackOff",
@@ -208,7 +237,14 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         pod_reason = reason;
                     }
 
-                    crashing = restarts >= 3 and reason not in imagepull_reasons;
+                    owned = in_fleet
+                        or (
+                            companion_app_names is not None
+                            and app in companion_app_names
+                        );
+                    crashing = (
+                        owned and restarts >= 3 and reason not in imagepull_reasons
+                    );
                     if crashing and not pod_crash {
                         pod_crash = str(cs.name);
                         pod_crash_restarts = restarts;
@@ -359,6 +395,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         ready = 0;
         interactive = bool(sys.stdout.isatty());
         fleet_apps: set = set(app_labels);
+
+        app_name = str(self.k8s_config.app_name or "");
+        companion_apps: set = {f"{app_name}-postgres"} if app_name else set();
         pod_selector = "app in ({})".format(", ".join(app_labels))
             if app_labels
             else None;
@@ -403,7 +442,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 }
 
                 scan = self._scan_for_crash_loop(
-                    core_v1, ns, current_hashes, fleet_apps
+                    core_v1, ns, current_hashes, fleet_apps, companion_apps
                 );
                 phase_tokens = scan["phases"];
                 state_tokens = scan["states"];
@@ -414,7 +453,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     refreshed = _refresh_rs_hashes(ns, pod_selector, current_hashes);
                     current_hashes = refreshed or set();
                     recheck = self._scan_for_crash_loop(
-                        core_v1, ns, current_hashes, fleet_apps
+                        core_v1, ns, current_hashes, fleet_apps, companion_apps
                     );
                     crash_failure = recheck["crash"];
                     crash_pod = recheck["crash_pod"];
@@ -589,6 +628,43 @@ obj KubernetesTarget(KubernetesTargetBase) {
             provider,
             scrape_target_service="gateway-service"
         );
+    }
+
+    def ensure_alb_readiness_gates(core_v1: any, namespace: str) -> None {
+        cfg = self.k8s_config;
+        is_alb = bool(getattr(cfg, "shared_ingress", False))
+            and str(getattr(cfg, "shared_ingress_class", "")).lower() == "alb";
+        if not is_alb {
+            return;
+        }
+        gate_label = "elbv2.k8s.aws/pod-readiness-gate-inject";
+        try {
+            ns = core_v1.read_namespace(name=namespace);
+            labels: dict = dict(getattr(ns.metadata, "labels", {}) or {});
+            if labels.get(gate_label) == "enabled" {
+                return;
+            }
+            core_v1.patch_namespace(
+                name=namespace, body={"metadata": {"labels": {gate_label: "enabled"}}}
+            );
+            if self.logger {
+                self.logger.info(
+                    f"Labeled namespace '{namespace}' for ALB pod readiness "
+                    f"gates: rollouts now wait for the new pod's ALB target to "
+                    f"pass health checks before retiring the old pod.",
+                    {"label": gate_label}
+                );
+            }
+        } except Exception as e {
+            if self.logger {
+                self.logger.warn(
+                    f"Could not label namespace '{namespace}' for ALB pod "
+                    f"readiness gates ({e}); rollouts may briefly serve 502s "
+                    f"from the ALB while new targets pass health checks.",
+                    {"label": gate_label}
+                );
+            }
+        }
     }
 
     def _ensure_privileged_namespace(core_v1: any, namespace: str) -> None {
@@ -770,6 +846,46 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return triggers;
     }
 
+    def _autoscaler_spec(
+        svc_name: str, cfg: dict[str, any], autoscaler: any, namespace: str
+    ) -> AutoscalerSpec {
+        k8s_name = k8s_safe_name(svc_name);
+        return AutoscalerSpec(
+            scale_target_name=f"{k8s_name}-deployment",
+            autoscaler_name=autoscaler.resource_name_for(k8s_name),
+            app_name=k8s_name,
+            namespace=namespace,
+            min_replicas=int(cfg.get("min", 1)),
+            max_replicas=int(cfg.get("max", 3)),
+            idle_replicas=self.k8s_config.idle_replicas,
+            polling_interval=self.k8s_config.autoscaler_polling_interval,
+            cooldown_period=self.k8s_config.autoscaler_cooldown,
+            initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
+            scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
+            scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
+            triggers=self._resolve_service_triggers(svc_name, cfg),
+            behavior_overlay=cfg.get("behavior", {})
+        );
+    }
+
+    def render_autoscaler_manifests(bundle: dict[str, any]) -> list[dict[str, any]] {
+        out: list[dict[str, any]] = [];
+        for (svc_name, cfg_raw) in bundle.get("autoscalers", {}).items() {
+            cfg = dict(cfg_raw or {});
+            autoscaler = AutoscalerFactory.create(
+                self.k8s_config.autoscaler_engine, self.k8s_config.to_dict(), None
+            );
+            built = autoscaler._build_manifests(
+                self._autoscaler_spec(
+                    svc_name, cfg, autoscaler, self.k8s_config.namespace
+                )
+            );
+
+            out.append(built["body"] if "body" in built else built);
+        }
+        return out;
+    }
+
     def apply_manifests(bundle: dict[str, any]) {
         self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
@@ -792,6 +908,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
 
         ensure_namespace_exists(namespace);
+        self.ensure_alb_readiness_gates(core_v1, namespace);
 
         ops_rbac = bundle.get("ops_rbac");
         if ops_rbac {
@@ -873,36 +990,19 @@ obj KubernetesTarget(KubernetesTargetBase) {
         self.reap_superseded_deployments(apps_v1, namespace, bundle);
 
         for svc_name in bundle.get("autoscalers", {}).keys() {
-            k8s_name = k8s_safe_name(svc_name);
             cfg = dict(bundle.get("autoscalers", {}).get(svc_name, {}));
             autoscaler = AutoscalerFactory.create(
                 self.k8s_config.autoscaler_engine,
                 self.k8s_config.to_dict(),
                 self.logger
             );
-            triggers = self._resolve_service_triggers(svc_name, cfg);
-            autoscaler_name = autoscaler.resource_name_for(k8s_name);
-            autoscaler_applied = autoscaler.apply(
-                AutoscalerSpec(
-                    scale_target_name=f"{k8s_name}-deployment",
-                    autoscaler_name=autoscaler_name,
-                    app_name=k8s_name,
-                    namespace=namespace,
-                    min_replicas=int(cfg.get("min", 1)),
-                    max_replicas=int(cfg.get("max", 3)),
-                    idle_replicas=self.k8s_config.idle_replicas,
-                    polling_interval=self.k8s_config.autoscaler_polling_interval,
-                    cooldown_period=self.k8s_config.autoscaler_cooldown,
-                    initial_cooldown_period=self.k8s_config.autoscaler_initial_cooldown,
-                    scale_up_stabilization=self.k8s_config.autoscaler_scale_up_stabilization,
-                    scale_up_max_pods=self.k8s_config.autoscaler_scale_up_max_pods,
-                    triggers=triggers
-                )
-            );
+            spec = self._autoscaler_spec(svc_name, cfg, autoscaler, namespace);
+            autoscaler_applied = autoscaler.apply(spec);
 
             if self.logger and autoscaler_applied {
                 self.logger.info(
-                    f"Applied autoscaler for '{svc_name}'", {"name": autoscaler_name}
+                    f"Applied autoscaler for '{svc_name}'",
+                    {"name": spec.autoscaler_name}
                 );
             }
         }

@@ -1,3 +1,6 @@
+# Auto-generated visitor accept overrides (#6942 A.1).
+# DO NOT EDIT MANUALLY - regenerate with `jac gen-uni-dispatch`.
+
 impl Ability.accept_enter(v: UniPass) -> None {
     v.enter_ability(self);
 }
@@ -68,6 +71,30 @@ impl ConcurrentExpr.accept_enter(v: UniPass) -> None {
 
 impl ConnectOp.accept_enter(v: UniPass) -> None {
     v.enter_connect_op(self);
+}
+
+impl CtBlock.accept_enter(v: UniPass) -> None {
+    v.enter_ct_block(self);
+}
+
+impl CtElse.accept_enter(v: UniPass) -> None {
+    v.enter_ct_else(self);
+}
+
+impl CtFor.accept_enter(v: UniPass) -> None {
+    v.enter_ct_for(self);
+}
+
+impl CtIf.accept_enter(v: UniPass) -> None {
+    v.enter_ct_if(self);
+}
+
+impl CtName.accept_enter(v: UniPass) -> None {
+    v.enter_ct_name(self);
+}
+
+impl CtSplice.accept_enter(v: UniPass) -> None {
+    v.enter_ct_splice(self);
 }
 
 impl CtrlStmt.accept_enter(v: UniPass) -> None {
@@ -520,6 +547,30 @@ impl ConcurrentExpr.accept_exit(v: UniPass) -> None {
 
 impl ConnectOp.accept_exit(v: UniPass) -> None {
     v.exit_connect_op(self);
+}
+
+impl CtBlock.accept_exit(v: UniPass) -> None {
+    v.exit_ct_block(self);
+}
+
+impl CtElse.accept_exit(v: UniPass) -> None {
+    v.exit_ct_else(self);
+}
+
+impl CtFor.accept_exit(v: UniPass) -> None {
+    v.exit_ct_for(self);
+}
+
+impl CtIf.accept_exit(v: UniPass) -> None {
+    v.exit_ct_if(self);
+}
+
+impl CtName.accept_exit(v: UniPass) -> None {
+    v.exit_ct_name(self);
+}
+
+impl CtSplice.accept_exit(v: UniPass) -> None {
+    v.exit_ct_splice(self);
 }
 
 impl CtrlStmt.accept_exit(v: UniPass) -> None {

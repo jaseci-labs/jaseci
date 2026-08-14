@@ -1212,10 +1212,7 @@ impl ESListEmitter.emit_op_imul(
 impl ESDictEmitter.emit_get(
     self: ESDictEmitter, ctx: ESEmitCtx, target: str, args: list[str]
 ) -> (str | None) {
-    if len(args) == 1 {
-        return "(" + target + "[" + args[0] + "] ?? undefined)";
-    }
-    return "(" + target + "[" + args[0] + "] ?? " + args[1] + ")";
+    return _rt("dict", "get", [target] + args);
 }
 
 impl ESDictEmitter.emit_keys(
@@ -1725,7 +1722,21 @@ impl ESBuiltinEmitter.emit_input(
 impl ESBuiltinEmitter.emit_len(
     self: ESBuiltinEmitter, ctx: ESEmitCtx, args: list[str]
 ) -> (str | None) {
-    return args[0] + ".length";
+    if not args {
+        return None;
+    }
+
+    arg_type = (ctx.arg_type_names or [""])[0] if ctx.arg_type_names else "";
+    if arg_type == "dict" {
+        return "Object.keys(" + args[0] + ").length";
+    }
+    if arg_type in ("set", "frozenset") {
+        return args[0] + ".size";
+    }
+    if arg_type in ("str", "list", "tuple", "bytes", "bytearray", "range") {
+        return args[0] + ".length";
+    }
+    return _rt("builtin", "len", args);
 }
 
 impl ESBuiltinEmitter.emit_abs(
@@ -2026,10 +2037,8 @@ impl ESBuiltinEmitter.emit_int(
     if len(args) == 0 {
         return "0";
     }
-    if len(args) == 1 {
-        return "Math.trunc(Number(" + args[0] + "))";
-    }
-    return "parseInt(" + args[0] + ", " + args[1] + ")";
+
+    return _rt("builtin", "int", args);
 }
 
 impl ESBuiltinEmitter.emit_float(
@@ -2038,7 +2047,8 @@ impl ESBuiltinEmitter.emit_float(
     if len(args) == 0 {
         return "0.0";
     }
-    return "parseFloat(" + args[0] + ")";
+
+    return _rt("builtin", "float", args);
 }
 
 impl ESBuiltinEmitter.emit_bool(
@@ -2057,7 +2067,8 @@ impl ESBuiltinEmitter.emit_list(
     if len(args) == 0 {
         return "[]";
     }
-    return "Array.from(" + args[0] + ")";
+
+    return "Array.from(" + _rt("builtin", "iter", args) + ")";
 }
 
 impl ESBuiltinEmitter.emit_dict(
@@ -2066,7 +2077,8 @@ impl ESBuiltinEmitter.emit_dict(
     if len(args) == 0 {
         return "{}";
     }
-    return "Object.fromEntries(" + args[0] + ")";
+
+    return _rt("builtin", "dict", args);
 }
 
 impl ESBuiltinEmitter.emit_set(
@@ -2075,7 +2087,7 @@ impl ESBuiltinEmitter.emit_set(
     if len(args) == 0 {
         return "new Set()";
     }
-    return "new Set(" + args[0] + ")";
+    return "new Set(" + _rt("builtin", "iter", args) + ")";
 }
 
 impl ESBuiltinEmitter.emit_tuple(

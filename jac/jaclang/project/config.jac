@@ -45,7 +45,10 @@ obj RunConfig {
 
 obj NativeBuildConfig {
     has opt_level: int = 2,
-        dump_ir: str = "";
+        dump_ir: str = "",
+        target: str = "",
+        debug: bool = False,
+        rc_debug_codegen: bool = False;
 }
 
 obj GcEnforceConfig {
@@ -235,6 +238,8 @@ def discover_config_files(
 ) -> list[Path];
 
 def _parse_toml_data(data: dict[str, any], toml_path: Path | None = None) -> JacConfig;
+
+def _warn_legacy_plugins_table(data: dict[str, any]) -> None;
 
 def _parse_persons(raw: list[any]) -> list[PersonConfig];
 

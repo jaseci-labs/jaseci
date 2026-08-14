@@ -4,6 +4,7 @@ import from functools { cached_property }
 import from inspect { _empty, signature }
 import from logging { getLogger }
 import from pickle { dumps }
+import from threading { Lock }
 import from types { UnionType }
 import from typing { Any, ClassVar, TypeAlias, TypeVar }
 import from uuid { UUID, uuid4 }
@@ -13,7 +14,8 @@ glob logger = getLogger(__name__),
      TANCH = TypeVar('TANCH', bound='Anchor'),
      T = TypeVar('T');
 
-glob _NO_TRIGGER = object();
+glob _NO_TRIGGER = object(),
+     _subclass_hook_lock = Lock();
 
 enum AccessLevel { NO_ACCESS = -1, READ = 0, CONNECT = 1, WRITE = 2 }
 
@@ -125,14 +127,18 @@ obj Archetype {
     with entry {
         _jac_entry_funcs_: ClassVar[list[ObjectSpatialFunction]] = [];
         _jac_exit_funcs_: ClassVar[list[ObjectSpatialFunction]] = [];
-        _subclass_hooks: ClassVar[list[Callable[[type], None]]] = [];
+        _subclass_hooks: ClassVar[tuple[Callable[[type], None], ...]] = ();
     }
 
     @cached_property
     def __jac__ -> Anchor;
 
     def __init_subclass__(cls: any, **kwargs: object) -> None;
+    static def install_subclass_hook(hook: Callable[[type], None]) -> None;
+    static def uninstall_subclass_hook(hook: Callable[[type], None]) -> None;
+    static def _subclass_tree -> list[type];
     def postinit -> None;
+    def __setattr__(name: str, value: any) -> None;
     def __repr__ -> str;
     def __jac_access__ -> (AccessLevel | str | int | None);
 }

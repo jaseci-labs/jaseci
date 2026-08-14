@@ -182,6 +182,14 @@ impl NodeAnchor.remove_edge(`edge: EdgeAnchor) -> None {
 impl EdgeAnchor.detach -> None {
     self.source.remove_edge(self);
     self.target.remove_edge(self);
+    import from jaclang.jac0core.osp_graph_sv { sv_forget_edge }
+    sv_forget_edge(self);
+
+    import from jaclang.jac0core.runtime { JacRuntime }
+    ctx = JacRuntime.exec_ctx;
+    if ctx is not None {
+        ctx.mem.delete(self.id);
+    }
 }
 
 @cached_property
@@ -204,7 +212,70 @@ impl Archetype.__init_subclass__(cls: any, **kwargs: object) -> None {
     }
 }
 
+impl Archetype._subclass_tree -> list[type] {
+    found: list[type] = [];
+    seen: set[type] = set();
+    pending: list[type] = list(Archetype.__subclasses__());
+    while pending {
+        cls = pending.pop();
+        if cls in seen {
+            continue;
+        }
+        seen.add(cls);
+        pending.extend(cls.__subclasses__());
+        if not cls.__dict__.get('__jac_base__', False) {
+            found.append(cls);
+        }
+    }
+    return found;
+}
+
+impl Archetype.install_subclass_hook(hook: Callable[[type], None]) -> None {
+    with _subclass_hook_lock {
+        if `any(installed is hook for installed in Archetype._subclass_hooks) {
+            return;
+        }
+        Archetype._subclass_hooks = Archetype._subclass_hooks + (hook, );
+    }
+    for cls in Archetype._subclass_tree() {
+        try {
+            hook(cls);
+        } except Exception as e {
+            logger.warning(
+                f"archetype subclass hook back-fill failed for "
+                f"{cls.__module__}.{cls.__name__}: {e}"
+            );
+        }
+    }
+}
+
+impl Archetype.uninstall_subclass_hook(hook: Callable[[type], None]) -> None {
+    with _subclass_hook_lock {
+        Archetype._subclass_hooks = tuple(
+            installed
+            for installed in Archetype._subclass_hooks
+            if installed is not hook
+        );
+    }
+}
+
 impl Archetype.postinit -> None { }
+
+impl Archetype.__setattr__(name: str, value: any) -> None {
+    object.__setattr__(self, name, value);
+    an = self.__dict__.get('__jac__');
+    if an is None or not an.persistent {
+        return;
+    }
+    import from jaclang.jac0core.runtime { JacRuntime }
+    ctx = JacRuntime.exec_ctx;
+    if ctx is not None {
+        md = ctx.mem?.mark_dirty;
+        if md is not None {
+            md(an);
+        }
+    }
+}
 
 impl Archetype.__repr__ -> str {
     return f"{self.__class__.__name__}";

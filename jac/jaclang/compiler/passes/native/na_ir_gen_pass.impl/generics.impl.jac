@@ -10,6 +10,9 @@ impl NaIRGenPass._mangled_of(t: any) -> (str | None) {
             m = re.sub(rf"\b{re.escape(tv)}\b", repl, m);
         }
     }
+    if m == "Sequence" or m.startswith("Sequence[") {
+        m = "list" + m[len("Sequence"):];
+    }
     return m;
 }
 
@@ -39,6 +42,18 @@ impl NaIRGenPass._solve_generic_call(
             if decl.name not in solution {
                 solution[decl.name] = actual;
             }
+            return;
+        }
+        if (
+            isinstance(decl, _CT)
+            and decl._shared is not None
+            and decl.shared.class_name == "type"
+            and (decl.private.type_args or [])
+            and isinstance(actual, _CT)
+            and actual.is_instantiable()
+            and not actual.is_instance()
+        ) {
+            unify(decl.private.type_args[0], actual.clone_as_instance());
             return;
         }
         if isinstance(decl, _CT) and isinstance(actual, _CT) {
@@ -167,6 +182,7 @@ impl NaIRGenPass._stamp_mono_fn(
     saved_locals = self.local_vars if self?.local_vars else {};
     saved_param_vars = self.param_vars;
     saved_nogc = self.nogc_no_free_vars;
+    saved_nogc_owned = self.nogc_owned_str_vars;
     saved_region = self.region_handle_vars;
     saved_list_struct = self.var_list_elem_struct;
     saved_cell_vars = self.closure_cell_vars;
@@ -182,6 +198,7 @@ impl NaIRGenPass._stamp_mono_fn(
         self.local_vars = saved_locals;
         self.param_vars = saved_param_vars;
         self.nogc_no_free_vars = saved_nogc;
+        self.nogc_owned_str_vars = saved_nogc_owned;
         self.region_handle_vars = saved_region;
         self.var_list_elem_struct = saved_list_struct;
         self.closure_cell_vars = saved_cell_vars;
@@ -314,7 +331,10 @@ impl NaIRGenPass._stamp_mono_method(
     full_name = f"{arch_name}.{method_name}";
     struct_type = self.struct_types.get(arch_name);
     sig = ability.signature;
-    if struct_type is None or sig is None or ability.is_static {
+    if struct_type is None
+        or sig is None
+        or ability.is_static
+        or ability.is_classmethod {
         self.emit(E5092, node_override=ability, kind="method", name=full_name);
         return None;
     }

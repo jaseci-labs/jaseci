@@ -66,7 +66,7 @@ impl NaIRGenPass._alloc_iter_struct(name: str) -> ir.Value {
     if dtor is not None {
         raw_i8 = self.builder.bitcast(it_obj, i8p, name="it.raw.i8");
         dtor_slot = self.builder.gep(
-            raw_i8, [ir.Constant(i64, -8)], name="it.dtor.slot"
+            raw_i8, [ir.Constant(i64, HDR_DTOR_OFF)], name="it.dtor.slot"
         );
         dtor_slot_p = self.builder.bitcast(dtor_slot, i64p, name="it.dtor.p");
         dtor_i64 = self.builder.ptrtoint(dtor, i64, name="it.dtor.i64");
@@ -196,19 +196,13 @@ impl NaIRGenPass._get_char_cache_gv -> ir.Value {
     if sym in self.llvm_module.globals {
         return self.llvm_module.globals[sym];
     }
-    i8 = ir.IntType(8);
-    i64 = ir.IntType(64);
-    arr2_type = ir.ArrayType(i8, 2);
-    char_struct_type = ir.LiteralStructType([i64, i64, arr2_type]);
-    arr256_type = ir.ArrayType(char_struct_type, 256);
-    sentinel = ir.Constant(i64, RC_SENTINEL);
-
-    dtor_len1 = ir.Constant(i64, (1 << 1) | 1);
+    char_struct_type = None;
     entries: list = [];
     for _bi in range(256) {
-        c_arr = ir.Constant(arr2_type, bytearray([_bi, 0]));
-        entries.append(ir.Constant(char_struct_type, [sentinel, dtor_len1, c_arr]));
+        (char_struct_type, _entry) = self._static_str_struct_const(bytes([_bi, 0]));
+        entries.append(_entry);
     }
+    arr256_type = ir.ArrayType(char_struct_type, 256);
     cache_gv = ir.GlobalVariable(self.llvm_module, arr256_type, name=sym);
     cache_gv.linkage = "private";
     cache_gv.global_constant = True;
@@ -448,6 +442,7 @@ impl NaIRGenPass._set_iter_next_fn(
     entry_bb = fn.append_basic_block("entry");
     cont = fn.append_basic_block("cont");
     stop = fn.append_basic_block("stop");
+    helpers = self.set_helpers[elem_type_name];
     b = ir.IRBuilder(entry_bb);
     state = b.bitcast(fn.args[0], state_ptr_type, name="set.state");
     coll_slot = b.gep(
@@ -460,18 +455,11 @@ impl NaIRGenPass._set_iter_next_fn(
     );
     idx = b.load(idx_slot, name="set.idx");
 
-    n = b.load(
-        b.gep(set_ptr, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="set.len.p"),
-        name="set.len"
-    );
+    n = b.call(helpers["len"], [set_ptr], name="set.len");
     ok = b.icmp_signed("<", idx, n, name="set.ok");
     b.cbranch(ok, cont, stop);
     b.position_at_end(cont);
-    data = b.load(
-        b.gep(set_ptr, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="set.data.p"),
-        name="set.data"
-    );
-    v = b.load(b.gep(data, [idx], name="set.elem.p"), name="set.elem");
+    v = b.call(helpers["get"], [set_ptr, idx], name="set.elem");
     out_t = b.bitcast(fn.args[1], elem_type.as_pointer(), name="set.out");
     b.store(v, out_t);
     b.store(b.add(idx, ir.Constant(i64, 1), name="set.idx.next"), idx_slot);
@@ -777,11 +765,18 @@ impl NaIRGenPass._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
             return self._build_iter_from_expr(params[0]);
         }
     }
-    val = self._codegen_expr(expr);
+    val = self._str_norm(self._codegen_expr(expr));
     if val is None {
         return None;
     }
-    return self._make_iter_from_value(val, expr);
+    _built = self._make_iter_from_value(val, expr);
+    if _built is not None
+        and self._iter_owned_srcs is not None
+        and _built[0] is not val
+        and self._is_owned(val) {
+        self._iter_owned_srcs.append(val);
+    }
+    return _built;
 }
 
 impl NaIRGenPass._make_map_iter(up: tuple, callee: tuple) -> (tuple | None) {
@@ -1255,14 +1250,21 @@ impl NaIRGenPass._codegen_next(nd: uni.FuncCall) -> (ir.Value | None) {
     self._ensure_iter_types();
     i1 = ir.IntType(1);
     i8p = ir.IntType(8).as_pointer();
-    out_slot = self._entry_alloca(elem_type, "next.out");
+
+    _out_is_desc = self._str_desc_ty is not None and elem_type == self._str_desc_ty;
+    _slot_ty = ir.IntType(8).as_pointer() if _out_is_desc else elem_type;
+    out_slot = self._entry_alloca(_slot_ty, "next.out");
     out_i8 = self.builder.bitcast(out_slot, i8p, name="next.out.i8");
     got = self._emit_iter_advance(self.builder, iter_val, out_i8);
     is_stop = self.builder.icmp_unsigned(
         "==", got, ir.Constant(i1, 0), name="next.stop"
     );
     self._emit_runtime_raise(is_stop, "StopIteration", "");
-    return self.builder.load(out_slot, name="next.val");
+    _next_val = self.builder.load(out_slot, name="next.val");
+    if _out_is_desc {
+        _next_val = self._coerce_type(_next_val, elem_type);
+    }
+    return _next_val;
 }
 
 impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
@@ -1279,8 +1281,12 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     is_user_iterable = _ustruct is not None and self._arch_implements_iter(_ustruct);
     built: (tuple | None) = None;
     owns_iter = False;
+    _saved_srcs = self._iter_owned_srcs;
+    _iter_srcs: list = [];
     if is_adapter_call or is_user_iterable {
+        self._iter_owned_srcs = _iter_srcs;
         built = self._build_iter_from_expr(coll);
+        self._iter_owned_srcs = _saved_srcs;
         owns_iter = True;
     } else {
         elem_t = self._iter_elem_llvm_of(coll);
@@ -1306,6 +1312,18 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
         and self.builder.function is self._gen_ctx["resume_fn"] {
         _gen_it_spill = self._entry_alloca(iter_val.type, "iterf.itslot");
         self.builder.store(iter_val, _gen_it_spill);
+    }
+
+    _it_slot_var: (str | None) = None;
+    if _gen_it_spill is None and owns_iter {
+        _it_slot_var = self._bind_loop_coll_slot(iter_val);
+    }
+    _src_slot_vars: list[str] = [];
+    for _src in _iter_srcs {
+        _src_nm = self._bind_loop_coll_slot(_src);
+        if _src_nm is not None {
+            _src_slot_vars.append(_src_nm);
+        }
     }
 
     elem_slot = self._entry_alloca(elem_type, "iter.elem");
@@ -1371,8 +1389,13 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     if _gen_it_spill is not None {
         iter_val = self.builder.load(_gen_it_spill, name="iterf.it.end");
     }
-    if owns_iter {
+    if _it_slot_var is not None {
+        self._release_loop_coll_slot(_it_slot_var, op="iter_end", loc=_loc);
+    } elif owns_iter {
         self._emit_rc_release_simple(iter_val, op="iter_end", loc=_loc);
+    }
+    for _src_nm in _src_slot_vars {
+        self._release_loop_coll_slot(_src_nm, op="iter_src_end", loc=_loc);
     }
     return True;
 }

@@ -172,9 +172,23 @@ impl JSCodeGenerator.gen_spread_element(nd: es.SpreadElement) -> str {
     return f"...{self.generate(nd.argument)}";
 }
 
+impl template_element_raw(text: str) -> str {
+    return text.replace('\\', '\\\\').replace('`', '\\`').replace('${', '\\${').replace(
+        '\r', '\\r'
+    ).replace(
+        '\n', '\\n'
+    ).replace(
+        '\t', '\\t'
+    );
+}
+
 impl JSCodeGenerator.gen_template_element(nd: es.TemplateElement) -> str {
-    value = nd.value.get('raw') if nd.value else '';
-    return (value or '');
+    value = nd.value or {};
+    raw = value.get('raw');
+    if raw is not None {
+        return raw;
+    }
+    return template_element_raw(value.get('cooked') or '');
 }
 
 impl JSCodeGenerator.gen_template_literal(nd: es.TemplateLiteral) -> str {
@@ -190,6 +204,14 @@ impl JSCodeGenerator.gen_template_literal(nd: es.TemplateLiteral) -> str {
 
 impl JSCodeGenerator.gen_await_expression(nd: es.AwaitExpression) -> str {
     return f"await {self.generate(nd.argument)}";
+}
+
+impl JSCodeGenerator.gen_yield_expression(nd: es.YieldExpression) -> str {
+    star = '*' if nd.delegate else '';
+    if nd.argument {
+        return f"yield{star} {self.generate(nd.argument)}";
+    }
+    return f"yield{star}";
 }
 
 impl JSCodeGenerator.gen_new_expression(nd: es.NewExpression) -> str {
@@ -301,16 +323,11 @@ impl JSCodeGenerator.gen_arrow_function_expression(
     } else {
         params = f"({params})";
     }
-    if nd.expression {
-        body = self.generate(nd.body);
-        if isinstance(nd.body, es.ObjectExpression) {
-            body = f"({body})";
-        }
-        return f"{async_str}{params} => {body}";
-    } else {
-        body = self.generate(nd.body);
-        return f"{async_str}{params} => {body}";
+    body = self.generate(nd.body);
+    if not isinstance(nd.body, es.BlockStatement) and body.startswith('{') {
+        body = f"({body})";
     }
+    return f"{async_str}{params} => {body}";
 }
 
 impl JSCodeGenerator.gen_function_expression(nd: es.FunctionExpression) -> str {

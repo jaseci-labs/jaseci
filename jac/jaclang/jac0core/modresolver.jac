@@ -250,7 +250,13 @@ def _resolve_path_alias(target: str, base_path: str) -> (str | None) {
     return None;
 }
 
-def resolve_module(target: str, base_path: str) -> tuple[(str, str)] {
+def is_path_alias_import(target: str, base_path: str) -> bool {
+    return _resolve_path_alias(target, base_path) is not None;
+}
+
+def resolve_module(
+    target: str, base_path: str, string_spec: bool = False
+) -> tuple[(str, str)] {
     base_dir = os.path.dirname(base_path);
 
     jac_virtual = _resolve_jac_virtual_module(target);
@@ -277,6 +283,10 @@ def resolve_module(target: str, base_path: str) -> tuple[(str, str)] {
     }
     if (os.path.exists(other_target) and os.path.isfile(other_target)) {
         return (os.path.normpath(other_target), 'other');
+    }
+
+    if (string_spec and not target.startswith('.')) {
+        return (target, 'js');
     }
 
     if not target.startswith('.') {
@@ -360,28 +370,30 @@ def resolve_module(target: str, base_path: str) -> tuple[(str, str)] {
         target_jac = actual_parts[-1] + '.jac';
         target_py = actual_parts[-1] + '.py';
         target_js = actual_parts[-1] + '.js';
-        for (root, _, files) in os.walk(jacpath) {
+        for (walk_dir, _, files) in os.walk(jacpath) {
             if (target_jac in files) {
-                return (os.path.join(root, target_jac), 'jac');
+                return (os.path.join(walk_dir, target_jac), 'jac');
             }
             if (target_py in files) {
-                return (os.path.join(root, target_py), 'py');
+                return (os.path.join(walk_dir, target_py), 'py');
             }
             if (target_js in files) {
-                return (os.path.join(root, target_js), 'js');
+                return (os.path.join(walk_dir, target_js), 'js');
             }
         }
     }
     return (os.path.join(base_dir, *actual_parts), 'py');
 }
 
-def infer_language(target: str, base_path: str) -> str {
-    (_, lang) = resolve_module(target, base_path);
+def infer_language(target: str, base_path: str, string_spec: bool = False) -> str {
+    (_, lang) = resolve_module(target, base_path, string_spec=string_spec);
     return lang;
 }
 
-def resolve_relative_path(target: str, base_path: str) -> str {
-    (path, _) = resolve_module(target, base_path);
+def resolve_relative_path(
+    target: str, base_path: str, string_spec: bool = False
+) -> str {
+    (path, _) = resolve_module(target, base_path, string_spec=string_spec);
     return path;
 }
 
@@ -544,13 +556,29 @@ def is_client_npm_import(spec: str, source_path: str) -> bool {
         client_framework,
         npm_dependency_names
     }
-    if spec in npm_dependency_names(source_path) {
+    pkg_root = npm_package_root(spec);
+    if pkg_root in npm_dependency_names(source_path) {
         return True;
     }
-    if spec in _FRAMEWORK_PACKAGES.get(client_framework(source_path), set()) {
+    if pkg_root in _FRAMEWORK_PACKAGES.get(client_framework(source_path), set()) {
         return True;
     }
     return has_client_npm_package(spec, source_path);
+}
+
+def npm_package_root(spec: str) -> str {
+    parts = [
+        p
+        for p in spec.split('/')
+        if p
+    ];
+    if not parts {
+        return spec;
+    }
+    if (spec.startswith('@') and len(parts) >= 2) {
+        return parts[0] + '/' + parts[1];
+    }
+    return parts[0];
 }
 
 def resolve_client_npm_package(spec: str, base_path: str) -> (str | None) {
@@ -750,6 +778,20 @@ def _npm_package_entry(pkg_dir: str, data: dict) -> (str | None) {
         return os.path.normpath(pkg_json);
     }
     return None;
+}
+
+def relative_js_specifier(target_path: str, importer_path: str) -> str {
+    target = target_path;
+    if target.endswith('.jac') {
+        target = target[:-4];
+    }
+
+    rel = os.path.relpath(target, os.path.dirname(importer_path));
+    rel = rel.replace(os.sep, '/');
+    if not rel.startswith('.') {
+        rel = './' + rel;
+    }
+    return rel + '.js';
 }
 
 def convert_to_js_import_path(path: str) -> str {
