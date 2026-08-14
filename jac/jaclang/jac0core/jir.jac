@@ -6,7 +6,7 @@ import zlib;
 import from pathlib { Path }
 
 glob MAGIC = b"JIR\x00",
-     FORMAT_VERSION: int = 19,
+     FORMAT_VERSION: int = 20,
      HEADER_SIZE: int = 32,
      HEADER_FMT: str = "<4sHHIIIIII",
      EXTERNAL_REF: int = 0xFFFFFF,
@@ -20,6 +20,7 @@ glob MAGIC = b"JIR\x00",
      SEC_MODKEY: int = 0x08,
      SEC_DEBUG_SRC: int = 0x09,
      SEC_PLACEMENT: int = 0x0A,
+     SEC_ENVKEY: int = 0x0B,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
@@ -47,17 +48,11 @@ def create_header(
     string_pool_size: int,
     flags: int = 0
 ) -> JirHeader {
-    import from importlib.metadata { version as pkg_version }
-    try {
-        jac_ver = pkg_version('jaclang');
-    } except Exception {
-        jac_ver = "0.0.0";
-    }
     return JirHeader(
         magic=MAGIC,
         format_version=FORMAT_VERSION,
         python_version=(sys.version_info.major << 8) | sys.version_info.minor,
-        jaclang_version_hash=zlib.crc32(jac_ver.encode()) & 0xFFFFFFFF,
+        jaclang_version_hash=zlib.crc32(jaclang_version().encode()) & 0xFFFFFFFF,
         source_content_hash=source_hash & 0xFFFFFFFF,
         node_count=node_count,
         symbol_count=symbol_count,
@@ -252,18 +247,31 @@ def running_compiler_digest -> str {
     return _COMPILER_DIGEST_CACHE[0];
 }
 
-def compute_module_key(source_path: str) -> str {
-    import from importlib.metadata { version as pkg_version }
-    try {
-        jac_ver = pkg_version('jaclang');
-    } except Exception {
-        jac_ver = "0.0.0";
+glob _JAC_VERSION_CACHE: list = [];
+
+def jaclang_version -> str {
+    if not _JAC_VERSION_CACHE {
+        import from importlib.metadata { version as pkg_version }
+        try {
+            _JAC_VERSION_CACHE.append(pkg_version('jaclang'));
+        } except Exception {
+            _JAC_VERSION_CACHE.append("0.0.0");
+        }
     }
+    return _JAC_VERSION_CACHE[0];
+}
+
+def _toolchain_env_fingerprint -> str {
     h = hashlib.sha256();
-    h.update(jac_ver.encode());
+    h.update(jaclang_version().encode());
     h.update(struct.pack('<H', (sys.version_info.major << 8) | sys.version_info.minor));
     h.update(struct.pack('<H', FORMAT_VERSION));
     h.update(schema_digest().encode());
+    return h.hexdigest();
+}
+
+def _project_env_fingerprint(source_path: str) -> str {
+    h = hashlib.sha256();
     h.update(_module_client_kind(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
     import from jaclang.jac0core.placement_pins { pins_digest, config_kind_space }
@@ -273,6 +281,26 @@ def compute_module_key(source_path: str) -> str {
     h.update(cut_digest(source_path).encode());
     import from jaclang.jac0core.compile_options { effective_codegen_fingerprint }
     h.update(effective_codegen_fingerprint().encode());
+    return h.hexdigest();
+}
+
+def _full_env_fingerprint(source_path: str) -> str {
+    h = hashlib.sha256();
+    h.update(_toolchain_env_fingerprint().encode());
+    h.update(_project_env_fingerprint(source_path).encode());
+    return h.hexdigest();
+}
+
+def module_env_fingerprint(source_path: str) -> str {
+    if source_path.endswith('.pyi') {
+        return _toolchain_env_fingerprint();
+    }
+    return _full_env_fingerprint(source_path);
+}
+
+def compute_module_key(source_path: str) -> str {
+    h = hashlib.sha256();
+    h.update(_full_env_fingerprint(source_path).encode());
     h.update(compute_content_sha256(source_path).encode());
     for (rel, digest) in _related_files(source_path) {
         h.update(rel.encode());
@@ -281,7 +309,7 @@ def compute_module_key(source_path: str) -> str {
     return h.hexdigest();
 }
 
-def read_modkey(data: bytes) -> (str | None) {
+def _read_key_section(data: bytes, sec_type: int) -> (str | None) {
     try {
         magic: any = SECTIONS_MAGIC;
         pos = data.find(magic, HEADER_SIZE);
@@ -289,25 +317,24 @@ def read_modkey(data: bytes) -> (str | None) {
             return None;
         }
         sections = read_sections(data, pos + len(magic));
-        key_bytes = sections.get(SEC_MODKEY);
+        key_bytes = sections.get(sec_type);
         return key_bytes.decode('utf-8') if key_bytes is not None else None;
     } except Exception {
         return None;
     }
 }
 
+def read_modkey(data: bytes) -> (str | None) {
+    return _read_key_section(data, SEC_MODKEY);
+}
+
+def read_envkey(data: bytes) -> (str | None) {
+    return _read_key_section(data, SEC_ENVKEY);
+}
+
 def compute_stub_module_key(source_path: str) -> str {
-    import from importlib.metadata { version as pkg_version }
-    try {
-        jac_ver = pkg_version('jaclang');
-    } except Exception {
-        jac_ver = "0.0.0";
-    }
     h = hashlib.sha256();
-    h.update(jac_ver.encode());
-    h.update(struct.pack('<H', (sys.version_info.major << 8) | sys.version_info.minor));
-    h.update(struct.pack('<H', FORMAT_VERSION));
-    h.update(schema_digest().encode());
+    h.update(_toolchain_env_fingerprint().encode());
     h.update(compute_content_sha256(source_path).encode());
     return h.hexdigest();
 }
@@ -317,6 +344,21 @@ def module_cache_key(source_path: str) -> str {
         return compute_stub_module_key(source_path);
     }
     return compute_module_key(source_path);
+}
+
+def module_jir_key_sections(source_path: str) -> dict[int, bytes] {
+    return {
+        SEC_MODKEY: module_cache_key(source_path).encode('utf-8'),
+        SEC_ENVKEY: module_env_fingerprint(source_path).encode('utf-8')
+    };
+}
+
+def jir_env_matches(jir_data: bytes, source_path: str) -> bool {
+    stored = read_envkey(jir_data);
+    if stored is None {
+        return False;
+    }
+    return stored == module_env_fingerprint(source_path);
 }
 
 def jir_matches_source(jir_data: bytes, source_path: str) -> bool {
@@ -484,12 +526,7 @@ def write_precompiled_jir(
     flags: int = 0,
     extra_sections: (dict[int, bytes] | None) = None
 ) -> bytes {
-    import from importlib.metadata { version as pkg_version }
-    try {
-        jac_hash = zlib.crc32(pkg_version('jaclang').encode()) & 0xFFFFFFFF;
-    } except Exception {
-        jac_hash = 0;
-    }
+    jac_hash = zlib.crc32(jaclang_version().encode()) & 0xFFFFFFFF;
     header = struct.pack(
         HEADER_FMT,
         MAGIC,
@@ -538,6 +575,9 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         data: bytes = cache_path.read_bytes();
         header = parse_header(data[:HEADER_SIZE]);
         if header is None or not header.is_compatible() {
+            return False;
+        }
+        if not jir_env_matches(data, source_path) {
             return False;
         }
         cache_mtime = os.path.getmtime(cache_path);
@@ -651,9 +691,7 @@ def write_module_jir_cache(
         }
         cache_path.parent.mkdir(parents=True, exist_ok=True);
         writer = JirWriter();
-        sections: dict[int, bytes] = {
-            SEC_MODKEY: module_cache_key(resolved_path).encode('utf-8')
-        };
+        sections: dict[int, bytes] = module_jir_key_sections(resolved_path);
         if extra_sections is not None {
             for (k, v) in extra_sections.items() {
                 sections[k] = v;
