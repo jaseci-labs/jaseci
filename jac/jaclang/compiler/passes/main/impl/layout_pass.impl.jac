@@ -714,6 +714,11 @@ impl LayoutPass._validate_obj_fields(
             continue;
         }
 
+        _archhas = var.find_parent_of_type(uni.ArchHas);
+        if _archhas is not None and _archhas.is_static {
+            continue;
+        }
+
         if not var.type_tag or not var.type_tag.tag {
             self.emit(W5031, node_override=var, arch=aname, field=fname);
             continue;

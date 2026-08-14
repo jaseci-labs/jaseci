@@ -672,12 +672,7 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
             }
             elem_types.append(_et);
         }
-        n = len(elem_types);
-        tuple_key = f"Tuple.{n}." + ".".join([str(x) for x in elem_types]);
-        if tuple_key not in self.tuple_types {
-            self.tuple_types[tuple_key] = ir.LiteralStructType(elem_types);
-        }
-        return self.tuple_types[tuple_key].as_pointer();
+        return self._tuple_struct_of(elem_types).as_pointer();
     }
     return None;
 }
@@ -821,6 +816,56 @@ impl NaIRGenPass._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
         return self._emit_unlowerable_type(type_expr, type_expr.type);
     }
     return ir.IntType(64);
+}
+
+impl NaIRGenPass._resolve_decl_type(
+    type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+) -> ir.Type {
+    if self._quiet_glob_type(type_expr) is None {
+        widened = self._widened_tuple_decl_type(type_expr, value);
+        if widened is not None {
+            return widened;
+        }
+    }
+    return self._resolve_jac_type(type_expr);
+}
+
+impl NaIRGenPass._widened_tuple_decl_type(
+    type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+) -> (ir.Type | None) {
+    if value is None or type_expr is None {
+        return None;
+    }
+    nd = type_expr;
+    if isinstance(nd, uni.SubTag) {
+        nd = nd.tag;
+    }
+    _tb = nd?.type;
+    if _tb is None {
+        return None;
+    }
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _WdClassType }
+    } except ImportError {
+        return None;
+    }
+    if not isinstance(_tb, _WdClassType)
+        or _tb.shared.class_name != "tuple"
+        or (_tb.private.type_args or []) {
+        return None;
+    }
+    if isinstance(value, uni.TupleVal) and not value.values {
+        return self._tuple_struct_of([]).as_pointer();
+    }
+    return self._infer_global_init_type(value);
+}
+
+impl NaIRGenPass._tuple_struct_of(elem_types: list) -> ir.Type {
+    tuple_key = f"Tuple.{len(elem_types)}." + ".".join([str(x) for x in elem_types]);
+    if tuple_key not in self.tuple_types {
+        self.tuple_types[tuple_key] = ir.LiteralStructType(elem_types);
+    }
+    return self.tuple_types[tuple_key];
 }
 
 impl NaIRGenPass._resolve_field_type(var: uni.UniNode) -> ir.Type {
