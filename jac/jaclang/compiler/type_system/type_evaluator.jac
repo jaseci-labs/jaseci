@@ -273,6 +273,7 @@ obj TypeEvaluator {
     ) -> uni.Symbol | None;
 
     def _extract_type_params(node_: uni.Archetype) -> list[types.TypeVarType];
+    def _is_class_scoped_type_param(node_: uni.TypeParam) -> bool;
     def _collect_typevars_from_base(
         base_class: uni.AtomTrailer,
         outer_names: set[str],
@@ -344,8 +345,14 @@ obj TypeEvaluator {
     ) -> (types.EnumMemberType | None);
 
     def get_type_of_member(member: any, class_type: types.ClassType) -> TypeBase;
+    def declaring_class_of(
+        symbol: uni.Symbol, base_type: types.ClassType
+    ) -> (types.ClassType | None);
+
     def specialize_member_type(
-        member_type: TypeBase, class_type: types.ClassType
+        member_type: TypeBase,
+        class_type: types.ClassType,
+        declaring_class: (types.ClassType | None) = None
     ) -> TypeBase;
 
     def _get_type_of_expression_core(
@@ -454,8 +461,10 @@ obj TypeEvaluator {
     def _unwrap_awaitable_type(t: TypeBase, node_: uni.UniNode) -> TypeBase;
     def _is_sv_async_call(expr: uni.FuncCall) -> bool;
     def validate_arg_types(
-        args: MatchArgsToParamsResult, checking_overload: bool = False
-    ) -> None;
+        args: MatchArgsToParamsResult,
+        checking_overload: bool = False,
+        solved_type_vars: (dict[str, TypeBase] | None) = None
+    ) -> bool;
 
     def _build_field_params(
         class_type: types.ClassType, skip_deferred: bool = True
@@ -568,6 +577,7 @@ obj TypeEvaluator {
         target: NarrowingTarget, flow_node: uni.UniCFGNode, visited: set
     ) -> TypeBase | None;
 
+    def _node_encloses(outer: uni.UniNode, inner: uni.UniNode) -> bool;
     def _loop_body_writes_target(
         loop_node: uni.UniCFGNode, target: NarrowingTarget
     ) -> bool;
