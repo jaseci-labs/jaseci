@@ -241,7 +241,6 @@ def _toolchain_env_fingerprint -> str {
     h.update(jaclang_version().encode());
     h.update(struct.pack('<H', (sys.version_info.major << 8) | sys.version_info.minor));
     h.update(struct.pack('<H', FORMAT_VERSION));
-    h.update(running_compiler_digest().encode());
     return h.hexdigest();
 }
 
@@ -267,10 +266,14 @@ def _full_env_fingerprint(source_path: str) -> str {
 }
 
 def module_env_fingerprint(source_path: str) -> str {
+    h = hashlib.sha256();
     if source_path.endswith('.pyi') {
-        return _toolchain_env_fingerprint();
+        h.update(_toolchain_env_fingerprint().encode());
+    } else {
+        h.update(_full_env_fingerprint(source_path).encode());
     }
-    return _full_env_fingerprint(source_path);
+    h.update(running_compiler_digest().encode());
+    return h.hexdigest();
 }
 
 def compute_module_key(source_path: str) -> str {
