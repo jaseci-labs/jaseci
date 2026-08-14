@@ -219,9 +219,15 @@ impl JacCompiler.get_bytecode(
     precompiled_bc = self._get_precompiled_jir_bytecode(full_target, allow_unsealed);
     if precompiled_bc is not None {
         try {
-            import from jaclang.jac0core.jir { write_precompiled_jir, FLAG_PRECOMPILED }
+            import from jaclang.jac0core.jir {
+                write_precompiled_jir,
+                module_jir_key_sections,
+                FLAG_PRECOMPILED
+            }
             jir_bytes = write_precompiled_jir(
-                precompiled_bc, compute_module_key(full_target), FLAG_PRECOMPILED
+                precompiled_bc,
+                flags=FLAG_PRECOMPILED,
+                extra_sections=module_jir_key_sections(full_target)
             );
             cache_path.parent.mkdir(parents=True, exist_ok=True);
 
@@ -258,7 +264,6 @@ impl JacCompiler.get_bytecode(
                 import zlib;
                 sections: dict[int, bytes] = {};
                 sections[SEC_BYTECODE] = result.gen.py_bytecode;
-                sections[SEC_MODKEY] = compute_module_key(full_target).encode('utf-8');
                 if actual_program.mtir_map {
                     sections[SEC_MTIR] = pickle.dumps(
                         actual_program.mtir_map, int(pickle.HIGHEST_PROTOCOL)

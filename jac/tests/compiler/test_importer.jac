@@ -513,6 +513,75 @@ test "corrupt pyi JIR cache falls back to source compile" {
     }
 }
 
+"""A cache newer than its source is not thereby valid: the mtime covers the
+source bytes only, so every environment input the module key folds in (the node
+schema, the codegen fingerprint, the placement/cut/codespace facts) must be
+compared before the mtime fast path can accept the file.  #8181 shortened a
+NODE_SPECS entry by one field, which a fresh-mtime cache written under the old
+schema would then be decoded against, position by position."""
+test "fresh mtime does not admit a cache written under a different environment" {
+    import jaclang.jac0core.jir as jir;
+    import from jaclang.jac0core.jir { is_module_cache_valid }
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jac", delete=False, dir=_test_tmp_dir
+    ) as tmp {
+        tmp.write("glob env_probe = 1;\n");
+        tmp.flush();
+        jac_file = tmp.name;
+    }
+    past = time.time() - 2;
+    os.utime(jac_file, (past, past));
+    try {
+        compiler = JacCompiler();
+        assert compiler.get_bytecode(jac_file, JacProgram()) is not None;
+        cache_path = get_module_cache_path(jac_file);
+        assert cache_path.exists() , "JIR cache was not written";
+        assert os.path.getmtime(cache_path) > os.path.getmtime(jac_file) , (
+            "cache must be newer than source for the mtime fast path to apply"
+        );
+        assert is_module_cache_valid(jac_file, cache_path) , "fresh cache should be valid";
+
+        saved = list(jir._SCHEMA_DIGEST_CACHE);
+        try {
+            jir._SCHEMA_DIGEST_CACHE.clear();
+            jir._SCHEMA_DIGEST_CACHE.append("0" * 64);
+            assert not is_module_cache_valid(jac_file, cache_path) , (
+                "a fresh mtime served a cache written under a different node schema"
+            );
+        } finally {
+            jir._SCHEMA_DIGEST_CACHE.clear();
+            jir._SCHEMA_DIGEST_CACHE.extend(saved);
+        }
+        assert is_module_cache_valid(jac_file, cache_path) , (
+            "restoring the schema digest should restore validity"
+        );
+
+        prev_opt = os.environ.get("JAC_OPT_LEVEL");
+        try {
+            os.environ["JAC_OPT_LEVEL"] = "0" if prev_opt != "0" else "1";
+            assert not is_module_cache_valid(jac_file, cache_path) , (
+                "a fresh mtime served a cache written under a different "
+                "codegen fingerprint"
+            );
+        } finally {
+            if prev_opt is None {
+                os.environ.pop("JAC_OPT_LEVEL", None);
+            } else {
+                os.environ["JAC_OPT_LEVEL"] = prev_opt;
+            }
+        }
+        assert is_module_cache_valid(jac_file, cache_path) , (
+            "restoring the codegen fingerprint should restore validity"
+        );
+    } finally {
+        os.unlink(jac_file);
+        cache_path2 = get_module_cache_path(jac_file);
+        if cache_path2.exists() {
+            cache_path2.unlink();
+        }
+    }
+}
+
 test "stub module cache key is source focused" {
     import from jaclang.jac0core.jir {
         compute_module_key,
