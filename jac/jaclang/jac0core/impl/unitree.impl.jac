@@ -663,11 +663,6 @@ impl ContextAwareNode.postinit -> None {
 }
 
 
-impl ContextAwareNode.set_code_context(ctx: CodeContext) -> None {
-    self.code_context = ctx;
-}
-
-
 impl WalkerStmtOnlyNode.postinit -> None {
     self.from_walker = False;
 }
