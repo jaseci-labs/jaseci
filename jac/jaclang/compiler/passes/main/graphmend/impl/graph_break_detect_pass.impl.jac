@@ -11,7 +11,7 @@ import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
 }
 
 impl GraphBreakDetectPass.before_pass -> None {
-    self._enabled = self.prog._compile_options.graphmend;
+    self._enabled = self.prog._compile_options.graphmend is True;
     if not self._enabled {
         self.prune_signal = True;
         return;
