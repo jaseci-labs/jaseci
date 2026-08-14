@@ -362,6 +362,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         release_operands: bool = True
     ) -> (ir.Value | None);
 
+    def _identity_over_optional(
+        left: ir.Value, right: ir.Value, negate: bool
+    ) -> (ir.Value | None);
+
     def _codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None);
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
     def _codegen_intrinsic(nd: uni.FuncCall, intr: object) -> (ir.Value | None);
@@ -414,6 +418,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _jac_optional_type(payload: ir.Type) -> ir.Type;
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None);
     def _opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None);
+    def _flow_narrowed_type_of(expr: (uni.UniNode | None)) -> (any | None);
     def _narrowed_flow_type(nd: uni.UniNode) -> (any | None);
     def _narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool;
     def _narrowing_stable_in_loops(nd: uni.UniNode, name: str) -> bool;

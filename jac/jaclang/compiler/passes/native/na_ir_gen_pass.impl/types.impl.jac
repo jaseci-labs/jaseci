@@ -242,17 +242,33 @@ impl NaIRGenPass._opt_sole_member(t: any) -> (any | None) {
 }
 
 impl NaIRGenPass._struct_name_of(expr: (uni.UniNode | None)) -> (str | None) {
+    """Which archetype layout a receiver's field access should address.
+
+    Two questions have to be answered together: *which type* to ask about,
+    and *which key* that type resolves through. The type is the narrow the
+    analysis stamped for this occurrence when there is one, so a receiver
+    guarded by `isinstance` addresses the class it was narrowed to. The key
+    is then resolved by `_struct_name_for_key`, which sees through a
+    parameterised or union-mangled name to the base archetype the layout was
+    built for -- a narrow that produces `SubTag[Token]` still has to land on
+    `SubTag`.
+    """;
+    _narrowed = self._struct_name_for_key(
+        self._mangled_of(self._flow_narrowed_type_of(expr))
+    );
     if (
         isinstance(expr, uni.Name)
         and expr.value == "self"
         and self._self_arch is not None
     ) {
+        if _narrowed is not None
+            and _narrowed != self._self_arch
+            and self._self_arch in self._mro_of(_narrowed) {
+            return _narrowed;
+        }
         return self._self_arch;
     }
-    if not isinstance(expr, uni.Expr) or expr.type is None {
-        return None;
-    }
-    return self._struct_name_for_key(self._mangled_of(expr.type));
+    return _narrowed;
 }
 
 impl NaIRGenPass._struct_name_for_key(tk: (str | None)) -> (str | None) {
@@ -307,6 +323,24 @@ impl NaIRGenPass._split_union_key(tk: str) -> list[str] {
     return out;
 }
 
+impl NaIRGenPass._flow_narrowed_type_of(expr: (uni.UniNode | None)) -> (any | None) {
+    """The narrow the analysis pipeline stamped on this occurrence.
+
+    `Expr.type` records what the evaluator computed for the expression, and
+    for a `Name` that is already the narrowed view -- the symbol's narrow is
+    folded into the type that gets stored. A member or subscript reference is
+    different: the evaluator stores the *member's* type there and hands the
+    narrow to its caller, so `Expr.narrowed_type` is where that answer is
+    kept. Reading it is a consumption of a central fact; the backend never
+    asks analysis to compute one.
+    """;
+    if not isinstance(expr, uni.Expr) or expr.type is None {
+        return None;
+    }
+    _nt = expr.narrowed_type;
+    return _nt if _nt is not None else expr.type;
+}
+
 impl NaIRGenPass._struct_ptr_pointee_name(val: ir.Value) -> (str | None) {
     _vt = val.type;
     if isinstance(_vt, ir.PointerType)
@@ -340,13 +374,31 @@ impl NaIRGenPass._iter_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | No
 impl NaIRGenPass._typed_elem_llvm_of(
     expr: (uni.UniNode | None), prefix: str
 ) -> (ir.Type | None) {
-    if not isinstance(expr, uni.Expr) or expr.type is None {
+    """Element storage for a container-typed expression.
+
+    The type reaching here can be a union: a field read off a joined narrow
+    (`isinstance(item, (TupleVal, ListVal))` then `item.values`) has one
+    member type per narrowed class, and a union carries no `private` of its
+    own. Members that agree on the container shape agree on its element type
+    too, so the first matching member answers for all of them.
+    """;
+    _ty = self._flow_narrowed_type_of(expr);
+    if _ty is None {
         return None;
     }
-    if not self._mangled_of(expr.type).startswith(prefix) {
+    _mg = self._mangled_of(_ty);
+    if _mg is None or not _mg.startswith(prefix) {
         return None;
     }
-    args = expr.type.private.type_args or [];
+    for _cand in (_ty?.types or [_ty]) {
+        _priv = _cand?.private;
+        if _priv is not None and (_priv?.type_args or []) {
+            _ty = _cand;
+            break;
+        }
+    }
+    _priv = _ty?.private;
+    args = (_priv?.type_args or []) if _priv is not None else [];
     if not args {
         return None;
     }
@@ -1364,9 +1416,28 @@ impl NaIRGenPass._body_assigns_before(
 }
 
 impl NaIRGenPass._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Value {
+    """Retype a read to what the checker narrowed this occurrence to.
+
+    Three storages can arrive here. A `JacOpt` unwraps to its payload and a
+    boxed `jacval` unboxes, both of which this has always done. A union whose
+    members are all pointers keeps the *first* member's pointer layout rather
+    than boxing, so its narrow is a bitcast -- gated below on the analysis
+    having actually stamped a narrow for this occurrence, because a bare
+    `dict` or `list` annotation lowers to a default flavour that is not the
+    one the value already carries, and re-typing to it would hand a jacval
+    container the helpers of an integer one.
+
+    Only a `Name` is retyped. A member reference is narrowed by an
+    intra-procedural walk that cannot see a callee rebinding the attribute,
+    so consuming its narrow here would replace a checked unwrap with a blind
+    payload read -- `optional_narrowing.jac`'s `callee_rebinds_attr` is
+    exactly that hole. Class resolution off such a narrow is still fine and
+    happens in `_struct_name_of`; what is refused here is dropping the tag.
+    """;
     _src_opt = self._opt_payload_of(val.type);
     _is_jv = bool(self?.jacval_type) and val.type == self.jacval_type;
-    if _src_opt is None and not _is_jv {
+    _is_ptr = _src_opt is None and not _is_jv and isinstance(val.type, ir.PointerType);
+    if _src_opt is None and not _is_jv and not _is_ptr {
         return val;
     }
     if not isinstance(nd, uni.Name) {
@@ -1376,10 +1447,10 @@ impl NaIRGenPass._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Val
     if _nm not in self.local_vars or _nm in self.closure_cell_vars {
         return val;
     }
-    if self._narrowing_blocked_by_none_test(nd) {
+    if not self._narrowing_stable_in_loops(nd, _nm) {
         return val;
     }
-    if not self._narrowing_stable_in_loops(nd, _nm) {
+    if self._narrowing_blocked_by_none_test(nd) {
         return val;
     }
     _nt = self._narrowed_flow_type(nd);
@@ -1396,7 +1467,8 @@ impl NaIRGenPass._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Val
         return val;
     }
     _want = self._lower_type(_nt);
-    if _nt.shared.class_name in ("list", "Sequence") and self?.jacval_type {
+    _nt_bare = False;
+    if _nt.shared.class_name in ("list", "Sequence") {
         _nt_args = _nt.private.type_args or [];
         _nt_bare = not _nt_args;
         if not _nt_bare and len(_nt_args) == 1 {
@@ -1406,13 +1478,25 @@ impl NaIRGenPass._apply_flow_narrowing(nd: uni.UniNode, val: ir.Value) -> ir.Val
                 and _a0.shared.class_name in ("any", "Any", "object")
             );
         }
-        if _nt_bare {
+        if _nt_bare and not _is_ptr and self?.jacval_type {
             self._emit_list_helpers("jacval", self.jacval_type);
             _want = self.list_types["jacval"].as_pointer();
         }
     }
     if _want is None or isinstance(_want, ir.VoidType) or _want == val.type {
         return val;
+    }
+    if _is_ptr {
+        if not (isinstance(nd, uni.Expr) and nd.narrowed_type is not None) {
+            return val;
+        }
+        if not (_nt.private.type_args or [])
+            or _nt.shared.class_name
+                not in ("list", "Sequence", "dict", "set", "frozenset", "tuple")
+            or not isinstance(_want, ir.PointerType) {
+            return val;
+        }
+        return self.builder.bitcast(val, _want, name="ptr.narrowed");
     }
     if _src_opt is not None {
         return self.builder.extract_value(val, 1, name="opt.narrowed");
