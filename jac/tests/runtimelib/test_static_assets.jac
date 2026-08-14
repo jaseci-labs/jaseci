@@ -156,6 +156,44 @@ test "configured mounts win first and keep exclusive ownership" {
 }
 
 
+test "a mount miss is exclusive: it never falls through to public/ or assets/" {
+    proj = _project();
+    _write(proj, "public/files/data.json", b"FROM_PUBLIC");
+    mount_dir = _project();
+
+    table = asset_root_table(
+        proj,
+        proj / ".jac" / "client" / "dist",
+        [{"url_prefix": "files", "local_path": str(mount_dir)}]
+    );
+    result = resolve_asset(table, "/files/data.json");
+    assert result is None , (
+        "a static_mount owns its prefix exclusively; a miss must not fall "
+        "through to public/files/data.json (or assets/)"
+    );
+}
+
+
+test "a mount on the reserved static prefix still lets project /static assets resolve" {
+    proj = _project();
+    _write(proj, "assets/logo.svg", b"<svg/>");
+    mount_dir = _project();
+
+    table = asset_root_table(
+        proj,
+        proj / ".jac" / "client" / "dist",
+        [{"url_prefix": "static", "local_path": str(mount_dir)}]
+    );
+    result = resolve_asset(table, "/static/logo.svg");
+    assert result is not None , (
+        "a mount claiming 'static' must not shadow a real project /static asset "
+        "(#7020); the static->assets root still serves it"
+    );
+    (path, _) = result;
+    assert path.read_bytes() == b"<svg/>";
+}
+
+
 # NOTE — one-law / reserved-segment protection ("public/user/data.json" must not
 # serve at /user/data.json) is a HOST-DISPATCH invariant, not a resolver one: in
 # every host, reserved paths classify before static, so the resolver is never

@@ -59,10 +59,17 @@ def _remainder(url_path: str, prefix: str) -> (str | None) {
 def resolve_asset(
     table: list[AssetRoot], url_path: str
 ) -> (tuple[Path, AssetRoot] | None) {
+    mount_claimed = False;
     for r in table {
+        if mount_claimed and r.url_prefix == "" {
+            continue;
+        }
         rel = _remainder(url_path, r.url_prefix);
         if rel is None or rel == "" {
             continue;
+        }
+        if r.source == "mount" {
+            mount_claimed = True;
         }
         base = Path(r.local_dir);
         target = base / rel;
