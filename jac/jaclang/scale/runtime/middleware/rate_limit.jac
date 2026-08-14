@@ -185,13 +185,7 @@ def _resolve_client_ip(request: any, trusted_networks: list | None = None) -> st
     if peer_ip is None or not _is_trusted(peer_ip, trusted_networks) {
         return peer;
     }
-    getlist = request.headers?.getlist;
-    if callable(getlist) {
-        raw_values = getlist("X-Forwarded-For");
-    } else {
-        value = request.headers.get("X-Forwarded-For");
-        raw_values = [value] if value else [];
-    }
+    raw_values = request.headers.getlist("X-Forwarded-For");
     hops: list = [];
     for value in raw_values {
         hops.extend(str(value).split(","));
