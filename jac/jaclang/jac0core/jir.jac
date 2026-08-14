@@ -153,31 +153,6 @@ def _module_client_kind(source_path: str) -> str {
     }
 }
 
-glob _SCHEMA_DIGEST_CACHE: list = [];
-
-def schema_digest -> str {
-    if _SCHEMA_DIGEST_CACHE {
-        return _SCHEMA_DIGEST_CACHE[0];
-    }
-    import from jaclang.jac0core.jir_registry { NODE_SPECS }
-    h = hashlib.sha256();
-    for spec in NODE_SPECS {
-        ti_txt: str = str(getattr(spec, 'type_idx', -1));
-        h.update(ti_txt.encode());
-        cn_txt: str = getattr(spec, 'class_name', '');
-        h.update(cn_txt.encode());
-        flds: tuple = getattr(spec, 'fields', ()) or ();
-        for fd in flds {
-            fn_txt: str = getattr(fd, 'name', '');
-            h.update(fn_txt.encode());
-            fk_txt: str = str(getattr(fd, 'kind', -1));
-            h.update(fk_txt.encode());
-        }
-    }
-    _SCHEMA_DIGEST_CACHE.append(h.hexdigest());
-    return _SCHEMA_DIGEST_CACHE[0];
-}
-
 glob COMPILER_DIGEST_ROOTS: tuple = (
          "jac0.py",
          "jac0core",
@@ -266,7 +241,7 @@ def _toolchain_env_fingerprint -> str {
     h.update(jaclang_version().encode());
     h.update(struct.pack('<H', (sys.version_info.major << 8) | sys.version_info.minor));
     h.update(struct.pack('<H', FORMAT_VERSION));
-    h.update(schema_digest().encode());
+    h.update(running_compiler_digest().encode());
     return h.hexdigest();
 }
 
