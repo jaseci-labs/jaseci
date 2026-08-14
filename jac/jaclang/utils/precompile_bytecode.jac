@@ -845,6 +845,13 @@ def seal_native_artifacts(
             _mat_manifest = generate_materialize_root(
                 unitree_layout, src, _UNITREE_SEAM_WAIVERS
             );
+            for _mat_warn in (_mat_manifest.pop("warnings", None) or []) {
+                console.warning(
+                    f"NATIVE SEAL: the materializer erased a slot: {_mat_warn}. "
+                    "The Python side must reconstruct it (postinit or a lazy "
+                    "accessor) or the materialized tree loses that value."
+                );
+            }
             _gen_root_src = src;
         }
         if not src.is_file() {
