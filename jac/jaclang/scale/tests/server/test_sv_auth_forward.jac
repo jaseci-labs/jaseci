@@ -313,19 +313,43 @@ test "breaker trips OPEN after N consecutive transport failures and fails fast" 
 
     assert breaker_should_skip(mod);
 
+    raised_msg = "";
     try {
-        sv_client.register(mod, "http://demo.invalid");
-        raised_msg = "";
-        try {
-            JacScalePlugin.sv_service_call(mod, "anything", {});
-        } except RuntimeError as e {
-            raised_msg = str(e);
-        }
-        assert "open circuit breaker" in raised_msg;
-    } finally {
-        sv_client.unregister(mod);
-        _breaker_reset(mod);
+        JacScalePlugin.sv_service_call(mod, "anything", {});
+    } except RuntimeError as e {
+        raised_msg = str(e);
     }
+    assert "open circuit breaker" in raised_msg;
+
+    _breaker_reset(mod);
+}
+
+test "an open breaker sheds a call before its service URL is resolved" {
+    mod = "breaker_unresolved_test";
+    _trip_breaker(mod);
+    sv_client.unregister(mod);
+
+    call_msg = "";
+    try {
+        JacScalePlugin.sv_service_call(mod, "anything", {});
+    } except RuntimeError as e {
+        call_msg = str(e);
+    }
+    assert "open circuit breaker" in call_msg , (
+        f"an unregistered service reported '{call_msg}' instead of the breaker"
+    );
+
+    spawn_msg = "";
+    try {
+        JacScalePlugin.sv_walker_call(mod, "Ping", {}, None);
+    } except RuntimeError as e {
+        spawn_msg = str(e);
+    }
+    assert "open circuit breaker" in spawn_msg , (
+        f"an unregistered service reported '{spawn_msg}' instead of the breaker"
+    );
+
+    _breaker_reset(mod);
 }
 
 test "breaker success recorder resets failure count" {
@@ -617,6 +641,73 @@ test "a probe that never reports back is reclaimed after the probe timeout" {
     );
 
     _breaker_reset(mod);
+}
+
+test "a probe lease is reclaimed at the deadline its caller set" {
+    mod = "breaker_probe_lease_ttl_test";
+    _trip_breaker(mod);
+    _breaker_force_cooldown_elapsed(mod);
+
+    (admitted, spent_probe) = breaker_admit(mod, 0.0);
+    assert admitted and spent_probe != 0;
+
+    (reclaimed, fresh_probe) = breaker_admit(mod, 60.0);
+    assert reclaimed , "a lease past its deadline pinned the breaker in HALF_OPEN";
+    assert fresh_probe != spent_probe;
+
+    (blocked, no_probe) = breaker_admit(mod, 60.0);
+    assert not blocked and no_probe == 0;
+
+    _breaker_reset(mod);
+}
+
+test "a probe lease outlasts the rpc_timeout of the call holding it" {
+    import time;
+    import jaclang.scale.runtime.rpc.rpc as plugin_mod;
+    import from jaclang.runtimelib.serving.client { ClientConnectionError }
+
+    mod = "breaker_slow_probe_test";
+    slow_timeout: float = 120.0;
+    _trip_breaker(mod);
+    _breaker_force_cooldown_elapsed(mod);
+
+    in_flight: dict = {};
+    original_post = sv_http.post_stream_aware_sync;
+
+    def fake(*args: any, **kwargs: any) -> tuple[str, any] {
+        in_flight["state"] = _breaker_peek(mod);
+        in_flight["at"] = time.time();
+        raise ClientConnectionError(detail="connection refused");
+    }
+    sv_http.post_stream_aware_sync = fake;
+
+    original_resolver = getattr(plugin_mod, "_sv_rpc_timeout");
+    def fake_resolver(module_name: str) -> float {
+        return slow_timeout;
+    }
+    setattr(plugin_mod, "_sv_rpc_timeout", fake_resolver);
+
+    try {
+        sv_client.register(mod, "http://demo.invalid");
+        try {
+            JacScalePlugin.sv_service_call(mod, "ping", {});
+        } except RuntimeError {
+            ;
+        }
+
+        st = in_flight.get("state");
+        assert st is not None and st["state"] == "HALF_OPEN" , (
+            "the probe never reached the transport"
+        );
+        assert st["probe_expires_at"] - in_flight["at"] > slow_timeout , (
+            "the probe lease expires while the call holding it can still be running"
+        );
+    } finally {
+        setattr(plugin_mod, "_sv_rpc_timeout", original_resolver);
+        sv_http.post_stream_aware_sync = original_post;
+        sv_client.unregister(mod);
+        _breaker_reset(mod);
+    }
 }
 
 test "a stale probe success does not close the breaker around a live probe" {

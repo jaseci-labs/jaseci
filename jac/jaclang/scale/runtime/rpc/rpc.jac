@@ -4,22 +4,37 @@ import from .breaker {
     breaker_should_skip,
     breaker_record_success,
     breaker_record_failure,
-    _BREAKER_COOLDOWN_SECONDS
+    _BREAKER_COOLDOWN_SECONDS,
+    _BREAKER_PROBE_GRACE_SECONDS
 }
 
 glob _RPC_MAX_ATTEMPTS: int = 3,
      _RPC_INITIAL_BACKOFF_SECONDS: float = 0.1;
 
-def _rpc_with_retries(module_name: str, label: str, send: any) -> any {
+def _breaker_shed_error(label: str) -> RuntimeError {
+    return RuntimeError(
+        f"sv-to-sv {label} blocked by open circuit breaker "
+            + f"(cooldown {int(_BREAKER_COOLDOWN_SECONDS)}s)"
+    );
+}
+
+def _breaker_shed_if_open(module_name: str, label: str) {
+    if breaker_should_skip(module_name) {
+        raise _breaker_shed_error(label);
+    }
+}
+
+def _rpc_with_retries(
+    module_name: str, label: str, send: any, rpc_timeout: float
+) -> any {
     import time;
     import from jaclang.runtimelib.serving.client { ClientConnectionError }
 
-    (admitted, probe) = breaker_admit(module_name);
+    (admitted, probe) = breaker_admit(
+        module_name, rpc_timeout + _BREAKER_PROBE_GRACE_SECONDS
+    );
     if not admitted {
-        raise RuntimeError(
-            f"sv-to-sv {label} blocked by open circuit breaker "
-                + f"(cooldown {int(_BREAKER_COOLDOWN_SECONDS)}s)"
-        );
+        raise _breaker_shed_error(label);
     }
 
     backoff: float = _RPC_INITIAL_BACKOFF_SECONDS;
@@ -77,6 +92,9 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
         return _unwrap_sv_envelope(data, module_name, func_name);
     }
 
+    rpc_label = f"RPC '{func_label}'";
+    _breaker_shed_if_open(module_name, rpc_label);
+
     import jaclang;
     ms_registry: dict[str, str] = jaclang.JacRuntime.get_sv_registry();
     url: str = ms_registry.get(module_name, "");
@@ -114,7 +132,7 @@ def service_call(module_name: str, func_name: str, args: dict) -> any {
         );
     }
 
-    (kind, payload) = _rpc_with_retries(module_name, f"RPC '{func_label}'", send);
+    (kind, payload) = _rpc_with_retries(module_name, rpc_label, send, rpc_timeout);
     if kind == 'sse' {
         return payload;
     }
@@ -137,6 +155,9 @@ def walker_call(
         data = resp.json();
         return _hydrate_walker_envelope(data, module_name, walker_name, stub_cls);
     }
+
+    spawn_label = f"walker spawn '{label}'";
+    _breaker_shed_if_open(module_name, spawn_label);
 
     url = sv_client.resolve_url(module_name);
     import from jaclang.runtimelib.serving.client { request_sync }
@@ -170,7 +191,7 @@ def walker_call(
         return resp.json();
     }
 
-    data = _rpc_with_retries(module_name, f"walker spawn '{label}'", send);
+    data = _rpc_with_retries(module_name, spawn_label, send, rpc_timeout);
     return _hydrate_walker_envelope(data, module_name, walker_name, stub_cls);
 }
 

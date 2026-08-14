@@ -1,7 +1,8 @@
 import from threading { Lock as _BreakerLock }
 glob _BREAKER_TRIP_THRESHOLD: int = 5,
      _BREAKER_COOLDOWN_SECONDS: float = 30.0,
-     _BREAKER_PROBE_TIMEOUT_SECONDS: float = 60.0,
+     _BREAKER_PROBE_GRACE_SECONDS: float = 30.0,
+     _BREAKER_DEFAULT_PROBE_TTL_SECONDS: float = 60.0,
      _BREAKER_NO_PROBE: int = 0,
      _breaker_state: dict[str, dict] = {},
      _breaker_lock = _BreakerLock();
@@ -12,27 +13,27 @@ def _breaker_new_state -> dict {
         "fails": 0,
         "opened_at": 0.0,
         "probe": _BREAKER_NO_PROBE,
-        "probe_started_at": 0.0
+        "probe_expires_at": 0.0
     };
 }
 
 def _breaker_open(st: dict, now: float) {
     st["state"] = "OPEN";
     st["opened_at"] = now;
-    st["probe_started_at"] = 0.0;
+    st["probe_expires_at"] = 0.0;
 }
 
 def _breaker_close(st: dict) {
     st["state"] = "CLOSED";
     st["fails"] = 0;
     st["opened_at"] = 0.0;
-    st["probe_started_at"] = 0.0;
+    st["probe_expires_at"] = 0.0;
 }
 
-def _breaker_lease_probe(st: dict, now: float) -> int {
+def _breaker_lease_probe(st: dict, now: float, ttl: float) -> int {
     st["state"] = "HALF_OPEN";
     st["probe"] = st.get("probe", _BREAKER_NO_PROBE) + 1;
-    st["probe_started_at"] = now;
+    st["probe_expires_at"] = now + ttl;
     return st["probe"];
 }
 
@@ -59,7 +60,7 @@ def _breaker_is_shedding(st: dict, now: float) -> bool {
         return (now - st.get("opened_at", 0.0)) < _BREAKER_COOLDOWN_SECONDS;
     }
     if state == "HALF_OPEN" {
-        return (now - st.get("probe_started_at", 0.0)) < _BREAKER_PROBE_TIMEOUT_SECONDS;
+        return now < st.get("probe_expires_at", 0.0);
     }
     return False;
 }
@@ -72,7 +73,9 @@ def breaker_should_skip(provider: str) -> bool {
     }
 }
 
-def breaker_admit(provider: str) -> tuple[bool, int] {
+def breaker_admit(
+    provider: str, probe_ttl: float = _BREAKER_DEFAULT_PROBE_TTL_SECONDS
+) -> tuple[bool, int] {
     import time;
     with _breaker_lock {
         st = _breaker_state.get(provider);
@@ -83,7 +86,7 @@ def breaker_admit(provider: str) -> tuple[bool, int] {
         if _breaker_is_shedding(st, now) {
             return (False, _BREAKER_NO_PROBE);
         }
-        return (True, _breaker_lease_probe(st, now));
+        return (True, _breaker_lease_probe(st, now, probe_ttl));
     }
 }
 
@@ -163,7 +166,7 @@ def _breaker_force_probe_expired(provider: str) {
     with _breaker_lock {
         st = _breaker_state.get(provider);
         if st is not None {
-            st["probe_started_at"] = 0.0;
+            st["probe_expires_at"] = 0.0;
         }
     }
 }
