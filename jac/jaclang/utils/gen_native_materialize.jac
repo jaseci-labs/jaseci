@@ -52,6 +52,12 @@ glob _UNITREE_MASK_CORPUS_LINES: tuple = (
          "    return <div id='a'>{t}</div>;",
          "}",
          "async def later -> None {}",
+         "comptime if 1 > 0 { glob CT_ON: int = 1; }",
+         "enum Tone: int {",
+         "    comptime for N in ('LOW', 'HIGH') {",
+         "        ${ct.name(N)} = ${len(N)},",
+         "    }",
+         "}",
          "test box_holds { assert Box(x=1).m() >= -1; }",
          "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }",
 
@@ -75,7 +81,7 @@ def unitree_profile -> MaterializeProfile {
         parse_entry_module="jaclang.jac0core.parser.parser",
         diag_class="SrcDiag",
         comment_class="CommentData",
-        dead_fields={("Archetype", "body", ), ("Ability", "body", ), ("Enum", "body", )}
+        dead_fields=set()
     );
 }
 
