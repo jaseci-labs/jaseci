@@ -143,6 +143,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         struct_field_enum_type: dict[str, dict] = {},
         struct_field_elem_keys: dict[str, dict] = {},
         loop_stack: list[tuple] = [],
+        _loop_coll_seq: int = 0,
+        _iter_owned_srcs: (list | None) = None,
         _str_count: int = 0,
         struct_types: dict[str, object] = {},
         struct_field_indices: dict[str, dict] = {},
@@ -1568,6 +1570,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> None;
 
     def _emit_loop_iter_cleanup(body_locals: list, loc: str = "") -> None;
+    def _bind_loop_coll_slot(val: ir.Value) -> (str | None);
+    def _release_loop_coll_slot(var_name: str, op: str = "", loc: str = "") -> None;
     def _set_rc_ctx(op: str, loc: str) -> None;
     def _clear_rc_ctx -> None;
     def _rc_strdup(ptr: ir.Value, name: str = "rc.str") -> ir.Value;
