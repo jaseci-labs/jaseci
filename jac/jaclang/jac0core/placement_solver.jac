@@ -496,8 +496,7 @@ def solve_module_placement(
 
     def _invalidate_stale_codegen {
         if stamp_count[0] and (module.gen.js or module.gen.es_ast is not None) {
-            module.gen.js = '';
-            module.gen.es_ast = None;
+            _invalidate_module_es(module);
         }
     }
 
@@ -842,6 +841,20 @@ def solve_program_placement(entry_mod: uni.Module, prog: any) -> None {
     }
 }
 
+def _invalidate_module_es(module: uni.Module) {
+    stack: list[uni.UniNode] = [module];
+    while stack {
+        nd = stack.pop();
+        cached = nd._gen;
+        if cached is not None and (cached.js or cached.es_ast is not None) {
+            cached.js = '';
+            cached.es_ast = None;
+        }
+        stack.extend(nd.kid);
+    }
+}
+
+
 def demote_client_pulled_elements(
     module: uni.Module, prog: any, err_mark: int, warn_mark: int
 ) -> bool {
@@ -886,8 +899,7 @@ def demote_client_pulled_elements(
     }
     del prog.errors_had[err_mark:];
     del prog.warnings_had[warn_mark:];
-    module.gen.js = '';
-    module.gen.es_ast = None;
+    _invalidate_module_es(module);
     key = os.path.abspath(mod_path);
     hub = prog?.mod?.hub;
     if isinstance(hub, dict) {
@@ -905,8 +917,7 @@ def demote_client_pulled_elements(
                     if (
                         isinstance(resolved, str) and os.path.abspath(resolved) == key
                     ) {
-                        m.gen.js = '';
-                        m.gen.es_ast = None;
+                        _invalidate_module_es(m);
                     }
                 }
             }
