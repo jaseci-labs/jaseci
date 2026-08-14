@@ -456,7 +456,7 @@ Passwords are hashed with [scrypt](https://en.wikipedia.org/wiki/Scrypt) (random
 
 ### Storage
 
-Identity data lives in the same Postgres database as the graph -- the embedded per-project server locally, or whatever `[scale.database].url` / `JAC_DB_URL` points at:
+Identity data lives in the same Postgres database as the graph -- the project's database in the machine's shared embedded cluster locally, or whatever `[scale.database].url` / `JAC_DB_URL` points at:
 
 ```toml
 # jac.toml -- use an external Postgres server

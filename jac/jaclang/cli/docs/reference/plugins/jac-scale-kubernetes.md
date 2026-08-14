@@ -49,11 +49,13 @@ Use this for air-gapped clusters, to pin an exact build, or to deploy a binary y
 
 The app is packed on the deploy driver into a sealed **`.jab`** image, seeded to the bundle PVC, and extracted into the pod's `/app` volume. The `.jab` contains the project source, a `_precompiled/` sealed image (`MANIFEST.json` + content-keyed `.jir` modules built with the pod binary), and the sanitized `jac.toml` (root and nested project tomls, secrets and `[dev]` sections stripped).
 
+The source copy honors the project's [`.jacignore`](../config/index.md#jacignore) with the same patterns and semantics as `jac check`, on top of a fixed floor of paths that never ship (VCS and build directories, `.env` files, private keys and certificates). A tree parked in `.jacignore` reaches neither the seal stage, the `.jab`, nor the pod, and its nested `jac.toml` is not enumerated either. `.jacignore` itself ships, so editing it moves the bundle's content address and the next deploy re-ships instead of hitting the content-addressed skip.
+
 The seal stage is a valid, sanitized copy of the project: sanitized tomls are written into it before the seal runs, so `[placement.pins]` and nested-project scoping are visible at seal time. The seal compiles exactly the modules that emit server code -- client-only modules (pinned or inferred) produce JS, not pod bytecode, and are skipped via the placement facts API. The per-module placement verdict is recorded in the sealed `MANIFEST.json` (`placement` map, manifest format 5). The seal subprocess timeout defaults to 1800s and is configurable with `[scale] seal_timeout` in `jac.toml`.
 
 Sealing is **mandatory**: if the app cannot be sealed into a valid image, the deploy fails rather than shipping a bundle that cold-compiles on the pod's first boot. When a pod starts, the compiler auto-loads the sibling `_precompiled/` image, so services run from precompiled modules with no on-pod compile step - for both single-app and microservice deployments.
 
-If a module in your project cannot be sealed (for example, a file that fails to compile), the deploy aborts with the seal error. Fix or exclude the offending module and redeploy.
+If a module in your project cannot be sealed (for example, a file that fails to compile), the deploy aborts with the seal error. Fix the offending module, or park its tree in `.jacignore` if it is not part of the served app, and redeploy.
 
 ---
 
@@ -763,9 +765,13 @@ The scale server registers built-in endpoints for Kubernetes probes:
 
 - `/healthz/live` -- Liveness: returns `200` while the server process is up
 - `/healthz/ready` -- Readiness: returns `200` when serving, `503` while the server is draining during shutdown
-- `/healthz` -- Legacy combined health endpoint
+- `/healthz` -- Legacy combined health endpoint, treated as liveness
 
 Microservice deployments wire their probes to `/healthz/live` and `/healthz/ready` automatically. Single-app deployments probe `health_check_path` (default `/docs`); point it at `/healthz/ready` to use the built-in endpoint -- see [Health Probes](#health-probes).
+
+**The two probes answer different questions, and the split is deliberate.** Liveness answers "is this process wedged, restart it"; readiness answers "can this pod serve traffic, keep it in Endpoints". A database outage is only ever the second question, so `/healthz/live` (and the legacy `/healthz`) do **not** build a request context and never touch the database: they answer from the process alone. `/healthz/ready` does build one, so it reflects database health, and returns `503` when the database is unreachable rather than failing. The pod leaves Endpoints, stops taking traffic, and rejoins when the database recovers -- with no restart, and no restart loop that would outlive the incident. Any ordinary request whose context cannot be built returns `503` with `Retry-After` for the same reason: an unreachable dependency is not an internal server error.
+
+Point a `livenessProbe` at `/healthz/live` and a `readinessProbe` at `/healthz/ready`. Never point a liveness probe at anything that queries the database.
 
 You can also create custom health walkers:
 

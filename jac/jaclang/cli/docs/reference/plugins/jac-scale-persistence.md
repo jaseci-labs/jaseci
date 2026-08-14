@@ -314,7 +314,7 @@ def on_order_placed(event: Event) -> None {
 
 Handlers register at import time. At server startup, the framework walks the registry and wires each handler into the active broker. A daemon consumer thread is spawned per subscription.
 
-`@subscribe` accepts optional `group=` and `retry=` arguments to override the defaults from `jac.toml`, plus `start_from=` to control where a brand-new consumer group begins reading. Default is `"latest"` (only events produced after the group is created); pass `"earliest"` to replay everything still retained, or a broker-specific position token to resume from a specific offset. `start_from` is a one-time bookmark: existing groups always resume from their stored position and ignore this argument.
+`@subscribe` accepts optional `group=` and `retry=` arguments to override the defaults from `jac.toml`, plus `start_from=` to control where a brand-new consumer group begins reading. Default is `"latest"` (only events produced after the group is created); pass `"earliest"` to replay everything still retained. The argument is a plain `str`; the two positions the shipped brokers understand are named by the `StreamPosition` enum in `jaclang.scale.events.broker`, so `start_from=StreamPosition.EARLIEST.value` says the same thing as `start_from="earliest"`. Any other token is treated as `"latest"`. `start_from` is a one-time bookmark: existing groups always resume from their stored position and ignore this argument.
 
 ```jac
 @subscribe("orders.placed", start_from="earliest")
@@ -340,7 +340,9 @@ def drain(broker: EventStreamBroker) -> int {
 }
 ```
 
-`consume()` blocks for up to `timeout_seconds` waiting for at least one event, then returns whatever has arrived (up to `max_messages`). Each event must be acked individually via `ack(event)` or the broker will redeliver it after its visibility timeout. `consume()` accepts the same `start_from=` argument as `subscribe()`; it only affects the first call that creates the consumer group, subsequent calls resume from the stored position.
+`consume()` blocks for up to `timeout_seconds` (default `5.0`) waiting for at least one event, then returns whatever has arrived (up to `max_messages`). Pass `timeout_seconds=0.0` for a non-blocking poll. Each event must be acked individually via `ack(event)` or the broker will redeliver it after its visibility timeout. `consume()` accepts the same `start_from=` argument as `subscribe()`; it only affects the first call that creates the consumer group, subsequent calls resume from the stored position.
+
+Every broker honors that contract identically, whichever backend is selected: `EventStreamBroker` checks each implementation's method signatures against its own declarations when the subclass is defined, so a broker that drops a parameter, changes a default, or adds a required parameter raises `TypeError` at import instead of failing on a call at runtime. An implementation may widen with additional defaulted parameters.
 
 ### Configuration reference
 
@@ -393,9 +395,21 @@ Graph persistence is **Postgres-native** and there is exactly one stack:
 
 Credentials are never hardcoded in pod specs: the provisioned password lives in a Kubernetes `Secret` (`{app}-postgres-secret`) and pods receive `JAC_DB_URL` via `valueFrom.secretKeyRef`.
 
+#### Server tuning
+
+Every Postgres jac starts -- the embedded server, `jac db serve`, and the provisioned StatefulSet -- is started with the same three settings, because jac's write transactions are `SERIALIZABLE` and stock Postgres is not sized for that:
+
+| Setting | Value | Why |
+|---------|-------|-----|
+| `max_connections` | `256` | Absorbs a default `jac test` fan-out plus interactive commands without starving either. |
+| `max_pred_locks_per_transaction` | `1024` | SERIALIZABLE takes one SIReadLock per row/page read, and the pool is `max_pred_locks_per_transaction` x `max_connections` entries -- 262,144 here, against a stock 64 x 100 = 6,400. Overflowing the pool fails **every** statement with `53200 out of shared memory ... CreatePredicateLock`, not just the transaction that overran it. |
+| `idle_in_transaction_session_timeout` | `300000` (5 min) | Disconnects any process that regresses on the no-idle-transaction invariant instead of letting it pin predicate-lock reclamation cluster-wide. The store heals the resulting `25P03` transparently. |
+
+If you point `[scale.database].url` at a managed Postgres, set `max_pred_locks_per_transaction` there yourself; keep the product of it and `max_connections` comfortably above the peak SIReadLock count your workload holds (`SELECT count(*) FROM pg_locks WHERE mode = 'SIReadLock'`).
+
 ### Consistency model
 
-There is no cache tier and no cross-pod invalidation protocol to configure: each request reads and writes inside one `SERIALIZABLE` Postgres transaction, and **the transaction is the single source of truth**. Racing requests converge via abort-and-replay; see [Persistence -> Concurrent writes](../persistence.md#concurrent-writes-check-then-create-and-convergence). Cross-pod signaling (WebSocket broadcasts, event delivery) rides Postgres `LISTEN`/`NOTIFY` on the same database.
+There is no cache tier and no cross-pod invalidation protocol to configure: each request's unit of work reads and writes inside one `SERIALIZABLE` Postgres transaction, and **the transaction is the single source of truth**. Racing requests converge via abort-and-replay; see [Persistence -> Concurrent writes](../persistence.md#concurrent-writes-check-then-create-and-convergence). The infrastructure reads that precede your code (resolving the request context's root anchor, and health probes) run in a declared `REPEATABLE READ READ ONLY` transaction that takes no predicate locks, and the transaction is restarted at SERIALIZABLE before a unit of work can write. Cross-pod signaling (WebSocket broadcasts, event delivery) rides Postgres `LISTEN`/`NOTIFY` on the same database.
 
 The admin dashboard's Ops page (`/admin/ops`) renders a Postgres health card driven by a live `SELECT 1` probe, so a database incident is visible without kubectl.
 

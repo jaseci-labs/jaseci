@@ -240,3 +240,33 @@ test "un-inferable elem type: an unorderable mixed comparison is refused, not gu
         + f"a str, got {[str(e) for e in prog.errors_had]}"
     );
 }
+
+test "isinstance-narrowed any container unboxes at the boxed-boundary flavor" {
+    # jac#8052: `isinstance(x, list)` on an `any` narrows to the BARE `list`,
+    # whose default lowering is the unboxed i64 flavor; the narrowed unbox
+    # must instead take the canonical heterogeneous layout every any-consume
+    # site assumes, or the value dies at its `list[any]` destination.
+    eng = native_engine("container_any_narrow.jac");
+    sv = sv_funcs("container_any_narrow.jac");
+    for fn in [
+        "narrowed_list_miss",
+        "narrowed_list_consume",
+        "narrowed_dict_consume",
+        "narrowed_dict_miss"
+    ] {
+        na_v = native_call(eng, fn);
+        sv_v = int(sv[fn]());
+        assert na_v == sv_v , f"native {fn}() == {na_v} but sv gives {sv_v}";
+    }
+    # Pin the values too, so the two pathways cannot agree on a shared wrong
+    # answer: 3 elements, first == 7, int elements sum to 11; keys "ab"/"c"
+    # total 3 chars across 2 entries.
+    assert native_call(eng, "narrowed_list_consume") == 3081 , (
+        "narrowed list consume must read len, index, and elements congruently"
+    );
+    assert native_call(eng, "narrowed_dict_consume") == 32 , (
+        "narrowed dict consume must iterate keys and read len congruently"
+    );
+    assert native_call(eng, "narrowed_list_miss") == -1 , "non-list any misses";
+    assert native_call(eng, "narrowed_dict_miss") == -1 , "non-dict any misses";
+}

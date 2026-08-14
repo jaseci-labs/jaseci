@@ -52,11 +52,7 @@ impl MemoryBackplane.close{
 
 
 impl PgBackplane._pg_channel(channel: str) -> str {
-    out = '';
-    for ch in channel.lower() {
-        out += ch if (ch.isalnum() or ch == '_') else '_';
-    }
-    return f"jac_ws_{out}"[:63];
+    return f"jac_ws_{channel}";
 }
 
 

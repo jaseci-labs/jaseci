@@ -343,12 +343,7 @@ def _scale_split(module_name: str) -> int {
         console.print(f"Cannot parse {toml_path}: {e}", style="error");
         return 1;
     }
-    declared = (
-        doc.get("scale", {}).get("microservices", {}).get("routes", {})
-        or doc.get("plugins", {}).get("scale", {}).get("microservices", {}).get(
-            "routes", {}
-        )
-    );
+    declared = doc.get("scale", {}).get("microservices", {}).get("routes", {});
     if name in declared {
         console.print(
             f"Service '{name}' is already declared "

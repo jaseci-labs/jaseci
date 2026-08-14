@@ -3,7 +3,7 @@ import os;
 import sys;
 import types;
 import from pathlib { Path }
-import from jaclang.cli.console { console }
+import from jaclang.cli.console { console, use_line_buffered_output }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 import from jaclang.project.kinds { RunPlan }
 
@@ -274,6 +274,7 @@ impl run(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.project.config { get_config }
 
+    use_line_buffered_output();
     if debug_mode {
         if not filename {
             console.error("jac run --debug needs a file.");
@@ -445,6 +446,7 @@ impl enter(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.jac0core.constructs { WalkerArchetype }
 
+    use_line_buffered_output();
     if len(sys.argv) > 1 and sys.argv[1] == "enter" {
         console.print(
             "note: 'jac enter' is deprecated; use jac run <file> --entry <name>",
@@ -537,6 +539,7 @@ impl start(
     import from pathlib { Path }
     import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
 
+    use_line_buffered_output();
     set_effective_default_codespace('server');
 
     import from jaclang.runtimelib.client.cli { run_client_start }
