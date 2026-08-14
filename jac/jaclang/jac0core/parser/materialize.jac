@@ -61,7 +61,23 @@ def materialize_fixups(module: any) {
                     for k in nd.kid[lb + 1:]
                     if isinstance(k, elem) and type(k).__name__ != "Semi"
                 ];
+            } elif type(nd).__name__ == "Ability" {
+                for k in nd.kid {
+                    if isinstance(k, uni.Expr)
+                        and (k?.kid or [])
+                        and getattr(k.kid[0], "name", "") == "KW_BY" {
+                        nd.body = k;
+                        break;
+                    }
+                }
             }
+        }
+
+        if isinstance(nd, uni.Name) {
+            if nd.__dict__.get("name_spec") is not nd {
+                nd.name_spec = nd;
+            }
+            continue;
         }
 
         if isinstance(nd, uni.AstSymbolStubNode)
@@ -81,6 +97,23 @@ def materialize_fixups(module: any) {
             if spec is not None and spec is not nd {
                 name_child = nd.__dict__.get("name");
                 sym_name = str(name_child?.value or getattr(spec, "value", ""));
+                if rebind == "TEST" {
+                    desc_child = nd.__dict__.get("description");
+                    if desc_child is not None and name_child is not None {
+                        ident = _mat_parser._test_ident_from_desc(
+                            _mat_parser._string_lit_text(
+                                str(getattr(desc_child, "value", ""))
+                            )
+                        );
+                        if ident {
+                            name_child.value = ident;
+                            sym_name = ident;
+                        }
+                    }
+                    if not sym_name.startswith("test_") {
+                        sym_name = f"test_{sym_name}";
+                    }
+                }
                 getattr(uni.AstSymbolNode, "_init_symbol")(
                     nd,
                     sym_name=sym_name,

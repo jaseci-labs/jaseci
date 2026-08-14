@@ -350,6 +350,31 @@ def _string_lit_text(raw: str) -> str {
     return v;
 }
 
+def _test_ident_from_desc(desc_text: str) -> str {
+    ident_chars: list[str] = [];
+    prev_sep = False;
+    for ch in desc_text {
+        is_word = ("a" <= ch and ch <= "z")
+            or ("A" <= ch and ch <= "Z")
+            or ("0" <= ch and ch <= "9");
+        if is_word {
+            ident_chars.append(ch);
+            prev_sep = False;
+        } elif not prev_sep {
+            ident_chars.append("_");
+            prev_sep = True;
+        }
+    }
+    ident: str = str("".join(ident_chars));
+    if ident.startswith("_") {
+        ident = ident[1:];
+    }
+    if ident.endswith("_") {
+        ident = ident[:-1];
+    }
+    return ident.lower();
+}
+
 obj Parser {
     has tokens: list[LexToken],
         pos: int = 0,

@@ -6355,28 +6355,7 @@ impl Parser.parse_test -> Test {
         description = self.make_string(str_tok);
 
         desc_text = _string_lit_text(str_tok.value);
-        ident_chars: list[str] = [];
-        prev_sep = False;
-        for ch in desc_text {
-            is_word = ("a" <= ch and ch <= "z")
-                or ("A" <= ch and ch <= "Z")
-                or ("0" <= ch and ch <= "9");
-            if is_word {
-                ident_chars.append(ch);
-                prev_sep = False;
-            } elif not prev_sep {
-                ident_chars.append("_");
-                prev_sep = True;
-            }
-        }
-        ident: str = str("".join(ident_chars));
-        if ident.startswith("_") {
-            ident = ident[1:];
-        }
-        if ident.endswith("_") {
-            ident = ident[:-1];
-        }
-        ident = ident.lower();
+        ident = _test_ident_from_desc(desc_text);
         if not ident {
             self._gen_test_idx += 1;
             ident = f"_jac_gen_{self._gen_test_idx}";

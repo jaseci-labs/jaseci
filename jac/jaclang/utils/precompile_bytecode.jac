@@ -633,6 +633,7 @@ glob _PARITY_CANARY_LINES: tuple = (
          "    return <div id='a'>{t}</div>;",
          "}",
          "async def later -> None {}",
+         "def guess(t: str) -> int by fake_llm();",
          "@dataclass",
          "class _PyStyle {",
          "    label: str = '';",
@@ -727,8 +728,65 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
                 f"{at + 1}: native {n_show!r} vs bytecode {p_show!r}"
             );
         }
+        n_syms = _sym_name_fingerprint(native_mod);
+        p_syms = _sym_name_fingerprint(py_mod);
+        if n_syms != p_syms {
+            at = -1;
+            for (si, sym_pair) in enumerate(zip(n_syms, p_syms)) {
+                if sym_pair[0] != sym_pair[1] {
+                    at = si;
+                    break;
+                }
+            }
+            if at < 0 {
+                at = min(len(n_syms), len(p_syms));
+            }
+            n_show = n_syms[at] if at < len(n_syms) else "<end>";
+            p_show = p_syms[at] if at < len(p_syms) else "<end>";
+            return (
+                f"{canary_path}: symbol names diverged at entry {at + 1}: "
+                f"native {n_show!r} vs bytecode {p_show!r}"
+            );
+        }
     }
     return "";
+}
+
+def _sym_name_fingerprint(mod: any) -> list[str] {
+    import jaclang.jac0core.unitree as uni;
+    out: list[str] = [];
+    for nd in mod._in_mod_nodes {
+        entry = "";
+        if isinstance(nd, uni.AstSymbolNode) {
+            try {
+                entry = f"{type(nd).__name__}:{nd.sym_name}";
+            } except Exception as sym_exc {
+                entry = f"{type(nd).__name__}:<{type(sym_exc).__name__}>";
+            }
+        }
+        if "body" in nd.__dict__ {
+            nd_body = nd.__dict__.get("body");
+            body_shape = f"list:{len(nd_body)}"
+                if isinstance(nd_body, (list, tuple))
+                else ("none" if nd_body is None else f"node:{type(nd_body).__name__}");
+            entry = f"{entry or type(nd).__name__}|body={body_shape}";
+        }
+        if isinstance(nd, uni.NameAtom) {
+            nd_spec = nd.__dict__.get("name_spec");
+            spec_shape = "self"
+                if nd_spec is nd
+                else (
+                    "none"
+                        if nd_spec is None
+                        else f"{type(nd_spec).__name__}:{getattr(nd_spec, 'value', '')}"
+                );
+            entry = f"{entry or type(nd).__name__}|spec={spec_shape}";
+        }
+        if entry {
+            out.append(entry);
+        }
+    }
+    return out;
 }
 
 def _native_lib_filename(stem: str) -> str {
