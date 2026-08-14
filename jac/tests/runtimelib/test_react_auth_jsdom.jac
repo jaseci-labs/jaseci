@@ -21,36 +21,22 @@ and react-native's signature (`test_client_runtime_parity.jac`), both ungated.
 Real `bun install`, so this runs only under `JAC_CLIENT_INTEGRATION`.
 """
 
-import json;
 import os;
-import re;
-import shutil;
-import subprocess;
 import pytest;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-import from jaclang.runtimelib.client_surface { with_runtime_globals }
-import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
 import from jaclang.runtimelib.client.bun_installer { get_bun }
+import from .react_jsdom_harness {
+    bun_install,
+    compile_page,
+    require_client_integration,
+    run_harness,
+    write_runtime
+}
 
 glob FIXTURES = str(Path(__file__).parent / "fixtures" / "react_auth"),
-     # Mirrors `_default_client_deps("react")` runtime deps; jsdom is test-only.
-     _DEPS: dict[str, str] = {
-         "jsdom": "^24.0.0",
-         "react": "^18.2.0",
-         "react-dom": "^18.2.0",
-         "react-router-dom": "^6.22.0",
-         "react-error-boundary": "^5.0.0",
-         "@tanstack/react-form": "^1.33.0",
-         "zod": "^4.3.6"
-     },
      # Shared jsdom bootstrap: build a DOM AT THE SCENARIO'S URL (BrowserRouter
      # reads `window.location`), seed/clear the `jac_token` `jacIsLoggedIn()`
      # reads, and publish the browser globals react-dom needs. `mountId` differs
@@ -165,123 +151,32 @@ assertExpectation(expect, () => mount.innerHTML);
 finish();
 """;
 
-"""Skip unless the client toolchain integration flag is set."""
-def _require_client_integration {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
-            "React AuthGuard jsdom test does a real bun install; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
-}
-
-"""Compile a `.jac` to JS with the React backend; type errors are non-fatal."""
-def _compile_react(path: str) -> str {
-    prog = JacProgram();
-    ir = prog.compile(
-        file_path=str(path), options=CompileOptions(type_check=True, no_cgen=True)
-    );
-    fatal = [
-        e
-        for e in prog.errors_had
-        if not issubclass(e.from_pass, TypeCheckPass)
-    ];
-    assert not fatal , f"compile errors in {path}: {[str(e) for e in fatal]}";
-    es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=ReactBackend());
-    return es_to_js(es_pass.ir_out.gen.es_ast);
-}
-
-"""Point the shim's dotted core import at a flat sibling (mirrors the bundler)."""
-def _rewrite_core_specifier(runtime_js: str) -> str {
-    m = re.search(r"""["'](\.[^"']*client_runtime_core\.js)["']""", runtime_js);
-    if m {
-        return runtime_js.replace(m.group(1), "./client_runtime_core.js");
-    }
-    return runtime_js;
-}
-
-"""Point `@jac/runtime` at the flat sibling the harness writes, as the bundler
-resolves the virtual module."""
-def _wire_jac_runtime(js: str) -> str {
-    for q in ['"', "'"] {
-        js = js.replace(f"{q}@jac/runtime{q}", f"{q}./jac_runtime.js{q}");
-    }
-    return js;
-}
-
-"""Compile a page/layout/app `.jac`, prepend its `@jac/runtime` globals (the bare
-`__jacJsx`), and wire the runtime specifier."""
-def _compile_page(path: str, backend: any) -> str {
-    return _wire_jac_runtime(with_runtime_globals(_compile_react(path), backend));
-}
-
-"""Emit the compiled `@jac/runtime` shim + its core into the work dir."""
-def _write_runtime(work: Path) {
-    runtime_path = resolve_client_runtime_cl_path("react");
-    (work / "jac_runtime.js").write_text(
-        _rewrite_core_specifier(_compile_react(runtime_path)), encoding="utf-8"
-    );
-    (work / "client_runtime_core.js").write_text(
-        _compile_react(str(Path(runtime_path).parent / "client_runtime_core.jac")),
-        encoding="utf-8"
-    );
-}
-
-"""`bun install` the shared dep set into `work`."""
-def _bun_install(bun: str, work: Path, name: str) {
-    (work / "package.json").write_text(
-        json.dumps(
-            {"name": name, "private": True, "type": "module", "dependencies": _DEPS}
-        ),
-        encoding="utf-8"
-    );
-    install = subprocess.run(
-        [bun, "install"], cwd=str(work), capture_output=True, text=True, timeout=300
-    );
-    assert install.returncode == 0 , (
-        f"bun install failed (exit {install.returncode}):\n"
-        f"{install.stdout}\n{install.stderr}"
-    );
-}
-
 """One fresh process per scenario, so each starts at its own URL and auth state
 with a clean module graph."""
 def _run_scenarios(bun: str, work: Path, scenarios: list, label: str) {
-    node_bin = shutil.which("node");
     for sc in scenarios {
-        if node_bin {
-            cmd = [node_bin, str(work / "harness.mjs"), sc[0], sc[1]];
-        } else {
-            cmd = [bun, "run", str(work / "harness.mjs"), sc[0], sc[1]];
-        }
-        run = subprocess.run(
-            cmd, cwd=str(work), capture_output=True, text=True, timeout=120
-        );
-        detail = (run.stdout or "") + "\n" + (run.stderr or "");
-        assert run.returncode == 0 , (
-            f"{label} harness {sc} failed (exit {run.returncode}):\n{detail}"
-        );
+        run_harness(bun, work, [sc[0], sc[1]], f"{label} {sc}");
     }
 }
 
 test "react AuthGuard renders children, child routes, and nothing -- in jsdom" {
-    _require_client_integration();
+    require_client_integration("React AuthGuard");
     bun = get_bun();
     if bun is None {
         pytest.skip("bun is required but could not be located/installed");
     }
 
     backend = ReactBackend();
-    component_js = _compile_page(
+    component_js = compile_page(
         os.path.join(FIXTURES, "manual_routing_app.jac"), backend
     );
 
     with TemporaryDirectory() as tmp {
         work = Path(tmp);
         (work / "component.js").write_text(component_js, encoding="utf-8");
-        _write_runtime(work);
+        write_runtime(work);
         (work / "harness.mjs").write_text(_MANUAL_HARNESS, encoding="utf-8");
-        _bun_install(bun, work, "react-authguard-jsdom-test");
+        bun_install(bun, work, "react-authguard-jsdom-test");
         _run_scenarios(
             bun,
             work,
