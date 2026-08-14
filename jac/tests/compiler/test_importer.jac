@@ -491,19 +491,19 @@ test "fresh mtime does not admit a cache written under a different environment" 
         );
         assert is_module_cache_valid(jac_file, cache_path) , "fresh cache should be valid";
 
-        saved = list(jir._SCHEMA_DIGEST_CACHE);
+        saved = list(jir._COMPILER_DIGEST_CACHE);
         try {
-            jir._SCHEMA_DIGEST_CACHE.clear();
-            jir._SCHEMA_DIGEST_CACHE.append("0" * 64);
+            jir._COMPILER_DIGEST_CACHE.clear();
+            jir._COMPILER_DIGEST_CACHE.append("289:" + "0" * 64);
             assert not is_module_cache_valid(jac_file, cache_path) , (
-                "a fresh mtime served a cache written under a different node schema"
+                "a fresh mtime served a cache written under a different compiler"
             );
         } finally {
-            jir._SCHEMA_DIGEST_CACHE.clear();
-            jir._SCHEMA_DIGEST_CACHE.extend(saved);
+            jir._COMPILER_DIGEST_CACHE.clear();
+            jir._COMPILER_DIGEST_CACHE.extend(saved);
         }
         assert is_module_cache_valid(jac_file, cache_path) , (
-            "restoring the schema digest should restore validity"
+            "restoring the compiler digest should restore validity"
         );
 
         prev_opt = os.environ.get("JAC_OPT_LEVEL");
