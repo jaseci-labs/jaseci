@@ -294,8 +294,8 @@ obj CodeBlockStmt(UniCFGNode) {
     def postinit -> None;
 }
 
-obj AstImplNeedingNode[T](AstSymbolNode) {
-    has body: (T | None);
+obj AstImplNeedingNode(AstSymbolNode) {
+    has body: (Sequence[UniNode] | UniNode | None);
     has needs_impl: bool { getter; }
 }
 

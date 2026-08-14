@@ -201,6 +201,124 @@ test "union-erased slots materialize their runtime arm (ImplDef.spec)" {
     assert type(n_impls[0].spec).__name__ == "FuncSignature";
 }
 
+glob _BODY_CARRIERS: tuple = ("Archetype", "Ability", "Enum", ),
+     _BODY_UNION_LINES: tuple = (
+         "obj Box {",
+         "    has x: int = 0;",
+         "    static has count: int = 0;",
+         "    has p: int { getter; }",
+         "    has q: int { getter { return 1; } }",
+         "    def m(p: int) -> int;",
+         "    def n(p: int) -> int { return p + self.x; }",
+         "    obj Inner { has y: int = 1; }",
+         "    comptime if 1 > 0 {",
+         "        has z: int = 2;",
+         "    }",
+         "    comptime for K in ['a'] {",
+         "        def m_${K} -> int { return 3; }",
+         "    }",
+         "    impl m(p: int) -> int { return p; }",
+         "}",
+         "obj Decl;",
+         "def free_fn(a: int) -> int { return a; }",
+         "def by_fn(a: str) -> str by llm();",
+         "def decl_fn(a: int) -> int;",
+         "def abs_fn(a: int) -> int abst;",
+         "node Spot { has label: str = ''; }",
+         "walker Tour {",
+         "    can step with Spot entry;",
+         "    can go with Spot entry { visit [-->]; }",
+         "}",
+         "enum Hue: int {",
+         "    RED = 1,",
+         "    GREEN = 2,",
+         "    comptime for N in ['BLUE'] {",
+         "        ${ct.name(N)} = 3,",
+         "    }",
+         "    comptime if 1 > 0 {",
+         "        VIOLET = 4,",
+         "    }",
+         "    with entry { x = 1; }",
+         "}",
+         "enum Shade;",
+
+     );
+
+def _body_shape(nd: any) -> any {
+    b = nd.__dict__.get("body");
+    if b is None {
+        return None;
+    }
+    if isinstance(b, list) {
+        return [type(i).__name__ for i in b];
+    }
+    return type(b).__name__;
+}
+
+test "the body union of every carrier persists natively (#8141)" {
+    # `Archetype`, `Ability` and `Enum` all carry their body through the
+    # `AstImplNeedingNode` slot, whose arms are a statement list, a `by`
+    # expression, and the bodiless declaration form. The native
+    # representation has to persist the arm it stored: nothing downstream
+    # may reconstruct it by re-reading the kid list, because that
+    # reconstruction duplicates parser body semantics (which member kinds
+    # belong to which carrier's body, which separators do not) and drifts
+    # the moment the grammar moves.
+    nl = chr(10);
+    src = nl.join(list(_BODY_UNION_LINES));
+    path = "__body_union_arms__.jac";
+    (native_mod, native_errs) = _materialize(src, path);
+    (py_mod, py_errs) = _bytecode_parse(src, path);
+    assert native_errs == py_errs == 0 , (
+        f"corpus no longer parses clean: {native_errs}/{py_errs}"
+    );
+    n_carriers = [
+        n
+        for n in native_mod._in_mod_nodes
+        if type(n).__name__ in _BODY_CARRIERS
+    ];
+    p_carriers = [
+        n
+        for n in py_mod._in_mod_nodes
+        if type(n).__name__ in _BODY_CARRIERS
+    ];
+    assert len(n_carriers) == len(p_carriers) , (
+        f"carrier count diverged: {len(n_carriers)} != {len(p_carriers)}"
+    );
+    kinds = {type(n).__name__ for n in p_carriers};
+    assert kinds == set(_BODY_CARRIERS) , f"corpus lost a carrier kind: {kinds}";
+    list_arms = 0;
+    expr_arms = 0;
+    none_arms = 0;
+    for (nn, pn) in zip(n_carriers, p_carriers) {
+        assert type(nn).__name__ == type(pn).__name__;
+        n_shape = _body_shape(nn);
+        p_shape = _body_shape(pn);
+        assert n_shape == p_shape , (
+            f"{type(pn).__name__} body arm diverged: {n_shape} != {p_shape}"
+        );
+        if p_shape is None {
+            none_arms += 1;
+        } elif isinstance(p_shape, list) {
+            list_arms += 1;
+            # Body entries are the tree's own nodes, not copies: passes reach
+            # them through `kid` and through `body` interchangeably.
+            for item in nn.__dict__["body"] {
+                assert `any(k is item for k in nn.kid) , (
+                    f"{type(nn).__name__}.body holds {type(item).__name__} "
+                    "that is not one of its kids"
+                );
+            }
+        } else {
+            expr_arms += 1;
+        }
+    }
+    # Every arm of the union is exercised, not just the braced one.
+    assert list_arms > 0 and none_arms > 0 and expr_arms > 0 , (
+        f"arm coverage: {list_arms} list, {none_arms} none, {expr_arms} expr"
+    );
+}
+
 test "materialized instances carry exactly the bytecode parser's dict keys" {
     # The seal-time field mask exists so passes that probe with hasattr or
     # iterate __dict__ see the same instance shape either way.
@@ -501,7 +619,7 @@ test "the fixup enumeration is pinned: entries only ever retire" {
     # the native representation erases. Each entry carries its tracking
     # issue; the count NEVER rises -- growing it means teaching the crossing
     # new Python-side knowledge, which is the residue this plan deletes.
-    assert len(MATERIALIZE_FIXUPS) == 3 , (
+    assert len(MATERIALIZE_FIXUPS) == 2 , (
         f"fixup enumeration changed: {MATERIALIZE_FIXUPS}"
     );
     for (fixup_name, issue) in MATERIALIZE_FIXUPS {

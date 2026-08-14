@@ -203,7 +203,7 @@ glob NODE_SPECS: tuple = (
              is_scope=False,
              is_cfg=False,
              is_name_atom=False,
-             fields=(FieldDesc(name="body", kind=6), )
+             fields=(FieldDesc(name="body", kind=5), )
          ),
          NodeSpec(
              type_idx=13,
