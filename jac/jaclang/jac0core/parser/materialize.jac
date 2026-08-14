@@ -27,7 +27,7 @@ def materialize_fixups(module: any) {
     body_elem: dict[str, tuple] = {
         "Archetype": (uni.ArchBlockStmt, uni.CodeBlockStmt, ),
         "Ability": (uni.CodeBlockStmt, ),
-        "Enum": (uni.EnumBlockStmt, )
+        "Enum": (uni.EnumBlockStmt, uni.CtIf, uni.CtFor, )
     };
     stack: list = [module];
     visited: set = set();
