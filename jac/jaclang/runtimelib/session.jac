@@ -6,7 +6,12 @@ import from typing { Any }
 import from uuid { UUID }
 
 import from jaclang.jac0core.archetype { Anchor, EdgeAnchor, NodeAnchor, Root }
-import from jaclang.runtimelib.dbcatalog { DbKind, MAINTENANCE_DB, SCRATCH_PREFIX }
+import from jaclang.runtimelib.dbcatalog {
+    DbKind,
+    MAINTENANCE_DB,
+    SCRATCH_PREFIX,
+    stop_heartbeat
+}
 import from jaclang.runtimelib.pgembed { PgRuntime }
 import from jaclang.runtimelib.store {
     AnchorRow,
