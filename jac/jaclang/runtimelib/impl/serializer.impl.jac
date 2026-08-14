@@ -597,7 +597,14 @@ impl Serializer._resolve_class_by_import(
     }
     mod = sys.modules.get(module_name);
     if mod is None {
-        if module_name in Serializer._unimportable_modules {
+        if not Serializer._import_allowed(module_name) {
+            if tracing {
+                logger.debug(
+                    f"Serializer: not importing {module_name} to resolve "
+                    f"{class_name}; a recent import of it failed and its retry "
+                    "window has not passed"
+                );
+            }
             return None;
         }
         if module_parts[0] not in sys.modules {
@@ -612,16 +619,15 @@ impl Serializer._resolve_class_by_import(
         try {
             mod = importlib.import_module(module_name);
         } except Exception as e {
-            if len(Serializer._unimportable_modules) < _MAX_UNIMPORTABLE_MODULES {
-                Serializer._unimportable_modules.add(module_name);
-            }
+            retry_in = Serializer._record_import_failure(module_name);
             logger.debug(
                 f"Serializer: cannot import {module_name} to resolve "
-                f"{class_name}: {e}"
+                f"{class_name}: {e}; retrying it in {retry_in:.0f}s"
             );
             return None;
         }
     }
+    Serializer._clear_import_failure(module_name);
     try {
         found = getattr(mod, class_name, None);
     } except Exception as e {
@@ -648,6 +654,65 @@ impl Serializer._resolve_class_by_import(
     }
     return cast(type, found);
 }
+
+def _import_retry_window(attempts: int) -> float {
+    doublings = min(max(attempts - 1, 0), _IMPORT_RETRY_MAX_DOUBLINGS);
+    return min(_IMPORT_RETRY_SECONDS * (2 ** doublings), _IMPORT_RETRY_CEILING_SECONDS);
+}
+
+
+def _import_retry_due(failure: ImportFailure) -> bool {
+    return monotonic() - failure.failed_at >= _import_retry_window(failure.attempts);
+}
+
+
+impl Serializer._import_allowed(module_name: str) -> bool {
+    failure = Serializer._import_failures.get(module_name);
+    return failure is None or _import_retry_due(failure);
+}
+
+
+impl Serializer._record_import_failure(module_name: str) -> float {
+    with Serializer._import_lock {
+        failures = Serializer._import_failures;
+        failure = failures.get(module_name);
+        if failure is None {
+            if len(failures) >= _MAX_IMPORT_FAILURES {
+                for (name, stale) in list(failures.items()) {
+                    if _import_retry_due(stale) {
+                        failures.pop(name, None);
+                    }
+                }
+                if len(failures) >= _MAX_IMPORT_FAILURES {
+                    return _import_retry_window(1);
+                }
+            }
+            failure = ImportFailure();
+            failures[module_name] = failure;
+        }
+        failure.attempts += 1;
+        failure.failed_at = monotonic();
+        return _import_retry_window(failure.attempts);
+    }
+}
+
+
+impl Serializer._clear_import_failure(module_name: str) -> None {
+    if module_name not in Serializer._import_failures {
+        return;
+    }
+    with Serializer._import_lock {
+        Serializer._import_failures.pop(module_name, None);
+    }
+}
+
+
+impl Serializer._reset_import_failures -> None {
+    with Serializer._import_lock {
+        Serializer._import_failures.clear();
+    }
+}
+
 
 impl Serializer._warn_occurrence(scope: str, key: str) -> int {
     dedup_key = f"{scope}:{key}";
