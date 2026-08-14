@@ -1,20 +1,20 @@
 import from "react-day-picker" { DayPicker, getDefaultClassNames }
 import from "@hugeicons/react" { HugeiconsIcon }
 import from "@hugeicons/core-free-icons" {
-    ArrowLeft01Icon,
-    ArrowRight01Icon,
-    ArrowDown01Icon
+    ArrowLeftIcon,
+    ArrowRightIcon,
+    ArrowDownIcon
 }
 import from .button { Button, buttonVariants }
 import from ...lib.utils { cn }
 
 def CalendarChevron(props: any) -> JsxElement {
     ori = props["orientation"];
-    icon = ArrowDown01Icon;
+    icon = ArrowDownIcon;
     if ori == "left" {
-        icon = ArrowLeft01Icon;
+        icon = ArrowLeftIcon;
     } elif ori == "right" {
-        icon = ArrowRight01Icon;
+        icon = ArrowRightIcon;
     }
     <HugeiconsIcon
         icon={icon}

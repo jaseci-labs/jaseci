@@ -1,7 +1,7 @@
 import from "radix-ui" { Accordion as AccordionPrimitive }
 import from ...lib.utils { cn }
 import from "@hugeicons/react" { HugeiconsIcon }
-import from "@hugeicons/core-free-icons" { ArrowDown01Icon, ArrowUp01Icon }
+import from "@hugeicons/core-free-icons" { ArrowDownIcon, ArrowUpIcon }
 
 def:pub Accordion(props: any) -> JsxElement {
     <AccordionPrimitive.Root
@@ -31,13 +31,13 @@ def:pub AccordionTrigger(props: any) -> JsxElement {
         >
             {props["children"]}
             <HugeiconsIcon
-                icon={ArrowDown01Icon}
+                icon={ArrowDownIcon}
                 strokeWidth={2}
                 data-slot="accordion-trigger-icon"
                 className="cn-accordion-trigger-icon pointer-events-none shrink-0 group-aria-expanded/accordion-trigger:hidden"
             />
             <HugeiconsIcon
-                icon={ArrowUp01Icon}
+                icon={ArrowUpIcon}
                 strokeWidth={2}
                 data-slot="accordion-trigger-icon"
                 className="cn-accordion-trigger-icon pointer-events-none hidden shrink-0 group-aria-expanded/accordion-trigger:inline"

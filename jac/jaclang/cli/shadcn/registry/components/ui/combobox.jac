@@ -9,7 +9,7 @@ import from ".input_group" {
     InputGroupInput
 }
 import from "@hugeicons/react" { HugeiconsIcon }
-import from "@hugeicons/core-free-icons" { ArrowDown01Icon, Cancel01Icon, Tick02Icon }
+import from "@hugeicons/core-free-icons" { ArrowDownIcon, Cancel01Icon, Tick02Icon }
 
 glob _comboboxInputExclude: list[str] = [
          "className",
@@ -35,7 +35,7 @@ def:pub ComboboxTrigger(props: any) -> JsxElement {
     >
         {props["children"]}
         <HugeiconsIcon
-            icon={ArrowDown01Icon}
+            icon={ArrowDownIcon}
             strokeWidth={2}
             className="text-muted-foreground size-4 pointer-events-none"
         />
