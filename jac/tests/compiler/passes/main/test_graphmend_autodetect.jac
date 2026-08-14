@@ -41,7 +41,7 @@ def _fixture(name: str, gm: any) -> tuple[str, any, any] {
 test "auto transforms a torch-importing module identically to explicit on" {
     (src_auto, _bc, resolved) = _fixture("val_guard_all.jac", "auto");
     (src_on, _bc2, _r2) = _fixture("val_guard_all.jac", True);
-    assert resolved == True;
+    assert resolved is True;
     assert src_auto == src_on;
     assert "torch._assert_async(" in src_auto;
     assert "raise ValueError" not in src_auto;
@@ -50,7 +50,7 @@ test "auto transforms a torch-importing module identically to explicit on" {
 test "auto also engages through an import-from of the torch module" {
     (src_auto, _bc, resolved) = _fixture("val_guard_tensor_import.jac", "auto");
     (src_on, _bc2, _r2) = _fixture("val_guard_tensor_import.jac", True);
-    assert resolved == True;
+    assert resolved is True;
     assert src_auto == src_on;
     assert "torch._assert_async(" in src_auto;
 }
@@ -58,14 +58,14 @@ test "auto also engages through an import-from of the torch module" {
 test "auto leaves a torch-free module byte-identical to off" {
     (src_auto, bc_auto, resolved) = _fixture("no_torch_plain.jac", "auto");
     (src_off, bc_off, _r) = _fixture("no_torch_plain.jac", False);
-    assert resolved == False;
+    assert resolved is False;
     assert src_auto == src_off;
     assert bc_auto == bc_off;
 }
 
 test "explicit off leaves a torch-importing module untransformed" {
     (src_off, _bc, resolved) = _fixture("val_guard_all.jac", False);
-    assert resolved == False;
+    assert resolved is False;
     assert "torch._assert_async(" not in src_off;
     assert "raise ValueError" in src_off;
 }
@@ -79,14 +79,14 @@ test "a relative .torch jac import does not engage auto" {
         with open(target, "w") as fh {
             fh.write(
                 "import from .torch { relu }\n\n"
-                + "def f(x: any) -> any {\n"
-                + "    if x > 0 {\n        return relu(x);\n    }\n"
-                + "    return x;\n}\n"
+                    + "def f(x: any) -> any {\n"
+                    + "    if x > 0 {\n        return relu(x);\n    }\n"
+                    + "    return x;\n}\n"
             );
         }
         (src_auto, bc_auto, resolved) = _compile(target, "auto");
         (src_off, bc_off, _r) = _compile(target, False);
-        assert resolved == False;
+        assert resolved is False;
         assert src_auto == src_off;
         assert bc_auto == bc_off;
     }
@@ -133,37 +133,47 @@ def _py_compile(py_src: str, name: str, gm: any) -> tuple[str, any, any] {
 test "py: auto engages on an import torch module like explicit on" {
     (src_auto, _bc, resolved) = _py_compile(PY_TORCH_SRC, "auto_model.py", "auto");
     (src_on, _bc2, _r2) = _py_compile(PY_TORCH_SRC, "auto_model.py", True);
-    assert resolved == True;
+    assert resolved is True;
     assert src_auto == src_on;
     assert "torch.where(" in src_auto;
     assert "if x.sum() > 0" not in src_auto;
 }
 
 test "py: a relative .torch import stays off under auto" {
-    (src_auto, bc_auto, resolved) = _py_compile(
-        PY_RELATIVE_SRC, "rel_plain.py", "auto"
-    );
-    (src_off, bc_off, _r) = _py_compile(PY_RELATIVE_SRC, "rel_plain.py", False);
-    assert resolved == False;
-    assert src_auto == src_off;
-    assert bc_auto == bc_off;
+    with tempfile.TemporaryDirectory() as tmp {
+        path = os.path.join(tmp, "rel_plain.py");
+        with open(path, "w") as fh {
+            fh.write(PY_RELATIVE_SRC);
+        }
+        (src_auto, bc_auto, resolved) = _compile(path, "auto");
+        (src_off, bc_off, _r) = _compile(path, False);
+        assert resolved is False;
+        assert src_auto == src_off;
+        assert bc_auto == bc_off;
+    }
 }
 
 test "compile options accept the on off and auto spellings" {
-    assert CompileOptions(graphmend="on").graphmend == True;
-    assert CompileOptions(graphmend="off").graphmend == False;
+    assert CompileOptions(graphmend="on").graphmend is True;
+    assert CompileOptions(graphmend="off").graphmend is False;
     assert CompileOptions(graphmend="auto").graphmend == "auto";
-    assert CompileOptions(graphmend=True).graphmend == True;
-    assert CompileOptions(graphmend=False).graphmend == False;
+    assert CompileOptions(graphmend=True).graphmend is True;
+    assert CompileOptions(graphmend=False).graphmend is False;
 }
 
-test "the graphmend flag advertises the auto on off choices" {
+test "the config bridge carries auto into the graphmend arg" {
+    import from jaclang.cli.dispatch { _apply_config_defaults }
     import from jaclang.cli.manifest { get_command_meta }
+    import from jaclang.project.config { JacConfig }
     meta = get_command_meta("run");
     assert meta is not None;
-    by_name = {a.name: a for a in meta.args};
-    assert by_name["graphmend"].choices == ["auto", "on", "off"];
-    assert by_name["graphmend"].config_key == "run.graphmend";
+    cfg = JacConfig.from_toml_str("[run]\ngraphmend = \"auto\"\n");
+    at_defaults = {"graphmend": False};
+    _apply_config_defaults(cfg, meta, at_defaults);
+    assert at_defaults["graphmend"] == "auto";
+    explicit = {"graphmend": True};
+    _apply_config_defaults(cfg, meta, explicit);
+    assert explicit["graphmend"] is True;
 }
 
 test "the run section of jac.toml carries the auto spelling" {
@@ -171,7 +181,7 @@ test "the run section of jac.toml carries the auto spelling" {
     cfg = JacConfig.from_toml_str("[run]\ngraphmend = \"auto\"\n");
     assert cfg.run.graphmend == "auto";
     cfg_bool = JacConfig.from_toml_str("[run]\ngraphmend = true\n");
-    assert cfg_bool.run.graphmend == True;
+    assert cfg_bool.run.graphmend is True;
 }
 
 test "the cli mapper carries auto to the program and normalizes on and off" {
@@ -185,9 +195,9 @@ test "the cli mapper carries auto to the program and normalizes on and off" {
         execution._apply_graphmend("auto", "", "");
         assert Jac.get_program().graphmend_enabled == "auto";
         execution._apply_graphmend("on", "", "");
-        assert Jac.get_program().graphmend_enabled == True;
+        assert Jac.get_program().graphmend_enabled is True;
         execution._apply_graphmend("off", "", "");
-        assert Jac.get_program().graphmend_enabled == False;
+        assert Jac.get_program().graphmend_enabled is False;
     } finally {
         cur = Jac.get_program();
         cur.graphmend_enabled = prev_enabled;
