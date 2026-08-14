@@ -35,6 +35,10 @@ kind/capabilities/entry/payloads -- both remain loadable)::
       "python_tag": "cpython-314",
       "jir_format_version": 13,
       "jaclang_version": "0.8.7",
+      "compiler_digest": "409:9f2c...",  # optional: the compiler that built
+                                         # this image (jir.compiler_source_digest;
+                                         # informational -- the seal already
+                                         # verified every JIR against it, see #8178)
       "modules": {                      # key: source path relative to pkg dir
         "compiler/program.jac": {
           "module": "jaclang.compiler.program",

@@ -136,16 +136,47 @@ jobs:
           path: jac/.llvm-build
           key: llvm-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/launcher/llvm_release.zig') }}
 
+      # Identity of the compiler this build runs, as git blob ids over the same
+      # file set jir.jac hashes for its module keys (jaclang.jac0core.jir:
+      # COMPILER_DIGEST_ROOTS, .jac/.py only, test material excluded). Same
+      # rule as the step in .github/actions/setup-jac, which seeds the entries
+      # this leg reads; keep the three in lockstep.
+      - name: Fingerprint the compiler tree (dev channel)
+        if: inputs.channel == 'dev'
+        id: compiler-fp
+        shell: bash
+        run: |
+          list="$(git ls-tree -r HEAD -- \
+            jac/jaclang/jac0.py \
+            jac/jaclang/jac0core \
+            jac/jaclang/compiler \
+            jac/jaclang/utils/precompile_bytecode.jac \
+            | grep -E '\.(jac|py)$' \
+            | grep -vE '(^|/)(tests|test)/|\.test\.jac$' || true)"
+          n="$(printf '%s\n' "$list" | grep -c . || true)"
+          if [ "$n" -lt 100 ]; then
+            echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/jac0core/jir.jac together."
+            exit 1
+          fi
+          fp="$(printf '%s\n' "$list" | git hash-object --stdin)"
+          echo "fp=${fp:0:16} ($n compiler sources)"
+          echo "fp=${fp:0:16}" >> "$GITHUB_OUTPUT"
+
       # mkpayload re-validates every seeded .jir per module, so a stale tree
-      # from the previous push is safe and exactly what restore-keys is for.
+      # from the previous push is safe and exactly what restore-keys is for --
+      # but only within one compiler. Module keys carry a compiler-content
+      # digest (#8178), so a seed from a different compiler tree can no longer
+      # be mis-served; the fingerprint in the key PREFIX keeps it from being
+      # inherited at all, since such a seed would only ever miss. A
+      # compiler-touching commit therefore forfeits the seed by construction.
       - name: Restore cached JIR precompile tree (dev channel)
         if: inputs.channel == 'dev'
         uses: actions/cache@v4
         with:
           path: jac/.precompiled-build
-          key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+          key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-c${{ steps.compiler-fp.outputs.fp }}-${{ hashFiles('jac/jaclang/**') }}
           restore-keys: |
-            jac-precompiled-${{ runner.os }}-${{ runner.arch }}-
+            jac-precompiled-${{ runner.os }}-${{ runner.arch }}-c${{ steps.compiler-fp.outputs.fp }}-
 
       # pbs + bun: the two read-mostly runtime trees `zig build` otherwise
       # re-downloads and re-extracts on every push to main (the ~600 MB
