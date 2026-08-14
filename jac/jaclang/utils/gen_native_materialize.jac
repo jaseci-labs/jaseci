@@ -260,6 +260,12 @@ obj _MatGen {
         }
     }
 
+    def warn(msg: str) {
+        if msg not in self.warnings {
+            self.warnings.append(msg);
+        }
+    }
+
     def scalar_expr(expr: str, a: str) -> str {
         a = a.strip();
         if a == "int" {
@@ -320,7 +326,7 @@ obj _MatGen {
         u = uid + "d";
         kexpr = self.key_expr(f"dk_{u}", kt);
         if kexpr is None {
-            self.warnings.append(
+            self.warn(
                 f"dict key type {repr(kt)} has no materializer -> field erased to None"
             );
             out.append(ind + f"{v} = _py_none();");
@@ -401,7 +407,7 @@ obj _MatGen {
             } elif ab in self.ns {
                 buf.append(pre + f"{v} = _emit_{ab}({expr});");
             } else {
-                self.warnings.append(f"unhandled annotation {repr(ann)} -> None");
+                self.warn(f"unhandled annotation {repr(ann)} -> None");
                 emitted = False;
             }
         } else {
