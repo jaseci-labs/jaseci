@@ -264,7 +264,11 @@ impl JacCompiler.get_bytecode(
         setup_progress.on_internal_compile(full_target);
         self._internal_bytecode_depth += 1;
     }
-    options = CompileOptions(type_check=False, graphmend=gm_active);
+    options = CompileOptions(
+        type_check=False,
+        graphmend=gm_active,
+        graphmend_disable=list(target_program.graphmend_disable)
+    );
     result: (uni.Module | None) = None;
     try {
         result = self.compile(

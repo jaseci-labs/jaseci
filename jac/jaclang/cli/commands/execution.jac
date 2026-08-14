@@ -43,13 +43,22 @@ glob registry = get_registry();
             typ=bool,
             default=False,
             help="Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental)",
-            short="g"
+            short="g",
+            config_key="run.graphmend"
         ),
         Arg.create(
             "graphmend_scope",
             default="",
             short="",
-            help="Comma-separated module prefixes whose imported .py code GraphMend should also transform (e.g. 'transformers.models.phi3'). Implies --graphmend."
+            help="Comma-separated module prefixes whose imported .py code GraphMend should also transform (e.g. 'transformers.models.phi3'). Implies --graphmend.",
+            config_key="run.graphmend_scope"
+        ),
+        Arg.create(
+            "graphmend_disable",
+            default="",
+            short="",
+            help="Comma-separated GraphMend transforms to skip: trap (guard lowering), where (branch predication), defer (side-effect deferral)",
+            config_key="run.graphmend_disable"
         ),
         Arg.create(
             "profile",
@@ -123,6 +132,7 @@ def run(
     cache: bool = True,
     graphmend: bool = False,
     graphmend_scope: str = "",
+    graphmend_disable: str = "",
     diagnostics: str = "",
     entry_name: str = "",
     nd: str = "",
@@ -176,7 +186,8 @@ def enter(
     `root: str = "",
     nd: str = "",
     graphmend: bool = False,
-    graphmend_scope: str = ""
+    graphmend_scope: str = "",
+    graphmend_disable: str = ""
 ) -> int;
 
 @registry.command(

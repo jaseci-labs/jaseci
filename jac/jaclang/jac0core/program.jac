@@ -27,6 +27,7 @@ class JacProgram {
         _compile_options: CompileOptions,
         graphmend_enabled: bool,
         graphmend_scope: list[str],
+        graphmend_disable: list[str],
         graphmend_scoped_compile: bool,
         graphmend_breaks: dict[int, GraphBreakKind],
         graphmend_helpers: dict[int, set[GraphMendHelper]],

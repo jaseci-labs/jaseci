@@ -125,7 +125,7 @@ Execute a Jac file, a prebuilt `.jab` artifact, or (with no filename) run the cu
 **Note:** `jac <file>` is shorthand for `jac run <file>` - both work identically.
 
 ```bash
-jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-g] [--graphmend] [--graphmend-scope GRAPHMEND_SCOPE] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [filename] [args ...]
+jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-g] [--graphmend] [--graphmend-scope GRAPHMEND_SCOPE] [--graphmend-disable GRAPHMEND_DISABLE] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [filename] [args ...]
 ```
 
 | Option | Description | Default |
@@ -136,6 +136,7 @@ jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-g] [--graphmend]
 | `-c, --cache` | Enable compilation cache | `True` |
 | `-g, --graphmend` | Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental) | `False` |
 | `--graphmend-scope` | Comma-separated module prefixes whose imported `.py` code GraphMend should also transform (implies `--graphmend`) | `""` |
+| `--graphmend-disable` | Comma-separated GraphMend transforms to skip: `trap` (guard lowering), `where` (branch predication), `defer` (side-effect deferral) | `""` |
 | `-e, --diagnostics` | Diagnostic verbosity: `error`, `all`, or `none` | `error` |
 | `--profile` | Configuration profile to load (e.g. prod, staging) | `""` |
 | `--entry` | Run a specific entrypoint (function/walker) instead of the module's `with entry` block | None |
@@ -145,6 +146,8 @@ jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [-g] [--graphmend]
 | `args` | Arguments passed to the script (available via `sys.argv[1:]`) | |
 
 Like Python, everything after the filename is passed to the script. Jac flags must come **before** the filename.
+
+**GraphMend configuration.** All three GraphMend options can also be set project-wide in `jac.toml` under `[run]` (`graphmend`, `graphmend_scope`, `graphmend_disable`); an explicit CLI flag beats `jac.toml`, which beats the built-in default. `--graphmend-disable` turns individual transforms off while the rest of GraphMend stays active; it does not by itself enable GraphMend. Unknown transform names are ignored with a warning.
 
 **Project-aware run (no filename).** Inside a project, a bare `jac run` resolves the project *kind* from `[project] kind` in `jac.toml` (or infers it from the entry-point's codespace) and does the natural action for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). Use `jac run --show` to preview the plan and the equivalent primitive command (`run` / `start` / `nacompile` / `build`) without running it. See [project kinds](../../quick-guide/project-kinds.md) and [config `[project]`](../config/index.md).
 

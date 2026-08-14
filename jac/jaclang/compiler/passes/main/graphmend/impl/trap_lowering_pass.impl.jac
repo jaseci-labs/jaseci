@@ -62,7 +62,8 @@ impl TrapLoweringPass._insert_after(stmt: uni.UniNode, new_stmt: uni.UniNode) ->
 }
 
 impl TrapLoweringPass.before_pass -> None {
-    self._enabled = self.prog._compile_options.graphmend;
+    self._enabled = self.prog._compile_options.graphmend
+        and "trap" not in self.prog._compile_options.graphmend_disable;
     if not self._enabled {
         self.prune_signal = True;
     }

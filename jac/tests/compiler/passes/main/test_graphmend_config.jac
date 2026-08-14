@@ -80,7 +80,7 @@ test "the run section of jac.toml carries the graphmend keys" {
     import from jaclang.project.config { JacConfig }
     cfg = JacConfig.from_toml_str(
         "[run]\ngraphmend = true\ngraphmend_scope = \"pkg.a\"\n"
-        + "graphmend_disable = \"trap\"\n"
+            + "graphmend_disable = \"trap\"\n"
     );
     assert cfg.run.graphmend;
     assert cfg.run.graphmend_scope == "pkg.a";
@@ -104,7 +104,9 @@ test "explicit cli flags beat jac.toml which beats built-in defaults" {
     assert explicit["graphmend_disable"] == "where";
     assert explicit["graphmend"] == True;
     silent = {"graphmend": False, "graphmend_disable": ""};
-    _apply_config_defaults(JacConfig.from_toml_str("[run]\nmain = true\n"), meta, silent);
+    _apply_config_defaults(
+        JacConfig.from_toml_str("[run]\nmain = true\n"), meta, silent
+    );
     assert silent["graphmend"] == False;
     assert silent["graphmend_disable"] == "";
 }

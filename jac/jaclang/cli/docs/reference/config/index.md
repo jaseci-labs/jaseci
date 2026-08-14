@@ -200,6 +200,9 @@ session = ""            # Session name for persistence
 main = true             # Run as main module
 cache = true            # Use bytecode cache
 diagnostics = "error"   # Diagnostic verbosity: "error", "all", or "none"
+graphmend = false       # Apply GraphMend passes (jac run --graphmend)
+graphmend_scope = ""    # Module prefixes GraphMend also transforms (comma-separated)
+graphmend_disable = ""  # GraphMend transforms to skip: "trap", "where", "defer"
 ```
 
 The `diagnostics` setting controls how compilation errors and warnings are reported during `jac run`:

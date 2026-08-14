@@ -40,7 +40,10 @@ obj RunConfig {
     has session: str = "",
         main: bool = True,
         cache: bool = True,
-        diagnostics: str = "error";
+        diagnostics: str = "error",
+        graphmend: bool = False,
+        graphmend_scope: str = "",
+        graphmend_disable: str = "";
 }
 
 obj NativeBuildConfig {

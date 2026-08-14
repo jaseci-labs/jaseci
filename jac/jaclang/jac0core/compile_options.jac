@@ -28,6 +28,7 @@ obj CompileOptions {
         force_target_program: bool = False,
         aot_mode: bool = False,
         graphmend: bool = False,
+        graphmend_disable: list[str] = field(default_factory=`list),
         force_codespace: str = "",
         na_gc_mode: (str | None) = None,
         nogc_enforce_all: bool = False,

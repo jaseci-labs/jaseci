@@ -84,7 +84,8 @@ def _execute_plan(
     diagnostics: str,
     args: list,
     graphmend: bool = False,
-    graphmend_scope: str = ""
+    graphmend_scope: str = "",
+    graphmend_disable: str = ""
 ) -> int {
     if plan.action == "execute" {
         return run(
@@ -94,7 +95,8 @@ def _execute_plan(
             diagnostics=diagnostics,
             args=args,
             graphmend=graphmend,
-            graphmend_scope=graphmend_scope
+            graphmend_scope=graphmend_scope,
+            graphmend_disable=graphmend_disable
         );
     }
     if graphmend or graphmend_scope.strip() {
@@ -226,7 +228,9 @@ def _jab_native_bin(img_root: object, entry_rel: str) -> (str | None) {
     return None;
 }
 
-def _apply_graphmend(graphmend: bool, graphmend_scope: str) {
+def _apply_graphmend(
+    graphmend: bool, graphmend_scope: str, graphmend_disable: str = ""
+) {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     gm_scope: list[str] = [];
     for part in graphmend_scope.split(',') {
@@ -235,8 +239,24 @@ def _apply_graphmend(graphmend: bool, graphmend_scope: str) {
             gm_scope.append(stripped);
         }
     }
+    gm_disable: list[str] = [];
+    for part in graphmend_disable.split(',') {
+        stripped = part.strip().lower();
+        if not stripped {
+            continue;
+        }
+        if stripped not in ('trap', 'where', 'defer') {
+            console.warning(
+                f"--graphmend-disable ignores unknown transform '{stripped}' "
+                f"(valid: trap, where, defer)."
+            );
+            continue;
+        }
+        gm_disable.append(stripped);
+    }
     Jac.get_program().graphmend_enabled = graphmend or bool(gm_scope);
     Jac.get_program().graphmend_scope = gm_scope;
+    Jac.get_program().graphmend_disable = gm_disable;
     if gm_scope {
         import from jaclang.meta_importer { install_graphmend_loader_hook }
         install_graphmend_loader_hook();
@@ -250,7 +270,8 @@ def _run_project(
     diagnostics: str,
     args: list,
     graphmend: bool = False,
-    graphmend_scope: str = ""
+    graphmend_scope: str = "",
+    graphmend_disable: str = ""
 ) -> int {
     import from pathlib { Path }
     import from jaclang.project.config { get_config }
@@ -298,7 +319,8 @@ def _run_project(
         diagnostics=diagnostics,
         args=args,
         graphmend=graphmend,
-        graphmend_scope=graphmend_scope
+        graphmend_scope=graphmend_scope,
+        graphmend_disable=graphmend_disable
     );
 }
 
@@ -309,6 +331,7 @@ impl run(
     cache: bool = True,
     graphmend: bool = False,
     graphmend_scope: str = "",
+    graphmend_disable: str = "",
     diagnostics: str = "",
     entry_name: str = "",
     nd: str = "",
@@ -337,7 +360,15 @@ impl run(
             return 1;
         }
         return enter(
-            filename, entry_name, args, main, root_id, nd, graphmend, graphmend_scope
+            filename,
+            entry_name,
+            args,
+            main,
+            root_id,
+            nd,
+            graphmend,
+            graphmend_scope,
+            graphmend_disable
         );
     }
     if not filename {
@@ -348,7 +379,8 @@ impl run(
             diagnostics=diagnostics,
             args=args,
             graphmend=graphmend,
-            graphmend_scope=graphmend_scope
+            graphmend_scope=graphmend_scope,
+            graphmend_disable=graphmend_disable
         );
     }
     if filename.endswith(".jab") {
@@ -387,7 +419,7 @@ impl run(
     sys.argv = [filename] + list(args);
     (base, mod, mach) = _proc_file(filename);
     lng = filename.split('.')[-1];
-    _apply_graphmend(graphmend, graphmend_scope);
+    _apply_graphmend(graphmend, graphmend_scope, graphmend_disable);
     try {
         if filename.endswith('.jac') {
             native_executed = False;
@@ -510,7 +542,8 @@ impl enter(
     `root: str = '',
     nd: str = '',
     graphmend: bool = False,
-    graphmend_scope: str = ''
+    graphmend_scope: str = '',
+    graphmend_disable: str = ''
 ) -> int {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.jac0core.constructs { WalkerArchetype }
@@ -524,7 +557,7 @@ impl enter(
     }
     _discover_config_from_file(filename);
     (base, mod, mach) = _proc_file(filename);
-    _apply_graphmend(graphmend, graphmend_scope);
+    _apply_graphmend(graphmend, graphmend_scope, graphmend_disable);
 
     if `root {
         mach.set_user_root(`root);

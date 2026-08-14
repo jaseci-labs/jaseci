@@ -1665,13 +1665,22 @@ def _command_routes -> list[CommandMeta] {
                     typ='bool',
                     default=False,
                     help='Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental)',
-                    short='g'
+                    short='g',
+                    config_key='run.graphmend'
                 ),
                 ArgMeta(
                     name='graphmend_scope',
                     default='',
                     help="Comma-separated module prefixes whose imported .py code GraphMend should also transform (e.g. 'transformers.models.phi3'). Implies --graphmend.",
-                    short=''
+                    short='',
+                    config_key='run.graphmend_scope'
+                ),
+                ArgMeta(
+                    name='graphmend_disable',
+                    default='',
+                    help='Comma-separated GraphMend transforms to skip: trap (guard lowering), where (branch predication), defer (side-effect deferral)',
+                    short='',
+                    config_key='run.graphmend_disable'
                 ),
                 ArgMeta(
                     name='profile',

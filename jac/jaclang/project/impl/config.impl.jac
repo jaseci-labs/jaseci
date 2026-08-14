@@ -1112,7 +1112,10 @@ impl _parse_toml_data(
             session=run_data.get("session", ""),
             main=run_data.get("main", True),
             cache=run_data.get("cache", True),
-            diagnostics=run_data.get("diagnostics", "error")
+            diagnostics=run_data.get("diagnostics", "error"),
+            graphmend=run_data.get("graphmend", False),
+            graphmend_scope=run_data.get("graphmend_scope", ""),
+            graphmend_disable=run_data.get("graphmend_disable", "")
         );
     }
     if "build" in data {
