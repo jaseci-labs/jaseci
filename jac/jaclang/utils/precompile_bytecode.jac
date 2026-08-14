@@ -596,6 +596,8 @@ glob _PARITY_CANARY_LINES: tuple = (
          "    return self.a if self.a else -1;",
          "}",
          "test \"canary t\" { assert Canary(a=5).m(2) >= -1; }",
+         "test { assert Canary(a=1).m() >= -1; }",
+         "test box_holds { assert Canary(a=2).m() >= -1; }",
          "with entry { print({'k': [1, 2.5, True, None]}); }",
 
      ),
@@ -659,6 +661,8 @@ glob _PARITY_CANARY_LINES: tuple = (
          "    }",
          "}",
          "test \"box holds\" { assert Box(x=1).m() >= -1; }",
+         "test { assert Box(x=2).m() >= -1; }",
+         "test \"...\" { assert Box(x=3).m() >= -1; }",
          "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }  # trailing",
 
      );

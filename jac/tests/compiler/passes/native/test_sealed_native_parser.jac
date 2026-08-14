@@ -178,6 +178,49 @@ test "non-ascii sources reach full parity through the direct decode" {
     _assert_parity(src, "__parity_nonascii__.jac");
 }
 
+test "tests whose symbol the parser generates cross identically (#8177)" {
+    # The corpora used to carry string-named tests only: the generated name
+    # came off the process-global `Test.TEST_COUNT`, and the two tiers hold
+    # independent copies of that static, so this shape disagreed by
+    # construction. It is a per-module parser ordinal now, so it is parity
+    # material -- and the unparse fingerprint cannot see it (both printers
+    # suppress a `_jac_gen_` name), which is why the symbols are compared
+    # directly. The identifier-named form is the one the parser
+    # error-recovers, so this also pins recovery parity.
+    nl = chr(10);
+    src = nl.join(
+        [
+            "test box_holds { assert True; }",
+            "test { assert True; }",
+            'test "..." { assert True; }',
+            'test "named one" { assert True; }',
+
+        ]
+    );
+    path = "__parity_gen_test_names__.jac";
+    _assert_parity(src, path);
+    (native_mod, _errs) = _materialize(src, path);
+    (py_mod, _perrs) = _bytecode_parse(src, path);
+    n_syms = [
+        n.sym_name
+        for n in native_mod._in_mod_nodes
+        if isinstance(n, uni.Test)
+    ];
+    p_syms = [
+        n.sym_name
+        for n in py_mod._in_mod_nodes
+        if isinstance(n, uni.Test)
+    ];
+    assert n_syms == p_syms , f"test symbols diverged: {n_syms} vs {p_syms}";
+    assert sorted(n_syms)
+        == [
+            "test__jac_gen_1",
+            "test__jac_gen_2",
+            "test__jac_gen_3",
+            "test_named_one"
+        ] , f"unexpected generated symbols: {sorted(n_syms)}";
+}
+
 test "union-erased slots materialize their runtime arm (ImplDef.spec)" {
     # `ImplDef.spec` is declared as a list in the native layout, but an impl
     # with a signature stores a `FuncSignature` there. The materializer must
@@ -328,14 +371,7 @@ test "materialized instances carry exactly the bytecode parser's dict keys" {
         assert type(n_node).__name__ == type(p_node).__name__;
         n_keys = set(n_node.__dict__.keys());
         p_keys = set(p_node.__dict__.keys());
-        # `static has` counters (Test.TEST_COUNT) have no per-instance native
-        # slot; attribute access still resolves through the class, so a
-        # class-attribute key may live only there on the materialized side.
-        missing = {
-            k
-            for k in (p_keys - n_keys)
-            if not hasattr(type(n_node), k)
-        };
+        missing = p_keys - n_keys;
         extra = n_keys - p_keys;
         assert not missing and not extra , (
             f"{type(n_node).__name__}: key drift +{sorted(extra)} "
@@ -489,11 +525,7 @@ def _assert_field_parity(a: any, b: any, path: str = "mod") {
         kx = set(dx.keys());
         ky = set(dy.keys());
         if kx != ky {
-            missing = {
-                k
-                for k in (ky - kx)
-                if not hasattr(type(x), k)
-            };
+            missing = ky - kx;
             extra = kx - ky;
             if missing or extra {
                 diffs.append(f"{p}: keys +{sorted(extra)} -{sorted(missing)}");

@@ -6336,43 +6336,34 @@ impl Parser.parse_test -> Test {
     }
     test_kw_uni = self.consume_uni(TokenKind.KW_TEST);
 
-    cur = self.current();
-    name: Token = Token(
-        orig_src=self.source,
-        name=Tok.NAME.value,
-        value="",
-        line=cur.loc.line,
-        end_line=cur.loc.end_line,
-        col_start=cur.loc.col_start,
-        col_end=cur.loc.col_end,
-        pos_start=cur.loc.pos_start,
-        pos_end=cur.loc.pos_end
-    );
+    name_tok = self.current();
     has_description = False;
     description: String | None = None;
+    ident = "";
     if self.check(TokenKind.STRING) {
         str_tok = self.expect(TokenKind.STRING);
         description = self.make_string(str_tok);
 
         desc_text = _string_lit_text(str_tok.value);
         ident = _test_ident_from_desc(desc_text);
-        if not ident {
-            self._gen_test_idx += 1;
-            ident = f"_jac_gen_{self._gen_test_idx}";
-        }
-        name = Name(
-            orig_src=self.source,
-            name=Tok.NAME.value,
-            value=ident,
-            line=str_tok.loc.line,
-            end_line=str_tok.loc.end_line,
-            col_start=str_tok.loc.col_start,
-            col_end=str_tok.loc.col_end,
-            pos_start=str_tok.loc.pos_start,
-            pos_end=str_tok.loc.pos_end
-        );
+        name_tok = str_tok;
         has_description = True;
     }
+    if not ident {
+        self._gen_test_idx += 1;
+        ident = f"_jac_gen_{self._gen_test_idx}";
+    }
+    name: Name = Name(
+        orig_src=self.source,
+        name=Tok.NAME.value,
+        value=ident,
+        line=name_tok.loc.line,
+        end_line=name_tok.loc.end_line,
+        col_start=name_tok.loc.col_start,
+        col_end=name_tok.loc.col_end,
+        pos_start=name_tok.loc.pos_start,
+        pos_end=name_tok.loc.pos_end
+    );
     test_lb_uni = self.consume_uni(TokenKind.LBRACE);
     body = self.parse_code_block_stmts();
     test_rb_uni = self.consume_uni(TokenKind.RBRACE);
