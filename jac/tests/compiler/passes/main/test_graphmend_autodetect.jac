@@ -161,19 +161,23 @@ test "compile options accept the on off and auto spellings" {
     assert CompileOptions(graphmend=False).graphmend is False;
 }
 
-test "the config bridge carries auto into the graphmend arg" {
-    import from jaclang.cli.dispatch { _apply_config_defaults }
-    import from jaclang.cli.manifest { get_command_meta }
+test "the configured mode resolver normalizes every jac.toml spelling" {
+    import jaclang.cli.commands.execution as execution;
     import from jaclang.project.config { JacConfig }
-    meta = get_command_meta("run");
-    assert meta is not None;
-    cfg = JacConfig.from_toml_str("[run]\ngraphmend = \"auto\"\n");
-    at_defaults = {"graphmend": False};
-    _apply_config_defaults(cfg, meta, at_defaults);
-    assert at_defaults["graphmend"] == "auto";
-    explicit = {"graphmend": True};
-    _apply_config_defaults(cfg, meta, explicit);
-    assert explicit["graphmend"] is True;
+    import jaclang.project.config as config_mod;
+    old_config = config_mod._config;
+    try {
+        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"auto\"\n");
+        assert execution._configured_graphmend() == "auto";
+        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = true\n");
+        assert execution._configured_graphmend() is True;
+        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
+        assert execution._configured_graphmend() is False;
+        config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
+        assert execution._configured_graphmend() == "auto";
+    } finally {
+        config_mod._config = old_config;
+    }
 }
 
 test "the run section of jac.toml carries the auto spelling" {
@@ -184,21 +188,28 @@ test "the run section of jac.toml carries the auto spelling" {
     assert cfg_bool.run.graphmend is True;
 }
 
-test "the cli mapper carries auto to the program and normalizes on and off" {
+test "the cli mapper carries the configured mode to the program" {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import jaclang.cli.commands.execution as execution;
+    import from jaclang.project.config { JacConfig }
+    import jaclang.project.config as config_mod;
     prog = Jac.get_program();
     prev_enabled = prog.graphmend_enabled;
     prev_scope = prog.graphmend_scope;
     prev_disable = prog.graphmend_disable;
+    old_config = config_mod._config;
     try {
-        execution._apply_graphmend("auto", "", "");
+        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"auto\"\n");
+        execution._apply_graphmend("", "");
         assert Jac.get_program().graphmend_enabled == "auto";
-        execution._apply_graphmend("on", "", "");
+        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"on\"\n");
+        execution._apply_graphmend("", "");
         assert Jac.get_program().graphmend_enabled is True;
-        execution._apply_graphmend("off", "", "");
+        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"off\"\n");
+        execution._apply_graphmend("", "");
         assert Jac.get_program().graphmend_enabled is False;
     } finally {
+        config_mod._config = old_config;
         cur = Jac.get_program();
         cur.graphmend_enabled = prev_enabled;
         cur.graphmend_scope = prev_scope;

@@ -170,7 +170,7 @@ test "escaped message literal round-trips through the trap marker" {
 test "py source: proven tensor-bool guard lowers to a direct assert" {
     # The .py front-end (PyastBuildPass) produces UniIR whose nodes unparse
     # differently from .jac-origin nodes, so the trap pattern must match
-    # structurally; this guards `jac run model.py --graphmend`.
+    # structurally; this guards `jac run model.py` under the default auto mode.
     src = _py_fixture_src(True);
     assert (
         "torch._assert_async(mask.all(), "

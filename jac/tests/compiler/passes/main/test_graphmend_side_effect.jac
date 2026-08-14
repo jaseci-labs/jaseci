@@ -224,7 +224,7 @@ test "a user-defined name matching a logging pattern is not tagged" {
 test "py source: print side effect is buffered and flushed" {
     # The .py front-end (PyastBuildPass) produces UniIR whose nodes unparse
     # differently from .jac-origin nodes, so the rewrite must operate
-    # structurally; this guards `jac run model.py --graphmend`.
+    # structurally; this guards `jac run model.py` under the default auto mode.
     src = _py_fixture_src(True);
     assert "__gm_se_arg_0 = x" in src;
     assert "__jac_se_emit__(print, " in src;

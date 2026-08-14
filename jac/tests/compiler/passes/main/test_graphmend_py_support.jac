@@ -7,7 +7,7 @@ in scope; a module imported under `--graphmend-scope` is one whole compiled
 region with no local entry point at all. The .py front-end (PyastBuildPass)
 produces UniIR whose nodes unparse differently from .jac-origin nodes, so
 resolution must match structurally; these tests guard
-`jac run model.py --graphmend` and the scoped-import path."""
+`jac run model.py` under the default auto mode and the scoped-import path."""
 import ast;
 import os;
 import tempfile;

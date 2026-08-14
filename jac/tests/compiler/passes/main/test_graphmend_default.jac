@@ -88,8 +88,7 @@ def _mk_gm_project(tmp: str) -> tuple[str, str] {
 test "graphmend defaults to auto at every layer that decides it" {
     assert CompileOptions().graphmend == "auto";
     assert JacProgram().graphmend_enabled == "auto";
-    assert JacConfig.from_toml_str("[project]\nname = \"p\"\n").run.graphmend
-        == "auto";
+    assert JacConfig.from_toml_str("[project]\nname = \"p\"\n").run.graphmend == "auto";
     assert JacConfig.from_toml_str("[run]\nmain = true\n").run.graphmend == "auto";
     assert JacConfig.from_toml_str("[run]\ngraphmend = \"off\"\n").run.graphmend
         == "off";
@@ -98,9 +97,7 @@ test "graphmend defaults to auto at every layer that decides it" {
 test "default compile options transform a torch module like explicit on" {
     target = os.path.join(FIXTURES, "val_guard_all.jac");
     (src_default, _bc) = _compile(target, CompileOptions(type_check=False));
-    (src_on, _bc2) = _compile(
-        target, CompileOptions(graphmend=True, type_check=False)
-    );
+    (src_on, _bc2) = _compile(target, CompileOptions(graphmend=True, type_check=False));
     assert src_default == src_on;
     assert "torch._assert_async(" in src_default;
     assert "raise ValueError" not in src_default;
@@ -174,9 +171,7 @@ test "a graphmend compile is cached and a same-config recompile hits" {
         with TemporaryDirectory() as tmpdir {
             tmpdir = os.path.realpath(tmpdir);
             (main_path, helper_path) = _mk_gm_project(tmpdir);
-            config_mod._config = JacConfig.load(
-                Path(tmpdir) / "jac.toml"
-            );
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
             prog_a = JacProgram();
             code_a = prog_a.get_bytecode(main_path);
             assert code_a is not None;
@@ -204,9 +199,7 @@ test "flipping the graphmend configuration misses the cached variant" {
         with TemporaryDirectory() as tmpdir {
             tmpdir = os.path.realpath(tmpdir);
             (main_path, helper_path) = _mk_gm_project(tmpdir);
-            config_mod._config = JacConfig.load(
-                Path(tmpdir) / "jac.toml"
-            );
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
             prog_a = JacProgram();
             code_a = prog_a.get_bytecode(main_path);
             assert code_a is not None and _mentions_symbol(code_a, "_assert_async");
@@ -242,9 +235,7 @@ test "auto shares the cache artifact with off for a torch-free module" {
         with TemporaryDirectory() as tmpdir {
             tmpdir = os.path.realpath(tmpdir);
             (main_path, helper_path) = _mk_gm_project(tmpdir);
-            config_mod._config = JacConfig.load(
-                Path(tmpdir) / "jac.toml"
-            );
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
             prog_a = JacProgram();
             code_a = prog_a.get_bytecode(helper_path);
             assert code_a is not None;

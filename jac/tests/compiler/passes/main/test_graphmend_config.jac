@@ -64,12 +64,12 @@ test "an empty disable list keeps every transform active" {
     assert "__jac_se_emit__(print, " in _pysrc("side_effect.jac", []);
 }
 
-test "the run command bridges every graphmend option to jac.toml" {
+test "the run command bridges the graphmend flags that remain to jac.toml" {
     import from jaclang.cli.manifest { get_command_meta }
     meta = get_command_meta("run");
     assert meta is not None;
     by_name = {a.name: a for a in meta.args};
-    assert by_name["graphmend"].config_key == "run.graphmend";
+    assert "graphmend" not in by_name;
     assert by_name["graphmend_scope"].config_key == "run.graphmend_scope";
     gd = by_name.get("graphmend_disable");
     assert gd is not None;
@@ -92,37 +92,37 @@ test "explicit cli flags beat jac.toml which beats built-in defaults" {
     import from jaclang.cli.manifest { get_command_meta }
     import from jaclang.project.config { JacConfig }
     meta = get_command_meta("run");
-    cfg = JacConfig.from_toml_str(
-        "[run]\ngraphmend = true\ngraphmend_disable = \"trap\"\n"
-    );
-    at_defaults = {"graphmend": False, "graphmend_disable": ""};
+    cfg = JacConfig.from_toml_str("[run]\ngraphmend_disable = \"trap\"\n");
+    at_defaults = {"graphmend_disable": ""};
     _apply_config_defaults(cfg, meta, at_defaults);
-    assert at_defaults["graphmend"] == True;
     assert at_defaults["graphmend_disable"] == "trap";
-    explicit = {"graphmend": False, "graphmend_disable": "where"};
+    explicit = {"graphmend_disable": "where"};
     _apply_config_defaults(cfg, meta, explicit);
     assert explicit["graphmend_disable"] == "where";
-    assert explicit["graphmend"] == True;
-    silent = {"graphmend": False, "graphmend_disable": ""};
+    silent = {"graphmend_disable": ""};
     _apply_config_defaults(
         JacConfig.from_toml_str("[run]\nmain = true\n"), meta, silent
     );
-    assert silent["graphmend"] == False;
     assert silent["graphmend_disable"] == "";
 }
 
 test "the cli disable flag reaches the program state" {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import jaclang.cli.commands.execution as execution;
+    import from jaclang.project.config { JacConfig }
+    import jaclang.project.config as config_mod;
     prog = Jac.get_program();
     prev_enabled = prog.graphmend_enabled;
     prev_scope = prog.graphmend_scope;
     prev_disable = prog.graphmend_disable;
+    old_config = config_mod._config;
     try {
-        execution._apply_graphmend(True, "", " trap , defer ");
+        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"on\"\n");
+        execution._apply_graphmend("", " trap , defer ");
         assert Jac.get_program().graphmend_disable == ["trap", "defer"];
         assert Jac.get_program().graphmend_enabled;
     } finally {
+        config_mod._config = old_config;
         cur = Jac.get_program();
         cur.graphmend_enabled = prev_enabled;
         cur.graphmend_scope = prev_scope;

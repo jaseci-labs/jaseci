@@ -131,7 +131,7 @@ test "assignment branches become torch.where" {
 test "py source: return branches become torch.where" {
     # The .py front-end (PyastBuildPass) produces UniIR whose nodes unparse
     # differently from .jac-origin nodes, so the rewrite must operate
-    # structurally; this guards `jac run model.py --graphmend`.
+    # structurally; this guards `jac run model.py` under the default auto mode.
     src = _py_fixture_src(True);
     assert "return torch.where(" in src;
     assert "if " not in src;

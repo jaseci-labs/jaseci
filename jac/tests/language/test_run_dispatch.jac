@@ -395,20 +395,20 @@ test "unknown explicit kind is reported by jac run" {
 }
 
 test "graphmend options survive every jac run mode" {
-    # Each mode installs its own context, so each binds the options itself.
+    # Each mode discovers the project config, so each binds the mode itself.
     # --debug compiles through a separate program and refuses instead.
     body = "import from jaclang.jac0core.runtime { JacRuntime as Jac }\n"
         + "with entry { print(f\"GM={Jac.get_program().graphmend_enabled}\"); }";
-    d = _mk_project("kind = \"cli\"\n", "main.jac", body);
+    d = _mk_project("kind = \"cli\"\n\n[run]\ngraphmend = \"on\"\n", "main.jac", body);
     old = os.getcwd();
     os.chdir(d);
     captured = io.StringIO();
     sys.stdout = captured;
     try {
         rc_project = execution.run(filename="", graphmend_scope="mypkg");
-        rc_file = execution.run(filename="main.jac", graphmend=True);
-        rc_entry = execution.run(filename="", graphmend=True);
-        rc_debug = execution.run(filename="main.jac", debug_mode=True, graphmend=True);
+        rc_file = execution.run(filename="main.jac");
+        rc_entry = execution.run(filename="");
+        rc_debug = execution.run(filename="main.jac", debug_mode=True);
     } finally {
         sys.stdout = sys.__stdout__;
         os.chdir(old);
@@ -425,16 +425,18 @@ test "graphmend options survive every jac run mode" {
 
 test "a cli-native project under graphmend runs the python backend" {
     # GraphMend transforms the python backend, so the native fast path is
-    # skipped and the run still honors the flag instead of losing it.
+    # skipped and the run still honors the configured mode instead of losing it.
     body = "import from jaclang.jac0core.runtime { JacRuntime as Jac }\n"
         + "with entry { print(f\"GMN={Jac.get_program().graphmend_enabled}\"); }";
-    d = _mk_project("kind = \"cli-native\"\n", "main.jac", body);
+    d = _mk_project(
+        "kind = \"cli-native\"\n\n[run]\ngraphmend = \"on\"\n", "main.jac", body
+    );
     old = os.getcwd();
     os.chdir(d);
     captured = io.StringIO();
     sys.stdout = captured;
     try {
-        rc = execution.run(filename="main.jac", graphmend=True);
+        rc = execution.run(filename="main.jac");
     } finally {
         sys.stdout = sys.__stdout__;
         os.chdir(old);
@@ -446,25 +448,33 @@ test "a cli-native project under graphmend runs the python backend" {
 
 test "a prebuilt .jab refuses graphmend instead of dropping it" {
     # A sealed bundle is prebuilt bytecode; the transform cannot apply.
+    import jaclang.project.config as config_mod;
+    old_config = config_mod._config;
     captured = io.StringIO();
     sys.stderr = captured;
     try {
-        rc = execution.run(filename="app.jab", graphmend=True);
+        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"on\"\n");
+        rc = execution.run(filename="app.jab");
     } finally {
         sys.stderr = sys.__stderr__;
+        config_mod._config = old_config;
     }
     assert rc == 1;
     assert "cannot be combined" in captured.getvalue();
 }
 
 test "a serve plan refuses graphmend instead of dropping it" {
-    d = _mk_project("kind = \"service\"\nentry-point = \"api.sv.jac\"\n", "api.sv.jac");
+    d = _mk_project(
+        "kind = \"service\"\nentry-point = \"api.sv.jac\"\n\n"
+            + "[run]\ngraphmend = \"on\"\n",
+        "api.sv.jac"
+    );
     old = os.getcwd();
     os.chdir(d);
     captured = io.StringIO();
     sys.stderr = captured;
     try {
-        rc = execution.run(filename="", graphmend=True);
+        rc = execution.run(filename="");
     } finally {
         sys.stderr = sys.__stderr__;
         os.chdir(old);

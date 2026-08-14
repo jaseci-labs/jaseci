@@ -1661,17 +1661,9 @@ def _command_routes -> list[CommandMeta] {
                     config_key='run.cache'
                 ),
                 ArgMeta(
-                    name='graphmend',
-                    typ='bool',
-                    default=False,
-                    help="Apply GraphMend passes to eliminate PyTorch 2 FX graph breaks (experimental). jac.toml run.graphmend also accepts 'auto' to engage only for modules that import torch",
-                    short='g',
-                    config_key='run.graphmend'
-                ),
-                ArgMeta(
                     name='graphmend_scope',
                     default='',
-                    help="Comma-separated module prefixes whose imported .py code GraphMend should also transform (e.g. 'transformers.models.phi3'). Implies --graphmend.",
+                    help="Comma-separated module prefixes whose imported .py code GraphMend should also transform (e.g. 'transformers.models.phi3'). Forces GraphMend on for the run.",
                     short='',
                     config_key='run.graphmend_scope'
                 ),
