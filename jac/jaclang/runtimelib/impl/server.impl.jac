@@ -476,7 +476,6 @@ async def _stream_sync_gen(gen: any, ctx: ExecutionContext) -> AsyncGenerator {
 
     def _produce {
         token = Jac.push_request_context(ctx);
-        ctx.mem.unit_enter();
         try {
             try {
                 while True {
@@ -495,17 +494,23 @@ async def _stream_sync_gen(gen: any, ctx: ExecutionContext) -> AsyncGenerator {
                 gen.close();
             }
             if not stopped[0] {
-                Jac.commit();
+                ctx.mem.unit_enter();
+                try {
+                    Jac.commit();
+                } finally {
+                    try {
+                        ctx.mem.unit_exit();
+                    } except Exception as ue {
+                        logger.warning(
+                            f"stream unit exit failed: {type(ue).__name__}: {ue}"
+                        );
+                    }
+                }
             }
             _put(('done', None));
         } except BaseException as e {
             _put(('error', e));
         } finally {
-            try {
-                ctx.mem.unit_exit();
-            } except Exception as ue {
-                logger.warning(f"stream unit exit failed: {type(ue).__name__}: {ue}");
-            }
             Jac.reset_request_context(token);
         }
     }
@@ -530,7 +535,6 @@ async def _stream_sync_gen(gen: any, ctx: ExecutionContext) -> AsyncGenerator {
 }
 
 async def _stream_async_gen(gen: any, ctx: ExecutionContext) -> AsyncGenerator {
-    ctx.mem.unit_enter();
     try {
         while True {
             token = Jac.push_request_context(ctx);
@@ -545,7 +549,18 @@ async def _stream_async_gen(gen: any, ctx: ExecutionContext) -> AsyncGenerator {
         }
         token = Jac.push_request_context(ctx);
         try {
-            await Jac.acommit();
+            ctx.mem.unit_enter();
+            try {
+                await Jac.acommit();
+            } finally {
+                try {
+                    ctx.mem.unit_exit();
+                } except Exception as ue {
+                    logger.warning(
+                        f"stream unit exit failed: {type(ue).__name__}: {ue}"
+                    );
+                }
+            }
         } finally {
             Jac.reset_request_context(token);
         }
@@ -557,11 +572,6 @@ async def _stream_async_gen(gen: any, ctx: ExecutionContext) -> AsyncGenerator {
             logger.warning(f"stream close failed: {type(ce).__name__}: {ce}");
         } finally {
             Jac.reset_request_context(token);
-            try {
-                ctx.mem.unit_exit();
-            } except Exception as ue {
-                logger.warning(f"stream unit exit failed: {type(ue).__name__}: {ue}");
-            }
         }
     }
 }
