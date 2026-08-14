@@ -600,6 +600,75 @@ test "lambda assignment to an enclosing local stays a closure rebind" {
     assert_balanced_syntax(js_code, temp_path);
 }
 
+test "annotated loop-body local declares per-iteration inside the loop" {
+    fixture_file_path = os.path.join(FIXTURES, "for_slot_capture.jac");
+    js_code = compile_fixture_to_js(fixture_file_path);
+
+    assert "annId = String(a.id);" in js_code;
+    assert "let annId;" not in js_code , (
+        "a typed declaration in a loop body declares a per-iteration local, so "
+        "no empty hoisted declaration of it may exist at component scope; "
+        "hoisting makes every handler built in the loop share one binding "
+        "and observe the last item (#8168)"
+    );
+    assert "let annId = String(a.id);" in js_code , (
+        "the typed declaration must carry its `let` at the assignment site "
+        "inside the loop body"
+    );
+    assert_balanced_syntax(js_code, fixture_file_path);
+}
+
+test "bare loop-body local keeps its single function-level binding" {
+    fixture_file_path = os.path.join(FIXTURES, "for_slot_capture.jac");
+    js_code = compile_fixture_to_js(fixture_file_path);
+
+    assert "let slotId;" in js_code , (
+        "Jac scoping is python-like: a bare assignment anywhere in a function "
+        "binds one function-level symbol, so the loop-body local must keep "
+        "hoisting. The footgun this creates for escaping closures is reported "
+        "by W6009, not fixed by changing the scoping (#8168)"
+    );
+    assert "let slotId = " not in js_code;
+}
+
+test "for-slot handlers act on the item their own iteration built" {
+    import shutil;
+    if not shutil.which("node") {
+        import pytest;
+        pytest.skip("node not on PATH");
+    }
+    fixture_file_path = os.path.join(FIXTURES, "for_slot_capture.jac");
+    js_code = compile_fixture_to_js(fixture_file_path);
+
+    harness = "\nconst __out = [];\nconst __tree = Handlers({items: [{id: \"first\"}, {id: \"second\"}, {id: \"last\"}], sink: (t) => __out.push(t)});\nconst __found = [];\n(function walk(n, section) {\n  if (n == null || typeof n !== \"object\") return;\n  if (Array.isArray(n)) { for (const c of n) walk(c, section); return; }\n  const id = n.props && n.props.id;\n  if (id) section = id;\n  if (n.props && typeof n.props.onClick === \"function\") __found.push([section, n.props.onClick]);\n  walk(n.kids, section);\n})(__tree, \"?\");\nconst __by = {};\nfor (const [s, fn] of __found) {\n  __out.length = 0;\n  fn();\n  (__by[s] = __by[s] || []).push(String(__out[0]).split(\":\")[1]);\n}\nconsole.log(JSON.stringify(__by));\n";
+    wrapper = "function __jacJsx(tag, props, kids) { return {tag, props, kids: kids === undefined ? [] : kids}; }\n"
+        + js_code
+        + harness;
+    result = subprocess.run(
+        ["node", "--input-type=module", "-e", wrapper],
+        capture_output=True,
+        text=True,
+        timeout=30
+    );
+    assert result.returncode == 0 , (
+        f"for-slot fixture crashed in Node:\nstderr={result.stderr!r}"
+    );
+    got = json.loads(result.stdout.strip());
+
+    assert got["annotated"] == ["first", "second", "last"] , (
+        "each handler built from a typed loop-body local must fire with its "
+        f"own item; got {got['annotated']}"
+    );
+    assert got["map_lambda"] == ["first", "second", "last"] , (
+        f"the #8130 lambda control must stay per-invocation; got {got['map_lambda']}"
+    );
+    assert got["for_slot"] == ["last", "last", "last"] , (
+        "the bare form shares one function-level binding by design (python-like "
+        "scoping), so every handler observes the last iteration; W6009 reports "
+        f"it rather than the scoping changing under the author. Got {got['for_slot']}"
+    );
+}
+
 test "lambda returning dict literal parenthesises the arrow body" {
     jac_code = "def:pub app -> str {\n    style_of = lambda (kind: str) { {\"color\": \"red\" if kind == \"warn\" else \"blue\"}; };\n    return style_of(\"warn\")[\"color\"];\n}\n";
     temp_path = write_temp_jac(jac_code);
