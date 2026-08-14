@@ -24,13 +24,13 @@ import from jaclang.jac0core.jir {
 }
 import from jaclang.jac0core.program { JacProgram }
 
-def _write(path: str, text: str) -> None {
+def _write(path: str, text: str) {
     with open(path, "w") as f {
         f.write(text);
     }
 }
 
-def _bump(path: str, ref: str) -> None {
+def _bump(path: str, ref: str) {
     stamp = os.path.getmtime(ref) + 100.0;
     os.utime(path, (stamp, stamp));
 }
