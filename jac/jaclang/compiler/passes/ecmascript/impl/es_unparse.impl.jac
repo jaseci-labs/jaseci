@@ -323,16 +323,11 @@ impl JSCodeGenerator.gen_arrow_function_expression(
     } else {
         params = f"({params})";
     }
-    if nd.expression {
-        body = self.generate(nd.body);
-        if isinstance(nd.body, es.ObjectExpression) {
-            body = f"({body})";
-        }
-        return f"{async_str}{params} => {body}";
-    } else {
-        body = self.generate(nd.body);
-        return f"{async_str}{params} => {body}";
+    body = self.generate(nd.body);
+    if not isinstance(nd.body, es.BlockStatement) and body.startswith('{') {
+        body = f"({body})";
     }
+    return f"{async_str}{params} => {body}";
 }
 
 impl JSCodeGenerator.gen_function_expression(nd: es.FunctionExpression) -> str {

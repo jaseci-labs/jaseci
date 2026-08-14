@@ -441,6 +441,29 @@ impl PgStore.ensure_schema(promotions: dict[str, list[str]]) -> None {
 }
 
 
+impl PgStore.reset_data -> None {
+    with self._lock {
+        if self._in_txn {
+            self.rollback();
+        }
+        listed = self._run(
+            'SELECT tablename FROM pg_tables WHERE schemaname = current_schema()', {}
+        );
+        tables = [str(row[0]) for row in listed];
+        if not tables {
+            return;
+        }
+        stamp = self._schema_stamp();
+        targets = ', '.join(f'"{name}"' for name in sorted(tables));
+        self._run(f"TRUNCATE {targets} RESTART IDENTITY CASCADE", {});
+        if stamp {
+            self.kv_put(SCHEMA_STAMP_KEY, stamp);
+        }
+        self._known_types = set();
+    }
+}
+
+
 impl PgStore._apply_schema_ddl -> None {
     self._run("SET lock_timeout = '5s'", {});
     try {

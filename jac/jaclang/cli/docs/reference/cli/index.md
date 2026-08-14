@@ -970,7 +970,9 @@ Local model cache: /home/you/.cache/jac/models
 
 ## Database Operations
 
-The `jac db` command group manages the project's Postgres store -- the embedded per-project server the runtime provisions automatically, or the external database `JAC_DB_URL` / `[scale.database].url` points at.
+The `jac db` command group manages the project's Postgres store -- a database inside the embedded cluster the runtime provisions automatically, or the external database `JAC_DB_URL` / `[scale.database].url` points at.
+
+The embedded cluster is **shared by the whole machine**, not per project: one PostgreSQL instance lives at `$JAC_CACHE_HOME/pg/main` (default `~/.cache/jac/pg/main`) and holds one database per project, named `jac_<project>_<digest of the project's absolute path>`. Two projects therefore share a server but never a database, and moving or deleting a project directory leaves its database behind (`jac db list` shows it as `orphaned`; `jac db prune` reclaims it).
 
 For the architectural background (fingerprints, drift detection, quarantine philosophy, alias decorator), see [Persistence & Schema Migration](../persistence.md).
 
@@ -1001,6 +1003,63 @@ jac db sql "SELECT count(*) FROM anchors"
 jac db sql "SELECT * FROM quarantine"
 ```
 
+### jac db list
+
+List every jac database in the cluster with its size, kind, state and owning project directory.
+
+```bash
+jac db list
+```
+
+```text
+data dir : /home/you/.cache/jac/pg/main
+databases: 3 (23.1 MB)
+
+NAME                              SIZE  KIND     STATE         LAST USED            OWNER
+jac_myapp_1a2b3c4d              7.9 MB  project  live          2026-08-12 21:14:03  /home/you/myapp
+jac_scratch_3142_9f1c           7.7 MB  scratch  dead scratch  2026-08-12 20:02:55  /tmp/jac-test-base-x1y2
+jac_oldapp_5e6f7a8b             7.6 MB  project  orphaned      2026-07-30 11:48:12  /home/you/deleted-app
+```
+
+The states are `live` (the owning directory still exists), `orphaned` (it does not), `scratch` / `dead scratch` (a throwaway store for internal work, see below), and `unattributed` (no owner recorded, e.g. created before the runtime tracked owners). Listing never creates a database, so it is safe to run for a look around.
+
+### jac db prune
+
+Drop databases that nothing owns any more. **Prune reports and exits without dropping anything unless you pass `-y`**, and it never drops a database whose owning directory still exists.
+
+```bash
+jac db prune             # report what would go
+jac db prune -y          # drop it
+jac db prune --empty -y  # also drop unattributed databases that hold no data
+```
+
+Candidates are scratch databases whose process is gone, and project databases whose recorded owning path has been deleted. Databases with no recorded owner at all (created before the runtime recorded owners, or by tooling that opened the cluster directly) cannot be attributed; they are reported and left alone. `--empty` additionally considers those, but only the ones holding nothing beyond the system root, so an old cluster full of empty test-worker databases can be reclaimed without risking anyone's data.
+
+### jac db drop
+
+Drop one database by name (from `jac db list`). Also a no-op report without `-y`.
+
+```bash
+jac db drop jac_oldapp_5e6f7a8b -y
+```
+
+Only `jac_*` databases can be dropped, and a database another process is connected to is refused rather than forced.
+
+### Retention
+
+By default the runtime never deletes a project database: it is created on first contact and stays until you drop it. A cluster start always reaps scratch databases left by processes that are gone, and, if you opt in, sweeps stale project databases too:
+
+```toml
+[database]
+retention_days = 30
+```
+
+With `retention_days` set (or `JAC_DB_RETENTION_DAYS` in the environment), starting the embedded cluster drops every database that has not been opened for that many days. Unset or `0` means never. Be conservative: this deletes data, `jac db list` shows exactly which databases are how old, and the database being opened is never swept.
+
+### Scratch stores
+
+Work that keeps nothing across invocations should not leave a database behind. A process launched with `JAC_DB_SCRATCH=1` opens a single scratch database (`jac_scratch_<pid>_<nonce>`) instead of one per project path, and drops it when the process exits. The test runner and the deploy seal / vendor steps use this, which is why running tests or deploying no longer grows the cluster.
+
 ### jac db serve
 
 Run Postgres in the foreground. This is how pods and containers host the database when `[scale.database].deploy_mode = "embedded"` -- the app's own image runs `jac db serve`.
@@ -1011,7 +1070,7 @@ jac db serve --port 5432 --data_dir /var/lib/jac/pgdata
 
 ### jac db stop
 
-Stop the project's embedded server.
+Stop the shared embedded server.
 
 ```bash
 jac db stop

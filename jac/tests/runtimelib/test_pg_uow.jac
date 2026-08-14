@@ -68,7 +68,9 @@ test "uow: read-only transactions take zero SIREAD predicate locks" {
     with TemporaryDirectory() as td {
         target = str(Path(td) / 'app.jac');
         rt = PgRuntime(
-            data_dir=shared_pg_data_dir(), database=project_db_name(td, target)
+            data_dir=shared_pg_data_dir(),
+            database=project_db_name(td, target),
+            owner_path=td
         );
         store = PgStore(conninfo=rt.ensure(), ensure_cb=rt.ensure);
         try {

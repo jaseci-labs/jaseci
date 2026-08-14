@@ -261,17 +261,22 @@ impl PgRuntime.ensure -> ConnInfo {
         os.makedirs(os.path.dirname(self.data_dir) or '.', exist_ok=True);
         lock_f = open(self.data_dir + '.lock', 'w');
         fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX);
+        started = False;
         try {
             if not self.is_running() {
                 bin_dir = self._resolve_binaries();
                 self._initdb_if_needed(bin_dir);
                 self._start(bin_dir);
+                started = True;
             }
         } finally {
             fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN);
             lock_f.close();
         }
         self._wait_ready();
+        if started {
+            self._sweep_on_start();
+        }
         self._ensure_database();
         return self.conninfo();
     }
@@ -671,22 +676,108 @@ impl PgRuntime._wait_ready(timeout: float = 60.0) -> None {
 
 
 impl PgRuntime._ensure_database -> None {
-    import from jaclang.vendor.pgload { connect }
-    info = self.conninfo();
-    conn: Any = connect(
-        info.user,
-        host=info.host,
-        port=info.port,
-        unix_socket_dir=info.unix_socket_dir,
-        database='postgres'
-    );
+    import from jaclang.runtimelib.dbcatalog { connect_admin, record_database }
+    conn: Any = connect_admin(self.conninfo());
     try {
         rows = conn.run(
             "SELECT 1 FROM pg_database WHERE datname = :n", n=self.database
         );
-        if not rows {
+        created = not rows;
+        if created {
             conn.run(f'CREATE DATABASE "{self.database}"');
         }
+        record_database(conn, self.database, self.kind, self.owner_path);
+        if created and self.kind == DbKind.SCRATCH {
+            self._reap_scratch(conn);
+        }
+    } finally {
+        conn.close();
+    }
+}
+
+
+impl PgRuntime._reap_scratch(conn: Any) -> int {
+    import from jaclang.runtimelib.dbcatalog {
+        dead_scratch_databases,
+        drop_database,
+        list_databases
+    }
+    reaped = 0;
+    try {
+        for name in dead_scratch_databases(list_databases(conn)) {
+            if name != self.database and drop_database(conn, name, force=True) {
+                reaped += 1;
+            }
+        }
+    } except Exception as e {
+        logger.debug(f"scratch reap failed: {e}");
+        return reaped;
+    }
+    if reaped {
+        logger.info(
+            f"reclaimed {reaped} scratch database(s) left by processes that "
+            'are no longer running'
+        );
+    }
+    return reaped;
+}
+
+
+impl PgRuntime.drop_database(database: str, force: bool = False) -> bool {
+    import from jaclang.runtimelib.dbcatalog {
+        connect_admin,
+        drop_database as catalog_drop
+    }
+    conn: Any = connect_admin(self.conninfo());
+    try {
+        return catalog_drop(conn, database, force=force);
+    } finally {
+        conn.close();
+    }
+}
+
+
+impl PgRuntime.databases -> list {
+    import from jaclang.runtimelib.dbcatalog { connect_admin, list_databases }
+    conn: Any = connect_admin(self.conninfo());
+    try {
+        return list_databases(conn);
+    } finally {
+        conn.close();
+    }
+}
+
+
+impl PgRuntime._sweep_on_start -> None {
+    import from jaclang.runtimelib.dbcatalog {
+        connect_admin,
+        drop_database,
+        expired_databases
+    }
+    try {
+        conn: Any = connect_admin(self.conninfo());
+    } except Exception as e {
+        logger.debug(f"cluster sweep skipped, no admin connection: {e}");
+        return;
+    }
+    try {
+        self._reap_scratch(conn);
+        if self.retention_days > 0 {
+            swept = 0;
+            for name in expired_databases(conn, self.retention_days, self.database) {
+                if drop_database(conn, name) {
+                    swept += 1;
+                }
+            }
+            if swept {
+                logger.info(
+                    f"retention swept {swept} database(s) unused for more than "
+                    f"{self.retention_days} day(s)"
+                );
+            }
+        }
+    } except Exception as e {
+        logger.debug(f"cluster sweep failed: {e}");
     } finally {
         conn.close();
     }
