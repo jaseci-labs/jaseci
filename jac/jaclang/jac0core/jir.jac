@@ -20,6 +20,7 @@ glob MAGIC = b"JIR\x00",
      SEC_MODKEY: int = 0x08,
      SEC_DEBUG_SRC: int = 0x09,
      SEC_PLACEMENT: int = 0x0A,
+     SEC_CFGKEY: int = 0x0B,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
@@ -40,6 +41,22 @@ obj JirHeader {
     def is_compatible -> bool;
 }
 
+glob _JACLANG_VERSION_CACHE: list = [];
+
+def jaclang_version -> str {
+    if _JACLANG_VERSION_CACHE {
+        return _JACLANG_VERSION_CACHE[0];
+    }
+    import from importlib.metadata { version as pkg_version }
+    try {
+        jac_ver = pkg_version('jaclang');
+    } except Exception {
+        jac_ver = "0.0.0";
+    }
+    _JACLANG_VERSION_CACHE.append(jac_ver);
+    return _JACLANG_VERSION_CACHE[0];
+}
+
 def create_header(
     source_hash: int,
     node_count: int,
@@ -47,12 +64,7 @@ def create_header(
     string_pool_size: int,
     flags: int = 0
 ) -> JirHeader {
-    import from importlib.metadata { version as pkg_version }
-    try {
-        jac_ver = pkg_version('jaclang');
-    } except Exception {
-        jac_ver = "0.0.0";
-    }
+    jac_ver = jaclang_version();
     return JirHeader(
         magic=MAGIC,
         format_version=FORMAT_VERSION,
@@ -183,15 +195,9 @@ def schema_digest -> str {
     return _SCHEMA_DIGEST_CACHE[0];
 }
 
-def compute_module_key(source_path: str) -> str {
-    import from importlib.metadata { version as pkg_version }
-    try {
-        jac_ver = pkg_version('jaclang');
-    } except Exception {
-        jac_ver = "0.0.0";
-    }
+def config_cache_key(source_path: str) -> str {
     h = hashlib.sha256();
-    h.update(jac_ver.encode());
+    h.update(jaclang_version().encode());
     h.update(struct.pack('<H', (sys.version_info.major << 8) | sys.version_info.minor));
     h.update(struct.pack('<H', FORMAT_VERSION));
     h.update(schema_digest().encode());
@@ -204,6 +210,12 @@ def compute_module_key(source_path: str) -> str {
     h.update(cut_digest(source_path).encode());
     import from jaclang.jac0core.compile_options { effective_codegen_fingerprint }
     h.update(effective_codegen_fingerprint().encode());
+    return h.hexdigest();
+}
+
+def compute_module_key(source_path: str) -> str {
+    h = hashlib.sha256();
+    h.update(config_cache_key(source_path).encode());
     h.update(compute_content_sha256(source_path).encode());
     for (rel, digest) in _related_files(source_path) {
         h.update(rel.encode());
@@ -227,13 +239,23 @@ def read_modkey(data: bytes) -> (str | None) {
     }
 }
 
-def compute_stub_module_key(source_path: str) -> str {
-    import from importlib.metadata { version as pkg_version }
+def read_cfgkey(data: bytes) -> (str | None) {
     try {
-        jac_ver = pkg_version('jaclang');
+        magic: any = SECTIONS_MAGIC;
+        pos = data.find(magic, HEADER_SIZE);
+        if pos < 0 {
+            return None;
+        }
+        sections = read_sections(data, pos + len(magic));
+        key_bytes = sections.get(SEC_CFGKEY);
+        return key_bytes.decode('utf-8') if key_bytes is not None else None;
     } except Exception {
-        jac_ver = "0.0.0";
+        return None;
     }
+}
+
+def compute_stub_module_key(source_path: str) -> str {
+    jac_ver = jaclang_version();
     h = hashlib.sha256();
     h.update(jac_ver.encode());
     h.update(struct.pack('<H', (sys.version_info.major << 8) | sys.version_info.minor));
@@ -443,7 +465,6 @@ def read_debug_source(data: bytes) -> (str | None) {
 }
 
 def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
-    import from jaclang.jac0core.bccache { discover_annex_files, discover_style_annex }
     if not cache_path.exists() {
         return False;
     }
@@ -453,8 +474,19 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         if header is None or not header.is_compatible() {
             return False;
         }
-        cache_mtime = os.path.getmtime(cache_path);
+        stored_cfg = read_cfgkey(data);
+        if stored_cfg is None {
+            return jir_matches_source(data, source_path);
+        }
+        if stored_cfg != config_cache_key(source_path) {
+            return False;
+        }
 
+        import from jaclang.jac0core.bccache {
+            discover_annex_files,
+            discover_style_annex
+        }
+        cache_mtime = os.path.getmtime(cache_path);
         related = discover_annex_files(source_path, '.impl.jac')
             + discover_annex_files(source_path, '.test.jac');
         style = discover_style_annex(source_path);
@@ -565,7 +597,8 @@ def write_module_jir_cache(
         cache_path.parent.mkdir(parents=True, exist_ok=True);
         writer = JirWriter();
         sections: dict[int, bytes] = {
-            SEC_MODKEY: module_cache_key(resolved_path).encode('utf-8')
+            SEC_MODKEY: module_cache_key(resolved_path).encode('utf-8'),
+            SEC_CFGKEY: config_cache_key(resolved_path).encode('utf-8')
         };
         if extra_sections is not None {
             for (k, v) in extra_sections.items() {
