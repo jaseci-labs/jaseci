@@ -72,11 +72,16 @@ test "class-level tuple metadata lowers natively" {
 }
 
 
-test "class-level tuple metadata stays a real value" {
+test "class-level tuple metadata keeps the literal's layout" {
     (_prog, ir) = compile_native("static_tuple_meta.jac");
-    assert "Access.PROVIDES" in str(ir.gen.llvm_ir) , (
-        "static tuple metadata was dropped instead of lowered; a read of it "
-        "would load whatever happened to sit at the slot"
+    text = str(ir.gen.llvm_ir);
+    assert '@"Access.PROVIDES" = global {i8*}*' in text , (
+        "the widened `tuple` annotation did not narrow to the one-element "
+        "tuple of str its constant declares; a scalar slot here would make "
+        "every read of it garbage"
+    );
+    assert '@"Stage.REQUIRES" = global {}*' in text , (
+        "the empty tuple did not land on a zero-field struct"
     );
 }
 
@@ -119,4 +124,7 @@ test "a widened tuple glob lowers from its constant" {
     (prog, ir) = compile_native("tuple_glob_meta.jac");
     assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";
     assert ir is not None and ir.gen.llvm_ir , "no native IR for the tuple glob";
+    assert '@"MOVE_EXEMPT" = global {i8*, i8*}*' in str(ir.gen.llvm_ir) , (
+        "the glob did not take the two-element str layout its constant declares"
+    );
 }
