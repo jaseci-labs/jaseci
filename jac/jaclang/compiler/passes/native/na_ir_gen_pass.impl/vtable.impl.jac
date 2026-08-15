@@ -137,8 +137,12 @@ impl NaIRGenPass._isinstance_unprovable_class(
     A short chain elsewhere in the program is only this site's problem if the
     operand could actually hold one: a statically typed operand narrows the
     candidates to itself and its subclasses, and only an erased one has to
-    answer for every class. Returns the class whose MRO is short, or `None`
-    when every chain this operand could take is whole.
+    answer for every class. That narrowing walks the candidate's chain link by
+    link rather than reading its recorded MRO, because the recorded MRO is the
+    very thing that is short -- reading it would drop a candidate precisely
+    when the ancestor it omits is the operand's declared type, which is the
+    case that most needs the refusal. Returns the class whose MRO is short, or
+    `None` when every chain this operand could take is whole.
     """;
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
 
@@ -166,8 +170,13 @@ impl NaIRGenPass._isinstance_unprovable_class(
     }
     for name in names {
         for cand in (_missing.get(name) or []) {
-            if operand_arch is None or operand_arch in self._mro_of(cand) {
+            if operand_arch is None {
                 return cand;
+            }
+            for step in self._mro_of(cand) {
+                if operand_arch in self._mro_of(step) {
+                    return cand;
+                }
             }
         }
     }

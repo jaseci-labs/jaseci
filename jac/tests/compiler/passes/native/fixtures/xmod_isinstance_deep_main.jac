@@ -53,3 +53,11 @@ def chk_unrelated_operand -> int {
     }
     return 0;
 }
+
+def chk_base_typed_operand(k: int) -> int {
+    b: LibBase = DeepKid(b=1, k=2, d=3) if k == 0 else LibKid(b=1, k=2);
+    if isinstance(b, LibBase) {
+        return 1;
+    }
+    return 0;
+}

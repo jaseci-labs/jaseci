@@ -168,3 +168,15 @@ test "an operand that could never hold the short-chain class still answers" {
         "a statically typed operand outside the short chain's subtree must decide, not refuse"
     );
 }
+
+test "an operand typed as the very ancestor the short chain drops still refuses" {
+    # The narrowing may not consult the candidate's recorded MRO to decide
+    # relevance: `DeepKid` records `[DeepKid, LibKid]`, so a `LibBase`-typed
+    # operand looks unrelated to it precisely because `LibBase` is the link that
+    # went missing -- and a `DeepKid` flowing through that slot is exactly what
+    # the vtable compare would answer `False` for.
+    (eng, _) = compile_native("xmod_isinstance_deep_main.jac", expect_demotions=True);
+    assert eng.get_function_address("chk_base_typed_operand") == 0 , (
+        "an operand declared as the dropped ancestor answered from the short chain"
+    );
+}
