@@ -107,13 +107,12 @@ impl classify_native_import(item: UniNode) -> tuple {
     } elif isinstance(item, ModuleItem) {
         _owner = item.parent;
         _from_loc = _owner.from_loc if isinstance(_owner, Import) else None;
-        if _from_loc is None {
-            return (None, True);
-        }
-        mod_name = _from_loc.dot_path_str;
-        if isinstance(item.name, Name)
-            and native_comptime_import_names(mod_name, [item.name.value]) {
-            return (mod_name, True);
+        if _from_loc is not None {
+            mod_name = _from_loc.dot_path_str;
+            if isinstance(item.name, Name)
+                and native_comptime_import_names(mod_name, [item.name.value]) {
+                return (mod_name, True);
+            }
         }
     }
     return (mod_name, mod_name is not None and mod_name in NATIVE_SUPPORTED_STDLIB);
