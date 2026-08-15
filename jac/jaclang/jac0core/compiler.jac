@@ -515,6 +515,11 @@ def native_pipeline_available -> tuple[bool, str] {
         try {
             import from jaclang.compiler.passes.native.llvm.binding.ffi { _find_shim }
             _find_shim();
+        } except ModuleNotFoundError {
+            reason = (
+                'native pipeline unavailable: LLVM shim (libjacllvm) '
+                + 'not found in this environment'
+            );
         } except ImportError as e {
             fail_loud_on_compiler_source(e);
             return (
