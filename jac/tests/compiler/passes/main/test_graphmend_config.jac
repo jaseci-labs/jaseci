@@ -6,7 +6,8 @@ comma-list disable option, threaded the same way as the other GraphMend
 flags: CLI `--graphmend-disable` -> JacProgram.graphmend_disable ->
 CompileOptions.graphmend_disable -> per-pass gating. jac.toml reaches the
 CLI through the generic Arg.config_key bridge, so precedence is: explicit
-CLI flag > jac.toml > built-in default."""
+CLI flag > jac.toml > built-in default. The only other GraphMend key is
+`[run] graphmend`, a plain off switch: absent means on, `false` disables."""
 import os;
 import from tests.support {
     GRAPHMEND_FIXTURES as FIXTURES,
@@ -70,10 +71,28 @@ test "the run command bridges the graphmend flags that remain to jac.toml" {
 test "the run section of jac.toml carries the graphmend keys" {
     import from jaclang.project.config { JacConfig }
     cfg = JacConfig.from_toml_str(
-        "[run]\ngraphmend = true\ngraphmend_disable = \"trap\"\n"
+        "[run]\ngraphmend = false\ngraphmend_disable = \"trap\"\n"
     );
-    assert cfg.run.graphmend;
+    assert cfg.run.graphmend is False;
     assert cfg.run.graphmend_disable == "trap";
+}
+
+test "run graphmend is an off switch that reads as on when absent" {
+    import from jaclang.project.config { JacConfig }
+    assert JacConfig.from_toml_str("[project]\nname = \"p\"\n").run.graphmend is True;
+    assert JacConfig.from_toml_str("[run]\nmain = true\n").run.graphmend is True;
+    assert JacConfig.from_toml_str("[run]\ngraphmend = false\n").run.graphmend is False;
+}
+
+"""A jac.toml written against the earlier tri-state keeps its meaning."""
+test "the legacy mode spellings still resolve to the boolean gate" {
+    import from jaclang.project.config { JacConfig }
+    for spelled in ["true", "\"on\"", "\"auto\""] {
+        cfg = JacConfig.from_toml_str(f"[run]\ngraphmend = {spelled}\n");
+        assert cfg.run.graphmend is True , f"{spelled} must leave graphmend on";
+    }
+    assert JacConfig.from_toml_str("[run]\ngraphmend = \"off\"\n").run.graphmend
+        is False;
 }
 
 test "explicit cli flags beat jac.toml which beats built-in defaults" {
@@ -105,10 +124,10 @@ test "the cli disable flag reaches the program state" {
     prev_disable = prog.graphmend_disable;
     old_config = config_mod._config;
     try {
-        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"on\"\n");
+        config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
         execution._apply_graphmend(" trap , defer ");
         assert Jac.get_program().graphmend_disable == ["trap", "defer"];
-        assert Jac.get_program().graphmend_enabled;
+        assert Jac.get_program().graphmend_enabled is True;
     } finally {
         config_mod._config = old_config;
         cur = Jac.get_program();

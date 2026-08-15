@@ -1,17 +1,13 @@
-"""GraphMend default-on (auto) behavior.
+"""GraphMend default-on behavior.
 
-GraphMend is on by default in auto mode: with nothing passed and no jac.toml
-keys, compiling any module engages GraphMend exactly when the module imports
-torch, while torch-free modules stay byte-identical to an explicit
-graphmend-off compile. The tri-state default is `auto` at every layer that
-decides it (CompileOptions, JacProgram, the jac.toml run section), explicit
-`off` still wins, and the CLI carries no `--graphmend` enable flag: jac.toml
-`run.graphmend` is the only mode control, while `--graphmend-scope` and
-`--graphmend-disable` remain flags and a scope alone still activates
-GraphMend. GraphMend-active compiles participate in the bytecode cache with
-the GraphMend configuration folded into the cache key, so a same-config
-recompile hits and any configuration flip misses instead of serving the
-wrong variant."""
+With nothing passed and no jac.toml keys, compiling any module engages
+GraphMend exactly when the module imports torch, while torch-free modules stay
+byte-identical to a graphmend-off compile. The gate is open by default at every
+layer that carries it (CompileOptions, JacProgram, the jac.toml run section),
+`[run] graphmend = false` is the only control and there is no CLI enable flag.
+GraphMend-active compiles fold their configuration into the bytecode cache key,
+so a same-config recompile hits and any flip misses instead of serving the wrong
+variant."""
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
@@ -62,20 +58,21 @@ def _mk_gm_project(tmp: str) -> tuple[str, str] {
     return (main_path, helper_path);
 }
 
-test "graphmend defaults to auto at every layer that decides it" {
-    assert CompileOptions().graphmend == "auto";
-    assert JacProgram().graphmend_enabled == "auto";
-    assert JacConfig.from_toml_str("[project]\nname = \"p\"\n").run.graphmend == "auto";
-    assert JacConfig.from_toml_str("[run]\nmain = true\n").run.graphmend == "auto";
-    assert JacConfig.from_toml_str("[run]\ngraphmend = \"off\"\n").run.graphmend
-        == "off";
+test "the graphmend gate is open by default at every layer that carries it" {
+    assert CompileOptions().graphmend is True;
+    assert JacProgram().graphmend_enabled is True;
+    assert JacConfig.from_toml_str("[project]\nname = \"p\"\n").run.graphmend is True;
+    assert JacConfig.from_toml_str("[run]\nmain = true\n").run.graphmend is True;
+    assert JacConfig.from_toml_str("[run]\ngraphmend = false\n").run.graphmend is False;
 }
 
-test "default compile options transform a torch module like explicit on" {
+test "default compile options transform a torch module" {
     target = os.path.join(FIXTURES, "val_guard_all.jac");
     (src_default, _bc) = _compile(target, CompileOptions(type_check=False));
-    (src_on, _bc2) = _compile(target, CompileOptions(graphmend=True, type_check=False));
-    assert src_default == src_on;
+    (src_off, _bc2) = _compile(
+        target, CompileOptions(graphmend=False, type_check=False)
+    );
+    assert src_default != src_off;
     assert "torch._assert_async(" in src_default;
     assert "raise ValueError" not in src_default;
 }
@@ -90,7 +87,7 @@ test "default compile options leave a torch-free module identical to off" {
     assert bc_default == bc_off;
 }
 
-test "run graphmend in jac toml is the mode control without a cli flag" {
+test "run graphmend in jac toml is the off switch without a cli flag" {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import jaclang.cli.commands.execution as execution;
     prog = Jac.get_program();
@@ -100,11 +97,11 @@ test "run graphmend in jac toml is the mode control without a cli flag" {
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
         execution._apply_graphmend("");
-        assert Jac.get_program().graphmend_enabled == "auto";
-        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"off\"\n");
+        assert Jac.get_program().graphmend_enabled is True;
+        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
         execution._apply_graphmend("");
         assert Jac.get_program().graphmend_enabled is False;
-        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"on\"\n");
+        config_mod._config = JacConfig.from_toml_str("[project]\nname = \"p\"\n");
         execution._apply_graphmend(" trap ");
         assert Jac.get_program().graphmend_enabled is True;
         assert Jac.get_program().graphmend_disable == ["trap"];
@@ -116,7 +113,7 @@ test "run graphmend in jac toml is the mode control without a cli flag" {
     }
 }
 
-test "any mode but off installs the import claim loader hook" {
+test "any run but an off one installs the import claim loader hook" {
     # Claiming is automatic, so the hook that routes imported .py model code
     # through GraphMend goes in for every run GraphMend could engage on. Only
     # an explicit off run skips the patch.
@@ -129,7 +126,7 @@ test "any mode but off installs the import claim loader hook" {
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
         execution._apply_graphmend("");
-        assert Jac.get_program().graphmend_enabled == "auto";
+        assert Jac.get_program().graphmend_enabled is True;
         import from importlib.machinery { SourceFileLoader }
         assert getattr(SourceFileLoader, "_jac_graphmend_hooked", False);
     } finally {
@@ -185,12 +182,12 @@ test "flipping the graphmend configuration misses the cached variant" {
                 "an off run must not reuse the graphmend-on artifact"
             );
             assert not _mentions_symbol(code_off, "_assert_async");
-            prog_auto = JacProgram();
-            code_auto = prog_auto.get_bytecode(main_path);
-            assert prog_auto.mod.hub , (
-                "an auto run must not reuse the graphmend-off artifact"
+            prog_on = JacProgram();
+            code_on = prog_on.get_bytecode(main_path);
+            assert prog_on.mod.hub , (
+                "a default run must not reuse the graphmend-off artifact"
             );
-            assert _mentions_symbol(code_auto, "_assert_async");
+            assert _mentions_symbol(code_on, "_assert_async");
             prog_dis = JacProgram();
             prog_dis.graphmend_disable = ["trap"];
             code_dis = prog_dis.get_bytecode(main_path);
@@ -204,7 +201,7 @@ test "flipping the graphmend configuration misses the cached variant" {
     }
 }
 
-test "auto shares the cache artifact with off for a torch-free module" {
+test "an open gate shares the cache artifact with off for a torch-free module" {
     old_config = config_mod._config;
     try {
         with TemporaryDirectory() as tmpdir {
@@ -220,7 +217,7 @@ test "auto shares the cache artifact with off for a torch-free module" {
             code_off = prog_off.get_bytecode(helper_path);
             assert code_off is not None;
             assert not prog_off.mod.hub , (
-                "auto resolving to off must share the explicit-off artifact"
+                "a gate resolving to off must share the explicit-off artifact"
             );
         }
     } finally {
