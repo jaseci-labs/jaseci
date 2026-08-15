@@ -225,7 +225,7 @@ impl GraphBreakDetectPass.enter_func_call(nd: uni.FuncCall) -> None {
         } elif name != 'print' {
             return;
         }
-        self.prog.graphmend_breaks[id(nd)] = GraphBreakKind.SIDE_EFFECT;
+        self.prog.graphmend_breaks[nd] = GraphBreakKind.SIDE_EFFECT;
     }
 }
 
@@ -297,9 +297,9 @@ impl GraphBreakDetectPass.enter_if_stmt(nd: uni.IfStmt) -> None {
         return;
     }
     if self._body_is_only_raise(nd.body) {
-        self.prog.graphmend_breaks[id(nd)] = GraphBreakKind.VAL_GUARD;
+        self.prog.graphmend_breaks[nd] = GraphBreakKind.VAL_GUARD;
     } else {
-        self.prog.graphmend_breaks[id(nd)] = GraphBreakKind.DYN_CTRL_FL;
+        self.prog.graphmend_breaks[nd] = GraphBreakKind.DYN_CTRL_FL;
     }
 }
 

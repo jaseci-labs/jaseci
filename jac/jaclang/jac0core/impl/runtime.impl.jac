@@ -910,6 +910,9 @@ impl JacBuiltin.se_region_exit -> None {
 }
 
 impl JacBuiltin.se_flush -> None {
+    if _gm_se_depth[0] > 0 {
+        return;
+    }
     pending: list[tuple] = list(_gm_se_buffer);
     _gm_se_buffer.clear();
     for entry in pending {
@@ -949,6 +952,9 @@ impl JacBuiltin.log_emit(slot: int, args: tuple, kwargs: dict) -> None {
 impl JacBuiltin.log_flush_hook(module: any, inputs: any, output: any) -> any {
     JacBuiltin.se_region_exit();
     JacBuiltin.se_flush();
+    if _gm_se_depth[0] > 0 {
+        return output;
+    }
     pending: list[tuple] = list(_gm_log_buffer);
     _gm_log_buffer.clear();
     for entry in pending {

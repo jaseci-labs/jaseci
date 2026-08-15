@@ -21,6 +21,7 @@ import from jaclang.jac0core.jaclib {
     __jac_log_emit__,
     __jac_log_flush_hook__,
     __jac_log_register__,
+    __jac_se_emit__,
     __jac_se_region_open__
 }
 
@@ -41,6 +42,13 @@ glob _EAGER_LOG_SEEN: list = [];
 """Record a message emitted through the slot registry (eager-path probe)."""
 def _record_eager(msg: str) {
     _EAGER_LOG_SEEN.append(msg);
+}
+
+glob _NESTED_SEEN: list = [];
+
+"""Record a replayed call from either buffer (nested-region probe)."""
+def _record_nested(msg: str) {
+    _NESTED_SEEN.append(msg);
 }
 
 """A Python-source model with a print between tensor ops.
@@ -261,4 +269,43 @@ test "a raising log call cannot replay stale entries on the next pass" {
     __jac_log_emit__(ok_slot, ("third", ), {});
     __jac_log_flush_hook__(None, None, None);
     assert _LOG_SEEN == ["third"] , f"stale entries replayed: {_LOG_SEEN}";
+}
+
+test "a nested region exit leaves the enclosing region's buffers intact" {
+    # Nested compiled modules share one process-global depth counter. The inner
+    # module's post-hook drops the depth to 1, not 0: draining there would run
+    # the outer region's buffered calls mid-trace, which is what deferral
+    # exists to prevent, and dynamo replays them again on a recompile.
+    slot = __jac_log_register__(_record_nested);
+    __jac_se_region_open__(None, None);
+    __jac_se_emit__(_record_nested, ("outer-se", ), {});
+    __jac_log_emit__(slot, ("outer-log", ), {});
+    __jac_se_region_open__(None, None);
+    __jac_log_flush_hook__(None, None, None);
+    assert _NESTED_SEEN == [] , (
+        f"inner region exit drained the outer buffers: {_NESTED_SEEN}"
+    );
+    __jac_log_flush_hook__(None, None, None);
+    assert _NESTED_SEEN == ["outer-se", "outer-log"] , (
+        f"outer region exit did not replay: {_NESTED_SEEN}"
+    );
+    # Drained exactly once: the snapshot-and-clear happens on the outer exit.
+    __jac_log_flush_hook__(None, None, None);
+    assert _NESTED_SEEN == ["outer-se", "outer-log"] , (
+        f"entries replayed twice: {_NESTED_SEEN}"
+    );
+}
+
+test "a jac glob call-site wrap gets the forward hook registrations" {
+    # `glob m = torch.compile(...)` puts the assignment inside a GlobalVars,
+    # whose `assignments` list is the only thing emitted. Without hooks the
+    # region never opens, so every [Defer] rewrite in the module is a runtime
+    # no-op and the graph break it was meant to close survives.
+    src = _pysrc("region_wrap_cls.jac", True);
+    assert "if hasattr(compiled_net, 'register_forward_pre_hook'):" in src;
+    assert "compiled_net.register_forward_pre_hook(__jac_se_region_open__)" in src;
+    assert (
+        "compiled_net.register_forward_hook(__jac_log_flush_hook__, always_call=True)"
+        in src
+    );
 }

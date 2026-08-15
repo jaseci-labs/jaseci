@@ -33,7 +33,7 @@ class JacProgram {
         graphmend_wrapped: set[str],
         graphmend_claim_parent: dict[str, str],
         graphmend_covered_by: dict[str, str],
-        graphmend_breaks: dict[int, GraphBreakKind],
+        graphmend_breaks: dict[uni.UniNode, GraphBreakKind],
         graphmend_helpers: dict[int, set[GraphMendHelper]],
         graphmend_noop_mods: set[str],
         graphmend_hub_digests: dict[(str, tuple[(uni.Module, str)])],

@@ -38,8 +38,10 @@ impl TrapLoweringPass.exit_assignment(nd: uni.Assignment) -> None {
     if not isinstance(tgt, uni.Name) {
         return;
     }
+    if not insert_after(nd, self._boundary_attach_stmt(nd, tgt.value)) {
+        return;
+    }
     need_helper(self.prog, nd, GraphMendHelper.TRAP_GUARD);
-    insert_after(nd, self._boundary_attach_stmt(nd, tgt.value));
 }
 
 impl TrapLoweringPass._boundary_attach_stmt(
@@ -67,7 +69,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if not self._enabled {
         return;
     }
-    if self.prog.graphmend_breaks.get(id(nd)) != GraphBreakKind.VAL_GUARD {
+    if self.prog.graphmend_breaks.get(nd) != GraphBreakKind.VAL_GUARD {
         return;
     }
     if self._inside_try(nd) {
