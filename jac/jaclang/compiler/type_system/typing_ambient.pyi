@@ -10,6 +10,17 @@ introspect annotations (typing.get_type_hints, pydantic, FastAPI, ...).
 
 Editing this file is the *only* place to grow or shrink the ambient set.
 
+A name listed here is installed by resolving it through the typing module's
+symbol table with `lookup_symtab`, which descends into the live branch of a
+`if sys.version_info >= (...)` guard the way typeshed writes one. That keeps
+the ambient set honest against the interpreter in hand, because PyastGenPass
+emits a real `from typing import <name>` and that import has to work: a name
+newer than the running interpreter resolves to nothing and simply is not
+ambient, which is the same answer the runtime gives. The shipped `jac` binary
+bundles 3.14, so everything listed here is ambient in a shipped build;
+`TypeIs` (3.13+) is the one name that goes quiet under an older *dev*
+interpreter, where an explicit import is still available.
+
 Skipped on purpose:
   * Any            — Jac uses the lowercase `any` BuiltinType keyword.
   * Optional/Union — write `X | None` / `X | Y` (PEP 604).
@@ -45,6 +56,8 @@ from typing import (
     Generic,
     Literal,
     Protocol,
+    TypeGuard,
+    TypeIs,
     TypeVar,
 )
 
@@ -65,5 +78,7 @@ __all__ = [
     "MutableSequence",
     "Protocol",
     "Sequence",
+    "TypeGuard",
+    "TypeIs",
     "TypeVar",
 ]
