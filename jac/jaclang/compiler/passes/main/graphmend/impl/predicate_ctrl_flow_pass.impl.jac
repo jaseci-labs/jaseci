@@ -5,6 +5,8 @@ import from jaclang.jac0core.constant { GraphBreakKind, Tokens as Tok }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
     gen_name,
     replace_stmt,
+    split_params,
+    split_params_keyed,
     torch_call
 }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
@@ -120,8 +122,8 @@ impl PredicateCtrlFlowPass._merge_common_call(
     ) {
         return;
     }
-    (a_pos, a_kw) = self._split_params(ca.params);
-    (b_pos, b_kw) = self._split_params(cb.params);
+    (a_pos, a_kw) = split_params_keyed(ca.params);
+    (b_pos, b_kw) = split_params_keyed(cb.params);
     if len(a_pos) != len(b_pos) {
         return;
     }
@@ -250,23 +252,6 @@ impl PredicateCtrlFlowPass._same_lhs(
     return None;
 }
 
-impl PredicateCtrlFlowPass._split_params(
-    params: any
-) -> tuple[list[uni.Expr], dict[str, uni.KWPair]] {
-    pos: list[uni.Expr] = [];
-    kw: dict[str, uni.KWPair] = {};
-    for p in (params or []) {
-        if isinstance(p, uni.KWPair) {
-            if p.key is not None {
-                kw[p.key.sym_name] = p;
-            }
-        } else {
-            pos.append(p);
-        }
-    }
-    return (pos, kw);
-}
-
 impl PredicateCtrlFlowPass._assign(
     target: uni.Name, value: uni.Expr
 ) -> uni.Assignment {
@@ -335,7 +320,7 @@ impl PredicateCtrlFlowPass._gate_asserts(
             out.append(s);
             continue;
         }
-        pos = self._split_params(call.params)[0];
+        pos = split_params(call.params)[0];
         if not pos {
             out.append(s);
             continue;

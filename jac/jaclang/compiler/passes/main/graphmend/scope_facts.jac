@@ -2,6 +2,7 @@ import os;
 import sys;
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.passes.main.graphmend.ast_edit { split_params }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     has_torch_compile_decorator,
     is_torch_attr_target
@@ -889,11 +890,7 @@ def _negated_dict_isinstance_attr(stmt: uni.IfStmt) -> (str | None) {
         if not (isinstance(c.target, uni.Name) and (c.target.value == 'isinstance')) {
             continue;
         }
-        params = [
-            p
-            for p in (c.params or [])
-            if not isinstance(p, uni.KWPair)
-        ];
+        params = split_params(c.params)[0];
         if len(params) != 2 {
             continue;
         }

@@ -4,7 +4,8 @@ import from jaclang.compiler.passes.main.graphmend.ast_edit {
     gen_name,
     gen_string,
     insert_after,
-    need_helper
+    need_helper,
+    split_params
 }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     has_torch_compile_decorator
@@ -170,21 +171,6 @@ impl DeferSideEffectPass._has_unpack(call: uni.FuncCall) -> bool {
     return False;
 }
 
-impl DeferSideEffectPass._split_params(
-    params: any
-) -> tuple[list[uni.Expr], list[uni.KWPair]] {
-    pos: list[uni.Expr] = [];
-    kws: list[uni.KWPair] = [];
-    for p in (params or []) {
-        if isinstance(p, uni.KWPair) {
-            kws.append(p);
-        } else {
-            pos.append(p);
-        }
-    }
-    return (pos, kws);
-}
-
 impl DeferSideEffectPass._tuple(
     at: uni.UniNode, values: list[uni.Expr]
 ) -> uni.TupleVal {
@@ -219,7 +205,7 @@ impl DeferSideEffectPass._dict_from_kws(
 impl DeferSideEffectPass._buffer_entry(
     call: uni.FuncCall
 ) -> tuple[uni.TupleVal, list[uni.UniNode]] {
-    (pos, kws) = self._split_params(call.params);
+    (pos, kws) = split_params(call.params);
     hoists: list[uni.UniNode] = [];
     new_pos: list[uni.Expr] = [];
     for p in pos {

@@ -3,7 +3,8 @@ import from jaclang.jac0core.constant { GraphMendHelper }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
     gen_name,
     insert_after,
-    need_helper
+    need_helper,
+    split_params
 }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     is_torch_attr_target
@@ -41,7 +42,7 @@ impl DeferSideEffectPass._logger_emit(nd: uni.FuncCall) -> (uni.FuncCall | None)
     reg = self._register_assignment(nd, slot_name, callee);
     self._pending_regs.append((self._toplevel_archetype(nd), reg));
     need_helper(self.prog, nd, GraphMendHelper.LOG_EMIT);
-    (pos, kws) = self._split_params(nd.params);
+    (pos, kws) = split_params(nd.params);
     emit = gen_name(nd, '__jac_log_emit__', False);
     slot_ref = gen_name(nd, slot_name, False);
     args_tuple = self._tuple(nd, pos);

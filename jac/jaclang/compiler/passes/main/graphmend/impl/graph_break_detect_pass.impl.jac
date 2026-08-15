@@ -1,6 +1,7 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind }
+import from jaclang.compiler.passes.main.graphmend.ast_edit { split_params }
 import from jaclang.compiler.passes.main.graphmend.scope_facts {
     compiled_region_ids,
     entry_key,
@@ -108,16 +109,11 @@ impl GraphBreakDetectPass._collect_entry_points -> list[uni.UniNode] {
 impl GraphBreakDetectPass._resolve_wrapped_entry(
     call: uni.FuncCall
 ) -> (uni.UniNode | None) {
-    arg: (uni.Expr | None) = None;
-    for p in (call.params or []) {
-        if not isinstance(p, uni.KWPair) {
-            arg = p;
-            break;
-        }
-    }
-    if arg is None {
+    pos = split_params(call.params)[0];
+    if not pos {
         return None;
     }
+    arg = pos[0];
     inner = arg.target if isinstance(arg, uni.FuncCall) else arg;
     if not isinstance(inner, uni.Name) {
         return None;
