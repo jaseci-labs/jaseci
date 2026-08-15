@@ -7,7 +7,7 @@ import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.runtimelib { sv_client as __jac_sv }
-import from starlette.testclient { TestClient }
+import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
 import from jaclang.scale.server.serve { JacAPIServer }
 
 glob FIXTURES: Path = Path(__file__).parent.parent / "fixtures" / "microservice";
@@ -84,7 +84,8 @@ test "eager spawn: ensure_all registers URLs from env vars" {
     os.environ["JAC_SV_EAGER_ENV_MOD_URL"] = "http://eager-env-mod.example";
     try {
         __jac_sv.ensure_all(["eager_env_mod"]);
-        assert __jac_sv._registry.get("eager_env_mod") == "http://eager-env-mod.example";
+        assert __jac_sv._registry.get("eager_env_mod")
+            == "http://eager-env-mod.example";
     } finally {
         del os.environ["JAC_SV_EAGER_ENV_MOD_URL"];
         if "eager_env_mod" in __jac_sv._registry {

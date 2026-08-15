@@ -1,13 +1,23 @@
 import from collections.abc { Sequence }
+import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { Tokens as Tok, SymbolType }
+import from jaclang.jac0core.constant { CodeContext, Tokens as Tok, SymbolType }
+import from jaclang.jac0core.diagnostics { E5082, E5084, W6006, W6007 }
+import from jaclang.jac0core.compiler {
+    ClientImportVerdict,
+    ability_of_symbol,
+    classify_client_import_item,
+    is_client_boundary_import,
+    symbol_linked_source_module
+}
 
 enum CallKind {
     METHOD = "method",
     INSTANTIATION = "instantiation",
     BUILTIN = "builtin",
     CLIB = "clib",
-    FUNCTION = "function"
+    FUNCTION = "function",
+    INTRINSIC = "intrinsic"
 }
 
 def is_builtin_region_name(nm: object) -> bool {
@@ -59,6 +69,33 @@ def _is_user_symbol(sym: uni.Symbol) -> bool {
     return False;
 }
 
+def _symbol_defining_module(sym: uni.Symbol) -> (uni.Module | None) {
+    decl = sym.decl;
+    if decl is None {
+        return None;
+    }
+    return decl.find_parent_of_type(uni.Module);
+}
+
+def _is_local_user_shadow(sym: uni.Symbol, call: uni.FuncCall) -> bool {
+    if not _is_user_symbol(sym) {
+        return False;
+    }
+    call_mod = call.find_parent_of_type(uni.Module);
+    sym_mod = _symbol_defining_module(sym);
+    return call_mod is not None and sym_mod is call_mod;
+}
+
+def intrinsic_registry_if_ready -> object | None {
+    import sys;
+    _mod = sys.modules.get("jaclang.compiler.intrinsic_registry");
+    if _mod is not None and _mod?.INTRINSIC_REGISTRY is None {
+        return None;
+    }
+    import from jaclang.compiler.intrinsic_registry { INTRINSIC_REGISTRY }
+    return INTRINSIC_REGISTRY;
+}
+
 def classify_call(nd: uni.FuncCall) -> CallKind {
     import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
 
@@ -66,68 +103,49 @@ def classify_call(nd: uni.FuncCall) -> CallKind {
         return CallKind.METHOD;
     }
 
+    intrinsics = intrinsic_registry_if_ready();
+    if intrinsics is not None
+        and isinstance(nd.target, uni.Name)
+        and intrinsics.is_intrinsic(nd.target.sym_name) {
+        return CallKind.INTRINSIC;
+    }
+
     sym = resolve_expr_symbol(nd.target);
 
     if sym is not None
-    and sym.decl is not None
-    and sym.sym_type not in (
-        SymbolType.OBJECT_ARCH,
-        SymbolType.NODE_ARCH,
-        SymbolType.EDGE_ARCH,
-        SymbolType.WALKER_ARCH,
-        SymbolType.ENUM_ARCH
-    ) {
+        and sym.decl is not None
+        and sym.sym_type
+            not in (
+                SymbolType.OBJECT_ARCH,
+                SymbolType.NODE_ARCH,
+                SymbolType.EDGE_ARCH,
+                SymbolType.WALKER_ARCH,
+                SymbolType.ENUM_ARCH
+            ) {
         _imp = sym.decl.find_parent_of_type(uni.Import);
         if _imp is not None and _imp.clib_decls {
             return CallKind.CLIB;
         }
     }
-    if sym is not None and _is_user_symbol(sym) {
-        if sym.sym_type in (
-            SymbolType.OBJECT_ARCH,
-            SymbolType.NODE_ARCH,
-            SymbolType.EDGE_ARCH,
-            SymbolType.WALKER_ARCH,
-            SymbolType.ENUM_ARCH
-        ) {
+    if sym is not None and _is_local_user_shadow(sym, nd) {
+        if sym.sym_type
+            in (
+                SymbolType.OBJECT_ARCH,
+                SymbolType.NODE_ARCH,
+                SymbolType.EDGE_ARCH,
+                SymbolType.WALKER_ARCH,
+                SymbolType.ENUM_ARCH
+            ) {
             return CallKind.INSTANTIATION;
         }
         return CallKind.FUNCTION;
     }
 
     if isinstance(nd.target, uni.Name)
-    and JAC_TYPE_REGISTRY.is_builtin(nd.target.sym_name) {
+        and JAC_TYPE_REGISTRY.is_builtin(nd.target.sym_name) {
         return CallKind.BUILTIN;
     }
     return CallKind.FUNCTION;
-}
-
-def _ability_of_defn(defn_node: uni.UniNode) -> (uni.Ability | None) {
-    if isinstance(defn_node, uni.Ability) {
-        return defn_node;
-    }
-    if isinstance(defn_node.parent, uni.Ability) {
-        return defn_node.parent;
-    }
-    return None;
-}
-
-def ability_of_symbol(sym: (uni.Symbol | None)) -> (uni.Ability | None) {
-    if sym is None or not sym.defn {
-        return None;
-    }
-    decl = _ability_of_defn(sym.defn[0]);
-
-    if decl is not None and str(decl.loc.mod_path).endswith(".pyi") {
-        for alt in sym.defn {
-            alt_decl = _ability_of_defn(alt);
-            if alt_decl is not None
-            and not str(alt_decl.loc.mod_path).endswith(".pyi") {
-                return alt_decl;
-            }
-        }
-    }
-    return decl;
 }
 
 def symbol_owner_archetype(sym: uni.Symbol) -> (uni.Archetype | None) {
@@ -178,8 +196,8 @@ def int_subscript_suffix(right: uni.IndexSlice) -> str | None {
             }
 
             if isinstance(start, uni.MultiString)
-            and len(start.strings) == 1
-            and isinstance(start.strings[0], uni.String) {
+                and len(start.strings) == 1
+                and isinstance(start.strings[0], uni.String) {
                 return f'[{start.strings[0].lit_value!r}]';
             }
 
@@ -334,7 +352,7 @@ def collect_narrowing_symbols(condition: uni.Expr) -> set[str] {
     if isinstance(condition, uni.CfgExpr) {
         symbols.update(collect_narrowing_symbols(condition.expr));
     } elif isinstance(condition, uni.AtomUnit)
-    and isinstance(condition.value, uni.Expr) {
+        and isinstance(condition.value, uni.Expr) {
         symbols.update(collect_narrowing_symbols(condition.value));
     } elif isinstance(condition, uni.UnaryExpr) {
         symbols.update(collect_narrowing_symbols(condition.operand));
@@ -432,6 +450,7 @@ def collect_assigned_symbols(nd: uni.UniNode) -> set[str] {
 }
 
 def collect_method_names(arch: uni.Archetype) -> set[str] {
+    import from jaclang.compiler.passes.main.layout_pass { archetype_accessors }
     names: set[str] = set();
     if arch.body is not None and isinstance(arch.body, Sequence) {
         for stmt in arch.body {
@@ -443,5 +462,508 @@ def collect_method_names(arch: uni.Archetype) -> set[str] {
             }
         }
     }
+
+    for (slot_name, _var, _acc) in archetype_accessors(arch) {
+        names.add(slot_name);
+    }
     return names;
+}
+
+def resolve_importer_path_from_node(nd: uni.UniNode) -> (str | None) {
+    importer_mod = nd.find_parent_of_type(uni.Module);
+    if (
+        importer_mod is None
+        or importer_mod.source is None
+        or not importer_mod.source.file_path
+    ) {
+        return None;
+    }
+    try {
+        return str(Path(importer_mod.source.file_path).resolve());
+    } except OSError {
+        return None;
+    }
+}
+
+def resolve_import_source_module(prog: any, nd: uni.Import) -> (uni.Module | None) {
+    if not nd.from_loc {
+        return None;
+    }
+    resolved_path = nd.from_loc.resolve_relative_path();
+    if not Path(resolved_path).exists() {
+        return None;
+    }
+    importer_path = resolve_importer_path_from_node(nd);
+    saved_opts = prog?._compile_options;
+    try {
+        return prog.load_dependency_module(resolved_path, importer_path=importer_path);
+    } finally {
+        if saved_opts is not None {
+            prog._compile_options = saved_opts;
+        }
+    }
+}
+
+def import_target_pinned_server(nd: uni.Import) -> bool {
+    if nd.from_loc is None {
+        return False;
+    }
+    try {
+        target = nd.from_loc.resolve_relative_path();
+        if isinstance(target, str) and target.endswith('.jac') {
+            import from jaclang.jac0core.placement_facts { pinned_module_space }
+            return pinned_module_space(target) == 'server';
+        }
+    } except Exception {
+        return False;
+    }
+    return False;
+}
+
+def decl_has_access(source_mod: uni.Module, item: uni.ModuleItem) -> bool {
+    nm = item.name.value if isinstance(item.name, uni.Name) else '';
+    if not nm or source_mod.sym_tab is None {
+        return False;
+    }
+    sym = source_mod.sym_tab.lookup(nm, deep=True);
+    if not (sym and sym.defn) {
+        return False;
+    }
+    decl = sym.defn[0];
+    owner = decl.parent if (isinstance(decl, uni.NameAtom) and decl.parent) else decl;
+    return owner?.access is not None;
+}
+
+def report_dead_client_import(
+    reporter: any, nd: uni.Import, item: uni.ModuleItem
+) -> None {
+    name = item.name.sym_name
+        if isinstance(item.name, uni.Name)
+        else str(item.name.value);
+    module_name = nd.from_loc.dot_path_str if nd.from_loc is not None else '';
+    for e in reporter.prog.errors_had {
+        if (
+            e.code is E5082
+            and e.loc.mod_path == item.loc.mod_path
+            and e.loc.first_line == item.loc.first_line
+            and e.loc.col_start == item.loc.col_start
+        ) {
+            return;
+        }
+    }
+    reporter.emit(E5082, node_override=item, name=name, module=module_name);
+}
+
+
+def report_client_bare_import_uses(reporter: any, mod: uni.Module) {
+    for stmt in mod.body {
+        if (
+            isinstance(stmt, uni.ContextAwareNode)
+            and stmt.code_context == CodeContext.CLIENT
+            and not stmt.codespace_dual
+        ) {
+            _report_client_bare_import_uses(reporter, mod, stmt);
+        }
+    }
+}
+
+def _already_warned(reporter: any, diag: any, nd: uni.UniNode) -> bool {
+    for w in reporter.prog.warnings_had {
+        if (
+            w.code is diag
+            and w.loc.mod_path == nd.loc.mod_path
+            and w.loc.first_line == nd.loc.first_line
+            and w.loc.col_start == nd.loc.col_start
+        ) {
+            return True;
+        }
+    }
+    return False;
+}
+
+def _in_annotation_position(nm: uni.Name, stop: uni.UniNode) -> bool {
+    cur = nm.parent;
+    while cur is not None and cur is not stop {
+        if isinstance(cur, uni.SubTag) {
+            return True;
+        }
+        if isinstance(cur, uni.ParamVar) {
+            return False;
+        }
+        if isinstance(cur, uni.FuncSignature) {
+            return True;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+def _bare_py_import_bindings(mod: uni.Module) -> dict[str, tuple] {
+    out: dict[str, tuple] = {};
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if imp.is_service_import or imp.is_typed {
+            continue;
+        }
+        if imp.ecosystem != 'py' {
+            continue;
+        }
+        if imp.from_loc is None or imp.from_loc.level > 0 {
+            continue;
+        }
+        if imp.code_context == CodeContext.CLIENT {
+            continue;
+        }
+        for item in imp.items {
+            if not isinstance(item, uni.ModuleItem) {
+                continue;
+            }
+            if item.alias is not None {
+                binding = item.alias.sym_name;
+            } elif isinstance(item.name, uni.Name) {
+                binding = item.name.sym_name;
+            } else {
+                binding = str(item.name.value);
+            }
+            out[binding] = (item, imp);
+        }
+    }
+    return out;
+}
+
+
+def _shadows_bare_import(nm: uni.Name) -> bool {
+    sym = nm.sym;
+    if sym is None or sym.decl is None {
+        return False;
+    }
+    decl = sym.decl;
+    if isinstance(decl, uni.ModuleItem) or isinstance(decl.parent, uni.ModuleItem) {
+        return False;
+    }
+    cur = decl.parent;
+    while cur is not None {
+        if isinstance(cur, (uni.ParamVar, uni.HasVar)) {
+            return True;
+        }
+        if isinstance(cur, uni.Assignment) {
+            return decl in cur.target
+                or any([decl in t.get_all_sub_nodes(uni.Name) for t in cur.target]);
+        }
+        if isinstance(cur, uni.ElementStmt) {
+            return False;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+
+def _report_client_bare_import_uses(reporter: any, mod: uni.Module, stmt: uni.UniNode) {
+    bindings = _bare_py_import_bindings(mod);
+    if not bindings {
+        return;
+    }
+    for nm in stmt.get_all_sub_nodes(uni.Name) {
+        par = nm.parent;
+        if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+            continue;
+        }
+        hit = bindings.get(nm.value);
+        if hit is None {
+            continue;
+        }
+        if _shadows_bare_import(nm) {
+            continue;
+        }
+        if _in_annotation_position(nm, stmt) {
+            continue;
+        }
+        (item, imp) = hit;
+        module_name = imp.from_loc.dot_path_str if imp.from_loc is not None else '';
+        already = False;
+        for e in reporter.prog.errors_had {
+            if (
+                e.code is E5084
+                and e.loc.mod_path == item.loc.mod_path
+                and e.loc.first_line == item.loc.first_line
+                and e.loc.col_start == item.loc.col_start
+            ) {
+                already = True;
+                break;
+            }
+        }
+        if not already {
+            reporter.emit(
+                E5084,
+                node_override=item,
+                name=item.name.sym_name
+                    if isinstance(item.name, uni.Name)
+                    else str(item.name.value),
+                module=module_name
+            );
+        }
+    }
+}
+
+def report_placement_warnings(reporter: any, mod: uni.Module) {
+    import from jaclang.jac0core.placement { get_module_summary }
+    import from jaclang.jac0core.constant { CodeContext }
+    ps = get_module_summary(mod, reporter.prog);
+    written_glob_idxs: set[int] = set();
+    for es in ps.elements {
+        for widx in es.glob_writes {
+            written_glob_idxs.add(widx);
+        }
+    }
+    for (idx, stmt) in enumerate(mod.body) {
+        if not isinstance(stmt, uni.ContextAwareNode) {
+            continue;
+        }
+        if (
+            isinstance(stmt, uni.GlobalVars)
+            and stmt.codespace_dual
+            and idx in written_glob_idxs
+        ) {
+            es = ps.elements[idx] if idx < len(ps.elements) else None;
+            gname = es.name if es is not None else 'glob';
+            if not _already_warned(reporter, W6006, stmt) {
+                reporter.emit(W6006, node_override=stmt, name=gname);
+            }
+        }
+        if stmt.code_context == CodeContext.CLIENT and not stmt.codespace_dual {
+            _report_client_bare_import_uses(reporter, mod, stmt);
+        }
+    }
+    for (nm, top) in client_value_ref_targets(mod) {
+        if not isinstance(top, uni.Ability) or client_bridged_endpoint(mod, top) {
+            continue;
+        }
+        if not _already_warned(reporter, W6007, nm) {
+            reporter.emit(W6007, node_override=nm, name=element_display_name(top));
+        }
+    }
+}
+
+
+def element_display_name(top: uni.UniNode) -> str {
+    if isinstance(top, uni.Ability) and isinstance(top.name_ref, uni.Name) {
+        return top.name_ref.sym_name;
+    }
+    if isinstance(top, (uni.Archetype, uni.Enum)) and top.name is not None {
+        return top.name.value;
+    }
+    if isinstance(top, uni.GlobalVars) {
+        for assign in top.assignments {
+            for tgt in assign.target {
+                if isinstance(tgt, uni.Name) {
+                    return tgt.sym_name;
+                }
+            }
+        }
+    }
+    return 'element';
+}
+
+
+def _client_emitted_top(stmt: uni.UniNode, extra_bound: set[str]) -> bool {
+    if not isinstance(stmt, uni.ContextAwareNode) {
+        return False;
+    }
+    if stmt.code_context == CodeContext.CLIENT {
+        return True;
+    }
+    return (
+        isinstance(stmt, uni.Archetype)
+        and stmt.name is not None
+        and stmt.name.value in extra_bound
+    );
+}
+
+
+def _module_top_element(mod: uni.Module, nd: uni.UniNode) -> (uni.UniNode | None) {
+    cur: (uni.UniNode | None) = nd;
+    while (cur is not None and cur.parent is not mod) {
+        cur = cur.parent;
+    }
+    return cur;
+}
+
+
+def client_bridged_endpoint(mod: uni.Module, top: uni.UniNode) -> bool {
+    import from jaclang.jac0core.placement { project_has_server }
+    return (
+        isinstance(top, uni.Ability)
+        and isinstance(top, uni.ContextAwareNode)
+        and top.access is not None
+        and top.access.tag.name == Tok.KW_PUB
+        and top.code_context == CodeContext.SERVER
+        and project_has_server(mod.loc.mod_path or '')
+    );
+}
+
+
+def client_value_ref_targets(
+    mod: uni.Module, extra_bound: (set[str] | None) = None
+) -> list[tuple[uni.Name, uni.UniNode]] {
+    bound = extra_bound if extra_bound is not None else set();
+    out: list[tuple[uni.Name, uni.UniNode]] = [];
+    seen: set[tuple] = set();
+    for stmt in mod.body {
+        if not _client_emitted_top(stmt, bound) {
+            continue;
+        }
+        for nm in stmt.get_all_sub_nodes(uni.Name) {
+            par = nm.parent;
+            if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+                continue;
+            }
+            if (isinstance(par, uni.FuncCall) and par.target is nm) {
+                continue;
+            }
+            if (isinstance(par, uni.KWPair) and par.key is nm) {
+                continue;
+            }
+            if _in_annotation_position(nm, stmt) {
+                continue;
+            }
+            sym = nm.sym;
+            decl = sym.decl if sym is not None else None;
+            if decl is None {
+                continue;
+            }
+            top = _module_top_element(mod, decl);
+            if (top is None or top is stmt or isinstance(top, uni.Import)) {
+                continue;
+            }
+            if not isinstance(
+                top, (uni.Ability, uni.Archetype, uni.Enum, uni.GlobalVars)
+            ) {
+                continue;
+            }
+            if _client_emitted_top(top, bound) {
+                continue;
+            }
+            if (
+                isinstance(top, uni.ContextAwareNode)
+                and top.code_context == CodeContext.NATIVE
+            ) {
+                continue;
+            }
+            key = (nm.loc.first_line, nm.loc.col_start, id(top));
+            if key in seen {
+                continue;
+            }
+            seen.add(key);
+            out.append((nm, top));
+        }
+    }
+    return out;
+}
+
+def _import_bound_names(imp: uni.Import) -> set[str] {
+    names: set[str] = set();
+    for item in imp.items {
+        if isinstance(item, uni.ModuleItem) {
+            if item.alias is not None {
+                names.add(item.alias.sym_name);
+            } elif isinstance(item.name, uni.Name) {
+                names.add(item.name.sym_name);
+            }
+        } elif isinstance(item, uni.ModulePath) {
+            if item.alias is not None {
+                names.add(item.alias.sym_name);
+            } elif item.base_module_name {
+                names.add(item.base_module_name);
+            }
+        }
+    }
+    return names;
+}
+
+
+def _import_used_as_value(mod: uni.Module, imp: uni.Import) -> bool {
+    names = _import_bound_names(imp);
+    if not names {
+        return False;
+    }
+    for stmt in mod.body {
+        if stmt is imp {
+            continue;
+        }
+        for nm in stmt.get_all_sub_nodes(uni.Name) {
+            if nm.sym_name not in names {
+                continue;
+            }
+            par = nm.parent;
+            if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+                continue;
+            }
+            if _in_annotation_position(nm, stmt) {
+                continue;
+            }
+            return True;
+        }
+    }
+    return False;
+}
+
+
+def serverless_server_evidence(mod: uni.Module, prog: any) -> list[tuple] {
+    import from jaclang.jac0core.placement { get_module_summary, project_has_server }
+    if project_has_server(mod.loc.mod_path or '') {
+        return [];
+    }
+    out: list[tuple] = [];
+    for es in get_module_summary(mod, prog).elements {
+        if es.index >= len(mod.body) {
+            continue;
+        }
+        stmt = mod.body[es.index];
+        for req in es.reqs {
+            if len(req) < 2 {
+                continue;
+            }
+            cap = req[0];
+            blocking = cap in ('PERSIST', 'FFI');
+            if cap == 'PY' {
+                blocking = not isinstance(stmt, uni.Import)
+                    or (not stmt.is_typed and _import_used_as_value(mod, stmt));
+            }
+            if blocking {
+                out.append((es.name or 'element', str(req[1]), stmt));
+                break;
+            }
+        }
+    }
+    return out;
+}
+
+
+def report_serverless_kind_errors(reporter: any, mod: uni.Module) {
+    import from jaclang.jac0core.diagnostics { E5087 }
+    import from jaclang.jac0core.placement { project_kind_name }
+    evidence = serverless_server_evidence(mod, reporter.prog);
+    if not evidence {
+        return;
+    }
+    kind = project_kind_name(mod.loc.mod_path or '') or 'client-only';
+    for (name, reason, stmt) in evidence {
+        already = False;
+        for e in reporter.prog.errors_had {
+            if (
+                e.code is E5087
+                and e.loc.mod_path == stmt.loc.mod_path
+                and e.loc.first_line == stmt.loc.first_line
+                and e.loc.col_start == stmt.loc.col_start
+            ) {
+                already = True;
+                break;
+            }
+        }
+        if not already {
+            reporter.emit(
+                E5087, node_override=stmt, kind=kind, name=name, reason=reason
+            );
+        }
+    }
 }

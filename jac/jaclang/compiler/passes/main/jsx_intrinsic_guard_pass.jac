@@ -1,4 +1,4 @@
-import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.unitree { JsxElement, Module, Name, Token, UniNode }
 import from jaclang.jac0core.diagnostics { E1105 }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.project.client_kind {
@@ -33,20 +33,20 @@ class JsxIntrinsicGuardPass(UniPass) {
         self._exempt_paths: dict[str, bool] = {};
     }
 
-    def enter_module(self: JsxIntrinsicGuardPass, nd: uni.Module) {
+    def enter_module(self: JsxIntrinsicGuardPass, nd: Module) {
         if self._enforced_root is None {
             self.prune();
         }
     }
 
-    def enter_jsx_element(self: JsxIntrinsicGuardPass, nd: uni.JsxElement) -> None {
-        if isinstance(nd.parent, uni.JsxElement) {
+    def enter_jsx_element(self: JsxIntrinsicGuardPass, nd: JsxElement) -> None {
+        if isinstance(nd.parent, JsxElement) {
             return;
         }
         self._check_element(nd);
     }
 
-    def _check_element(self: JsxIntrinsicGuardPass, el: uni.JsxElement) {
+    def _check_element(self: JsxIntrinsicGuardPass, el: JsxElement) {
         if (
             self._enforced_root is not None
             and not self._is_exempt(el.loc.mod_path)
@@ -54,7 +54,7 @@ class JsxIntrinsicGuardPass(UniPass) {
             and el.name.parts
         ) {
             first = el.name.parts[0];
-            tag = first.value or "" if isinstance(first, (uni.Name, uni.Token)) else "";
+            tag = first.value or "" if isinstance(first, (Name, Token)) else "";
             if tag and tag[0].islower() and not self._resolves_in_scope(el, first) {
                 self.emit(
                     E1105, node_override=first, tag=tag, suggestion=_suggestion_for(tag)
@@ -62,22 +62,22 @@ class JsxIntrinsicGuardPass(UniPass) {
             }
         }
         for child in (el.children or []) {
-            if isinstance(child, uni.JsxElement) {
+            if isinstance(child, JsxElement) {
                 self._check_element(child);
             }
         }
     }
 
     def _resolves_in_scope(
-        self: JsxIntrinsicGuardPass, el: uni.JsxElement, first: uni.UniNode
+        self: JsxIntrinsicGuardPass, el: JsxElement, first: UniNode
     ) -> bool {
-        if not isinstance(first, uni.Name) or not el.sym_tab {
+        if not isinstance(first, Name) or not el.sym_tab {
             return False;
         }
         name_chain = [
             p
             for p in el.name.parts
-            if isinstance(p, uni.Name)
+            if isinstance(p, Name)
         ];
         el.sym_tab.chain_use_lookup(name_chain);
         return first.sym is not None;
