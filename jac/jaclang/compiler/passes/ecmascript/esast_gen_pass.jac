@@ -35,6 +35,7 @@ import from jaclang.jac0core.diagnostics {
     E5081,
     E5085,
     E5086
+    E5099
 }
 
 glob _T = TypeVar('_T', bound=es.Node),
@@ -606,6 +607,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
     def exit_null(nd: uni.Null) -> None;
     def exit_name(nd: uni.Name) -> None;
     def exit_builtin_type(nd: uni.BuiltinType) -> None;
+    def _in_identifier_slot(nd: uni.UniNode) -> bool;
     def _in_type_slot(nd: uni.UniNode) -> bool;
     def _is_call_target(nd: uni.UniNode) -> bool;
     def exit_global_vars(nd: uni.GlobalVars) -> None;

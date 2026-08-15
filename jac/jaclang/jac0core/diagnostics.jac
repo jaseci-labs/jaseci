@@ -1525,6 +1525,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Client pathway failed to lower {kind} in an expression position",
          help="The ES backend produced no JavaScript for this expression, so without this error it would silently become 'undefined' in the browser. The expression's shape is outside what the client lowering handles; adjust the shape or move the code to a server context."
      ),
+     E5099 = _err(
+         "E5099",
+         Category.CODEGEN,
+         "Client pathway lowered the keyword-argument key of call '{func}' to an unusable shape: {shape}",
+         help="A keyword-argument key names a parameter of the callee, so it must lower to a plain identifier or a string literal. Reaching the argument resolver as any other shape means an earlier lowering rewrote the key as if it were a scope reference; the resolver used to demote such a pair to a trailing '...spread', which left the named parameter as 'undefined' at runtime. This is an internal compiler bug; please report it with the call site.",
+         blocks_codegen=True
+     ),
      E5098 = _err(
          "E5098",
          Category.CODEGEN,

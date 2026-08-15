@@ -174,7 +174,7 @@ impl EsastGenPass.exit_global_vars(nd: uni.GlobalVars) -> None {
 }
 
 impl EsastGenPass.exit_name(nd: uni.Name) -> None {
-    if nd.sym_name in self.reactive_vars {
+    if (nd.sym_name in self.reactive_vars) and not self._in_identifier_slot(nd) {
         self._ensure_backend();
         nd.gen.es_ast = self.sync_loc(
             self.backend.lower_state_read(nd.sym_name), jac_node=nd
@@ -185,6 +185,41 @@ impl EsastGenPass.exit_name(nd: uni.Name) -> None {
     name = name_map.get(nd.sym_name, nd.sym_name);
     identifier = self.sync_loc(es.Identifier(name=name), jac_node=nd);
     nd.gen.es_ast = identifier;
+}
+
+impl EsastGenPass._in_identifier_slot(nd: uni.UniNode) -> bool {
+    parent = nd.parent;
+    if parent is None {
+        return False;
+    }
+    if isinstance(parent, uni.KWPair) {
+        return parent.key is nd;
+    }
+    if isinstance(parent, uni.AtomTrailer) {
+        return parent.is_attr and (parent.right is nd);
+    }
+    if isinstance(parent, (uni.ParamVar, uni.HasVar, uni.Archetype, uni.Enum)) {
+        return parent.name is nd;
+    }
+    if isinstance(parent, uni.Ability) {
+        return parent.name_ref is nd;
+    }
+    if isinstance(parent, uni.ModuleItem) {
+        return (parent.name is nd) or (parent.alias is nd);
+    }
+    if isinstance(parent, uni.ModulePath) {
+        return (parent.alias is nd) or any(part is nd for part in (parent.path or []));
+    }
+    if isinstance(parent, uni.JsxNormalAttribute) {
+        return parent.name is nd;
+    }
+    if isinstance(parent, uni.JsxElementName) {
+        return any(part is nd for part in (parent.parts or []));
+    }
+    if isinstance(parent, uni.CompareExpr) {
+        return (parent.left is nd) and isinstance(parent.parent, uni.FilterCompr);
+    }
+    return False;
 }
 
 impl EsastGenPass._in_type_slot(nd: uni.UniNode) -> bool {
@@ -1425,20 +1460,16 @@ impl EsastGenPass._resolve_call_arg_slots(
             spread_sources.append(kw.argument);
             continue;
         }
+        kw_key = kw.key;
         kw_name = '';
-        if isinstance(kw.key, es.Identifier) {
-            kw_name = kw.key.name;
-        } elif isinstance(kw.key, es.Literal) {
-            kw_name = str(kw.key.value);
+        if isinstance(kw_key, es.Identifier) {
+            kw_name = kw_key.name;
+        } elif isinstance(kw_key, es.Literal) {
+            kw_name = str(kw_key.value);
         }
         if not kw_name {
-            extras.append(
-                CallArgSlot(
-                    name=None,
-                    value=self.sync_loc(
-                        es.SpreadElement(argument=kw.value), jac_node=nd
-                    )
-                )
+            self.emit(
+                E5099, node_override=nd, func=func_name, shape=type(kw_key).__name__
             );
             continue;
         }
@@ -1838,13 +1869,18 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
                     else self.sync_loc(es.Literal(value=None), jac_node=param)
             );
 
-            if (not param.key) or (not param.key.gen.es_ast) {
+            if not param.key {
                 props.append(
                     self.sync_loc(es.SpreadElement(argument=value_expr), jac_node=param)
                 );
                 continue;
             }
-            key_expr = cast(es.Expression, param.key.gen.es_ast);
+            key_expr = cast(
+                es.Expression,
+                self.sync_loc(
+                    es.Identifier(name=param.key.sym_name), jac_node=param.key
+                )
+            );
             props.append(
                 self.sync_loc(
                     es.Property(
