@@ -590,19 +590,109 @@ def _resolve_callee(
         }
         return find_ability(mod, t.value, prog, seen);
     }
+    if not (isinstance(t, uni.AtomTrailer) and isinstance(t.right, uni.Name)) {
+        return None;
+    }
+    arch = site.find_parent_of_type(uni.Archetype);
+    if arch is None {
+        return None;
+    }
+    inner = t.target;
+    if isinstance(inner, uni.Name) and (inner.value == 'self') {
+        found = class_method(arch, t.right.value, prog, seen, 0);
+        if found is not None {
+            return found;
+        }
+        held = _self_attr_archetype(arch, t.right.value, prog, seen);
+        if (held is None) or (not binds_torch_module_base(prog, held, seen, 0)) {
+            return None;
+        }
+        return class_method(held, 'forward', prog, seen, 0);
+    }
     if (
+        isinstance(inner, uni.AtomTrailer)
+        and isinstance(inner.right, uni.Name)
+        and isinstance(inner.target, uni.Name)
+        and (inner.target.value == 'self')
+    ) {
+        held = _self_attr_archetype(arch, inner.right.value, prog, seen);
+        if held is None {
+            return None;
+        }
+        return class_method(held, t.right.value, prog, seen, 0);
+    }
+    return None;
+}
+
+def class_method(
+    arch: uni.Archetype, name: str, prog: JacProgram, seen: set[str], depth: int
+) -> (uni.Ability | None) {
+    found = symbol_ability(arch.lookup(name, deep=False));
+    if (found is not None) or (depth > 4) {
+        return found;
+    }
+    mod = arch.find_parent_of_type(uni.Module);
+    if mod is None {
+        return None;
+    }
+    for base in (arch.base_classes or []) {
+        if (not isinstance(base, uni.Name)) or _is_torch_module_ref(base) {
+            continue;
+        }
+        parent = find_class(mod, base.value, prog, seen);
+        if (parent is None) or (parent is arch) {
+            continue;
+        }
+        got = class_method(parent, name, prog, seen, depth + 1);
+        if got is not None {
+            return got;
+        }
+    }
+    return None;
+}
+
+def _self_attr_archetype(
+    arch: uni.Archetype, attr: str, prog: JacProgram, seen: set[str]
+) -> (uni.Archetype | None) {
+    ctor = class_init(arch);
+    mod = arch.find_parent_of_type(uni.Module);
+    if (ctor is None) or (mod is None) {
+        return None;
+    }
+    hits: list[uni.Assignment] = [];
+    for ab in _init_reachable(arch, ctor) {
+        for a in ab.get_all_sub_nodes(uni.Assignment) {
+            if _assigns_self_attr(a, attr) {
+                hits.append(a);
+            }
+        }
+    }
+    if len(hits) != 1 {
+        return None;
+    }
+    v = hits[0].value;
+    if isinstance(v, uni.FuncCall) and isinstance(v.target, uni.Name) {
+        return find_class(mod, v.target.value, prog, seen);
+    }
+    if isinstance(v, uni.Name) {
+        ann = attr_annotation(arch, attr);
+        return find_class(mod, ann, prog, seen) if (ann is not None) else None;
+    }
+    return None;
+}
+
+def _assigns_self_attr(a: uni.Assignment, attr: str) -> bool {
+    if len(a.target or []) != 1 {
+        return False;
+    }
+    t = a.target[0];
+    return (
         isinstance(t, uni.AtomTrailer)
         and isinstance(t.right, uni.Name)
         and isinstance(t.target, uni.Name)
         and (t.target.value == 'self')
-    ) {
-        arch = site.find_parent_of_type(uni.Archetype);
-        if arch is None {
-            return None;
-        }
-        return symbol_ability(arch.lookup(t.right.value, deep=False));
-    }
-    return None;
+        and (t.right.value == attr)
+    );
 }
 
 def find_ability(
@@ -644,7 +734,7 @@ def find_class(
         return found;
     }
     for imp in mod.get_all_sub_nodes(uni.Import) {
-        if imp.from_loc is None {
+        if (imp.from_loc is None) or _denied_path(imp.from_loc) {
             continue;
         }
         target = _import_target(imp, name);

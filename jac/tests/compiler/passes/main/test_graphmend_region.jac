@@ -120,6 +120,39 @@ test "a seeded forward reaches a method through the self call and no further" {
     assert "__jac_se_emit__" not in _fn_src(src, "unused");
 }
 
+test "a seeded forward reaches an inherited method through the base chain" {
+    # `helper` is declared on the base class only, so the self-call resolves
+    # only if the walk follows the base chain. `base_orphan` sits beside it and
+    # is called by nothing: the edge is the call, not the declaring class.
+    src_on = _pysrc("region_inherited.jac", True);
+    src_off = _pysrc("region_inherited.jac", False);
+    assert "__jac_se_emit__" in _fn_src(src_on, "helper");
+    assert _fn_src(src_on, "base_orphan") == _fn_src(src_off, "base_orphan");
+    assert "print('BASE-ORPHAN', x)" in src_on;
+}
+
+test "a submodule attribute call reaches the held archetype's method" {
+    # `self.blk` is proven to hold a Block by the constructor assignment, so
+    # `self.blk.project(...)` is a region edge. `self.opaque` is assigned a call
+    # that resolves to no class, so `self.opaque.spare(...)` proves nothing.
+    src_on = _pysrc("region_submodule_attr.jac", True);
+    src_off = _pysrc("region_submodule_attr.jac", False);
+    assert "__jac_se_emit__" in _fn_src(src_on, "project");
+    assert _fn_src(src_on, "spare") == _fn_src(src_off, "spare");
+    assert "print('BLOCK-SPARE', x)" in src_on;
+}
+
+test "a submodule attribute call dispatches to the held class's forward" {
+    # `Mixin.forward` is no seed of its own: the mixin has no Module base and
+    # the class that does declares no forward. The call joins it to the region
+    # through the constructor binding plus the base chain.
+    src_on = _pysrc("region_submod_forward.jac", True);
+    src_off = _pysrc("region_submod_forward.jac", False);
+    assert "__jac_se_emit__(print, ('MIXIN-FORWARD'" in src_on;
+    assert _fn_src(src_on, "mixin_orphan") == _fn_src(src_off, "mixin_orphan");
+    assert "print('MIXIN-ORPHAN', x)" in src_on;
+}
+
 glob CACHE_ENTRY_SRC = "import torch;\n"
          + "import from usedmod { used_helper }\n\n"
          + "@torch.compile()\n"
