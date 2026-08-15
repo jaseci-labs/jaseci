@@ -522,10 +522,16 @@ Emitted during code generation, formatting, and native compilation.
 | `E5081` | Unknown client framework '{framework}' |
 | `E5082` | Client code imports '{name}' from '{module}', but '{name}' has no client-side presence |
 | `E5084` | Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module |
+| `E5086` | Client code emits '{name}', which has no binding in the client bundle |
+| `E5087` | Project kind '{kind}' has no server, but '{name}' needs one ({reason}) |
 
 `E5082` fires when a plain client import references a server symbol that does not bridge: server `def:pub` endpoints bridge automatically over RPC, so the fix is to make the symbol a `def:pub` endpoint, pin it (or its module) `"client"` via `[placement.pins]`, or move it into client code.
 
 `E5084` is the bare-import sibling. A bare name resolves across the module universe -- local Jac module first, then Python, then the client npm world (jac.toml `[dependencies.npm]`, the active framework's own packages, and whatever is installed under `.jac/client/node_modules`), so `import from react { useRef }` works unquoted. When the name resolves to none of those client-reachable worlds, placement pins the import server-side, the bundle never binds the symbol, and the page would fail at runtime with a ReferenceError -- so client use fails the build instead. Install or declare the package in `[dependencies.npm]` (or quote the module to pin the npm form), or keep the use server-side behind a `def:pub` endpoint. Annotation-only uses do not fire it, since ES output erases type annotations; imports whose uses are all server-side prune silently as before.
+
+`E5086` covers the same failure for a *module's own* declarations rather than its imports. The bundle carries what is placed in the client codespace, plus `def:pub` endpoints, which are bound to a generated client-side forwarder that calls them over RPC. Anything else named by client code -- a function pinned `"server"` via `[placement.pins]`, a glob kept server-side -- would emit as a bare identifier that resolves to nothing. That is a guaranteed `ReferenceError` at module load, so it fails the build at the seam that produces the artifact. Give the element client presence (drop the pin, or make it `def:pub`), or keep the use out of client code.
+
+`E5087` fires when a project kind with no server contains code that needs one: root access, an FFI extern, an inline `::py::` block, or a Python import whose bindings are used at value level. A `js-package` ships as an npm tarball with nothing serving `/function/<name>`, so server placement there could only fail at runtime inside a `fetch` that has no route to reach. Annotation-only and `import type` uses stay silent, on the same criterion `E5084` uses.
 
 ---
 
@@ -556,10 +562,13 @@ A `def:pub` function in a server-placed module is an HTTP endpoint whose argumen
 |------|---------|
 | `W6006` | Mutable glob '{name}' is emitted into both the server and the client -- each side gets an independent copy (state fork) |
 | `W6007` | Client code uses server-placed function '{name}' as a value -- function values cannot cross the placement boundary |
+| `W6009` | Client binding for server endpoint '{name}' is async: it hands back a Promise where the server function hands back '{ret}' |
 
 `W6006`: dual emission duplicates *state*, not just code -- server writes and client writes land in different copies of the glob. Home the glob with its writers by pinning it (or its module) in `jac.toml` -- `[placement.pins] "mod.the_glob" = "server"` (or `"client"`) -- or bridge reads through a `def:pub` accessor.
 
-`W6007`: the value-flow generalization of `W6005`. A function reference that flows into client-side data (stored in a container, returned, or passed along as an argument) needs client presence; only *calls* to `def:pub` endpoints bridge over RPC. Drop `:pub` so the function is pulled client-side, or restructure so the client stores data instead of the function. See [Placement](placement.md) for the full model.
+`W6007`: the value-flow generalization of `W6005`. A function reference that flows into client-side data (stored in a container, returned, or passed along as an argument) needs client presence. A `def:pub` endpoint gets that presence automatically, through a generated client-side forwarder, so this fires only where no forwarder is possible -- a function with no endpoint access, or one pinned server. Drop the pin, or restructure so the client stores data instead of the function. The build-time form of the same fact is `E5086`. See [Placement](placement.md) for the full model.
+
+`W6009`: the forwarder that gives a `def:pub` endpoint its client-side presence calls the endpoint over HTTP, so it is necessarily `async` and its result is a `Promise<T>` where the server function's is `T`. That is transparent where the result is awaited or ignored (a command handler, an event listener) and wrong where a plain value is required (a sort comparator, a reducer). Await the call, or drop `:pub` so the function is placed client-side and stays synchronous.
 
 ---
 

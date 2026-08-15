@@ -22,18 +22,38 @@ the bytecode. The solver consumes summaries and owns every decision:
 | `root` access, node/edge/walker archetypes | server |
 | Python imports not covered by the portability table | server |
 | extern C declarations (clib imports) | native |
-| `def:pub` in a server-anchored module | server (as an endpoint contract) |
+| `def:pub` in a server-anchored module, **in a project kind that has a server** | server (as an endpoint contract) |
 | A `[placement.pins]` entry | its pinned space (immovable) |
 | Membership in `[scale.microservices.routes]` | server (the module is a service) |
+
+`def:pub` is the one row that depends on `[project] kind`, because `pub` means
+*export* client-side and *endpoint* server-side: it has no settled meaning until
+placement does. In a kind that has a server (`web-app`, `service`, `desktop`,
+and the default when no kind is declared) it is endpoint evidence, exactly as
+before -- an evidence-free `pub` there is deliberately an endpoint. In a kind
+whose `KindSpec.codespace` is `client` (`js-package`) there is no server for it
+to mean, so it is not evidence at all: everything lands client, `pub` means
+export, and code carrying genuine server evidence is `E5087` rather than a
+server placement that could only fail at runtime. Kind resolution inherits
+through nested manifests, so an `extension/jac.toml` without a `kind` takes the
+kind of the project that contains it.
 
 From those seeds, placement propagates along symbol references to a fixpoint:
 an element referenced by client code follows it into the bundle when its whole
 closure can (**pulled client**); requirement-free elements reached from both
 spaces compile into each (**dual emission**); and a reference whose closure
-cannot move **bridges** instead -- `def:pub` calls over RPC, archetypes as
-wire types, native elements over the wasm edge. Cross-module pulls happen
-before code generation, so `jac check` sees the same placements as
-`jac build`.
+cannot move **bridges** instead -- `def:pub` over RPC, archetypes as wire
+types, native elements over the wasm edge. Cross-module pulls happen before
+code generation, so `jac check` sees the same placements as `jac build`.
+
+The RPC bridge is a *binding*, not a call-site rewrite: a `def:pub` endpoint
+reachable from client code is emitted into the bundle as an `async` forwarder
+that calls it over HTTP, so the name works in every position -- called,
+passed as a callback, stored, returned, re-exported. Because the forwarder is
+async, its result is a `Promise<T>` where the server function's is `T`, which
+`W6009` reports for value-returning endpoints. A client-side name that no
+binding can cover is `E5086` at build time rather than a `ReferenceError` at
+module load.
 
 The analysis proposes; lowering disposes. A module that prefers native but
 fails to lower is demoted to the server with a note naming the cause, and a
@@ -134,8 +154,14 @@ declarations -- which were never placement markers to begin with.
 - `E5084` -- client code uses a symbol from a bare (Python-ecosystem) import;
   the import stays server-placed, so the client bundle never binds the name.
   Quote the module for npm packages: `import from "react" { useRef }`.
+- `E5086` -- client code names one of the module's own declarations that the
+  bundle never binds. The build fails instead of shipping a `ReferenceError`.
+- `E5087` -- a project kind with no server contains code that needs one.
 - `W6005` -- a function-typed parameter at an RPC call site.
 - `W6006` -- a mutable glob would be dual-emitted (state fork).
-- `W6007` -- client code uses a server-placed function as a value.
+- `W6007` -- client code uses a server-placed function as a value and no
+  forwarder is possible.
+- `W6009` -- the client-side forwarder for an endpoint is async, so it returns
+  a `Promise<T>` where the server function returns `T`.
 
 See [Diagnostics](diagnostics.md) for the full reference.
