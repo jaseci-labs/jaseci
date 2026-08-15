@@ -419,9 +419,7 @@ def native_pipeline_available -> tuple[bool, str] {
 }
 
 def get_py_code_gen(
-    native: bool = True,
-    provided: (set[str] | None) = None,
-    graphmend: bool = True
+    native: bool = True, provided: (set[str] | None) = None, graphmend: bool = True
 ) -> list[type[Transform[uni.Module, uni.Module]]] {
     if _codegen_sched_loading.get() or _ir_sched_loading.get() {
         return [PyastGenPass, PyBytecodeGenPass];

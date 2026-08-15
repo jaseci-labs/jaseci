@@ -63,7 +63,7 @@ def _scheduled_passes(name: str, gm: bool) -> list {
     orig = JacCompiler.run_schedule;
     def _spy(
         self: any, mod: any, target_program: any, passes: any, cancel_token: any = None
-    ) -> None {
+    ) {
         seen.extend(passes);
         orig(self, mod, target_program, passes, cancel_token);
     }
