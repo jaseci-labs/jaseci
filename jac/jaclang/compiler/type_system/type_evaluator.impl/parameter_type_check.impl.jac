@@ -86,7 +86,7 @@ impl TypeEvaluator._callable_reason(
     (src_params, dest_params) = (visible(arg_type), visible(expected));
     want = len(dest_params);
 
-    if len(src_params) < want or any(not p.is_optional for p in src_params[want:]) {
+    if any(not p.is_optional for p in src_params[want:]) {
         return f"takes {len(src_params)} parameter(s), but a callable taking {want} is expected";
     }
 
