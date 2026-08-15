@@ -200,7 +200,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         dict_helpers: dict[str, dict] = {},
         set_types: dict[str, object] = {},
         set_helpers: dict[str, dict] = {},
-        _ternary_peer_ty: (object | None) = None,
+        _peer_container_ty: (object | None) = None,
         _exc_state_type: (object | None) = None,
         _exc_handler_global: (object | None) = None,
         _exc_push_fn: (object | None) = None,
@@ -622,6 +622,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _reflavor_list(
         val: ir.Value, src_spec: str, dst_spec: str
     ) -> (ir.Value | None);
+
+    def _cast_to_list_elem(
+        b: any, val: ir.Value, elem_type: ir.Type, name: str
+    ) -> ir.Value;
 
     def _empty_list_dest_spec(nd: uni.ListVal) -> (str | None);
     def _coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value;

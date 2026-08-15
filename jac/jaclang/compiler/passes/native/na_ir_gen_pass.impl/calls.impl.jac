@@ -1546,7 +1546,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 "ascii"
             ) {
             params_l = nd.params or [];
-            _ez_peer = self._spec_from_container_ptr(self._ternary_peer_ty)
+            _ez_peer = self._spec_from_container_ptr(self._peer_container_ty)
                 if not params_l and func_name in ("list", "set")
                 else None;
             if not params_l

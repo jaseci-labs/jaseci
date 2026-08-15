@@ -133,6 +133,18 @@ impl NaIRGenPass._emit_list_helpers(elem_type_name: str, elem_type: ir.Type) -> 
     };
 }
 
+impl NaIRGenPass._cast_to_list_elem(
+    b: any, val: ir.Value, elem_type: ir.Type, name: str
+) -> ir.Value {
+    if val.type == elem_type {
+        return val;
+    }
+    if isinstance(val.type, ir.PointerType) and isinstance(elem_type, ir.PointerType) {
+        return b.bitcast(val, elem_type, name=f"{name}.cast");
+    }
+    return val;
+}
+
 impl NaIRGenPass._reflavor_list(
     val: ir.Value, src_spec: str, dst_spec: str
 ) -> (ir.Value | None) {
