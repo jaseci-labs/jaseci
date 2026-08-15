@@ -891,7 +891,7 @@ Each line is a filename or pattern that should be skipped during Jac compilation
 
 | Variable | Description |
 |----------|-------------|
-| `JAC_DB_URL` | Postgres connection URL (overrides `[scale.database].url`) |
+| `JAC_DB_URL` | Postgres connection URL for **this process** (overrides `[scale.database].url` at runtime). A deploy ignores it: what database the deployed app gets is decided by `[scale.kubernetes]` `database_mode` / `database_url`, then `[scale.database]` `url`, then provisioning |
 | `FIRESTORE_PROJECT_ID` | Firestore / Firebase project ID |
 | `FIREBASE_PROJECT_ID` | Shared Firebase project ID fallback for Auth SSO, Firestore, Storage |
 

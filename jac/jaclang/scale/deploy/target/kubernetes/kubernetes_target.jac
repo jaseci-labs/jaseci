@@ -103,9 +103,9 @@ obj KubernetesTargetBase(DeploymentTarget) {
         init_containers = [];
         wait_image = self.k8s_config.wait_image;
 
-        if self.k8s_config.postgres_enabled {
+        if self.k8s_config.database_enabled() {
             pg_provider = KubernetesPostgresProvider(
-                target=self, config={'app_name': app_name}
+                target=self, config=self.k8s_config.database_deploy_intent(app_name)
             );
             init_container = pg_provider.get_init_container(app_name, wait_image);
             if init_container {
@@ -117,15 +117,18 @@ obj KubernetesTargetBase(DeploymentTarget) {
     }
 
     def _deploy_databases(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
-        if not self.k8s_config.postgres_enabled {
+        if not self.k8s_config.database_enabled() {
             return;
         }
         pg_name = f"{app_name}-postgres";
         pg_service_name = f"{pg_name}-service";
         pg_provider = KubernetesPostgresProvider(
-            target=self, config={'app_name': app_name}
+            target=self, config=self.k8s_config.database_deploy_intent(app_name)
         );
         pg_result = pg_provider.deploy({});
+        if pg_result['mode'] == 'none' {
+            return;
+        }
         if pg_result['mode'] == 'external' {
             self.env_list.append(
                 {'name': 'JAC_DB_URL', 'value': pg_result['connection_string']}
@@ -176,7 +179,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
             namespace,
             pg_pvc_name,
             str(
-                get_scale_config().get_database_config().get('postgres_storage')
+                get_scale_config().get_deploy_database_config().get('postgres_storage')
                     or '2Gi'
             )
         );
@@ -248,7 +251,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
                 }
             }
 
-            if self.k8s_config.postgres_enabled {
+            if self.k8s_config.database_enabled() {
                 pg_name = f"{app_name}-postgres";
                 try {
                     apps_v1.read_namespaced_stateful_set(
