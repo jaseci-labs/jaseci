@@ -2890,15 +2890,6 @@ impl TypeEvaluator.assign_type(
         return True;
     }
 
-    if self.prefetch
-        and self.prefetch.bool_class
-        and self._type_guard_form_of(dest_type) is not None
-        and self._type_guard_form_of(src_type) is None {
-        return self.assign_type(
-            src_type, self._convert_to_instance(self.prefetch.bool_class), strict
-        );
-    }
-
     if self.is_explicit_any(dest_type) {
         return True;
     }
@@ -4758,50 +4749,25 @@ impl TypeEvaluator._narrow_member_to(
 ) -> TypeBase | None {
     """Narrow one declared member against the filter, or a tuple of filters.
 
-    A tuple filter is a disjunction: the member is narrowed against every
-    alternative it is related to, and the results joined. Only a member that
-    relates to none of them falls through to the intersection, so
-    `isinstance(x, (A, B))` on an `A | B` stays `A | B` instead of pairing
-    every member with every other alternative.
+    A tuple filter is a disjunction, so the member is narrowed against every
+    alternative it is related to and the results joined. A member related to
+    none of them drops: the value cannot be that member and pass the guard,
+    unless it is an instance of a class deriving from both, which this
+    checker does not model.
     """;
     if isinstance(narrow_type, UnionType) and narrow_type.types {
         related: list[TypeBase] = [];
         for t in narrow_type.types {
-            part = self._narrow_related_member_to(member, t);
+            part = self._narrow_member_to(member, t);
             if part is not None {
                 related.append(part);
             }
         }
-        if related {
-            return self._union_narrowed_types(related);
-        }
-        crossed: list[TypeBase] = [];
-        for t in narrow_type.types {
-            if isinstance(member, ClassType) and isinstance(t, ClassType) {
-                synth = self._synthesize_intersection(member, t);
-                if synth is not None {
-                    crossed.append(synth);
-                }
-            }
-        }
-        if not crossed {
+        if not related {
             return None;
         }
-        return self._union_narrowed_types(crossed);
+        return self._union_narrowed_types(related);
     }
-    related_narrow = self._narrow_related_member_to(member, narrow_type);
-    if related_narrow is not None {
-        return related_narrow;
-    }
-    if not isinstance(member, ClassType) or not isinstance(narrow_type, ClassType) {
-        return None;
-    }
-    return self._synthesize_intersection(member, narrow_type);
-}
-
-impl TypeEvaluator._narrow_related_member_to(
-    member: TypeBase, narrow_type: TypeBase
-) -> TypeBase | None {
     if self._type_matches_isinstance(member, narrow_type) {
         return member;
     }
@@ -4812,87 +4778,6 @@ impl TypeEvaluator._narrow_related_member_to(
         return self._specialize_narrow_from_base(member, narrow_type);
     }
     return None;
-}
-
-impl TypeEvaluator._synthesize_intersection(
-    member: ClassType, filter_cls: ClassType
-) -> ClassType | None {
-    """Record that a value is both the declared class and the filter class.
-
-    Neither class alone describes the value when the two are unrelated, and a
-    class deriving from both does, so the narrow yields a synthesized
-    `<subclass of Member and Filter>` -- the shape pyright reports.
-
-    The MRO is the filter's followed by the member's, deduplicated, rather
-    than a C3 linearization of the two. C3 can fail outright on this tree's
-    multiply-inheriting nodes, and a truncated MRO loses the common bases the
-    result must stay assignable to. Ordering the filter first also settles
-    which side wins a member both declare: the guard is what the code just
-    asserted, so it reads first, and the declared side supplies the rest.
-    """;
-    if not self._can_intersect(member, filter_cls) {
-        return None;
-    }
-    cache_key = (id(member.shared), id(filter_cls.shared));
-    cached = self._intersection_cache.get(cache_key);
-    if cached is None {
-        shared = ClassType.ClassDetailsShared(
-            class_name=(
-                f"<subclass of {member.shared.class_name} "
-                f"and {filter_cls.shared.class_name}>"
-            ),
-            symbol_table=filter_cls.shared.symbol_table,
-            base_classes=[filter_cls.clone_as_class(), member.clone_as_class()]
-        );
-        cached = ClassType(_shared=shared, flags=TypeFlags.Instantiable);
-        if not filter_cls.shared.mro {
-            compute_mro_linearization(filter_cls);
-        }
-        if not member.shared.mro {
-            compute_mro_linearization(member);
-        }
-        linearized: list[ClassType] = [cached];
-        seen_shared: set = set();
-        for ancestor in (filter_cls.shared.mro + member.shared.mro) {
-            marker = id(ancestor.shared);
-            if marker in seen_shared {
-                continue;
-            }
-            seen_shared.add(marker);
-            linearized.append(ancestor);
-        }
-        cached.shared.mro = linearized;
-        self._intersection_cache[cache_key] = cached;
-    }
-    return cached.clone_as_instance();
-}
-
-impl TypeEvaluator._can_intersect(member: ClassType, filter_cls: ClassType) -> bool {
-    """Report whether any one class could derive from both of these.
-
-    Two classes with distinct instance layouts have no common subclass, so a
-    value cannot be both and the member drops as it did before. The
-    primitives are exactly that set -- nothing inherits from `int` and `str`
-    at once -- and `None` is a singleton. A generic on either side is left
-    alone too: the synthesized class has no type parameters to carry the
-    arguments through.
-    """;
-    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
-    for side in (member, filter_cls) {
-        if side.is_literal_type() or side.private.type_args {
-            return False;
-        }
-        if side.shared.symbol_table is None {
-            return False;
-        }
-        if JAC_TYPE_REGISTRY.is_primitive(side.shared.class_name) {
-            return False;
-        }
-        if self.is_none_type(self._convert_to_instance(side)) {
-            return False;
-        }
-    }
-    return not member.shared.same_class(filter_cls.shared);
 }
 
 impl TypeEvaluator._filter_union_for_isinstance(
@@ -5186,6 +5071,24 @@ impl TypeEvaluator._create_type_guard_type(
     return ClassType(_shared=base.shared, private=private, flags=base.flags);
 }
 
+impl TypeEvaluator._unwrap_type_guard_return(ty: TypeBase) -> TypeBase {
+    """Give back the bool a `TypeIs[T]`/`TypeGuard[T]` annotation stands for.
+
+    Both PEPs say the predicate returns a bool; the guarded type is a claim
+    about the argument, not about the value handed back. Keeping the special
+    form out of every declared return type is what lets the rest of the
+    compiler -- assignability, the layout pass, the native lane -- go on
+    seeing an ordinary bool. `FunctionType.type_guard` carries the claim.
+    """;
+    if self._type_guard_form_of(ty) is None {
+        return ty;
+    }
+    if not self.prefetch or self.prefetch.bool_class is None {
+        return ty;
+    }
+    return self._convert_to_instance(self.prefetch.bool_class);
+}
+
 impl TypeEvaluator._type_guard_form_of(ty: TypeBase) -> str | None {
     if not isinstance(ty, ClassType) {
         return None;
@@ -5227,16 +5130,7 @@ impl TypeEvaluator._extract_type_guard_info(
     } finally {
         self._type_guard_probes.discard(probe_key);
     }
-    if not isinstance(callee, FunctionType) or callee.return_type is None {
-        return None;
-    }
-    form = self._type_guard_form_of(callee.return_type);
-    if form is None {
-        return None;
-    }
-    assert isinstance(callee.return_type, ClassType);
-    guarded_args = callee.return_type.private.type_args or [];
-    if not guarded_args {
+    if not isinstance(callee, FunctionType) or callee.type_guard is None {
         return None;
     }
     positional = [
@@ -5252,7 +5146,11 @@ impl TypeEvaluator._extract_type_guard_info(
     if guard_key is None {
         return None;
     }
-    return (guard_key, self._convert_to_instance(guarded_args[0]), form == "TypeIs");
+    return (
+        guard_key,
+        self._convert_to_instance(callee.type_guard),
+        callee.type_guard_is_strict
+    );
 }
 
 impl TypeEvaluator._extract_callable_info(condition: Expr) -> str | None {

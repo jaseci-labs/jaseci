@@ -97,10 +97,10 @@ Bug index:
               names but resolved the annotation to nothing, and the CFG's
               may-narrow set only recognized the builtin guard calls, so a
               helper predicate was invisible to flow narrowing (#8201)
-  #ISECT-1 - isinstance narrowing against a class unrelated to any declared
-             union member dropped the declared type entirely instead of
-             recording that the value is both, so members of the declared
-             side went missing after the guard (#8201)
+  #ISECT-1 - isinstance narrowing filtered a declared union as a whole, so a
+             member above the filter class was thrown away whenever another
+             member sat below it, and the guard claimed the more specific
+             member for values that are not it (#8201)
   #ANDPOL-1 - the false edge of a conjunction narrowed by the conjunction's
               most specific positive conjunct, but `not (A and B)` says
               nothing about A on its own; the else branch of
@@ -1751,36 +1751,56 @@ test "bug_typeis1_type_guard_is_positive_only" {
 }
 
 # =========================================================================
-# Bug #ISECT-1 / #8201: `isinstance(x, Marker)` on an `x: Carrier | None`
-# narrowed to `Marker` outright. The declared constraint was thrown away, so
-# every `Carrier` member went missing after the guard even though the value
-# is known to be both.
+# Bug #ISECT-1 / #8201: `_filter_union_for_isinstance` narrowed a declared
+# union as a whole. It kept the members that derive from the filter class
+# and, if any did, threw the rest away -- so `isinstance(x, Mid)` on an
+# `x: Leaf | Base` answered `Leaf`, claiming a `Base` that passes the guard
+# is a `Leaf`. When no member derived from the filter, the whole declared
+# type was replaced by the filter instead.
 #
-# The narrow is now applied per union member: a member the filter class
-# derives from keeps the filter class, a member that derives from the filter
-# class is kept whole, and a member unrelated to it produces a synthesized
-# `<subclass of Member and Filter>` whose MRO carries both sides. Members
-# that cannot be combined -- NoneType, and the primitives, whose instance
-# layouts no single class can inherit -- drop out as before.
+# The narrow is applied per union member now: a member below the filter is
+# kept whole, a member above it takes the filter class carrying its type
+# arguments, and a member unrelated to it drops. Where nothing survives, the
+# result is the bare filter class, which is what the old code produced.
+#
+# A member unrelated to the filter could also hold a value of some class
+# deriving from both, which pyright models as a synthesized
+# `<subclass of Member and Filter>`. That is deliberately not done here: the
+# native lane needs a concrete layout for every type a narrow produces and a
+# synthesized class has none, so the precision would cost every guard over
+# unrelated classes its lowering.
 # =========================================================================
-test "bug_isect1_isinstance_intersects_with_declared_type" {
+test "bug_isect1_isinstance_narrows_each_union_member" {
     program = compile_and_check("checker_bug_isinstance_intersection.jac");
-
-    assert len(program.errors_had) == 0 , (
-        "Bug #ISECT-1: narrowing with isinstance must keep the declared type "
-        "as a constraint, so members of both the declared class and the "
-        "filter class stay reachable. "
-        f"Got errors: {[str(e) for e in program.errors_had]}"
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 1 , (
+        "Bug #ISECT-1: `isinstance(x, Mid)` on a `Leaf | Base` must answer "
+        "`Leaf | Mid`, so passing the result where a `Leaf` is wanted is the "
+        f"one error. Got errors: {[str(e) for e in program.errors_had]}"
     );
+    assert 34 in error_lines , (
+        "Bug #ISECT-1: the member above the filter must survive as the "
+        f"filter class, so line 34 is the diagnosed one. Got: {error_lines}"
+    );
+    for e in program.errors_had {
+        assert "Leaf | Mid" in str(e) , (
+            "Bug #ISECT-1: both members must survive the narrow, so the "
+            f"diagnosed type reads `Leaf | Mid`. Got: {e}"
+        );
+    }
 }
 
 # =========================================================================
-# Bug #ISECT-1, negative: the synthesized class must not over-narrow. The
-# false edge still subtracts the filter class and leaves the rest of the
-# declared union alone, and the synthesis grants exactly the two sides'
-# members -- nothing more.
+# Bug #ISECT-1, negative: per-member narrowing must not lose what the
+# whole-union narrow had. A guard no member survives still falls back to the
+# filter class, the false edge still subtracts it, and a narrowed member
+# exposes exactly its own surface.
 # =========================================================================
-test "bug_isect1_intersection_does_not_over_narrow" {
+test "bug_isect1_per_member_narrow_keeps_precision" {
     program = compile_and_check("checker_bug_isinstance_intersection_negative.jac");
     error_lines = [
         e.loc.first_line
@@ -1788,17 +1808,17 @@ test "bug_isect1_intersection_does_not_over_narrow" {
         if e.loc
     ];
     assert len(program.errors_had) == 2 , (
-        "Bug #ISECT-1: the false edge keeps `Carrier | None` and the "
-        "synthesized class has no member `missing`. "
+        "Bug #ISECT-1: the fallback to the filter class and the false edge "
+        "must both survive. "
         f"Got errors: {[str(e) for e in program.errors_had]}"
     );
-    assert 17 in error_lines , (
-        "Bug #ISECT-1: subtracting Marker from `Carrier | None` leaves the "
-        f"None, so `.label` on line 17 stays an error. Got: {error_lines}"
+    assert 33 in error_lines , (
+        "Bug #ISECT-1: subtracting Mid from `Base | None` leaves the None, "
+        f"so `.label` on line 33 stays an error. Got: {error_lines}"
     );
-    assert 23 in error_lines , (
-        "Bug #ISECT-1: the synthesized class exposes the two sides' members "
-        f"and no others, so line 23 stays an error. Got: {error_lines}"
+    assert 40 in error_lines , (
+        "Bug #ISECT-1: a narrowed member exposes its own surface and no "
+        f"more, so line 40 stays an error. Got: {error_lines}"
     );
 }
 

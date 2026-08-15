@@ -1,47 +1,58 @@
-"""isinstance narrowing keeps the declared type as a constraint."""
+"""isinstance narrowing is applied to each declared union member on its own."""
 
-obj Carrier {
-    has label: str = "c";
+obj Base {
+    has label: str = "b";
 }
 
-obj Marker {
+obj Mid(Base) {
+    has mid: int = 0;
+}
+
+obj Leaf(Mid) {
+    has leaf: int = 0;
+}
+
+obj Other {
     has weight: int = 0;
 }
 
-obj CarrierSub(Carrier) {
-    has extra: int = 0;
+def take_leaf(l: Leaf) {
+    print(l);
 }
 
-# `Carrier` and `Marker` are unrelated, so a value that is both is a value of
-# a synthesized subclass of the two: every member of either side is reachable.
-def unrelated_keeps_both(x: (Carrier | None)) -> int {
-    if isinstance(x, Marker) {
-        return x.weight + len(x.label);
-    }
-    return 0;
+def take_mid(m: Mid) {
+    print(m);
 }
 
-# When the two are related by subclassing the more specific one wins, with no
-# synthesized class in the way.
-def related_narrows_to_subclass(x: (Carrier | None)) -> int {
-    if isinstance(x, CarrierSub) {
-        return x.extra + len(x.label);
+# `Leaf` sits below the filter and `Base` above it, so the guard leaves the
+# one alone and narrows the other. Narrowing the union as a whole kept only
+# the members below the filter and dropped `Base` entirely, which claimed a
+# `Base` that passes the guard is a `Leaf`.
+def mixed_union(x: (Leaf | Base)) {
+    take_mid(x if isinstance(x, Mid) else Mid());
+    if isinstance(x, Mid) {
+        take_leaf(x);
     }
-    return 0;
 }
 
-# Primitives have distinct instance layouts, so no class can derive from two of
-# them; the unrelated member drops instead of being intersected.
-def primitives_do_not_intersect(x: (int | str)) -> int {
-    if isinstance(x, str) {
-        return len(x);
+# Both members are below the filter, so both survive untouched.
+def all_below_filter(x: (Leaf | Mid)) {
+    if isinstance(x, Base) {
+        take_mid(x);
     }
-    return x + 1;
 }
 
-def tuple_form_keeps_both(x: (Carrier | None)) -> int {
-    if isinstance(x, (Marker, CarrierSub)) {
-        return len(x.label);
+# A member unrelated to the filter cannot pass it and drops.
+def unrelated_member_drops(x: (Base | Other)) {
+    if isinstance(x, Mid) {
+        take_mid(x);
     }
-    return 0;
+}
+
+# A tuple filter is a disjunction: each member is narrowed against the
+# alternatives it relates to, not paired with every one of them.
+def tuple_filter(x: (Leaf | Other)) {
+    if isinstance(x, (Mid, Other)) {
+        print(x);
+    }
 }

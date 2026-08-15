@@ -77,6 +77,8 @@ impl FunctionType.specialize(class_type: ClassType) -> FunctionType {
         parameters=[param.clone() for param in self.parameters],
         type_params=self.type_params,
         is_async=self.is_async,
+        type_guard=self.type_guard,
+        type_guard_is_strict=self.type_guard_is_strict,
     );
 
     for param in clone.parameters {
@@ -108,6 +110,8 @@ impl FunctionType.specialize_func_type_vars(
         function_flags=self.function_flags,
         type_params=self.type_params,
         is_async=self.is_async,
+        type_guard=self.type_guard,
+        type_guard_is_strict=self.type_guard_is_strict,
     );
 
     for param in clone.parameters {

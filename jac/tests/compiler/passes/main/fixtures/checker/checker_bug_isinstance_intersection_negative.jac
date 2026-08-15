@@ -1,25 +1,42 @@
-"""The intersection must not over-narrow: the negative edge still subtracts."""
+"""Per-member narrowing must not lose precision the whole-union narrow had."""
 
-obj Carrier {
-    has label: str = "c";
+obj Base {
+    has label: str = "b";
 }
 
-obj Marker {
+obj Mid(Base) {
+    has mid: int = 0;
+}
+
+obj Other {
     has weight: int = 0;
 }
 
-# `Marker` is subtracted from `Carrier | None` on the false edge, so what is
-# left is `Carrier | None` and `.label` is still missing from NoneType.
-def negative_edge_keeps_declared(x: (Carrier | None)) -> str {
-    if isinstance(x, Marker) {
+def take_mid(m: Mid) {
+    print(m);
+}
+
+# Nothing survives the filter, so the narrow still falls back to the filter
+# class itself rather than leaving the declared type in place.
+def nothing_survives(x: (Base | None)) {
+    if isinstance(x, Other) {
+        print(x.weight);
+    }
+}
+
+# The false edge still subtracts the filter, so `.label` on a still-optional
+# value stays an error.
+def negative_edge_keeps_declared(x: (Base | None)) -> str {
+    if isinstance(x, Mid) {
         return "m";
     }
     return x.label;
 }
 
-# The synthesized class is not a licence to reach members neither side has.
-def no_invented_members(x: (Carrier | None)) {
-    if isinstance(x, Marker) {
+# A narrowed member exposes exactly its own surface, nothing more.
+def no_invented_members(x: (Base | None)) {
+    if isinstance(x, Mid) {
+        take_mid(x);
         print(x.missing);
     }
 }
