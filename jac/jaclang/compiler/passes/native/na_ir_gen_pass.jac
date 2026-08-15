@@ -1159,6 +1159,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_vtable_global(arch_name: str) -> None;
     def _vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None);
     def _vtable_candidates(names: list[str]) -> list[ir.GlobalVariable];
+    def _isinstance_needs_class_name(names: list[str]) -> bool;
+    def _isinstance_unprovable_class(names: list[str]) -> (str | None);
+    def _isinstance_class_name_hit(
+        obj_ptr: ir.Value, names: list[str]
+    ) -> (ir.Value | None);
+
     def _emit_class_name_const(arch_name: str) -> ir.Value;
     def _emit_runtime_class_name_fn -> (ir.Function | None);
     def _codegen_runtime_class_name(obj_val: ir.Value) -> (ir.Value | None);
