@@ -111,6 +111,19 @@ def chk_sequence(k: int) -> int {
     return 0;
 }
 
+def chk_sequence_typed(k: int) -> int {
+    if k == 0 {
+        s: str = "ab";
+        return 1 if isinstance(s, Sequence) else 0;
+    }
+    if k == 1 {
+        v: list[int] = [1, 2];
+        return 1 if isinstance(v, Sequence) else 0;
+    }
+    t = (1, 2, );
+    return 1 if isinstance(t, Sequence) else 0;
+}
+
 def chk_mapping(k: int) -> int {
     x: any = {1: 2};
     if k == 1 {
