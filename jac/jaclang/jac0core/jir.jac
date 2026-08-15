@@ -3,6 +3,7 @@ import os;
 import struct;
 import sys;
 import zlib;
+import from contextvars { ContextVar }
 import from pathlib { Path }
 
 glob MAGIC = b"JIR\x00",
@@ -245,11 +246,13 @@ def _toolchain_env_fingerprint -> str {
     return h.hexdigest();
 }
 
-glob _GM_CACHE_VARIANT: list[str] = [""];
+glob _GM_CACHE_VARIANT: ContextVar[str] = ContextVar(
+         "jac_graphmend_cache_variant", default=""
+     );
 
 def swap_graphmend_cache_variant(variant: str) -> str {
-    prev = _GM_CACHE_VARIANT[0];
-    _GM_CACHE_VARIANT[0] = variant;
+    prev = _GM_CACHE_VARIANT.get();
+    _GM_CACHE_VARIANT.set(variant);
     return prev;
 }
 
@@ -264,7 +267,7 @@ def graphmend_variant_region(variant: str) -> str {
 
 def _project_env_fingerprint(source_path: str) -> str {
     h = hashlib.sha256();
-    h.update(_GM_CACHE_VARIANT[0].encode());
+    h.update(_GM_CACHE_VARIANT.get().encode());
     h.update(_module_client_kind(source_path).encode());
     h.update(_module_codespace_mode(source_path).encode());
     import from jaclang.jac0core.placement_pins { pins_digest, config_kind_space }
@@ -620,7 +623,7 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
 
 
 def is_module_cache_valid_gm_noop(source_path: str, cache_path: Path) -> bool {
-    variant = _GM_CACHE_VARIANT[0];
+    variant = _GM_CACHE_VARIANT.get();
     if not variant {
         return False;
     }
