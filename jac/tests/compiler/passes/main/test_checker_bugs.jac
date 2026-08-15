@@ -92,6 +92,11 @@ Bug index:
                 declaration now binds the function local, so its annotation
                 also holds after the block and a sibling block redeclaring
                 the name collides with it (#8060)
+  #TYPEIS-1 - a user-defined predicate returning TypeIs[T] or TypeGuard[T]
+              narrowed nothing at its call sites; the checker knew the two
+              names but resolved the annotation to nothing, and the CFG's
+              may-narrow set only recognized the builtin guard calls, so a
+              helper predicate was invisible to flow narrowing (#8201)
   #ANDPOL-1 - the false edge of a conjunction narrowed by the conjunction's
               most specific positive conjunct, but `not (A and B)` says
               nothing about A on its own; the else branch of
@@ -1689,6 +1694,55 @@ test "bug_elifsc1_short_circuit_elif_keeps_guard_narrowing" {
         "Bug #ELIFSC-1: the narrowing established by an if guard must "
         "survive an elif whose condition short-circuits. "
         f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TYPEIS-1 / #8201: a user-defined predicate whose return type is
+# `TypeIs[T]` (PEP 742) or `TypeGuard[T]` (PEP 647) narrowed nothing.
+# `TypeIs`/`TypeGuard` were listed among the known special-form names but had
+# no branch in the `_SpecialForm` subscript path, so the annotation resolved
+# to nothing; and `collect_narrowing_symbols`, which runs before types exist,
+# only credited `isinstance`/`callable`/`hasattr` with narrowing anything, so
+# the flow walk skipped the guard's argument outright.
+#
+# A `TypeIs[T]` call narrows both edges -- positive to T, negative by
+# subtracting T -- because PEP 742 requires T to be consistent with the
+# argument's declared type. `TypeGuard[T]` narrows the positive edge only,
+# and replaces the declared type there rather than intersecting with it.
+# =========================================================================
+test "bug_typeis1_type_is_narrows_both_polarities" {
+    program = compile_and_check("checker_bug_typeis_narrowing.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TYPEIS-1: a `TypeIs[T]` predicate must narrow its argument to "
+        "T on the true edge and subtract T on the false edge, through plain "
+        "functions, static methods and bound methods alike. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TYPEIS-1, TypeGuard half: PEP 647 is one-directional. The positive
+# edge takes the guarded type verbatim -- `TypeGuard[list[str]]` on a
+# `list[int] | None` yields `list[str]`, not an intersection -- and the
+# negative edge narrows by nothing at all.
+# =========================================================================
+test "bug_typeis1_type_guard_is_positive_only" {
+    program = compile_and_check("checker_bug_typeguard_narrowing.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 1 , (
+        "Bug #TYPEIS-1: `TypeGuard` narrows the positive edge only, so the "
+        "one diagnosed line must be the negative branch reading `.tag` off a "
+        f"still-optional value. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 44 in error_lines , (
+        "Bug #TYPEIS-1: the negative branch of a TypeGuard keeps the declared "
+        f"type, so line 44 must be the diagnosed one. Got: {error_lines}"
     );
 }
 

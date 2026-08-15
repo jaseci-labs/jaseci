@@ -1344,6 +1344,19 @@ impl TypeEvaluator._get_type_of_expression_core(
                         return UnknownType();
                     }
 
+                    if target_name == "TypeIs" or target_name == "TypeGuard" {
+                        guarded: TypeBase | None = None;
+                        if isinstance(expr.right, IndexSlice) and expr.right.slices {
+                            guard_expr = expr.right.slices[0].start;
+                            if guard_expr is not None {
+                                guarded = self._convert_to_instance(
+                                    self.get_type_of_expression(guard_expr)
+                                );
+                            }
+                        }
+                        return self._create_type_guard_type(target_name, guarded);
+                    }
+
                     if target_name == "Literal" {
                         lit_types: list[TypeBase] = [];
                         if isinstance(expr.right, IndexSlice) and expr.right.slices {
@@ -1650,7 +1663,12 @@ impl TypeEvaluator._get_type_of_expression_core(
                     operand_expr = expr.values[i].expr;
                     cond_info = self.classify_condition(operand_expr);
                     if cond_info is not None
-                        and cond_info.kind == NarrowingKind.ISINSTANCE
+                        and cond_info.kind
+                            in (
+                                NarrowingKind.ISINSTANCE,
+                                NarrowingKind.TYPE_IS,
+                                NarrowingKind.TYPE_GUARD
+                            )
                         and cond_info.narrow_type is not None {
                         narrowed_sym = self._find_symbol_by_key(
                             cond_info.key, operand_expr
@@ -1658,7 +1676,11 @@ impl TypeEvaluator._get_type_of_expression_core(
                         if narrowed_sym is not None {
                             sym_type = self.get_type_of_symbol(narrowed_sym);
                             predicate = NarrowingPredicate(
-                                key=cond_info.key, narrow_type=cond_info.narrow_type
+                                key=cond_info.key,
+                                narrow_type=cond_info.narrow_type,
+                                replaces_declared=(
+                                    cond_info.kind == NarrowingKind.TYPE_GUARD
+                                )
                             );
                             target = NarrowingTarget(
                                 key=cond_info.key,
@@ -2866,6 +2888,15 @@ impl TypeEvaluator.assign_type(
 
     if isinstance(src_type, NeverType) {
         return True;
+    }
+
+    if self.prefetch
+        and self.prefetch.bool_class
+        and self._type_guard_form_of(dest_type) is not None
+        and self._type_guard_form_of(src_type) is None {
+        return self.assign_type(
+            src_type, self._convert_to_instance(self.prefetch.bool_class), strict
+        );
     }
 
     if self.is_explicit_any(dest_type) {
@@ -4246,6 +4277,15 @@ impl TypeEvaluator.classify_condition(condition: Expr) -> ConditionInfo | None {
         return ConditionInfo(kind=NarrowingKind.HASATTR, key=h_key, attr_name=h_attr);
     }
 
+    if guard_info := self._extract_type_guard_info(condition) {
+        (g_key, g_type, g_is_type_is) = guard_info;
+        return ConditionInfo(
+            kind=(NarrowingKind.TYPE_IS if g_is_type_is else NarrowingKind.TYPE_GUARD),
+            key=g_key,
+            narrow_type=g_type
+        );
+    }
+
     if (
         isinstance(condition, CompareExpr)
         and len(condition.ops) == 1
@@ -4465,6 +4505,20 @@ impl TypeEvaluator._find_predicate_for(
                     key=key, narrow_type=info.narrow_type, is_inverted=False
                 );
 
+            case NarrowingKind.TYPE_IS:
+                return NarrowingPredicate(
+                    key=key, narrow_type=info.narrow_type, is_inverted=False
+                );
+
+            case NarrowingKind.TYPE_GUARD:
+                return NarrowingPredicate(
+                    key=key,
+                    narrow_type=info.narrow_type,
+                    is_inverted=False,
+                    narrows_on_false=False,
+                    replaces_declared=True
+                );
+
             case NarrowingKind.CALLABLE:
                 expr_type = self.get_type_of_expression(condition.params[0]);
                 callable_type = self._filter_union_to_callables(expr_type);
@@ -4598,6 +4652,9 @@ impl TypeEvaluator._apply_narrowing(
         );
     }
     if is_positive {
+        if predicate.replaces_declared {
+            return predicate.narrow_type;
+        }
         base_type: TypeBase;
         if incoming is not None {
             base_type = incoming;
@@ -4936,6 +4993,96 @@ impl TypeEvaluator._extract_isinstance_info(
         narrowing_key,
         self._convert_to_instance(self.get_type_of_expression(type_arg))
     );
+}
+
+impl TypeEvaluator._create_type_guard_type(
+    name: str, guarded: TypeBase | None
+) -> TypeBase {
+    """Model `TypeIs[T]`/`TypeGuard[T]` as a bool that carries the guarded type.
+
+    Both forms are `bool` at runtime and both PEPs require the predicate to
+    return one, so the synthesized class derives from `bool`: a predicate's
+    result stays usable anywhere a bool is, and a plain `bool` return
+    satisfies the annotation. `T` rides along in the type arguments, which is
+    where `_extract_type_guard_info` reads it back out at the call site.
+    """;
+    if not self.prefetch or self.prefetch.bool_class is None {
+        return UnknownType();
+    }
+    base = self._create_special_builtin_type(name, self.prefetch.bool_class);
+    private = ClassType.ClassDetailsPrivate(
+        type_args=([guarded] if guarded is not None else []), alias_name=name
+    );
+    return ClassType(_shared=base.shared, private=private, flags=base.flags);
+}
+
+impl TypeEvaluator._type_guard_form_of(ty: TypeBase) -> str | None {
+    if not isinstance(ty, ClassType) {
+        return None;
+    }
+    if ty.is_special_form("TypeIs") {
+        return "TypeIs";
+    }
+    if ty.is_special_form("TypeGuard") {
+        return "TypeGuard";
+    }
+    return None;
+}
+
+impl TypeEvaluator._extract_type_guard_info(
+    condition: Expr
+) -> tuple[str, TypeBase, bool] | None {
+    """Read a user-defined type predicate off a call in a condition.
+
+    The guarded argument is the one that binds the callee's first parameter
+    after any implicit receiver, which is the parameter both PEPs narrow. A
+    call that spells the receiver out takes the same route the argument
+    matcher does, so `Cls.pred(inst, x)` narrows `x` and not `inst`.
+    """;
+    if not isinstance(condition, FuncCall) or not condition.params {
+        return None;
+    }
+    if isinstance(condition.target, Name)
+        and condition.target.value
+            in ("isinstance", "issubclass", "callable", "hasattr") {
+        return None;
+    }
+    probe_key = id(condition);
+    if probe_key in self._type_guard_probes {
+        return None;
+    }
+    self._type_guard_probes.add(probe_key);
+    try {
+        callee = self.get_type_of_expression(condition.target);
+    } finally {
+        self._type_guard_probes.discard(probe_key);
+    }
+    if not isinstance(callee, FunctionType) or callee.return_type is None {
+        return None;
+    }
+    form = self._type_guard_form_of(callee.return_type);
+    if form is None {
+        return None;
+    }
+    assert isinstance(callee.return_type, ClassType);
+    guarded_args = callee.return_type.private.type_args or [];
+    if not guarded_args {
+        return None;
+    }
+    positional = [
+        arg
+        for arg in condition.params
+        if not isinstance(arg, KWPair)
+    ];
+    receiver_args = 1 if self._is_unbound_method_call(condition) else 0;
+    if len(positional) <= receiver_args {
+        return None;
+    }
+    guard_key = self.create_key_for_reference(positional[receiver_args]);
+    if guard_key is None {
+        return None;
+    }
+    return (guard_key, self._convert_to_instance(guarded_args[0]), form == "TypeIs");
 }
 
 impl TypeEvaluator._extract_callable_info(condition: Expr) -> str | None {

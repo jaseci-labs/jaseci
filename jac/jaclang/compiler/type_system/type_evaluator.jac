@@ -296,7 +296,9 @@ enum NarrowingKind {
     TRUTHINESS = "truthiness",
     LITERAL_EQ = "literal_eq",
     LITERAL_NE = "literal_ne",
-    HASATTR = "hasattr"
+    HASATTR = "hasattr",
+    TYPE_IS = "type_is",
+    TYPE_GUARD = "type_guard"
 }
 
 obj ConditionInfo {
@@ -334,6 +336,7 @@ obj TypeEvaluator {
         _strict_site_cache: dict[int, bool] = {},
         _sv_async_syms_cache: dict[int, set[int]] = {},
         _and_narrowing_overrides: dict[int, TypeBase] = {},
+        _type_guard_probes: set[int] = set(),
         _loop_written_keys_cache: dict[int, set[str]] = {},
         _ts_decl_cache: dict[str, (dict[str, TsDecl] | None)] = {},
         _ts_decl_path_cache: dict[str, (str | None)] = {},
@@ -705,6 +708,9 @@ obj TypeEvaluator {
     def _get_type_from_match_pattern(pattern: MatchPattern) -> TypeBase | None;
     def _union_contains_none(union_type: TypeBase) -> bool;
     def _extract_isinstance_info(condition: Expr) -> tuple[str, TypeBase] | None;
+    def _extract_type_guard_info(condition: Expr) -> tuple[str, TypeBase, bool] | None;
+    def _create_type_guard_type(name: str, guarded: TypeBase | None) -> TypeBase;
+    def _type_guard_form_of(ty: TypeBase) -> str | None;
     def _extract_callable_info(condition: Expr) -> str | None;
     def _extract_hasattr_info(condition: Expr) -> tuple[str, str] | None;
     def _type_has_attribute(t: TypeBase, attr_name: str) -> bool;

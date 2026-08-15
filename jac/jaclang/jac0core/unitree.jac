@@ -20,6 +20,7 @@ import from jaclang.jac0core.constant { JacSemTokenModifier as SemTokMod }
 import from jaclang.jac0core.constant { JacSemTokenType as SemTokType }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.constant { ParamKind }
+import from typing { TypeIs }
 import type from jaclang.compiler.type_system.types { TypeBase }
 
 
@@ -143,7 +144,7 @@ obj UniScopeNode(UniNode) {
         implicit_rebinds: dict[(str, Symbol)] postinit;
 
     def _init_scope(name: str, parent_scope: (UniScopeNode | None) = None) -> None;
-    static def is_python_scoping(nd: (UniNode | None)) -> bool {
+    static def is_python_scoping(nd: (UniNode | None)) -> TypeIs[UniScopeNode] {
         return isinstance(
             nd, (Module, Enum, Archetype, Ability, ImplDef, Test, LambdaExpr)
         );
