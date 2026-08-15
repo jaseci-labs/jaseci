@@ -752,18 +752,7 @@ def _report_client_bare_import_uses(reporter: any, mod: uni.Module, stmt: uni.Un
         }
         (item, imp) = hit;
         module_name = imp.from_loc.dot_path_str if imp.from_loc is not None else '';
-        already = False;
-        for e in reporter.prog.errors_had {
-            if (
-                e.code is E5084
-                and e.loc.mod_path == item.loc.mod_path
-                and e.loc.first_line == item.loc.first_line
-                and e.loc.col_start == item.loc.col_start
-            ) {
-                already = True;
-                break;
-            }
-        }
+        already = _already_reported(reporter, E5084, item);
         if not already {
             reporter.emit(
                 E5084,
@@ -1020,18 +1009,7 @@ def report_serverless_kind_errors(reporter: any, mod: uni.Module) {
     }
     kind = project_kind_name(mod.loc.mod_path or '') or 'client-only';
     for (name, reason, stmt) in evidence {
-        already = False;
-        for e in reporter.prog.errors_had {
-            if (
-                e.code is E5087
-                and e.loc.mod_path == stmt.loc.mod_path
-                and e.loc.first_line == stmt.loc.first_line
-                and e.loc.col_start == stmt.loc.col_start
-            ) {
-                already = True;
-                break;
-            }
-        }
+        already = _already_reported(reporter, E5087, stmt);
         if not already {
             reporter.emit(
                 E5087, node_override=stmt, kind=kind, name=name, reason=reason
