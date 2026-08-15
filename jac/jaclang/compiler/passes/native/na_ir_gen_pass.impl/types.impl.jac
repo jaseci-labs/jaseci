@@ -381,6 +381,14 @@ impl NaIRGenPass._typed_elem_llvm_of(
     member type per narrowed class, and a union carries no `private` of its
     own. Members that agree on the container shape agree on its element type
     too, so the first matching member answers for all of them.
+
+    An optional container (`list[T] | None`, the shape every `has` slot that
+    defaults to `None` carries) is the same question asked of one member.
+    Its mangle is the union's, so the prefix test has to be retried against
+    the sole non-`None` member or the element type erases -- a comprehension
+    or for-loop over `x.parts or []` would then walk elements it has no
+    layout for. `_opt_sole_member` is the same unwrap `_list_spec_of` uses
+    to recognise the container itself, so the two answers stay congruent.
     """;
     _ty = self._flow_narrowed_type_of(expr);
     if _ty is None {
@@ -388,7 +396,12 @@ impl NaIRGenPass._typed_elem_llvm_of(
     }
     _mg = self._mangled_of(_ty);
     if _mg is None or not _mg.startswith(prefix) {
-        return None;
+        _sole = self._opt_sole_member(_ty);
+        _sole_mg = self._mangled_of(_sole) if _sole is not None else None;
+        if _sole_mg is None or not _sole_mg.startswith(prefix) {
+            return None;
+        }
+        _ty = _sole;
     }
     for _cand in (_ty?.types or [_ty]) {
         _priv = _cand?.private;
@@ -1254,13 +1267,29 @@ impl NaIRGenPass._to_bool(val: ir.Value) -> ir.Value {
         }
         if _is_container {
             _i32 = ir.IntType(32);
+            _tc_null = self.builder.icmp_unsigned(
+                "==", val, ir.Constant(val.type, None), name="tobool.cont.null"
+            );
+            _tc_func = self.builder.basic_block.function;
+            _tc_entry = self.builder.basic_block;
+            _tc_len_bb = _tc_func.append_basic_block(name="tobool.cont.len");
+            _tc_end_bb = _tc_func.append_basic_block(name="tobool.cont.end");
+            self.builder.cbranch(_tc_null, _tc_end_bb, _tc_len_bb);
+            self.builder.position_at_start(_tc_len_bb);
             _len_ptr = self.builder.gep(
                 val, [ir.Constant(_i32, 0), ir.Constant(_i32, 0)], name="tobool.len.ptr"
             );
             _len = self.builder.load(_len_ptr, name="tobool.len");
-            return self.builder.icmp_unsigned(
-                "!=", _len, ir.Constant(ir.IntType(64), 0), name="tobool"
+            _tc_nonempty = self.builder.icmp_unsigned(
+                "!=", _len, ir.Constant(ir.IntType(64), 0), name="tobool.cont.nonempty"
             );
+            _tc_len_end = self.builder.basic_block;
+            self.builder.branch(_tc_end_bb);
+            self.builder.position_at_start(_tc_end_bb);
+            _tc_phi = self.builder.phi(ir.IntType(1), name="tobool");
+            _tc_phi.add_incoming(ir.Constant(ir.IntType(1), 0), _tc_entry);
+            _tc_phi.add_incoming(_tc_nonempty, _tc_len_end);
+            return _tc_phi;
         }
 
         if self._is_bytes_value(val) {

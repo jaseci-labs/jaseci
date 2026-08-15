@@ -2105,6 +2105,9 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
     }
+    if not self._call_args_lowered(nd, func, func_name, coerced) {
+        return None;
+    }
     result = self.builder.call(func, coerced, name=f"call.{func_name}");
     if func_name in self.clib_extern_names {
         result = self._clib_sext_ret(func_name, result);
@@ -3106,6 +3109,40 @@ impl NaIRGenPass._unwrap_cfg_expr(e: any) -> any {
         _cur = _cur.expr;
     }
     return _cur;
+}
+
+impl NaIRGenPass._call_args_lowered(
+    nd: uni.UniNode, func: ir.Function, func_name: str, coerced: list
+) -> bool {
+    """Whether every argument reached the callee's parameter type.
+
+    `_coerce_type` answers with the value unchanged when it has no coercion
+    for a pair, so a lowering that lost a type upstream reaches the builder
+    with an argument the callee cannot take. The builder's `TypeError` is
+    then reported as an internal compiler error, which buries the real
+    defect under a crash. Refusing here demotes the one callable and names
+    the parameter that did not line up, so the census records a fact rather
+    than a stack trace.
+    """;
+    _n = min(len(coerced), len(func.args));
+    for _i in range(_n) {
+        if coerced[_i].type == func.args[_i].type {
+            continue;
+        }
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="call argument",
+            name=f"{func_name} parameter {_i + 1}",
+            help_text=f"The argument lowered to `{coerced[_i].type}` but "
+            f"`{func_name}` takes `{func.args[_i].type}` there, and no "
+            "coercion connects the two. Some type upstream of this call was "
+            "lost -- an unlinked imported archetype, an erased container "
+            "element, or a narrow the backend could not follow."
+        );
+        return False;
+    }
+    return True;
 }
 
 impl NaIRGenPass._spec_from_container_ptr(t: (ir.Type | None)) -> (str | None) {
