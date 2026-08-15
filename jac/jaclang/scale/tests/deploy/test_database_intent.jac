@@ -268,8 +268,6 @@ test "the runtime path still honours ambient JAC_DB_URL for this process" {
 test "no deploy module can reach the env-reading database resolver" {
     # The separation is structural: get_database_config() answers 'what database
     # does THIS PROCESS use', and nothing on the deploy path may ask it.
-    import from pathlib { Path }
-    import jaclang;
     deploy_root = Path(jaclang.__file__).parent / "scale" / "deploy";
     assert deploy_root.is_dir() , f"could not locate the deploy package at {deploy_root}";
 
