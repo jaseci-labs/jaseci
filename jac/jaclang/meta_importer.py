@@ -196,8 +196,8 @@ def install_graphmend_loader_hook() -> None:
     Every such path still goes through ``SourceFileLoader.get_code``, so that is
     hooked instead. Compiling from source there also sidesteps ``__pycache__``:
     a ``.pyc`` written by an earlier non-GraphMend run must never be served to a
-    ``--graphmend`` run, the same variant-collision the JIR cache avoids by
-    keying on 'gm'/'gm-scope'.
+    GraphMend run, the same variant-collision the JIR cache avoids by keying on
+    the GraphMend configuration.
 
     Idempotent, and installed only when --graphmend-scope is configured (from
     ``_apply_graphmend``), so runs without a scope never pay for the patch.
@@ -325,7 +325,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                     "rename the file to .jac; native placement is inferred "
                     "(or forced by 'jac nacompile' / 'jac build --as native')."
                 )
-            # GraphMend (--graphmend + --graphmend-scope): claim plain .py modules
+            # GraphMend (--graphmend-scope): claim plain .py modules
             # under an explicitly allow-listed package so imported model code is
             # routed through GraphMend. Strictly opt-in and package-scoped, with a
             # hard denylist for torch/jaclang, so torch/stdlib are never touched.
@@ -340,7 +340,7 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
     def _graphmend_scoped_py(self, fullname: str, py_file: str) -> bool:
         """True if GraphMend should claim this .py import.
 
-        Requires --graphmend active and the module's dotted name to fall under a
+        Requires GraphMend active and the module's dotted name to fall under a
         user-supplied --graphmend-scope prefix. `torch` and `jaclang` are always
         excluded so the interception can never break the compiler or PyTorch
         itself. The flag check short-circuits, so non-GraphMend runs are unaffected.
