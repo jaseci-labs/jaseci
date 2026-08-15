@@ -55,7 +55,7 @@ import from jaclang.jac0core.constant { SymbolAccess, Tokens }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.diagnostics { E0064, E0077 }
 
-glob TEST_ASSERT_METHOD_NAMES: tuple = (
+glob TEST_ASSERT_METHOD_NAMES = (
          'assertAlmostEqual',
          'assertCountEqual',
          'assertDictEqual',
