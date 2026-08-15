@@ -254,7 +254,7 @@ Which `jaseci/jaclang` tag pods boot from is chosen automatically:
 
 | `jac.toml`                     | Base image                     |
 | ------------------------------ | ------------------------------ |
-| _(default)_                    | `jaseci/jaclang:latest`        |
+| *(default)*                    | `jaseci/jaclang:latest`        |
 | `[dev]`                        | `jaseci/jaclang:dev` (main HEAD) |
 | `[experimental]` `pr = <N>`    | `jaseci/jaclang:experimental-<N>` |
 
