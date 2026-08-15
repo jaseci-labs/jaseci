@@ -20,6 +20,7 @@ import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob SLOT_EXT = os.path.join(
          JAC_ROOT,
@@ -39,7 +40,7 @@ def compile_to_esast(filename: str) -> es.Program {
     assert not prog.errors_had , (
         f"Compilation errors in {filename}: " + str([str(e) for e in prog.errors_had])
     );
-    es_pass = EsastGenPass(ir_in=ir, prog=prog);
+    es_pass = run_pass(EsastGenPass, ir, prog);
     return es_pass.ir_out.gen.es_ast;
 }
 

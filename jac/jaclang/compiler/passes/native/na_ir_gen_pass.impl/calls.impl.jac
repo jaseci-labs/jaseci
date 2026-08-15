@@ -1091,7 +1091,7 @@ impl NaIRGenPass._codegen_intrinsic(
 impl NaIRGenPass._emit_intrinsic_misuse(
     nd: uni.FuncCall, intr: object, reason: str
 ) -> None {
-    for e in self.prog.errors_had {
+    for e in self.errors_had {
         if (
             e.code is E5095
             and e.loc.mod_path == nd.loc.mod_path

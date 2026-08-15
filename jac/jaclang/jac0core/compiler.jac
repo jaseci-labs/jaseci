@@ -40,7 +40,113 @@ import from jaclang.jac0core.passes {
     SymTabBuildPass,
     Transform
 }
+import from jaclang.jac0core.passes.transform { DiagnosticPolicy }
 import from jaclang.jac0core.program { JacProgram }
+
+def diagnostic_policy_for(
+    config: any, extra_suppress_tokens: (list | None) = None
+) -> DiagnosticPolicy {
+    import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
+    tokens: list[str] = [];
+    categories: list[str] = [];
+    lint_active = False;
+    lint_select: list[str] = [];
+    lint_ignore: list[str] = [];
+    check = config.check if (config and config.check) else None;
+    if check is not None {
+        if check.suppress {
+            tokens = list(check.suppress);
+        }
+        if check.suppress_categories {
+            categories = list(check.suppress_categories);
+        }
+        lint = check.lint;
+        if lint {
+            lint_active = True;
+            lint_select = list(lint.select);
+            lint_ignore = list(lint.ignore);
+        }
+    }
+    if extra_suppress_tokens {
+        tokens.extend(extra_suppress_tokens);
+    }
+    resolved: list[str] = [];
+    if tokens {
+        (resolved, _unknown) = resolve_diagnostic_tokens(tokens);
+    }
+    return DiagnosticPolicy(
+        suppress_codes=resolved,
+        suppress_categories=categories,
+        lint_active=lint_active,
+        lint_select=lint_select,
+        lint_ignore=lint_ignore
+    );
+}
+
+def build_diagnostic_policy(prog: JacProgram) -> DiagnosticPolicy {
+    config: any = None;
+    try {
+        import from jaclang.project.config { get_config }
+        config = get_config();
+    } except Exception {
+        config = None;
+    }
+    opts = prog._compile_options;
+    extra: list[str] = (
+        list(opts.suppress_codes) if (opts is not None and opts.suppress_codes) else []
+    );
+    return diagnostic_policy_for(config, extra);
+}
+
+def deliver_alerts(
+    errors: list,
+    warnings: list,
+    prog: JacProgram,
+    policy: (DiagnosticPolicy | None) = None
+) {
+    pol = policy if policy is not None else build_diagnostic_policy(prog);
+    for alrt in errors {
+        if alrt.code is not None and pol.is_suppressed(alrt.code, alrt.loc) {
+            continue;
+        }
+        prog.errors_had.append(alrt);
+    }
+    for alrt in warnings {
+        if alrt.code is not None and pol.is_suppressed(alrt.code, alrt.loc) {
+            continue;
+        }
+        prog.warnings_had.append(alrt);
+    }
+}
+
+def run_pass(
+    pass_cls: type,
+    ir_in: any,
+    prog: JacProgram,
+    cancel_token: any = None,
+    policy: (DiagnosticPolicy | None) = None,
+    **kwargs: any
+) -> any {
+    pol = policy if policy is not None else build_diagnostic_policy(prog);
+    errors: list = [];
+    warnings: list = [];
+    inst: any = None;
+    try {
+        inst = pass_cls(
+            ir_in=ir_in,
+            prog=prog,
+            cancel_token=cancel_token,
+            policy=pol,
+            errors_had=errors,
+            warnings_had=warnings,
+            **kwargs
+        );
+    } finally {
+        eff = inst.policy if (inst is not None and inst.policy is not None) else pol;
+        deliver_alerts(errors, warnings, prog, eff);
+    }
+    return inst;
+}
 
 def get_symtab_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     return validate_schedule(

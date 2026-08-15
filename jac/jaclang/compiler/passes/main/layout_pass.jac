@@ -130,7 +130,8 @@ def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
         return reg;
     }
 
-    pass_inst = LayoutPass(ir_in=module, prog=prog);
+    import from jaclang.jac0core.compiler { run_pass }
+    run_pass(LayoutPass, module, prog);
     return module.gen.layout_registry or LayoutRegistry();
 }
 

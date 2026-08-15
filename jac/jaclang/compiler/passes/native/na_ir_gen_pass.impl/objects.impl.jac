@@ -958,12 +958,6 @@ impl NaIRGenPass._demote_method_if_unlowerable(
             f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
         );
     } except Exception { }
-    _own_ids = {id(_e) for _e in _own};
-    self.prog.errors_had = [
-        _e
-        for _e in self.prog.errors_had
-        if id(_e) not in _own_ids
-    ];
     del self.errors_had[local_mark:];
     func.blocks.clear();
     blk = func.append_basic_block(name="entry");
