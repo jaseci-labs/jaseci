@@ -105,6 +105,11 @@ Bug index:
               most specific positive conjunct, but `not (A and B)` says
               nothing about A on its own; the else branch of
               `if isinstance(x, Foo) and x.bar` wrongly excluded Foo (#8201)
+  #TVARMETH-1 - a generic archetype's type parameters were not in scope over
+                its own methods: an enclosing function short-circuited the
+                scope check, and an impl block was not recognized as a scope
+                at all, so `impl C.m(v: T)` and every class parameter used in
+                a method body reported E1065 (#8230)
 """
 
 import os;
@@ -1878,6 +1883,96 @@ test "bug_andpol1_licensed_edges_still_narrow" {
     assert len(program.errors_had) == 0 , (
         "Bug #ANDPOL-1: edge polarity may only remove the narrowing the "
         "condition never licensed. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARMETH-1 / #8230: a generic archetype's type parameters were not in
+# scope over its own methods. `validate_typevar_scope` picked the innermost
+# Ability and the innermost Archetype and then consulted only one of them:
+# an enclosing function short-circuited the whole check, so a class
+# parameter used in a method body reported E1065 and never reached the
+# class that binds it.
+#
+# The walk also did not know `ImplDef`. An `impl C.m(v: T)` block sits at
+# module level with a FuncSignature hanging off an ImplDef rather than an
+# Ability, so neither scope was found at all and every use fell through to
+# the unconditional E1065 at the bottom -- which is what blocked the
+# contextvars shim (#8220).
+#
+# Scope resolution is now one lexical walk outward: each enclosing Ability
+# contributes its own type parameters, each enclosing Archetype contributes
+# the class's, and an ImplDef contributes its own signature and then hands
+# the walk to the declaration it implements, so the walk carries on from
+# inside the declaring class.
+# =========================================================================
+test "bug_tvarmeth1_class_typevar_in_scope_over_methods" {
+    program = compile_and_check("checker_bug_class_typevar_method_scope.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TVARMETH-1: a class type parameter must be in scope over its "
+        "methods' signatures and bodies, in the class body and in an impl "
+        f"block alike. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARMETH-1, negative: the walk must still end at the module. A
+# TypeVar no enclosing scope binds has no meaning, whether it is used in a
+# non-generic archetype's method body, in that archetype's field, or at
+# module level -- and a generic sibling binding the same name elsewhere in
+# the file does not put it in scope here.
+# =========================================================================
+test "bug_tvarmeth1_unbound_typevar_still_has_no_meaning" {
+    program = compile_and_check(
+        "checker_bug_class_typevar_method_scope_negative.jac"
+    );
+
+    error_lines = [e.loc.first_line for e in program.errors_had if e.loc];
+    assert len(program.errors_had) == 3 , (
+        "Bug #TVARMETH-1: a TypeVar no enclosing scope binds must still be "
+        f"reported. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    for line in [18, 24, 27] {
+        assert line in error_lines , (
+            "Bug #TVARMETH-1: the unbound uses are the reported ones. "
+            f"Got lines: {error_lines}"
+        );
+    }
+}
+
+# =========================================================================
+# Bug #TVARMETH-1, negative: putting the class parameter in scope must not
+# leave it unsolved. `Ctx[Leaf]` still pins `T` to `Leaf` at the call site,
+# so a `str` argument is rejected and the returned element is a `Leaf`.
+# =========================================================================
+test "bug_tvarmeth1_class_typevar_still_solves_at_call_site" {
+    program = compile_and_check("checker_bug_class_typevar_still_solved.jac");
+
+    error_text = "\n".join([str(e) for e in program.errors_had]);
+    assert len(program.errors_had) == 2 , (
+        "Bug #TVARMETH-1: a method's use of the class parameter must still "
+        f"solve from the instantiation. Got errors: {error_text}"
+    );
+    assert "Leaf" in error_text , (
+        "Bug #TVARMETH-1: the solved parameter type must read Leaf, not the "
+        f"free type variable. Got: {error_text}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARMETH-1, negative: PEP 695 shadowing. A method that declares its
+# own parameter of the same name binds it for itself, so `echo` answers the
+# argument type rather than the class's `Leaf`, and the class parameter is
+# untouched outside it.
+# =========================================================================
+test "bug_tvarmeth1_method_type_param_shadows_class_param" {
+    program = compile_and_check("checker_bug_method_typevar_shadows_class.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TVARMETH-1: a method's own type parameter shadows the class "
+        "parameter of the same name. "
         f"Got errors: {[str(e) for e in program.errors_had]}"
     );
 }
