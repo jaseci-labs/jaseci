@@ -653,10 +653,6 @@ def report_client_bare_import_uses(reporter: any, mod: uni.Module) {
     }
 }
 
-def _already_warned(reporter: any, diag: any, nd: uni.UniNode) -> bool {
-    return _already_reported(reporter, diag, nd);
-}
-
 def _in_annotation_position(nm: uni.Name, stop: uni.UniNode) -> bool {
     cur = nm.parent;
     while cur is not None and cur is not stop {
