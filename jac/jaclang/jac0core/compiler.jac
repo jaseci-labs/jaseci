@@ -224,7 +224,7 @@ def fail_loud_on_compiler_source(err: ImportError) -> None {
         return;
     }
     raise CompilerSourceError(
-        f"the Jac compiler's own source failed to compile, so the pass "
+        "the Jac compiler's own source failed to compile, so the pass "
         f"schedule cannot be built: {real}\n{err}"
     ) from err;
 }
