@@ -69,13 +69,13 @@ def _q(value: object) -> str {
 impl TypeEvaluator._callable_reason(
     arg_type: TypeBase, expected: TypeBase
 ) -> str | None {
-    if not isinstance(arg_type, types.FunctionType)
-    or not isinstance(expected, types.FunctionType)
+    if not isinstance(arg_type, FunctionType)
+    or not isinstance(expected, FunctionType)
     or expected.is_gradual_callable_form() {
         return None;
     }
 
-    def visible(fn: types.FunctionType) -> list[types.Parameter] {
+    def visible(fn: FunctionType) -> list[Parameter] {
         return [
             p
             for p in (fn.parameters or [])
@@ -92,7 +92,7 @@ impl TypeEvaluator._callable_reason(
 
     src_ret = arg_type.return_type;
     dest_ret = expected.return_type;
-    if src_ret is None or dest_ret is None or isinstance(src_ret, types.UnknownType) {
+    if src_ret is None or dest_ret is None or isinstance(src_ret, UnknownType) {
         return None;
     }
     got_ret = self._convert_to_instance(src_ret);
