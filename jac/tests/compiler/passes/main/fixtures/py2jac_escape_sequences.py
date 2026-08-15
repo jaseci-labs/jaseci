@@ -58,7 +58,8 @@ multi_hex = "\x1b\x1b\x1b"
 # Unicode with different formats
 unicode_4 = "\u0041"  # A
 unicode_8 = "\U00000041"  # A
-unicode_named = "\N{LATIN SMALL LETTER A}"
+# \N{name} lives in py2jac_named_unicode.py: Jac refuses that escape (E0108),
+# so converting it is a loud failure rather than a preserved escape.
 
 # Bytes literal
 bytes_lit = b"\x1b[31mRed\x1b[0m"

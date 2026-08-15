@@ -310,14 +310,24 @@ test "native decode equals CPython decode across the harvested corpus" {
 }
 
 
-test "the excluded escape refuses loudly instead of decoding differently" {
-    excluded = [
-        t
-        for t in _corpus()
-        if _is_excluded(t)
-    ];
-    assert excluded , "the grid stopped generating the excluded escape";
-    for text in excluded {
+test "the excluded escape is refused by the lexer and by the decoder" {
+    assert DECODER_EXCLUSIONS , "the exclusion table stopped naming anything";
+    for text in [
+        '"\\N{BULLET}"',
+        "'\\N{GREEK SMALL LETTER ALPHA}'",
+        '"""\\N{BULLET}"""',
+        '"\\Nfoo"',
+        '"\\N"'
+    ] {
+        (_toks, errs) = tokenize(text, "<excluded>");
+        assert errs , (
+            f"the lexer accepted {text!r}; the escape has to be refused where "
+            "the source location still exists, not only at decode time"
+        );
+        assert not _is_one_literal(text) , (
+            f"{text!r} still reaches the corpus, so the lexer refusal is not "
+            "the gate this test claims it is"
+        );
         raised = "";
         try {
             decode_string_literal(text);
@@ -331,6 +341,22 @@ test "the excluded escape refuses loudly instead of decoding differently" {
         assert "\\N{name}" in raised , (
             f"{text!r} refused with {raised!r}, which does not name the "
             "escape that was refused"
+        );
+    }
+}
+
+
+test "the excluded escape stays a plain backslash where CPython keeps it" {
+    for text in ['r"\\N{BULLET}"', 'b"\\N{BULLET}"', 'rb"\\N{BULLET}"'] {
+        assert _is_one_literal(text) , (
+            f"the lexer stopped accepting {text!r}; `\\N` is not an escape in "
+            "a raw or bytes literal, so refusing it there would be wrong"
+        );
+        (eval_ok, eval_val) = _eval_decode(text);
+        (na_ok, na_val) = _native_decode(text);
+        assert eval_ok and na_ok , f"{text!r} refused on one side only";
+        assert type(eval_val) is type(na_val) and eval_val == na_val , (
+            f"{text!r}: eval {eval_val!r} != decoder {na_val!r}"
         );
     }
 }
