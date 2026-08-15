@@ -99,6 +99,7 @@ def config_module_pin(source_path: str) -> str {
 
 
 glob _kind_cache: dict[str, tuple[tuple, str]] = {},
+     _kind_chain_cache: dict[str, list[str]] = {},
      _kind_probe: dict = {"active": False};
 
 
@@ -128,13 +129,24 @@ def _declared_project_kind(root_dir: str) -> str {
 }
 
 
-def _load_project_kind(root_dir: str) -> str {
+def _project_kind_chain(root_dir: str) -> list[str] {
+    cached = _kind_chain_cache.get(root_dir);
+    if cached is not None {
+        return cached;
+    }
     chain: list[str] = [];
     cur = root_dir;
     while cur {
         chain.append(cur);
         cur = _enclosing_project_root(cur);
     }
+    _kind_chain_cache[root_dir] = chain;
+    return chain;
+}
+
+
+def _load_project_kind(root_dir: str) -> str {
+    chain = _project_kind_chain(root_dir);
     stamps: list[float] = [];
     for d in chain {
         try {
