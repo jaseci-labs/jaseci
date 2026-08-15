@@ -161,3 +161,44 @@ def chk_types_variadic_one(k: int) -> int {
 def chk_types_variadic_three(k: int) -> int {
     return of_types_variadic(pick(k), (Foo, Bar, Baz, ));
 }
+
+obj Stmt {
+    has ident: int = 0,
+        up: (Stmt | None) = None,
+        body: (list[Stmt] | None) = None;
+}
+
+def find_parent_of_types(nd: Stmt, types: tuple[type[Stmt], ...]) -> int {
+    cur = nd.up;
+    depth = 0;
+    while cur {
+        depth += 1;
+        if isinstance(cur, types) {
+            return depth;
+        }
+        cur = cur?.up;
+    }
+    return 0;
+}
+
+def link_sequential(body: (Sequence | None)) -> int {
+    if body is not None and isinstance(body, Sequence) {
+        return len(list(body));
+    }
+    return -1;
+}
+
+def chk_parent_walk -> int {
+    top = Stmt(ident=7);
+    mid = Stmt(ident=8, up=top);
+    leaf = Stmt(ident=9, up=mid);
+    return find_parent_of_types(leaf, (Stmt, ));
+}
+
+def chk_link_sequential(k: int) -> int {
+    holder = Stmt(ident=1, body=[Stmt(ident=2), Stmt(ident=3)]);
+    if k == 1 {
+        holder.body = None;
+    }
+    return link_sequential(holder.body);
+}

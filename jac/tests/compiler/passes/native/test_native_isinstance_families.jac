@@ -168,6 +168,18 @@ test "value arms: a variadic tuple of types loops over a runtime length" {
 }
 
 
+test "seam shapes: the census sites' own spellings lower and answer" {
+    walk = native_fn("chk_parent_walk", argc=0);
+    assert walk() == 1 , (
+        "`_find_parent_of_types` walks parents until an arm in the runtime "
+        "tuple matches; the first parent matches here"
+    );
+    seq = native_fn("chk_link_sequential");
+    assert seq(0) == 2 , "`_link_sequential` sees a two-element body";
+    assert seq(1) == -1 , "and refuses a `None` body before the Sequence check";
+}
+
+
 test "value arms: the variadic arity is the caller's, not the signature's" {
     one = native_fn("chk_types_variadic_one");
     three = native_fn("chk_types_variadic_three");
