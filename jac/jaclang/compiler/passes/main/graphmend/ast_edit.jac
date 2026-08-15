@@ -53,6 +53,30 @@ def torch_call(at: uni.UniNode, fname: str, args: list) -> uni.FuncCall {
     );
 }
 
+def split_params(params: any) -> tuple[list[uni.Expr], list[uni.KWPair]] {
+    pos: list[uni.Expr] = [];
+    kws: list[uni.KWPair] = [];
+    for p in (params or []) {
+        if isinstance(p, uni.KWPair) {
+            kws.append(p);
+        } else {
+            pos.append(p);
+        }
+    }
+    return (pos, kws);
+}
+
+def split_params_keyed(params: any) -> tuple[list[uni.Expr], dict[str, uni.KWPair]] {
+    (pos, kws) = split_params(params);
+    keyed: dict[str, uni.KWPair] = {};
+    for kw in kws {
+        if kw.key is not None {
+            keyed[kw.key.sym_name] = kw;
+        }
+    }
+    return (pos, keyed);
+}
+
 def stmt_slot(at: uni.UniNode) -> (tuple | None) {
     cur: (uni.UniNode | None) = at;
     while cur is not None {

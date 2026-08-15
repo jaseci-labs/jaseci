@@ -78,7 +78,6 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _scalar_literal(e: uni.Expr) -> bool;
     def _non_tensor_container(e: uni.Expr) -> bool;
     def _same_lhs(a: uni.Assignment, b: uni.Assignment) -> (uni.Name | None);
-    def _split_params(params: any) -> tuple[list[uni.Expr], dict[str, uni.KWPair]];
     def _assign(target: uni.Name, value: uni.Expr) -> uni.Assignment;
     def _hoist(
         at: uni.UniNode, cond: uni.Expr, t: uni.Expr, f: uni.Expr
@@ -116,7 +115,6 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _self_classes(c: uni.FuncCall) -> list[uni.Archetype];
     def _ctx_dict_get(call: uni.FuncCall, ctx: dict[str, list[uni.Archetype]]) -> bool;
     def _witnessed_dict_get(call: uni.FuncCall, fn: uni.Ability) -> bool;
-    def _param_names(fn: uni.Ability) -> set[str];
     def _mapping_witnessed(mod: uni.Module, key: str) -> bool;
     def _hasattr_key(c: uni.Expr) -> (tuple[str, str] | None);
     def _writes_attr(s: uni.Assignment, recv: str, key: str) -> bool;

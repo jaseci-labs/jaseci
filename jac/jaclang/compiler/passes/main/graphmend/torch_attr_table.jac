@@ -135,10 +135,13 @@ def is_torch_attr_target(target: (uni.Expr | None), attr: str) -> bool {
     );
 }
 
+def decorator_base(dec: uni.Expr) -> uni.Expr {
+    return dec.target if isinstance(dec, uni.FuncCall) else dec;
+}
+
 def has_torch_compile_decorator(nd: uni.UniNode) -> bool {
     for dec in (nd?.decorators or []) {
-        target = dec.target if isinstance(dec, uni.FuncCall) else dec;
-        if is_torch_attr_target(target, 'compile') {
+        if is_torch_attr_target(decorator_base(dec), 'compile') {
             return True;
         }
     }

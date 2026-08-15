@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 
@@ -25,5 +24,4 @@ obj GraphBreakDetectPass(UniPass) {
     def _call_name(nd: uni.FuncCall) -> (str | None);
     def _base_binds_logger(t: uni.AtomTrailer) -> bool;
     def _is_user_defined(nd: uni.FuncCall, name: str) -> bool;
-    def _body_is_only_raise(body: Sequence[uni.CodeBlockStmt]) -> bool;
 }

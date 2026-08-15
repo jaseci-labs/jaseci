@@ -7,6 +7,7 @@ import from jaclang.compiler.passes.main.graphmend.ast_edit {
     insert_after,
     need_helper,
     replace_stmt,
+    split_params,
     torch_call
 }
 import from jaclang.compiler.passes.main.graphmend.scope_facts {
@@ -240,11 +241,7 @@ impl TrapLoweringPass._torch_equal_args(x: uni.Expr) -> (tuple | None) {
     if not is_torch_attr_target(call.target, 'equal') {
         return None;
     }
-    pos = [
-        p
-        for p in (call.params or [])
-        if not isinstance(p, uni.KWPair)
-    ];
+    pos = split_params(call.params)[0];
     if len(pos) < 2 {
         return None;
     }
@@ -269,11 +266,7 @@ impl TrapLoweringPass._raise_message(rs: uni.RaiseStmt) -> (uni.Expr | None) {
         return None;
     }
     call: uni.FuncCall = cause;
-    pos = [
-        p
-        for p in (call.params or [])
-        if not isinstance(p, uni.KWPair)
-    ];
+    pos = split_params(call.params)[0];
     if (len(pos) != 1) or (len(pos) != len(call.params or [])) {
         return None;
     }
