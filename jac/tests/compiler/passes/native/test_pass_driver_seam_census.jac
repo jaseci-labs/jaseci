@@ -17,6 +17,11 @@ pre-parsed annex trees arrive on `Module.annex_mods` (stamped by
 `JacCompiler.load_annex_modules`). Backend gaps -- constructs the native
 backend cannot lower yet -- remain legal seams and are waived one at a time
 below; a seam that names a driver entry point fails regardless of waivers.
+
+The measurement is a source-lane one. Under a sealed jaclang image every
+method of an imported jaclang-internal archetype is untrusted by design, so
+the census would read the image's trust boundary rather than the pass unit's
+own coupling; `_pass_census` skips there.
 """
 
 import os;
@@ -26,7 +31,7 @@ import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.sealed { native_artifact_for }
+import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
 glob PASSES_DIR = Path(jaclang.__file__).parent / "jac0core" / "passes";
 
@@ -71,6 +76,16 @@ glob _CENSUS_MEMO: dict[(str, tuple)] = {};
 """Compile one pass unit natively and return (census, module_ir)."""
 def _pass_census(pass_file: str) -> tuple {
     unit = f"jaclang.jac0core.passes.{pass_file[:-4]}";
+    if _jaclang_image() is not None {
+        pytest.skip(
+            "this runtime is a sealed jaclang image, so na_ir_gen_pass "
+            "untrusts every method of an imported jaclang-internal archetype "
+            "that the image's layout does not carry; a source census here "
+            "measures that trust boundary (`UniScopeNode.def_insert`, "
+            "`Module.add_kids_right`) instead of the pass unit's own driver "
+            "coupling, which is what this file pins"
+        );
+    }
     if native_artifact_for(unit) is not None {
         pytest.skip(
             f"{pass_file} is served from this runtime's native seal; the "
