@@ -157,6 +157,25 @@ test "typing.cast is the identity on both lanes" {
 }
 
 
+test "the cast erasure reaches an annexed impl body" {
+    (prog, ir) = _compile_native("typing_cast_annex.jac");
+    assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "run" in layout.functions , (
+        f"the annexed function demoted rather than erasing its cast: "
+        f"{sorted(layout.functions)}"
+    );
+    assert "Box.doubled" in layout.methods , (
+        f"the annexed method demoted rather than erasing its cast: "
+        f"{sorted(layout.methods)}"
+    );
+    assert _native_int_fn(ir, "run")() == 12 , (
+        "the annexed bodies stopped computing what they compute in Python"
+    );
+}
+
+
 test "a TypeVar import no longer blocks native placement" {
     assert _scan_verdict(_module_with("import from typing { TypeVar }")) == "OK" , (
         "`import from typing { TypeVar }` still demotes the module; the "
