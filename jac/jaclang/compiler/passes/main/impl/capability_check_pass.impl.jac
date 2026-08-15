@@ -143,11 +143,10 @@ impl name_in_type_position(name_nd: UniNode) -> bool {
     if sig is not None and node_within(name_nd, sig.return_type) {
         return True;
     }
-    for _decl in (
+    for _decl in [
         name_nd.find_parent_of_type(Archetype),
-        name_nd.find_parent_of_type(Enum),
-
-    ) {
+        name_nd.find_parent_of_type(Enum)
+    ] {
         if _decl is None {
             continue;
         }
