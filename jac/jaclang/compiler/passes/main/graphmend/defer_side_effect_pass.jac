@@ -45,7 +45,6 @@ obj DeferSideEffectPass(UniPass) {
     def _is_compiled_entry(nd: uni.Ability) -> bool;
     def _str(at: uni.UniNode, text: str) -> uni.String;
     def _has_unpack(call: uni.FuncCall) -> bool;
-    def _split_params(params: any) -> tuple[list[uni.Expr], list[uni.KWPair]];
     def _tuple(at: uni.UniNode, values: list[uni.Expr]) -> uni.TupleVal;
     def _dict_from_kws(at: uni.UniNode, kws: list[uni.KWPair]) -> uni.DictVal;
     def _buffer_entry(call: uni.FuncCall) -> tuple[uni.TupleVal, list[uni.UniNode]];
