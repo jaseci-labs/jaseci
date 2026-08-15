@@ -130,12 +130,7 @@ impl PredicateCtrlFlowPass._signature_accepts(
     if (sig is None) or (not isinstance(sig, uni.FuncSignature)) {
         return False;
     }
-    named = set();
-    for p in (sig.get_parameters() or []) {
-        if p?.name is not None {
-            named.add(p.name.value);
-        }
-    }
+    named = self._param_names(fn);
     n_pos = 0;
     for prm in (c.params or []) {
         if isinstance(prm, uni.KWPair) and (prm.key is not None) {
