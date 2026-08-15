@@ -16,12 +16,13 @@ questions:
   one) has to reach zero seams before the stage can seal, so it fails loudly
   here rather than at seal time.
 * `ts_decl_parser.jac` -- already clean, and pinned so it stays that way.
-* `type_evaluator.jac` -- measurable at all. A construct that no method owns
-  (`postinit` owns nothing, per #8234) refuses the module instead of demoting
-  one method, and the census then records no seams whatsoever: 196 methods'
-  worth of measurement lost to one un-lowerable statement. The pin is that the
-  module reaches per-method demotion, plus an enumeration of the refusals that
-  still escape an owner.
+* `type_evaluator.jac` -- measurable at all. A construct that no callable owns
+  refuses the module instead of demoting one method, and the census then
+  records no seams whatsoever: 196 methods' worth of measurement lost to one
+  un-lowerable statement. The pin is that the module reaches per-method
+  demotion, plus an enumeration of the refusals that still escape an owner.
+  Since #8234 a constructor owns its own body, so what remains ownerless here
+  is field declarations alone.
 
 Waivers are enumerated one at a time and name what blocks each, so the suite
 never degrades into a "fewer than N" threshold: an un-waived seam fails, and a
@@ -137,11 +138,14 @@ glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
 """Native refusals in the evaluator that no method owns, and so refuse the module.
 
 Keyed `<file>::<message>` with the location dropped, because these move with
-every edit above them. Each is a construct sitting outside an ability body --
-`postinit` (#8234) or a field declaration -- where there is nothing to demote.
-The seven CPython `ast` handles that used to head this list are gone: they now
-live in `TypeEvaluator._read_dunder_all` and
-`TypeEvaluator._read_ambient_imports_by_module`, which own their own demotion.
+every edit above them. What is left is field declarations: a `has` type that
+has no native layout is not inside any ability body, so there is nothing to
+demote and the module pays for it. The seven CPython `ast` handles that used
+to head this list moved into `TypeEvaluator._read_dunder_all` and
+`TypeEvaluator._read_ambient_imports_by_module` (#8237); the three that
+`postinit` used to strand are owned seams since #8234 made a constructor
+demotable like any other callable, and now read as
+`TypeEvaluator.__post_init__` in the census instead.
 """
 glob EVALUATOR_FATAL_WAIVERS: dict[(str, str)] = {
          "type_evaluator.jac::Native lowering failed for type 'TypeBase'": (
@@ -167,29 +171,7 @@ glob EVALUATOR_FATAL_WAIVERS: dict[(str, str)] = {
          (
              "type_evaluator.jac::Native lowering failed for type "
              "'dict[int, TypeBase]'"
-         ): "Field declaration: a cache holding abstract `TypeBase` values.",
-         (
-             "type_evaluator.jac::Native lowering failed for integer operator "
-             "layout 'BW_OR on %\"Set.ptr\"* vs i8*'"
-         ): (
-             "Module-scoped: a set union whose operands lower to mismatched "
-             "pointer layouts, emitted outside any ability."
-         ),
-         (
-             "type_evaluator.impl.jac::Native lowering failed for expression "
-             "'FuncCall'"
-         ): (
-             "`postinit` (#8234): the stub-module loads and prefetch lookups "
-             "call methods that are themselves seams. With no owner to demote, "
-             "each call refuses the module instead."
-         ),
-         (
-             "type_evaluator.impl.jac::Native lowering failed for for-loop "
-             "iterable element type 'typing_ambient_flat'"
-         ): (
-             "`postinit` (#8234): iterates a `set[str]` built by union, whose "
-             "element type the emitter cannot recover."
-         )
+         ): "Field declaration: a cache holding abstract `TypeBase` values."
      };
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
