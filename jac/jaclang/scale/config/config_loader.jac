@@ -15,6 +15,7 @@ class JacScaleConfig(PluginConfigBase) {
     def get_jwt_config(self: JacScaleConfig) -> dict[str, any];
     def get_sso_config(self: JacScaleConfig) -> dict[str, any];
     def get_database_config(self: JacScaleConfig) -> dict[str, any];
+    def get_deploy_database_config(self: JacScaleConfig) -> dict[str, any];
     def get_kubernetes_config(self: JacScaleConfig) -> dict[str, any];
     def get_server_config(self: JacScaleConfig) -> dict[str, any];
     def get_webhook_config(self: JacScaleConfig) -> dict[str, any];
