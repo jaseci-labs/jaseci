@@ -1,4 +1,5 @@
 import os;
+import type from jaclang.jac0core.srcloc { CodeLocInfo }
 
 def pascal_to_snake(pascal_string: str) -> str {
     snake_string = '';
@@ -117,7 +118,7 @@ def pretty_print_source_location(
             if (err_token_len < 1) {
                 err_token_len = 1;
             }
-            underline = '^' * err_token_len;
+            underline: str = '^' * err_token_len;
             if colors {
                 underline = f"{ANSIColors.RED}{underline}{ANSIColors.END}";
             }
@@ -133,7 +134,7 @@ def pretty_print_source_location(
 }
 
 def format_related_spans(
-    related: list[tuple[str, object]], *, colors: bool = False
+    related: list[tuple[str, CodeLocInfo]], *, colors: bool = False
 ) -> str {
     result = '';
     for (label, loc) in related {
@@ -197,13 +198,13 @@ def read_file_with_encoding(file_path: str) -> str {
 
 
 def path_matches_exclude(
-    file_path: str, patterns: list, project_root: str = ""
+    file_path: str, patterns: list[str], project_root: str = ""
 ) -> bool {
     import from fnmatch { fnmatch }
     if not patterns {
         return False;
     }
-    norm = file_path.replace(os.sep, '/');
+    norm: str = file_path.replace(os.sep, '/');
     if project_root {
         root_prefix = project_root.replace(os.sep, '/').rstrip('/') + '/';
         if norm.startswith(root_prefix) {
