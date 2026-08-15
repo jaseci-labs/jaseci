@@ -772,8 +772,11 @@ impl NaIRGenPass._demote_method_if_unlowerable(
     }
     try {
         import from jaclang.jac0core.compiler { na_census_seam }
+        _first_code = _own[0].code.code if _own[0].code is not None else "";
+        _code_tag = f"[{_first_code}] " if _first_code else "";
         na_census_seam(
-            self.ir_in.loc.mod_path, f"{full_name}: " + str(_own[0]).split('\n')[0]
+            self.ir_in.loc.mod_path,
+            f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
         );
     } except Exception { }
     _own_ids = {id(_e) for _e in _own};
