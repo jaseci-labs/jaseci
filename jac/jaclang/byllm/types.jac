@@ -1,4 +1,5 @@
 import base64;
+import inspect;
 import logging;
 import mimetypes;
 import os;
@@ -60,6 +61,8 @@ obj Tool {
     def is_finish_tool -> bool;
     def get_json_schema -> dict[str, object];
     def parse_arguments(args_json: dict) -> dict;
+    def _parse_finish_arguments(args_json: dict, params: dict) -> dict;
+    def _required_params(params: dict) -> list;
 }
 
 obj ToolCall {
