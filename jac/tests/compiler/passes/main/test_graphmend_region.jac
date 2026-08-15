@@ -166,8 +166,8 @@ def _mentions_symbol(code: any, symbol: str) -> bool {
     return False;
 }
 
-"""Lay out a temp project shaped like a model package: one entry module, one
-helper the entry reaches, one torch-importing module nothing reaches."""
+"""One entry module, one helper it reaches, one torch-importing module nothing
+reaches."""
 def _mk_region_project(tmp: str) -> tuple[str, str, str] {
     with open(os.path.join(tmp, "jac.toml"), "w") as fh {
         fh.write(

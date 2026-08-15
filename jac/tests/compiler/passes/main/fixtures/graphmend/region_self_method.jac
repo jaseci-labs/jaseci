@@ -1,9 +1,5 @@
-"""A model where reachability flows through a self call.
-
-`forward` is a seed because its class binds a torch Module base; `step` joins
-the region only through the `self.step(...)` call edge, while `unused` is
-reachable from nothing and must stay untouched even though it holds a
-deferrable print."""
+"""`forward` seeds on its Module base; `step` joins the region only through the
+`self.step(...)` edge, and `unused` must stay untouched despite its print."""
 import torch;
 
 class Net(torch.nn.Module) {

@@ -1,13 +1,9 @@
 """GraphMend entry-point resolution on plain Python (.py) source files.
 
-Real models are rarely decorated: `torch.compile(model)` lives at a call site
-and the breaks sit in undecorated methods. Entry-point analysis resolves the
-wrapped function or class through the symbol table, so those methods count as
-in scope; an imported model module has no local `torch.compile` at all and
-seeds instead on the `forward` methods whose classes bind a torch Module base.
-The .py front-end (PyastBuildPass) produces UniIR whose nodes unparse
-differently from .jac-origin nodes, so resolution must match structurally;
-these tests guard `jac run model.py` and the imported-module path alike."""
+Real models are rarely decorated: `torch.compile(model)` lives at a call site,
+and an imported model module has no local wrap at all and seeds on the `forward`
+methods whose classes bind a torch Module base. The .py front-end unparses
+differently from .jac-origin nodes, so resolution must match structurally."""
 import ast;
 import os;
 import tempfile;
@@ -97,9 +93,8 @@ test "a helper defers to the caller's region instead of flushing" {
     assert src.index("@__jac_se_guard__") < src.index("@torch.compile");
 }
 
-"""Write a generated .py source to a temp file and compile it the way an
-imported model module is compiled: no local torch.compile, seeded by the
-forward methods whose classes bind a torch Module base."""
+"""Compile a generated .py the way an imported model module is compiled: no
+local torch.compile, seeded by its proven Module forwards."""
 def _py_model_src(py_src: str, name: str) -> str {
     with tempfile.TemporaryDirectory() as tmp {
         path = os.path.join(tmp, name);
@@ -143,19 +138,16 @@ model = torch.compile(Net())
 ''';
 
 test "a validation guard with no boundary in reach is declined" {
-    # An imported model module carries no decorated function and no call-site
-    # wrap of its own, so nothing would decode the marker; the guard keeps its
-    # original semantics rather than lowering into an undecodable assert.
+    # No decorated function and no call-site wrap, so nothing would decode the
+    # marker.
     src = _py_model_src(PY_MODEL_GUARD_SRC, "model_guard.py");
     assert "torch._assert_async(" not in src;
     assert "raise ValueError('mask must be all true')" in src;
 }
 
 test "a validation guard lowers behind the call-site wrap boundary" {
-    # Same module, now holding the `torch.compile` call site: the boundary is
-    # attached there, so the guard lowers with the marker and NO local
-    # decorator (a decorator on `forward` would sit inside the compiled
-    # callable, where it can neither see nor restore the async assert).
+    # The boundary is the call site, not the method: a decorator on `forward`
+    # would sit inside the compiled callable and never see the async assert.
     src = _py_model_src(PY_WRAPPED_GUARD_SRC, "wrapped_guard.py");
     assert (
         "torch._assert_async(mask.all(), "
@@ -206,11 +198,9 @@ test "the entry wrap gets the trap boundary attach" {
     );
 }
 
-"""A discriminant validation guard taken from a real model file (Apache-2.0),
-vendored so the evidence does not rot with upstream releases. The message is
-reduced to a literal: non-literal messages decline, because formatting a
-tensor inside the graph would itself force a break. The forward caller mirrors
-the real file, where the guarded helper is forward-reachable."""
+"""A discriminant validation guard from a real model file (Apache-2.0),
+vendored against upstream drift. The message is a literal because formatting a
+tensor inside the graph would itself force a break."""
 glob PY_DISCRIMINANT_GUARD_SRC = '''
 import torch
 
@@ -263,7 +253,9 @@ test "a guard with a non-literal message is declined" {
     # The verbatim upstream form carries an f-string message; folding it into
     # the assert would evaluate the tensor format on every call inside the
     # graph, so the lowering declines and the break is left intact.
-    src = _py_model_src(PY_DISCRIMINANT_GUARD_FSTRING_SRC, "discriminant_guard_fstring.py");
+    src = _py_model_src(
+        PY_DISCRIMINANT_GUARD_FSTRING_SRC, "discriminant_guard_fstring.py"
+    );
     assert "torch._assert_async(" not in src;
     assert "if not (discriminant >= 0).all():" in src;
 }
@@ -301,11 +293,9 @@ test "only forward-reachable code is transformed" {
     assert "torch.where(" not in src;
 }
 
-"""A decorator-attached frequency-update shape reduced to one module: the
-decorated forward is replaced at class-definition time by the decorator's
-`wrapper` closure, so the code that actually runs under torch.compile is the
-closure, not the decorated body. The closure's data-dependent branch is the
-break site."""
+"""The decorated forward is replaced at class-definition time by the
+decorator's `wrapper` closure, so the closure, not the decorated body, is what
+runs under torch.compile."""
 glob PY_MODEL_DECORATOR_SRC = '''
 import torch
 from functools import wraps
@@ -338,10 +328,8 @@ test "a decorator's wrapper closure is analyzed and transformed" {
     assert "if x.sum() > 0" not in src;
 }
 
-"""The verbatim frequency-update shape: the wrapper does not hold the break
-itself, it calls a SIBLING closure that does. Resolving that call needs
-lexical scope -- the sibling is nested in the same enclosing function, so a
-module-level lookup can never find it."""
+"""The wrapper calls a SIBLING closure that holds the break; resolving it
+needs lexical scope, since a module-level lookup cannot see it."""
 glob PY_MODEL_SIBLING_SRC = '''
 import torch
 
@@ -376,9 +364,8 @@ test "a wrapper's sibling closure is reached through lexical scope" {
     assert "if x.sum() > 0" not in src;
 }
 
-"""A decorator that rewrites metadata and returns the ORIGINAL function, the
-docstring-builder shape: its closures run once at decoration time and never
-inside the graph, so nothing they call may be transformed."""
+"""A decorator that rewrites metadata and returns the ORIGINAL function: its
+body runs once at decoration time, never inside the graph."""
 glob PY_MODEL_METADATA_DECO_SRC = '''
 import torch
 
@@ -488,10 +475,9 @@ test "entry-file: a stacked decorator's closure is analyzed and transformed" {
     assert "if x.sum() > 0" not in src;
 }
 
-"""The memoized-scale shape: an init behind an existence guard calls a module
-function whose body calls its OWN nested helper. The purity proof must resolve
-that helper through lexical scope; a module-level symbol lookup cannot see it,
-and one unresolvable callee poisons the candidate and declines the merge."""
+"""An init behind an existence guard calls a function whose body calls its OWN
+nested helper; the purity proof must resolve that helper lexically, and one
+unresolvable callee declines the merge."""
 glob PY_MODEL_NESTED_PURITY_SRC = '''
 import torch
 

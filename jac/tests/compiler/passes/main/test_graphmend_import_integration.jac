@@ -1,15 +1,6 @@
-"""Torch-gated integration tests for automatic import claiming.
-
-Confirm the import-time claim with nothing configured: a plain .py module that
-seeds GraphMend, by importing torch and defining a `forward` whose class binds a
-torch Module base, is claimed by the Jac meta importer, compiled through the
-full GraphMend schedule, and executes the transformed bytecode, while modules
-outside the claim (torch itself above all) are untouched. A validation guard in
-a claimed module must surface its ORIGINAL exception, both through the boundary
-the pass attaches at the seeded entry and through the one attached at the entry
-script's torch.compile call site.
-
-Skipped automatically when PyTorch is not installed."""
+"""Torch-gated: an imported .py module that seeds GraphMend is claimed at
+import time with nothing configured, runs its transformed bytecode, and still
+raises its original exception. Skipped when PyTorch is absent."""
 import ast;
 import dis;
 import importlib;
@@ -45,7 +36,7 @@ def _torch -> any {
 }
 
 """Lay out a one-module package under `tmp` and put it on sys.path."""
-def _mk_pkg(tmp: str, src: str) -> None {
+def _mk_pkg(tmp: str, src: str) {
     pkg = os.path.join(tmp, "claimedmodel");
     os.mkdir(pkg);
     with open(os.path.join(pkg, "__init__.py"), "w") as fh {
@@ -57,10 +48,8 @@ def _mk_pkg(tmp: str, src: str) -> None {
 }
 
 test "an imported model package is claimed and transformed with no config" {
-    # The model class lives in an imported module with no local torch.compile
-    # (the wrap would be in the entry script); it is claimed because it seeds
-    # GraphMend on its own. torch (never claimable) must stay untouched, and
-    # nothing about the run is configured: the mode is plain auto.
+    # No local torch.compile: the module is claimed because it seeds GraphMend
+    # on its own, under plain auto with nothing configured.
     torch = _torch();
     prog = JacRuntime.get_program();
     saved_en = prog.graphmend_enabled;
@@ -109,13 +98,9 @@ model = torch.compile(Net())
 ''';
 
 test "a claimed guard raises the original exception through the boundary" {
-    # The guard lives in the imported module and lowers to a marked
-    # graph-native assert there, behind the boundary the pass attaches to the
-    # seeded forward. The entry's torch.compile call site gets
-    # `model = __jac_trap_guard__(model)` injected as well, which wraps
-    # `forward` in place on the module instance and is idempotent against the
-    # first boundary. A failing guard must surface as the ORIGINAL ValueError
-    # with the original message, and the good path must compute normally.
+    # The entry's call site gets `model = __jac_trap_guard__(model)`, which
+    # wraps `forward` in place on the instance. A failing guard must surface as
+    # the original ValueError, and the good path must compute normally.
     torch = _torch();
     prog = JacRuntime.get_program();
     saved_en = prog.graphmend_enabled;

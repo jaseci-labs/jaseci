@@ -190,19 +190,11 @@ get_jac_search_paths = _modresolver.get_jac_search_paths
 
 
 def _graphmend_claims(fullname: str, path: str) -> bool:
-    """True if GraphMend claims this .py file, with no scope configured.
-
-    A module claims itself when it seeds GraphMend: it imports torch and either
-    wraps something with ``torch.compile`` or defines a ``forward`` whose class
-    binds a torch Module base. Claiming then follows that seed's eager imports,
-    bounded by its top-level package, so a library module reached only through
-    its importer is claimed too. ``torch``, ``jaclang`` and the standard library
-    are excluded unconditionally, so the interception can never break the
-    compiler or PyTorch itself.
-
-    The ``torch in sys.modules`` gate keeps runs that never touch PyTorch from
-    paying for any of this: no model code can be loading before torch is.
-    """
+    """True if GraphMend claims this .py file. A module claims itself when it
+    seeds GraphMend; the claim then follows its eager imports, bounded by its
+    top-level package. torch, jaclang and the standard library are excluded
+    unconditionally, and the ``torch in sys.modules`` gate keeps runs that never
+    load PyTorch from paying for any of this."""
     try:
         from jaclang.jac0core.runtime import JacRuntime as Jac
 
@@ -238,20 +230,11 @@ def _graphmend_claims(fullname: str, path: str) -> bool:
 def install_graphmend_loader_hook() -> None:
     """Route claimed .py files through GraphMend even when the import bypasses us.
 
-    ``sys.meta_path`` is not the only way a module gets loaded. Code that builds
-    a spec directly from an explicit file location, with
-    ``spec_from_file_location`` + ``exec_module``, never consults a meta-path
-    finder, so ``JacMetaImporter`` never sees it and GraphMend silently
-    transforms nothing.
-
-    Every such path still goes through ``SourceFileLoader.get_code``, so that is
-    hooked instead. Compiling from source there also sidesteps ``__pycache__``:
-    a ``.pyc`` written by an earlier non-GraphMend run must never be served to a
-    GraphMend run, the same variant-collision the JIR cache avoids by keying on
-    the GraphMend configuration.
-
-    Idempotent, and installed only when GraphMend is not switched off (from
-    ``_apply_graphmend``), so an off run never pays for the patch.
+    A spec built directly from a file location never consults a meta-path
+    finder, but it still goes through ``SourceFileLoader.get_code``. Compiling
+    from source there also sidesteps ``__pycache__``, so a ``.pyc`` from a
+    non-GraphMend run is never served to a GraphMend run. Idempotent, and
+    installed only when GraphMend is not switched off.
     """
     loader = importlib.machinery.SourceFileLoader
     if getattr(loader, "_jac_graphmend_hooked", False):
@@ -371,10 +354,8 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                     "rename the file to .jac; native placement is inferred "
                     "(or forced by 'jac nacompile' / 'jac build --as native')."
                 )
-            # GraphMend: claim plain .py modules that seed a compiled region, and
-            # the modules those seeds import inside their own package, so model
-            # code is routed through GraphMend without any user configuration.
-            # torch, jaclang and the standard library are never touched.
+            # GraphMend: claim .py modules that seed a compiled region, plus
+            # what those seeds import inside their own package.
             py_file = candidate_path + ".py"
             if self._graphmend_claimed_py(fullname, py_file):
                 return importlib.util.spec_from_file_location(
@@ -384,12 +365,8 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         return None
 
     def _graphmend_claimed_py(self, fullname: str, py_file: str) -> bool:
-        """True if GraphMend should claim this .py import.
-
-        Module-level twin ``_graphmend_claims`` holds the rule; see its docstring
-        for the seed and closure conditions. The cheap gates there short-circuit,
-        so imports in runs that never load PyTorch are unaffected.
-        """
+        """True if GraphMend should claim this .py import; see the module-level
+        twin ``_graphmend_claims`` for the rule."""
         return _graphmend_claims(fullname, py_file)
 
     def _exec_py_source_fallback(self, module: ModuleType, file_path: str) -> bool:

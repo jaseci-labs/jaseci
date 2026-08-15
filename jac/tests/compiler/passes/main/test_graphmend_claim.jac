@@ -1,19 +1,6 @@
-"""Automatic import claiming: GraphMend reaches imported model code with no
-user-supplied module scope.
-
-A module seeds GraphMend when it imports torch and either wraps something with
-`torch.compile` or defines a `forward` whose class provably binds a torch Module
-base through its import bindings. Claiming then follows the import graph out of
-a seed: a library module reached only through its importer joins the compiled
-region even though it holds no entry of its own.
-
-Three boundaries keep the closure honest, and each is measured here: imports
-guarded by `if TYPE_CHECKING:` never extend it, the closure never leaves the
-seeding module's top-level package, and a class that merely spells `forward`
-without binding a torch Module base is not a seed.
-
-Fixtures are generated into a temp tree at test time; the repository does not
-accept new Python files."""
+"""Automatic import claiming with no scope configured: what seeds it, how far
+the closure runs, and where it stops. Fixtures are generated at test time; the
+repository does not accept new Python files."""
 import ast;
 import os;
 import tempfile;
@@ -68,9 +55,8 @@ def _seed_pkg(tmp: str) -> tuple[str, str] {
 }
 
 test "an importer claims its dependency with no scope configured" {
-    # The dependency holds no torch.compile entry and no forward at all: it is
-    # reached only because the seed that imports it is compiled first, exactly
-    # the shape of a library module pulled in by a model file.
+    # The dependency holds no entry of its own; it is claimed only because the
+    # seed that imports it is compiled first.
     with tempfile.TemporaryDirectory() as tmp {
         (seed, dep) = _seed_pkg(tmp);
         prog = JacProgram();
@@ -120,8 +106,8 @@ class TypeOnly:
 ''';
 
 test "a type-checking guarded import does not extend the claim" {
-    # `if TYPE_CHECKING:` bodies never run, so following them would drag in the
-    # whole package through the type-only edges its hub modules carry.
+    # Type-only edges never run, and a package hub carries enough of them to
+    # pull in the whole package.
     with tempfile.TemporaryDirectory() as tmp {
         _write(tmp, os.path.join("pkg", "__init__.py"), "");
         seed = _write(tmp, os.path.join("pkg", "model.py"), TC_SEED_SRC);
@@ -157,8 +143,8 @@ def thing(x):
 ''';
 
 test "the claim stops at the seeding module's top level package" {
-    # Model packages import third-party packages at module level; without a
-    # package boundary the closure would follow every one of them.
+    # Without this bound the closure follows every module-level third-party
+    # import.
     with tempfile.TemporaryDirectory() as tmp {
         _write(tmp, os.path.join("pkg", "__init__.py"), "");
         seed = _write(tmp, os.path.join("pkg", "model.py"), OUTSIDE_SEED_SRC);
@@ -187,8 +173,7 @@ class Bookkeeper:
 ''';
 
 test "a plain class with a forward method is not a seed" {
-    # The seed proof is the base binding, never the name: an unrelated class
-    # that happens to define `forward` must not put its body in a graph.
+    # The seed proof is the base binding, never the name.
     with tempfile.TemporaryDirectory() as tmp {
         path = _write(tmp, "bookkeeper.py", NOT_A_MODULE_SRC);
         prog = JacProgram();
@@ -235,8 +220,8 @@ def verify(mask: torch.Tensor):
         raise ValueError("mask must be all true")
 ''';
 
-"""Compile a claimed importer, then its guard-holding dependency, and return
-the dependency's generated Python source."""
+"""Compile the importer, then its guard-holding dependency; return the
+dependency's generated source."""
 def _guard_pkg_src(tmp: str, entry_src: str) -> str {
     _write(tmp, os.path.join("pkg", "__init__.py"), "");
     entry = _write(tmp, os.path.join("pkg", "entry.py"), entry_src);
@@ -247,10 +232,8 @@ def _guard_pkg_src(tmp: str, entry_src: str) -> str {
 }
 
 test "a guard with no boundary in reach declines instead of marking" {
-    # The marker string is the only channel back to the original exception and
-    # only the trap boundary decodes it. Nothing in this program is wrapped or
-    # decorated, so no boundary exists anywhere and lowering would surface the
-    # raw marker text to the caller. The pass must decline.
+    # Only the trap boundary decodes the marker, and nothing here is wrapped or
+    # decorated, so lowering would surface the raw marker text to the caller.
     with tempfile.TemporaryDirectory() as tmp {
         dep_src = _guard_pkg_src(tmp, GUARD_ENTRY_SRC);
         assert "torch._assert_async(" not in dep_src , (
@@ -262,9 +245,8 @@ test "a guard with no boundary in reach declines instead of marking" {
 }
 
 test "a guard lowers once the importer wraps the model at a call site" {
-    # The importer's `torch.compile` assignment gets the boundary attached, so
-    # the guard the wrapped entry reaches has something that decodes its marker
-    # at the outermost eager frame, and it becomes graph-native.
+    # The wrap assignment carries the boundary that decodes the marker at the
+    # outermost eager frame.
     with tempfile.TemporaryDirectory() as tmp {
         dep_src = _guard_pkg_src(tmp, GUARD_WRAP_ENTRY_SRC);
         assert (
