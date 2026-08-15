@@ -1427,7 +1427,7 @@ impl TypeEvaluator._create_special_builtin_type(
             return cached;
         }
     }
-    shared = ClassType.ClassDetailsShared(
+    shared = ClassDetailsShared(
         class_name=name,
         symbol_table=base_class.shared.symbol_table,
         base_classes=[base_class],

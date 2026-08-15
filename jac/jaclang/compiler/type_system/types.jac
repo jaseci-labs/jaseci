@@ -113,48 +113,48 @@ obj TypeVarType(TypeBase) {
     def __str__ -> str;
 }
 
+obj ClassDetailsShared {
+    has class_name: str,
+        symbol_table: SymbolTable,
+        mro: list[ClassType] = [],
+        type_params: (list[TypeVarType] | None) = None,
+        base_classes: (list[TypeBase] | None) = None,
+        is_builtin_class: bool = False,
+        is_from_stdlib_stub: bool = False,
+        is_data_class: bool = False,
+        is_namedtuple: bool = False,
+        is_typeddict: bool = False,
+        typeddict_fields: (dict[str, TypeBase] | None) = None,
+        is_root_class: bool = False,
+        is_enum_class: bool = False,
+        enum_value_type: (TypeBase | None) = None,
+        enum_members: (dict[str, EnumMemberInfo] | None) = None,
+        _identity_key: (tuple[str, int, int, str] | None) = None,
+        _derived_special_types: (dict[str, ClassType] | None) = None;
+
+    def postinit -> None;
+    def canonical_key -> (tuple[str, int, int, str] | None);
+    def same_class(other: ClassDetailsShared) -> bool;
+}
+
+obj ClassDetailsPrivate {
+    has type_args: (list[TypeBase] | None) = None,
+        alias_name: (str | None) = None,
+        literal_value: (str | int | bool | None) = None,
+        distinct_key: (str | None) = None;
+
+    def postinit -> None;
+}
+
 obj ClassType(TypeBase) {
-    has _shared: (ClassType.ClassDetailsShared | None) = None,
-        private: ClassType.ClassDetailsPrivate = ClassType.ClassDetailsPrivate();
+    has _shared: (ClassDetailsShared | None) = None,
+        private: ClassDetailsPrivate = ClassDetailsPrivate();
 
     with entry {
         CATEGORY: ClassVar[TypeCategory] = TypeCategory.Class;
     }
 
-    has shared: ClassType.ClassDetailsShared { getter; }
-
-    obj ClassDetailsShared {
-        has class_name: str,
-            symbol_table: SymbolTable,
-            mro: list[ClassType] = [],
-            type_params: (list[TypeVarType] | None) = None,
-            base_classes: (list[TypeBase] | None) = None,
-            is_builtin_class: bool = False,
-            is_from_stdlib_stub: bool = False,
-            is_data_class: bool = False,
-            is_namedtuple: bool = False,
-            is_typeddict: bool = False,
-            typeddict_fields: (dict[str, TypeBase] | None) = None,
-            is_root_class: bool = False,
-            is_enum_class: bool = False,
-            enum_value_type: (TypeBase | None) = None,
-            enum_members: (dict[str, EnumMemberInfo] | None) = None,
-            _identity_key: (tuple[str, int, int, str] | None) = None,
-            _derived_special_types: (dict[str, ClassType] | None) = None;
-
-        def postinit -> None;
-        def canonical_key -> (tuple[str, int, int, str] | None);
-        def same_class(other: ClassType.ClassDetailsShared) -> bool;
-    }
-
-    obj ClassDetailsPrivate {
-        has type_args: (list[TypeBase] | None) = None,
-            alias_name: (str | None) = None,
-            literal_value: (str | int | bool | None) = None,
-            distinct_key: (str | None) = None;
-
-        def postinit -> None;
-    }
+    has shared: ClassDetailsShared { getter; }
 
     def __str__ -> str;
     def clone_as_instance -> ClassType;
