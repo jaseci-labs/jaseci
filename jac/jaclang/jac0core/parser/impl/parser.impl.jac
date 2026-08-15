@@ -5112,7 +5112,7 @@ impl Parser.parse_import_items(
                 clib_decls.append(stmt);
                 kid.append(stmt);
                 if isinstance(stmt, ContextAwareNode) {
-                    stmt.set_code_context(CodeContext.NATIVE);
+                    stmt.code_context = CodeContext.NATIVE;
                 }
             }
         }
@@ -6336,64 +6336,34 @@ impl Parser.parse_test -> Test {
     }
     test_kw_uni = self.consume_uni(TokenKind.KW_TEST);
 
-    cur = self.current();
-    name: Token = Token(
-        orig_src=self.source,
-        name=Tok.NAME.value,
-        value="",
-        line=cur.loc.line,
-        end_line=cur.loc.end_line,
-        col_start=cur.loc.col_start,
-        col_end=cur.loc.col_end,
-        pos_start=cur.loc.pos_start,
-        pos_end=cur.loc.pos_end
-    );
+    name_tok = self.current();
     has_description = False;
     description: String | None = None;
+    ident = "";
     if self.check(TokenKind.STRING) {
         str_tok = self.expect(TokenKind.STRING);
         description = self.make_string(str_tok);
 
         desc_text = _string_lit_text(str_tok.value);
-        ident_chars: list[str] = [];
-        prev_sep = False;
-        for ch in desc_text {
-            is_word = ("a" <= ch and ch <= "z")
-                or ("A" <= ch and ch <= "Z")
-                or ("0" <= ch and ch <= "9");
-            if is_word {
-                ident_chars.append(ch);
-                prev_sep = False;
-            } elif not prev_sep {
-                ident_chars.append("_");
-                prev_sep = True;
-            }
-        }
-        ident: str = str("".join(ident_chars));
-        if ident.startswith("_") {
-            ident = ident[1:];
-        }
-        if ident.endswith("_") {
-            ident = ident[:-1];
-        }
-        ident = ident.lower();
-        if not ident {
-            self._gen_test_idx += 1;
-            ident = f"_jac_gen_{self._gen_test_idx}";
-        }
-        name = Name(
-            orig_src=self.source,
-            name=Tok.NAME.value,
-            value=ident,
-            line=str_tok.loc.line,
-            end_line=str_tok.loc.end_line,
-            col_start=str_tok.loc.col_start,
-            col_end=str_tok.loc.col_end,
-            pos_start=str_tok.loc.pos_start,
-            pos_end=str_tok.loc.pos_end
-        );
+        ident = _test_ident_from_desc(desc_text);
+        name_tok = str_tok;
         has_description = True;
     }
+    if not ident {
+        self._gen_test_idx += 1;
+        ident = f"_jac_gen_{self._gen_test_idx}";
+    }
+    name: Name = Name(
+        orig_src=self.source,
+        name=Tok.NAME.value,
+        value=ident,
+        line=name_tok.loc.line,
+        end_line=name_tok.loc.end_line,
+        col_start=name_tok.loc.col_start,
+        col_end=name_tok.loc.col_end,
+        pos_start=name_tok.loc.pos_start,
+        pos_end=name_tok.loc.pos_end
+    );
     test_lb_uni = self.consume_uni(TokenKind.LBRACE);
     body = self.parse_code_block_stmts();
     test_rb_uni = self.consume_uni(TokenKind.RBRACE);
@@ -6651,11 +6621,11 @@ impl Parser.parse_impl_def -> ImplDef {
     body_expr3: Expr | None = None;
     lb_uni: Token | None = None;
     rb_uni: Token | None = None;
+    impl_enum_commas: list[Token] = [];
     if self.match_tok(TokenKind.LBRACE) {
         lb_uni = self.make_uni_token(self.previous());
         if self._is_impl_enum_body() {
-            self._impl_enum_comma_unis = [];
-            body_stmts3 = self.parse_impl_enum_body();
+            (body_stmts3, impl_enum_commas) = self.parse_impl_enum_body();
         } else {
             body_stmts3 = self._apply_implicit_return(self.parse_code_block_stmts());
         }
@@ -6697,19 +6667,12 @@ impl Parser.parse_impl_def -> ImplDef {
         if lb_uni {
             kid.append(lb_uni);
         }
-        impl_enum_commas = self._impl_enum_comma_unis;
-        comma_idx = 0;
         for (i, raw_item) in enumerate(body_stmts3) {
             item: UniNode = raw_item;
             kid.append(item);
 
-            if isinstance(item, EnumBlockStmt)
-                and item.is_enum_stmt
-                and i < len(body_stmts3) - 1 {
-                if comma_idx < len(impl_enum_commas) {
-                    kid.append(impl_enum_commas[comma_idx]);
-                    comma_idx += 1;
-                }
+            if i < len(body_stmts3) - 1 and i < len(impl_enum_commas) {
+                kid.append(impl_enum_commas[i]);
             }
         }
         if rb_uni {
@@ -6858,8 +6821,9 @@ impl Parser.parse_impl_target_name -> NameAtom {
     }
 }
 
-impl Parser.parse_impl_enum_body -> list[Assignment] {
+impl Parser.parse_impl_enum_body -> tuple[(list[Assignment], list[Token])] {
     members: list[Assignment] = [];
+    comma_unis: list[Token] = [];
     while not self.check(TokenKind.RBRACE) and not self.at_end() {
         if self.check_name() {
             name_tok = self.expect_name();
@@ -6898,13 +6862,13 @@ impl Parser.parse_impl_enum_body -> list[Assignment] {
             );
 
             if self.match_tok(TokenKind.COMMA) {
-                self._impl_enum_comma_unis.append(self.make_uni_token(self.previous()));
+                comma_unis.append(self.make_uni_token(self.previous()));
             }
         } else {
             break;
         }
     }
-    return members;
+    return (members, comma_unis);
 }
 
 impl Parser.parse_sem_def -> SemDef {

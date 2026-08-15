@@ -70,9 +70,14 @@ jobs:
               - 'jac/jaclang/compiler/passes/native/**'
               - 'jac/tests/compiler/passes/native/**'
               - 'jac/jaclang/compiler/tests/test_prim_equivalence.jac'
+              - 'jac/jaclang/compiler/tests/fixtures/prim_*.jac'
               - 'jac/native/**'
               - 'jac/build.zig'
               - 'jac/build.zig.zon'
+              # The native lanes' own definitions live here, so a change to
+              # what they run must run them -- `core` already lists this file
+              # for the same reason.
+              - '.github/workflows/ci.yml'
 
   # Build (or cache-restore) the jac binary ONCE per run, smoke it hermetically,
   # and publish it (plus the gitignored typeshed stubs) as artifacts. Every
@@ -219,17 +224,32 @@ jobs:
         run: zig build -Dno-ninja vendor-musl --summary all
       - name: Compiler suite via the binary
         working-directory: jac
+        # Chunked into sequential invocations: the materializer crossing leaks
+        # its native parse tree per compile (unitree cycles defeat plain RC and
+        # the artifact's cycle collector is not yet multi-module-safe), so one
+        # long run accumulates until the worker set OOMs the 16GB runner and
+        # the agent dies with "runner lost communication". Fresh workers per
+        # chunk bound the accumulation; each chunk also reports its own
+        # summary, so a dead runner names its chunk.
         run: |
           set -uxo pipefail
           WORK="$(mktemp -d)"
           rc=0
-          HOME="$WORK" JAC_TEST_JOBS=auto jac test tests/compiler | tee /tmp/compiler.log || rc=$?
-          {
-            echo "## binary compiler-suite result"
-            echo '```'
-            grep -E '^(FAILED|ERROR)|passed|failed' /tmp/compiler.log | tail -60 || true
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
+          run_chunk() {
+            local tag="$1"; shift
+            local crc=0
+            HOME="$WORK" JAC_TEST_JOBS=auto jac test "$@" | tee "/tmp/compiler-$tag.log" || crc=$?
+            {
+              echo "## binary compiler-suite result ($tag, rc=$crc)"
+              echo '```'
+              grep -E '^(FAILED|ERROR)|passed|failed' "/tmp/compiler-$tag.log" | tail -40 || true
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            return "$crc"
+          }
+          run_chunk passes-native tests/compiler/passes/native tests/compiler/passes/tool || rc=$?
+          run_chunk passes-main tests/compiler/passes/main tests/compiler/passes/ecmascript || rc=$?
+          run_chunk toplevel tests/compiler/test_*.jac || rc=$?
           exit "$rc"
       - name: Cross-backend equivalence suite (py/es/native congruence)
         working-directory: jac
@@ -502,10 +522,6 @@ jobs:
         run: |
           echo "::error::jac fmt --check --lintfix failed for this commit (an autofix was pushed to the branch if this is a same-repo PR)."
           exit 1
-
-      - name: Verify jir_registry.jac is up to date
-        run: |
-          jac gen-jir-registry --verify
 
       - name: Verify manifest route table is up to date
         run: |
@@ -831,7 +847,16 @@ jobs:
         # os.path + textwrap + keyword are pure-compute na modules that must
         # agree on darwin; the shutil pin self-skips there until the stat
         # seam gets a per-OS floor (see test_prim_equivalence.jac).
-        PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword"
+        #
+        # The str/bytes pins are here because darwin ran no string-primitive
+        # equivalence at all: `str.lower()` lowers to a per-byte libc
+        # `tolower`, and the linkers differ (Linux executables statically
+        # link vendored musl, Mach-O binds every undefined symbol to
+        # libSystem), so identical IR can get two different implementations.
+        # The seal's parse parity canary is red on macos-aarch64 for a
+        # divergence in exactly this family; nothing before this pin ran the
+        # string surface on darwin on a PR.
+        PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword or str or bytes"
       run: jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
 
     # macOS JIR seeder (jac-check seeds the Linux tier).
@@ -1120,10 +1145,9 @@ jobs:
       with:
         submodules: true
 
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v3
-      with:
-        python-version: 3.12
+    # No setup-python: every step below runs through the jac binary, which
+    # brings its own CPython. The pin existed only because check-guide.sh
+    # piped into a host `python3`; it now pipes into `jac -c`.
 
     - name: Set up Node.js
       uses: actions/setup-node@v4

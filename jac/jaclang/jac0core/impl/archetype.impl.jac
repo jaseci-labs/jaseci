@@ -231,10 +231,12 @@ impl Archetype._subclass_tree -> list[type] {
 }
 
 impl Archetype.install_subclass_hook(hook: Callable[[type], None]) -> None {
-    if `any(installed is hook for installed in Archetype._subclass_hooks) {
-        return;
+    with _subclass_hook_lock {
+        if `any(installed is hook for installed in Archetype._subclass_hooks) {
+            return;
+        }
+        Archetype._subclass_hooks = Archetype._subclass_hooks + (hook, );
     }
-    Archetype._subclass_hooks.append(hook);
     for cls in Archetype._subclass_tree() {
         try {
             hook(cls);
@@ -244,6 +246,16 @@ impl Archetype.install_subclass_hook(hook: Callable[[type], None]) -> None {
                 f"{cls.__module__}.{cls.__name__}: {e}"
             );
         }
+    }
+}
+
+impl Archetype.uninstall_subclass_hook(hook: Callable[[type], None]) -> None {
+    with _subclass_hook_lock {
+        Archetype._subclass_hooks = tuple(
+            installed
+            for installed in Archetype._subclass_hooks
+            if installed is not hook
+        );
     }
 }
 

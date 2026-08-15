@@ -13,16 +13,12 @@ import from jaclang.jac0core.jir {
     SEC_LLVM_IR,
     SEC_INTEROP,
     SEC_NATIVE_OBJ,
-    SEC_MODKEY,
     SEC_PLACEMENT,
     FLAG_PRECOMPILED,
     get_module_cache_path,
     is_module_cache_valid,
-    jir_matches_source,
-    compute_module_key,
-    mtir_for_module,
+    precompiled_jir_matches_source,
     mtir_for_compiled_module,
-    mtir_module_key,
     store_module_mtir,
     filter_module_mtir,
     cache_mode,
@@ -47,7 +43,113 @@ import from jaclang.jac0core.passes {
     SymTabBuildPass,
     Transform
 }
+import from jaclang.jac0core.passes.transform { DiagnosticPolicy }
 import from jaclang.jac0core.program { JacProgram }
+
+def diagnostic_policy_for(
+    config: any, extra_suppress_tokens: (list | None) = None
+) -> DiagnosticPolicy {
+    import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
+    tokens: list[str] = [];
+    categories: list[str] = [];
+    lint_active = False;
+    lint_select: list[str] = [];
+    lint_ignore: list[str] = [];
+    check = config.check if (config and config.check) else None;
+    if check is not None {
+        if check.suppress {
+            tokens = list(check.suppress);
+        }
+        if check.suppress_categories {
+            categories = list(check.suppress_categories);
+        }
+        lint = check.lint;
+        if lint {
+            lint_active = True;
+            lint_select = list(lint.select);
+            lint_ignore = list(lint.ignore);
+        }
+    }
+    if extra_suppress_tokens {
+        tokens.extend(extra_suppress_tokens);
+    }
+    resolved: list[str] = [];
+    if tokens {
+        (resolved, _unknown) = resolve_diagnostic_tokens(tokens);
+    }
+    return DiagnosticPolicy(
+        suppress_codes=resolved,
+        suppress_categories=categories,
+        lint_active=lint_active,
+        lint_select=lint_select,
+        lint_ignore=lint_ignore
+    );
+}
+
+def build_diagnostic_policy(prog: JacProgram) -> DiagnosticPolicy {
+    config: any = None;
+    try {
+        import from jaclang.project.config { get_config }
+        config = get_config();
+    } except Exception {
+        config = None;
+    }
+    opts = prog._compile_options;
+    extra: list[str] = (
+        list(opts.suppress_codes) if (opts is not None and opts.suppress_codes) else []
+    );
+    return diagnostic_policy_for(config, extra);
+}
+
+def deliver_alerts(
+    errors: list,
+    warnings: list,
+    prog: JacProgram,
+    policy: (DiagnosticPolicy | None) = None
+) {
+    pol = policy if policy is not None else build_diagnostic_policy(prog);
+    for alrt in errors {
+        if alrt.code is not None and pol.is_suppressed(alrt.code, alrt.loc) {
+            continue;
+        }
+        prog.errors_had.append(alrt);
+    }
+    for alrt in warnings {
+        if alrt.code is not None and pol.is_suppressed(alrt.code, alrt.loc) {
+            continue;
+        }
+        prog.warnings_had.append(alrt);
+    }
+}
+
+def run_pass(
+    pass_cls: type,
+    ir_in: any,
+    prog: JacProgram,
+    cancel_token: any = None,
+    policy: (DiagnosticPolicy | None) = None,
+    **kwargs: any
+) -> any {
+    pol = policy if policy is not None else build_diagnostic_policy(prog);
+    errors: list = [];
+    warnings: list = [];
+    inst: any = None;
+    try {
+        inst = pass_cls(
+            ir_in=ir_in,
+            prog=prog,
+            cancel_token=cancel_token,
+            policy=pol,
+            errors_had=errors,
+            warnings_had=warnings,
+            **kwargs
+        );
+    } finally {
+        eff = inst.policy if (inst is not None and inst.policy is not None) else pol;
+        deliver_alerts(errors, warnings, prog, eff);
+    }
+    return inst;
+}
 
 def get_symtab_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     return validate_schedule(
@@ -167,6 +269,75 @@ def resolve_schedule(
     return validate_schedule(out, preprovided=preprovided, origin=origin);
 }
 
+class CompilerSourceError(RuntimeError) {}
+
+glob _compiler_source_failures: dict[str, str] = {};
+
+def note_compiler_source_failure(path: str, details: str) {
+    key = os.path.realpath(path);
+    if details {
+        _compiler_source_failures[key] = details;
+    } else {
+        _compiler_source_failures.pop(key, None);
+    }
+}
+
+def compiler_source_failure_details(path: str) -> str {
+    return _compiler_source_failures.get(os.path.realpath(path), '');
+}
+
+def module_scoped_failure_details(path: str, program: JacProgram) -> str {
+    norm = os.path.normpath(path);
+    stem = norm[:-4] if norm.endswith('.jac') else norm;
+    prefix = stem + '.';
+    lines: list[str] = [];
+    for alert in program.errors_had {
+        try {
+            alert_path = os.path.normpath(alert.loc.mod_path);
+        } except Exception {
+            continue;
+        }
+        if alert_path == norm or alert_path.startswith(prefix) {
+            lines.append(alert.pretty_print());
+        }
+    }
+    return '\n'.join(lines);
+}
+
+def _compiler_source_root -> str {
+    return os.path.realpath(os.path.dirname(os.path.dirname(__file__)));
+}
+
+def _jac_source_failure_path(err: BaseException) -> (str | None) {
+    cursor: any = err;
+    for _ in range(8) {
+        if cursor is None {
+            break;
+        }
+        path = cursor?.jac_source_path;
+        if isinstance(path, str) and path {
+            return path;
+        }
+        cursor = cursor?.__cause__ or cursor?.__context__;
+    }
+    return None;
+}
+
+def fail_loud_on_compiler_source(err: ImportError) -> None {
+    path = _jac_source_failure_path(err);
+    if path is None {
+        return;
+    }
+    real = os.path.realpath(path);
+    if not real.startswith(_compiler_source_root() + os.sep) {
+        return;
+    }
+    raise CompilerSourceError(
+        "the Jac compiler's own source failed to compile, so the pass "
+        f"schedule cannot be built: {real}\n{err}"
+    ) from err;
+}
+
 def get_boundary_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     return validate_schedule(
         [BoundaryAnalysisPass, EndpointEffectPass], origin='boundary-analysis schedule'
@@ -214,7 +385,8 @@ def get_ir_gen_sched(
         passes.append(JsxIntrinsicGuardPass);
         passes.append(PlacementApplyPass);
         return validate_schedule(passes, origin='ir-gen schedule');
-    } except ImportError {
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
         if is_internal {
             return get_bootstrap_ir_sched();
         }
@@ -232,7 +404,8 @@ def get_cfg_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     try {
         import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
         return validate_schedule([CFGBuildPass], origin='cfg schedule');
-    } except ImportError {
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
         return [];
     } finally {
         _ir_sched_loading.reset(_tok);
@@ -270,7 +443,8 @@ def get_type_check_sched(
             PortabilityWarnPass,
             JacLintCheckPass
         ];
-    } except ImportError {
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
         return [];
     } finally {
         _typecheck_sched_loading.reset(_tok);
@@ -306,7 +480,8 @@ def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
             return [];
         }
         return validate_schedule([TypeInferencePass], origin='inference schedule');
-    } except ImportError {
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
         return [];
     } finally {
         _typecheck_sched_loading.reset(_tok);
@@ -396,7 +571,8 @@ def get_py_code_gen(
         }
         passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
         return passes;
-    } except ImportError {
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
         return [PyastGenPass, PyBytecodeGenPass];
     } finally {
         _codegen_sched_loading.reset(_tok);
@@ -1025,6 +1201,11 @@ obj JacCompiler {
         cancel_token: (Event | None) = None
     ) -> uni.Module;
 
+    def load_annex_modules(
+        mod: uni.Module, target_program: JacProgram
+    ) -> list[uni.Module];
+
+    def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
     def compile(
         file_path: str,
         target_program: JacProgram,

@@ -42,7 +42,7 @@ glob FORBIDDEN: dict[str, str] = {
      # at sites where the declaration IS the fact.
      SANCTIONED: dict[tuple, tuple] = {
          ("ecmascript/impl/esast_gen_pass.impl.jac", "symbol_utils"): (
-             5,
+             6,
              "collect_field_names/symbol_owner_archetype - symbol-FACT "
              "readers over an already-resolved walker symbol. "
              "The former classify_call fallback is deleted (#7418): "
@@ -66,7 +66,17 @@ glob FORBIDDEN: dict[str, str] = {
              "module is a guaranteed runtime ReferenceError - the "
              "reporter consumes stamped code_context and symbol facts, "
              "shared with StaticAnalysisPass so build-only and "
-             "check-only runs agree"
+             "check-only runs agree. Plus client_value_ref_targets / "
+             "client_bridged_endpoint at exit_module (#8072): the same "
+             "shape one level up - client code naming a module element "
+             "that the bundle never binds is a guaranteed runtime "
+             "ReferenceError, so the backend asks the central resolver "
+             "which references have no client binding and which are "
+             "endpoints it must bind a forwarder for. It consumes "
+             "stamped code_context, resolved `.sym`, and the declared "
+             "access tag; the same resolver drives W6007 in "
+             "StaticAnalysisPass, which is the point - the emit path and "
+             "the check path must not disagree about what is bound"
          ),
          ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): (
              2,
@@ -110,7 +120,7 @@ glob FORBIDDEN: dict[str, str] = {
              "so the declared annotations are the only TypeVar surface"
          ),
          ("native/na_ir_gen_pass.impl/calls.impl.jac", "symbol_utils"): (
-             2,
+             3,
              "is_builtin_region_name as the shadowing-aware test for the "
              "builtin Region constructor (#7491) - consuming the central "
              "classification instead of re-implementing name resolution; and "
@@ -119,7 +129,10 @@ glob FORBIDDEN: dict[str, str] = {
              "central classification instead of re-implementing name "
              "resolution. The former classify_call fallback is deleted "
              "(#7418): call_kind is stamped authoritatively by the required "
-             "inference schedule"
+             "inference schedule. Plus comptime_identity_call_arg (#8223), "
+             "a declaration-surface read: whether `cast` here is the erasable "
+             "`typing.cast` is answered by the module's own import list, "
+             "which is the fact itself and lives on no analysis product"
          ),
          ("native/na_ir_gen_pass.impl/objects.impl.jac", "symbol_utils"): (
              1,

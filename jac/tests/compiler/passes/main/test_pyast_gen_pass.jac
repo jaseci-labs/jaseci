@@ -15,6 +15,7 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { PyastGenPass }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
@@ -422,7 +423,7 @@ test "py_ast_val raises ICE with source location on empty py_ast" {
     prog = JacProgram();
     mod = prog.compile(file_path="test_ice.jac", use_str=code);
     # Get the PyastGenPass instance from child passes
-    pyast_pass = PyastGenPass(ir_in=mod, prog=prog);
+    pyast_pass = run_pass(PyastGenPass, mod, prog);
     # Create a node with empty py_ast by using an existing node and clearing it
     target_node = mod;
     original = target_node.gen.py_ast[:];
@@ -685,7 +686,7 @@ test "leaked multi-statement lambda hoists emit E5098" {
     code = """with entry { x = 1; }""";
     prog = JacProgram();
     mod = prog.compile(file_path="leaked_lambda.jac", use_str=code);
-    pyast_pass = PyastGenPass(ir_in=mod, prog=prog);
+    pyast_pass = run_pass(PyastGenPass, mod, prog);
     entry_stmt = mod.body[0];
     fake_def = pyast_pass.sync(
         ast3.FunctionDef(
@@ -703,17 +704,18 @@ test "leaked multi-statement lambda hoists emit E5098" {
     # Simulate a nested scope (ability/test) that pushed a hoist frame but whose
     # exit never drained it: the helper is orphaned in a frame beyond the module
     # frame (index 0), so _drain_module_hoists must report it as E5098 rather than
-    # silently dropping it. The module frame itself stays empty.
+    # silently dropping it. The module frame itself stays empty. The drain runs
+    # after run_pass already delivered, so the alert lands on the pass's own list.
     pyast_pass._hoist_frames = [[], [fake_def]];
     placed = pyast_pass._drain_module_hoists();
     assert placed == [] , f"module frame should be empty, got {placed}";
     leaked = [
         alrt
-        for alrt in (prog.errors_had or [])
+        for alrt in (pyast_pass.errors_had or [])
         if alrt.code is not None and alrt.code.code == "E5098"
     ];
     assert leaked , (
-        f"expected E5098 for orphaned hoisted lambda, got: {prog.errors_had}"
+        f"expected E5098 for orphaned hoisted lambda, got: {pyast_pass.errors_had}"
     );
     assert all(len(f) == 0 for f in pyast_pass._hoist_frames) , (
         "drain should reset the frame stack after reporting"

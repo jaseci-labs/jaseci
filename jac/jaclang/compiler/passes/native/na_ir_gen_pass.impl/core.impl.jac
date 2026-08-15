@@ -76,6 +76,8 @@ impl NaIRGenPass.postinit -> None {
     self.type_map["LiteralString"] = self.type_map.get("str", _spec_map["i8*"]);
     self.type_map["Region"] = _spec_map["i8*"];
 
+    self.type_map["type"] = _spec_map["i8*"];
+
     self.complex_struct_type = self.llvm_module.context.get_identified_type(
         "JacComplex"
     );
@@ -95,22 +97,33 @@ impl NaIRGenPass.postinit -> None {
 
 impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
     import from jaclang.compiler.passes.main.capability_check_pass {
-        native_capability_violations
+        native_capability_violations,
+        partition_native_capability_violations
     }
+    self._capability_demotions = {};
+    self._claimed_capability_demotions = set();
     _viols = native_capability_violations(self.ir_in);
     if _viols {
-        if not self.ir_in.gen.native_viols_reported {
-            for (_vnode, _vkind, _vname, _vhelp) in _viols {
-                self.emit(
-                    E5090,
-                    node_override=_vnode,
-                    kind=_vkind,
-                    name=_vname,
-                    help_text=_vhelp
-                );
+        (_fatal_viols, _demotable) = partition_native_capability_violations(_viols);
+        if _fatal_viols {
+            if not self.ir_in.gen.native_viols_reported {
+                _report = list(_fatal_viols);
+                for _unit_viols in _demotable.values() {
+                    _report.extend(_unit_viols);
+                }
+                for (_vnode, _vkind, _vname, _vhelp) in _report {
+                    self.emit(
+                        E5090,
+                        node_override=_vnode,
+                        kind=_vkind,
+                        name=_vname,
+                        help_text=_vhelp
+                    );
+                }
             }
+            return self.ir_in;
         }
-        return self.ir_in;
+        self._capability_demotions = _demotable;
     }
 
     self._emit_rc_helpers();
@@ -140,6 +153,21 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
         } elif isinstance(stmt, uni.Test) {
             self._codegen_test(stmt);
         }
+    }
+    _unclaimed = False;
+    for (_ck, _cviols) in self._capability_demotions.items() {
+        if _ck in self._claimed_capability_demotions {
+            continue;
+        }
+        _unclaimed = True;
+        for (_vnode, _vkind, _vname, _vhelp) in _cviols {
+            self.emit(
+                E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
+            );
+        }
+    }
+    if _unclaimed {
+        return self.ir_in;
     }
     self._codegen_entry(_entry_nodes);
     self._finalize_trace_lookup();
@@ -186,6 +214,28 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
         self._export_native_layout();
     }
     return self.ir_in;
+}
+
+impl NaIRGenPass._predemote_capability_unit(
+    full_name: str, func: ir.Function, viols: list, keep_func: bool = False
+) -> bool {
+    _local_mark = len(self.errors_had);
+    for (_vnode, _vkind, _vname, _vhelp) in viols {
+        self.emit(
+            E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
+        );
+    }
+    return self._demote_method_if_unlowerable(
+        full_name, func, _local_mark, keep_func=keep_func
+    );
+}
+
+impl NaIRGenPass._rename_demoted_symbol(name: str, func: ir.Function) -> None {
+    try {
+        self.llvm_module.globals.pop(func.name, None);
+        func.name = f"{name}.__jac_demoted";
+        self.llvm_module.globals[func.name] = func;
+    } except Exception { }
 }
 
 impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {
@@ -910,13 +960,20 @@ impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None 
     _imp_reg = get_layout_registry(imported_mod, self.prog);
     _cons_reg = get_layout_registry(self.ir_in, self.prog);
     for (_name, _parents) in _imp_reg.class_parents.items() {
-        if _name not in _cons_reg.class_parents {
+        if _name not in _cons_reg.class_parents
+            or (_name in _imp_reg.layouts and _name not in _cons_reg.layouts) {
             _cons_reg.class_parents[_name] = _parents;
         }
     }
     for (_name, _mro) in _imp_reg.mro_order.items() {
-        if _name not in _cons_reg.mro_order {
+        if _name not in _cons_reg.mro_order
+            or (_name in _imp_reg.layouts and _name not in _cons_reg.layouts) {
             _cons_reg.mro_order[_name] = _mro;
+        }
+    }
+    for (_name, _lay) in _imp_reg.layouts.items() {
+        if _name not in _cons_reg.layouts {
+            _cons_reg.layouts[_name] = _lay;
         }
     }
 
@@ -1284,7 +1341,28 @@ impl NaIRGenPass._dispatch_primitive_method(
     _ctx = self._native_emit_ctx_class(
         pass_ref=self, type_key=type_key, call_kwargs=(kwargs or {})
     );
-    return _emit_fn(_ctx, target, args);
+    try {
+        return _emit_fn(_ctx, target, args);
+    } except Exception as _pm_exc {
+        if self._na_debug_on() {
+            import sys as _pm_sys;
+            import traceback as _pm_tb;
+            _pm_sys.stderr.write(f"NA_DEBUG primitive {type_name}.{method_name}\n");
+            _pm_tb.print_exc(file=_pm_sys.stderr);
+        }
+        self.emit(
+            E5092,
+            node_override=kw_node,
+            kind="primitive method",
+            name=f"{type_name}.{method_name}",
+            help_text=f"The emitter for this builtin method raised "
+            f"{type(_pm_exc).__name__} on the operands it was given, which "
+            "means an argument did not reach the shape it expects -- most "
+            "often a container or tuple where a scalar or string is "
+            f"required. Original error: {_pm_exc}"
+        );
+        return None;
+    }
 }
 
 impl NaIRGenPass._dispatch_builtin(

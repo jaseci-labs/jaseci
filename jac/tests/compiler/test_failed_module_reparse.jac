@@ -152,9 +152,10 @@ test "dropping a module's alerts spares dotted-name neighbors" {
 }
 
 test "a failed parse is never written to the on-disk module cache" {
-    # A JIR cache hit replays no alerts, so serving a parse_failed module from
-    # disk would report the import as clean.
-    import from jaclang.jac0core.jir { write_module_jir_cache }
+    # A cache hit replays no alerts, so serving a failed module's bytecode
+    # from disk would report the import as clean. The write seam gates on
+    # parse_failed, so the cache entry must simply never exist.
+    import from jaclang.jac0core.jir { get_module_cache_path }
     with tempfile.TemporaryDirectory() as tmp {
         proj = _write_project(tmp);
         broken = str((proj / "broken.jac").resolve());
@@ -166,6 +167,6 @@ test "a failed parse is never written to the on-disk module cache" {
         }
         mod = prog.mod.hub.get(JacProgram.hub_key(broken));
         assert mod is not None and mod.parse_failed , "fixture must produce a recorded failed parse";
-        assert not write_module_jir_cache(broken, mod) , "a parse_failed module must be rejected by the cache writer";
+        assert not get_module_cache_path(broken).exists() , "a parse_failed module must never reach the module cache";
     }
 }

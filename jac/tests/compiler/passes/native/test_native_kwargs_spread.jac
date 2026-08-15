@@ -12,8 +12,9 @@ CPython binding semantics at runtime: it binds the slot when unbound,
 raises TypeError when the slot is already bound (positionally, by literal
 keyword, or by an earlier spread), and a required slot no spread supplies
 raises TypeError. Bound keys never reach the sink. Only the truly dynamic
-shape stays statically rejected: a spread at a callee with no sink, where
-unmatched keys would have nowhere to go.
+shape stays statically refused: a spread at a callee with no sink, where
+unmatched keys would have nowhere to go, demotes the calling function to
+its Python implementation (a granular seam, epic #8201).
 
 Refs #8039
 """
@@ -134,17 +135,28 @@ test "the spread fixture compiles with no native diagnostics" {
 # The genuinely dynamic case stays rejected
 # ─────────────────────────────────────────────────────────────────────
 
-test "guardrail: a spread at a callee with no sink is still rejected" {
-    prog = check_na_inline(
-        "onto_named",
-        "def sink(a: int, b: int) -> int { return a + b; }\n"
+test "guardrail: a spread at a callee with no sink demotes the caller" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "_kwspread_onto_named.jac"),
+        use_str="def sink(a: int, b: int) -> int { return a + b; }\n"
         "def use -> int {\n"
         "    d: dict[str, int] = {\"b\": 2};\n"
         "    return sink(1, **d);\n"
-        "}\n"
+        "}\n",
+        options=native_force_opts()
     );
-    assert has_error_code(prog, "E5090") , (
-        f"expected E5090 for a spread with no sink, got {fmt_errors(prog)}"
+    assert not has_error_code(prog, "E5090") , (
+        f"the sink-less spread is owned by use(), which must demote to a "
+        f"seam, got {fmt_errors(prog)}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "sink" in layout.functions , (
+        f"clean sibling function was lost: {list(layout.functions)}"
+    );
+    assert "use" not in layout.functions , (
+        "the sink-less spread caller must be demoted out of the native layout"
     );
 }
 

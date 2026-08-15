@@ -31,8 +31,8 @@ closure reaches accessors a parse demonstrably needs (`CodeLocInfo`'s spans,
 """
 
 import os;
-import jaclang;
 import pytest;
+import jaclang;
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -43,6 +43,7 @@ import from jaclang.compiler.passes.main.layout_pass {
     archetype_accessors,
     get_layout_registry
 }
+import from jaclang.jac0core.sealed { native_artifact_for }
 import from jaclang.utils.precompile_bytecode { _UNITREE_SEAM_WAIVERS }
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
@@ -51,6 +52,16 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 
 """Every archetype, module function and glob root in the sealed closure."""
 def _sealed_program -> tuple[(dict, dict, list, any)] {
+    # Same gate as the unitree census: a runtime that serves the sealed
+    # closure from its own native artifacts answers this compile from the
+    # seal, so the walker would see an empty program and every reachability
+    # claim below would be vacuous. Seal time already ran the census.
+    if native_artifact_for("jaclang.jac0core.unitree") is not None {
+        pytest.skip(
+            "the sealed closure is served from this runtime's native seal; "
+            "reachability is measured in source lanes and at seal time"
+        );
+    }
     prog = JacProgram();
     ir = prog.compile(
         file_path=str(PKG_PATH / SEALED_ROOT),
@@ -90,10 +101,9 @@ def reachable -> set {
     if _CLOSURE_MEMO {
         return _CLOSURE_MEMO[0];
     }
-    if "/.cache/jac/rt/"
-        in str(Path(jaclang.__file__).resolve()).replace(os.sep, "/") {
-        pytest.skip("sealed-payload runtime: the compiler's own sources are absent");
-    }
+    # Runs in dev trees AND inside the sealed payload lanes: sources ship in
+    # the payload and match the checkout that built it, so the reachability
+    # walk proves the same closure a payload build seals.
     (arch_of, mod_funcs, glob_roots, reg) = _sealed_program();
 
     methods_named: dict = {};

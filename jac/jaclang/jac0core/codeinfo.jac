@@ -1,5 +1,4 @@
 import hashlib;
-import re;
 import from collections.abc { Sequence }
 import from contextvars { ContextVar }
 import from dataclasses { field }
@@ -127,8 +126,42 @@ def native_safe_sym(src: str) -> str {
     if src in ("osp_kernel", "fmt_kernel") {
         return src;
     }
-    safe = re.sub(r'[^a-zA-Z0-9_]', '_', src);
+    safe = '';
+    for ch in src {
+        if ((ch >= 'a') and (ch <= 'z'))
+            or ((ch >= 'A') and (ch <= 'Z'))
+            or ((ch >= '0') and (ch <= '9'))
+            or (ch == '_') {
+            safe += ch;
+        } else {
+            safe += '_';
+        }
+    }
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
+}
+
+def native_glob_init_symbols(manifest: object) -> list[str] {
+    syms: list[str] = [];
+    sources = (manifest.native_transitive_sources if manifest else []) or [];
+    for src in sources {
+        if not src {
+            continue;
+        }
+        sym = f"__jac_glob_init_{native_safe_sym(src)}";
+        if sym not in syms {
+            syms.append(sym);
+        }
+    }
+    syms.append("__jac_glob_init");
+    return syms;
+}
+
+def install_native_static_init(engine: object, manifest: object) -> None {
+    if engine is None {
+        return;
+    }
+    engine.static_init_symbols = native_glob_init_symbols(manifest);
+    engine.static_init_chained = {"jac_entry"};
 }
 
 glob NATIVE_SUPPORTED_STDLIB: set[str] = {
@@ -147,6 +180,36 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
      _closure_cap_ctx: ContextVar[int] = ContextVar(
          "jac_native_closure_cap", default=0
      );
+
+glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
+         {"TypeVar", "ParamSpec", "TypeVarTuple"}
+     );
+
+glob NATIVE_COMPTIME_BASES: frozenset = frozenset({"ABC"});
+
+glob NATIVE_COMPTIME_IDENTITY_CALLS: frozenset = frozenset({"cast"});
+
+glob NATIVE_COMPTIME_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"});
+
+glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
+         "abc": NATIVE_COMPTIME_BASES,
+         "typing": TYPE_PARAM_CONSTRUCTORS
+             | NATIVE_COMPTIME_IDENTITY_CALLS
+             | NATIVE_COMPTIME_TYPE_MARKERS
+     };
+
+def native_comptime_import_names(module_name: str, names: list[str]) -> bool {
+    allowed = NATIVE_COMPTIME_STDLIB.get(module_name.lstrip('.'));
+    if allowed is None or not names {
+        return False;
+    }
+    for n in names {
+        if n not in allowed {
+            return False;
+        }
+    }
+    return True;
+}
 
 def set_effective_default_codespace(value: str) {
     _effective_codespace_ctx.set(value);
@@ -263,7 +326,7 @@ def is_bundled_native_module(module_name: str) -> bool {
 
 def native_target_os -> str {
     import os;
-    import platform;
+    import sys;
     _t = os.environ.get("JAC_NATIVE_TARGET", "");
     if _t {
         if ("darwin" in _t) or ("apple" in _t) {
@@ -274,11 +337,11 @@ def native_target_os -> str {
         }
         return "linux";
     }
-    _s = platform.system();
-    if _s == "Darwin" {
+    _s = sys.platform;
+    if _s == "darwin" {
         return "darwin";
     }
-    if _s == "Windows" {
+    if _s == "win32" {
         return "windows";
     }
     return "linux";

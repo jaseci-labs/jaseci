@@ -2115,6 +2115,31 @@ impl NaIRGenPass._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -> No
     }
 }
 
+impl NaIRGenPass._bind_loop_coll_slot(val: ir.Value) -> (str | None) {
+    if not isinstance(val.type, ir.PointerType) {
+        return None;
+    }
+    _name = f"for.coll.{self._loop_coll_seq}";
+    self._loop_coll_seq += 1;
+    _slot = self._entry_alloca(val.type, _name);
+    self.local_vars[_name] = _slot;
+    self.builder.store(val, _slot);
+    return _name;
+}
+
+impl NaIRGenPass._release_loop_coll_slot(
+    var_name: str, op: str = "", loc: str = ""
+) -> None {
+    _slot = self.local_vars.get(var_name);
+    if _slot is None {
+        return;
+    }
+    _val = self.builder.load(_slot, name=f"{var_name}.end");
+    self._mark_owned(_val);
+    self._emit_rc_release_simple(_val, op=op, loc=loc);
+    self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);
+}
+
 impl NaIRGenPass._rc_strdup(ptr: ir.Value, name: str = "rc.str") -> ir.Value {
     i8_ptr = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
@@ -2172,6 +2197,13 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
     if _hook is not None {
         self.struct_drop_hooks[arch_name] = _hook;
         b.call(_hook, [release_fn.args[0]]);
+    }
+
+    if self._pyb_base_of(arch_name) is not None {
+        b.call(
+            self._pyb_helper("drop_owner"),
+            [b.ptrtoint(release_fn.args[0], i64, name="pyb.owner")]
+        );
     }
 
     _has_ref_fields = any(

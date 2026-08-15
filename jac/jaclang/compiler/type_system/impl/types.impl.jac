@@ -1,6 +1,7 @@
 impl UnionType.postinit -> None {
+    member_types: list[TypeBase] = self.types or [];
     flattened_types: list[TypeBase] = [];
-    for ty in self.types {
+    for ty in member_types {
         if isinstance(ty, UnionType) {
             flattened_types.extend(ty.types);
         } else {
@@ -77,6 +78,8 @@ impl FunctionType.specialize(class_type: ClassType) -> FunctionType {
         parameters=[param.clone() for param in self.parameters],
         type_params=self.type_params,
         is_async=self.is_async,
+        type_guard=self.type_guard,
+        type_guard_is_strict=self.type_guard_is_strict,
     );
 
     for param in clone.parameters {
@@ -108,6 +111,8 @@ impl FunctionType.specialize_func_type_vars(
         function_flags=self.function_flags,
         type_params=self.type_params,
         is_async=self.is_async,
+        type_guard=self.type_guard,
+        type_guard_is_strict=self.type_guard_is_strict,
     );
 
     for param in clone.parameters {
@@ -174,29 +179,29 @@ impl OverloadedType.__str__ -> str {
 }
 
 impl ClassType.is_node_type -> bool {
-    import jaclang.jac0core.unitree as uni;
+    import from jaclang.jac0core.unitree { Archetype }
     import from jaclang.jac0core.constant { SymbolType }
     if self.shared.is_root_class {
         return True;
     }
     arch = self.shared.symbol_table;
-    assert isinstance(arch, uni.Archetype);
+    assert isinstance(arch, Archetype);
     return (arch.sym_category == SymbolType.NODE_ARCH);
 }
 
 impl ClassType.is_edge_type -> bool {
-    import jaclang.jac0core.unitree as uni;
+    import from jaclang.jac0core.unitree { Archetype }
     import from jaclang.jac0core.constant { SymbolType }
     arch = self.shared.symbol_table;
-    assert isinstance(arch, uni.Archetype);
+    assert isinstance(arch, Archetype);
     return (arch.sym_category == SymbolType.EDGE_ARCH);
 }
 
 impl ClassType.is_walker_type -> bool {
-    import jaclang.jac0core.unitree as uni;
+    import from jaclang.jac0core.unitree { Archetype }
     import from jaclang.jac0core.constant { SymbolType }
     arch = self.shared.symbol_table;
-    assert isinstance(arch, uni.Archetype);
+    assert isinstance(arch, Archetype);
     return (arch.sym_category == SymbolType.WALKER_ARCH);
 }
 
@@ -232,7 +237,13 @@ impl ClassType.is_builtin(class_name: (str | list[str] | None) = None) -> bool {
 impl ClassType.lookup_member_symbol(
     member: str, r_overloaded: list | None = None
 ) -> (Symbol | None) {
-    import jaclang.jac0core.unitree as uni;
+    import from jaclang.jac0core.unitree {
+        Ability,
+        Archetype,
+        Assignment,
+        AtomTrailer,
+        FuncSignature
+    }
     import from jaclang.compiler.type_system.type_utils { collect_member_syms }
     for cls in self.shared.mro {
         all_syms = collect_member_syms(cls.shared.symbol_table, member);
@@ -246,20 +257,20 @@ impl ClassType.lookup_member_symbol(
 
     for cls in self.shared.mro {
         arch = cls.shared.symbol_table;
-        if not isinstance(arch, uni.Archetype) {
+        if not isinstance(arch, Archetype) {
             continue;
         }
         is_class = arch.arch_type.name == 'KW_CLASS';
 
         for method_name in ('init', '__post_init__') {
             method_sym = arch.lookup(method_name, deep=False);
-            if not method_sym or not isinstance(method_sym.decl.name_of, uni.Ability) {
+            if not method_sym or not isinstance(method_sym.decl.name_of, Ability) {
                 continue;
             }
             method_ability = method_sym.decl.name_of;
 
             if (
-                isinstance(method_ability.signature, uni.FuncSignature)
+                isinstance(method_ability.signature, FuncSignature)
                 and method_ability.signature.params
             ) {
                 for param in method_ability.signature.params {
@@ -270,10 +281,8 @@ impl ClassType.lookup_member_symbol(
                 }
             }
 
-            for trailer in method_ability.get_all_sub_nodes(uni.AtomTrailer) {
-                if not (
-                    trailer.parent and isinstance(trailer.parent, uni.Assignment)
-                ) {
+            for trailer in method_ability.get_all_sub_nodes(AtomTrailer) {
+                if not (trailer.parent and isinstance(trailer.parent, Assignment)) {
                     continue;
                 }
                 if trailer != trailer.parent.target[0] {
@@ -303,7 +312,7 @@ impl ClassType.get_class_symbol -> Symbol {
 }
 
 impl ClassType.specialize_generics(type_args: list[TypeBase]) -> ClassType {
-    new_private = ClassType.ClassDetailsPrivate(
+    new_private = ClassDetailsPrivate(
         type_args=type_args,
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
@@ -316,7 +325,7 @@ impl ClassType.clone_as_class -> ClassType {
     if not self.is_instance() {
         return self;
     }
-    private = ClassType.ClassDetailsPrivate(
+    private = ClassDetailsPrivate(
         type_args=self.private.type_args[:],
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
@@ -333,7 +342,7 @@ impl ClassType.clone_as_instance -> ClassType {
     if self.is_instance() {
         return self;
     }
-    private = ClassType.ClassDetailsPrivate(
+    private = ClassDetailsPrivate(
         type_args=self.private.type_args[:],
         alias_name=self.private.alias_name,
         literal_value=self.private.literal_value,
@@ -358,7 +367,7 @@ impl ClassType.is_special_form(name: str | None = None) -> bool {
 }
 
 impl ClassType.clone_with_literal(value: (str | int | bool | None)) -> ClassType {
-    new_private = ClassType.ClassDetailsPrivate(
+    new_private = ClassDetailsPrivate(
         type_args=self.private.type_args[:], alias_name=None, literal_value=value
     );
     return ClassType(_shared=self.shared, private=new_private, flags=self.flags);
@@ -393,22 +402,22 @@ impl ClassType.__str__ -> str {
     return f"{class_name}";
 }
 
-impl ClassType.shared.getter -> ClassType.ClassDetailsShared {
+impl ClassType.shared.getter -> ClassDetailsShared {
     assert self._shared is not None , "ClassType.shared accessed before construction (detached property ClassType?)";
     return self._shared;
 }
 
-impl ClassType.ClassDetailsPrivate.postinit -> None {
+impl ClassDetailsPrivate.postinit -> None {
     self.type_args = self.type_args or [];
 }
 
-impl ClassType.ClassDetailsShared.postinit -> None {
+impl ClassDetailsShared.postinit -> None {
     self.type_params = self.type_params or [];
     self.base_classes = self.base_classes or [];
     self.mro = [];
 }
 
-impl ClassType.ClassDetailsShared.canonical_key -> (tuple[str, int, int, str] | None) {
+impl ClassDetailsShared.canonical_key -> (tuple[str, int, int, str] | None) {
     if self._identity_key is not None {
         return self._identity_key;
     }
@@ -428,9 +437,7 @@ impl ClassType.ClassDetailsShared.canonical_key -> (tuple[str, int, int, str] | 
     return self._identity_key;
 }
 
-impl ClassType.ClassDetailsShared.same_class(
-    other: ClassType.ClassDetailsShared
-) -> bool {
+impl ClassDetailsShared.same_class(other: ClassDetailsShared) -> bool {
     if self is other {
         return True;
     }
