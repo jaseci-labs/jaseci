@@ -1089,6 +1089,11 @@ obj JacCompiler {
         cancel_token: (Event | None) = None
     ) -> uni.Module;
 
+    def load_annex_modules(
+        mod: uni.Module, target_program: JacProgram
+    ) -> list[uni.Module];
+
+    def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
     def compile(
         file_path: str,
         target_program: JacProgram,

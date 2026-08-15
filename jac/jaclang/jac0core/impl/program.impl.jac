@@ -192,6 +192,7 @@ impl JacProgram.load_dependency_module(
                 ir_in=uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
                 prog=self,
             ).ir_out;
+            compiler.resolve_absorb_imports(mod, self);
             SymTabBuildPass(ir_in=mod, prog=self);
             mod.stub_only = True;
         } else {
