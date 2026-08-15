@@ -37,6 +37,8 @@ glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      ),
      FIXTURE = "generic_optional_field.jac",
+     XMOD = "generic_optional_xmod_main.jac",
+     XMOD_FNS = ["local_built", "lib_built", "lib_name_len"],
      ALL_FNS = [
          "ctor_num",
          "ctor_tag",
@@ -232,6 +234,24 @@ test "every optional erased-slot answer agrees with sv" {
     eng = _compile(FIXTURE);
     sv = _sv_module(FIXTURE);
     for name in ALL_FNS {
+        na_fn = _get(eng, name);
+        sv_fn = getattr(sv, name);
+        for flag in FLAGS {
+            assert na_fn(flag) == sv_fn(flag) , (
+                f"{name}({flag}): native {na_fn(flag)} != sv {sv_fn(flag)}"
+            );
+        }
+    }
+}
+
+
+test "an imported generic archetype's optional slot stores on both sides" {
+    assert not _demotions(XMOD) , (
+        f"cross-module optional erased slot did not lower: {_demotions(XMOD)}"
+    );
+    eng = _compile(XMOD);
+    sv = _sv_module(XMOD);
+    for name in XMOD_FNS {
         na_fn = _get(eng, name);
         sv_fn = getattr(sv, name);
         for flag in FLAGS {
