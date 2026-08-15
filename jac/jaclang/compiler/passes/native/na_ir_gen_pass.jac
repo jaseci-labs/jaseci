@@ -1146,10 +1146,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_isa_fn -> ir.Function;
     def _emit_isa_seq_fn -> ir.Function;
     def _is_runtime_class_tuple(t: any) -> bool;
-    def _runtime_class_seq_value(expr: (uni.UniNode | None)) -> (ir.Value | None);
     def _runtime_class_value(expr: (uni.UniNode | None)) -> (ir.Value | None);
-    def _runtime_class_targets(expr: (uni.UniNode | None)) -> (list[ir.Value] | None);
-    def _runtime_class_seq(expr: (uni.UniNode | None)) -> (list[ir.Value] | None);
+    def _runtime_class_arms(expr: (uni.UniNode | None)) -> tuple;
     def _isinstance_operand_arch(nd: uni.FuncCall, operand: ir.Value) -> (str | None);
     def _emit_isinstance_runtime(
         nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode

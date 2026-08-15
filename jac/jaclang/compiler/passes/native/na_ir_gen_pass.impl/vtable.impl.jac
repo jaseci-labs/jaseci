@@ -620,47 +620,47 @@ impl NaIRGenPass._is_runtime_class_tuple(t: any) -> bool {
     return saw_class;
 }
 
-impl NaIRGenPass._runtime_class_seq(
-    expr: (uni.UniNode | None)
-) -> (list[ir.Value] | None) {
-    """The class handles carried by a fixed-arity tuple-of-types value.
+impl NaIRGenPass._runtime_class_arms(expr: (uni.UniNode | None)) -> tuple {
+    """The class handles an `isinstance` type argument carries as a value.
 
     `isinstance(x, types)` where `types` is a value is the same check as a
-    literal tuple of arms, only the arms arrive at runtime. When the arity is in
-    the type the loop over the arms unrolls here, and each element feeds the
-    same `__jac_isa` compare a named arm would.
+    literal tuple of arms, only the arms arrive at runtime. Returns them as
+    `(unrolled, sequence)`: an arity the type states unrolls into one compare
+    per arm, and a variadic tuple -- which lowers to a native sequence, so its
+    arity is a runtime value -- comes back whole for the loop to walk. Both are
+    `None` when the argument is not a runtime class handle at all.
     """;
+    none_pair = (None, None, );
+    one = self._runtime_class_value(expr);
+    if one is not None {
+        return ([one], None, );
+    }
     if not isinstance(expr, uni.Expr) or not self._is_runtime_class_tuple(expr.type) {
-        return None;
+        return none_pair;
     }
     val = self._codegen_expr(expr);
+    if val is None {
+        return none_pair;
+    }
+    i8p = ir.IntType(8).as_pointer();
+    if "ptr" in self.list_types and val.type == self.list_types["ptr"].as_pointer() {
+        return (None, val, );
+    }
     st = self._tuple_struct_of_value(val);
-    if val is None or st is None {
-        return None;
+    if st is None {
+        return none_pair;
     }
     if isinstance(val.type, ir.PointerType) {
         val = self.builder.load(val, name="isa.tgts");
     }
-    i8p = ir.IntType(8).as_pointer();
     out: list[ir.Value] = [];
     for i in range(len(st.elements)) {
         if st.elements[i] != i8p {
-            return None;
+            return none_pair;
         }
         out.append(self.builder.extract_value(val, i, name="isa.tgt"));
     }
-    return out;
-}
-
-impl NaIRGenPass._runtime_class_targets(
-    expr: (uni.UniNode | None)
-) -> (list[ir.Value] | None) {
-    seq = self._runtime_class_seq(expr);
-    if seq is not None {
-        return seq;
-    }
-    one = self._runtime_class_value(expr);
-    return [one] if one is not None else None;
+    return (out, None, ) if out else none_pair;
 }
 
 impl NaIRGenPass._emit_isa_seq_fn -> ir.Function {
@@ -718,20 +718,6 @@ impl NaIRGenPass._emit_isa_seq_fn -> ir.Function {
     return fn;
 }
 
-impl NaIRGenPass._runtime_class_seq_value(
-    expr: (uni.UniNode | None)
-) -> (ir.Value | None) {
-    """A variadic tuple-of-types argument, as the sequence it lowers to.""";
-    if not isinstance(expr, uni.Expr) or not self._is_runtime_class_tuple(expr.type) {
-        return None;
-    }
-    val = self._codegen_expr(expr);
-    if val is None or "ptr" not in self.list_types {
-        return None;
-    }
-    return val if val.type == self.list_types["ptr"].as_pointer() else None;
-}
-
 impl NaIRGenPass._isinstance_operand_arch(
     nd: uni.FuncCall, operand: ir.Value
 ) -> (str | None) {
@@ -765,13 +751,9 @@ impl NaIRGenPass._emit_isinstance_runtime(
     if struct_name is None {
         return None;
     }
-    tgts = self._runtime_class_targets(type_arg);
-    tgt_seq: (ir.Value | None) = None;
-    if not tgts {
-        tgt_seq = self._runtime_class_seq_value(type_arg);
-        if tgt_seq is None {
-            return None;
-        }
+    (tgts, tgt_seq) = self._runtime_class_arms(type_arg);
+    if not tgts and tgt_seq is None {
+        return None;
     }
     i1 = ir.IntType(1);
     pre_bb = self.builder.block;
