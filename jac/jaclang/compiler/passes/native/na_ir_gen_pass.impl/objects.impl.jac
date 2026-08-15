@@ -1128,11 +1128,12 @@ impl NaIRGenPass._trigger_struct_names(method: uni.Ability) -> list[str] {
 impl NaIRGenPass._read_field_or_refuse(
     nd: uni.UniNode, obj_val: ir.Value, field_name: str, arch_name: str
 ) -> (ir.Value | None) {
-    """Read a field, and say so when the layout has no slot for it.
+    """Read a field, naming the ancestor when an inherited one is unreachable.
 
-    Returning nothing here used to leave the caller's generic 'expression
-    AtomTrailer' as the only record, which names the node kind rather than
-    the field the layout could not place.
+    Only the inherited case speaks up here. Every other way a name can miss
+    the layout already has an owner further out that reports it, and claiming
+    them from this depth would rename diagnostics this change has no business
+    touching.
     """;
     _mark = len(self.errors_had);
     _val = self._codegen_field_access(obj_val, field_name, arch_name);
@@ -1177,29 +1178,22 @@ impl NaIRGenPass._emit_field_access_refusal(
     nd: uni.UniNode, arch_name: str, field_name: str
 ) -> None {
     _owner = self._unadopted_field_owner(arch_name, field_name);
-    if _owner is not None {
-        self.emit(
-            E5092,
-            node_override=nd,
-            kind="inherited field access",
-            name=field_name,
-            help_text=(
-                f"'{field_name}' is declared by '{_owner}', which lays out in "
-                f"another unit with no vtable slot, while '{arch_name}' needs "
-                f"that slot for one. No offset satisfies both units, so the "
-                f"field is not reachable from here. Read it through an "
-                f"'{_owner}'-typed value, or move this code to a @sv/Python "
-                f"context."
-            )
-        );
+    if _owner is None {
         return;
     }
     self.emit(
         E5092,
         node_override=nd,
-        kind="attribute access",
+        kind="inherited field access",
         name=field_name,
-        help_text="The receiver's native layout has no slot for this name, so the access lowered to no code. Give the value a concrete native type, or move this code to a @sv/Python context."
+        help_text=(
+            f"'{field_name}' is declared by '{_owner}', which lays out in "
+            f"another unit with no vtable slot, while '{arch_name}' needs "
+            f"that slot for one. No offset satisfies both units, so the "
+            f"field is not reachable from here. Read it through an "
+            f"'{_owner}'-typed value, or move this code to a @sv/Python "
+            f"context."
+        )
     );
 }
 

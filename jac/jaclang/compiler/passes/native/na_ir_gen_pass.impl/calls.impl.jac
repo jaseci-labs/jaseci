@@ -256,6 +256,8 @@ impl NaIRGenPass._codegen_bound_args(
     if _has_pack and func.function_type.var_arg {
         _has_pack = False;
     }
+    _sig_is_callees = (self_offset - _self_skip + len(callee_sig.get_parameters()))
+        == len(func.args);
     if _has_pack {
         _chk = self_offset - _self_skip
             + len(callee_sig.posonly_params or [])
@@ -272,7 +274,9 @@ impl NaIRGenPass._codegen_bound_args(
                 }
             }
             if not _vt_ok {
-                self._emit_pack_slot_refusal(nd, "*");
+                if _sig_is_callees {
+                    self._emit_pack_slot_refusal(nd, "*");
+                }
                 _has_pack = False;
             }
             _chk += 1;
@@ -291,7 +295,9 @@ impl NaIRGenPass._codegen_bound_args(
                 }
             }
             if not _dt_ok {
-                self._emit_pack_slot_refusal(nd, "**");
+                if _sig_is_callees {
+                    self._emit_pack_slot_refusal(nd, "**");
+                }
                 _has_pack = False;
             }
         }
@@ -571,6 +577,12 @@ impl NaIRGenPass._emit_pack_slot_refusal(nd: uni.FuncCall, star: str) -> None {
     answer this site may never give: the callee reads that slot as its whole
     parameter pack, so the mismatch is a silent misread at run time rather
     than a missing feature.
+
+    Reached only when the signature that declares the pack is the one the
+    called function was built from. A bundled native module whose typeshed
+    stub is variadic while its own definition is fixed-arity -- `os.path.join`
+    is the standing example -- resolves a signature belonging to a different
+    implementation, and positional binding against the real one is correct.
     """;
     _sink = "*args" if star == "*" else "**kwargs";
     self.emit(
