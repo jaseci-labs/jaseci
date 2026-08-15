@@ -17,6 +17,7 @@ obj TrapLoweringPass(UniPass) {
     def _inside_try(nd: uni.UniNode) -> bool;
     def _enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | None);
     def _call_site_covered(nd: uni.UniNode) -> bool;
+    def _covering_entry(nd: uni.UniNode) -> (str | None);
     def _exception_type_name(rs: uni.RaiseStmt) -> (str | None);
     def _marked_message(
         at: uni.UniNode, msg: uni.Expr, type_name: str

@@ -16,6 +16,7 @@ obj GraphBreakDetectPass(UniPass) {
     def _collect_entry_points -> list[uni.UniNode];
     def _resolve_wrapped_entry(call: uni.FuncCall) -> (uni.UniNode | None);
     def _def_node(name: str, ctx: uni.UniNode) -> (uni.UniNode | None);
+    def _import_def_node(name: str, ctx: uni.UniNode) -> (uni.UniNode | None);
     def _var_assignment(name: str, ctx: uni.UniNode) -> (uni.Assignment | None);
     def _in_torch_compiled_scope(nd: uni.UniNode) -> bool;
     def enter_ability(nd: uni.Ability) -> None;

@@ -89,6 +89,21 @@ def _seed(work: list[uni.Ability], bounds: dict[int, uni.Ability], ab: uni.Abili
     work.append(ab);
 }
 
+def entry_key(ab: uni.Ability) -> str {
+    parts: list[str] = [ab.sym_name];
+    cur: (uni.UniNode | None) = ab.parent;
+    while cur is not None {
+        if isinstance(cur, (uni.Archetype, uni.Ability)) {
+            parts.append(cur.sym_name);
+        }
+        cur = cur.parent;
+    }
+    parts.reverse();
+    mod = ab.find_parent_of_type(uni.Module);
+    path = _norm(mod.loc.mod_path) if (mod is not None) else '';
+    return path + '::' + '.'.join(parts);
+}
+
 def module_entry_forwards(
     prog: JacProgram, mod: uni.Module, seen: set[str]
 ) -> list[uni.Ability] {
@@ -269,8 +284,35 @@ def register_claim(prog: JacProgram, mod: uni.Module, seen: set[str]) -> bool {
     pkg_root = top_package_dir(path);
     for target in claim_targets(mod, pkg_root) {
         prog.graphmend_claimed.add(target);
+        if target not in prog.graphmend_claim_parent {
+            prog.graphmend_claim_parent[target] = path;
+        }
     }
     return True;
+}
+
+def claim_chain_reaches(prog: JacProgram, chain_root: str, target: str) -> bool {
+    cur = target;
+    seen_paths: set[str] = set();
+    while cur {
+        if cur == chain_root {
+            return True;
+        }
+        if cur in seen_paths {
+            return False;
+        }
+        seen_paths.add(cur);
+        nxt = prog.graphmend_claim_parent.get(cur);
+        if nxt is None {
+            return False;
+        }
+        cur = nxt;
+    }
+    return False;
+}
+
+def entry_module(key: str) -> str {
+    return key.split('::')[0];
 }
 
 def claim_path(prog: JacProgram, path: str) -> bool {

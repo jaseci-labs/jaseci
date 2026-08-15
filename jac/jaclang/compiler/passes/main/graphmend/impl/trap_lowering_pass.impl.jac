@@ -9,6 +9,11 @@ import from jaclang.compiler.passes.main.graphmend.ast_edit {
     replace_stmt,
     torch_call
 }
+import from jaclang.compiler.passes.main.graphmend.scope_facts {
+    claim_chain_reaches,
+    entry_key,
+    entry_module
+}
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     defining_assignment,
     has_torch_compile_decorator,
@@ -136,12 +141,32 @@ impl TrapLoweringPass._enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | 
 }
 
 impl TrapLoweringPass._call_site_covered(nd: uni.UniNode) -> bool {
+    return self._covering_entry(nd) is not None;
+}
+
+impl TrapLoweringPass._covering_entry(nd: uni.UniNode) -> (str | None) {
     ab = nd.find_parent_of_type(uni.Ability);
     if ab is None {
-        return False;
+        return None;
     }
     bound = self.prog.graphmend_boundary.get(id(ab));
-    return (bound is not None) and (id(bound) in self.prog.graphmend_wrapped);
+    if bound is None {
+        return None;
+    }
+    site_key = entry_key(ab);
+    root_key = entry_key(bound);
+    if root_key in self.prog.graphmend_wrapped {
+        self.prog.graphmend_covered_by[site_key] = root_key;
+        return root_key;
+    }
+    guard_mod = entry_module(site_key);
+    for wrapped in sorted(self.prog.graphmend_wrapped) {
+        if claim_chain_reaches(self.prog, entry_module(wrapped), guard_mod) {
+            self.prog.graphmend_covered_by[site_key] = wrapped;
+            return wrapped;
+        }
+    }
+    return None;
 }
 
 impl TrapLoweringPass._exception_type_name(rs: uni.RaiseStmt) -> (str | None) {

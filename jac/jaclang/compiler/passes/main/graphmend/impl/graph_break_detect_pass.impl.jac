@@ -3,6 +3,9 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind }
 import from jaclang.compiler.passes.main.graphmend.scope_facts {
     compiled_region_ids,
+    entry_key,
+    find_ability,
+    find_class,
     register_claim
 }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
@@ -24,11 +27,11 @@ impl GraphBreakDetectPass.before_pass -> None {
     for e in wrapped {
         if isinstance(e, uni.Ability) {
             self._entry_ids.add(id(e));
-            self.prog.graphmend_wrapped.add(id(e));
+            self.prog.graphmend_wrapped.add(entry_key(e));
         } elif isinstance(e, uni.Archetype) {
             for meth in e.get_all_sub_nodes(uni.Ability) {
                 if meth.sym_name == 'forward' {
-                    self.prog.graphmend_wrapped.add(id(meth));
+                    self.prog.graphmend_wrapped.add(entry_key(meth));
                 }
             }
         }
@@ -123,15 +126,37 @@ impl GraphBreakDetectPass._resolve_wrapped_entry(
     if resolved is not None {
         return resolved;
     }
+    imported = self._import_def_node(inner.value, call);
+    if imported is not None {
+        return imported;
+    }
     assign = self._var_assignment(inner.value, call);
     if (assign is not None) and (assign.value is not None) {
         v = assign.value;
         cls = v.target if isinstance(v, uni.FuncCall) else v;
         if isinstance(cls, uni.Name) {
-            return self._def_node(cls.value, call);
+            local = self._def_node(cls.value, call);
+            if local is not None {
+                return local;
+            }
+            return self._import_def_node(cls.value, call);
         }
     }
     return None;
+}
+
+impl GraphBreakDetectPass._import_def_node(
+    name: str, ctx: uni.UniNode
+) -> (uni.UniNode | None) {
+    mod = ctx.find_parent_of_type(uni.Module);
+    if mod is None {
+        return None;
+    }
+    cls = find_class(mod, name, self.prog, self._mat_seen);
+    if cls is not None {
+        return cls;
+    }
+    return find_ability(mod, name, self.prog, self._mat_seen);
 }
 
 impl GraphBreakDetectPass._def_node(

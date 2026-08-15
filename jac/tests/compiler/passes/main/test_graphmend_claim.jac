@@ -258,6 +258,131 @@ test "a guard lowers once the importer wraps the model at a call site" {
     }
 }
 
+glob WRAP_ENTRY_SRC = '''
+import torch
+
+from .net import Net
+
+model = torch.compile(Net())
+''',
+     WRAP_NET_SRC = '''
+import torch
+
+
+def scale(x):
+    print("SCALE", x)
+    return x * 2
+
+
+class Net(torch.nn.Module):
+    def forward(self, x, mask: torch.Tensor):
+        if not mask.all():
+            raise ValueError("mask must be all true")
+        return scale(torch.relu(x))
+''';
+
+test "an imported class wrapped at the importer's call site registers as an entry" {
+    # Users import their model class and wrap it, so the entry has to resolve
+    # through the import binding; a symbol-table lookup alone lands on the
+    # import and registers nothing at all.
+    with tempfile.TemporaryDirectory() as tmp {
+        _write(tmp, os.path.join("pkg", "__init__.py"), "");
+        entry = _write(tmp, os.path.join("pkg", "entry.py"), WRAP_ENTRY_SRC);
+        net = _write(tmp, os.path.join("pkg", "net.py"), WRAP_NET_SRC);
+        prog = JacProgram();
+        _src(prog, entry);
+        assert prog.graphmend_wrapped , "the cross-module wrap registered no entry";
+        net_src = _src(prog, net);
+        assert "__jac_se_emit__(print," in net_src , (
+            "the wrapped forward's call chain was not transformed"
+        );
+        assert "torch._assert_async(mask.all(), " in net_src , (
+            "the importer's boundary does not cover the guard"
+        );
+    }
+}
+
+glob CHAIN_ENTRY_SRC = '''
+import torch
+
+from .net import Net
+
+model = torch.compile(Net())
+''',
+     CHAIN_NO_WRAP_SRC = '''
+import torch
+
+from .net import Net
+
+model = Net()
+''',
+     CHAIN_NET_SRC = '''
+import torch
+
+from .deep import verify
+
+
+class Net(torch.nn.Module):
+    def forward(self, x, mask):
+        verify(mask)
+        return torch.relu(x)
+''',
+     CHAIN_DEEP_SRC = '''
+import torch
+
+
+def verify(mask: torch.Tensor):
+    if not mask.all():
+        raise ValueError("mask must be all true")
+''';
+
+"""Lay out entry -> net -> deep, compile importer-first, and return the deep
+module's generated source together with the program."""
+def _chain_src(tmp: str, entry_src: str) -> tuple[str, JacProgram] {
+    _write(tmp, os.path.join("pkg", "__init__.py"), "");
+    entry = _write(tmp, os.path.join("pkg", "entry.py"), entry_src);
+    _write(tmp, os.path.join("pkg", "net.py"), CHAIN_NET_SRC);
+    deep = _write(tmp, os.path.join("pkg", "deep.py"), CHAIN_DEEP_SRC);
+    prog = JacProgram();
+    _src(prog, entry);
+    return (_src(prog, deep), prog);
+}
+
+test "a guard two hops down the claim chain lowers under the entry's wrap" {
+    # The guard's module is claimed through the model module, which is claimed
+    # through the entry; the wrap at the entry is what decodes its marker.
+    with tempfile.TemporaryDirectory() as tmp {
+        (deep_src, prog) = _chain_src(tmp, CHAIN_ENTRY_SRC);
+        assert (
+            "torch._assert_async(mask.all(), "
+            "'[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')"
+            in deep_src
+        );
+        covering = [
+            entry
+            for (guard, entry) in prog.graphmend_covered_by.items()
+            if guard.endswith("::verify")
+        ];
+        assert covering , "no covering entry was recorded for the guard";
+        assert covering[0].endswith("::Net.forward") , (
+            f"unexpected covering entry: {covering[0]}"
+        );
+    }
+}
+
+test "the same guard declines when the entry does not wrap the model" {
+    # Identical claim chain, no torch.compile anywhere: nothing would decode
+    # the marker, so the derivation must not invent a boundary.
+    with tempfile.TemporaryDirectory() as tmp {
+        (deep_src, prog) = _chain_src(tmp, CHAIN_NO_WRAP_SRC);
+        assert "torch._assert_async(" not in deep_src;
+        assert "raise ValueError" in deep_src;
+        assert not prog.graphmend_covered_by , (
+            "no entry can cover anything in a program with no boundary"
+        );
+    }
+}
+
 test "the run manifest carries no graphmend scope argument" {
     import from jaclang.cli.manifest { get_command_meta }
     meta = get_command_meta("run");
