@@ -6,10 +6,6 @@ import zlib;
 import from pathlib { Path }
 import from jaclang.jac0core.mtp { Info }
 
-# Bumped 18 -> 19: the cached Info schema gained a mod_path ownership stamp
-# (SEC_MTIR) so filter_module_mtir can reject foreign same-stem survivors.
-# Bumped 19 -> 20: consolidated content-addressed module cache identity
-# (SEC_MODKEY/SEC_ENVKEY) shared by module cache and precompiled bundle.
 glob MAGIC = b"JIR\x00",
      FORMAT_VERSION: int = 20,
      HEADER_SIZE: int = 32,
@@ -278,16 +274,6 @@ def filter_module_mtir(
     prefix = stem + ".";
     stem_filtered: dict[(str, Info)] = {};
     for (scope, info) in module_mtir.items() {
-        # Ownership guard: a stamped entry (mod_path set at generation) is kept
-        # only when it belongs to this module's filesystem identity. This is the
-        # authoritative disambiguator for same-stem identical-qualname survivors.
-        # Unstamped entries (owner is None) fall through to the stem + bytecode
-        # qualname heuristic below, which is intentionally best-effort: a foreign
-        # same-stem entry whose qualified symbol the target also defines is
-        # indistinguishable from the target's own and cannot be rejected here.
-        # FORMAT_VERSION was bumped to 19 so legacy program-wide v18 blobs (the
-        # only source of unstamped survivors) fail the header check and are
-        # recompiled with stamps before reaching this path.
         owner = info?.mod_path;
         if owner is not None and mtir_module_key(owner) != target_key {
             continue;
