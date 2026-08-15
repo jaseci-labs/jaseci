@@ -412,6 +412,9 @@ _SPECIAL_ACTIONS: dict[str, str] = {
     "_PyPegen_check_legacy_stmt ( p , a ) ? NULL : p -> tokens [p -> mark - 1] -> level == 0 ? NULL : RAISE_SYNTAX_ERROR_KNOWN_RANGE ( a , b , \"invalid syntax. Perhaps you forgot a comma?\" )": (
         "pa_check_legacy_stmt_or_raise(p, a, b)"
     ),
+    '_PyPegen_check_legacy_stmt ( p , a ) ? RAISE_SYNTAX_ERROR_KNOWN_RANGE ( a , b , "Missing parentheses in call to \'%U\'. Did you mean %U(...)?" , a -> v . Name . id , a -> v . Name . id ) : NULL': (
+        'pa_raise_syntax_known_range(p, False, a, b, "Missing parentheses in call to \'%U\'. Did you mean %U(...)?") if pa_check_legacy_stmt(p, a) else None'
+    ),
     'RAISE_SYNTAX_ERROR_STARTING_FROM ( colon , e -> kind == Tuple_kind ? "cannot use constraints with TypeVarTuple" : "cannot use bound with TypeVarTuple" )': (
         "pa_raise_type_param_error(colon, e, True)"
     ),
@@ -472,6 +475,8 @@ class ActionTranslator:
             cond = self._emit(node.cond)
             then = self._emit(node.then)
             else_ = self._emit(node.else_)
+            if else_ == "None" and cond.startswith("pa_check_legacy_stmt("):
+                return f"({then} if {cond} else None)"
             return f"({then} if {cond} is not None else {else_})"
         if isinstance(node, Call):
             return self._emit_call(node)
@@ -586,7 +591,13 @@ class ActionTranslator:
             raise ActionTranslationError(
                 f"arg count mismatch for {ctor}: {len(cleaned)} vs {len(value_fields)} ({cleaned})"
             )
-        pairs = [f"{value_fields[i]}={cleaned[i]}" for i in range(len(value_fields))]
+        pairs = []
+        for i in range(len(value_fields)):
+            val = cleaned[i]
+            field = value_fields[i]
+            if field == "orelse":
+                val = f"pa_stmt_list_or_empty({val})"
+            pairs.append(f"{field}={val}")
         if has_loc:
             pairs.append(self._loc_kw())
         return f"{ctor}({', '.join(pairs)})"
@@ -597,7 +608,8 @@ class ActionTranslator:
         def simple(msg_idx: int, on_next: bool = False):
             def emit(self: ActionTranslator, args: list[Expr]) -> str:
                 msg = self._emit(args[msg_idx])
-                return f"pa_raise_syntax(p, {str(on_next).lower()}, {msg})"
+                on_next_lit = "True" if on_next else "False"
+                return f"pa_raise_syntax(p, {on_next_lit}, {msg})"
 
             return emit
 
@@ -661,7 +673,9 @@ class ActionTranslator:
             "_PyPegen_checked_future_import": ternary("pa_checked_future_import"),
             "_PyPegen_nonparen_genexp_in_call": binary("pa_nonparen_genexp_in_call"),
             "_PyPegen_arguments_parsing_error": unary("pa_arguments_parsing_error"),
-            "_PyPegen_check_legacy_stmt": unary("pa_check_legacy_stmt"),
+            "_PyPegen_check_legacy_stmt": lambda self, args: (
+                f"pa_check_legacy_stmt(p, {self._emit(args[0])})"
+            ),
             "_PyPegen_concatenate_strings": unary("pa_concatenate_strings"),
             "_PyPegen_concatenate_tstrings": unary("pa_concatenate_tstrings"),
             "_PyPegen_constant_from_string": unary("pa_constant_from_string"),

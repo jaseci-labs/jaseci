@@ -232,7 +232,45 @@ class JacCallMakerVisitor(GrammarVisitor):
             name = node.name
         return name, call
 
+    def _lookahead_token_expr(self, node: Any) -> str | None:
+        if isinstance(node, StringLeaf):
+            _, inner = self.visit(node)
+            if "peg_expect_token(p," in inner:
+                tok = inner.split("peg_expect_token(p, ")[1].rstrip(")")
+                return f"peg_expect_token(p, {tok})"
+            return None
+        if isinstance(node, Group):
+            return self._lookahead_token_expr(node.rhs)
+        if isinstance(node, Rhs):
+            parts: list[str] = []
+            for alt in node.alts:
+                if len(alt.items) != 1:
+                    return None
+                part = self._lookahead_token_expr(alt.items[0].item)
+                if part is None:
+                    return None
+                parts.append(part)
+            if not parts:
+                return None
+            if len(parts) == 1:
+                return parts[0]
+            return "(" + " or ".join(parts) + ")"
+        return None
+
     def visit_PositiveLookahead(self, node: PositiveLookahead) -> tuple[None, str]:
+        token_expr = self._lookahead_token_expr(node.node)
+        if token_expr is not None:
+            if token_expr.startswith("(") and " or " in token_expr:
+                parts = token_expr[1:-1].split(" or ")
+                checks = [
+                    "peg_positive_lookahead_token(p, "
+                    + p.split("peg_expect_token(p, ")[1].rstrip(")")
+                    + ")"
+                    for p in parts
+                ]
+                return None, "(" + " or ".join(checks) + ")"
+            tok = token_expr.split("peg_expect_token(p, ")[1].rstrip(")")
+            return None, f"peg_positive_lookahead_token(p, {tok})"
         _, inner = self.visit(node.node)
         if "peg_expect_token(p," in inner:
             tok = inner.split("peg_expect_token(p, ")[1].rstrip(")")
@@ -240,6 +278,19 @@ class JacCallMakerVisitor(GrammarVisitor):
         return None, f"({inner} is not None)"
 
     def visit_NegativeLookahead(self, node: NegativeLookahead) -> tuple[None, str]:
+        token_expr = self._lookahead_token_expr(node.node)
+        if token_expr is not None:
+            if token_expr.startswith("(") and " or " in token_expr:
+                parts = token_expr[1:-1].split(" or ")
+                checks = [
+                    "peg_negative_lookahead_token(p, "
+                    + p.split("peg_expect_token(p, ")[1].rstrip(")")
+                    + ")"
+                    for p in parts
+                ]
+                return None, "(" + " and ".join(checks) + ")"
+            tok = token_expr.split("peg_expect_token(p, ")[1].rstrip(")")
+            return None, f"peg_negative_lookahead_token(p, {tok})"
         _, inner = self.visit(node.node)
         if "peg_expect_token(p," in inner:
             tok = inner.split("peg_expect_token(p, ")[1].rstrip(")")
@@ -413,7 +464,7 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         self.print("    pa_cmpop_expr_pair, pa_key_value_pair, pa_key_pattern_pair, pa_keyword_or_starred,")
         self.print("    pa_name_default_pair, pa_make_cmpop_pair, pa_name_from_token, pa_name_id, pa_number_from_token,")
         self.print("    pa_ast_expression, pa_ast_binop, pa_ast_unaryop, pa_ast_boolop, pa_ast_compare, pa_ast_call,")
-        self.print("    pa_ast_ifexp, pa_constant_bool, pa_constant_none, pa_constant_from_expr, pa_singleton_seq,")
+        self.print("    pa_ast_ifexp, pa_constant_bool, pa_constant_none, pa_constant_from_expr, pa_singleton_seq, pa_stmt_list_or_empty,")
         self.print("    pa_seq_insert_front, pa_seq_append_to_end, pa_get_cmpops, pa_get_exprs, pa_get_keys, pa_get_values,")
         self.print("    pa_get_patterns, pa_get_pattern_keys, pa_collect_call_seqs, pa_call_from_optional_args,")
         self.print("    pa_ast_starred, pa_check, pa_make_module, pa_seq_flatten, pa_set_context, pa_map_names_to_ids,")
@@ -799,6 +850,11 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         names = list(self.local_variable_names)
         if is_gather:
             return f"pa_seq_insert_front({names[0]}, {names[1]})"
+        # Trailing peg_expect_token captures (lit, lit_1, ...) are not semantic
+        # values; match CPython gather/repeat element actions that return only z.
+        semantic = [n for n in names if not n.startswith("lit")]
+        if len(semantic) == 1:
+            return semantic[0]
         if len(names) == 1:
             return names[0]
         return f"[{', '.join(names)}]"

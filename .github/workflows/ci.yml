@@ -609,6 +609,9 @@ jobs:
       - name: layer8 product eval slice tests
         run: jac test jac-py/jacpython/layer8_product_expr.jac
 
+      - name: layer10 product control-flow slice tests
+        run: jac test jac-py/jacpython/layer10_product_controlflow.jac
+
   test-solid-and-desktop:
     needs: [changes, build-jac]
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.core == 'true' || needs.changes.outputs.desktop == 'true' }}

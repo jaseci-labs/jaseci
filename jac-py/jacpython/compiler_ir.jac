@@ -74,14 +74,43 @@ def mk_jump(opcode: int, target: int, lc: cloc) -> cinstr {
     return cinstr(opcode=opcode, oparg=0, loc=lc, target_block=target);
 }
 
+# Active loop target pair for break/continue lowering (continue_blk, break_blk).
+obj loop_frame {
+    has continue_blk: basicblock,
+        break_blk: basicblock,
+        break_is_stub: bool = False;
+}
+
 # CFG builder: owns the current block and emits into unverified_cfg (Phase 4).
 obj cfg_builder {
     has u: unverified_cfg,
         cur: basicblock,
-        sym_top: sym_block | None = None;
+        sym_top: sym_block | None = None,
+        loop_stack: list[loop_frame] = [];
 
     def emit(ins: cinstr) {
         self.cur.instrs.append(ins);
+    }
+
+    def push_loop(continue_blk: basicblock, break_blk: basicblock, break_is_stub: bool) {
+        self.loop_stack.append(
+            loop_frame(
+                continue_blk=continue_blk, break_blk=break_blk, break_is_stub=break_is_stub
+            )
+        );
+    }
+
+    def pop_loop {
+        if len(self.loop_stack) > 0 {
+            self.loop_stack = self.loop_stack[0 : len(self.loop_stack) - 1];
+        }
+    }
+
+    def current_loop -> loop_frame | None {
+        if len(self.loop_stack) == 0 {
+            return None;
+        }
+        return self.loop_stack[len(self.loop_stack) - 1];
     }
 
     def emit_op(opcode: int, oparg: int, lc: cloc) {
@@ -111,7 +140,9 @@ def new_cfg_builder(
 # terminated (no fallthrough to the next statement).
 obj stmt_cont {
     has loc: cloc,
-        terminated: bool = False;
+        terminated: bool = False,
+        # When >= 0, compile_exec resumes at this statement index (tail consumed).
+        next_si: int = -1;
 }
 
 # A basic block: an ordered instruction list. The assembler lays blocks out in
@@ -141,7 +172,9 @@ obj unverified_cfg {
         next_block_id: int = 0,
         # Set by codegen on unsupported nodes; product_compile checks before
         # flowgraph verification (PLAN.md: no silent codegen paths).
-        diag: compiler_diagnostic | None = None;
+        diag: compiler_diagnostic | None = None,
+        # CPython keeps one dead small-int const (first 0..255 literal seen).
+        dead_small_int_const: bool = False;
 
     def add_block -> basicblock {
         b = basicblock(id=self.next_block_id, instrs=[]);

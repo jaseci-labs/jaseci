@@ -277,6 +277,46 @@ test "vm: TO_BOOL drives conditional branch" {
     );
 }
 
+# vm-opcode: OP_GET_ITER
+test "vm: GET_ITER drives for-loop iteration" {
+    assert_vm_value_matches_host(
+        "",
+        "total = 0\nfor i in range(3):\n    total += i\nresult = total\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_FOR_ITER
+test "vm: FOR_ITER advances for-loop" {
+    assert_vm_value_matches_host(
+        "",
+        "total = 0\nfor i in range(3):\n    total += i\nresult = total\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_END_FOR
+test "vm: END_FOR completes for-loop" {
+    assert_vm_value_matches_host(
+        "",
+        "total = 0\nfor i in range(3):\n    total += i\nresult = total\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_JUMP_BACKWARD
+test "vm: JUMP_BACKWARD drives while-loop" {
+    assert_vm_value_matches_host(
+        "",
+        "i = 0\nwhile i < 3:\n    i += 1\nresult = i\n",
+        "exec",
+        "result",
+    );
+}
+
 # ---------------- semantic categories ----------------
 
 test "vm: namespace mutation matches host for multi-assign" {

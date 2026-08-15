@@ -12,9 +12,15 @@ import from token_model {
     NAME,
     NUMBER,
     NEWLINE,
+    INDENT,
+    DEDENT,
     ERRORTOKEN,
     LPAR,
     RPAR,
+    LSQB,
+    RSQB,
+    LBRACE,
+    RBRACE,
     COMMA,
     TOK_NO_COLUMN,
     EXACT_TOKEN_TYPES,
@@ -26,6 +32,9 @@ import from token_model {
     tok_no_loc,
 }
 
+glob TABSIZE: int = 8;
+glob MAXINDENT: int = 100;
+
 # ---------------- tokenizer state ----------------
 obj tok_state {
     has source: str,
@@ -36,7 +45,178 @@ obj tok_state {
         filename: str = "<unknown>",
         exec_input: bool = False,
         done: bool = False,
-        error: tok_diag | None = None;
+        error: tok_diag | None = None,
+        at_bol: bool = True,
+        indent: int = 0,
+        indstack: list[int] = [0],
+        pending: int = 0,
+        paren_level: int = 0;
+}
+
+def _indent_error(st: tok_state, msg: str) -> tok_diag {
+    bad = mk_diag(
+        "IndentationError",
+        msg,
+        tok_loc_span(st.lineno, st.lineno, st.col_offset, st.col_offset),
+        st.filename
+    );
+    st.error = bad;
+    st.done = True;
+    return bad;
+}
+
+def _flush_pending_indent(st: tok_state) -> tok_token | None {
+    if st.pending < 0 {
+        st.pending = st.pending + 1;
+        return tok_token(
+            tok_type=DEDENT,
+            spelling="",
+            lineno=st.lineno,
+            col_offset=TOK_NO_COLUMN,
+            end_lineno=st.lineno,
+            end_col_offset=TOK_NO_COLUMN
+        );
+    }
+    if st.pending > 0 {
+        st.pending = st.pending - 1;
+        return tok_token(
+            tok_type=INDENT,
+            spelling="",
+            lineno=st.lineno,
+            col_offset=TOK_NO_COLUMN,
+            end_lineno=st.lineno,
+            end_col_offset=TOK_NO_COLUMN
+        );
+    }
+    return None;
+}
+
+def _skip_comment_line(st: tok_state) -> bool {
+    i = st.pos;
+    while i < len(st.source) {
+        ch = st.source[i];
+        if ch == "\n" or ch == "\r" {
+            return False;
+        }
+        if ch == "#" {
+            while i < len(st.source) {
+                ch2 = st.source[i];
+                if ch2 == "\n" or ch2 == "\r" {
+                    break;
+                }
+                i = i + 1;
+            }
+            st.pos = i;
+            return True;
+        }
+        if ch != " " and ch != "\t" and ch != "\f" {
+            return False;
+        }
+        i = i + 1;
+    }
+    return False;
+}
+
+def _measure_indent(st: tok_state) -> int {
+    col = 0;
+    while st.pos < len(st.source) {
+        ch = st.source[st.pos];
+        if ch == " " {
+            col = col + 1;
+            st.pos = st.pos + 1;
+            st.col_offset = st.col_offset + 1;
+            continue;
+        }
+        if ch == "\t" {
+            col = (col // TABSIZE + 1) * TABSIZE;
+            st.pos = st.pos + 1;
+            st.col_offset = st.col_offset + 1;
+            continue;
+        }
+        if ch == "\f" {
+            col = 0;
+            st.pos = st.pos + 1;
+            st.col_offset = st.col_offset + 1;
+            continue;
+        }
+        break;
+    }
+    return col;
+}
+
+def _process_bol_indent(st: tok_state) -> int {
+    # Returns 0 ok, 1 blank line consumed, -1 error.
+    if not st.exec_input or st.paren_level > 0 {
+        st.at_bol = False;
+        return 0;
+    }
+    col = _measure_indent(st);
+    if st.pos < len(st.source) {
+        ch = st.source[st.pos];
+        if ch == "#" {
+            if _skip_comment_line(st) {
+                st.at_bol = True;
+                return 1;
+            }
+        }
+        if ch == "\n" or ch == "\r" {
+            st.at_bol = True;
+            return 1;
+        }
+    }
+  # EOF with only whitespace on this logical line.
+    if st.pos >= len(st.source) {
+        st.at_bol = False;
+        return 0;
+    }
+    cur = st.indstack[st.indent];
+    if col == cur {
+        st.at_bol = False;
+        return 0;
+    }
+    if col > cur {
+        if st.indent + 1 >= MAXINDENT {
+            _indent_error(st, "maximum indentation depth exceeded");
+            return -1;
+        }
+        st.pending = st.pending + 1;
+        st.indent = st.indent + 1;
+        st.indstack.append(col);
+        st.at_bol = False;
+        return 0;
+    }
+    while st.indent > 0 and col < st.indstack[st.indent] {
+        st.pending = st.pending - 1;
+        st.indent = st.indent - 1;
+        st.indstack.pop();
+    }
+    if col != st.indstack[st.indent] {
+        _indent_error(st, "unindent does not match any outer indentation level");
+        return -1;
+    }
+    st.at_bol = False;
+    return 0;
+}
+
+def _begin_eof_dedents(st: tok_state) -> None {
+    if not st.exec_input {
+        return;
+    }
+    while st.indent > 0 {
+        st.pending = st.pending - 1;
+        st.indent = st.indent - 1;
+        st.indstack.pop();
+    }
+}
+
+def _track_paren_delta(tok_type: int) -> int {
+    if tok_type == LPAR or tok_type == LSQB or tok_type == LBRACE {
+        return 1;
+    }
+    if tok_type == RPAR or tok_type == RSQB or tok_type == RBRACE {
+        return -1;
+    }
+    return 0;
 }
 
 def _is_id_start(ch: str) -> bool {
@@ -289,7 +469,28 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
     if st.error is not None {
         return st.error;
     }
+    pending = _flush_pending_indent(st);
+    if pending is not None {
+        return pending;
+    }
     while st.pos < len(st.source) {
+        if st.at_bol {
+            bol = _process_bol_indent(st);
+            if bol < 0 {
+                return st.error as tok_diag;
+            }
+            if bol > 0 {
+                pending = _flush_pending_indent(st);
+                if pending is not None {
+                    return pending;
+                }
+                continue;
+            }
+            pending = _flush_pending_indent(st);
+            if pending is not None {
+                return pending;
+            }
+        }
         ch = _peek(st);
         if ch == " " or ch == "\t" or ch == "\f" {
             _advance(st);
@@ -301,6 +502,7 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
             st.line_start = st.pos;
             st.lineno = st.lineno + 1;
             st.col_offset = 0;
+            st.at_bol = True;
             return tok_token(
                 tok_type=NEWLINE,
                 spelling="",
@@ -319,6 +521,7 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
             st.line_start = st.pos;
             st.lineno = st.lineno + 1;
             st.col_offset = 0;
+            st.at_bol = True;
             return tok_token(
                 tok_type=NEWLINE,
                 spelling="",
@@ -329,13 +532,18 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
             );
         }
         if _is_digit(ch) {
-            return _read_number(st);
+            tok = _read_number(st);
+            st.paren_level = st.paren_level + _track_paren_delta(tok.tok_type);
+            return tok;
         }
         if _is_id_start(ch) {
-            return _read_name(st);
+            tok = _read_name(st);
+            st.paren_level = st.paren_level + _track_paren_delta(tok.tok_type);
+            return tok;
         }
         op = _match_operator(st);
         if op is not None {
+            st.paren_level = st.paren_level + _track_paren_delta(op.tok_type);
             return op;
         }
         bad = mk_diag(
@@ -347,6 +555,11 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
         st.error = bad;
         st.done = True;
         return bad;
+    }
+    _begin_eof_dedents(st);
+    pending = _flush_pending_indent(st);
+    if pending is not None {
+        return pending;
     }
     st.done = True;
     em = _endmarker_lineno(st);

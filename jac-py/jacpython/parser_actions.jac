@@ -351,7 +351,10 @@ def pa_singleton_seq(item: expr) -> list[expr] {
     return [item];
 }
 
-def pa_seq_insert_front(head: expr, tail: list[expr]) -> list[expr] {
+def pa_seq_insert_front(head: expr, tail: list[expr] | None) -> list[expr] {
+    if tail is None {
+        return pa_singleton_seq(head);
+    }
     out: list[expr] = [head];
     i = 0;
     while i < len(tail) {
@@ -451,6 +454,13 @@ def pa_call_from_optional_args(
 
 def pa_check(body: expr) -> expr {
     return body;
+}
+
+def pa_stmt_list_or_empty(xs: list[stmt] | None) -> list[stmt] {
+    if xs is None {
+        return [];
+    }
+    return xs;
 }
 
 def pa_unsupported_action(p: peg_parser, label: str) -> None {
@@ -784,7 +794,10 @@ def pa_constant_from_expr(value: expr, lineno: int, col_offset: int, end_lineno:
     );
 }
 
-def pa_seq_append_to_end(head: list[expr], item: expr) -> list[expr] {
+def pa_seq_append_to_end(head: list[expr] | None, item: expr) -> list[expr] {
+    if head is None {
+        return pa_singleton_seq(item);
+    }
     out: list[expr] = [];
     i = 0;
     while i < len(head) {
@@ -807,8 +820,26 @@ def pa_dummy_name(lineno: int, col_offset: int, end_lineno: int, end_col_offset:
 }
 def pa_interactive_exit(p: peg_parser) -> list[stmt] { return []; }
 def pa_aug_op(target: expr) -> operator { return Add(); }
-def pa_call_args(`node: expr) -> list[expr] { return []; }
-def pa_call_keywords(`node: expr) -> list[keyword] { return []; }
+# arguments rule returns a dummy Call from pa_collect_call_seqs; peel args/keywords.
+def pa_call_args(`node: expr) -> list[expr] {
+    if `node is None {
+        return [];
+    }
+    if isinstance(`node, Call) {
+        return (`node as Call).args;
+    }
+    return [];
+}
+
+def pa_call_keywords(`node: expr) -> list[keyword] {
+    if `node is None {
+        return [];
+    }
+    if isinstance(`node, Call) {
+        return (`node as Call).keywords;
+    }
+    return [];
+}
 def pa_comp_field(`node: expr, field: str) -> expr { return `node; }
 def pa_seq_first(seq: list[object]) -> expr | None { return None; }
 def pa_seq_last(seq: list[object]) -> expr | None { return None; }

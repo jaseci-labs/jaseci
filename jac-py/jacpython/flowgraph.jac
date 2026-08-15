@@ -18,6 +18,9 @@ import from opcode_meta {
     OP_POP_JUMP_IF_NONE,
     OP_POP_JUMP_IF_NOT_NONE,
     OP_END_ASYNC_FOR,
+    OP_JUMP_FORWARD,
+    OP_JUMP_BACKWARD,
+    OP_JUMP_BACKWARD_NO_INTERRUPT,
     stack_effect,
     has_target,
     is_unconditional_jump_opcode,
@@ -130,7 +133,12 @@ def resolve_jump_offsets(flat: list[cinstr], block_starts: list[int]) {
         if ins.target_block >= 0 {
             target = block_starts[ins.target_block];
             next_ip = offsets[i] + instr_size_codeunits(ins);
-            ins.oparg = target - next_ip;
+            if ins.opcode == OP_JUMP_BACKWARD
+                or ins.opcode == OP_JUMP_BACKWARD_NO_INTERRUPT {
+                ins.oparg = next_ip - target;
+            } else {
+                ins.oparg = target - next_ip;
+            }
         }
         i = i + 1;
     }

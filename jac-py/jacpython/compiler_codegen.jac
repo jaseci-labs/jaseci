@@ -39,9 +39,15 @@ import from opcode_meta {
     OP_POP_JUMP_IF_FALSE,
     OP_POP_JUMP_IF_TRUE,
     OP_JUMP_FORWARD,
+    OP_JUMP_BACKWARD,
     OP_COPY,
     OP_SWAP,
     OP_TO_BOOL,
+    OP_NOP,
+    OP_GET_ITER,
+    OP_FOR_ITER,
+    OP_END_FOR,
+    OP_POP_ITER,
     NB_ADD,
     NB_SUBTRACT,
     NB_MULTIPLY,
@@ -165,6 +171,7 @@ import from compiler_ir {
     cfg_builder,
     stmt_cont,
     new_cfg_builder,
+    loop_frame,
 }
 import from compiler_symtable { sym_block, sym_dict_get, sym_scope_of, SCOPE_GLOBAL_EXPLICIT, SCOPE_GLOBAL_IMPLICIT }
 import from compiler_diagnostics { lowering_diagnostic }
@@ -763,7 +770,10 @@ def visit_expr(
         cloc = nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
         if isinstance(c.value, PyInt) {
             v = (c.value as PyInt).val;
-            if register_int_const {
+            if register_int_const and v >= 0 and v <= 255 and not g.u.dead_small_int_const {
+                g.u.add_const(c.value);
+                g.u.dead_small_int_const = True;
+            } elif register_int_const and (v < 0 or v > 255) {
                 g.u.add_const(c.value);
             }
             emit_folded_int(g, v, cloc);
@@ -955,6 +965,26 @@ def stmt_loc(s: stmt) -> cloc {
         p = s as Pass;
         return nloc(p.lineno, p.end_lineno, p.col_offset, p.end_col_offset);
     }
+    if isinstance(s, If) {
+        i = s as If;
+        return nloc(i.lineno, i.end_lineno, i.col_offset, i.end_col_offset);
+    }
+    if isinstance(s, While) {
+        w = s as While;
+        return nloc(w.lineno, w.end_lineno, w.col_offset, w.end_col_offset);
+    }
+    if isinstance(s, For) {
+        f = s as For;
+        return nloc(f.lineno, f.end_lineno, f.col_offset, f.end_col_offset);
+    }
+    if isinstance(s, Break) {
+        b = s as Break;
+        return nloc(b.lineno, b.end_lineno, b.col_offset, b.end_col_offset);
+    }
+    if isinstance(s, Continue) {
+        c = s as Continue;
+        return nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
+    }
     return loc(1, 1, 0, 0);
 }
 
@@ -1048,8 +1078,278 @@ def exec_tail_emits_code(body: list[stmt], from_idx: int) -> bool {
     return False;
 }
 
+# Module-level epilogue (LOAD_CONST None; RETURN_VALUE).
+def emit_module_return(g: cfg_builder, lc: cloc) {
+    none_idx = g.u.add_const(py_none());
+    g.emit_op(OP_LOAD_CONST, none_idx, lc);
+    g.emit_op(OP_RETURN_VALUE, 0, lc);
+}
+
+# Lower statements [from_idx..] in order.
+def visit_stmts(
+    g: cfg_builder,
+    stmts: list[stmt],
+    from_idx: int = 0,
+    more_follows_after: bool = False
+) -> stmt_cont {
+    if len(stmts) == 0 or from_idx >= len(stmts) {
+        return stmt_cont(loc=loc(1, 1, 0, 0));
+    }
+    last = stmt_loc(stmts[from_idx]);
+    terminated = False;
+    si = from_idx;
+    while si < len(stmts) {
+        follow = more_follows_after;
+        if not follow {
+            follow = exec_tail_emits_code(stmts, si + 1);
+        }
+        cont = visit_stmt(g, stmts[si], follow, stmts, si + 1);
+        last = cont.loc;
+        if cont.terminated {
+            terminated = True;
+        }
+        if codegen_busy(g) {
+            return stmt_cont(loc=last, terminated=terminated);
+        }
+        si = si + 1;
+    }
+    return stmt_cont(loc=last, terminated=terminated);
+}
+
+# Lower a statement suffix (used to duplicate tails after if/while/for).
+def visit_stmt_tail(
+    g: cfg_builder,
+    tail: list[stmt],
+    from_idx: int,
+    more_follows_after: bool = False
+) -> stmt_cont {
+    return visit_stmts(g, tail, from_idx, more_follows_after);
+}
+
+def visit_if(
+    g: cfg_builder, i: If, more_code_follows: bool, tail: list[stmt], tail_idx: int
+) -> stmt_cont {
+    iloc = nloc(i.lineno, i.end_lineno, i.col_offset, i.end_col_offset);
+    test_loc = expr_loc(i.test);
+    visit_expr(g, i.test);
+    if codegen_busy(g) {
+        return stmt_cont(loc=iloc);
+    }
+    g.emit_op(OP_TO_BOOL, 0, test_loc);
+    false_blk = g.new_block();
+    has_else = len(i.orelse) > 0;
+    if more_code_follows {
+        if has_else {
+            dup_tail = g.new_block();
+            g.emit_jump(OP_POP_JUMP_IF_FALSE, false_blk.id, test_loc);
+            body_cont = visit_stmts(g, i.body);
+            if codegen_busy(g) {
+                return stmt_cont(loc=body_cont.loc);
+            }
+            g.emit_jump(OP_JUMP_FORWARD, dup_tail.id, iloc);
+            g.use(false_blk);
+            else_cont = visit_stmts(g, i.orelse);
+            if codegen_busy(g) {
+                return stmt_cont(loc=else_cont.loc);
+            }
+            g.emit_jump(OP_JUMP_FORWARD, dup_tail.id, iloc);
+            g.use(dup_tail);
+            tail_cont = visit_stmt_tail(g, tail, tail_idx);
+            return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+        }
+        tail_blk = g.new_block();
+        g.emit_jump(OP_POP_JUMP_IF_FALSE, tail_blk.id, test_loc);
+        body_cont = visit_stmts(g, i.body);
+        if codegen_busy(g) {
+            return stmt_cont(loc=body_cont.loc);
+        }
+        g.use(tail_blk);
+        tail_cont = visit_stmt_tail(g, tail, tail_idx);
+        return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+    }
+    g.emit_jump(OP_POP_JUMP_IF_FALSE, false_blk.id, test_loc);
+    body_cont = visit_stmts(g, i.body);
+    if codegen_busy(g) {
+        return stmt_cont(loc=body_cont.loc);
+    }
+    emit_module_return(g, body_cont.loc);
+    g.use(false_blk);
+    if has_else {
+        else_cont = visit_stmts(g, i.orelse);
+        if codegen_busy(g) {
+            return stmt_cont(loc=else_cont.loc);
+        }
+        emit_module_return(g, else_cont.loc);
+    } else {
+        emit_module_return(g, test_loc);
+    }
+    return stmt_cont(loc=iloc, terminated=True);
+}
+
+def visit_while(
+    g: cfg_builder, w: While, more_code_follows: bool, tail: list[stmt], tail_idx: int
+) -> stmt_cont {
+    wloc = nloc(w.lineno, w.end_lineno, w.col_offset, w.end_col_offset);
+    test_loc = expr_loc(w.test);
+    head = g.new_block();
+    g.use(head);
+    visit_expr(g, w.test);
+    if codegen_busy(g) {
+        return stmt_cont(loc=wloc);
+    }
+    g.emit_op(OP_TO_BOOL, 0, test_loc);
+    exit_blk = g.new_block();
+    tail_dup_blk = None;
+    if more_code_follows {
+        tail_dup_blk = g.new_block();
+        g.emit_jump(OP_POP_JUMP_IF_FALSE, tail_dup_blk.id, test_loc);
+    } else {
+        g.emit_jump(OP_POP_JUMP_IF_FALSE, exit_blk.id, test_loc);
+    }
+    break_blk = exit_blk;
+    if more_code_follows {
+        break_blk = g.new_block();
+    }
+    break_is_stub = more_code_follows;
+    g.push_loop(head, break_blk, break_is_stub);
+    body_cont = visit_stmts(g, w.body);
+    if codegen_busy(g) {
+        g.pop_loop();
+        return stmt_cont(loc=body_cont.loc);
+    }
+    if not body_cont.terminated {
+        g.emit_jump(OP_JUMP_BACKWARD, head.id, body_cont.loc);
+    }
+    g.pop_loop();
+    if more_code_follows {
+        g.use(break_blk);
+        g.emit_op(OP_NOP, 0, wloc);
+        br_cont = visit_stmt_tail(g, tail, tail_idx);
+        if codegen_busy(g) {
+            return br_cont;
+        }
+        g.use(tail_dup_blk);
+        tail_cont = visit_stmt_tail(g, tail, tail_idx);
+        return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+    }
+    g.use(exit_blk);
+    if len(w.orelse) > 0 {
+        else_cont = visit_stmts(g, w.orelse);
+        if codegen_busy(g) {
+            return stmt_cont(loc=else_cont.loc);
+        }
+        emit_module_return(g, else_cont.loc);
+    } else {
+        emit_module_return(g, test_loc);
+    }
+    return stmt_cont(loc=wloc, terminated=True);
+}
+
+def loop_body_has_break(stmts: list[stmt]) -> bool {
+    si = 0;
+    while si < len(stmts) {
+        s = stmts[si];
+        if isinstance(s, Break) {
+            return True;
+        }
+        if isinstance(s, If) {
+            iff = s as If;
+            if loop_body_has_break(iff.body) {
+                return True;
+            }
+            if loop_body_has_break(iff.orelse) {
+                return True;
+            }
+        }
+        si = si + 1;
+    }
+    return False;
+}
+
+def visit_for(
+    g: cfg_builder, f: For, more_code_follows: bool, tail: list[stmt], tail_idx: int
+) -> stmt_cont {
+    floc = nloc(f.lineno, f.end_lineno, f.col_offset, f.end_col_offset);
+    iter_loc = expr_loc(f.iter);
+    visit_expr(g, f.iter);
+    if codegen_busy(g) {
+        return stmt_cont(loc=floc);
+    }
+    g.emit_op(OP_GET_ITER, 0, iter_loc);
+    loop_hdr = g.new_block();
+    g.use(loop_hdr);
+    after = g.new_block();
+    break_blk = after;
+    needs_break_stub = more_code_follows;
+    if not needs_break_stub {
+        needs_break_stub = loop_body_has_break(f.body);
+    }
+    if needs_break_stub {
+        break_blk = g.new_block();
+    }
+    tail_dup_blk = None;
+    if more_code_follows {
+        tail_dup_blk = g.new_block();
+    }
+    g.push_loop(loop_hdr, break_blk, more_code_follows or needs_break_stub);
+    g.emit_jump(OP_FOR_ITER, after.id, iter_loc);
+    store = visit_store_target_tos(g, f.target);
+    if codegen_busy(g) {
+        g.pop_loop();
+        return stmt_cont(loc=store.loc);
+    }
+    body_cont = visit_stmts(g, f.body);
+    if codegen_busy(g) {
+        g.pop_loop();
+        return stmt_cont(loc=body_cont.loc);
+    }
+    if not body_cont.terminated {
+        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, body_cont.loc);
+    }
+    g.pop_loop();
+    if needs_break_stub {
+        g.use(break_blk);
+        g.emit_op(OP_POP_TOP, 0, iter_loc);
+        if more_code_follows {
+            br_cont = visit_stmt_tail(g, tail, tail_idx);
+            if codegen_busy(g) {
+                return br_cont;
+            }
+            g.use(after);
+            g.emit_op(OP_END_FOR, 0, iter_loc);
+            g.emit_op(OP_POP_ITER, 0, iter_loc);
+            if len(f.orelse) > 0 {
+                visit_stmts(g, f.orelse);
+            }
+            g.use(tail_dup_blk);
+            tail_cont = visit_stmt_tail(g, tail, tail_idx);
+            return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+        }
+        emit_module_return(g, iter_loc);
+    }
+    g.use(after);
+    g.emit_op(OP_END_FOR, 0, iter_loc);
+    g.emit_op(OP_POP_ITER, 0, iter_loc);
+    if len(f.orelse) > 0 {
+        else_cont = visit_stmts(g, f.orelse);
+        if codegen_busy(g) {
+            return stmt_cont(loc=else_cont.loc);
+        }
+        emit_module_return(g, else_cont.loc);
+    } else {
+        emit_module_return(g, iter_loc);
+    }
+    return stmt_cont(loc=floc, terminated=True);
+}
+
 # Lower one statement into the builder's current block.
-def visit_stmt(g: cfg_builder, s: stmt, more_code_follows: bool = False) -> stmt_cont {
+def visit_stmt(
+    g: cfg_builder,
+    s: stmt,
+    more_code_follows: bool = False,
+    tail: list[stmt] | None = None,
+    tail_idx: int = 0
+) -> stmt_cont {
     if codegen_busy(g) {
         return stmt_cont(loc=stmt_loc(s));
     }
@@ -1198,7 +1498,58 @@ def visit_stmt(g: cfg_builder, s: stmt, more_code_follows: bool = False) -> stmt
         return stmt_cont(loc=eloc);
     }
     if isinstance(s, Pass) {
-        return stmt_cont(loc=stmt_loc(s));
+        ploc = stmt_loc(s);
+        if more_code_follows {
+            g.emit_op(OP_NOP, 0, ploc);
+        }
+        return stmt_cont(loc=ploc);
+    }
+    if isinstance(s, If) {
+        t = tail;
+        if t is None {
+            t = [];
+        }
+        return visit_if(g, s as If, more_code_follows, t, tail_idx);
+    }
+    if isinstance(s, While) {
+        t = tail;
+        if t is None {
+            t = [];
+        }
+        return visit_while(g, s as While, more_code_follows, t, tail_idx);
+    }
+    if isinstance(s, For) {
+        t = tail;
+        if t is None {
+            t = [];
+        }
+        return visit_for(g, s as For, more_code_follows, t, tail_idx);
+    }
+    if isinstance(s, Break) {
+        b = s as Break;
+        bloc = stmt_loc(b);
+        frame = g.current_loop();
+        if frame is None {
+            codegen_fail(g, "SyntaxError", "'break' outside loop");
+            return stmt_cont(loc=bloc);
+        }
+        if frame.break_is_stub {
+            g.emit_jump(OP_JUMP_FORWARD, frame.break_blk.id, bloc);
+        } else {
+            emit_module_return(g, bloc);
+        }
+        return stmt_cont(loc=bloc, terminated=True);
+    }
+    if isinstance(s, Continue) {
+        c = s as Continue;
+        cloc_stmt = stmt_loc(c);
+        frame = g.current_loop();
+        if frame is None {
+            codegen_fail(g, "SyntaxError", "'continue' not properly in loop");
+            return stmt_cont(loc=cloc_stmt);
+        }
+        g.emit_jump(OP_JUMP_BACKWARD, frame.continue_blk.id, cloc_stmt);
+        return stmt_cont(loc=cloc_stmt, terminated=True);
     }
     codegen_fail(
         g, "NotImplementedError", "unsupported statement: " + ast_node_name(s as ast_node)
@@ -1242,7 +1593,7 @@ def compile_exec(
     si = 0;
     while si < len(body) {
         s = body[si];
-        cont = visit_stmt(g, s, exec_tail_emits_code(body, si + 1));
+        cont = visit_stmt(g, s, exec_tail_emits_code(body, si + 1), body, si + 1);
         last = cont.loc;
         if cont.terminated {
             terminated = True;
@@ -1250,7 +1601,11 @@ def compile_exec(
         if codegen_busy(g) {
             return u;
         }
-        si = si + 1;
+        if cont.next_si >= 0 {
+            si = cont.next_si;
+        } else {
+            si = si + 1;
+        }
     }
     if terminated {
         return u;

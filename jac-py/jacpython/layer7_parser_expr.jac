@@ -13,6 +13,7 @@ import from ast_nodes {
     UnaryOp,
     Call,
     Compare,
+    Tuple,
     Add,
     Mult,
     USub,
@@ -163,4 +164,24 @@ test "parser_expr: f(x,1) matches hand-built AST" {
 
 test "parser_expr: x<y<z matches hand-built AST" {
     assert_parse_matches("x<y<z", ast_cmp_chain());
+}
+
+test "parser_expr: singleton tuple (0,) parses" {
+    got = parse_eval_expr("(0,)", "<parser-test>");
+    assert got is not None;
+    assert isinstance(got, Tuple);
+    tu = got as Tuple;
+    assert len(tu.elts) == 1;
+    assert isinstance(tu.elts[0], Constant);
+    c = tu.elts[0] as Constant;
+    assert isinstance(c.value, PyInt);
+    assert (c.value as PyInt).val == 0;
+}
+
+test "parser_expr: multi-element tuple (0, 1) parses" {
+    got = parse_eval_expr("(0, 1)", "<parser-test>");
+    assert got is not None;
+    assert isinstance(got, Tuple);
+    tu = got as Tuple;
+    assert len(tu.elts) == 2;
 }
