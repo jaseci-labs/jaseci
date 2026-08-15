@@ -62,8 +62,9 @@ def _pyb_class_for(
         ns["__post_init__"] = _noop_post_init;
     }
     cls = type(cls_name, (base, ), ns);
-    if cls?.__abstractmethods__ {
-        cls.__abstractmethods__ = frozenset();
+    loose: any = cls;
+    if loose.__abstractmethods__ {
+        loose.__abstractmethods__ = frozenset();
     }
     _pyb_class_memo[key] = cls;
     return cls;
