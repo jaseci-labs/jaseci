@@ -1833,6 +1833,10 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
             and _lc_src != _lc_dst
             and (_lc_src == "jacval") != (_lc_dst == "jacval")
         ) {
+            _lc_re = self._reflavor_list(val, _lc_src, _lc_dst);
+            if _lc_re is not None {
+                return _lc_re;
+            }
             self.emit(
                 E5092,
                 node_override=self.ir_in,

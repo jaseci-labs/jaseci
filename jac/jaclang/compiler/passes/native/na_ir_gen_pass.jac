@@ -201,6 +201,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         dict_helpers: dict[str, dict] = {},
         set_types: dict[str, object] = {},
         set_helpers: dict[str, dict] = {},
+        _peer_container_ty: (object | None) = None,
         _exc_state_type: (object | None) = None,
         _exc_handler_global: (object | None) = None,
         _exc_push_fn: (object | None) = None,
@@ -394,6 +395,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _native_module_call_target(nd: uni.FuncCall) -> (tuple | None);
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
     def _empty_ctor_args_of(nd: uni.FuncCall) -> list;
+    def _container_type_args(t: any) -> list;
+    def _unwrap_cfg_expr(e: any) -> any;
+    def _spec_from_container_ptr(t: (ir.Type | None)) -> (str | None);
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
 
     has lambda_captures: dict[str, list[tuple]] = {},
@@ -626,6 +630,14 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _entry_alloca(var_type: ir.Type, name: str) -> ir.Value;
     def _zero_const(ty: ir.Type) -> ir.Constant;
     def _spec_from_list_slot_type(t: (ir.Type | None)) -> (str | None);
+    def _reflavor_list(
+        val: ir.Value, src_spec: str, dst_spec: str
+    ) -> (ir.Value | None);
+
+    def _cast_to_list_elem(
+        b: any, val: ir.Value, elem_type: ir.Type, name: str
+    ) -> ir.Value;
+
     def _empty_list_dest_spec(nd: uni.ListVal) -> (str | None);
     def _coerce_type(val: ir.Value, target_type: ir.Type) -> ir.Value;
     def _coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.Value;

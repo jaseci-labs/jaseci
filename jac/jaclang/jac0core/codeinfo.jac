@@ -141,12 +141,26 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "enum",
          "collections.abc"
      },
+     NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {"abc": frozenset({"ABC"})},
      _effective_codespace_ctx: ContextVar[str] = ContextVar(
          "jac_effective_default_codespace", default=""
      ),
      _closure_cap_ctx: ContextVar[int] = ContextVar(
          "jac_native_closure_cap", default=0
      );
+
+def native_comptime_import_names(module_name: str, names: list[str]) -> bool {
+    allowed = NATIVE_COMPTIME_STDLIB.get(module_name.lstrip('.'));
+    if allowed is None or not names {
+        return False;
+    }
+    for n in names {
+        if n not in allowed {
+            return False;
+        }
+    }
+    return True;
+}
 
 def set_effective_default_codespace(value: str) {
     _effective_codespace_ctx.set(value);

@@ -1578,12 +1578,26 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
                 "ascii"
             ) {
             params_l = nd.params or [];
+            _ez_peer = self._spec_from_container_ptr(self._peer_container_ty)
+                if not params_l and func_name in ("list", "set")
+                else None;
             if not params_l
                 and func_name in ("list", "set")
-                and self._empty_ctor_args_of(nd) {
+                and (self._empty_ctor_args_of(nd) or _ez_peer is not None) {
                 _ez_args = self._empty_ctor_args_of(nd);
                 _ez_elem: ir.Type = ir.IntType(8).as_pointer();
                 _ez_spec = "ptr";
+                if not _ez_args and _ez_peer is not None {
+                    _ez_pt = self.set_helpers
+                        if func_name == "set"
+                        else self.list_helpers;
+                    _ez_ph = _ez_pt.get(_ez_peer);
+                    if _ez_ph is not None {
+                        return self.builder.call(
+                            _ez_ph["new"], [], name=f"{func_name}.empty"
+                        );
+                    }
+                }
                 if _ez_args {
                     _ez_low = self._elem_storage_llvm(_ez_args[0]);
                     if _ez_low is not None {
@@ -3014,11 +3028,58 @@ impl NaIRGenPass._try_flow_future(nd: uni.ConcurrentExpr) -> (ir.Value | None) {
 }
 
 impl NaIRGenPass._empty_ctor_args_of(nd: uni.FuncCall) -> list {
-    _t = nd?.type;
-    if _t is None or not _t?.private {
+    _own = self._container_type_args(nd?.type);
+    if _own {
+        return _own;
+    }
+    _cur: (uni.UniNode | None) = nd;
+    _par = _cur?.parent;
+    while isinstance(_par, uni.CfgExpr) {
+        _cur = _par;
+        _par = _par.parent;
+    }
+    if isinstance(_par, uni.IfElseExpr) {
+        _sib = _par.else_value if _par.value is _cur else _par.value;
+        if _sib is not _cur {
+            return self._container_type_args(self._unwrap_cfg_expr(_sib)?.type);
+        }
+    }
+    return [];
+}
+
+impl NaIRGenPass._unwrap_cfg_expr(e: any) -> any {
+    _cur = e;
+    while isinstance(_cur, uni.CfgExpr) {
+        _cur = _cur.expr;
+    }
+    return _cur;
+}
+
+impl NaIRGenPass._spec_from_container_ptr(t: (ir.Type | None)) -> (str | None) {
+    if t is None or not isinstance(t, ir.PointerType) {
+        return None;
+    }
+    for _tbl in (self.list_types, self.set_types) {
+        for (spec, lt) in _tbl.items() {
+            if lt.as_pointer() == t {
+                return spec;
+            }
+        }
+    }
+    return None;
+}
+
+impl NaIRGenPass._container_type_args(t: any) -> list {
+    if t is None {
         return [];
     }
-    return list(_t.private.type_args or []);
+    for _cand in (t?.types or [t]) {
+        _priv = _cand?.private;
+        if _priv is not None and (_priv?.type_args or []) {
+            return list(_priv.type_args);
+        }
+    }
+    return [];
 }
 
 impl NaIRGenPass._prep_kwbind_record(
