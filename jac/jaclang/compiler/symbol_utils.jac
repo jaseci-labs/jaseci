@@ -32,6 +32,52 @@ def is_builtin_region_name(nm: object) -> bool {
     return isinstance(_mp, str) and _mp.endswith(".pyi");
 }
 
+def comptime_import_binds(nd: uni.UniNode, name: str) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_STDLIB }
+    mod = nd.find_parent_of_type(uni.Module);
+    if mod is None {
+        return False;
+    }
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if imp.from_loc is None or imp.is_absorb {
+            continue;
+        }
+        allowed = NATIVE_COMPTIME_STDLIB.get(imp.from_loc.dot_path_str.lstrip('.'));
+        if allowed is None or name not in allowed {
+            continue;
+        }
+        for item in imp.items {
+            if not isinstance(item, uni.ModuleItem) {
+                continue;
+            }
+            bound = item.alias if item.alias is not None else item.name;
+            if isinstance(bound, uni.Name) and bound.value == name {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+def comptime_identity_call_arg(nd: uni.FuncCall) -> (uni.Expr | None) {
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_IDENTITY_CALLS }
+    tgt = nd.target;
+    if not isinstance(tgt, uni.Name)
+        or tgt.sym_name not in NATIVE_COMPTIME_IDENTITY_CALLS {
+        return None;
+    }
+    params = nd.params or [];
+    if len(params) != 2
+        or not isinstance(params[0], uni.Expr)
+        or not isinstance(params[1], uni.Expr) {
+        return None;
+    }
+    if not comptime_import_binds(nd, tgt.sym_name) {
+        return None;
+    }
+    return params[1];
+}
+
 def resolve_expr_symbol(
     expr: uni.Expr, module: (uni.Module | None) = None
 ) -> (uni.Symbol | None) {

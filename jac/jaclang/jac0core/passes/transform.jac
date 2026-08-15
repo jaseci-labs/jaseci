@@ -1,7 +1,6 @@
 import time;
 import from abc { ABC }
 import from dataclasses { field }
-import from threading { Event }
 import from jaclang.jac0core.codeinfo { CodeLocInfo }
 import from jaclang.jac0core.diagnostics { DiagnosticInfo, Severity, E9001 }
 import from jaclang.jac0core.log { logging }
@@ -26,7 +25,7 @@ obj Alert {
 obj BaseTransform[T_in, T_out](ABC) {
     has ir_in: T_in,
         prog: JacProgram,
-        cancel_token: (Event | None) = None,
+        cancel_token: any = None,
         errors_had: list[Alert] = [],
         warnings_had: list[Alert] = [],
         time_taken: float = 0.0,

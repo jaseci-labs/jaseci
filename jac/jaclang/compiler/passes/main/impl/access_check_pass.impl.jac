@@ -2,18 +2,18 @@ impl AccessCheckPass.postinit -> None {
     super.postinit();
 }
 
-impl AccessCheckPass.transform(ir_in: uni.Module) -> uni.Module {
+impl AccessCheckPass.transform(ir_in: Module) -> Module {
     self._enforce = self._read_enforce();
 
     checked: set[int] = set();
-    for tr in ir_in.get_all_sub_nodes(typ=uni.AtomTrailer) {
-        if (tr.is_attr and isinstance(tr.right, uni.Name) and tr.right.sym) {
+    for tr in ir_in.get_all_sub_nodes(typ=AtomTrailer) {
+        if (tr.is_attr and isinstance(tr.right, Name) and tr.right.sym) {
             checked.add(id(tr.right));
             self._check_use(tr.right, tr.right.sym);
         }
     }
 
-    for nm in ir_in.get_all_sub_nodes(typ=uni.Name) {
+    for nm in ir_in.get_all_sub_nodes(typ=Name) {
         if (id(nm) in checked) or (nm.sym is None) {
             continue;
         }
@@ -35,7 +35,7 @@ impl AccessCheckPass._read_enforce -> bool {
     return False;
 }
 
-impl AccessCheckPass._check_use(use_node: uni.AstSymbolNode, sym: uni.Symbol) -> None {
+impl AccessCheckPass._check_use(use_node: AstSymbolNode, sym: Symbol) -> None {
     if (sym.access == SymbolAccess.PUBLIC) {
         return;
     }
@@ -52,7 +52,7 @@ impl AccessCheckPass._check_use(use_node: uni.AstSymbolNode, sym: uni.Symbol) ->
         return;
     }
 
-    if not isinstance(sym.parent_tab, uni.Module) {
+    if not isinstance(sym.parent_tab, Module) {
         return;
     }
     use_mod = use_node.loc.mod_path;
@@ -76,9 +76,9 @@ impl AccessCheckPass._check_use(use_node: uni.AstSymbolNode, sym: uni.Symbol) ->
 }
 
 impl AccessCheckPass._check_member(
-    use_node: uni.AstSymbolNode, sym: uni.Symbol, owner: uni.Archetype
+    use_node: AstSymbolNode, sym: Symbol, owner: Archetype
 ) -> None {
-    user = use_node.find_parent_of_type(uni.Archetype);
+    user = use_node.find_parent_of_type(Archetype);
     if (sym.access == SymbolAccess.PRIVATE) {
         if (user is not owner) {
             self._emit_pair(
@@ -97,34 +97,32 @@ impl AccessCheckPass._check_member(
 }
 
 impl AccessCheckPass._emit_pair(
-    warn: DiagnosticInfo, err: DiagnosticInfo, at_node: uni.UniNode, **kwargs: any
+    warn: DiagnosticInfo, err: DiagnosticInfo, at_node: UniNode, **kwargs: any
 ) -> None {
     self.emit(err if self._enforce else warn, node_override=at_node, **kwargs);
 }
 
-impl AccessCheckPass._declaring_archetype(sym: uni.Symbol) -> (uni.Archetype | None) {
-    return sym.parent_tab if isinstance(sym.parent_tab, uni.Archetype) else None;
+impl AccessCheckPass._declaring_archetype(sym: Symbol) -> (Archetype | None) {
+    return sym.parent_tab if isinstance(sym.parent_tab, Archetype) else None;
 }
 
-impl AccessCheckPass._base_archetype(expr: uni.UniNode) -> (uni.Archetype | None) {
-    base_name: uni.UniNode = expr;
-    if (isinstance(expr, uni.AtomTrailer) and isinstance(expr.right, uni.Name)) {
+impl AccessCheckPass._base_archetype(expr: UniNode) -> (Archetype | None) {
+    base_name: UniNode = expr;
+    if (isinstance(expr, AtomTrailer) and isinstance(expr.right, Name)) {
         base_name = expr.right;
     }
-    if (isinstance(base_name, uni.AstSymbolNode) and base_name.sym) {
+    if (isinstance(base_name, AstSymbolNode) and base_name.sym) {
         base_decl = base_name.sym.decl;
         if base_decl {
-            return base_decl.find_parent_of_type(uni.Archetype);
+            return base_decl.find_parent_of_type(Archetype);
         }
     }
     return None;
 }
 
-impl AccessCheckPass._is_subclass_of(
-    child: uni.Archetype, ancestor: uni.Archetype
-) -> bool {
+impl AccessCheckPass._is_subclass_of(child: Archetype, ancestor: Archetype) -> bool {
     visited: set[int] = set();
-    queue: list[uni.Archetype] = [child];
+    queue: list[Archetype] = [child];
     while queue {
         cur = queue.pop();
         if id(cur) in visited {

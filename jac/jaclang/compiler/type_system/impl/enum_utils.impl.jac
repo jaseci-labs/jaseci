@@ -1,5 +1,3 @@
-import jaclang.jac0core.unitree as uni;
-import from jaclang.compiler.type_system { types }
 import from jaclang.jac0core.const_fold { fold_const }
 import from jaclang.jac0core.diagnostics { E1001 }
 import type from jaclang.compiler.type_system.type_evaluator {
@@ -12,24 +10,24 @@ impl is_excluded_enum_member_name(name: str) -> bool {
 }
 
 impl create_enum_member_info(
-    assignment: uni.Assignment, evaluator: "TypeEvaluator"
-) -> (types.EnumMemberInfo | None) {
+    assignment: Assignment, evaluator: "TypeEvaluator"
+) -> (EnumMemberInfo | None) {
     if (
         not assignment.target
         or len(assignment.target) == 0
-        or not isinstance(target := assignment.target[0], (uni.NameAtom, uni.Name))
+        or not isinstance(target := assignment.target[0], (NameAtom, Name))
         or is_excluded_enum_member_name(member_name := target.value)
     ) {
         return None;
     }
 
-    value_type: types.TypeBase | None = None;
+    value_type: TypeBase | None = None;
     literal_value: int | str | None = None;
     if val := assignment.value {
-        if isinstance(val, uni.Int) {
+        if isinstance(val, Int) {
             value_type = evaluator.prefetch.int_class if evaluator.prefetch else None;
             literal_value = val.lit_value;
-        } elif isinstance(val, uni.String) {
+        } elif isinstance(val, String) {
             value_type = evaluator.prefetch.str_class if evaluator.prefetch else None;
             literal_value = val.value;
         } else {
@@ -41,23 +39,21 @@ impl create_enum_member_info(
         }
     }
 
-    return types.EnumMemberInfo(
+    return EnumMemberInfo(
         member_name=member_name, value_type=value_type, literal_value=literal_value
     );
 }
 
 impl validate_enum_member_annotation(
-    assignment: uni.Assignment,
-    member_info: types.EnumMemberInfo,
-    evaluator: "TypeEvaluator"
+    assignment: Assignment, member_info: EnumMemberInfo, evaluator: "TypeEvaluator"
 ) -> None {
     if assignment.type_tag is None or member_info.value_type is None {
         return;
     }
     annotation_type = evaluator.get_type_of_expression(assignment.type_tag.tag);
     if (
-        isinstance(annotation_type, types.ClassType)
-        and isinstance(member_info.value_type, types.ClassType)
+        isinstance(annotation_type, ClassType)
+        and isinstance(member_info.value_type, ClassType)
         and annotation_type.shared != member_info.value_type.shared
     ) {
         evaluator.emit_diag(
@@ -70,11 +66,11 @@ impl validate_enum_member_annotation(
 }
 
 impl build_enum_members(
-    enum_node: uni.Enum | uni.Archetype,
+    enum_node: Enum | Archetype,
     evaluator: "TypeEvaluator",
-    enum_value_type: types.TypeBase | None = None
-) -> dict[str, types.EnumMemberInfo] {
-    members: dict[str, types.EnumMemberInfo] = {};
+    enum_value_type: TypeBase | None = None
+) -> dict[str, EnumMemberInfo] {
+    members: dict[str, EnumMemberInfo] = {};
     if not enum_node.body {
         return members;
     }
@@ -83,13 +79,13 @@ impl build_enum_members(
     auto_value = 1;
 
     all_stmts: list = [
-        sym.decl.parent if isinstance(sym.decl.parent, uni.Assignment) else sym.decl
+        sym.decl.parent if isinstance(sym.decl.parent, Assignment) else sym.decl
         for (name, sym) in enum_node.names_in_scope.items()
         if not is_excluded_enum_member_name(name)
-            and not isinstance(sym.decl.name_of, uni.Ability)
+            and not isinstance(sym.decl.name_of, Ability)
     ];
     for stmt in all_stmts {
-        if isinstance(stmt, uni.Assignment) {
+        if isinstance(stmt, Assignment) {
             if member_info := create_enum_member_info(stmt, evaluator) {
                 if member_info.value_type is None {
                     member_info.value_type = int_type;
@@ -97,7 +93,7 @@ impl build_enum_members(
                 }
 
                 if enum_value_type
-                    and isinstance(member_info.value_type, types.ClassType)
+                    and isinstance(member_info.value_type, ClassType)
                     and member_info.value_type.shared != enum_value_type.shared {
                     evaluator.emit_diag(
                         E1001,
@@ -115,10 +111,10 @@ impl build_enum_members(
                     else auto_value;
             }
         } elif (
-            isinstance(stmt, uni.NameAtom)
+            isinstance(stmt, NameAtom)
             and not is_excluded_enum_member_name(member_name := stmt.value)
         ) {
-            members[member_name] = types.EnumMemberInfo(
+            members[member_name] = EnumMemberInfo(
                 member_name=member_name, value_type=int_type, literal_value=auto_value
             );
             auto_value += 1;
@@ -128,8 +124,8 @@ impl build_enum_members(
 }
 
 impl get_special_enum_value_type_from_bases(
-    base_classes: list[types.TypeBase], prefetch: "PrefetchedTypes"
-) -> (types.TypeBase | None) {
+    base_classes: list[TypeBase], prefetch: "PrefetchedTypes"
+) -> (TypeBase | None) {
     if not prefetch
         or not prefetch.enum_class
         or not prefetch.int_class
@@ -139,7 +135,7 @@ impl get_special_enum_value_type_from_bases(
 
     mro_shared_set: set = set();
     for base in base_classes {
-        if isinstance(base, types.ClassType) {
+        if isinstance(base, ClassType) {
             for mro_cls in base.shared.mro {
                 mro_shared_set.add(mro_cls.shared);
             }

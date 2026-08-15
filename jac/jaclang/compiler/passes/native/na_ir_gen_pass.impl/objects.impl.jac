@@ -568,6 +568,20 @@ impl NaIRGenPass._codegen_method(
         return;
     }
 
+    _pre_viols = self._capability_demotions.get(id(method));
+    if (
+        _pre_viols is not None
+        and method_name not in ("init", "__init__", "postinit", "__post_init__")
+    ) {
+        self._claimed_capability_demotions.add(id(method));
+        _pre_virtual = method_name in self.vtable_method_indices.get(arch_name, {});
+        if self._predemote_capability_unit(
+            full_name, func, _pre_viols, keep_func=_pre_virtual
+        ) {
+            return;
+        }
+    }
+
     block = func.append_basic_block(name="entry");
     saved_builder = self._builder;
     saved_locals = self.local_vars;
@@ -655,7 +669,6 @@ impl NaIRGenPass._codegen_method(
 
     _isolate = method_name not in ("init", "__init__", "postinit", "__post_init__");
     _is_virtual = method_name in self.vtable_method_indices.get(arch_name, {});
-    _err_mark = len(self.prog.errors_had) if _isolate else 0;
     _local_mark = len(self.errors_had) if _isolate else 0;
 
     try {
@@ -716,21 +729,18 @@ impl NaIRGenPass._codegen_method(
 
     if _isolate {
         self._demote_method_if_unlowerable(
-            full_name, func, _err_mark, _local_mark, keep_func=_is_virtual
+            full_name, func, _local_mark, keep_func=_is_virtual
         );
     }
 }
 
 impl NaIRGenPass._demote_method_if_unlowerable(
-    full_name: str,
-    func: ir.Function,
-    err_mark: int,
-    local_mark: int,
-    keep_func: bool = False
+    full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
 ) -> bool {
-    if len(self.prog.errors_had) <= err_mark {
+    if len(self.errors_had) <= local_mark {
         return False;
     }
+    _own = list(self.errors_had[local_mark:]);
 
     _na_debug = self._na_debug_on();
     _warn = _na_debug or bool(self.prog._compile_options.native_debug);
@@ -747,7 +757,7 @@ impl NaIRGenPass._demote_method_if_unlowerable(
     }
     if _warn {
         import sys;
-        _why = "; ".join(str(e) for e in self.prog.errors_had[err_mark:]);
+        _why = "; ".join(str(e) for e in _own);
         sys.stderr.write(
             f"warning: native seam -- demoting {full_name} to Python-only "
             f"(un-lowerable): {_why}\n"
@@ -756,18 +766,25 @@ impl NaIRGenPass._demote_method_if_unlowerable(
     if _na_debug {
         import sys;
         sys.stderr.write(f"NA_DEBUG demote {full_name}\n");
-        for _diag in self.prog.errors_had[err_mark:] {
+        for _diag in _own {
             sys.stderr.write(f"NA_DEBUG   {_diag.pretty_print()}\n");
         }
     }
     try {
         import from jaclang.jac0core.compiler { na_census_seam }
+        _first_code = _own[0].code.code if _own[0].code is not None else "";
+        _code_tag = f"[{_first_code}] " if _first_code else "";
         na_census_seam(
             self.ir_in.loc.mod_path,
-            f"{full_name}: " + str(self.prog.errors_had[err_mark]).split('\n')[0]
+            f"{full_name}: {_code_tag}" + str(_own[0]).split('\n')[0]
         );
     } except Exception { }
-    del self.prog.errors_had[err_mark:];
+    _own_ids = {id(_e) for _e in _own};
+    self.prog.errors_had = [
+        _e
+        for _e in self.prog.errors_had
+        if id(_e) not in _own_ids
+    ];
     del self.errors_had[local_mark:];
     func.blocks.clear();
     blk = func.append_basic_block(name="entry");
@@ -991,6 +1008,15 @@ impl NaIRGenPass._codegen_event_method(arch_name: str, method: uni.Ability) -> N
     if func is None or not isinstance(sig, uni.EventSignature) {
         return;
     }
+    _pre_viols = self._capability_demotions.get(id(method));
+    if _pre_viols is not None {
+        self._claimed_capability_demotions.add(id(method));
+        if self._predemote_capability_unit(
+            full_name, func, _pre_viols, keep_func=True
+        ) {
+            return;
+        }
+    }
     block = func.append_basic_block(name="entry");
     saved_builder = self._builder;
     saved_locals = self.local_vars;
@@ -1101,6 +1127,20 @@ impl NaIRGenPass._codegen_instantiation(
             for p in params
             if not isinstance(p, uni.KWPair)
         ];
+        if _pos_args and self._pyb_base_of(type_name) is not None {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="constructor call",
+                name=type_name,
+                help_text=(
+                    f"'{type_name}' inherits from a Python-side base, so its "
+                    f"constructor arguments cannot be matched positionally; "
+                    f"use keyword arguments."
+                )
+            );
+            return None;
+        }
         if _pos_args {
             _order = self.struct_field_order.get(type_name);
             if _order is None or len(_pos_args) > len(_order) {
@@ -1130,6 +1170,7 @@ impl NaIRGenPass._codegen_instantiation(
         and f"{type_name}.drop" not in self.func_symtab
         and not self.struct_field_inline.get(type_name, None)
         and not self.region_stack
+        and self._pyb_base_of(type_name) is None
     );
     _headerless = self._nogc_headerless() and not self._arch_is_osp_name(type_name);
     if _stack_ok and _headerless {
@@ -1539,6 +1580,12 @@ impl NaIRGenPass._codegen_instantiation(
         }
     }
 
+    if not self._codegen_pyb_shadow_init(
+        nd, type_name, obj_ptr, params, field_indices
+    ) {
+        return None;
+    }
+
     init_fn: (ir.Function | None) = None;
     _init_owner: str = type_name;
     for _init_cls in self._mro_of(type_name) {
@@ -1751,6 +1798,13 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
             return self._emit_class_routed_call(
                 nd, _sup_full, _sup_names, _self_val, self._self_arch
             );
+        }
+        if self._pyb_base_of(self._self_arch) is not None {
+            _pyb_sup = self._codegen_pyb_super_call(nd, method_name);
+            if _pyb_sup is not None {
+                return _pyb_sup;
+            }
+            return None;
         }
         self.emit(
             E5092,
@@ -2326,6 +2380,10 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     f"code. Call it from a Python/@sv context instead."
                 )
             );
+            return None;
+        }
+        if self._pyb_base_of(type_name) is not None {
+            return self._codegen_pyb_method_call(nd, type_name, method_name);
         }
         return None;
     }
@@ -2834,6 +2892,16 @@ impl NaIRGenPass._codegen_field_assign(
             and (field_indices is None or field_name not in field_indices)
         )
     ) {
+        if (
+            field_name is not None
+            and obj_val is not None
+            and type_name is not None
+            and _setter is None
+            and self._pyb_base_of(type_name) is not None
+        ) {
+            self._codegen_pyb_field_assign(target, value, obj_val);
+            return;
+        }
         if len(self.errors_had) == _fa_errs {
             self.emit(
                 E5092,

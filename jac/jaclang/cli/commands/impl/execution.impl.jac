@@ -549,7 +549,7 @@ impl run(
                     console.error(error.pretty_print());
                 }
             } else {
-                import from jaclang.jac0core.helpers { dump_traceback }
+                import from jaclang.jac0core.traceback_render { dump_traceback }
                 console.error(dump_traceback(e));
             }
         }
@@ -748,7 +748,7 @@ impl start(
                 console.error(error.pretty_print());
             }
         } else {
-            import from jaclang.jac0core.helpers { dump_traceback }
+            import from jaclang.jac0core.traceback_render { dump_traceback }
             console.error(f"Error loading {filename}: {e}");
             console.error(dump_traceback(e));
         }
@@ -774,7 +774,7 @@ impl start(
         try {
             server.print_endpoint_docs();
         } except Exception as e {
-            import from jaclang.jac0core.helpers { dump_traceback }
+            import from jaclang.jac0core.traceback_render { dump_traceback }
             console.error(f"Error generating endpoint documentation: {e}");
             console.error(dump_traceback(e));
             mach.close();
@@ -884,7 +884,7 @@ impl start(
         mach.close();
         return 0;
     } except Exception as e {
-        import from jaclang.jac0core.helpers { dump_traceback }
+        import from jaclang.jac0core.traceback_render { dump_traceback }
         console.error(f"Server error: {e}");
         console.error(dump_traceback(e));
         if hot_reloader {
@@ -1087,7 +1087,7 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
 
 impl debug(filename: str, main: bool = True, cache: bool = False) -> int {
     import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.helpers { debugger as db }
+    import from jaclang.jac0core.debugger { debugger as db }
     if len(sys.argv) > 1 and sys.argv[1] == "debug" {
         console.print(
             "note: 'jac debug' is deprecated; use jac run <file> --debug", style="muted"

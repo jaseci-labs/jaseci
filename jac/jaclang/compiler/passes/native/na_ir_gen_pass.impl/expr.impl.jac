@@ -1546,7 +1546,10 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
     then_open = not self.builder.block.is_terminated;
 
     self.builder.position_at_end(else_bb);
+    _peer_saved = self._peer_container_ty;
+    self._peer_container_ty = then_val.type if then_val is not None else None;
     else_val = self._codegen_expr(nd.else_value);
+    self._peer_container_ty = _peer_saved;
     else_end_bb = self.builder.block;
     else_open = not self.builder.block.is_terminated;
 
@@ -1842,6 +1845,20 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             _fa_type_name = self._struct_name_of(nd.target);
             if _fa_type_name is not None {
                 type_name = _fa_type_name;
+                _fa_idx = self.struct_field_indices.get(type_name);
+                _fa_get = self._accessor_slot_of(type_name, right_name, "property");
+                if (
+                    _fa_get is None
+                    and (_fa_idx is None or right_name not in _fa_idx)
+                    and self._pyb_base_of(type_name) is not None
+                ) {
+                    obj_val = self._codegen_expr(nd.target);
+                    if obj_val is not None {
+                        return self._codegen_pyb_field_load(
+                            nd, self._opt_unwrap_attr(obj_val), right_name
+                        );
+                    }
+                }
                 obj_val = self._codegen_expr(nd.target);
                 if obj_val is not None {
                     return self._codegen_field_access(obj_val, right_name, type_name);

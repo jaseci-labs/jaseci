@@ -661,6 +661,10 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
         if not type_args {
             return None;
         }
+        _var_seq = self._variadic_tuple_seq_type(type_args);
+        if _var_seq is not None {
+            return _var_seq;
+        }
         elem_types: list[ir.Type] = [];
         for a in type_args {
             _et = self._lower_type(a);
@@ -1590,6 +1594,11 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
         }
     }
 
+    _tseq = self._tuple_seq_coerce(val, target_type);
+    if _tseq is not None {
+        return _tseq;
+    }
+
     _sd = self._str_desc_ty;
     if _sd is not None {
         _i8p_sd = ir.IntType(8).as_pointer();
@@ -1824,6 +1833,10 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
             and _lc_src != _lc_dst
             and (_lc_src == "jacval") != (_lc_dst == "jacval")
         ) {
+            _lc_re = self._reflavor_list(val, _lc_src, _lc_dst);
+            if _lc_re is not None {
+                return _lc_re;
+            }
             self.emit(
                 E5092,
                 node_override=self.ir_in,
