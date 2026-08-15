@@ -265,6 +265,24 @@ bundled one. A bundled module links through the existing cross-module machinery
   are accepted and ignored, so file logging silently stays on stderr.
   Lazy `%`-args (`log.info("x %s", y)`) and `exc_info` are not provided.
 
+- **`contextvars.jac`** (#8201, held back by #8220 until #8229 and #8230
+  landed) -- `ContextVar[T]` as a single process-wide cell: `ContextVar(name)`
+  and `` ContextVar(name, `default=...) ``, `.name`, `.get()`, `.get(default)`
+  and `.set(value)`. `get` follows CPython's precedence exactly -- the value
+  last `set`, else the default the call passed, else the default the
+  constructor took, else `LookupError(name)`.
+  SCOPE: there is one cell per variable rather than one per context, because
+  the native pathway has neither asyncio tasks nor threads to separate them,
+  so `copy_context`, `Context.run`, and the `Token` that `set` returns
+  (with `reset`) are not provided -- `set` answers `None`. A reference type
+  argument (an archetype, `list`, `dict`) lowers; a **scalar** one
+  (`int`, `float`, `bool`, and `str`, which is a by-value descriptor
+  natively) is refused at the construction site with `E5092` naming the
+  instantiation, because a generic archetype is laid out once for every
+  instantiation and its `T` slot is a raw pointer (#8229). `None` is the
+  unset marker in that slot, so `set(None)` on a `ContextVar[X | None]`
+  reads back as unset where CPython would answer `None`.
+
 The syscall-backed `os` / `os.path` entry points (`makedirs`, `realpath`,
 `mkdir`, `exists`, `getmtime`, `normcase`, ...) are Mechanism-A/H compiler
 intercepts, reached via the flat `import os`, not bundled here (see
