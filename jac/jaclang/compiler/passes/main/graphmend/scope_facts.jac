@@ -1,3 +1,4 @@
+import sys;
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
@@ -60,8 +61,58 @@ def compiled_region_ids(
                 work.append(callee);
             }
         }
+        for dec in (ab.decorators or []) {
+            deco = _resolve_decorator(ab, dec, prog, seen);
+            if deco is None {
+                continue;
+            }
+            for closure in _wrapper_closures(deco) {
+                if id(closure) not in ids {
+                    work.append(closure);
+                }
+            }
+        }
     }
     return ids;
+}
+
+def _wrapper_closures(deco: uni.Ability) -> list[uni.Ability] {
+    params: set[str] = set();
+    sig = deco.signature;
+    if isinstance(sig, uni.FuncSignature) {
+        for p in (sig.get_parameters() or []) {
+            if p?.name is not None {
+                params.add(p.name.value);
+            }
+        }
+    }
+    out: list[uni.Ability] = [];
+    if not params {
+        return out;
+    }
+    for closure in deco.get_all_sub_nodes(uni.Ability) {
+        for call in closure.get_all_sub_nodes(uni.FuncCall) {
+            if isinstance(call.target, uni.Name) and (call.target.value in params) {
+                out.append(closure);
+                break;
+            }
+        }
+    }
+    return out;
+}
+
+def _resolve_decorator(
+    site: uni.Ability, dec: uni.Expr, prog: JacProgram, seen: set[str]
+) -> (uni.Ability | None) {
+    base = dec.target if isinstance(dec, uni.FuncCall) else dec;
+    if not isinstance(base, uni.Name) {
+        return None;
+    }
+    mod = site.find_parent_of_type(uni.Module);
+    if mod is None {
+        return None;
+    }
+    return find_ability(mod, base.value, prog, seen);
 }
 
 def _resolve_callee(
@@ -69,6 +120,15 @@ def _resolve_callee(
 ) -> (uni.Ability | None) {
     t = call.target;
     if isinstance(t, uni.Name) {
+        scope: (uni.Ability | None) = site;
+        while scope is not None {
+            for nested in scope.get_all_sub_nodes(uni.Ability) {
+                if nested.sym_name == t.value {
+                    return nested;
+                }
+            }
+            scope = scope.find_parent_of_type(uni.Ability);
+        }
         mod = site.find_parent_of_type(uni.Module);
         if mod is None {
             return None;
@@ -102,7 +162,7 @@ def find_ability(
             continue;
         }
         top = imp.from_loc.dot_path_str.lstrip('.').split('.')[0];
-        if top in {'torch', 'jaclang'} {
+        if (top in {'torch', 'jaclang'}) or (top in sys.stdlib_module_names) {
             continue;
         }
         target = _import_target(imp, name);
