@@ -193,6 +193,38 @@ def stackdepth_diag(kind: str, message: str) -> internal_compiler_diagnostic {
     return internal_compiler_diagnostic(kind=kind, message=message);
 }
 
+# Reject dead instructions after an unconditional jump or scope exit in the
+# same basic block (INTEGRATION_PLAN Phase 3 negative surface).
+def block_has_dead_code_after_terminator(b: basicblock) -> bool {
+    past_term = False;
+    ii = 0;
+    while ii < len(b.instrs) {
+        ins = b.instrs[ii];
+        if past_term {
+            return True;
+        }
+        if is_unconditional_jump_opcode(ins.opcode) or is_scope_exit_opcode(ins.opcode) {
+            past_term = True;
+        }
+        ii = ii + 1;
+    }
+    return False;
+}
+
+def check_cfg_terminators(u: unverified_cfg) -> compiler_diagnostic | None {
+    bi = 0;
+    while bi < len(u.blocks) {
+        b = u.blocks[bi];
+        if block_has_dead_code_after_terminator(b) {
+            return stackdepth_diag(
+                "ValueError", "Invalid CFG, instructions after terminator"
+            );
+        }
+        bi = bi + 1;
+    }
+    return None;
+}
+
 def stackdepth_push(
     startdepths: list[int], work: list[int], b: basicblock, depth: int
 ) -> bool {
@@ -330,6 +362,10 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
 # UnverifiedCFG -> VerifiedCFG (Phase 2 contract; Phase 3 worklist stack proof).
 def verify_cfg(u: unverified_cfg) -> verified_cfg {
     normalize_jumps(u);
+    tdiag = check_cfg_terminators(u);
+    if tdiag is not None {
+        return verified_cfg(unit=u, flat=[], stacksize=0, diag=tdiag);
+    }
     sd = calculate_stackdepth(u);
     stacksize = sd[0];
     sdiag = sd[1];

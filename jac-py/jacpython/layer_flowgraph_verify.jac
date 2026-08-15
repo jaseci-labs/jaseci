@@ -85,6 +85,21 @@ test "flowgraph: unknown opcode stack metadata rejected" {
     assert "stack effect" in compiler_diag_message(cfg.diag);
 }
 
+test "flowgraph: instructions after terminator rejected" {
+    b0 = basicblock(
+        id=0,
+        instrs=[
+            mk_instr(OP_LOAD_CONST, 0, loc(1, 1, 0, 1)),
+            mk_instr(OP_RETURN_VALUE, 0, loc(1, 1, 0, 1)),
+            mk_instr(OP_POP_TOP, 0, loc(1, 1, 0, 1)),
+        ]
+    );
+    cfg = verify_cfg(mk_unit([b0]));
+    assert cfg.diag is not None;
+    assert compiler_diag_kind(cfg.diag) == "ValueError";
+    assert "after terminator" in compiler_diag_message(cfg.diag);
+}
+
 test "flowgraph: valid straight-line stacksize" {
     b0 = basicblock(
         id=0,
