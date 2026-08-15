@@ -2305,9 +2305,7 @@ test "jac check native census ranks module outcomes" {
         assert "E5092" in combined , (
             "the seam reason must carry the first error code"
         );
-        assert "build: " in combined , (
-            "the seam must name the demoted callable"
-        );
+        assert "build: " in combined , ("the seam must name the demoted callable");
         assert "demote.jac" in combined , "seamed module path missing";
         assert "blocked.jac" in combined , "server module path missing";
         assert "pure.jac" in combined , "native module path missing";
