@@ -61,6 +61,7 @@ glob _SCHEMA_SQL = [
 glob _SCHEMA_LOCK_SPACE = 'jaclang.schema',
      _SCHEMA_LOCK_WAIT_SECONDS = 120.0,
      _SCHEMA_LOCK_POLL_SECONDS = 0.05,
+     _SCHEMA_LOCK_POLL_MAX_SECONDS = 0.5,
      _SCHEMA_DDL_ATTEMPTS = 3,
      _CONCURRENT_DDL_STATES = ('23505', '42P07', '42710');
 
@@ -456,6 +457,7 @@ impl PgStore._acquire_schema_lock -> bool {
     import time;
     key = self._schema_lock_key();
     deadline = time.monotonic() + _SCHEMA_LOCK_WAIT_SECONDS;
+    pause = _SCHEMA_LOCK_POLL_SECONDS;
     while True {
         try {
             rows = self._run(f"SELECT pg_try_advisory_lock({key})", {});
@@ -473,7 +475,8 @@ impl PgStore._acquire_schema_lock -> bool {
             );
             return False;
         }
-        time.sleep(_SCHEMA_LOCK_POLL_SECONDS);
+        time.sleep(pause);
+        pause = min(pause * 2, _SCHEMA_LOCK_POLL_MAX_SECONDS);
     }
 }
 
