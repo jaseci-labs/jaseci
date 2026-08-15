@@ -10,11 +10,22 @@ def looks_sub(nd: (Base | None)) -> TypeGuard[Sub] {
     return isinstance(nd, Sub);
 }
 
+def is_sub(nd: (Base | None)) -> TypeIs[Sub] {
+    return isinstance(nd, Sub);
+}
+
 def probe_guard(nd: (Base | None)) -> str {
     if looks_sub(nd) {
         return f"guard:{nd.extra}";
     }
     return "guard:none";
+}
+
+def probe_is(nd: (Base | None)) -> str {
+    if is_sub(nd) {
+        return f"is:{nd.extra}";
+    }
+    return "is:none";
 }
 
 obj Holder {
@@ -35,8 +46,14 @@ with entry {
     print(probe_guard(b));
     print(probe_guard(None));
 
+    print(probe_is(s));
+    print(probe_is(b));
+    print(probe_is(None));
+
     print(looks_sub(s));
     print(looks_sub(b));
+    print(is_sub(s));
+    print(is_sub(b));
 
     print(Holder.looks_sub_static(s));
     print(Holder.looks_sub_static(b));

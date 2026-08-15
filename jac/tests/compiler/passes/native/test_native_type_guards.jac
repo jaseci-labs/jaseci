@@ -1,4 +1,4 @@
-"""`TypeGuard[T]` is ambient, and the native lane lowers it.
+"""`TypeGuard[T]` and `TypeIs[T]` are ambient, and the native lane lowers them.
 
 Both guard PEPs say a predicate returns a bool and the guarded type is a claim
 about the *argument*, so `FunctionType.type_guard` carries the claim and every
@@ -8,19 +8,16 @@ the consumer that did not: a `TypeGuard[...]` in return position reached
 which is why `UniScopeNode.is_python_scoping` kept a hand-written `bool`
 annotation rather than the accurate guard form.
 
-The fixture imports nothing. `TypeGuard` reaches it through
-`typing_ambient.pyi`, which is the other half: typeshed declares it under
-`if sys.version_info >= (3, 10)`, and the ambient installer used to read the
-typing module's own scope dict, which never descends into a version guard's
-live branch, so the name was dropped without a word. The installer now resolves
-through `lookup_symtab`, which walks the live branch.
+The fixture imports nothing. Both names reach it through `typing_ambient.pyi`,
+which is the other half: typeshed declares `TypeGuard` under
+`if sys.version_info >= (3, 10)` and `TypeIs` under `>= (3, 13)`, and the
+ambient installer used to read the typing module's own scope dict, which never
+descends into a version guard's live branch, so both were dropped without a
+word. The installer now resolves through `lookup_symtab`, which walks the live
+branch against the CPython 3.14 the `jac` binary bundles.
 
-`TypeIs` gets the same lowering and the same install, but is deliberately not
-exercised here. Typeshed guards it at `>= (3, 13)`: the shipped `jac` binary
-bundles 3.14 and resolves it, while a dev interpreter older than 3.13 correctly
-resolves it to nothing, and a fixture that compiles only under the shipped
-runtime is a fixture that cannot be run against dev sources. Its narrowing is
-pinned by the checker tests instead.
+The two forms differ in what they claim, and the fixture holds them apart:
+`TypeIs` narrows both edges, `TypeGuard` only the positive one.
 
 Running the one fixture through both pathways and demanding identical stdout is
 the contract: CPython narrows, so the native binary must narrow the same way.
