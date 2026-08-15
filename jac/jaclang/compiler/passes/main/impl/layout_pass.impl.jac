@@ -29,6 +29,7 @@ impl LayoutPass.transform(ir_in: Module) -> Module {
         if name in arch_map {
             layout = self._build_layout(arch_map[name]);
             self.registry.layouts[name] = layout;
+            self.registry.local_names.append(name);
         }
     }
 

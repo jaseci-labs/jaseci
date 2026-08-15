@@ -557,6 +557,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _foreign_optional_field(tb: any) -> bool;
     def _typevar_optional_field(tb: any) -> bool;
     def _erased_typevar_names(tb: any) -> list[str];
+    def _erased_seq_type(tb: any) -> (ir.Type | None);
+    def _erased_sig_typevars(nd: uni.Archetype) -> dict;
     def _reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bool;
     def _emit_scalar_type_arg_refusal(
         nd: uni.UniNode, type_name: str, fname: str, tv_name: str, arg: any
@@ -610,6 +612,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.FuncCall, func: ir.Function, self_offset: int = 0
     ) -> list;
 
+    def _emit_pack_slot_refusal(nd: uni.FuncCall, star: str) -> None;
     def _codegen_varargs_list(
         nd: uni.FuncCall, extras: list, expected: (ir.Type | None)
     ) -> (ir.Value | None);
@@ -1204,6 +1207,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_isinstance_runtime(
         nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
     ) -> (ir.Value | None);
+
+    def _read_field_or_refuse(
+        nd: uni.UniNode, obj_val: ir.Value, field_name: str, arch_name: str
+    ) -> (ir.Value | None);
+
+    def _unadopted_field_owner(arch_name: str, field_name: str) -> (str | None);
+    def _emit_field_access_refusal(
+        nd: uni.UniNode, arch_name: str, field_name: str
+    ) -> None;
 
     def _mro_of(arch_name: str) -> list[str];
     def _arch_layout(arch_name: str) -> (ArchetypeLayout | None);
