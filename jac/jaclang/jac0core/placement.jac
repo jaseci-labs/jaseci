@@ -539,7 +539,6 @@ def scan_native_blockers(
     import from jaclang.jac0core.codeinfo {
         NATIVE_SUPPORTED_STDLIB,
         is_bundled_native_module,
-        native_comptime_import_names,
         resolve_native_module
     }
     deps: list[str] = [];
@@ -606,7 +605,7 @@ def scan_native_blockers(
         if imp.is_virtual_jac or imp.has_string_path {
             return ("virtual/string-path import", deps);
         }
-        if imp.from_loc is not None and _comptime_only_import(imp) {
+        if _comptime_only_import(imp) {
             continue;
         }
         targets: list[tuple[str, (str | None), bool, bool]] = [];
