@@ -654,10 +654,6 @@ impl native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None) {
         if not isinstance(_sig, FuncSignature) {
             return None;
         }
-        _mname = _owner.name_ref.sym_name if _owner.name_ref else "";
-        if _mname in ("init", "__init__", "postinit", "__post_init__") {
-            return None;
-        }
         return _owner;
     }
     if isinstance(_sig, FuncSignature) and isinstance(_owner.parent, Module) {
