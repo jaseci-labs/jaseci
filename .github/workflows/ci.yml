@@ -70,9 +70,14 @@ jobs:
               - 'jac/jaclang/compiler/passes/native/**'
               - 'jac/tests/compiler/passes/native/**'
               - 'jac/jaclang/compiler/tests/test_prim_equivalence.jac'
+              - 'jac/jaclang/compiler/tests/fixtures/prim_*.jac'
               - 'jac/native/**'
               - 'jac/build.zig'
               - 'jac/build.zig.zon'
+              # The native lanes' own definitions live here, so a change to
+              # what they run must run them -- `core` already lists this file
+              # for the same reason.
+              - '.github/workflows/ci.yml'
 
   # Build (or cache-restore) the jac binary ONCE per run, smoke it hermetically,
   # and publish it (plus the gitignored typeshed stubs) as artifacts. Every
@@ -842,7 +847,16 @@ jobs:
         # os.path + textwrap + keyword are pure-compute na modules that must
         # agree on darwin; the shutil pin self-skips there until the stat
         # seam gets a per-OS floor (see test_prim_equivalence.jac).
-        PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword"
+        #
+        # The str/bytes pins are here because darwin ran no string-primitive
+        # equivalence at all: `str.lower()` lowers to a per-byte libc
+        # `tolower`, and the linkers differ (Linux executables statically
+        # link vendored musl, Mach-O binds every undefined symbol to
+        # libSystem), so identical IR can get two different implementations.
+        # The seal's parse parity canary is red on macos-aarch64 for a
+        # divergence in exactly this family; nothing before this pin ran the
+        # string surface on darwin on a PR.
+        PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword or str or bytes"
       run: jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
 
     # macOS JIR seeder (jac-check seeds the Linux tier).
