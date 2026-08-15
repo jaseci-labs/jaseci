@@ -251,13 +251,10 @@ glob REACH_ENTRY_SRC = "import torch;\n"
          + "    return torch.relu(x);\n"
          + "}\n";
 
-"""An entry inside a subpackage reaching a helper that sits above that package.
-
-The region walk follows the from-import; the claim walk, bounded by the entry's
-own package, does not. So nothing about the helper's own file or configuration
-records which side of the compiled region it landed on: only the rest of the
-program does.
-"""
+"""An entry in a subpackage reaching a helper above that package: the region
+walk follows the from-import, the claim walk, bounded by the entry's package,
+does not, so the helper's own file and configuration say nothing about which
+side of the region it landed on."""
 def _mk_reach_project(tmp: str) -> tuple[(str, str)] {
     with open(os.path.join(tmp, "jac.toml"), "w") as fh {
         fh.write("[project]\nname = \"gmreach\"\nversion = \"0.1.0\"\n");
@@ -278,11 +275,9 @@ def _mk_reach_project(tmp: str) -> tuple[(str, str)] {
 }
 
 test "a helper with no region is not served the region artifact" {
-    # Run A is one program compiling the importer first and then the module it
-    # reaches, which is the order a real run imports them in. Run B is a fresh
-    # program on purpose: it models a separate process that compiles the helper
-    # alone, so the warm cache is the only thing the two runs share. The helper
-    # is in no region there, and the transformed artifact must not be served.
+    # Run A is one program, importer first, the order a real run imports in.
+    # Run B is a fresh program on purpose: a separate process compiling the
+    # helper alone, sharing only the warm cache, with no region at all.
     old_config = config_mod._config;
     try {
         with TemporaryDirectory() as tmpdir {
@@ -309,11 +304,9 @@ test "a helper with no region is not served the region artifact" {
 }
 
 test "a region member is not served the entry-less artifact" {
-    # The reverse direction. The first program compiles the helper alone, so it
-    # is in no region and its artifact is the untransformed one. The second
-    # program is fresh and compiles the entry first, then the helper, again in
-    # real import order: there the helper IS a region member and the
-    # untransformed artifact must not be served to it.
+    # The reverse direction. The first program compiles the helper alone, so
+    # its artifact is the untransformed one; the second is a fresh program
+    # compiling the entry first, where the helper IS a region member.
     old_config = config_mod._config;
     try {
         with TemporaryDirectory() as tmpdir {
