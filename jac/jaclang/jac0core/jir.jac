@@ -651,10 +651,34 @@ def is_module_cache_valid_gm_noop(source_path: str, cache_path: Path) -> bool {
 }
 
 
-def _ct_reflect_deps(source_path: str) -> list[str] {
+glob _SRC_SHARED: dict[(str, tuple[(int, int, str)])] = {};
+
+def read_source_shared(file_path: str) -> (str | None) {
     try {
-        src = open(source_path, encoding="utf-8").read();
+        st = os.stat(file_path);
     } except OSError {
+        return None;
+    }
+    hit = _SRC_SHARED.get(file_path);
+    if (hit is not None) and (hit[0] == st.st_mtime_ns) and (hit[1] == st.st_size) {
+        return hit[2];
+    }
+    import from jaclang.jac0core.helpers { read_file_with_encoding }
+    try {
+        src = read_file_with_encoding(file_path);
+    } except Exception {
+        return None;
+    }
+    if len(_SRC_SHARED) >= 4 {
+        _SRC_SHARED.clear();
+    }
+    _SRC_SHARED[file_path] = (st.st_mtime_ns, st.st_size, src);
+    return src;
+}
+
+def _ct_reflect_deps(source_path: str) -> list[str] {
+    src = read_source_shared(source_path);
+    if src is None {
         return [];
     }
     if "comptime" not in src or "reflect" not in src {

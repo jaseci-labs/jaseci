@@ -1,6 +1,5 @@
 import ast as ast3;
 import re;
-import from jaclang.jac0core.helpers { read_file_with_encoding }
 
 glob _STRIP_RE = re.compile(
          "'''[\\s\\S]*?'''"
@@ -25,8 +24,13 @@ def module_imports_torch(src: str, file_path: str) -> bool {
 }
 
 def file_imports_torch(file_path: str) -> bool {
+    import from jaclang.jac0core.jir { read_source_shared }
     try {
-        return module_imports_torch(read_file_with_encoding(file_path), file_path);
+        src = read_source_shared(file_path);
+        if src is None {
+            return False;
+        }
+        return module_imports_torch(src, file_path);
     } except Exception {
         return False;
     }
