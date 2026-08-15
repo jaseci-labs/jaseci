@@ -340,6 +340,80 @@ impl NaIRGenPass._codegen_tuple_index(
     return self.builder.load(elem_ptr, name=f"tuple.idx.{idx}");
 }
 
+impl NaIRGenPass._variadic_tuple_seq_type(type_args: list) -> (ir.Type | None) {
+    """The native shape of a tuple annotation that withholds its arity.
+
+    `tuple[T, ...]` describes any number of `T`, and a native tuple carries its
+    arity in its type, so no tuple struct can stand for it. The one native shape
+    that holds N-of-T with N only known at runtime is the sequence `list[T]`
+    already lowers to, and that is what such an annotation means here. The type
+    system marks the variadic form by parking an `UnknownType` among the type
+    arguments, which is the same signal `_tuple_has_variadic_arg` reads.
+    """;
+    try {
+        import from jaclang.compiler.type_system.types { UnknownType as _VtUnknown }
+    } except ImportError {
+        return None;
+    }
+    elems = [
+        a
+        for a in type_args
+        if not isinstance(a, _VtUnknown)
+    ];
+    if len(elems) == len(type_args) or not elems {
+        return None;
+    }
+    lowered: list[ir.Type] = [];
+    for a in elems {
+        et = self._lower_type(a);
+        if et is None {
+            return None;
+        }
+        if self._str_desc_ty is not None and et == self._str_desc_ty {
+            et = ir.IntType(8).as_pointer();
+        }
+        lowered.append(et);
+    }
+    flavor = self._tuple_seq_flavor(lowered);
+    if flavor is None {
+        return None;
+    }
+    (spec, store_type) = flavor;
+    self._emit_list_helpers(spec, store_type);
+    return self.list_types[spec].as_pointer();
+}
+
+impl NaIRGenPass._tuple_seq_coerce(
+    val: ir.Value, target_type: ir.Type
+) -> (ir.Value | None) {
+    """Materialize a tuple value into the sequence a variadic tuple lowers to.
+
+    Only fires when the target is exactly the sequence type the value's own
+    element flavor would build, so the conversion never silently reinterprets
+    one element flavor as another.
+    """;
+    if not isinstance(target_type, ir.PointerType) {
+        return None;
+    }
+    spec = self._spec_from_list_slot_type(target_type);
+    if spec is None or spec not in self.list_types {
+        return None;
+    }
+    if self.list_types[spec].as_pointer() != target_type {
+        return None;
+    }
+    st = self._tuple_struct_of_value(val);
+    if st is None {
+        return None;
+    }
+    flavor = self._tuple_seq_flavor([e for e in st.elements]);
+    if flavor is None or flavor[0] != spec {
+        return None;
+    }
+    seq = self._tuple_iter_seq(None, val);
+    return seq[0] if seq is not None else None;
+}
+
 impl NaIRGenPass._tuple_struct_of_value(
     val: (ir.Value | None)
 ) -> (ir.LiteralStructType | None) {
