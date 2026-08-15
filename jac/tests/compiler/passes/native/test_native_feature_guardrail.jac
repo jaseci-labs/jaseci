@@ -35,6 +35,34 @@ def compile_na_inline(label: str, code: str) -> JacProgram {
     return prog;
 }
 
+"""Like `compile_na_inline`, but also hand back the compiled module (for
+layout assertions) and the JAC_NA_DEBUG stderr stream (for demotion-reason
+assertions -- granular demotion reports its cause there rather than as a
+program error)."""
+def compile_na_inline_demote(label: str, code: str) -> tuple {
+    import contextlib;
+    import io;
+    path = os.path.join(FIXTURES_DIR, f"_guardrail_{label}.jac");
+    prog = JacProgram();
+    buf = io.StringIO();
+    _prev = os.environ.get("JAC_NA_DEBUG");
+    os.environ["JAC_NA_DEBUG"] = "1";
+    try {
+        with contextlib.redirect_stderr(buf) {
+            ir = prog.compile(
+                file_path=path, use_str=code, options=native_force_opts()
+            );
+        }
+    } finally {
+        if _prev is None {
+            del os.environ["JAC_NA_DEBUG"];
+        } else {
+            os.environ["JAC_NA_DEBUG"] = _prev;
+        }
+    }
+    return (prog, ir, buf.getvalue(), );
+}
+
 """Compile a snippet through the FRONT-END check schedule (the `type_check`
 extras) with codegen OFF — the `jac check` path. This is the path that
 historically did NOT surface native codegen-time E5090s, so structural native
@@ -143,15 +171,17 @@ test "guardrail: yield without a generator return type is rejected" {
 # Reading a field off an UNFILTERED node-ref element over an *untyped* edge is
 # unsupported: the checker types the neighbour as `any` (a bare edge can connect
 # any node types, so the adjacency returns untyped handles), so native cannot
-# resolve the element to a struct layout. It must E5090 -- and crucially must
-# NOT throw an uncaught codegen traceback (issue #6646 Bug 3) -- AND the
-# diagnostic must guide the author to a narrowing: a `[?:Type]` node filter, or
-# declaring the edge's endpoint node types. A typed receiver (edge ref, a
-# `[?:Type]`-filtered node ref, or -- since #6657 -- a neighbour over an edge
-# with declared endpoints) IS supported and reads correctly on native; see
-# test_osp_equivalence.jac "osp field access" and "osp typed edge endpoints".
-test "guardrail: field access on an untyped (any) node-ref element is rejected with a filter hint" {
-    prog = compile_na_inline(
+# resolve the element to a struct layout. The ability that reads it is the
+# violation's owning unit, so granular demotion (epic #8201) seams exactly that
+# ability instead of refusing the whole module -- and crucially must NOT throw
+# an uncaught codegen traceback (issue #6646 Bug 3). The `[?:Type]` narrowing
+# guidance still reaches the author through the demotion diagnostic. A typed
+# receiver (edge ref, a `[?:Type]`-filtered node ref, or -- since #6657 -- a
+# neighbour over an edge with declared endpoints) IS supported and reads
+# correctly on native; see test_osp_equivalence.jac "osp field access" and
+# "osp typed edge endpoints".
+test "guardrail: field access on an untyped (any) node-ref element demotes the ability with a filter hint" {
+    (prog, ir, log) = compile_na_inline_demote(
         "node_ref_any_field",
         "node N { has tag: int = 0; }\n"
         "edge Portal {}\n"
@@ -164,41 +194,16 @@ test "guardrail: field access on an untyped (any) node-ref element is rejected w
         "}\n"
         "with entry { a = N(); b = N(tag=9); a +>: Portal() :+> b; a spawn W(); }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for any-typed node-ref field access, got: {fmt_errors(
+    assert not has_error_code(prog, "E5090") , f"An ability-owned violation must demote, not fail the module: {fmt_errors(
         prog
     )}";
-    hinted = False;
-    for alrt in prog.errors_had {
-        if (
-            alrt.code is not None
-            and alrt.code.code == "E5090"
-            and alrt.help_text is not None
-            and "[?:" in alrt.help_text
-        ) {
-            hinted = True;
-        }
-    }
-    assert hinted , f"E5090 help should suggest a `[?:Type]` filter: {fmt_errors(
-        prog
-    )}";
-    # The native capability authority now rejects this pre-codegen, so the same
-    # E5090 surfaces under `jac check` (codegen OFF), not only at `nacompile`.
-    check_prog = check_na_inline(
-        "node_ref_any_field",
-        "node N { has tag: int = 0; }\n"
-        "edge Portal {}\n"
-        "walker W {\n"
-        "    has v: int = 0;\n"
-        "    can go with N entry {\n"
-        "        nbrs = [here ->:Portal:->];\n"
-        "        if len(nbrs) > 0 { self.v = nbrs[0].tag; }\n"
-        "    }\n"
-        "}\n"
-        "with entry { a = N(); b = N(tag=9); a +>: Portal() :+> b; a spawn W(); }\n"
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "W.go" not in layout.methods , (
+        "the violating ability must be demoted out of the native layout"
     );
-    assert has_error_code(check_prog, "E5090") , f"Expected E5090 at check time (codegen OFF) for any-typed node-ref field access, got: {fmt_errors(
-        check_prog
-    )}";
+    assert "NA_DEBUG demote W.go" in log , f"no demotion recorded for W.go in:\n{log}";
+    assert "[?:" in log , f"the demotion diagnostic should suggest a `[?:Type]` filter:\n{log}";
 }
 
 
@@ -265,10 +270,11 @@ test "guardrail: call to an undefined function is rejected" {
 }
 
 # Iterating a `set` in a `for` loop is not lowered natively (the element type
-# resolves to nothing), which used to drop the loop body silently. It must now
-# raise E5090 instead of miscompiling -- iterate a list/range, or move to @sv.
-test "guardrail: for-loop over a set is rejected" {
-    prog = compile_na_inline(
+# resolves to nothing), which used to drop the loop body silently. Granular
+# demotion turns the structured E5092 into a per-function seam: the function
+# leaves the native layout (Python implements it) instead of miscompiling.
+test "guardrail: for-loop over a set demotes the function, never miscompiles" {
+    (prog, ir, log) = compile_na_inline_demote(
         "for_over_set",
         "def run() -> int {\n"
         "    s: set[int] = {1, 2, 3};\n"
@@ -277,9 +283,15 @@ test "guardrail: for-loop over a set is rejected" {
         "    return total;\n"
         "}\n"
     );
-    assert has_error_code(prog, "E5092") , f"Expected E5092 for for-over-set, got: {fmt_errors(
+    assert not prog.errors_had , f"A function-owned E5092 must demote, got: {fmt_errors(
         prog
     )}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "run" not in layout.functions , (
+        "the un-lowerable function must be demoted out of the native layout"
+    );
+    assert "NA_DEBUG demote run" in log , f"no demotion recorded for run in:\n{log}";
 }
 
 # ─────────────────────────────────────────────────────────────────────
@@ -454,9 +466,25 @@ test "guardrail: edge disconnect with a list endpoint is rejected" {
 # ::py:: blocks cannot execute in a native binary. Before the capability
 # sweep covered PyInlineCode they were silently DROPPED in native context -
 # exactly the silent-failure class this guardrail file exists to prevent.
-test "guardrail: inline Python block is rejected" {
-    prog = compile_na_inline(
+# Granular demotion seams the owning function (Python executes the block),
+# and a NATIVE caller of the demoted function stays a structured error
+# rather than silently binding its abort stub.
+test "guardrail: inline Python block demotes its function, native callers stay loud" {
+    (prog, ir, log) = compile_na_inline_demote(
         "pyinline",
+        "def f -> int {\n" "    ::py::\n" "x = 1\n" "::py::\n" "    return 1;\n" "}\n"
+    );
+    assert not prog.errors_had , f"A function-owned PyInlineCode must demote, got: {fmt_errors(
+        prog
+    )}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "f" not in layout.functions , (
+        "the PyInlineCode function must be demoted out of the native layout"
+    );
+    assert "NA_DEBUG demote f" in log , f"no demotion recorded for f in:\n{log}";
+    caller = compile_na_inline(
+        "pyinline_caller",
         "def f -> int {\n"
         "    ::py::\n"
         "x = 1\n"
@@ -465,8 +493,8 @@ test "guardrail: inline Python block is rejected" {
         "}\n"
         "with entry { print(f()); }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for PyInlineCode, got: {fmt_errors(
-        prog
+    assert has_error_code(caller, "E5092") , f"A native caller of a demoted function must fail loudly, got: {fmt_errors(
+        caller
     )}";
 }
 
@@ -540,10 +568,11 @@ test "nacompile surfaces native E5090 help text, not just the generic message" {
 
 # (B) `skip` is an object-spatial walker statement (Return-family); native can
 # only lower it where the body returns no value — i.e. inside a walker `with`
-# event ability. In a value-returning function it is unsupported. That rejection
-# used to be a codegen-time E5090 only, so `jac check` passed while `jac
-# nacompile` failed. The native capability authority now sees it, so BOTH agree.
-test "check rejects skip in a value-returning native function" {
+# event ability. In a value-returning function it is unsupported: granular
+# demotion seams that function, and the module entry that natively calls it
+# then fails with a structured E5092. The check-parity schedule runs the same
+# codegen at check time, so `jac check` and `jac nacompile` still agree.
+test "check surfaces the demoted skip-in-value-fn through its native caller" {
     prog = check_na_inline(
         "skip_in_value_fn",
         "def f(n: int) -> int {\n"
@@ -554,7 +583,7 @@ test "check rejects skip in a value-returning native function" {
         "}\n"
         "with entry { print(f(5)); }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 at check for skip-in-value-fn, got: {fmt_errors(
+    assert has_error_code(prog, "E5092") , f"Expected E5092 at check for the native caller of the demoted skip-in-value-fn, got: {fmt_errors(
         prog
     )}";
 }
@@ -577,7 +606,7 @@ test "check accepts skip in a walker event ability" {
     )}";
 }
 
-test "nacompile still rejects skip in a value-returning native function" {
+test "nacompile demotes skip-in-value-fn and rejects its native caller" {
     prog = compile_na_inline(
         "skip_in_value_fn_cg",
         "def f(n: int) -> int {\n"
@@ -588,7 +617,7 @@ test "nacompile still rejects skip in a value-returning native function" {
         "}\n"
         "with entry { print(f(5)); }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 at full compile for skip-in-value-fn, got: {fmt_errors(
+    assert has_error_code(prog, "E5092") , f"Expected E5092 at full compile for the native caller of the demoted skip-in-value-fn, got: {fmt_errors(
         prog
     )}";
 }
@@ -842,13 +871,19 @@ test "clib decl with known types is not rejected" {
 
 # !r and dynamic format specs now lower natively (#7593 item 6); the !a
 # conversion still requires CPython-exact ascii() escaping and stays gated.
-test "guardrail: f-string !a conversion is rejected" {
-    prog = compile_na_inline(
+test "guardrail: f-string !a conversion demotes its function" {
+    (prog, ir, log) = compile_na_inline_demote(
         "fstr_ascii", "def f(s: str) -> str { return f\"{s!a}\"; }\n"
     );
-    assert has_error_code(prog, "E5090") , f"Expected E5090 for !a, got: {fmt_errors(
+    assert not prog.errors_had , f"A function-owned !a violation must demote, got: {fmt_errors(
         prog
     )}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "f" not in layout.functions , (
+        "the !a function must be demoted out of the native layout"
+    );
+    assert "NA_DEBUG demote f" in log , f"no demotion recorded for f in:\n{log}";
 }
 
 # Positional arguments to an archetype WITHOUT an explicit init map onto the
@@ -856,9 +891,10 @@ test "guardrail: f-string !a conversion is rejected" {
 # so `Vec(1.0, 3.0)` lowers cleanly instead of demoting. The remaining gaps
 # are the new() forms the checker's `*args` stub cannot reject: more
 # positional args than declared fields, and a dynamic (non-static) class
-# value. Both must stay a structured E5092, never a silent wrong-value
-# compile (sv raises TypeError at runtime for the overflow form).
-test "guardrail: implicit-ctor positionals lower; dynamic new() is rejected" {
+# value. Both stay a structured E5092 that demotes the owning function --
+# never a silent wrong-value compile (sv raises TypeError at runtime for the
+# overflow form).
+test "guardrail: implicit-ctor positionals lower; dynamic new() demotes" {
     ok = compile_na_inline(
         "pos_ctor",
         "obj Vec {\n"
@@ -873,7 +909,7 @@ test "guardrail: implicit-ctor positionals lower; dynamic new() is rejected" {
     assert not ok.errors_had , f"Implicit-ctor positional args must lower: {fmt_errors(
         ok
     )}";
-    over = compile_na_inline(
+    (over, over_ir, over_log) = compile_na_inline_demote(
         "new_overflow",
         "obj Vec {\n"
         "    has x: float = 0.0;\n"
@@ -885,10 +921,16 @@ test "guardrail: implicit-ctor positionals lower; dynamic new() is rejected" {
         "}\n"
         "with entry {}\n"
     );
-    assert has_error_code(over, "E5092") , f"Expected E5092 for new() arity overflow, got: {fmt_errors(
+    assert not over.errors_had , f"new() arity overflow must demote its function, got: {fmt_errors(
         over
     )}";
-    dyn = compile_na_inline(
+    assert "make" not in over_ir.gen.native_layout.functions , (
+        "the new()-overflow function must be demoted out of the native layout"
+    );
+    assert "NA_DEBUG demote make" in over_log , (
+        f"no demotion recorded for make in:\n{over_log}"
+    );
+    (dyn, dyn_ir, dyn_log) = compile_na_inline_demote(
         "new_dynamic",
         "def make(c: any) -> int {\n"
         "    v = new(c, 1);\n"
@@ -896,17 +938,23 @@ test "guardrail: implicit-ctor positionals lower; dynamic new() is rejected" {
         "}\n"
         "with entry {}\n"
     );
-    assert has_error_code(dyn, "E5092") , f"Expected E5092 for a dynamic new() class value, got: {fmt_errors(
+    assert not dyn.errors_had , f"A dynamic new() class value must demote its function, got: {fmt_errors(
         dyn
     )}";
+    assert "make" not in dyn_ir.gen.native_layout.functions , (
+        "the dynamic-new() function must be demoted out of the native layout"
+    );
+    assert "NA_DEBUG demote make" in dyn_log , (
+        f"no demotion recorded for make in:\n{dyn_log}"
+    );
 }
 
 # A component-style event ability (`can with entry`) reaching the native
 # nested-ability path must fail structurally, never with an AttributeError
 # ICE (EventSignature has no get_parameters); surfaced by the corpus probe
-# over mini_todo.
-test "guardrail: nested event ability is a structured error, not an ICE" {
-    prog = compile_na_inline(
+# over mini_todo. The structured E5092 now demotes the owning function.
+test "guardrail: nested event ability demotes its function, not an ICE" {
+    (prog, ir, log) = compile_na_inline_demote(
         "nested_event_ability",
         "def widget -> int {\n"
         "    can with entry {\n"
@@ -915,8 +963,20 @@ test "guardrail: nested event ability is a structured error, not an ICE" {
         "    return 1;\n"
         "}\n"
     );
-    assert has_error_code(prog, "E5092") or has_error_code(prog, "E5090") , (
-        f"expected a structured error for a nested event ability, got: "
-        f"{[str(e) for e in prog.errors_had]}"
+    for alrt in prog.errors_had {
+        if alrt.code is not None {
+            assert alrt.code.code not in ("E9001", "E9002") , (
+                f"ICE leaked for a nested event ability: {fmt_errors(prog)}"
+            );
+        }
+    }
+    assert not prog.errors_had , f"A nested event ability must demote its function, got: {fmt_errors(
+        prog
+    )}";
+    assert "widget" not in ir.gen.native_layout.functions , (
+        "the function hosting the nested event ability must be demoted"
+    );
+    assert "NA_DEBUG demote widget" in log , (
+        f"no demotion recorded for widget in:\n{log}"
     );
 }

@@ -1,4 +1,4 @@
-impl JacAnnexPass.transform(self: JacAnnexPass, ir_in: uni.Module) -> uni.Module {
+impl JacAnnexPass.transform(self: JacAnnexPass, ir_in: Module) -> Module {
     mod_path = ir_in.loc.mod_path;
     if (ir_in.stub_only or not mod_path.endswith('.jac') or ir_in.annexable_by) {
         return ir_in;
@@ -8,7 +8,7 @@ impl JacAnnexPass.transform(self: JacAnnexPass, ir_in: uni.Module) -> uni.Module
 }
 
 impl JacAnnexPass._load_annexes(
-    self: JacAnnexPass, jac_program: JacProgram, nd: uni.Module, mod_path: str
+    self: JacAnnexPass, jac_program: JacProgram, nd: Module, mod_path: str
 ) -> None {
     seen: set[str] = set();
 
@@ -16,7 +16,7 @@ impl JacAnnexPass._load_annexes(
 }
 
 impl JacAnnexPass._merge_annex_group(
-    self: JacAnnexPass, nd: uni.Module, base_path: str, ctx_path: str, seen: set[str]
+    self: JacAnnexPass, nd: Module, base_path: str, ctx_path: str, seen: set[str]
 ) -> None {
     for path in discover_annex_files(base_path, '.impl.jac') {
         self._merge_annex(nd, path, ctx_path, seen);
@@ -27,7 +27,7 @@ impl JacAnnexPass._merge_annex_group(
 }
 
 impl JacAnnexPass._merge_annex(
-    self: JacAnnexPass, nd: uni.Module, path: str, ctx_path: str, seen: set[str]
+    self: JacAnnexPass, nd: Module, path: str, ctx_path: str, seen: set[str]
 ) -> None {
     import from jaclang.jac0core.parser { parse as rd_parse }
     import from jaclang.jac0core.helpers { read_file_with_encoding }

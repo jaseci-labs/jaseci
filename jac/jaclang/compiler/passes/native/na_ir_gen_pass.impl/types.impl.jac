@@ -661,6 +661,10 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
         if not type_args {
             return None;
         }
+        _var_seq = self._variadic_tuple_seq_type(type_args);
+        if _var_seq is not None {
+            return _var_seq;
+        }
         elem_types: list[ir.Type] = [];
         for a in type_args {
             _et = self._lower_type(a);
@@ -672,12 +676,7 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
             }
             elem_types.append(_et);
         }
-        n = len(elem_types);
-        tuple_key = f"Tuple.{n}." + ".".join([str(x) for x in elem_types]);
-        if tuple_key not in self.tuple_types {
-            self.tuple_types[tuple_key] = ir.LiteralStructType(elem_types);
-        }
-        return self.tuple_types[tuple_key].as_pointer();
+        return self._tuple_struct_of(elem_types).as_pointer();
     }
     return None;
 }
@@ -766,6 +765,9 @@ impl NaIRGenPass._resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type {
         if self._foreign_optional_field(_ptb) {
             return ir.IntType(8).as_pointer();
         }
+        if self._typevar_optional_field(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
         if not self._type_base_is_unknown(_ptb) {
             _sig_shared = _ptb?.shared;
             _sig_cn = _sig_shared.class_name if _sig_shared is not None else None;
@@ -823,6 +825,56 @@ impl NaIRGenPass._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
     return ir.IntType(64);
 }
 
+impl NaIRGenPass._resolve_decl_type(
+    type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+) -> ir.Type {
+    if self._quiet_glob_type(type_expr) is None {
+        widened = self._widened_tuple_decl_type(type_expr, value);
+        if widened is not None {
+            return widened;
+        }
+    }
+    return self._resolve_jac_type(type_expr);
+}
+
+impl NaIRGenPass._widened_tuple_decl_type(
+    type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+) -> (ir.Type | None) {
+    if value is None or type_expr is None {
+        return None;
+    }
+    nd = type_expr;
+    if isinstance(nd, uni.SubTag) {
+        nd = nd.tag;
+    }
+    _tb = nd?.type;
+    if _tb is None {
+        return None;
+    }
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _WdClassType }
+    } except ImportError {
+        return None;
+    }
+    if not isinstance(_tb, _WdClassType)
+        or _tb.shared.class_name != "tuple"
+        or (_tb.private.type_args or []) {
+        return None;
+    }
+    if isinstance(value, uni.TupleVal) and not value.values {
+        return self._tuple_struct_of([]).as_pointer();
+    }
+    return self._infer_global_init_type(value);
+}
+
+impl NaIRGenPass._tuple_struct_of(elem_types: list) -> ir.Type {
+    tuple_key = f"Tuple.{len(elem_types)}." + ".".join([str(x) for x in elem_types]);
+    if tuple_key not in self.tuple_types {
+        self.tuple_types[tuple_key] = ir.LiteralStructType(elem_types);
+    }
+    return self.tuple_types[tuple_key];
+}
+
 impl NaIRGenPass._resolve_field_type(var: uni.UniNode) -> ir.Type {
     _ptb = var?.type;
     if _ptb is not None {
@@ -842,6 +894,9 @@ impl NaIRGenPass._resolve_field_type(var: uni.UniNode) -> ir.Type {
             return lowered;
         }
         if self._foreign_optional_field(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
+        if self._typevar_optional_field(_ptb) {
             return ir.IntType(8).as_pointer();
         }
         try {
@@ -896,13 +951,70 @@ impl NaIRGenPass._foreign_optional_field(tb: any) -> bool {
         if isinstance(m, _FofUnknownType) {
             continue;
         }
-        if isinstance(m, _FofTypeVarType) and self._lower_type(m) is None {
-            continue;
+        if isinstance(m, _FofTypeVarType) {
+            return False;
         }
         if isinstance(m, _FofClassType) and self._lower_type(m) is None {
             continue;
         }
         return False;
+    }
+    return True;
+}
+
+impl NaIRGenPass._erased_typevar_names(tb: any) -> list[str] {
+    try {
+        import from jaclang.compiler.type_system.types {
+            TypeVarType as _EtvTypeVarType
+        }
+    } except ImportError {
+        return [];
+    }
+    if isinstance(tb, _EtvTypeVarType) and self._lower_type(tb) is None {
+        return [tb.name];
+    }
+    if not self._typevar_optional_field(tb) {
+        return [];
+    }
+    out: list[str] = [];
+    for m in (tb.types or []) {
+        if isinstance(m, _EtvTypeVarType) and m.name not in out {
+            out.append(m.name);
+        }
+    }
+    return out;
+}
+
+impl NaIRGenPass._typevar_optional_field(tb: any) -> bool {
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _TvoClassType,
+            UnionType as _TvoUnionType,
+            TypeVarType as _TvoTypeVarType
+        }
+    } except ImportError {
+        return False;
+    }
+    if not isinstance(tb, _TvoUnionType) {
+        return False;
+    }
+    _members = tb.types or [];
+    _non_none = [
+        m
+        for m in _members
+        if not (
+            isinstance(m, _TvoClassType)
+            and m._shared is not None
+            and m.shared.class_name in ("NoneType", "None")
+        )
+    ];
+    if len(_non_none) == len(_members) or not _non_none {
+        return False;
+    }
+    for m in _non_none {
+        if not isinstance(m, _TvoTypeVarType) or self._lower_type(m) is not None {
+            return False;
+        }
     }
     return True;
 }
@@ -1545,6 +1657,11 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
         }
     }
 
+    _tseq = self._tuple_seq_coerce(val, target_type);
+    if _tseq is not None {
+        return _tseq;
+    }
+
     _sd = self._str_desc_ty;
     if _sd is not None {
         _i8p_sd = ir.IntType(8).as_pointer();
@@ -1779,6 +1896,10 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
             and _lc_src != _lc_dst
             and (_lc_src == "jacval") != (_lc_dst == "jacval")
         ) {
+            _lc_re = self._reflavor_list(val, _lc_src, _lc_dst);
+            if _lc_re is not None {
+                return _lc_re;
+            }
             self.emit(
                 E5092,
                 node_override=self.ir_in,

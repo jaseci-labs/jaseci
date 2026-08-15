@@ -398,6 +398,20 @@ impl NaIRGenPass._codegen_compr_walk(
     if coll_helpers is None {
         return;
     }
+    _coll_want = coll_helpers["len"].function_type.args[0];
+    if coll_val.type != _coll_want {
+        if self._spec_from_container_ptr(coll_val.type) is None {
+            self.emit(
+                E5092,
+                node_override=collection,
+                kind="expression",
+                name="comprehension over an element-erased collection",
+                help_text="The collection unified to an untyped pointer, so which list layout to read it as is no longer recoverable. Give every branch producing it the same concrete element type."
+            );
+            return;
+        }
+        coll_val = self.builder.bitcast(coll_val, _coll_want, name="compr.coll.cast");
+    }
     loop_var_name = self._get_name(loop_target);
     if loop_var_name is None {
         return;

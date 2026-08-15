@@ -3308,6 +3308,7 @@ impl NativeDictEmitter.emit_keys(
     key_type = helpers["key_type"];
     if isinstance(key_type, ir.PointerType) {
         kt_name = "ptr";
+        key_type = ir.IntType(8).as_pointer();
     } elif isinstance(key_type, ir.DoubleType) {
         kt_name = "f64";
     } else {
@@ -3336,6 +3337,7 @@ impl NativeDictEmitter.emit_keys(
     b.cbranch(at_end, done_bb, body_bb);
     b.position_at_start(body_bb);
     key = b.call(helpers["get_key"], [target, idx], name="dkeys.key");
+    key = p._cast_to_list_elem(b, key, lhelpers["elem_type"], "dkeys.key");
     b.call(lhelpers["append"], [new_list, key]);
     next_idx = b.add(idx, ir.Constant(i64, 1), name="dkeys.next");
     idx.add_incoming(next_idx, body_bb);
@@ -3359,6 +3361,7 @@ impl NativeDictEmitter.emit_values(
     val_type = helpers["val_type"];
     if isinstance(val_type, ir.PointerType) {
         vt_name = "ptr";
+        val_type = ir.IntType(8).as_pointer();
     } elif isinstance(val_type, ir.DoubleType) {
         vt_name = "f64";
     } else {
@@ -3388,6 +3391,7 @@ impl NativeDictEmitter.emit_values(
     b.position_at_start(body_bb);
     key = b.call(helpers["get_key"], [target, idx], name="dvals.key");
     val = b.call(helpers["get"], [target, key], name="dvals.val");
+    val = p._cast_to_list_elem(b, val, lhelpers["elem_type"], "dvals.val");
     b.call(lhelpers["append"], [new_list, val]);
     next_idx = b.add(idx, ir.Constant(i64, 1), name="dvals.next");
     idx.add_incoming(next_idx, body_bb);
@@ -5052,14 +5056,18 @@ impl NativeBuiltinEmitter.emit_str(
             if cont_s is not None {
                 return cont_s;
             }
-            return b.bitcast(arg_val, i8p, name="str.identity");
+            identity = b.bitcast(arg_val, i8p, name="str.identity");
+            p._emit_rc_retain(identity, op="builtin_str_id");
+            return identity;
         }
 
         none_s = p._make_global_string("None", name_prefix=".str.none");
         is_null = b.icmp_unsigned(
             "==", arg_val, ir.Constant(i8p, None), name="str.isnone"
         );
-        return b.select(is_null, none_s, arg_val, name="str.ornone");
+        result = b.select(is_null, none_s, arg_val, name="str.ornone");
+        p._emit_rc_retain(result, op="builtin_str_id");
+        return result;
     }
 
     if isinstance(arg_val.type, ir.DoubleType) {
