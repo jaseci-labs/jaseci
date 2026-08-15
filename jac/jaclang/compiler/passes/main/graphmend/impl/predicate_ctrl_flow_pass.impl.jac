@@ -85,7 +85,7 @@ impl PredicateCtrlFlowPass._rewrite_assignment(
         return;
     }
     (stmts, c_ref, t_ref, f_ref) = self._hoist(nd, nd.condition, true_e, false_e);
-    where_call = self._make_where(nd, c_ref, t_ref, f_ref);
+    where_call = torch_call(nd, 'where', [c_ref, t_ref, f_ref]);
     replace_stmt(nd, stmts + [self._assign(lhs, where_call)]);
 }
 
@@ -99,7 +99,7 @@ impl PredicateCtrlFlowPass._rewrite_return(
         return;
     }
     (stmts, c_ref, t_ref, f_ref) = self._hoist(nd, nd.condition, true_e, false_e);
-    where_call = self._make_where(nd, c_ref, t_ref, f_ref);
+    where_call = torch_call(nd, 'where', [c_ref, t_ref, f_ref]);
     ret = uni.ReturnStmt(expr=where_call, kid=[where_call]);
     replace_stmt(nd, stmts + [ret]);
 }
@@ -163,7 +163,7 @@ impl PredicateCtrlFlowPass._merge_common_call(
     for i in range(len(a_pos)) {
         if i in diff {
             cref = gen_name(nd, f"__gm_cond_{n}", False);
-            merged.append(self._make_where(nd, cref, a_pos[i], b_pos[i]));
+            merged.append(torch_call(nd, 'where', [cref, a_pos[i], b_pos[i]]));
         } else {
             merged.append(a_pos[i]);
         }
@@ -255,12 +255,6 @@ impl PredicateCtrlFlowPass._assign(
     return uni.Assignment(
         target=[target], value=value, type_tag=None, mutable=True, kid=[target, value]
     );
-}
-
-impl PredicateCtrlFlowPass._make_where(
-    at: uni.UniNode, cond: uni.Expr, t: uni.Expr, f: uni.Expr
-) -> uni.FuncCall {
-    return torch_call(at, 'where', [cond, t, f]);
 }
 
 impl PredicateCtrlFlowPass._hoist(

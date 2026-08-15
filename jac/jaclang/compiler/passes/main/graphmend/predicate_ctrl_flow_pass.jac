@@ -78,10 +78,6 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _same_lhs(a: uni.Assignment, b: uni.Assignment) -> (uni.Name | None);
     def _split_params(params: any) -> tuple[list[uni.Expr], dict[str, uni.KWPair]];
     def _assign(target: uni.Name, value: uni.Expr) -> uni.Assignment;
-    def _make_where(
-        at: uni.UniNode, cond: uni.Expr, t: uni.Expr, f: uni.Expr
-    ) -> uni.FuncCall;
-
     def _hoist(
         at: uni.UniNode, cond: uni.Expr, t: uni.Expr, f: uni.Expr
     ) -> tuple[list, uni.Name, uni.Name, uni.Name];
