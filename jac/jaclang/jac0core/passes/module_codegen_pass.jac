@@ -16,7 +16,10 @@ import from jaclang.jac0core.unitree {
     UniNode
 }
 import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.codeinfo { TYPE_PARAM_CONSTRUCTORS }
+import from jaclang.jac0core.codeinfo {
+    NATIVE_COMPTIME_TYPE_MARKERS,
+    TYPE_PARAM_CONSTRUCTORS
+}
 import from jaclang.jac0core.passes.transform { Transform }
 
 obj ModuleCodegenPass(Transform[Module, Module]) {
@@ -109,7 +112,7 @@ obj ModuleCodegenPass(Transform[Module, Module]) {
         if isinstance(tag, AtomTrailer) {
             tag = tag.right;
         }
-        return isinstance(tag, Name) and tag.value == "TypeAlias";
+        return isinstance(tag, Name) and tag.value in NATIVE_COMPTIME_TYPE_MARKERS;
     }
 
     static def is_type_param_decl(assign: Assignment) -> bool {

@@ -96,6 +96,7 @@ glob JS_GLOBALS: dict[str, str] = {
 
 
 impl classify_native_import(item: UniNode) -> tuple {
+    import from jaclang.jac0core.codeinfo { native_comptime_import_names }
     mod_name: (str | None) = None;
     if isinstance(item, ModulePath) and item.path {
         parts = [];
@@ -103,11 +104,28 @@ impl classify_native_import(item: UniNode) -> tuple {
             parts.append(pseg.value if isinstance(pseg, Name) else str(pseg));
         }
         mod_name = ".".join(parts);
+    } elif isinstance(item, ModuleItem) {
+        _owner = item.parent;
+        _from_loc = _owner.from_loc if isinstance(_owner, Import) else None;
+        if _from_loc is None {
+            return (None, True);
+        }
+        mod_name = _from_loc.dot_path_str;
+        if isinstance(item.name, Name)
+            and native_comptime_import_names(mod_name, [item.name.value]) {
+            return (mod_name, True);
+        }
     }
     return (mod_name, mod_name is not None and mod_name in NATIVE_SUPPORTED_STDLIB);
 }
 
 impl import_bound_name(item: UniNode) -> (str | None) {
+    if isinstance(item, ModuleItem) {
+        if item.alias is not None and isinstance(item.alias, Name) {
+            return item.alias.value;
+        }
+        return item.name.value if isinstance(item.name, Name) else None;
+    }
     if not isinstance(item, ModulePath) {
         return None;
     }
@@ -117,6 +135,28 @@ impl import_bound_name(item: UniNode) -> (str | None) {
     if item.path {
         first = item.path[0];
         return first.value if isinstance(first, Name) else None;
+    }
+    return None;
+}
+
+impl from_import_jac_source(item: UniNode) -> (str | None) {
+    import os;
+    if not isinstance(item, ModuleItem) {
+        return None;
+    }
+    _owner = item.parent;
+    if not isinstance(_owner, Import) or _owner.from_loc is None {
+        return None;
+    }
+    _path: (str | None) = None;
+    try {
+        _resolved = _owner.from_loc.resolve_relative_path();
+        _path = _resolved if isinstance(_resolved, str) else None;
+    } except Exception {
+        _path = None;
+    }
+    if _path is not None and _path.endswith('.jac') and os.path.exists(_path) {
+        return _path;
     }
     return None;
 }
@@ -269,6 +309,9 @@ impl native_capability_violations(mod: Module) -> list {
                 );
                 if (stmt.is_absorb or _plain_bare)
                     and resolve_native_module(mod_name, _base_dir)[1] is not None {
+                    continue;
+                }
+                if from_import_jac_source(item) is not None {
                     continue;
                 }
 
