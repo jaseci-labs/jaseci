@@ -58,8 +58,10 @@ multi_hex = "\x1b\x1b\x1b"
 # Unicode with different formats
 unicode_4 = "\u0041"  # A
 unicode_8 = "\U00000041"  # A
-# \N{name} lives in py2jac_named_unicode.py: Jac refuses that escape (E0108),
-# so converting it is a loud failure rather than a preserved escape.
+# \N{name} is deliberately absent: Jac refuses that escape (E0108) because
+# resolving a character name needs the Unicode name database, so converting it
+# is a loud failure rather than a preserved escape. The refusal is covered by
+# "py2jac named unicode escape refuses" in test_pyast_build_pass.jac.
 
 # Bytes literal
 bytes_lit = b"\x1b[31mRed\x1b[0m"

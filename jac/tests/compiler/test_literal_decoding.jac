@@ -29,7 +29,7 @@ import warnings;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import from jaclang.jac0core.parser { parse as rd_parse }
-import from jaclang.jac0core.parser.lexer { tokenize }
+import from jaclang.jac0core.parser.lexer { tokenize, tokenize_full }
 import from jaclang.jac0core.parser.tokens { TokenKind }
 import from jaclang.jac0core.unitree { decode_string_literal }
 import jaclang.jac0core.unitree as uni;
@@ -319,10 +319,19 @@ test "the excluded escape is refused by the lexer and by the decoder" {
         '"\\Nfoo"',
         '"\\N"'
     ] {
-        (_toks, errs) = tokenize(text, "<excluded>");
+        (_toks, _comments, diags, errs) = tokenize_full(text, "<excluded>");
         assert errs , (
             f"the lexer accepted {text!r}; the escape has to be refused where "
             "the source location still exists, not only at decode time"
+        );
+        codes = {
+            d.code_str
+            for d in diags
+            if d.is_error
+        };
+        assert "E0108" in codes , (
+            f"the lexer refused {text!r} with {sorted(codes)}, not the code "
+            "the diagnostics reference documents for this escape"
         );
         assert not _is_one_literal(text) , (
             f"{text!r} still reaches the corpus, so the lexer refusal is not "

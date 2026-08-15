@@ -13,6 +13,7 @@ import jaclang;
 import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.jac0core.helpers { pascal_to_snake }
+import from jaclang.jac0core.parser.lexer { tokenize_full }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.unitree { PythonModuleAst, Source }
 
@@ -133,37 +134,35 @@ test "py2jac escape sequences" {
     assert "\\x00" in code;
 }
 
-"""`\\N{name}` is the one escape Jac cannot render, so importing it fails loudly."""
-test "py2jac named unicode escape refuses" {
-    with open(os.path.join(FIXTURES, "py2jac_named_unicode.py")) as f {
-        file_source = f.read();
-    }
-    raised = "";
-    try {
-        unparse_module(
-            PyastBuildPass(
-                ir_in=PythonModuleAst(
-                    py_ast.parse(file_source),
-                    orig_src=Source(file_source, "py2jac_named_unicode.py")
-                ),
-                prog=JacProgram()
-            ).ir_out
-        );
-    } except Exception as e {
-        raised = str(e);
-    }
+"""`\\N{name}` is the one escape Jac cannot render, so converted code refuses."""
+test "py2jac named unicode escape stays loud" {
+    file_source = "unicode_named = \"\\N{LATIN SMALL LETTER A}\"\n";
+    code = unparse_module(
+        PyastBuildPass(
+            ir_in=PythonModuleAst(
+                py_ast.parse(file_source),
+                orig_src=Source(file_source, "py2jac_named_unicode.py")
+            ),
+            prog=JacProgram()
+        ).ir_out,
+        requires_format=False
+    );
+    assert "\\N{LATIN SMALL LETTER A}" in code , (
+        f"the escape was rewritten on the way out, into:\n{code}"
+    );
 
-    # Emitting the escape verbatim would hand back Jac whose string is a
-    # different value than the Python original, which is the one outcome the
-    # decoder is not allowed to produce.
-    assert raised , (
-        "py2jac converted a \\N{name} escape; Jac has no exact rendering for "
-        "it, so the conversion has to refuse rather than emit a value that "
-        "silently differs from Python's"
-    );
-    assert "\\N{name}" in raised , (
-        f"refused with {raised!r}, which does not name the escape"
-    );
+    # Resolving a character name needs the Unicode name database, which the
+    # compiler does not carry, so Jac has no exact rendering for this escape.
+    # The emitted code therefore has to refuse at E0108 rather than compile to
+    # a string that silently differs from the Python original.
+    (_toks, _comments, diags, errs) = tokenize_full(code, "py2jac_named_unicode.jac");
+    assert errs , f"the converted Jac lexes clean, so the escape went silent:\n{code}";
+    codes = {
+        d.code_str
+        for d in diags
+        if d.is_error
+    };
+    assert "E0108" in codes , f"refused with {sorted(codes)}, not E0108";
 }
 
 """Implicit string concat across a backslash line-continuation must emit valid Jac (#6928)."""
