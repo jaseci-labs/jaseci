@@ -8,6 +8,7 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts {
     module_imports_plain,
     wrapping_classes
 }
+import from jaclang.jac0core.constant { SymbolType }
 import from jaclang.jac0core.passes.sym_resolve { symbol_ability }
 
 impl PredicateCtrlFlowPass._setups_safe(
@@ -338,17 +339,12 @@ impl PredicateCtrlFlowPass._impure_writes(
 
 impl PredicateCtrlFlowPass._module_scope_names(mod: uni.Module) -> set[str] {
     out: set[str] = set();
-    for a in mod.get_all_sub_nodes(uni.Assignment) {
-        if a.find_parent_of_type(uni.Ability) is not None {
-            continue;
-        }
-        for t in (a.target or []) {
-            targets = list(t.values) if isinstance(t, uni.TupleVal) else [t];
-            for tg in targets {
-                if isinstance(tg, uni.Name) {
-                    out.add(tg.value);
-                }
-            }
+    for (name, sym) in mod.names_in_scope.items() {
+        if (
+            (sym.sym_type in {SymbolType.VAR, SymbolType.MOD_VAR})
+            and (not sym.imported)
+        ) {
+            out.add(name);
         }
     }
     return out;
