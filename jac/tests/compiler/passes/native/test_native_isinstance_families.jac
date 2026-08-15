@@ -13,9 +13,9 @@ arms is untagged.
 
 *Abstract base classes.* `collections.abc.Sequence` is a Python object no
 native unit can host. It answers by reducing to the finite set of native shapes
-that inhabit it; ABCs with no exact reduction refuse loudly instead, which
-`test_native_error_gate` style callers see as a diagnostic rather than a wrong
-answer.
+that inhabit it; ABCs with no exact reduction refuse loudly instead, and the
+refusal is read back off the census seam that demotes the method, naming the
+ABC, rather than being a wrong answer nobody sees.
 
 *Type arms that arrive as values.* `isinstance(x, types)` with `types` a
 parameter. The fixed-arity spelling unrolls its arms; the variadic one lowers
@@ -145,15 +145,23 @@ test "abc arm: Mapping separates dicts from sequences" {
 
 
 test "abc arm: an ABC with no exact reduction refuses instead of guessing" {
+    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
     prog = JacProgram();
-    prog.compile(
-        file_path=str(os.path.join(FIXTURES, "isinstance_abc_opaque.jac")),
-        options=native_force_opts()
+    na_census_begin();
+    try {
+        prog.compile(
+            file_path=str(os.path.join(FIXTURES, "isinstance_abc_opaque.jac")),
+            options=native_force_opts()
+        );
+    } finally {
+        census = na_census_end();
+    }
+    said = " ".join(
+        str(seam) for rec in census.values() for seam in (rec["seams"] or [])
     );
-    said = " ".join(str(e) for e in (prog.errors_had or []));
     assert "isinstance against `Iterable`" in said , (
-        "an unreducible ABC has to name itself in the diagnostic, so the "
-        f"refusal is actionable; got: {said}"
+        "an unreducible ABC has to name itself in the seam that demotes the "
+        f"method, so the refusal is actionable; got: {said}"
     );
 }
 
