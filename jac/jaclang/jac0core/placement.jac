@@ -525,10 +525,10 @@ def _comptime_only_import(imp: uni.Import) -> bool {
     }
     names: list[str] = [];
     for item in imp.items {
-        if not isinstance(item, uni.ModuleItem) or item.name is None {
+        if not (isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name)) {
             return False;
         }
-        names.append(item.name.sym_name);
+        names.append(item.name.value);
     }
     return native_comptime_import_names(imp.from_loc.dot_path_str, names);
 }
