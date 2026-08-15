@@ -190,7 +190,7 @@ test "sv imported walker reaches client endpoint effects manifest" {
     # An sv-imported walker is a writer endpoint. It must appear in the client
     # manifest so its calls invalidate cached reads. Before the fix, walkers
     # were skipped as bare types and only func: effects were copied.
-    fixture = fixture_path("sv_walker_effects_client.cl.jac");
+    fixture = fixture_path("sv_walker_effects_client.jac");
     prog = JacProgram();
     ir = prog.compile(file_path=fixture, no_cgen=True, type_check=True);
     assert not prog.errors_had , (
@@ -202,7 +202,7 @@ test "sv imported walker reaches client endpoint effects manifest" {
     assert "walker:AddItem" in effects , (
         f"sv-imported walker missing from client manifest: {effects}"
     );
-    # Standalone .cl compile has no server boundary analysis, so the source
+    # Standalone client compile has no server boundary analysis, so the source
     # manifest is empty and the safe writer default applies. Pin its full shape.
     assert effects["walker:AddItem"] == {"is_writer": True, "touches": ["*"]} , (
         f"walker default effect wrong: {effects['walker:AddItem']}"
@@ -214,7 +214,7 @@ test "sv imported walker copies precise effects instead of the wildcard default"
     # When the source module already classifies the walker with precise touches,
     # those must be copied verbatim -- not clobbered by the wildcard fallback,
     # which would needlessly invalidate every cached reader.
-    fixture = fixture_path("sv_walker_effects_client.cl.jac");
+    fixture = fixture_path("sv_walker_effects_client.jac");
     prog = JacProgram();
     ir = prog.compile(file_path=fixture, no_cgen=True, type_check=True);
     assert not prog.errors_had , (
@@ -225,11 +225,11 @@ test "sv imported walker copies precise effects instead of the wildcard default"
         (
             i
             for i in ir.get_all_sub_nodes(uni.Import)
-            if i.is_sv_marked
+            if i.is_service_import
         ),
         None
     );
-    assert sv_import is not None , "expected an sv import in the fixture";
+    assert sv_import is not None , "expected a service import in the fixture";
     source_mod = resolve_import_source_module(prog, sv_import);
     assert source_mod is not None and source_mod.gen.interop_manifest is not None;
     source_mod.gen.interop_manifest.endpoint_effects["walker:AddItem"] = {
@@ -239,10 +239,10 @@ test "sv imported walker copies precise effects instead of the wildcard default"
 
     es_pass = EsastGenPass(ir_in=ir, prog=prog);
     effects = es_pass.ir_out.gen.client_manifest.endpoint_effects;
-    assert effects["walker:AddItem"] == {
-        "is_writer": True,
-        "touches": ["Item", "Root"]
-    } , (f"precise walker effect not copied verbatim: {effects.get('walker:AddItem')}");
+    assert effects["walker:AddItem"]
+        == {"is_writer": True, "touches": ["Item", "Root"]} , (
+        f"precise walker effect not copied verbatim: {effects.get('walker:AddItem')}"
+    );
 }
 
 # SKIP: es_node_to_dict isinstance checks fail when compiling Jac from

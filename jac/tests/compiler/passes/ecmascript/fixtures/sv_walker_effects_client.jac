@@ -1,10 +1,11 @@
-"""Client that sv-imports both a reader function and a writer walker.
+"""Client that imports both a reader function and a writer walker from the
+server module.
 
 The walker (AddItem) must land in the client endpoint-effects manifest as a
 writer so its calls invalidate cached reads (#7650).
 """
 
-sv import from sv_walker_effects { Item, list_items, AddItem }
+import from .sv_walker_effects { Item, list_items, AddItem }
 
 def:pub app -> JsxElement {
     has items: list[Item] = [];

@@ -6194,7 +6194,7 @@ impl EsastGenPass._generate_sv_import_stubs(
         }
 
         if self._sv_import_item_is_type(nd, item) {
-            self._copy_sv_import_walker_effect(item, source_mod);
+            self._copy_sv_import_walker_effect(item, self._resolve_source_module(nd));
             continue;
         }
         func_name = item.name.sym_name;
