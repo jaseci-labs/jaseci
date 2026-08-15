@@ -36,6 +36,7 @@ class JacProgram {
         graphmend_breaks: dict[uni.UniNode, GraphBreakKind],
         graphmend_helpers: dict[int, set[GraphMendHelper]],
         graphmend_noop_mods: set[str],
+        graphmend_hub_digests: dict[(str, tuple[(uni.Module, str)])],
         _native_cache: dict[(str, any)],
         _hub_cache_times: dict[str, float],
         _dependents: dict[str, set[str]],

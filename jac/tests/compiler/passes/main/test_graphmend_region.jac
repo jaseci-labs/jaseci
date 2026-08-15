@@ -238,3 +238,94 @@ test "a reached helper module keeps its own gm cache variant" {
         config_mod._config = old_config;
     }
 }
+
+glob REACH_ENTRY_SRC = "import torch;\n"
+         + "import from ..reached { reach_helper }\n\n"
+         + "@torch.compile()\n"
+         + "def entry(x: any) -> any {\n"
+         + "    return torch.sin(reach_helper(x));\n"
+         + "}\n",
+     REACH_USED_SRC = "import torch;\n\n"
+         + "def reach_helper(x: any) -> any {\n"
+         + "    print(\"REACHED\", x);\n"
+         + "    return torch.relu(x);\n"
+         + "}\n";
+
+"""An entry in a subpackage reaching a helper above that package: the region
+walk follows the from-import, the claim walk, bounded by the entry's package,
+does not, so the helper's own file and configuration say nothing about which
+side of the region it landed on."""
+def _mk_reach_project(tmp: str) -> tuple[(str, str)] {
+    with open(os.path.join(tmp, "jac.toml"), "w") as fh {
+        fh.write("[project]\nname = \"gmreach\"\nversion = \"0.1.0\"\n");
+    }
+    os.mkdir(os.path.join(tmp, "app"));
+    with open(os.path.join(tmp, "app", "__init__.jac"), "w") as fh {
+        fh.write("");
+    }
+    entry_path = os.path.join(tmp, "app", "entry.jac");
+    with open(entry_path, "w") as fh {
+        fh.write(REACH_ENTRY_SRC);
+    }
+    used_path = os.path.join(tmp, "reached.jac");
+    with open(used_path, "w") as fh {
+        fh.write(REACH_USED_SRC);
+    }
+    return (entry_path, used_path);
+}
+
+test "a helper with no region is not served the region artifact" {
+    # Run A is one program, importer first, the order a real run imports in.
+    # Run B is a fresh program on purpose: a separate process compiling the
+    # helper alone, sharing only the warm cache, with no region at all.
+    old_config = config_mod._config;
+    try {
+        with TemporaryDirectory() as tmpdir {
+            tmpdir = os.path.realpath(tmpdir);
+            (entry_path, used_path) = _mk_reach_project(tmpdir);
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
+            prog_a = JacProgram();
+            code_entry = prog_a.get_bytecode(entry_path);
+            code_used = prog_a.get_bytecode(used_path);
+            assert code_entry is not None and code_used is not None;
+            assert _mentions_symbol(code_used, "__jac_se_emit__") , (
+                "the reached helper must be transformed in realistic order"
+            );
+            prog_b = JacProgram();
+            code_b = prog_b.get_bytecode(used_path);
+            assert code_b is not None;
+            assert not _mentions_symbol(code_b, "__jac_se_emit__") , (
+                "a compile with no region must not be served the region artifact"
+            );
+        }
+    } finally {
+        config_mod._config = old_config;
+    }
+}
+
+test "a region member is not served the entry-less artifact" {
+    # The reverse direction. The first program compiles the helper alone, so
+    # its artifact is the untransformed one; the second is a fresh program
+    # compiling the entry first, where the helper IS a region member.
+    old_config = config_mod._config;
+    try {
+        with TemporaryDirectory() as tmpdir {
+            tmpdir = os.path.realpath(tmpdir);
+            (entry_path, used_path) = _mk_reach_project(tmpdir);
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
+            prog_alone = JacProgram();
+            code_alone = prog_alone.get_bytecode(used_path);
+            assert code_alone is not None;
+            assert not _mentions_symbol(code_alone, "__jac_se_emit__");
+            prog_b = JacProgram();
+            code_entry = prog_b.get_bytecode(entry_path);
+            code_used = prog_b.get_bytecode(used_path);
+            assert code_entry is not None and code_used is not None;
+            assert _mentions_symbol(code_used, "__jac_se_emit__") , (
+                "a region member must not be served the entry-less artifact"
+            );
+        }
+    } finally {
+        config_mod._config = old_config;
+    }
+}

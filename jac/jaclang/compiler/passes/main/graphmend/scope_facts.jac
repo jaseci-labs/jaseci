@@ -89,6 +89,38 @@ def _seed(work: list[uni.Ability], bounds: dict[int, uni.Ability], ab: uni.Abili
     work.append(ab);
 }
 
+def region_context_key(prog: JacProgram, target_path: str) -> str {
+    import hashlib;
+    parts: list[str] = [];
+    for (path, mod) in prog.mod.hub.items() {
+        if path == target_path {
+            continue;
+        }
+        parts.append(path + '\x00' + _hub_source_digest(prog, path, mod));
+    }
+    if not parts {
+        return '';
+    }
+    h = hashlib.sha256();
+    for part in sorted(parts) {
+        h.update(part.encode('utf-8'));
+        h.update(b"\n");
+    }
+    return h.hexdigest()[:16];
+}
+
+def _hub_source_digest(prog: JacProgram, path: str, mod: uni.Module) -> str {
+    import hashlib;
+    cached = prog.graphmend_hub_digests.get(path);
+    if (cached is not None) and (cached[0] is mod) {
+        return cached[1];
+    }
+    src = mod.source.value if (mod.source is not None) else '';
+    digest = hashlib.sha256(src.encode('utf-8')).hexdigest()[:16];
+    prog.graphmend_hub_digests[path] = (mod, digest);
+    return digest;
+}
+
 def entry_key(ab: uni.Ability) -> str {
     parts: list[str] = [ab.sym_name];
     cur: (uni.UniNode | None) = ab.parent;
