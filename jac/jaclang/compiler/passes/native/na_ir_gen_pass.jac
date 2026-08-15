@@ -550,8 +550,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _resolve_field_type(var: uni.UniNode) -> ir.Type;
     def _foreign_optional_field(tb: any) -> bool;
     def _typevar_optional_field(tb: any) -> bool;
-    def _erased_typevar_name(tb: any) -> (str | None);
+    def _erased_typevar_names(tb: any) -> list[str];
     def _reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bool;
+    def _emit_scalar_type_arg_refusal(
+        nd: uni.UniNode, type_name: str, fname: str, tv_name: str, arg: any
+    ) -> bool;
+
     def _type_base_is_unknown(tb: any) -> bool;
     def _emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.Type;
     def _lower_type(t: any) -> (ir.Type | None);

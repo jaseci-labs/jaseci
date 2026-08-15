@@ -306,7 +306,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
     field_type_map: dict[(str, ir.Type)] = {};
     field_default_map: dict[(str, object)] = {};
     foreign_fields: set = set();
-    erased_tv_fields: dict[(str, str)] = {};
+    erased_tv_fields: dict[(str, list)] = {};
 
     if layout.vtable_ptr_slot is not None {
         field_types.append(ir.IntType(8).as_pointer().as_pointer());
@@ -351,8 +351,8 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
                 if self._foreign_optional_field(var?.type) {
                     foreign_fields.add(fname);
                 }
-                _etv = self._erased_typevar_name(var?.type);
-                if _etv is not None {
+                _etv = self._erased_typevar_names(var?.type);
+                if _etv {
                     erased_tv_fields[fname] = _etv;
                 }
                 if self._nogc_headerless()
@@ -435,37 +435,47 @@ impl NaIRGenPass._reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bo
     if not _args {
         return False;
     }
-    for (fname, tv_name) in _erased.items() {
-        if tv_name not in _params {
-            continue;
+    for (fname, tv_names) in _erased.items() {
+        for tv_name in tv_names {
+            if tv_name not in _params {
+                continue;
+            }
+            _idx = _params.index(tv_name);
+            if _idx >= len(_args) {
+                continue;
+            }
+            _solved = self._lower_type(_args[_idx]);
+            if _solved is None or isinstance(_solved, ir.PointerType) {
+                continue;
+            }
+            return self._emit_scalar_type_arg_refusal(
+                nd, type_name, fname, tv_name, _args[_idx]
+            );
         }
-        _idx = _params.index(tv_name);
-        if _idx >= len(_args) {
-            continue;
-        }
-        _solved = self._lower_type(_args[_idx]);
-        if _solved is None or isinstance(_solved, ir.PointerType) {
-            continue;
-        }
-        self.emit(
-            E5092,
-            node_override=nd,
-            kind="type argument",
-            name=f"{type_name}[{_args[_idx]}]",
-            help_text=(
-                f"A generic archetype is type-erased natively: one struct is "
-                f"shared by every instantiation, so a slot typed by '{tv_name}' "
-                f"-- here '{type_name}.{fname}' -- is a raw pointer. A pointer "
-                f"slot cannot carry '{_args[_idx]}', whose native representation "
-                f"is a value rather than a reference, and for an optional slot "
-                f"the null that spells None would alias a zero payload. "
-                f"Instantiate '{type_name}' at an archetype type, or declare "
-                f"'{fname}' with a concrete type."
-            )
-        );
-        return True;
     }
     return False;
+}
+
+impl NaIRGenPass._emit_scalar_type_arg_refusal(
+    nd: uni.UniNode, type_name: str, fname: str, tv_name: str, arg: any
+) -> bool {
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="type argument",
+        name=f"{type_name}[{arg}]",
+        help_text=(
+            f"A generic archetype is type-erased natively: one struct is "
+            f"shared by every instantiation, so a slot typed by '{tv_name}' "
+            f"-- here '{type_name}.{fname}' -- is a raw pointer. A pointer "
+            f"slot cannot carry '{arg}', whose native representation is a "
+            f"value rather than a reference, and for an optional slot the "
+            f"null that spells None would alias a zero payload. Instantiate "
+            f"'{type_name}' at an archetype type, or declare '{fname}' with "
+            f"a concrete type."
+        )
+    );
+    return True;
 }
 
 impl NaIRGenPass._register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None {

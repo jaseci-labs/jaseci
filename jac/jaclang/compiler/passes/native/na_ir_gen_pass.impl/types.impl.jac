@@ -962,26 +962,27 @@ impl NaIRGenPass._foreign_optional_field(tb: any) -> bool {
     return True;
 }
 
-impl NaIRGenPass._erased_typevar_name(tb: any) -> (str | None) {
+impl NaIRGenPass._erased_typevar_names(tb: any) -> list[str] {
     try {
         import from jaclang.compiler.type_system.types {
             TypeVarType as _EtvTypeVarType
         }
     } except ImportError {
-        return None;
+        return [];
     }
     if isinstance(tb, _EtvTypeVarType) and self._lower_type(tb) is None {
-        return tb.name;
+        return [tb.name];
     }
     if not self._typevar_optional_field(tb) {
-        return None;
+        return [];
     }
+    out: list[str] = [];
     for m in (tb.types or []) {
-        if isinstance(m, _EtvTypeVarType) {
-            return m.name;
+        if isinstance(m, _EtvTypeVarType) and m.name not in out {
+            out.append(m.name);
         }
     }
-    return None;
+    return out;
 }
 
 impl NaIRGenPass._typevar_optional_field(tb: any) -> bool {

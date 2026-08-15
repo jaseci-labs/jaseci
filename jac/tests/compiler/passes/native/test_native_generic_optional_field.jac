@@ -391,6 +391,72 @@ test "an inferred archetype type argument still lowers" {
 }
 
 
+test "every type parameter an erased slot can hold is checked, not just the first" {
+    # `(T | U | None)` is one erased pointer that either parameter can fill,
+    # so checking only `T` let `Choice[Leaf, int]` through and the scalar in
+    # the pointer slot segfaulted on the read.
+    (prog, ir) = _compile_src(
+        "multi_tv_scalar",
+        "obj Leaf {\n"
+        "    has num: int = 0;\n"
+        "}\n"
+        "obj Choice[T, U] {\n"
+        "    has value: (T | U | None) = None,\n"
+        "        tag: int = 0;\n"
+        "}\n"
+        "def go() -> int {\n"
+        "    c = Choice[Leaf, int](value=7, tag=1);\n"
+        "    if c.value is not None {\n"
+        "        return 1;\n"
+        "    }\n"
+        "    return -1;\n"
+        "}\n"
+    );
+    assert not prog.errors_had , (
+        f"the refusal must demote go() rather than fail the module: "
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "go" not in ir.gen.native_layout.functions , (
+        "a scalar in the second type parameter is the same unsound erasure "
+        "as one in the first"
+    );
+}
+
+
+test "a multi-parameter erased slot still lowers when every argument is a reference" {
+    (prog, ir) = _compile_src(
+        "multi_tv_ref",
+        "obj Leaf {\n"
+        "    has num: int = 0;\n"
+        "}\n"
+        "obj Other {\n"
+        "    has num: int = 0;\n"
+        "}\n"
+        "obj Choice[T, U] {\n"
+        "    has value: (T | U | None) = None,\n"
+        "        tag: int = 0;\n"
+        "}\n"
+        "def go() -> int {\n"
+        "    c = Choice[Leaf, Other](value=Leaf(num=7), tag=1);\n"
+        "    if c.value is not None {\n"
+        "        return c.tag;\n"
+        "    }\n"
+        "    return -1;\n"
+        "}\n"
+    );
+    assert not prog.errors_had , (
+        f"two reference type arguments are both sound and must lower: "
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "go" in ir.gen.native_layout.functions , (
+        "the widened check must not refuse a slot whose parameters are all "
+        "references"
+    );
+}
+
+
 test "an archetype type argument is still accepted for a bare `T` slot" {
     (prog, ir) = _compile_src(
         "ref_bare",
