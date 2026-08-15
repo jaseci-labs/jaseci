@@ -10,7 +10,7 @@ import from jaclang.jac0core.unitree {
     UniNode
 }
 
-def fold_const(expr: (UniNode | None)) -> tuple {
+def fold_const(expr: (UniNode | None)) -> tuple[(bool, any)] {
     if expr is None {
         return (False, None);
     }
