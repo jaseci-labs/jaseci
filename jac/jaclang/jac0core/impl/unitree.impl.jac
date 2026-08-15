@@ -2005,17 +2005,33 @@ impl MultiString.postinit -> None {
 }
 
 impl MultiString.lit_value.getter -> str | bytes {
-    parts: list[str | bytes] = [];
+    text_parts: list[str] = [];
+    byte_parts: list[int] = [];
+    saw_bytes = False;
     for s in self.strings {
         if isinstance(s, String) {
-            parts.append(s.lit_value);
+            part = s.lit_value;
+            if isinstance(part, `bytes) {
+                raw_bytes: bytes = part;
+                saw_bytes = True;
+                k = 0;
+                while (k < len(raw_bytes)) {
+                    byte_parts.append(raw_bytes[k]);
+                    k += 1;
+                }
+            } else {
+                raw_text: str = part;
+                text_parts.append(raw_text);
+            }
         }
     }
-
-    if parts and isinstance(parts[0], `bytes) {
-        return b"".join(parts);
+    if saw_bytes {
+        if text_parts {
+            raise ValueError('cannot concatenate bytes and str literals');
+        }
+        return bytes(byte_parts);
     }
-    return "".join(parts);
+    return ''.join(text_parts);
 }
 
 
@@ -2581,10 +2597,7 @@ impl Int.lit_value.getter -> int {
     return int(self.value, 0);
 }
 
-impl String.lit_value.getter -> str {
-    if isinstance(self.value, `bytes) {
-        return self.value;
-    }
+impl String.lit_value.getter -> str | bytes {
     if (self.parent and isinstance(self.parent, FString)) {
         fstring_parent: FString = self.parent;
         is_raw = False;
@@ -2597,30 +2610,7 @@ impl String.lit_value.getter -> str {
         }
         return _decode_str_escapes(self.value);
     }
-    if `any(
-        (
-            self.value.startswith(prefix)
-            and self.value[len(prefix):].startswith(("'", '"'))
-        ) for prefix in ['r', 'b', 'br', 'rb']
-    ) {
-        return eval(self.value);
-    } elif self.value.startswith(("'", '"')) {
-        inner = self.value;
-        if (
-            (len(inner) >= 6)
-            and (
-                (inner.startswith('"""') and inner.endswith('"""'))
-                or (inner.startswith("'''") and inner.endswith("'''"))
-            )
-        ) {
-            inner = inner[3:-3];
-        } else {
-            inner = inner[1:-1];
-        }
-        return _decode_str_escapes(inner);
-    } else {
-        return self.value;
-    }
+    return decode_string_literal(self.value);
 }
 
 impl Bool.lit_value.getter -> bool {

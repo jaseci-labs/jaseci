@@ -309,8 +309,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::Import.__jac_detected.__get__",
          "jac0core/unitree.jac::Import.is_service_import.__get__",
          "jac0core/unitree.jac::DeleteStmt.py_ast_targets.__get__",
-         "jac0core/unitree.jac::String.lit_value.__get__",
-         "jac0core/unitree.jac::MultiString.lit_value.__get__",
          "jac0core/unitree.jac::BuiltinType.lit_value.__get__",
          "jac0core/unitree.jac::Ellipsis.lit_value.__get__",
 
