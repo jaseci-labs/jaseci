@@ -440,9 +440,9 @@ impl PgStore._schema_lock_key -> int {
     import hashlib;
     schema = 'public';
     try {
-        rows = self._run('SELECT current_schema()', {});
-        if rows and rows[0] and rows[0][0] is not None {
-            schema = str(rows[0][0]);
+        got = self._run('SELECT current_schema()', {});
+        if got and got[0] and got[0][0] is not None {
+            schema = str(got[0][0]);
         }
     } except Exception as e {
         logger.debug(f"schema lock namespace lookup failed: {e}");
@@ -460,12 +460,12 @@ impl PgStore._acquire_schema_lock -> bool {
     pause = _SCHEMA_LOCK_POLL_SECONDS;
     while True {
         try {
-            rows = self._run(f"SELECT pg_try_advisory_lock({key})", {});
+            got = self._run(f"SELECT pg_try_advisory_lock({key})", {});
         } except Exception as e {
             logger.warning(f"schema lock unavailable ({e}); applying DDL unguarded");
             return False;
         }
-        if rows and rows[0] and bool(rows[0][0]) {
+        if got and got[0] and bool(got[0][0]) {
             return True;
         }
         if time.monotonic() >= deadline {
