@@ -286,7 +286,7 @@ def is_bundled_native_module(module_name: str) -> bool {
 
 def native_target_os -> str {
     import os;
-    import platform;
+    import sys;
     _t = os.environ.get("JAC_NATIVE_TARGET", "");
     if _t {
         if ("darwin" in _t) or ("apple" in _t) {
@@ -297,11 +297,11 @@ def native_target_os -> str {
         }
         return "linux";
     }
-    _s = platform.system();
-    if _s == "Darwin" {
+    _s = sys.platform;
+    if _s == "darwin" {
         return "darwin";
     }
-    if _s == "Windows" {
+    if _s == "win32" {
         return "windows";
     }
     return "linux";
