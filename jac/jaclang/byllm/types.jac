@@ -11,7 +11,7 @@ import os;
 import from contextlib { suppress }
 
 glob logger: logging.Logger = logging.getLogger(__name__);
-import from enum { StrEnum }
+import from enum { Enum, StrEnum }
 import from io { BytesIO }
 import from dataclasses { is_dataclass }
 import from typing { Callable, TypeAlias, get_args, get_origin, get_type_hints }

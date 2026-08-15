@@ -8,23 +8,13 @@ glob SYSTEM_PERSONA = """\
     output. Only use tools.
     """;
 
-"""Render a human-readable definition of an enum/obj input *value*.
 
-Mirrors the semantic detail the OUTPUT schema carries -- the type-level
-semstring plus each member/field semstring -- pulled from the runtime
-`_jac_semstr` / `_jac_semstr_inner` attributes. Returns "" for primitives;
-recurses one level into nested enum/obj fields (bounded by `_depth`).
-"""
 def _describe_input_type(value: object, _depth: int = 0) -> str {
     import from enum { Enum }
     import from dataclasses { is_dataclass, fields as _dc_fields }
     if _depth > 2 {
         return "";
     }
-    # A list/dict OF objs is still an obj input. Without this a `list[Step]`
-    # parameter reaches the model with no definition at all, while the very
-    # same type is fully described when it appears in the output schema.
-    # Containers are not a semantic level, so `_depth` does not advance.
     if isinstance(value, (list, tuple, set)) {
         for item in value {
             inner = _describe_input_type(item, _depth);
@@ -254,22 +244,14 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
             if isinstance(value, Media) {
                 media_inputs.append((value, ""));
             } else {
-                # incl_info entries are extra bindings; they carry no authored
-                # sem, so they never earn a schema entry.
                 bindings.append(f"{key} = {value!r}");
             }
         }
     }
-    # Identity zone: `self` earns a block only when it carries authored
-    # content -- fields to show, or a sem somewhere in its class chain. A bare
-    # archetype leaves no trace beyond the qualified name in the header;
-    # a synthesized type sentence would be structure, not meaning.
     self_block: list[str] = [];
     if isinstance(caller, MethodType) {
         self_sem = "";
         if has_mtir and ir_info.parent_class is not None {
-            # Resolve through base_classes: a base's sem is inherited
-            # intention, expressed without naming the hierarchy in the prompt.
             queue = [ir_info.parent_class];
             while queue and not self_sem {
                 cls_info = queue.pop(0);
@@ -278,7 +260,6 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
             }
         }
         if not self_sem {
-            # Runtime fallback: class attribute lookup walks the MRO for free.
             self_sem = (
                 getattr(type(caller.__self__), "_jac_semstr", "") or ""
             ).strip();
@@ -400,9 +381,6 @@ impl MTRuntime.factory(mtir: MTIR) -> MTRuntime {
         );
     }
     if len(tools) > 0 {
-        # With tools present get_output_schema() returns None, so finish_tool's
-        # parameter is the whole output contract -- it needs the return type's
-        # MTIR info or every field semstring is dropped from it.
         finish_tool = Tool.make_finish_tool(
             return_type or str,
             ir_info.return_type if has_mtir else None

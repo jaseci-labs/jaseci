@@ -114,12 +114,6 @@ impl _type_to_schema(
         }else{
             info_fields = info.fields if info else [];
         }
-        # if isinstance(info, FieldInfo) {
-        #     info_fields = info.type_info.fields if info else [];
-        # } else {
-        #     info_fields = info.fields if info else [];
-        # }
-        # Build a map of field info by name for quick lookup
         info_fields_map = {field.name: field for field in info_fields};
         # Build properties for ALL fields (including inherited), using MTIR info when available
         properties = {
@@ -402,7 +396,22 @@ impl tool_to_schema(
     properties: dict[str, object] = schema.get("properties", {});  # type: ignore
     required: list[str] = schema.get("required", []);  # type: ignore
     for (param_name, param_info) in properties.items() {
-        param_info["description"] = params_desc.get(param_name, "");  # type: ignore
+        desc: str = params_desc.get(param_name, "");  # type: ignore
+        # An enum property's generated description carries the name<->value
+        # legend and the per-member semstrings; a bare `enum: [1, 2, 3]`
+        # constraint cannot express any of it. Replacing that description with
+        # the parameter's own left the model picking blind between integers --
+        # or emitting the member name and violating its own schema -- so fold
+        # the parameter description in front of the legend instead. The
+        # response_format path (`type_to_schema`) never overwrote it, which is
+        # why the same enum worked as a return type but failed as a tool arg.
+        if "enum" in param_info {  # type: ignore
+            generated: str = param_info.get("description", "");  # type: ignore
+            desc = f"{desc}\n{generated}" if (desc and generated) else (
+                desc or generated
+            );
+        }
+        param_info["description"] = desc;  # type: ignore
         param_info.pop(
             "title", None
         );  # type: ignore  # Gemini rejects 'title' in property schemas

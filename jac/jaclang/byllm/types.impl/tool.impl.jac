@@ -196,6 +196,20 @@ def _coerce_structurally(value: object, ty: object) -> object {
         members = get_args(ty);
         return [_coerce_arg(item, members[0]) for item in value] if members else value;
     }
+    # An enum argument arrives as its member name ("HIGH") at least as often as
+    # its value (3) -- the tool schema advertises both, and `TypeAdapter` only
+    # ever matches by value. Without this the bare string reached the tool and
+    # it died on `.name`/`.value`, which the model saw as an opaque
+    # "Tool error: 'str' object has no attribute 'name'".
+    # `[ty] + get_args(ty)` covers a plain enum and `Priority | None` alike.
+    for candidate in [ty] + list(get_args(ty)) {
+        if isinstance(candidate, type) and issubclass(candidate, Enum) {
+            member = _coerce_enum(value, candidate);
+            if member is not None {
+                return member;
+            }
+        }
+    }
     if not isinstance(value, dict) {
         return value;
     }
@@ -209,6 +223,36 @@ def _coerce_structurally(value: object, ty: object) -> object {
         }
     }
     return value;
+}
+
+
+"""Resolve an enum member from its value or its name; None when neither matches.
+
+Returning None rather than raising keeps `_coerce_structurally` free to fall
+through to its remaining strategies and, ultimately, to pass the value on
+untouched so the tool stays the decider.
+"""
+def _coerce_enum(value: object, ty: type) -> object {
+    if isinstance(value, ty) {
+        return value;
+    }
+    with suppress(Exception) {
+        return ty(value);  # by value: 3 -> HIGH, "open" -> OPEN
+    }
+    if not isinstance(value, str) {
+        return None;
+    }
+    with suppress(Exception) {
+        return ty[value];  # by exact name: "HIGH" -> HIGH
+    }
+    # Case-insensitive name match, then a stringified value ("3" for HIGH = 3).
+    lowered = value.strip().lower();
+    for member in ty {
+        if member.name.lower() == lowered or str(member.value).lower() == lowered {
+            return member;
+        }
+    }
+    return None;
 }
 
 

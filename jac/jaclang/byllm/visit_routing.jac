@@ -2,7 +2,7 @@ import enum;
 import re;
 import from dataclasses { fields, is_dataclass }
 import from jaclang.byllm._optdeps.loguru { logger }
-
+import os;
 
 def _class_info(arch: object) -> object {
     import from jaclang.jac0core.mtp { fetch_mtir }
@@ -49,7 +49,10 @@ def _describe_arch(arch: object) -> str {
             if f.name.startswith("_") {
                 continue;
             }
-            val = _safe_repr(getattr(arch, f.name));
+            if os.environ.get("JAC_ROUTE_FIELD_REPR_LIMIT") is not None {
+                val = _safe_repr(getattr(arch, f.name), limit= 500);
+            }
+            val = _safe_repr(getattr(arch, f.name), limit= 500);
             label = f"{f.name} ({fsem[f.name]})" if f.name in fsem else f.name;
             parts.append(f"{label}={val}");
         }
@@ -333,7 +336,6 @@ def route_visit(candidates: list, model: object) -> list {
         messages=[
             Message(role=MessageRole.SYSTEM, content=sys_txt),
             Message(role=MessageRole.USER, content="\n\n".join(user_parts)),
-
         ],
         resp_type=resp_type,
         stream=bool(call_params.get("stream", False)),
