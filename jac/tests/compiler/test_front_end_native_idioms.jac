@@ -225,6 +225,59 @@ test "MalformedJacTomlError keeps its identity and its tomllib base" {
     assert getattr(raised, "file_path") == temp_path;
 }
 
+# ─────────────────────────────────────────────────────────────────────
+# runtime reflection -> frozen name tables
+# ─────────────────────────────────────────────────────────────────────
+
+# Two passes asked the running interpreter what names exist -- `dir(builtins)`
+# for the undefined-name check, `dir(TestCase())` for the assert stubs a
+# `test` block gets. Both are now tables generated from CPython 3.14. These
+# are the drift alarms: if a CPython upgrade changes either surface, they
+# fail here with the exact delta, and the tables get regenerated.
+test "the frozen builtins table matches the running interpreter" {
+    import builtins;
+    import from jaclang.compiler.passes.main.static_analysis_pass { BUILTIN_NAMES }
+    live = set(dir(builtins));
+    assert BUILTIN_NAMES == live , (
+        f"regenerate BUILTIN_NAMES: missing {sorted(live - BUILTIN_NAMES)}, "
+        f"stale {sorted(BUILTIN_NAMES - live)}"
+    );
+}
+
+test "the frozen TestCase assert table matches the running interpreter" {
+    import from unittest { TestCase }
+    import from jaclang.jac0core.passes.sym_tab_build_pass { TEST_ASSERT_METHOD_NAMES }
+    live = [
+        j
+        for j in dir(TestCase())
+        if j.startswith('assert')
+    ];
+    assert list(TEST_ASSERT_METHOD_NAMES) == live , (
+        f"regenerate TEST_ASSERT_METHOD_NAMES: live surface is {live}"
+    );
+}
+
+test "a test block still binds the assert names to symbols" {
+    import from jaclang.jac0core.unitree { Name }
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "_idiom_test_asserts.jac"),
+        use_str="test \"probe\" {\n"
+        "    assertEqual(1, 1);\n"
+        "    assertNotIn(2, [1]);\n"
+        "}\n",
+        options=CompileOptions(type_check=False)
+    );
+    bound = {
+        nd.value: (nd.sym is not None)
+        for nd in ir.get_all_sub_nodes(typ=Name)
+        if nd.value.startswith("assert")
+    };
+    assert bound == {"assertEqual": True, "assertNotIn": True} , (
+        f"assert stubs did not bind: {bound}"
+    );
+}
+
 test "Jdb.has_breakpoint still reads the compiled bytecode" {
     import marshal;
     import from jaclang.jac0core.debugger { debugger }

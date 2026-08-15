@@ -176,12 +176,7 @@ impl SymTabBuildPass.exit_binary_expr(self: SymTabBuildPass, nd: BinaryExpr) -> 
 
 impl SymTabBuildPass.enter_test(self: SymTabBuildPass, nd: Test) -> None {
     self.push_scope_and_link(nd);
-    import from unittest { TestCase }
-    for i in [
-        j
-        for j in dir(TestCase())
-        if j.startswith('assert')
-    ] {
+    for i in TEST_ASSERT_METHOD_NAMES {
         nd.sym_tab.def_insert(
             Name.gen_stub_from_node(nd, i, set_name_of=nd), imported=True
         );
