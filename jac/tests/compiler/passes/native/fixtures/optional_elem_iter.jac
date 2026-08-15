@@ -135,3 +135,31 @@ def optional_local_loop -> int {
     }
     return total;
 }
+
+def opt_list_slice_len -> int {
+    h = _filled();
+    copy = h.parts[:];
+    total = 0;
+    for p in copy {
+        total += p.n;
+    }
+    return total;
+}
+
+def opt_list_index -> int {
+    h = _filled();
+    return h.parts[1].n;
+}
+
+def none_slice_raises -> int {
+    h = Holder();
+    total = 0;
+    try {
+        for p in h.parts[:] {
+            total += p.n;
+        }
+    } except TypeError {
+        return -1;
+    }
+    return total;
+}

@@ -2610,33 +2610,46 @@ impl NaIRGenPass._opt_unwrap_attr(obj_val: ir.Value) -> ir.Value {
     return self.builder.extract_value(obj_val, 1, name="attr.opt.val");
 }
 
+impl NaIRGenPass._opt_unwrap_guarded(
+    val: (ir.Value | None), what: str, msg: str
+) -> (ir.Value | None) {
+    """Payload of an optional container, guarded by the absence CPython raises on.
+
+    `has parts: (list[Item] | None)` lowers to a `JacOpt` -- a presence tag
+    beside the container pointer -- so a loop, comprehension or slice reading
+    the slot receives the wrapper, not a list. Handing that wrapper to the
+    container helpers is what used to raise `Type of #1 arg mismatch` out of
+    the builder and cost the whole function an ICE. Unwrapping here restores
+    the container the rest of the lowering expects; the `None` arm raises
+    rather than reading a null, so the two pathways agree on the absent case
+    as well as the present one.
+    """;
+    if val is None {
+        return None;
+    }
+    if self._opt_payload_of(val.type) is None {
+        return val;
+    }
+    _uw_tag = self.builder.extract_value(val, 0, name=f"{what}.opt.tag");
+    _uw_none = self.builder.icmp_signed(
+        "==", _uw_tag, ir.Constant(ir.IntType(8), 0), name=f"{what}.opt.none"
+    );
+    self._emit_runtime_raise(_uw_none, "TypeError", msg);
+    return self.builder.extract_value(val, 1, name=f"{what}.opt.val");
+}
+
 impl NaIRGenPass._opt_unwrap_iterable(
     coll_val: (ir.Value | None)
 ) -> (ir.Value | None) {
-    """Payload of an optional collection about to be walked, or the value itself.
+    return self._opt_unwrap_guarded(
+        coll_val, "iter", "'NoneType' object is not iterable"
+    );
+}
 
-    `has parts: (list[Item] | None)` lowers to a `JacOpt` -- a presence tag
-    beside the container pointer -- so a loop or comprehension reading the
-    slot receives the wrapper, not a list. Handing that wrapper to the list
-    helpers is what used to raise `Type of #1 arg mismatch` out of the
-    builder and cost the whole function an ICE. Unwrapping here restores the
-    container the rest of the lowering expects, and the `None` arm raises the
-    same `TypeError` CPython raises rather than walking a null.
-    """;
-    if coll_val is None {
-        return None;
-    }
-    if self._opt_payload_of(coll_val.type) is None {
-        return coll_val;
-    }
-    _it_tag = self.builder.extract_value(coll_val, 0, name="iter.opt.tag");
-    _it_none = self.builder.icmp_signed(
-        "==", _it_tag, ir.Constant(ir.IntType(8), 0), name="iter.opt.none"
+impl NaIRGenPass._opt_unwrap_subscript(val: (ir.Value | None)) -> (ir.Value | None) {
+    return self._opt_unwrap_guarded(
+        val, "sub", "'NoneType' object is not subscriptable"
     );
-    self._emit_runtime_raise(
-        _it_none, "TypeError", "'NoneType' object is not iterable"
-    );
-    return self.builder.extract_value(coll_val, 1, name="iter.opt.val");
 }
 
 impl NaIRGenPass._accessor_slot_of(

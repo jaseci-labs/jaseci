@@ -685,7 +685,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_jacval_eq(left: ir.Value, right: ir.Value) -> ir.Value;
     def _opt_membership_operand(left: ir.Value, slot_type: ir.Type) -> tuple;
     def _opt_unwrap_attr(obj_val: ir.Value) -> ir.Value;
+    def _opt_unwrap_guarded(
+        val: (ir.Value | None), what: str, msg: str
+    ) -> (ir.Value | None);
+
     def _opt_unwrap_iterable(coll_val: (ir.Value | None)) -> (ir.Value | None);
+    def _opt_unwrap_subscript(val: (ir.Value | None)) -> (ir.Value | None);
     def _codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
     def _codegen_int_floor_divmod(
         left: ir.Value, right: ir.Value
