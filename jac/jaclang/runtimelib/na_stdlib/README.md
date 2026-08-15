@@ -194,14 +194,44 @@ bundled one. A bundled module links through the existing cross-module machinery
   model). Construction/reduction (`Fraction(n, d)`), `numerator` /
   `denominator`, and `str()` match CPython exactly. Arithmetic and ordering are
   the CPython dunder methods (`__add__` / `__sub__` / `__mul__` / `__truediv__`
-  / `__eq__` / `__lt__`); since the native backend has no operator-overload
-  dispatch yet, the na fixture calls them directly (`a.__add__(b)`) where the sv
-  fixture uses `+` / `<`, and the resulting *values* are congruent.
+  / `__eq__` / `__lt__`). The na fixture calls them directly (`a.__add__(b)`)
+  where the sv fixture uses `+` / `<`, and the resulting *values* are
+  congruent; the operator spellings lower too, since the backend now routes a
+  binary operator over an archetype through `_emit_arch_dunder_binop`
+  (forward magic, then the reflected one) against
+  `type_system.operations.BINARY_OPERATOR_MAP`.
   Float/Decimal/string construction is out of scope. SCOPE: native `int` is a
   fixed-width i64, so the cross-multiplications in `__add__` / `__lt__` (and
   friends) silently overflow once intermediate products exceed 2^63, where
   CPython's bignum `Fraction` stays exact; keep components comfortably below
   ~3x10^9 (sqrt of i64 max).
+
+- **`pathlib.jac`** (#8201) -- a `Path` that carries one normalized POSIX
+  string and derives every member from it, which is CPython's `PurePosixPath`
+  value model: construction splits on `/`, drops empty and `.` components,
+  keeps `..` (collapsing one lexically is not symlink-safe), and preserves the
+  POSIX root -- `/`, or the special `//` a leading double slash denotes, which
+  `///` does not. An all-empty result renders as `.`, so `str(Path(""))` is
+  `"."`. Provided surface: `Path(str)`, `Path(Path)`, `str()` / f-string
+  interpolation, truthiness, `.name`, `.stem`, `.parent`, `/`, `.resolve()`,
+  `.exists()`, `.is_dir()`. Anything outside it does not exist on the type, so
+  a native compile that reaches for one fails with "Type `Path` has no
+  attribute ..." rather than silently answering wrong.
+  `.stem` follows `os.path.splitext`, which is what CPython's own `stem`
+  reduces to: the last `.` splits the name only when some non-`.` character
+  precedes it, so `.bashrc` and `..` are entirely stem, while a trailing dot
+  does split (`b.` has stem `b`) -- that last case is CPython **>= 3.14**
+  behavior (3.13 and earlier answered `b.`) and the bundled sv runtime is 3.14.
+  SCOPE: POSIX only (no Windows flavour, no drive letter, no
+  `PureWindowsPath`). `.resolve()` absolutizes against `os.getcwd()`, resolves
+  symlinks through the `realpath(3)` intercept, then collapses `.`/`..`
+  lexically -- byte-identical to CPython for a path that exists, but for a path
+  whose components do not all exist `realpath(3)` reports failure and the
+  answer falls back to the lexical collapse, so a symlink sitting on an
+  existing *prefix* of a missing path is not resolved the way CPython's
+  component walk resolves it. Comparison, hashing, iteration, `.parts`,
+  `.suffix`, `.glob`, `.open`, `.cwd()`, `.home()`, and the whole I/O surface
+  are not provided.
 
 The syscall-backed `os` / `os.path` entry points (`makedirs`, `realpath`,
 `mkdir`, `exists`, ...) are Mechanism-A/H compiler intercepts, reached via the
