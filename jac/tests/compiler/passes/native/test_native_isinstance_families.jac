@@ -36,13 +36,13 @@ glob FIXTURES = os.path.join(
      _ENGINE: list = [];
 
 """Stand-ins for the fixture's archetypes, so CPython answers the same question."""
-class PyBase { }
+class PyBase {}
 
-class PyFoo(PyBase) { }
+class PyFoo(PyBase) {}
 
-class PyBar(PyBase) { }
+class PyBar(PyBase) {}
 
-class PyBaz(PyBase) { }
+class PyBaz(PyBase) {}
 
 """Compile the fixture once and hand back its JIT engine."""
 def families_engine -> ExecutionEngine {
@@ -95,9 +95,8 @@ test "untagged arm: (list, tuple) lowers and answers per CPython" {
 
 
 test "untagged arm: a tuple operand matches tuple and (list, tuple)" {
-    assert native_fn("chk_tuple_operand", argc=0)() == py_verdict(
-        (1, 2, ), (list, tuple, )
-    );
+    assert native_fn("chk_tuple_operand", argc=0)()
+        == py_verdict((1, 2, ), (list, tuple, ));
     assert native_fn("chk_tuple_bare", argc=0)() == py_verdict((1, 2, 3, ), tuple);
 }
 
