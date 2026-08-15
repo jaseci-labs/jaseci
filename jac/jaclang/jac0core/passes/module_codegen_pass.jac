@@ -16,11 +16,8 @@ import from jaclang.jac0core.unitree {
     UniNode
 }
 import from jaclang.jac0core.constant { CodeContext }
+import from jaclang.jac0core.codeinfo { TYPE_PARAM_CONSTRUCTORS }
 import from jaclang.jac0core.passes.transform { Transform }
-
-glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
-         {"TypeVar", "ParamSpec", "TypeVarTuple"}
-     );
 
 obj ModuleCodegenPass(Transform[Module, Module]) {
     static def unwrap_body(nd: Archetype | Enum | Ability) -> (Sequence | None) {

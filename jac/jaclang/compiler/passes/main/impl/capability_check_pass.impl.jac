@@ -121,18 +121,45 @@ impl import_bound_name(item: UniNode) -> (str | None) {
     return None;
 }
 
+impl node_within(name_nd: UniNode, top: (UniNode | None)) -> bool {
+    if top is None {
+        return False;
+    }
+    cur: (UniNode | None) = name_nd;
+    while cur is not None {
+        if cur is top {
+            return True;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+impl base_expr_is_erased(base: UniNode) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
+    _tail: UniNode = base.right if isinstance(base, AtomTrailer) else base;
+    return isinstance(_tail, Name) and _tail.value in NATIVE_COMPTIME_BASES;
+}
+
 impl name_in_type_position(name_nd: UniNode) -> bool {
     if name_nd.find_parent_of_type(SubTag) is not None {
         return True;
     }
     sig = name_nd.find_parent_of_type(FuncSignature);
-    if sig is not None and sig.return_type is not None {
-        cur = name_nd;
-        while cur is not None {
-            if cur is sig.return_type {
+    if sig is not None and node_within(name_nd, sig.return_type) {
+        return True;
+    }
+    for _decl in [
+        name_nd.find_parent_of_type(Archetype),
+        name_nd.find_parent_of_type(Enum)
+    ] {
+        if _decl is None {
+            continue;
+        }
+        for _base in (_decl.base_classes or []) {
+            if node_within(name_nd, _base) and base_expr_is_erased(_base) {
                 return True;
             }
-            cur = cur.parent;
         }
     }
     return False;

@@ -150,13 +150,25 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "enum",
          "collections.abc"
      },
-     NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {"abc": frozenset({"ABC"})},
      _effective_codespace_ctx: ContextVar[str] = ContextVar(
          "jac_effective_default_codespace", default=""
      ),
      _closure_cap_ctx: ContextVar[int] = ContextVar(
          "jac_native_closure_cap", default=0
      );
+
+glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
+         {"TypeVar", "ParamSpec", "TypeVarTuple"}
+     );
+
+glob NATIVE_COMPTIME_BASES: frozenset = frozenset({"ABC"});
+
+glob NATIVE_COMPTIME_IDENTITY_CALLS: frozenset = frozenset({"cast"});
+
+glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
+         "abc": NATIVE_COMPTIME_BASES,
+         "typing": TYPE_PARAM_CONSTRUCTORS | NATIVE_COMPTIME_IDENTITY_CALLS
+     };
 
 def native_comptime_import_names(module_name: str, names: list[str]) -> bool {
     allowed = NATIVE_COMPTIME_STDLIB.get(module_name.lstrip('.'));

@@ -134,6 +134,11 @@ def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
     return module.gen.layout_registry or LayoutRegistry();
 }
 
+def is_comptime_base_name(name: str, archetypes: dict[str, Archetype]) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
+    return name in NATIVE_COMPTIME_BASES and name not in archetypes;
+}
+
 def is_enum_class_type(t: any) -> bool {
     try {
         import from jaclang.compiler.type_system.types { ClassType as _ClassType }
