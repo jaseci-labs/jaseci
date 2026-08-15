@@ -47,8 +47,10 @@ def _bind_one(fullname: str) {
         );
     }
     advertised: set[str] = set((layout_dict.get("functions") or {}).keys());
-    for sd in (layout_dict.get("structs") or {}).values() {
-        for kinds in (sd.get("accessors") or {}).values() {
+    structs: dict[str, dict] = layout_dict.get("structs") or {};
+    for sd in structs.values() {
+        accessors: dict[str, dict[str, str]] = sd.get("accessors") or {};
+        for kinds in accessors.values() {
             advertised.update(kinds.values());
         }
     }
