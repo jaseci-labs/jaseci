@@ -2610,6 +2610,35 @@ impl NaIRGenPass._opt_unwrap_attr(obj_val: ir.Value) -> ir.Value {
     return self.builder.extract_value(obj_val, 1, name="attr.opt.val");
 }
 
+impl NaIRGenPass._opt_unwrap_iterable(
+    coll_val: (ir.Value | None)
+) -> (ir.Value | None) {
+    """Payload of an optional collection about to be walked, or the value itself.
+
+    `has parts: (list[Item] | None)` lowers to a `JacOpt` -- a presence tag
+    beside the container pointer -- so a loop or comprehension reading the
+    slot receives the wrapper, not a list. Handing that wrapper to the list
+    helpers is what used to raise `Type of #1 arg mismatch` out of the
+    builder and cost the whole function an ICE. Unwrapping here restores the
+    container the rest of the lowering expects, and the `None` arm raises the
+    same `TypeError` CPython raises rather than walking a null.
+    """;
+    if coll_val is None {
+        return None;
+    }
+    if self._opt_payload_of(coll_val.type) is None {
+        return coll_val;
+    }
+    _it_tag = self.builder.extract_value(coll_val, 0, name="iter.opt.tag");
+    _it_none = self.builder.icmp_signed(
+        "==", _it_tag, ir.Constant(ir.IntType(8), 0), name="iter.opt.none"
+    );
+    self._emit_runtime_raise(
+        _it_none, "TypeError", "'NoneType' object is not iterable"
+    );
+    return self.builder.extract_value(coll_val, 1, name="iter.opt.val");
+}
+
 impl NaIRGenPass._accessor_slot_of(
     type_name: str, field_name: str, kind: str
 ) -> (str | None) {

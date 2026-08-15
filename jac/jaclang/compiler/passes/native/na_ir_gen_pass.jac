@@ -572,6 +572,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _tuple_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _dict_key_of(expr: (uni.UniNode | None)) -> (str | None);
+    def _peer_dict_key -> (str | None);
     def _list_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _spec_of(
         expr: (uni.UniNode | None), names: tuple, registry: dict
@@ -684,6 +685,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_jacval_eq(left: ir.Value, right: ir.Value) -> ir.Value;
     def _opt_membership_operand(left: ir.Value, slot_type: ir.Type) -> tuple;
     def _opt_unwrap_attr(obj_val: ir.Value) -> ir.Value;
+    def _opt_unwrap_iterable(coll_val: (ir.Value | None)) -> (ir.Value | None);
     def _codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
     def _codegen_int_floor_divmod(
         left: ir.Value, right: ir.Value

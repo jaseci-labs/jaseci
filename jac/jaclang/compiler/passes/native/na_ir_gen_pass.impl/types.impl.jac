@@ -381,6 +381,14 @@ impl NaIRGenPass._typed_elem_llvm_of(
     member type per narrowed class, and a union carries no `private` of its
     own. Members that agree on the container shape agree on its element type
     too, so the first matching member answers for all of them.
+
+    An optional container (`list[T] | None`, the shape every `has` slot that
+    defaults to `None` carries) is the same question asked of one member.
+    Its mangle is the union's, so the prefix test has to be retried against
+    the sole non-`None` member or the element type erases -- a comprehension
+    or for-loop over `x.parts or []` would then walk elements it has no
+    layout for. `_opt_sole_member` is the same unwrap `_list_spec_of` uses
+    to recognise the container itself, so the two answers stay congruent.
     """;
     _ty = self._flow_narrowed_type_of(expr);
     if _ty is None {
@@ -388,7 +396,12 @@ impl NaIRGenPass._typed_elem_llvm_of(
     }
     _mg = self._mangled_of(_ty);
     if _mg is None or not _mg.startswith(prefix) {
-        return None;
+        _sole = self._opt_sole_member(_ty);
+        _sole_mg = self._mangled_of(_sole) if _sole is not None else None;
+        if _sole_mg is None or not _sole_mg.startswith(prefix) {
+            return None;
+        }
+        _ty = _sole;
     }
     for _cand in (_ty?.types or [_ty]) {
         _priv = _cand?.private;

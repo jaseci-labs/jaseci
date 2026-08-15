@@ -1488,7 +1488,11 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
         }
 
         self.builder.position_at_end(rhs_bb);
+        _bool_peer_saved = self._peer_container_ty;
+        _bool_peer = self._opt_ptr_payload_of(result.type);
+        self._peer_container_ty = _bool_peer if _bool_peer is not None else result.type;
         rhs_val = self._str_norm(self._codegen_expr(nd.values[i]));
+        self._peer_container_ty = _bool_peer_saved;
         if rhs_val is None {
             return None;
         }
