@@ -8,6 +8,7 @@ import from jaclang.jac0core.unitree {
     ContextAwareNode,
     ElementStmt,
     Enum,
+    FuncCall,
     ImplDef,
     Import,
     Module,
@@ -16,6 +17,10 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.constant { CodeContext }
 import from jaclang.jac0core.passes.transform { Transform }
+
+glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
+         {"TypeVar", "ParamSpec", "TypeVarTuple"}
+     );
 
 obj ModuleCodegenPass(Transform[Module, Module]) {
     static def unwrap_body(nd: Archetype | Enum | Ability) -> (Sequence | None) {
@@ -108,6 +113,22 @@ obj ModuleCodegenPass(Transform[Module, Module]) {
             tag = tag.right;
         }
         return isinstance(tag, Name) and tag.value == "TypeAlias";
+    }
+
+    static def is_type_param_decl(assign: Assignment) -> bool {
+        if assign.value is None or not isinstance(assign.value, FuncCall) {
+            return False;
+        }
+        callee = assign.value.target;
+        if isinstance(callee, AtomTrailer) {
+            callee = callee.right;
+        }
+        return isinstance(callee, Name) and callee.value in TYPE_PARAM_CONSTRUCTORS;
+    }
+
+    static def is_comptime_type_decl(assign: Assignment) -> bool {
+        return ModuleCodegenPass.is_type_alias_decl(assign)
+            or ModuleCodegenPass.is_type_param_decl(assign);
     }
 
     static def archetype_refs(nd: UniNode) -> list[str] {
