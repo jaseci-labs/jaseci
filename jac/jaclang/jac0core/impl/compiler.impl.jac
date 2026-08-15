@@ -380,7 +380,10 @@ impl JacCompiler._load_native_from_cache(
         target = llvm.Target.from_default_triple();
         target_machine = target.create_target_machine();
         engine = llvm.create_mcjit_compiler(llvm_mod, target_machine);
-        import from jaclang.jac0core.codeinfo { CodeGenTarget }
+        import from jaclang.jac0core.codeinfo {
+            CodeGenTarget,
+            install_native_static_init
+        }
         gen = CodeGenTarget();
         gen.native_engine = engine;
         py_func_table: dict = {};
@@ -395,6 +398,7 @@ impl JacCompiler._load_native_from_cache(
                 register_py_callbacks(manifest, py_func_table, callbacks_list);
             }
         }
+        install_native_static_init(engine, gen.interop_manifest);
         target_program._native_cache[full_target] = gen;
     } except Exception as e {
         import logging;
@@ -442,7 +446,7 @@ impl JacCompiler._load_native_from_bitcode(
     target = llvm.Target.from_default_triple();
     target_machine = target.create_target_machine();
     engine = llvm.create_mcjit_compiler(llvm_mod, target_machine);
-    import from jaclang.jac0core.codeinfo { CodeGenTarget }
+    import from jaclang.jac0core.codeinfo { CodeGenTarget, install_native_static_init }
     gen = CodeGenTarget();
     gen.native_engine = engine;
     py_func_table: dict = {};
@@ -457,6 +461,7 @@ impl JacCompiler._load_native_from_bitcode(
             register_py_callbacks(manifest, py_func_table, callbacks_list);
         }
     }
+    install_native_static_init(engine, gen.interop_manifest);
     target_program._native_cache[full_target] = gen;
 }
 

@@ -140,6 +140,30 @@ def native_safe_sym(src: str) -> str {
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
 }
 
+def native_glob_init_symbols(manifest: object) -> list[str] {
+    syms: list[str] = [];
+    sources = (manifest.native_transitive_sources if manifest else []) or [];
+    for src in sources {
+        if not src {
+            continue;
+        }
+        sym = f"__jac_glob_init_{native_safe_sym(src)}";
+        if sym not in syms {
+            syms.append(sym);
+        }
+    }
+    syms.append("__jac_glob_init");
+    return syms;
+}
+
+def install_native_static_init(engine: object, manifest: object) -> None {
+    if engine is None {
+        return;
+    }
+    engine.static_init_symbols = native_glob_init_symbols(manifest);
+    engine.static_init_chained = {"jac_entry"};
+}
+
 glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "sys",
          "math",

@@ -1961,6 +1961,47 @@ impl NaIRGenPass._codegen_instantiation(
     return obj_ptr;
 }
 
+impl NaIRGenPass._unregistered_class_target(target: uni.UniNode) -> (str | None) {
+    """The class a `Cls.method(...)` names when the native lane has no `Cls`.
+
+    The native import walk registers a struct type for an imported archetype
+    only when it walked that archetype's module; a module it classified
+    Python-side (a Python base, a `::py::` body) leaves nothing behind, so the
+    class name resolves to no native type at all. That is the same crossing a
+    cross-module free-function call makes, and the free-function form refuses
+    out loud -- this lookup is what lets the class-qualified form say the same
+    thing instead of dropping the call on the floor.
+
+    Only a name that resolves to an archetype declared in *another* Jac module
+    answers, so an instance receiver, an enum, and an in-module class that has
+    simply not been registered yet all stay out of it.
+    """;
+    import os;
+    name = self._get_name(target);
+    if name is None or name in self.struct_types or name in self.local_vars {
+        return None;
+    }
+    sym = target?.sym;
+    decl = sym.decl if sym is not None else None;
+    if decl is None {
+        return None;
+    }
+    arch = decl.find_parent_of_type(uni.Archetype);
+    if arch is None or arch.name is None or arch.name.value != name {
+        return None;
+    }
+    decl_mod = decl.find_parent_of_type(uni.Module);
+    path = decl_mod.loc.mod_path if decl_mod?.loc else None;
+    if not path or not path.endswith(".jac") {
+        return None;
+    }
+    own_path = os.path.realpath(self.ir_in.loc.mod_path) if self.ir_in?.loc else "";
+    if os.path.realpath(path) == own_path {
+        return None;
+    }
+    return name;
+}
+
 impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
     trailer = nd.target;
     if not isinstance(trailer, uni.AtomTrailer) or not trailer.is_attr {
@@ -2109,6 +2150,24 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
         if _sfull is not None {
             return self._emit_class_routed_call(nd, _sfull, _mnames, None, None);
         }
+    }
+
+    _xmod_cls = self._unregistered_class_target(trailer.target);
+    if _xmod_cls is not None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="method",
+            name=f"{_xmod_cls}.{method_name}",
+            help_text=(
+                f"'{_xmod_cls}' is declared in a module the native lane did "
+                f"not lower, so it has no native '{method_name}' to call. A "
+                f"free function from that module refuses here for the same "
+                f"reason. Call it from a Python/@sv context, or move the "
+                f"shared code into a module the native lane can lower."
+            )
+        );
+        return None;
     }
 
     _fld_struct = self._struct_name_of(trailer.target);
