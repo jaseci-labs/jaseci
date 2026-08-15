@@ -1651,6 +1651,7 @@ impl TypeEvaluator._type_var_bound_in_scope(node_: UniNode, name: str) -> bool {
                     return True;
                 }
             }
+            return False;
         } elif isinstance(current, ImplDef) {
             if isinstance(current.spec, FuncSignature) {
                 for tp in self._get_signature_type_params(current.spec) {

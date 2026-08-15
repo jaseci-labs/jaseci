@@ -24,4 +24,17 @@ obj AlsoPlain {
     has holder: list[G] = [];
 }
 
+obj Holder[P] {
+    has slot: (P | None) = None;
+
+    obj Nested {
+        has kept: list[P] = [];
+
+        def peek {
+            seen: list[P] = [];
+            print(seen);
+        }
+    }
+}
+
 glob at_module: list[G] = [];

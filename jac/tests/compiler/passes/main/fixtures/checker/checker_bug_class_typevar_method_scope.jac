@@ -52,16 +52,6 @@ impl Ctx.nested_sig {
     print(inner([]));
 }
 
-obj Outer[P] {
-    obj Inner {
-        def take(v: P) -> None;
-    }
-}
-
-impl Outer.Inner.take(v: P) -> None {
-    print(v);
-}
-
 def drive -> int {
     c = Ctx[Leaf]();
     c.sig_param(Leaf(num=3));

@@ -1905,7 +1905,9 @@ test "bug_andpol1_licensed_edges_still_narrow" {
 # contributes its own type parameters, each enclosing Archetype contributes
 # the class's, and an ImplDef contributes its own signature and then hands
 # the walk to the declaration it implements, so the walk carries on from
-# inside the declaring class.
+# inside the declaring class. The walk ends at the first archetype it
+# reaches, which is PEP 484's rule that a nested class does not inherit the
+# outer class's type variables.
 # =========================================================================
 test "bug_tvarmeth1_class_typevar_in_scope_over_methods" {
     program = compile_and_check("checker_bug_class_typevar_method_scope.jac");
@@ -1918,11 +1920,16 @@ test "bug_tvarmeth1_class_typevar_in_scope_over_methods" {
 }
 
 # =========================================================================
-# Bug #TVARMETH-1, negative: the walk must still end at the module. A
-# TypeVar no enclosing scope binds has no meaning, whether it is used in a
-# non-generic archetype's method body, in that archetype's field, or at
-# module level -- and a generic sibling binding the same name elsewhere in
-# the file does not put it in scope here.
+# Bug #TVARMETH-1, negative: the walk must still stop where the language
+# stops it. A TypeVar no enclosing scope binds has no meaning, whether it is
+# used in a non-generic archetype's method body, in that archetype's field,
+# or at module level -- and a generic sibling binding the same name
+# elsewhere in the file does not put it in scope here.
+#
+# The walk also ends at the first enclosing archetype rather than climbing
+# into the one around it: PEP 484 states outright that a nested class does
+# not inherit the outer class's type variables, and both of `Nested`'s uses
+# of `Holder`'s `P` are reported for that reason.
 # =========================================================================
 test "bug_tvarmeth1_unbound_typevar_still_has_no_meaning" {
     program = compile_and_check(
@@ -1930,11 +1937,11 @@ test "bug_tvarmeth1_unbound_typevar_still_has_no_meaning" {
     );
 
     error_lines = [e.loc.first_line for e in program.errors_had if e.loc];
-    assert len(program.errors_had) == 3 , (
+    assert len(program.errors_had) == 5 , (
         "Bug #TVARMETH-1: a TypeVar no enclosing scope binds must still be "
         f"reported. Got errors: {[str(e) for e in program.errors_had]}"
     );
-    for line in [18, 24, 27] {
+    for line in [18, 24, 31, 34, 40] {
         assert line in error_lines , (
             "Bug #TVARMETH-1: the unbound uses are the reported ones. "
             f"Got lines: {error_lines}"
