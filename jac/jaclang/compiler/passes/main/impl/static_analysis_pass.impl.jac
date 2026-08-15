@@ -2,7 +2,7 @@ impl StaticAnalysisPass.postinit -> None {
     super.postinit();
 }
 
-impl StaticAnalysisPass.transform(ir_in: uni.Module) -> uni.Module {
+impl StaticAnalysisPass.transform(ir_in: Module) -> Module {
     self._checked_scopes: set[int] = set();
 
     self._check_unused_symbols(self.ir_in);
@@ -15,7 +15,7 @@ impl StaticAnalysisPass.transform(ir_in: uni.Module) -> uni.Module {
     return ir_in;
 }
 
-impl StaticAnalysisPass._check_placement_warnings(mod: uni.Module) -> None {
+impl StaticAnalysisPass._check_placement_warnings(mod: Module) -> None {
     import from jaclang.compiler.symbol_utils {
         report_placement_warnings,
         report_serverless_kind_errors
@@ -24,7 +24,7 @@ impl StaticAnalysisPass._check_placement_warnings(mod: uni.Module) -> None {
     report_serverless_kind_errors(self, mod);
 }
 
-impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {
+impl StaticAnalysisPass._check_unused_symbols(scope: UniScopeNode) -> None {
     if id(scope) in self._checked_scopes {
         return;
     }
@@ -70,7 +70,7 @@ impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {
             continue;
         }
 
-        if sym.sym_type == SymbolType.VAR and isinstance(scope, uni.Ability) {
+        if sym.sym_type == SymbolType.VAR and isinstance(scope, Ability) {
             if scope.needs_impl or scope.is_genai_ability {
                 continue;
             }
@@ -86,8 +86,8 @@ impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {
     }
 }
 
-impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
-    all_names = mod.get_all_sub_nodes(typ=uni.Name);
+impl StaticAnalysisPass._check_undefined_names(mod: Module) -> None {
+    all_names = mod.get_all_sub_nodes(typ=Name);
     for name_nd in all_names {
         if name_nd.sym {
             continue;
@@ -111,11 +111,11 @@ impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
         }
 
         parent = name_nd.parent;
-        if isinstance(parent, uni.AtomTrailer) and parent.is_attr {
+        if isinstance(parent, AtomTrailer) and parent.is_attr {
             continue;
         }
 
-        if isinstance(parent, uni.KWPair) and parent.key is name_nd {
+        if isinstance(parent, KWPair) and parent.key is name_nd {
             continue;
         }
 
@@ -132,18 +132,18 @@ impl StaticAnalysisPass._check_undefined_names(mod: uni.Module) -> None {
             }
         }
 
-        if name_nd.find_parent_of_type(uni.Import) is not None {
+        if name_nd.find_parent_of_type(Import) is not None {
             continue;
         }
 
         if (
             name_nd.value == '_'
-            and name_nd.find_parent_of_type(uni.MatchPattern) is not None
+            and name_nd.find_parent_of_type(MatchPattern) is not None
         ) {
             continue;
         }
 
-        if name_nd.find_parent_of_type(uni.ModulePath) is not None {
+        if name_nd.find_parent_of_type(ModulePath) is not None {
             continue;
         }
 
@@ -180,7 +180,7 @@ impl StaticAnalysisPass._literal_case_suggestion(name: str) -> (str | None) {
 }
 
 
-impl StaticAnalysisPass._osp_shape_position(name_nd: uni.Name) -> (str | None) {
+impl StaticAnalysisPass._osp_shape_position(name_nd: Name) -> (str | None) {
     cur = name_nd;
     parent = cur.parent;
 
@@ -188,17 +188,17 @@ impl StaticAnalysisPass._osp_shape_position(name_nd: uni.Name) -> (str | None) {
         if parent is None {
             return None;
         }
-        if isinstance(parent, uni.ConnectOp) and parent.conn_type is cur {
+        if isinstance(parent, ConnectOp) and parent.conn_type is cur {
             return "connect typed-edge position";
         }
-        if isinstance(parent, uni.EventSignature) and parent.arch_tag_info is cur {
+        if isinstance(parent, EventSignature) and parent.arch_tag_info is cur {
             return "ability trigger position";
         }
-        if isinstance(parent, uni.FilterCompr) and parent.f_type is cur {
+        if isinstance(parent, FilterCompr) and parent.f_type is cur {
             edge_ref = parent.parent;
             if (
-                isinstance(edge_ref, uni.EdgeOpRef)
-                and isinstance(edge_ref.parent, uni.DisconnectOp)
+                isinstance(edge_ref, EdgeOpRef)
+                and isinstance(edge_ref.parent, DisconnectOp)
             ) {
                 return "disconnect typed-edge position";
             }
@@ -210,8 +210,8 @@ impl StaticAnalysisPass._osp_shape_position(name_nd: uni.Name) -> (str | None) {
     return None;
 }
 
-impl StaticAnalysisPass._native_type_position(name_nd: uni.Name) -> (str | None) {
-    cur: uni.UniNode = name_nd;
+impl StaticAnalysisPass._native_type_position(name_nd: Name) -> (str | None) {
+    cur: UniNode = name_nd;
     parent = cur.parent;
     in_type_pos = False;
 
@@ -219,8 +219,8 @@ impl StaticAnalysisPass._native_type_position(name_nd: uni.Name) -> (str | None)
         if parent is None {
             break;
         }
-        if isinstance(parent, uni.SubTag)
-            or (isinstance(parent, uni.FuncSignature) and parent.return_type is cur) {
+        if isinstance(parent, SubTag)
+            or (isinstance(parent, FuncSignature) and parent.return_type is cur) {
             in_type_pos = True;
             break;
         }
@@ -230,7 +230,7 @@ impl StaticAnalysisPass._native_type_position(name_nd: uni.Name) -> (str | None)
     if not in_type_pos {
         return None;
     }
-    imp = name_nd.find_parent_of_type(uni.Import);
+    imp = name_nd.find_parent_of_type(Import);
     if imp is not None and imp.clib_decls {
         return "C library declaration type position";
     }
@@ -240,17 +240,17 @@ impl StaticAnalysisPass._native_type_position(name_nd: uni.Name) -> (str | None)
     return None;
 }
 
-impl StaticAnalysisPass._check_unreachable_code(mod: uni.Module) -> None {
+impl StaticAnalysisPass._check_unreachable_code(mod: Module) -> None {
     container_types = [
-        uni.Ability,
-        uni.ImplDef,
-        uni.IfStmt,
-        uni.ElseStmt,
-        uni.ElseIf,
-        uni.WhileStmt,
-        uni.ForeverStmt,
-        uni.InForStmt,
-        uni.IterForStmt
+        Ability,
+        ImplDef,
+        IfStmt,
+        ElseStmt,
+        ElseIf,
+        WhileStmt,
+        ForeverStmt,
+        InForStmt,
+        IterForStmt
     ];
     containers: list = [];
     for typ in container_types {
@@ -265,54 +265,54 @@ impl StaticAnalysisPass._check_unreachable_code(mod: uni.Module) -> None {
         found_terminator = False;
         for stmt in body {
             if found_terminator {
-                if isinstance(stmt, uni.Semi) {
+                if isinstance(stmt, Semi) {
                     continue;
                 }
                 self.emit(W2002, node_override=stmt);
                 break;
             }
-            if isinstance(stmt, (uni.ReturnStmt, uni.RaiseStmt)) {
+            if isinstance(stmt, (ReturnStmt, RaiseStmt)) {
                 found_terminator = True;
             }
-            if isinstance(stmt, uni.CtrlStmt) {
+            if isinstance(stmt, CtrlStmt) {
                 found_terminator = True;
             }
         }
     }
 }
 
-impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
-    for nd in mod.get_all_sub_nodes(typ=uni.BinaryExpr) {
-        if nd.op is not None and isinstance(nd.op, uni.Token) {
+impl StaticAnalysisPass._check_semantic_patterns(mod: Module) -> None {
+    for nd in mod.get_all_sub_nodes(typ=BinaryExpr) {
+        if nd.op is not None and isinstance(nd.op, Token) {
             if nd.op.value in ("/", "//", "%") {
-                if isinstance(nd.right, uni.Int) and nd.right.value == "0" {
+                if isinstance(nd.right, Int) and nd.right.value == "0" {
                     self.emit(W2070, node_override=nd);
-                } elif isinstance(nd.right, uni.Float) and nd.right.value == "0.0" {
+                } elif isinstance(nd.right, Float) and nd.right.value == "0.0" {
                     self.emit(W2070, node_override=nd);
                 }
             }
         }
     }
 
-    for nd in mod.get_all_sub_nodes(typ=uni.CompareExpr) {
+    for nd in mod.get_all_sub_nodes(typ=CompareExpr) {
         for (i, op) in enumerate(nd.ops) {
             if op.value in ("==", "!=") {
                 right = nd.rights[i] if i < len(nd.rights) else None;
                 left = nd.left if i == 0 else (nd.rights[i - 1] if i > 0 else None);
-                if isinstance(right, uni.Null) or isinstance(left, uni.Null) {
+                if isinstance(right, Null) or isinstance(left, Null) {
                     self.emit(W2058, node_override=nd);
                 }
             }
         }
     }
 
-    for nd in mod.get_all_sub_nodes(typ=uni.Assignment) {
+    for nd in mod.get_all_sub_nodes(typ=Assignment) {
         if nd.aug_op is not None or nd.value is None {
             continue;
         }
         if len(nd.target) == 1 {
             target = nd.target[0];
-            if isinstance(target, uni.Name) and isinstance(nd.value, uni.Name) {
+            if isinstance(target, Name) and isinstance(nd.value, Name) {
                 if target.value == nd.value.value {
                     self.emit(W2063, node_override=nd, name=target.value);
                 }
@@ -320,10 +320,10 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
         }
     }
 
-    for nd in mod.get_all_sub_nodes(typ=uni.FString) {
+    for nd in mod.get_all_sub_nodes(typ=FString) {
         has_expr = False;
         for part in nd.parts {
-            if isinstance(part, uni.FormattedValue) {
+            if isinstance(part, FormattedValue) {
                 has_expr = True;
                 break;
             }
@@ -333,11 +333,11 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
         }
     }
 
-    for nd in mod.get_all_sub_nodes(typ=uni.CompareExpr) {
+    for nd in mod.get_all_sub_nodes(typ=CompareExpr) {
         for (i, op) in enumerate(nd.ops) {
             if op.value in ("==", "!=", "is", "is not") {
                 right = nd.rights[i] if i < len(nd.rights) else None;
-                if isinstance(right, uni.Bool) {
+                if isinstance(right, Bool) {
                     import from jaclang.compiler.type_system.type_utils {
                         expr_primitive_name
                     }
@@ -350,19 +350,19 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
         }
     }
 
-    for nd in mod.get_all_sub_nodes(typ=uni.FinallyStmt) {
+    for nd in mod.get_all_sub_nodes(typ=FinallyStmt) {
         for stmt in nd.body {
-            if isinstance(stmt, uni.ReturnStmt) {
+            if isinstance(stmt, ReturnStmt) {
                 self.emit(E2055, node_override=stmt);
             }
         }
     }
 
-    for nd in mod.get_all_sub_nodes(typ=uni.DisengageStmt) {
+    for nd in mod.get_all_sub_nodes(typ=DisengageStmt) {
         in_walker = False;
         parent = nd.parent;
         while parent is not None {
-            if isinstance(parent, uni.Archetype) {
+            if isinstance(parent, Archetype) {
                 if parent.arch_kind == "walker" {
                     in_walker = True;
                 }
@@ -375,7 +375,7 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
         }
     }
 
-    for nd in mod.get_all_sub_nodes(typ=uni.Archetype) {
+    for nd in mod.get_all_sub_nodes(typ=Archetype) {
         if nd.src_endpoint is not None and nd.arch_kind != "edge" {
             self.emit(
                 E2027,
@@ -387,7 +387,7 @@ impl StaticAnalysisPass._check_semantic_patterns(mod: uni.Module) -> None {
     }
 }
 
-impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
+impl StaticAnalysisPass._check_client_imports(mod: Module) -> None {
     import from jaclang.jac0core.compiler { is_client_native_edge_import }
     import from jaclang.jac0core.constant { CodeContext }
     import from jaclang.compiler.symbol_utils {
@@ -399,7 +399,7 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
         report_dead_client_import,
         resolve_import_source_module
     }
-    for nd in mod.get_all_sub_nodes(typ=uni.Import) {
+    for nd in mod.get_all_sub_nodes(typ=Import) {
         if is_client_native_edge_import(nd, self.prog) {
             continue;
         }
@@ -432,8 +432,7 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
         } elif nd.from_loc is None {
             for item in nd.items {
                 if (
-                    isinstance(item, uni.ModulePath)
-                    and item.string_path_value is not None
+                    isinstance(item, ModulePath) and item.string_path_value is not None
                 ) {
                     string_specs.append((item.string_path_value, item));
                 }
@@ -477,7 +476,7 @@ impl StaticAnalysisPass._check_client_imports(mod: uni.Module) -> None {
     }
 }
 
-impl StaticAnalysisPass._check_redundant_imports(mod: uni.Module) -> None {
+impl StaticAnalysisPass._check_redundant_imports(mod: Module) -> None {
     if not self.prog.type_evaluator {
         return;
     }
@@ -485,7 +484,7 @@ impl StaticAnalysisPass._check_redundant_imports(mod: uni.Module) -> None {
     if not registry {
         return;
     }
-    for nd in mod.get_all_sub_nodes(typ=uni.Import) {
+    for nd in mod.get_all_sub_nodes(typ=Import) {
         if nd.from_loc is None {
             continue;
         }
@@ -496,10 +495,10 @@ impl StaticAnalysisPass._check_redundant_imports(mod: uni.Module) -> None {
             continue;
         }
         for item in nd.items {
-            if not isinstance(item, uni.ModuleItem) {
+            if not isinstance(item, ModuleItem) {
                 continue;
             }
-            if not isinstance(item.name, uni.Name) {
+            if not isinstance(item.name, Name) {
                 continue;
             }
             if item.alias is not None {
