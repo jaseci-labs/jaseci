@@ -200,6 +200,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         dict_helpers: dict[str, dict] = {},
         set_types: dict[str, object] = {},
         set_helpers: dict[str, dict] = {},
+        _ternary_peer_ty: (object | None) = None,
         _exc_state_type: (object | None) = None,
         _exc_handler_global: (object | None) = None,
         _exc_push_fn: (object | None) = None,
@@ -393,6 +394,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _native_module_call_target(nd: uni.FuncCall) -> (tuple | None);
     def _emit_unsupported_builtin_call(nd: uni.FuncCall, func_name: str) -> None;
     def _empty_ctor_args_of(nd: uni.FuncCall) -> list;
+    def _container_type_args(t: any) -> list;
+    def _unwrap_cfg_expr(e: any) -> any;
+    def _spec_from_container_ptr(t: (ir.Type | None)) -> (str | None);
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
 
     has lambda_captures: dict[str, list[tuple]] = {},
