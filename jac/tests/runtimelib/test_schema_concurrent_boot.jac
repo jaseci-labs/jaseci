@@ -106,24 +106,32 @@ def _table_count(cluster: Cluster, database: str) -> int {
 }
 
 
-"""Wait until some backend in *database* is parked on a lock."""
+"""Wait until some backend in *database* is parked on a lock.
+
+The observer holds one connection open for the whole poll: the store it is
+watching runs its DDL under lock_timeout = 5s, so reconnecting per poll could
+burn the budget and turn the duplicate-key race into a lock timeout.
+"""
 def _wait_for_lock_wait(
     cluster: Cluster, database: str, timeout: float = 20.0
 ) -> bool {
-    deadline = time.monotonic() + timeout;
-    while time.monotonic() < deadline {
-        rows = _query(
-            cluster,
-            database,
-            "SELECT count(*) FROM pg_stat_activity "
-            "WHERE datname = current_database() AND wait_event_type = 'Lock'"
-        );
-        if rows and int(rows[0][0]) > 0 {
-            return True;
+    conn: Any = _raw(cluster, database);
+    try {
+        deadline = time.monotonic() + timeout;
+        while time.monotonic() < deadline {
+            rows = conn.run(
+                "SELECT count(*) FROM pg_stat_activity "
+                "WHERE datname = current_database() AND wait_event_type = 'Lock'"
+            );
+            if rows and int(rows[0][0]) > 0 {
+                return True;
+            }
+            time.sleep(0.02);
         }
-        time.sleep(0.05);
+        return False;
+    } finally {
+        conn.close();
     }
-    return False;
 }
 
 
