@@ -100,16 +100,6 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
              "`jac0core.modresolver`. The census reports E5092 -- the call "
              "will not lower -- not an E5090 import."
          ),
-         "unitree.jac::ModulePath.string_path_value.__get__": (
-             "Python-only: indexes `self.path` and reads `String.lit_value`, "
-             "itself waived below."
-         ),
-         "unitree.jac::ModulePath.dot_path_str.__get__": (
-             "Python-only: built on `string_path_value`, waived above."
-         ),
-         "unitree.jac::ModulePath.base_module_name.__get__": (
-             "Python-only: built on `string_path_value`, waived above."
-         ),
          "unitree.jac::DeleteStmt.py_ast_targets.__get__": (
              "Python-only: reads `gen.py_ast`, a list of CPython `ast` "
              "objects. Reached only from `PyastGenPass`."

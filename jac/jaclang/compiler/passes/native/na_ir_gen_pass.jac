@@ -404,6 +404,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _container_type_args(t: any) -> list;
     def _unwrap_cfg_expr(e: any) -> any;
     def _spec_from_container_ptr(t: (ir.Type | None)) -> (str | None);
+    def _call_args_lowered(
+        nd: uni.UniNode, func: ir.Function, func_name: str, coerced: list
+    ) -> bool;
+
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
 
     has lambda_captures: dict[str, list[tuple]] = {},
@@ -572,6 +576,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _tuple_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _dict_key_of(expr: (uni.UniNode | None)) -> (str | None);
+    def _peer_dict_key -> (str | None);
     def _list_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _spec_of(
         expr: (uni.UniNode | None), names: tuple, registry: dict
@@ -684,6 +689,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_jacval_eq(left: ir.Value, right: ir.Value) -> ir.Value;
     def _opt_membership_operand(left: ir.Value, slot_type: ir.Type) -> tuple;
     def _opt_unwrap_attr(obj_val: ir.Value) -> ir.Value;
+    def _opt_unwrap_guarded(
+        val: (ir.Value | None), what: str, msg: str
+    ) -> (ir.Value | None);
+
+    def _opt_unwrap_iterable(coll_val: (ir.Value | None)) -> (ir.Value | None);
+    def _opt_unwrap_subscript(val: (ir.Value | None)) -> (ir.Value | None);
     def _codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
     def _codegen_int_floor_divmod(
         left: ir.Value, right: ir.Value

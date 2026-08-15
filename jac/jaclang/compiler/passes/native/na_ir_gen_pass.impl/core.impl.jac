@@ -1341,7 +1341,28 @@ impl NaIRGenPass._dispatch_primitive_method(
     _ctx = self._native_emit_ctx_class(
         pass_ref=self, type_key=type_key, call_kwargs=(kwargs or {})
     );
-    return _emit_fn(_ctx, target, args);
+    try {
+        return _emit_fn(_ctx, target, args);
+    } except Exception as _pm_exc {
+        if self._na_debug_on() {
+            import sys as _pm_sys;
+            import traceback as _pm_tb;
+            _pm_sys.stderr.write(f"NA_DEBUG primitive {type_name}.{method_name}\n");
+            _pm_tb.print_exc(file=_pm_sys.stderr);
+        }
+        self.emit(
+            E5092,
+            node_override=kw_node,
+            kind="primitive method",
+            name=f"{type_name}.{method_name}",
+            help_text=f"The emitter for this builtin method raised "
+            f"{type(_pm_exc).__name__} on the operands it was given, which "
+            "means an argument did not reach the shape it expects -- most "
+            "often a container or tuple where a scalar or string is "
+            f"required. Original error: {_pm_exc}"
+        );
+        return None;
+    }
 }
 
 impl NaIRGenPass._dispatch_builtin(
