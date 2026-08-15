@@ -8,6 +8,7 @@ import os;
 import tempfile;
 import from tests.support {
     GRAPHMEND_FIXTURES as FIXTURES,
+    graphmend_compile_opts as _compile_opts,
     graphmend_compile_path as _compile_path,
     graphmend_pysrc as _pysrc
 }
@@ -212,6 +213,61 @@ test "guard in a compiled class declines for want of a call boundary" {
     assert "@__jac_trap_guard__" not in src;
     assert "raise ValueError('mask must be all true')" in src;
     assert _break_count("guard_in_compiled_class.jac") == 1;
+}
+
+test "guards in reached helpers lower at the entry's boundary" {
+    # The helpers carry no decorator of their own, but they are in the entry's
+    # compiled region and the entry CAN carry __jac_trap_guard__, so the marker
+    # has somewhere to be decoded. One helper is declared after the entry, so
+    # the boundary decorator must not depend on the traversal order.
+    src = _pysrc("guard_in_reached_helper.jac", True);
+    assert (
+        "torch._assert_async(mask.all(), "
+        "'[[GM-TRAP ValueError]]early mask must be all true[[/GM-TRAP]]')"
+        in src
+    );
+    assert (
+        "torch._assert_async(mask.all(), "
+        "'[[GM-TRAP ValueError]]late mask must be all true[[/GM-TRAP]]')"
+        in src
+    );
+    assert "raise ValueError" not in src;
+    assert "@__jac_trap_guard__\n@torch.compile()\ndef guarded_entry(" in src;
+    assert src.count("@__jac_trap_guard__") == 1;
+    assert _break_count("guard_in_reached_helper.jac") == 2;
+}
+
+test "a reached helper with no attachable boundary declines" {
+    # Region membership alone does not license the rewrite. The decorator is on
+    # the archetype, no ability carries one, and there is no call-site wrap, so
+    # no __jac_trap_guard__ can exist to decode the marker.
+    src = _pysrc("guard_helper_no_boundary.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError('unbounded mask must be all true')" in src;
+    # detected, so the decline is the trap pass's, not a missing region edge
+    assert _break_count("guard_helper_no_boundary.jac") == 1;
+}
+
+test "a reached helper declines when the only boundary is in another module" {
+    # The decorated entry is in a different file, so this module's rewrite
+    # cannot attach the boundary decorator to it: the guard declines while its
+    # print, which needs no boundary, still defers.
+    prog = JacProgram();
+    _compile_opts(
+        os.path.join(FIXTURES, "guard_xmod_entry.jac"),
+        CompileOptions(graphmend=True, type_check=False),
+        prog
+    );
+    src = _compile_opts(
+        os.path.join(FIXTURES, "guard_xmod_helper.jac"),
+        CompileOptions(graphmend=True, type_check=False),
+        prog
+    )[0];
+    assert "__jac_se_emit__" in src , "the helper must be in the region";
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "raise ValueError('far mask must be all true')" in src;
 }
 
 test "static (non-tensor) guard is not rewritten" {

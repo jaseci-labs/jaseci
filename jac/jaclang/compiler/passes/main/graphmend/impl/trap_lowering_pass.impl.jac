@@ -98,7 +98,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         return;
     }
     msg = self._raise_message(rs);
-    wrap = self._enclosing_compiled_fn(nd);
+    wrap = self._boundary_ability(nd);
     covered = (wrap is not None) or self._call_site_covered(nd);
     type_name = self._exception_type_name(rs) if covered else None;
     marked = (
@@ -135,12 +135,19 @@ impl TrapLoweringPass._inside_try(nd: uni.UniNode) -> bool {
         );
 }
 
-impl TrapLoweringPass._enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | None) {
+impl TrapLoweringPass._boundary_ability(nd: uni.UniNode) -> (uni.Ability | None) {
     ab = nd.find_parent_of_type(uni.Ability);
-    if (ab is not None) and has_torch_compile_decorator(ab) {
+    if ab is None {
+        return None;
+    }
+    if has_torch_compile_decorator(ab) {
         return ab;
     }
-    return None;
+    seed = self.prog.graphmend_boundary.get(id(ab));
+    if (seed is None) or (not has_torch_compile_decorator(seed)) {
+        return None;
+    }
+    return seed if (seed.find_parent_of_type(uni.Module) is self.ir_in) else None;
 }
 
 impl TrapLoweringPass._call_site_covered(nd: uni.UniNode) -> bool {
@@ -216,21 +223,23 @@ impl TrapLoweringPass._mark_guard(ability: (uni.Ability | None)) -> None {
     if ability is None {
         return;
     }
-    self._guarded_fns.add(id(ability));
+    for known in self._guarded_fns {
+        if known is ability {
+            return;
+        }
+    }
+    self._guarded_fns.append(ability);
     need_helper(self.prog, ability, GraphMendHelper.TRAP_GUARD);
 }
 
-impl TrapLoweringPass.exit_ability(nd: uni.Ability) -> None {
-    if not self._enabled {
-        return;
+impl TrapLoweringPass.after_pass -> None {
+    for ab in self._guarded_fns {
+        dec = self._gen_name(ab, '__jac_trap_guard__');
+        ab.decorators = [dec] + list(ab.decorators or []);
+        ab.set_kids([dec] + list(ab.kid));
+        dec.parent = ab;
     }
-    if id(nd) not in self._guarded_fns {
-        return;
-    }
-    dec = self._gen_name(nd, '__jac_trap_guard__');
-    nd.decorators = [dec] + list(nd.decorators or []);
-    nd.set_kids([dec] + list(nd.kid));
-    dec.parent = nd;
+    self._guarded_fns = [];
 }
 
 impl TrapLoweringPass._torch_equal_args(x: uni.Expr) -> (tuple | None) {
