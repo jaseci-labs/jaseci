@@ -355,13 +355,16 @@ impl NaIRGenPass._variadic_tuple_seq_type(type_args: list) -> (ir.Type | None) {
     } except ImportError {
         return None;
     }
+    elems = [
+        a
+        for a in type_args
+        if not isinstance(a, _VtUnknown)
+    ];
+    if len(elems) == len(type_args) or not elems {
+        return None;
+    }
     lowered: list[ir.Type] = [];
-    variadic = False;
-    for a in type_args {
-        if isinstance(a, _VtUnknown) {
-            variadic = True;
-            continue;
-        }
+    for a in elems {
         et = self._lower_type(a);
         if et is None {
             return None;
@@ -370,9 +373,6 @@ impl NaIRGenPass._variadic_tuple_seq_type(type_args: list) -> (ir.Type | None) {
             et = ir.IntType(8).as_pointer();
         }
         lowered.append(et);
-    }
-    if not variadic or not lowered {
-        return None;
     }
     flavor = self._tuple_seq_flavor(lowered);
     if flavor is None {
