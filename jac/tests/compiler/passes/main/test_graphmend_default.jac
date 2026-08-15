@@ -12,11 +12,14 @@ GraphMend. GraphMend-active compiles participate in the bytecode cache with
 the GraphMend configuration folded into the cache key, so a same-config
 recompile hits and any configuration flip misses instead of serving the
 wrong variant."""
-import ast;
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from tests.support { GRAPHMEND_FIXTURES as FIXTURES }
+import from tests.support {
+    GRAPHMEND_FIXTURES as FIXTURES,
+    code_mentions_symbol as _mentions_symbol,
+    graphmend_compile_opts as _compile
+}
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.jir { get_module_cache_path }
@@ -39,28 +42,6 @@ glob TORCH_MAIN = "import torch;\n\n"
          + "    }\n"
          + "    return x;\n"
          + "}\n";
-
-"""Compile a fixture and return its unparsed Python source and bytecode."""
-def _compile(path: str, opts: CompileOptions) -> tuple[str, any] {
-    prog = JacProgram();
-    mod = prog.compile(file_path=path, options=opts);
-    pa = mod.gen.py_ast;
-    mod_ast = pa[0] if isinstance(pa, list) else pa;
-    return (ast.unparse(mod_ast), mod.gen.py_bytecode);
-}
-
-"""True when the code object (or any nested one) references the symbol."""
-def _mentions_symbol(code: any, symbol: str) -> bool {
-    if symbol in code.co_names {
-        return True;
-    }
-    for const in code.co_consts {
-        if hasattr(const, "co_names") and _mentions_symbol(const, symbol) {
-            return True;
-        }
-    }
-    return False;
-}
 
 """Create a temp project with a jac.toml, a torch entry, and a plain helper."""
 def _mk_gm_project(tmp: str) -> tuple[str, str] {

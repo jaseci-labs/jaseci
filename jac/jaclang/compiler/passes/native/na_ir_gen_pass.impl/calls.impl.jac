@@ -2486,6 +2486,21 @@ impl NaIRGenPass._emit_isinstance_core(
     if names is None {
         return None;
     }
+    _short = self._isinstance_unprovable_class(
+        names, self._isinstance_operand_arch(nd, operand)
+    );
+    if _short is not None {
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="builtin call",
+            name=f"isinstance against `{'`, `'.join(names)}`",
+            help_text=(
+                f"`{_short}` subclasses a class another module defines, so this unit linearized it from a base whose own bases it could not see yet -- its ancestor chain stops one link short of the classes named here, and answering from it is how a check reports `False` for a base the operand genuinely derives from. Test the concrete class instead, or declare `{_short}` in the module that defines its base."
+            )
+        );
+        return None;
+    }
     tags: list[int] = [];
     unresolved: list[str] = [];
     static_seen = False;
@@ -2636,8 +2651,13 @@ impl NaIRGenPass._emit_isinstance_mixed(
     i8 = ir.IntType(8);
     i32 = ir.IntType(32);
 
-    target_vtables = self._vtable_candidates(names);
-    if not target_vtables {
+    _by_name = self._isinstance_needs_class_name(names);
+    if _by_name and self._nogc_headerless() {
+        self._emit_unsupported_builtin_call(nd, "isinstance");
+        return None;
+    }
+    target_vtables = [] if _by_name else self._vtable_candidates(names);
+    if not _by_name and not target_vtables {
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
     }
@@ -2673,20 +2693,31 @@ impl NaIRGenPass._emit_isinstance_mixed(
     self.builder.cbranch(is_null, merge_bb, load_bb);
 
     self.builder.position_at_end(load_bb);
-    i8_pp = i8.as_pointer().as_pointer();
-    slot_pp = self.builder.inttoptr(
-        payload, i8_pp.as_pointer(), name="isinst.mix.slot"
-    );
-    vptr = self.builder.load(slot_pp, name="isinst.mix.vptr");
     user_or: (ir.Value | None) = None;
-    for vt in target_vtables {
-        vt_base = self.builder.gep(
-            vt, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="isinst.mix.vt"
+    if _by_name {
+        user_or = self._isinstance_class_name_hit(
+            self.builder.inttoptr(payload, i8.as_pointer(), name="isinst.mix.obj"),
+            names
         );
-        eq = self.builder.icmp_unsigned("==", vptr, vt_base, name="isinst.mix.eq");
-        user_or = eq
-            if user_or is None
-            else self.builder.or_(user_or, eq, name="isinst.mix.uor");
+        if user_or is None {
+            self._emit_unsupported_builtin_call(nd, "isinstance");
+            return None;
+        }
+    } else {
+        i8_pp = i8.as_pointer().as_pointer();
+        slot_pp = self.builder.inttoptr(
+            payload, i8_pp.as_pointer(), name="isinst.mix.slot"
+        );
+        vptr = self.builder.load(slot_pp, name="isinst.mix.vptr");
+        for vt in target_vtables {
+            vt_base = self.builder.gep(
+                vt, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="isinst.mix.vt"
+            );
+            eq = self.builder.icmp_unsigned("==", vptr, vt_base, name="isinst.mix.eq");
+            user_or = eq
+                if user_or is None
+                else self.builder.or_(user_or, eq, name="isinst.mix.uor");
+        }
     }
     end_load = self.builder.block;
     self.builder.branch(merge_bb);
@@ -2716,6 +2747,22 @@ impl NaIRGenPass._emit_isinstance_user(
         }
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
+    }
+
+    if self._isinstance_needs_class_name(names) {
+        _nm_hit = (
+            None
+                if self._nogc_headerless()
+                else self._isinstance_class_name_hit(operand, names)
+        );
+        if _nm_hit is None {
+            self._emit_unsupported_builtin_call(nd, "isinstance");
+            return None;
+        }
+        if self._is_owned(operand) {
+            self._emit_rc_release_simple(operand, op="isinstance_arg", loc="");
+        }
+        return _nm_hit;
     }
 
     target_vtables = self._vtable_candidates(names);

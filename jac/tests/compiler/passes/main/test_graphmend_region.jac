@@ -13,7 +13,9 @@ import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 import from tests.support {
     GRAPHMEND_FIXTURES as FIXTURES,
+    code_mentions_symbol as _mentions_symbol,
     graphmend_break_kinds as _break_kinds,
+    graphmend_compile_opts as _compile_opts,
     graphmend_pysrc as _pysrc
 }
 import from jaclang.jac0core.program { JacProgram }
@@ -34,24 +36,16 @@ def _fn_src(src: str, name: str) -> str {
 
 """Compile a fixture with default (auto) options and return its Python source."""
 def _auto_pysrc(name: str) -> str {
-    prog = JacProgram();
-    mod = prog.compile(
-        file_path=os.path.join(FIXTURES, name), options=CompileOptions(type_check=False)
-    );
-    pa = mod.gen.py_ast;
-    mod_ast = pa[0] if isinstance(pa, list) else pa;
-    return ast.unparse(mod_ast);
+    return _compile_opts(os.path.join(FIXTURES, name))[0];
 }
 
 """Compile a fixture in an existing program and return its Python source."""
 def _pysrc_in(prog: JacProgram, name: str) -> str {
-    mod = prog.compile(
-        file_path=os.path.join(FIXTURES, name),
-        options=CompileOptions(graphmend=True, type_check=False)
-    );
-    pa = mod.gen.py_ast;
-    mod_ast = pa[0] if isinstance(pa, list) else pa;
-    return ast.unparse(mod_ast);
+    return _compile_opts(
+        os.path.join(FIXTURES, name),
+        CompileOptions(graphmend=True, type_check=False),
+        prog
+    )[0];
 }
 
 test "an unreachable sibling keeps every transformable pattern untouched" {
@@ -153,19 +147,6 @@ glob CACHE_ENTRY_SRC = "import torch;\n"
          + "    print(\"CONF\", x);\n"
          + "    return x;\n"
          + "}\n";
-
-"""True when the code object (or any nested one) references the symbol."""
-def _mentions_symbol(code: any, symbol: str) -> bool {
-    if symbol in code.co_names {
-        return True;
-    }
-    for const in code.co_consts {
-        if hasattr(const, "co_names") and _mentions_symbol(const, symbol) {
-            return True;
-        }
-    }
-    return False;
-}
 
 """Lay out a temp project shaped like the transformers import tree: one entry
 module, one helper the entry reaches, one torch-importing module nothing

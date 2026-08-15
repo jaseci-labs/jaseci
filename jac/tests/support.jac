@@ -26,19 +26,30 @@ glob GRAPHMEND_FIXTURES: str = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
      );
 
-"""Compile a source file under the given graphmend setting and return its
-generated Python source."""
-def graphmend_compile_path(path: str, gm: bool) -> str {
+"""Compile a source file with the given options and program (each defaulted
+when omitted) and return its generated Python source and bytecode."""
+def graphmend_compile_opts(
+    path: str, opts: any = None, prog: any = None
+) -> tuple[str, any] {
     import ast;
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.program { JacProgram }
-    prog = JacProgram();
-    mod = prog.compile(
-        file_path=path, options=CompileOptions(graphmend=gm, type_check=False)
-    );
+    use_opts = CompileOptions(type_check=False) if opts is None else opts;
+    use_prog: JacProgram = JacProgram() if prog is None else prog;
+    mod = use_prog.compile(file_path=path, options=use_opts);
     pa = mod.gen.py_ast;
     mod_ast = pa[0] if isinstance(pa, list) else pa;
-    return ast.unparse(mod_ast);
+    return (ast.unparse(mod_ast), mod.gen.py_bytecode);
+}
+
+"""Compile a source file under the given graphmend setting and return its
+generated Python source."""
+def graphmend_compile_path(path: str, gm: bool) -> str {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    (src, _bc) = graphmend_compile_opts(
+        path, CompileOptions(graphmend=gm, type_check=False)
+    );
+    return src;
 }
 
 """Compile a checked-in graphmend .jac fixture and return its generated
@@ -58,6 +69,19 @@ def graphmend_break_kinds(name: str) -> list {
         options=CompileOptions(graphmend=True, type_check=False)
     );
     return [k.value for k in prog.graphmend_breaks.values()];
+}
+
+"""True when the code object (or any nested one) references the symbol."""
+def code_mentions_symbol(code: any, symbol: str) -> bool {
+    if symbol in code.co_names {
+        return True;
+    }
+    for const in code.co_consts {
+        if hasattr(const, "co_names") and code_mentions_symbol(const, symbol) {
+            return True;
+        }
+    }
+    return False;
 }
 
 """CompileOptions that force a fixture into the native codespace.
