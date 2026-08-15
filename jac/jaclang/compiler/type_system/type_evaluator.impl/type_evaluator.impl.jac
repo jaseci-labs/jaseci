@@ -3533,16 +3533,65 @@ impl TypeEvaluator._load_stub_module(path: str) -> Module {
     return mod;
 }
 
-impl TypeEvaluator.postinit -> None {
+impl TypeEvaluator._read_dunder_all(path: str) -> (set[str] | None) {
     import from ast {
         Assign as PyAssign,
         Constant as PyConstant,
-        ImportFrom as PyImportFrom,
         List as PyList,
         Name as PyName,
         Tuple as PyTuple,
         parse as py_parse
     }
+    try {
+        py_tree = py_parse(read_file_with_encoding(path));
+        for node in py_tree.body {
+            if (
+                isinstance(node, PyAssign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], PyName)
+                and node.targets[0].id == "__all__"
+                and isinstance(node.value, (PyList, PyTuple))
+            ) {
+                result: set[str] = set();
+                for elt in node.value.elts {
+                    if (isinstance(elt, PyConstant) and isinstance(elt.value, str)) {
+                        result.add(elt.value);
+                    }
+                }
+                return result;
+            }
+        }
+    } except Exception {
+        return None;
+    }
+    return None;
+}
+
+impl TypeEvaluator._read_ambient_imports_by_module(path: str) -> dict[str, set[str]] {
+    import from ast { ImportFrom as PyImportFrom, parse as py_parse }
+    out: dict[str, set[str]] = {};
+    try {
+        allowed = self._read_dunder_all(path);
+        if allowed is None {
+            return out;
+        }
+        py_tree = py_parse(read_file_with_encoding(path));
+        for node in py_tree.body {
+            if (isinstance(node, PyImportFrom) and node.module is not None) {
+                public = {(alias.asname or alias.name) for alias in node.names}
+                    & allowed;
+                if public {
+                    out[node.module] = out.get(node.module, set()) | public;
+                }
+            }
+        }
+    } except Exception {
+        return {};
+    }
+    return out;
+}
+
+impl TypeEvaluator.postinit -> None {
     self._BUILTINS_STUB_FILE_PATH = os.path.join(
         os.path.dirname(__file__), "../../vendor/typeshed/stdlib/builtins.pyi"
     );
@@ -3602,34 +3651,7 @@ impl TypeEvaluator.postinit -> None {
 
     self.js_globals_module = self._load_stub_module(self._JS_GLOBALS_STUB_FILE_PATH);
 
-    def read_dunder_all(path: str) -> (set[str] | None) {
-        try {
-            py_tree = py_parse(read_file_with_encoding(path));
-            for node in py_tree.body {
-                if (
-                    isinstance(node, PyAssign)
-                    and len(node.targets) == 1
-                    and isinstance(node.targets[0], PyName)
-                    and node.targets[0].id == "__all__"
-                    and isinstance(node.value, (PyList, PyTuple))
-                ) {
-                    result: set[str] = set();
-                    for elt in node.value.elts {
-                        if (
-                            isinstance(elt, PyConstant) and isinstance(elt.value, str)
-                        ) {
-                            result.add(elt.value);
-                        }
-                    }
-                    return result;
-                }
-            }
-        } except Exception {
-            return None;
-        }
-        return None;
-    }
-    jac_allowed = read_dunder_all(self._JAC_BUILTINS_STUB_FILE_PATH);
+    jac_allowed = self._read_dunder_all(self._JAC_BUILTINS_STUB_FILE_PATH);
 
     for (name, sym) in self.jac_builtins_module.names_in_scope.items() {
         if jac_allowed is not None and name not in jac_allowed {
@@ -3644,7 +3666,7 @@ impl TypeEvaluator.postinit -> None {
     builtin_overrides_module = self._load_stub_module(
         self._BUILTIN_OVERRIDES_STUB_FILE_PATH
     );
-    overrides_allowed = read_dunder_all(self._BUILTIN_OVERRIDES_STUB_FILE_PATH);
+    overrides_allowed = self._read_dunder_all(self._BUILTIN_OVERRIDES_STUB_FILE_PATH);
     for (name, sym) in builtin_overrides_module.names_in_scope.items() {
         if overrides_allowed is not None and name not in overrides_allowed {
             continue;
@@ -3659,29 +3681,9 @@ impl TypeEvaluator.postinit -> None {
         }
     }
 
-    def read_ambient_imports_by_module(path: str) -> dict[str, set[str]] {
-        out: dict[str, set[str]] = {};
-        try {
-            allowed = read_dunder_all(path);
-            if allowed is None {
-                return out;
-            }
-            py_tree = py_parse(read_file_with_encoding(path));
-            for node in py_tree.body {
-                if (isinstance(node, PyImportFrom) and node.module is not None) {
-                    public = {(alias.asname or alias.name) for alias in node.names}
-                        & allowed;
-                    if public {
-                        out[node.module] = out.get(node.module, set()) | public;
-                    }
-                }
-            }
-        } except Exception {
-            return {};
-        }
-        return out;
-    }
-    raw_groups = read_ambient_imports_by_module(self._TYPING_AMBIENT_STUB_FILE_PATH);
+    raw_groups = self._read_ambient_imports_by_module(
+        self._TYPING_AMBIENT_STUB_FILE_PATH
+    );
     typing_ambient_flat: set[str] = set();
     for names in raw_groups.values() {
         typing_ambient_flat = typing_ambient_flat | names;
@@ -5039,7 +5041,7 @@ impl TypeEvaluator._create_type_guard_type(
         return UnknownType();
     }
     base = self._create_special_builtin_type(name, self.prefetch.bool_class);
-    private = ClassType.ClassDetailsPrivate(
+    private = ClassDetailsPrivate(
         type_args=([guarded] if guarded is not None else []), alias_name=name
     );
     return ClassType(_shared=base.shared, private=private, flags=base.flags);
@@ -5248,7 +5250,7 @@ impl TypeEvaluator._brand_distinct_alias(
         return resolved;
     }
     key = f"{node_.loc.mod_path}::{node_.name.value}";
-    private = ClassType.ClassDetailsPrivate(
+    private = ClassDetailsPrivate(
         type_args=(
             resolved.private.type_args[:] if resolved.private.type_args else None
         ),
