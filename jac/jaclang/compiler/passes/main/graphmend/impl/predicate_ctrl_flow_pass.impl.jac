@@ -24,7 +24,7 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if not self._enabled {
         return;
     }
-    if self.prog.graphmend_breaks.get(id(nd)) != GraphBreakKind.DYN_CTRL_FL {
+    if self.prog.graphmend_breaks.get(nd) != GraphBreakKind.DYN_CTRL_FL {
         return;
     }
     eb = nd.else_body;

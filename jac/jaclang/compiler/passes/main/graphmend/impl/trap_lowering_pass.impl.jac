@@ -69,7 +69,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if not self._enabled {
         return;
     }
-    if self.prog.graphmend_breaks.get(id(nd)) != GraphBreakKind.VAL_GUARD {
+    if self.prog.graphmend_breaks.get(nd) != GraphBreakKind.VAL_GUARD {
         return;
     }
     if self._inside_try(nd) {

@@ -23,7 +23,7 @@ impl DeferSideEffectPass.exit_func_call(nd: uni.FuncCall) -> None {
     if not self._enabled {
         return;
     }
-    if self.prog.graphmend_breaks.get(id(nd)) != GraphBreakKind.SIDE_EFFECT {
+    if self.prog.graphmend_breaks.get(nd) != GraphBreakKind.SIDE_EFFECT {
         return;
     }
     parent = nd.parent;

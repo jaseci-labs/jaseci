@@ -17,7 +17,7 @@ impl JacProgram.init(
     self.graphmend_wrapped: set[str] = set();
     self.graphmend_claim_parent: dict[str, str] = {};
     self.graphmend_covered_by: dict[str, str] = {};
-    self.graphmend_breaks: dict[int, GraphBreakKind] = {};
+    self.graphmend_breaks: dict[uni.UniNode, GraphBreakKind] = {};
     self.graphmend_helpers: dict[int, set[GraphMendHelper]] = {};
     self.graphmend_noop_mods: set[str] = set();
     self._native_cache: dict = {};
