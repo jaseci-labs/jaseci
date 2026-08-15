@@ -845,6 +845,8 @@ def _apply_to_function(
         parameters=[param.clone() for param in func.parameters],
         function_flags=func.function_flags,
         type_params=func.type_params,
+        type_guard=func.type_guard,
+        type_guard_is_strict=func.type_guard_is_strict,
     );
 
     own_shadowed = shadowed;

@@ -92,6 +92,19 @@ Bug index:
                 declaration now binds the function local, so its annotation
                 also holds after the block and a sibling block redeclaring
                 the name collides with it (#8060)
+  #TYPEIS-1 - a user-defined predicate returning TypeIs[T] or TypeGuard[T]
+              narrowed nothing at its call sites; the checker knew the two
+              names but resolved the annotation to nothing, and the CFG's
+              may-narrow set only recognized the builtin guard calls, so a
+              helper predicate was invisible to flow narrowing (#8201)
+  #ISECT-1 - isinstance narrowing filtered a declared union as a whole, so a
+             member above the filter class was thrown away whenever another
+             member sat below it, and the guard claimed the more specific
+             member for values that are not it (#8201)
+  #ANDPOL-1 - the false edge of a conjunction narrowed by the conjunction's
+              most specific positive conjunct, but `not (A and B)` says
+              nothing about A on its own; the else branch of
+              `if isinstance(x, Foo) and x.bar` wrongly excluded Foo (#8201)
 """
 
 import os;
@@ -1684,6 +1697,182 @@ test "bug_elifsc1_short_circuit_elif_keeps_guard_narrowing" {
     assert len(program.errors_had) == 0 , (
         "Bug #ELIFSC-1: the narrowing established by an if guard must "
         "survive an elif whose condition short-circuits. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TYPEIS-1 / #8201: a user-defined predicate whose return type is
+# `TypeIs[T]` (PEP 742) or `TypeGuard[T]` (PEP 647) narrowed nothing.
+# `TypeIs`/`TypeGuard` were listed among the known special-form names but had
+# no branch in the `_SpecialForm` subscript path, so the annotation resolved
+# to nothing; and `collect_narrowing_symbols`, which runs before types exist,
+# only credited `isinstance`/`callable`/`hasattr` with narrowing anything, so
+# the flow walk skipped the guard's argument outright.
+#
+# A `TypeIs[T]` call narrows both edges -- positive to T, negative by
+# subtracting T -- because PEP 742 requires T to be consistent with the
+# argument's declared type. `TypeGuard[T]` narrows the positive edge only,
+# and replaces the declared type there rather than intersecting with it.
+# =========================================================================
+test "bug_typeis1_type_is_narrows_both_polarities" {
+    program = compile_and_check("checker_bug_typeis_narrowing.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TYPEIS-1: a `TypeIs[T]` predicate must narrow its argument to "
+        "T on the true edge and subtract T on the false edge, through plain "
+        "functions, static methods and bound methods alike. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TYPEIS-1, TypeGuard half: PEP 647 is one-directional. The positive
+# edge takes the guarded type verbatim -- `TypeGuard[list[str]]` on a
+# `list[int] | None` yields `list[str]`, not an intersection -- and the
+# negative edge narrows by nothing at all.
+# =========================================================================
+test "bug_typeis1_type_guard_is_positive_only" {
+    program = compile_and_check("checker_bug_typeguard_narrowing.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 1 , (
+        "Bug #TYPEIS-1: `TypeGuard` narrows the positive edge only, so the "
+        "one diagnosed line must be the negative branch reading `.tag` off a "
+        f"still-optional value. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 44 in error_lines , (
+        "Bug #TYPEIS-1: the negative branch of a TypeGuard keeps the declared "
+        f"type, so line 44 must be the diagnosed one. Got: {error_lines}"
+    );
+}
+
+# =========================================================================
+# Bug #ISECT-1 / #8201: `_filter_union_for_isinstance` narrowed a declared
+# union as a whole. It kept the members that derive from the filter class
+# and, if any did, threw the rest away -- so `isinstance(x, Mid)` on an
+# `x: Leaf | Base` answered `Leaf`, claiming a `Base` that passes the guard
+# is a `Leaf`. When no member derived from the filter, the whole declared
+# type was replaced by the filter instead.
+#
+# The narrow is applied per union member now: a member below the filter is
+# kept whole, a member above it takes the filter class carrying its type
+# arguments, and a member unrelated to it drops. Where nothing survives, the
+# result is the bare filter class, which is what the old code produced.
+#
+# A member unrelated to the filter could also hold a value of some class
+# deriving from both, which pyright models as a synthesized
+# `<subclass of Member and Filter>`. That is deliberately not done here: the
+# native lane needs a concrete layout for every type a narrow produces and a
+# synthesized class has none, so the precision would cost every guard over
+# unrelated classes its lowering.
+# =========================================================================
+test "bug_isect1_isinstance_narrows_each_union_member" {
+    program = compile_and_check("checker_bug_isinstance_intersection.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 1 , (
+        "Bug #ISECT-1: `isinstance(x, Mid)` on a `Leaf | Base` must answer "
+        "`Leaf | Mid`, so passing the result where a `Leaf` is wanted is the "
+        f"one error. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 34 in error_lines , (
+        "Bug #ISECT-1: the member above the filter must survive as the "
+        f"filter class, so line 34 is the diagnosed one. Got: {error_lines}"
+    );
+    for e in program.errors_had {
+        assert "Leaf | Mid" in str(e) , (
+            "Bug #ISECT-1: both members must survive the narrow, so the "
+            f"diagnosed type reads `Leaf | Mid`. Got: {e}"
+        );
+    }
+}
+
+# =========================================================================
+# Bug #ISECT-1, negative: per-member narrowing must not lose what the
+# whole-union narrow had. A guard no member survives still falls back to the
+# filter class, the false edge still subtracts it, and a narrowed member
+# exposes exactly its own surface.
+# =========================================================================
+test "bug_isect1_per_member_narrow_keeps_precision" {
+    program = compile_and_check("checker_bug_isinstance_intersection_negative.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 2 , (
+        "Bug #ISECT-1: the fallback to the filter class and the false edge "
+        "must both survive. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 33 in error_lines , (
+        "Bug #ISECT-1: subtracting Mid from `Base | None` leaves the None, "
+        f"so `.label` on line 33 stays an error. Got: {error_lines}"
+    );
+    assert 40 in error_lines , (
+        "Bug #ISECT-1: a narrowed member exposes its own surface and no "
+        f"more, so line 40 stays an error. Got: {error_lines}"
+    );
+}
+
+# =========================================================================
+# Bug #ANDPOL-1 / #8201: `_find_predicate_for` reduced an and-chain to its
+# most specific positive conjunct and handed that single predicate to both
+# edges. `not (A and B)` says nothing about A on its own, so the else branch
+# of `if isinstance(x, Foo) and x.bar` wrongly excluded Foo -- a value whose
+# `bar` is false takes that branch as a Foo.
+#
+# The predicate now records which edges it licenses. A conjunction narrows
+# the false edge only when every conjunct carries the same predicate, and
+# the mirror rule holds for a disjunction's true edge. Where the edge is not
+# licensed the walk keeps whatever its predecessors established, which is
+# the same fallback an unnarrowable branch edge already used.
+# =========================================================================
+test "bug_andpol1_conjunction_false_edge_narrows_by_nothing" {
+    program = compile_and_check("checker_bug_and_chain_false_edge.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 3 , (
+        "Bug #ANDPOL-1: the false edge of a conjunction and the true edge of "
+        "a disjunction may not narrow by one conjunct alone. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 21 in error_lines , (
+        "Bug #ANDPOL-1: the else branch of `isinstance(x, Foo) and x.bar` "
+        f"still admits Foo. Got: {error_lines}"
+    );
+    assert 30 in error_lines , (
+        "Bug #ANDPOL-1: the fall-through after a conjunction guard still "
+        f"admits Foo. Got: {error_lines}"
+    );
+    assert 37 in error_lines , (
+        "Bug #ANDPOL-1: the true edge of `isinstance(x, Foo) or flag` cannot "
+        f"conclude Foo. Got: {error_lines}"
+    );
+}
+
+# =========================================================================
+# Bug #ANDPOL-1, negative: only the unlicensed edges lose their narrowing.
+# A lone guard, the true edge of a conjunction, a conjunction whose every
+# conjunct is the same predicate, a negated conjunction (which swaps the
+# edges), and both edges of a fully matched disjunction all still narrow.
+# =========================================================================
+test "bug_andpol1_licensed_edges_still_narrow" {
+    program = compile_and_check("checker_bug_and_chain_false_edge_negative.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #ANDPOL-1: edge polarity may only remove the narrowing the "
+        "condition never licensed. "
         f"Got errors: {[str(e) for e in program.errors_had]}"
     );
 }

@@ -716,8 +716,10 @@ impl TypeEvaluator._get_declared_return_type(
         and isinstance(scope.signature, FuncSignature)
         and isinstance(scope.signature.return_type, Expr)
     ) {
-        return self._convert_to_instance(
-            self.get_type_of_expression(scope.signature.return_type)
+        return self._unwrap_type_guard_return(
+            self._convert_to_instance(
+                self.get_type_of_expression(scope.signature.return_type)
+            )
         );
     }
 
