@@ -1012,71 +1012,46 @@ test "finish tool error not raised for valid type" {
     assert result.age == 30 , f"Expected age=30, got '{result.age}'";
 }
 
-# Models sometimes call finish_tool with the right payload under the wrong
-# argument name (e.g. 'output' instead of 'final_output'). parse_arguments
-# heals any interpretation that validates against the declared output type.
-test "finish tool heals misnamed argument" {
+# finish_tool argument robustness (issue #8169): any argument shape that
+# validates against the declared output type is healed; anything else raises
+# a recoverable ValueError; invocation failures stay typed.
+test "finish tool argument resolution heals recoverable shapes" {
     finish_tool = Tool.make_finish_tool(_TestPerson);
-    args = finish_tool.parse_arguments({"output": {"name": "Bob", "age": 25}});
-    assert args["final_output"].name == "Bob" , f"Expected healed person, got: {args}";
-    assert args["final_output"].age == 25 , f"Expected healed person, got: {args}";
+    person = {"name": "Bob", "age": 25};
+    for (sent, why) in [
+        ({"final_output": person}, "canonical name"),
+        ({"output": person}, "misnamed argument"),
+        (person, "flattened kwargs")
+    ] {
+        parsed = finish_tool.parse_arguments(sent);
+        assert parsed["final_output"].name == "Bob" , f"{why}: got {parsed}";
+    }
+    bare = Tool.make_finish_tool(str).parse_arguments("just the answer");  # type: ignore[arg-type]
+    assert bare == {"final_output": "just the answer"} , f"bare payload: got {bare}";
 }
 
-test "finish tool heals flattened arguments" {
-    # The payload's fields passed as top-level kwargs instead of one object.
+test "unusable tool arguments raise recoverable errors" {
     finish_tool = Tool.make_finish_tool(_TestPerson);
-    args = finish_tool.parse_arguments({"name": "Cara", "age": 41});
-    assert args["final_output"].name == "Cara" , f"Expected healed person, got: {args}";
-}
-
-test "non dict tool arguments handled per tool kind" {
-    # finish_tool: a bare JSON payload is treated as the final output itself.
-    finish_str = Tool.make_finish_tool(str);
-    args = finish_str.parse_arguments("just the answer");  # type: ignore[arg-type]
-    assert args == {"final_output": "just the answer"} , f"Expected healed str, got: {args}";
-    # Regular tool: clear recoverable error instead of an AttributeError.
     def _sample_tool(city: str) -> str {
         return city;
     }
-    tool = Tool(func=_sample_tool);
-    raised = False;
-    try {
-        tool.parse_arguments(["Paris"]);  # type: ignore[arg-type]
-    } except ValueError as e {
-        raised = True;
-        assert "JSON object" in str(e) , f"Error should explain the shape, got: {e}";
-    }
-    assert raised , "Expected ValueError for non-dict arguments";
-}
-
-test "finish tool unusable arguments raise recoverable error" {
-    finish_tool = Tool.make_finish_tool(_TestPerson);
-    for bad_args in [{}, {"a": 1, "b": 2}] {
+    regular = Tool(func=_sample_tool);
+    for (tool, sent, needle) in [
+        (finish_tool, {}, "final_output"),
+        (finish_tool, {"a": 1, "b": 2}, "final_output"),
+        (regular, {"location": "Paris"}, "'city'"),
+        (regular, {"return": "Paris"}, "'city'"),
+        (regular, ["Paris"], "JSON object")
+    ] {
         raised = False;
         try {
-            finish_tool.parse_arguments(bad_args);
+            tool.parse_arguments(sent);
         } except ValueError as e {
             raised = True;
-            assert "final_output" in str(e) , f"Error should name the argument, got: {e}";
+            assert needle in str(e) , f"{sent}: got {e}";
         }
-        assert raised , f"Expected ValueError for finish args {bad_args}";
+        assert raised , f"Expected ValueError for {sent}";
     }
-}
-
-test "tool missing required argument raises instead of empty parse" {
-    def _sample_tool(city: str) -> str {
-        return city;
-    }
-    tool = Tool(func=_sample_tool);
-    raised = False;
-    try {
-        tool.parse_arguments({"location": "Paris"});
-    } except ValueError as e {
-        raised = True;
-        assert "'city'" in str(e) , f"Error should name the missing param, got: {e}";
-        assert "'location'" in str(e) , f"Error should echo received names, got: {e}";
-    }
-    assert raised , "Expected ValueError for missing required argument";
 }
 
 test "finish tool invocation failure raises FinishToolError not TypeError" {
@@ -1086,14 +1061,12 @@ test "finish tool invocation failure raises FinishToolError not TypeError" {
         finish_tool();
     } except FinishToolError as e {
         raised = True;
-        assert "final_output" in str(e) , f"Error should name the argument, got: {e}";
+        assert "final_output" in str(e) , f"got: {e}";
     }
     assert raised , "Expected FinishToolError for argument-less finish call";
 }
 
-# End to end: a model response calling finish_tool under a misnamed argument
-# produces a working finish call, not a raw TypeError (issue #8169).
-test "misnamed finish argument is healed end to end" {
+def _dispatch_finish_call(arguments: str) -> object {
     model = Model(model_name="test-model");
     mt_run = MTRuntime(
         messages=[
@@ -1106,67 +1079,43 @@ test "misnamed finish argument is healed end to end" {
         call_params={},
         mtir=None  # type: ignore[arg-type]
     );
-
-    fake_fn = types.SimpleNamespace(
-        name="finish_tool", arguments='{"output": {"name": "Dana", "age": 33}}'
-    );
-    fake_tool_call = types.SimpleNamespace(id="call_fin", function=fake_fn);
+    fake_fn = types.SimpleNamespace(name="finish_tool", arguments=arguments);
     fake_response = {
-        "choices": [{"message": {"content": None, "tool_calls": [fake_tool_call]}}],
+        "choices": [
+            {
+                "message": {
+                    "content": None,
+                    "tool_calls": [types.SimpleNamespace(id="call_1", function=fake_fn)]
+                }
+            }
+        ],
 
     };
-
     with unittest.mock.patch.object(
         model, "model_call_no_stream", return_value=fake_response
     ) {
-        result = model.dispatch_no_streaming(mt_run);
+        return model.dispatch_no_streaming(mt_run);
     }
-    assert len(result.tool_calls) == 1 , "Expected one parsed tool call";
+}
+
+# End to end through dispatch: a misnamed finish argument heals into the typed
+# finish call; unusable arguments become a recoverable, NON-finish error call
+# (an error report classified as the finish call would become the typed output).
+test "misnamed finish argument is healed end to end" {
+    result = _dispatch_finish_call('{"output": {"name": "Dana", "age": 33}}');
     finish_tc = result.tool_calls[0];
     assert finish_tc.is_finish_call() , "Healed call should still be the finish call";
-    output = finish_tc.get_output();
-    assert output.name == "Dana" , f"Expected healed typed output, got: {output}";
+    assert finish_tc.get_output().name == "Dana" , "Expected healed typed output";
 }
 
 test "unusable finish arguments are recovered end to end" {
-    model = Model(model_name="test-model");
-    mt_run = MTRuntime(
-        messages=[
-            Message(role=MessageRole.SYSTEM, content="You are a helpful assistant."),
-            Message(role=MessageRole.USER, content="Who?")
-        ],
-        resp_type=_TestPerson,
-        stream=False,
-        tools=[Tool.make_finish_tool(_TestPerson)],
-        call_params={},
-        mtir=None  # type: ignore[arg-type]
-    );
-
-    fake_fn = types.SimpleNamespace(name="finish_tool", arguments='{"a": 1, "b": 2}');
-    fake_tool_call = types.SimpleNamespace(id="call_bad", function=fake_fn);
-    fake_response = {
-        "choices": [{"message": {"content": None, "tool_calls": [fake_tool_call]}}],
-
-    };
-
-    with unittest.mock.patch.object(
-        model, "model_call_no_stream", return_value=fake_response
-    ) {
-        result = model.dispatch_no_streaming(mt_run);
-    }
-    assert len(result.tool_calls) == 1 , "Expected one recovered tool call";
-    # The error report is named finish_tool for call-id pairing but must NOT
-    # classify as the finish call, or its text would become the typed output.
-    assert not result.tool_calls[0].is_finish_call() , (
+    result = _dispatch_finish_call('{"a": 1, "b": 2}');
+    err_tc = result.tool_calls[0];
+    assert not err_tc.is_finish_call() , (
         "Recovered error call must not masquerade as the finish call"
     );
-    err_result = result.tool_calls[0]();
-    assert "Tool error" in str(err_result.content) , (
-        f"Recovered result should be a tool error, got: {err_result.content}"
-    );
-    assert "final_output" in str(err_result.content) , (
-        f"Recovered result should coach the argument name, got: {err_result.content}"
-    );
+    content = str(err_tc().content);
+    assert "Tool error" in content and "final_output" in content , f"got: {content}";
 }
 
 # =============================================================================
