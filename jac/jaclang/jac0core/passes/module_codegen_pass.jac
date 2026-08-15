@@ -15,8 +15,8 @@ import from jaclang.jac0core.unitree {
     Name,
     UniNode
 }
-import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.codeinfo {
+import from jaclang.jac0core.constant {
+    CodeContext,
     NATIVE_COMPTIME_TYPE_MARKERS,
     TYPE_PARAM_CONSTRUCTORS
 }
@@ -60,7 +60,9 @@ obj ModuleCodegenPass(Transform[Module, Module]) {
                 } elif (
                     isinstance(stmt, ContextAwareNode) and stmt.code_context == ctx
                 ) {
-                    result.append(stmt);
+                    if isinstance(stmt, ElementStmt) {
+                        result.append(stmt);
+                    }
                 } elif (
                     not isinstance(stmt, ContextAwareNode) and ctx == CodeContext.SERVER
                 ) {
@@ -146,19 +148,12 @@ obj ModuleCodegenPass(Transform[Module, Module]) {
     }
 
     static def shared_archetypes_for_context(
-        module: Module, ctx: CodeContext, include_enums: bool = False
+        module: Module, ctx: CodeContext
     ) -> list[Archetype] {
         shared: dict[(str, Archetype)] = {};
         for arch in module.get_all_sub_nodes(Archetype) {
             if (arch.name is not None) and isinstance(arch.parent, Module) {
                 shared[arch.name.value] = arch;
-            }
-        }
-        if include_enums {
-            for en in module.get_all_sub_nodes(Enum) {
-                if (en.name is not None) and isinstance(en.parent, Module) {
-                    shared[en.name.value] = en;
-                }
             }
         }
         if not shared {

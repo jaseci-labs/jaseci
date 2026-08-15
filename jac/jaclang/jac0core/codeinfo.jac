@@ -3,6 +3,10 @@ import from collections.abc { Sequence }
 import from contextvars { ContextVar }
 import from dataclasses { field }
 import from typing { Any }
+import from jaclang.jac0core.constant {
+    NATIVE_COMPTIME_TYPE_MARKERS,
+    TYPE_PARAM_CONSTRUCTORS
+}
 import from jaclang.jac0core.srcloc { CodeLocInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { IndexInfo, SliceInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
@@ -157,15 +161,9 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "jac_native_closure_cap", default=0
      );
 
-glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
-         {"TypeVar", "ParamSpec", "TypeVarTuple"}
-     );
-
 glob NATIVE_COMPTIME_BASES: frozenset = frozenset({"ABC"});
 
 glob NATIVE_COMPTIME_IDENTITY_CALLS: frozenset = frozenset({"cast"});
-
-glob NATIVE_COMPTIME_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"});
 
 glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
          "abc": NATIVE_COMPTIME_BASES,

@@ -77,6 +77,14 @@ glob TRANSFORM_SEAM_WAIVERS: dict[(str, str)] = {
              "which the Python driver performs anyway, so it is off the "
              "emission path. #8244 gave the constructor its own violations, "
              "so these demote the callable instead of the module."
+         ),
+         "_require_native_pass_tier": (
+             "Python-only by definition: the pass-tier tripwire consults the "
+             "sealed image registry (jac0core.sealed) and triggers the "
+             "serving binder, host-side machinery no native unit can host. "
+             "It guards construction, which the Python driver performs, so "
+             "it is off the emission path; if transform ever seals, the "
+             "guard's seat moves into the serving layer itself."
          )
      };
 
