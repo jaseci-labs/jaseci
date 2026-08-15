@@ -35,6 +35,7 @@ import from jaclang.compiler.passes.ecmascript.backends.preact { PreactBackend }
 import from jaclang.compiler.passes.ecmascript.backends.solid { SolidBackend }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
@@ -47,7 +48,7 @@ def compile_fixture_with_backend(fixture_name: str, backend: object) -> str {
     assert not prog.errors_had , (
         f"Compilation errors in {fixture_name}: {[str(e) for e in prog.errors_had]}"
     );
-    es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=backend);
+    es_pass = run_pass(EsastGenPass, ir, prog, backend=backend);
     return es_to_js(es_pass.ir_out.gen.es_ast);
 }
 

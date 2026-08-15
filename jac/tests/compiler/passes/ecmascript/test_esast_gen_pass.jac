@@ -8,6 +8,7 @@ import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 """Signals-style test backend: wraps a reactive read as `name()` so the
 value-read seam (contract §4.1.1) can be audited without a real Solid backend.
@@ -79,7 +80,7 @@ def compile_to_esast(filename: str) -> es.Program {
         f"Compilation errors in {filename}: {[str(e) for e in _fatal]}"
     );
 
-    es_pass = EsastGenPass(ir_in=ir, prog=prog);
+    es_pass = run_pass(EsastGenPass, ir, prog);
     es_ir = es_pass.ir_out;
 
     assert hasattr(es_ir.gen, "es_ast") , "es_ast attribute missing";
@@ -97,7 +98,7 @@ def compile_to_esast_with_backend(filename: str, backend: object) -> es.Program 
         f"Compilation errors in {filename}: {[str(e) for e in _fatal]}"
     );
 
-    es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=backend);
+    es_pass = run_pass(EsastGenPass, ir, prog, backend=backend);
     es_ir = es_pass.ir_out;
 
     assert isinstance(es_ir.gen.es_ast, es.Program);
@@ -703,7 +704,7 @@ test "single-`props` component definition warns W5015" {
     assert not prog.errors_had , (
         f"Compilation errors in {fixture}: {[str(e) for e in prog.errors_had]}"
     );
-    EsastGenPass(ir_in=ir, prog=prog);
+    run_pass(EsastGenPass, ir, prog);
 
     w5015 = [
         w

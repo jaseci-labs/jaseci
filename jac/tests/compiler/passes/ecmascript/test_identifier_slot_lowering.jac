@@ -32,6 +32,7 @@ import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
@@ -44,7 +45,7 @@ def compile_fixture(fixture_name: str) -> tuple[EsastGenPass, JacProgram, str] {
     assert not prog.errors_had , (
         f"Compilation errors in {fixture_name}: {[str(e) for e in prog.errors_had]}"
     );
-    es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=ReactBackend());
+    es_pass = run_pass(EsastGenPass, ir, prog, backend=ReactBackend());
     assert not prog.errors_had , (
         f"ES codegen errors in {fixture_name}: {[str(e) for e in prog.errors_had]}"
     );

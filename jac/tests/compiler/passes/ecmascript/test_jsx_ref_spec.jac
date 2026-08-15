@@ -18,6 +18,7 @@ import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 import jaclang.compiler.passes.ecmascript.estree as es;
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob SLOT_EXT = os.path.join(
          JAC_ROOT,
@@ -37,7 +38,7 @@ def compile_to_esast(filename: str) -> es.Program {
     assert not prog.errors_had , (
         f"Compilation errors in {filename}: " + str([str(e) for e in prog.errors_had])
     );
-    es_pass = EsastGenPass(ir_in=ir, prog=prog);
+    es_pass = run_pass(EsastGenPass, ir, prog);
     return es_pass.ir_out.gen.es_ast;
 }
 
@@ -80,7 +81,7 @@ test "bare Ref field without a Ref() construction is rejected (E2025)" {
     path = os.path.join(SLOT_EXT, "has_ref_bare.jac");
     prog = JacProgram();
     ir = prog.compile(file_path=path, no_cgen=True);
-    EsastGenPass(ir_in=ir, prog=prog);
+    run_pass(EsastGenPass, ir, prog);
     codes = [
         e.code.code
         for e in prog.errors_had

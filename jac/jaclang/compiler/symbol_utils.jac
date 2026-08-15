@@ -606,6 +606,27 @@ def decl_has_access(source_mod: uni.Module, item: uni.ModuleItem) -> bool {
     return owner?.access is not None;
 }
 
+def _already_reported(reporter: any, diag: any, nd: uni.UniNode) -> bool {
+    for pool in (
+        reporter.prog.errors_had,
+        reporter.prog.warnings_had,
+        reporter.errors_had,
+        reporter.warnings_had
+    ) {
+        for e in pool {
+            if (
+                e.code is diag
+                and e.loc.mod_path == nd.loc.mod_path
+                and e.loc.first_line == nd.loc.first_line
+                and e.loc.col_start == nd.loc.col_start
+            ) {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
 def report_dead_client_import(
     reporter: any, nd: uni.Import, item: uni.ModuleItem
 ) -> None {
@@ -613,15 +634,8 @@ def report_dead_client_import(
         if isinstance(item.name, uni.Name)
         else str(item.name.value);
     module_name = nd.from_loc.dot_path_str if nd.from_loc is not None else '';
-    for e in reporter.prog.errors_had {
-        if (
-            e.code is E5082
-            and e.loc.mod_path == item.loc.mod_path
-            and e.loc.first_line == item.loc.first_line
-            and e.loc.col_start == item.loc.col_start
-        ) {
-            return;
-        }
+    if _already_reported(reporter, E5082, item) {
+        return;
     }
     reporter.emit(E5082, node_override=item, name=name, module=module_name);
 }
@@ -640,17 +654,7 @@ def report_client_bare_import_uses(reporter: any, mod: uni.Module) {
 }
 
 def _already_warned(reporter: any, diag: any, nd: uni.UniNode) -> bool {
-    for w in reporter.prog.warnings_had {
-        if (
-            w.code is diag
-            and w.loc.mod_path == nd.loc.mod_path
-            and w.loc.first_line == nd.loc.first_line
-            and w.loc.col_start == nd.loc.col_start
-        ) {
-            return True;
-        }
-    }
-    return False;
+    return _already_reported(reporter, diag, nd);
 }
 
 def _in_annotation_position(nm: uni.Name, stop: uni.UniNode) -> bool {
@@ -798,7 +802,7 @@ def report_placement_warnings(reporter: any, mod: uni.Module) {
         ) {
             es = ps.elements[idx] if idx < len(ps.elements) else None;
             gname = es.name if es is not None else 'glob';
-            if not _already_warned(reporter, W6006, stmt) {
+            if not _already_reported(reporter, W6006, stmt) {
                 reporter.emit(W6006, node_override=stmt, name=gname);
             }
         }
@@ -810,7 +814,7 @@ def report_placement_warnings(reporter: any, mod: uni.Module) {
         if not isinstance(top, uni.Ability) or client_bridged_endpoint(mod, top) {
             continue;
         }
-        if not _already_warned(reporter, W6007, nm) {
+        if not _already_reported(reporter, W6007, nm) {
             reporter.emit(W6007, node_override=nm, name=element_display_name(top));
         }
     }

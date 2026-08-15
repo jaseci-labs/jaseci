@@ -15,6 +15,7 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { PyastGenPass }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
@@ -422,7 +423,7 @@ test "py_ast_val raises ICE with source location on empty py_ast" {
     prog = JacProgram();
     mod = prog.compile(file_path="test_ice.jac", use_str=code);
     # Get the PyastGenPass instance from child passes
-    pyast_pass = PyastGenPass(ir_in=mod, prog=prog);
+    pyast_pass = run_pass(PyastGenPass, mod, prog);
     # Create a node with empty py_ast by using an existing node and clearing it
     target_node = mod;
     original = target_node.gen.py_ast[:];
@@ -685,7 +686,7 @@ test "leaked multi-statement lambda hoists emit E5098" {
     code = """with entry { x = 1; }""";
     prog = JacProgram();
     mod = prog.compile(file_path="leaked_lambda.jac", use_str=code);
-    pyast_pass = PyastGenPass(ir_in=mod, prog=prog);
+    pyast_pass = run_pass(PyastGenPass, mod, prog);
     entry_stmt = mod.body[0];
     fake_def = pyast_pass.sync(
         ast3.FunctionDef(
