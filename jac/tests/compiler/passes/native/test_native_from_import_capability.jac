@@ -23,9 +23,12 @@ module, an na_stdlib-shimmed module, and another Jac module on the native
 pathway. The vocabulary is per name and not per module, so a compile-time
 module's non-erasable name still refuses.
 
-Where the refusal lands is #8206's partition, reused unchanged: a module-scope
-import has no owning callable and stays module-fatal, while a body-scoped one
-demotes its function to a seam and leaves its siblings native.
+Where the refusal lands is #8206's partition: a module-scope import has no
+owning callable and stays module-fatal, while a body-scoped one demotes its
+function to a seam and leaves its siblings native. A property accessor is an
+owning callable too -- the native lane lowers a `{ getter; }` body as a method
+and the demotion census already names it `<Archetype>.<field>.__get__` -- so
+the partition answers for it rather than falling through to a module refusal.
 """
 
 import ctypes;
@@ -233,6 +236,35 @@ test "a from import of an na_stdlib-shimmed module lowers" {
     assert "run" in layout.functions , (
         "a shimmed module supplies the name natively, so nothing here "
         f"demotes: {sorted(layout.functions)}"
+    );
+}
+
+
+test "a property accessor is an owning callable, not a module-fatal site" {
+    (prog, ir, census) = _compile_with_census("from_import_accessor_seam.jac");
+    assert not prog.errors_had , (
+        f"a `{{ getter; }}` body is a callable the native lane lowers as a "
+        f"method, so a violation written there demotes it rather than "
+        f"refusing the module: {[str(e) for e in prog.errors_had]}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "Box.plain" in layout.methods , (
+        f"the archetype's ordinary method was lost: {sorted(layout.methods)}"
+    );
+    seams = [
+        s
+        for s in _seams_of(census, "from_import_accessor_seam.jac")
+        if s.startswith("Box.tagged.__get__: ")
+    ];
+    assert len(seams) == 1 , (
+        f"the accessor must be recorded under the name the demotion census "
+        f"and the seal waivers already use for it, got: {_seams_of(
+            census, 'from_import_accessor_seam.jac'
+        )}"
+    );
+    assert "collections" in seams[0] , (
+        f"the seam reason must name the blocking construct: {seams[0]}"
     );
 }
 

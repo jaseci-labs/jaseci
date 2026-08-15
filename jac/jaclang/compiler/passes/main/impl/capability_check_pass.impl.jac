@@ -648,6 +648,9 @@ impl native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None) {
         if isinstance(_sig, EventSignature) {
             return _owner;
         }
+        if _owner.accessor_kind {
+            return _owner;
+        }
         if not isinstance(_sig, FuncSignature) {
             return None;
         }
