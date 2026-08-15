@@ -160,3 +160,11 @@ test "the refusal is scoped to the targets the short chain hides" {
     assert f(0) == 1 , "a target whose chain is whole must still lower and match";
     assert f(1) == 0 , "and must still reject an unrelated class";
 }
+
+test "an operand that could never hold the short-chain class still answers" {
+    (eng, _) = compile_native("xmod_isinstance_deep_main.jac", expect_demotions=True);
+    f = get_func(eng, "chk_unrelated_operand", ctypes.c_int64);
+    assert f() == 0 , (
+        "a statically typed operand outside the short chain's subtree must decide, not refuse"
+    );
+}

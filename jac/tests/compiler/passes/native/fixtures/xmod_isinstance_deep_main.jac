@@ -45,3 +45,11 @@ def chk_flat(k: int) -> int {
     }
     return 0;
 }
+
+def chk_unrelated_operand -> int {
+    p = Point(x=1);
+    if isinstance(p, LibBase) {
+        return 1;
+    }
+    return 0;
+}

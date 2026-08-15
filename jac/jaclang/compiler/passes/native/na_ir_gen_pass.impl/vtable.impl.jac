@@ -120,8 +120,10 @@ impl NaIRGenPass._isinstance_needs_class_name(names: list[str]) -> bool {
     return False;
 }
 
-impl NaIRGenPass._isinstance_unprovable_class(names: list[str]) -> (str | None) {
-    """A class whose recorded MRO is too short to decide these names, if any.
+impl NaIRGenPass._isinstance_unprovable_class(
+    names: list[str], operand_arch: (str | None)
+) -> (str | None) {
+    """A class this operand could be whose MRO is too short to decide these names.
 
     A class that subclasses an imported one is linearized by its own module,
     which reaches the base's name but not the base's own bases -- those live in
@@ -129,20 +131,31 @@ impl NaIRGenPass._isinstance_unprovable_class(names: list[str]) -> (str | None) 
     link short, and every ancestor past that link silently drops out of the
     hierarchy. Answering from those facts is how `isinstance` came to report
     `False` for a base a class genuinely derives from, so a site whose targets
-    fall in the missing span refuses instead. Returns the class whose MRO is
-    short, or `None` when every relevant chain is whole.
+    fall in the missing span refuses instead.
+
+    A short chain elsewhere in the program is only this site's problem if the
+    operand could actually hold one: a statically typed operand narrows the
+    candidates to itself and its subclasses, and only an erased one has to
+    answer for every class. Returns the class whose MRO is short, or `None`
+    when every chain this operand could take is whole.
     """;
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
 
     if self._short_mro_reach is None {
         reg = get_layout_registry(self.ir_in, self.prog);
-        _missing: dict[str, str] = {};
+        _missing: dict[str, list[str]] = {};
         for cand in reg.mro_order {
             recorded = self._mro_of(cand);
             for step in recorded {
                 for anc in self._mro_of(step) {
-                    if anc not in recorded and anc not in _missing {
-                        _missing[anc] = cand;
+                    if anc in recorded {
+                        continue;
+                    }
+                    _short_of = _missing.get(anc);
+                    if _short_of is None {
+                        _missing[anc] = [cand];
+                    } elif cand not in _short_of {
+                        _short_of.append(cand);
                     }
                 }
             }
@@ -150,9 +163,10 @@ impl NaIRGenPass._isinstance_unprovable_class(names: list[str]) -> (str | None) 
         self._short_mro_reach = _missing;
     }
     for name in names {
-        _cand = self._short_mro_reach.get(name);
-        if _cand is not None {
-            return _cand;
+        for cand in (self._short_mro_reach.get(name) or []) {
+            if operand_arch is None or operand_arch in self._mro_of(cand) {
+                return cand;
+            }
         }
     }
     return None;

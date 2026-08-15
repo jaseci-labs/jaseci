@@ -2486,7 +2486,9 @@ impl NaIRGenPass._emit_isinstance_core(
     if names is None {
         return None;
     }
-    _short = self._isinstance_unprovable_class(names);
+    _short = self._isinstance_unprovable_class(
+        names, self._isinstance_operand_arch(nd, operand)
+    );
     if _short is not None {
         self.emit(
             E5092,
