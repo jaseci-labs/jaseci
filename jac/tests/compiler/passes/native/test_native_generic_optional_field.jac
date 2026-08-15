@@ -315,6 +315,62 @@ test "a bare `T` slot at a scalar type argument is refused too" {
 }
 
 
+test "an inferred scalar type argument is refused the same as a written one" {
+    # No subscript at the call site: the checker solves `T` from the
+    # argument, so the gate has to read the solved instance type rather
+    # than the spelling.
+    (prog, ir) = _compile_src(
+        "scalar_inferred",
+        "obj Ctx[T] {\n"
+        "    has value: (T | None) = None;\n"
+        "}\n"
+        "def go() -> int {\n"
+        "    c = Ctx(value=5);\n"
+        "    if c.value is not None {\n"
+        "        return c.value;\n"
+        "    }\n"
+        "    return -1;\n"
+        "}\n"
+    );
+    assert not prog.errors_had , (
+        f"the refusal must demote go() rather than fail the module: "
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "go" not in ir.gen.native_layout.functions , (
+        "an inferred Ctx[int] is the same unsound erasure as a written one"
+    );
+}
+
+
+test "an inferred archetype type argument still lowers" {
+    (prog, ir) = _compile_src(
+        "ref_inferred",
+        "obj Leaf {\n"
+        "    has num: int = 0;\n"
+        "}\n"
+        "obj Ctx[T] {\n"
+        "    has value: (T | None) = None;\n"
+        "}\n"
+        "def go() -> int {\n"
+        "    c = Ctx(value=Leaf(num=5));\n"
+        "    if c.value is not None {\n"
+        "        return c.value.num;\n"
+        "    }\n"
+        "    return -1;\n"
+        "}\n"
+    );
+    assert not prog.errors_had , (
+        f"an inferred reference type argument must lower: "
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "go" in ir.gen.native_layout.functions , (
+        "the gate must not refuse an inferred type argument that is sound"
+    );
+}
+
+
 test "an archetype type argument is still accepted for a bare `T` slot" {
     (prog, ir) = _compile_src(
         "ref_bare",
