@@ -1167,6 +1167,12 @@ impl NaIRGenPass._emit_intrinsic_bits_float(
 
 impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     import from jaclang.compiler.intrinsic_registry { INTRINSIC_REGISTRY }
+    import from jaclang.compiler.symbol_utils { comptime_identity_call_arg }
+
+    _identity_arg = comptime_identity_call_arg(nd);
+    if _identity_arg is not None {
+        return self._codegen_expr(_identity_arg);
+    }
 
     _call_kind = nd.call_kind;
 

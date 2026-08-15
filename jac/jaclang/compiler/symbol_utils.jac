@@ -32,6 +32,67 @@ def is_builtin_region_name(nm: object) -> bool {
     return isinstance(_mp, str) and _mp.endswith(".pyi");
 }
 
+"""Whether `name` is bound in `nd`'s module by a compile-time stdlib import.
+
+An `import from typing { cast }` binds a name a native unit erases; a name
+declared anywhere else -- a local function that happens to be called `cast` --
+is an ordinary value and must lower as one. The binding is read off the
+module's own import list rather than the symbol's declaration so the answer
+does not depend on whether a typeshed stub resolved.
+"""
+def comptime_import_binds(nd: uni.UniNode, name: str) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_STDLIB }
+    mod = nd.find_parent_of_type(uni.Module);
+    if mod is None {
+        return False;
+    }
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if imp.from_loc is None or imp.is_absorb {
+            continue;
+        }
+        allowed = NATIVE_COMPTIME_STDLIB.get(imp.from_loc.dot_path_str.lstrip('.'));
+        if allowed is None or name not in allowed {
+            continue;
+        }
+        for item in imp.items {
+            if not isinstance(item, uni.ModuleItem) {
+                continue;
+            }
+            bound = item.alias if item.alias is not None else item.name;
+            if isinstance(bound, uni.Name) and bound.value == name {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+"""The surviving argument of a call to a type-erasing typing directive.
+
+`typing.cast(T, value)` is a directive to a type checker: at run time it
+returns `value` unchanged, which is why a native unit can lower the call to
+`value` and still agree with the Python lane by construction. `None` means the
+call is something else and has to lower normally.
+"""
+def comptime_identity_call_arg(nd: uni.FuncCall) -> (uni.Expr | None) {
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_IDENTITY_CALLS }
+    tgt = nd.target;
+    if not isinstance(tgt, uni.Name)
+        or tgt.sym_name not in NATIVE_COMPTIME_IDENTITY_CALLS {
+        return None;
+    }
+    params = nd.params or [];
+    if len(params) != 2
+        or not isinstance(params[0], uni.Expr)
+        or not isinstance(params[1], uni.Expr) {
+        return None;
+    }
+    if not comptime_import_binds(nd, tgt.sym_name) {
+        return None;
+    }
+    return params[1];
+}
+
 def resolve_expr_symbol(
     expr: uni.Expr, module: (uni.Module | None) = None
 ) -> (uni.Symbol | None) {

@@ -134,6 +134,19 @@ def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
     return module.gen.layout_registry or LayoutRegistry();
 }
 
+"""Whether a base-class name is a compile-time marker a native unit erases.
+
+`abc.ABC` says a class is abstract, which Jac says itself with `abst`, so the
+marker contributes nothing to a native layout: keeping it would register a
+phantom ancestor and force a vtable pointer onto every instance of a class
+that has nothing to dispatch. An archetype declared under the same name in
+the module wins, so the erasure never swallows a real base.
+"""
+def is_comptime_base_name(name: str, archetypes: dict[str, Archetype]) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
+    return name in NATIVE_COMPTIME_BASES and name not in archetypes;
+}
+
 def is_enum_class_type(t: any) -> bool {
     try {
         import from jaclang.compiler.type_system.types { ClassType as _ClassType }
