@@ -97,6 +97,10 @@ Bug index:
               names but resolved the annotation to nothing, and the CFG's
               may-narrow set only recognized the builtin guard calls, so a
               helper predicate was invisible to flow narrowing (#8201)
+  #ISECT-1 - isinstance narrowing against a class unrelated to any declared
+             union member dropped the declared type entirely instead of
+             recording that the value is both, so members of the declared
+             side went missing after the guard (#8201)
   #ANDPOL-1 - the false edge of a conjunction narrowed by the conjunction's
               most specific positive conjunct, but `not (A and B)` says
               nothing about A on its own; the else branch of
@@ -1743,6 +1747,58 @@ test "bug_typeis1_type_guard_is_positive_only" {
     assert 44 in error_lines , (
         "Bug #TYPEIS-1: the negative branch of a TypeGuard keeps the declared "
         f"type, so line 44 must be the diagnosed one. Got: {error_lines}"
+    );
+}
+
+# =========================================================================
+# Bug #ISECT-1 / #8201: `isinstance(x, Marker)` on an `x: Carrier | None`
+# narrowed to `Marker` outright. The declared constraint was thrown away, so
+# every `Carrier` member went missing after the guard even though the value
+# is known to be both.
+#
+# The narrow is now applied per union member: a member the filter class
+# derives from keeps the filter class, a member that derives from the filter
+# class is kept whole, and a member unrelated to it produces a synthesized
+# `<subclass of Member and Filter>` whose MRO carries both sides. Members
+# that cannot be combined -- NoneType, and the primitives, whose instance
+# layouts no single class can inherit -- drop out as before.
+# =========================================================================
+test "bug_isect1_isinstance_intersects_with_declared_type" {
+    program = compile_and_check("checker_bug_isinstance_intersection.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #ISECT-1: narrowing with isinstance must keep the declared type "
+        "as a constraint, so members of both the declared class and the "
+        "filter class stay reachable. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #ISECT-1, negative: the synthesized class must not over-narrow. The
+# false edge still subtracts the filter class and leaves the rest of the
+# declared union alone, and the synthesis grants exactly the two sides'
+# members -- nothing more.
+# =========================================================================
+test "bug_isect1_intersection_does_not_over_narrow" {
+    program = compile_and_check("checker_bug_isinstance_intersection_negative.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 2 , (
+        "Bug #ISECT-1: the false edge keeps `Carrier | None` and the "
+        "synthesized class has no member `missing`. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 17 in error_lines , (
+        "Bug #ISECT-1: subtracting Marker from `Carrier | None` leaves the "
+        f"None, so `.label` on line 17 stays an error. Got: {error_lines}"
+    );
+    assert 23 in error_lines , (
+        "Bug #ISECT-1: the synthesized class exposes the two sides' members "
+        f"and no others, so line 23 stays an error. Got: {error_lines}"
     );
 }
 

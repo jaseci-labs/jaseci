@@ -4662,9 +4662,9 @@ impl TypeEvaluator._apply_narrowing(
             base_type = target.declared_type;
         }
 
-        filtered = self._filter_union_for_isinstance(base_type, predicate.narrow_type);
-        if filtered is not None {
-            return filtered;
+        narrowed = self._narrow_type_to(base_type, predicate.narrow_type);
+        if narrowed is not None {
+            return narrowed;
         }
 
         return self._specialize_narrow_from_base(base_type, predicate.narrow_type);
@@ -4723,6 +4723,176 @@ impl TypeEvaluator._specialize_narrow_from_base(
         }
     }
     return narrow_type;
+}
+
+impl TypeEvaluator._narrow_type_to(
+    base_type: TypeBase, narrow_type: TypeBase
+) -> TypeBase | None {
+    """Narrow a declared type against an isinstance filter, member by member.
+
+    Narrowing the union as a whole threw the declared type away whenever no
+    member matched: `isinstance(x, Marker)` on an `x: Carrier | None` became
+    a bare `Marker` and every `Carrier` member went missing. Each member is
+    now narrowed on its own and the surviving results are re-joined.
+    """;
+    members = (
+        base_type.types
+            if isinstance(base_type, UnionType) and base_type.types
+            else [base_type]
+    );
+    results: list[TypeBase] = [];
+    for m in members {
+        narrowed_member = self._narrow_member_to(m, narrow_type);
+        if narrowed_member is not None {
+            results.append(narrowed_member);
+        }
+    }
+    if not results {
+        return None;
+    }
+    return self._union_narrowed_types(results);
+}
+
+impl TypeEvaluator._narrow_member_to(
+    member: TypeBase, narrow_type: TypeBase
+) -> TypeBase | None {
+    """Narrow one declared member against the filter, or a tuple of filters.
+
+    A tuple filter is a disjunction: the member is narrowed against every
+    alternative it is related to, and the results joined. Only a member that
+    relates to none of them falls through to the intersection, so
+    `isinstance(x, (A, B))` on an `A | B` stays `A | B` instead of pairing
+    every member with every other alternative.
+    """;
+    if isinstance(narrow_type, UnionType) and narrow_type.types {
+        related: list[TypeBase] = [];
+        for t in narrow_type.types {
+            part = self._narrow_related_member_to(member, t);
+            if part is not None {
+                related.append(part);
+            }
+        }
+        if related {
+            return self._union_narrowed_types(related);
+        }
+        crossed: list[TypeBase] = [];
+        for t in narrow_type.types {
+            if isinstance(member, ClassType) and isinstance(t, ClassType) {
+                synth = self._synthesize_intersection(member, t);
+                if synth is not None {
+                    crossed.append(synth);
+                }
+            }
+        }
+        if not crossed {
+            return None;
+        }
+        return self._union_narrowed_types(crossed);
+    }
+    related_narrow = self._narrow_related_member_to(member, narrow_type);
+    if related_narrow is not None {
+        return related_narrow;
+    }
+    if not isinstance(member, ClassType) or not isinstance(narrow_type, ClassType) {
+        return None;
+    }
+    return self._synthesize_intersection(member, narrow_type);
+}
+
+impl TypeEvaluator._narrow_related_member_to(
+    member: TypeBase, narrow_type: TypeBase
+) -> TypeBase | None {
+    if self._type_matches_isinstance(member, narrow_type) {
+        return member;
+    }
+    if not isinstance(member, ClassType) or not isinstance(narrow_type, ClassType) {
+        return None;
+    }
+    if self.is_sub_class(member, narrow_type) {
+        return self._specialize_narrow_from_base(member, narrow_type);
+    }
+    return None;
+}
+
+impl TypeEvaluator._synthesize_intersection(
+    member: ClassType, filter_cls: ClassType
+) -> ClassType | None {
+    """Record that a value is both the declared class and the filter class.
+
+    Neither class alone describes the value when the two are unrelated, and a
+    class deriving from both does, so the narrow yields a synthesized
+    `<subclass of Member and Filter>` -- the shape pyright reports.
+
+    The MRO is the filter's followed by the member's, deduplicated, rather
+    than a C3 linearization of the two. C3 can fail outright on this tree's
+    multiply-inheriting nodes, and a truncated MRO loses the common bases the
+    result must stay assignable to. Ordering the filter first also settles
+    which side wins a member both declare: the guard is what the code just
+    asserted, so it reads first, and the declared side supplies the rest.
+    """;
+    if not self._can_intersect(member, filter_cls) {
+        return None;
+    }
+    cache_key = (id(member.shared), id(filter_cls.shared));
+    cached = self._intersection_cache.get(cache_key);
+    if cached is None {
+        shared = ClassType.ClassDetailsShared(
+            class_name=(
+                f"<subclass of {member.shared.class_name} "
+                f"and {filter_cls.shared.class_name}>"
+            ),
+            symbol_table=filter_cls.shared.symbol_table,
+            base_classes=[filter_cls.clone_as_class(), member.clone_as_class()]
+        );
+        cached = ClassType(_shared=shared, flags=TypeFlags.Instantiable);
+        if not filter_cls.shared.mro {
+            compute_mro_linearization(filter_cls);
+        }
+        if not member.shared.mro {
+            compute_mro_linearization(member);
+        }
+        linearized: list[ClassType] = [cached];
+        seen_shared: set = set();
+        for ancestor in (filter_cls.shared.mro + member.shared.mro) {
+            marker = id(ancestor.shared);
+            if marker in seen_shared {
+                continue;
+            }
+            seen_shared.add(marker);
+            linearized.append(ancestor);
+        }
+        cached.shared.mro = linearized;
+        self._intersection_cache[cache_key] = cached;
+    }
+    return cached.clone_as_instance();
+}
+
+impl TypeEvaluator._can_intersect(member: ClassType, filter_cls: ClassType) -> bool {
+    """Report whether any one class could derive from both of these.
+
+    Two classes with distinct instance layouts have no common subclass, so a
+    value cannot be both and the member drops as it did before. The
+    primitives are exactly that set -- nothing inherits from `int` and `str`
+    at once -- and `None` is a singleton. A generic on either side is left
+    alone too: the synthesized class has no type parameters to carry the
+    arguments through.
+    """;
+    import from jaclang.compiler.type_registry { JAC_TYPE_REGISTRY }
+    for side in (member, filter_cls) {
+        if side.is_literal_type() or side.private.type_args {
+            return False;
+        }
+        if side.shared.symbol_table is None {
+            return False;
+        }
+        if JAC_TYPE_REGISTRY.is_primitive(side.shared.class_name) {
+            return False;
+        }
+        if self.is_none_type(self._convert_to_instance(side)) {
+            return False;
+        }
+    }
+    return not member.shared.same_class(filter_cls.shared);
 }
 
 impl TypeEvaluator._filter_union_for_isinstance(

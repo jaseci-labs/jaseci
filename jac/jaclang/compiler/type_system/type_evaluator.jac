@@ -337,6 +337,7 @@ obj TypeEvaluator {
         _sv_async_syms_cache: dict[int, set[int]] = {},
         _and_narrowing_overrides: dict[int, TypeBase] = {},
         _type_guard_probes: set[int] = set(),
+        _intersection_cache: dict[tuple[int, int], ClassType] = {},
         _loop_written_keys_cache: dict[int, set[str]] = {},
         _ts_decl_cache: dict[str, (dict[str, TsDecl] | None)] = {},
         _ts_decl_path_cache: dict[str, (str | None)] = {},
@@ -691,6 +692,17 @@ obj TypeEvaluator {
         base_type: TypeBase, target_type: TypeBase
     ) -> TypeBase | None;
 
+    def _narrow_type_to(base_type: TypeBase, narrow_type: TypeBase) -> TypeBase | None;
+    def _narrow_member_to(member: TypeBase, narrow_type: TypeBase) -> TypeBase | None;
+    def _narrow_related_member_to(
+        member: TypeBase, narrow_type: TypeBase
+    ) -> TypeBase | None;
+
+    def _synthesize_intersection(
+        member: ClassType, filter_cls: ClassType
+    ) -> ClassType | None;
+
+    def _can_intersect(member: ClassType, filter_cls: ClassType) -> bool;
     def _specialize_narrow_from_base(
         base_type: TypeBase, narrow_type: TypeBase
     ) -> TypeBase;
