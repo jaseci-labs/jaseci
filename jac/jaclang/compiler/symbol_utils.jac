@@ -32,14 +32,6 @@ def is_builtin_region_name(nm: object) -> bool {
     return isinstance(_mp, str) and _mp.endswith(".pyi");
 }
 
-"""Whether `name` is bound in `nd`'s module by a compile-time stdlib import.
-
-An `import from typing { cast }` binds a name a native unit erases; a name
-declared anywhere else -- a local function that happens to be called `cast` --
-is an ordinary value and must lower as one. The binding is read off the
-module's own import list rather than the symbol's declaration so the answer
-does not depend on whether a typeshed stub resolved.
-"""
 def comptime_import_binds(nd: uni.UniNode, name: str) -> bool {
     import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_STDLIB }
     mod = nd.find_parent_of_type(uni.Module);
@@ -67,13 +59,6 @@ def comptime_import_binds(nd: uni.UniNode, name: str) -> bool {
     return False;
 }
 
-"""The surviving argument of a call to a type-erasing typing directive.
-
-`typing.cast(T, value)` is a directive to a type checker: at run time it
-returns `value` unchanged, which is why a native unit can lower the call to
-`value` and still agree with the Python lane by construction. `None` means the
-call is something else and has to lower normally.
-"""
 def comptime_identity_call_arg(nd: uni.FuncCall) -> (uni.Expr | None) {
     import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_IDENTITY_CALLS }
     tgt = nd.target;

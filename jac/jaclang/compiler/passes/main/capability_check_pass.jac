@@ -42,17 +42,8 @@ def classify_native_import(item: UniNode) -> tuple;
 
 def import_bound_name(item: UniNode) -> (str | None);
 
-"""Whether `name_nd` sits inside the subtree headed by `top`."""
 def node_within(name_nd: UniNode, top: (UniNode | None)) -> bool;
 
-"""Whether a name is read by the compiler rather than by the running program.
-
-Annotations, return types and base classes are all resolved at compile time:
-`LayoutPass` looks a base up by name while building the hierarchy, and nothing
-loads a base object at run time. A Python module named only in such a position
-is therefore not a run-time dependency, and whether it can actually be lowered
-is the backend's verdict to give rather than the import gate's.
-"""
 def name_in_type_position(name_nd: UniNode) -> bool;
 
 def static_fstring_spec_text(spec: UniNode) -> (str | None);

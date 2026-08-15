@@ -157,37 +157,14 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "jac_native_closure_cap", default=0
      );
 
-"""Calls that declare a type parameter rather than compute a value.
-
-`glob T = TypeVar('T', bound=UniNode)` binds nothing a program reads: the
-parameter is erased at every use site, so native glob lowering skips the
-declaration outright.
-"""
 glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
          {"TypeVar", "ParamSpec", "TypeVarTuple"}
      );
 
-"""Base classes that carry compile-time information and nothing else.
-
-Jac models abstractness with `abst`, so an `ABC` base restates something the
-compiler already knows. It leaves the native parent list; the Python lane
-keeps it, and with it the run-time refusal to instantiate.
-"""
 glob NATIVE_COMPTIME_BASES: frozenset = frozenset({"ABC"});
 
-"""Directives that return one of their arguments unchanged.
-
-`typing.cast(T, value)` is `value` at run time in Python too, so lowering it
-to its second argument makes the two lanes agree by construction.
-"""
 glob NATIVE_COMPTIME_IDENTITY_CALLS: frozenset = frozenset({"cast"});
 
-"""Python modules a native unit may import purely for compile-time names.
-
-Every name in such an import has to be erasable; one that is not sends the
-whole import back to refusing. The narrowness is the point -- `abstractmethod`
-and `ABCMeta` are deliberately absent from the `abc` entry.
-"""
 glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
          "abc": NATIVE_COMPTIME_BASES,
          "typing": TYPE_PARAM_CONSTRUCTORS | NATIVE_COMPTIME_IDENTITY_CALLS
