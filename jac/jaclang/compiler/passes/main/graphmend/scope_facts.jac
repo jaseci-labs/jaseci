@@ -40,9 +40,10 @@ def compiled_region_ids(
     }
     for w in (wrapped or []) {
         if isinstance(w, uni.Archetype) {
-            ids.add(id(w));
             for meth in w.get_all_sub_nodes(uni.Ability) {
-                work.append(meth);
+                if meth.sym_name == 'forward' {
+                    work.append(meth);
+                }
             }
         } elif isinstance(w, uni.Ability) {
             work.append(w);
@@ -115,19 +116,27 @@ def _resolve_decorator(
     return find_ability(mod, base.value, prog, seen);
 }
 
+def lexical_ability(scope: (uni.Ability | None), name: str) -> (uni.Ability | None) {
+    cur: (uni.Ability | None) = scope;
+    while cur is not None {
+        for nested in cur.get_all_sub_nodes(uni.Ability) {
+            if nested.sym_name == name {
+                return nested;
+            }
+        }
+        cur = cur.find_parent_of_type(uni.Ability);
+    }
+    return None;
+}
+
 def _resolve_callee(
     site: uni.Ability, call: uni.FuncCall, prog: JacProgram, seen: set[str]
 ) -> (uni.Ability | None) {
     t = call.target;
     if isinstance(t, uni.Name) {
-        scope: (uni.Ability | None) = site;
-        while scope is not None {
-            for nested in scope.get_all_sub_nodes(uni.Ability) {
-                if nested.sym_name == t.value {
-                    return nested;
-                }
-            }
-            scope = scope.find_parent_of_type(uni.Ability);
+        found = lexical_ability(site, t.value);
+        if found is not None {
+            return found;
         }
         mod = site.find_parent_of_type(uni.Module);
         if mod is None {

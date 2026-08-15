@@ -108,9 +108,14 @@ test "a wrap entry callee is transformed at depth" {
     assert _break_kinds("region_wrap_fn.jac") == ["side_effect", "side_effect"];
 }
 
-test "a wrapped class forward callee is transformed" {
-    src = _pysrc("region_wrap_cls.jac", True);
-    assert "__jac_se_emit__" in _fn_src(src, "cls_helper");
+test "a wrapped class compiles forward only" {
+    # torch.compile(Model()) compiles forward; sibling methods stay eager. The
+    # region is forward plus its call edges, never the whole class.
+    src_on = _pysrc("region_wrap_cls.jac", True);
+    src_off = _pysrc("region_wrap_cls.jac", False);
+    assert "__jac_se_emit__" in _fn_src(src_on, "cls_helper");
+    assert _fn_src(src_on, "side_step") == _fn_src(src_off, "side_step");
+    assert "print('SIDE-STEP', x)" in src_on;
 }
 
 test "scoped forward reaches a method through the self call and no further" {

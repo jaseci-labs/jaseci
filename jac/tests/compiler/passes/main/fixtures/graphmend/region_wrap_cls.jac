@@ -1,8 +1,9 @@
-"""A call-site wrapped model class whose forward calls a module helper.
+"""A call-site wrapped model class: the region is forward, not every method.
 
-`WrapNet` becomes an entry through `torch.compile(WrapNet())`; the compiled
-region must include its methods and close over their call edges, so the print
-in `cls_helper` is deferred."""
+`torch.compile(WrapNet())` compiles only `forward`; sibling methods run
+eagerly through the original module. So the region seeds `forward` and closes
+over its call edges: the print in `cls_helper` is deferred, while `side_step`,
+which forward never calls, stays byte-identical."""
 import torch;
 
 def cls_helper(x: any) -> any {
@@ -14,6 +15,11 @@ class WrapNet(torch.nn.Module) {
     def forward(self: any, x: any) -> any {
         y = torch.relu(x);
         return cls_helper(y);
+    }
+
+    def side_step(self: any, x: any) -> any {
+        print("SIDE-STEP", x);
+        return x * 3.0;
     }
 }
 

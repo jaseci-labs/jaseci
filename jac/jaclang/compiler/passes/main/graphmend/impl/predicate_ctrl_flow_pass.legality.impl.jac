@@ -5,6 +5,7 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts {
     attr_annotation,
     attr_dict_kind,
     find_class,
+    lexical_ability,
     module_imports_plain,
     wrapping_classes
 }
@@ -98,7 +99,10 @@ impl PredicateCtrlFlowPass._call_speculatable(c: uni.FuncCall) -> bool {
     }
     t = c.target;
     if isinstance(t, uni.Name) {
-        fn = self._module_fn(mod, t.value);
+        fn = lexical_ability(c.find_parent_of_type(uni.Ability), t.value);
+        if fn is None {
+            fn = self._module_fn(mod, t.value);
+        }
         if fn is None {
             return False;
         }
@@ -226,8 +230,11 @@ impl PredicateCtrlFlowPass._body_pure_nonraising(
             continue;
         }
         local = None;
-        if isinstance(t, uni.Name) and (mod is not None) {
-            local = self._module_fn(mod, t.value);
+        if isinstance(t, uni.Name) {
+            local = lexical_ability(fn, t.value);
+            if (local is None) and (mod is not None) {
+                local = self._module_fn(mod, t.value);
+            }
         }
         if (local is None) or (not self._body_pure_nonraising(local, call, marks)) {
             return False;

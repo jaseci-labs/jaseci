@@ -16,7 +16,12 @@ impl GraphBreakDetectPass.before_pass -> None {
         return;
     }
     wrapped = self._collect_entry_points();
-    self._entry_ids = {id(e) for e in wrapped};
+    self._entry_ids = set();
+    for e in wrapped {
+        if isinstance(e, uni.Ability) {
+            self._entry_ids.add(id(e));
+        }
+    }
     self._entry_ids |= compiled_region_ids(
         self.prog,
         self.ir_in,
