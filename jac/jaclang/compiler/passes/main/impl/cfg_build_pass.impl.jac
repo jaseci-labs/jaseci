@@ -1,11 +1,12 @@
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 impl cfg_dot_from_file(file_name: str) -> str {
+    import from jaclang.jac0core.compiler { run_pass }
     import from jaclang.jac0core.program { JacProgram }
     with open(file_name, encoding="utf-8") as f {
         file_source = f.read();
     }
     ir = (prog := JacProgram()).compile(use_str=file_source, file_path=file_name);
-    cfg_pass = CoalesceBBPass(ir_in=ir, prog=prog);
+    cfg_pass = run_pass(CoalesceBBPass, ir, prog);
     dot = cfg_pass.printgraph_cfg();
     return dot;
 }

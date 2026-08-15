@@ -196,15 +196,18 @@ impl JacProgram.load_dependency_module(
         if resolved_path.endswith('.pyi') {
             import ast as py_ast;
             import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+            import from jaclang.jac0core.compiler { run_pass }
             import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
             import from jaclang.jac0core.helpers { read_file_with_encoding }
             src = use_str or read_file_with_encoding(source_path);
             uni_source = uni.Source(src, source_path);
-            mod = PyastBuildPass(
-                ir_in=uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
-                prog=self,
+            mod = run_pass(
+                PyastBuildPass,
+                uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
+                self
             ).ir_out;
-            SymTabBuildPass(ir_in=mod, prog=self);
+            compiler.resolve_absorb_imports(mod, self);
+            run_pass(SymTabBuildPass, mod, self);
             mod.stub_only = True;
         } else {
             mod = self.compile(

@@ -193,18 +193,9 @@ impl SymTabBuildPass._exit_import_absorb(self: SymTabBuildPass, nd: Import) -> N
         return;
     }
     import_all_module_path_node: ModulePath = nd.items[0];
-    import_all_module_path = import_all_module_path_node.resolve_relative_path();
-    module: (Module | None) = None;
-    if (import_all_module_path in self.prog.mod.hub) {
-        module = self.prog.mod.hub[import_all_module_path];
-    } else {
-        try {
-            module = self.prog.compile(
-                import_all_module_path, no_cgen=True, type_check=False
-            );
-        } except Exception {
-            return;
-        }
+    module: (Module | None) = nd.absorbed_mod;
+    if (module is None) {
+        return;
     }
     self._bind_import_path_symbols(import_all_module_path_node);
     if module {

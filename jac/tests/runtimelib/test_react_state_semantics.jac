@@ -35,6 +35,7 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.runtimelib.client_surface { with_runtime_globals }
 import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
 import from jaclang.runtimelib.client.bun_installer { get_bun }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = str(
          Path(__file__).parent.parent
@@ -153,7 +154,7 @@ def _compile_react(path: str) -> str {
         if not issubclass(e.from_pass, TypeCheckPass)
     ];
     assert not fatal , f"compile errors in {path}: {[str(e) for e in fatal]}";
-    es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=ReactBackend());
+    es_pass = run_pass(EsastGenPass, ir, prog, backend=ReactBackend());
     return es_to_js(es_pass.ir_out.gen.es_ast);
 }
 

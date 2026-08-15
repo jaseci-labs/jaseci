@@ -358,7 +358,8 @@ obj Module(AstDocNode, UniScopeNode) {
         src_terminals: list[Token] = [],
         is_raised_from_py: bool = False,
         decided_codespace: str = "",
-        parse_failed: bool = False;
+        parse_failed: bool = False,
+        annex_mods: list[Module] postinit;
 
     def postinit -> None;
 
@@ -461,7 +462,8 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
         is_absorb: bool,
         is_typed: bool = False,
         clib_decls: (Sequence[UniNode] | None) = None,
-        hint: (SubTag[Token] | None) postinit;
+        hint: (SubTag[Token] | None) postinit,
+        absorbed_mod: (Module | None) postinit;
 
     def postinit -> None;
 
