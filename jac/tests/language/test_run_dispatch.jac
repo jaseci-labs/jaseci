@@ -424,6 +424,8 @@ test "the graphmend off switch survives every jac run mode" {
     d = _mk_project(
         "kind = \"cli\"\n\n[run]\ngraphmend = false\n", "main.jac", PLAIN_ENTRY
     );
+    import from importlib.machinery { SourceFileLoader }
+    hooked_before = getattr(SourceFileLoader, "_jac_graphmend_hooked", False);
     old = os.getcwd();
     os.chdir(d);
     captured = io.StringIO();
@@ -439,10 +441,14 @@ test "the graphmend off switch survives every jac run mode" {
     out = captured.getvalue();
     assert rc_project == 0 and rc_file == 0 and rc_entry == 0;
     assert out.count("GM=False") == 3 , f"expected 3 disabled runs, got: {out}";
+    # None of these runs loads torch, so none of them may patch the stdlib
+    # loader; the hook waits for torch to enter the process.
+    hooked_now = getattr(SourceFileLoader, "_jac_graphmend_hooked", False);
+    assert hooked_now == hooked_before , "a torch-free run installed the hook";
     _cleanup();
 }
 
-test "a run with the switch absent leaves graphmend on and hooks the loader" {
+test "a run with the switch absent leaves graphmend on" {
     d = _mk_project("kind = \"cli\"\n", "main.jac", PLAIN_ENTRY);
     old = os.getcwd();
     os.chdir(d);
@@ -456,9 +462,6 @@ test "a run with the switch absent leaves graphmend on and hooks the loader" {
     }
     assert rc == 0;
     assert "GM=True" in captured.getvalue();
-    # Any run GraphMend can engage on installs the import claim loader hook.
-    import from importlib.machinery { SourceFileLoader }
-    assert getattr(SourceFileLoader, "_jac_graphmend_hooked", False);
     _cleanup();
 }
 

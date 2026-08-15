@@ -383,6 +383,65 @@ test "the same guard declines when the entry does not wrap the model" {
     }
 }
 
+glob FS_CALLS: list[str] = [],
+     REAL_ISFILE = os.path.isfile,
+     REAL_REALPATH = os.path.realpath;
+
+"""Count and delegate an os.path.isfile call."""
+def _counting_isfile(path: any) -> bool {
+    FS_CALLS.append("isfile");
+    return REAL_ISFILE(path);
+}
+
+"""Count and delegate an os.path.realpath call."""
+def _counting_realpath(path: any, *args: any, **kwargs: any) -> any {
+    FS_CALLS.append("realpath");
+    return REAL_REALPATH(path, *args, **kwargs);
+}
+
+test "a torch-free import is answered without touching the filesystem" {
+    # The torch gate sits above the syscalls: with nothing claimed and torch
+    # unloaded the probe costs two membership tests, while a registered claim
+    # is still honored once the set is non-empty.
+    import sys;
+    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.meta_importer { _graphmend_claims }
+    prog = Jac.get_program();
+    prev_enabled = prog.graphmend_enabled;
+    prev_claimed = set(prog.graphmend_claimed);
+    saved_torch = sys.modules.pop("torch", None);
+    with tempfile.TemporaryDirectory() as tmp {
+        path = _write(tmp, "thirdparty.py", "x = 1\n");
+        real = REAL_REALPATH(path);
+        FS_CALLS.clear();
+        os.path.isfile = _counting_isfile;
+        os.path.realpath = _counting_realpath;
+        try {
+            prog.graphmend_enabled = "auto";
+            prog.graphmend_claimed.clear();
+            assert _graphmend_claims("thirdparty", path) is False;
+            assert FS_CALLS == [] , (
+                f"a torch-free import must not stat anything, saw {FS_CALLS}"
+            );
+            prog.graphmend_claimed.add(real);
+            assert _graphmend_claims("thirdparty", path) is True , (
+                "a registered claim must still be honored"
+            );
+            assert "realpath" in FS_CALLS , "the claimed lookup must still run";
+        } finally {
+            os.path.isfile = REAL_ISFILE;
+            os.path.realpath = REAL_REALPATH;
+            if saved_torch is not None {
+                sys.modules["torch"] = saved_torch;
+            }
+            cur = Jac.get_program();
+            cur.graphmend_enabled = prev_enabled;
+            cur.graphmend_claimed.clear();
+            cur.graphmend_claimed.update(prev_claimed);
+        }
+    }
+}
+
 test "the run manifest carries no graphmend scope argument" {
     import from jaclang.cli.manifest { get_command_meta }
     meta = get_command_meta("run");
