@@ -2215,7 +2215,7 @@ impl NaIRGenPass._isinstance_abc_reduction(
 }
 
 impl NaIRGenPass._isinstance_target_names(
-    nd: uni.FuncCall, type_arg: uni.UniNode
+    nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
 ) -> (list[str] | None) {
     """Flatten the type argument into the type names the check has to test.
 
@@ -2227,6 +2227,7 @@ impl NaIRGenPass._isinstance_target_names(
     raw: list = list(type_arg.values or [])
         if isinstance(type_arg, uni.TupleVal)
         else [type_arg];
+    pyb_operand = self._isinstance_operand_is_pyb(nd, operand);
     names: list[str] = [];
     for v in raw {
         nm = self._isinstance_type_name(v);
@@ -2240,13 +2241,17 @@ impl NaIRGenPass._isinstance_target_names(
             }
             continue;
         }
-        if not reduced {
+        if not reduced or pyb_operand {
             self.emit(
                 E5092,
                 node_override=nd,
                 kind="builtin call",
                 name=f"isinstance against `{nm}`",
-                help_text="This abstract base class has no exact answer over native values -- an archetype can inhabit it without naming it, so a native check would have to guess. Test the concrete type instead (`list`, `dict`, an archetype), or move the code to a @sv/Python context."
+                help_text=(
+                    "This operand's class inherits a Python-side base, so which abstract base classes it inhabits is decided by an MRO this native unit only holds a shadow handle to. Test the concrete type instead (`list`, `dict`, an archetype), or move the code to a @sv/Python context."
+                        if pyb_operand
+                        else "This abstract base class has no exact answer over native values -- an archetype can inhabit it without naming it, so a native check would have to guess. Test the concrete type instead (`list`, `dict`, an archetype), or move the code to a @sv/Python context."
+                )
             );
             return None;
         }
@@ -2260,6 +2265,29 @@ impl NaIRGenPass._isinstance_target_names(
         }
     }
     return names;
+}
+
+impl NaIRGenPass._isinstance_operand_is_pyb(
+    nd: uni.FuncCall, operand: ir.Value
+) -> bool {
+    """Does the operand's class reach its bases through the Python bridge?
+
+    A class with a Python-side base carries an MRO this unit never modelled --
+    `PyBase(ABC)` in the interop fixtures is exactly that shape -- so which
+    abstract base classes such an instance inhabits is not answerable from the
+    native layout. Only the reduction cares: an archetype arm still answers
+    through the vtable, whose MRO covers the layout-trusted bases.
+    """;
+    arch = self._isinstance_operand_arch(nd, operand);
+    if arch is None {
+        return False;
+    }
+    for cand in self._mro_of(arch) {
+        if self._pyb_base_of(cand) is not None {
+            return True;
+        }
+    }
+    return False;
 }
 
 impl NaIRGenPass._isinstance_type_name(nd: uni.UniNode) -> (str | None) {
@@ -2434,7 +2462,7 @@ impl NaIRGenPass._emit_isinstance_core(
             return _rt_res;
         }
     }
-    names = self._isinstance_target_names(nd, type_arg);
+    names = self._isinstance_target_names(nd, operand, type_arg);
     if names is None {
         return None;
     }

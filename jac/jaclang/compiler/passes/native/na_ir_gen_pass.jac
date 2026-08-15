@@ -502,9 +502,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_isinstance_ptr_tags(operand: ir.Value, tags: list[int]) -> ir.Value;
     def _isinstance_type_name(nd: uni.UniNode) -> (str | None);
     def _isinstance_target_names(
-        nd: uni.FuncCall, type_arg: uni.UniNode
+        nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
     ) -> (list[str] | None);
 
+    def _isinstance_operand_is_pyb(nd: uni.FuncCall, operand: ir.Value) -> bool;
     def _isinstance_abc_reduction(
         type_expr: uni.UniNode, name: str
     ) -> (list[str] | None);

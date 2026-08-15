@@ -166,6 +166,28 @@ test "abc arm: an ABC with no exact reduction refuses instead of guessing" {
 }
 
 
+test "abc arm: a Python-based operand refuses rather than read a partial MRO" {
+    import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
+    prog = JacProgram();
+    na_census_begin();
+    try {
+        prog.compile(
+            file_path=str(os.path.join(FIXTURES, "isinstance_pyb_abc.jac")),
+            options=native_force_opts()
+        );
+    } finally {
+        census = na_census_end();
+    }
+    said = " ".join(
+        str(seam) for rec in census.values() for seam in (rec["seams"] or [])
+    );
+    assert "isinstance against `Sequence`" in said , (
+        "a reducible ABC is only exact while the operand's whole MRO is "
+        f"native; a Python-side base has to refuse it; got: {said}"
+    );
+}
+
+
 test "value arms: a fixed-arity tuple of types unrolls" {
     f = native_fn("chk_types_fixed");
     picks: list = [PyFoo(), PyBar(), PyBaz()];
