@@ -55,6 +55,50 @@ import from jaclang.jac0core.constant { SymbolAccess, Tokens }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.diagnostics { E0064, E0077 }
 
+glob TEST_ASSERT_METHOD_NAMES = (
+         'assertAlmostEqual',
+         'assertCountEqual',
+         'assertDictEqual',
+         'assertEndsWith',
+         'assertEqual',
+         'assertFalse',
+         'assertGreater',
+         'assertGreaterEqual',
+         'assertHasAttr',
+         'assertIn',
+         'assertIs',
+         'assertIsInstance',
+         'assertIsNone',
+         'assertIsNot',
+         'assertIsNotNone',
+         'assertIsSubclass',
+         'assertLess',
+         'assertLessEqual',
+         'assertListEqual',
+         'assertLogs',
+         'assertMultiLineEqual',
+         'assertNoLogs',
+         'assertNotAlmostEqual',
+         'assertNotEndsWith',
+         'assertNotEqual',
+         'assertNotHasAttr',
+         'assertNotIn',
+         'assertNotIsInstance',
+         'assertNotIsSubclass',
+         'assertNotRegex',
+         'assertNotStartsWith',
+         'assertRaises',
+         'assertRaisesRegex',
+         'assertRegex',
+         'assertSequenceEqual',
+         'assertSetEqual',
+         'assertStartsWith',
+         'assertTrue',
+         'assertTupleEqual',
+         'assertWarns',
+         'assertWarnsRegex'
+     );
+
 class SymTabBuildPass(UniPass) {
     has cur_sym_tab: list[UniScopeNode];
 

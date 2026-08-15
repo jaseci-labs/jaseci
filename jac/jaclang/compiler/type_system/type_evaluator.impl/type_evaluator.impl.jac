@@ -3512,6 +3512,15 @@ impl TypeEvaluator._load_stub_module(path: str) -> Module {
 }
 
 impl TypeEvaluator.postinit -> None {
+    import from ast {
+        Assign as PyAssign,
+        Constant as PyConstant,
+        ImportFrom as PyImportFrom,
+        List as PyList,
+        Name as PyName,
+        Tuple as PyTuple,
+        parse as py_parse
+    }
     self._BUILTINS_STUB_FILE_PATH = os.path.join(
         os.path.dirname(__file__), "../../vendor/typeshed/stdlib/builtins.pyi"
     );

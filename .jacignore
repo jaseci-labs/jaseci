@@ -209,7 +209,15 @@ jac/jaclang/jac0core/gen_unitree.jac
 jac/jaclang/jac0core/arena_materialize.jac
 jac/jaclang/compiler/passes/native/linker_common.jac
 jac/jaclang/jac0core/impl/archetype.impl.jac
-jac/jaclang/jac0core/impl/helpers.impl.jac
+# Closure hygiene (#8201): the Jdb debugger and dump_traceback moved out of
+# the (baselined) helpers.jac / impl/helpers.impl.jac pair into their own
+# modules, and their diagnostics moved with them unchanged -- FrameSummary's
+# private _original_line* attrs, `any`-typed *args/**kwargs, and the Unknowns
+# those produce. Same baseline, new home; nothing new was introduced. The
+# tomllib reader moved too and is type-clean, so it needs no entry.
+jac/jaclang/jac0core/debugger.jac
+jac/jaclang/jac0core/impl/debugger.impl.jac
+jac/jaclang/jac0core/traceback_render.jac
 jac/jaclang/jac0core/impl/native_marshal.impl.jac
 jac/jaclang/jac0core/impl/program.impl.jac
 jac/jaclang/jac0core/impl/runtime.impl.jac

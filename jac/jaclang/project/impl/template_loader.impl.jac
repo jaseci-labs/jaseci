@@ -1,7 +1,7 @@
 import from typing { Callable }
 import from pathlib { Path }
 import from jaclang.project.template_registry { ProjectTemplate }
-import from jaclang.jac0core.helpers { read_toml_with_encoding }
+import from jaclang.jac0core.tomlio { read_toml_with_encoding }
 import json;
 import importlib;
 import base64;
