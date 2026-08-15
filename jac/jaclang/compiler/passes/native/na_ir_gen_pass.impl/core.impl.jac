@@ -712,6 +712,9 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         self._register_imported_hierarchy(imported_mod);
     }
 
+    import from jaclang.compiler.passes.main.layout_pass { adopt_imported_bases }
+    adopt_imported_bases(self.ir_in);
+
     for (_, imported_mod) in imported_mods {
         self._walk_imported_module_types(imported_mod);
     }

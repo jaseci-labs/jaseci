@@ -1207,6 +1207,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
     ) -> (ir.Value | None);
 
+    def _read_field_or_refuse(
+        nd: uni.UniNode, obj_val: ir.Value, field_name: str, arch_name: str
+    ) -> (ir.Value | None);
+
+    def _unadopted_field_owner(arch_name: str, field_name: str) -> (str | None);
+    def _emit_field_access_refusal(
+        nd: uni.UniNode, arch_name: str, field_name: str
+    ) -> None;
+
     def _mro_of(arch_name: str) -> list[str];
     def _arch_layout(arch_name: str) -> (ArchetypeLayout | None);
     def _arch_has_vtable(arch_name: str) -> bool;
