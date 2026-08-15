@@ -173,13 +173,17 @@ def adopt_imported_bases(module: Module) -> list[str] {
     a flat ancestor with no vtable under a subclass that needs one -- no
     assignment satisfies both, so the layout is left as it was and the field
     access stays refused.
+
+    Only layouts this module built are eligible: the merge shares the very
+    objects the defining module's registry holds, and reassigning slots in
+    one of those would move a field under the unit that owns it.
     """;
     reg = module.gen.layout_registry;
     if reg is None {
         return [];
     }
     adopted: list[str] = [];
-    for name in reg.get_topo_order() {
+    for name in reg.local_names {
         lay = reg.layouts.get(name);
         if lay is None {
             continue;
@@ -418,6 +422,7 @@ obj LayoutRegistry {
         class_parents: dict[str, list[str]] = {},
         mro_order: dict[str, list[str]] = {},
         topo_order: list[str] = [],
+        local_names: list[str] = [],
         enums: dict[str, EnumLayout] = {};
 
     def get_layout(name: str) -> (ArchetypeLayout | None);
