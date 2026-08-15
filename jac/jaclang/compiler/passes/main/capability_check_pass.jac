@@ -18,6 +18,10 @@ def call_has_kwargs_sink(call: uni.FuncCall) -> bool;
 
 def native_capability_violations(mod: uni.Module) -> list;
 
+def native_capability_demotion_owner(viol_node: uni.UniNode) -> (uni.Ability | None);
+
+def partition_native_capability_violations(viols: list) -> tuple;
+
 obj PortabilityWarnPass(Transform[uni.Module, uni.Module]) {
     has ir_in: uni.Module,
         prog: any,

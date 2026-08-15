@@ -120,15 +120,27 @@ test "scan_native_blockers names the offending node from the table" {
     assert reason == "contains JsxElement" , f"got reason {reason!r}";
 }
 
-test "guardrail: @lru_cache is rejected where a dict cache is not" {
-    dec = check_na_inline(
-        "lru_cache",
-        "import from functools { lru_cache }\n"
+test "guardrail: @lru_cache demotes where a dict cache does not" {
+    import from tests.support { native_force_opts }
+    dec = JacProgram();
+    dec_ir = dec.compile(
+        file_path=os.path.join(FIXTURES, "_idiom_lru_cache.jac"),
+        use_str="import from functools { lru_cache }\n"
         "@lru_cache(maxsize=8)\n"
-        "def twice(n: int) -> int { return n * 2; }\n"
-        "with entry { print(twice(3)); }\n"
+        "def twice(n: int) -> int { return n * 2; }\n",
+        options=native_force_opts()
     );
-    assert has_error_code(dec, "E5090") , f"expected E5090, got {fmt_errors(dec)}";
+    assert not has_error_code(dec, "E5090") , (
+        f"a dynamically-decorated function must demote to its Python "
+        f"implementation (which applies @lru_cache), got {fmt_errors(dec)}"
+    );
+    assert dec_ir.gen.native_layout is not None , (
+        "whole-module native compile aborted"
+    );
+    assert "twice" not in dec_ir.gen.native_layout.functions , (
+        "the @lru_cache function must be demoted out of the native layout, "
+        "never run undecorated"
+    );
     memo = check_na_inline(
         "dict_memo",
         "glob _MEMO: dict[int, int] = {};\n"

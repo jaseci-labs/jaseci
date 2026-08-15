@@ -545,15 +545,99 @@ impl native_capability_violations(mod: uni.Module) -> list {
     return out;
 }
 
+impl native_capability_demotion_owner(viol_node: uni.UniNode) -> (uni.Ability | None) {
+    _owner: (uni.Ability | None) = (
+        viol_node if isinstance(viol_node, uni.Ability) else None
+    );
+    _cur: uni.UniNode = viol_node;
+    while True {
+        _nxt = _cur.find_parent_of_type(uni.Ability);
+        if _nxt is None {
+            _impl = _cur.find_parent_of_type(uni.ImplDef);
+            if (
+                _impl is not None
+                and isinstance(_impl.decl_link, uni.Ability)
+                and _impl.decl_link is not _cur
+            ) {
+                _nxt = _impl.decl_link;
+            }
+        }
+        if _nxt is None {
+            break;
+        }
+        _owner = _nxt;
+        _cur = _nxt;
+    }
+    if _owner is None {
+        return None;
+    }
+    _sig = _owner.signature;
+    _method_owner = _owner.method_owner;
+    if _method_owner is not None {
+        if not isinstance(_method_owner, uni.Archetype) {
+            return None;
+        }
+        if isinstance(_sig, uni.EventSignature) {
+            return _owner;
+        }
+        if not isinstance(_sig, uni.FuncSignature) {
+            return None;
+        }
+        _mname = _owner.name_ref.sym_name if _owner.name_ref else "";
+        if _mname in ("init", "__init__", "postinit", "__post_init__") {
+            return None;
+        }
+        return _owner;
+    }
+    if isinstance(_sig, uni.FuncSignature) and isinstance(_owner.parent, uni.Module) {
+        return _owner;
+    }
+    return None;
+}
+
+impl partition_native_capability_violations(viols: list) -> tuple {
+    _fatal: list = [];
+    _demotable: dict[int, list] = {};
+    for _v in viols {
+        _owner = native_capability_demotion_owner(_v[0]);
+        if _owner is None {
+            (_vnode, _vkind, _vname, _vhelp) = _v;
+            _note = (
+                "No owning method or function can absorb this construct as a "
+                "native seam, so the whole module refuses to lower."
+            );
+            _fatal.append(
+                (_vnode, _vkind, _vname, f"{_vhelp} {_note}" if _vhelp else _note, )
+            );
+        } else {
+            _key = id(_owner);
+            if _key not in _demotable {
+                _demotable[_key] = [];
+            }
+            _demotable[_key].append(_v);
+        }
+    }
+    return (_fatal, _demotable, );
+}
+
 impl NativeCapabilityCheckPass.postinit -> None {
     super.postinit();
 }
 
 impl NativeCapabilityCheckPass.transform(ir_in: uni.Module) -> uni.Module {
-    for (_vnode, _vkind, _vname, _vhelp) in native_capability_violations(ir_in) {
-        self.emit(
-            E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
-        );
+    (_fatal_viols, _demotable) = partition_native_capability_violations(
+        native_capability_violations(ir_in)
+    );
+    if _fatal_viols {
+        _report = list(_fatal_viols);
+        for _unit_viols in _demotable.values() {
+            _report.extend(_unit_viols);
+        }
+        for (_vnode, _vkind, _vname, _vhelp) in _report {
+            self.emit(
+                E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
+            );
+        }
     }
     ir_in.gen.native_viols_reported = True;
     return ir_in;
