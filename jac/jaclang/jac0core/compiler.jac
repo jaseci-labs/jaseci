@@ -455,6 +455,19 @@ def get_type_check_sched(
     );
 }
 
+def typeshed_stubs_available -> bool {
+    return os.path.exists(
+        os.path.join(
+            os.path.dirname(__file__),
+            '..',
+            'vendor',
+            'typeshed',
+            'stdlib',
+            'builtins.pyi'
+        )
+    );
+}
+
 def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     if _typecheck_sched_loading.get() {
         return [];
@@ -465,15 +478,7 @@ def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
 
         import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 
-        stub_path = os.path.join(
-            os.path.dirname(__file__),
-            '..',
-            'vendor',
-            'typeshed',
-            'stdlib',
-            'builtins.pyi'
-        );
-        if not os.path.exists(stub_path) {
+        if not typeshed_stubs_available() {
             return [];
         }
         return validate_schedule([TypeInferencePass], origin='inference schedule');
@@ -500,7 +505,7 @@ def native_pipeline_available -> tuple[bool, str] {
         return (True, '');
     }
     reason = '';
-    if not get_inference_sched() {
+    if not typeshed_stubs_available() {
         reason = (
             'native pipeline unavailable: type inference '
             + '(vendor/typeshed stubs) is not available in this environment'
@@ -510,6 +515,12 @@ def native_pipeline_available -> tuple[bool, str] {
         try {
             import from jaclang.compiler.passes.native.llvm.binding.ffi { _find_shim }
             _find_shim();
+        } except ImportError as e {
+            fail_loud_on_compiler_source(e);
+            return (
+                False,
+                'native pipeline undecided: the compiler is still initializing'
+            );
         } except Exception {
             reason = (
                 'native pipeline unavailable: LLVM shim (libjacllvm) '
