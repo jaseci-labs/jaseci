@@ -24,39 +24,35 @@ impl GraphBreakDetectPass.before_pass -> None {
         self._mat_seen,
         wrapped
     );
-    if self.prog.graphmend_scoped_compile {
-        self._whole_module = True;
-        for ab in self.ir_in.get_all_sub_nodes(uni.Ability) {
-            if id(ab) in self._entry_ids {
-                self._whole_module = False;
-                break;
-            }
+    members: list[uni.UniNode] = [];
+    members.extend(self.ir_in.get_all_sub_nodes(uni.Ability));
+    members.extend(self.ir_in.get_all_sub_nodes(uni.Archetype));
+    local = False;
+    for member in members {
+        if id(member) in self._entry_ids {
+            local = True;
+            break;
         }
     }
-    if (not self._entry_ids) and (not self._whole_module) {
+    if not local {
         self._enabled = False;
         self.prune_signal = True;
         return;
     }
     self._spine_ids = set();
-    if not self._whole_module {
-        members: list[uni.UniNode] = [];
-        members.extend(self.ir_in.get_all_sub_nodes(uni.Ability));
-        members.extend(self.ir_in.get_all_sub_nodes(uni.Archetype));
-        for member in members {
-            if id(member) in self._entry_ids {
-                cur: (uni.UniNode | None) = member.parent;
-                while cur is not None {
-                    self._spine_ids.add(id(cur));
-                    cur = cur.parent;
-                }
+    for member in members {
+        if id(member) in self._entry_ids {
+            cur: (uni.UniNode | None) = member.parent;
+            while cur is not None {
+                self._spine_ids.add(id(cur));
+                cur = cur.parent;
             }
         }
     }
 }
 
 impl GraphBreakDetectPass.enter_ability(nd: uni.Ability) -> None {
-    if (not self._enabled) or self._whole_module {
+    if not self._enabled {
         return;
     }
     if (id(nd) in self._entry_ids) or (id(nd) in self._spine_ids) {
@@ -151,9 +147,6 @@ impl GraphBreakDetectPass._var_assignment(
 }
 
 impl GraphBreakDetectPass._in_torch_compiled_scope(nd: uni.UniNode) -> bool {
-    if self._whole_module {
-        return True;
-    }
     cur = nd.parent;
     while cur {
         if id(cur) in self._entry_ids {
