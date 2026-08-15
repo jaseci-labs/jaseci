@@ -1,8 +1,8 @@
-import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind }
 import from jaclang.compiler.passes.main.graphmend.ast_edit { split_params }
 import from jaclang.compiler.passes.main.graphmend.scope_facts {
+    body_is_only,
     compiled_region_ids,
     entry_key,
     find_ability,
@@ -292,18 +292,9 @@ impl GraphBreakDetectPass.enter_if_stmt(nd: uni.IfStmt) -> None {
     if not cond_is_data_dependent(nd.condition) {
         return;
     }
-    if self._body_is_only_raise(nd.body) {
+    if body_is_only(nd.body, uni.RaiseStmt) {
         self.prog.graphmend_breaks[nd] = GraphBreakKind.VAL_GUARD;
     } else {
         self.prog.graphmend_breaks[nd] = GraphBreakKind.DYN_CTRL_FL;
     }
-}
-
-impl GraphBreakDetectPass._body_is_only_raise(
-    body: Sequence[uni.CodeBlockStmt]
-) -> bool {
-    if (not body) or (len(body) != 1) {
-        return False;
-    }
-    return isinstance(body[0], uni.RaiseStmt);
 }

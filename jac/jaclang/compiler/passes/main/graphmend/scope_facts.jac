@@ -845,7 +845,7 @@ def attr_dict_kind(arch: uni.Archetype, attr: str) -> (str | None) {
             if _body_raises(stmt) and (_negated_dict_isinstance_attr(stmt) == attr) {
                 is_dict = True;
             }
-            if _body_is_only_return(stmt)
+            if body_is_only(stmt.body, uni.ReturnStmt)
                 and (_is_none_check_attr(stmt.condition) == attr) {
                 or_none = True;
             }
@@ -874,6 +874,11 @@ def _init_reachable(arch: uni.Archetype, ctor: uni.Ability) -> list[uni.Ability]
     return out;
 }
 
+def body_is_only(body: any, typ: any) -> bool {
+    stmts = body or [];
+    return (len(stmts) == 1) and isinstance(stmts[0], typ);
+}
+
 def _body_raises(stmt: uni.IfStmt) -> bool {
     for s in (stmt.body or []) {
         if isinstance(s, uni.RaiseStmt) {
@@ -881,11 +886,6 @@ def _body_raises(stmt: uni.IfStmt) -> bool {
         }
     }
     return False;
-}
-
-def _body_is_only_return(stmt: uni.IfStmt) -> bool {
-    body = stmt.body or [];
-    return (len(body) == 1) and isinstance(body[0], uni.ReturnStmt);
 }
 
 def _negated_dict_isinstance_attr(stmt: uni.IfStmt) -> (str | None) {
