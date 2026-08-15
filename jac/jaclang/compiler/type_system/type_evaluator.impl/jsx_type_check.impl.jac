@@ -1,7 +1,7 @@
 glob _JSX_RESERVED_ATTRS: set[str] = {"key", "ref"};
 
 
-impl TypeEvaluator._is_mobui_module(nd: uni.UniNode) -> bool {
+impl TypeEvaluator._is_mobui_module(nd: UniNode) -> bool {
     mod_path = nd.loc.mod_path if nd.loc else "";
     if not mod_path {
         return False;
@@ -20,7 +20,7 @@ impl TypeEvaluator._is_mobui_module(nd: uni.UniNode) -> bool {
     return self._mobui_module_cache[mod_path];
 }
 
-impl TypeEvaluator._is_compose_module(nd: uni.UniNode) -> bool {
+impl TypeEvaluator._is_compose_module(nd: UniNode) -> bool {
     opts = self.program._compile_options;
     if getattr(opts, "client_framework", "") == "compose" {
         return True;
@@ -43,16 +43,16 @@ impl TypeEvaluator._is_compose_module(nd: uni.UniNode) -> bool {
 }
 
 impl TypeEvaluator._resolve_jsx_component_type(
-    name: uni.JsxElementName
-) -> types.FunctionType | None {
+    name: JsxElementName
+) -> FunctionType | None {
     if not name.parts {
         return None;
     }
     first_part = name.parts[0];
     component_name = "";
-    if isinstance(first_part, uni.Name) {
+    if isinstance(first_part, Name) {
         component_name = first_part.value or "";
-    } elif isinstance(first_part, uni.Token) {
+    } elif isinstance(first_part, Token) {
         component_name = first_part.value or "";
     }
     if not component_name {
@@ -63,26 +63,26 @@ impl TypeEvaluator._resolve_jsx_component_type(
         return None;
     }
 
-    sym: uni.Symbol | None = None;
-    if isinstance(first_part, uni.Name) and first_part.sym {
+    sym: Symbol | None = None;
+    if isinstance(first_part, Name) and first_part.sym {
         sym = first_part.sym;
     }
     if sym is not None {
         sym_type = self.get_type_of_symbol(sym);
-        if isinstance(sym_type, types.FunctionType) {
+        if isinstance(sym_type, FunctionType) {
             return sym_type;
         }
     }
     return None;
 }
 
-impl TypeEvaluator._get_intrinsic_props_type(tag_name: str) -> types.ClassType | None {
+impl TypeEvaluator._get_intrinsic_props_type(tag_name: str) -> ClassType | None {
     registry = self.prefetch.jsx_intrinsic_elements_class if self.prefetch else None;
     if registry is not None {
         member = self._lookup_class_member(registry, tag_name);
         if member is not None {
             member_type = self.get_type_of_symbol(member.symbol);
-            if isinstance(member_type, types.ClassType) {
+            if isinstance(member_type, ClassType) {
                 return member_type;
             }
         }
@@ -94,7 +94,7 @@ impl TypeEvaluator._get_intrinsic_props_type(tag_name: str) -> types.ClassType |
     return None;
 }
 
-impl TypeEvaluator._resolve_intrinsic_jsx_tag(part: uni.Name, tag_name: str) -> None {
+impl TypeEvaluator._resolve_intrinsic_jsx_tag(part: Name, tag_name: str) -> None {
     registry = self.prefetch.jsx_intrinsic_elements_class if self.prefetch else None;
     if registry is not None {
         member = self._lookup_class_member(registry, tag_name);
@@ -112,14 +112,14 @@ impl TypeEvaluator._resolve_intrinsic_jsx_tag(part: uni.Name, tag_name: str) -> 
 }
 
 impl TypeEvaluator._validate_jsx_props(
-    expr: uni.JsxElement, expected_type: TypeBase | None = None
+    expr: JsxElement, expected_type: TypeBase | None = None
 ) -> None {
     if not expr.name {
         return;
     }
 
     parent = expr.parent;
-    if isinstance(parent, uni.JsxElement) {
+    if isinstance(parent, JsxElement) {
         siblings = parent.children or [];
         if not any([sib is expr for sib in siblings]) {
             return;
@@ -133,9 +133,7 @@ impl TypeEvaluator._validate_jsx_props(
     if not first_part {
         return;
     }
-    tag_name = first_part.value
-        if isinstance(first_part, (uni.Name, uni.Token))
-        else "";
+    tag_name = first_part.value if isinstance(first_part, (Name, Token)) else "";
     if self._is_mobui_module(expr) {
         func_type = self._resolve_jsx_component_type(expr.name);
         if func_type is not None {
@@ -152,16 +150,14 @@ impl TypeEvaluator._validate_jsx_props(
 }
 
 impl TypeEvaluator._validate_component_jsx_props(
-    expr: uni.JsxElement,
-    component_name: str,
-    func_type: types.FunctionType | None = None
+    expr: JsxElement, component_name: str, func_type: FunctionType | None = None
 ) -> None {
     func_type = func_type or self._resolve_jsx_component_type(expr.name);
     if not func_type or not func_type.parameters {
         return;
     }
 
-    param_map: dict[str, types.Parameter] = {};
+    param_map: dict[str, Parameter] = {};
     for param in func_type.parameters {
         if not param.is_self and not param.is_cls {
             param_map[param.name] = param;
@@ -172,26 +168,21 @@ impl TypeEvaluator._validate_component_jsx_props(
     if len(param_map) == 1 and "props" in param_map {
         props_type = param_map["props"].param_type;
 
-        is_any_class = (
-            self.prefetch is not None
-            and self.prefetch.any_class is not None
-            and isinstance(props_type, types.ClassType)
-            and props_type.shared == self.prefetch.any_class.shared
-        );
+        is_any_class = props_type is not None and props_type.is_any_instance();
         if (
             props_type is None
-            or isinstance(props_type, (types.AnyType, types.UnknownType))
+            or isinstance(props_type, (AnyType, UnknownType))
             or is_any_class
         ) {
             return;
         }
-        if isinstance(props_type, types.ClassType) {
+        if isinstance(props_type, ClassType) {
             for attr in expr.attributes {
-                if not isinstance(attr, uni.JsxNormalAttribute) {
+                if not isinstance(attr, JsxNormalAttribute) {
                     continue;
                 }
                 attr_name = attr.name.value
-                    if isinstance(attr.name, (uni.Name, uni.Token))
+                    if isinstance(attr.name, (Name, Token))
                     else str(attr.name);
                 if attr_name in _JSX_RESERVED_ATTRS {
                     continue;
@@ -211,7 +202,7 @@ impl TypeEvaluator._validate_component_jsx_props(
                         attr.value, expected_type=member_type
                     );
                     if (
-                        not isinstance(attr_type, (types.UnknownType, types.AnyType))
+                        not isinstance(attr_type, (UnknownType, AnyType))
                         and not self.assign_type(attr_type, member_type)
                     ) {
                         self.emit_diag(
@@ -230,9 +221,9 @@ impl TypeEvaluator._validate_component_jsx_props(
     }
 
     for attr in expr.attributes {
-        if isinstance(attr, uni.JsxNormalAttribute) {
+        if isinstance(attr, JsxNormalAttribute) {
             attr_name = attr.name.value
-                if isinstance(attr.name, (uni.Name, uni.Token))
+                if isinstance(attr.name, (Name, Token))
                 else str(attr.name);
             if attr_name in _JSX_RESERVED_ATTRS {
                 continue;
@@ -249,7 +240,7 @@ impl TypeEvaluator._validate_component_jsx_props(
                 );
 
                 if (
-                    not isinstance(attr_type, (types.UnknownType, types.AnyType))
+                    not isinstance(attr_type, (UnknownType, AnyType))
                     and not self.assign_type(attr_type, matched_param.param_type)
                 ) {
                     self.emit_diag(
@@ -261,9 +252,9 @@ impl TypeEvaluator._validate_component_jsx_props(
                     );
                 }
             }
-        } elif isinstance(attr, uni.JsxSpreadAttribute) {
+        } elif isinstance(attr, JsxSpreadAttribute) {
             spread_type = self.get_type_of_expression(attr.expr);
-            if isinstance(spread_type, types.ClassType) {
+            if isinstance(spread_type, ClassType) {
                 if (
                     self.prefetch
                     and self.prefetch.dict_class
@@ -277,7 +268,7 @@ impl TypeEvaluator._validate_component_jsx_props(
                         E1104, attr, actual=str(spread_type), component=component_name
                     );
                 }
-            } elif not isinstance(spread_type, (types.AnyType, types.UnknownType)) {
+            } elif not isinstance(spread_type, (AnyType, UnknownType)) {
                 self.emit_diag(
                     E1104, attr, actual=str(spread_type), component=component_name
                 );
@@ -300,7 +291,7 @@ impl TypeEvaluator._validate_component_jsx_props(
 }
 
 impl TypeEvaluator._compose_children_target(
-    expr: uni.JsxElement, component_name: str, param_map: dict[str, types.Parameter]
+    expr: JsxElement, component_name: str, param_map: dict[str, Parameter]
 ) -> (str | None) {
     if not self._jsx_has_content_children(expr) {
         return None;
@@ -317,31 +308,31 @@ impl TypeEvaluator._compose_children_target(
     return target;
 }
 
-impl TypeEvaluator._returns_composable(func_type: types.FunctionType) -> bool {
+impl TypeEvaluator._returns_composable(func_type: FunctionType) -> bool {
     rt = func_type.return_type;
-    if not isinstance(rt, types.ClassType) {
+    if not isinstance(rt, ClassType) {
         return False;
     }
     comp = self._get_type_from_module(self.jac_builtins_module, "Composable");
-    return isinstance(comp, types.ClassType) and rt.shared == comp.shared;
+    return isinstance(comp, ClassType) and rt.shared == comp.shared;
 }
 
-impl TypeEvaluator._is_compose_slot_param(p: types.Parameter) -> bool {
-    if not isinstance(p.param_type, types.FunctionType) {
+impl TypeEvaluator._is_compose_slot_param(p: Parameter) -> bool {
+    if not isinstance(p.param_type, FunctionType) {
         return False;
     }
     ret = p.param_type.return_type;
     return ret is not None and not self.is_none_type(ret);
 }
 
-impl TypeEvaluator._jsx_has_content_children(expr: uni.JsxElement) -> bool {
+impl TypeEvaluator._jsx_has_content_children(expr: JsxElement) -> bool {
     for child in (expr.children or []) {
-        if isinstance(child, uni.JsxElement) or isinstance(child, uni.JsxExpression) {
+        if isinstance(child, JsxElement) or isinstance(child, JsxExpression) {
             return True;
         }
-        if isinstance(child, uni.JsxText) {
+        if isinstance(child, JsxText) {
             val = child.value.value
-                if isinstance(child.value, uni.Token)
+                if isinstance(child.value, Token)
                 else child.value;
             if isinstance(val, str) and val.strip() {
                 return True;
@@ -352,16 +343,16 @@ impl TypeEvaluator._jsx_has_content_children(expr: uni.JsxElement) -> bool {
 }
 
 impl TypeEvaluator._validate_intrinsic_jsx_props(
-    expr: uni.JsxElement, tag_name: str
+    expr: JsxElement, tag_name: str
 ) -> None {
     props_class = self._get_intrinsic_props_type(tag_name);
     if not props_class {
         return;
     }
     for attr in expr.attributes {
-        if isinstance(attr, uni.JsxNormalAttribute) {
+        if isinstance(attr, JsxNormalAttribute) {
             attr_name = attr.name.value
-                if isinstance(attr.name, (uni.Name, uni.Token))
+                if isinstance(attr.name, (Name, Token))
                 else str(attr.name);
 
             member = self._lookup_class_member(props_class, attr_name);
@@ -376,7 +367,7 @@ impl TypeEvaluator._validate_intrinsic_jsx_props(
                 );
 
                 if (
-                    not isinstance(attr_type, (types.UnknownType, types.AnyType))
+                    not isinstance(attr_type, (UnknownType, AnyType))
                     and not self.assign_type(attr_type, member_type)
                 ) {
                     self.emit_diag(
@@ -388,11 +379,11 @@ impl TypeEvaluator._validate_intrinsic_jsx_props(
                     );
                 }
             }
-        } elif isinstance(attr, uni.JsxSpreadAttribute) {
+        } elif isinstance(attr, JsxSpreadAttribute) {
             spread_type = self.get_type_of_expression(attr.expr);
             if (
-                not isinstance(spread_type, (types.AnyType, types.UnknownType))
-                and isinstance(spread_type, types.ClassType)
+                not isinstance(spread_type, (AnyType, UnknownType))
+                and isinstance(spread_type, ClassType)
                 and self.prefetch
                 and self.prefetch.dict_class
                 and spread_type.shared != self.prefetch.dict_class.shared

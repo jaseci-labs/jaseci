@@ -213,7 +213,7 @@ impl NaIRGenPass._static_str_struct_const(data: bytes) -> tuple {
     arr_type = ir.ArrayType(i8, len(data));
     struct_type = ir.LiteralStructType([i64, i64, arr_type]);
     sentinel_val = ir.Constant(i64, RC_SENTINEL);
-    tagged_len = ir.Constant(i64, ((len(data) - 1) << 1) | 1);
+    tagged_len = ir.Constant(i64, str_len_tag(len(data) - 1));
     c_str = ir.Constant(arr_type, bytearray(data));
     return (struct_type, ir.Constant(struct_type, [sentinel_val, tagged_len, c_str]), );
 }
@@ -672,11 +672,27 @@ impl NaIRGenPass._codegen_fstring(nd: uni.FString) -> (ir.Value | None) {
 }
 
 impl NaIRGenPass._codegen_string_index(
-    target_val: ir.Value, index_val: ir.Value
+    target_val: ir.Value, index_val: ir.Value, len_val: (ir.Value | None) = None
 ) -> (ir.Value | None) {
     i32 = ir.IntType(32);
     i64 = ir.IntType(64);
 
+    if len_val is not None {
+        b = self.builder;
+        zero = ir.Constant(i64, 0);
+        index_val = self._coerce_type(index_val, i64);
+        _neg = b.icmp_signed("<", index_val, zero, name="char.neg");
+        index_val = b.select(
+            _neg,
+            b.add(index_val, len_val, name="char.wrap"),
+            index_val,
+            name="char.idx.norm"
+        );
+        _lo = b.icmp_signed("<", index_val, zero, name="char.oob.lo");
+        _hi = b.icmp_signed(">=", index_val, len_val, name="char.oob.hi");
+        _oob = b.or_(_lo, _hi, name="char.oob");
+        self._emit_runtime_raise(_oob, "IndexError", "string index out of range");
+    }
     char_ptr = self.builder.gep(target_val, [index_val], name="char.ptr");
     char_val = self.builder.load(char_ptr, name="char.val");
     byte_idx = self.builder.zext(char_val, i64, name="char.idx");

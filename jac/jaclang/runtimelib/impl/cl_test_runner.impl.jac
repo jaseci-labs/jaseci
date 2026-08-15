@@ -286,7 +286,6 @@ impl _serve_in_background(server_entry: str, base_path: str) -> Iterator[int] {
 
     env = dict(os.environ);
     env["JAC_DATA_PATH"] = base_path;
-    env.pop("MONGODB_URI", None);
 
     log_path = Path(base_path) / "cl_test_server.log";
     logf = open(str(log_path), "w+", encoding="utf-8");
@@ -573,7 +572,19 @@ impl module_is_client(filepath: str) -> bool {
         );
         result = mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
-    } except Exception {
+    } except Exception as probe_exc {
+        try {
+            os.write(
+                2,
+                (
+                    f"jac: client-codespace probe failed for {path}; "
+                    f"treating as server: {type(probe_exc).__name__}: "
+                    f"{probe_exc}\n"
+                ).encode(
+                    "utf-8", "replace"
+                )
+            );
+        } except OSError { }
         result = False;
     }
     _COLOR_CACHE[path] = result;

@@ -45,3 +45,11 @@ def load_library_permanently(filename: Any) -> object {
         }
     }
 }
+
+with entry {
+    ffi.lib.LLVMPY_AddSymbol.argtypes = [c_char_p, c_void_p];
+    ffi.lib.LLVMPY_SearchAddressOfSymbol.argtypes = [c_char_p];
+    ffi.lib.LLVMPY_SearchAddressOfSymbol.restype = c_void_p;
+    ffi.lib.LLVMPY_LoadLibraryPermanently.argtypes = [c_char_p, POINTER(c_char_p)];
+    ffi.lib.LLVMPY_LoadLibraryPermanently.restype = c_bool;
+}

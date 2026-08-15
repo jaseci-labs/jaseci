@@ -162,6 +162,30 @@ test "arithmetic multiply" {
     assert mul(0, 999) == 0;
 }
 
+# Regression: CPython floor semantics for negative //, %, and divmod on native.
+test "negative floor divmod" {
+    (eng, _) = compile_native("neg_divmod.jac");
+    fd = get_func(eng, "floordiv", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert fd(-6, 4) == -2;
+    assert fd(6, -4) == -2;
+    assert fd(-6, -4) == 1;
+    im = get_func(eng, "intmod", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert im(-6, 4) == 2;
+    assert im(6, -4) == -2;
+    assert im(-6, -4) == -2;
+    dq = get_func(eng, "divmod_quot", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    dr = get_func(eng, "divmod_rem", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert dq(-6, 4) == -2;
+    assert dr(-6, 4) == 2;
+    ff = get_func(
+        eng, "float_floordiv", ctypes.c_double, ctypes.c_double, ctypes.c_double
+    );
+    assert abs(ff(-6.0, 4.0) - (-2.0)) < 1e-10;
+    fm = get_func(eng, "float_mod", ctypes.c_double, ctypes.c_double, ctypes.c_double);
+    assert abs(fm(-6.5, 2.5) - 1.0) < 1e-10;
+    assert abs(fm(7.5, -2.0) - (-0.5)) < 1e-10;
+}
+
 # Regression: sub-64-bit integer arithmetic must run at the operands'
 # true width, not force i64 overflow intrinsics (i32/i16/i8 kernels).
 test "arithmetic narrow int width" {
@@ -184,6 +208,17 @@ test "arithmetic true division" {
     fd = get_func(eng, "floordiv", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
     assert fd(3, 4) == 0;
     assert fd(7, 2) == 3;
+    assert fd(-6, 4) == -2;
+    assert fd(6, -4) == -2;
+    assert fd(-6, -4) == 1;
+    im = get_func(eng, "intmod", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert im(-6, 4) == 2;
+    assert im(6, -4) == -2;
+    assert im(-6, -4) == -2;
+    dq = get_func(eng, "divmod_quot", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    dr = get_func(eng, "divmod_rem", ctypes.c_int64, ctypes.c_int64, ctypes.c_int64);
+    assert dq(-6, 4) == -2;
+    assert dr(-6, 4) == 2;
 }
 
 # --- Function pointers in struct fields (the OSP dispatch-slot shape) ---
@@ -288,8 +323,10 @@ test "native partial class: demotion warns on the terminal by default (#6934)" {
 
 test "native partial class: native caller of a demoted method errors, not silent" {
     # A method demoted to Python-only is not callable from native code: the
-    # native pathway cannot fall back to Python mid-stream. A native call site
-    # must surface E5090 (loud) instead of silently dropping to a null result.
+    # native pathway cannot fall back to Python mid-stream. The free function
+    # that calls it cascades into a seam of its own (granular demotion), and
+    # the module entry that calls THAT function stays a loud E5092 naming its
+    # call site instead of silently dropping to a null result.
     prog = JacProgram();
     prog.compile(
         file_path=str(os.path.join(FIXTURES, "partial_native_native_caller.jac")),
@@ -301,21 +338,23 @@ test "native partial class: native caller of a demoted method errors, not silent
         if e.code
     ];
     assert "E5092" in codes , (
-        f"expected E5092 for native call to a demoted method, got {codes}"
+        f"expected E5092 for the native call chain into a demoted method, "
+        f"got {codes}"
     );
-    # The diagnostic names the call site (the method), not the discarded
-    # eval body that was demoted away.
+    # The diagnostic names the demoted callable at the surviving call site,
+    # not the discarded eval body that was demoted away.
     msgs = " ".join(str(e) for e in (prog.errors_had or []));
-    assert "Box.evaluate" in msgs , f"E5092 should name Box.evaluate, got: {msgs}";
+    assert "call_evaluate" in msgs , (f"E5092 should name call_evaluate, got: {msgs}");
 }
 
-test "native partial class: un-lowerable virtual method stays a hard error" {
-    # `render` is virtual (Base + Derived override -> vtable slot). A virtual
-    # method the backend cannot lower must NOT be demoted: native polymorphic
-    # dispatch cannot fall back to Python, and demoting it would leave a
-    # dangling vtable index / abort-stub slot. So the eval gap stays E5090.
+test "native partial class: un-lowerable virtual method demotes to a stub slot" {
+    # `render` is virtual (Base + Derived override -> vtable slot). An
+    # un-lowerable virtual now demotes like any other method: its vtable
+    # slot keeps the abort() stub so native dispatch that reaches it fails
+    # loudly, the function is excluded from the exported layout, and the
+    # module still lowers (#6930 W4).
     prog = JacProgram();
-    prog.compile(
+    ir_mod = prog.compile(
         file_path=str(os.path.join(FIXTURES, "partial_native_virtual.jac")),
         options=native_force_opts()
     );
@@ -324,9 +363,14 @@ test "native partial class: un-lowerable virtual method stays a hard error" {
         for e in (prog.errors_had or [])
         if e.code
     ];
-    assert "E5092" in codes , (
-        f"expected E5092 for un-lowerable virtual method, got {codes}"
+    assert codes == [] , (f"virtual demotion must not leave hard errors, got {codes}");
+    assert ir_mod is not None and ir_mod.gen.llvm_ir is not None;
+    layout = ir_mod.gen.native_layout;
+    assert layout is not None;
+    assert "Derived.render" not in layout.methods , (
+        "demoted virtual must not be exported in the layout"
     );
+    assert "Base.render" in layout.methods;
 }
 
 test "arithmetic negate" {
@@ -368,6 +412,9 @@ test "arithmetic f32 promotion binops" {
         eng, "mixed_floordiv", ctypes.c_double, ctypes.c_float, ctypes.c_double
     );
     assert mf(5.5, 2.0) == 2.0;
+    nf = get_func(eng, "neg_fmod", ctypes.c_double, ctypes.c_double, ctypes.c_double);
+    assert abs(nf(-6.5, 2.5) - 1.0) < 1e-10;
+    assert abs(nf(7.5, -2.0) - (-0.5)) < 1e-10;
     fi = get_func(eng, "f32_int_add", ctypes.c_double, ctypes.c_float, ctypes.c_int64);
     assert fi(1.5, 2) == 3.5;
 }
@@ -4954,6 +5001,20 @@ test "lambda closure as scaler" {
     assert f(7, -2) == -14 , f"Expected -14, got {f(7, -2)}";
 }
 
+# --- Multi-statement lambda callback parity (P2 cross-target probe) ---
+test "multi-statement lambda map callback (native inline lowering)" {
+    (eng, _) = compile_native("lambda_multi_stmt_callback.jac");
+    f = get_func(eng, "map_multi_stmt_callback", ctypes.c_int64);
+    assert f() == 18 , f"Expected 18 from sum of (x+1)*2 over [1,2,3], got {f()}";
+}
+
+test "multi-statement lambda sort key callback (native inline lowering)" {
+    (eng, _) = compile_native("lambda_multi_stmt_callback.jac");
+    f = get_func(eng, "sort_multi_stmt_key", ctypes.c_int64);
+    # keys: 31->1, 12->2, 23->3 => sorted order [31, 12, 23]
+    assert f() == 3243 , f"Expected 3243 (31*100+12*10+23), got {f()}";
+}
+
 # ─── Symbol Collision Detection ───────────────────────────────────────────────
 # Before the fix, when two imported native modules both exported a symbol with
 # the same name, link_in() would silently merge them and produce a binary that
@@ -5742,4 +5803,22 @@ test "native positional construction maps has fields (parity with sv)" {
     assert vec_mix(1.5, 3.25) == 153.25 , f"Expected 153.25, got {vec_mix(1.5, 3.25)}";
     label_count = get_func(eng, "label_count", ctypes.c_int64, ctypes.c_int64);
     assert label_count(9) == 12 , f"Expected 12, got {label_count(9)}";
+}
+
+# ─── #8090: inherited postinit must run on cross-module construction ─────────
+# `Leaf` inherits its postinit from `Mid` in an imported module (the unitree
+# `ElseIf(IfStmt)` shape). The constructor resolves the postinit owner along
+# the MRO exactly like an inherited `init`; before the fix the exact-name
+# lookup missed in the importing module, the chain never ran, and the
+# postinit-set field read back as its zero default.
+test "cross-module construction runs an inherited postinit chain" {
+    (eng, _) = compile_native("postinit_inherited_xmod_main.jac");
+    make_leaf = get_func(eng, "make_leaf", ctypes.c_int64);
+    assert make_leaf() == 42 , f"Expected 42, got {make_leaf()}";
+}
+
+test "cross-module construction runs an own postinit" {
+    (eng, _) = compile_native("postinit_inherited_xmod_main.jac");
+    make_mid = get_func(eng, "make_mid", ctypes.c_int64);
+    assert make_mid() == 42 , f"Expected 42, got {make_mid()}";
 }

@@ -1,6 +1,7 @@
 import os;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
+import from jaclang.jac0core.diagnostics { DiagnosticInfo }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.placement {
     get_module_summary,
@@ -129,6 +130,16 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
         _is_demoted_native,
         native_pipeline_available
     }
+
+    try {
+        import from jaclang.project.config { get_config }
+        _cfg = get_config();
+        if (_cfg is not None and getattr(_cfg?.project, 'kind', '') == 'web-app') {
+            return (False, "web-app project: native is opt-in");
+        }
+    } except Exception {
+        ;
+    }
     (env_ok, env_reason) = native_pipeline_available();
     if not env_ok {
         return (False, env_reason);
@@ -149,6 +160,11 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
         return (False, "import-closure (sv dep or cap)");
     }
     return (True, '');
+}
+
+def _endpoint_veto_applies(module: uni.Module) -> bool {
+    import from jaclang.jac0core.placement { project_has_server }
+    return project_has_server(module.loc.mod_path or '');
 }
 
 def _top_element(module: uni.Module, nd: uni.UniNode) -> (uni.UniNode | None) {
@@ -222,7 +238,9 @@ def _pullable_by_client_reference(
         return True;
     }
     if isinstance(elem, uni.Ability) {
-        return elem.access is None or not is_server_anchored_module(module);
+        return elem.access is None
+            or not _endpoint_veto_applies(module)
+            or not is_server_anchored_module(module);
     }
     return True;
 }
@@ -348,6 +366,7 @@ def _closure_pullable(
     if (
         isinstance(top, uni.Ability)
         and top.access is not None
+        and _endpoint_veto_applies(module)
         and is_server_anchored_module(module)
     ) {
         return False;
@@ -651,7 +670,9 @@ def solve_module_placement(
     return stamp_count[0];
 }
 
-def _emit_solver_warning(prog: any, diag: any, nd: uni.UniNode, **kwargs: any) {
+def _emit_solver_warning(
+    prog: any, diag: DiagnosticInfo, nd: uni.UniNode, **kwargs: any
+) {
     import from jaclang.jac0core.passes.transform { Alert }
     for w in prog.warnings_had {
         if (
@@ -930,6 +951,8 @@ impl PlacementApplyPass.postinit -> None {
 }
 
 impl PlacementApplyPass.transform(ir_in: uni.Module) -> uni.Module {
+    import from jaclang.compiler.symbol_utils { report_serverless_kind_errors }
     solve_module_placement(ir_in, self.prog);
+    report_serverless_kind_errors(self, ir_in);
     return ir_in;
 }

@@ -1,5 +1,5 @@
 impl TypeEvaluator._get_ts_declared_item_type(
-    from_loc: uni.ModulePath, item_name: str
+    from_loc: ModulePath, item_name: str
 ) -> (TypeBase | None) {
     if not from_loc.in_client_context() {
         return None;
@@ -82,7 +82,7 @@ impl TypeEvaluator._map_ts_decl(
 ) -> (TypeBase | None) {
     if decl.kind == TsDeclKind.FUNCTION and decl.ty is not None {
         mapped = self._map_ts_type(decl.ty, decls);
-        if isinstance(mapped, types.FunctionType) {
+        if isinstance(mapped, FunctionType) {
             mapped.func_name = item_name;
         }
         return mapped;
@@ -98,16 +98,16 @@ impl TypeEvaluator._map_ts_decl(
             return synth;
         }
     }
-    return types.AnyType(is_foreign=True);
+    return AnyType(is_foreign=True);
 }
 
 impl TypeEvaluator._map_ts_type(
     ts: (TsType | None),
     decls: dict[str, TsDecl],
     seen: (set[str] | None) = None,
-    shells: (dict[str, types.ClassType] | None) = None
+    shells: (dict[str, ClassType] | None) = None
 ) -> TypeBase {
-    foreign_any = types.AnyType(is_foreign=True);
+    foreign_any = AnyType(is_foreign=True);
     if ts is None or self.prefetch is None {
         return foreign_any;
     }
@@ -116,7 +116,7 @@ impl TypeEvaluator._map_ts_type(
         return foreign_any;
     }
     if k == TsTypeKind.NEVER {
-        return types.NeverType();
+        return NeverType();
     }
     if k == TsTypeKind.VOID {
         return self._convert_to_instance(self.get_none_type());
@@ -164,7 +164,7 @@ impl TypeEvaluator._map_ts_type(
         );
     }
     if k == TsTypeKind.UNION {
-        return types.UnionType(
+        return UnionType(
             types=[self._map_ts_type(m, decls, seen, shells) for m in ts.args]
         );
     }
@@ -174,46 +174,46 @@ impl TypeEvaluator._map_ts_type(
             elem = self._map_ts_type(ts.args[0], decls, seen, shells);
         } elif (k == TsTypeKind.TUPLE and ts.args) {
             mapped = [self._map_ts_type(a, decls, seen, shells) for a in ts.args];
-            elem = mapped[0] if len(mapped) == 1 else types.UnionType(types=mapped);
+            elem = mapped[0] if len(mapped) == 1 else UnionType(types=mapped);
         }
         lst = self.prefetch.list_class.clone_as_instance();
         lst.private.type_args = [elem];
         return lst;
     }
     if k == TsTypeKind.FUNC {
-        parameters: list[types.Parameter] = [];
+        parameters: list[Parameter] = [];
         for (idx, p) in enumerate(ts.params) {
             if p.rest {
-                elem_ty: TypeBase = types.AnyType(is_foreign=True);
+                elem_ty: TypeBase = AnyType(is_foreign=True);
                 if (p.ty is not None and p.ty.kind == TsTypeKind.ARRAY and p.ty.args) {
                     elem_ty = self._map_ts_type(p.ty.args[0], decls, seen, shells);
                 }
                 parameters.append(
-                    types.Parameter(
+                    Parameter(
                         name=p.name or f"p{idx}",
-                        category=types.ParameterCategory.ArgsList,
+                        category=ParameterCategory.ArgsList,
                         param_type=elem_ty,
-                        param_kind=types.ParamKind.VARARG,
+                        param_kind=ParamKind.VARARG,
                     )
                 );
                 continue;
             }
             parameters.append(
-                types.Parameter(
+                Parameter(
                     name=p.name or f"p{idx}",
-                    category=types.ParameterCategory.Positional,
+                    category=ParameterCategory.Positional,
                     param_type=self._map_ts_type(p.ty, decls, seen, shells)
                         if p.ty is not None
-                        else types.AnyType(is_foreign=True),
+                        else AnyType(is_foreign=True),
                     has_default=p.optional,
                 )
             );
         }
-        ret: TypeBase = types.AnyType(is_foreign=True);
+        ret: TypeBase = AnyType(is_foreign=True);
         if ts.ret is not None {
             ret = self._map_ts_type(ts.ret, decls, seen, shells);
         }
-        return types.FunctionType(func_name='', return_type=ret, parameters=parameters);
+        return FunctionType(func_name='', return_type=ret, parameters=parameters);
     }
     if k == TsTypeKind.REF {
         if seen is None {
@@ -248,16 +248,16 @@ impl TypeEvaluator._map_ts_type(
 
 impl TypeEvaluator._ts_synth_class_types(
     decls: dict[str, TsDecl]
-) -> (dict[str, types.ClassType] | None) {
+) -> (dict[str, ClassType] | None) {
     key = id(decls);
     if key in self._ts_synth_class_cache {
         return self._ts_synth_class_cache[key];
     }
     self._ts_synth_class_cache[key] = None;
 
-    synth_src = uni.Source('', '<ts-synth>');
+    synth_src = Source('', '<ts-synth>');
 
-    shells: dict[str, types.ClassType] = {};
+    shells: dict[str, ClassType] = {};
     for (name, decl) in decls.items() {
         if (
             decl.kind not in (TsDeclKind.INTERFACE, TsDeclKind.CLASS)
@@ -265,11 +265,11 @@ impl TypeEvaluator._ts_synth_class_types(
         ) {
             continue;
         }
-        shells[name] = types.ClassType(
-            _shared=types.ClassType.ClassDetailsShared(
-                class_name=name, symbol_table=uni.Module.make_stub(inject_name=name),
+        shells[name] = ClassType(
+            _shared=ClassDetailsShared(
+                class_name=name, symbol_table=Module.make_stub(inject_name=name),
             ),
-            flags=types.TypeFlags.Instantiable,
+            flags=TypeFlags.Instantiable,
         );
     }
     if not shells {
@@ -342,13 +342,14 @@ impl TypeEvaluator._ts_synth_class_types(
             kept_by_name.setdefault(m.name, []).append(m);
         }
         for (mname, group) in kept_by_name.items() {
+            member_type: TypeBase;
             if len(group) > 1 {
-                member_type = types.AnyType(is_foreign=True);
+                member_type = AnyType(is_foreign=True);
             } else {
                 m = group[0];
                 member_type = self._map_ts_type(m.ty, decls, None, shells);
                 if m.optional {
-                    member_type = types.UnionType(
+                    member_type = UnionType(
                         types=[
                             member_type,
                             self._convert_to_instance(self.get_none_type())
@@ -366,7 +367,7 @@ impl TypeEvaluator._ts_synth_class_types(
                 self._map_ts_type(decl.call_sig, decls, None, shells)
             );
         }
-        base_classes: list[types.TypeBase] = [];
+        base_classes: list[TypeBase] = [];
         for b in direct_bases.get(name, []) {
             if (name, b) in back_edges {
                 continue;
@@ -383,7 +384,7 @@ impl TypeEvaluator._ts_synth_class_types(
     }
 
     for cls_type in shells.values() {
-        type_utils.compute_mro_linearization(cls_type);
+        compute_mro_linearization(cls_type);
     }
 
     self._ts_synth_class_cache[key] = shells;
@@ -391,9 +392,9 @@ impl TypeEvaluator._ts_synth_class_types(
 }
 
 impl TypeEvaluator._install_synth_member(
-    scope: uni.UniScopeNode, synth_src: uni.Source, mname: str, member_type: TypeBase
+    scope: UniScopeNode, synth_src: Source, mname: str, member_type: TypeBase
 ) -> None {
-    field_node = uni.Name(
+    field_node = Name(
         orig_src=synth_src,
         name=Tok.NAME.value,
         value=mname,
@@ -405,7 +406,7 @@ impl TypeEvaluator._install_synth_member(
         pos_end=0,
     );
     field_node.type = member_type;
-    scope.names_in_scope[mname] = uni.Symbol(
+    scope.names_in_scope[mname] = Symbol(
         defn=field_node, access=SymbolAccess.PUBLIC, parent_tab=scope
     );
 }
@@ -414,12 +415,12 @@ impl TypeEvaluator._install_compose_extensions -> None {
     if self.prefetch is None {
         return;
     }
-    synth_src = uni.Source('', '<compose-synth>');
-    foreign_any = types.AnyType(is_foreign=True);
+    synth_src = Source('', '<compose-synth>');
+    foreign_any = AnyType(is_foreign=True);
 
     dp_type: TypeBase = foreign_any;
     dp_cls = self._get_type_from_module(self.js_globals_module, "Dp");
-    if isinstance(dp_cls, types.ClassType) {
+    if isinstance(dp_cls, ClassType) {
         dp_type = self._convert_to_instance(dp_cls);
     }
 
@@ -484,7 +485,7 @@ impl TypeEvaluator._install_compose_modifiers -> None {
         return;
     }
     mc = self._get_type_from_module(self.js_globals_module, "ModifierChain");
-    if not isinstance(mc, types.ClassType) {
+    if not isinstance(mc, ClassType) {
         return;
     }
     path = self._COMPOSE_MODIFIERS_FILE_PATH;
@@ -499,7 +500,7 @@ impl TypeEvaluator._install_compose_modifiers -> None {
         return;
     }
     chain_inst = self._convert_to_instance(mc);
-    synth_src = uni.Source('', '<compose-modifiers>');
+    synth_src = Source('', '<compose-modifiers>');
     scope = mc.shared.symbol_table;
     for sig in parse_modifier_text(text) {
         self._install_synth_member(
@@ -523,10 +524,10 @@ impl TypeEvaluator._install_compose_consts -> None {
     } except OSError {
         return;
     }
-    synth_src = uni.Source('', '<compose-consts>');
+    synth_src = Source('', '<compose-consts>');
     for (ns, members) in parse_const_text(text).items() {
         cls = self._get_type_from_module(self.js_globals_module, f"{ns}Namespace");
-        if not isinstance(cls, types.ClassType) {
+        if not isinstance(cls, ClassType) {
             continue;
         }
         scope = cls.shared.symbol_table;
@@ -540,32 +541,32 @@ impl TypeEvaluator._install_compose_consts -> None {
 
 impl TypeEvaluator._compose_modifier_functype(
     sig: ComposeSig, chain_inst: TypeBase
-) -> types.FunctionType {
-    parameters: list[types.Parameter] = [
-        types.Parameter(
+) -> FunctionType {
+    parameters: list[Parameter] = [
+        Parameter(
             name="self",
-            category=types.ParameterCategory.Positional,
+            category=ParameterCategory.Positional,
             param_type=None,
             is_self=True,
-            param_kind=types.ParamKind.NORMAL
+            param_kind=ParamKind.NORMAL
         )
     ];
     for p in sig.params {
         parameters.append(
-            types.Parameter(
+            Parameter(
                 name=p.name,
-                category=types.ParameterCategory.Positional,
+                category=ParameterCategory.Positional,
                 param_type=self._map_compose_param(p),
                 has_default=True
             )
         );
     }
-    return types.FunctionType(
+    return FunctionType(
         func_name=sig.name, return_type=chain_inst, parameters=parameters
     );
 }
 
-impl TypeEvaluator._is_compose_gated_member(sym: uni.Symbol) -> bool {
+impl TypeEvaluator._is_compose_gated_member(sym: Symbol) -> bool {
     if not sym.defn {
         return False;
     }
@@ -575,23 +576,23 @@ impl TypeEvaluator._is_compose_gated_member(sym: uni.Symbol) -> bool {
 
 impl TypeEvaluator._compose_composable_instance -> TypeBase {
     c = self._get_type_from_module(self.jac_builtins_module, "Composable");
-    if isinstance(c, types.ClassType) {
+    if isinstance(c, ClassType) {
         return self._convert_to_instance(c);
     }
-    return types.AnyType(is_foreign=True);
+    return AnyType(is_foreign=True);
 }
 
 impl TypeEvaluator._map_compose_param(p: SigParam) -> TypeBase {
-    foreign_any = types.AnyType(is_foreign=True);
+    foreign_any = AnyType(is_foreign=True);
     if p.kind == ComposeParamKind.MODIFIER {
         mc = self._get_type_from_module(self.js_globals_module, "ModifierChain");
-        if isinstance(mc, types.ClassType) {
+        if isinstance(mc, ClassType) {
             return self._convert_to_instance(mc);
         }
         return foreign_any;
     }
     if p.kind == ComposeParamKind.SLOT {
-        return types.FunctionType(
+        return FunctionType(
             func_name='', return_type=self._compose_composable_instance(), parameters=[]
         );
     }
@@ -603,7 +604,7 @@ impl TypeEvaluator._map_compose_param(p: SigParam) -> TypeBase {
 
 impl TypeEvaluator._map_kotlin_lambda(ktype: str) -> TypeBase {
     none_ret = self._convert_to_instance(self.get_none_type());
-    empty = types.FunctionType(func_name='', return_type=none_ret, parameters=[]);
+    empty = FunctionType(func_name='', return_type=none_ret, parameters=[]);
     t = ktype.strip();
     lt = t.find("<");
     if lt < 0 or not t.endswith(">") {
@@ -634,7 +635,7 @@ impl TypeEvaluator._map_kotlin_lambda(ktype: str) -> TypeBase {
     if len(args) <= 1 {
         return empty;
     }
-    parameters: list[types.Parameter] = [];
+    parameters: list[Parameter] = [];
     i = 0;
     for a in args[:len(args) - 1] {
         at = a.strip();
@@ -645,16 +646,16 @@ impl TypeEvaluator._map_kotlin_lambda(ktype: str) -> TypeBase {
             at = at[10:].strip();
         }
         parameters.append(
-            types.Parameter(
+            Parameter(
                 name=f"arg{i}",
-                category=types.ParameterCategory.Positional,
+                category=ParameterCategory.Positional,
                 param_type=self._map_kotlin_type(at),
                 has_default=False
             )
         );
         i += 1;
     }
-    return types.FunctionType(
+    return FunctionType(
         func_name='', return_type=none_ret, parameters=parameters
     );
 }
@@ -676,7 +677,7 @@ impl TypeEvaluator._compose_layout_type_for(ktype: str) -> (TypeBase | None) {
     inst: (TypeBase | None) = None;
     if self.js_globals_module is not None {
         cls = self._get_type_from_module(self.js_globals_module, ns);
-        if isinstance(cls, types.ClassType) {
+        if isinstance(cls, ClassType) {
             inst = self._convert_to_instance(cls);
         }
     }
@@ -685,7 +686,7 @@ impl TypeEvaluator._compose_layout_type_for(ktype: str) -> (TypeBase | None) {
 }
 
 impl TypeEvaluator._map_kotlin_type(ktype: str) -> TypeBase {
-    foreign_any = types.AnyType(is_foreign=True);
+    foreign_any = AnyType(is_foreign=True);
     layout = self._compose_layout_type_for(ktype);
     if layout is not None {
         return layout;
@@ -735,19 +736,19 @@ impl TypeEvaluator._map_kotlin_type(ktype: str) -> TypeBase {
     return self._convert_to_instance(prim);
 }
 
-impl TypeEvaluator._compose_sig_to_functype(sig: ComposeSig) -> types.FunctionType {
-    parameters: list[types.Parameter] = [];
+impl TypeEvaluator._compose_sig_to_functype(sig: ComposeSig) -> FunctionType {
+    parameters: list[Parameter] = [];
     for p in sig.params {
         parameters.append(
-            types.Parameter(
+            Parameter(
                 name=p.name,
-                category=types.ParameterCategory.Positional,
+                category=ParameterCategory.Positional,
                 param_type=self._map_compose_param(p),
                 has_default=p.has_default
             )
         );
     }
-    return types.FunctionType(
+    return FunctionType(
         func_name=sig.name,
         return_type=self._compose_composable_instance(),
         parameters=parameters
@@ -755,9 +756,9 @@ impl TypeEvaluator._compose_sig_to_functype(sig: ComposeSig) -> types.FunctionTy
 }
 
 impl TypeEvaluator._kotlin_synth_surface(
-    sigs: list[ComposeSig], scope: uni.UniScopeNode
+    sigs: list[ComposeSig], scope: UniScopeNode
 ) -> None {
-    synth_src = uni.Source('', '<compose-surface>');
+    synth_src = Source('', '<compose-surface>');
     for sig in sigs {
         self._install_synth_member(
             scope, synth_src, sig.name, self._compose_sig_to_functype(sig)
@@ -776,7 +777,7 @@ impl TypeEvaluator._synthesize_ts_decl_class(
 }
 
 impl TypeEvaluator._emit_untyped_external(
-    name_node: uni.Name, name: str, module: str
+    name_node: Name, name: str, module: str
 ) -> None {
     if self._untyped_external_is_error(name_node) {
         self.emit_diag(E1120, name_node, name=name, module=module);
@@ -785,7 +786,7 @@ impl TypeEvaluator._emit_untyped_external(
     }
 }
 
-impl TypeEvaluator._untyped_external_is_error(node_: uni.UniNode) -> bool {
+impl TypeEvaluator._untyped_external_is_error(node_: UniNode) -> bool {
     mod_path = node_.loc.mod_path if node_.loc else None;
     if not mod_path {
         return False;
@@ -801,7 +802,7 @@ impl TypeEvaluator._untyped_external_is_error(node_: uni.UniNode) -> bool {
     import os;
     result = False;
     try {
-        import from jaclang.jac0core.helpers { read_toml_with_encoding }
+        import from jaclang.jac0core.tomlio { read_toml_with_encoding }
         data = read_toml_with_encoding(os.path.join(proj_root, 'jac.toml'));
         check_cfg = data.get('check', {}) if isinstance(data, dict) else {};
         result = (

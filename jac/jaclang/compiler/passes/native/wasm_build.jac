@@ -101,8 +101,17 @@ def _load_libc_module(llvm: object, libc_dir: str, triple: str) -> object {
         }
     }
     try {
-        with open(merged_path, "wb") as f {
-            f.write(merged.as_bitcode());
+        import tempfile;
+        (tmp_fd, tmp_path) = tempfile.mkstemp(dir=libc_dir, suffix=".merged.tmp");
+        try {
+            with os.fdopen(tmp_fd, "wb") as f {
+                f.write(merged.as_bitcode());
+            }
+            os.replace(tmp_path, merged_path);
+        } except OSError {
+            try {
+                os.unlink(tmp_path);
+            } except OSError { }
         }
     } except OSError { }
     return merged;

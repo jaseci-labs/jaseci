@@ -10,9 +10,12 @@ import os;
 class JacScaleConfig(PluginConfigBase) {
     override def get_plugin_name(self: JacScaleConfig) -> str;
     override def get_default_config(self: JacScaleConfig) -> dict[str, any];
+    override def get_config_schema(self: JacScaleConfig) -> dict[str, any];
+    override def get_config_strict_env(self: JacScaleConfig) -> str;
     def get_jwt_config(self: JacScaleConfig) -> dict[str, any];
     def get_sso_config(self: JacScaleConfig) -> dict[str, any];
     def get_database_config(self: JacScaleConfig) -> dict[str, any];
+    def get_deploy_database_config(self: JacScaleConfig) -> dict[str, any];
     def get_kubernetes_config(self: JacScaleConfig) -> dict[str, any];
     def get_server_config(self: JacScaleConfig) -> dict[str, any];
     def get_webhook_config(self: JacScaleConfig) -> dict[str, any];
@@ -33,11 +36,11 @@ def normalize_microservices_config(
 ) -> dict[str, any];
 
 glob _scale_config_instance: JacScaleConfig | None = None,
-     DEFAULT_MONGODB_TIMEOUT_MS: int = 5000,
      _ms_enabled_deprecation_warned: bool = False;
 
 def _ws_positive(ws_config: dict, key: str, fallback: (int | float)) -> float;
 def get_scale_config(project_dir: Path | None = None) -> JacScaleConfig;
+def peek_scale_config -> JacScaleConfig | None;
 def reset_scale_config -> None;
 
-def resolve_password_hash_rounds(configured_rounds: int) -> int;
+def resolve_password_hash_cost(configured_cost: int) -> int;

@@ -1,5 +1,5 @@
 """The rollout scanner must judge only pods the deploy owns: the fleet's own
-Deployments plus the companions it provisions beside them (redis/mongodb). A
+Deployments plus the companions it provisions beside them (postgres). A
 namespace can also hold pods the deploy never touched - most commonly an
 orphaned Deployment from a pre-rename generation of the same app - and a
 crash-looping stranger must not fail a healthy rollout. The ImagePull and
@@ -77,7 +77,7 @@ def _scan(pods: list) -> dict {
         "jb-standup",
         {"6874b99c85", "8cb84f5d9"},
         {"main", "gateway"},
-        {"standup-redis", "standup-mongodb"}
+        {"standup-postgres"}
     );
 }
 
@@ -152,19 +152,19 @@ test "a genuine crash loop in the current fleet generation still fails" {
 }
 
 
-test "a crash-looping companion (redis/mongodb) still fails the deploy" {
-    redis = _pod(
-        "standup-redis-7bd94b56c-zbw8c",
-        "standup-redis",
+test "a crash-looping companion (postgres) still fails the deploy" {
+    postgres = _pod(
+        "standup-postgres-0",
+        "standup-postgres",
         "Running",
-        [_cs("redis", 5, waiting_reason="CrashLoopBackOff")],
+        [_cs("postgres", 5, waiting_reason="CrashLoopBackOff")],
         pth="7bd94b56c"
     );
-    scan = _scan(_FLEET + [redis]);
+    scan = _scan(_FLEET + [postgres]);
     assert "crash-looping" in scan["crash"] , (
         f"a crashing companion went undetected: {scan['crash']}"
     );
-    assert "standup-redis" in scan["crash"];
+    assert "standup-postgres" in scan["crash"];
 }
 
 

@@ -1,22 +1,45 @@
 import from collections.abc { Sequence }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.unitree {
+    Ability,
+    Archetype,
+    Assignment,
+    AstSymbolNode,
+    AtomTrailer,
+    BinaryExpr,
+    BoolExpr,
+    ConnectOp,
+    DeleteStmt,
+    DisconnectOp,
+    EventSignature,
+    FuncCall,
+    ImplDef,
+    Name,
+    SpecialVarRef,
+    Symbol,
+    Token,
+    UniNode
+}
 import from jaclang.jac0core.constant { SymbolType, Tokens as Tok }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 
 class EndpointEffectPass(UniPass) {
+    has _is_writer: bool,
+        _touches: set[str],
+        _visited: set[int];
+
     def before_pass(self: EndpointEffectPass) {
-        self._is_writer: bool = False;
-        self._touches: set[str] = set();
-        self._visited: set[int] = set();
+        self._is_writer = False;
+        self._touches = set();
+        self._visited = set();
     }
 
-    def enter_ability(self: EndpointEffectPass, nd: uni.Ability) {
+    def enter_ability(self: EndpointEffectPass, nd: Ability) {
         if (
             not nd.is_method
             and not nd.in_client_context()
             and nd.access is not None
             and nd.access.tag.name == Tok.KW_PUB
-            and isinstance(nd.name_ref, uni.Name)
+            and isinstance(nd.name_ref, Name)
         ) {
             self.ir_in.gen.interop_manifest.endpoint_effects[
                 f"func:{nd.name_ref.sym_name}"
@@ -24,11 +47,11 @@ class EndpointEffectPass(UniPass) {
         }
     }
 
-    def enter_archetype(self: EndpointEffectPass, nd: uni.Archetype) -> None {
+    def enter_archetype(self: EndpointEffectPass, nd: Archetype) -> None {
         if nd.arch_kind != "walker" {
             return;
         }
-        if not isinstance(nd.name, uni.Name) {
+        if not isinstance(nd.name, Name) {
             return;
         }
         self.ir_in.gen.interop_manifest.endpoint_effects[
@@ -47,38 +70,38 @@ class EndpointEffectPass(UniPass) {
         return {"is_writer": self._is_writer, "touches": touches_list};
     }
 
-    def _scan(self: EndpointEffectPass, nd: (uni.UniNode | None)) -> None {
+    def _scan(self: EndpointEffectPass, nd: (UniNode | None)) -> None {
         if nd is None {
             return;
         }
 
-        if isinstance(nd, uni.BinaryExpr) {
-            if isinstance(nd.op, uni.ConnectOp) {
+        if isinstance(nd, BinaryExpr) {
+            if isinstance(nd.op, ConnectOp) {
                 self._is_writer = True;
 
-                if nd.op.conn_type and isinstance(nd.op.conn_type, uni.Name) {
+                if nd.op.conn_type and isinstance(nd.op.conn_type, Name) {
                     self._touches.add(nd.op.conn_type.sym_name);
                 }
-            } elif isinstance(nd.op, uni.DisconnectOp) {
+            } elif isinstance(nd.op, DisconnectOp) {
                 self._is_writer = True;
-            } elif isinstance(nd.op, uni.Token) and nd.op.name == Tok.KW_SPAWN {
+            } elif isinstance(nd.op, Token) and nd.op.name == Tok.KW_SPAWN {
                 self._is_writer = True;
             }
         }
 
-        if isinstance(nd, uni.DeleteStmt) {
+        if isinstance(nd, DeleteStmt) {
             self._is_writer = True;
         }
 
-        if isinstance(nd, uni.Assignment) and nd.target {
+        if isinstance(nd, Assignment) and nd.target {
             for tgt in nd.target {
-                if isinstance(tgt, uni.AtomTrailer) and tgt.is_attr {
+                if isinstance(tgt, AtomTrailer) and tgt.is_attr {
                     root_expr = tgt.target;
-                    while isinstance(root_expr, uni.AtomTrailer) {
+                    while isinstance(root_expr, AtomTrailer) {
                         root_expr = root_expr.target;
                     }
                     is_self = (
-                        isinstance(root_expr, uni.SpecialVarRef)
+                        isinstance(root_expr, SpecialVarRef)
                         and root_expr.sym_name == 'self'
                     );
                     if not is_self {
@@ -88,7 +111,7 @@ class EndpointEffectPass(UniPass) {
             }
         }
 
-        if isinstance(nd, uni.FuncCall) {
+        if isinstance(nd, FuncCall) {
             arch_sym = self._call_target_symbol(nd);
             if arch_sym
                 and arch_sym.sym_type in [SymbolType.NODE_ARCH, SymbolType.EDGE_ARCH] {
@@ -104,12 +127,12 @@ class EndpointEffectPass(UniPass) {
             }
         }
 
-        if isinstance(nd, uni.EventSignature) and nd.arch_tag_info {
-            if isinstance(nd.arch_tag_info, uni.Name) {
+        if isinstance(nd, EventSignature) and nd.arch_tag_info {
+            if isinstance(nd.arch_tag_info, Name) {
                 self._touches.add(nd.arch_tag_info.sym_name);
-            } elif isinstance(nd.arch_tag_info, uni.BoolExpr) {
+            } elif isinstance(nd.arch_tag_info, BoolExpr) {
                 for val in nd.arch_tag_info.values {
-                    if isinstance(val, uni.Name) {
+                    if isinstance(val, Name) {
                         self._touches.add(val.sym_name);
                     }
                 }
@@ -124,9 +147,9 @@ class EndpointEffectPass(UniPass) {
     }
 
     def _call_target_symbol(
-        self: EndpointEffectPass, call: uni.FuncCall
-    ) -> (uni.Symbol | None) {
-        if isinstance(call.target, uni.Name) {
+        self: EndpointEffectPass, call: FuncCall
+    ) -> (Symbol | None) {
+        if isinstance(call.target, Name) {
             sym = call.target.sym;
             if not sym and call.target.sym_tab {
                 sym = call.target.sym_tab.lookup(call.target.sym_name, deep=True);
@@ -134,11 +157,11 @@ class EndpointEffectPass(UniPass) {
             return sym;
         }
 
-        if isinstance(call.target, uni.AtomTrailer) {
+        if isinstance(call.target, AtomTrailer) {
             attrs = call.target.as_attr_list;
             if attrs {
                 last = attrs[-1];
-                if isinstance(last, uni.AstSymbolNode) and last.sym {
+                if isinstance(last, AstSymbolNode) and last.sym {
                     return last.sym;
                 }
             }
@@ -146,16 +169,16 @@ class EndpointEffectPass(UniPass) {
         return None;
     }
 
-    def _callee_body(self: EndpointEffectPass, call: uni.FuncCall) -> list {
+    def _callee_body(self: EndpointEffectPass, call: FuncCall) -> list {
         sym = self._call_target_symbol(call);
         if not sym or not sym.defn {
             return [];
         }
         defn_node = sym.defn[0];
         ability = None;
-        if isinstance(defn_node, uni.Ability) {
+        if isinstance(defn_node, Ability) {
             ability = defn_node;
-        } elif defn_node.parent and isinstance(defn_node.parent, uni.Ability) {
+        } elif defn_node.parent and isinstance(defn_node.parent, Ability) {
             ability = defn_node.parent;
         }
         if ability {
@@ -164,7 +187,7 @@ class EndpointEffectPass(UniPass) {
         return [];
     }
 
-    def _resolved_body(self: EndpointEffectPass, owner: uni.UniNode) -> list {
+    def _resolved_body(self: EndpointEffectPass, owner: UniNode) -> list {
         resolver: any = owner?._get_impl_resolved_body;
         if resolver is not None {
             try {
@@ -178,7 +201,7 @@ class EndpointEffectPass(UniPass) {
         if isinstance(body, list) {
             return body;
         }
-        if isinstance(body, uni.ImplDef) and isinstance(body.body, Sequence) {
+        if isinstance(body, ImplDef) and isinstance(body.body, Sequence) {
             return [stmt for stmt in body.body];
         }
         return [];

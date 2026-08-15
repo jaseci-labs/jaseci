@@ -1,5 +1,7 @@
 import from jaclang.scale.config.base_config { BaseConfig }
 
+glob DATABASE_MODES = ('auto', 'provision', 'external', 'none');
+
 def k8s_safe_slug(name: str, fallback: str = 'jaseci') -> str {
     import re;
     lowered = (name or '').strip().lower();
@@ -9,10 +11,30 @@ def k8s_safe_slug(name: str, fallback: str = 'jaseci') -> str {
     return slug or fallback;
 }
 
+def normalize_database_mode(raw: any) -> str {
+    mode = str(raw or '').strip().lower() or 'auto';
+    if mode not in DATABASE_MODES {
+        raise ValueError(
+            "[scale.kubernetes] database_mode must be one of "
+            f"{', '.join(DATABASE_MODES)}, got {raw!r}."
+        );
+    }
+    return mode;
+}
+
+def resolve_database_mode(config: dict[str, any]) -> str {
+    mode = normalize_database_mode(config.get('database_mode'));
+    if mode == 'auto' and config.get('postgres_enabled') is False {
+        return 'none';
+    }
+    return mode;
+}
+
 obj KubernetesConfig(BaseConfig) {
     has container_port: int = 8000,
-        mongodb_enabled: bool = True,
-        redis_enabled: bool = True,
+        database_mode: str = 'auto',
+        database_url: str = '',
+        database_namespace: str = '',
         cpu_request: (str | None) = None,
         cpu_limit: (str | None) = None,
         memory_request: (str | None) = None,
@@ -37,8 +59,8 @@ obj KubernetesConfig(BaseConfig) {
         health_check_path: str = '/docs',
         python_image: str = '',
         wait_image: str = 'busybox',
-        mongodb_storage_size: str = '1Gi',
         bundle_storage_class: str = '',
+        bundle_access_mode: str = 'ReadWriteMany',
         resource_deletion_wait: int = 5,
         aws_nlb_wait: int = 60,
         app_mount_path: str = '/app',
@@ -52,16 +74,6 @@ obj KubernetesConfig(BaseConfig) {
         tracing_enabled: bool = False,
         prometheus_admin_password: str = 'Adminpassword123',
         admin_username: str = 'admin',
-        redis_dashboard: bool = False,
-        mongodb_dashboard: bool = False,
-        mongo_express_username: str = 'admin',
-        mongo_express_password: str = 'admin',
-        redis_insight_username: str = 'admin',
-        redis_insight_password: str = 'admin',
-        mongodb_root_username: str = 'admin',
-        mongodb_root_password: str = 'password',
-        redis_username: str = 'admin',
-        redis_password: str = 'password',
         ingress_node_port: int = 30080,
         shared_ingress: bool = False,
         shared_ingress_class: str = 'nginx',
@@ -81,13 +93,32 @@ obj KubernetesConfig(BaseConfig) {
         kubeconfig: str = "",
         labels: dict[str, str] = {};
 
+    def postinit {
+        self.database_mode = normalize_database_mode(self.database_mode);
+    }
+
+    def database_enabled -> bool {
+        return self.database_mode != 'none';
+    }
+
+    def database_deploy_intent(app_name: str) -> dict[str, any] {
+        return {
+            'app_name': app_name,
+            'namespace': self.namespace,
+            'database_mode': self.database_mode,
+            'database_url': self.database_url,
+            'database_namespace': self.database_namespace
+        };
+    }
+
     override def to_dict -> dict[str, any] {
         base = super.to_dict();
         base.update(
             {
                 'container_port': self.container_port,
-                'mongodb_enabled': self.mongodb_enabled,
-                'redis_enabled': self.redis_enabled,
+                'database_mode': self.database_mode,
+                'database_url': self.database_url,
+                'database_namespace': self.database_namespace,
                 'cpu_request': self.cpu_request,
                 'cpu_limit': self.cpu_limit,
                 'memory_request': self.memory_request,
@@ -112,8 +143,8 @@ obj KubernetesConfig(BaseConfig) {
                 'health_check_path': self.health_check_path,
                 'python_image': self.python_image,
                 'wait_image': self.wait_image,
-                'mongodb_storage_size': self.mongodb_storage_size,
                 'bundle_storage_class': self.bundle_storage_class,
+                'bundle_access_mode': self.bundle_access_mode,
                 'resource_deletion_wait': self.resource_deletion_wait,
                 'aws_nlb_wait': self.aws_nlb_wait,
                 'app_mount_path': self.app_mount_path,
@@ -127,16 +158,6 @@ obj KubernetesConfig(BaseConfig) {
                 'tracing_enabled': self.tracing_enabled,
                 'prometheus_admin_password': self.prometheus_admin_password,
                 'admin_username': self.admin_username,
-                'redis_dashboard': self.redis_dashboard,
-                'mongodb_dashboard': self.mongodb_dashboard,
-                'mongo_express_username': self.mongo_express_username,
-                'mongo_express_password': self.mongo_express_password,
-                'redis_insight_username': self.redis_insight_username,
-                'redis_insight_password': self.redis_insight_password,
-                'mongodb_root_username': self.mongodb_root_username,
-                'mongodb_root_password': self.mongodb_root_password,
-                'redis_username': self.redis_username,
-                'redis_password': self.redis_password,
                 'ingress_node_port': self.ingress_node_port,
                 'shared_ingress': self.shared_ingress,
                 'shared_ingress_class': self.shared_ingress_class,
@@ -165,8 +186,9 @@ obj KubernetesConfig(BaseConfig) {
             app_name=config.get('app_name', 'jaseci'),
             namespace=config.get('namespace', 'default'),
             container_port=config.get('container_port', 8000),
-            mongodb_enabled=config.get('mongodb_enabled', True),
-            redis_enabled=config.get('redis_enabled', True),
+            database_mode=resolve_database_mode(config),
+            database_url=str(config.get('database_url') or ''),
+            database_namespace=str(config.get('database_namespace') or ''),
             cpu_request=config.get('cpu_request'),
             cpu_limit=config.get('cpu_limit'),
             memory_request=config.get('memory_request'),
@@ -193,8 +215,8 @@ obj KubernetesConfig(BaseConfig) {
             health_check_path=config.get('health_check_path', '/docs'),
             python_image=config.get('python_image', ''),
             wait_image=config.get('wait_image', 'busybox'),
-            mongodb_storage_size=config.get('mongodb_storage_size', '1Gi'),
             bundle_storage_class=config.get('bundle_storage_class', ''),
+            bundle_access_mode=config.get('bundle_access_mode', 'ReadWriteMany'),
             resource_deletion_wait=config.get('resource_deletion_wait', 5),
             aws_nlb_wait=config.get('aws_nlb_wait', 60),
             app_mount_path=config.get('app_mount_path', '/app'),
@@ -209,16 +231,6 @@ obj KubernetesConfig(BaseConfig) {
             prometheus_admin_password=config.get(
                 'prometheus_admin_password', 'Adminpassword123'
             ),
-            redis_dashboard=config.get('redis_dashboard', False),
-            mongodb_dashboard=config.get('mongodb_dashboard', False),
-            mongo_express_username=config.get('mongo_express_username', 'admin'),
-            mongo_express_password=config.get('mongo_express_password', 'admin'),
-            redis_insight_username=config.get('redis_insight_username', 'admin'),
-            redis_insight_password=config.get('redis_insight_password', 'admin'),
-            mongodb_root_username=config.get('mongodb_root_username', 'admin'),
-            mongodb_root_password=config.get('mongodb_root_password', 'password'),
-            redis_username=config.get('redis_username', 'admin'),
-            redis_password=config.get('redis_password', 'password'),
             ingress_node_port=config.get('ingress_node_port', 30080),
             shared_ingress=config.get('shared_ingress', False),
             shared_ingress_class=config.get('shared_ingress_class', 'nginx'),

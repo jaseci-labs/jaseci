@@ -41,6 +41,7 @@ obj CompileOptions {
         debug_ir: (bool | None) = None,
         rc_stats: (bool | None) = None,
         nogc_debug: (bool | None) = None,
+        na_debug: (bool | None) = None,
         suppress_codes: list[str] = field(default_factory=`list),
         default_codespace: str = "",
         project_kind: str = "web",
@@ -97,6 +98,9 @@ obj CompileOptions {
         if self.nogc_debug is None {
             self.nogc_debug = bool(os.environ.get("JAC_NOGC_DEBUG", ""));
         }
+        if self.na_debug is None {
+            self.na_debug = env_na_debug();
+        }
     }
 
     def codegen_identity -> str {
@@ -127,6 +131,7 @@ obj CompileOptions {
             aot_mode=True,
             default_codespace='native',
             force_target_program=True,
+            no_ir_cache=self.no_ir_cache,
             na_gc_mode=self.na_gc_mode,
             nogc_enforce_all=self.nogc_enforce_all,
             nogc_enforce_modules=list(self.nogc_enforce_modules or []),
@@ -138,7 +143,8 @@ obj CompileOptions {
             dump_ir_path=self.dump_ir_path,
             debug_ir=self.debug_ir,
             rc_stats=self.rc_stats,
-            nogc_debug=self.nogc_debug
+            nogc_debug=self.nogc_debug,
+            na_debug=self.na_debug
         );
     }
 
@@ -183,6 +189,17 @@ def link_fingerprint_mismatches(
 def env_symmap_requested -> bool {
     import os;
     return bool(os.environ.get("JAC_SYMMAP", ""));
+}
+
+def env_floor_dir -> str {
+    import os;
+    return os.environ.get("JAC_NATIVE_FLOOR_DIR", "");
+}
+
+def env_na_debug -> bool {
+    import os;
+    return os.environ.get("JAC_NA_DEBUG", "").strip().lower()
+        in ("1", "true", "yes", "on");
 }
 
 def env_wasm_libc_dir -> str {

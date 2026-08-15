@@ -4,7 +4,7 @@ Cross-backend equivalence fixture.
 """
 
 # --- Float operators and methods ---
-def float_py() -> dict {
+def float_py -> dict {
     x: float = 3.0;
     y: float = 3.5;
     a: float = 7.5;
@@ -97,6 +97,8 @@ def float_py() -> dict {
         "neg_pos": 0.0 - cmp_x,
         "neg_neg": 0.0 - (0.0 - cmp_x),
         "mod": 7.5 % 2.0,
+        "mod_neg": (-6.5) % 2.5,
+        "mod_pos_neg": 7.5 % (-2.0),
         "pow_float": 2.0 ** 3.0,
         "abs_neg_float": abs(-3.14),
         "abs_pos_float": abs(3.14),
@@ -120,7 +122,7 @@ def float_py() -> dict {
     };
 }
 
-def float_cl() -> dict {
+def float_cl -> dict {
     x: float = 3.0;
     y: float = 3.5;
     a: float = 7.5;
@@ -205,6 +207,8 @@ def float_cl() -> dict {
         "neg_pos": 0.0 - cmp_x,
         "neg_neg": 0.0 - (0.0 - cmp_x),
         "mod": 7.5 % 2.0,
+        "mod_neg": (-6.5) % 2.5,
+        "mod_pos_neg": 7.5 % (-2.0),
         "pow_float": 2.0 ** 3.0,
         "abs_neg_float": abs(-3.14),
         "abs_pos_float": abs(3.14),
@@ -214,7 +218,7 @@ def float_cl() -> dict {
 }
 
 
-def float_na() -> dict[str, any] {
+def float_na -> dict[str, any] {
     a: float = 7.5;
     b: float = 2.5;
     cmp_x: float = 3.5;
@@ -291,6 +295,8 @@ def float_na() -> dict[str, any] {
         "neg_pos": 0.0 - cmp_x,
         "neg_neg": 0.0 - (0.0 - cmp_x),
         "mod": 7.5 % 2.0,
+        "mod_neg": (-6.5) % 2.5,
+        "mod_pos_neg": 7.5 % (-2.0),
         "pow_float": 2.0 ** 3.0,
         "abs_neg_float": abs(-3.14),
         "abs_pos_float": abs(3.14),
@@ -308,7 +314,7 @@ def float_na() -> dict[str, any] {
     };
 }
 
-def numparse_py() -> dict {
+def numparse_py -> dict {
     ok: float = float("1.5");
     ws: float = float("  2.5  ");
     expn: float = float("1e3");
@@ -373,7 +379,7 @@ def numparse_py() -> dict {
     };
 }
 
-def numparse_cl() -> dict {
+def numparse_cl -> dict {
     ok: float = float("1.5");
     ws: float = float("  2.5  ");
     expn: float = float("1e3");
@@ -438,6 +444,6 @@ def numparse_cl() -> dict {
     };
 }
 
-def numparse_na() -> dict {
+def numparse_na -> dict {
     return {};
 }

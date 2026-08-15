@@ -16,6 +16,7 @@ import tarfile;
 import tomllib;
 import zipfile;
 import json;
+import sys;
 import tempfile;
 import shutil;
 import from pathlib { Path }
@@ -214,7 +215,12 @@ test "collect_source_files gathers jac files and excludes build artifacts" {
         (pkg / "stale.pyc").write_bytes(bytes([0]));
         pycache = pkg / "__pycache__";
         pycache.mkdir();
-        (pycache / "main.cpython-312.pyc").write_bytes(bytes([0]));
+        (
+            pycache
+            / f"main.cpython-{sys.version_info.major}{sys.version_info.minor}.pyc"
+        ).write_bytes(
+            bytes([0])
+        );
         cfg = pkg_config_with_include(proj, "mypkg");
         files = collect_source_files(cfg, project_root=proj);
         paths = [sf.wheel_path for sf in files];

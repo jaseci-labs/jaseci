@@ -82,7 +82,7 @@ impl JacConfig.discover(
 }
 
 impl JacConfig.load(toml_path: Path) -> JacConfig {
-    import from jaclang.jac0core.helpers { read_toml_with_encoding }
+    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
     if not toml_path.exists() {
         raise FileNotFoundError(f"Configuration file not found: {toml_path}");
     }
@@ -249,7 +249,7 @@ impl JacConfig.apply_profile_overlay(profile_name: str | None = None) -> None {
 }
 
 impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
-    import from jaclang.jac0core.helpers { read_toml_with_encoding }
+    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
     if not toml_path.exists() {
         return;
     }
@@ -326,6 +326,7 @@ impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
             }
         }
     }
+    _warn_legacy_plugins_table(data);
     for _feat in ("byllm", "scale", "client", "mcp", "desktop") {
         if _feat in data and isinstance(data[_feat], dict) {
             if _feat in self.plugins {
@@ -407,6 +408,22 @@ impl JacConfig.get_plugin_config(plugin_name: str) -> dict[str, any] {
     return self.plugins.get(plugin_name, {});
 }
 
+impl _warn_legacy_plugins_table(data: dict[str, any]) -> None {
+    plugins_table = data.get("plugins");
+    if not isinstance(plugins_table, dict) or not plugins_table {
+        return;
+    }
+    legacy: dict[str, any] = dict(plugins_table);
+    sections = ", ".join(sorted(str(k) for k in legacy.keys()));
+    import from jaclang.cli.console { console }
+    console.warning(
+        f"jac.toml has a [plugins] table ({sections}); the [plugins.*] "
+        "namespace was removed and these settings are ignored. Move "
+        "[plugins.X] to top-level [X], e.g. [plugins.scale.database] "
+        "-> [scale.database]."
+    );
+}
+
 impl JacConfig.get_section(name: str) -> dict[str, any] | None {
     section = self._raw_data.get(name) if isinstance(self._raw_data, dict) else None;
     return section if isinstance(section, dict) else None;
@@ -448,10 +465,8 @@ impl JacConfig.save -> None {
     old_doc: dict[str, any] = {};
     if self.toml_path.exists() {
         import tomllib;
-        import from jaclang.jac0core.helpers {
-            MalformedJacTomlError,
-            read_file_with_encoding
-        }
+        import from jaclang.jac0core.helpers { read_file_with_encoding }
+        import from jaclang.jac0core.tomlio { MalformedJacTomlError }
         text = read_file_with_encoding(str(self.toml_path));
         try {
             old_doc = tomllib.loads(text);
@@ -1287,6 +1302,7 @@ impl _parse_toml_data(
             test_jobs=str(dev_data.get("test_jobs", "auto"))
         );
     }
+    _warn_legacy_plugins_table(data);
     for _feat in ("byllm", "scale", "client", "mcp", "desktop") {
         if _feat in data and isinstance(data[_feat], dict) {
             config.plugins[_feat] = data[_feat];
@@ -1361,6 +1377,10 @@ impl set_config(config: JacConfig) -> None {
 
 impl get_explicit_config -> JacConfig | None {
     return _config if _config_explicit else None;
+}
+
+impl get_config_for_dir(start_dir: str) -> JacConfig | None {
+    return get_config_for_path(Path(start_dir));
 }
 
 impl get_config_for_path(start_path: Path) -> JacConfig | None {

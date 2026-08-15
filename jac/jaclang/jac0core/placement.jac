@@ -6,9 +6,9 @@ import from jaclang.jac0core.constant { CodeContext, Tokens as Tok }
 
 glob PLACEMENT_SCHEMA: int = 1,
      PLACEMENT_SV_SIGNAL_NODES: tuple = (
-         uni.TypedCtxBlock,
-         uni.PyInlineCode,
-         uni.JsxElement
+         ("TypedCtxBlock", uni.TypedCtxBlock),
+         ("PyInlineCode", uni.PyInlineCode),
+         ("JsxElement", uni.JsxElement)
      ),
      PLACEMENT_NATIVE_REJECT_NODES: tuple = ();
 
@@ -170,6 +170,16 @@ def _is_pub_element(stmt: uni.UniNode) -> bool {
     );
 }
 
+def project_has_server(source_path: str) -> bool {
+    import from jaclang.jac0core.placement_pins { config_kind_space }
+    return config_kind_space(source_path) != 'client';
+}
+
+def project_kind_name(source_path: str) -> str {
+    import from jaclang.jac0core.placement_pins { config_project_kind }
+    return config_project_kind(source_path);
+}
+
 def _resolve_import_path(nd: (uni.ModulePath | uni.ModuleItem)) -> (str | None) {
     path: (str | None) = None;
     try {
@@ -291,7 +301,7 @@ def _element_reqs(stmt: uni.UniNode) -> list {
         and isinstance(stmt.signature, uni.EventSignature) {
         reqs.append(['SERVER', 'event ability outside an archetype']);
     }
-    if _is_pub_element(stmt) {
+    if _is_pub_element(stmt) and project_has_server(stmt.loc.mod_path or '') {
         reqs.append(['ENDPOINT', 'pub access']);
     }
     return reqs;
@@ -508,6 +518,21 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
     return reasons;
 }
 
+def _comptime_only_import(imp: uni.Import) -> bool {
+    import from jaclang.jac0core.codeinfo { native_comptime_import_names }
+    if imp.from_loc is None or imp.is_absorb {
+        return False;
+    }
+    names: list[str] = [];
+    for item in imp.items {
+        if not (isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name)) {
+            return False;
+        }
+        names.append(item.name.value);
+    }
+    return native_comptime_import_names(imp.from_loc.dot_path_str, names);
+}
+
 def scan_native_blockers(
     module: uni.Module, base_dir: str, allow_pub: bool = False
 ) -> tuple[str, list[str]] {
@@ -517,15 +542,15 @@ def scan_native_blockers(
         resolve_native_module
     }
     deps: list[str] = [];
-    for typ in PLACEMENT_SV_SIGNAL_NODES {
+    for (nd_name, typ) in PLACEMENT_SV_SIGNAL_NODES {
         if module.get_all_sub_nodes(typ) {
-            return (f"contains {typ.__name__}", deps);
+            return (f"contains {nd_name}", deps);
         }
     }
 
-    for typ in PLACEMENT_NATIVE_REJECT_NODES {
+    for (nd_name, typ) in PLACEMENT_NATIVE_REJECT_NODES {
         if module.get_all_sub_nodes(typ) {
-            return (f"native-unsupported {typ.__name__}", deps);
+            return (f"native-unsupported {nd_name}", deps);
         }
     }
     for svr in module.get_all_sub_nodes(uni.SpecialVarRef) {
@@ -570,8 +595,18 @@ def scan_native_blockers(
         if imp.has_clib_decls {
             continue;
         }
+        if imp.is_typed {
+            continue;
+        }
+        if imp.find_parent_of_type(uni.Ability) is not None
+            or imp.find_parent_of_type(uni.ImplDef) is not None {
+            continue;
+        }
         if imp.is_virtual_jac or imp.has_string_path {
             return ("virtual/string-path import", deps);
+        }
+        if _comptime_only_import(imp) {
+            continue;
         }
         targets: list[tuple[str, (str | None), bool, bool]] = [];
         if imp.from_loc is not None {

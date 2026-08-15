@@ -1,4 +1,5 @@
-import from jaclang.compiler.passes.ecmascript.intent.semantics {
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+import from jaclang.compiler.passes.ecmascript.reactive_intent {
     StateField,
     RefField,
     StateUpdate,
@@ -219,7 +220,8 @@ impl EsastGenPass.exit_global_vars(nd: uni.GlobalVars) -> None {
 }
 
 impl EsastGenPass.exit_name(nd: uni.Name) -> None {
-    if nd.sym_name in self.reactive_vars {
+    if (nd.sym_name in self.reactive_vars) and not self._in_identifier_slot(nd) {
+        self._ensure_backend();
         nd.gen.es_ast = self.sync_loc(
             self.intent_session.adapter.lower_state_read(nd.sym_name), jac_node=nd
         );
@@ -229,6 +231,41 @@ impl EsastGenPass.exit_name(nd: uni.Name) -> None {
     name = name_map.get(nd.sym_name, nd.sym_name);
     identifier = self.sync_loc(es.Identifier(name=name), jac_node=nd);
     nd.gen.es_ast = identifier;
+}
+
+impl EsastGenPass._in_identifier_slot(nd: uni.UniNode) -> bool {
+    parent = nd.parent;
+    if parent is None {
+        return False;
+    }
+    if isinstance(parent, uni.KWPair) {
+        return parent.key is nd;
+    }
+    if isinstance(parent, uni.AtomTrailer) {
+        return parent.is_attr and (parent.right is nd);
+    }
+    if isinstance(parent, (uni.ParamVar, uni.HasVar, uni.Archetype, uni.Enum)) {
+        return parent.name is nd;
+    }
+    if isinstance(parent, uni.Ability) {
+        return parent.name_ref is nd;
+    }
+    if isinstance(parent, uni.ModuleItem) {
+        return (parent.name is nd) or (parent.alias is nd);
+    }
+    if isinstance(parent, uni.ModulePath) {
+        return (parent.alias is nd) or any(part is nd for part in (parent.path or []));
+    }
+    if isinstance(parent, uni.JsxNormalAttribute) {
+        return parent.name is nd;
+    }
+    if isinstance(parent, uni.JsxElementName) {
+        return any(part is nd for part in (parent.parts or []));
+    }
+    if isinstance(parent, uni.CompareExpr) {
+        return (parent.left is nd) and isinstance(parent.parent, uni.FilterCompr);
+    }
+    return False;
 }
 
 impl EsastGenPass._in_type_slot(nd: uni.UniNode) -> bool {
@@ -351,30 +388,24 @@ impl EsastGenPass.exit_if_else_expr(nd: uni.IfElseExpr) -> None {
     nd.gen.es_ast = cond_expr;
 }
 
+impl EsastGenPass._template_element(
+    text: str, tail: bool, jac_node: uni.UniNode
+) -> es.TemplateElement {
+    return self.sync_loc(
+        es.TemplateElement(tail=tail, value={'cooked': text}), jac_node=jac_node
+    );
+}
+
 impl EsastGenPass.exit_f_string(nd: uni.FString) -> None {
     quasis: list[es.TemplateElement] = [];
     expressions: list[es.Expression] = [];
     for (i, part) in enumerate(nd.parts) {
         is_last = i == (len(nd.parts) - 1);
         if isinstance(part, uni.String) {
-            value = part.value;
-            if value.startswith(('"""', "'''")) {
-                value = value[3:-3];
-            } elif value.startswith(('"', "'")) {
-                value = value[1:-1];
-            }
-            elem = self.sync_loc(
-                es.TemplateElement(tail=is_last, value={'cooked': value, 'raw': value}),
-                jac_node=part
-            );
-            quasis.append(elem);
+            quasis.append(self._template_element(str(part.lit_value), is_last, part));
         } elif isinstance(part, uni.FormattedValue) {
             if ((i == 0) or not isinstance(nd.parts[(i - 1)], uni.String)) {
-                empty_elem = self.sync_loc(
-                    es.TemplateElement(tail=False, value={'cooked': '', 'raw': ''}),
-                    jac_node=part
-                );
-                quasis.append(empty_elem);
+                quasis.append(self._template_element('', False, part));
             }
             expr = cast(
                 es.Expression,
@@ -382,29 +413,15 @@ impl EsastGenPass.exit_f_string(nd: uni.FString) -> None {
             );
             expressions.append(expr);
             if is_last {
-                empty_elem = self.sync_loc(
-                    es.TemplateElement(tail=True, value={'cooked': '', 'raw': ''}),
-                    jac_node=part
-                );
-                quasis.append(empty_elem);
+                quasis.append(self._template_element('', True, part));
             }
         }
     }
     if not quasis {
-        quasis.append(
-            self.sync_loc(
-                es.TemplateElement(tail=True, value={'cooked': '', 'raw': ''}),
-                jac_node=nd
-            )
-        );
+        quasis.append(self._template_element('', True, nd));
     }
     while (len(quasis) < (len(expressions) + 1)) {
-        quasis.append(
-            self.sync_loc(
-                es.TemplateElement(tail=True, value={'cooked': '', 'raw': ''}),
-                jac_node=nd
-            )
-        );
+        quasis.append(self._template_element('', True, nd));
     }
     template_lit = self.sync_loc(
         es.TemplateLiteral(quasis=quasis, expressions=expressions), jac_node=nd
@@ -866,7 +883,9 @@ impl EsastGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
             tail.gen.es_ast or self.sync_loc(es.Literal(value=None), jac_node=tail)
         );
         nd.gen.es_ast = self.sync_loc(
-            es.ArrowFunctionExpression(params=params, body=body_expr, async_=False),
+            es.ArrowFunctionExpression(
+                params=params, body=body_expr, expression=True, async_=False
+            ),
             jac_node=nd
         );
     } elif isinstance(nd.body, list) {
@@ -894,7 +913,9 @@ impl EsastGenPass.exit_lambda_expr(nd: uni.LambdaExpr) -> None {
                 or self.sync_loc(es.Literal(value=None), jac_node=nd.body)
         );
         arrow_func = self.sync_loc(
-            es.ArrowFunctionExpression(params=params, body=body_expr, async_=False),
+            es.ArrowFunctionExpression(
+                params=params, body=body_expr, expression=True, async_=False
+            ),
             jac_node=nd
         );
         nd.gen.es_ast = arrow_func;
@@ -1458,20 +1479,16 @@ impl EsastGenPass._resolve_call_arg_slots(
             spread_sources.append(kw.argument);
             continue;
         }
+        kw_key = kw.key;
         kw_name = '';
-        if isinstance(kw.key, es.Identifier) {
-            kw_name = kw.key.name;
-        } elif isinstance(kw.key, es.Literal) {
-            kw_name = str(kw.key.value);
+        if isinstance(kw_key, es.Identifier) {
+            kw_name = kw_key.name;
+        } elif isinstance(kw_key, es.Literal) {
+            kw_name = str(kw_key.value);
         }
         if not kw_name {
-            extras.append(
-                CallArgSlot(
-                    name=None,
-                    value=self.sync_loc(
-                        es.SpreadElement(argument=kw.value), jac_node=nd
-                    )
-                )
+            self.emit(
+                E5099, node_override=nd, func=func_name, shape=type(kw_key).__name__
             );
             continue;
         }
@@ -1655,24 +1672,7 @@ impl EsastGenPass._try_lower_server_rpc_call(
         return None;
     }
     func_name = nd.target.sym_name;
-    if isinstance(ability_node.signature, uni.FuncSignature) {
-        import re;
-        import from jaclang.jac0core.diagnostics { W6005 }
-        _sig = ability_node.signature;
-        for _plist in [_sig.posonly_params, _sig.params or [], _sig.kwonlyargs] {
-            for _p in _plist {
-                if (
-                    _p.type_tag is not None
-                    and _p.type_tag.tag is not None
-                    and re.search(r"\bCallable\b", _p.type_tag.tag.unparse())
-                ) {
-                    self.emit(
-                        W6005, node_override=nd, func=func_name, param=_p.name.sym_name
-                    );
-                }
-            }
-        }
-    }
+    self._warn_rpc_callable_params(ability_node, func_name, nd);
 
     param_names: list[str] = self._param_names_from_ability(ability_node);
     inline_param_type_map: dict[str, str] = self._param_type_map_from_ability(
@@ -1742,6 +1742,140 @@ impl EsastGenPass._try_lower_server_rpc_call(
     return result_expr;
 }
 
+impl EsastGenPass._warn_rpc_callable_params(
+    ability_node: uni.Ability, func_name: str, at: uni.UniNode
+) -> None {
+    if not isinstance(ability_node.signature, uni.FuncSignature) {
+        return;
+    }
+    import re;
+    import from jaclang.jac0core.diagnostics { W6005 }
+    _sig = ability_node.signature;
+    for _plist in [_sig.posonly_params, _sig.params or [], _sig.kwonlyargs] {
+        for _p in _plist {
+            if (
+                _p.type_tag is not None
+                and _p.type_tag.tag is not None
+                and re.search(r"\bCallable\b", unparse_node(_p.type_tag.tag))
+            ) {
+                self.emit(
+                    W6005, node_override=at, func=func_name, param=_p.name.sym_name
+                );
+            }
+        }
+    }
+}
+
+impl EsastGenPass._forwarder_ret_label(ability_node: uni.Ability) -> str {
+    if not isinstance(ability_node.signature, uni.FuncSignature) {
+        return '';
+    }
+    rt = ability_node.signature.return_type;
+    if rt is None {
+        return '';
+    }
+    label = unparse_node(rt).strip();
+    return '' if label in ('', 'None') else label;
+}
+
+impl EsastGenPass._build_server_forwarder(
+    ability_node: uni.Ability, func_name: str, jac_node: uni.UniNode
+) -> es.FunctionDeclaration {
+    self._warn_rpc_callable_params(ability_node, func_name, jac_node);
+    boundary = self.ir_in.gen.interop_manifest.boundary_types
+        if self.ir_in.gen.interop_manifest
+        else {};
+    param_types = self._param_type_map_from_ability(ability_node);
+    ret_type = self._extract_return_type(
+        ability_node, func_name, self.ir_in.gen.interop_manifest
+    );
+    params: list[es.Pattern] = [];
+    props: list[(es.Property | es.SpreadElement)] = [];
+    for pname in self._param_names_from_ability(ability_node) {
+        params.append(self.sync_loc(es.Identifier(name=pname), jac_node=jac_node));
+        props.append(
+            self.sync_loc(
+                es.Property(
+                    key=self.sync_loc(es.Literal(value=pname), jac_node=jac_node),
+                    value=self._wrap_to_wire_if_boundary(
+                        self.sync_loc(es.Identifier(name=pname), jac_node=jac_node),
+                        param_types.get(pname, ''),
+                        boundary,
+                        jac_node
+                    ),
+                    kind='init',
+                    method=False,
+                    shorthand=False,
+                    computed=False
+                ),
+                jac_node=jac_node
+            )
+        );
+    }
+    call_expr: es.Expression = self.sync_loc(
+        es.CallExpression(
+            callee=self.sync_loc(
+                es.Identifier(name='__jacCallFunction'), jac_node=jac_node
+            ),
+            arguments=[
+                self.sync_loc(es.Literal(value=func_name), jac_node=jac_node),
+                self.sync_loc(es.ObjectExpression(properties=props), jac_node=jac_node)
+            ]
+        ),
+        jac_node=jac_node
+    );
+    call_expr = self._wrap_return_with_boundary(
+        call_expr, ret_type, boundary, jac_node, pre_awaited=False
+    );
+    self._inject_runtime_import('__jacCallFunction', jac_node);
+    ret_label = self._forwarder_ret_label(ability_node);
+    if ret_label {
+        import from jaclang.jac0core.diagnostics { W6009 }
+        self.emit(W6009, node_override=jac_node, name=func_name, ret=ret_label);
+    }
+    return self.sync_loc(
+        es.FunctionDeclaration(
+            id=self.sync_loc(es.Identifier(name=func_name), jac_node=jac_node),
+            params=params,
+            body=self.sync_loc(
+                es.BlockStatement(
+                    body=[
+                        self.sync_loc(
+                            es.ReturnStatement(argument=call_expr), jac_node=jac_node
+                        )
+                    ]
+                ),
+                jac_node=jac_node
+            ),
+            async_=True
+        ),
+        jac_node=jac_node
+    );
+}
+
+impl EsastGenPass._bind_client_value_refs(nd: uni.Module) -> list[es.Statement] {
+    import from jaclang.compiler.symbol_utils {
+        client_bridged_endpoint,
+        client_value_ref_targets,
+        element_display_name
+    }
+    forwarders: list[es.Statement] = [];
+    bound: set[str] = set();
+    for (ref_name, top) in client_value_ref_targets(nd, self.shared_arch_names) {
+        if (isinstance(top, uni.Ability) and client_bridged_endpoint(nd, top)) {
+            func_name = element_display_name(top);
+            if func_name in bound {
+                continue;
+            }
+            bound.add(func_name);
+            forwarders.append(self._build_server_forwarder(top, func_name, ref_name));
+            continue;
+        }
+        self.emit(E5086, node_override=ref_name, name=ref_name.sym_name);
+    }
+    return forwarders;
+}
+
 impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
     args: list[(es.Expression | es.SpreadElement)] = [];
     props: list[(es.Property | es.SpreadElement)] = [];
@@ -1754,13 +1888,18 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
                     else self.sync_loc(es.Literal(value=None), jac_node=param)
             );
 
-            if (not param.key) or (not param.key.gen.es_ast) {
+            if not param.key {
                 props.append(
                     self.sync_loc(es.SpreadElement(argument=value_expr), jac_node=param)
                 );
                 continue;
             }
-            key_expr = cast(es.Expression, param.key.gen.es_ast);
+            key_expr = cast(
+                es.Expression,
+                self.sync_loc(
+                    es.Identifier(name=param.key.sym_name), jac_node=param.key
+                )
+            );
             props.append(
                 self.sync_loc(
                     es.Property(
@@ -2007,7 +2146,19 @@ impl EsastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
         nd.gen.es_ast = result_expr;
         return;
     }
-    if _call_kind == "instantiation" and isinstance(callee, es.Expression) {
+
+    _emit_new = _call_kind == "instantiation";
+    if not _emit_new {
+        _target_type = nd.target?.type;
+        if (
+            _target_type is not None
+            and _target_type.is_instantiable_class()
+            and not _target_type.shared.is_builtin_class
+        ) {
+            _emit_new = True;
+        }
+    }
+    if _emit_new and isinstance(callee, es.Expression) {
         result_expr: es.Expression = self.sync_loc(
             es.NewExpression(callee=callee_expr, arguments=call_args), jac_node=nd
         );
@@ -2028,6 +2179,26 @@ impl EsastGenPass.exit_assignment(nd: uni.Assignment) -> None {
         return;
     }
     value_expr = nd.value.gen.es_ast if (nd.value and nd.value.gen.es_ast) else None;
+
+    if (
+        len(nd.target) == 1
+        and isinstance(nd.target[0], uni.Name)
+        and nd.target[0].sym_name == '_'
+        and not nd.aug_op
+        and '_' not in self.reactive_vars
+    ) {
+        discard_value = cast(
+            es.Expression, value_expr or es.Identifier(name='undefined')
+        );
+        void_expr = self.sync_loc(
+            es.UnaryExpression(operator='void', prefix=True, argument=discard_value),
+            jac_node=nd
+        );
+        nd.gen.es_ast = self.sync_loc(
+            es.ExpressionStatement(expression=void_expr), jac_node=nd
+        );
+        return;
+    }
 
     if len(nd.target) == 1 and isinstance(nd.target[0], uni.Name) {
         target_name = nd.target[0].sym_name;
@@ -5731,13 +5902,22 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
     is_shared_boundary_arch = (
         (nd.name is not None) and (nd.name.sym_name in self.shared_arch_names)
     );
+    has_postinit = False;
+    for _stmt in (self.unwrap_body(nd) or []) {
+        if (
+            isinstance(_stmt, uni.Ability)
+            and getattr(_stmt, 'sym_name', '') == '__post_init__'
+        ) {
+            has_postinit = True;
+        }
+    }
     if (
         (
             (nd.arch_type.name == Tok.KW_OBJECT)
             or is_local_osp_arch
             or is_shared_boundary_arch
         )
-        and has_members
+        and (has_members or has_postinit)
     ) {
         constructor_stmts: list[es.Statement] = [];
         props_param = self.sync_loc(
@@ -5833,6 +6013,34 @@ impl EsastGenPass.exit_archetype(nd: uni.Archetype) -> None {
                     )
                 );
             }
+        }
+        if has_postinit {
+            constructor_stmts.append(
+                self.sync_loc(
+                    es.ExpressionStatement(
+                        expression=self.sync_loc(
+                            es.CallExpression(
+                                callee=self.sync_loc(
+                                    es.MemberExpression(
+                                        object=self.sync_loc(
+                                            es.ThisExpression(), jac_node=nd
+                                        ),
+                                        property=self.sync_loc(
+                                            es.Identifier(name='__post_init__'),
+                                            jac_node=nd
+                                        ),
+                                        computed=False
+                                    ),
+                                    jac_node=nd
+                                ),
+                                arguments=[]
+                            ),
+                            jac_node=nd
+                        )
+                    ),
+                    jac_node=nd
+                )
+            );
         }
         if constructor_stmts {
             if nd.base_classes {
@@ -5956,7 +6164,12 @@ impl EsastGenPass.exit_import(nd: uni.Import) -> None {
         } else {
             import_key = '';
         }
-        resolved_path = resolve_relative_path(import_key, nd.loc.mod_path);
+        resolved_path = resolve_relative_path(
+            import_key,
+            nd.loc.mod_path,
+            string_spec=isinstance(first_item, uni.ModulePath)
+                and first_item.string_path_value is not None
+        );
         self.client_manifest.imports[import_key] = resolved_path;
         import_path = import_key;
         if resolved_path.endswith('.jac') and not import_path.startswith('.') {
@@ -6963,6 +7176,7 @@ impl EsastGenPass._emit_boundary_type_stubs(nd: uni.Module) -> list[es.Statement
 impl EsastGenPass.exit_module(nd: uni.Module) -> None {
     import from jaclang.compiler.symbol_utils { report_client_bare_import_uses }
     report_client_bare_import_uses(self, nd);
+    server_forwarders = self._bind_client_value_refs(nd);
     if (self.scoped_styles is not None and self.scoped_styles.class_map) {
         import os;
         nd.gen.css = self.scoped_styles.scoped_css;
@@ -6988,6 +7202,7 @@ impl EsastGenPass.exit_module(nd: uni.Module) -> None {
     body.extend(self.na_import_stubs);
 
     body.extend(self._emit_boundary_type_stubs(nd));
+    body.extend(server_forwarders);
     scope = self.scope_map.get(nd);
     if (scope and scope.hoisted) {
         hoisted = list(scope.hoisted);
@@ -7471,7 +7686,9 @@ impl EsastGenPass._declaring_scope_for(name_node: uni.UniNode) -> (ScopeInfo | N
         return None;
     }
     owner = sym.parent_tab;
-    if not isinstance(owner, (uni.Module, uni.Ability, uni.ImplDef, uni.Test)) {
+    if not isinstance(
+        owner, (uni.Module, uni.Ability, uni.ImplDef, uni.Test, uni.LambdaExpr)
+    ) {
         return None;
     }
     if isinstance(owner, uni.ImplDef) {

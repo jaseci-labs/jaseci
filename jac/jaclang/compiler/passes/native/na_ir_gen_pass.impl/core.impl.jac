@@ -76,6 +76,8 @@ impl NaIRGenPass.postinit -> None {
     self.type_map["LiteralString"] = self.type_map.get("str", _spec_map["i8*"]);
     self.type_map["Region"] = _spec_map["i8*"];
 
+    self.type_map["type"] = _spec_map["i8*"];
+
     self.complex_struct_type = self.llvm_module.context.get_identified_type(
         "JacComplex"
     );
@@ -95,22 +97,33 @@ impl NaIRGenPass.postinit -> None {
 
 impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
     import from jaclang.compiler.passes.main.capability_check_pass {
-        native_capability_violations
+        native_capability_violations,
+        partition_native_capability_violations
     }
+    self._capability_demotions = {};
+    self._claimed_capability_demotions = set();
     _viols = native_capability_violations(self.ir_in);
     if _viols {
-        if not self.ir_in.gen.native_viols_reported {
-            for (_vnode, _vkind, _vname, _vhelp) in _viols {
-                self.emit(
-                    E5090,
-                    node_override=_vnode,
-                    kind=_vkind,
-                    name=_vname,
-                    help_text=_vhelp
-                );
+        (_fatal_viols, _demotable) = partition_native_capability_violations(_viols);
+        if _fatal_viols {
+            if not self.ir_in.gen.native_viols_reported {
+                _report = list(_fatal_viols);
+                for _unit_viols in _demotable.values() {
+                    _report.extend(_unit_viols);
+                }
+                for (_vnode, _vkind, _vname, _vhelp) in _report {
+                    self.emit(
+                        E5090,
+                        node_override=_vnode,
+                        kind=_vkind,
+                        name=_vname,
+                        help_text=_vhelp
+                    );
+                }
             }
+            return self.ir_in;
         }
-        return self.ir_in;
+        self._capability_demotions = _demotable;
     }
 
     self._emit_rc_helpers();
@@ -140,6 +153,21 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
         } elif isinstance(stmt, uni.Test) {
             self._codegen_test(stmt);
         }
+    }
+    _unclaimed = False;
+    for (_ck, _cviols) in self._capability_demotions.items() {
+        if _ck in self._claimed_capability_demotions {
+            continue;
+        }
+        _unclaimed = True;
+        for (_vnode, _vkind, _vname, _vhelp) in _cviols {
+            self.emit(
+                E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
+            );
+        }
+    }
+    if _unclaimed {
+        return self.ir_in;
     }
     self._codegen_entry(_entry_nodes);
     self._finalize_trace_lookup();
@@ -188,13 +216,35 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
     return self.ir_in;
 }
 
+impl NaIRGenPass._predemote_capability_unit(
+    full_name: str, func: ir.Function, viols: list, keep_func: bool = False
+) -> bool {
+    _local_mark = len(self.errors_had);
+    for (_vnode, _vkind, _vname, _vhelp) in viols {
+        self.emit(
+            E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
+        );
+    }
+    return self._demote_method_if_unlowerable(
+        full_name, func, _local_mark, keep_func=keep_func
+    );
+}
+
+impl NaIRGenPass._rename_demoted_symbol(name: str, func: ir.Function) -> None {
+    try {
+        self.llvm_module.globals.pop(func.name, None);
+        func.name = f"{name}.__jac_demoted";
+        self.llvm_module.globals[func.name] = func;
+    } except Exception { }
+}
+
 impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {
     _opt_pt = self._opt_payload_of(ty);
     if _opt_pt is not None {
         return "opt." + self._llvm_type_str(_opt_pt);
     }
     if self._str_desc_ty is not None and ty == self._str_desc_ty {
-        return "jacstr3" if len(list(self._str_desc_ty.elements)) == 3 else "jacstr2";
+        return self._str_desc_kind();
     }
     if isinstance(ty, ir.IntType) {
         if ty.width == 64 {
@@ -271,12 +321,14 @@ impl NaIRGenPass._export_native_layout -> None {
         NativeTupleLayout,
         NativeTestLayout
     }
-    layout = NativeModuleLayout();
+    layout = NativeModuleLayout(str_headerless=self._nogc_headerless());
 
     for (arch_name, field_indices) in self.struct_field_indices.items() {
         field_types = self.struct_field_types.get(arch_name, {});
         fields: list[NativeFieldInfo] = [];
         enum_types = self.struct_field_enum_type.get(arch_name, {});
+        elem_keys = self.struct_field_elem_keys.get(arch_name, {});
+        _foreign_flds = self.struct_field_foreign.get(arch_name, set());
         for (fname, idx) in sorted(field_indices.items(), key=lambda (x) { x[1]; }) {
             ftype = field_types.get(fname);
             llvm_t = self._llvm_type_str(ftype) if ftype is not None else "i64";
@@ -301,12 +353,17 @@ impl NaIRGenPass._export_native_layout -> None {
                     enum_type=enum_types.get(fname),
                     is_func_ptr=is_fn_ptr,
                     func_param_types=fn_param_types,
-                    func_ret_type=fn_ret_type
+                    func_ret_type=fn_ret_type,
+                    elem_keys=elem_keys.get(fname),
+                    foreign=fname in _foreign_flds
                 )
             );
         }
         layout.structs[arch_name] = NativeStructLayout(
-            name=arch_name, fields=fields, has_vtable=self._arch_has_vtable(arch_name)
+            name=arch_name,
+            fields=fields,
+            has_vtable=self._arch_has_vtable(arch_name),
+            accessors=self._exported_accessors(arch_name)
         );
     }
 
@@ -404,6 +461,9 @@ impl NaIRGenPass._export_native_layout -> None {
     }
 
     for (mname, func) in self.method_funcs.items() {
+        if mname in self._native_skipped_methods {
+            continue;
+        }
         param_types = [self._llvm_type_str(a) for a in func.function_type.args];
         param_names = [a.name for a in func.args];
         ret_type = self._llvm_type_str(func.function_type.return_type);
@@ -435,6 +495,29 @@ impl NaIRGenPass._export_native_layout -> None {
         );
     }
     self.ir_in.gen.native_layout = layout;
+}
+
+impl NaIRGenPass._exported_accessors(arch_name: str) -> dict[(str, dict[(str, str)])] {
+    out: dict[(str, dict[(str, str)])] = {};
+    lay = self._arch_layout(arch_name);
+    if lay is None {
+        return out;
+    }
+    for slot in lay.method_index {
+        parts = slot.rsplit(".", 1);
+        if len(parts) != 2 or parts[1] not in ACCESSOR_SLOT_SUFFIX.values() {
+            continue;
+        }
+        fn = self._resolve_method(arch_name, slot);
+        if fn is None or fn.name in self._native_skipped_methods {
+            continue;
+        }
+        if parts[0] not in out {
+            out[parts[0]] = {};
+        }
+        out[parts[0]][parts[1]] = fn.name;
+    }
+    return out;
 }
 
 impl NaIRGenPass._ret_tuple_hints(fname: str, ret_tuple: any) -> (list | None) {
@@ -484,12 +567,14 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         for _s in ModuleCodegenPass.iter_context_stmts(self.ir_in, CodeContext.NATIVE)
     };
     _has_native_code: bool = len(_native_ids) > 0;
+    _nested_native = ModuleCodegenPass.iter_nested_imports(
+        self.ir_in, CodeContext.NATIVE
+    );
+    for _nested_imp in _nested_native {
+        _native_ids.add(id(_nested_imp));
+    }
     wq: list = [];
-    for imp in [
-        s
-        for s in ModuleCodegenPass.iter_context_stmts(self.ir_in)
-        if isinstance(s, uni.Import)
-    ] {
+    for imp in ModuleCodegenPass.iter_module_imports(self.ir_in) + _nested_native {
         mod_name = self._extract_import_module_name(imp);
         if not mod_name {
             continue;
@@ -571,11 +656,8 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         imported_mods.append((src_mod_str, imported_mod));
 
         sub_base = os.path.dirname(os.path.abspath(full_path));
-        for sub_imp in [
-            s
-            for s in ModuleCodegenPass.iter_context_stmts(imported_mod)
-            if isinstance(s, uni.Import)
-        ] {
+        for sub_imp in ModuleCodegenPass.iter_module_imports(imported_mod)
+            + ModuleCodegenPass.iter_nested_imports(imported_mod, CodeContext.NATIVE) {
             sub_name = self._extract_import_module_name(sub_imp);
             if sub_name {
                 wq.append((sub_name, sub_base, src_mod_str));
@@ -817,6 +899,14 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
                 }
             }
         }
+
+        for (_ia_slot, _ia_var, _ia_acc) in archetype_accessors(_imp_arch) {
+            _im_full = f"{_ia_name}.{_ia_slot}";
+            if (_imp_layout is not None and _im_full not in _imp_layout.methods)
+                or (_imp_layout is None and _wl_internal) {
+                self._native_skipped_methods.add(_im_full);
+            }
+        }
     }
     for stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
         if (
@@ -860,6 +950,9 @@ impl NaIRGenPass._forward_declare_archetype_methods(arch: uni.Archetype) -> None
             }
         }
     }
+    for (_slot, _accvar, _acc) in archetype_accessors(arch) {
+        self._forward_declare_method(aname, _acc, field=_accvar);
+    }
 }
 
 impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None {
@@ -867,13 +960,20 @@ impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None 
     _imp_reg = get_layout_registry(imported_mod, self.prog);
     _cons_reg = get_layout_registry(self.ir_in, self.prog);
     for (_name, _parents) in _imp_reg.class_parents.items() {
-        if _name not in _cons_reg.class_parents {
+        if _name not in _cons_reg.class_parents
+            or (_name in _imp_reg.layouts and _name not in _cons_reg.layouts) {
             _cons_reg.class_parents[_name] = _parents;
         }
     }
     for (_name, _mro) in _imp_reg.mro_order.items() {
-        if _name not in _cons_reg.mro_order {
+        if _name not in _cons_reg.mro_order
+            or (_name in _imp_reg.layouts and _name not in _cons_reg.layouts) {
             _cons_reg.mro_order[_name] = _mro;
+        }
+    }
+    for (_name, _lay) in _imp_reg.layouts.items() {
+        if _name not in _cons_reg.layouts {
+            _cons_reg.layouts[_name] = _lay;
         }
     }
 
@@ -897,6 +997,22 @@ impl NaIRGenPass._register_imported_archetype(arch: uni.Archetype) -> None {
     aname = arch.name.value if arch.name else None;
     if aname is None {
         return;
+    }
+
+    _arch_mod = arch.find_parent_of_type(uni.Module);
+    _arch_src = _arch_mod.loc.mod_path if _arch_mod?.loc else "";
+    _seen_src = self._struct_source_mod.get(aname);
+    if _seen_src is not None and _arch_src and _seen_src != _arch_src {
+        import sys as _rc_sys;
+        _rc_sys.stderr.write(
+            f"warning: native struct name collision -- '{aname}' from "
+            f"{_arch_src} shadows the one from {_seen_src}; skipping "
+            f"re-registration\n"
+        );
+        return;
+    }
+    if _arch_src {
+        self._struct_source_mod[aname] = _arch_src;
     }
 
     if aname not in self.struct_types {
@@ -942,6 +1058,12 @@ impl NaIRGenPass._register_imported_globals(
             }
             var_type: ir.Type = ir.IntType(64);
             if assign.type_tag and assign.type_tag.tag {
+                if (
+                    self._quiet_glob_type(assign.type_tag.tag) is None
+                    and not self._glob_native_use_exists(target)
+                ) {
+                    continue;
+                }
                 var_type = self._resolve_jac_type(assign.type_tag.tag);
             }
             global_var = ir.GlobalVariable(self.llvm_module, var_type, name=var_name);
@@ -970,11 +1092,8 @@ impl NaIRGenPass._forward_declare_imported_ability(nd: uni.Ability) -> None {
 }
 
 impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
-    imports = [
-        s
-        for s in ModuleCodegenPass.iter_context_stmts(module)
-        if isinstance(s, uni.Import)
-    ];
+    imports = ModuleCodegenPass.iter_module_imports(module)
+        + ModuleCodegenPass.iter_nested_imports(module, CodeContext.NATIVE);
     for stmt in imports {
         if not stmt.clib_decls {
             if stmt.items {
@@ -1222,7 +1341,28 @@ impl NaIRGenPass._dispatch_primitive_method(
     _ctx = self._native_emit_ctx_class(
         pass_ref=self, type_key=type_key, call_kwargs=(kwargs or {})
     );
-    return _emit_fn(_ctx, target, args);
+    try {
+        return _emit_fn(_ctx, target, args);
+    } except Exception as _pm_exc {
+        if self._na_debug_on() {
+            import sys as _pm_sys;
+            import traceback as _pm_tb;
+            _pm_sys.stderr.write(f"NA_DEBUG primitive {type_name}.{method_name}\n");
+            _pm_tb.print_exc(file=_pm_sys.stderr);
+        }
+        self.emit(
+            E5092,
+            node_override=kw_node,
+            kind="primitive method",
+            name=f"{type_name}.{method_name}",
+            help_text=f"The emitter for this builtin method raised "
+            f"{type(_pm_exc).__name__} on the operands it was given, which "
+            "means an argument did not reach the shape it expects -- most "
+            "often a container or tuple where a scalar or string is "
+            f"required. Original error: {_pm_exc}"
+        );
+        return None;
+    }
 }
 
 impl NaIRGenPass._dispatch_builtin(
@@ -1230,7 +1370,8 @@ impl NaIRGenPass._dispatch_builtin(
     args: list[ir.Value],
     kwargs: (dict | None) = None,
     kw_node: (uni.UniNode | None) = None,
-    type_key: str = ""
+    type_key: str = "",
+    arg_nodes: (list | None) = None
 ) -> (ir.Value | None) {
     args = [self._str_norm(_a) for _a in args];
     self._ensure_emitters();
@@ -1255,7 +1396,10 @@ impl NaIRGenPass._dispatch_builtin(
         return None;
     }
     _ctx = self._native_emit_ctx_class(
-        pass_ref=self, type_key=type_key, call_kwargs=(kwargs or {})
+        pass_ref=self,
+        type_key=type_key,
+        call_kwargs=(kwargs or {}),
+        arg_nodes=(arg_nodes or [])
     );
     return _emit_fn(_ctx, args);
 }

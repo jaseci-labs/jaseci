@@ -1,9 +1,9 @@
 import hashlib;
-import re;
 import from collections.abc { Sequence }
 import from contextvars { ContextVar }
 import from dataclasses { field }
 import from typing { Any }
+import from jaclang.jac0core.srcloc { CodeLocInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { IndexInfo, SliceInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
 import type from jaclang.jac0core.unitree { CommentToken }
@@ -47,6 +47,28 @@ obj NativeModuleInfo {
         );
 }
 
+glob HDR_ALLOC_ID_OFF: int = -32,
+     HDR_TAG_OFF: int = -24,
+     HDR_RC_OFF: int = -16,
+     HDR_DTOR_OFF: int = -8,
+     HDR_TOTAL: int = 32;
+
+glob HDR_MAGIC: int = 44061,
+     HDR_MAGIC_SHIFT_BASE: int = 44061 * 4294967296,
+     RC_SENTINEL: int = 0x7FFFFFFFFFFFFFFF;
+
+glob STR_LEN_TAG_BIT: int = 1,
+     STR_LEN_TAG_SHIFT: int = 1;
+
+glob JACSTR_DESC_FIELDS: dict[(str, tuple)] = {
+         'jacstr3': ('root', 'data', 'len'),
+         'jacstr2': ('data', 'len')
+     };
+
+def str_len_tag(length: int) -> int {
+    return (length << STR_LEN_TAG_SHIFT) | STR_LEN_TAG_BIT;
+}
+
 obj NativeFieldInfo {
     has name: str,
         llvm_type: str,
@@ -54,13 +76,16 @@ obj NativeFieldInfo {
         enum_type: (str | None) = None,
         is_func_ptr: bool = False,
         func_param_types: (list[str] | None) = None,
-        func_ret_type: (str | None) = None;
+        func_ret_type: (str | None) = None,
+        elem_keys: (list | None) = None,
+        foreign: bool = False;
 }
 
 obj NativeStructLayout {
     has name: str,
         fields: list[NativeFieldInfo] = field(default_factory=`list),
-        has_vtable: bool = False;
+        has_vtable: bool = False,
+        accessors: dict[(str, dict[(str, str)])] = field(default_factory=`dict);
 }
 
 obj NativeEnumLayout {
@@ -101,8 +126,42 @@ def native_safe_sym(src: str) -> str {
     if src in ("osp_kernel", "fmt_kernel") {
         return src;
     }
-    safe = re.sub(r'[^a-zA-Z0-9_]', '_', src);
+    safe = '';
+    for ch in src {
+        if ((ch >= 'a') and (ch <= 'z'))
+            or ((ch >= 'A') and (ch <= 'Z'))
+            or ((ch >= '0') and (ch <= '9'))
+            or (ch == '_') {
+            safe += ch;
+        } else {
+            safe += '_';
+        }
+    }
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
+}
+
+def native_glob_init_symbols(manifest: object) -> list[str] {
+    syms: list[str] = [];
+    sources = (manifest.native_transitive_sources if manifest else []) or [];
+    for src in sources {
+        if not src {
+            continue;
+        }
+        sym = f"__jac_glob_init_{native_safe_sym(src)}";
+        if sym not in syms {
+            syms.append(sym);
+        }
+    }
+    syms.append("__jac_glob_init");
+    return syms;
+}
+
+def install_native_static_init(engine: object, manifest: object) -> None {
+    if engine is None {
+        return;
+    }
+    engine.static_init_symbols = native_glob_init_symbols(manifest);
+    engine.static_init_chained = {"jac_entry"};
 }
 
 glob NATIVE_SUPPORTED_STDLIB: set[str] = {
@@ -111,7 +170,9 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "time",
          "os",
          "random",
-         "struct"
+         "struct",
+         "enum",
+         "collections.abc"
      },
      _effective_codespace_ctx: ContextVar[str] = ContextVar(
          "jac_effective_default_codespace", default=""
@@ -119,6 +180,36 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
      _closure_cap_ctx: ContextVar[int] = ContextVar(
          "jac_native_closure_cap", default=0
      );
+
+glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
+         {"TypeVar", "ParamSpec", "TypeVarTuple"}
+     );
+
+glob NATIVE_COMPTIME_BASES: frozenset = frozenset({"ABC"});
+
+glob NATIVE_COMPTIME_IDENTITY_CALLS: frozenset = frozenset({"cast"});
+
+glob NATIVE_COMPTIME_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"});
+
+glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
+         "abc": NATIVE_COMPTIME_BASES,
+         "typing": TYPE_PARAM_CONSTRUCTORS
+             | NATIVE_COMPTIME_IDENTITY_CALLS
+             | NATIVE_COMPTIME_TYPE_MARKERS
+     };
+
+def native_comptime_import_names(module_name: str, names: list[str]) -> bool {
+    allowed = NATIVE_COMPTIME_STDLIB.get(module_name.lstrip('.'));
+    if allowed is None or not names {
+        return False;
+    }
+    for n in names {
+        if n not in allowed {
+            return False;
+        }
+    }
+    return True;
+}
 
 def set_effective_default_codespace(value: str) {
     _effective_codespace_ctx.set(value);
@@ -176,10 +267,10 @@ def native_stdlib_root -> (str | None) {
     if not jaclang?.__file__ {
         return None;
     }
-    stdlib_root = os.path.join(
+    stdlib_dir = os.path.join(
         os.path.dirname(jaclang.__file__), "runtimelib", "na_stdlib"
     );
-    return stdlib_root if os.path.isdir(stdlib_root) else None;
+    return stdlib_dir if os.path.isdir(stdlib_dir) else None;
 }
 
 def is_native_by_location(file_path: str) -> bool {
@@ -225,17 +316,17 @@ def is_client_by_location(file_path: str) -> bool {
 
 def is_bundled_native_module(module_name: str) -> bool {
     import os;
-    stdlib_root = native_stdlib_root();
-    if stdlib_root is None or not module_name {
+    stdlib_dir = native_stdlib_root();
+    if stdlib_dir is None or not module_name {
         return False;
     }
     path_name = module_name.lstrip('.').replace('.', os.sep);
-    return _native_variant_path(os.path.join(stdlib_root, path_name)) is not None;
+    return _native_variant_path(os.path.join(stdlib_dir, path_name)) is not None;
 }
 
 def native_target_os -> str {
     import os;
-    import platform;
+    import sys;
     _t = os.environ.get("JAC_NATIVE_TARGET", "");
     if _t {
         if ("darwin" in _t) or ("apple" in _t) {
@@ -246,11 +337,11 @@ def native_target_os -> str {
         }
         return "linux";
     }
-    _s = platform.system();
-    if _s == "Darwin" {
+    _s = sys.platform;
+    if _s == "darwin" {
         return "darwin";
     }
-    if _s == "Windows" {
+    if _s == "win32" {
         return "windows";
     }
     return "linux";
@@ -341,7 +432,8 @@ obj NativeModuleLayout {
         methods: dict[(str, NativeFuncLayout)] = field(default_factory=`dict),
         list_elem_types: dict[(str, str)] = field(default_factory=`dict),
         tuples: dict[(str, NativeTupleLayout)] = field(default_factory=`dict),
-        tests: list[NativeTestLayout] = field(default_factory=`list);
+        tests: list[NativeTestLayout] = field(default_factory=`list),
+        str_headerless: (bool | None) = None;
 }
 
 def _tuple_layout_to_dict(t: (NativeTupleLayout | None)) -> (dict | None) {
@@ -377,6 +469,9 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
             name: {
                 "name": s.name,
                 "has_vtable": s.has_vtable,
+                "accessors": {
+                    fname: dict(kinds) for (fname, kinds) in s.accessors.items()
+                },
                 "fields": [
                     {
                         "name": fld.name,
@@ -389,7 +484,11 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
                                 if fld.func_param_types is not None
                                 else None
                         ),
-                        "func_ret_type": fld.func_ret_type
+                        "func_ret_type": fld.func_ret_type,
+                        "elem_keys": (
+                            list(fld.elem_keys) if fld.elem_keys is not None else None
+                        ),
+                        "foreign": fld.foreign
                     } for fld in s.fields
                 ]
             } for (name, s) in layout.structs.items()
@@ -408,7 +507,8 @@ def native_layout_to_dict(layout: NativeModuleLayout) -> dict {
             name: _func_layout_to_dict(f) for (name, f) in layout.methods.items()
         },
         "list_elem_types": dict(layout.list_elem_types),
-        "tuples": {key: _tuple_layout_to_dict(t) for (key, t) in layout.tuples.items()}
+        "tuples": {key: _tuple_layout_to_dict(t) for (key, t) in layout.tuples.items()},
+        "str_headerless": layout.str_headerless
     };
 }
 
@@ -498,37 +598,4 @@ obj CodeGenTarget {
     has doc_ir: Doc { getter; setter(value: Doc); }
     has client_manifest: ClientManifest { getter; setter(value: ClientManifest); }
     has interop_manifest: InteropManifest { getter; setter(value: InteropManifest); }
-}
-
-obj CodeLocInfo {
-    has first_tok: Token,
-        last_tok: Token;
-
-    has orig_src: Source { getter; }
-    has mod_path: str { getter; }
-    has first_line: int { getter; }
-    has last_line: int { getter; }
-    has col_start: int { getter; }
-    has col_end: int { getter; }
-    has pos_start: int { getter; }
-    has pos_end: int { getter; }
-
-    def update_token_range(first_tok: Token, last_tok: Token) {
-        self.first_tok = first_tok;
-        self.last_tok = last_tok;
-    }
-
-    def update_first_token(first_tok: Token) {
-        self.first_tok = first_tok;
-    }
-
-    def update_last_token(last_tok: Token) {
-        self.last_tok = last_tok;
-    }
-
-    def __str__ -> str {
-        return f"{self.first_line}:{self.col_start} - {self.last_line}:{self.col_end}";
-    }
-
-    def snapshot -> CodeLocInfo;
 }

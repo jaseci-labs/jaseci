@@ -99,7 +99,7 @@ impl ReactBackend.runtime_symbols(
     intent: StateField | RefField | Effect | AsyncBoundary | ViewElement
 ) -> list[str] {
     if isinstance(intent, StateField) {
-        return ["useState"];
+        return ["useJacState"];
     }
     if isinstance(intent, RefField) {
         return ["useRef"];
@@ -118,15 +118,26 @@ impl ReactBackend.runtime_symbols(
     return [];
 }
 
+impl ReactBackend._state_cell_name(var_name: str) -> str {
+    return f"__jacS_{var_name}";
+}
+
+impl ReactBackend._state_cell_member(var_name: str, member: str) -> es.Expression {
+    return es.MemberExpression(
+        object=es.Identifier(name=self._state_cell_name(var_name)),
+        property=es.Identifier(name=member),
+        computed=False,
+        optional=False
+    );
+}
+
 impl ReactBackend.lower_state_field(s: StateField) -> list[es.Statement] {
-    setter_name = self._get_setter_name(s.name);
-    array_pattern = es.ArrayPattern(
-        elements=[es.Identifier(name=s.name), es.Identifier(name=setter_name)]
+    hook_call = es.CallExpression(
+        callee=es.Identifier(name='useJacState'), arguments=[s.init_expr]
     );
-    use_state_call = es.CallExpression(
-        callee=es.Identifier(name='useState'), arguments=[s.init_expr]
+    declarator = es.VariableDeclarator(
+        id=es.Identifier(name=self._state_cell_name(s.name)), init=hook_call
     );
-    declarator = es.VariableDeclarator(id=array_pattern, init=use_state_call);
     decl_stmt = es.VariableDeclaration(declarations=[declarator], kind='const');
     return [decl_stmt];
 }
@@ -142,7 +153,7 @@ impl ReactBackend.lower_ref_field(r: RefField) -> list[es.Statement] {
 }
 
 impl ReactBackend.lower_state_read(name: str) -> es.Expression {
-    return es.Identifier(name=name);
+    return self._state_cell_member(name, 'val');
 }
 
 impl ReactBackend.lower_view_expr(expr: es.Expression) -> es.Expression {
@@ -288,16 +299,15 @@ impl ReactBackend.lower_view(view: ViewElement, sync_loc: any) -> es.Expression 
 }
 
 impl ReactBackend.lower_state_update(u: StateUpdate) -> es.Expression {
-    setter_name = self._get_setter_name(u.name);
     if u.aug_op {
         setter_arg = es.BinaryExpression(
-            operator=u.aug_op, left=es.Identifier(name=u.name), right=u.value
+            operator=u.aug_op, left=self.lower_state_read(u.name), right=u.value
         );
     } else {
         setter_arg = u.value;
     }
     return es.CallExpression(
-        callee=es.Identifier(name=setter_name), arguments=[setter_arg]
+        callee=self._state_cell_member(u.name, 'set'), arguments=[setter_arg]
     );
 }
 

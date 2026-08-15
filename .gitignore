@@ -99,3 +99,5 @@ zig-pkg/
 
 # Gradle wrapper/cache (scaffolded Android projects emit this locally)
 .gradle/
+# Seal-time generated materializer root (see jaclang/utils/gen_native_materialize.jac)
+jac/jaclang/compiler/native_materialize.jac

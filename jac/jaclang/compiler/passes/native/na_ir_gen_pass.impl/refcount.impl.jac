@@ -500,7 +500,7 @@ impl NaIRGenPass._emit_rc_helpers -> None {
     );
     is_dtor_len = b.icmp_unsigned(
         "!=",
-        b.and_(dtor_val, ir.Constant(i64, 1), name="dtor.lowbit"),
+        b.and_(dtor_val, ir.Constant(i64, STR_LEN_TAG_BIT), name="dtor.lowbit"),
         ir.Constant(i64, 0),
         name="dtor.is.len"
     );
@@ -550,6 +550,20 @@ impl NaIRGenPass._mark_owned(val: ir.Value) -> ir.Value {
 
 impl NaIRGenPass._is_owned(val: ir.Value) -> bool {
     return bool(getattr(val, 'is_owned', False));
+}
+
+impl NaIRGenPass._opt_result_owned(val: ir.Value, expr: object) -> bool {
+    if self._is_owned(val) {
+        return True;
+    }
+    if self._opt_ptr_payload_of(val.type) is None {
+        return False;
+    }
+    import from jaclang.compiler.passes.main.rc_facts_pass {
+        Ownership,
+        result_ownership
+    }
+    return isinstance(expr, uni.Expr) and result_ownership(expr) == Ownership.OWNED;
 }
 
 impl NaIRGenPass._can_native_move_lower(nd: object) -> bool {
@@ -685,18 +699,91 @@ impl NaIRGenPass._emit_str_len_helpers -> None {
             len_fn.args[0], [ir.Constant(i64, HDR_DTOR_OFF)], name="sl.dt.slot"
         );
         _l_dv = b.load(b.bitcast(_l_dt_slot, i64_ptr, name="sl.dt.p"), name="sl.dv");
-        _l_odd = b.and_(_l_dv, ir.Constant(i64, 1), name="sl.odd");
+        _l_odd = b.and_(_l_dv, ir.Constant(i64, STR_LEN_TAG_BIT), name="sl.odd");
         b.cbranch(
             b.icmp_unsigned("!=", _l_odd, ir.Constant(i64, 0), name="sl.has.len"),
             _l_fast,
             _l_slow
         );
         b = ir.IRBuilder(_l_fast);
-        b.ret(b.lshr(_l_dv, ir.Constant(i64, 1), name="sl.len"));
+        b.ret(b.lshr(_l_dv, ir.Constant(i64, STR_LEN_TAG_SHIFT), name="sl.len"));
         b = ir.IRBuilder(_l_slow);
         b.ret(b.call(strlen_fn, [len_fn.args[0]], name="sl.strlen"));
     }
     self.str_len_fn = len_fn;
+
+    tr_fn = self._define_function(
+        "__jac_str_truthy", ir.FunctionType(ir.IntType(1), [i8_ptr])
+    );
+    tr_fn.linkage = "private";
+    tr_fn.args[0].name = "s";
+    _t_entry = tr_fn.append_basic_block("entry");
+    tb = ir.IRBuilder(_t_entry);
+    if _headerless {
+        tb.ret(
+            tb.icmp_unsigned(
+                "!=", tr_fn.args[0], ir.Constant(i8_ptr, None), name="st.nn"
+            )
+        );
+    } else {
+        _t_zero = tr_fn.append_basic_block("zero");
+        _t_sent = tr_fn.append_basic_block("check.sentinel");
+        _t_magic = tr_fn.append_basic_block("check.magic");
+        _t_hdr = tr_fn.append_basic_block("hdr");
+        _t_len = tr_fn.append_basic_block("stamped");
+        _t_obj = tr_fn.append_basic_block("object");
+        _t_cstr = tr_fn.append_basic_block("cstr");
+        _t_null = tb.icmp_unsigned(
+            "==", tr_fn.args[0], ir.Constant(i8_ptr, None), name="st.null"
+        );
+        tb.cbranch(_t_null, _t_zero, _t_sent);
+        tb = ir.IRBuilder(_t_zero);
+        tb.ret(ir.Constant(ir.IntType(1), 0));
+        tb = ir.IRBuilder(_t_sent);
+        _t_rc_slot = tb.gep(
+            tr_fn.args[0], [ir.Constant(i64, HDR_RC_OFF)], name="st.rc.slot"
+        );
+        _t_rc = tb.load(tb.bitcast(_t_rc_slot, i64_ptr, name="st.rc.p"), name="st.rc");
+        _t_static = tb.icmp_unsigned(
+            "==", _t_rc, ir.Constant(i64, RC_SENTINEL), name="st.static"
+        );
+        tb.cbranch(_t_static, _t_hdr, _t_magic);
+        tb = ir.IRBuilder(_t_magic);
+        _t_mc = self._emit_magic_check(tb, tr_fn.args[0], name_prefix="st.mc");
+        tb.cbranch(_t_mc, _t_hdr, _t_cstr);
+        tb = ir.IRBuilder(_t_hdr);
+        _t_dt_slot = tb.gep(
+            tr_fn.args[0], [ir.Constant(i64, HDR_DTOR_OFF)], name="st.dt.slot"
+        );
+        _t_dv = tb.load(tb.bitcast(_t_dt_slot, i64_ptr, name="st.dt.p"), name="st.dv");
+        _t_odd = tb.and_(_t_dv, ir.Constant(i64, STR_LEN_TAG_BIT), name="st.odd");
+        tb.cbranch(
+            tb.icmp_unsigned("!=", _t_odd, ir.Constant(i64, 0), name="st.has.len"),
+            _t_len,
+            _t_obj
+        );
+        tb = ir.IRBuilder(_t_len);
+        tb.ret(
+            tb.icmp_unsigned(
+                "!=",
+                tb.lshr(_t_dv, ir.Constant(i64, STR_LEN_TAG_SHIFT), name="st.len"),
+                ir.Constant(i64, 0),
+                name="st.len.nz"
+            )
+        );
+        tb = ir.IRBuilder(_t_obj);
+        tb.ret(ir.Constant(ir.IntType(1), 1));
+        tb = ir.IRBuilder(_t_cstr);
+        tb.ret(
+            tb.icmp_unsigned(
+                "!=",
+                tb.call(strlen_fn, [tr_fn.args[0]], name="st.strlen"),
+                ir.Constant(i64, 0),
+                name="st.strlen.nz"
+            )
+        );
+    }
+    self.str_truthy_fn = tr_fn;
     self._emit_str_stamp_and_new();
 }
 
@@ -729,8 +816,8 @@ impl NaIRGenPass._emit_str_stamp_and_new -> None {
         b.cbranch(_s_mc, _s_store, _s_done);
         b = ir.IRBuilder(_s_store);
         _s_enc = b.or_(
-            b.shl(stamp_fn.args[1], ir.Constant(i64, 1), name="ss.shl"),
-            ir.Constant(i64, 1),
+            b.shl(stamp_fn.args[1], ir.Constant(i64, STR_LEN_TAG_SHIFT), name="ss.shl"),
+            ir.Constant(i64, STR_LEN_TAG_BIT),
             name="ss.enc"
         );
         _s_slot = b.gep(
@@ -793,6 +880,15 @@ impl NaIRGenPass._call_str_len(
         self._emit_str_len_helpers();
     }
     return b.call(self.str_len_fn, [ptr], name=name);
+}
+
+impl NaIRGenPass._call_str_truthy(
+    b: ir.IRBuilder, ptr: ir.Value, name: str = "s.truthy"
+) -> ir.Value {
+    if self.str_truthy_fn is None {
+        self._emit_str_len_helpers();
+    }
+    return b.call(self.str_truthy_fn, [ptr], name=name);
 }
 
 impl NaIRGenPass._stamp_str_len(
@@ -948,13 +1044,18 @@ impl NaIRGenPass._str_desc_type -> ir.Type {
     i8p = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
     st = self.llvm_module.context.get_identified_type("JacStr");
-    if self._nogc_headerless() {
-        st.set_body(i8p, i64);
-    } else {
-        st.set_body(i8p, i8p, i64);
-    }
+    st.set_body(
+        *[
+            i64 if fname == "len" else i8p
+            for fname in JACSTR_DESC_FIELDS[self._str_desc_kind()]
+        ]
+    );
     self._str_desc_ty = st;
     return st;
+}
+
+impl NaIRGenPass._str_desc_kind -> str {
+    return "jacstr2" if self._nogc_headerless() else "jacstr3";
 }
 
 impl NaIRGenPass._emit_str_desc_helpers -> None {
@@ -973,8 +1074,9 @@ impl NaIRGenPass._emit_str_desc_helpers -> None {
     i64 = ir.IntType(64);
     desc = self._str_desc_type();
     _hl = self._nogc_headerless();
-    _di = 0 if _hl else 1;
-    _li = 1 if _hl else 2;
+    _dfields = JACSTR_DESC_FIELDS[self._str_desc_kind()];
+    _di = _dfields.index("data");
+    _li = _dfields.index("len");
     _z = ir.Constant(i32, 0);
     for (fname, len_fn) in (
         ("__jac_str_wrap", self.str_len_fn),
@@ -2013,6 +2115,31 @@ impl NaIRGenPass._emit_loop_iter_cleanup(body_locals: list, loc: str = "") -> No
     }
 }
 
+impl NaIRGenPass._bind_loop_coll_slot(val: ir.Value) -> (str | None) {
+    if not isinstance(val.type, ir.PointerType) {
+        return None;
+    }
+    _name = f"for.coll.{self._loop_coll_seq}";
+    self._loop_coll_seq += 1;
+    _slot = self._entry_alloca(val.type, _name);
+    self.local_vars[_name] = _slot;
+    self.builder.store(val, _slot);
+    return _name;
+}
+
+impl NaIRGenPass._release_loop_coll_slot(
+    var_name: str, op: str = "", loc: str = ""
+) -> None {
+    _slot = self.local_vars.get(var_name);
+    if _slot is None {
+        return;
+    }
+    _val = self.builder.load(_slot, name=f"{var_name}.end");
+    self._mark_owned(_val);
+    self._emit_rc_release_simple(_val, op=op, loc=loc);
+    self.builder.store(ir.Constant(_slot.type.pointee, None), _slot);
+}
+
 impl NaIRGenPass._rc_strdup(ptr: ir.Value, name: str = "rc.str") -> ir.Value {
     i8_ptr = ir.IntType(8).as_pointer();
     i64 = ir.IntType(64);
@@ -2070,6 +2197,13 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
     if _hook is not None {
         self.struct_drop_hooks[arch_name] = _hook;
         b.call(_hook, [release_fn.args[0]]);
+    }
+
+    if self._pyb_base_of(arch_name) is not None {
+        b.call(
+            self._pyb_helper("drop_owner"),
+            [b.ptrtoint(release_fn.args[0], i64, name="pyb.owner")]
+        );
     }
 
     _has_ref_fields = any(

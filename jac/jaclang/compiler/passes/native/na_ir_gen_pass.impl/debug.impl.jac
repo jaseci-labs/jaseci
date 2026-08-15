@@ -3,6 +3,11 @@ import from jaclang.compiler.passes.native.llvm { binding as llvm }
 import os;
 import sys;
 
+impl NaIRGenPass._na_debug_on -> bool {
+    _opts = self.prog._compile_options;
+    return _opts is not None and bool(_opts.na_debug);
+}
+
 impl NaIRGenPass._attach_di_subprogram(
     func: ir.Function, name: str, line: int
 ) -> None {
@@ -79,6 +84,15 @@ impl NaIRGenPass.post_transform -> None {
                 )
             );
         } except Exception { }
+    }
+
+    for _fn in self.llvm_module.functions {
+        for _blk in _fn.blocks {
+            if not _blk.is_terminated {
+                _ob = ir.IRBuilder(_blk);
+                _ob.unreachable();
+            }
+        }
     }
 
     ir_str = str(self.llvm_module);
