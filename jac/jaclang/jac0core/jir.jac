@@ -153,31 +153,6 @@ def _module_client_kind(source_path: str) -> str {
     }
 }
 
-glob _SCHEMA_DIGEST_CACHE: list = [];
-
-def schema_digest -> str {
-    if _SCHEMA_DIGEST_CACHE {
-        return _SCHEMA_DIGEST_CACHE[0];
-    }
-    import from jaclang.jac0core.jir_registry { NODE_SPECS }
-    h = hashlib.sha256();
-    for spec in NODE_SPECS {
-        ti_txt: str = str(getattr(spec, 'type_idx', -1));
-        h.update(ti_txt.encode());
-        cn_txt: str = getattr(spec, 'class_name', '');
-        h.update(cn_txt.encode());
-        flds: tuple = getattr(spec, 'fields', ()) or ();
-        for fd in flds {
-            fn_txt: str = getattr(fd, 'name', '');
-            h.update(fn_txt.encode());
-            fk_txt: str = str(getattr(fd, 'kind', -1));
-            h.update(fk_txt.encode());
-        }
-    }
-    _SCHEMA_DIGEST_CACHE.append(h.hexdigest());
-    return _SCHEMA_DIGEST_CACHE[0];
-}
-
 glob COMPILER_DIGEST_ROOTS: tuple = (
          "jac0.py",
          "jac0core",
@@ -266,7 +241,6 @@ def _toolchain_env_fingerprint -> str {
     h.update(jaclang_version().encode());
     h.update(struct.pack('<H', (sys.version_info.major << 8) | sys.version_info.minor));
     h.update(struct.pack('<H', FORMAT_VERSION));
-    h.update(schema_digest().encode());
     return h.hexdigest();
 }
 
@@ -292,10 +266,14 @@ def _full_env_fingerprint(source_path: str) -> str {
 }
 
 def module_env_fingerprint(source_path: str) -> str {
+    h = hashlib.sha256();
     if source_path.endswith('.pyi') {
-        return _toolchain_env_fingerprint();
+        h.update(_toolchain_env_fingerprint().encode());
+    } else {
+        h.update(_full_env_fingerprint(source_path).encode());
     }
-    return _full_env_fingerprint(source_path);
+    h.update(running_compiler_digest().encode());
+    return h.hexdigest();
 }
 
 def compute_module_key(source_path: str) -> str {
@@ -631,58 +609,12 @@ def _ct_reflect_deps(source_path: str) -> list[str] {
     return ct_reflect_source_deps(src);
 }
 
-def read_module_jir_cache(source_path: str) -> (object | None) {
-    import from jaclang.jac0core.jir_passes { JirReader }
-    import traceback;
-
-    resolved_path = str(Path(source_path).resolve());
-    if not jir_cacheable_source_path(resolved_path) {
-        return None;
-    }
-    (rebuild, _) = cache_mode();
-    if rebuild {
-        return None;
-    }
-    try {
-        cache_path = get_module_cache_path(resolved_path);
-        if not is_module_cache_valid(resolved_path, cache_path) {
-            return None;
-        }
-        data = cache_path.read_bytes();
-        reader = JirReader(_source_path=resolved_path);
-        cached = reader.read_module(data);
-        if cached is not None and cached.parse_failed {
-            return None;
-        }
-        return cached;
-    } except Exception {
-        if os.environ.get("JAC_JIR_DEBUG") {
-            traceback.print_exc();
-        }
-        try {
-            get_module_cache_path(resolved_path).unlink(missing_ok=True);
-        } except Exception {
-            ;
-        }
-        return None;
-    }
-}
-
-def write_module_jir_cache(
-    source_path: str, mod: object, extra_sections: (dict[int, bytes] | None) = None
+def write_module_cache(
+    source_path: str, bytecode: bytes, extra_sections: (dict[int, bytes] | None) = None
 ) -> bool {
-    import from jaclang.jac0core.jir_passes { JirWriter }
-
     resolved_path = str(Path(source_path).resolve());
     if not jir_cacheable_source_path(resolved_path) {
         return False;
-    }
-    mod_any: any = mod;
-    if mod_any.parse_failed {
-        return False;
-    }
-    if resolved_path.endswith('.pyi') and not mod_any.stub_only {
-        mod_any.stub_only = True;
     }
     try {
         cache_path = get_module_cache_path(resolved_path);
@@ -690,19 +622,13 @@ def write_module_jir_cache(
             return False;
         }
         cache_path.parent.mkdir(parents=True, exist_ok=True);
-        writer = JirWriter();
         sections: dict[int, bytes] = module_jir_key_sections(resolved_path);
         if extra_sections is not None {
             for (k, v) in extra_sections.items() {
                 sections[k] = v;
             }
         }
-        bc: any = mod_any.gen?.py_bytecode;
-        if bc is not None and SEC_BYTECODE not in sections {
-            bc_bytes: bytes = bc;
-            sections[SEC_BYTECODE] = bc_bytes;
-        }
-        jir_bytes = writer.write_module(mod_any, sections=sections);
+        jir_bytes = write_precompiled_jir(bytecode, "", 0, sections);
         tmp_path = cache_path.with_suffix(f'.{os.getpid()}.tmp');
         try {
             tmp_path.write_bytes(jir_bytes);

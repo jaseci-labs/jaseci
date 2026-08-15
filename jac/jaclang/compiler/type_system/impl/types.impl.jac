@@ -174,29 +174,29 @@ impl OverloadedType.__str__ -> str {
 }
 
 impl ClassType.is_node_type -> bool {
-    import jaclang.jac0core.unitree as uni;
+    import from jaclang.jac0core.unitree { Archetype }
     import from jaclang.jac0core.constant { SymbolType }
     if self.shared.is_root_class {
         return True;
     }
     arch = self.shared.symbol_table;
-    assert isinstance(arch, uni.Archetype);
+    assert isinstance(arch, Archetype);
     return (arch.sym_category == SymbolType.NODE_ARCH);
 }
 
 impl ClassType.is_edge_type -> bool {
-    import jaclang.jac0core.unitree as uni;
+    import from jaclang.jac0core.unitree { Archetype }
     import from jaclang.jac0core.constant { SymbolType }
     arch = self.shared.symbol_table;
-    assert isinstance(arch, uni.Archetype);
+    assert isinstance(arch, Archetype);
     return (arch.sym_category == SymbolType.EDGE_ARCH);
 }
 
 impl ClassType.is_walker_type -> bool {
-    import jaclang.jac0core.unitree as uni;
+    import from jaclang.jac0core.unitree { Archetype }
     import from jaclang.jac0core.constant { SymbolType }
     arch = self.shared.symbol_table;
-    assert isinstance(arch, uni.Archetype);
+    assert isinstance(arch, Archetype);
     return (arch.sym_category == SymbolType.WALKER_ARCH);
 }
 
@@ -232,7 +232,13 @@ impl ClassType.is_builtin(class_name: (str | list[str] | None) = None) -> bool {
 impl ClassType.lookup_member_symbol(
     member: str, r_overloaded: list | None = None
 ) -> (Symbol | None) {
-    import jaclang.jac0core.unitree as uni;
+    import from jaclang.jac0core.unitree {
+        Ability,
+        Archetype,
+        Assignment,
+        AtomTrailer,
+        FuncSignature
+    }
     import from jaclang.compiler.type_system.type_utils { collect_member_syms }
     for cls in self.shared.mro {
         all_syms = collect_member_syms(cls.shared.symbol_table, member);
@@ -246,20 +252,20 @@ impl ClassType.lookup_member_symbol(
 
     for cls in self.shared.mro {
         arch = cls.shared.symbol_table;
-        if not isinstance(arch, uni.Archetype) {
+        if not isinstance(arch, Archetype) {
             continue;
         }
         is_class = arch.arch_type.name == 'KW_CLASS';
 
         for method_name in ('init', '__post_init__') {
             method_sym = arch.lookup(method_name, deep=False);
-            if not method_sym or not isinstance(method_sym.decl.name_of, uni.Ability) {
+            if not method_sym or not isinstance(method_sym.decl.name_of, Ability) {
                 continue;
             }
             method_ability = method_sym.decl.name_of;
 
             if (
-                isinstance(method_ability.signature, uni.FuncSignature)
+                isinstance(method_ability.signature, FuncSignature)
                 and method_ability.signature.params
             ) {
                 for param in method_ability.signature.params {
@@ -270,10 +276,8 @@ impl ClassType.lookup_member_symbol(
                 }
             }
 
-            for trailer in method_ability.get_all_sub_nodes(uni.AtomTrailer) {
-                if not (
-                    trailer.parent and isinstance(trailer.parent, uni.Assignment)
-                ) {
+            for trailer in method_ability.get_all_sub_nodes(AtomTrailer) {
+                if not (trailer.parent and isinstance(trailer.parent, Assignment)) {
                     continue;
                 }
                 if trailer != trailer.parent.target[0] {

@@ -1525,6 +1525,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Client pathway failed to lower {kind} in an expression position",
          help="The ES backend produced no JavaScript for this expression, so without this error it would silently become 'undefined' in the browser. The expression's shape is outside what the client lowering handles; adjust the shape or move the code to a server context."
      ),
+     E5099 = _err(
+         "E5099",
+         Category.CODEGEN,
+         "Client pathway lowered the keyword-argument key of call '{func}' to an unusable shape: {shape}",
+         help="A keyword-argument key names a parameter of the callee, so it must lower to a plain identifier or a string literal. Reaching the argument resolver as any other shape means an earlier lowering rewrote the key as if it were a scope reference; the resolver used to demote such a pair to a trailing '...spread', which left the named parameter as 'undefined' at runtime. This is an internal compiler bug; please report it with the call site.",
+         blocks_codegen=True
+     ),
      E5098 = _err(
          "E5098",
          Category.CODEGEN,
@@ -1591,6 +1598,20 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Client code uses '{name}' from bare import '{module}', which resolves to no client-reachable module",
          help="A bare import resolves to a local Jac module, a declared or installed npm package, or the client framework's own packages; '{module}' is none of these, so it stays on the server and the client bundle never binds '{name}' -- the page fails at runtime with a ReferenceError. Install or declare the npm package in [dependencies.npm] (or quote the module: `import from \"{module}\" {{ {name} }}`), or keep the use server-side behind a `def:pub` endpoint."
      ),
+     E5086 = _err(
+         "E5086",
+         Category.CODEGEN,
+         "Client code emits '{name}', which has no binding in the client bundle",
+         help="The bundle carries only what is placed in the client codespace, plus `def:pub` endpoints, which are bound to a client-side forwarder that calls them over RPC. '{name}' is neither, so the emitted identifier resolves to nothing and the module fails at load with a ReferenceError. Give it client presence -- drop a `[placement.pins]` server pin, or make it `def:pub` so it bridges as an endpoint -- or keep the use out of client code.",
+         blocks_codegen=True
+     ),
+     E5087 = _err(
+         "E5087",
+         Category.CODEGEN,
+         "Project kind '{kind}' has no server, but '{name}' needs one ({reason})",
+         help="A '{kind}' project builds a client-only artifact: there is no server codespace to place this in, and no endpoint route to bridge to, so a server placement here could only fail at runtime. Drop the server dependency, or declare a `[project] kind` that has a server.",
+         blocks_codegen=True
+     ),
      W6001 = _warn(
          "W6001",
          Category.SEMANTIC,
@@ -1632,6 +1653,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.CODEGEN,
          "Client code uses server-placed function '{name}' as a value — function values cannot cross the placement boundary",
          help="A function reference that flows into client-side data (stored, returned, or passed along) needs client presence; only calls to def:pub endpoints bridge over RPC. Drop ':pub' so the function is pulled client-side, or restructure so the client stores data instead of the function."
+     ),
+     W6009 = _warn(
+         "W6009",
+         Category.CODEGEN,
+         "Client binding for server endpoint '{name}' is async: it hands back a Promise where the server function hands back '{ret}'",
+         help="A server endpoint reachable from client code is bound to a client-side forwarder that calls it over HTTP, so the forwarder is necessarily async. That is transparent where the result is awaited or ignored (a command handler, an event listener) and wrong where a plain value is required (a sort comparator, a reducer). Await the call, or drop ':pub' so the function is placed client-side and stays synchronous."
      ),
      W6008 = _warn(
          "W6008",

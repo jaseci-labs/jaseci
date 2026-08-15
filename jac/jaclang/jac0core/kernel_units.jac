@@ -61,7 +61,7 @@ def fmt_kernel_unit_path(variant: str) -> str {
 def _artifact_key(unit_path: str, fingerprint: str) -> str {
     import hashlib;
     import from importlib.metadata { version as pkg_version }
-    import from jaclang.jac0core.jir { schema_digest }
+    import from jaclang.jac0core.jir { running_compiler_digest }
     try {
         jac_ver = pkg_version('jaclang');
     } except Exception {
@@ -69,7 +69,7 @@ def _artifact_key(unit_path: str, fingerprint: str) -> str {
     }
     h = hashlib.sha256();
     h.update(jac_ver.encode());
-    h.update(schema_digest().encode());
+    h.update(running_compiler_digest().encode());
     with open(unit_path, "rb") as f {
         h.update(f.read());
     }

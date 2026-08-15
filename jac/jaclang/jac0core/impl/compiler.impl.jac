@@ -300,8 +300,11 @@ impl JacCompiler.get_bytecode(
                 } except Exception {
                     ;
                 }
-                import from jaclang.jac0core.jir { write_module_jir_cache }
-                write_module_jir_cache(full_target, result, extra_sections=sections);
+                import from jaclang.jac0core.jir { write_module_cache }
+                cache_bc: any = result.gen?.py_bytecode;
+                if cache_bc is not None and not result.parse_failed {
+                    write_module_cache(full_target, cache_bc, extra_sections=sections);
+                }
             } except Exception {
                 ;
             }

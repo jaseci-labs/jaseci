@@ -97,22 +97,33 @@ impl NaIRGenPass.postinit -> None {
 
 impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
     import from jaclang.compiler.passes.main.capability_check_pass {
-        native_capability_violations
+        native_capability_violations,
+        partition_native_capability_violations
     }
+    self._capability_demotions = {};
+    self._claimed_capability_demotions = set();
     _viols = native_capability_violations(self.ir_in);
     if _viols {
-        if not self.ir_in.gen.native_viols_reported {
-            for (_vnode, _vkind, _vname, _vhelp) in _viols {
-                self.emit(
-                    E5090,
-                    node_override=_vnode,
-                    kind=_vkind,
-                    name=_vname,
-                    help_text=_vhelp
-                );
+        (_fatal_viols, _demotable) = partition_native_capability_violations(_viols);
+        if _fatal_viols {
+            if not self.ir_in.gen.native_viols_reported {
+                _report = list(_fatal_viols);
+                for _unit_viols in _demotable.values() {
+                    _report.extend(_unit_viols);
+                }
+                for (_vnode, _vkind, _vname, _vhelp) in _report {
+                    self.emit(
+                        E5090,
+                        node_override=_vnode,
+                        kind=_vkind,
+                        name=_vname,
+                        help_text=_vhelp
+                    );
+                }
             }
+            return self.ir_in;
         }
-        return self.ir_in;
+        self._capability_demotions = _demotable;
     }
 
     self._emit_rc_helpers();
@@ -142,6 +153,21 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
         } elif isinstance(stmt, uni.Test) {
             self._codegen_test(stmt);
         }
+    }
+    _unclaimed = False;
+    for (_ck, _cviols) in self._capability_demotions.items() {
+        if _ck in self._claimed_capability_demotions {
+            continue;
+        }
+        _unclaimed = True;
+        for (_vnode, _vkind, _vname, _vhelp) in _cviols {
+            self.emit(
+                E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
+            );
+        }
+    }
+    if _unclaimed {
+        return self.ir_in;
     }
     self._codegen_entry(_entry_nodes);
     self._finalize_trace_lookup();
@@ -188,6 +214,28 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
         self._export_native_layout();
     }
     return self.ir_in;
+}
+
+impl NaIRGenPass._predemote_capability_unit(
+    full_name: str, func: ir.Function, viols: list, keep_func: bool = False
+) -> bool {
+    _local_mark = len(self.errors_had);
+    for (_vnode, _vkind, _vname, _vhelp) in viols {
+        self.emit(
+            E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
+        );
+    }
+    return self._demote_method_if_unlowerable(
+        full_name, func, _local_mark, keep_func=keep_func
+    );
+}
+
+impl NaIRGenPass._rename_demoted_symbol(name: str, func: ir.Function) -> None {
+    try {
+        self.llvm_module.globals.pop(func.name, None);
+        func.name = f"{name}.__jac_demoted";
+        self.llvm_module.globals[func.name] = func;
+    } except Exception { }
 }
 
 impl NaIRGenPass._llvm_type_str(ty: ir.Type) -> str {

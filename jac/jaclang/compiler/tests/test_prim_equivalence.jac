@@ -47,7 +47,7 @@ test "complex" {
 }
 
 test "str" {
-    run_with_both("prim_str.jac", "str_py", "str_cl", "str_na");
+    run_with_both("prim_str.jac", "str_py", "str_cl", "str_na", require=["na"]);
 }
 
 test "string escapes" {

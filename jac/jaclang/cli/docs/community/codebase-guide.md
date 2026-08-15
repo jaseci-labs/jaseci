@@ -73,7 +73,7 @@ The most important files to know:
 
 - **`unitree.jac`** -- The unified AST that all backends share. If you're adding or changing syntax, you'll touch this.
 - **`compiler.jac`** -- The pass pipeline orchestrator. It defines schedules like `get_ir_gen_sched()` and `get_py_code_gen()` that chain passes together. This is the authoritative source for pass ordering.
-- **`jir.jac` / `jir_registry.jac`** -- The Jac Intermediate Representation and its node type registry. JIR is the serializable form of compiled modules.
+- **`jir.jac`** -- The JIR container: cached module bytecode plus typed sections (MTIR, placement, native objects), keyed by source content and the running compiler's identity. Trees are never persisted; they are working state, re-derived per process.
 - **`diagnostics.jac`** -- Error and warning reporting infrastructure.
 - **`modresolver.jac`** -- Module import and dependency resolution.
 - **`passes/`** -- Front-end passes: parsing (via Lark grammar), AST validation, symbol table construction, and declaration-implementation matching.

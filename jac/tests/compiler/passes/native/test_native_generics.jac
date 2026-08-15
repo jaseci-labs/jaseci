@@ -230,18 +230,26 @@ test "mono as-value: concrete Callable annotation stamps the template (#7626 A5)
 }
 
 test "mono guardrail: a generic function used as a value stays rejected" {
-    prog = compile_na_inline(
-        "generic_as_value",
-        "def pick[T](x: T) -> T {\n"
+    path = os.path.join(FIXTURES, "_generics_generic_as_value.jac");
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=path,
+        use_str="def pick[T](x: T) -> T {\n"
         "    return x;\n"
         "}\n"
         "def use_it(v: int) -> int {\n"
         "    f = pick;\n"
         "    return f(v);\n"
-        "}\n"
+        "}\n",
+        options=native_force_opts()
     );
-    assert has_error_code(prog, "E5092") , (
-        f"expected E5092 for a generic fn used as a value, got: "
-        f"{[str(e) for e in prog.errors_had]}"
+    assert not prog.errors_had , (
+        f"the generic-as-value refusal is owned by use_it(), which must "
+        f"demote to a seam, got: {[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "use_it" not in ir.gen.native_layout.functions , (
+        "a generic fn used as a value must demote its function out of the "
+        "native layout, never lower wrongly"
     );
 }
