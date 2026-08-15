@@ -64,6 +64,53 @@ test "the reported target never carries the password" {
 }
 
 
+test "a password carried in the query string is masked too" {
+    # libpq accepts the password as a URI parameter, which has no '@' for a
+    # userinfo-only mask to key on.
+    for url in [
+        "postgresql://jac@db.internal:5432/jacapp?password=sekret",
+        "postgresql://jac@db.internal:5432/jacapp?sslmode=require&password=sekret",
+        "postgresql://db.internal/jacapp?PassWord=sekret",
+        "postgresql:///jacapp?sslpassword=sekret&sslmode=verify-full",
+        "postgres://u:sekret@h1:5432,h2:5432/app?password=sekret"
+    ] {
+        masked = pgmod.mask_db_url(url);
+        assert "sekret" not in masked , f"{url!r} leaked its secret as {masked!r}";
+        assert "***" in masked , f"{url!r} was not masked at all: {masked!r}";
+        assert "jacapp" in masked or "app" in masked , (
+            f"masking destroyed the database name: {masked!r}"
+        );
+    }
+}
+
+
+test "a keyword/value dsn is masked, quoted values included" {
+    for dsn in [
+        "host=db.internal user=jac password=sekret dbname=jacapp",
+        "host=db.internal PASSWORD=sekret dbname=jacapp",
+        "host=db.internal password='se cret' dbname=jacapp",
+        "host=db.internal sslpassword=sekret dbname=jacapp"
+    ] {
+        masked = pgmod.mask_db_url(dsn);
+        assert "sekret" not in masked , f"{dsn!r} leaked its secret as {masked!r}";
+        assert "se cret" not in masked , f"{dsn!r} leaked its secret as {masked!r}";
+        assert "host=db.internal" in masked , (
+            f"masking destroyed the host: {masked!r}"
+        );
+    }
+}
+
+
+test "masking leaves a credential-free url readable" {
+    plain = "postgresql://db.internal:5432/jacapp?sslmode=require";
+    assert pgmod.mask_db_url(plain) == plain , (
+        f"a url with no credentials must survive masking: "
+        f"{pgmod.mask_db_url(plain)!r}"
+    );
+    assert pgmod.mask_db_url("") == "";
+}
+
+
 test "a resolved database that failed is not reported as a missing url" {
     boom = RuntimeError("connection refused at db.internal:5432");
     with unittest.mock.patch(

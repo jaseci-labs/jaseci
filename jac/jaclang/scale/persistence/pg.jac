@@ -13,8 +13,10 @@ glob logger = logging.getLogger(__name__),
          'doc jsonb NOT NULL, '
          'PRIMARY KEY (collection, id))'
      ),
+     _SECRET_KEYWORDS = ('password', 'sslpassword'),
      __all__ = [
          'scale_db_url',
+         'mask_db_url',
          'masked_db_url',
          'shared_store',
          'shared_store_error',
@@ -48,19 +50,54 @@ def scale_db_url -> (str | None) {
 }
 
 
-def masked_db_url -> str {
-    url = scale_db_url() or '';
+def mask_db_url(url: str) -> str {
     if not url {
         return '';
     }
-    if '://' not in url {
-        return url;
+    import from urllib.parse { parse_qsl, urlencode, urlsplit, urlunsplit }
+    try {
+        parts = urlsplit(url);
+    } except Exception {
+        return '***';
     }
-    (scheme, rest) = url.split('://', 1);
-    if '@' not in rest {
-        return url;
+    if not parts.scheme and not parts.netloc {
+        return _mask_keyword_dsn(url);
     }
-    return f"{scheme}://***@{rest.rsplit('@', 1)[1]}";
+    netloc = parts.netloc;
+    if '@' in netloc {
+        netloc = f"***@{netloc.rsplit('@', 1)[1]}";
+    }
+    query = parts.query;
+    if query {
+        try {
+            query = urlencode(
+                [
+                    (k, ('***' if k.strip().lower() in _SECRET_KEYWORDS else v))
+                    for (k, v) in parse_qsl(query, keep_blank_values=True)
+                ],
+                safe='*'
+            );
+        } except Exception {
+            query = '***';
+        }
+    }
+    body = urlunsplit(('', '', parts.path, query, parts.fragment));
+    if netloc or '://' in url {
+        return f"{parts.scheme}://{netloc}{body}";
+    }
+    return f"{parts.scheme}:{body}";
+}
+
+
+def _mask_keyword_dsn(dsn: str) -> str {
+    import re;
+    keys = '|'.join(_SECRET_KEYWORDS);
+    return re.sub(rf"(?i)\b({keys})\s*=\s*('(?:[^'\\]|\\.)*'|\S*)", r"\1=***", dsn);
+}
+
+
+def masked_db_url -> str {
+    return mask_db_url(scale_db_url() or '');
 }
 
 
