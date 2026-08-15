@@ -271,9 +271,8 @@ def install_graphmend_loader_hook() -> None:
 def install_graphmend_loader_hook_for_torch() -> None:
     """Install the loader hook as torch enters the process, unless off.
 
-    Nothing is claimable before that: a claim needs torch in ``sys.modules`` or
-    a path a GraphMend-active compile registered, and a registered path only
-    ever belongs to a module that imports torch itself.
+    Nothing is claimable before torch: a claim needs it in ``sys.modules``, or
+    a path registered by a compile of a module that imports torch itself.
     """
     if getattr(
         importlib.machinery.SourceFileLoader, "_jac_graphmend_hooked", False
@@ -316,10 +315,8 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         target: ModuleType | None = None,
     ) -> importlib.machinery.ModuleSpec | None:
         """Find the spec for the module."""
-        # torch entering the process is the first moment GraphMend can claim
-        # anything, so it is where the loader hook goes in (see the hook's own
-        # docstring for what that patch buys). Submodules import their parent
-        # first, so the bare name is the only case to watch for.
+        # Submodules import their parent first, so the bare name is the only
+        # case to watch.
         if fullname == "torch":
             install_graphmend_loader_hook_for_torch()
 
