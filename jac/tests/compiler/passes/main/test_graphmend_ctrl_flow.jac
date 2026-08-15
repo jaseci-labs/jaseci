@@ -41,8 +41,7 @@ def _py_fixture_src(gm: bool) -> str {
     }
 }
 
-"""A model whose torch import sits behind an availability guard, the
-transformers idiom; written to a temp file at test time."""
+"""A model whose torch import sits behind an availability guard."""
 glob PY_GUARDED_IMPORT_SRC = '''
 def _avail():
     return True
