@@ -95,13 +95,6 @@ def _execute_plan(
             graphmend_disable=graphmend_disable
         );
     }
-    if _configured_graphmend() is True {
-        console.error(
-            f"GraphMend cannot be combined with a '{plan.action}' run plan; "
-            f"set run.graphmend = \"off\" in jac.toml to turn it off for this run."
-        );
-        return 1;
-    }
     if plan.action == "serve" {
         return start(
             filename=plan.entry_path,
@@ -225,44 +218,23 @@ def _jab_native_bin(img_root: object, entry_rel: str) -> (str | None) {
     return None;
 }
 
-def _graphmend_mode(graphmend: (bool | str)) -> (bool | str) {
-    if isinstance(graphmend, str) {
-        spelled = graphmend.strip().lower();
-        if spelled == 'on' {
-            return True;
-        }
-        if spelled == 'off' {
-            return False;
-        }
-        if spelled == 'auto' {
-            return 'auto';
-        }
-        console.warning(
-            f"run.graphmend ignores unknown mode '{graphmend}' "
-            f"(valid: auto, on, off, true, false)."
-        );
-        return False;
-    }
-    return bool(graphmend);
-}
-
-def _configured_graphmend -> (bool | str) {
+def _configured_graphmend -> bool {
     import from jaclang.project.config { get_config }
     cfg = get_config();
-    return _graphmend_mode(cfg.run.graphmend if cfg is not None else 'auto');
+    return bool(cfg.run.graphmend) if cfg is not None else True;
 }
 
-def _graphmend_may_engage(graphmend: (bool | str), filename: str) -> bool {
-    if graphmend == 'auto' {
-        import from jaclang.compiler.passes.main.graphmend.auto_detect {
-            file_imports_torch
-        }
-        return file_imports_torch(filename);
+def _graphmend_may_engage(graphmend: bool, filename: str) -> bool {
+    if not graphmend {
+        return False;
     }
-    return bool(graphmend);
+    import from jaclang.compiler.passes.main.graphmend.auto_detect {
+        file_imports_torch
+    }
+    return file_imports_torch(filename);
 }
 
-def _apply_graphmend(graphmend_disable: str = "") -> (bool | str) {
+def _apply_graphmend(graphmend_disable: str = "") -> bool {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     gm_disable: list[str] = [];
     for part in graphmend_disable.split(',') {
@@ -279,14 +251,14 @@ def _apply_graphmend(graphmend_disable: str = "") -> (bool | str) {
         }
         gm_disable.append(stripped);
     }
-    gm_mode = _configured_graphmend();
-    Jac.get_program().graphmend_enabled = gm_mode;
+    gm_on = _configured_graphmend();
+    Jac.get_program().graphmend_enabled = gm_on;
     Jac.get_program().graphmend_disable = gm_disable;
-    if gm_mode is not False {
+    if gm_on {
         import from jaclang.meta_importer { install_graphmend_loader_hook }
         install_graphmend_loader_hook();
     }
-    return gm_mode;
+    return gm_on;
 }
 
 def _run_project(
@@ -368,13 +340,6 @@ impl run(
             console.error("jac run --debug needs a file.");
             return 1;
         }
-        if _configured_graphmend() is True {
-            console.error(
-                "jac run --debug cannot be combined with GraphMend; "
-                "set run.graphmend = \"off\" in jac.toml to turn it off."
-            );
-            return 1;
-        }
         return debug(filename=filename, main=main, cache=cache);
     }
     if entry_name {
@@ -400,13 +365,6 @@ impl run(
                 f"jac run {filename}  ->  kind-aware dispatch (sealed app bundle)"
             );
             return 0;
-        }
-        if _configured_graphmend() is True {
-            console.error(
-                "GraphMend cannot be combined with a prebuilt .jab bundle; "
-                "set run.graphmend = \"off\" in jac.toml to turn it off."
-            );
-            return 1;
         }
         return _run_jab(filename, None, args, serve_only=False);
     }

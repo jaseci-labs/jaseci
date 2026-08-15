@@ -9,7 +9,7 @@ impl JacProgram.init(
     self.type_evaluator: (TypeEvaluator | None) = None;
     self._compiler: (JacCompiler | None) = None;
     self._compile_options: CompileOptions = CompileOptions();
-    self.graphmend_enabled: (bool | str) = 'auto';
+    self.graphmend_enabled: bool = True;
     self.graphmend_disable: list[str] = [];
     self.graphmend_claimed: set[str] = set();
     self.graphmend_claim_walked: set[str] = set();
