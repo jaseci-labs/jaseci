@@ -1,3 +1,44 @@
+impl native_compiler_fingerprint(options: any) -> str {
+    import glob as _cgl;
+    import hashlib as _cfh_hash;
+    import os as _cfp_os;
+    import jaclang as _jlm;
+    _jl_dir = _cfp_os.path.dirname(_cfp_os.path.abspath(_jlm.__file__));
+    _nat_dir = _cfp_os.path.join(_jl_dir, "compiler", "passes", "native");
+    _comp_h = _cfh_hash.sha256();
+    for _cp in [
+        _cfp_os.path.join(_nat_dir, "impl", "*.jac"),
+        _cfp_os.path.join(_nat_dir, "na_ir_gen_pass.impl", "*.jac"),
+
+    ] {
+        for _cf in sorted(_cgl.glob(_cp)) {
+            try {
+                with open(_cf, "rb") as _cfh {
+                    _comp_h.update(_cfh.read());
+                }
+            } except Exception { }
+        }
+    }
+    _comp_h.update(options.codegen_identity().encode());
+    return _comp_h.hexdigest()[:8];
+}
+
+impl native_dep_cache_paths(real_path: str, options: any) -> tuple {
+    import hashlib as _dcp_hash;
+    import os as _dcp_os;
+    import from jaclang.jac0core.jir { get_native_cache_dir }
+    _ir_cache_dir = str(get_native_cache_dir(real_path));
+    _src_stem = _dcp_os.path.splitext(_dcp_os.path.basename(real_path))[0];
+    with open(real_path, "rb") as _sf {
+        _source_hash = _dcp_hash.sha256(_sf.read()).hexdigest()[:12];
+    }
+    _fp = native_compiler_fingerprint(options);
+    return (
+        _dcp_os.path.join(_ir_cache_dir, f"{_src_stem}.{_source_hash}.{_fp}.ir_cache"),
+        _dcp_os.path.join(_ir_cache_dir, f"{_src_stem}.{_source_hash}.{_fp}.ir_meta")
+    );
+}
+
 impl DepClibMeta.to_meta -> dict {
     return {
         "clib_paths": self.clib_paths,
@@ -5,7 +46,8 @@ impl DepClibMeta.to_meta -> dict {
         "exported_symbols": self.exported_symbols,
         "imported_symbols": self.imported_symbols,
         "owned_symbols": self.owned_symbols,
-        "transitive_deps": self.transitive_deps
+        "transitive_deps": self.transitive_deps,
+        "options_fingerprint": self.options_fingerprint
     };
 }
 
@@ -16,7 +58,8 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
         exported_symbols=meta.get("exported_symbols", []),
         imported_symbols=meta.get("imported_symbols", []),
         owned_symbols=meta.get("owned_symbols", []),
-        transitive_deps=meta.get("transitive_deps", [])
+        transitive_deps=meta.get("transitive_deps", []),
+        options_fingerprint=meta.get("options_fingerprint", "")
     );
 }
 
@@ -59,13 +102,18 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
     try {
         import ctypes as _ct;
         import ctypes.util;
-        libc_name = ctypes.util.find_library("c");
+        libc_name = ctypes.util.find_library("c")
+            if not _compile_opts.aot_mode
+            else None;
         if libc_name {
             llvm.load_library_permanently(libc_name);
         }
 
         import os;
         clib_paths = module.gen._clib_paths;
+        if _compile_opts.aot_mode {
+            clib_paths = None;
+        }
         if clib_paths {
             for lib_path in clib_paths {
                 try {
@@ -80,7 +128,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         mod = llvm.parse_assembly(llvm_ir_str);
         mod.verify();
 
-        _nc_target_ovr = os.environ.get("JAC_NATIVE_TARGET", "");
+        _nc_target_ovr = _compile_opts.native_target or "";
         if _nc_target_ovr {
             llvm.initialize_all_targets();
             llvm.initialize_all_asmprinters();
@@ -89,7 +137,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
             target = llvm.Target.from_default_triple();
         }
 
-        _native_debug: bool = bool(os.environ.get("JAC_NATIVE_DEBUG", ""));
+        _native_debug: bool = bool(_compile_opts.native_debug);
         if _native_debug {
             target_machine = target.create_target_machine(opt=0, jit=True);
         } else {
@@ -117,7 +165,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         }
 
         _needs_osp_kernel = (manifest is not None)
-        and ("osp_kernel" in manifest.native_transitive_sources);
+            and ("osp_kernel" in manifest.native_transitive_sources);
         if (not _needs_osp_kernel) and self._references_undefined_osp_kernel(mod) {
             _needs_osp_kernel = True;
         }
@@ -127,7 +175,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         }
 
         _needs_fmt_kernel = (manifest is not None)
-        and ("fmt_kernel" in manifest.native_transitive_sources);
+            and ("fmt_kernel" in manifest.native_transitive_sources);
         if (not _needs_fmt_kernel) and self._references_undefined_fmt_kernel(mod) {
             _needs_fmt_kernel = True;
         }
@@ -137,7 +185,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
         }
 
         import os as _os;
-        _opt_level = int(_os.environ.get("JAC_OPT_LEVEL", "2"));
+        _opt_level = int(_compile_opts.opt_level or 0);
 
         if _native_debug {
             _opt_level = 0;
@@ -149,7 +197,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
             opt_mpm.run(mod, pb);
         }
 
-        _dump_path = _os.environ.get("JAC_DUMP_IR", "");
+        _dump_path = _compile_opts.dump_ir_path or "";
         if _dump_path {
             with open(_dump_path, "w") as _f {
                 _f.write(str(mod));
@@ -296,25 +344,12 @@ impl NativeCompilePass._compile_and_link_native_imports(
         native_safe_sym
     }
 
-    import glob as _cgl;
-    import jaclang as _jlm;
-    _jl_dir = os.path.dirname(os.path.abspath(_jlm.__file__));
-    _nat_dir = os.path.join(_jl_dir, "compiler", "passes", "native");
-    _comp_h = hashlib.sha256();
-    for _cp in [
-        os.path.join(_nat_dir, "impl", "*.jac"),
-        os.path.join(_nat_dir, "na_ir_gen_pass.impl", "*.jac"),
-
-    ] {
-        for _cf in sorted(_cgl.glob(_cp)) {
-            try {
-                with open(_cf, "rb") as _cfh {
-                    _comp_h.update(_cfh.read());
-                }
-            } except Exception { }
-        }
+    import from jaclang.jac0core.compile_options {
+        CompileOptions as _LinkOpts,
+        link_fingerprint_mismatches
     }
-    _compiler_fp = _comp_h.hexdigest()[:8];
+    _link_opts = self.prog?._compile_options or _LinkOpts();
+    _link_fp = _link_opts.codegen_fingerprint();
 
     linked_modules: dict = {};
     if module.loc {
@@ -381,33 +416,18 @@ impl NativeCompilePass._compile_and_link_native_imports(
             continue;
         }
 
-        if source_mod_path.endswith(".na") {
-            full_path = os.path.join(cur_base_dir, source_mod_path + ".jac");
-            if not os.path.exists(full_path) {
-                full_path = os.path.join(
-                    cur_base_dir, source_mod_path.replace(".na", ".na.jac")
-                );
-            }
-        } else {
+        if source_mod_path.endswith(".jac") {
             full_path = os.path.join(cur_base_dir, source_mod_path);
-            if not os.path.exists(full_path) {
-                na_path = os.path.join(cur_base_dir, source_mod_path + ".na.jac");
-                if os.path.exists(na_path) {
-                    full_path = na_path;
-                }
+        } else {
+            import from jaclang.jac0core.codeinfo {
+                resolve_native_module as _resolve_na
             }
-        }
-
-        if (not os.path.exists(full_path)) and _bundled_stdlib_root is not None {
-            _bundled_rel = source_mod_path + ".jac"
-                if source_mod_path.endswith(".na")
-                else source_mod_path
-                    if source_mod_path.endswith(".jac")
-                    else source_mod_path + ".na.jac";
-            _bundled_cand = os.path.join(_bundled_stdlib_root, _bundled_rel);
-            if os.path.exists(_bundled_cand) {
-                full_path = _bundled_cand;
-            }
+            (_rn, _rp) = _resolve_na(
+                source_mod_path.replace(os.sep, "."), cur_base_dir
+            );
+            full_path = _rp
+                if _rp is not None
+                else os.path.join(cur_base_dir, source_mod_path + ".jac");
         }
 
         if not os.path.exists(full_path) {
@@ -423,12 +443,8 @@ impl NativeCompilePass._compile_and_link_native_imports(
 
         import from jaclang.jac0core.jir { get_native_cache_dir }
         _src_stem = os.path.splitext(os.path.basename(real_path))[0];
-        if _src_stem.endswith(".na") {
-            _src_stem = _src_stem[:-3];
-        }
         _ir_cache_dir = str(get_native_cache_dir(real_path));
 
-        _source_hash = "";
         _cache_ir_path = "";
         _cache_meta_path = "";
         _cache_hit = False;
@@ -437,17 +453,16 @@ impl NativeCompilePass._compile_and_link_native_imports(
         meta = DepClibMeta();
 
         try {
-            with open(real_path, "rb") as _sf {
-                _source_hash = hashlib.sha256(_sf.read()).hexdigest()[:12];
-            }
-            _cache_ir_path = os.path.join(
-                _ir_cache_dir, f"{_src_stem}.{_source_hash}.{_compiler_fp}.ir_cache"
-            );
-            _cache_meta_path = os.path.join(
-                _ir_cache_dir, f"{_src_stem}.{_source_hash}.{_compiler_fp}.ir_meta"
+            (_cache_ir_path, _cache_meta_path) = native_dep_cache_paths(
+                real_path, _link_opts
             );
 
-            if os.path.exists(_cache_ir_path) and os.path.exists(_cache_meta_path) {
+            _no_ir_cache = bool(getattr(_link_opts, "no_ir_cache", False));
+            if (
+                not _no_ir_cache
+                and os.path.exists(_cache_ir_path)
+                and os.path.exists(_cache_meta_path)
+            ) {
                 with open(_cache_ir_path, "r") as _cf {
                     imported_llvm_str_raw = _cf.read();
                 }
@@ -459,14 +474,26 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
         } except Exception { }
 
+        if _cache_hit
+            and link_fingerprint_mismatches(
+                [(real_path, meta.options_fingerprint)], _link_fp
+            ) {
+            self.emit(
+                E5027,
+                path=full_path,
+                cached_fp=(meta.options_fingerprint or "(unstamped)"),
+                current_fp=_link_fp
+            );
+            continue;
+        }
+
         if _cache_hit {
             dep_base = os.path.dirname(full_path);
             for dep_mod_path in meta.transitive_deps {
                 work_queue.append((_DepBinding(dep_mod_path), dep_base));
             }
         } else {
-            import from jaclang.jac0core.compile_options { CompileOptions }
-            import_options = CompileOptions(skip_native_engine=True, type_check=False);
+            import_options = _link_opts.clone_for_native_import();
             try {
                 imported_ir = self.prog.compile(
                     file_path=full_path, options=import_options
@@ -521,6 +548,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     }
                 }
             }
+            meta.options_fingerprint = _link_fp;
             try {
                 os.makedirs(_ir_cache_dir, exist_ok=True);
 
@@ -549,10 +577,12 @@ impl NativeCompilePass._compile_and_link_native_imports(
             } except Exception { }
         }
 
-        for dep_lib_path in meta.clib_paths {
-            try {
-                self._jit_load_clib(dep_lib_path);
-            } except Exception { }
+        if not self.prog._compile_options.aot_mode {
+            for dep_lib_path in meta.clib_paths {
+                try {
+                    self._jit_load_clib(dep_lib_path);
+                } except Exception { }
+            }
         }
 
         try {
@@ -598,9 +628,9 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     continue;
                 }
                 if func.linkage == _INTERNAL_LINKAGE
-                or func.linkage == _PRIVATE_LINKAGE
-                or func.linkage == _WEAK_LINKAGE
-                or func.linkage == _WEAK_ODR_LINKAGE {
+                    or func.linkage == _PRIVATE_LINKAGE
+                    or func.linkage == _WEAK_LINKAGE
+                    or func.linkage == _WEAK_ODR_LINKAGE {
                     continue;
                 }
                 exported_funcs.append(func.name);
@@ -626,10 +656,10 @@ impl NativeCompilePass._compile_and_link_native_imports(
             exported_globals: list[str] = [];
             for gv in imported_mod.global_variables {
                 if gv.is_declaration
-                or gv.linkage == _INTERNAL_LINKAGE
-                or gv.linkage == _PRIVATE_LINKAGE
-                or gv.linkage == _WEAK_LINKAGE
-                or gv.linkage == _WEAK_ODR_LINKAGE {
+                    or gv.linkage == _INTERNAL_LINKAGE
+                    or gv.linkage == _PRIVATE_LINKAGE
+                    or gv.linkage == _WEAK_LINKAGE
+                    or gv.linkage == _WEAK_ODR_LINKAGE {
                     continue;
                 }
                 exported_globals.append(gv.name);
@@ -710,39 +740,76 @@ impl NativeCompilePass._compile_and_link_native_imports(
     }
 }
 
-glob _OSP_KERNEL_IR_CACHE: list = [];
+glob _OSP_KERNEL_IR_CACHE: dict[str, str] = {};
 
-def _compile_osp_kernel_ir -> (str | None) {
-    if _OSP_KERNEL_IR_CACHE {
-        return _OSP_KERNEL_IR_CACHE[0];
+def _compile_osp_kernel_ir(
+    gc_mode: str = "cycles", enforce: bool = False
+) -> (str | None) {
+    import from jaclang.jac0core.kernel_units {
+        load_unit_artifact,
+        osp_core_unit_path,
+        store_unit_artifact
     }
-    import os;
-    import shutil;
-    import tempfile;
-    import jaclang;
     import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.compiler.passes.native.na_ir_gen_pass {
-        _write_native_osp_source
+    import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
+
+    kernel_opts = _KernelOpts(
+        aot_mode=True,
+        type_check=False,
+        default_codespace='native',
+        na_gc_mode=gc_mode,
+        nogc_enforce_all=enforce,
+        suppress_codes=(
+            [
+                "E1301",
+                "E1302",
+                "E1303",
+                "E1304",
+                "E1306",
+                "E1308",
+                "E1309",
+                "E1311",
+                "E1313",
+                "E1314",
+                "E1315",
+                "E1401",
+                "E1402",
+                "E1403",
+                "E1404",
+                "E1405",
+                "E1406",
+                "W1310",
+                "W1312"
+            ]
+                if enforce
+                else []
+        )
+    );
+    cache_key = kernel_opts.codegen_fingerprint();
+    if cache_key in _OSP_KERNEL_IR_CACHE {
+        return _OSP_KERNEL_IR_CACHE[cache_key];
     }
 
-    _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
-    tmp_dir = tempfile.mkdtemp();
-    na_copy = os.path.join(tmp_dir, "osp_kernel.na.jac");
-    ir_str = None;
+    variant = f"na_{gc_mode}_enf" if enforce else f"na_{gc_mode}";
+    unit = osp_core_unit_path(variant);
+    fp = native_compiler_fingerprint(kernel_opts);
+    ir_str = load_unit_artifact(unit, "ll", fp);
+    if ir_str is not None {
+        _OSP_KERNEL_IR_CACHE[cache_key] = ir_str;
+        return ir_str;
+    }
     try {
-        _write_native_osp_source(_core, na_copy);
         prog = JacProgram();
-        m = prog.compile(na_copy);
+        m = prog.compile(unit, options=kernel_opts);
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
             ir_str = str(m.gen.llvm_ir);
         }
     } except Exception {
         ir_str = None;
-    } finally {
-        shutil.rmtree(tmp_dir, ignore_errors=True);
     }
     if ir_str is not None {
-        _OSP_KERNEL_IR_CACHE.append(ir_str);
+        _OSP_KERNEL_IR_CACHE[cache_key] = ir_str;
+        store_unit_artifact(unit, "ll", fp, ir_str);
     }
     return ir_str;
 }
@@ -761,7 +828,10 @@ impl NativeCompilePass._references_undefined_osp_kernel(main_mod: object) -> boo
 }
 
 impl NativeCompilePass._link_osp_kernel(main_mod: object) -> None {
-    ir_str = _compile_osp_kernel_ir();
+    _gc = str(getattr(self.prog?._compile_options, "na_gc_mode", "cycles") or "cycles");
+    _enf = bool(getattr(self.prog?._compile_options, "nogc_enforce_all", False))
+        or bool(getattr(self.ir_in.gen, "nogc_enforced", False));
+    ir_str = _compile_osp_kernel_ir(_gc, _enf and _gc == "none");
     if ir_str is None {
         return;
     }
@@ -780,39 +850,44 @@ impl NativeCompilePass._link_osp_kernel(main_mod: object) -> None {
     }
 }
 
-glob _FMT_KERNEL_IR_CACHE: list = [];
+glob _FMT_KERNEL_IR_CACHE: dict = {};
 
 def _compile_fmt_kernel_ir -> (str | None) {
-    if _FMT_KERNEL_IR_CACHE {
-        return _FMT_KERNEL_IR_CACHE[0];
+    import from jaclang.jac0core.kernel_units {
+        fmt_kernel_unit_path,
+        load_unit_artifact,
+        store_unit_artifact
     }
-    import os;
-    import shutil;
-    import tempfile;
-    import jaclang;
     import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.compiler.passes.native.na_ir_gen_pass {
-        _write_native_fmt_source
+    import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
+
+    kernel_opts = _KernelOpts(
+        aot_mode=True, type_check=False, default_codespace='native', na_gc_mode='cycles'
+    );
+    cache_key = kernel_opts.codegen_fingerprint();
+    if cache_key in _FMT_KERNEL_IR_CACHE {
+        return _FMT_KERNEL_IR_CACHE[cache_key];
     }
 
-    _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
-    tmp_dir = tempfile.mkdtemp();
-    na_copy = os.path.join(tmp_dir, "fmt_kernel.na.jac");
-    ir_str = None;
+    unit = fmt_kernel_unit_path('na_cycles');
+    fp = native_compiler_fingerprint(kernel_opts);
+    ir_str = load_unit_artifact(unit, "ll", fp);
+    if ir_str is not None {
+        _FMT_KERNEL_IR_CACHE[cache_key] = ir_str;
+        return ir_str;
+    }
     try {
-        _write_native_fmt_source(_core, na_copy);
         prog = JacProgram();
-        m = prog.compile(na_copy);
+        m = prog.compile(unit, options=kernel_opts);
         if (m is not None) and m?.gen and (m.gen.llvm_ir is not None) {
             ir_str = str(m.gen.llvm_ir);
         }
     } except Exception {
         ir_str = None;
-    } finally {
-        shutil.rmtree(tmp_dir, ignore_errors=True);
     }
     if ir_str is not None {
-        _FMT_KERNEL_IR_CACHE.append(ir_str);
+        _FMT_KERNEL_IR_CACHE[cache_key] = ir_str;
+        store_unit_artifact(unit, "ll", fp, ir_str);
     }
     return ir_str;
 }
@@ -821,11 +896,11 @@ impl NativeCompilePass._references_undefined_fmt_kernel(main_mod: object) -> boo
     try {
         for _fn in main_mod.functions {
             if _fn.is_declaration
-            and (
-                _fn.name.startswith("jac_fmt_")
-                or _fn.name.startswith("_jac_fmt_")
-                or _fn.name == "__jac_glob_init_fmt_kernel"
-            ) {
+                and (
+                    _fn.name.startswith("jac_fmt_")
+                    or _fn.name.startswith("_jac_fmt_")
+                    or _fn.name == "__jac_glob_init_fmt_kernel"
+                ) {
                 return True;
             }
         }

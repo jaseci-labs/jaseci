@@ -596,7 +596,8 @@ test "add git dependency" {
         "my-plugin", "https://github.com/user/plugin.git", dep_type="git"
     );
     assert "my-plugin" in cfg.git_dependencies;
-    assert cfg.git_dependencies["my-plugin"]["git"] == "https://github.com/user/plugin.git";
+    assert cfg.git_dependencies["my-plugin"]["git"]
+        == "https://github.com/user/plugin.git";
 }
 
 test "add npm dependency" {
@@ -1782,13 +1783,10 @@ jaclang = ">=0.15.2"
         saved = toml_path.read_text();
         # Must remain a parseable array of inline tables, not a repr string.
         parsed = tomllib.loads(saved);
-        assert parsed["project"]["authors"] == [
-            {"name": "Jason Mars", "email": "jason@mars.ninja"}
-        ] , "authors must survive save() as inline tables";
-        assert parsed["project"]["maintainers"] == [
-            {"name": "A", "email": "a@b.c"},
-            {"name": "D", "email": "d@e.f"}
-        ] , "maintainers must survive save() as inline tables";
+        assert parsed["project"]["authors"]
+            == [{"name": "Jason Mars", "email": "jason@mars.ninja"}] , "authors must survive save() as inline tables";
+        assert parsed["project"]["maintainers"]
+            == [{"name": "A", "email": "a@b.c"}, {"name": "D", "email": "d@e.f"}] , "maintainers must survive save() as inline tables";
         # save() must not leave behind a stray empty [plugins] table.
         assert "plugins" not in parsed , "empty [plugins] table must not be emitted";
         assert parsed["dependencies"]["rich"] == ">=13.0.0";
@@ -1906,5 +1904,45 @@ test "discover flags configs found in an ancestor directory" {
         assert cfg_nested.discovered_from_ancestor , (
             "config discovered by climbing out of cwd must be flagged"
         );
+    }
+}
+
+# ===========================================================================
+# TestLegacyPluginsTable
+# ===========================================================================
+test "legacy plugins table warns on load" {
+    config_mod._config = None;
+    import io;
+    import from contextlib { redirect_stderr }
+    with TemporaryDirectory() as tmpdir {
+        temp_project = make_temp_project(Path(tmpdir));
+        (temp_project / "jac.toml").write_text(
+            "[project]\nname = \"demo\"\n\n"
+            "[plugins.scale.websocket]\nmax_message_bytes = 1\n"
+        );
+        buf = io.StringIO();
+        with redirect_stderr(buf) {
+            cfg = JacConfig.load(temp_project / "jac.toml");
+        }
+        err = buf.getvalue();
+        assert "[plugins]" in err , f"expected legacy-plugins warning, got: {err!r}";
+        assert "scale" in err , err;
+        assert cfg.get_plugin_config("scale") == {} , (
+            "legacy [plugins.scale] must not be treated as [scale]"
+        );
+    }
+}
+
+test "no legacy warning without a plugins table" {
+    config_mod._config = None;
+    import io;
+    import from contextlib { redirect_stderr }
+    with TemporaryDirectory() as tmpdir {
+        temp_project = make_temp_project(Path(tmpdir));
+        buf = io.StringIO();
+        with redirect_stderr(buf) {
+            JacConfig.load(temp_project / "jac.toml");
+        }
+        assert "[plugins]" not in buf.getvalue() , buf.getvalue();
     }
 }

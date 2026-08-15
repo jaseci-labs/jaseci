@@ -76,6 +76,37 @@ impl __jacJsx(tag: any, props: dict = {}, children: any = []) -> JsxElement {
     }
 }
 
+impl useJacState(initial: any) -> any {
+    ref = reactUseRef(None);
+    if ref.current == None {
+        cell = {"val": initial, "version": 0, "listeners": []};
+        cell["subscribe"] = lambda (cb: any) {
+            cell["listeners"].append(cb);
+            return lambda {
+                idx = cell["listeners"].indexOf(cb);
+                if idx > -1 {
+                    cell["listeners"].splice(idx, 1);
+                }
+            };
+        };
+        cell["getVersion"] = lambda { return cell["version"]; };
+        cell["set"] = lambda (v: any) {
+            if Object.is(cell["val"], v) {
+                return;
+            }
+            cell["val"] = v;
+            cell["version"] = cell["version"] + 1;
+            for cb in cell["listeners"].slice() {
+                cb();
+            }
+        };
+        ref.current = cell;
+    }
+    store = ref.current;
+    reactUseSyncExternalStore(store["subscribe"], store["getVersion"]);
+    return store;
+}
+
 impl useRouter -> dict {
     navigate = reactRouterUseNavigate();
     location = reactRouterUseLocation();
@@ -94,7 +125,7 @@ impl AuthGuard(redirect: str = "/login") -> JsxElement {
     if jacIsLoggedIn() {
         return <ReactRouterOutlet/>;
     }
-    return <ReactRouterNavigate to={redirect} replace={True}/>;
+    <ReactRouterNavigate to={redirect} replace={True}/>
 }
 
 impl JacAwaiting(props: dict) -> JsxElement {
@@ -487,7 +518,7 @@ impl JacForm(props: dict) -> JsxElement {
                             }}
                         >
                             {fs.isSubmitting and "Submitting..."}{not fs.isSubmitting
-                            and submitLabel}
+                                and submitLabel}
                         </button>
                     );
                 }}

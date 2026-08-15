@@ -14,16 +14,13 @@ import from jaclang.scale._optdeps.kubernetes {
     ConfigException
 }
 import from jaclang.scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
-import from requests.exceptions { RequestException }
+import from requests.exceptions { RequestException, SSLError }
 
 glob COMPANION_DEFS: list = [
          ("", "Jaseci App", False),
-         ("-redis", "Redis", False),
-         ("-mongodb", "MongoDB", True),
+         ("-postgres", "PostgreSQL", True),
          ("-prometheus", "Prometheus", False),
          ("-grafana", "Grafana", False),
-         ("-redis-insight", "RedisInsight", False),
-         ("-mongo-express", "Mongo Express", False),
          ("-ingress-nginx", "NGINX Ingress", False),
 
      ];

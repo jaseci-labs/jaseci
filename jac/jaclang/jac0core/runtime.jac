@@ -11,7 +11,6 @@ import from concurrent.futures { Future, ThreadPoolExecutor }
 import from contextvars { ContextVar }
 import dataclasses;
 import from dataclasses { dataclass, field }
-import from http.server { HTTPServer }
 import from inspect { getfile }
 import from logging { getLogger }
 import from pathlib { Path }
@@ -28,12 +27,11 @@ import from uuid { UUID }
 import from jaclang.jac0core.archetype {
     GenericEdge,
     ObjectAnchor,
-    ObjectSpatialDestination,
     ObjectSpatialFunction,
-    ObjectSpatialPath,
     Root
 }
 import from jaclang.jac0core.constant { EdgeDir, colors }
+import from jaclang.jac0core.graph_query { GraphQuery, QHop }
 import from jaclang.jac0core.constructs {
     AccessLevel,
     access_level_cast,
@@ -55,7 +53,6 @@ import from jaclang.jac0core.modresolver {
     pop_import_base
 }
 import from jaclang.jac0core.mtp { MTIR, Info, MTRuntime }
-import type from http.server { BaseHTTPRequestHandler }
 import type from jaclang.cli.console { JacConsole as ConsoleImpl }
 import type from jaclang.jac0core.compiler { JacCompiler }
 import type from jaclang.jac0core.program { JacProgram }
@@ -67,9 +64,13 @@ import type from jaclang.runtimelib.server { ModuleIntrospector, UserManager }
 glob logger = getLogger(__name__),
      T = TypeVar('T'),
      P = ParamSpec('P'),
-     JsonValue: TypeAlias = None | str | int | float | bool | `list['JsonValue'] | `dict[
-         (str, 'JsonValue')
-     ],
+     JsonValue: TypeAlias = None
+         | str
+         | int
+         | float
+         | bool
+         | `list['JsonValue']
+         | `dict[(str, 'JsonValue')],
      StatusCode: TypeAlias = Literal[(200, 201, 400, 401, 404, 500, 503)],
      _request_context: ContextVar[ExecutionContext | None] = ContextVar(
          'request_context', default=None
@@ -93,47 +94,6 @@ def _scale_provider -> any {
     } except ImportError { }
     _scale_provider_cache.append(result);
     return result;
-}
-
-def _prefetch_edges(origin: list[NodeArchetype]) -> None {
-    ctx = JacRuntimeInterface.get_context();
-    if not hasattr(ctx.mem, 'batch_get') {
-        return;
-    }
-    edge_ids: list = [];
-    for nd in origin {
-        nanch = nd.__jac__;
-        for edge_stub in nanch.edges {
-            if not edge_stub.is_populated() {
-                edge_ids.append(edge_stub.id);
-            }
-        }
-    }
-    if edge_ids {
-        ctx.mem.batch_get(edge_ids);
-    }
-    node_ids: list = [];
-    for nd in origin {
-        nanch = nd.__jac__;
-        for anchor in nanch.edges {
-            loaded = ctx.mem.get(anchor.id);
-            if loaded {
-                if loaded?.source
-                and loaded.source is not None
-                and not loaded.source.is_populated() {
-                    node_ids.append(loaded.source.id);
-                }
-                if loaded?.target
-                and loaded.target is not None
-                and not loaded.target.is_populated() {
-                    node_ids.append(loaded.target.id);
-                }
-            }
-        }
-    }
-    if node_ids {
-        ctx.mem.batch_get(node_ids);
-    }
 }
 
 def resolve_ref(
@@ -179,7 +139,6 @@ class JacClassReferences {
     with entry {
         TYPE_CHECKING: bool = TYPE_CHECKING;
         DSFunc = ObjectSpatialFunction;
-        OPath = ObjectSpatialPath;
         Root = Root;
         GenericEdge = GenericEdge;
         Obj = Archetype;
@@ -258,30 +217,15 @@ class JacAccessValidation {
 }
 
 class JacGraph {
-    static def get_edges(
-        origin: list[NodeArchetype], destination: ObjectSpatialDestination
-    ) -> list[EdgeArchetype];
-
-    static def get_edges_with_node(
-        origin: list[NodeArchetype],
-        destination: ObjectSpatialDestination,
-        from_visit: bool = False
-    ) -> list[(EdgeArchetype | NodeArchetype)];
-
-    static def edges_to_nodes(
-        origin: list[NodeArchetype], destination: ObjectSpatialDestination
-    ) -> list[NodeArchetype];
-
     static def refs(
-        path: ObjectSpatialPath | NodeArchetype | list[NodeArchetype],
-        post_filter: (Callable[([Archetype], bool)] | None) = None,
+        path: GraphQuery | NodeArchetype | list[NodeArchetype],
         slc: (slice | None) = None
-    ) -> list[NodeArchetype] | list[EdgeArchetype] | list[
-        (NodeArchetype | EdgeArchetype)
-    ];
+    ) -> list[NodeArchetype]
+        | list[EdgeArchetype]
+        | list[(NodeArchetype | EdgeArchetype)];
 
     static async def arefs(
-        path: ObjectSpatialPath | NodeArchetype | list[NodeArchetype]
+        path: GraphQuery | NodeArchetype | list[NodeArchetype]
     ) -> None;
 
     static def filter_on(
@@ -322,9 +266,12 @@ class JacWalker {
         `walker: WalkerArchetype,
         expr:
             (
-                list[(NodeArchetype | EdgeArchetype)] | list[NodeArchetype] | list[
-                    EdgeArchetype
-                ] | NodeArchetype | EdgeArchetype | ObjectSpatialPath
+                list[(NodeArchetype | EdgeArchetype)]
+                | list[NodeArchetype]
+                | list[EdgeArchetype]
+                | NodeArchetype
+                | EdgeArchetype
+                | GraphQuery
             ),
         insert_loc: int = -1
     ) -> bool;
@@ -447,7 +394,7 @@ class JacServe {
     static def get_sv_registry -> dict[str, str];
     static def create_server(
         jac_server: JacServer, host: str, port: int, max_retries: int = 10
-    ) -> HTTPServer;
+    ) -> any;
 
     static def render_page(
         introspector: ModuleIntrospector,
@@ -457,23 +404,6 @@ class JacServe {
     ) -> dict[(str, Any)];
 
     static def get_client_js(introspector: ModuleIntrospector) -> str;
-    static def send_json(
-        handler: BaseHTTPRequestHandler,
-        status: StatusCode,
-        data: dict[(str, JsonValue)]
-    ) -> None;
-
-    static def send_html(
-        handler: BaseHTTPRequestHandler, status: StatusCode, body: str
-    ) -> None;
-
-    static def send_javascript(handler: BaseHTTPRequestHandler, code: str) -> None;
-    static def send_css(handler: BaseHTTPRequestHandler, css_code: str) -> None;
-    static def send_static_file(
-        handler: BaseHTTPRequestHandler,
-        file_path: Path,
-        content_type: (str | None) = None
-    ) -> None;
 }
 
 class JacTest {
@@ -534,7 +464,8 @@ class JacRuntime(JacRuntimeInterface) {
 
         strict_permissions: bool = os.environ.get(
             "JAC_STRICT_PERMISSIONS", ""
-        ).strip().lower() in ("1", "true", "yes", "on");
+        ).strip().lower()
+            in ("1", "true", "yes", "on");
     }
 
     @classmethod

@@ -1,37 +1,29 @@
 glob _NA_FMT_KERNEL_MOD: list = [];
 
-def _write_native_fmt_source(core_dir: str, dest: str) {
-    import os;
-    _kernel = os.path.join(core_dir, "fmt_kernel.jac");
-    with open(_kernel, "r") as _kf {
-        _ktext = _kf.read();
-    }
-    with open(dest, "w") as _out {
-        _out.write(_ktext);
-    }
-}
-
 def _load_native_fmt_kernel_module -> (uni.Module | None) {
     if _NA_FMT_KERNEL_MOD {
         return _NA_FMT_KERNEL_MOD[0];
     }
-    import os;
-    import shutil;
-    import tempfile;
-    import jaclang;
+    import from jaclang.jac0core.kernel_units { fmt_kernel_unit_path }
     import from jaclang.jac0core.program { JacProgram }
-    _core = os.path.join(os.path.dirname(jaclang.__file__), "jac0core");
-    tmp_dir = tempfile.mkdtemp();
-    na_copy = os.path.join(tmp_dir, "fmt_kernel.na.jac");
     mod = None;
     try {
-        _write_native_fmt_source(_core, na_copy);
+        import from jaclang.jac0core.compile_options { CompileOptions as _KernelOpts }
         prog = JacProgram();
-        mod = prog.compile(na_copy, no_cgen=True, symtab_ir_only=True);
+        mod = prog.compile(
+            fmt_kernel_unit_path('na'),
+            options=_KernelOpts(
+                no_cgen=True,
+                symtab_ir_only=True,
+                aot_mode=True,
+                type_check=False,
+                default_codespace='native',
+                force_codespace='native',
+                force_target_program=True
+            )
+        );
     } except Exception {
         mod = None;
-    } finally {
-        shutil.rmtree(tmp_dir, ignore_errors=True);
     }
     if mod is not None {
         _NA_FMT_KERNEL_MOD.append(mod);
@@ -52,7 +44,7 @@ impl NaIRGenPass._ensure_fmt_kernel -> bool {
 
     _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
     if (_manifest is not None)
-    and ("fmt_kernel" not in _manifest.native_transitive_sources) {
+        and ("fmt_kernel" not in _manifest.native_transitive_sources) {
         _manifest.native_transitive_sources.append("fmt_kernel");
     }
     return True;

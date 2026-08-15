@@ -19,6 +19,7 @@ tests with zero configuration.
 
 from __future__ import annotations
 
+import atexit
 import contextlib
 import importlib
 import importlib.machinery
@@ -162,24 +163,45 @@ def pytest_collect_file(
     # run under bun via a separate collector, not this Python one.
     under_test_root = not explicit and _under_test_root(file_path, parent.config)
 
-    # Client (cl) test files run their `test` blocks under bun, not Python.
-    # test_*.cl.jac / *.test.cl.jac -> dedicated client collector.
-    if reg.is_client_module(name):
-        if explicit or name.startswith("test_") or reg.is_client_test(name):
+    name_test = (name.startswith("test_") and reg.is_jac(name)) or reg.is_test(
+        name
+    )
+    if not (explicit or name_test or under_test_root):
+        return None
+
+    # Client test modules run their `test` blocks under bun, not Python. The
+    # module's inferred codespace decides the collector: client placement
+    # (npm string imports / JSX / browser globals) routes to bun.
+    if _module_is_client(file_path):
+        # Routing is load-bearing for xdist: a per-worker disagreement here
+        # silently reshapes the collected set ("Different tests were
+        # collected" with no cause attached), so the decision is announced
+        # on the real fd where every worker's line reaches the log.
+        _fd2(f"jac: routing {file_path} to the bun collector\n")
+        if explicit or name_test:
             return ClJacFile.from_parent(parent, path=file_path)
         return None
 
-    # Collect test_*.jac (pytest convention), *.test.jac (Jac convention), and
-    # any .jac file under a declared [test] root directory.
-    if (
-        explicit
-        or under_test_root
-        or (name.startswith("test_") and reg.is_jac(name))
-        or reg.is_test(name)
-    ):
-        return JacFile.from_parent(parent, path=file_path)
+    return JacFile.from_parent(parent, path=file_path)
 
-    return None
+
+def _fd2(msg: str) -> None:
+    """Write to the real stderr fd; under pytest-xdist a worker's Python-level
+    sys.stderr is captured by execnet and never reaches any log."""
+    try:
+        os.write(2, msg.encode("utf-8", "replace"))
+    except OSError:
+        sys.stderr.write(msg)
+
+
+def _module_is_client(file_path: Path) -> bool:
+    """True when the module at *file_path* lives in the client codespace."""
+    try:
+        from jaclang.runtimelib.cl_test_runner import module_is_client
+
+        return bool(module_is_client(str(file_path)))
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +209,20 @@ def pytest_collect_file(
 # ---------------------------------------------------------------------------
 
 _jac_runtime_ready = False
+
+# Temp base paths minted by _fresh_jac_state; removed when the worker exits so
+# a suite run does not leave one empty directory per test behind.
+_TEST_BASES: list[str] = []
+
+
+def _remove_test_bases() -> None:
+    import shutil
+
+    while _TEST_BASES:
+        shutil.rmtree(_TEST_BASES.pop(), ignore_errors=True)
+
+
+atexit.register(_remove_test_bases)
 
 
 def _ensure_jac_runtime():
@@ -222,6 +258,7 @@ def _fresh_jac_state(*, clear_modules: bool = True):
     """
     from jaclang.jac0core.program import JacProgram
     from jaclang.jac0core.runtime import JacRuntime, JacRuntimeInterface
+    from jaclang.runtimelib.session import mark_scratch_base
 
     # Close any existing execution context
     if JacRuntime.exec_ctx is not None:
@@ -234,12 +271,19 @@ def _fresh_jac_state(*, clear_modules: bool = True):
                 sys.modules.pop(mod.__name__, None)
         JacRuntime.loaded_modules.clear()
 
-    # Set up fresh state with isolated storage (temp directory avoids
-    # stale SQLite data from previous tests). Seed the bootstrap default
-    # so any subsequent `ExecutionContext()` without explicit args picks
-    # it up. The session-wide exec_ctx is constructed with the seed
-    # passed explicitly so its L3 path is locked in at construction.
-    fresh_base = tempfile.mkdtemp()
+    # Set up fresh state with isolated storage: a fresh temp base path per
+    # test keeps one test's graph out of the next one's. Marking it as a
+    # scratch base is what keeps that isolation from costing a permanent 8 MB
+    # database per test in the machine-wide cluster (issue #8094): every
+    # scratch base in this process shares one database that is wiped when the
+    # base changes and dropped when the worker exits. Seed the bootstrap
+    # default so any subsequent `ExecutionContext()` without explicit args
+    # picks it up (and lands on the same scratch store). The session-wide
+    # exec_ctx is constructed with the seed passed explicitly so its store is
+    # locked in at construction.
+    fresh_base = tempfile.mkdtemp(prefix="jac-test-base-")
+    _TEST_BASES.append(fresh_base)
+    mark_scratch_base(fresh_base)
     JacRuntime.set_base_path(fresh_base)
     JacRuntime.set_full_target_path(None)
     JacRuntime.program = JacProgram()
@@ -357,9 +401,9 @@ class JacFile(pytest.File):
 
             base_dir = str(Path(filepath).parent)
             # Derive the importable module name via the extension registry's
-            # canonical longest-suffix matcher: a compound codespace suffix
-            # (``foo.na.jac`` / ``foo.sv.jac``) imports as module ``foo``, so a
-            # bare ``Path.stem`` would leave the ``.na`` component and the
+            # canonical longest-suffix matcher: an annex suffix
+            # (``foo.impl.jac``) imports as module ``foo``, so a
+            # bare ``Path.stem`` would leave the ``.impl`` component and the
             # importer would read it as a package path and fail to resolve the
             # file (issue #7150).
             mod_name = reg.base_stem(Path(filepath).name)
@@ -377,7 +421,7 @@ class JacFile(pytest.File):
                 # A test file that fails to import is not an empty result --
                 # swallowing it silently converts a broken test module into a
                 # passing run (issue #7150). When the file was named directly on
-                # the command line (``jac test foo.na.jac``) surface it as a hard
+                # the command line (``jac test foo.jac``) surface it as a hard
                 # collection error, matching pytest's contract for an
                 # unimportable ``test_*.py``, so a broken target can never
                 # masquerade as a pass. During directory recursion, where one
@@ -397,7 +441,13 @@ class JacFile(pytest.File):
                     raise self.CollectError(
                         f"failed to import Jac test module {self.path}: {exc_text}"
                     ) from exc
-                sys.stderr.write(
+                # Write to the real fd, not sys.stderr: under pytest-xdist a
+                # worker's Python-level stderr is captured by execnet and never
+                # reaches the terminal or CI log, which turns a broken test
+                # module into an invisible per-worker collection difference
+                # ("Different tests were collected") with no cause attached.
+                # fd 2 is inherited from the session leader and always lands.
+                _fd2(
                     f"jac: skipping test file that failed to import: "
                     f"{self.path}: {exc_text}\n"
                 )
@@ -417,6 +467,13 @@ class JacFile(pytest.File):
                         callobj=test_info.test_case,
                     )
                 )
+        if not items:
+            # A successful import that registered nothing is legitimate only
+            # for a .jac file with no test blocks. Announce it on the real fd:
+            # under xdist this is the one silent shape that turns into a
+            # per-worker "Different tests were collected" failure with no
+            # cause in any log.
+            _fd2(f"jac: collected 0 tests from {self.path} (import ok)\n")
 
         # Remove the test module itself from sys.modules to avoid collisions
         # with Python test files that share the same basename (e.g.
@@ -520,7 +577,7 @@ class JacTestItem(pytest.Item):
 
 
 class ClJacFile(pytest.File):
-    """Collector for ``*.cl.jac`` test files.
+    """Collector for client-codespace test files.
 
     The file's ``test`` blocks compile to JavaScript and execute under bun via
     :mod:`jaclang.runtimelib.cl_test_runner`.  The whole file is compiled and
