@@ -1074,7 +1074,10 @@ test "finish tool invocation failure raises FinishToolError not TypeError" {
     assert raised , "Expected FinishToolError for argument-less finish call";
 }
 
-def _dispatch_finish_call(arguments: str) -> object {
+"""A model, an mt_run holding only finish_tool, and a fake response whose lone
+tool call carries `arguments`. Each finish-path test drives its own entry point
+over this same env."""
+def _finish_env(arguments: str) -> tuple {
     model = Model(model_name="test-model");
     mt_run = MTRuntime(
         messages=[
@@ -1099,6 +1102,12 @@ def _dispatch_finish_call(arguments: str) -> object {
         ],
 
     };
+    return (model, mt_run, fake_response);
+}
+
+
+def _dispatch_finish_call(arguments: str) -> object {
+    (model, mt_run, fake_response) = _finish_env(arguments);
     with unittest.mock.patch.object(
         model, "model_call_no_stream", return_value=fake_response
     ) {
@@ -1124,6 +1133,66 @@ test "unusable finish arguments are recovered end to end" {
     );
     content = str(err_tc().content);
     assert "Tool error" in content and "final_output" in content , f"got: {content}";
+}
+
+# The async dispatch parses tool calls through the same choke point, so a
+# misnamed finish argument must heal there too.
+test "async dispatch heals a misnamed finish argument" {
+    import asyncio;
+    (model, mt_run, fake_response) = _finish_env(
+        '{"output": {"name": "Eli", "age": 44}}'
+    );
+
+    async def _fake_async_call(params: dict) -> object {
+        return fake_response;
+    }
+
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream_async", _fake_async_call
+    ) {
+        result = asyncio.run(model.adispatch_no_streaming(mt_run));
+    }
+    finish_tc = result.tool_calls[0];
+    assert finish_tc.is_finish_call() , "Async healed call should be the finish call";
+    assert finish_tc.get_output().name == "Eli" , "Expected healed typed output";
+}
+
+# _force_final_answer is the max-iterations terminal: it has no retry loop, so
+# it must still heal what it can and degrade without raising when it cannot.
+test "forced final answer heals or degrades without raising" {
+    for (arguments, expect_typed) in [
+        ('{"output": {"name": "Fay", "age": 51}}', True),
+        ('{"a": 1, "b": 2}', False)
+    ] {
+        (model, mt_run, fake_response) = _finish_env(arguments);
+        with unittest.mock.patch.object(
+            model, "model_call_no_stream", return_value=fake_response
+        ) {
+            out = model._force_final_answer(mt_run);
+        }
+        if expect_typed {
+            assert out.name == "Fay" , f"Expected healed typed output, got: {out}";
+        } else {
+            assert not isinstance(out, _TestPerson) , f"Expected degradation, got: {out}";
+        }
+    }
+}
+
+# _attempt_recovery re-prompts with only finish_tool when the model returns no
+# tool calls; its finish call goes through the same parse and must heal.
+test "recovery re-prompt heals a misnamed finish argument" {
+    (model, mt_run, fake_response) = _finish_env(
+        '{"output": {"name": "Gus", "age": 29}}'
+    );
+    with unittest.mock.patch.object(
+        model, "model_call_no_stream", return_value=fake_response
+    ) {
+        recovery = model._attempt_recovery(mt_run);
+    }
+    assert recovery is not None , "Recovery should run for a structured resp_type";
+    finish_tc = recovery.tool_calls[0];
+    assert finish_tc.is_finish_call() , "Recovered call should be the finish call";
+    assert finish_tc.get_output().name == "Gus" , "Expected healed typed output";
 }
 
 # =============================================================================
