@@ -7,7 +7,11 @@ import from jaclang.jac0core.passes.sym_resolve { symbol_ability, symbol_archety
 import type from jaclang.jac0core.program { JacProgram }
 
 def compiled_region_ids(
-    prog: JacProgram, current: uni.Module, scoped: bool, seen: set[str]
+    prog: JacProgram,
+    current: uni.Module,
+    scoped: bool,
+    seen: set[str],
+    wrapped: (list[uni.UniNode] | None) = None
 ) -> set[int] {
     mods: list[uni.Module] = [current];
     for m in prog.mod.hub.values() {
@@ -31,6 +35,16 @@ def compiled_region_ids(
                 or (scoped and (ab.sym_name == 'forward')) {
                 work.append(ab);
             }
+        }
+    }
+    for w in (wrapped or []) {
+        if isinstance(w, uni.Archetype) {
+            ids.add(id(w));
+            for meth in w.get_all_sub_nodes(uni.Ability) {
+                work.append(meth);
+            }
+        } elif isinstance(w, uni.Ability) {
+            work.append(w);
         }
     }
     while work {

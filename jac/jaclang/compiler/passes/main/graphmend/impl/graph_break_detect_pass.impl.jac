@@ -15,9 +15,14 @@ impl GraphBreakDetectPass.before_pass -> None {
         self.prune_signal = True;
         return;
     }
-    self._entry_ids = self._collect_entry_points();
+    wrapped = self._collect_entry_points();
+    self._entry_ids = {id(e) for e in wrapped};
     self._entry_ids |= compiled_region_ids(
-        self.prog, self.ir_in, self.prog.graphmend_scoped_compile, self._mat_seen
+        self.prog,
+        self.ir_in,
+        self.prog.graphmend_scoped_compile,
+        self._mat_seen,
+        wrapped
     );
     if self.prog.graphmend_scoped_compile {
         self._whole_module = True;
@@ -31,20 +36,51 @@ impl GraphBreakDetectPass.before_pass -> None {
     if (not self._entry_ids) and (not self._whole_module) {
         self._enabled = False;
         self.prune_signal = True;
+        return;
+    }
+    self._spine_ids = set();
+    if not self._whole_module {
+        members: list[uni.UniNode] = [];
+        members.extend(self.ir_in.get_all_sub_nodes(uni.Ability));
+        members.extend(self.ir_in.get_all_sub_nodes(uni.Archetype));
+        for member in members {
+            if id(member) in self._entry_ids {
+                cur: (uni.UniNode | None) = member.parent;
+                while cur is not None {
+                    self._spine_ids.add(id(cur));
+                    cur = cur.parent;
+                }
+            }
+        }
     }
 }
 
-impl GraphBreakDetectPass._collect_entry_points -> set[int] {
+impl GraphBreakDetectPass.enter_ability(nd: uni.Ability) -> None {
+    if (not self._enabled) or self._whole_module {
+        return;
+    }
+    if (id(nd) in self._entry_ids) or (id(nd) in self._spine_ids) {
+        return;
+    }
+    if self._in_torch_compiled_scope(nd) {
+        return;
+    }
+    self.prune_signal = True;
+}
+
+impl GraphBreakDetectPass._collect_entry_points -> list[uni.UniNode] {
+    out: list[uni.UniNode] = [];
     ids: set[int] = set();
     for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
         if is_torch_attr_target(call.target, 'compile') {
             entry = self._resolve_wrapped_entry(call);
-            if entry is not None {
+            if (entry is not None) and (id(entry) not in ids) {
                 ids.add(id(entry));
+                out.append(entry);
             }
         }
     }
-    return ids;
+    return out;
 }
 
 impl GraphBreakDetectPass._resolve_wrapped_entry(
