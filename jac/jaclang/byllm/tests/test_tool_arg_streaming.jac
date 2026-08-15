@@ -453,9 +453,8 @@ test "an abandoned stream is always announced alongside its deltas" {
 }
 
 
-# The streaming react loop's finish branch (jaseci-labs/jac#8169). A misnamed
-# finish argument must heal, and an invocation that fails must be fed back as a
-# recoverable tool error rather than escaping the generator.
+# The streaming finish branch (jaseci-labs/jac#8169): heal misnamed arguments,
+# feed back invocation failures as recoverable tool errors.
 test "the streaming finish branch heals and recovers" {
     def _finish_args(payload: str, call_id: str) -> tuple {
         return (
@@ -464,13 +463,10 @@ test "the streaming finish branch heals and recovers" {
         );
     }
 
-    # Misnamed argument: healed in place, so one turn still finishes the run.
     (heal_turn, heal_rebuilt) = _finish_args('{"output": "healed answer"}', "h1");
     events = _run([heal_turn], [heal_rebuilt], [write_file]);
     assert "steps_done" in _kinds(events) , f"never finished: {_kinds(events)}";
 
-    # Invocation failure: the first finish call raises, the loop must feed the
-    # error back and let the model's next finish call succeed.
     attempts = [0];
 
     def finish_tool(final_output: str) -> str {
@@ -484,8 +480,7 @@ test "the streaming finish branch heals and recovers" {
     (bad, bad_rebuilt) = _finish_args('{"final_output": "first try"}', "b1");
     (good, good_rebuilt) = _finish_args('{"final_output": "second try"}', "b2");
     events = _run([bad, good], [bad_rebuilt, good_rebuilt], [finish_tool]);
-    # A finish call invokes the tool for the message and again for the output,
-    # so the count is not pinned; what matters is that the raise was survived.
+    # finish_tc() and get_output() each invoke the tool: pin survival, not count.
     assert attempts[0] > 1 , f"the failed finish call was never retried: {attempts[0]}";
     assert "steps_done" in _kinds(events) , f"never recovered: {_kinds(events)}";
 }

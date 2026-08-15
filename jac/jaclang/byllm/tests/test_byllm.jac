@@ -1012,9 +1012,7 @@ test "finish tool error not raised for valid type" {
     assert result.age == 30 , f"Expected age=30, got '{result.age}'";
 }
 
-# finish_tool argument robustness (issue #8169): any argument shape that
-# validates against the declared output type is healed; anything else raises
-# a recoverable ValueError; invocation failures stay typed.
+# finish_tool argument robustness (issue #8169).
 test "finish tool argument resolution heals recoverable shapes" {
     finish_tool = Tool.make_finish_tool(_TestPerson);
     person = {"name": "Bob", "age": 25};
@@ -1074,9 +1072,7 @@ test "finish tool invocation failure raises FinishToolError not TypeError" {
     assert raised , "Expected FinishToolError for argument-less finish call";
 }
 
-"""A model, an mt_run holding only finish_tool, and a fake response whose lone
-tool call carries `arguments`. Each finish-path test drives its own entry point
-over this same env."""
+"""Model, finish_tool-only mt_run, and a fake response carrying `arguments`."""
 def _finish_env(arguments: str) -> tuple {
     model = Model(model_name="test-model");
     mt_run = MTRuntime(
@@ -1115,9 +1111,6 @@ def _dispatch_finish_call(arguments: str) -> object {
     }
 }
 
-# End to end through dispatch: a misnamed finish argument heals into the typed
-# finish call; unusable arguments become a recoverable, NON-finish error call
-# (an error report classified as the finish call would become the typed output).
 test "misnamed finish argument is healed end to end" {
     result = _dispatch_finish_call('{"output": {"name": "Dana", "age": 33}}');
     finish_tc = result.tool_calls[0];
@@ -1125,6 +1118,7 @@ test "misnamed finish argument is healed end to end" {
     assert finish_tc.get_output().name == "Dana" , "Expected healed typed output";
 }
 
+# An error report that classified as the finish call would become the typed output.
 test "unusable finish arguments are recovered end to end" {
     result = _dispatch_finish_call('{"a": 1, "b": 2}');
     err_tc = result.tool_calls[0];
@@ -1135,8 +1129,6 @@ test "unusable finish arguments are recovered end to end" {
     assert "Tool error" in content and "final_output" in content , f"got: {content}";
 }
 
-# The async dispatch parses tool calls through the same choke point, so a
-# misnamed finish argument must heal there too.
 test "async dispatch heals a misnamed finish argument" {
     import asyncio;
     (model, mt_run, fake_response) = _finish_env(
@@ -1157,8 +1149,7 @@ test "async dispatch heals a misnamed finish argument" {
     assert finish_tc.get_output().name == "Eli" , "Expected healed typed output";
 }
 
-# _force_final_answer is the max-iterations terminal: it has no retry loop, so
-# it must still heal what it can and degrade without raising when it cannot.
+# The max-iterations terminal has no retry loop: heal or degrade, never raise.
 test "forced final answer heals or degrades without raising" {
     for (arguments, expect_typed) in [
         ('{"output": {"name": "Fay", "age": 51}}', True),
@@ -1178,8 +1169,6 @@ test "forced final answer heals or degrades without raising" {
     }
 }
 
-# _attempt_recovery re-prompts with only finish_tool when the model returns no
-# tool calls; its finish call goes through the same parse and must heal.
 test "recovery re-prompt heals a misnamed finish argument" {
     (model, mt_run, fake_response) = _finish_env(
         '{"output": {"name": "Gus", "age": 29}}'
@@ -1193,6 +1182,38 @@ test "recovery re-prompt heals a misnamed finish argument" {
     finish_tc = recovery.tool_calls[0];
     assert finish_tc.is_finish_call() , "Recovered call should be the finish call";
     assert finish_tc.get_output().name == "Gus" , "Expected healed typed output";
+}
+
+# Some backends downgrade json_schema to json_object and reject requests whose
+# messages lack the word "json" (issue #8114).
+test "response format requests always carry the json word" {
+    def _params(resp_type: type, tools: list) -> dict {
+        model = Model(model_name="test-model");
+        mt_run = MTRuntime(
+            messages=[
+                Message(role=MessageRole.SYSTEM, content="sys"),
+                Message(role=MessageRole.USER, content="do the thing")
+            ],
+            resp_type=resp_type,
+            stream=False,
+            tools=tools,
+            call_params={},
+            mtir=None  # type: ignore[arg-type]
+        );
+        return model.make_model_params(mt_run);
+    }
+    for (label, resp_type, tools, want_rf) in [
+        ("typed no tools", _TestPerson, [], True),
+        ("scalar no tools", int, [], True),
+        ("plain str", str, [], False),
+        ("typed with tools", _TestPerson, [Tool.make_finish_tool(_TestPerson)], False)
+    ] {
+        params = _params(resp_type, tools);
+        has_rf = params.get("response_format") is not None;
+        has_json = "json" in str(params.get("messages", [])).lower();
+        assert has_rf == want_rf , f"{label}: unexpected response_format={has_rf}";
+        assert has_json == want_rf , f"{label}: json-word={has_json} but rf={has_rf}";
+    }
 }
 
 # =============================================================================
