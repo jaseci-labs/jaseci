@@ -57,17 +57,9 @@ keys them. None of these touch the driver: each names a construct the native
 backend cannot lower yet, and each stays reachable through its Python fallback.
 """
 glob SYM_TAB_SEAM_WAIVERS: dict[(str, str)] = {
-         "SymTabBuildPass._bind_import_path_symbols": (
-             "backend gap: the method body hits a native emitter error "
-             "(iterating `ModulePath.path`, a union-element sequence)."
-         ),
          "SymTabBuildPass.exit_global_vars": (
              "backend gap: calls the inherited `Transform.ice`, which raises "
              "through Python diagnostics machinery."
-         ),
-         "SymTabBuildPass.exit_module_path": (
-             "backend gap: subscripts `nd.path[0]`, a union-element sequence "
-             "the backend cannot index yet."
          )
      };
 
