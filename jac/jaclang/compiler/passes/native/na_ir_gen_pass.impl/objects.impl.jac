@@ -308,6 +308,7 @@ impl NaIRGenPass._codegen_constructors_first(archetypes: list) -> None {
     another class whose constructor demotes later in this same pass is the one
     case left, and it is bounded by construction order among constructors.
     """;
+    _slots = self._constructor_slots();
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
         if arch.body is None {
@@ -317,7 +318,7 @@ impl NaIRGenPass._codegen_constructors_first(archetypes: list) -> None {
             if isinstance(stmt, uni.Ability)
                 and isinstance(stmt.signature, uni.FuncSignature)
                 and stmt.name_ref is not None
-                and stmt.name_ref.sym_name in self._constructor_slots() {
+                and stmt.name_ref.sym_name in _slots {
                 self._codegen_method(arch_name, stmt);
             }
         }
@@ -333,6 +334,9 @@ impl NaIRGenPass._demoted_init_of(type_name: str) -> (str | None) {
     first per candidate because a demotion that kept its function (a virtual
     slot) leaves the abort stub sitting in `method_funcs`.
     """;
+    if not self._native_skipped_methods {
+        return None;
+    }
     for _cn in self._mro_of(type_name) {
         for _mn in ("init", "__init__") {
             _cand = f"{_cn}.{_mn}";
