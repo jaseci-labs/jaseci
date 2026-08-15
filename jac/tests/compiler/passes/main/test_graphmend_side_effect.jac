@@ -20,7 +20,8 @@ import from tests.support {
 import from jaclang.jac0core.jaclib {
     __jac_log_emit__,
     __jac_log_flush_hook__,
-    __jac_log_register__
+    __jac_log_register__,
+    __jac_se_region_open__
 }
 
 glob _LOG_SEEN: list = [];
@@ -33,6 +34,13 @@ def _record_log(msg: str) {
 """Raise from inside a replayed log call (flush-hook probe)."""
 def _raise_log(msg: str) {
     raise RuntimeError("logger down");
+}
+
+glob _EAGER_LOG_SEEN: list = [];
+
+"""Record a message emitted through the slot registry (eager-path probe)."""
+def _record_eager(msg: str) {
+    _EAGER_LOG_SEEN.append(msg);
 }
 
 """A Python-source model with a print between tensor ops.
@@ -212,11 +220,35 @@ test "no buffering when graphmend disabled" {
     assert "print(x)" in src;
 }
 
+test "a deferred logger call emits immediately when no region is open" {
+    # A [Defer] rewrite must be behavior-preserving on the eager path: with no
+    # compiled region open there is nothing to defer to, so the slot call goes
+    # straight through, exactly as __jac_se_emit__ does at depth 0. Buffering it
+    # would hold the message until some unrelated region exits, or drop it.
+    slot = __jac_log_register__(_record_eager);
+    __jac_log_emit__(slot, ("eager", ), {});
+    assert _EAGER_LOG_SEEN == ["eager"] , (
+        f"eager logger call was buffered instead of emitted: {_EAGER_LOG_SEEN}"
+    );
+    # Inside an open region (what the injected forward pre-hook does) the same
+    # call must still buffer and replay on the flush hook.
+    __jac_se_region_open__(None, None);
+    __jac_log_emit__(slot, ("deferred", ), {});
+    assert _EAGER_LOG_SEEN == ["eager"] , (
+        f"call inside an open region was not deferred: {_EAGER_LOG_SEEN}"
+    );
+    __jac_log_flush_hook__(None, None, None);
+    assert _EAGER_LOG_SEEN == ["eager", "deferred"] , (
+        f"deferred call was not replayed: {_EAGER_LOG_SEEN}"
+    );
+}
+
 test "a raising log call cannot replay stale entries on the next pass" {
     # The flush hook snapshots and clears the buffer BEFORE replaying, so a
     # log call that raises drops the batch instead of re-emitting it later.
     ok_slot = __jac_log_register__(_record_log);
     boom_slot = __jac_log_register__(_raise_log);
+    __jac_se_region_open__(None, None);
     __jac_log_emit__(boom_slot, ("first", ), {});
     __jac_log_emit__(ok_slot, ("second", ), {});
     raised = None;

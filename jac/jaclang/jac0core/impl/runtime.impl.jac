@@ -939,7 +939,11 @@ impl JacBuiltin.log_register(fn: any) -> int {
 }
 
 impl JacBuiltin.log_emit(slot: int, args: tuple, kwargs: dict) -> None {
-    _gm_log_buffer.append((slot, args, kwargs));
+    if _gm_se_depth[0] > 0 {
+        _gm_log_buffer.append((slot, args, kwargs));
+    } else {
+        _gm_log_registry[slot](*args, **kwargs);
+    }
 }
 
 impl JacBuiltin.log_flush_hook(module: any, inputs: any, output: any) -> any {

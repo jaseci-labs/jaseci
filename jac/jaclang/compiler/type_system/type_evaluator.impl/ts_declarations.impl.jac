@@ -266,7 +266,7 @@ impl TypeEvaluator._ts_synth_class_types(
             continue;
         }
         shells[name] = ClassType(
-            _shared=ClassType.ClassDetailsShared(
+            _shared=ClassDetailsShared(
                 class_name=name, symbol_table=Module.make_stub(inject_name=name),
             ),
             flags=TypeFlags.Instantiable,
