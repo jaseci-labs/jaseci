@@ -190,11 +190,13 @@ get_jac_search_paths = _modresolver.get_jac_search_paths
 
 
 def _graphmend_claims(fullname: str, path: str) -> bool:
-    """True if GraphMend claims this .py file. A module claims itself when it
-    seeds GraphMend; the claim then follows its eager imports, bounded by its
-    top-level package. torch, jaclang and the standard library are excluded
-    unconditionally, and the ``torch in sys.modules`` gate keeps runs that never
-    load PyTorch from paying for any of this."""
+    """True if GraphMend claims this .py file.
+
+    A module claims itself when it seeds GraphMend; the claim then follows its
+    eager imports, bounded by its top-level package. torch, jaclang and the
+    standard library are never claimed. With nothing claimed yet and torch
+    absent, the gate answers from membership tests alone, before any syscall.
+    """
     try:
         from jaclang.jac0core.runtime import JacRuntime as Jac
 
@@ -206,6 +208,8 @@ def _graphmend_claims(fullname: str, path: str) -> bool:
         return False
     top = fullname.split(".")[0]
     if top in ("torch", "jaclang") or top in sys.stdlib_module_names:
+        return False
+    if not claimed and "torch" not in sys.modules:
         return False
     if not os.path.isfile(path):
         return False
@@ -228,13 +232,14 @@ def _graphmend_claims(fullname: str, path: str) -> bool:
 
 
 def install_graphmend_loader_hook() -> None:
-    """Route claimed .py files through GraphMend even when the import bypasses us.
+    """Route claimed .py files through GraphMend when the import bypasses us.
 
-    A spec built directly from a file location never consults a meta-path
+    A spec built straight from a file location never consults a meta-path
     finder, but it still goes through ``SourceFileLoader.get_code``. Compiling
     from source there also sidesteps ``__pycache__``, so a ``.pyc`` from a
-    non-GraphMend run is never served to a GraphMend run. Idempotent, and
-    installed only when GraphMend is not switched off.
+    non-GraphMend run is never served to a GraphMend run. Idempotent; patching
+    a stdlib class is only warranted once GraphMend can claim something, so
+    callers install on the first claim or as torch enters the process.
     """
     loader = importlib.machinery.SourceFileLoader
     if getattr(loader, "_jac_graphmend_hooked", False):
@@ -261,6 +266,27 @@ def install_graphmend_loader_hook() -> None:
 
     loader.get_code = get_code  # type: ignore[method-assign]
     loader._jac_graphmend_hooked = True  # type: ignore[attr-defined]
+
+
+def install_graphmend_loader_hook_for_torch() -> None:
+    """Install the loader hook as torch enters the process, unless off.
+
+    Nothing is claimable before that: a claim needs torch in ``sys.modules`` or
+    a path a GraphMend-active compile registered, and a registered path only
+    ever belongs to a module that imports torch itself.
+    """
+    if getattr(
+        importlib.machinery.SourceFileLoader, "_jac_graphmend_hooked", False
+    ):
+        return
+    try:
+        from jaclang.jac0core.runtime import JacRuntime as Jac
+
+        if getattr(Jac.get_program(), "graphmend_enabled", False) is False:
+            return
+    except Exception:
+        return
+    install_graphmend_loader_hook()
 
 
 class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
@@ -290,6 +316,13 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
         target: ModuleType | None = None,
     ) -> importlib.machinery.ModuleSpec | None:
         """Find the spec for the module."""
+        # torch entering the process is the first moment GraphMend can claim
+        # anything, so it is where the loader hook goes in (see the hook's own
+        # docstring for what that patch buys). Submodules import their parent
+        # first, so the bare name is the only case to watch for.
+        if fullname == "torch":
+            install_graphmend_loader_hook_for_torch()
+
         # Sealed image is authoritative: a sealed binary resolves its modules
         # from the manifest by name, with no filesystem probing for .jac. This
         # is the primary path (not a fallback) so a sealed runtime never touches
@@ -358,6 +391,9 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
             # what those seeds import inside their own package.
             py_file = candidate_path + ".py"
             if self._graphmend_claimed_py(fullname, py_file):
+                # A live claim means claimed code can also arrive through a
+                # spec built from a file location, which never reaches us.
+                install_graphmend_loader_hook()
                 return importlib.util.spec_from_file_location(
                     fullname, py_file, loader=self
                 )

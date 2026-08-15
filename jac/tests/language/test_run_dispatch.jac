@@ -421,8 +421,8 @@ test "graphmend options survive every jac run mode" {
     assert rc_debug == 1;
     # None of these runs loads torch, so none of them may patch the stdlib
     # loader; the hook waits for torch to enter the process.
-    assert getattr(SourceFileLoader, "_jac_graphmend_hooked", False)
-        == hooked_before , "a torch-free run installed the loader hook";
+    hooked_now = getattr(SourceFileLoader, "_jac_graphmend_hooked", False);
+    assert hooked_now == hooked_before , "a torch-free run installed the hook";
     _cleanup();
 }
 
