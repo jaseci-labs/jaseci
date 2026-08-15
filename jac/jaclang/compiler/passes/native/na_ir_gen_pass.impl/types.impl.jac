@@ -1267,13 +1267,29 @@ impl NaIRGenPass._to_bool(val: ir.Value) -> ir.Value {
         }
         if _is_container {
             _i32 = ir.IntType(32);
+            _tc_null = self.builder.icmp_unsigned(
+                "==", val, ir.Constant(val.type, None), name="tobool.cont.null"
+            );
+            _tc_func = self.builder.basic_block.function;
+            _tc_entry = self.builder.basic_block;
+            _tc_len_bb = _tc_func.append_basic_block(name="tobool.cont.len");
+            _tc_end_bb = _tc_func.append_basic_block(name="tobool.cont.end");
+            self.builder.cbranch(_tc_null, _tc_end_bb, _tc_len_bb);
+            self.builder.position_at_start(_tc_len_bb);
             _len_ptr = self.builder.gep(
                 val, [ir.Constant(_i32, 0), ir.Constant(_i32, 0)], name="tobool.len.ptr"
             );
             _len = self.builder.load(_len_ptr, name="tobool.len");
-            return self.builder.icmp_unsigned(
-                "!=", _len, ir.Constant(ir.IntType(64), 0), name="tobool"
+            _tc_nonempty = self.builder.icmp_unsigned(
+                "!=", _len, ir.Constant(ir.IntType(64), 0), name="tobool.cont.nonempty"
             );
+            _tc_len_end = self.builder.basic_block;
+            self.builder.branch(_tc_end_bb);
+            self.builder.position_at_start(_tc_end_bb);
+            _tc_phi = self.builder.phi(ir.IntType(1), name="tobool");
+            _tc_phi.add_incoming(ir.Constant(ir.IntType(1), 0), _tc_entry);
+            _tc_phi.add_incoming(_tc_nonempty, _tc_len_end);
+            return _tc_phi;
         }
 
         if self._is_bytes_value(val) {

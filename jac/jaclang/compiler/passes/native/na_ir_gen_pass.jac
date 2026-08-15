@@ -404,6 +404,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _container_type_args(t: any) -> list;
     def _unwrap_cfg_expr(e: any) -> any;
     def _spec_from_container_ptr(t: (ir.Type | None)) -> (str | None);
+    def _call_args_lowered(
+        nd: uni.UniNode, func: ir.Function, func_name: str, coerced: list
+    ) -> bool;
+
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
 
     has lambda_captures: dict[str, list[tuple]] = {},
