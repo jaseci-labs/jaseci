@@ -345,14 +345,29 @@ test "struct unpack short buffer raises" {
 }
 
 test "struct pack wrong arg count is a compile error" {
+    import contextlib;
+    import io;
+    buf = io.StringIO();
     prog = JacProgram();
-    prog.compile(
-        file_path=str(os.path.join(FIXTURES, "struct_bad_pack.jac")),
-        options=native_force_opts()
+    with contextlib.redirect_stderr(buf) {
+        ir = prog.compile(
+            file_path=str(os.path.join(FIXTURES, "struct_bad_pack.jac")),
+            options=native_force_opts()
+        );
+    }
+    assert not prog.errors_had , (
+        f"the bad struct.pack is owned by bad_pack(), which must demote to "
+        f"a seam, got: {[str(e) for e in prog.errors_had]}"
     );
-    errors = [str(e) for e in prog.errors_had] if prog.errors_had else [];
-    assert prog.errors_had , "expected a compile error for the bad struct.pack";
-    assert any("struct.pack" in e for e in errors) , f"unexpected errors: {errors}";
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "bad_pack" not in ir.gen.native_layout.functions , (
+        "a struct.pack with the wrong argument count must demote its "
+        "function out of the native layout, never pack uninitialized tail "
+        "bytes"
+    );
+    assert "struct.pack" in buf.getvalue() , (
+        f"the demotion reason must name struct.pack, got:\n{buf.getvalue()}"
+    );
 }
 
 # ─── binary file read returns length-aware bytes ───

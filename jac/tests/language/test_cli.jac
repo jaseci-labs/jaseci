@@ -2298,16 +2298,21 @@ test "jac check native census ranks module outcomes" {
             _reset_config();
         }
         assert "native census" in combined.lower() , "census header missing";
-        assert "E5092" in combined , (
-            "demoted module must be ranked by its first error code"
+        assert "native seams" in combined , (
+            "a module whose callable demoted granularly must be reported "
+            "under the native-seams section"
         );
-        assert "demote.jac" in combined , "demoted module path missing";
+        assert "E5092" in combined , (
+            "the seam reason must carry the first error code"
+        );
+        assert "build: " in combined , ("the seam must name the demoted callable");
+        assert "demote.jac" in combined , "seamed module path missing";
         assert "blocked.jac" in combined , "server module path missing";
         assert "pure.jac" in combined , "native module path missing";
         assert "root access (persistent graph)" in combined , (
             "server reason strings must be real signal labels"
         );
-        assert result == 0 , "census demotions must not flip exit code";
+        assert result == 0 , "census seams must not flip exit code";
     }
 }
 

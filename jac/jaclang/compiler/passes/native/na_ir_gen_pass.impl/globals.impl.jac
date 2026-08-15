@@ -116,7 +116,7 @@ impl NaIRGenPass._register_entry_globals(module: uni.Module) -> None {
 
 impl NaIRGenPass._codegen_global_vars(nd: uni.GlobalVars) -> None {
     for assign in nd.assignments {
-        if ModuleCodegenPass.is_type_alias_decl(assign) {
+        if ModuleCodegenPass.is_comptime_type_decl(assign) {
             continue;
         }
         targets = assign.target

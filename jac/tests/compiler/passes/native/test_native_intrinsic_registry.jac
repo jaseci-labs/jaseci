@@ -201,14 +201,17 @@ test "non-numeric intrinsic operand is E5095" {
         + "    return __float_bits(s);\n"
         + "}\n"
     );
-    (prog, _mod) = _compile_src(src);
-    assert [
-        e
-        for e in prog.errors_had
-        if e.code is E5095
-    ] , (
-        "str operand to __float_bits must be an E5095 diagnostic, got: "
-        + str([str(e) for e in prog.errors_had])
+    (prog, ir_mod) = _compile_src(src);
+    assert not prog.errors_had , (
+        "the E5095 refusal is owned by probe(), which must demote to a "
+        + f"seam, got: {[str(e) for e in prog.errors_had]}"
+    );
+    assert ir_mod.gen.native_layout is not None , (
+        "whole-module native compile aborted"
+    );
+    assert "probe" not in ir_mod.gen.native_layout.functions , (
+        "a str operand to __float_bits must demote the function out of the "
+        + "native layout, never lower wrongly"
     );
 }
 

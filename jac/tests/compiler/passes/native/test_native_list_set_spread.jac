@@ -258,11 +258,23 @@ test "a spread that cannot lower refuses loudly instead of dropping" {
             + "    s = {1, *d};\n    return len(s);\n}\n"
     };
     for (label, code) in cases.items() {
-        prog = _compile_inline(label, code);
-        assert _has_code(prog, "E5092") , (
-            f"{label}: a spread native cannot lower must report E5092, not "
-            f"silently build a shorter container (errors: "
-            f"{[str(e) for e in prog.errors_had]})"
+        prog = JacProgram();
+        ir = prog.compile(
+            file_path=os.path.join(FIXTURES, f"_spread_{label}.jac"),
+            use_str=code,
+            options=native_force_opts()
+        );
+        assert not prog.errors_had , (
+            f"{label}: the spread refusal is owned by f(), which must demote "
+            f"to a seam, got: {[str(e) for e in prog.errors_had]}"
+        );
+        assert ir.gen.native_layout is not None , (
+            f"{label}: whole-module native compile aborted"
+        );
+        assert "f" not in ir.gen.native_layout.functions , (
+            f"{label}: a spread native cannot lower must demote its function "
+            f"out of the native layout, never silently build a shorter "
+            f"container"
         );
     }
 }
