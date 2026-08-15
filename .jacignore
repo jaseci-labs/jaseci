@@ -452,6 +452,7 @@ plugin.jac
 precompile_bytecode.jac
 primitives_native.jac
 project.impl.jac
+pyb_interop.impl.jac
 project.jac
 prometheus_metrics.jac
 pyast_gen_pass.impl.jac
