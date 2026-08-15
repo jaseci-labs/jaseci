@@ -20,6 +20,7 @@ impl JacProgram.init(
     self.graphmend_breaks: dict[int, GraphBreakKind] = {};
     self.graphmend_helpers: dict[int, set[GraphMendHelper]] = {};
     self.graphmend_noop_mods: set[str] = set();
+    self.graphmend_hub_digests: dict[(str, tuple[(uni.Module, str)])] = {};
     self._native_cache: dict = {};
 
     self._hub_cache_times: dict[str, float] = {};

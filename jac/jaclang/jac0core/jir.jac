@@ -253,6 +253,15 @@ def swap_graphmend_cache_variant(variant: str) -> str {
     return prev;
 }
 
+def graphmend_variant_config(variant: str) -> str {
+    return variant.split(';region=')[0];
+}
+
+def graphmend_variant_region(variant: str) -> str {
+    parts = variant.split(';region=');
+    return parts[1] if (len(parts) > 1) else '';
+}
+
 def _project_env_fingerprint(source_path: str) -> str {
     h = hashlib.sha256();
     h.update(_GM_CACHE_VARIANT[0].encode());
@@ -628,7 +637,17 @@ def is_module_cache_valid_gm_noop(source_path: str, cache_path: Path) -> bool {
     } except OSError {
         return False;
     }
-    return read_gm_noop(data) == variant;
+    stored = read_gm_noop(data);
+    if stored is None {
+        return False;
+    }
+    if stored == variant {
+        return True;
+    }
+    if graphmend_variant_region(variant) {
+        return False;
+    }
+    return graphmend_variant_config(stored) == graphmend_variant_config(variant);
 }
 
 

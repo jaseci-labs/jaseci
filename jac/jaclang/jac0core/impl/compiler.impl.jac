@@ -137,17 +137,17 @@ impl JacCompiler.get_bytecode(
     gm_active = actual_program is not self._internal_program and gm_setting is True;
     gm_variant = "";
     if gm_active {
+        import from jaclang.compiler.passes.main.graphmend.scope_facts {
+            region_context_key
+        }
+        real_target = os.path.realpath(full_target);
         gm_variant = ";".join(
             [
                 "graphmend",
                 "disable=" + ",".join(sorted(target_program.graphmend_disable)),
                 "claimed="
-                    + str(
-                        int(
-                            os.path.realpath(full_target)
-                                in target_program.graphmend_claimed
-                        )
-                    )
+                    + str(int((real_target in target_program.graphmend_claimed))),
+                "region=" + region_context_key(actual_program, real_target)
             ]
         );
     }
