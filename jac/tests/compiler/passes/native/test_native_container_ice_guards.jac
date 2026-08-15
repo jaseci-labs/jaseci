@@ -1,4 +1,4 @@
-"""Two emitter crashes in container lowering: one fixed, one turned into a diagnostic.
+"""Two emitter crashes in container lowering: one fixed, one turned into a seam.
 
 An ICE is a bug even where the construct is unsupported. The contract is a
 clean diagnostic or a seam, never a `TypeError` out of the IR builder. Both
@@ -27,12 +27,20 @@ rather than refusing -- trading a loud compile-time crash for a silent
 miscompile, which is strictly worse. The representation of an optional list
 across a branch is the real defect there, and it is not this change's to fix,
 so the comprehension refuses when the collection is element-erased and says
-why. `test_compr_over_or_is_a_clean_refusal` pins that it is a diagnostic and
-not a crash; when the representation is fixed, that test is the one to flip.
+why.
+
+Since #8206 that refusal is granular: the diagnostic is owned by the callable
+holding the comprehension, so it demotes `compr_over_or` alone to a seam and
+the rest of the module still lowers. `compr over or is a clean seam` pins
+exactly that -- one seam, named for its owner, naming what could not be
+recovered, and no module-level failure. When the representation is fixed, that
+test is the one to flip.
 """
 
 import ctypes;
 import os;
+import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
 import from jaclang.jac0core.program { JacProgram }
 import from tests.support { JAC_ROOT, native_force_opts }
 
@@ -101,19 +109,37 @@ test "a tuple-keyed set dedups by value" {
 }
 
 
-test "compr over or is a clean refusal" {
+test "compr over or is a clean seam" {
     prog = JacProgram();
-    prog.compile(
-        file_path=os.path.join(FIXTURES, "compr_or_erased.jac"),
-        options=native_force_opts()
-    );
-    codes = [
-        e.code.code
-        for e in prog.errors_had
-        if e?.code
+    na_census_begin();
+    try {
+        prog.compile(
+            file_path=os.path.join(FIXTURES, "compr_or_erased.jac"),
+            options=CompileOptions(
+                type_check=False,
+                force_codespace='native',
+                force_target_program=True,
+                no_ir_cache=True
+            )
+        );
+    } finally {
+        census = na_census_end();
+    }
+    rec = census.get(os.path.realpath(os.path.join(FIXTURES, "compr_or_erased.jac")));
+    seams = [str(s) for s in ((rec.get("seams") or []) if rec is not None else [])];
+    owned = [
+        s
+        for s in seams
+        if s.startswith("compr_over_or: ")
     ];
-    assert "E5092" in codes , (
-        "an element-erased comprehension collection has to refuse with E5092; "
-        f"got {[str(e) for e in prog.errors_had]}"
+    assert len(owned) == 1 , (
+        f"expected exactly one seam for compr_over_or, got: {seams}"
+    );
+    assert "element-erased" in owned[0] , (
+        f"the seam must name what could not be recovered: {owned[0]}"
+    );
+    assert not prog.errors_had , (
+        "an un-lowerable comprehension is one callable's seam, not a module "
+        f"failure: {[str(e) for e in prog.errors_had]}"
     );
 }

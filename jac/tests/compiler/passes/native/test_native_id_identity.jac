@@ -42,8 +42,7 @@ def engine -> object {
     }
     prog = JacProgram();
     ir = prog.compile(
-        file_path=os.path.join(FIXTURES, "id_identity.jac"),
-        options=native_force_opts()
+        file_path=os.path.join(FIXTURES, "id_identity.jac"), options=native_force_opts()
     );
     assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";
     eng = ir.gen.native_engine;

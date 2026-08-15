@@ -1526,9 +1526,7 @@ class NativeBuiltinEmitter(BuiltinEmitter[(ir.Value, NativeEmitCtx)]) {
         }
         if isinstance(arg_val.type, ir.FloatType) {
             return b.zext(
-                b.bitcast(arg_val, ir.IntType(32), name="id.f32"),
-                i64,
-                name="id.f32.w"
+                b.bitcast(arg_val, ir.IntType(32), name="id.f32"), i64, name="id.f32.w"
             );
         }
         return None;
