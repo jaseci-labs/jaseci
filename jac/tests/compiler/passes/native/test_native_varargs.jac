@@ -5,9 +5,10 @@ test_native_crash_guards.jac, #7320). The call site materializes the pack:
 `*args: T` is a native List of T (List.jacval for `*args: any`) and
 `**kwargs: T` a native str-keyed Dict, each passed as one pointer and
 released after the call. Shapes the lowering does not cover demote their
-owning function to a Python-only seam (call-site argument unpacking
-`f(*xs)` / `f(**d)`, def:pub variadics), while shapes with no demotable
-owner stay structured errors (unannotated variadics, variadic `init`).
+owning callable to a Python-only seam (call-site argument unpacking
+`f(*xs)` / `f(**d)`, def:pub variadics, and since #8234 a variadic `init`,
+whose construction sites then refuse), while shapes with no demotable
+owner at all stay structured errors (unannotated variadics).
 
 Expected values are pinned against CPython (see each fixture wrapper).
 """
@@ -239,14 +240,28 @@ test "def:pub variadic demotes off the native interop surface" {
     );
 }
 
-test "variadic init stays a loud E5090" {
-    prog = compile_na_inline(
+test "variadic init demotes the constructor and refuses its callers" {
+    (prog, ir) = compile_na_inline_ir(
         "initvar",
         "obj P { has n: int = 0; def init(*vals: int) { self.n = 0; } }\n"
         "def mk() -> int { p = P(); return p.n; }\n"
+        "def pure(x: int) -> int { return x + 1; }\n"
     );
-    assert has_error_code(prog, "E5090") , (
-        f"Expected E5090 for a variadic init, got: "
+    assert not prog.errors_had , (
+        f"a constructor owns its own capability violation since #8234, so a "
+        f"variadic init demotes instead of refusing the module, got: "
         f"{[str(e) for e in prog.errors_had]}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "pure" in layout.functions , (
+        f"clean sibling function was lost: {list(layout.functions)}"
+    );
+    assert "P.init" not in layout.methods , (
+        "the variadic init must be demoted out of the native layout"
+    );
+    assert "mk" not in layout.functions , (
+        "constructing through a demoted initializer must refuse, not build a "
+        "half-initialized object"
     );
 }
