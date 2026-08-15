@@ -233,6 +233,33 @@ bundled one. A bundled module links through the existing cross-module machinery
   `.suffix`, `.glob`, `.open`, `.cwd()`, `.home()`, and the whole I/O surface
   are not provided.
 
+- **`fnmatch.jac`** (#8201) -- `fnmatch` and `fnmatchcase` as a direct
+  backtracking glob matcher (`*`, `?`, `[seq]`, `[!seq]`, ranges), since the
+  native pathway has no regex engine to translate into. The bracket scanner
+  reproduces CPython's `translate` rules exactly: a `]` immediately after `[`
+  or `[!` is a literal member, an unterminated `[` degrades to a literal `[`,
+  and a `-` first or last in a class is a literal `-`. Pinned against CPython
+  over a 29-pattern by 14-name grid. `normcase` is the identity, which is what
+  it is on POSIX, so `fnmatch` and `fnmatchcase` agree here; on Windows
+  CPython's `fnmatch` would case-fold first. `filter` and `translate` are not
+  provided.
+
+- **`logging.jac`** (#8201) -- `basicConfig`, `getLogger(name)`, the level
+  constants, and `.debug`/`.info`/`.warning`/`.error`/`.critical` on both the
+  logger and the module. Records go to stderr, which is where CPython's
+  last-resort/`basicConfig` handler puts them, rendered through the
+  `%(levelname)s` / `%(name)s` / `%(message)s` fields of the active format
+  (default `BASIC_FORMAT`, i.e. `LEVEL:name:message`). The WARNING default
+  threshold is honored, so `.debug`/`.info` are dropped until `basicConfig`
+  lowers it, matching CPython. SCOPE: no handlers, formatters, filters, or
+  logger hierarchy -- there is one process-wide level and one format, so
+  `Logger.setLevel` sets *the* level rather than that logger's, and
+  `basicConfig` is not the once-only call it is on CPython (a second call
+  reconfigures). `%(asctime)s` and the other `%`-fields are left in the output
+  verbatim rather than substituted; `filename`/`filemode`/`stream`/`handlers`
+  are accepted and ignored, so file logging silently stays on stderr.
+  Lazy `%`-args (`log.info("x %s", y)`) and `exc_info` are not provided.
+
 The syscall-backed `os` / `os.path` entry points (`makedirs`, `realpath`,
 `mkdir`, `exists`, ...) are Mechanism-A/H compiler intercepts, reached via the
 flat `import os`, not bundled here (see
