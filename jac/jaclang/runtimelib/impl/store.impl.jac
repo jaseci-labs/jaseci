@@ -564,11 +564,24 @@ impl PgStore.reset_data -> None {
 }
 
 
+impl PgStore._run_schema_stmt(sql: str) -> None {
+    try {
+        self._run(sql, {});
+    } except PgWireError as e {
+        state = _sqlstate(e);
+        if state not in _CONCURRENT_DDL_STATES {
+            raise;
+        }
+        logger.debug(f"schema object was created by a peer first ({state})");
+    }
+}
+
+
 impl PgStore._apply_schema_ddl -> None {
     self._run("SET lock_timeout = '5s'", {});
     try {
         for stmt in _SCHEMA_SQL {
-            self._run(stmt, {});
+            self._run_schema_stmt(stmt);
         }
         has_seq = bool(
             self._run(
@@ -580,7 +593,9 @@ impl PgStore._apply_schema_ddl -> None {
             )
         );
         if not has_seq {
-            self._run('ALTER TABLE anchors ADD COLUMN IF NOT EXISTS seq bigserial', {});
+            self._run_schema_stmt(
+                'ALTER TABLE anchors ADD COLUMN IF NOT EXISTS seq bigserial'
+            );
         }
         self._apply_promotions();
         self._property_graph_ddl();

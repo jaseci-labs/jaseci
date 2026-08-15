@@ -196,6 +196,74 @@ test "replicas booting one fresh database together all survive" {
 }
 
 
+test "a boot that cannot take the schema lock still survives the race" {
+    import unittest.mock;
+
+    cluster = _start_cluster();
+    stores: list = [];
+    try {
+        ci = _fresh_db(cluster, "jac_race_unguarded");
+        racers = 4;
+        for _i in range(racers) {
+            stores.append(
+                PgStore(
+                    conninfo=ConnInfo(
+                        host=ci.host,
+                        port=ci.port,
+                        user=ci.user,
+                        database=ci.database,
+                        unix_socket_dir=ci.unix_socket_dir
+                    )
+                )
+            );
+        }
+        gate = threading.Barrier(racers);
+        failures: list = [];
+
+        def boot(store: Any) {
+            gate.wait(60);
+            try {
+                store.ensure_schema({});
+            } except Exception as e {
+                failures.append(e);
+            }
+        }
+        with unittest.mock.patch.object(
+            PgStore, "_acquire_schema_lock", return_value=False
+        ) {
+            threads = [
+                threading.Thread(target=boot, args=(s, ), name="jac-unguarded-racer")
+                for s in stores
+            ];
+            for t in threads {
+                t.start();
+            }
+            for t in threads {
+                t.join(300);
+            }
+        }
+        assert failures == [] , (
+            f"{len(failures)} of {racers} replicas died booting with no schema "
+            f"lock held; the sqlstate backstop must carry the degraded path: "
+            f"{[repr(e) for e in failures]}"
+        );
+        assert _table_count(cluster, ci.database) >= 4 , (
+            "the unguarded boot left the schema incomplete"
+        );
+        assert stores[0].kv_get(SCHEMA_STAMP_KEY) is not None , (
+            "the unguarded boot never stamped the schema"
+        );
+    } finally {
+        for s in stores {
+            try {
+                s.close();
+            } except Exception { }
+        }
+        _stop_cluster(cluster);
+    }
+}
+
+
 test "losing a create race to another session does not fail the boot" {
     cluster = _start_cluster();
     store: Any = None;

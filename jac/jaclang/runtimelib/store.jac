@@ -179,6 +179,7 @@ obj PgStore(Store) {
     def _acquire_schema_lock -> bool;
     def _release_schema_lock -> None;
     def _run_schema_ddl(fingerprint: str) -> None;
+    def _run_schema_stmt(sql: str) -> None;
     def _apply_schema_ddl -> None;
     def _load_known_types -> None;
     def _peer_sessions -> list[dict];
