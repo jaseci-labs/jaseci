@@ -92,7 +92,7 @@ def surface_annex_src(
         (verb, kinds) = entry;
         for node in kinds {
             blocks.append(
-                f'impl UniPass.{verb}_{n2s[node]}(nd: uni.{node}) -> None {{\n'
+                f'impl UniPass.{verb}_{n2s[node]}(nd: {node}) -> None {{\n'
                     + f'    self.default_{verb}(nd);\n'
                     + '}'
             );
@@ -109,7 +109,7 @@ def surface_decls_block(
     for entry in [("enter", enter), ("exit", exits)] {
         (verb, kinds) = entry;
         for node in kinds {
-            lines.append(f'    def {verb}_{n2s[node]}(nd: uni.{node}) -> None;');
+            lines.append(f'    def {verb}_{n2s[node]}(nd: {node}) -> None;');
         }
     }
     lines.append(SURFACE_END);
