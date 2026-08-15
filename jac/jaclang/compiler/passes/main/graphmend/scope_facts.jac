@@ -524,16 +524,22 @@ def _norm(path: str) -> str {
     }
 }
 
-def _wrapper_closures(deco: uni.Ability) -> list[uni.Ability] {
-    params: set[str] = set();
-    sig = deco.signature;
-    if isinstance(sig, uni.FuncSignature) {
-        for p in (sig.get_parameters() or []) {
-            if p?.name is not None {
-                params.add(p.name.value);
-            }
+def param_names(fn: uni.Ability) -> list[str] {
+    out: list[str] = [];
+    sig = fn.signature;
+    if not isinstance(sig, uni.FuncSignature) {
+        return out;
+    }
+    for p in (sig.get_parameters() or []) {
+        if p?.name is not None {
+            out.append(p.name.value);
         }
     }
+    return out;
+}
+
+def _wrapper_closures(deco: uni.Ability) -> list[uni.Ability] {
+    params = param_names(deco);
     out: list[uni.Ability] = [];
     if not params {
         return out;

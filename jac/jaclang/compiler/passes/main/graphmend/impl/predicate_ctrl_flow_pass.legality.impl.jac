@@ -8,6 +8,7 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts {
     find_class,
     lexical_ability,
     module_imports_plain,
+    param_names,
     self_attr_name,
     wrapping_classes
 }
@@ -136,7 +137,7 @@ impl PredicateCtrlFlowPass._signature_accepts(
     if (sig is None) or (not isinstance(sig, uni.FuncSignature)) {
         return False;
     }
-    named = self._param_names(fn);
+    named = param_names(fn);
     n_pos = 0;
     for prm in (c.params or []) {
         if isinstance(prm, uni.KWPair) and (prm.key is not None) {
@@ -274,7 +275,7 @@ impl PredicateCtrlFlowPass._witnessed_dict_get(
     while isinstance(base, uni.AtomTrailer) {
         base = base.target;
     }
-    if (not isinstance(base, uni.Name)) or (base.value not in self._param_names(fn)) {
+    if (not isinstance(base, uni.Name)) or (base.value not in param_names(fn)) {
         return False;
     }
     mod = fn.find_parent_of_type(uni.Module);
@@ -282,20 +283,6 @@ impl PredicateCtrlFlowPass._witnessed_dict_get(
         return False;
     }
     return self._mapping_witnessed(mod, unparse_node(recv).replace(' ', ''));
-}
-
-impl PredicateCtrlFlowPass._param_names(fn: uni.Ability) -> set[str] {
-    out: set[str] = set();
-    sig = fn.signature;
-    if (sig is None) or (not isinstance(sig, uni.FuncSignature)) {
-        return out;
-    }
-    for p in (sig.get_parameters() or []) {
-        if p?.name is not None {
-            out.add(p.name.value);
-        }
-    }
-    return out;
 }
 
 impl PredicateCtrlFlowPass._mapping_witnessed(mod: uni.Module, key: str) -> bool {
@@ -361,12 +348,7 @@ impl PredicateCtrlFlowPass._callsite_ctx(
     if (sig is None) or (not isinstance(sig, uni.FuncSignature)) {
         return {};
     }
-    pnames: list[str] = [];
-    for p in (sig.get_parameters() or []) {
-        if p?.name is not None {
-            pnames.append(p.name.value);
-        }
-    }
+    pnames = param_names(fn);
     ctx: dict[str, list[uni.Archetype]] = {};
     selfcls = self._self_classes(c);
     i = 0;
@@ -605,12 +587,7 @@ impl PredicateCtrlFlowPass._passes_extra_kwargs(
     if (sig is None) or (not isinstance(sig, uni.FuncSignature)) {
         return True;
     }
-    named = set();
-    for p in (sig.get_parameters() or []) {
-        if p?.name is not None {
-            named.add(p.name.value);
-        }
-    }
+    named = param_names(fn);
     for prm in (c.params or []) {
         if isinstance(prm, uni.KWPair) and (prm.key is not None) {
             if prm.key.sym_name not in named {
