@@ -865,6 +865,7 @@ impl SubTag.postinit -> None {
 
 impl Module.postinit -> None {
     self.src_terminals = self.terminals;
+    self.annex_mods = [];
     UniNode.postinit(self);
     UniScopeNode._init_scope(self, name=self.name);
 }
@@ -963,6 +964,7 @@ impl PyInlineCode.postinit -> None {
 
 impl Import.postinit -> None {
     self.hint = None;
+    self.absorbed_mod = None;
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
     ContextAwareNode.postinit(self);
