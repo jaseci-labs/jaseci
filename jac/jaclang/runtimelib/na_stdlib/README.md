@@ -268,10 +268,18 @@ bundled one. A bundled module links through the existing cross-module machinery
 - **`contextvars.jac`** (#8201, held back by #8220 until #8229 and #8230
   landed) -- `ContextVar[T]` as a single process-wide cell: `ContextVar(name)`
   and `` ContextVar(name, `default=...) ``, `.name`, `.get()`, `.get(default)`
-  and `.set(value)`. `get` follows CPython's precedence exactly -- the value
-  last `set`, else the default the call passed, else the default the
-  constructor took, else `LookupError(name)`.
-  SCOPE: there is one cell per variable rather than one per context, because
+  and `.set(value)`. `get` walks CPython's precedence -- the value last `set`,
+  else the default the call passed, else the default the constructor took,
+  else `LookupError(name)`.
+  SCOPE: `None` is the sentinel for *both* "no value" and "no default", where
+  CPython keys the second step on whether the argument was **passed**, so an
+  explicit `get(None)` reads as an omitted argument: on an unset variable it
+  answers the constructor default, or raises, where CPython answers `None`.
+  (A variadic `get(*fallback: T)` would carry the presence bit exactly, but a
+  variadic parameter of the erased type segfaults the native binary, so this
+  waits on that gap.) `None` is likewise the unset marker in the value slot,
+  so `set(None)` on a `ContextVar[X | None]` reads back as unset.
+  There is also one cell per variable rather than one per context, because
   the native pathway has neither asyncio tasks nor threads to separate them,
   so `copy_context`, `Context.run`, and the `Token` that `set` returns
   (with `reset`) are not provided -- `set` answers `None`. A reference type
@@ -279,9 +287,7 @@ bundled one. A bundled module links through the existing cross-module machinery
   (`int`, `float`, `bool`, and `str`, which is a by-value descriptor
   natively) is refused at the construction site with `E5092` naming the
   instantiation, because a generic archetype is laid out once for every
-  instantiation and its `T` slot is a raw pointer (#8229). `None` is the
-  unset marker in that slot, so `set(None)` on a `ContextVar[X | None]`
-  reads back as unset where CPython would answer `None`.
+  instantiation and its `T` slot is a raw pointer (#8229).
 
 The syscall-backed `os` / `os.path` entry points (`makedirs`, `realpath`,
 `mkdir`, `exists`, `getmtime`, `normcase`, ...) are Mechanism-A/H compiler
