@@ -120,7 +120,7 @@ test "an unrecognized kwarg key shape is a hard error, not a silent spread" {
     ];
     assert calls , "fixture must contain a call to `label`";
 
-    prog.errors_had.clear();
+    es_pass.errors_had.clear();
     bogus = es.Property(
         key=es.MemberExpression(
             object=es.Identifier(name="__jacS_theme"),
@@ -139,12 +139,12 @@ test "an unrecognized kwarg key shape is a hard error, not a silent spread" {
 
     codes = [
         alrt.code.code
-        for alrt in prog.errors_had
+        for alrt in es_pass.errors_had
         if alrt.code is not None
     ];
     assert "E5099" in codes , (
         "an unrecognized kwarg key must raise E5099, got "
-        + str([str(e) for e in prog.errors_had])
+        + str([str(e) for e in es_pass.errors_had])
     );
     assert not any(isinstance(slot.value, es.SpreadElement) for slot in slots) , (
         "the failing kwarg must not be laundered into a spread argument"
