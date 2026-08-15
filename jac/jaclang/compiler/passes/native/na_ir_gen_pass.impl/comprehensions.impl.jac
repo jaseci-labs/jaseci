@@ -379,7 +379,7 @@ impl NaIRGenPass._codegen_compr_walk(
         }
     }
 
-    coll_val = self._codegen_expr(collection);
+    coll_val = self._opt_unwrap_iterable(self._codegen_expr(collection));
     if coll_val is None {
         return;
     }
