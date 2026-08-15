@@ -11,7 +11,6 @@ obj Ctx[T] {
     def sig_param(v: T) -> None;
     def collect -> list[T];
     def nested_sig;
-
     def own_tp[U](x: U) -> U {
         holder: list[U] = [];
         holder.append(x);
@@ -27,7 +26,7 @@ obj Ctx[T] {
     }
 }
 
-impl Ctx.body_local {
+impl Ctx.body_local{
     vals: list[T] = [];
     print(vals);
 }
@@ -44,7 +43,7 @@ impl Ctx.collect -> list[T] {
     return out;
 }
 
-impl Ctx.nested_sig {
+impl Ctx.nested_sig{
     def inner(x: list[T]) -> list[T] {
         spare: list[T] = [];
         return x + spare;

@@ -145,10 +145,6 @@ test "a ContextVar at a scalar type argument is refused, not lowered" {
         timeout=900
     );
     combined = (comp.stdout or "") + (comp.stderr or "");
-    assert comp.returncode != 0 , f"an erased scalar slot compiled silently: {combined[
-        -600:
-    ]}";
-    assert "ContextVar[int]" in combined , f"diagnostic does not name the instantiation: {combined[
-        -600:
-    ]}";
+    assert comp.returncode != 0 , f"an erased scalar slot compiled silently: {combined[-600:]}";
+    assert "ContextVar[int]" in combined , f"diagnostic does not name the instantiation: {combined[-600:]}";
 }

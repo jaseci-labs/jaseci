@@ -1444,9 +1444,7 @@ impl TypeEvaluator._create_special_builtin_type(
     return special_type;
 }
 
-impl TypeEvaluator._get_signature_type_params(
-    sig: FuncSignature
-) -> list[TypeVarType] {
+impl TypeEvaluator._get_signature_type_params(sig: FuncSignature) -> list[TypeVarType] {
     type_params: list[TypeVarType] = [];
 
     def collect_typevars(expr: Expr) {

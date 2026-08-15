@@ -7,7 +7,7 @@ obj Leaf {
 obj Ctx[T] {
     has value: (T | None) = None;
 
-    def sig_param(v: T) -> None {
+    def sig_param(v: T) {
         self.value = v;
     }
 
@@ -20,7 +20,7 @@ obj Ctx[T] {
     }
 }
 
-def drive -> None {
+def drive {
     c = Ctx[Leaf]();
     c.sig_param("not a leaf");
     for got in c.collect() {

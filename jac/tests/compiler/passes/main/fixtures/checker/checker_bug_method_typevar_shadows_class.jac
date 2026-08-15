@@ -7,7 +7,7 @@ obj Leaf {
 obj Box[T] {
     has item: (T | None) = None;
 
-    def stash(v: T) -> None {
+    def stash(v: T) {
         self.item = v;
     }
 

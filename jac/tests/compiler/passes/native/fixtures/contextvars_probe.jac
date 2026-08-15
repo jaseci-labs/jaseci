@@ -4,10 +4,10 @@ obj Req {
     has ident: str = "";
 }
 
-glob CUR: ContextVar[Req] = ContextVar[Req]("cur");
-glob FALLBACK: ContextVar[Req] = ContextVar[Req](
-    "fallback", `default=Req(ident="ctor-default")
-);
+glob CUR: ContextVar[Req] = ContextVar[Req]("cur"),
+     FALLBACK: ContextVar[Req] = ContextVar[Req](
+         "fallback", `default=Req(ident="ctor-default")
+     );
 
 def unset_raises -> str {
     try {

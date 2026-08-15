@@ -1932,11 +1932,13 @@ test "bug_tvarmeth1_class_typevar_in_scope_over_methods" {
 # of `Holder`'s `P` are reported for that reason.
 # =========================================================================
 test "bug_tvarmeth1_unbound_typevar_still_has_no_meaning" {
-    program = compile_and_check(
-        "checker_bug_class_typevar_method_scope_negative.jac"
-    );
+    program = compile_and_check("checker_bug_class_typevar_method_scope_negative.jac");
 
-    error_lines = [e.loc.first_line for e in program.errors_had if e.loc];
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
     assert len(program.errors_had) == 5 , (
         "Bug #TVARMETH-1: a TypeVar no enclosing scope binds must still be "
         f"reported. Got errors: {[str(e) for e in program.errors_had]}"

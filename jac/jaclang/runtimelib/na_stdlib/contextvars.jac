@@ -16,7 +16,7 @@ obj:pub ContextVar[T] {
         raise LookupError(self.name);
     }
 
-    def set(value: T) -> None {
+    def set(value: T) {
         self._value = value;
     }
 }
