@@ -470,3 +470,42 @@ test "entry-file: a stacked decorator's closure is analyzed and transformed" {
     assert "torch.where(" in src;
     assert "if x.sum() > 0" not in src;
 }
+
+"""The `get_mscale` shape from _compute_yarn_parameters: the memoized init in
+an existence guard calls a module function whose body calls its OWN nested
+helper. The purity proof must resolve that helper through lexical scope; a
+module-level symbol lookup cannot see it, and one unresolvable callee poisons
+the candidate and declines the merge."""
+glob PY_SCOPED_NESTED_PURITY_SRC = '''
+import torch
+
+
+def compute_inv(v):
+
+    def clamp01(s):
+        if s <= 0:
+            return 0.0
+        return s
+    return clamp01(v) + 1.0
+
+
+class Net(torch.nn.Module):
+    def forward(self, x, position_ids, limit):
+        seq_len = torch.max(position_ids) + 1
+        if seq_len > limit:
+            if not hasattr(self, "long_state"):
+                self.long_state = compute_inv(2.0)
+            self.register_buffer("state", self.long_state)
+        else:
+            self.register_buffer("state", self.base_state)
+        return torch.relu(x)
+''';
+
+test "scoped: a candidate's nested helper resolves in the purity proof" {
+    # The tag on the outer branch is only useful if the transform CONSUMES it:
+    # the setup's init calls compute_inv, whose nested clamp01 must resolve
+    # lexically for the body to prove pure and the common call to merge.
+    src = _py_scoped_src(PY_SCOPED_NESTED_PURITY_SRC, "scoped_nested_purity.py");
+    assert "torch.where(" in src;
+    assert "if seq_len > limit" not in src;
+}
