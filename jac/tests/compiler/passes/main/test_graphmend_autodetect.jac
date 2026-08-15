@@ -88,6 +88,89 @@ test "a relative .torch jac import does not engage auto" {
     }
 }
 
+glob U16_TORCH_SRC = 'import torch;\n\n'
+         + 'def f(x: any) -> any {\n    return torch.relu(x);\n}\n',
+     U16_PLAIN_SRC = 'def f(x: any) -> any {\n    return x;\n}\n';
+
+"""A utf-16 source holds no `torch` byte run, so a raw-byte guard would miss it."""
+test "detection reads decoded text so a utf-16 source is not skipped" {
+    import from jaclang.compiler.passes.main.graphmend.auto_detect {
+        file_imports_torch
+    }
+    with tempfile.TemporaryDirectory() as tmp {
+        hit = os.path.join(tmp, "u16_torch.jac");
+        with open(hit, "w", encoding="utf-16") as fh {
+            fh.write(U16_TORCH_SRC);
+        }
+        with open(hit, "rb") as rb {
+            assert b"torch" not in rb.read();
+        }
+        assert file_imports_torch(hit) is True;
+        miss = os.path.join(tmp, "u16_plain.jac");
+        with open(miss, "w", encoding="utf-16") as fh {
+            fh.write(U16_PLAIN_SRC);
+        }
+        assert file_imports_torch(miss) is False;
+    }
+}
+
+glob GAIN_PLAIN_SRC = 'def f(x: any) -> any {\n'
+         + '    if x > 0 {\n        return x;\n    }\n    return 0 - x;\n}\n',
+     GAIN_TORCH_SRC = 'import torch;\n\n@torch.compile()\n'
+         + 'def f(x: any, mask: torch.Tensor) -> any {\n'
+         + '    x = torch.relu(x);\n'
+         + '    if not mask.all() {\n'
+         + '        raise ValueError("mask must be all true");\n    }\n'
+         + '    return torch.sin(x) * 2.0;\n}\n';
+
+"""Compile through the on-disk bytecode cache under the given graphmend mode."""
+def _cached(path: str, gm: any) -> any {
+    import from jaclang.jac0core.program { JacProgram }
+    prog = JacProgram();
+    prog.graphmend_enabled = gm;
+    code = prog.get_bytecode(path);
+    assert code is not None;
+    return code;
+}
+
+"""Whether the emitted code carries the graph-native validation guard."""
+def _has_assert_async(code: any) -> bool {
+    import types;
+    if "_assert_async" in code.co_names {
+        return True;
+    }
+    for c in code.co_consts {
+        if isinstance(c, types.CodeType) and _has_assert_async(c) {
+            return True;
+        }
+    }
+    return False;
+}
+
+"""The cached artifact must not outlive an import edit that changes the verdict."""
+test "a source that gains or loses a torch import reruns detection" {
+    import from jaclang.jac0core.jir { get_module_cache_path, is_module_cache_valid }
+    with tempfile.TemporaryDirectory() as tmp {
+        target = os.path.join(tmp, "gains_torch.jac");
+        with open(target, "w") as fh {
+            fh.write(GAIN_PLAIN_SRC);
+        }
+        cache_path = get_module_cache_path(target);
+        assert not _has_assert_async(_cached(target, "auto"));
+        assert is_module_cache_valid(target, cache_path);
+        assert not _has_assert_async(_cached(target, "auto"));
+        with open(target, "w") as fh {
+            fh.write(GAIN_TORCH_SRC);
+        }
+        assert not is_module_cache_valid(target, cache_path);
+        assert _has_assert_async(_cached(target, "auto"));
+        with open(target, "w") as fh {
+            fh.write(GAIN_PLAIN_SRC);
+        }
+        assert not _has_assert_async(_cached(target, "auto"));
+    }
+}
+
 glob PY_TORCH_SRC = '''
 import torch
 
