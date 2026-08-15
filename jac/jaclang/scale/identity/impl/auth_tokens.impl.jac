@@ -10,10 +10,12 @@ impl AuthTokenStore.postinit -> None {
         self._db = None;
     }
     if self._db is None {
+        import from jaclang.scale.persistence.pg { shared_store_error }
         logger.warning(
             "AuthTokenStore is using in-memory storage because no database "
-            "is reachable. Tokens issued by one worker will not be visible "
-            "to the others; set JAC_DB_URL or [plugins.scale.database] url."
+            f"is reachable ({shared_store_error()!r}). Tokens issued by one "
+            "worker will not be visible to the others; set JAC_DB_URL or "
+            "[plugins.scale.database] url."
         );
     }
 }

@@ -13,7 +13,13 @@ glob logger = logging.getLogger(__name__),
          'doc jsonb NOT NULL, '
          'PRIMARY KEY (collection, id))'
      ),
-     __all__ = ['scale_db_url', 'shared_store', 'open_docs_store'];
+     __all__ = [
+         'scale_db_url',
+         'masked_db_url',
+         'shared_store',
+         'shared_store_error',
+         'open_docs_store'
+     ];
 
 
 def open_docs_store -> (Any | None) {
@@ -39,6 +45,28 @@ def scale_db_url -> (str | None) {
     } except Exception {
         return None;
     }
+}
+
+
+def masked_db_url -> str {
+    url = scale_db_url() or '';
+    if not url {
+        return '';
+    }
+    if '://' not in url {
+        return url;
+    }
+    (scheme, rest) = url.split('://', 1);
+    if '@' not in rest {
+        return url;
+    }
+    return f"{scheme}://***@{rest.rsplit('@', 1)[1]}";
+}
+
+
+def shared_store_error -> (Exception | None) {
+    err = _holder.get('error');
+    return err if isinstance(err, Exception) else None;
 }
 
 
@@ -87,13 +115,16 @@ def shared_store -> (Any | None) {
                 }
             }
         } except Exception as e {
-            logger.warning(f"scale shared store unavailable: {e}");
+            target = masked_db_url() or 'the embedded server';
+            logger.warning(f"scale shared store unavailable at {target}: {e!r}");
             _holder['key'] = key;
             _holder['store'] = None;
+            _holder['error'] = e;
             return None;
         }
         _holder['key'] = key;
         _holder['store'] = store;
+        _holder['error'] = None;
         return store;
     }
 }
