@@ -1,12 +1,3 @@
-import from ast {
-    Assign as PyAssign,
-    Constant as PyConstant,
-    ImportFrom as PyImportFrom,
-    List as PyList,
-    Name as PyName,
-    Tuple as PyTuple,
-    parse as py_parse
-}
 import os;
 import from pathlib { Path }
 import from typing { cast }

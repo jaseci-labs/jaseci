@@ -1546,7 +1546,10 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
     then_open = not self.builder.block.is_terminated;
 
     self.builder.position_at_end(else_bb);
+    _peer_saved = self._peer_container_ty;
+    self._peer_container_ty = then_val.type if then_val is not None else None;
     else_val = self._codegen_expr(nd.else_value);
+    self._peer_container_ty = _peer_saved;
     else_end_bb = self.builder.block;
     else_open = not self.builder.block.is_terminated;
 

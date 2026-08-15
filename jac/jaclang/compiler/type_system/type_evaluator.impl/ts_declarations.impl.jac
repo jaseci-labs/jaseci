@@ -446,7 +446,7 @@ impl TypeEvaluator._untyped_external_is_error(node_: UniNode) -> bool {
     import os;
     result = False;
     try {
-        import from jaclang.jac0core.helpers { read_toml_with_encoding }
+        import from jaclang.jac0core.tomlio { read_toml_with_encoding }
         data = read_toml_with_encoding(os.path.join(proj_root, 'jac.toml'));
         check_cfg = data.get('check', {}) if isinstance(data, dict) else {};
         result = (

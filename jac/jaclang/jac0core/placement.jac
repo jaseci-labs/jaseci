@@ -518,6 +518,21 @@ def module_anchor_reasons(module: uni.Module) -> list[str] {
     return reasons;
 }
 
+def _comptime_only_import(imp: uni.Import) -> bool {
+    import from jaclang.jac0core.codeinfo { native_comptime_import_names }
+    if imp.from_loc is None or imp.is_absorb {
+        return False;
+    }
+    names: list[str] = [];
+    for item in imp.items {
+        if not (isinstance(item, uni.ModuleItem) and isinstance(item.name, uni.Name)) {
+            return False;
+        }
+        names.append(item.name.value);
+    }
+    return native_comptime_import_names(imp.from_loc.dot_path_str, names);
+}
+
 def scan_native_blockers(
     module: uni.Module, base_dir: str, allow_pub: bool = False
 ) -> tuple[str, list[str]] {
@@ -589,6 +604,9 @@ def scan_native_blockers(
         }
         if imp.is_virtual_jac or imp.has_string_path {
             return ("virtual/string-path import", deps);
+        }
+        if _comptime_only_import(imp) {
+            continue;
         }
         targets: list[tuple[str, (str | None), bool, bool]] = [];
         if imp.from_loc is not None {
