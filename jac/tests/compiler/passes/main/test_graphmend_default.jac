@@ -348,6 +348,147 @@ test "an open gate shares the cache artifact with off for a torch-free module" {
     }
 }
 
+glob RACE_PLAIN = "def spin(x: int) -> int {\n"
+         + "    if x > 0 {\n        return x + 1;\n    }\n    return x;\n}\n";
+
+glob _RACE_ORIG: list[any] = [],
+     _RACE_GATE: dict[str, any] = {},
+     _RACE_DONE: dict[str, any] = {};
+
+"""Stand in for JacCompiler.compile so a gated path can park mid-compile."""
+def _race_compile_hook(
+    self: any,
+    file_path: str,
+    target_program: any,
+    use_str: any = None,
+    options: any = None
+) -> any {
+    gate = _RACE_GATE.get(os.path.realpath(file_path));
+    if gate is not None {
+        gate[0].set();
+        gate[1].wait(60);
+        if gate[2] {
+            raise RuntimeError("compile blew up mid-flight");
+        }
+    }
+    orig = _RACE_ORIG[0];
+    if options is None {
+        return orig(self, file_path, target_program, use_str);
+    }
+    return orig(self, file_path, target_program, use_str, options);
+}
+
+def _install_race_hook {
+    import from jaclang.jac0core.compiler { JacCompiler }
+    _RACE_ORIG.append(JacCompiler.compile);
+    JacCompiler.compile = _race_compile_hook;
+}
+
+def _remove_race_hook {
+    import from jaclang.jac0core.compiler { JacCompiler }
+    JacCompiler.compile = _RACE_ORIG.pop();
+    _RACE_GATE.clear();
+    _RACE_DONE.clear();
+}
+
+"""The ambient GraphMend cache variant this thread would compile under."""
+def _ambient_variant -> str {
+    import from jaclang.jac0core.jir { swap_graphmend_cache_variant }
+    seen = swap_graphmend_cache_variant("");
+    swap_graphmend_cache_variant(seen);
+    return seen;
+}
+
+"""Compile one module on its own thread; nothing shared crosses the boundary."""
+def _race_worker(gm_on: bool, path: str) -> any {
+    prog = JacProgram();
+    prog.graphmend_enabled = gm_on;
+    try {
+        return prog.get_bytecode(path);
+    } finally {
+        done = _RACE_DONE.get(os.path.realpath(path));
+        if done is not None {
+            done.set();
+        }
+    }
+}
+
+test "concurrent compiles under different settings keep their own cache key" {
+    import threading;
+    old_config = config_mod._config;
+    _install_race_hook();
+    try {
+        with TemporaryDirectory() as tmpdir {
+            tmpdir = os.path.realpath(tmpdir);
+            (main_path, helper_path) = _mk_gm_project(tmpdir);
+            plain_path = os.path.join(tmpdir, "plain.jac");
+            with open(plain_path, "w") as fh {
+                fh.write(RACE_PLAIN);
+            }
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
+            (engaged_in, off_in, engaged_done) = (
+                threading.Event(),
+                threading.Event(),
+                threading.Event()
+            );
+            _RACE_GATE[os.path.realpath(main_path)] = (engaged_in, off_in, False);
+            _RACE_GATE[os.path.realpath(plain_path)] = (off_in, engaged_done, False);
+            _RACE_DONE[os.path.realpath(main_path)] = engaged_done;
+            engaged = flow _race_worker(True, main_path) ;
+            assert engaged_in.wait(60) , "the engaged compile never started";
+            plain = flow _race_worker(False, str(plain_path)) ;
+            code_on = wait engaged ;
+            code_plain = wait plain ;
+            left_behind = _ambient_variant();
+            assert code_on is not None and code_plain is not None;
+            assert _mentions_symbol(code_on, "_assert_async");
+            prog_after = JacProgram();
+            prog_after.graphmend_enabled = False;
+            code_after = prog_after.get_bytecode(main_path);
+            assert code_after is not None;
+            assert prog_after.mod.hub , (
+                "an off run was served the artifact of a concurrent engaged compile"
+            );
+            assert not _mentions_symbol(code_after, "_assert_async");
+            assert left_behind == "" , (
+                "a finished compile left its cache variant on the next compile"
+            );
+        }
+    } finally {
+        _remove_race_hook();
+        config_mod._config = old_config;
+    }
+}
+
+test "a compile that raises leaves no cache variant behind" {
+    import threading;
+    old_config = config_mod._config;
+    _install_race_hook();
+    try {
+        with TemporaryDirectory() as tmpdir {
+            tmpdir = os.path.realpath(tmpdir);
+            (main_path, helper_path) = _mk_gm_project(tmpdir);
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
+            gate = threading.Event();
+            gate.set();
+            _RACE_GATE[os.path.realpath(main_path)] = (threading.Event(), gate, True);
+            raised = False;
+            try {
+                JacProgram().get_bytecode(main_path);
+            } except RuntimeError {
+                raised = True;
+            }
+            assert raised , "the gated compile should have raised";
+            assert _ambient_variant() == "" , (
+                "a failed compile left its cache variant behind"
+            );
+        }
+    } finally {
+        _remove_race_hook();
+        config_mod._config = old_config;
+    }
+}
+
 test "the run manifest drops the graphmend and scope flags but keeps disable" {
     import from jaclang.cli.manifest { get_command_meta }
     meta = get_command_meta("run");
