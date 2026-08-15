@@ -278,6 +278,99 @@ test "a test block still binds the assert names to symbols" {
     );
 }
 
+# ─────────────────────────────────────────────────────────────────────
+# operator / platform: stdlib indirections Jac already expresses
+# ─────────────────────────────────────────────────────────────────────
+
+# evaluate_version_condition dispatched through a dict of `operator.*`
+# callables. Jac compares tuples directly, so the dict is a comparison chain.
+# Both spellings are pinned against the same `(major, minor)` arithmetic.
+test "version-condition comparisons match the operator table they replaced" {
+    import sys;
+    import ast as py_ast;
+    import from jaclang.jac0core.unitree { IfStmt, PythonModuleAst, Source }
+    import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+    import from jaclang.jac0core.helpers { evaluate_version_condition }
+    code = "import sys\n"
+    "if sys.version_info >= (3, 11):\n    a = 1\n"
+    "if sys.version_info > (3, 11):\n    b = 1\n"
+    "if sys.version_info <= (3, 11):\n    c = 1\n"
+    "if sys.version_info < (3, 11):\n    d = 1\n"
+    "if sys.version_info == (3, 11):\n    e = 1\n"
+    "if sys.version_info != (3, 11):\n    f = 1\n"
+    "if sys.version_info >= (99, 0):\n    g = 1\n"
+    "if sys.platform == 'linux':\n    h = 1\n";
+    prog = JacProgram();
+    mod = PyastBuildPass(
+        ir_in=PythonModuleAst(
+            py_ast.parse(code), orig_src=Source(code, "test_version_ops.py")
+        ),
+        prog=prog
+    ).ir_out;
+    got = [
+        evaluate_version_condition(nd.condition)
+        for nd in mod.get_all_sub_nodes(typ=IfStmt)
+    ];
+    cur = (sys.version_info.major, sys.version_info.minor);
+    expected = [
+        cur >= (3, 11),
+        cur > (3, 11),
+        cur <= (3, 11),
+        cur < (3, 11),
+        cur == (3, 11),
+        cur != (3, 11),
+        cur >= (99, 0),
+        None
+    ];
+    assert got == expected , f"version guards evaluated as {got}";
+}
+
+# native_target_os read platform.system() ('Linux'/'Darwin'/'Windows') where
+# sys.platform ('linux'/'darwin'/'win32') already answers. This runs the old
+# mapping beside the new one, so every CI platform proves the pair agrees.
+test "native_target_os agrees with the platform.system mapping it replaced" {
+    import platform;
+    import from jaclang.jac0core.codeinfo { native_target_os }
+    prior = os.environ.pop("JAC_NATIVE_TARGET", None);
+    try {
+        sysname = platform.system();
+        legacy = "linux";
+        if sysname == "Darwin" {
+            legacy = "darwin";
+        } elif sysname == "Windows" {
+            legacy = "windows";
+        }
+        assert native_target_os() == legacy , (
+            f"platform.system()={sysname!r} mapped to {legacy!r} but "
+            f"native_target_os() said {native_target_os()!r}"
+        );
+    } finally {
+        if prior is not None {
+            os.environ["JAC_NATIVE_TARGET"] = prior;
+        }
+    }
+}
+
+test "native_target_os still honors the JAC_NATIVE_TARGET override" {
+    import from jaclang.jac0core.codeinfo { native_target_os }
+    prior = os.environ.pop("JAC_NATIVE_TARGET", None);
+    try {
+        for (raw, want) in [
+            ("aarch64-apple-darwin", "darwin"),
+            ("x86_64-windows-msvc", "windows"),
+            ("x86_64-unknown-linux-gnu", "linux")
+        ] {
+            os.environ["JAC_NATIVE_TARGET"] = raw;
+            assert native_target_os() == want , f"{raw} mapped wrong";
+        }
+    } finally {
+        os.environ.pop("JAC_NATIVE_TARGET", None);
+        if prior is not None {
+            os.environ["JAC_NATIVE_TARGET"] = prior;
+        }
+    }
+}
+
 test "Jdb.has_breakpoint still reads the compiled bytecode" {
     import marshal;
     import from jaclang.jac0core.debugger { debugger }

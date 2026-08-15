@@ -312,7 +312,6 @@ def _extract_version_tuple(expr: 'uni.Expr') -> tuple[int, int] | None {
 
 def evaluate_version_condition(condition: 'uni.Expr') -> bool | None {
     import sys;
-    import operator;
     import jaclang.jac0core.unitree as uni;
     import from jaclang.jac0core.constant { Tokens as Tok }
 
@@ -345,21 +344,24 @@ def evaluate_version_condition(condition: 'uni.Expr') -> bool | None {
     }
 
     current = (sys.version_info.major, sys.version_info.minor);
-    op_map: dict = {
-        ">=": operator.ge,
-        "GtE": operator.ge,
-        ">": operator.gt,
-        "Gt": operator.gt,
-        "<=": operator.le,
-        "LtE": operator.le,
-        "<": operator.lt,
-        "Lt": operator.lt,
-        "==": operator.eq,
-        "Eq": operator.eq,
-        "!=": operator.ne,
-        "NotEq": operator.ne
-    };
-
     op_str = cond.ops[0].value;
-    return op_map[op_str](current, target) if op_str in op_map else None;
+    if op_str in (">=", "GtE") {
+        return current >= target;
+    }
+    if op_str in (">", "Gt") {
+        return current > target;
+    }
+    if op_str in ("<=", "LtE") {
+        return current <= target;
+    }
+    if op_str in ("<", "Lt") {
+        return current < target;
+    }
+    if op_str in ("==", "Eq") {
+        return current == target;
+    }
+    if op_str in ("!=", "NotEq") {
+        return current != target;
+    }
+    return None;
 }
