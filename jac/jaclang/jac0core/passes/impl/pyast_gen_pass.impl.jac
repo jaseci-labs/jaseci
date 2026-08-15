@@ -1212,22 +1212,15 @@ impl PyastGenPass.exit_test(nd: uni.Test) -> None {
 }
 
 impl PyastGenPass._native_test_shim_stmts(nd: uni.Test) -> list {
-    import from jaclang.jac0core.codeinfo { native_test_symbol, native_safe_sym }
+    import from jaclang.jac0core.codeinfo {
+        native_test_symbol,
+        native_glob_init_symbols
+    }
     test_name = nd.name.sym_name;
     line = nd.loc.first_line if nd.loc else 0;
     symbol = native_test_symbol(test_name, line);
     manifest = self.ir_in.gen.interop_manifest if self.ir_in?.gen else None;
-    dep_sources = manifest.native_transitive_sources if manifest else [];
-    init_syms: list[str] = [];
-    for dep_src in (dep_sources or []) {
-        if dep_src {
-            dep_init = f"__jac_glob_init_{native_safe_sym(dep_src)}";
-            if dep_init not in init_syms {
-                init_syms.append(dep_init);
-            }
-        }
-    }
-    init_syms.append("__jac_glob_init");
+    init_syms = native_glob_init_symbols(manifest);
     init_list = "[" + ", ".join(f"'{s}'" for s in init_syms) + "]";
     src_lines = [
         "from jaclang.runtimelib.test import invoke_native_test as _jac_invoke",

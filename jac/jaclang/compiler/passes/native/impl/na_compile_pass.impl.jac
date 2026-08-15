@@ -258,6 +258,7 @@ impl NativeCompilePass.transform(ir_in: uni.Module) -> uni.Module {
                 engine.enable_jit_events();
             } except Exception { }
         }
+        install_native_static_init(engine, module.gen.interop_manifest);
         module.gen.native_engine = engine;
 
         if _native_debug and _debug_obj_path and _all_fn_names {
