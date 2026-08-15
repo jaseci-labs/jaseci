@@ -11,6 +11,7 @@ import from tests.support {
     graphmend_compile_path as _compile_path,
     graphmend_pysrc as _pysrc
 }
+import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 
@@ -326,4 +327,46 @@ test "shadowed torch name declines instead of binding the assert to a local" {
     assert "_assert_async(" not in src;
     assert "raise ValueError('mask must be all true')" in src;
     assert _break_count("guard_shadowed_torch.jac") == 1;
+}
+
+test "a jac glob call-site wrap gets the trap boundary attach" {
+    # `glob m = torch.compile(...)` parses to a GlobalVars holding the
+    # assignment, and only its `assignments` list is emitted. The boundary must
+    # land after the whole glob, in the module body, or it is dropped and a
+    # failing guard surfaces as the raw marker instead of its own exception.
+    src = _pysrc("region_wrap_cls.jac", True);
+    assert "compiled_net = __jac_trap_guard__(compiled_net)" in src;
+    assert src.index("compiled_net = torch.compile(WrapNet())")
+        < src.index("compiled_net = __jac_trap_guard__(compiled_net)");
+}
+
+test "a lowered guard's detection tag stays bound to its own node" {
+    # Lowering detaches the tagged IfStmt, whose memory CPython is free to hand
+    # to a node allocated later in the same compile. Keyed by a bare address,
+    # that node reads as tagged -- worst case a generated torch._assert_async
+    # inherits SIDE_EFFECT and gets wrapped in __jac_se_emit__.
+    prog = JacProgram();
+    mod = prog.compile(
+        file_path=os.path.join(FIXTURES, "val_guard.jac"),
+        options=CompileOptions(graphmend=True, type_check=False)
+    );
+    assert prog.graphmend_breaks;
+    for key in prog.graphmend_breaks {
+        assert isinstance(key, uni.UniNode) , (
+            "detection tags are keyed by a recyclable address, not by node"
+        );
+    }
+    live: set = set();
+    stack: list = [mod];
+    while stack {
+        nd = stack.pop();
+        live.add(id(nd));
+        stack.extend(nd.kid);
+    }
+    detached = [
+        k
+        for k in prog.graphmend_breaks
+        if id(k) not in live
+    ];
+    assert detached , "expected the lowered guard's node to have been detached";
 }

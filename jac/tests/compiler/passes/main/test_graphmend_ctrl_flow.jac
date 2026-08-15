@@ -436,6 +436,25 @@ test "provably non-tensor branch values are declined" {
     assert "dyn_ctrl_fl" in _break_kinds("where_nontensor_branch.jac");
 }
 
+test "scalar literal branch values are declined" {
+    src = _pysrc("where_scalar_branch.jac", True);
+    # torch.where returns a 0-dim tensor, so predicating an int, a float or a
+    # bool branch changes the variable's type for every non-tensor consumer.
+    assert "torch.where(" not in src;
+    assert "torch.cond(" not in src;
+    assert "n = 1" in src;
+    assert "ok = True" in src;
+    assert "return -1" in src;
+    assert "dyn_ctrl_fl" in _break_kinds("where_scalar_branch.jac");
+}
+
+test "a scalar inside a tensor expression still predicates" {
+    # The decline is about the branch VALUE being a scalar, not about a scalar
+    # appearing anywhere in it: `x * (b * -1)` is a tensor.
+    src = _pysrc("where_return.jac", True);
+    assert "torch.where(" in src;
+}
+
 test "existence-guarded init with an impure initializer is declined" {
     src = _pysrc("guard_impure_init.jac", True);
     # The attribute callee cannot be pinned to one table entry, so every
