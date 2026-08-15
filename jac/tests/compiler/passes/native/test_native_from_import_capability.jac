@@ -148,7 +148,7 @@ test "a from-imported Python base is classified, not waved through" {
 test "the from-imported Python base refuses instead of lowering" {
     (prog, ir) = _compile_native("from_import_retained_base.jac");
     assert "E5090" in _codes(prog) , (
-        f"a module-scope Python `from` import has no owning callable to "
+        "a module-scope Python `from` import has no owning callable to "
         f"absorb it, so it must keep the whole-module refusal, got: {[
             str(e) for e in prog.errors_had
         ]}"
@@ -191,7 +191,7 @@ test "compile-time from-imports stay compile-time" {
         "typing_typevar_glob.jac"
     ] {
         assert _rejected_imports(fixture) == [] , (
-            f"classifying `from`-import items must not refuse a name the "
+            "classifying `from`-import items must not refuse a name the "
             f"native lane erases: {fixture}"
         );
     }
@@ -231,7 +231,7 @@ test "a from import of an na_stdlib-shimmed module lowers" {
     layout = ir.gen.native_layout;
     assert layout is not None , "whole-module native compile aborted";
     assert "run" in layout.functions , (
-        f"a shimmed module supplies the name natively, so nothing here "
+        "a shimmed module supplies the name natively, so nothing here "
         f"demotes: {sorted(layout.functions)}"
     );
 }
