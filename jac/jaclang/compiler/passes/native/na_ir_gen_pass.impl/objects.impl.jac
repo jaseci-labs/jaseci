@@ -531,6 +531,12 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
         }
     }
 
+    for (_esn, _esv) in self._erased_sig_typevars(nd).items() {
+        if _esn not in erased_tv_fields {
+            erased_tv_fields[_esn] = _esv;
+        }
+    }
+
     struct_type.set_body(*field_types);
     self.struct_field_indices[arch_name] = field_index_map;
     self.struct_field_order[arch_name] = [f.name for f in layout.fields];
@@ -543,6 +549,39 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
         for tp in (nd.type_params or [])
         if tp?.name is not None
     ];
+}
+
+impl NaIRGenPass._erased_sig_typevars(nd: uni.Archetype) -> dict {
+    """The type params a method signature erases, keyed by the slot naming it.
+
+    A sequence of `T` in a signature lays out as the pointer-flavoured list,
+    exactly as a bare `T` lays out as a raw pointer, so an instantiation at a
+    by-value type is as unsound there as it is in a field. Recording those
+    slots alongside the erased fields lets the construction site refuse both
+    with one rule.
+    """;
+    out: dict = {};
+    if nd.body is None {
+        return out;
+    }
+    for stmt in nd.body {
+        if not isinstance(stmt, uni.Ability)
+            or not isinstance(stmt.signature, uni.FuncSignature) {
+            continue;
+        }
+        _mname = stmt.name_ref.sym_name if stmt.name_ref else "unnamed";
+        for p in stmt.signature.get_parameters() {
+            if p.type_tag is None or self._erased_seq_type(p?.type) is None {
+                continue;
+            }
+            _pname = p.name.value if p.name else "arg";
+            _star = "*" if p.is_vararg else "";
+            out[f"{_mname}({_star}{_pname})"] = self._erased_typevar_names(
+                (p.type.private.type_args or [None])[0]
+            );
+        }
+    }
+    return out;
 }
 
 impl NaIRGenPass._reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bool {
