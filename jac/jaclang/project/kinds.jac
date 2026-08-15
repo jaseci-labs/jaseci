@@ -11,7 +11,8 @@ obj KindSpec {
         summary: str,
         flags: dict[str, any] = {},
         needs_entry: bool = True,
-        output_dir: str = "";
+        output_dir: str = "",
+        codespace: str = "";
 }
 
 glob KIND_SPECS: dict[str, KindSpec] = {
@@ -86,7 +87,8 @@ glob KIND_SPECS: dict[str, KindSpec] = {
                  verb="build",
                  summary="Build npm package into dist/",
                  flags={"as": "npm"},
-                 needs_entry=False
+                 needs_entry=False,
+                 codespace="client"
              ),
              KindSpec(
                  name="web-app",
@@ -223,8 +225,8 @@ def resolve_project_kind(config: JacConfig, entry_path: str) -> str {
     if explicit {
         return explicit;
     }
-    import from jaclang.jac0core.placement_pins { config_module_pin }
-    entry_pin = config_module_pin(entry_path) if entry_path else '';
+    import from jaclang.jac0core.placement_facts { pinned_module_space }
+    entry_pin = pinned_module_space(entry_path) if entry_path else '';
     if (entry_pin == 'native') {
         return "cli-native";
     }

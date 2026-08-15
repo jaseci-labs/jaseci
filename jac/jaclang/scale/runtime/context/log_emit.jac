@@ -10,6 +10,7 @@ glob _SVC_NAME: str = (
          or "unknown"
      ),
      _structured_installed: bool = False,
+     _structured_optout: bool = False,
      _root_logger: logging.Logger = logging.getLogger();
 
 
@@ -82,22 +83,42 @@ def debug(msg: str, **extras: Any) {
 
 def install_structured_logging {
     if not _structured_installed {
-        handler = logging.StreamHandler();
-        handler.setFormatter(_JacJsonFormatter());
+        import from jaclang.scale.config.config_loader { peek_scale_config }
+        cfg = peek_scale_config();
+        if cfg is None {
+            return;
+        }
+        _structured_optout = not bool(
+            cfg.get_server_config().get('structured_logs', True)
+        );
+        if not _structured_optout {
+            handler = logging.StreamHandler();
+            handler.setFormatter(_JacJsonFormatter());
 
-        _log_root = logging.getLogger();
+            _log_root = logging.getLogger();
 
-        _log_root.handlers = [handler];
+            _log_root.handlers = [handler];
 
-        _log_root.setLevel(int(logging.INFO));
+            if _log_root.level in [int(logging.NOTSET), int(logging.WARNING)] {
+                _log_root.setLevel(int(logging.INFO));
+            }
 
-        import from jaclang.scale.runtime.context.trace_ctx { install_trace_log_filter }
-        install_trace_log_filter();
-
+            import from jaclang.scale.runtime.context.trace_ctx {
+                install_trace_log_filter
+            }
+            install_trace_log_filter();
+        }
         _structured_installed = True;
     }
 
-    for noisy_name in ["uvicorn", "uvicorn.access", "uvicorn.error", "fastapi"] {
+    if _structured_optout {
+        return;
+    }
+
+    for noisy_name in [
+        "jaclang.runtimelib.serving.server",
+        "jaclang.runtimelib.serving.app"
+    ] {
         noisy = logging.getLogger(noisy_name);
         if noisy.handlers or not noisy.propagate {
             noisy.handlers = [];

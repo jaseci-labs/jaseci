@@ -40,13 +40,15 @@ obj RunConfig {
     has session: str = "",
         main: bool = True,
         cache: bool = True,
-        topology_index: bool = True,
         diagnostics: str = "error";
 }
 
 obj NativeBuildConfig {
     has opt_level: int = 2,
-        dump_ir: str = "";
+        dump_ir: str = "",
+        target: str = "",
+        debug: bool = False,
+        rc_debug_codegen: bool = False;
 }
 
 obj GcEnforceConfig {
@@ -237,6 +239,8 @@ def discover_config_files(
 
 def _parse_toml_data(data: dict[str, any], toml_path: Path | None = None) -> JacConfig;
 
+def _warn_legacy_plugins_table(data: dict[str, any]) -> None;
+
 def _parse_persons(raw: list[any]) -> list[PersonConfig];
 
 def _parse_include(raw: dict[str, any]) -> PackageIncludeConfig;
@@ -256,3 +260,5 @@ def set_config(config: JacConfig) -> None;
 def get_explicit_config -> JacConfig | None;
 
 def get_config_for_path(start_path: Path) -> JacConfig | None;
+
+def get_config_for_dir(start_dir: str) -> JacConfig | None;

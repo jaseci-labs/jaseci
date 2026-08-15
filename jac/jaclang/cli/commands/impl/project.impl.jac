@@ -198,9 +198,17 @@ def _create_body(
         existing = find_project_root(cwd);
         if existing and not force {
             (project_root, toml_path) = existing;
-            console.error(f"Already in a Jac project: {toml_path}");
-            console.print("Use --force to reinitialize.", style="muted");
-            return 1;
+
+            if Path(project_root).resolve() == cwd.resolve() {
+                console.error(f"Already in a Jac project: {toml_path}");
+                console.print("Use --force to reinitialize.", style="muted");
+                return 1;
+            }
+            console.warning(
+                f"Creating a nested project inside {project_root}; the "
+                "nearest jac.toml wins for files under this directory.",
+                emoji=False
+            );
         }
     }
     project_path.mkdir(parents=True, exist_ok=True);
@@ -1349,7 +1357,7 @@ impl jacpack(action: str = "", path: str = "", output: str = "") -> int {
         } else {
             jac_toml_path = template_dir / "jac.toml";
             if jac_toml_path.exists() {
-                import from jaclang.jac0core.helpers { read_toml_with_encoding }
+                import from jaclang.jac0core.tomlio { read_toml_with_encoding }
                 jac_config = read_toml_with_encoding(str(jac_toml_path));
                 name = jac_config.get("jacpack", {}).get("name", template_dir.name);
             } else {

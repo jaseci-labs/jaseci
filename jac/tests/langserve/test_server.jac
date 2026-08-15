@@ -3,7 +3,10 @@
 import contextlib;
 import os;
 import sys;
+import from pathlib { Path }
+import from tempfile { TemporaryDirectory }
 import from tests.support { JAC_ROOT }
+import from tests.compiler.passes.main.checker_npm_harness { make_npm_client_project }
 
 import jaclang.lsp.types as lspt;
 
@@ -104,7 +107,7 @@ test "test_impl_stay_connected" {
         pos = lspt.Position(8, 11);
         assert (
             "ability) calculate_area\n( radius : float ) -> float"
-            in lsp.get_hover_info(circle_impl_file, pos).contents.value.replace("'", "")
+            in lsp.get_hover_info(circle_impl_file, pos).contents.value
         );
     } finally {
         teardown_test();
@@ -120,7 +123,7 @@ test "test_impl_auto_discover" {
         pos = lspt.Position(8, 11);
         assert (
             "(public ability) calculate_area\n( radius : float ) -> float"
-            in lsp.get_hover_info(circle_impl_file, pos).contents.value.replace("'", "")
+            in lsp.get_hover_info(circle_impl_file, pos).contents.value
         );
     } finally {
         teardown_test();
@@ -275,6 +278,51 @@ test "test_go_to_definition_md_path" {
                 lsp.get_definition(import_file, lspt.Position(line - 1, char - 1))
             );
             assert expected in result , f"Line {line}, char {char}: expected '{expected}' in '{result}'";
+        }
+    } finally {
+        teardown_test();
+    }
+}
+
+test "test_go_to_definition_string_imports" {
+    setup_test();
+    try {
+        with TemporaryDirectory() as td {
+            proj = make_npm_client_project(Path(td));
+            src = proj / "lib" / "gotodef.jac";
+            src.write_text(
+                'import from "clsx" { clsx }\n'
+                'import from "tailwind-merge" { twMerge }\n'
+                'import from "not-installed-pkg" { ghost }\n'
+                'import from "@jac/runtime" { Link }\n\n'
+                'def:pub use_all(*inputs: any) -> str {\n'
+                '    print(ghost);\n'
+                '    print(Link);\n'
+                '    return twMerge(clsx(inputs));\n'
+                '}\n'
+            );
+            lsp = create_server(str(proj));
+            furi = uris.from_fs_path(str(src));
+            lsp.type_check_file(furi);
+            # Bug 1 (#7839): an item imported from an npm package must land on
+            # its declaration inside the package's .d.ts, not self-jump.
+            clsx_item = str(lsp.get_definition(furi, lspt.Position(0, 22)));
+            assert "clsx.d.mts:3:24-3:28" in clsx_item , f"clsx item: {clsx_item}";
+            tw_item = str(lsp.get_definition(furi, lspt.Position(1, 33)));
+            assert "types.d.ts:0:14-0:21" in tw_item , f"twMerge item: {tw_item}";
+            # Bug 2 (#7839): a string module path must open the resolved
+            # module (declarations for npm packages, the file itself for
+            # jac-resolvable specs) -- not return null.
+            clsx_path = str(lsp.get_definition(furi, lspt.Position(0, 14)));
+            assert "clsx.d.mts:0:0-0:0" in clsx_path , f"clsx path: {clsx_path}";
+            tw_path = str(lsp.get_definition(furi, lspt.Position(1, 15)));
+            assert "types.d.ts:0:0-0:0" in tw_path , f"tailwind-merge path: {tw_path}";
+            rt_path = str(lsp.get_definition(furi, lspt.Position(3, 15)));
+            assert "client_runtime.jac:0:0-0:0" in rt_path , f"@jac/runtime path: {rt_path}";
+            # Bug 3 (#7839): an unresolvable item degrades to "no definition"
+            # instead of a silent self-jump at the queried token.
+            ghost_def = lsp.get_definition(furi, lspt.Position(2, 35));
+            assert ghost_def is None , f"ghost must have no definition: {ghost_def}";
         }
     } finally {
         teardown_test();
@@ -1201,17 +1249,16 @@ test "test_jir_cache_invalidated_on_version_mismatch" {
 
     setup_test();
     try {
-        lsp = create_server();
-        # Type-check the caller to force JIR cache creation for the dependency.
-        caller_file = uris.from_fs_path(fixture_path("cross_module_func_caller.jac"));
-        lsp.type_check_file(caller_file);
-
-        # Locate the JIR cache for the dependency module.
+        # A full compile writes the bytecode module cache; dependency loads
+        # derive trees per process and persist nothing (#8190).
+        import from jaclang.jac0core.compiler { JacCompiler }
+        import from jaclang.jac0core.program { JacProgram }
         dep_src = fixture_path("cross_module_func.jac");
+        JacCompiler().get_bytecode(dep_src, JacProgram());
         cache_path = get_module_cache_path(dep_src);
 
         # Sanity: cache should exist and be valid right now.
-        assert cache_path.exists() , "JIR cache was not written";
+        assert cache_path.exists() , "module cache was not written";
         assert is_module_cache_valid(dep_src, cache_path) , "Fresh cache should be valid";
 
         # Tamper: overwrite jaclang_version_hash with a fake value.

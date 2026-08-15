@@ -25,7 +25,7 @@ version = "1.0.0"
 description = "A handy Jac library"
 license = "MIT"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 keywords = ["jac", "jaseci", "ai"]
 classifiers = [
   "Programming Language :: Python :: 3",

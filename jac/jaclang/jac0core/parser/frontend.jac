@@ -8,89 +8,149 @@ import from jaclang.jac0core.passes.transform { Alert }
 import type from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.unitree { CommentToken, Module, Source, Token as UniToken }
 
-glob _NATIVE_SCAN_MEMO: list = [];
+glob _NATIVE_PARSE_MEMO: list = [];
 
-def _native_scan -> any {
-    if _NATIVE_SCAN_MEMO {
-        return _NATIVE_SCAN_MEMO[0];
+def _native_parse -> any {
+    if _NATIVE_PARSE_MEMO {
+        return _NATIVE_PARSE_MEMO[0];
     }
-    fn: any = None;
-    try {
-        import from jaclang.jac0core.sealed { native_artifact_for }
-        found = native_artifact_for("jaclang.jac0core.parser.lexer");
-        if found is not None {
-            import from jaclang.jac0core.native_dylib { DylibEngine, layout_from_dict }
-            import from jaclang.jac0core.native_marshal {
-                build_ctypes_classes,
-                build_enum_maps,
-                wrap_native_function
-            }
-            (lib_path, layout_dict) = found;
-            eng = DylibEngine(lib_path);
-            eng.initialize();
-            layout = layout_from_dict(layout_dict);
-            ns = na_lexer.__dict__;
-            cc = build_ctypes_classes(layout);
-            em = build_enum_maps(layout, ns);
-            pc: dict = {};
-            for sn in layout.structs {
-                if ns.get(sn) is not None {
-                    pc[sn] = ns[sn];
-                }
-            }
-            fl = layout.functions.get("tokenize_full");
-            if fl is not None {
-                fn = wrap_native_function(eng, fl, cc, em, pc, layout=layout);
-                if fn is not None {
-                    fn.__jac_engine__ = eng;
-                }
-            }
-        }
-    } except Exception {
-        fn = None;
+    import from jaclang.jac0core.sealed { native_artifact_for }
+    found = native_artifact_for("jaclang.compiler.native_materialize");
+    if found is None {
+        _NATIVE_PARSE_MEMO.append(None);
+        return None;
     }
-    _NATIVE_SCAN_MEMO.append(fn);
-    return fn;
+    import from jaclang.jac0core.parser.materialize { bind_native_parser }
+    (lib_path, layout_dict) = found;
+    np = bind_native_parser(lib_path, layout_dict);
+    _NATIVE_PARSE_MEMO.append(np);
+    return np;
 }
 
-def parse(
-    source: str, file_path: str = "<input>", prog: (JacProgram | None) = None
-) -> tuple[Module, bool] {
-    _scan = _native_scan();
-    if _scan is not None {
-        (tokens, comments, diags, lex_error_count) = _scan(source, file_path);
-    } else {
-        (tokens, comments, diags, lex_error_count) = na_lexer.tokenize_full(
-            source, file_path
+def _require_bootstrap_tier(op: str) {
+    import from jaclang.jac0core.sealed { native_tier_required }
+    if native_tier_required() {
+        raise RuntimeError(
+            f"{op}: this sealed image declares native parser roots, but the "
+            "bytecode parser was reached. The install is broken; reinstall "
+            "or rebuild the payload."
         );
     }
+}
 
-    if prog is not None and diags {
-        diag_src = Source(source, mod_path=file_path);
-        for d in diags {
-            loc = d.loc;
+
+def _replay_diags(diags: any, from_pass: type, prog: JacProgram, diag_src: Source) {
+    for d in diags {
+        loc = d.loc;
+        dtok = UniToken(
+            orig_src=diag_src,
+            name="ERROR" if d.is_error else "WARNING",
+            value="",
+            line=loc.line,
+            end_line=loc.end_line,
+            col_start=loc.col_start,
+            col_end=loc.col_end,
+            pos_start=loc.pos_start,
+            pos_end=loc.pos_end
+        );
+        code = DIAGNOSTICS.get(d.code_str) if d.code_str else None;
+        help_text = getattr(d, "help", "");
+        alrt = Alert(
+            d.message,
+            CodeLocInfo(dtok, dtok),
+            from_pass,
+            code=code,
+            help_text=help_text
+        );
+        if d.is_error {
+            prog.errors_had.append(alrt);
+        } else {
+            prog.warnings_had.append(alrt);
+        }
+    }
+}
+
+def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, list)] {
+    _np = _native_parse();
+    if _np is not None {
+        (p_errs, lex_errs, p_diags, lex_diags) = _np.parse_diags(source, file_path);
+        return (p_errs > 0 or lex_errs > 0, list(p_diags), list(lex_diags));
+    }
+    _require_bootstrap_tier("parse_diags");
+    (tokens, _comments, lex_diags, lex_errs) = na_lexer.tokenize_full(
+        source, file_path
+    );
+    parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
+    parser.parse();
+    return (parser.error_count > 0 or lex_errs > 0, parser.diags, lex_diags, );
+}
+
+
+def parse(
+    source: str,
+    file_path: str = "<input>",
+    prog: (JacProgram | None) = None,
+    expand: bool = True
+) -> tuple[Module, bool] {
+    _np = _native_parse();
+    if _np is not None {
+        (module, p_errs, p_diags, comments, lex_diags, lex_errs) = _np.parse(
+            source, file_path
+        );
+    } else {
+        _require_bootstrap_tier("parse");
+        (tokens, comments, lex_diags, lex_errs) = na_lexer.tokenize_full(
+            source, file_path
+        );
+        parser = Parser(tokens=tokens, file_path=file_path, source_code=source);
+        module = parser.parse();
+        p_errs = parser.error_count;
+        p_diags = parser.diags;
+    }
+
+    ct_errs: list = [];
+    if expand and p_errs == 0 and lex_errs == 0 {
+        import from jaclang.jac0core.ct_expand { expand_module, module_has_ct }
+        if module_has_ct(module) {
+            ct_errs = expand_module(module, file_path);
+        }
+    }
+
+    diag_src: Source | None = None;
+    if prog is not None and lex_diags {
+        diag_src = module.source;
+        _replay_diags(lex_diags, Lexer, prog, diag_src);
+    }
+    if prog is not None and p_diags {
+        if diag_src is None {
+            diag_src = module.source;
+        }
+        _replay_diags(p_diags, Parser, prog, diag_src);
+    }
+    if ct_errs {
+        if diag_src is None {
+            diag_src = module.source;
+        }
+        for d in ct_errs {
             dtok = UniToken(
                 orig_src=diag_src,
-                name="ERROR" if d.is_error else "WARNING",
+                name="ERROR",
                 value="",
-                line=loc.line,
-                end_line=loc.end_line,
-                col_start=loc.col_start,
-                col_end=loc.col_end,
-                pos_start=loc.pos_start,
-                pos_end=loc.pos_end
+                line=d[0],
+                end_line=max(d[1], d[0]),
+                col_start=d[2],
+                col_end=max(d[3], d[2]),
+                pos_start=0,
+                pos_end=0
             );
-            code = DIAGNOSTICS.get(d.code_str) if d.code_str else None;
-            alrt = Alert(d.message, CodeLocInfo(dtok, dtok), Lexer, code=code);
-            if d.is_error {
+            alrt = Alert(
+                d[4], CodeLocInfo(dtok, dtok), Parser, code=DIAGNOSTICS.get("E0108")
+            );
+            if prog is not None {
                 prog.errors_had.append(alrt);
-            } else {
-                prog.warnings_had.append(alrt);
             }
         }
     }
-    parser = Parser(tokens=tokens, file_path=file_path, source_code=source, prog=prog);
-    module = parser.parse();
 
     if module.source and comments {
         for cdata in comments {
@@ -126,6 +186,6 @@ def parse(
             }
         }
     }
-    had_error = parser.error_count > 0 or lex_error_count > 0;
+    had_error = p_errs > 0 or lex_errs > 0 or len(ct_errs) > 0;
     return (module, had_error);
 }

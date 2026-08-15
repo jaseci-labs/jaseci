@@ -6,6 +6,7 @@ and micro suite.
 """
 
 import inspect;
+import from jaclang.jac0core.treeprinter { print_ast_tree }
 import io;
 import os;
 import re;
@@ -44,7 +45,7 @@ test "parser fam" {
 
 test "staticmethod checks out" {
     (module, had_error) = rd_parse(load_fixture("staticcheck.jac"), "");
-    out = module.pp();
+    out = print_ast_tree(module);
     assert not had_error;
     assert "staticmethod" not in out;
 }
@@ -132,6 +133,18 @@ test "param syntax" {
     prog.compile(os.path.join(LANG_FIXTURES, "params", "param_syntax_err.jac"));
     sys.stdout = sys.__stdout__;
     assert len(prog.errors_had) == 8;
+}
+
+test "operator after cast target is a syntax error" {
+    # The cast target is a tight type production; `x as int + 1` no longer
+    # silently absorbs `+ 1` into the cast type (#7885).
+    captured_output = io.StringIO();
+    sys.stdout = captured_output;
+    prog = JacProgram();
+    prog.compile(os.path.join(FIXTURES, "cast_rhs_operator_err.jac"));
+    sys.stdout = sys.__stdout__;
+    assert prog.errors_had;
+    assert any(e.code is not None and e.code.code == "E0006" for e in prog.errors_had);
 }
 
 test "new keyword errors" {
@@ -246,7 +259,7 @@ test "jsx comprehensive fixture" {
     source_text = Path(fixture_path).read_text(encoding="utf-8");
     (module, had_error) = rd_parse(source_text, str(fixture_path));
     assert not had_error , "Parser reported errors for JSX fixture";
-    tree_repr = module.pp();
+    tree_repr = print_ast_tree(module);
 
     expected_snippets = {
         "self_closing": "<div/>",
@@ -276,14 +289,14 @@ test "jsx star_pow spread attribute" {
     source = 'with entry { x = <div {**props} title="hi"/>; }';
     (module, had_error) = rd_parse(source, "test_spread.jac");
     assert not had_error , "Parser rejected {**props} spread syntax";
-    tree_repr = module.pp();
+    tree_repr = print_ast_tree(module);
     assert "JsxSpreadAttribute" in tree_repr , "Missing JsxSpreadAttribute node";
     assert "Token - **" in tree_repr , "Missing ** token in spread";
     # Ellipsis form should warn but still parse
     source2 = 'with entry { x = <div {...props}/>; }';
     (module2, had_error2) = rd_parse(source2, "test_spread2.jac");
     assert not had_error2 , "Parser rejected {...props} spread syntax";
-    assert "Ellipsis" in module2.pp() , "Missing Ellipsis node for ... spread";
+    assert "Ellipsis" in print_ast_tree(module2) , "Missing Ellipsis node for ... spread";
 }
 
 test "removed sv/cl/na markers produce the migration error" {
@@ -761,5 +774,107 @@ test "docstring attaches to all member types inside archetype body" {
 with entry {
     parametrize(
         "parser", MICRO_JAC_FILES, parser_file_test, id_fn=lambda (f) { Path(f).stem; }
+    );
+}
+
+test "parser core emits flat diag records without prog" {
+    # W1 (#6930): the parser core appends flat SrcDiag records and holds no
+    # JacProgram reference; frontend.parse() replays records into Alerts.
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.parser { Parser }
+    src = "with entry { x = ( ; }";
+    (tokens, comments, ldiags, lex_errs) = tokenize_full(src, "<probe>");
+    parser = Parser(tokens=tokens, file_path="<probe>", source_code=src);
+    parser.parse();
+    assert parser.error_count > 0;
+    assert len(parser.diags) >= parser.error_count;
+    d = parser.diags[0];
+    assert d.message != "";
+    assert d.is_error;
+    assert d.loc.line >= 1;
+    assert not hasattr(parser, "prog");
+}
+
+test "parser core sources are foreign-free" {
+    # W1/W2 (#6930): the sealed parser core may not reference host-side
+    # machinery; all Alert construction lives in frontend.jac.
+    pkg = Path(jaclang.__file__).parent / "jac0core" / "parser";
+    core = (pkg / "parser.jac").read_text(encoding="utf-8")
+        + (pkg / "impl" / "parser.impl.jac").read_text(encoding="utf-8");
+    banned = [
+        "passes.transform",
+        "CodeLocInfo",
+        "JacProgram",
+        "jac0core.diagnostics",
+        "**kwargs",
+        "pathlib",
+        "import re"
+    ];
+    for b in banned {
+        assert b not in core , f"parser core references {b}";
+    }
+}
+
+test "parser module naming and test slugs are python-free" {
+    # W2 (#6930): pathlib/re replaced with plain string ops in the core.
+    (module, _) = rd_parse("with entry {}", "some/dir/thing.jac");
+    assert module.name == "thing";
+    (module2, _) = rd_parse("with entry {}", "other\\win\\mod.custom.ext");
+    assert module2.name == "mod.custom";
+    (module3, _) = rd_parse('test "Hello, World! 42" {}', "t.jac");
+    tnode = module3.body[0];
+    assert tnode.name.value == "hello_world_42";
+}
+
+glob GEN_TEST_SRC_LINES = [
+         "test box_holds { assert True; }",
+         "test { assert True; }",
+         'test "desc here" { assert True; }',
+         'test "..." { assert True; }'
+     ];
+
+def gen_test_src -> str {
+    return chr(10).join(GEN_TEST_SRC_LINES);
+}
+
+def gen_test_syms(src: str, path: str) -> list[str] {
+    (module, _had_error) = rd_parse(src, path);
+    return [
+        nd.sym_name
+        for nd in module._in_mod_nodes
+        if isinstance(nd, uni.Test)
+    ];
+}
+
+test "generated test symbols are per-module ordinals, not process-global (#8177)" {
+    # A test whose name the parser has to synthesize -- the identifier-named
+    # form and the bare form both -- must number off the per-module parser
+    # counter, so the same source always yields the same symbols no matter
+    # what else this process parsed first.
+    src = gen_test_src();
+    first = gen_test_syms(src, "__gen_test_names__.jac");
+    assert sorted(first)
+        == [
+            "test__jac_gen_1",
+            "test__jac_gen_2",
+            "test__jac_gen_3",
+            "test_desc_here"
+        ] , f"unexpected generated symbols: {sorted(first)}";
+    assert gen_test_syms(src, "__gen_test_names__.jac") == first , (
+        "a second parse of the same source disagreed with the first"
+    );
+    gen_test_syms(src, "__gen_test_names_other__.jac");
+    gen_test_syms("test { assert True; }", "__gen_test_names_third__.jac");
+    assert gen_test_syms(src, "__gen_test_names__.jac") == first , (
+        "unrelated parses shifted the generated symbols"
+    );
+}
+
+test "reparsing a module with generated test names yields an identical tree (#8177)" {
+    src = gen_test_src();
+    (m1, _e1) = rd_parse(src, "__gen_test_tree__.jac");
+    (m2, _e2) = rd_parse(src, "__gen_test_tree__.jac");
+    assert print_ast_tree(m1) == print_ast_tree(m2) , (
+        "two parses of one source produced different trees"
     );
 }

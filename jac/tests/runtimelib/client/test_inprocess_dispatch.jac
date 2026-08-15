@@ -34,6 +34,17 @@ glob _FIXTURE: str = str(Path(__file__).parent / "fixtures" / "inprocess_app.jac
      _BOOTED: bool = False;
 
 
+"""True when the in-process backend (jaclang.scale) is importable."""
+def _backend_available -> bool {
+    try {
+        import jaclang.scale.server.serve;
+        return True;
+    } except ImportError {
+        return False;
+    }
+}
+
+
 """Dispatch one `{kind, name, node, fields, token}` request through the staged
 module (booting it once on first use); returns the reply already JSON-decoded."""
 def _dispatch_request(request: dict) -> dict {

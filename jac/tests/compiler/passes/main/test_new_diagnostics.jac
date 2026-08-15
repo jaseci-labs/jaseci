@@ -24,6 +24,7 @@ import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.parser.frontend { parse }
 import from jaclang.runtimelib.test { parametrize }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
@@ -86,7 +87,7 @@ def parse_and_validate(source: str) -> tuple {
             return (True, None);
         }
         prog = JacProgram();
-        ASTValidationPass(ir_in=module, prog=prog);
+        run_pass(ASTValidationPass, module, prog);
         return (len(prog.errors_had) > 0, prog);
     } except Exception {
         return (True, None);
@@ -754,6 +755,11 @@ test "W2074: f-string with no expressions" {
 test "W2075: redundant boolean comparison" {
     (prog, _) = compile_and_check("semantic_W2075_redundant_bool.jac");
     assert has_diagnostic_code(prog, "W2075", in_warnings=True);
+}
+
+test "W2075 silent for boolean-literal tests over non-bool operands" {
+    (prog, _) = compile_and_check("semantic_W2075_any_identity_ok.jac");
+    assert not has_diagnostic_code(prog, "W2075", in_warnings=True) , "identity/equality against True over any-typed operands is a discriminator, not redundancy";
 }
 
 # --- Context Validity (INFRA-8) ---

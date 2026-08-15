@@ -42,7 +42,7 @@ glob FORBIDDEN: dict[str, str] = {
      # at sites where the declaration IS the fact.
      SANCTIONED: dict[tuple, tuple] = {
          ("ecmascript/impl/esast_gen_pass.impl.jac", "symbol_utils"): (
-             5,
+             6,
              "collect_field_names/symbol_owner_archetype - symbol-FACT "
              "readers over an already-resolved walker symbol. "
              "The former classify_call fallback is deleted (#7418): "
@@ -66,11 +66,26 @@ glob FORBIDDEN: dict[str, str] = {
              "module is a guaranteed runtime ReferenceError - the "
              "reporter consumes stamped code_context and symbol facts, "
              "shared with StaticAnalysisPass so build-only and "
-             "check-only runs agree"
+             "check-only runs agree. Plus client_value_ref_targets / "
+             "client_bridged_endpoint at exit_module (#8072): the same "
+             "shape one level up - client code naming a module element "
+             "that the bundle never binds is a guaranteed runtime "
+             "ReferenceError, so the backend asks the central resolver "
+             "which references have no client binding and which are "
+             "endpoints it must bind a forwarder for. It consumes "
+             "stamped code_context, resolved `.sym`, and the declared "
+             "access tag; the same resolver drives W6007 in "
+             "StaticAnalysisPass, which is the point - the emit path and "
+             "the check path must not disagree about what is bound"
          ),
          ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): (
-             1,
-             "declaration-surface read: component PascalCase rename "
+             2,
+             "declaration-surface reads: (1) cross-module archetype kind "
+             "for OSP lowering (#7948) - _arch_kind_by_name resolves an "
+             "imported archetype NAME to its declared node/edge/walker "
+             "kind via the module symbol, the exact declaration-IS-the-"
+             "fact category; tags derive from stable_osp_tag(name), no "
+             "analysis re-run. (2) component PascalCase rename "
              "collision guard checks whether the capitalized name is "
              "already declared in the module - the declared NAME is the "
              "consumed fact, not a resolved type. The former sv-import "
@@ -105,7 +120,7 @@ glob FORBIDDEN: dict[str, str] = {
              "so the declared annotations are the only TypeVar surface"
          ),
          ("native/na_ir_gen_pass.impl/calls.impl.jac", "symbol_utils"): (
-             2,
+             3,
              "is_builtin_region_name as the shadowing-aware test for the "
              "builtin Region constructor (#7491) - consuming the central "
              "classification instead of re-implementing name resolution; and "
@@ -114,15 +129,29 @@ glob FORBIDDEN: dict[str, str] = {
              "central classification instead of re-implementing name "
              "resolution. The former classify_call fallback is deleted "
              "(#7418): call_kind is stamped authoritatively by the required "
-             "inference schedule"
+             "inference schedule. Plus comptime_identity_call_arg (#8223), "
+             "a declaration-surface read: whether `cast` here is the erasable "
+             "`typing.cast` is answered by the module's own import list, "
+             "which is the fact itself and lives on no analysis product"
          ),
          ("native/na_ir_gen_pass.impl/objects.impl.jac", "symbol_utils"): (
              1,
              "classify_call fallback for synthesized constructor calls"
          ),
          ("native/na_ir_gen_pass.impl/core.impl.jac", "type_tag.tag"): (
-             2,
-             "declaration-surface reads at interop layout export"
+             3,
+             "declaration-surface reads at interop layout export, plus the "
+             "quiet lowerability probe on imported globs (the py-side "
+             "carve-out for dual-codespace modules) which reads the same "
+             "declared annotation the adjacent _resolve_jac_type consumes"
+         ),
+         ("native/na_ir_gen_pass.impl/calls.impl.jac", "type_tag.tag"): (
+             1,
+             "declaration-surface read of foreign extern signatures: the "
+             "clib membrane needs the DECLARED str params/returns of a "
+             "foreign call to route them through the JacStr wrap/unwrap "
+             "shims (#7870 strings step 2) - the C membrane always "
+             "trafficks NUL-terminated char*"
          ),
          ("native/na_ir_gen_pass.impl/func.impl.jac", "type_tag.tag"): (
              4,
@@ -132,7 +161,19 @@ glob FORBIDDEN: dict[str, str] = {
          ),
          ("native/na_ir_gen_pass.impl/objects.impl.jac", "type_tag.tag"): (
              1,
-             "declaration-surface read during archetype field lowering"
+             "declaration-surface read during archetype field lowering: "
+             "the field's declared annotation node is read once into a "
+             "local and feeds both the enum-name map and the container "
+             "element-key map the sealed layout exports. Keep it one read "
+             "- consumers of the annotation are added to the local, never "
+             "by reaching for type_tag.tag again"
+         ),
+         ("native/na_ir_gen_pass.impl/lists.impl.jac", "type_tag.tag"): (
+             1,
+             "declared-vs-inferred bare list is a declaration-surface "
+             "distinction central facts do not carry (the checker stamps "
+             "unannotated empties as bare list too); the empty-literal "
+             "storage-family decision must key on the explicit annotation"
          ),
          ("native/na_ir_gen_pass.impl/stmt.impl.jac", "type_tag.tag"): (
              7,

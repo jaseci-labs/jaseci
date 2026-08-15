@@ -14,9 +14,11 @@ import from ctypes {
     Structure
 }
 import from jaclang.compiler.passes.native.llvm.binding { ffi, targets, object_file }
+
 with entry {
     ffi.lib.LLVMPY_LinkInMCJIT;
 }
+
 """
     Create a MCJIT ExecutionEngine from the given *module* and
     *target_machine*.
@@ -47,7 +49,7 @@ def create_mcjit_compiler(
     Check the system allows execution of in-memory JITted functions.
     An exception is raised otherwise.
     """
-def check_jit_execution() -> object {
+def check_jit_execution -> object {
     errno = ffi.lib.LLVMPY_TryAllocateExecutableMemory();
     if (errno != 0) {
         raise OSError(
@@ -74,16 +76,43 @@ class ExecutionEngine(ffi.ObjectRef) {
     def init(self: ExecutionEngine, ptr: Any, module: Any) -> object {
         self._modules = `set([module]);
         self._td = None;
+        self.static_init_symbols = [];
+        self.static_init_chained = `set();
         module._owned = True;
         ffi.ObjectRef.init(self, ptr);
+    }
+
+    """
+        Run the pending static initializers, at most once per engine.
+
+        *static_init_symbols* names the module-level initializers of the unit
+        this engine holds, in the order they must run; the list is consumed so
+        a second call is a no-op.
+        """
+    def run_static_init(self: ExecutionEngine) -> object {
+        symbols = self.static_init_symbols;
+        self.static_init_symbols = [];
+        for symbol in symbols {
+            addr = ffi.lib.LLVMPY_GetFunctionAddress(self, symbol.encode("ascii"));
+            if addr {
+                CFUNCTYPE(None)(addr)();
+            }
+        }
     }
 
     """
         Return the address of the function named *name* as an integer.
 
         It's a fatal error in LLVM if the symbol of *name* doesn't exist.
+
+        Handing out an address makes the unit's code reachable, so any pending
+        static initializers run first -- unless *name* is listed in
+        *static_init_chained*, meaning that function runs them itself.
         """
     def get_function_address(self: ExecutionEngine, name: Any) -> object {
+        if self.static_init_symbols and (name not in self.static_init_chained) {
+            self.run_static_init();
+        }
         return ffi.lib.LLVMPY_GetFunctionAddress(self, name.encode("ascii"));
     }
 
@@ -99,6 +128,7 @@ class ExecutionEngine(ffi.ObjectRef) {
     def add_global_mapping(self: ExecutionEngine, gv: Any, addr: Any) -> object {
         ffi.lib.LLVMPY_AddGlobalMapping(self, gv, addr);
     }
+
     """
         Ownership of module is transferred to the execution engine
         """
@@ -223,10 +253,8 @@ class ExecutionEngine(ffi.ObjectRef) {
         if (module is None) {
             raise RuntimeError(
                 (
-                    "object compilation notification " "for unknown module %s" % (
-                        module_ptr,
-
-                    )
+                    "object compilation notification " "for unknown module %s"
+                    % (module_ptr, )
                 )
             );
         }
@@ -245,10 +273,8 @@ class ExecutionEngine(ffi.ObjectRef) {
         if (module is None) {
             raise RuntimeError(
                 (
-                    "object compilation notification " "for unknown module %s" % (
-                        module_ptr,
-
-                    )
+                    "object compilation notification " "for unknown module %s"
+                    % (module_ptr, )
                 )
             );
         }
@@ -280,6 +306,7 @@ class _ObjectCacheRef(ffi.ObjectRef) {
         ptr = ffi.lib.LLVMPY_CreateObjectCache(_notify_c_hook, _getbuffer_c_hook, `obj);
         ffi.ObjectRef.init(self, ptr);
     }
+
     def _dispose(self: _ObjectCacheRef) -> object {
         self._capi.LLVMPY_DisposeObjectCache(self);
     }
@@ -322,6 +349,7 @@ with entry {
         ffi.LLVMObjectFileRef
     ];
 }
+
 class _ObjectCacheData(Structure) {
     with entry {
         _fields_ = [
@@ -331,6 +359,7 @@ class _ObjectCacheData(Structure) {
         ];
     }
 }
+
 with entry {
     _ObjectCacheNotifyFunc = CFUNCTYPE(None, py_object, POINTER(_ObjectCacheData));
     _ObjectCacheGetBufferFunc = CFUNCTYPE(None, py_object, POINTER(_ObjectCacheData));
@@ -352,4 +381,3 @@ with entry {
     ffi.lib.LLVMPY_CreateByteString.restype = c_void_p;
     ffi.lib.LLVMPY_CreateByteString.argtypes = [c_void_p, c_size_t];
 }
-

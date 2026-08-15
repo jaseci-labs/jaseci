@@ -1,3 +1,21 @@
+glob _OS_CONSTS: dict[str, str] = {
+         "sep": "/",
+         "extsep": ".",
+         "pardir": "..",
+         "curdir": ".",
+         "pathsep": ":",
+         "linesep": "\n",
+         "devnull": "/dev/null",
+
+     };
+
+impl NaIRGenPass._emit_os_const(name: str) -> (ir.Value | None) {
+    if name not in _OS_CONSTS {
+        return None;
+    }
+    return self._make_global_string(_OS_CONSTS[name], name_prefix=f".os.{name}");
+}
+
 impl NaIRGenPass._emit_os_environ_call(
     name: str, nd: uni.FuncCall
 ) -> (ir.Value | None) {
@@ -13,7 +31,7 @@ impl NaIRGenPass._emit_os_environ_call(
         if not params {
             return None;
         }
-        nameval = self._codegen_expr(params[0]);
+        nameval = self._str_arg(self._codegen_expr(params[0]));
         if nameval is None {
             return None;
         }
@@ -31,7 +49,7 @@ impl NaIRGenPass._emit_os_environ_call(
         self.builder.position_at_end(null_bb);
         null_res: ir.Value = ir.Constant(i8p, None);
         if len(params) >= 2 {
-            _default_val = self._codegen_expr(params[1]);
+            _default_val = self._str_arg(self._codegen_expr(params[1]));
             if _default_val is not None
                 and isinstance(_default_val.type, ir.PointerType) {
                 null_res = self._coerce_type(_default_val, i8p);
@@ -86,7 +104,7 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
         if not params {
             return None;
         }
-        nameval = self._codegen_expr(params[0]);
+        nameval = self._str_arg(self._codegen_expr(params[0]));
         if nameval is None {
             return None;
         }
@@ -105,7 +123,7 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
 
         null_res: ir.Value = ir.Constant(i8p, None);
         if len(params) >= 2 {
-            _default_val = self._codegen_expr(params[1]);
+            _default_val = self._str_arg(self._codegen_expr(params[1]));
             if _default_val is not None
                 and isinstance(_default_val.type, ir.PointerType) {
                 null_res = self._coerce_type(_default_val, i8p);
@@ -130,7 +148,7 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
         if not params {
             return None;
         }
-        cmd = self._codegen_expr(params[0]);
+        cmd = self._str_arg(self._codegen_expr(params[0]));
         if cmd is None {
             return None;
         }
@@ -147,7 +165,7 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
 
     };
     if name in _single and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_arg(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -157,13 +175,13 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
     }
 
     if name == "mkdir" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_arg(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
         mode = ir.Constant(i32, 0o777);
         if len(params) >= 2 {
-            mv = self._codegen_expr(params[1]);
+            mv = self._str_arg(self._codegen_expr(params[1]));
             if mv is not None {
                 mode = self._coerce_type(mv, i32);
             }
@@ -174,23 +192,22 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
     }
 
     if name == "makedirs" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_arg(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
         mode = ir.Constant(i32, 0o777);
         if len(params) >= 2 {
-            mv = self._codegen_expr(params[1]);
+            mv = self._str_arg(self._codegen_expr(params[1]));
             if mv is not None {
                 mode = self._coerce_type(mv, i32);
             }
         }
-        strlen_fn = self._get_or_declare_extern("strlen", i64, [i8p]);
         memcpy_fn = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
         mkdir_fn = self._get_or_declare_extern("mkdir", i32, [i8p, i32]);
         malloc_fn = self._get_or_declare_extern("malloc", i8p, [i64]);
         free_fn = self._get_or_declare_extern("free", ir.VoidType(), [i8p]);
-        plen = self.builder.call(strlen_fn, [p], name="mkdirs.len");
+        plen = self._call_str_len(self.builder, p, name="mkdirs.len");
 
         copy_n = self.builder.add(plen, ir.Constant(i64, 1), name="mkdirs.copyn");
         bufp = self.builder.call(malloc_fn, [copy_n], name="mkdirs.buf");
@@ -233,8 +250,8 @@ impl NaIRGenPass._emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None)
     }
 
     if name == "rename" and len(params) >= 2 {
-        src = self._codegen_expr(params[0]);
-        dst = self._codegen_expr(params[1]);
+        src = self._str_arg(self._codegen_expr(params[0]));
+        dst = self._str_arg(self._codegen_expr(params[1]));
         if src is None or dst is None {
             return None;
         }
@@ -254,14 +271,13 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     params = nd.params or [];
 
     if name == "join" and params {
-        acc = self._codegen_expr(params[0]);
+        acc = self._str_arg(self._codegen_expr(params[0]));
         if acc is None {
             return None;
         }
         sep = self._make_global_string("/", name_prefix=".ospath.sep");
-        strlen_fn = self._get_or_declare_extern("strlen", i64, [i8p]);
         for idx in range(1, len(params)) {
-            b = self._codegen_expr(params[idx]);
+            b = self._str_arg(self._codegen_expr(params[idx]));
             if b is None {
                 return None;
             }
@@ -271,7 +287,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
                 "==", b0, ir.Constant(i8, 47), name="join.babs"
             );
 
-            alen = self.builder.call(strlen_fn, [acc], name="join.alen");
+            alen = self._call_str_len(self.builder, acc, name="join.alen");
             a_empty = self.builder.icmp_signed(
                 "==", alen, ir.Constant(i64, 0), name="join.aempty"
             );
@@ -297,7 +313,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if name == "basename" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_arg(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -313,7 +329,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if name == "dirname" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_arg(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -338,13 +354,11 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
         dlen = self.builder.sub(hit_i, p_i, name="dn.len");
         bufsz = self.builder.add(dlen, ir.Constant(i64, 1), name="dn.bufsz");
         self._set_rc_ctx("dirname", "");
-        raw = self._rc_alloc(bufsz, name="dn.raw");
+        raw = self._str_alloc(self.builder, bufsz, name="dn.raw");
         self._clear_rc_ctx();
         memcpy_fn = self._get_or_declare_extern("memcpy", i8p, [i8p, i8p, i64]);
         self.builder.call(memcpy_fn, [raw, p, dlen]);
-        nul_ptr = self.builder.gep(raw, [dlen], name="dn.nulptr");
-        self.builder.store(ir.Constant(i8, 0), nul_ptr);
-        self._emit_set_type_tag(self.builder, raw, "str");
+        self._str_finish(self.builder, raw, dlen);
         self._mark_owned(raw);
         self.builder.branch(merge_bb);
         cut_end = self.builder.block;
@@ -356,7 +370,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if name == "realpath" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_arg(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -390,7 +404,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if name == "exists" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_arg(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -402,7 +416,7 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
     }
 
     if (name == "isfile" or name == "isdir") and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_arg(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }
@@ -448,8 +462,57 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
         return self.builder.and_(ok, kind, name=f"ospath.{name}");
     }
 
+    if name == "normcase" and params {
+        p = self._str_arg(self._codegen_expr(params[0]));
+        if p is None {
+            return None;
+        }
+        return self._rc_strdup(p, name="ospath.normcase");
+    }
+
+    if name == "getmtime" and params {
+        p = self._str_arg(self._codegen_expr(params[0]));
+        if p is None {
+            return None;
+        }
+        triple = str(self.llvm_module.triple or "").lower();
+        stat_sym = "stat";
+        sec_off = 88;
+        if ("darwin" in triple) or ("apple" in triple) or ("macos" in triple) {
+            sec_off = 48;
+            if "x86_64" in triple {
+                stat_sym = "stat$INODE64";
+            }
+        }
+        buf = self.builder.alloca(ir.ArrayType(i8, 144), name="gmt.buf");
+        bufp = self.builder.gep(
+            buf, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="gmt.bufp"
+        );
+        fn = self._get_or_declare_extern(stat_sym, i32, [i8p, i8p]);
+        rc = self.builder.call(fn, [p, bufp], name="ospath.gmt.stat");
+        ok = self.builder.icmp_signed("==", rc, ir.Constant(i32, 0), name="gmt.ok");
+        f64 = ir.DoubleType();
+        sec_p8 = self.builder.gep(bufp, [ir.Constant(i64, sec_off)], name="gmt.secp8");
+        sec_p = self.builder.bitcast(sec_p8, i64.as_pointer(), name="gmt.secp");
+        sec = self.builder.load(sec_p, name="gmt.sec");
+        nsec_p8 = self.builder.gep(
+            bufp, [ir.Constant(i64, sec_off + 8)], name="gmt.nsecp8"
+        );
+        nsec_p = self.builder.bitcast(nsec_p8, i64.as_pointer(), name="gmt.nsecp");
+        nsec = self.builder.load(nsec_p, name="gmt.nsec");
+        sec_f = self.builder.sitofp(sec, f64, name="gmt.secf");
+        nsec_f = self.builder.sitofp(nsec, f64, name="gmt.nsecf");
+        scaled = self.builder.fmul(
+            nsec_f, ir.Constant(f64, 1e-9), name="gmt.nsecscaled"
+        );
+        stamp = self.builder.fadd(sec_f, scaled, name="ospath.getmtime.val");
+        return self.builder.select(
+            ok, stamp, ir.Constant(f64, -1.0), name="ospath.getmtime"
+        );
+    }
+
     if name == "getsize" and params {
-        p = self._codegen_expr(params[0]);
+        p = self._str_arg(self._codegen_expr(params[0]));
         if p is None {
             return None;
         }

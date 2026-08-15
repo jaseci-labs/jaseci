@@ -68,7 +68,7 @@ impl NaIRGenPass._codegen_list_compr(nd: uni.ListCompr) -> (ir.Value | None) {
     list_val = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_lcompr_loc, name="compr.list"
     );
-    self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd), "list");
+    self._nogc_stamp_elem_drops(list_val, self._nogc_type_arg_mangles(nd));
 
     self._codegen_compr_walk(
         nd.compr, 0, "list", list_val, nd.out_expr, None, elem_type_name
@@ -136,6 +136,11 @@ impl NaIRGenPass._codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None) {
         }
     }
 
+    if val_type_name == "i64" and self._struct_name_of(val_expr) is not None {
+        val_type_name = "ptr";
+        val_type = ir.IntType(8).as_pointer();
+    }
+
     self._emit_dict_helpers(key_type_name, val_type_name, key_type, val_type, key_size);
     dict_key = f"{key_type_name}:{val_type_name}";
     helpers = self.dict_helpers.get(dict_key);
@@ -149,7 +154,7 @@ impl NaIRGenPass._codegen_dict_compr(nd: uni.DictCompr) -> (ir.Value | None) {
     dict_val = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_dcompr_loc, name="dcompr.dict"
     );
-    self._nogc_stamp_elem_drops(dict_val, self._nogc_type_arg_mangles(nd), "dict");
+    self._nogc_stamp_elem_drops(dict_val, self._nogc_type_arg_mangles(nd));
 
     self._codegen_compr_walk(
         nd.compr, 0, "dict", dict_val, key_expr, val_expr, dict_key
@@ -211,6 +216,11 @@ impl NaIRGenPass._codegen_set_compr(nd: uni.SetCompr) -> (ir.Value | None) {
         }
     }
 
+    if elem_type_name == "i64" and self._struct_name_of(out_expr) is not None {
+        elem_type_name = "ptr";
+        elem_type = ir.IntType(8).as_pointer();
+    }
+
     self._emit_set_helpers(elem_type_name, elem_type, elem_size);
     helpers = self.set_helpers.get(elem_type_name);
     if helpers is None {
@@ -223,7 +233,7 @@ impl NaIRGenPass._codegen_set_compr(nd: uni.SetCompr) -> (ir.Value | None) {
     set_val = self._rc_call_with_ctx(
         helpers["new"], [], op="new", loc=_scompr_loc, name="scompr.set"
     );
-    self._nogc_stamp_elem_drops(set_val, self._nogc_type_arg_mangles(nd), "set");
+    self._nogc_stamp_elem_drops(set_val, self._nogc_type_arg_mangles(nd));
 
     self._codegen_compr_walk(
         nd.compr, 0, "set", set_val, out_expr, None, elem_type_name
@@ -241,8 +251,8 @@ impl NaIRGenPass._emit_compr_element(
     spec: str
 ) -> None {
     if kind == "dict" {
-        key_val = self._codegen_expr(key_expr);
-        value_val = self._codegen_expr(val_expr);
+        key_val = self._str_norm(self._codegen_expr(key_expr));
+        value_val = self._str_norm(self._codegen_expr(val_expr));
         value_val = self._nogc_elem_prep(val_expr, value_val);
         if key_val is not None and value_val is not None {
             helpers = self.dict_helpers.get(spec);
@@ -272,7 +282,7 @@ impl NaIRGenPass._emit_compr_element(
         return;
     }
     if kind == "set" {
-        val = self._codegen_expr(key_expr);
+        val = self._str_norm(self._codegen_expr(key_expr));
         val = self._nogc_elem_prep(key_expr, val);
         if val is not None {
             helpers = self.set_helpers.get(spec);
@@ -303,7 +313,7 @@ impl NaIRGenPass._emit_compr_element(
         return;
     }
 
-    val = self._codegen_expr(key_expr);
+    val = self._str_norm(self._codegen_expr(key_expr));
     val = self._nogc_elem_prep(key_expr, val);
     if val is not None {
         helpers = self.list_helpers.get(spec);
@@ -369,7 +379,7 @@ impl NaIRGenPass._codegen_compr_walk(
         }
     }
 
-    coll_val = self._codegen_expr(collection);
+    coll_val = self._opt_unwrap_iterable(self._codegen_expr(collection));
     if coll_val is None {
         return;
     }
@@ -387,6 +397,20 @@ impl NaIRGenPass._codegen_compr_walk(
     coll_helpers = self.list_helpers.get(coll_elem_type_name);
     if coll_helpers is None {
         return;
+    }
+    _coll_want = coll_helpers["len"].function_type.args[0];
+    if coll_val.type != _coll_want {
+        if self._spec_from_container_ptr(coll_val.type) is None {
+            self.emit(
+                E5092,
+                node_override=collection,
+                kind="expression",
+                name="comprehension over an element-erased collection",
+                help_text="The collection unified to an untyped pointer, so which list layout to read it as is no longer recoverable. Give every branch producing it the same concrete element type."
+            );
+            return;
+        }
+        coll_val = self.builder.bitcast(coll_val, _coll_want, name="compr.coll.cast");
     }
     loop_var_name = self._get_name(loop_target);
     if loop_var_name is None {
