@@ -190,50 +190,57 @@ def _is_excluded(text: str) -> bool {
     return "\\N" in text;
 }
 
-"""Every STRING literal the lexer finds in the repo's own jac sources."""
-def _harvest -> list[str] {
+"""Every distinct STRING literal the lexer finds in the tree's own sources.
+
+Walks the whole package and the whole suite rather than a sample: the
+refusals this decoder added are compile-time failures, so a literal anywhere
+in the tree that the decoder will not render is a broken build, and the only
+honest way to know is to look at all of them. A source with a lex error is
+skipped, since the error fixtures are meant to be unlexable.
+
+Each entry is `(literal, "path:line")` so a failure names the file.
+"""
+def _harvest -> list[tuple[(str, str)]] {
     if _HARVEST_MEMO {
         return _HARVEST_MEMO[0];
     }
-    roots = [
-        os.path.join(JAC_ROOT, "jaclang", "jac0core"),
-        os.path.join(JAC_ROOT, "tests", "compiler", "fixtures"),
-        os.path.join(JAC_ROOT, "tests", "language", "fixtures")
-    ];
     seen: set[str] = set();
-    out: list[str] = [];
-    for src_dir in roots {
-        for path in sorted(Path(src_dir).rglob("*.jac")) {
-            try {
-                src = path.read_text(encoding="utf-8");
-            } except Exception {
-                continue;
-            }
-            (toks, errs) = tokenize(src, str(path));
-            if errs {
-                continue;
-            }
-            i = 0;
-            while (i < len(toks)) {
-                tok = toks[i];
-                if (tok.kind == TokenKind.STRING) {
-                    text = tok.value;
-                    if (
-                        i > 0
-                        and toks[i - 1].kind == TokenKind.NAME
-                        and toks[i - 1].value in LITERAL_PREFIXES
-                        and toks[i - 1].value != ''
-                        and toks[i - 1].loc.pos_end == tok.loc.pos_start
-                    ) {
-                        text = toks[i - 1].value + text;
-                    }
-                    if (text not in seen) {
-                        seen.add(text);
-                        out.append(text);
-                    }
+    out: list[tuple[(str, str)]] = [];
+    for path in sorted(Path(JAC_ROOT).rglob("*.jac")) {
+        text_path = str(path);
+        if ("node_modules" in text_path or "/.jac/" in text_path) {
+            continue;
+        }
+        try {
+            src = path.read_text(encoding="utf-8");
+        } except Exception {
+            continue;
+        }
+        (toks, errs) = tokenize(src, text_path);
+        if errs {
+            continue;
+        }
+        rel = os.path.relpath(text_path, JAC_ROOT);
+        i = 0;
+        while (i < len(toks)) {
+            tok = toks[i];
+            if (tok.kind == TokenKind.STRING) {
+                text = tok.value;
+                if (
+                    i > 0
+                    and toks[i - 1].kind == TokenKind.NAME
+                    and toks[i - 1].value in LITERAL_PREFIXES
+                    and toks[i - 1].value != ''
+                    and toks[i - 1].loc.pos_end == tok.loc.pos_start
+                ) {
+                    text = toks[i - 1].value + text;
                 }
-                i += 1;
+                if (text not in seen) {
+                    seen.add(text);
+                    out.append((text, f"{rel}:{tok.loc.line}", ));
+                }
             }
+            i += 1;
         }
     }
     _HARVEST_MEMO.append(out);
@@ -297,15 +304,35 @@ test "native decode equals CPython decode across the generated corpus" {
 
 test "native decode equals CPython decode across the harvested corpus" {
     harvest = _harvest();
-    assert len(harvest) > 1000 , (
+    assert len(harvest) > 10000 , (
         f"only {len(harvest)} literals harvested from the tree -- the walk "
         "stopped finding sources, so this proves nothing"
     );
-    bad = _diffs(harvest);
+    bad = _diffs([text for (text, _where) in harvest]);
     assert not bad , (
         f"{len(bad)} of {len(harvest)} harvested literals decode differently "
         "than CPython:\n"
         + "\n".join(bad[:40])
+    );
+}
+
+
+test "no literal anywhere in the tree's own sources is refused" {
+    refused: list[str] = [];
+    for (text, where) in _harvest() {
+        try {
+            decode_string_literal(text);
+        } except Exception as e {
+            refused.append(f"{where}: {text!r} -- {e}");
+        }
+    }
+
+    # A refusal is a compile-time failure, so one literal in the tree the
+    # decoder will not render is a broken build. Catching it here names the
+    # file; catching it downstream names a test three layers away from it.
+    assert not refused , (
+        f"{len(refused)} literal(s) in the tree that the decoder refuses:\n"
+        + "\n".join(refused[:40])
     );
 }
 
