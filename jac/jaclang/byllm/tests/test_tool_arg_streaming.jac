@@ -11,7 +11,7 @@ import jaclang.byllm.llm as _byllm_llm_mod;
 import from jaclang.byllm.lib { Model }
 import from jaclang.byllm.mtir { MTRuntime }
 import from jaclang.byllm.types { Message, MessageRole, Tool }
-import from jaclang.byllm.exceptions { OutputConversionError }
+import from jaclang.byllm.exceptions { FinishToolError, OutputConversionError }
 
 glob RETRY: str = "__retry__",
      SHIPPED_DEFAULTS: dict = {
@@ -450,4 +450,42 @@ test "an abandoned stream is always announced alongside its deltas" {
             'mt'
         ]._tool_arg_deltas}";
     }
+}
+
+
+# The streaming react loop's finish branch (jaseci-labs/jac#8169). A misnamed
+# finish argument must heal, and an invocation that fails must be fed back as a
+# recoverable tool error rather than escaping the generator.
+test "the streaming finish branch heals and recovers" {
+    def _finish_args(payload: str, call_id: str) -> tuple {
+        return (
+            _frags(payload, "finish_tool", call_id),
+            _rebuilt([(call_id, "finish_tool", payload)])
+        );
+    }
+
+    # Misnamed argument: healed in place, so one turn still finishes the run.
+    (heal_turn, heal_rebuilt) = _finish_args('{"output": "healed answer"}', "h1");
+    events = _run([heal_turn], [heal_rebuilt], [write_file]);
+    assert "steps_done" in _kinds(events) , f"never finished: {_kinds(events)}";
+
+    # Invocation failure: the first finish call raises, the loop must feed the
+    # error back and let the model's next finish call succeed.
+    attempts = [0];
+
+    def finish_tool(final_output: str) -> str {
+        attempts[0] += 1;
+        if attempts[0] == 1 {
+            raise FinishToolError("simulated finish invocation failure");
+        }
+        return final_output;
+    }
+
+    (bad, bad_rebuilt) = _finish_args('{"final_output": "first try"}', "b1");
+    (good, good_rebuilt) = _finish_args('{"final_output": "second try"}', "b2");
+    events = _run([bad, good], [bad_rebuilt, good_rebuilt], [finish_tool]);
+    # A finish call invokes the tool for the message and again for the output,
+    # so the count is not pinned; what matters is that the raise was survived.
+    assert attempts[0] > 1 , f"the failed finish call was never retried: {attempts[0]}";
+    assert "steps_done" in _kinds(events) , f"never recovered: {_kinds(events)}";
 }
