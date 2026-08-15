@@ -413,7 +413,7 @@ test "String.lit_value serves the decoder end to end" {
         }
     }
     assert not bad , (
-        f"{len(bad)} literals whose parsed `lit_value` disagrees with " "CPython:\n"
+        f"{len(bad)} literals whose parsed `lit_value` disagrees with CPython:\n"
         + "\n".join(bad[:40])
     );
 }
