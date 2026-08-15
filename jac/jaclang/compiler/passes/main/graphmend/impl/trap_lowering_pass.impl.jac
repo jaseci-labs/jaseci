@@ -131,17 +131,11 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
 }
 
 impl TrapLoweringPass._inside_try(nd: uni.UniNode) -> bool {
-    cur: (uni.UniNode | None) = nd.parent;
-    while cur is not None {
-        if isinstance(cur, uni.TryStmt) {
-            return True;
-        }
-        if isinstance(cur, uni.Ability) {
-            return False;
-        }
-        cur = cur.parent;
-    }
-    return False;
+    tp = nd.find_parent_of_type(uni.TryStmt);
+    return (tp is not None)
+        and (
+            tp.find_parent_of_type(uni.Ability) is nd.find_parent_of_type(uni.Ability)
+        );
 }
 
 impl TrapLoweringPass._enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | None) {

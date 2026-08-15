@@ -64,16 +64,12 @@ impl DeferSideEffectPass._register_assignment(
 impl DeferSideEffectPass._toplevel_archetype(
     nd: uni.UniNode
 ) -> (uni.Archetype | None) {
+    mod = nd.find_parent_of_type(uni.Module);
     top: (uni.Archetype | None) = None;
-    cur: (uni.UniNode | None) = nd.parent;
-    while cur is not None {
-        if isinstance(cur, uni.Module) {
-            break;
-        }
-        if isinstance(cur, uni.Archetype) {
-            top = cur;
-        }
-        cur = cur.parent;
+    cur: (uni.Archetype | None) = nd.find_parent_of_type(uni.Archetype);
+    while (cur is not None) and (cur.find_parent_of_type(uni.Module) is mod) {
+        top = cur;
+        cur = cur.find_parent_of_type(uni.Archetype);
     }
     return top;
 }
