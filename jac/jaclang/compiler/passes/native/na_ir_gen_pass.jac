@@ -72,6 +72,8 @@ glob NATIVE_OSPATH_FUNCS: set[str] = {
          "isfile",
          "isdir",
          "getsize",
+         "getmtime",
+         "normcase",
 
      };
 
@@ -1209,6 +1211,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_time_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_clock_gettime(clock_id: int) -> tuple;
     def _emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
+    def _emit_os_const(name: str) -> (ir.Value | None);
     def _emit_os_environ_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _mt_ensure -> None;
