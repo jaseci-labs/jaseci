@@ -498,7 +498,9 @@ impl schema_to_hint_text(rf: dict | None) -> str {
     if not lines {
         return "";
     }
-    return "Schema requirements:\n" + "\n".join(lines);
+    return (
+        "Respond with a single JSON object.\nSchema requirements:\n" + "\n".join(lines)
+    );
 }
 
 impl attach_schema_hint(messages: list, rf: dict | None) -> list {
