@@ -1,5 +1,37 @@
 import from jaclang.jac0core.constant { OwnershipKind }
 
+glob _NA_ABC_REDUCTIONS: dict[str, tuple] = {
+         "Sequence": ("list", "tuple", "str", "bytes", "bytearray"),
+         "MutableSequence": ("list", "bytearray"),
+         "Mapping": ("dict", ),
+         "MutableMapping": ("dict", ),
+         "Set": ("set", "frozenset"),
+         "AbstractSet": ("set", "frozenset"),
+         "MutableSet": ("set", ),
+         "ByteString": ("bytes", "bytearray")
+     },
+     _NA_ABC_OPAQUE: tuple = (
+         "Iterable",
+         "Iterator",
+         "Reversible",
+         "Generator",
+         "Container",
+         "Collection",
+         "Sized",
+         "Hashable",
+         "Callable",
+         "Awaitable",
+         "Coroutine",
+         "AsyncIterable",
+         "AsyncIterator",
+         "AsyncGenerator",
+         "MappingView",
+         "KeysView",
+         "ItemsView",
+         "ValuesView",
+         "Buffer"
+     );
+
 impl NaIRGenPass._arch_alias_target(nd: (uni.UniNode | None)) -> (str | None) {
     if not isinstance(nd, uni.NameAtom) {
         return None;
@@ -2105,13 +2137,129 @@ impl NaIRGenPass._jacval_tags_for_type(name: str) -> list[int] {
     if name == "dict" {
         return [4];
     }
-    if name == "set" {
+    if name == "set" or name == "frozenset" {
         return [5];
     }
     if name == "NoneType" {
         return [8];
     }
     return [];
+}
+
+impl NaIRGenPass._isinstance_static_verdict(
+    name: str, operand: ir.Value
+) -> (bool | None) {
+    """Answer the arms whose native representation carries no JacVal tag.
+
+    A native tuple is an unboxed literal struct and a `bytes` / `bytearray` is
+    a pointer to its own runtime struct, so none of the three is reachable
+    through a tag compare -- but each is fully decided by the operand's LLVM
+    type, which is known here. Returning `True`/`False` settles that arm at
+    compile time; `None` means the name is not one of these and falls through
+    to the tag and vtable machinery.
+    """;
+    if name == "tuple" {
+        return self._tuple_struct_of_value(operand) is not None;
+    }
+    if name == "bytes" {
+        return self._is_bytes_value(operand);
+    }
+    if name == "bytearray" {
+        _ba = self.list_types.get("u8");
+        return _ba is not None and operand.type == _ba.as_pointer();
+    }
+    return None;
+}
+
+impl NaIRGenPass._isinstance_abc_reduction(
+    type_expr: uni.UniNode, name: str
+) -> (list[str] | None) {
+    """The native shapes an `isinstance` arm naming a stdlib ABC reduces to.
+
+    A `collections.abc` class is a Python object no native unit can host, so a
+    check against one is only answerable by reducing it to the finite set of
+    native runtime shapes that inhabit it. `_NA_ABC_REDUCTIONS` holds the
+    reductions that are exact rather than approximate: every entry is a
+    container ABC whose members, among values a native unit can hold, are
+    precisely the listed builtins. Protocol-shaped ABCs are deliberately absent
+    -- an archetype with `__iter__` inhabits `Iterable` too, so a builtin-only
+    answer there would be silently wrong. Those sit in `_NA_ABC_OPAQUE`.
+
+    `None` means the arm is not a stdlib ABC and the caller should treat it as
+    it always has. An empty list means it is one this backend refuses to guess
+    at, and the caller turns that into a diagnostic rather than an answer.
+    """;
+    if name in self.struct_types or name in self.enum_types {
+        return None;
+    }
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _AbcClassType }
+    } except ImportError {
+        return None;
+    }
+    t = type_expr.type if isinstance(type_expr, uni.Expr) else None;
+    if not isinstance(t, _AbcClassType) or t._shared is None {
+        return None;
+    }
+    if not t.shared.is_from_stdlib_stub {
+        return None;
+    }
+    cn = t.shared.class_name;
+    if cn in _NA_ABC_REDUCTIONS {
+        return list(_NA_ABC_REDUCTIONS[cn]);
+    }
+    if cn in _NA_ABC_OPAQUE {
+        return [];
+    }
+    return None;
+}
+
+impl NaIRGenPass._isinstance_target_names(
+    nd: uni.FuncCall, type_arg: uni.UniNode
+) -> (list[str] | None) {
+    """Flatten the type argument into the type names the check has to test.
+
+    A tuple argument contributes each of its arms; a stdlib ABC arm expands to
+    the native shapes it reduces to, and keeps its own name too whenever some
+    archetype names it in an MRO, so a user type registered under the ABC still
+    answers through the vtable arm. `None` means a diagnostic was emitted.
+    """;
+    raw: list = list(type_arg.values or [])
+        if isinstance(type_arg, uni.TupleVal)
+        else [type_arg];
+    names: list[str] = [];
+    for v in raw {
+        nm = self._isinstance_type_name(v);
+        if nm is None {
+            continue;
+        }
+        reduced = self._isinstance_abc_reduction(v, nm);
+        if reduced is None {
+            if nm not in names {
+                names.append(nm);
+            }
+            continue;
+        }
+        if not reduced {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="builtin call",
+                name=f"isinstance against `{nm}`",
+                help_text="This abstract base class has no exact answer over native values -- an archetype can inhabit it without naming it, so a native check would have to guess. Test the concrete type instead (`list`, `dict`, an archetype), or move the code to a @sv/Python context."
+            );
+            return None;
+        }
+        for _b in reduced {
+            if _b not in names {
+                names.append(_b);
+            }
+        }
+        if nm not in names and self._vtable_candidates([nm]) {
+            names.append(nm);
+        }
+    }
+    return names;
 }
 
 impl NaIRGenPass._isinstance_type_name(nd: uni.UniNode) -> (str | None) {
@@ -2286,23 +2434,21 @@ impl NaIRGenPass._emit_isinstance_core(
             return _rt_res;
         }
     }
-    names: list[str] = [];
-    if isinstance(type_arg, uni.TupleVal) {
-        for v in (type_arg.values or []) {
-            nm = self._isinstance_type_name(v);
-            if nm is not None {
-                names.append(nm);
-            }
-        }
-    } else {
-        nm = self._isinstance_type_name(type_arg);
-        if nm is not None {
-            names.append(nm);
-        }
+    names = self._isinstance_target_names(nd, type_arg);
+    if names is None {
+        return None;
     }
     tags: list[int] = [];
     unresolved: list[str] = [];
+    static_seen = False;
+    static_hit = False;
     for nm in names {
+        verdict = self._isinstance_static_verdict(nm, operand);
+        if verdict is not None {
+            static_seen = True;
+            static_hit = static_hit or verdict;
+            continue;
+        }
         nm_tags = self._jacval_tags_for_type(nm);
         if not nm_tags {
             unresolved.append(nm);
@@ -2312,6 +2458,12 @@ impl NaIRGenPass._emit_isinstance_core(
                 tags.append(t);
             }
         }
+    }
+    if static_hit {
+        if isinstance(operand.type, ir.PointerType) and self._is_owned(operand) {
+            self._emit_rc_release_simple(operand, op="isinstance_arg", loc="");
+        }
+        return ir.Constant(i1, 1);
     }
     if unresolved {
         (_enum_tags, unresolved) = self._enum_union_tags(params[0], unresolved);
@@ -2328,6 +2480,12 @@ impl NaIRGenPass._emit_isinstance_core(
         return self._emit_isinstance_mixed(nd, operand, tags, unresolved);
     }
     if not tags {
+        if static_seen {
+            if isinstance(operand.type, ir.PointerType) and self._is_owned(operand) {
+                self._emit_rc_release_simple(operand, op="isinstance_arg", loc="");
+            }
+            return ir.Constant(i1, 0);
+        }
         self._emit_unsupported_builtin_call(nd, "isinstance");
         return None;
     }

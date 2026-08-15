@@ -176,6 +176,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _claimed_capability_demotions: set[int] = set(),
         _class_name_consts: dict[str, ir.Value] = {},
         _isa_fn: (ir.Function | None) = None,
+        _isa_seq_fn: (ir.Function | None) = None,
         _runtime_class_name_fn: (ir.Function | None) = None,
         osp_type_tag_field: dict[str, int] = {},
         osp_reports_field: dict[str, int] = {},
@@ -500,6 +501,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_isinstance(nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_isinstance_ptr_tags(operand: ir.Value, tags: list[int]) -> ir.Value;
     def _isinstance_type_name(nd: uni.UniNode) -> (str | None);
+    def _isinstance_target_names(
+        nd: uni.FuncCall, type_arg: uni.UniNode
+    ) -> (list[str] | None);
+
+    def _isinstance_abc_reduction(
+        type_expr: uni.UniNode, name: str
+    ) -> (list[str] | None);
+
+    def _isinstance_static_verdict(name: str, operand: ir.Value) -> (bool | None);
     def _enum_union_tags(operand_expr: uni.UniNode, names: list[str]) -> tuple;
     def _arch_alias_target(nd: (uni.UniNode | None)) -> (str | None);
     def _emit_isinstance_user(
@@ -1134,7 +1144,13 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _codegen_class_ref(nd: uni.Name) -> (ir.Value | None);
     def _is_enum_arch(name: str) -> bool;
     def _emit_isa_fn -> ir.Function;
+    def _emit_isa_seq_fn -> ir.Function;
+    def _is_runtime_class_tuple(t: any) -> bool;
+    def _runtime_class_seq_value(expr: (uni.UniNode | None)) -> (ir.Value | None);
     def _runtime_class_value(expr: (uni.UniNode | None)) -> (ir.Value | None);
+    def _runtime_class_targets(expr: (uni.UniNode | None)) -> (list[ir.Value] | None);
+    def _runtime_class_seq(expr: (uni.UniNode | None)) -> (list[ir.Value] | None);
+    def _isinstance_operand_arch(nd: uni.FuncCall, operand: ir.Value) -> (str | None);
     def _emit_isinstance_runtime(
         nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
     ) -> (ir.Value | None);
@@ -1253,6 +1269,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         expr: (uni.UniNode | None), val: (ir.Value | None)
     ) -> (tuple | None);
 
+    def _variadic_tuple_seq_type(type_args: list) -> (ir.Type | None);
+    def _tuple_seq_coerce(val: ir.Value, target_type: ir.Type) -> (ir.Value | None);
     def _get_struct_size(struct_type: ir.LiteralStructType) -> int;
     def _sizeof_llvm(ty: ir.Type) -> ir.Value;
     def _box_value_tuple(val: ir.Value, loc: str = "") -> ir.Value;
