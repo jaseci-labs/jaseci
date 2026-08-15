@@ -132,6 +132,20 @@ test "abc arm: Mapping separates dicts from sequences" {
 }
 
 
+test "abc arm: an ABC with no exact reduction refuses instead of guessing" {
+    prog = JacProgram();
+    prog.compile(
+        file_path=str(os.path.join(FIXTURES, "isinstance_abc_opaque.jac")),
+        options=native_force_opts()
+    );
+    said = " ".join(str(e) for e in (prog.errors_had or []));
+    assert "isinstance against `Iterable`" in said , (
+        "an unreducible ABC has to name itself in the diagnostic, so the "
+        f"refusal is actionable; got: {said}"
+    );
+}
+
+
 test "value arms: a fixed-arity tuple of types unrolls" {
     f = native_fn("chk_types_fixed");
     picks: list = [PyFoo(), PyBar(), PyBaz()];
