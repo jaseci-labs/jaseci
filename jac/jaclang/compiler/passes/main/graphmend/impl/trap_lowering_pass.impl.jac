@@ -10,12 +10,13 @@ import from jaclang.compiler.passes.main.graphmend.ast_edit {
     torch_call
 }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    defining_assignment,
     has_torch_compile_decorator,
     is_torch_attr_target
 }
 
 impl TrapLoweringPass.exit_assignment(nd: uni.Assignment) -> None {
-    if (not self._enabled) or (not self.prog.graphmend_scope) {
+    if not self._enabled {
         return;
     }
     value = nd.value;
@@ -90,7 +91,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     }
     msg = self._raise_message(rs);
     wrap = self._enclosing_compiled_fn(nd);
-    covered = (wrap is not None) or self.prog.graphmend_scoped_compile;
+    covered = (wrap is not None) or self._call_site_covered(nd);
     type_name = self._exception_type_name(rs) if covered else None;
     marked = (
         self._marked_message(nd, msg, type_name)
@@ -132,6 +133,15 @@ impl TrapLoweringPass._enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | 
         return ab;
     }
     return None;
+}
+
+impl TrapLoweringPass._call_site_covered(nd: uni.UniNode) -> bool {
+    ab = nd.find_parent_of_type(uni.Ability);
+    if ab is None {
+        return False;
+    }
+    bound = self.prog.graphmend_boundary.get(id(ab));
+    return (bound is not None) and (id(bound) in self.prog.graphmend_wrapped);
 }
 
 impl TrapLoweringPass._exception_type_name(rs: uni.RaiseStmt) -> (str | None) {
@@ -325,9 +335,6 @@ impl TrapLoweringPass._tensor_receiver_provable(
     if not (isinstance(x, uni.FuncCall) and isinstance(x.target, uni.AtomTrailer)) {
         return False;
     }
-    if self.prog.graphmend_scoped_compile {
-        return True;
-    }
     return self._tensor_expr_provable(x.target.target, site);
 }
 
@@ -336,7 +343,10 @@ impl TrapLoweringPass._tensor_expr_provable(e: uni.Expr, site: uni.UniNode) -> b
         return self._tensor_expr_provable(e.value, site);
     }
     if isinstance(e, uni.Name) {
-        return self._param_is_tensor(e.value, site);
+        if self._param_is_tensor(e.value, site) {
+            return True;
+        }
+        return self._assigned_tensor_provable(e, site);
     }
     if isinstance(e, uni.BinaryExpr) {
         return self._tensor_expr_provable(e.left, site)
@@ -354,6 +364,29 @@ impl TrapLoweringPass._tensor_expr_provable(e: uni.Expr, site: uni.UniNode) -> b
         return False;
     }
     return False;
+}
+
+impl TrapLoweringPass._assigned_tensor_provable(
+    nm: uni.Name, site: uni.UniNode
+) -> bool {
+    if nm.value in self._tensor_trace {
+        return False;
+    }
+    st = nm.sym_tab;
+    sym = st.lookup(nm.value, deep=True) if st else None;
+    if sym is None {
+        return False;
+    }
+    assign = defining_assignment(sym);
+    if (assign is None) or (assign.value is None) {
+        return False;
+    }
+    self._tensor_trace.add(nm.value);
+    try {
+        return self._tensor_expr_provable(assign.value, site);
+    } finally {
+        self._tensor_trace.discard(nm.value);
+    }
 }
 
 impl TrapLoweringPass._param_is_tensor(name: str, site: uni.UniNode) -> bool {

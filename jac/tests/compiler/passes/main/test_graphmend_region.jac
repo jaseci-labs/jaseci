@@ -2,7 +2,7 @@
 
 GraphMend analysis and transformation are restricted to the compiled region:
 the torch.compile entry points (decorated functions and classes, call-site
-wraps, and in scoped mode the forward seeds) plus their transitive callees. A
+wraps, and the proven Module forward seeds) plus their transitive callees. A
 function never reachable from any entry must stay byte-identical no matter
 which transformable patterns it contains, and a torch-importing module with no
 torch.compile usage at all must compile byte-identical to a graphmend-off run
@@ -118,9 +118,8 @@ test "a wrapped class compiles forward only" {
     assert "print('SIDE-STEP', x)" in src_on;
 }
 
-test "scoped forward reaches a method through the self call and no further" {
+test "a seeded forward reaches a method through the self call and no further" {
     prog = JacProgram();
-    prog.graphmend_scoped_compile = True;
     src = _pysrc_in(prog, "region_self_method.jac");
     assert "__jac_se_emit__" in _fn_src(src, "step");
     assert "print('UNUSED-EFFECT', x)" in _fn_src(src, "unused");
@@ -167,9 +166,8 @@ def _mentions_symbol(code: any, symbol: str) -> bool {
     return False;
 }
 
-"""Lay out a temp project shaped like the transformers import tree: one entry
-module, one helper the entry reaches, one torch-importing module nothing
-reaches."""
+"""Lay out a temp project shaped like a model package: one entry module, one
+helper the entry reaches, one torch-importing module nothing reaches."""
 def _mk_region_project(tmp: str) -> tuple[str, str, str] {
     with open(os.path.join(tmp, "jac.toml"), "w") as fh {
         fh.write(
@@ -193,7 +191,7 @@ def _mk_region_project(tmp: str) -> tuple[str, str, str] {
 }
 
 test "an entry-less torch module shares its cache artifact with off" {
-    # The phi4 shape: every module imports torch, so auto engages GraphMend on
+    # Every module in the package imports torch, so auto engages GraphMend on
     # all of them, but only the entry chain has a compiled region. The
     # entry-less module compiles byte-identical to off, so after one engaged
     # compile stamps the artifact, auto and off runs share the same cache slot

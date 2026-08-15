@@ -83,7 +83,6 @@ def _execute_plan(
     cache: bool,
     diagnostics: str,
     args: list,
-    graphmend_scope: str = "",
     graphmend_disable: str = ""
 ) -> int {
     if plan.action == "execute" {
@@ -93,14 +92,13 @@ def _execute_plan(
             cache=cache,
             diagnostics=diagnostics,
             args=args,
-            graphmend_scope=graphmend_scope,
             graphmend_disable=graphmend_disable
         );
     }
-    if _configured_graphmend() is True or graphmend_scope.strip() {
+    if _configured_graphmend() is True {
         console.error(
             f"GraphMend cannot be combined with a '{plan.action}' run plan; "
-            f"set run.graphmend = \"off\" or \"auto\" in jac.toml."
+            f"set run.graphmend = \"off\" in jac.toml to turn it off for this run."
         );
         return 1;
     }
@@ -264,17 +262,8 @@ def _graphmend_may_engage(graphmend: (bool | str), filename: str) -> bool {
     return bool(graphmend);
 }
 
-def _apply_graphmend(
-    graphmend_scope: str, graphmend_disable: str = ""
-) -> (bool | str) {
+def _apply_graphmend(graphmend_disable: str = "") -> (bool | str) {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
-    gm_scope: list[str] = [];
-    for part in graphmend_scope.split(',') {
-        stripped = part.strip();
-        if stripped {
-            gm_scope.append(stripped);
-        }
-    }
     gm_disable: list[str] = [];
     for part in graphmend_disable.split(',') {
         stripped = part.strip().lower();
@@ -291,10 +280,9 @@ def _apply_graphmend(
         gm_disable.append(stripped);
     }
     gm_mode = _configured_graphmend();
-    Jac.get_program().graphmend_enabled = True if gm_scope else gm_mode;
-    Jac.get_program().graphmend_scope = gm_scope;
+    Jac.get_program().graphmend_enabled = gm_mode;
     Jac.get_program().graphmend_disable = gm_disable;
-    if gm_scope {
+    if gm_mode is not False {
         import from jaclang.meta_importer { install_graphmend_loader_hook }
         install_graphmend_loader_hook();
     }
@@ -307,7 +295,6 @@ def _run_project(
     cache: bool,
     diagnostics: str,
     args: list,
-    graphmend_scope: str = "",
     graphmend_disable: str = ""
 ) -> int {
     import from pathlib { Path }
@@ -355,7 +342,6 @@ def _run_project(
         cache=cache,
         diagnostics=diagnostics,
         args=args,
-        graphmend_scope=graphmend_scope,
         graphmend_disable=graphmend_disable
     );
 }
@@ -365,7 +351,6 @@ impl run(
     show: bool = False,
     main: bool = True,
     cache: bool = True,
-    graphmend_scope: str = "",
     graphmend_disable: str = "",
     diagnostics: str = "",
     entry_name: str = "",
@@ -383,10 +368,10 @@ impl run(
             console.error("jac run --debug needs a file.");
             return 1;
         }
-        if _configured_graphmend() is True or graphmend_scope.strip() {
+        if _configured_graphmend() is True {
             console.error(
                 "jac run --debug cannot be combined with GraphMend; "
-                "set run.graphmend = \"off\" or \"auto\" in jac.toml."
+                "set run.graphmend = \"off\" in jac.toml to turn it off."
             );
             return 1;
         }
@@ -397,16 +382,7 @@ impl run(
             console.error("jac run --entry needs a file.");
             return 1;
         }
-        return enter(
-            filename,
-            entry_name,
-            args,
-            main,
-            root_id,
-            nd,
-            graphmend_scope,
-            graphmend_disable
-        );
+        return enter(filename, entry_name, args, main, root_id, nd, graphmend_disable);
     }
     if not filename {
         return _run_project(
@@ -415,7 +391,6 @@ impl run(
             cache=cache,
             diagnostics=diagnostics,
             args=args,
-            graphmend_scope=graphmend_scope,
             graphmend_disable=graphmend_disable
         );
     }
@@ -426,10 +401,10 @@ impl run(
             );
             return 0;
         }
-        if _configured_graphmend() is True or graphmend_scope.strip() {
+        if _configured_graphmend() is True {
             console.error(
                 "GraphMend cannot be combined with a prebuilt .jab bundle; "
-                "set run.graphmend = \"off\" or \"auto\" in jac.toml."
+                "set run.graphmend = \"off\" in jac.toml to turn it off."
             );
             return 1;
         }
@@ -456,7 +431,7 @@ impl run(
     sys.argv = [filename] + list(args);
     (base, mod, mach) = _proc_file(filename);
     lng = filename.split('.')[-1];
-    graphmend = _apply_graphmend(graphmend_scope, graphmend_disable);
+    graphmend = _apply_graphmend(graphmend_disable);
     try {
         if filename.endswith('.jac') {
             native_executed = False;
@@ -467,12 +442,7 @@ impl run(
                 and (_cfg_kind.project.kind or '').strip() == 'cli-native'
             );
             if (
-                (
-                    not (
-                        _graphmend_may_engage(graphmend, filename)
-                        or graphmend_scope.strip()
-                    )
-                )
+                (not _graphmend_may_engage(graphmend, filename))
                 and (
                     _kind_forced
                     or (_default_codespace_is_native() and sys.stdout is sys.__stdout__)
@@ -583,7 +553,6 @@ impl enter(
     main: bool = True,
     `root: str = '',
     nd: str = '',
-    graphmend_scope: str = '',
     graphmend_disable: str = ''
 ) -> int {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
@@ -598,7 +567,7 @@ impl enter(
     }
     _discover_config_from_file(filename);
     (base, mod, mach) = _proc_file(filename);
-    _apply_graphmend(graphmend_scope, graphmend_disable);
+    _apply_graphmend(graphmend_disable);
 
     if `root {
         mach.set_user_root(`root);

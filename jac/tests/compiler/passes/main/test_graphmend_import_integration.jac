@@ -1,12 +1,13 @@
-"""Torch-gated integration tests for --graphmend-scope.
+"""Torch-gated integration tests for automatic import claiming.
 
-Confirm the import-time claim: a plain .py module whose dotted name falls
-under the scope is claimed by the Jac meta importer, compiled through the
-full GraphMend schedule as one whole compiled region, and executes the
-transformed bytecode, while out-of-scope modules (torch itself above all)
-are untouched. A validation guard in a scoped module must surface its
-ORIGINAL exception through the boundary attached at the entry script's
-torch.compile call site.
+Confirm the import-time claim with nothing configured: a plain .py module that
+seeds GraphMend, by importing torch and defining a `forward` whose class binds a
+torch Module base, is claimed by the Jac meta importer, compiled through the
+full GraphMend schedule, and executes the transformed bytecode, while modules
+outside the claim (torch itself above all) are untouched. A validation guard in
+a claimed module must surface its ORIGINAL exception, both through the boundary
+the pass attaches at the seeded entry and through the one attached at the entry
+script's torch.compile call site.
 
 Skipped automatically when PyTorch is not installed."""
 import ast;
@@ -20,7 +21,7 @@ import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.runtime { JacRuntime }
 
-glob PY_SCOPED_NET_SRC = '''
+glob PY_CLAIMED_NET_SRC = '''
 import torch
 
 
@@ -43,45 +44,47 @@ def _torch -> any {
     }
 }
 
-test "a package imported under --graphmend-scope is transformed" {
+"""Lay out a one-module package under `tmp` and put it on sys.path."""
+def _mk_pkg(tmp: str, src: str) -> None {
+    pkg = os.path.join(tmp, "claimedmodel");
+    os.mkdir(pkg);
+    with open(os.path.join(pkg, "__init__.py"), "w") as fh {
+        fh.write("");
+    }
+    with open(os.path.join(pkg, "net.py"), "w") as fh {
+        fh.write(src);
+    }
+}
+
+test "an imported model package is claimed and transformed with no config" {
     # The model class lives in an imported module with no local torch.compile
-    # (the wrap would be in the entry script); it is reached only because its
-    # package is in the graphmend scope. torch (not in scope) must stay
-    # untouched.
+    # (the wrap would be in the entry script); it is claimed because it seeds
+    # GraphMend on its own. torch (never claimable) must stay untouched, and
+    # nothing about the run is configured: the mode is plain auto.
     torch = _torch();
     prog = JacRuntime.get_program();
     saved_en = prog.graphmend_enabled;
-    saved_scope = prog.graphmend_scope;
     with tempfile.TemporaryDirectory() as tmp {
-        pkg = os.path.join(tmp, "scopedmodel");
-        os.mkdir(pkg);
-        with open(os.path.join(pkg, "__init__.py"), "w") as fh {
-            fh.write("");
-        }
-        with open(os.path.join(pkg, "net.py"), "w") as fh {
-            fh.write(PY_SCOPED_NET_SRC);
-        }
+        _mk_pkg(tmp, PY_CLAIMED_NET_SRC);
         sys.path.insert(0, tmp);
         try {
-            prog.graphmend_enabled = True;
-            prog.graphmend_scope = ["scopedmodel"];
-            sys.modules.pop("scopedmodel", None);
-            sys.modules.pop("scopedmodel.net", None);
-            net = importlib.import_module("scopedmodel.net");
+            prog.graphmend_enabled = "auto";
+            sys.modules.pop("claimedmodel", None);
+            sys.modules.pop("claimedmodel.net", None);
+            net = importlib.import_module("claimedmodel.net");
             names = [
                 i.argval
                 for i in dis.get_instructions(net.Net.forward.__code__)
                 if isinstance(i.argval, str)
             ];
-            assert "where" in names , "imported scoped model was not transformed";
-            # torch itself (not in scope) must be unaffected
+            assert "where" in names , "imported model module was not transformed";
+            # torch itself must be unaffected
             assert hasattr(torch, "_dynamo");
         } finally {
             prog.graphmend_enabled = saved_en;
-            prog.graphmend_scope = saved_scope;
             sys.path.remove(tmp);
-            sys.modules.pop("scopedmodel", None);
-            sys.modules.pop("scopedmodel.net", None);
+            sys.modules.pop("claimedmodel", None);
+            sys.modules.pop("claimedmodel.net", None);
         }
     }
 }
@@ -94,43 +97,35 @@ class Net(torch.nn.Module):
     def forward(self, x, mask):
         x = torch.relu(x)
         if not mask.all():
-            raise ValueError("scoped mask must be all true")
+            raise ValueError("mask must be all true")
         return torch.sin(x)
 ''',
      PY_GUARD_ENTRY_SRC = '''
 import torch
 
-from scopedmodel.net import Net
+from claimedmodel.net import Net
 
 model = torch.compile(Net())
 ''';
 
-test "scoped guard raises the original exception through the wrapped entry" {
-    # The guard lives in the imported (scoped) module and lowers to a marked
-    # graph-native assert there; the entry's torch.compile call site gets
-    # `model = __jac_trap_guard__(model)` injected, which wraps `forward` in
-    # place on the module instance. A failing guard must surface as the
-    # ORIGINAL ValueError with the original message, and the good path must
-    # compute normally.
+test "a claimed guard raises the original exception through the boundary" {
+    # The guard lives in the imported module and lowers to a marked
+    # graph-native assert there, behind the boundary the pass attaches to the
+    # seeded forward. The entry's torch.compile call site gets
+    # `model = __jac_trap_guard__(model)` injected as well, which wraps
+    # `forward` in place on the module instance and is idempotent against the
+    # first boundary. A failing guard must surface as the ORIGINAL ValueError
+    # with the original message, and the good path must compute normally.
     torch = _torch();
     prog = JacRuntime.get_program();
     saved_en = prog.graphmend_enabled;
-    saved_scope = prog.graphmend_scope;
     with tempfile.TemporaryDirectory() as tmp {
-        pkg = os.path.join(tmp, "scopedmodel");
-        os.mkdir(pkg);
-        with open(os.path.join(pkg, "__init__.py"), "w") as fh {
-            fh.write("");
-        }
-        with open(os.path.join(pkg, "net.py"), "w") as fh {
-            fh.write(PY_GUARDED_NET_SRC);
-        }
+        _mk_pkg(tmp, PY_GUARDED_NET_SRC);
         entry_path = os.path.join(tmp, "entry.py");
         with open(entry_path, "w") as fh {
             fh.write(PY_GUARD_ENTRY_SRC);
         }
         eprog = JacProgram();
-        eprog.graphmend_scope = ["scopedmodel"];
         emod = eprog.compile(
             file_path=entry_path,
             options=CompileOptions(graphmend=True, type_check=False)
@@ -152,10 +147,9 @@ test "scoped guard raises the original exception through the wrapped entry" {
         }
         torch.compile = _shim;
         try {
-            prog.graphmend_enabled = True;
-            prog.graphmend_scope = ["scopedmodel"];
-            sys.modules.pop("scopedmodel", None);
-            sys.modules.pop("scopedmodel.net", None);
+            prog.graphmend_enabled = "auto";
+            sys.modules.pop("claimedmodel", None);
+            sys.modules.pop("claimedmodel.net", None);
             exec(compile(entry_src, "entry.py", "exec"), ns);
             x = torch.tensor([1.0, 2.0, 3.0]);
             good = torch.tensor([True, True, True]);
@@ -171,17 +165,16 @@ test "scoped guard raises the original exception through the wrapped entry" {
             assert type(raised) is ValueError , f"expected ValueError, got {repr(
                 raised
             )}";
-            assert str(raised) == "scoped mask must be all true" , (
+            assert str(raised) == "mask must be all true" , (
                 f"message lost: {repr(raised)}"
             );
             assert "GM-TRAP" not in str(raised) , "internal trap marker leaked";
         } finally {
             torch.compile = orig_compile;
             prog.graphmend_enabled = saved_en;
-            prog.graphmend_scope = saved_scope;
             sys.path.remove(tmp);
-            sys.modules.pop("scopedmodel", None);
-            sys.modules.pop("scopedmodel.net", None);
+            sys.modules.pop("claimedmodel", None);
+            sys.modules.pop("claimedmodel.net", None);
         }
     }
 }

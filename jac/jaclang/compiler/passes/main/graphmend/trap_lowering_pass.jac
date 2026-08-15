@@ -5,7 +5,8 @@ glob _TENSOR_BOOL_OPS: set[str] = {'all', 'any', 'allclose'};
 
 obj TrapLoweringPass(UniPass) {
     has _enabled: bool = False,
-        _guarded_fns: set[int] = set();
+        _guarded_fns: set[int] = set(),
+        _tensor_trace: set[str] = set();
 
     static has REQUIRES: tuple = ('graph-breaks', );
 
@@ -15,6 +16,7 @@ obj TrapLoweringPass(UniPass) {
     def _boundary_attach_stmt(at: uni.UniNode, name: str) -> uni.Assignment;
     def _inside_try(nd: uni.UniNode) -> bool;
     def _enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | None);
+    def _call_site_covered(nd: uni.UniNode) -> bool;
     def _exception_type_name(rs: uni.RaiseStmt) -> (str | None);
     def _marked_message(
         at: uni.UniNode, msg: uni.Expr, type_name: str
@@ -28,6 +30,7 @@ obj TrapLoweringPass(UniPass) {
     def _operand_is_tensor(e: uni.Expr, site: uni.UniNode) -> bool;
     def _tensor_receiver_provable(x: uni.Expr, site: uni.UniNode) -> bool;
     def _tensor_expr_provable(e: uni.Expr, site: uni.UniNode) -> bool;
+    def _assigned_tensor_provable(nm: uni.Name, site: uni.UniNode) -> bool;
     def _param_is_tensor(name: str, site: uni.UniNode) -> bool;
     def _binds_torch_tensor(ann: uni.Name) -> bool;
     def _torch_binds_module(site: uni.UniNode) -> bool;

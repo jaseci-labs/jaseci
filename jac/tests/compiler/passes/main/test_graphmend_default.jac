@@ -114,49 +114,47 @@ test "run graphmend in jac toml is the mode control without a cli flag" {
     import jaclang.cli.commands.execution as execution;
     prog = Jac.get_program();
     prev_enabled = prog.graphmend_enabled;
-    prev_scope = prog.graphmend_scope;
     prev_disable = prog.graphmend_disable;
     old_config = config_mod._config;
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
-        execution._apply_graphmend("", "");
+        execution._apply_graphmend("");
         assert Jac.get_program().graphmend_enabled == "auto";
         config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"off\"\n");
-        execution._apply_graphmend("", "");
+        execution._apply_graphmend("");
         assert Jac.get_program().graphmend_enabled is False;
         config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"on\"\n");
-        execution._apply_graphmend("", " trap ");
+        execution._apply_graphmend(" trap ");
         assert Jac.get_program().graphmend_enabled is True;
         assert Jac.get_program().graphmend_disable == ["trap"];
     } finally {
         config_mod._config = old_config;
         cur = Jac.get_program();
         cur.graphmend_enabled = prev_enabled;
-        cur.graphmend_scope = prev_scope;
         cur.graphmend_disable = prev_disable;
     }
 }
 
-test "a scope alone still activates graphmend and installs the loader hook" {
+test "any mode but off installs the import claim loader hook" {
+    # Claiming is automatic, so the hook that routes imported .py model code
+    # through GraphMend goes in for every run GraphMend could engage on. Only
+    # an explicit off run skips the patch.
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import jaclang.cli.commands.execution as execution;
     prog = Jac.get_program();
     prev_enabled = prog.graphmend_enabled;
-    prev_scope = prog.graphmend_scope;
     prev_disable = prog.graphmend_disable;
     old_config = config_mod._config;
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
-        execution._apply_graphmend("mypkg", "");
-        assert Jac.get_program().graphmend_enabled is True;
-        assert Jac.get_program().graphmend_scope == ["mypkg"];
+        execution._apply_graphmend("");
+        assert Jac.get_program().graphmend_enabled == "auto";
         import from importlib.machinery { SourceFileLoader }
         assert getattr(SourceFileLoader, "_jac_graphmend_hooked", False);
     } finally {
         config_mod._config = old_config;
         cur = Jac.get_program();
         cur.graphmend_enabled = prev_enabled;
-        cur.graphmend_scope = prev_scope;
         cur.graphmend_disable = prev_disable;
     }
 }
@@ -249,12 +247,12 @@ test "auto shares the cache artifact with off for a torch-free module" {
     }
 }
 
-test "the run manifest drops the graphmend flag but keeps scope and disable" {
+test "the run manifest drops the graphmend and scope flags but keeps disable" {
     import from jaclang.cli.manifest { get_command_meta }
     meta = get_command_meta("run");
     assert meta is not None;
     by_name = {a.name: a for a in meta.args};
     assert "graphmend" not in by_name;
-    assert by_name["graphmend_scope"].config_key == "run.graphmend_scope";
+    assert "graphmend_scope" not in by_name;
     assert by_name["graphmend_disable"].config_key == "run.graphmend_disable";
 }

@@ -212,61 +212,67 @@ class Net(torch.nn.Module):
         verify(mask)
         return torch.relu(x)
 ''',
+     GUARD_WRAP_ENTRY_SRC = '''
+import torch
+
+from .checks import verify
+
+
+class Net(torch.nn.Module):
+    def forward(self, x, mask):
+        verify(mask)
+        return torch.relu(x)
+
+
+model = torch.compile(Net())
+''',
      GUARD_DEP_SRC = '''
 import torch
 
 
-def verify(mask):
+def verify(mask: torch.Tensor):
     if not mask.all():
         raise ValueError("mask must be all true")
 ''';
 
-test "a guard with no local boundary declines instead of marking" {
+"""Compile a claimed importer, then its guard-holding dependency, and return
+the dependency's generated Python source."""
+def _guard_pkg_src(tmp: str, entry_src: str) -> str {
+    _write(tmp, os.path.join("pkg", "__init__.py"), "");
+    entry = _write(tmp, os.path.join("pkg", "entry.py"), entry_src);
+    checks = _write(tmp, os.path.join("pkg", "checks.py"), GUARD_DEP_SRC);
+    prog = JacProgram();
+    _src(prog, entry);
+    return _src(prog, checks);
+}
+
+test "a guard with no boundary in reach declines instead of marking" {
     # The marker string is the only channel back to the original exception and
-    # only the trap boundary decodes it. The boundary that covers this guard
-    # lives in the importing module, so lowering here would surface the raw
-    # marker text to the caller; the pass must decline.
+    # only the trap boundary decodes it. Nothing in this program is wrapped or
+    # decorated, so no boundary exists anywhere and lowering would surface the
+    # raw marker text to the caller. The pass must decline.
     with tempfile.TemporaryDirectory() as tmp {
-        _write(tmp, os.path.join("pkg", "__init__.py"), "");
-        entry = _write(tmp, os.path.join("pkg", "entry.py"), GUARD_ENTRY_SRC);
-        checks = _write(tmp, os.path.join("pkg", "checks.py"), GUARD_DEP_SRC);
-        prog = JacProgram();
-        _src(prog, entry);
-        dep_src = _src(prog, checks);
+        dep_src = _guard_pkg_src(tmp, GUARD_ENTRY_SRC);
         assert "torch._assert_async(" not in dep_src , (
-            "a guard with no local boundary must not emit an undecodable marker"
+            "a guard with no boundary must not emit an undecodable marker"
         );
         assert "raise ValueError" in dep_src;
         assert "GM-TRAP" not in dep_src;
     }
 }
 
-glob LOCAL_GUARD_SRC = '''
-import torch
-
-
-class Net(torch.nn.Module):
-    def forward(self, x, mask):
-        if not mask.all():
-            raise ValueError("mask must be all true")
-        return torch.relu(x)
-''';
-
-test "a guard inside the compiled entry lowers behind a local boundary" {
-    # The entry itself is the boundary, so the marker has something to decode
-    # it and the guard becomes graph-native.
+test "a guard lowers once the importer wraps the model at a call site" {
+    # The importer's `torch.compile` assignment gets the boundary attached, so
+    # the guard the wrapped entry reaches has something that decodes its marker
+    # at the outermost eager frame, and it becomes graph-native.
     with tempfile.TemporaryDirectory() as tmp {
-        path = _write(tmp, "localguard.py", LOCAL_GUARD_SRC);
-        prog = JacProgram();
-        src = _src(prog, path);
+        dep_src = _guard_pkg_src(tmp, GUARD_WRAP_ENTRY_SRC);
         assert (
             "torch._assert_async(mask.all(), "
             "'[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')"
-            in src
+            in dep_src
         );
-        assert "@__jac_trap_guard__" in src , (
-            "the entry that covers the guard must carry the decoding boundary"
-        );
+        assert "raise ValueError" not in dep_src;
     }
 }
 

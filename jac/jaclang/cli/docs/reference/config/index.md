@@ -201,7 +201,6 @@ main = true             # Run as main module
 cache = true            # Use bytecode cache
 diagnostics = "error"   # Diagnostic verbosity: "error", "all", or "none"
 graphmend = "auto"      # GraphMend mode: "auto" (default, engages for torch-importing modules), true/"on", false/"off"; no CLI flag
-graphmend_scope = ""    # Module prefixes GraphMend also transforms (comma-separated); forces GraphMend on
 graphmend_disable = ""  # GraphMend transforms to skip: "trap", "where", "defer"
 ```
 

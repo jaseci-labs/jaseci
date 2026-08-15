@@ -3,11 +3,11 @@
 Real models are rarely decorated: `torch.compile(model)` lives at a call site
 and the breaks sit in undecorated methods. Entry-point analysis resolves the
 wrapped function or class through the symbol table, so those methods count as
-in scope; a module imported under `--graphmend-scope` is one whole compiled
-region with no local entry point at all. The .py front-end (PyastBuildPass)
-produces UniIR whose nodes unparse differently from .jac-origin nodes, so
-resolution must match structurally; these tests guard
-`jac run model.py` under the default auto mode and the scoped-import path."""
+in scope; an imported model module has no local `torch.compile` at all and
+seeds instead on the `forward` methods whose classes bind a torch Module base.
+The .py front-end (PyastBuildPass) produces UniIR whose nodes unparse
+differently from .jac-origin nodes, so resolution must match structurally;
+these tests guard `jac run model.py` and the imported-module path alike."""
 import ast;
 import os;
 import tempfile;
@@ -54,11 +54,9 @@ def _pysrc(gm: bool) -> str {
     }
 }
 
-"""Compile a checked-in fixture, optionally as one whole compiled region
-(--graphmend-scope semantics)."""
-def _fixture_src(name: str, scoped: bool) -> str {
+"""Compile a checked-in fixture and return its generated Python source."""
+def _fixture_src(name: str) -> str {
     prog = JacProgram();
-    prog.graphmend_scoped_compile = scoped;
     mod = prog.compile(
         file_path=os.path.join(FIXTURES, name),
         options=CompileOptions(graphmend=True, type_check=False)
@@ -83,11 +81,12 @@ test "py: call-site wrapped model untouched when graphmend disabled" {
     assert "if x.sum() > 0" in src;
 }
 
-test "scoped: a helper defers to the caller's region instead of flushing" {
-    # Cross-function deferral is a whole-module-region property. In entry-file
-    # mode the detect pass only tags calls inside the torch.compile entry, so a
-    # helper's print is not a candidate in the first place.
-    src = _fixture_src("se_in_helper.jac", True);
+test "a helper defers to the caller's region instead of flushing" {
+    # Dynamo inlines the helper into the decorated entry's graph, so the
+    # reachability closure covers it: the helper's print buffers and only the
+    # entry drains it. A flush at the helper's return would split the graph
+    # from the inside.
+    src = _fixture_src("se_in_helper.jac");
     # the helper buffers...
     assert "__jac_se_emit__(print," in src;
     # ...but emits NO flush of its own -- that would split the caller's graph
@@ -98,26 +97,16 @@ test "scoped: a helper defers to the caller's region instead of flushing" {
     assert src.index("@__jac_se_guard__") < src.index("@torch.compile");
 }
 
-test "entry-file compile reaches the helper through the compiled entry" {
-    # Dynamo inlines the helper into the decorated entry's graph, so the
-    # reachability closure covers it without a scope: the helper's print
-    # buffers and the entry's boundary guard drains it.
-    src = _fixture_src("se_in_helper.jac", False);
-    assert "__jac_se_emit__(print," in src;
-    assert "__jac_se_flush__()" not in src;
-    assert "@__jac_se_guard__" in src;
-}
-
-"""Write a generated .py source to a temp file and compile it as one whole
-compiled region (--graphmend-scope semantics for an imported module)."""
-def _py_scoped_src(py_src: str, name: str) -> str {
+"""Write a generated .py source to a temp file and compile it the way an
+imported model module is compiled: no local torch.compile, seeded by the
+forward methods whose classes bind a torch Module base."""
+def _py_model_src(py_src: str, name: str) -> str {
     with tempfile.TemporaryDirectory() as tmp {
         path = os.path.join(tmp, name);
         with open(path, "w") as fh {
             fh.write(py_src);
         }
         prog = JacProgram();
-        prog.graphmend_scoped_compile = True;
         mod = prog.compile(
             file_path=path, options=CompileOptions(graphmend=True, type_check=False)
         );
@@ -127,30 +116,55 @@ def _py_scoped_src(py_src: str, name: str) -> str {
     }
 }
 
-glob PY_SCOPED_GUARD_SRC = '''
+glob PY_MODEL_GUARD_SRC = '''
 import torch
 
 
 class Net(torch.nn.Module):
-    def forward(self, x, mask):
+    def forward(self, x, mask: torch.Tensor):
         x = torch.relu(x)
         if not mask.all():
-            raise ValueError("scoped mask must be all true")
+            raise ValueError("mask must be all true")
         return torch.sin(x)
+''',
+     PY_WRAPPED_GUARD_SRC = '''
+import torch
+
+
+class Net(torch.nn.Module):
+    def forward(self, x, mask: torch.Tensor):
+        x = torch.relu(x)
+        if not mask.all():
+            raise ValueError("mask must be all true")
+        return torch.sin(x)
+
+
+model = torch.compile(Net())
 ''';
 
-test "scoped: a validation guard lowers with the exception marker" {
-    # A scoped module has no decorated function to carry @__jac_trap_guard__;
-    # the boundary is attached at the entry script's torch.compile call site
-    # instead, so the guard lowers with the marker and NO local decorator.
-    src = _py_scoped_src(PY_SCOPED_GUARD_SRC, "scoped_guard.py");
+test "a validation guard with no boundary in reach is declined" {
+    # An imported model module carries no decorated function and no call-site
+    # wrap of its own, so nothing would decode the marker; the guard keeps its
+    # original semantics rather than lowering into an undecodable assert.
+    src = _py_model_src(PY_MODEL_GUARD_SRC, "model_guard.py");
+    assert "torch._assert_async(" not in src;
+    assert "raise ValueError('mask must be all true')" in src;
+}
+
+test "a validation guard lowers behind the call-site wrap boundary" {
+    # Same module, now holding the `torch.compile` call site: the boundary is
+    # attached there, so the guard lowers with the marker and NO local
+    # decorator (a decorator on `forward` would sit inside the compiled
+    # callable, where it can neither see nor restore the async assert).
+    src = _py_model_src(PY_WRAPPED_GUARD_SRC, "wrapped_guard.py");
     assert (
         "torch._assert_async(mask.all(), "
-        "'[[GM-TRAP ValueError]]scoped mask must be all true[[/GM-TRAP]]')"
+        "'[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')"
         in src
     );
     assert "raise ValueError" not in src;
     assert "@__jac_trap_guard__" not in src;
+    assert "model = __jac_trap_guard__(model)" in src;
 }
 
 glob PY_ENTRY_WRAP_SRC = '''
@@ -165,18 +179,17 @@ class Net(torch.nn.Module):
 model = torch.compile(Net())
 ''';
 
-test "scoped: the entry wrap gets the trap boundary attach" {
-    # When a scope is configured, every torch.compile call-site assignment in
-    # the entry gets the boundary attached; for an nn.Module the runtime wraps
-    # `forward` in place, so the async assert failure of any scoped guard is
-    # restored to its original exception at the outermost eager frame.
+test "the entry wrap gets the trap boundary attach" {
+    # Every torch.compile call-site assignment gets the boundary attached; for
+    # a torch Module the runtime wraps `forward` in place, so an async assert
+    # failure from any guard the compiled call reaches is restored to its
+    # original exception at the outermost eager frame.
     with tempfile.TemporaryDirectory() as tmp {
         path = os.path.join(tmp, "entry_wrap.py");
         with open(path, "w") as fh {
             fh.write(PY_ENTRY_WRAP_SRC);
         }
         prog = JacProgram();
-        prog.graphmend_scope = ["scopedmodel"];
         mod = prog.compile(
             file_path=path, options=CompileOptions(graphmend=True, type_check=False)
         );
@@ -193,18 +206,16 @@ test "scoped: the entry wrap gets the trap boundary attach" {
     );
 }
 
-"""The discriminant validation guard from transformers v4.52.4
-`modeling_vits._rational_quadratic_spline` (Apache-2.0), a real-model [Trap]
-case, vendored so the evidence does not rot with transformers releases
-(5.x rewrote this guard into a torch-compilable check upstream). The message is
+"""A discriminant validation guard taken from a real model file (Apache-2.0),
+vendored so the evidence does not rot with upstream releases. The message is
 reduced to a literal: non-literal messages decline, because formatting a
-tensor inside the graph would itself force a break. The forward caller
-mirrors the real file, where the spline is forward-reachable."""
-glob PY_VITS_GUARD_SRC = '''
+tensor inside the graph would itself force a break. The forward caller mirrors
+the real file, where the guarded helper is forward-reachable."""
+glob PY_DISCRIMINANT_GUARD_SRC = '''
 import torch
 
 
-def rational_quadratic_spline_root(a, b, c):
+def rational_quadratic_spline_root(a: torch.Tensor, b: torch.Tensor, c: torch.Tensor):
     discriminant = b.pow(2) - 4 * a * c
     if not (discriminant >= 0).all():
         raise RuntimeError("invalid discriminant in rational quadratic spline")
@@ -214,12 +225,15 @@ def rational_quadratic_spline_root(a, b, c):
 class Spline(torch.nn.Module):
     def forward(self, a, b, c):
         return rational_quadratic_spline_root(a, b, c)
+
+
+model = torch.compile(Spline())
 ''',
-     PY_VITS_GUARD_FSTRING_SRC = '''
+     PY_DISCRIMINANT_GUARD_FSTRING_SRC = '''
 import torch
 
 
-def rational_quadratic_spline_root(a, b, c):
+def rational_quadratic_spline_root(a: torch.Tensor, b: torch.Tensor, c: torch.Tensor):
     discriminant = b.pow(2) - 4 * a * c
     if not (discriminant >= 0).all():
         raise RuntimeError(f"invalid discriminant {discriminant}")
@@ -229,10 +243,13 @@ def rational_quadratic_spline_root(a, b, c):
 class Spline(torch.nn.Module):
     def forward(self, a, b, c):
         return rational_quadratic_spline_root(a, b, c)
+
+
+model = torch.compile(Spline())
 ''';
 
-test "scoped: the real VITS guard shape lowers under a literal message" {
-    src = _py_scoped_src(PY_VITS_GUARD_SRC, "vits_guard.py");
+test "the real discriminant guard shape lowers under a literal message" {
+    src = _py_model_src(PY_DISCRIMINANT_GUARD_SRC, "discriminant_guard.py");
     assert (
         "torch._assert_async((discriminant >= 0).all(), "
         "'[[GM-TRAP RuntimeError]]invalid discriminant in rational quadratic "
@@ -242,16 +259,16 @@ test "scoped: the real VITS guard shape lowers under a literal message" {
     assert "if not (discriminant >= 0).all():" not in src;
 }
 
-test "scoped: a guard with a non-literal message is declined" {
+test "a guard with a non-literal message is declined" {
     # The verbatim upstream form carries an f-string message; folding it into
     # the assert would evaluate the tensor format on every call inside the
     # graph, so the lowering declines and the break is left intact.
-    src = _py_scoped_src(PY_VITS_GUARD_FSTRING_SRC, "vits_guard_fstring.py");
+    src = _py_model_src(PY_DISCRIMINANT_GUARD_FSTRING_SRC, "discriminant_guard_fstring.py");
     assert "torch._assert_async(" not in src;
     assert "if not (discriminant >= 0).all():" in src;
 }
 
-glob PY_SCOPED_MIXED_SRC = '''
+glob PY_MODEL_MIXED_SRC = '''
 import torch
 
 
@@ -274,22 +291,22 @@ class Net(torch.nn.Module):
         return reachable_helper(torch.relu(x))
 ''';
 
-test "scoped: only forward-reachable code is transformed" {
+test "only forward-reachable code is transformed" {
     # The compiled region is the reachability closure over the call graph
     # (what Dynamo would inline), not the whole module: a utility no forward
     # reaches keeps its print and its data-dependent branch untouched.
-    src = _py_scoped_src(PY_SCOPED_MIXED_SRC, "scoped_mixed.py");
+    src = _py_model_src(PY_MODEL_MIXED_SRC, "model_mixed.py");
     assert "__jac_se_emit__(print," in src;
     assert "print('UTIL', x)" in src;
     assert "torch.where(" not in src;
 }
 
-"""The transformers `dynamic_rope_update` shape reduced to one module: the
+"""A decorator-attached frequency-update shape reduced to one module: the
 decorated forward is replaced at class-definition time by the decorator's
 `wrapper` closure, so the code that actually runs under torch.compile is the
 closure, not the decorated body. The closure's data-dependent branch is the
 break site."""
-glob PY_SCOPED_DECORATOR_SRC = '''
+glob PY_MODEL_DECORATOR_SRC = '''
 import torch
 from functools import wraps
 
@@ -312,20 +329,20 @@ class Net(torch.nn.Module):
         return torch.relu(x)
 ''';
 
-test "scoped: a decorator's wrapper closure is analyzed and transformed" {
+test "a decorator's wrapper closure is analyzed and transformed" {
     # The module has a forward, so the whole-module fallback stays off and the
     # closure is reachable ONLY through the decorator edge: forward's decorator
     # resolves to `dynamic_update`, whose nested closures join the region.
-    src = _py_scoped_src(PY_SCOPED_DECORATOR_SRC, "scoped_decorator.py");
+    src = _py_model_src(PY_MODEL_DECORATOR_SRC, "model_decorator.py");
     assert "torch.where(" in src;
     assert "if x.sum() > 0" not in src;
 }
 
-"""The verbatim `dynamic_rope_update` shape: the wrapper does not hold the
-break itself, it calls a SIBLING closure that does. Resolving that call needs
+"""The verbatim frequency-update shape: the wrapper does not hold the break
+itself, it calls a SIBLING closure that does. Resolving that call needs
 lexical scope -- the sibling is nested in the same enclosing function, so a
 module-level lookup can never find it."""
-glob PY_SCOPED_SIBLING_SRC = '''
+glob PY_MODEL_SIBLING_SRC = '''
 import torch
 
 
@@ -350,19 +367,19 @@ class Net(torch.nn.Module):
         return torch.relu(x)
 ''';
 
-test "scoped: a wrapper's sibling closure is reached through lexical scope" {
+test "a wrapper's sibling closure is reached through lexical scope" {
     # Only `wrapper` is enqueued from the decorator (it is the one that invokes
     # the decorated function); the break lives one call deeper in a sibling
     # closure, which resolves only by walking enclosing function scopes.
-    src = _py_scoped_src(PY_SCOPED_SIBLING_SRC, "scoped_sibling.py");
+    src = _py_model_src(PY_MODEL_SIBLING_SRC, "model_sibling.py");
     assert "torch.where(" in src;
     assert "if x.sum() > 0" not in src;
 }
 
 """A decorator that rewrites metadata and returns the ORIGINAL function, the
-`auto_docstring` shape from transformers: its closures run once at decoration
-time and never inside the graph, so nothing they call may be transformed."""
-glob PY_SCOPED_METADATA_DECO_SRC = '''
+docstring-builder shape: its closures run once at decoration time and never
+inside the graph, so nothing they call may be transformed."""
+glob PY_MODEL_METADATA_DECO_SRC = '''
 import torch
 
 
@@ -383,18 +400,18 @@ class Net(torch.nn.Module):
         return torch.relu(x)
 ''';
 
-test "scoped: a metadata decorator's helpers stay out of the region" {
+test "a metadata decorator's helpers stay out of the region" {
     # `describe` never invokes the decorated function -- it returns it -- so it
     # is not a call-time wrapper and neither it nor `build_doc` runs inside the
     # graph. Deferring their prints would replay import-time output at the
     # first forward.
-    src = _py_scoped_src(PY_SCOPED_METADATA_DECO_SRC, "scoped_metadata_deco.py");
+    src = _py_model_src(PY_MODEL_METADATA_DECO_SRC, "model_metadata_deco.py");
     assert "__jac_se_emit__(" not in src;
     assert "print('DESCRIBING')" in src;
     assert "print('BUILDING', fn.__name__)" in src;
 }
 
-glob PY_SCOPED_DECO_NOISY_SRC = '''
+glob PY_MODEL_DECO_NOISY_SRC = '''
 import torch
 
 
@@ -413,12 +430,12 @@ class Net(torch.nn.Module):
         return torch.relu(x)
 ''';
 
-test "scoped: decoration-time code stays out of the compiled region" {
+test "decoration-time code stays out of the compiled region" {
     # Only the decorator's closures run under the compiled graph; the
     # decorator's own body runs once at class-definition time, so deferring
     # its side effects would replay them at the wrong moment. The closure's
     # runtime print buffers, the decoration-time print must stay eager.
-    src = _py_scoped_src(PY_SCOPED_DECO_NOISY_SRC, "scoped_deco_noisy.py");
+    src = _py_model_src(PY_MODEL_DECO_NOISY_SRC, "model_deco_noisy.py");
     assert "__jac_se_emit__(print," in src;
     assert "print('DECORATING', fn.__name__)" in src;
 }
@@ -471,12 +488,11 @@ test "entry-file: a stacked decorator's closure is analyzed and transformed" {
     assert "if x.sum() > 0" not in src;
 }
 
-"""The `get_mscale` shape from _compute_yarn_parameters: the memoized init in
-an existence guard calls a module function whose body calls its OWN nested
-helper. The purity proof must resolve that helper through lexical scope; a
-module-level symbol lookup cannot see it, and one unresolvable callee poisons
-the candidate and declines the merge."""
-glob PY_SCOPED_NESTED_PURITY_SRC = '''
+"""The memoized-scale shape: an init behind an existence guard calls a module
+function whose body calls its OWN nested helper. The purity proof must resolve
+that helper through lexical scope; a module-level symbol lookup cannot see it,
+and one unresolvable callee poisons the candidate and declines the merge."""
+glob PY_MODEL_NESTED_PURITY_SRC = '''
 import torch
 
 
@@ -501,11 +517,11 @@ class Net(torch.nn.Module):
         return torch.relu(x)
 ''';
 
-test "scoped: a candidate's nested helper resolves in the purity proof" {
+test "a candidate's nested helper resolves in the purity proof" {
     # The tag on the outer branch is only useful if the transform CONSUMES it:
     # the setup's init calls compute_inv, whose nested clamp01 must resolve
     # lexically for the body to prove pure and the common call to merge.
-    src = _py_scoped_src(PY_SCOPED_NESTED_PURITY_SRC, "scoped_nested_purity.py");
+    src = _py_model_src(PY_MODEL_NESTED_PURITY_SRC, "model_nested_purity.py");
     assert "torch.where(" in src;
     assert "if seq_len > limit" not in src;
 }

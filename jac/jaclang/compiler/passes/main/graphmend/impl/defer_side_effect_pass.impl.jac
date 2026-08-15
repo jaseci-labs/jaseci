@@ -147,7 +147,7 @@ impl DeferSideEffectPass._attach_se_guard(nd: uni.Ability) -> None {
 }
 
 impl DeferSideEffectPass._is_compiled_entry(nd: uni.Ability) -> bool {
-    return has_torch_compile_decorator(nd) or (nd?.sym_name == 'forward');
+    return self.prog.graphmend_boundary.get(id(nd)) is nd;
 }
 
 impl DeferSideEffectPass._str(at: uni.UniNode, text: str) -> uni.String {

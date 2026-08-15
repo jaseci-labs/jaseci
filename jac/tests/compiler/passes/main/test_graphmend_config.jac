@@ -66,7 +66,7 @@ test "the run command bridges the graphmend flags that remain to jac.toml" {
     assert meta is not None;
     by_name = {a.name: a for a in meta.args};
     assert "graphmend" not in by_name;
-    assert by_name["graphmend_scope"].config_key == "run.graphmend_scope";
+    assert "graphmend_scope" not in by_name;
     gd = by_name.get("graphmend_disable");
     assert gd is not None;
     assert gd.config_key == "run.graphmend_disable";
@@ -75,11 +75,9 @@ test "the run command bridges the graphmend flags that remain to jac.toml" {
 test "the run section of jac.toml carries the graphmend keys" {
     import from jaclang.project.config { JacConfig }
     cfg = JacConfig.from_toml_str(
-        "[run]\ngraphmend = true\ngraphmend_scope = \"pkg.a\"\n"
-            + "graphmend_disable = \"trap\"\n"
+        "[run]\ngraphmend = true\ngraphmend_disable = \"trap\"\n"
     );
     assert cfg.run.graphmend;
-    assert cfg.run.graphmend_scope == "pkg.a";
     assert cfg.run.graphmend_disable == "trap";
 }
 
@@ -109,19 +107,17 @@ test "the cli disable flag reaches the program state" {
     import jaclang.project.config as config_mod;
     prog = Jac.get_program();
     prev_enabled = prog.graphmend_enabled;
-    prev_scope = prog.graphmend_scope;
     prev_disable = prog.graphmend_disable;
     old_config = config_mod._config;
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"on\"\n");
-        execution._apply_graphmend("", " trap , defer ");
+        execution._apply_graphmend(" trap , defer ");
         assert Jac.get_program().graphmend_disable == ["trap", "defer"];
         assert Jac.get_program().graphmend_enabled;
     } finally {
         config_mod._config = old_config;
         cur = Jac.get_program();
         cur.graphmend_enabled = prev_enabled;
-        cur.graphmend_scope = prev_scope;
         cur.graphmend_disable = prev_disable;
     }
 }

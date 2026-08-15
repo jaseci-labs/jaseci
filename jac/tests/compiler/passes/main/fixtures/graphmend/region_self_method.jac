@@ -1,8 +1,9 @@
-"""A scoped-mode model where reachability flows through a self call.
+"""A model where reachability flows through a self call.
 
-Under scoped compilation `forward` is a seed; `step` joins the region only
-through the `self.step(...)` call edge, while `unused` is reachable from
-nothing and must stay untouched even though it holds a deferrable print."""
+`forward` is a seed because its class binds a torch Module base; `step` joins
+the region only through the `self.step(...)` call edge, while `unused` is
+reachable from nothing and must stay untouched even though it holds a
+deferrable print."""
 import torch;
 
 class Net(torch.nn.Module) {

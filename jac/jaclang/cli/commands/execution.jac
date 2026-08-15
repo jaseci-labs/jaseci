@@ -39,13 +39,6 @@ glob registry = get_registry();
             config_key="run.cache"
         ),
         Arg.create(
-            "graphmend_scope",
-            default="",
-            short="",
-            help="Comma-separated module prefixes whose imported .py code GraphMend should also transform (e.g. 'transformers.models.phi3'). Forces GraphMend on for the run.",
-            config_key="run.graphmend_scope"
-        ),
-        Arg.create(
             "graphmend_disable",
             default="",
             short="",
@@ -122,7 +115,6 @@ def run(
     show: bool = False,
     main: bool = True,
     cache: bool = True,
-    graphmend_scope: str = "",
     graphmend_disable: str = "",
     diagnostics: str = "",
     entry_name: str = "",
@@ -176,7 +168,6 @@ def enter(
     main: bool = True,
     `root: str = "",
     nd: str = "",
-    graphmend_scope: str = "",
     graphmend_disable: str = ""
 ) -> int;
 

@@ -1661,13 +1661,6 @@ def _command_routes -> list[CommandMeta] {
                     config_key='run.cache'
                 ),
                 ArgMeta(
-                    name='graphmend_scope',
-                    default='',
-                    help="Comma-separated module prefixes whose imported .py code GraphMend should also transform (e.g. 'transformers.models.phi3'). Forces GraphMend on for the run.",
-                    short='',
-                    config_key='run.graphmend_scope'
-                ),
-                ArgMeta(
                     name='graphmend_disable',
                     default='',
                     help='Comma-separated GraphMend transforms to skip: trap (guard lowering), where (branch predication), defer (side-effect deferral)',

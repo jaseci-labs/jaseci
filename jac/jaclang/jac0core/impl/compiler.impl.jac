@@ -141,8 +141,13 @@ impl JacCompiler.get_bytecode(
             [
                 "graphmend",
                 "disable=" + ",".join(sorted(target_program.graphmend_disable)),
-                "scope=" + ",".join(target_program.graphmend_scope),
-                f"scoped={int(target_program.graphmend_scoped_compile)}"
+                "claimed="
+                    + str(
+                        int(
+                            os.path.realpath(full_target)
+                                in target_program.graphmend_claimed
+                        )
+                    )
             ]
         );
     }
@@ -165,6 +170,7 @@ impl JacCompiler._get_bytecode_variant(
     if gm_active {
         actual_program.graphmend_breaks.clear();
         actual_program.graphmend_helpers.clear();
+        actual_program.graphmend_boundary.clear();
     }
     (rebuild, no_precompile) = cache_mode();
     symtab_only_recovery = False;

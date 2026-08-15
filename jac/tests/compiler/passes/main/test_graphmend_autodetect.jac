@@ -191,24 +191,22 @@ test "the cli mapper carries the configured mode to the program" {
     import jaclang.project.config as config_mod;
     prog = Jac.get_program();
     prev_enabled = prog.graphmend_enabled;
-    prev_scope = prog.graphmend_scope;
     prev_disable = prog.graphmend_disable;
     old_config = config_mod._config;
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"auto\"\n");
-        execution._apply_graphmend("", "");
+        execution._apply_graphmend("");
         assert Jac.get_program().graphmend_enabled == "auto";
         config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"on\"\n");
-        execution._apply_graphmend("", "");
+        execution._apply_graphmend("");
         assert Jac.get_program().graphmend_enabled is True;
         config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"off\"\n");
-        execution._apply_graphmend("", "");
+        execution._apply_graphmend("");
         assert Jac.get_program().graphmend_enabled is False;
     } finally {
         config_mod._config = old_config;
         cur = Jac.get_program();
         cur.graphmend_enabled = prev_enabled;
-        cur.graphmend_scope = prev_scope;
         cur.graphmend_disable = prev_disable;
     }
 }

@@ -1,7 +1,10 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind }
-import from jaclang.compiler.passes.main.graphmend.scope_facts { compiled_region_ids }
+import from jaclang.compiler.passes.main.graphmend.scope_facts {
+    compiled_region_ids,
+    register_claim
+}
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     cond_is_data_dependent,
     defining_assignment,
@@ -15,19 +18,23 @@ impl GraphBreakDetectPass.before_pass -> None {
         self.prune_signal = True;
         return;
     }
+    register_claim(self.prog, self.ir_in, self._mat_seen);
     wrapped = self._collect_entry_points();
     self._entry_ids = set();
     for e in wrapped {
         if isinstance(e, uni.Ability) {
             self._entry_ids.add(id(e));
+            self.prog.graphmend_wrapped.add(id(e));
+        } elif isinstance(e, uni.Archetype) {
+            for meth in e.get_all_sub_nodes(uni.Ability) {
+                if meth.sym_name == 'forward' {
+                    self.prog.graphmend_wrapped.add(id(meth));
+                }
+            }
         }
     }
     self._entry_ids |= compiled_region_ids(
-        self.prog,
-        self.ir_in,
-        self.prog.graphmend_scoped_compile,
-        self._mat_seen,
-        wrapped
+        self.prog, self.ir_in, self._mat_seen, wrapped
     );
     members: list[uni.UniNode] = [];
     members.extend(self.ir_in.get_all_sub_nodes(uni.Ability));

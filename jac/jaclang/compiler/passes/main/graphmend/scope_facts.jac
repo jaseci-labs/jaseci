@@ -1,8 +1,10 @@
+import os;
 import sys;
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
-    has_torch_compile_decorator
+    has_torch_compile_decorator,
+    is_torch_attr_target
 }
 import from jaclang.jac0core.passes.sym_resolve { symbol_ability, symbol_archetype }
 import type from jaclang.jac0core.program { JacProgram }
@@ -10,7 +12,6 @@ import type from jaclang.jac0core.program { JacProgram }
 def compiled_region_ids(
     prog: JacProgram,
     current: uni.Module,
-    scoped: bool,
     seen: set[str],
     wrapped: (list[uni.UniNode] | None) = None
 ) -> set[int] {
@@ -22,31 +23,34 @@ def compiled_region_ids(
     }
     ids: set[int] = set();
     work: list[uni.Ability] = [];
+    bounds = prog.graphmend_boundary;
     for m in mods {
         for arch in m.get_all_sub_nodes(uni.Archetype) {
             if has_torch_compile_decorator(arch) {
                 ids.add(id(arch));
                 for meth in arch.get_all_sub_nodes(uni.Ability) {
-                    work.append(meth);
+                    _seed(work, bounds, meth);
                 }
             }
         }
         for ab in m.get_all_sub_nodes(uni.Ability) {
-            if has_torch_compile_decorator(ab)
-                or (scoped and (ab.sym_name == 'forward')) {
-                work.append(ab);
+            if has_torch_compile_decorator(ab) {
+                _seed(work, bounds, ab);
             }
+        }
+        for fwd in module_entry_forwards(prog, m, seen) {
+            _seed(work, bounds, fwd);
         }
     }
     for w in (wrapped or []) {
         if isinstance(w, uni.Archetype) {
             for meth in w.get_all_sub_nodes(uni.Ability) {
                 if meth.sym_name == 'forward' {
-                    work.append(meth);
+                    _seed(work, bounds, meth);
                 }
             }
         } elif isinstance(w, uni.Ability) {
-            work.append(w);
+            _seed(work, bounds, w);
         }
     }
     while work {
@@ -55,10 +59,12 @@ def compiled_region_ids(
             continue;
         }
         ids.add(id(ab));
+        owner = bounds.get(id(ab)) or ab;
         callee: (uni.Ability | None) = None;
         for call in ab.get_all_sub_nodes(uni.FuncCall) {
             callee = _resolve_callee(ab, call, prog, seen);
             if (callee is not None) and (id(callee) not in ids) {
+                bounds.setdefault(id(callee), owner);
                 work.append(callee);
             }
         }
@@ -69,12 +75,378 @@ def compiled_region_ids(
             }
             for closure in _wrapper_closures(deco) {
                 if id(closure) not in ids {
+                    bounds.setdefault(id(closure), owner);
                     work.append(closure);
                 }
             }
         }
     }
     return ids;
+}
+
+def _seed(work: list[uni.Ability], bounds: dict[int, uni.Ability], ab: uni.Ability) {
+    bounds[id(ab)] = ab;
+    work.append(ab);
+}
+
+def module_entry_forwards(
+    prog: JacProgram, mod: uni.Module, seen: set[str]
+) -> list[uni.Ability] {
+    out: list[uni.Ability] = [];
+    if not module_binds_torch(mod) {
+        return out;
+    }
+    for arch in mod.get_all_sub_nodes(uni.Archetype) {
+        fwd: (uni.Ability | None) = None;
+        for meth in arch.get_all_sub_nodes(uni.Ability) {
+            if (meth.sym_name == 'forward')
+                and (meth.find_parent_of_type(uni.Archetype) is arch) {
+                fwd = meth;
+            }
+        }
+        if fwd is None {
+            continue;
+        }
+        if binds_torch_module_base(prog, arch, seen, 0) {
+            out.append(fwd);
+        }
+    }
+    return out;
+}
+
+def module_binds_torch(mod: uni.Module) -> bool {
+    for mp in mod.get_all_sub_nodes(uni.ModulePath) {
+        if mp.level != 0 {
+            continue;
+        }
+        p = mp.dot_path_str;
+        if (p == 'torch') or p.startswith('torch.') {
+            return True;
+        }
+    }
+    return False;
+}
+
+def binds_torch_module_base(
+    prog: JacProgram, arch: uni.Archetype, seen: set[str], depth: int
+) -> bool {
+    if depth > 4 {
+        return False;
+    }
+    mod = arch.find_parent_of_type(uni.Module);
+    for base in (arch.base_classes or []) {
+        if _is_torch_module_ref(base) {
+            return True;
+        }
+        if mod is None {
+            continue;
+        }
+        nm = _base_name(base);
+        if nm is None {
+            continue;
+        }
+        parent = find_class(mod, nm, prog, seen);
+        if (parent is None) or (parent is arch) {
+            continue;
+        }
+        if binds_torch_module_base(prog, parent, seen, depth + 1) {
+            return True;
+        }
+    }
+    return False;
+}
+
+def _base_name(base: uni.Expr) -> (str | None) {
+    if isinstance(base, uni.Name) {
+        return base.value;
+    }
+    if isinstance(base, uni.AtomTrailer) and isinstance(base.right, uni.Name) {
+        return base.right.value;
+    }
+    return None;
+}
+
+def _is_torch_module_ref(base: uni.Expr) -> bool {
+    if isinstance(base, uni.Name) and (base.value == 'Module') {
+        return _binds_module_item(base, 'torch.nn', 'Module');
+    }
+    if not (isinstance(base, uni.AtomTrailer) and isinstance(base.right, uni.Name)) {
+        return False;
+    }
+    if base.right.value != 'Module' {
+        return False;
+    }
+    inner = base.target;
+    if isinstance(inner, uni.Name) {
+        return _binds_module_item(inner, 'torch', 'nn')
+            or _binds_module_path(inner, 'torch.nn');
+    }
+    if (
+        isinstance(inner, uni.AtomTrailer)
+        and isinstance(inner.right, uni.Name)
+        and (inner.right.value == 'nn')
+        and isinstance(inner.target, uni.Name)
+    ) {
+        return _binds_module_path(inner.target, 'torch');
+    }
+    return False;
+}
+
+def _binds_module_item(nm: uni.Name, from_path: str, item_name: str) -> bool {
+    decl = _sym_decl(nm);
+    mi = decl.find_parent_of_type(uni.ModuleItem) if (decl is not None) else None;
+    if mi is None {
+        return False;
+    }
+    if not (isinstance(mi.name, uni.Name) and (mi.name.value == item_name)) {
+        return False;
+    }
+    mp = mi.parent.from_loc if isinstance(mi.parent, uni.Import) else None;
+    return (mp is not None) and (mp.dot_path_str == from_path);
+}
+
+def _binds_module_path(nm: uni.Name, dotted: str) -> bool {
+    decl = _sym_decl(nm);
+    mp = decl.find_parent_of_type(uni.ModulePath) if (decl is not None) else None;
+    if (mp is None) or mp.is_import_from {
+        return False;
+    }
+    return mp.dot_path_str == dotted;
+}
+
+def _sym_decl(nm: uni.Name) -> (uni.UniNode | None) {
+    sym = nm.sym;
+    if sym is None {
+        st = nm.sym_tab;
+        if st is None {
+            return None;
+        }
+        sym = st.lookup(nm.value, deep=True);
+    }
+    if sym is None {
+        return None;
+    }
+    return sym.decl;
+}
+
+def module_is_seed(prog: JacProgram, mod: uni.Module, seen: set[str]) -> bool {
+    if not module_binds_torch(mod) {
+        return False;
+    }
+    for call in mod.get_all_sub_nodes(uni.FuncCall) {
+        if is_torch_attr_target(call.target, 'compile') {
+            return True;
+        }
+    }
+    for ab in mod.get_all_sub_nodes(uni.Ability) {
+        if has_torch_compile_decorator(ab) {
+            return True;
+        }
+    }
+    for arch in mod.get_all_sub_nodes(uni.Archetype) {
+        if has_torch_compile_decorator(arch) {
+            return True;
+        }
+    }
+    return len(module_entry_forwards(prog, mod, seen)) > 0;
+}
+
+def register_claim(prog: JacProgram, mod: uni.Module, seen: set[str]) -> bool {
+    path = _norm(mod.loc.mod_path);
+    if not path {
+        return False;
+    }
+    if path not in prog.graphmend_claimed {
+        if not module_is_seed(prog, mod, seen) {
+            return False;
+        }
+        prog.graphmend_claimed.add(path);
+    }
+    if path in prog.graphmend_claim_walked {
+        return True;
+    }
+    prog.graphmend_claim_walked.add(path);
+    pkg_root = top_package_dir(path);
+    for target in claim_targets(mod, pkg_root) {
+        prog.graphmend_claimed.add(target);
+    }
+    return True;
+}
+
+def claim_path(prog: JacProgram, path: str) -> bool {
+    rp = _norm(path);
+    known = rp in prog.graphmend_claimed;
+    if known and (rp in prog.graphmend_claim_walked) {
+        return True;
+    }
+    mod = load_module_for_claim(prog, rp);
+    if mod is None {
+        return known;
+    }
+    return register_claim(prog, mod, set());
+}
+
+def load_module_for_claim(prog: JacProgram, path: str) -> (uni.Module | None) {
+    existing = prog.mod.hub.get(path);
+    if existing is not None {
+        return existing;
+    }
+    _saved_opts = prog._compile_options;
+    try {
+        return prog.compile(file_path=path, no_cgen=True, type_check=False);
+    } except Exception {
+        return None;
+    } finally {
+        prog._compile_options = _saved_opts;
+    }
+}
+
+def claim_targets(mod: uni.Module, pkg_root: str) -> list[str] {
+    out: list[str] = [];
+    if not pkg_root {
+        return out;
+    }
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        if import_is_type_checking(imp) {
+            continue;
+        }
+        for p in _import_paths(imp) {
+            if _within(p, pkg_root) and (p not in out) {
+                out.append(p);
+            }
+        }
+    }
+    return out;
+}
+
+def _import_paths(imp: uni.Import) -> list[str] {
+    out: list[str] = [];
+    from_loc = imp.from_loc;
+    if from_loc is not None {
+        if _denied_path(from_loc) {
+            return out;
+        }
+        _add_resolved(out, from_loc);
+        for item in imp.items {
+            if isinstance(item, uni.ModuleItem) {
+                _add_resolved_item(out, item);
+            }
+        }
+        return out;
+    }
+    for item in imp.items {
+        if isinstance(item, uni.ModulePath) and (not _denied_path(item)) {
+            _add_resolved(out, item);
+        }
+    }
+    return out;
+}
+
+def _denied_path(mp: uni.ModulePath) -> bool {
+    if mp.level != 0 {
+        return False;
+    }
+    top = mp.dot_path_str.lstrip('.').split('.')[0];
+    return (top in {'torch', 'jaclang'}) or (top in sys.stdlib_module_names);
+}
+
+def _add_resolved(out: list[str], mp: uni.ModulePath) -> None {
+    try {
+        _keep(out, mp.resolve_relative_path());
+    } except Exception {
+        return;
+    }
+}
+
+def _add_resolved_item(out: list[str], item: uni.ModuleItem) -> None {
+    try {
+        _keep(out, item.resolve_relative_path());
+    } except Exception {
+        return;
+    }
+}
+
+def _keep(out: list[str], raw: str) -> None {
+    if not (raw.endswith('.py') or raw.endswith('.jac')) {
+        return;
+    }
+    if not os.path.isfile(raw) {
+        return;
+    }
+    resolved = _norm(raw);
+    if resolved not in out {
+        out.append(resolved);
+    }
+}
+
+def import_is_type_checking(imp: uni.Import) -> bool {
+    child: uni.UniNode = imp;
+    cur: (uni.UniNode | None) = imp.parent;
+    while cur is not None {
+        if isinstance(cur, uni.IfStmt) {
+            in_body = False;
+            for stmt in (cur.body or []) {
+                if stmt is child {
+                    in_body = True;
+                }
+            }
+            if in_body and _cond_is_type_checking(cur.condition) {
+                return True;
+            }
+        }
+        child = cur;
+        cur = cur.parent;
+    }
+    return False;
+}
+
+def _cond_is_type_checking(cond: uni.Expr) -> bool {
+    if isinstance(cond, uni.Name) {
+        return (cond.value == 'TYPE_CHECKING')
+            and _binds_module_item(cond, 'typing', 'TYPE_CHECKING');
+    }
+    if (
+        isinstance(cond, uni.AtomTrailer)
+        and isinstance(cond.right, uni.Name)
+        and (cond.right.value == 'TYPE_CHECKING')
+        and isinstance(cond.target, uni.Name)
+    ) {
+        return _binds_module_path(cond.target, 'typing');
+    }
+    return False;
+}
+
+def top_package_dir(path: str) -> str {
+    d = os.path.dirname(_norm(path));
+    while _is_package_dir(d) {
+        parent = os.path.dirname(d);
+        if (parent == d) or (not _is_package_dir(parent)) {
+            break;
+        }
+        d = parent;
+    }
+    return d;
+}
+
+def _is_package_dir(d: str) -> bool {
+    for nm in ('__init__.py', '__init__.jac') {
+        if os.path.isfile(os.path.join(d, nm)) {
+            return True;
+        }
+    }
+    return False;
+}
+
+def _within(path: str, pkg_root: str) -> bool {
+    return (path == pkg_root) or path.startswith(pkg_root + os.sep);
+}
+
+def _norm(path: str) -> str {
+    try {
+        return str(Path(path).resolve());
+    } except Exception {
+        return path;
+    }
 }
 
 def _wrapper_closures(deco: uni.Ability) -> list[uni.Ability] {

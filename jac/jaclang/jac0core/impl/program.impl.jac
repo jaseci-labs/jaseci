@@ -10,9 +10,11 @@ impl JacProgram.init(
     self._compiler: (JacCompiler | None) = None;
     self._compile_options: CompileOptions = CompileOptions();
     self.graphmend_enabled: (bool | str) = 'auto';
-    self.graphmend_scope: list[str] = [];
     self.graphmend_disable: list[str] = [];
-    self.graphmend_scoped_compile: bool = False;
+    self.graphmend_claimed: set[str] = set();
+    self.graphmend_claim_walked: set[str] = set();
+    self.graphmend_boundary: dict[int, uni.Ability] = {};
+    self.graphmend_wrapped: set[int] = set();
     self.graphmend_breaks: dict[int, GraphBreakKind] = {};
     self.graphmend_helpers: dict[int, set[GraphMendHelper]] = {};
     self.graphmend_noop_mods: set[str] = set();
