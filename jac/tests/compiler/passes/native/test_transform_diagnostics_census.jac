@@ -20,6 +20,11 @@ seams and are waived one at a time. The remaining module-fatal gaps are
 backend limitations in the constructor family (a foreign class-typed field
 and `super` dispatch inside postinit), pinned here so the sealing lane sees
 exactly what is left.
+
+The measurement is a source-lane one. Under a sealed jaclang image every
+method of an imported jaclang-internal archetype is untrusted by design, so
+the census would read the image's trust boundary rather than the emission
+path's own coupling; `_census` skips there.
 """
 
 import os;
@@ -29,7 +34,7 @@ import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.sealed { native_artifact_for }
+import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 
 glob TRANSFORM_JAC = str(
          Path(jaclang.__file__).parent / "jac0core" / "passes" / "transform.jac"
@@ -80,6 +85,15 @@ glob KNOWN_CONSTRUCTOR_GAPS: tuple = (
 glob _CENSUS_MEMO: list = [];
 
 def _census -> tuple {
+    if _jaclang_image() is not None {
+        pytest.skip(
+            "this runtime is a sealed jaclang image, so na_ir_gen_pass "
+            "untrusts every method of an imported jaclang-internal archetype "
+            "that the image's layout does not carry; a source census here "
+            "measures that trust boundary instead of the emission path's own "
+            "coupling, which is what this file pins"
+        );
+    }
     if native_artifact_for("jaclang.jac0core.passes.transform") is not None {
         pytest.skip(
             "transform.jac is served from this runtime's native seal; the "
