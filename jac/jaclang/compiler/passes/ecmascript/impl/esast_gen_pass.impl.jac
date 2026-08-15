@@ -216,6 +216,9 @@ impl EsastGenPass._in_identifier_slot(nd: uni.UniNode) -> bool {
     if isinstance(parent, uni.JsxElementName) {
         return any(part is nd for part in (parent.parts or []));
     }
+    if isinstance(parent, uni.CompareExpr) {
+        return (parent.left is nd) and isinstance(parent.parent, uni.FilterCompr);
+    }
     return False;
 }
 
