@@ -34,7 +34,6 @@ glob _SEEDS: list[str] = [
          "jaclang.jac0core.bccache",
          "jaclang.jac0core.jir",
          "jaclang.jac0core.interop_bridge",
-         "jaclang.jac0core.gen_jir_registry",
          "jaclang.jac0core.gen_uni_dispatch",
          "jaclang.jac0core.cli_boot",
          "jaclang.runtimelib.client",

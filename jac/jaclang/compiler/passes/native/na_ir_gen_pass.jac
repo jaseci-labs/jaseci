@@ -172,8 +172,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _non_overridden_methods: dict[str, set[str]] = {},
         _struct_source_mod: dict[str, str] = {},
         _native_skipped_methods: set[str] = set(),
+        _capability_demotions: dict[int, list] = {},
+        _claimed_capability_demotions: set[int] = set(),
         _class_name_consts: dict[str, ir.Value] = {},
         _isa_fn: (ir.Function | None) = None,
+        _runtime_class_name_fn: (ir.Function | None) = None,
         osp_type_tag_field: dict[str, int] = {},
         osp_reports_field: dict[str, int] = {},
         osp_thunk_funcs: dict[str, ir.Function] = {},
@@ -304,7 +307,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
         di_cu: object = None,
         _di_current_sp: object = None,
         _func_loc: dict[str, int] = {},
-        _func_def_mod: dict[str, str] = {};
+        _func_def_mod: dict[str, str] = {},
+        _pyb_base_memo: dict[str, object] = {},
+        _pyb_helper_fns: dict[str, ir.Function] = {};
 
     static has REQUIRES: tuple = (
         'inference',
@@ -361,6 +366,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
         release_operands: bool = True
     ) -> (ir.Value | None);
 
+    def _identity_over_optional(
+        left: ir.Value, right: ir.Value, negate: bool
+    ) -> (ir.Value | None);
+
     def _codegen_unary(nd: uni.UnaryExpr) -> (ir.Value | None);
     def _codegen_call(nd: uni.FuncCall) -> (ir.Value | None);
     def _codegen_intrinsic(nd: uni.FuncCall, intr: object) -> (ir.Value | None);
@@ -413,6 +422,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _jac_optional_type(payload: ir.Type) -> ir.Type;
     def _opt_payload_of(t: ir.Type) -> (ir.Type | None);
     def _opt_ptr_payload_of(t: ir.Type) -> (ir.Type | None);
+    def _flow_narrowed_type_of(expr: (uni.UniNode | None)) -> (any | None);
     def _narrowed_flow_type(nd: uni.UniNode) -> (any | None);
     def _narrowing_blocked_by_none_test(nd: uni.UniNode) -> bool;
     def _narrowing_stable_in_loops(nd: uni.UniNode, name: str) -> bool;
@@ -508,6 +518,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _get_fmt_string(fmt: str) -> ir.GlobalVariable;
     def _get_snprintf_fmt(fmt: str) -> ir.GlobalVariable;
     def _resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type;
+    def _resolve_decl_type(
+        type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+    ) -> ir.Type;
+
+    def _widened_tuple_decl_type(
+        type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+    ) -> (ir.Type | None);
+
+    def _tuple_struct_of(elem_types: list) -> ir.Type;
     def _resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type;
     def _resolve_field_type(var: uni.UniNode) -> ir.Type;
     def _foreign_optional_field(tb: any) -> bool;
@@ -542,6 +561,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         expr: (uni.UniNode | None), prefix: str
     ) -> (ir.Type | None);
 
+    def _static_elem_llvm_of(expr: (uni.UniNode | None)) -> (ir.Type | None);
     def _elem_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _erased_generic_ctor(nd: uni.FuncCall) -> (str | None);
     def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
@@ -794,6 +814,49 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> None;
 
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
+    def _pyb_base_of(arch_name: str) -> (tuple | None);
+    def _pyb_helper(name: str) -> ir.Function;
+    def _pyb_emit_conv1(
+        name: str,
+        cfn: ir.Function,
+        arg_ty: ir.Type,
+        ret_ty: ir.Type,
+        gil_on: ir.Function,
+        gil_off: ir.Function
+    ) -> ir.Function;
+
+    def _pyb_cstr(text: str) -> ir.Value;
+    def _pyb_owner_addr(obj_val: ir.Value) -> ir.Value;
+    def _pyb_shadow_of_val(obj_val: ir.Value) -> ir.Value;
+    def _pyb_to_py(nd: (uni.UniNode | None), val: ir.Value) -> (ir.Value | None);
+    def _pyb_ret_key(nd: uni.FuncCall) -> (str | None);
+    def _pyb_from_py(handle: ir.Value, type_key: (str | None)) -> (ir.Value | None);
+    def _pyb_build_args(params: list, skip_kwargs: bool = False) -> (tuple | None);
+    def _pyb_bridge_call(fn_name: str, args: list[ir.Value]) -> ir.Value;
+    def _codegen_pyb_field_load(
+        nd: uni.AtomTrailer, obj_val: ir.Value, field_name: str
+    ) -> (ir.Value | None);
+
+    def _codegen_pyb_field_assign(
+        target: uni.AtomTrailer, value: ir.Value, obj_val: ir.Value
+    ) -> (ir.Value | None);
+
+    def _codegen_pyb_method_call(
+        nd: uni.FuncCall, type_name: str, method_name: str
+    ) -> (ir.Value | None);
+
+    def _codegen_pyb_super_call(
+        nd: uni.FuncCall, method_name: str
+    ) -> (ir.Value | None);
+
+    def _codegen_pyb_shadow_init(
+        nd: (uni.FuncCall | uni.Name),
+        type_name: str,
+        obj_ptr: ir.Value,
+        params: list,
+        native_fields: dict
+    ) -> bool;
+
     def _codegen_method(
         arch_name: str,
         method: uni.Ability,
@@ -824,13 +887,14 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Function | None);
 
     def _demote_method_if_unlowerable(
-        full_name: str,
-        func: ir.Function,
-        err_mark: int,
-        local_mark: int,
-        keep_func: bool = False
+        full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
     ) -> bool;
 
+    def _predemote_capability_unit(
+        full_name: str, func: ir.Function, viols: list, keep_func: bool = False
+    ) -> bool;
+
+    def _rename_demoted_symbol(name: str, func: ir.Function) -> None;
     def _codegen_no_sig_method(arch_name: str, method: uni.Ability) -> None;
     def _forward_declare_event_method(arch_name: str, method: uni.Ability) -> None;
     def _codegen_event_method(arch_name: str, method: uni.Ability) -> None;
@@ -961,6 +1025,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _spread_operand(nd: (uni.UniNode | None)) -> (uni.Expr | None);
     def _container_src_info(val: (ir.Value | None)) -> (dict | None);
+    def _spread_elem_storage(
+        src_info: dict, operand: (uni.Expr | None)
+    ) -> (ir.Type | None);
+
     def _reject_spread_slot_mismatch(
         nd: (uni.UniNode | None), src_elem: ir.Type, dest_elem: ir.Type, what: str
     ) -> bool;
@@ -1058,6 +1126,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _vtable_global_for(arch_name: str) -> (ir.GlobalVariable | None);
     def _vtable_candidates(names: list[str]) -> list[ir.GlobalVariable];
     def _emit_class_name_const(arch_name: str) -> ir.Value;
+    def _emit_runtime_class_name_fn -> (ir.Function | None);
+    def _codegen_runtime_class_name(obj_val: ir.Value) -> (ir.Value | None);
     def _codegen_class_name(nd: uni.AtomTrailer) -> (ir.Value | None);
     def _codegen_class_id(receiver: uni.UniNode) -> (ir.Value | None);
     def _class_id_of_value(arch_name: str, obj_val: ir.Value) -> ir.Value;
@@ -1082,7 +1152,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _infer_compr_elem_struct(compr: object) -> (str | None);
     def _infer_unpack_struct_ptr(nd: object) -> (ir.Type | None);
     def _codegen_string_index(
-        target_val: ir.Value, index_val: ir.Value
+        target_val: ir.Value, index_val: ir.Value, len_val: (ir.Value | None) = None
     ) -> (ir.Value | None);
 
     def _emit_is_strip_char(ch: ir.Value, charset: (ir.Value | None)) -> ir.Value;

@@ -116,15 +116,21 @@ test "an enum against bool still owns the int tag alone" {
 
 test "an enum sharing the int tag is refused, not answered by tag" {
     prog = JacProgram();
-    prog.compile(
+    ir = prog.compile(
         file_path=str(os.path.join(FIXTURES, "isinstance_enum_tag_clash.jac")),
         options=native_force_opts()
     );
     # `int` claims tag 0 as well, so a tag compare would report `True` for a
     # plain int. Refusing is the only correct answer until the enum ordinal
-    # is discriminated some other way.
-    assert has_error_code(prog, "E5092") , (
-        "isinstance against an enum that shares the int tag must be refused, "
-        f"got: {[str(e) for e in prog.errors_had]}"
+    # is discriminated some other way; the refusal demotes the asking
+    # function to its Python implementation instead of failing the module.
+    assert not prog.errors_had , (
+        "the tag-clash refusal is owned by chk_enum_over_int(), which must "
+        f"demote to a seam, got: {[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "chk_enum_over_int" not in ir.gen.native_layout.functions , (
+        "isinstance against an enum that shares the int tag must demote the "
+        "asking function out of the native layout, never answer by tag"
     );
 }

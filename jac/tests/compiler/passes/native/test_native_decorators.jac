@@ -24,6 +24,15 @@ def compile_na_inline(label: str, code: str) -> JacProgram {
     return prog;
 }
 
+"""Like `compile_na_inline`, but also hand back the compiled module so a
+granular demotion (epic #8201) is observable through the native layout."""
+def compile_na_inline_ir(label: str, code: str) -> tuple {
+    path = os.path.join(FIXTURES_DIR, f"_decorator_{label}.jac");
+    prog = JacProgram();
+    ir = prog.compile(file_path=path, use_str=code, options=native_force_opts());
+    return (prog, ir, );
+}
+
 """Return True if the program emitted at least one alert with the given code."""
 def has_error_code(prog: JacProgram, code: str) -> bool {
     for alrt in prog.errors_had {
@@ -109,24 +118,32 @@ test "guardrail: multi-argument decorator is rejected at apply time" {
 
 # A decorator that is not statically resolvable (an arbitrary expression)
 # stays rejected: silent mis-binding is never acceptable.
-test "guardrail: non-static decorator expression is rejected" {
-    prog = compile_na_inline(
+test "guardrail: non-static decorator expression demotes its function" {
+    (prog, ir) = compile_na_inline_ir(
         "dynamic_dec",
         "def pick(fn: any) -> any { return fn; }\n"
         "glob decs: list = [];\n"
         "@ (decs[0])\n"
         "def val(x: int) -> int { return x; }\n"
     );
-    assert has_error_code(prog, "E5090") , (
-        f"Expected E5090 for a non-static decorator expression, got: "
-        f"{fmt_errors(prog)}"
+    assert not has_error_code(prog, "E5090") , (
+        f"a dynamically-computed decorator must demote its function to the "
+        f"Python implementation (which applies it), got: {fmt_errors(prog)}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "val" not in layout.functions , (
+        "the dynamically-decorated function must be demoted out of the "
+        "native layout, never run undecorated"
     );
 }
 
-# Method decorators interact with vtable layout and stay rejected even after
-# module-level static decoration lands.
-test "guardrail: decorated method is rejected" {
-    prog = compile_na_inline(
+# Method decorators interact with vtable layout, so a decorated method
+# demotes to its Python implementation (which applies the decorator) rather
+# than running undecorated -- and a native caller of the demoted method
+# demotes with it instead of silently binding its abort stub.
+test "guardrail: decorated method demotes, native callers demote with it" {
+    (prog, ir) = compile_na_inline_ir(
         "method",
         "def ident(fn: any) -> any { return fn; }\n"
         "obj Box {\n"
@@ -136,8 +153,17 @@ test "guardrail: decorated method is rejected" {
         "}\n"
         "def use_box -> int { b = Box(v=3); return b.get(); }\n"
     );
-    assert has_error_code(prog, "E5090") , (
-        f"Expected E5090 for a decorated native method, got: {fmt_errors(prog)}"
+    assert not has_error_code(prog, "E5090") , (
+        f"a decorated method must demote, not fail the module: {fmt_errors(prog)}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "Box.get" not in layout.methods , (
+        "the decorated method must be demoted out of the native layout, "
+        "never run undecorated"
+    );
+    assert "use_box" not in layout.functions , (
+        "a native caller of the demoted method must demote with it"
     );
 }
 

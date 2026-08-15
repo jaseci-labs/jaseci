@@ -4,9 +4,10 @@ Graduated from the guardrail ("star-args def is rejected loudly" in
 test_native_crash_guards.jac, #7320). The call site materializes the pack:
 `*args: T` is a native List of T (List.jacval for `*args: any`) and
 `**kwargs: T` a native str-keyed Dict, each passed as one pointer and
-released after the call. Shapes the lowering does not cover stay structured
-errors: call-site argument unpacking (`f(*xs)` / `f(**d)`), unannotated
-variadics, variadic `init`, and def:pub variadics.
+released after the call. Shapes the lowering does not cover demote their
+owning function to a Python-only seam (call-site argument unpacking
+`f(*xs)` / `f(**d)`, def:pub variadics), while shapes with no demotable
+owner stay structured errors (unannotated variadics, variadic `init`).
 
 Expected values are pinned against CPython (see each fixture wrapper).
 """
@@ -50,6 +51,15 @@ def compile_na_inline(label: str, code: str) -> JacProgram {
     prog = JacProgram();
     prog.compile(file_path=path, use_str=code, options=native_force_opts());
     return prog;
+}
+
+"""Like `compile_na_inline`, but also hand back the compiled module so a
+granular demotion (epic #8201) is observable through the native layout."""
+def compile_na_inline_ir(label: str, code: str) -> tuple {
+    path = os.path.join(FIXTURES, f"_varargs_{label}.jac");
+    prog = JacProgram();
+    ir = prog.compile(file_path=path, use_str=code, options=native_force_opts());
+    return (prog, ir, );
 }
 
 """Return True if the program emitted at least one alert with the given code."""
@@ -146,19 +156,29 @@ test "varargs: cross-module callee receives the pack" {
     assert f() == 15 , f"Expected 15, got {f()}";
 }
 
-test "callsite star-unpack of a LIST into a fixed-arity callee is a loud error" {
-    # A list's arity is not statically known, so this stays loud even now
+test "callsite star-unpack of a LIST into a fixed-arity callee demotes the caller" {
+    # A list's arity is not statically known, so this stays refused even now
     # that tuple spreads and variadic-callee list spreads lower (#7626 A6).
     # Before wave 2, two(*xs) compiled CLEAN and returned 0 (the star
-    # expression lowered to None and both params default-padded).
-    prog = compile_na_inline(
+    # expression lowered to None and both params default-padded); the
+    # refusal now demotes use() to its Python implementation instead of
+    # failing the whole module.
+    (prog, ir) = compile_na_inline_ir(
         "star_fixed",
         "def two(a: int, b: int) -> int { return a * 10 + b; }\n"
         "def use() -> int { xs = [7, 8]; return two(*xs); }\n"
     );
-    assert has_error_code(prog, "E5090") or has_error_code(prog, "E5092") , (
-        f"Expected a loud E5090/E5092 for two(*xs), got: "
+    assert not prog.errors_had , (
+        f"two(*xs) is owned by use(), which must demote to a seam, got: "
         f"{[str(e) for e in prog.errors_had]}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "two" in layout.functions , (
+        f"clean sibling function was lost: {list(layout.functions)}"
+    );
+    assert "use" not in layout.functions , (
+        "the unpacking caller must be demoted out of the native layout"
     );
 }
 
@@ -178,15 +198,23 @@ test "callsite star-unpack: list spread routes through a variadic callee" {
     assert f() == 15 , "vsum(*[4, 5, 6])";
 }
 
-test "double-star unpack at a call site is a loud error" {
-    prog = compile_na_inline(
+test "double-star unpack at a call site demotes the calling function" {
+    (prog, ir) = compile_na_inline_ir(
         "dstar_fixed",
         "def two(a: int, b: int) -> int { return a * 10 + b; }\n"
         "def use() -> int { d = {'a': 1, 'b': 2}; return two(**d); }\n"
     );
-    assert has_error_code(prog, "E5090") or has_error_code(prog, "E5092") , (
-        f"Expected a loud E5090/E5092 for two(**d), got: "
+    assert not prog.errors_had , (
+        f"two(**d) is owned by use(), which must demote to a seam, got: "
         f"{[str(e) for e in prog.errors_had]}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "two" in layout.functions , (
+        f"clean sibling function was lost: {list(layout.functions)}"
+    );
+    assert "use" not in layout.functions , (
+        "the unpacking caller must be demoted out of the native layout"
     );
 }
 
@@ -195,11 +223,19 @@ test "unannotated variadic parameter is a loud error" {
     assert prog.errors_had , "Expected a loud error for an unannotated *args";
 }
 
-test "def:pub variadic stays a loud E5090" {
-    prog = compile_na_inline("pubvar", "def:pub f(*args: int) -> int { return 0; }\n");
-    assert has_error_code(prog, "E5090") , (
-        f"Expected E5090 for a def:pub variadic, got: "
+test "def:pub variadic demotes off the native interop surface" {
+    (prog, ir) = compile_na_inline_ir(
+        "pubvar", "def:pub f(*args: int) -> int { return 0; }\n"
+    );
+    assert not prog.errors_had , (
+        f"the interop bridge cannot marshal a parameter pack, so the pub "
+        f"variadic must demote to its Python implementation, got: "
         f"{[str(e) for e in prog.errors_had]}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "f" not in layout.functions , (
+        "the pub variadic must be demoted out of the native layout"
     );
 }
 

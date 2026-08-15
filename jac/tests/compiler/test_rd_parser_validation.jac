@@ -3,7 +3,6 @@ import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.jac0core.unitree { Module }
-import from jaclang.jac0core.unitree { Test as JacTest }
 import from jaclang.jac0core.helpers { read_file_with_encoding }
 import from jaclang.runtimelib.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
@@ -29,9 +28,7 @@ def parse_with_rd(source: str, file_path: str) -> Module | None {
 
 def rd_parser_test(filename: str) {
     source = read_file_with_encoding(filename);
-    saved_test_count = JacTest.TEST_COUNT;
     rd_ast = parse_with_rd(source, filename);
-    JacTest.TEST_COUNT = saved_test_count;
     assert rd_ast is not None , f"RD parser failed to parse {filename}";
 }
 

@@ -181,7 +181,6 @@ obj UniScopeNode(UniNode) {
     def chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None;
     def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
     def _fix_store_ctx(item: UniNode) -> None;
-    def _fix_store_items(items: Sequence[UniNode]) -> None;
     def __repr__ -> str;
 }
 
@@ -261,6 +260,7 @@ obj ConditionalNode(UniCFGNode) {
 obj Expr(UniNode) {
     has _type_sym_tab: (UniScopeNode | None) postinit,
         type: (TypeBase | None) postinit,
+        narrowed_type: (TypeBase | None) postinit,
         attached_tokens: (list[Token] | None) postinit;
 
     def postinit -> None;
@@ -294,8 +294,8 @@ obj CodeBlockStmt(UniCFGNode) {
     def postinit -> None;
 }
 
-obj AstImplNeedingNode[T](AstSymbolNode) {
-    has body: (T | None);
+obj AstImplNeedingNode(AstSymbolNode) {
+    has body: (Sequence[UniNode] | UniNode | None);
     has needs_impl: bool { getter; }
 }
 
@@ -425,12 +425,10 @@ obj Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNo
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (Name | Token),
+    has name: Name,
         body: Sequence[CodeBlockStmt],
         description: (String | None) = None,
         decorators: (Sequence[Expr] | None) = None;
-
-    static has TEST_COUNT: int = 0;
 
     def postinit -> None;
 }

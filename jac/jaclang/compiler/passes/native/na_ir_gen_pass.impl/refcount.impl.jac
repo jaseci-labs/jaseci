@@ -2199,6 +2199,13 @@ impl NaIRGenPass._emit_struct_release_fn(arch_name: str) -> None {
         b.call(_hook, [release_fn.args[0]]);
     }
 
+    if self._pyb_base_of(arch_name) is not None {
+        b.call(
+            self._pyb_helper("drop_owner"),
+            [b.ptrtoint(release_fn.args[0], i64, name="pyb.owner")]
+        );
+    }
+
     _has_ref_fields = any(
         (isinstance(_ft, ir.PointerType) or self._opt_ptr_payload_of(_ft) is not None)
             and _fn not in foreign_fields

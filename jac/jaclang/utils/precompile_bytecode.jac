@@ -19,8 +19,9 @@ import from jaclang.jac0core.jir {
     SEC_BYTECODE,
     SEC_DEBUG_SRC,
     FORMAT_VERSION,
-    compute_module_key,
-    jir_matches_source,
+    compute_precompile_module_key,
+    precompiled_jir_matches_source,
+    running_compiler_digest,
     PRECOMPILE_SENTINEL
 }
 import from jaclang.jac0core.sealed {
@@ -35,6 +36,20 @@ import from jaclang.jac0core.sealed {
 }
 
 glob RESULT_NAME: str = "PRECOMPILE_RESULT.json";
+
+def compiler_identity -> str {
+    digest = running_compiler_digest();
+    if digest.startswith("0:") {
+        raise RuntimeError(
+            "Precompile aborted: no compiler sources found under the running "
+            "jaclang package, so this build cannot state which compiler it is. "
+            "Every seeded .jir would then be reusable by any other compiler at "
+            "this version -- the #8178 failure mode. Check that jac0core/ and "
+            "compiler/ ship with the running jaclang."
+        );
+    }
+    return digest;
+}
 
 def find_package_dir(source_dir: str) -> str | None {
     src = Path(source_dir).resolve();
@@ -211,7 +226,7 @@ def precompile_unit(
         extra = {SEC_DEBUG_SRC: zlib.compress(Path(jac_path).read_bytes(), 9)};
     }
     return write_precompiled_jir(
-        patched, compute_module_key(jac_path), FLAG_PRECOMPILED, extra
+        patched, compute_precompile_module_key(jac_path), FLAG_PRECOMPILED, extra
     );
 }
 
@@ -297,10 +312,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::ModulePath.dot_path_str.__get__",
          "jac0core/unitree.jac::ModulePath.base_module_name.__get__",
          "jac0core/unitree.jac::DeleteStmt.py_ast_targets.__get__",
-         "jac0core/unitree.jac::NameAtom.sem_token.__get__",
-         "jac0core/unitree.jac::Name.sem_token.__get__",
-         "jac0core/unitree.jac::SpecialVarRef.sem_token.__get__",
-         "jac0core/unitree.jac::BuiltinType.sem_token.__get__",
          "jac0core/unitree.jac::String.lit_value.__get__",
          "jac0core/unitree.jac::MultiString.lit_value.__get__",
          "jac0core/unitree.jac::BuiltinType.lit_value.__get__",
@@ -444,7 +455,11 @@ def seal_abort_stubs(llvm_ir_text: str) -> list[str] {
             and abort_re.match(body[1]) is not None
             and body[2] == "unreachable"
         ) {
-            stubs.append(matched.group(1) or matched.group(2));
+            stub_name = matched.group(1) or matched.group(2);
+            if stub_name.endswith(".__jac_demoted") {
+                stub_name = stub_name[:-len(".__jac_demoted")];
+            }
+            stubs.append(stub_name);
         }
     }
     return sorted(set(stubs));
@@ -581,6 +596,8 @@ glob _PARITY_CANARY_LINES: tuple = (
          "    return self.a if self.a else -1;",
          "}",
          "test \"canary t\" { assert Canary(a=5).m(2) >= -1; }",
+         "test { assert Canary(a=1).m() >= -1; }",
+         "test box_holds { assert Canary(a=2).m() >= -1; }",
          "with entry { print({'k': [1, 2.5, True, None]}); }",
 
      ),
@@ -644,9 +661,157 @@ glob _PARITY_CANARY_LINES: tuple = (
          "    }",
          "}",
          "test \"box holds\" { assert Box(x=1).m() >= -1; }",
+         "test { assert Box(x=2).m() >= -1; }",
+         "test \"...\" { assert Box(x=3).m() >= -1; }",
          "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }  # trailing",
 
      );
+
+glob _PARITY_IDENT_PROBES: tuple = (
+         '"abc"',
+         '"ABC"',
+         '"a1"',
+         '"a b"',
+         '" ab"',
+         '"ab "',
+         "'abc'",
+         '"a-b"',
+         '"..."'
+     );
+
+def _parity_test_names(mod: any) -> list[str] {
+    import jaclang.jac0core.unitree as uni;
+    out: list[str] = [];
+    for nd in mod._in_mod_nodes {
+        if isinstance(nd, uni.Test) {
+            out.append(str(getattr(nd.__dict__.get("name"), "value", "<none>")));
+        }
+    }
+    return out;
+}
+
+
+def _parity_ident_probe(np: any) -> str {
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.parser { Parser }
+
+    nl = chr(10);
+    rows: list[str] = [
+        "    ident-derivation probe: a described test whose ident derives "
+        "must not consume a generated ordinal, so the trailing bare test "
+        "must be _jac_gen_1 on both tiers"
+    ];
+    for pi in range(len(_PARITY_IDENT_PROBES)) {
+        desc = _PARITY_IDENT_PROBES[pi];
+        path = f"__seal_parity_probe_{pi}__.jac";
+        src = nl.join(["test " + desc + " { assert 1; }", "test { assert 1; }"]);
+        n_names: list[str] = [];
+        try {
+            (n_mod, _ne, _npd, _nc, _nld, _nle) = np.parse(src, path);
+            n_names = _parity_test_names(n_mod);
+        } except Exception as probe_exc {
+            n_names = [f"<{type(probe_exc).__name__}: {probe_exc}>"];
+        }
+        (toks, _pc, _pld, _ple) = tokenize_full(src, path);
+        p_names = _parity_test_names(
+            Parser(tokens=toks, file_path=path, source_code=src).parse()
+        );
+        verdict = "ok" if n_names == p_names else "DIVERGED";
+        rows.append(
+            f"      test {desc:<8} native {n_names} vs bytecode {p_names}"
+            f"  {verdict}"
+        );
+    }
+    return nl.join(rows);
+}
+
+
+def _parity_diff_at(left: any, right: any) -> int {
+    limit = min(len(left), len(right));
+    for i in range(limit) {
+        if left[i] != right[i] {
+            return i;
+        }
+    }
+    return limit;
+}
+
+
+def _parity_window(items: list, at: int, span: int, sep: str = " ") -> str {
+    lo = max(0, at - span);
+    hi = min(len(items), at + span + 1);
+    out = sep.join([str(x) for x in items[lo:hi]]);
+    if lo > 0 {
+        out = f"...{out}";
+    }
+    if hi < len(items) {
+        out = f"{out}...";
+    }
+    return out;
+}
+
+
+def _parity_pairwise(left: list, right: list, cap: int) -> tuple[(list[str], int)] {
+    shown: list[str] = [];
+    total = 0;
+    for i in range(max(len(left), len(right))) {
+        l_at = str(left[i]) if i < len(left) else "<end>";
+        r_at = str(right[i]) if i < len(right) else "<end>";
+        if l_at == r_at {
+            continue;
+        }
+        total += 1;
+        if len(shown) < cap {
+            shown.append(f"[{i + 1}] native {l_at!r} vs bytecode {r_at!r}");
+        }
+    }
+    return (shown, total, );
+}
+
+
+def _parity_text_report(canary_path: str, native_up: str, py_up: str) -> str {
+    nl = chr(10);
+    off = _parity_diff_at(native_up, py_up);
+    line = native_up.count(nl, 0, off) + 1;
+    col = off - native_up.rfind(nl, 0, off);
+    n_toks = native_up.split();
+    p_toks = py_up.split();
+    at = _parity_diff_at(n_toks, p_toks);
+    (shown, total) = _parity_pairwise(n_toks, p_toks, 6);
+    out = [
+        f"{canary_path}: unparse diverged at line {line}, col {col} "
+        f"(char {off} of {len(native_up)} native / {len(py_up)} bytecode)",
+        f"    {total} differing token(s) of {len(n_toks)} native / "
+        f"{len(p_toks)} bytecode",
+        f"    native   {_parity_window(n_toks, at, 8)}",
+        f"    bytecode {_parity_window(p_toks, at, 8)}"
+    ];
+    for entry in shown {
+        out.append(f"    {entry}");
+    }
+    if total > len(shown) {
+        out.append(f"    ... and {total - len(shown)} more");
+    }
+    return nl.join(out);
+}
+
+
+def _parity_sym_report(canary_path: str, n_syms: list, p_syms: list) -> str {
+    nl = chr(10);
+    at = _parity_diff_at(n_syms, p_syms);
+    n_show = n_syms[at] if at < len(n_syms) else "<end>";
+    p_show = p_syms[at] if at < len(p_syms) else "<end>";
+    return nl.join(
+        [
+            f"{canary_path}: symbol names diverged at entry {at + 1} of "
+            f"{len(n_syms)} native / {len(p_syms)} bytecode: "
+            f"native {n_show!r} vs bytecode {p_show!r}",
+            f"    native   {_parity_window(n_syms, at, 3, sep=', ')}",
+            f"    bytecode {_parity_window(p_syms, at, 3, sep=', ')}"
+        ]
+    );
+}
+
 
 def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
     import traceback;
@@ -708,45 +873,41 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
         }
         native_up = unparse_node(native_mod);
         py_up = unparse_node(py_mod);
-        if native_up != py_up {
-            n_lines = native_up.splitlines();
-            p_lines = py_up.splitlines();
-            at = -1;
-            for (li, pair) in enumerate(zip(n_lines, p_lines)) {
-                if pair[0] != pair[1] {
-                    at = li;
-                    break;
-                }
-            }
-            if at < 0 {
-                at = min(len(n_lines), len(p_lines));
-            }
-            n_show = n_lines[at] if at < len(n_lines) else "<end>";
-            p_show = p_lines[at] if at < len(p_lines) else "<end>";
+        n_syms: list[str] = [];
+        p_syms: list[str] = [];
+        try {
+            n_syms = _sym_name_fingerprint(native_mod);
+            p_syms = _sym_name_fingerprint(py_mod);
+        } except Exception as sym_exc {
             return (
-                f"{canary_path}: unparse fingerprints diverged at line "
-                f"{at + 1}: native {n_show!r} vs bytecode {p_show!r}"
+                f"{canary_path}: symbol fingerprint raised "
+                f"{type(sym_exc).__name__}: {sym_exc}"
             );
         }
-        n_syms = _sym_name_fingerprint(native_mod);
-        p_syms = _sym_name_fingerprint(py_mod);
-        if n_syms != p_syms {
-            at = -1;
-            for (si, sym_pair) in enumerate(zip(n_syms, p_syms)) {
-                if sym_pair[0] != sym_pair[1] {
-                    at = si;
-                    break;
-                }
+        if native_up != py_up or n_syms != p_syms {
+            if env_na_debug() {
+                sys.stderr.write(
+                    f"--- {canary_path}: native unparse ---{nl}{native_up}{nl}"
+                    f"--- {canary_path}: bytecode unparse ---{nl}{py_up}{nl}"
+                );
+                sys.stderr.flush();
             }
-            if at < 0 {
-                at = min(len(n_syms), len(p_syms));
+            detail: list[str] = [];
+            if native_up != py_up {
+                detail.append(_parity_text_report(canary_path, native_up, py_up));
             }
-            n_show = n_syms[at] if at < len(n_syms) else "<end>";
-            p_show = p_syms[at] if at < len(p_syms) else "<end>";
-            return (
-                f"{canary_path}: symbol names diverged at entry {at + 1}: "
-                f"native {n_show!r} vs bytecode {p_show!r}"
-            );
+            if n_syms != p_syms {
+                detail.append(_parity_sym_report(canary_path, n_syms, p_syms));
+            }
+            try {
+                detail.append(_parity_ident_probe(np));
+            } except Exception as probe_exc {
+                detail.append(
+                    f"    ident-derivation probe unavailable: "
+                    f"{type(probe_exc).__name__}: {probe_exc}"
+                );
+            }
+            return nl.join(detail);
         }
     }
     return "";
@@ -845,6 +1006,13 @@ def seal_native_artifacts(
             _mat_manifest = generate_materialize_root(
                 unitree_layout, src, _UNITREE_SEAM_WAIVERS
             );
+            for _mat_warn in (_mat_manifest.pop("warnings", None) or []) {
+                console.warning(
+                    f"NATIVE SEAL: the materializer erased a slot: {_mat_warn}. "
+                    "The Python side must reconstruct it (postinit or a lazy "
+                    "accessor) or the materialized tree loses that value."
+                );
+            }
             _gen_root_src = src;
         }
         if not src.is_file() {
@@ -1030,10 +1198,10 @@ def seal_native_artifacts(
             if parity {
                 console.error(
                     f"NATIVE SEAL: {rel}: the emitted artifact "
-                    f"{lib_path.name} failed its parse parity canary: "
-                    f"{parity}. The seal refuses artifacts whose parses do "
-                    "not match the bytecode parser; set JAC_NA_DEBUG=1 for "
-                    "the traceback."
+                    f"{lib_path.name} failed its parse parity canary. The "
+                    "seal refuses artifacts whose parses do not match the "
+                    "bytecode parser; set JAC_NA_DEBUG=1 for the full "
+                    f"unparsed texts and the traceback.{chr(10)}{parity}"
                 );
                 lib_path.unlink(missing_ok=True);
                 layout_path.unlink(missing_ok=True);
@@ -1211,6 +1379,27 @@ def seal_finalize(
         return 1;
     }
 
+    identity = compiler_identity();
+    foreign: list[str] = [];
+    for p in sealable_sources(str(pkg_path)) {
+        rel = Path(p).relative_to(pkg_path);
+        jir = precompiled_dir / pyver / rel.with_suffix(".jir");
+        if not precompiled_jir_matches_source(jir.read_bytes(), p, identity) {
+            foreign.append(str(rel));
+        }
+    }
+    if foreign {
+        console.error(
+            f"Seal aborted: {len(foreign)} module(s) carry a JIR this compiler "
+            f"did not produce (first: {foreign[:5]}). Their module keys name a "
+            "different compiler content digest, so the seed served bytecode "
+            "built by another compiler at this same version (#8178). Delete "
+            f"{precompiled_dir} and re-run the precompile."
+        );
+        return 1;
+    }
+    console.print(f"  Compiler identity: {identity} (verified over every JIR)");
+
     out_dir = precompiled_dir / pyver;
 
     stale_boot = precompiled_dir / "bootstrap";
@@ -1313,6 +1502,7 @@ def write_manifest(
         "python_tag": pyver,
         "jir_format_version": FORMAT_VERSION,
         "jaclang_version": jac_ver,
+        "compiler_digest": compiler_identity(),
         "modules": modules
     };
     if payloads {
@@ -1412,6 +1602,7 @@ def main {
 
     console.print(f"Precompiling {pkg_name} for {pyver}...");
     console.print(f"  Package directory: {package_dir}");
+    console.print(f"  Compiler identity: {compiler_identity()}");
 
     jac_files = (
         sealable_sources(package_dir)
@@ -1463,7 +1654,7 @@ def main {
         try {
             if jir_path.is_file() {
                 existing = jir_path.read_bytes();
-                if jir_matches_source(existing, jac_path)
+                if precompiled_jir_matches_source(existing, jac_path)
                     and embed_src == (read_debug_source(existing) is not None) {
                     reused += 1;
                     continue;
@@ -1473,6 +1664,7 @@ def main {
             jir_bytes = precompile_unit(jac_path, package_dir, embed_src);
             if jir_bytes is None {
                 console.print(f"  SKIP (no bytecode): {rel}");
+                jir_path.unlink(missing_ok=True);
                 failed += 1;
                 continue;
             }
@@ -1482,6 +1674,7 @@ def main {
             compiled += 1;
         } except Exception as e {
             console.error(f"FAIL: {rel} - {e}");
+            jir_path.unlink(missing_ok=True);
             failed += 1;
         }
     }

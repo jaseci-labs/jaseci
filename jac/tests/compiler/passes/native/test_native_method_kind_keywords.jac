@@ -7,10 +7,12 @@ Jac has first-class syntax for all three method kinds -- `abst`, `class def`,
 
 The native capability authority inspects `nd.decorators`, a list of `Expr`
 nodes. A keyword populates no such list, so the keyword forms cross the
-native boundary while the hand-written decorators are rejected with E5090.
-The compiler's own front-end sources used the decorator spellings in places
-(`passes/transform.jac`, `runtime.jac`, `compiler.jac`); this test pins both
-halves of the contract so that regression is visible.
+native boundary while the hand-written decorators demote their method to a
+Python-only seam (granular demotion, epic #8201) -- the method leaves the
+native layout rather than running undecorated. The compiler's own front-end
+sources used the decorator spellings in places (`passes/transform.jac`,
+`runtime.jac`, `compiler.jac`); this test pins both halves of the contract
+so that regression is visible.
 
 Tracks the front-end native idiom work in #8039.
 """
@@ -120,13 +122,14 @@ test "the keyword fixture compiles with no native diagnostics at all" {
 }
 
 # ─────────────────────────────────────────────────────────────────────
-# The decorator spellings stay rejected -- this is why the sources moved
+# The decorator spellings demote off native -- this is why the sources moved
 # ─────────────────────────────────────────────────────────────────────
 
-test "guardrail: @abstractmethod is rejected where abst is accepted" {
-    dec = check_na_inline(
-        "abstractmethod",
-        "import from abc { abstractmethod }\n"
+test "guardrail: @abstractmethod demotes where abst is accepted" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "_mkind_abstractmethod.jac"),
+        use_str="import from abc { abstractmethod }\n"
         "obj Base {\n"
         "    @abstractmethod\n"
         "    def go(x: int) -> int;\n"
@@ -134,9 +137,17 @@ test "guardrail: @abstractmethod is rejected where abst is accepted" {
         "obj Impl(Base) {\n"
         "    def go(x: int) -> int { return x + 1; }\n"
         "}\n"
-        "with entry { print(Impl().go(1)); }\n"
+        "with entry { print(Impl().go(1)); }\n",
+        options=native_force_opts()
     );
-    assert has_error_code(dec, "E5090") , f"expected E5090, got {fmt_errors(dec)}";
+    assert not has_error_code(prog, "E5090") , (
+        f"a decorated method must demote, not fail the module: {fmt_errors(prog)}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "Base.go" not in layout.methods , (
+        "the @abstractmethod method must be demoted out of the native layout"
+    );
     kw = check_na_inline(
         "abst",
         "obj Base {\n"
@@ -150,16 +161,24 @@ test "guardrail: @abstractmethod is rejected where abst is accepted" {
     assert not kw.errors_had , fmt_errors(kw);
 }
 
-test "guardrail: @classmethod is rejected at the capability gate" {
-    dec = check_na_inline(
-        "classmethod",
-        "obj Holder {\n"
+test "guardrail: @classmethod demotes at the capability gate" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "_mkind_classmethod.jac"),
+        use_str="obj Holder {\n"
         "    @classmethod\n"
         "    def make(cls: any) -> int { return 7; }\n"
-        "}\n"
-        "with entry { print(Holder.make()); }\n"
+        "}\n",
+        options=native_force_opts()
     );
-    assert has_error_code(dec, "E5090") , f"expected E5090, got {fmt_errors(dec)}";
+    assert not has_error_code(prog, "E5090") , (
+        f"a @classmethod method must demote, not fail the module: {fmt_errors(prog)}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "Holder.make" not in layout.methods , (
+        "the @classmethod method must be demoted out of the native layout"
+    );
 }
 
 # `class def` sets `is_classmethod` rather than populating `decorators`, so

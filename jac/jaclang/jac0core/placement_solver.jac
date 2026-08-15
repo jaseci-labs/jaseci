@@ -162,6 +162,11 @@ def native_default_verdict(module: uni.Module) -> tuple[bool, str] {
     return (True, '');
 }
 
+def _endpoint_veto_applies(module: uni.Module) -> bool {
+    import from jaclang.jac0core.placement { project_has_server }
+    return project_has_server(module.loc.mod_path or '');
+}
+
 def _top_element(module: uni.Module, nd: uni.UniNode) -> (uni.UniNode | None) {
     cur: (uni.UniNode | None) = nd;
     while (cur is not None and cur.parent is not module) {
@@ -233,7 +238,9 @@ def _pullable_by_client_reference(
         return True;
     }
     if isinstance(elem, uni.Ability) {
-        return elem.access is None or not is_server_anchored_module(module);
+        return elem.access is None
+            or not _endpoint_veto_applies(module)
+            or not is_server_anchored_module(module);
     }
     return True;
 }
@@ -359,6 +366,7 @@ def _closure_pullable(
     if (
         isinstance(top, uni.Ability)
         and top.access is not None
+        and _endpoint_veto_applies(module)
         and is_server_anchored_module(module)
     ) {
         return False;
@@ -943,6 +951,8 @@ impl PlacementApplyPass.postinit -> None {
 }
 
 impl PlacementApplyPass.transform(ir_in: uni.Module) -> uni.Module {
+    import from jaclang.compiler.symbol_utils { report_serverless_kind_errors }
     solve_module_placement(ir_in, self.prog);
+    report_serverless_kind_errors(self, ir_in);
     return ir_in;
 }
