@@ -1,10 +1,8 @@
 import from jaclang.jac0core.unitree { JsxElement, Module, Name, Token, UniNode }
 import from jaclang.jac0core.diagnostics { E1105 }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
-import from jaclang.project.client_kind {
-    mobui_module_exempt,
-    resolve_client_kind_context
-}
+import from jaclang.project.client_kind { resolve_client_kind_context }
+import from jaclang.project.client_kind_paths { mobui_module_exempt }
 
 glob _GENERIC_SUGGESTION: str = "an @jac/mobui component",
      _tag_suggestions: (dict[str, str] | None) = None;
@@ -71,7 +69,7 @@ class JsxIntrinsicGuardPass(UniPass) {
     def _resolves_in_scope(
         self: JsxIntrinsicGuardPass, el: JsxElement, first: UniNode
     ) -> bool {
-        if not isinstance(first, Name) or not el.sym_tab {
+        if not isinstance(first, Name) or not el.sym_tab or el.name is None {
             return False;
         }
         name_chain = [
