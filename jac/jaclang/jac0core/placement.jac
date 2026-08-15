@@ -170,6 +170,16 @@ def _is_pub_element(stmt: uni.UniNode) -> bool {
     );
 }
 
+def project_has_server(source_path: str) -> bool {
+    import from jaclang.jac0core.placement_pins { config_kind_space }
+    return config_kind_space(source_path) != 'client';
+}
+
+def project_kind_name(source_path: str) -> str {
+    import from jaclang.jac0core.placement_pins { config_project_kind }
+    return config_project_kind(source_path);
+}
+
 def _resolve_import_path(nd: (uni.ModulePath | uni.ModuleItem)) -> (str | None) {
     path: (str | None) = None;
     try {
