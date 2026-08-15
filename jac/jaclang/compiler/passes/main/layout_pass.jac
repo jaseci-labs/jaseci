@@ -1,4 +1,22 @@
-import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.unitree {
+    Ability,
+    ArchHas,
+    Archetype,
+    Assignment,
+    AstSymbolNode,
+    AtomTrailer,
+    BinaryExpr,
+    BuiltinType,
+    Enum,
+    FuncCall,
+    FuncSignature,
+    HasVar,
+    Module,
+    Name,
+    TupleVal,
+    UnaryExpr,
+    UniNode
+}
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.const_fold { fold_const }
@@ -31,18 +49,18 @@ obj FieldInfo {
     has name: str,
         index: int,
         type_tag: str,
-        type_node: (uni.UniNode | None) = None,
-        default_expr: (uni.UniNode | None) = None,
+        type_node: (UniNode | None) = None,
+        default_expr: (UniNode | None) = None,
         owner: str = "",
         is_func_ptr: bool = False,
-        decl_node: (uni.UniNode | None) = None;
+        decl_node: (UniNode | None) = None;
 }
 
 obj MethodSlot {
     has name: str,
         index: int,
         owner: str,
-        signature: (uni.UniNode | None) = None;
+        signature: (UniNode | None) = None;
 }
 
 obj ArchetypeLayout {
@@ -84,15 +102,13 @@ glob ACCESSOR_SLOT_SUFFIX: dict[str, str] = {
          "deleter": "__del__"
      };
 
-def accessor_slot_name(field_name: str, acc: uni.Ability) -> (str | None) {
+def accessor_slot_name(field_name: str, acc: Ability) -> (str | None) {
     suffix = ACCESSOR_SLOT_SUFFIX.get(acc.accessor_kind);
     return None if suffix is None else f"{field_name}.{suffix}";
 }
 
-def archetype_accessors(
-    arch: uni.Archetype
-) -> list[tuple[(str, uni.HasVar, uni.Ability)]] {
-    out: list[tuple[(str, uni.HasVar, uni.Ability)]] = [];
+def archetype_accessors(arch: Archetype) -> list[tuple[(str, HasVar, Ability)]] {
+    out: list[tuple[(str, HasVar, Ability)]] = [];
     for var in arch.get_has_vars() {
         if not var.accessors {
             continue;
@@ -108,7 +124,7 @@ def archetype_accessors(
     return out;
 }
 
-def get_layout_registry(module: uni.Module, prog: any = None) -> LayoutRegistry {
+def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
     reg = module.gen.layout_registry;
     if reg is not None {
         return reg;
@@ -129,12 +145,12 @@ def is_enum_class_type(t: any) -> bool {
         and t.shared.is_enum_class;
 }
 
-def enum_decl_of(t: any) -> (uni.Enum | uni.Archetype | None) {
+def enum_decl_of(t: any) -> (Enum | Archetype | None) {
     if not is_enum_class_type(t) {
         return None;
     }
     _scope = t.shared.symbol_table;
-    if isinstance(_scope, uni.Enum) {
+    if isinstance(_scope, Enum) {
         return _scope;
     }
     return _scope if class_form_enum_scalar(t) is not None else None;
@@ -148,7 +164,7 @@ def class_form_enum_scalar(t: any) -> (str | None) {
     if not is_enum_class_type(t) {
         return None;
     }
-    if not isinstance(t.shared.symbol_table, uni.Archetype) {
+    if not isinstance(t.shared.symbol_table, Archetype) {
         return None;
     }
     _vt = t.shared.enum_value_type;
@@ -159,9 +175,9 @@ def class_form_enum_scalar(t: any) -> (str | None) {
     return _vname if _vname in ("str", "int") else None;
 }
 
-def class_form_enum_decls(module: uni.Module) -> list[uni.Archetype] {
-    out: list[uni.Archetype] = [];
-    for nd in UniPass.get_all_sub_nodes(module, uni.Archetype) {
+def class_form_enum_decls(module: Module) -> list[Archetype] {
+    out: list[Archetype] = [];
+    for nd in UniPass.get_all_sub_nodes(module, Archetype) {
         if nd.name is None {
             continue;
         }
@@ -172,7 +188,7 @@ def class_form_enum_decls(module: uni.Module) -> list[uni.Archetype] {
     return out;
 }
 
-def enum_member_literal(value_expr: (uni.UniNode | None)) -> (str | int | None) {
+def enum_member_literal(value_expr: (UniNode | None)) -> (str | int | None) {
     (folded, val) = fold_const(value_expr);
     if not folded or isinstance(val, bool) or not isinstance(val, (str, int)) {
         return None;
@@ -185,7 +201,7 @@ def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
     _sym = _scope.names_in_scope.get(member) if (_scope?.names_in_scope) else None;
     _decl = _sym.decl if _sym is not None else None;
     _asn = _decl.parent if (_decl is not None) else None;
-    if not isinstance(_asn, uni.Assignment) or _asn.value is None {
+    if not isinstance(_asn, Assignment) or _asn.value is None {
         return None;
     }
     return enum_member_literal(_asn.value);
@@ -232,35 +248,29 @@ obj LayoutRegistry {
     def is_primary_ancestor(child: str, ancestor: str) -> bool;
 }
 
-obj LayoutPass(Transform[uni.Module, uni.Module]) {
-    has ir_in: uni.Module,
+obj LayoutPass(Transform[Module, Module]) {
+    has ir_in: Module,
         prog: any,
         cancel_token: any = None,
         registry: LayoutRegistry postinit,
         isinstance_targets: set[str] postinit;
 
     def postinit -> None;
-    def transform(ir_in: uni.Module) -> uni.Module;
-    def _collect_archetypes(module: uni.Module) -> dict[str, uni.Archetype];
-    def _collect_isinstance_targets(module: uni.Module) -> None;
-    def _build_hierarchy(archetypes: dict[str, uni.Archetype]) -> None;
+    def transform(ir_in: Module) -> Module;
+    def _collect_archetypes(module: Module) -> dict[str, Archetype];
+    def _collect_isinstance_targets(module: Module) -> None;
+    def _build_hierarchy(archetypes: dict[str, Archetype]) -> None;
     def _compute_c3_mro(class_name: str) -> list[str];
-    def _topo_sort(arch_map: dict[str, uni.Archetype]) -> list[str];
-    def _build_layout(arch: uni.Archetype) -> ArchetypeLayout;
-    def _build_enum_layouts(module: uni.Module) -> None;
+    def _topo_sort(arch_map: dict[str, Archetype]) -> list[str];
+    def _build_layout(arch: Archetype) -> ArchetypeLayout;
+    def _build_enum_layouts(module: Module) -> None;
     def _compute_acyclicity -> None;
     def _acyclic_walk(name: str, state: dict[str, int]) -> int;
     def _expand_type_keys(key: str) -> (list[str] | None);
     def _split_top_level(s: str, sep: str) -> list[str];
-    def _build_vtable_layout(
-        arch_name: str, arch_map: dict[str, uni.Archetype]
-    ) -> None;
-
-    def _validate_obj_fields(
-        arch: uni.Archetype, arch_map: dict[str, uni.Archetype]
-    ) -> None;
-
+    def _build_vtable_layout(arch_name: str, arch_map: dict[str, Archetype]) -> None;
+    def _validate_obj_fields(arch: Archetype, arch_map: dict[str, Archetype]) -> None;
     def _is_layout_compatible_type(
-        type_node: (uni.UniNode | None), arch_map: dict[str, uni.Archetype]
+        type_node: (UniNode | None), arch_map: dict[str, Archetype]
     ) -> bool;
 }
