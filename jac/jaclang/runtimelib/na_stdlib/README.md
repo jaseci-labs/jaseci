@@ -27,8 +27,13 @@ bundled one. A bundled module links through the existing cross-module machinery
 
 ## Shipped modules
 
-- **`os/path.jac`** (#6940 Phase 0) -- pure-string POSIX path helpers
-  (`normpath`, `dirname`, `basename`, `split`, `splitext`, `isabs`).
+- **`os/path.jac`** (#6940 Phase 0, extended #8201) -- pure-string POSIX path
+  helpers (`normpath`, `dirname`, `basename`, `split`, `splitext`, `isabs`,
+  `join`, `abspath`, plus `relpath` and `normcase`). `relpath` is CPython's
+  algorithm verbatim: absolutize both sides, drop empty components, walk off
+  the shared prefix with `..` for each remaining `start` component, and answer
+  `.` when nothing is left. `normcase` is the identity, which is what it is on
+  POSIX.
 - **`json.jac`** (#6940 Phase 1) -- a recursive-descent `loads` over boxed
   `any` (dict/list/str/int/float/bool/None) plus a `dumps` serializer matching
   CPython's default `(', ', ': ')` separators and insertion-ordered keys.
@@ -261,9 +266,22 @@ bundled one. A bundled module links through the existing cross-module machinery
   Lazy `%`-args (`log.info("x %s", y)`) and `exc_info` are not provided.
 
 The syscall-backed `os` / `os.path` entry points (`makedirs`, `realpath`,
-`mkdir`, `exists`, ...) are Mechanism-A/H compiler intercepts, reached via the
-flat `import os`, not bundled here (see
-`compiler/passes/native/na_ir_gen_pass.impl/os.impl.jac`).
+`mkdir`, `exists`, `getmtime`, `normcase`, ...) are Mechanism-A/H compiler
+intercepts, reached via the flat `import os`, not bundled here (see
+`compiler/passes/native/na_ir_gen_pass.impl/os.impl.jac`). `os.sep` and its
+sibling module attributes (`extsep`, `pardir`, `curdir`, `pathsep`, `linesep`,
+`devnull`) resolve the same way; `os.altsep` is `None` on POSIX and is not
+provided. Note that `getmtime` / `getsize` answer `-1` for a path that cannot
+be stat'd, where CPython raises `OSError` -- the established native behavior
+for this family.
+
+The **pure-string** members are the bundled `os/path.jac` above and are
+reached by importing them (`import from os.path { normpath, relpath }`).
+`abspath`, `splitext`, `relpath` and `normpath` are *only* reachable that way:
+they are not compiler intercepts, because each needs `normpath`'s component
+stack (or, for `splitext`, a tuple return), which is the sort of work
+Mechanism B exists to avoid writing twice. Reaching for one through the flat
+`import os` fails loudly naming the member rather than answering wrong.
 
 ## Adding a module
 

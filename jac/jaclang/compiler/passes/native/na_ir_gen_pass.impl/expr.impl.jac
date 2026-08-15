@@ -1774,6 +1774,17 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             }
 
             if (
+                target_name == "os"
+                and self?._native_stdlib_modules
+                and "os" in self._native_stdlib_modules
+            ) {
+                _oc = self._emit_os_const(right_name);
+                if _oc is not None {
+                    return _oc;
+                }
+            }
+
+            if (
                 self?._native_module_imports
                 and target_name in self._native_module_imports
                 and target_name not in self.local_vars

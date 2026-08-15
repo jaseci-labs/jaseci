@@ -1,4 +1,5 @@
-"""The bundled `fnmatch` and `logging` shims must answer what CPython's do.
+"""The bundled `fnmatch` / `logging` shims and the `os` gaps must answer what
+CPython answers.
 
 `import from fnmatch {...}` binds CPython's module on the sv pathway and
 `na_stdlib/fnmatch.jac` on the na pathway, so running one fixture through both
@@ -10,6 +11,14 @@ oracle, not a hand-copied expectation table. Same for `logging`.
 classes with negation and ranges, and every awkward bracket case CPython's
 `translate` special-cases: a `]` first in the class, an unterminated `[` that
 falls back to a literal, `[!]`, and a `-` at either end of a class.
+
+`os_gaps_probe.jac` covers the members the audit found missing: `os.sep` and
+its sibling module attributes, which had no dispatch at all (only `sys.*` and
+`math.*` resolved as module attributes); the `relpath` / `normcase` added to
+the bundled `os/path.jac`; the `abspath` / `splitext` / `normpath` that were
+already written there; and the `getmtime` / `normcase` intrinsics now
+reachable through the flat `import os`. The mtime is pinned to a fixed epoch
+with `touch -d` so both runs read the same stamp.
 
 `logging_probe.jac` writes on stderr, where CPython's default handler writes,
 and pins the parts of the surface that are congruent: the default WARNING
@@ -77,6 +86,12 @@ def _same_lines(sv_text: str, na_text: str, what: str) {
             idx
         ]!r}";
     }
+}
+
+test "native os path gaps answer what CPython's os.path answers" {
+    (sv_out, _sv_err) = _sv_run("os_gaps_probe.jac");
+    (na_out, _na_err) = _na_run("os_gaps_probe.jac");
+    _same_lines(sv_out, na_out, "os gaps");
 }
 
 test "native fnmatch answers what CPython's fnmatch answers" {
