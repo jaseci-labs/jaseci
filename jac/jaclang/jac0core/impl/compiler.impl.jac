@@ -308,7 +308,15 @@ impl JacCompiler.get_bytecode(
             } except Exception {
                 ;
             }
+            if is_internal {
+                note_compiler_source_failure(full_target, '');
+            }
             return marshal.loads(result.gen.py_bytecode);
+        }
+        if is_internal {
+            note_compiler_source_failure(
+                full_target, module_scoped_failure_details(full_target, actual_program)
+            );
         }
         return None;
     } finally {
@@ -1089,7 +1097,8 @@ impl JacCompiler._compile_once(
                     drop_unsatisfiable=True,
                     origin='native check-parity schedule'
                 );
-            } except ImportError {
+            } except ImportError as e {
+                fail_loud_on_compiler_source(e);
                 _parity_passes = [];
             }
         }

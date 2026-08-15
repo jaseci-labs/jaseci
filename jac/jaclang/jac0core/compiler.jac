@@ -160,6 +160,75 @@ def resolve_schedule(
     return validate_schedule(out, preprovided=preprovided, origin=origin);
 }
 
+class CompilerSourceError(RuntimeError) {}
+
+glob _compiler_source_failures: dict[str, str] = {};
+
+def note_compiler_source_failure(path: str, details: str) {
+    key = os.path.realpath(path);
+    if details {
+        _compiler_source_failures[key] = details;
+    } else {
+        _compiler_source_failures.pop(key, None);
+    }
+}
+
+def compiler_source_failure_details(path: str) -> str {
+    return _compiler_source_failures.get(os.path.realpath(path), '');
+}
+
+def module_scoped_failure_details(path: str, program: JacProgram) -> str {
+    norm = os.path.normpath(path);
+    stem = norm[:-4] if norm.endswith('.jac') else norm;
+    prefix = stem + '.';
+    lines: list[str] = [];
+    for alert in program.errors_had {
+        try {
+            alert_path = os.path.normpath(alert.loc.mod_path);
+        } except Exception {
+            continue;
+        }
+        if alert_path == norm or alert_path.startswith(prefix) {
+            lines.append(alert.pretty_print());
+        }
+    }
+    return '\n'.join(lines);
+}
+
+def _compiler_source_root -> str {
+    return os.path.realpath(os.path.dirname(os.path.dirname(__file__)));
+}
+
+def _jac_source_failure_path(err: BaseException) -> (str | None) {
+    cursor: any = err;
+    for _ in range(8) {
+        if cursor is None {
+            break;
+        }
+        path = cursor?.jac_source_path;
+        if isinstance(path, str) and path {
+            return path;
+        }
+        cursor = cursor?.__cause__ or cursor?.__context__;
+    }
+    return None;
+}
+
+def fail_loud_on_compiler_source(err: ImportError) -> None {
+    path = _jac_source_failure_path(err);
+    if path is None {
+        return;
+    }
+    real = os.path.realpath(path);
+    if not real.startswith(_compiler_source_root() + os.sep) {
+        return;
+    }
+    raise CompilerSourceError(
+        "the Jac compiler's own source failed to compile, so the pass "
+        f"schedule cannot be built: {real}\n{err}"
+    ) from err;
+}
+
 def get_boundary_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     return validate_schedule(
         [BoundaryAnalysisPass, EndpointEffectPass], origin='boundary-analysis schedule'
@@ -207,7 +276,8 @@ def get_ir_gen_sched(
         passes.append(JsxIntrinsicGuardPass);
         passes.append(PlacementApplyPass);
         return validate_schedule(passes, origin='ir-gen schedule');
-    } except ImportError {
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
         if is_internal {
             return get_bootstrap_ir_sched();
         }
@@ -225,7 +295,8 @@ def get_cfg_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     try {
         import from jaclang.compiler.passes.main.cfg_build_pass { CFGBuildPass }
         return validate_schedule([CFGBuildPass], origin='cfg schedule');
-    } except ImportError {
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
         return [];
     } finally {
         _ir_sched_loading.reset(_tok);
@@ -263,7 +334,8 @@ def get_type_check_sched(
             PortabilityWarnPass,
             JacLintCheckPass
         ];
-    } except ImportError {
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
         return [];
     } finally {
         _typecheck_sched_loading.reset(_tok);
@@ -299,7 +371,8 @@ def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
             return [];
         }
         return validate_schedule([TypeInferencePass], origin='inference schedule');
-    } except ImportError {
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
         return [];
     } finally {
         _typecheck_sched_loading.reset(_tok);
@@ -389,7 +462,8 @@ def get_py_code_gen(
         }
         passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
         return passes;
-    } except ImportError {
+    } except ImportError as e {
+        fail_loud_on_compiler_source(e);
         return [PyastGenPass, PyBytecodeGenPass];
     } finally {
         _codegen_sched_loading.reset(_tok);

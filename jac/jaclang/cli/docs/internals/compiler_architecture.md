@@ -255,6 +255,14 @@ The pipeline uses a **re-entrancy guard** (`_ir_sched_loading`,
 compiler's own pass modules degrades gracefully to the bootstrap subset
 instead of recursing forever.
 
+Every schedule builder also degrades on `ImportError`, but only for
+**absence**: a pass module a partial build does not ship, or a partially
+initialized one mid-bootstrap. A compiler-source file that resolves and then
+fails to compile is not absence, so `fail_loud_on_compiler_source` re-raises it
+as `CompilerSourceError` naming the file and its diagnostics before any arm
+degrades. Silently dropping a backend because the compiler's own source will
+not parse is what made issue #8218 take a bisect to find.
+
 ---
 
 ## One Owner Per Analysis: The Analysis Contract
