@@ -9,6 +9,8 @@ torch.compile usage at all must compile byte-identical to a graphmend-off run
 under auto and explicit on alike."""
 import ast;
 import os;
+import from pathlib { Path }
+import from tempfile { TemporaryDirectory }
 import from tests.support {
     GRAPHMEND_FIXTURES as FIXTURES,
     graphmend_break_kinds as _break_kinds,
@@ -16,6 +18,8 @@ import from tests.support {
 }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.project.config { JacConfig }
+import jaclang.project.config as config_mod;
 
 """Unparse one named function out of generated Python source."""
 def _fn_src(src: str, name: str) -> str {
@@ -116,4 +120,137 @@ test "scoped forward reaches a method through the self call and no further" {
     assert "__jac_se_emit__" in _fn_src(src, "step");
     assert "print('UNUSED-EFFECT', x)" in _fn_src(src, "unused");
     assert "__jac_se_emit__" not in _fn_src(src, "unused");
+}
+
+glob CACHE_ENTRY_SRC = "import torch;\n"
+         + "import from usedmod { used_helper }\n\n"
+         + "@torch.compile()\n"
+         + "def f(x: any, mask: torch.Tensor) -> any {\n"
+         + "    x = torch.relu(used_helper(x));\n"
+         + "    if not mask.all() {\n"
+         + "        raise ValueError(\"mask must be all true\");\n"
+         + "    }\n"
+         + "    return torch.sin(x) * 2.0;\n"
+         + "}\n",
+     CACHE_USED_SRC = "import torch;\n\n"
+         + "def used_helper(x: any) -> any {\n"
+         + "    print(\"USED\", x);\n"
+         + "    return torch.relu(x);\n"
+         + "}\n",
+     CACHE_CONF_SRC = "import torch;\n\n"
+         + "def conf_guard(x: any, mask: torch.Tensor) -> any {\n"
+         + "    if not mask.all() {\n"
+         + "        raise ValueError(\"conf mask must be all true\");\n"
+         + "    }\n"
+         + "    return torch.sin(x);\n"
+         + "}\n\n"
+         + "def conf_noisy(x: any) -> any {\n"
+         + "    print(\"CONF\", x);\n"
+         + "    return x;\n"
+         + "}\n";
+
+"""True when the code object (or any nested one) references the symbol."""
+def _mentions_symbol(code: any, symbol: str) -> bool {
+    if symbol in code.co_names {
+        return True;
+    }
+    for const in code.co_consts {
+        if hasattr(const, "co_names") and _mentions_symbol(const, symbol) {
+            return True;
+        }
+    }
+    return False;
+}
+
+"""Lay out a temp project shaped like the transformers import tree: one entry
+module, one helper the entry reaches, one torch-importing module nothing
+reaches."""
+def _mk_region_project(tmp: str) -> tuple[str, str, str] {
+    with open(os.path.join(tmp, "jac.toml"), "w") as fh {
+        fh.write(
+            "[project]\nname = \"gmregion\"\nversion = \"0.1.0\"\n"
+                + "entry-point = \"main.jac\"\n"
+        );
+    }
+    main_path = os.path.join(tmp, "main.jac");
+    with open(main_path, "w") as fh {
+        fh.write(CACHE_ENTRY_SRC);
+    }
+    used_path = os.path.join(tmp, "usedmod.jac");
+    with open(used_path, "w") as fh {
+        fh.write(CACHE_USED_SRC);
+    }
+    conf_path = os.path.join(tmp, "confmod.jac");
+    with open(conf_path, "w") as fh {
+        fh.write(CACHE_CONF_SRC);
+    }
+    return (main_path, used_path, conf_path);
+}
+
+test "an entry-less torch module shares its cache artifact with off" {
+    # The phi4 shape: every module imports torch, so auto engages GraphMend on
+    # all of them, but only the entry chain has a compiled region. The
+    # entry-less module compiles byte-identical to off, so after one engaged
+    # compile stamps the artifact, auto and off runs share the same cache slot
+    # in both directions.
+    old_config = config_mod._config;
+    try {
+        with TemporaryDirectory() as tmpdir {
+            tmpdir = os.path.realpath(tmpdir);
+            (main_path, used_path, conf_path) = _mk_region_project(tmpdir);
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
+            prog_a = JacProgram();
+            code_main = prog_a.get_bytecode(main_path);
+            code_conf = prog_a.get_bytecode(conf_path);
+            assert code_main is not None and code_conf is not None;
+            assert prog_a.mod.hub;
+            assert _mentions_symbol(code_main, "_assert_async");
+            assert not _mentions_symbol(code_conf, "__jac_se_emit__");
+            prog_b = JacProgram();
+            code_b = prog_b.get_bytecode(conf_path);
+            assert code_b is not None;
+            assert not prog_b.mod.hub , (
+                "a second auto run must hit the stamped shared artifact"
+            );
+            prog_off = JacProgram();
+            prog_off.graphmend_enabled = False;
+            code_off = prog_off.get_bytecode(conf_path);
+            assert code_off is not None;
+            assert not prog_off.mod.hub , (
+                "an off run must share the entry-less module's artifact"
+            );
+        }
+    } finally {
+        config_mod._config = old_config;
+    }
+}
+
+test "a reached helper module keeps its own gm cache variant" {
+    # The helper the entry reaches IS transformed, so its artifact must stay
+    # variant-keyed: an off run may not reuse it and recompiles untransformed.
+    old_config = config_mod._config;
+    try {
+        with TemporaryDirectory() as tmpdir {
+            tmpdir = os.path.realpath(tmpdir);
+            (main_path, used_path, conf_path) = _mk_region_project(tmpdir);
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
+            prog_a = JacProgram();
+            code_main = prog_a.get_bytecode(main_path);
+            code_used = prog_a.get_bytecode(used_path);
+            assert code_main is not None and code_used is not None;
+            assert _mentions_symbol(code_used, "__jac_se_emit__") , (
+                "the reached helper must be transformed in realistic order"
+            );
+            prog_off = JacProgram();
+            prog_off.graphmend_enabled = False;
+            code_off = prog_off.get_bytecode(used_path);
+            assert code_off is not None;
+            assert prog_off.mod.hub , (
+                "an off run must not reuse the transformed helper artifact"
+            );
+            assert not _mentions_symbol(code_off, "__jac_se_emit__");
+        }
+    } finally {
+        config_mod._config = old_config;
+    }
 }

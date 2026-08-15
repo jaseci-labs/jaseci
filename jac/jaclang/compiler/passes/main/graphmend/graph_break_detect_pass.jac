@@ -4,6 +4,7 @@ import from jaclang.jac0core.passes { UniPass }
 
 obj GraphBreakDetectPass(UniPass) {
     has _enabled: bool = False,
+        _saw_compile_call: bool = False,
         _entry_ids: set[int] = set(),
         _spine_ids: set[int] = set(),
         _mat_seen: set[str] = set();
@@ -11,6 +12,7 @@ obj GraphBreakDetectPass(UniPass) {
     static has PROVIDES: tuple = ('graph-breaks', );
 
     def before_pass -> None;
+    def _record_noop(local: bool) -> None;
     def _collect_entry_points -> list[uni.UniNode];
     def _resolve_wrapped_entry(call: uni.FuncCall) -> (uni.UniNode | None);
     def _def_node(name: str, ctx: uni.UniNode) -> (uni.UniNode | None);

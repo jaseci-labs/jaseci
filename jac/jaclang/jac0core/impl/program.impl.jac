@@ -15,6 +15,7 @@ impl JacProgram.init(
     self.graphmend_scoped_compile: bool = False;
     self.graphmend_breaks: dict[int, GraphBreakKind] = {};
     self.graphmend_helpers: dict[int, set[GraphMendHelper]] = {};
+    self.graphmend_noop_mods: set[str] = set();
     self._native_cache: dict = {};
 
     self._hub_cache_times: dict[str, float] = {};

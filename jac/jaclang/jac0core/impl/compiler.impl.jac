@@ -216,7 +216,14 @@ impl JacCompiler._get_bytecode_variant(
     }
 
     cache_path = get_module_cache_path(full_target);
-    if (not rebuild) and is_module_cache_valid(full_target, cache_path) {
+    cache_hit = False;
+    if not rebuild {
+        cache_hit = is_module_cache_valid(full_target, cache_path);
+        if gm_active and (not cache_hit) {
+            cache_hit = is_module_cache_valid_gm_noop(full_target, cache_path);
+        }
+    }
+    if cache_hit {
         try {
             jir_data = cache_path.read_bytes();
             bc = read_bytecode_only(jir_data);
@@ -347,10 +354,29 @@ impl JacCompiler._get_bytecode_variant(
                 } except Exception {
                     ;
                 }
-                import from jaclang.jac0core.jir { write_module_cache }
+                import from jaclang.jac0core.jir { SEC_GM_NOOP, write_module_cache }
                 cache_bc: any = result.gen?.py_bytecode;
                 if cache_bc is not None and not result.parse_failed {
-                    write_module_cache(full_target, cache_bc, extra_sections=sections);
+                    gm_noop = gm_active
+                        and (result.loc.mod_path in actual_program.graphmend_noop_mods);
+                    if gm_noop {
+                        gm_v = swap_graphmend_cache_variant("");
+                        try {
+                            sections[SEC_GM_NOOP] = gm_v.encode('utf-8');
+                            write_module_cache(
+                                full_target,
+                                cache_bc,
+                                extra_sections=sections,
+                                force=True
+                            );
+                        } finally {
+                            swap_graphmend_cache_variant(gm_v);
+                        }
+                    } else {
+                        write_module_cache(
+                            full_target, cache_bc, extra_sections=sections
+                        );
+                    }
                 }
             } except Exception {
                 ;

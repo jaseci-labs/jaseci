@@ -21,6 +21,7 @@ glob MAGIC = b"JIR\x00",
      SEC_DEBUG_SRC: int = 0x09,
      SEC_PLACEMENT: int = 0x0A,
      SEC_ENVKEY: int = 0x0B,
+     SEC_GM_NOOP: int = 0x0C,
      SEC_TERMINATOR: int = 0xFF,
      FLAG_PRECOMPILED: int = 0x02,
      PRECOMPILE_SENTINEL: str = "__PKG_ROOT__",
@@ -319,6 +320,10 @@ def read_envkey(data: bytes) -> (str | None) {
     return _read_key_section(data, SEC_ENVKEY);
 }
 
+def read_gm_noop(data: bytes) -> (str | None) {
+    return _read_key_section(data, SEC_GM_NOOP);
+}
+
 def compute_stub_module_key(source_path: str) -> str {
     h = hashlib.sha256();
     h.update(_toolchain_env_fingerprint().encode());
@@ -605,6 +610,28 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
 }
 
 
+def is_module_cache_valid_gm_noop(source_path: str, cache_path: Path) -> bool {
+    variant = _GM_CACHE_VARIANT[0];
+    if not variant {
+        return False;
+    }
+    prev = swap_graphmend_cache_variant("");
+    try {
+        if not is_module_cache_valid(source_path, cache_path) {
+            return False;
+        }
+    } finally {
+        swap_graphmend_cache_variant(prev);
+    }
+    try {
+        data: bytes = cache_path.read_bytes();
+    } except OSError {
+        return False;
+    }
+    return read_gm_noop(data) == variant;
+}
+
+
 def _ct_reflect_deps(source_path: str) -> list[str] {
     try {
         src = open(source_path, encoding="utf-8").read();
@@ -619,7 +646,10 @@ def _ct_reflect_deps(source_path: str) -> list[str] {
 }
 
 def write_module_cache(
-    source_path: str, bytecode: bytes, extra_sections: (dict[int, bytes] | None) = None
+    source_path: str,
+    bytecode: bytes,
+    extra_sections: (dict[int, bytes] | None) = None,
+    force: bool = False
 ) -> bool {
     resolved_path = str(Path(source_path).resolve());
     if not jir_cacheable_source_path(resolved_path) {
@@ -627,7 +657,7 @@ def write_module_cache(
     }
     try {
         cache_path = get_module_cache_path(resolved_path);
-        if is_module_cache_valid(resolved_path, cache_path) {
+        if (not force) and is_module_cache_valid(resolved_path, cache_path) {
             return False;
         }
         cache_path.parent.mkdir(parents=True, exist_ok=True);

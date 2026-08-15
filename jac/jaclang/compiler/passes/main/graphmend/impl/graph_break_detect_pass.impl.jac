@@ -34,6 +34,7 @@ impl GraphBreakDetectPass.before_pass -> None {
             break;
         }
     }
+    self._record_noop(local);
     if not local {
         self._enabled = False;
         self.prune_signal = True;
@@ -48,6 +49,15 @@ impl GraphBreakDetectPass.before_pass -> None {
                 cur = cur.parent;
             }
         }
+    }
+}
+
+impl GraphBreakDetectPass._record_noop(local: bool) -> None {
+    path = self.ir_in.loc.mod_path;
+    if (not local) and (not self._saw_compile_call) {
+        self.prog.graphmend_noop_mods.add(path);
+    } else {
+        self.prog.graphmend_noop_mods.discard(path);
     }
 }
 
@@ -69,6 +79,7 @@ impl GraphBreakDetectPass._collect_entry_points -> list[uni.UniNode] {
     ids: set[int] = set();
     for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
         if is_torch_attr_target(call.target, 'compile') {
+            self._saw_compile_call = True;
             entry = self._resolve_wrapped_entry(call);
             if (entry is not None) and (id(entry) not in ids) {
                 ids.add(id(entry));

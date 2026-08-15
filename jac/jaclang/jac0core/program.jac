@@ -31,6 +31,7 @@ class JacProgram {
         graphmend_scoped_compile: bool,
         graphmend_breaks: dict[int, GraphBreakKind],
         graphmend_helpers: dict[int, set[GraphMendHelper]],
+        graphmend_noop_mods: set[str],
         _native_cache: dict[(str, any)],
         _hub_cache_times: dict[str, float],
         _dependents: dict[str, set[str]],
