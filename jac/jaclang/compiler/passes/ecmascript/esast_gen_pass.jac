@@ -34,6 +34,7 @@ import from jaclang.jac0core.diagnostics {
     E5080,
     E5081,
     E5085,
+    E5086
     E5099
 }
 
@@ -557,6 +558,16 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         props: list[(es.Property | es.SpreadElement)]
     ) -> (es.Expression | None);
 
+    def _warn_rpc_callable_params(
+        ability_node: uni.Ability, func_name: str, at: uni.UniNode
+    ) -> None;
+
+    def _forwarder_ret_label(ability_node: uni.Ability) -> str;
+    def _build_server_forwarder(
+        ability_node: uni.Ability, func_name: str, jac_node: uni.UniNode
+    ) -> es.FunctionDeclaration;
+
+    def _bind_client_value_refs(nd: uni.Module) -> list[es.Statement];
     def exit_func_call(nd: uni.FuncCall) -> None;
     def exit_index_slice(nd: uni.IndexSlice) -> None;
     def exit_special_var_ref(nd: uni.SpecialVarRef) -> None;
