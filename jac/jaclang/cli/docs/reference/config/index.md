@@ -200,7 +200,7 @@ session = ""            # Session name for persistence
 main = true             # Run as main module
 cache = true            # Use bytecode cache
 diagnostics = "error"   # Diagnostic verbosity: "error", "all", or "none"
-graphmend = "auto"      # GraphMend mode: "auto" (default, engages for torch-importing modules), true/"on", false/"off"; no CLI flag
+graphmend = true        # GraphMend off switch: set false to disable it everywhere; no CLI flag
 graphmend_disable = ""  # GraphMend transforms to skip: "trap", "where", "defer"
 ```
 

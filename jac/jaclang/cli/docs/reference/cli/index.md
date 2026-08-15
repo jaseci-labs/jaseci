@@ -125,7 +125,7 @@ Execute a Jac file, a prebuilt `.jab` artifact, or (with no filename) run the cu
 **Note:** `jac <file>` is shorthand for `jac run <file>` - both work identically.
 
 ```bash
-jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [--graphmend-scope GRAPHMEND_SCOPE] [--graphmend-disable GRAPHMEND_DISABLE] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [filename] [args ...]
+jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [--graphmend-disable GRAPHMEND_DISABLE] [-e DIAGNOSTICS] [--profile PROFILE] [--entry ENTRY] [-n NODE] [-r ROOT] [--debug] [filename] [args ...]
 ```
 
 | Option | Description | Default |
@@ -134,7 +134,6 @@ jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [--graphmend-scope
 | `-s, --show` | Print the resolved project run-plan (kind, action, equivalent command) without executing | `False` |
 | `-m, --main` | Treat module as `__main__` | `True` |
 | `-c, --cache` | Enable compilation cache | `True` |
-| `--graphmend-scope` | Module prefixes (comma-separated) whose imported `.py` code GraphMend also transforms; forces GraphMend on | `""` |
 | `--graphmend-disable` | GraphMend transforms to skip: `trap`, `where`, `defer` | `""` |
 | `-e, --diagnostics` | Diagnostic verbosity: `error`, `all`, or `none` | `error` |
 | `--profile` | Configuration profile to load (e.g. prod, staging) | `""` |
@@ -146,7 +145,7 @@ jac run [-h] [-s] [--show] [-m] [--no-main] [-c] [--no-cache] [--graphmend-scope
 
 Like Python, everything after the filename is passed to the script. Jac flags must come **before** the filename.
 
-**GraphMend.** GraphMend (PyTorch 2 FX graph-break elimination) is on by default in `auto` mode: it engages per compiled module, exactly for modules that import `torch` or a `torch.*` submodule; every other module compiles byte-identically to a graphmend-off run. Within an engaged module, only functions reachable from an entry point are transformed: a `torch.compile` decorated function or class, a call-site wrap such as `torch.compile(Model())`, or a `forward` method whose class binds a torch Module base. A module with no reachable entries compiles exactly as off and shares the off-mode cache artifact. Imported plain `.py` model code is claimed automatically: a module holding an entry point claims itself, and the claim follows its eager imports within the same top-level package. Imports guarded by `if TYPE_CHECKING:` never extend the claim, and `torch`, `jaclang` and the standard library are never claimed. The mode is set in `jac.toml` (`[run] graphmend = "auto" | "on" | "off"`), not by a CLI flag; `--graphmend-disable` has a matching `[run] graphmend_disable` key, with the CLI beating `jac.toml`. GraphMend-active compiles stay cached, keyed by the GraphMend configuration and by the module's claim state.
+**GraphMend.** GraphMend (PyTorch 2 FX graph-break elimination) is on by default: it engages per compiled module, exactly for modules that import `torch` or a `torch.*` submodule; every other module compiles byte-identically to a graphmend-off run. Within an engaged module, only functions reachable from an entry point are transformed: a `torch.compile` decorated function or class, a call-site wrap such as `torch.compile(Model())`, or a `forward` method whose class binds a torch Module base. A module with no reachable entries compiles exactly as off and shares the off cache artifact. Imported plain `.py` model code is claimed automatically: a module holding an entry point claims itself, and the claim follows its eager imports within the same top-level package. Imports guarded by `if TYPE_CHECKING:` never extend the claim, and `torch`, `jaclang` and the standard library are never claimed. There is no mode and no CLI flag: `[run] graphmend = false` in `jac.toml` is the off switch, and `--graphmend-disable` has a matching `[run] graphmend_disable` key, with the CLI beating `jac.toml`. GraphMend-active compiles stay cached, keyed by the GraphMend configuration and by the module's claim state.
 
 **Project-aware run (no filename).** Inside a project, a bare `jac run` resolves the project *kind* from `[project] kind` in `jac.toml` (or infers it from the entry-point's codespace) and does the natural action for that kind: **execute** runnable kinds (`cli`, `cli-native`), **serve** server kinds (`service`, `web-app`, ...), or **build** artifact kinds (`native-binary`, `native-lib`, `py-package`, `js-package`). Use `jac run --show` to preview the plan and the equivalent primitive command (`run` / `start` / `nacompile` / `build`) without running it. See [project kinds](../../quick-guide/project-kinds.md) and [config `[project]`](../config/index.md).
 
