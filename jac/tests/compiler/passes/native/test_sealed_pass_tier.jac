@@ -56,14 +56,20 @@ def _run_annex -> object {
     return JacAnnexPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
 }
 
-
-test "an unsealed tree runs a pass's bytecode body" {
+def _skip_if_sealed {
     if sealed.native_artifact_for(ANNEX_MODULE) is not None {
         pytest.skip(
-            "this runtime seals the pass natively; the refusal tests below "
-            "are the ones that apply to it"
+            "this runtime seals the pass roots for real: the tripwire and "
+            "binder are exercised by every pass construction in this suite, "
+            "and patching fake artifacts here would corrupt the live "
+            "serving registry for the rest of the worker"
         );
     }
+}
+
+
+test "an unsealed tree runs a pass's bytecode body" {
+    _skip_if_sealed();
     _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
     inst = _run_annex();
     assert isinstance(inst.ir_out, uni.Module) , "annex pass did not run";
@@ -75,6 +81,7 @@ test "an unsealed tree runs a pass's bytecode body" {
 
 
 test "a natively sealed pass refuses its bytecode body" {
+    _skip_if_sealed();
     real = sealed.native_artifact_for;
     _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
     sealed.native_artifact_for = _fake_artifact;
@@ -98,6 +105,7 @@ test "a natively sealed pass refuses its bytecode body" {
 
 
 test "the memoized verdict still refuses on the next construction" {
+    _skip_if_sealed();
     real = sealed.native_artifact_for;
     _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
     sealed.native_artifact_for = _fake_artifact;
@@ -120,6 +128,7 @@ test "the memoized verdict still refuses on the next construction" {
 
 
 test "registering the served pass lifts the refusal without cache games" {
+    _skip_if_sealed();
     real = sealed.native_artifact_for;
     _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
     sealed.native_artifact_for = _fake_artifact;
@@ -142,6 +151,7 @@ test "registering the served pass lifts the refusal without cache games" {
 
 
 test "unsealed and non-jaclang passes never trip while another is sealed" {
+    _skip_if_sealed();
     real = sealed.native_artifact_for;
     sealed.native_artifact_for = _fake_artifact;
     try {

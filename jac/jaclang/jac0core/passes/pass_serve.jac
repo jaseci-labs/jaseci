@@ -19,7 +19,6 @@ glob _PASS_ARTIFACT_PREFIXES: tuple = (
          "}",
 
      ),
-     _BOUND: dict[str, bool] = {},
      _BIND_KEEP: list = [];
 
 def _serve_error(fullname: str, reason: str) -> RuntimeError {
@@ -126,10 +125,7 @@ def _native_merge_canary {
     }
 }
 
-def bind_sealed_pass_artifacts -> None {
-    if _BOUND.get("done") {
-        return;
-    }
+def bind_sealed_pass_artifacts {
     import from jaclang.jac0core.sealed { native_artifact_names }
     for fullname in sorted(native_artifact_names()) {
         if fullname in _NATIVE_SERVED_PASSES {
@@ -140,5 +136,4 @@ def bind_sealed_pass_artifacts -> None {
         }
         _bind_one(fullname);
     }
-    _BOUND["done"] = True;
 }

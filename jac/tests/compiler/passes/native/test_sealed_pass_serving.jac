@@ -42,7 +42,7 @@ import from pathlib { Path }
 import from jaclang.jac0core.parser.lexer { tokenize_full }
 import from jaclang.jac0core.parser.parser { Parser }
 import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
-import from jaclang.jac0core.passes.pass_serve { _BIND_KEEP, _BOUND }
+import from jaclang.jac0core.passes.pass_serve { _BIND_KEEP }
 import from jaclang.jac0core.passes.transform {
     _NATIVE_PASS_TIER_MEMO,
     _NATIVE_SERVED_PASSES
@@ -102,7 +102,6 @@ def _artifact_resolver(tmp: str, arts: dict) -> any {
 def _reset_serving_state {
     _NATIVE_PASS_TIER_MEMO.clear();
     _NATIVE_SERVED_PASSES.clear();
-    _BOUND.clear();
     _BIND_KEEP.clear();
     frontend._NATIVE_PARSE_MEMO.clear();
 }
