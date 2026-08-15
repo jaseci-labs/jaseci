@@ -1,4 +1,3 @@
-import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
@@ -9,7 +8,7 @@ impl LayoutPass.postinit -> None {
     super.postinit();
 }
 
-impl LayoutPass.transform(ir_in: uni.Module) -> uni.Module {
+impl LayoutPass.transform(ir_in: Module) -> Module {
     module = self.ir_in;
 
     self._build_enum_layouts(module);
@@ -51,9 +50,9 @@ impl LayoutPass.transform(ir_in: uni.Module) -> uni.Module {
     return ir_in;
 }
 
-impl LayoutPass._collect_archetypes(module: uni.Module) -> dict[str, uni.Archetype] {
-    arch_map: dict[str, uni.Archetype] = {};
-    for nd in UniPass.get_all_sub_nodes(module, uni.Archetype) {
+impl LayoutPass._collect_archetypes(module: Module) -> dict[str, Archetype] {
+    arch_map: dict[str, Archetype] = {};
+    for nd in UniPass.get_all_sub_nodes(module, Archetype) {
         aname = nd.name.value if nd.name else None;
         if aname is None {
             continue;
@@ -66,19 +65,19 @@ impl LayoutPass._collect_archetypes(module: uni.Module) -> dict[str, uni.Archety
     return arch_map;
 }
 
-impl LayoutPass._collect_isinstance_targets(module: uni.Module) -> None {
+impl LayoutPass._collect_isinstance_targets(module: Module) -> None {
     import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
     import from jaclang.jac0core.constant { CodeContext }
     calls: list = [];
     for stmt in ModuleCodegenPass.iter_context_stmts(module, CodeContext.NATIVE) {
-        if isinstance(stmt, uni.FuncCall) {
+        if isinstance(stmt, FuncCall) {
             calls.append(stmt);
         }
-        calls.extend(stmt.get_all_sub_nodes(typ=uni.FuncCall));
+        calls.extend(stmt.get_all_sub_nodes(typ=FuncCall));
     }
     for call in calls {
         tgt = call.target;
-        if not (isinstance(tgt, uni.Name) and tgt.value == "isinstance") {
+        if not (isinstance(tgt, Name) and tgt.value == "isinstance") {
             continue;
         }
         params = call.params or [];
@@ -87,7 +86,7 @@ impl LayoutPass._collect_isinstance_targets(module: uni.Module) -> None {
         }
         type_arg = params[1];
         cands: list = [];
-        if isinstance(type_arg, uni.TupleVal) {
+        if isinstance(type_arg, TupleVal) {
             for v in (type_arg.values or []) {
                 cands.append(v);
             }
@@ -95,14 +94,14 @@ impl LayoutPass._collect_isinstance_targets(module: uni.Module) -> None {
             cands.append(type_arg);
         }
         for c in cands {
-            if isinstance(c, uni.Name) {
+            if isinstance(c, Name) {
                 self.isinstance_targets.add(c.value);
             }
         }
     }
 }
 
-impl LayoutPass._build_hierarchy(archetypes: dict[str, uni.Archetype]) -> None {
+impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
     reg = self.registry;
 
     for (aname, arch) in archetypes.items() {
@@ -110,9 +109,9 @@ impl LayoutPass._build_hierarchy(archetypes: dict[str, uni.Archetype]) -> None {
             parents: list[str] = [];
             for base_expr in arch.base_classes {
                 pname: (str | None) = None;
-                if isinstance(base_expr, uni.Name) {
+                if isinstance(base_expr, Name) {
                     pname = base_expr.value;
-                } elif isinstance(base_expr, uni.AstSymbolNode) {
+                } elif isinstance(base_expr, AstSymbolNode) {
                     pname = base_expr.sym_name;
                 }
                 if pname is not None {
@@ -200,7 +199,7 @@ impl LayoutPass._compute_c3_mro(class_name: str) -> list[str] {
     return result;
 }
 
-impl LayoutPass._topo_sort(arch_map: dict[str, uni.Archetype]) -> list[str] {
+impl LayoutPass._topo_sort(arch_map: dict[str, Archetype]) -> list[str] {
     visited: set[str] = set();
     order: list[str] = [];
     reg = self.registry;
@@ -232,7 +231,7 @@ impl LayoutPass._topo_sort(arch_map: dict[str, uni.Archetype]) -> list[str] {
     return order;
 }
 
-impl LayoutPass._build_layout(arch: uni.Archetype) -> ArchetypeLayout {
+impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
     reg = self.registry;
     aname = arch.name.value if arch.name else "unknown";
     mro = reg.mro_order.get(aname, [aname]);
@@ -313,18 +312,18 @@ impl LayoutPass._build_layout(arch: uni.Archetype) -> ArchetypeLayout {
             continue;
         }
 
-        _archhas = var.find_parent_of_type(uni.ArchHas);
+        _archhas = var.find_parent_of_type(ArchHas);
         if _archhas is not None and _archhas.is_static {
             continue;
         }
         seen_fields.add(fname);
         type_tag = "";
-        type_node: (uni.UniNode | None) = None;
+        type_node: (UniNode | None) = None;
         if var.type_tag and var.type_tag.tag {
             type_node = var.type_tag.tag;
             type_tag = unparse_node(type_node) or str(type_node);
         }
-        is_fn_ptr = type_node is not None and isinstance(type_node, uni.FuncSignature);
+        is_fn_ptr = type_node is not None and isinstance(type_node, FuncSignature);
         new_field = FieldInfo(
             name=fname,
             index=current_idx,
@@ -356,20 +355,20 @@ impl LayoutPass._build_layout(arch: uni.Archetype) -> ArchetypeLayout {
     );
 }
 
-impl LayoutPass._build_enum_layouts(module: uni.Module) -> None {
-    for nd in UniPass.get_all_sub_nodes(module, uni.Enum) {
+impl LayoutPass._build_enum_layouts(module: Module) -> None {
+    for nd in UniPass.get_all_sub_nodes(module, Enum) {
         ename = nd.name.value if nd.name else None;
         if ename is None or ename in self.registry.enums or nd.body is None {
             continue;
         }
         raw_members: list = [];
         for stmt in nd.body {
-            if isinstance(stmt, uni.Assignment) {
+            if isinstance(stmt, Assignment) {
                 targets = stmt.target
                     if isinstance(stmt.target, (list, tuple))
                     else [stmt.target];
                 for target_expr in targets {
-                    if isinstance(target_expr, uni.Name) {
+                    if isinstance(target_expr, Name) {
                         raw_members.append((target_expr.value, stmt.value));
                     }
                 }
@@ -441,7 +440,7 @@ impl LayoutPass._build_enum_layouts(module: uni.Module) -> None {
 }
 
 impl LayoutPass._build_vtable_layout(
-    arch_name: str, arch_map: dict[str, uni.Archetype]
+    arch_name: str, arch_map: dict[str, Archetype]
 ) -> None {
     reg = self.registry;
     layout_obj = reg.layouts.get(arch_name);
@@ -486,7 +485,7 @@ impl LayoutPass._build_vtable_layout(
     methods: list[MethodSlot] = [];
     method_index: dict[str, int] = {};
     for (i, mname) in enumerate(method_list) {
-        sig_node: (uni.UniNode | None) = None;
+        sig_node: (UniNode | None) = None;
         owner = arch_name;
         for check_name in mro {
             check_arch = arch_map.get(check_name);
@@ -698,7 +697,7 @@ impl LayoutRegistry.is_primary_ancestor(child: str, ancestor: str) -> bool {
 }
 
 impl LayoutPass._validate_obj_fields(
-    arch: uni.Archetype, arch_map: dict[str, uni.Archetype]
+    arch: Archetype, arch_map: dict[str, Archetype]
 ) -> None {
     if arch.arch_type {
         tok_name = arch.arch_type.name;
@@ -714,7 +713,7 @@ impl LayoutPass._validate_obj_fields(
             continue;
         }
 
-        _archhas = var.find_parent_of_type(uni.ArchHas);
+        _archhas = var.find_parent_of_type(ArchHas);
         if _archhas is not None and _archhas.is_static {
             continue;
         }
@@ -732,22 +731,21 @@ impl LayoutPass._validate_obj_fields(
 }
 
 impl LayoutPass._is_layout_compatible_type(
-    type_node: (uni.UniNode | None), arch_map: dict[str, uni.Archetype]
+    type_node: (UniNode | None), arch_map: dict[str, Archetype]
 ) -> bool {
     import from jaclang.compiler.passes.main.layout_pass { LAYOUT_COMPATIBLE_SCALARS }
     if type_node is None {
         return False;
     }
-    if isinstance(type_node, uni.FuncSignature) {
+    if isinstance(type_node, FuncSignature) {
         return True;
     }
 
-    if isinstance(type_node, uni.UnaryExpr)
-        and type_node.ownership != OwnershipKind.NONE {
+    if isinstance(type_node, UnaryExpr) and type_node.ownership != OwnershipKind.NONE {
         return self._is_layout_compatible_type(type_node.operand, arch_map);
     }
 
-    if isinstance(type_node, uni.Name) {
+    if isinstance(type_node, Name) {
         tname = type_node.value;
         if tname in LAYOUT_COMPATIBLE_SCALARS {
             return True;
@@ -767,12 +765,12 @@ impl LayoutPass._is_layout_compatible_type(
         return False;
     }
 
-    if uni?.BuiltinType and isinstance(type_node, uni.BuiltinType) {
+    if BuiltinType and isinstance(type_node, BuiltinType) {
         tname = type_node.value;
         return tname in LAYOUT_COMPATIBLE_SCALARS;
     }
 
-    if isinstance(type_node, uni.BinaryExpr) {
+    if isinstance(type_node, BinaryExpr) {
         op_val = getattr(type_node.op, 'value', '');
         if op_val == "|" {
             return (
@@ -782,9 +780,9 @@ impl LayoutPass._is_layout_compatible_type(
         }
     }
 
-    if isinstance(type_node, uni.AtomTrailer) and not type_node.is_attr {
+    if isinstance(type_node, AtomTrailer) and not type_node.is_attr {
         target_name: (str | None) = None;
-        if isinstance(type_node.target, uni.Name) {
+        if isinstance(type_node.target, Name) {
             target_name = type_node.target.value;
         }
 
@@ -795,7 +793,7 @@ impl LayoutPass._is_layout_compatible_type(
             if type_node?.right and type_node.right?.slices {
                 for sl in type_node.right.slices {
                     elem = sl.start if sl?.start else sl;
-                    if isinstance(elem, uni.TupleVal) and elem.values {
+                    if isinstance(elem, TupleVal) and elem.values {
                         for tv in elem.values {
                             if not self._is_layout_compatible_type(tv, arch_map) {
                                 return False;
