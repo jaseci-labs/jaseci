@@ -859,3 +859,111 @@ def client_value_ref_targets(
     }
     return out;
 }
+
+def _import_bound_names(imp: uni.Import) -> set[str] {
+    names: set[str] = set();
+    for item in imp.items {
+        if isinstance(item, uni.ModuleItem) {
+            if item.alias is not None {
+                names.add(item.alias.sym_name);
+            } elif isinstance(item.name, uni.Name) {
+                names.add(item.name.sym_name);
+            }
+        } elif isinstance(item, uni.ModulePath) {
+            if item.alias is not None {
+                names.add(item.alias.sym_name);
+            } elif item.base_module_name {
+                names.add(item.base_module_name);
+            }
+        }
+    }
+    return names;
+}
+
+
+def _import_used_as_value(mod: uni.Module, imp: uni.Import) -> bool {
+    names = _import_bound_names(imp);
+    if not names {
+        return False;
+    }
+    for stmt in mod.body {
+        if stmt is imp {
+            continue;
+        }
+        for nm in stmt.get_all_sub_nodes(uni.Name) {
+            if nm.sym_name not in names {
+                continue;
+            }
+            par = nm.parent;
+            if (isinstance(par, uni.AtomTrailer) and par.is_attr and par.right is nm) {
+                continue;
+            }
+            if _in_annotation_position(nm, stmt) {
+                continue;
+            }
+            return True;
+        }
+    }
+    return False;
+}
+
+
+def serverless_server_evidence(mod: uni.Module, prog: any) -> list[tuple] {
+    import from jaclang.jac0core.placement { get_module_summary, project_has_server }
+    if project_has_server(mod.loc.mod_path or '') {
+        return [];
+    }
+    out: list[tuple] = [];
+    for es in get_module_summary(mod, prog).elements {
+        if es.index >= len(mod.body) {
+            continue;
+        }
+        stmt = mod.body[es.index];
+        for req in es.reqs {
+            if len(req) < 2 {
+                continue;
+            }
+            cap = req[0];
+            blocking = cap in ('PERSIST', 'FFI');
+            if cap == 'PY' {
+                blocking = not isinstance(stmt, uni.Import)
+                    or (not stmt.is_typed and _import_used_as_value(mod, stmt));
+            }
+            if blocking {
+                out.append((es.name or 'element', str(req[1]), stmt));
+                break;
+            }
+        }
+    }
+    return out;
+}
+
+
+def report_serverless_kind_errors(reporter: any, mod: uni.Module) {
+    import from jaclang.jac0core.diagnostics { E5087 }
+    import from jaclang.jac0core.placement { project_kind_name }
+    evidence = serverless_server_evidence(mod, reporter.prog);
+    if not evidence {
+        return;
+    }
+    kind = project_kind_name(mod.loc.mod_path or '') or 'client-only';
+    for (name, reason, stmt) in evidence {
+        already = False;
+        for e in reporter.prog.errors_had {
+            if (
+                e.code is E5087
+                and e.loc.mod_path == stmt.loc.mod_path
+                and e.loc.first_line == stmt.loc.first_line
+                and e.loc.col_start == stmt.loc.col_start
+            ) {
+                already = True;
+                break;
+            }
+        }
+        if not already {
+            reporter.emit(
+                E5087, node_override=stmt, kind=kind, name=name, reason=reason
+            );
+        }
+    }
+}

@@ -1598,6 +1598,13 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          help="The bundle carries only what is placed in the client codespace, plus `def:pub` endpoints, which are bound to a client-side forwarder that calls them over RPC. '{name}' is neither, so the emitted identifier resolves to nothing and the module fails at load with a ReferenceError. Give it client presence -- drop a `[placement.pins]` server pin, or make it `def:pub` so it bridges as an endpoint -- or keep the use out of client code.",
          blocks_codegen=True
      ),
+     E5087 = _err(
+         "E5087",
+         Category.CODEGEN,
+         "Project kind '{kind}' has no server, but '{name}' needs one ({reason})",
+         help="A '{kind}' project builds a client-only artifact: there is no server codespace to place this in, and no endpoint route to bridge to, so a server placement here could only fail at runtime. Drop the server dependency, or declare a `[project] kind` that has a server.",
+         blocks_codegen=True
+     ),
      W6001 = _warn(
          "W6001",
          Category.SEMANTIC,

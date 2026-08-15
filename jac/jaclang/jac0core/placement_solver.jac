@@ -943,6 +943,8 @@ impl PlacementApplyPass.postinit -> None {
 }
 
 impl PlacementApplyPass.transform(ir_in: uni.Module) -> uni.Module {
+    import from jaclang.compiler.symbol_utils { report_serverless_kind_errors }
     solve_module_placement(ir_in, self.prog);
+    report_serverless_kind_errors(self, ir_in);
     return ir_in;
 }
