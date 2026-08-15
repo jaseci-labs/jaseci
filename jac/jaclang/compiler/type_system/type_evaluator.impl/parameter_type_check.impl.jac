@@ -70,8 +70,8 @@ impl TypeEvaluator._callable_reason(
     arg_type: TypeBase, expected: TypeBase
 ) -> str | None {
     if not isinstance(arg_type, FunctionType)
-    or not isinstance(expected, FunctionType)
-    or expected.is_gradual_callable_form() {
+        or not isinstance(expected, FunctionType)
+        or expected.is_gradual_callable_form() {
         return None;
     }
 
@@ -352,7 +352,11 @@ impl TypeEvaluator.validate_call_args(expr: FuncCall) -> TypeBase {
             lambda_param = self._unannotated_lambda_arg_name(expr);
             if lambda_param is not None {
                 help_text = (
-                    "Unannotated lambda parameter '" + lambda_param + "' could not be inferred from the call context, so it stays Unknown and no overload matches. Annotate it, e.g. `lambda (" + lambda_param + ": <type>) { ... }`, or pass a typed `def` as the callback."
+                    "Unannotated lambda parameter '"
+                    + lambda_param
+                    + "' could not be inferred from the call context, so it stays Unknown and no overload matches. Annotate it, e.g. `lambda ("
+                    + lambda_param
+                    + ": <type>) { ... }`, or pass a typed `def` as the callback."
                 );
             }
         }
