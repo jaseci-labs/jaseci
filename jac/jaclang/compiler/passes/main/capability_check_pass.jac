@@ -19,6 +19,7 @@ import from jaclang.jac0core.unitree {
     KWPair,
     LambdaExpr,
     Module,
+    ModuleItem,
     ModulePath,
     MultiString,
     Name,
@@ -41,6 +42,8 @@ glob NATIVE_REJECT_NODES: tuple = (PyInlineCode, );
 def classify_native_import(item: UniNode) -> tuple;
 
 def import_bound_name(item: UniNode) -> (str | None);
+
+def from_import_jac_source(imp: Import) -> (str | None);
 
 def node_within(name_nd: UniNode, top: (UniNode | None)) -> bool;
 

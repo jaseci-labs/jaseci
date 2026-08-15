@@ -165,9 +165,13 @@ glob NATIVE_COMPTIME_BASES: frozenset = frozenset({"ABC"});
 
 glob NATIVE_COMPTIME_IDENTITY_CALLS: frozenset = frozenset({"cast"});
 
+glob NATIVE_COMPTIME_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"});
+
 glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
          "abc": NATIVE_COMPTIME_BASES,
-         "typing": TYPE_PARAM_CONSTRUCTORS | NATIVE_COMPTIME_IDENTITY_CALLS
+         "typing": TYPE_PARAM_CONSTRUCTORS
+             | NATIVE_COMPTIME_IDENTITY_CALLS
+             | NATIVE_COMPTIME_TYPE_MARKERS
      };
 
 def native_comptime_import_names(module_name: str, names: list[str]) -> bool {

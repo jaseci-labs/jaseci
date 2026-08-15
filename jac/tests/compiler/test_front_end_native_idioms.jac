@@ -418,7 +418,7 @@ test "scan_native_blockers names the offending node from the table" {
     assert reason == "contains JsxElement" , f"got reason {reason!r}";
 }
 
-test "guardrail: @lru_cache demotes where a dict cache does not" {
+test "guardrail: @lru_cache refuses where a dict cache does not" {
     import from tests.support { native_force_opts }
     dec = JacProgram();
     dec_ir = dec.compile(
@@ -428,16 +428,18 @@ test "guardrail: @lru_cache demotes where a dict cache does not" {
         "def twice(n: int) -> int { return n * 2; }\n",
         options=native_force_opts()
     );
-    assert not has_error_code(dec, "E5090") , (
-        f"a dynamically-decorated function must demote to its Python "
-        f"implementation (which applies @lru_cache), got {fmt_errors(dec)}"
+    errs = fmt_errors(dec);
+    assert "decorator 'on twice'" in errs , (
+        f"the capability gate must still name the dynamic decorator: {errs}"
     );
-    assert dec_ir.gen.native_layout is not None , (
-        "whole-module native compile aborted"
+    assert "Python module import 'functools'" in errs , (
+        "the decorator cannot be written without importing it, and a "
+        "module-scope Python import has no owning callable to absorb it as "
+        "a seam, so it refuses the module exactly as a bare "
+        f"`import functools;` does: {errs}"
     );
-    assert "twice" not in dec_ir.gen.native_layout.functions , (
-        "the @lru_cache function must be demoted out of the native layout, "
-        "never run undecorated"
+    assert dec_ir.gen.llvm_ir is None , (
+        "a module-fatal violation must withhold the LLVM IR"
     );
     memo = check_na_inline(
         "dict_memo",
