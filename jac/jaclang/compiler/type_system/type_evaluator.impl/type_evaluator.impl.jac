@@ -4677,16 +4677,15 @@ impl TypeEvaluator._apply_narrowing(
 impl TypeEvaluator._specialize_narrow_from_base(
     base_type: TypeBase, narrow_type: TypeBase
 ) -> TypeBase {
-    """Carry a filtered-out member's type arguments onto the narrow target.
+    """Carry a member's type arguments onto the narrow target it sits above.
 
-    `_filter_union_for_isinstance` keeps the members the target is a subtype
-    of, so a member the relation runs the *other* way for drops out and the
-    narrow falls back to the bare target class -- `isinstance(x, list)` over
-    an `Expr | Sequence[T]` yields `list`, losing `T`. The container
-    protocols are exactly that shape (`list` is a `Sequence`, `dict` a
-    `Mapping`), and a value that is both a `Sequence[T]` and a `list` is a
-    `list[T]`, so the member's arguments carry over when the target declares
-    the same number of parameters.
+    A member the target derives from is narrowed to the bare target class,
+    which loses the member's arguments -- `isinstance(x, list)` over an
+    `Expr | Sequence[T]` yields `list`, dropping `T`. The container protocols
+    are exactly that shape (`list` is a `Sequence`, `dict` a `Mapping`), and
+    a value that is both a `Sequence[T]` and a `list` is a `list[T]`, so the
+    member's arguments carry over when the target declares the same number of
+    parameters.
     """;
     if not isinstance(narrow_type, ClassType)
         or (narrow_type.private.type_args or []) {
@@ -4778,31 +4777,6 @@ impl TypeEvaluator._narrow_member_to(
         return self._specialize_narrow_from_base(member, narrow_type);
     }
     return None;
-}
-
-impl TypeEvaluator._filter_union_for_isinstance(
-    base_type: TypeBase, target_type: TypeBase
-) -> TypeBase | None {
-    matching: list[TypeBase] = [];
-
-    if isinstance(base_type, UnionType) and base_type.types {
-        for t in base_type.types {
-            if self._type_matches_isinstance(t, target_type) {
-                matching.append(t);
-            }
-        }
-    } else {
-        if self._type_matches_isinstance(base_type, target_type) {
-            matching.append(base_type);
-        }
-    }
-    if len(matching) == 0 {
-        return None;
-    } elif len(matching) == 1 {
-        return matching[0];
-    } else {
-        return UnionType(types=matching);
-    }
 }
 
 impl TypeEvaluator._type_matches_isinstance(

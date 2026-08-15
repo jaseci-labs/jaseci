@@ -687,10 +687,6 @@ obj TypeEvaluator {
         target: NarrowingTarget
     ) -> TypeBase | None;
 
-    def _filter_union_for_isinstance(
-        base_type: TypeBase, target_type: TypeBase
-    ) -> TypeBase | None;
-
     def _narrow_type_to(base_type: TypeBase, narrow_type: TypeBase) -> TypeBase | None;
     def _narrow_member_to(member: TypeBase, narrow_type: TypeBase) -> TypeBase | None;
     def _specialize_narrow_from_base(
