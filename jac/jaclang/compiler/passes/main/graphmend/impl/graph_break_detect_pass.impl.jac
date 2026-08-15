@@ -5,7 +5,6 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts { compiled_region
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     cond_is_data_dependent,
     defining_assignment,
-    has_torch_compile_decorator,
     is_side_effect_name,
     is_torch_attr_target
 }
@@ -37,16 +36,6 @@ impl GraphBreakDetectPass.before_pass -> None {
 
 impl GraphBreakDetectPass._collect_entry_points -> set[int] {
     ids: set[int] = set();
-    for ab in self.ir_in.get_all_sub_nodes(uni.Ability) {
-        if has_torch_compile_decorator(ab) {
-            ids.add(id(ab));
-        }
-    }
-    for arch in self.ir_in.get_all_sub_nodes(uni.Archetype) {
-        if has_torch_compile_decorator(arch) {
-            ids.add(id(arch));
-        }
-    }
     for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
         if is_torch_attr_target(call.target, 'compile') {
             entry = self._resolve_wrapped_entry(call);
