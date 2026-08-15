@@ -207,8 +207,9 @@ def _graphmend_claims(fullname: str, path: str) -> bool:
         from jaclang.jac0core.runtime import JacRuntime as Jac
 
         program = Jac.get_program()
-        if program.graphmend_enabled is False:
+        if getattr(program, "graphmend_enabled", False) is False:
             return False
+        claimed = getattr(program, "graphmend_claimed", None) or ()
     except Exception:
         return False
     top = fullname.split(".")[0]
@@ -216,7 +217,7 @@ def _graphmend_claims(fullname: str, path: str) -> bool:
         return False
     if not os.path.isfile(path):
         return False
-    if os.path.realpath(path) in program.graphmend_claimed:
+    if os.path.realpath(path) in claimed:
         return True
     if "torch" not in sys.modules:
         return False
