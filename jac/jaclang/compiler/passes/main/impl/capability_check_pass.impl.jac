@@ -139,18 +139,14 @@ impl import_bound_name(item: UniNode) -> (str | None) {
     return None;
 }
 
-impl from_import_jac_source(item: UniNode) -> (str | None) {
+impl from_import_jac_source(imp: Import) -> (str | None) {
     import os;
-    if not isinstance(item, ModuleItem) {
-        return None;
-    }
-    _owner = item.parent;
-    if not isinstance(_owner, Import) or _owner.from_loc is None {
+    if imp.from_loc is None {
         return None;
     }
     _path: (str | None) = None;
     try {
-        _resolved = _owner.from_loc.resolve_relative_path();
+        _resolved = imp.from_loc.resolve_relative_path();
         _path = _resolved if isinstance(_resolved, str) else None;
     } except Exception {
         _path = None;
@@ -291,6 +287,8 @@ impl native_capability_violations(mod: Module) -> list {
         if stmt.clib_decls or not stmt.items {
             continue;
         }
+        _from_jac: (str | None) = None;
+        _from_jac_known: bool = False;
         for item in stmt.items {
             (mod_name, _ok) = classify_native_import(item);
             if mod_name is not None and not _ok {
@@ -311,8 +309,14 @@ impl native_capability_violations(mod: Module) -> list {
                     and resolve_native_module(mod_name, _base_dir)[1] is not None {
                     continue;
                 }
-                if from_import_jac_source(item) is not None {
-                    continue;
+                if isinstance(item, ModuleItem) {
+                    if not _from_jac_known {
+                        _from_jac = from_import_jac_source(stmt);
+                        _from_jac_known = True;
+                    }
+                    if _from_jac is not None {
+                        continue;
+                    }
                 }
 
                 _bound = import_bound_name(item);

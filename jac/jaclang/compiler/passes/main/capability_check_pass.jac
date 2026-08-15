@@ -43,7 +43,7 @@ def classify_native_import(item: UniNode) -> tuple;
 
 def import_bound_name(item: UniNode) -> (str | None);
 
-def from_import_jac_source(item: UniNode) -> (str | None);
+def from_import_jac_source(imp: Import) -> (str | None);
 
 def node_within(name_nd: UniNode, top: (UniNode | None)) -> bool;
 
