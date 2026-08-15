@@ -44,6 +44,8 @@ def import_bound_name(item: UniNode) -> (str | None);
 
 def node_within(name_nd: UniNode, top: (UniNode | None)) -> bool;
 
+def base_expr_is_erased(base: UniNode) -> bool;
+
 def name_in_type_position(name_nd: UniNode) -> bool;
 
 def static_fstring_spec_text(spec: UniNode) -> (str | None);

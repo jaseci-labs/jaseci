@@ -135,6 +135,12 @@ impl node_within(name_nd: UniNode, top: (UniNode | None)) -> bool {
     return False;
 }
 
+impl base_expr_is_erased(base: UniNode) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
+    _tail: UniNode = base.right if isinstance(base, AtomTrailer) else base;
+    return isinstance(_tail, Name) and _tail.value in NATIVE_COMPTIME_BASES;
+}
+
 impl name_in_type_position(name_nd: UniNode) -> bool {
     if name_nd.find_parent_of_type(SubTag) is not None {
         return True;
@@ -151,7 +157,7 @@ impl name_in_type_position(name_nd: UniNode) -> bool {
             continue;
         }
         for _base in (_decl.base_classes or []) {
-            if node_within(name_nd, _base) {
+            if node_within(name_nd, _base) and base_expr_is_erased(_base) {
                 return True;
             }
         }

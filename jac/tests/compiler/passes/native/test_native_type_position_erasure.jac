@@ -8,11 +8,16 @@ with it.
 
 The shared cure is that the native module-import gate asks whether a Python
 name is *used at run time*. An annotation is not a run-time use, and neither
-is a base class: `LayoutPass` resolves a base by name while building the
-hierarchy, and nothing loads a base object at run time. `name_in_type_position`
-therefore covers base-class expressions alongside annotations and return
-types, and the negative test below pins the other side -- a name a native unit
-would actually have to call still refuses.
+is a base the native lane erases: nothing loads it, and `LayoutPass` drops it
+from the hierarchy before a layout is built. `name_in_type_position` therefore
+covers erased base-class expressions alongside annotations and return types.
+
+The boundary is drawn at *erased*, not at *base*, and two negative tests hold
+it there. A base the native lane keeps is a run-time dependency -- an
+archetype cannot mean what it says without it, and no native unit can supply
+it -- so it still refuses, as does a name the unit would have to call. Widening
+to base classes wholesale would have traded those refusals for a class that
+silently loses everything it inherited.
 
 On top of that gate sit the three erasures. `cast` lowers to its second
 argument, which is what `typing.cast` returns in Python too, so the lanes
@@ -194,10 +199,19 @@ test "a module-scope TypeVar glob produces native IR" {
 }
 
 
-test "a base class is a type position, not a run-time use" {
+test "an erased base is a type position, not a run-time use" {
     assert _rejected_imports("type_position_base_marker.jac") == [] , (
-        "a Python name mentioned only as a base class was read as a run-time "
-        "use; a base is resolved by name at compile time and never loaded"
+        "a Python name mentioned only as a base the native lane erases was "
+        "read as a run-time use; nothing loads that base at run time"
+    );
+}
+
+
+test "a base the native lane keeps still refuses" {
+    assert _rejected_imports("type_position_retained_base.jac") == ["threading"] , (
+        "an ordinary Python base is a run-time dependency: the archetype "
+        "cannot mean what it says without it, and a native unit cannot "
+        "supply it. Only an erased base is free"
     );
 }
 
