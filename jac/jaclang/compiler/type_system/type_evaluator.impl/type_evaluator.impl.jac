@@ -4338,7 +4338,10 @@ impl TypeEvaluator._find_predicate_for(
                 key=inner_pred.key,
                 narrow_type=inner_pred.narrow_type,
                 is_inverted=not inner_pred.is_inverted,
-                attr_name=inner_pred.attr_name
+                attr_name=inner_pred.attr_name,
+                narrows_on_true=inner_pred.narrows_on_false,
+                narrows_on_false=inner_pred.narrows_on_true,
+                replaces_declared=inner_pred.replaces_declared
             );
         }
         return None;
@@ -4347,37 +4350,54 @@ impl TypeEvaluator._find_predicate_for(
     if isinstance(condition, BoolExpr) {
         match condition.op.name {
             case Tok.KW_AND:
-                all_preds = [
-                    p
-                    for val in condition.values
-                    if (p := self._find_predicate_for(target, val)) is not None
+                and_preds = [
+                    self._find_predicate_for(target, val) for val in condition.values
                 ];
-                if not all_preds {
+                and_matched = [
+                    p
+                    for p in and_preds
+                    if p is not None
+                ];
+                if not and_matched {
                     return None;
                 }
 
                 positive_preds = [
                     p
-                    for p in all_preds
+                    for p in and_matched
                     if not p.is_inverted
                 ];
                 if not positive_preds {
-                    return all_preds[0];
-                }
-
-                most_specific = positive_preds[0];
-                for pred in positive_preds[1:] {
-                    if (
-                        isinstance(pred.narrow_type, ClassType)
-                        and isinstance(most_specific.narrow_type, ClassType)
-                        and self.is_sub_class(
-                            most_specific.narrow_type, pred.narrow_type
-                        )
-                    ) {
-                        most_specific = pred;
+                    most_specific = and_matched[0];
+                } else {
+                    most_specific = positive_preds[0];
+                    for pred in positive_preds[1:] {
+                        if (
+                            isinstance(pred.narrow_type, ClassType)
+                            and isinstance(most_specific.narrow_type, ClassType)
+                            and self.is_sub_class(
+                                most_specific.narrow_type, pred.narrow_type
+                            )
+                        ) {
+                            most_specific = pred;
+                        }
                     }
                 }
-                return most_specific;
+
+                covers_false = len(and_matched) == len(and_preds)
+                    and all(
+                        self._narrowing_equivalent(p, most_specific)
+                        for p in and_matched
+                    );
+                return NarrowingPredicate(
+                    key=most_specific.key,
+                    narrow_type=most_specific.narrow_type,
+                    is_inverted=most_specific.is_inverted,
+                    attr_name=most_specific.attr_name,
+                    narrows_on_true=most_specific.narrows_on_true,
+                    narrows_on_false=(most_specific.narrows_on_false and covers_false),
+                    replaces_declared=most_specific.replaces_declared
+                );
 
             case Tok.KW_OR:
                 all_preds = [
@@ -4392,6 +4412,7 @@ impl TypeEvaluator._find_predicate_for(
                     return None;
                 }
 
+                covers_true = len(matched) == len(all_preds);
                 positive = [
                     p
                     for p in matched
@@ -4405,16 +4426,33 @@ impl TypeEvaluator._find_predicate_for(
                         union_type = UnionType(types=narrowed_types);
                     }
                     return NarrowingPredicate(
-                        key=key, narrow_type=union_type, is_inverted=False
+                        key=key,
+                        narrow_type=union_type,
+                        is_inverted=False,
+                        narrows_on_true=(
+                            covers_true and all(p.narrows_on_true for p in positive)
+                        ),
+                        narrows_on_false=all(p.narrows_on_false for p in positive),
+                        replaces_declared=any(p.replaces_declared for p in positive)
                     );
                 }
 
+                chosen: NarrowingPredicate = matched[0];
                 for p in matched {
                     if p.key == key {
-                        return p;
+                        chosen = p;
+                        break;
                     }
                 }
-                return matched[0];
+                return NarrowingPredicate(
+                    key=chosen.key,
+                    narrow_type=chosen.narrow_type,
+                    is_inverted=chosen.is_inverted,
+                    attr_name=chosen.attr_name,
+                    narrows_on_true=(len(all_preds) == 1 and chosen.narrows_on_true),
+                    narrows_on_false=chosen.narrows_on_false,
+                    replaces_declared=chosen.replaces_declared
+                );
 
         }
     }
@@ -4500,6 +4538,35 @@ impl TypeEvaluator._find_predicate_for(
     return None;
 }
 
+impl TypeEvaluator._narrowing_equivalent(
+    left: NarrowingPredicate, right: NarrowingPredicate
+) -> bool {
+    """Report whether two predicates narrow a target identically.
+
+    A conjunction's false edge is `not A or not B`, so it may only narrow
+    when every conjunct negates to the same thing. Mutual `isinstance`
+    matching is the equivalence used: it holds for the same class and for two
+    references to it that were converted to instances separately.
+    """;
+    if left is right {
+        return True;
+    }
+    if left.key != right.key or left.is_inverted != right.is_inverted {
+        return False;
+    }
+    if left.attr_name != right.attr_name {
+        return False;
+    }
+    if left.replaces_declared != right.replaces_declared {
+        return False;
+    }
+    if left.attr_name is not None {
+        return True;
+    }
+    return self._type_matches_isinstance(left.narrow_type, right.narrow_type)
+        and self._type_matches_isinstance(right.narrow_type, left.narrow_type);
+}
+
 impl TypeEvaluator._apply_narrowing(
     predicate: NarrowingPredicate,
     incoming: TypeBase | None,
@@ -4509,6 +4576,13 @@ impl TypeEvaluator._apply_narrowing(
     import from jaclang.compiler.type_system.type_evaluator {
         NarrowingPredicate,
         NarrowingTarget
+    }
+
+    if is_true_branch and not predicate.narrows_on_true {
+        return None;
+    }
+    if not is_true_branch and not predicate.narrows_on_false {
+        return None;
     }
 
     is_positive: bool = (

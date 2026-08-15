@@ -282,7 +282,10 @@ obj NarrowingPredicate {
     has key: str,
         narrow_type: TypeBase,
         is_inverted: bool = False,
-        attr_name: str | None = None;
+        attr_name: str | None = None,
+        narrows_on_true: bool = True,
+        narrows_on_false: bool = True,
+        replaces_declared: bool = False;
 }
 
 enum NarrowingKind {
@@ -669,6 +672,10 @@ obj TypeEvaluator {
     def _find_predicate_for(
         target: NarrowingTarget, condition: Expr
     ) -> NarrowingPredicate | None;
+
+    def _narrowing_equivalent(
+        left: NarrowingPredicate, right: NarrowingPredicate
+    ) -> bool;
 
     def _apply_narrowing(
         predicate: NarrowingPredicate,

@@ -92,6 +92,10 @@ Bug index:
                 declaration now binds the function local, so its annotation
                 also holds after the block and a sibling block redeclaring
                 the name collides with it (#8060)
+  #ANDPOL-1 - the false edge of a conjunction narrowed by the conjunction's
+              most specific positive conjunct, but `not (A and B)` says
+              nothing about A on its own; the else branch of
+              `if isinstance(x, Foo) and x.bar` wrongly excluded Foo (#8201)
 """
 
 import os;
@@ -1684,6 +1688,61 @@ test "bug_elifsc1_short_circuit_elif_keeps_guard_narrowing" {
     assert len(program.errors_had) == 0 , (
         "Bug #ELIFSC-1: the narrowing established by an if guard must "
         "survive an elif whose condition short-circuits. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #ANDPOL-1 / #8201: `_find_predicate_for` reduced an and-chain to its
+# most specific positive conjunct and handed that single predicate to both
+# edges. `not (A and B)` says nothing about A on its own, so the else branch
+# of `if isinstance(x, Foo) and x.bar` wrongly excluded Foo -- a value whose
+# `bar` is false takes that branch as a Foo.
+#
+# The predicate now records which edges it licenses. A conjunction narrows
+# the false edge only when every conjunct carries the same predicate, and
+# the mirror rule holds for a disjunction's true edge. Where the edge is not
+# licensed the walk keeps whatever its predecessors established, which is
+# the same fallback an unnarrowable branch edge already used.
+# =========================================================================
+test "bug_andpol1_conjunction_false_edge_narrows_by_nothing" {
+    program = compile_and_check("checker_bug_and_chain_false_edge.jac");
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 3 , (
+        "Bug #ANDPOL-1: the false edge of a conjunction and the true edge of "
+        "a disjunction may not narrow by one conjunct alone. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    assert 21 in error_lines , (
+        "Bug #ANDPOL-1: the else branch of `isinstance(x, Foo) and x.bar` "
+        f"still admits Foo. Got: {error_lines}"
+    );
+    assert 30 in error_lines , (
+        "Bug #ANDPOL-1: the fall-through after a conjunction guard still "
+        f"admits Foo. Got: {error_lines}"
+    );
+    assert 37 in error_lines , (
+        "Bug #ANDPOL-1: the true edge of `isinstance(x, Foo) or flag` cannot "
+        f"conclude Foo. Got: {error_lines}"
+    );
+}
+
+# =========================================================================
+# Bug #ANDPOL-1, negative: only the unlicensed edges lose their narrowing.
+# A lone guard, the true edge of a conjunction, a conjunction whose every
+# conjunct is the same predicate, a negated conjunction (which swaps the
+# edges), and both edges of a fully matched disjunction all still narrow.
+# =========================================================================
+test "bug_andpol1_licensed_edges_still_narrow" {
+    program = compile_and_check("checker_bug_and_chain_false_edge_negative.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #ANDPOL-1: edge polarity may only remove the narrowing the "
+        "condition never licensed. "
         f"Got errors: {[str(e) for e in program.errors_had]}"
     );
 }
