@@ -16,12 +16,12 @@ impl StaticAnalysisPass.transform(ir_in: uni.Module) -> uni.Module {
 }
 
 impl StaticAnalysisPass._check_placement_warnings(mod: uni.Module) -> None {
-    import from jaclang.compiler.symbol_utils { report_placement_warnings }
-    try {
-        report_placement_warnings(self, mod);
-    } except Exception {
-        ;
+    import from jaclang.compiler.symbol_utils {
+        report_placement_warnings,
+        report_serverless_kind_errors
     }
+    report_placement_warnings(self, mod);
+    report_serverless_kind_errors(self, mod);
 }
 
 impl StaticAnalysisPass._check_unused_symbols(scope: uni.UniScopeNode) -> None {
