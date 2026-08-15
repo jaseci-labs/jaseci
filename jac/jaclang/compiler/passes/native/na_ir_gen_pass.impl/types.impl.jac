@@ -765,6 +765,9 @@ impl NaIRGenPass._resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type {
         if self._foreign_optional_field(_ptb) {
             return ir.IntType(8).as_pointer();
         }
+        if self._typevar_optional_field(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
         if not self._type_base_is_unknown(_ptb) {
             _sig_shared = _ptb?.shared;
             _sig_cn = _sig_shared.class_name if _sig_shared is not None else None;
@@ -893,6 +896,9 @@ impl NaIRGenPass._resolve_field_type(var: uni.UniNode) -> ir.Type {
         if self._foreign_optional_field(_ptb) {
             return ir.IntType(8).as_pointer();
         }
+        if self._typevar_optional_field(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
         try {
             import from jaclang.compiler.type_system.types {
                 TypeVarType as _RfTypeVarType
@@ -945,13 +951,70 @@ impl NaIRGenPass._foreign_optional_field(tb: any) -> bool {
         if isinstance(m, _FofUnknownType) {
             continue;
         }
-        if isinstance(m, _FofTypeVarType) and self._lower_type(m) is None {
-            continue;
+        if isinstance(m, _FofTypeVarType) {
+            return False;
         }
         if isinstance(m, _FofClassType) and self._lower_type(m) is None {
             continue;
         }
         return False;
+    }
+    return True;
+}
+
+impl NaIRGenPass._erased_typevar_names(tb: any) -> list[str] {
+    try {
+        import from jaclang.compiler.type_system.types {
+            TypeVarType as _EtvTypeVarType
+        }
+    } except ImportError {
+        return [];
+    }
+    if isinstance(tb, _EtvTypeVarType) and self._lower_type(tb) is None {
+        return [tb.name];
+    }
+    if not self._typevar_optional_field(tb) {
+        return [];
+    }
+    out: list[str] = [];
+    for m in (tb.types or []) {
+        if isinstance(m, _EtvTypeVarType) and m.name not in out {
+            out.append(m.name);
+        }
+    }
+    return out;
+}
+
+impl NaIRGenPass._typevar_optional_field(tb: any) -> bool {
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _TvoClassType,
+            UnionType as _TvoUnionType,
+            TypeVarType as _TvoTypeVarType
+        }
+    } except ImportError {
+        return False;
+    }
+    if not isinstance(tb, _TvoUnionType) {
+        return False;
+    }
+    _members = tb.types or [];
+    _non_none = [
+        m
+        for m in _members
+        if not (
+            isinstance(m, _TvoClassType)
+            and m._shared is not None
+            and m.shared.class_name in ("NoneType", "None")
+        )
+    ];
+    if len(_non_none) == len(_members) or not _non_none {
+        return False;
+    }
+    for m in _non_none {
+        if not isinstance(m, _TvoTypeVarType) or self._lower_type(m) is not None {
+            return False;
+        }
     }
     return True;
 }

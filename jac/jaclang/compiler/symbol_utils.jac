@@ -392,6 +392,30 @@ def classify_condition_key(condition: uni.Expr) -> str | None {
     return None;
 }
 
+def _predicate_call_keys(condition: uni.FuncCall) -> set[str] {
+    keys: set[str] = set();
+    positional = [
+        arg
+        for arg in condition.params
+        if not isinstance(arg, uni.KWPair)
+    ];
+    if not positional {
+        return keys;
+    }
+    first_key = _extract_first_arg_key(positional[0]);
+    if first_key is None {
+        return keys;
+    }
+    if first_key == "self" and len(positional) > 1 {
+        second_key = _extract_first_arg_key(positional[1]);
+        if second_key is not None {
+            keys.add(second_key);
+        }
+    }
+    keys.add(first_key);
+    return keys;
+}
+
 def collect_narrowing_symbols(condition: uni.Expr) -> set[str] {
     symbols: set[str] = set();
 
@@ -410,6 +434,8 @@ def collect_narrowing_symbols(condition: uni.Expr) -> set[str] {
         key = classify_condition_key(condition);
         if key is not None {
             symbols.add(key);
+        } elif isinstance(condition, uni.FuncCall) {
+            symbols.update(_predicate_call_keys(condition));
         }
     }
     return symbols;

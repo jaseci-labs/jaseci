@@ -1344,6 +1344,19 @@ impl TypeEvaluator._get_type_of_expression_core(
                         return UnknownType();
                     }
 
+                    if target_name == "TypeIs" or target_name == "TypeGuard" {
+                        guarded: TypeBase | None = None;
+                        if isinstance(expr.right, IndexSlice) and expr.right.slices {
+                            guard_expr = expr.right.slices[0].start;
+                            if guard_expr is not None {
+                                guarded = self._convert_to_instance(
+                                    self.get_type_of_expression(guard_expr)
+                                );
+                            }
+                        }
+                        return self._create_type_guard_type(target_name, guarded);
+                    }
+
                     if target_name == "Literal" {
                         lit_types: list[TypeBase] = [];
                         if isinstance(expr.right, IndexSlice) and expr.right.slices {
@@ -1650,7 +1663,12 @@ impl TypeEvaluator._get_type_of_expression_core(
                     operand_expr = expr.values[i].expr;
                     cond_info = self.classify_condition(operand_expr);
                     if cond_info is not None
-                        and cond_info.kind == NarrowingKind.ISINSTANCE
+                        and cond_info.kind
+                            in (
+                                NarrowingKind.ISINSTANCE,
+                                NarrowingKind.TYPE_IS,
+                                NarrowingKind.TYPE_GUARD
+                            )
                         and cond_info.narrow_type is not None {
                         narrowed_sym = self._find_symbol_by_key(
                             cond_info.key, operand_expr
@@ -1658,7 +1676,11 @@ impl TypeEvaluator._get_type_of_expression_core(
                         if narrowed_sym is not None {
                             sym_type = self.get_type_of_symbol(narrowed_sym);
                             predicate = NarrowingPredicate(
-                                key=cond_info.key, narrow_type=cond_info.narrow_type
+                                key=cond_info.key,
+                                narrow_type=cond_info.narrow_type,
+                                replaces_declared=(
+                                    cond_info.kind == NarrowingKind.TYPE_GUARD
+                                )
                             );
                             target = NarrowingTarget(
                                 key=cond_info.key,
@@ -4246,6 +4268,15 @@ impl TypeEvaluator.classify_condition(condition: Expr) -> ConditionInfo | None {
         return ConditionInfo(kind=NarrowingKind.HASATTR, key=h_key, attr_name=h_attr);
     }
 
+    if guard_info := self._extract_type_guard_info(condition) {
+        (g_key, g_type, g_is_type_is) = guard_info;
+        return ConditionInfo(
+            kind=(NarrowingKind.TYPE_IS if g_is_type_is else NarrowingKind.TYPE_GUARD),
+            key=g_key,
+            narrow_type=g_type
+        );
+    }
+
     if (
         isinstance(condition, CompareExpr)
         and len(condition.ops) == 1
@@ -4338,7 +4369,10 @@ impl TypeEvaluator._find_predicate_for(
                 key=inner_pred.key,
                 narrow_type=inner_pred.narrow_type,
                 is_inverted=not inner_pred.is_inverted,
-                attr_name=inner_pred.attr_name
+                attr_name=inner_pred.attr_name,
+                narrows_on_true=inner_pred.narrows_on_false,
+                narrows_on_false=inner_pred.narrows_on_true,
+                replaces_declared=inner_pred.replaces_declared
             );
         }
         return None;
@@ -4347,37 +4381,54 @@ impl TypeEvaluator._find_predicate_for(
     if isinstance(condition, BoolExpr) {
         match condition.op.name {
             case Tok.KW_AND:
-                all_preds = [
-                    p
-                    for val in condition.values
-                    if (p := self._find_predicate_for(target, val)) is not None
+                and_preds = [
+                    self._find_predicate_for(target, val) for val in condition.values
                 ];
-                if not all_preds {
+                and_matched = [
+                    p
+                    for p in and_preds
+                    if p is not None
+                ];
+                if not and_matched {
                     return None;
                 }
 
                 positive_preds = [
                     p
-                    for p in all_preds
+                    for p in and_matched
                     if not p.is_inverted
                 ];
                 if not positive_preds {
-                    return all_preds[0];
-                }
-
-                most_specific = positive_preds[0];
-                for pred in positive_preds[1:] {
-                    if (
-                        isinstance(pred.narrow_type, ClassType)
-                        and isinstance(most_specific.narrow_type, ClassType)
-                        and self.is_sub_class(
-                            most_specific.narrow_type, pred.narrow_type
-                        )
-                    ) {
-                        most_specific = pred;
+                    most_specific = and_matched[0];
+                } else {
+                    most_specific = positive_preds[0];
+                    for pred in positive_preds[1:] {
+                        if (
+                            isinstance(pred.narrow_type, ClassType)
+                            and isinstance(most_specific.narrow_type, ClassType)
+                            and self.is_sub_class(
+                                most_specific.narrow_type, pred.narrow_type
+                            )
+                        ) {
+                            most_specific = pred;
+                        }
                     }
                 }
-                return most_specific;
+
+                covers_false = len(and_matched) == len(and_preds)
+                    and all(
+                        self._narrowing_equivalent(p, most_specific)
+                        for p in and_matched
+                    );
+                return NarrowingPredicate(
+                    key=most_specific.key,
+                    narrow_type=most_specific.narrow_type,
+                    is_inverted=most_specific.is_inverted,
+                    attr_name=most_specific.attr_name,
+                    narrows_on_true=most_specific.narrows_on_true,
+                    narrows_on_false=(most_specific.narrows_on_false and covers_false),
+                    replaces_declared=most_specific.replaces_declared
+                );
 
             case Tok.KW_OR:
                 all_preds = [
@@ -4392,6 +4443,7 @@ impl TypeEvaluator._find_predicate_for(
                     return None;
                 }
 
+                covers_true = len(matched) == len(all_preds);
                 positive = [
                     p
                     for p in matched
@@ -4405,16 +4457,33 @@ impl TypeEvaluator._find_predicate_for(
                         union_type = UnionType(types=narrowed_types);
                     }
                     return NarrowingPredicate(
-                        key=key, narrow_type=union_type, is_inverted=False
+                        key=key,
+                        narrow_type=union_type,
+                        is_inverted=False,
+                        narrows_on_true=(
+                            covers_true and all(p.narrows_on_true for p in positive)
+                        ),
+                        narrows_on_false=all(p.narrows_on_false for p in positive),
+                        replaces_declared=any(p.replaces_declared for p in positive)
                     );
                 }
 
+                chosen: NarrowingPredicate = matched[0];
                 for p in matched {
                     if p.key == key {
-                        return p;
+                        chosen = p;
+                        break;
                     }
                 }
-                return matched[0];
+                return NarrowingPredicate(
+                    key=chosen.key,
+                    narrow_type=chosen.narrow_type,
+                    is_inverted=chosen.is_inverted,
+                    attr_name=chosen.attr_name,
+                    narrows_on_true=(len(all_preds) == 1 and chosen.narrows_on_true),
+                    narrows_on_false=chosen.narrows_on_false,
+                    replaces_declared=chosen.replaces_declared
+                );
 
         }
     }
@@ -4425,6 +4494,20 @@ impl TypeEvaluator._find_predicate_for(
             case NarrowingKind.ISINSTANCE:
                 return NarrowingPredicate(
                     key=key, narrow_type=info.narrow_type, is_inverted=False
+                );
+
+            case NarrowingKind.TYPE_IS:
+                return NarrowingPredicate(
+                    key=key, narrow_type=info.narrow_type, is_inverted=False
+                );
+
+            case NarrowingKind.TYPE_GUARD:
+                return NarrowingPredicate(
+                    key=key,
+                    narrow_type=info.narrow_type,
+                    is_inverted=False,
+                    narrows_on_false=False,
+                    replaces_declared=True
                 );
 
             case NarrowingKind.CALLABLE:
@@ -4500,6 +4583,35 @@ impl TypeEvaluator._find_predicate_for(
     return None;
 }
 
+impl TypeEvaluator._narrowing_equivalent(
+    left: NarrowingPredicate, right: NarrowingPredicate
+) -> bool {
+    """Report whether two predicates narrow a target identically.
+
+    A conjunction's false edge is `not A or not B`, so it may only narrow
+    when every conjunct negates to the same thing. Mutual `isinstance`
+    matching is the equivalence used: it holds for the same class and for two
+    references to it that were converted to instances separately.
+    """;
+    if left is right {
+        return True;
+    }
+    if left.key != right.key or left.is_inverted != right.is_inverted {
+        return False;
+    }
+    if left.attr_name != right.attr_name {
+        return False;
+    }
+    if left.replaces_declared != right.replaces_declared {
+        return False;
+    }
+    if left.attr_name is not None {
+        return True;
+    }
+    return self._type_matches_isinstance(left.narrow_type, right.narrow_type)
+        and self._type_matches_isinstance(right.narrow_type, left.narrow_type);
+}
+
 impl TypeEvaluator._apply_narrowing(
     predicate: NarrowingPredicate,
     incoming: TypeBase | None,
@@ -4509,6 +4621,13 @@ impl TypeEvaluator._apply_narrowing(
     import from jaclang.compiler.type_system.type_evaluator {
         NarrowingPredicate,
         NarrowingTarget
+    }
+
+    if is_true_branch and not predicate.narrows_on_true {
+        return None;
+    }
+    if not is_true_branch and not predicate.narrows_on_false {
+        return None;
     }
 
     is_positive: bool = (
@@ -4524,6 +4643,9 @@ impl TypeEvaluator._apply_narrowing(
         );
     }
     if is_positive {
+        if predicate.replaces_declared {
+            return predicate.narrow_type;
+        }
         base_type: TypeBase;
         if incoming is not None {
             base_type = incoming;
@@ -4531,9 +4653,9 @@ impl TypeEvaluator._apply_narrowing(
             base_type = target.declared_type;
         }
 
-        filtered = self._filter_union_for_isinstance(base_type, predicate.narrow_type);
-        if filtered is not None {
-            return filtered;
+        narrowed = self._narrow_type_to(base_type, predicate.narrow_type);
+        if narrowed is not None {
+            return narrowed;
         }
 
         return self._specialize_narrow_from_base(base_type, predicate.narrow_type);
@@ -4555,16 +4677,15 @@ impl TypeEvaluator._apply_narrowing(
 impl TypeEvaluator._specialize_narrow_from_base(
     base_type: TypeBase, narrow_type: TypeBase
 ) -> TypeBase {
-    """Carry a filtered-out member's type arguments onto the narrow target.
+    """Carry a member's type arguments onto the narrow target it sits above.
 
-    `_filter_union_for_isinstance` keeps the members the target is a subtype
-    of, so a member the relation runs the *other* way for drops out and the
-    narrow falls back to the bare target class -- `isinstance(x, list)` over
-    an `Expr | Sequence[T]` yields `list`, losing `T`. The container
-    protocols are exactly that shape (`list` is a `Sequence`, `dict` a
-    `Mapping`), and a value that is both a `Sequence[T]` and a `list` is a
-    `list[T]`, so the member's arguments carry over when the target declares
-    the same number of parameters.
+    A member the target derives from is narrowed to the bare target class,
+    which loses the member's arguments -- `isinstance(x, list)` over an
+    `Expr | Sequence[T]` yields `list`, dropping `T`. The container protocols
+    are exactly that shape (`list` is a `Sequence`, `dict` a `Mapping`), and
+    a value that is both a `Sequence[T]` and a `list` is a `list[T]`, so the
+    member's arguments carry over when the target declares the same number of
+    parameters.
     """;
     if not isinstance(narrow_type, ClassType)
         or (narrow_type.private.type_args or []) {
@@ -4594,29 +4715,68 @@ impl TypeEvaluator._specialize_narrow_from_base(
     return narrow_type;
 }
 
-impl TypeEvaluator._filter_union_for_isinstance(
-    base_type: TypeBase, target_type: TypeBase
+impl TypeEvaluator._narrow_type_to(
+    base_type: TypeBase, narrow_type: TypeBase
 ) -> TypeBase | None {
-    matching: list[TypeBase] = [];
+    """Narrow a declared type against an isinstance filter, member by member.
 
-    if isinstance(base_type, UnionType) and base_type.types {
-        for t in base_type.types {
-            if self._type_matches_isinstance(t, target_type) {
-                matching.append(t);
+    Narrowing the union as a whole threw the declared type away whenever no
+    member matched: `isinstance(x, Marker)` on an `x: Carrier | None` became
+    a bare `Marker` and every `Carrier` member went missing. Each member is
+    now narrowed on its own and the surviving results are re-joined.
+    """;
+    members = (
+        base_type.types
+            if isinstance(base_type, UnionType) and base_type.types
+            else [base_type]
+    );
+    results: list[TypeBase] = [];
+    for m in members {
+        narrowed_member = self._narrow_member_to(m, narrow_type);
+        if narrowed_member is not None {
+            results.append(narrowed_member);
+        }
+    }
+    if not results {
+        return None;
+    }
+    return self._union_narrowed_types(results);
+}
+
+impl TypeEvaluator._narrow_member_to(
+    member: TypeBase, narrow_type: TypeBase
+) -> TypeBase | None {
+    """Narrow one declared member against the filter, or a tuple of filters.
+
+    A tuple filter is a disjunction, so the member is narrowed against every
+    alternative it is related to and the results joined. A member related to
+    none of them drops: the value cannot be that member and pass the guard,
+    unless it is an instance of a class deriving from both, which this
+    checker does not model.
+    """;
+    if isinstance(narrow_type, UnionType) and narrow_type.types {
+        related: list[TypeBase] = [];
+        for t in narrow_type.types {
+            part = self._narrow_member_to(member, t);
+            if part is not None {
+                related.append(part);
             }
         }
-    } else {
-        if self._type_matches_isinstance(base_type, target_type) {
-            matching.append(base_type);
+        if not related {
+            return None;
         }
+        return self._union_narrowed_types(related);
     }
-    if len(matching) == 0 {
+    if self._type_matches_isinstance(member, narrow_type) {
+        return member;
+    }
+    if not isinstance(member, ClassType) or not isinstance(narrow_type, ClassType) {
         return None;
-    } elif len(matching) == 1 {
-        return matching[0];
-    } else {
-        return UnionType(types=matching);
     }
+    if self.is_sub_class(member, narrow_type) {
+        return self._specialize_narrow_from_base(member, narrow_type);
+    }
+    return None;
 }
 
 impl TypeEvaluator._type_matches_isinstance(
@@ -4861,6 +5021,109 @@ impl TypeEvaluator._extract_isinstance_info(
     return (
         narrowing_key,
         self._convert_to_instance(self.get_type_of_expression(type_arg))
+    );
+}
+
+impl TypeEvaluator._create_type_guard_type(
+    name: str, guarded: TypeBase | None
+) -> TypeBase {
+    """Model `TypeIs[T]`/`TypeGuard[T]` as a bool that carries the guarded type.
+
+    Both forms are `bool` at runtime and both PEPs require the predicate to
+    return one, so the synthesized class derives from `bool`: a predicate's
+    result stays usable anywhere a bool is, and a plain `bool` return
+    satisfies the annotation. `T` rides along in the type arguments, which is
+    where `_extract_type_guard_info` reads it back out at the call site.
+    """;
+    if not self.prefetch or self.prefetch.bool_class is None {
+        return UnknownType();
+    }
+    base = self._create_special_builtin_type(name, self.prefetch.bool_class);
+    private = ClassType.ClassDetailsPrivate(
+        type_args=([guarded] if guarded is not None else []), alias_name=name
+    );
+    return ClassType(_shared=base.shared, private=private, flags=base.flags);
+}
+
+impl TypeEvaluator._unwrap_type_guard_return(ty: TypeBase) -> TypeBase {
+    """Give back the bool a `TypeIs[T]`/`TypeGuard[T]` annotation stands for.
+
+    Both PEPs say the predicate returns a bool; the guarded type is a claim
+    about the argument, not about the value handed back. Keeping the special
+    form out of every declared return type is what lets the rest of the
+    compiler -- assignability, the layout pass, the native lane -- go on
+    seeing an ordinary bool. `FunctionType.type_guard` carries the claim.
+    """;
+    if self._type_guard_form_of(ty) is None {
+        return ty;
+    }
+    if not self.prefetch or self.prefetch.bool_class is None {
+        return ty;
+    }
+    return self._convert_to_instance(self.prefetch.bool_class);
+}
+
+impl TypeEvaluator._type_guard_form_of(ty: TypeBase) -> str | None {
+    if not isinstance(ty, ClassType) {
+        return None;
+    }
+    if ty.is_special_form("TypeIs") {
+        return "TypeIs";
+    }
+    if ty.is_special_form("TypeGuard") {
+        return "TypeGuard";
+    }
+    return None;
+}
+
+impl TypeEvaluator._extract_type_guard_info(
+    condition: Expr
+) -> tuple[str, TypeBase, bool] | None {
+    """Read a user-defined type predicate off a call in a condition.
+
+    The guarded argument is the one that binds the callee's first parameter
+    after any implicit receiver, which is the parameter both PEPs narrow. A
+    call that spells the receiver out takes the same route the argument
+    matcher does, so `Cls.pred(inst, x)` narrows `x` and not `inst`.
+    """;
+    if not isinstance(condition, FuncCall) or not condition.params {
+        return None;
+    }
+    if isinstance(condition.target, Name)
+        and condition.target.value
+            in ("isinstance", "issubclass", "callable", "hasattr") {
+        return None;
+    }
+    probe_key = id(condition);
+    if probe_key in self._type_guard_probes {
+        return None;
+    }
+    self._type_guard_probes.add(probe_key);
+    try {
+        callee = self.get_type_of_expression(condition.target);
+    } finally {
+        self._type_guard_probes.discard(probe_key);
+    }
+    if not isinstance(callee, FunctionType) or callee.type_guard is None {
+        return None;
+    }
+    positional = [
+        arg
+        for arg in condition.params
+        if not isinstance(arg, KWPair)
+    ];
+    receiver_args = 1 if self._is_unbound_method_call(condition) else 0;
+    if len(positional) <= receiver_args {
+        return None;
+    }
+    guard_key = self.create_key_for_reference(positional[receiver_args]);
+    if guard_key is None {
+        return None;
+    }
+    return (
+        guard_key,
+        self._convert_to_instance(callee.type_guard),
+        callee.type_guard_is_strict
     );
 }
 

@@ -72,6 +72,8 @@ glob NATIVE_OSPATH_FUNCS: set[str] = {
          "isfile",
          "isdir",
          "getsize",
+         "getmtime",
+         "normcase",
 
      };
 
@@ -152,6 +154,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         struct_field_types: dict[str, dict] = {},
         struct_field_defaults: dict[str, object] = {},
         struct_field_foreign: dict[str, set] = {},
+        struct_field_erased_tv: dict[str, dict] = {},
+        arch_type_params: dict[str, list] = {},
         struct_field_inline: dict[str, set] = {},
         method_funcs: dict[str, ir.Function] = {},
         static_methods: dict[str, bool] = {},
@@ -545,6 +549,13 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type;
     def _resolve_field_type(var: uni.UniNode) -> ir.Type;
     def _foreign_optional_field(tb: any) -> bool;
+    def _typevar_optional_field(tb: any) -> bool;
+    def _erased_typevar_names(tb: any) -> list[str];
+    def _reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bool;
+    def _emit_scalar_type_arg_refusal(
+        nd: uni.UniNode, type_name: str, fname: str, tv_name: str, arg: any
+    ) -> bool;
+
     def _type_base_is_unknown(tb: any) -> bool;
     def _emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.Type;
     def _lower_type(t: any) -> (ir.Type | None);
@@ -1209,6 +1220,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_time_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_clock_gettime(clock_id: int) -> tuple;
     def _emit_os_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
+    def _emit_os_const(name: str) -> (ir.Value | None);
     def _emit_os_environ_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | None);
     def _mt_ensure -> None;

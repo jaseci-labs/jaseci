@@ -398,6 +398,18 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
     if self._is_ability_classmethod(node_) {
         flags = flags | FunctionTypeFlags.ClassMethod;
     }
+    guarded_type: TypeBase | None = None;
+    guard_is_strict = False;
+    guard_form = self._type_guard_form_of(return_type);
+    if guard_form is not None {
+        assert isinstance(return_type, ClassType);
+        guard_args = return_type.private.type_args or [];
+        if guard_args {
+            guarded_type = guard_args[0];
+            guard_is_strict = guard_form == "TypeIs";
+        }
+        return_type = self._unwrap_type_guard_return(return_type);
+    }
     func_type = FunctionType(
         func_name=node_.name_spec.sym_name,
         return_type=return_type,
@@ -405,6 +417,8 @@ impl TypeEvaluator.get_type_of_ability(node_: Ability) -> TypeBase {
         function_flags=flags,
         type_params=func_type_params,
         is_async=node_.is_async,
+        type_guard=guarded_type,
+        type_guard_is_strict=guard_is_strict,
     );
     func_type = self._apply_function_decorators(node_, func_type);
     node_.name_spec.type = func_type;
