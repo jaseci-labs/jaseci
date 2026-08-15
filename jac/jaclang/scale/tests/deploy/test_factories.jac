@@ -121,7 +121,42 @@ test "kubernetes config from dict" {
     assert config.namespace == "test-ns";
     assert config.container_port == 9000;
     assert config.ingress_node_port == 30082;
-    assert config.postgres_enabled is False;
+    # The retired boolean migrates onto the tri-state it could only half express.
+    assert config.database_mode == "none";
+    assert config.database_enabled() is False;
+}
+
+test "kubernetes config database_mode survives a to_dict round trip" {
+    config = KubernetesConfig.from_dict(
+        KubernetesConfig,
+        {
+            "app_name": "my-app",
+            "namespace": "test-ns",
+            "database_mode": "external",
+            "database_url": "postgresql://u@db.other-ns.svc.cluster.local:5432/app",
+            "database_namespace": "other-ns"
+        }
+    );
+    round_tripped = KubernetesConfig.from_dict(KubernetesConfig, config.to_dict());
+
+    assert round_tripped.database_mode == "external";
+    assert round_tripped.database_url
+        == "postgresql://u@db.other-ns.svc.cluster.local:5432/app";
+    assert round_tripped.database_namespace == "other-ns";
+    assert round_tripped.database_enabled() is True;
+}
+
+test "kubernetes config rejects an unknown database_mode" {
+    raised = False;
+    try {
+        KubernetesConfig.from_dict(
+            KubernetesConfig, {"app_name": "my-app", "database_mode": "maybe"}
+        );
+    } except ValueError as e {
+        raised = True;
+        assert "database_mode" in str(e);
+    }
+    assert raised , "Expected ValueError for an unknown database_mode";
 }
 
 test "app config creation" {

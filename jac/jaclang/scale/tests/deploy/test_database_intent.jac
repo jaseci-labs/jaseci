@@ -1,9 +1,12 @@
 """Deployment intent, not the deployer's ambient environment, picks the deployed app's database."""
 
+import jaclang;
 import os;
 import unittest.mock;
+import from pathlib { Path }
 
 import from jaclang.scale.config.config_loader { get_scale_config, reset_scale_config }
+import from jaclang.scale.deploy.database { kubernetes_postgres as pg_module }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
@@ -12,7 +15,17 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_target {
 }
 import from jaclang.scale._optdeps.kubernetes { ApiException }
 
-glob PLATFORM_DB_URL = "postgresql://platform@platform-postgres-service:5432/platform";
+# The bare host is namespace-relative: exactly what a platform pod has in JAC_DB_URL.
+glob PLATFORM_DB_URL = "postgresql://platform@platform-postgres-service:5432/platform",
+     SHARED_DB_URL = "postgresql://app:pw@shared-db.data.svc.cluster.local:5432/app",
+     NO_SUCH_NS_FILE = "/nonexistent/jac-test/serviceaccount/namespace";
+
+
+with entry {
+    # Pin the in-cluster namespace file out of reach so these tests read the
+    # deployer's namespace only from POD_NAMESPACE, wherever they run.
+    pg_module.POD_NAMESPACE_FILE = NO_SUCH_NS_FILE;
+}
 
 
 # Kubernetes API doubles where every read is a 404, so every create path is taken.
@@ -53,6 +66,18 @@ def _set_ambient_db_url(url: (str | None)) -> (str | None) {
 }
 
 
+# The namespace the deploying process itself runs in, as the downward API sets it.
+def _set_pod_namespace(namespace: (str | None)) -> (str | None) {
+    prior = os.environ.get("POD_NAMESPACE");
+    if namespace is None {
+        os.environ.pop("POD_NAMESPACE", None);
+    } else {
+        os.environ["POD_NAMESPACE"] = namespace;
+    }
+    return prior;
+}
+
+
 test "ambient JAC_DB_URL does not decide the deployed app's database" {
     # A platform service deploying user apps in-process has JAC_DB_URL set to its
     # own fleet database. The app it deploys must still get a database of its own.
@@ -78,13 +103,181 @@ test "ambient JAC_DB_URL does not decide the deployed app's database" {
 }
 
 
+test "an explicit external database_url skips provisioning" {
+    prior = _set_ambient_db_url(None);
+    try {
+        cfg = KubernetesConfig(
+            app_name="tenant-app",
+            namespace="tenant-a",
+            database_mode="external",
+            database_url=SHARED_DB_URL
+        );
+        apis = _run_deploy(cfg, "tenant-app");
+
+        assert apis["env_list"] == [{"name": "JAC_DB_URL", "value": SHARED_DB_URL}];
+        assert apis["apps_v1"].create_namespaced_stateful_set.call_count == 0 , "external mode must not provision a StatefulSet";
+        assert apis["core_v1"].create_namespaced_secret.call_count == 0;
+    } finally {
+        _set_ambient_db_url(prior);
+    }
+}
+
+
+test "an explicit provision request wins over ambient JAC_DB_URL" {
+    prior = _set_ambient_db_url(PLATFORM_DB_URL);
+    try {
+        cfg = KubernetesConfig(
+            app_name="tenant-app", namespace="tenant-a", database_mode="provision"
+        );
+        apis = _run_deploy(cfg, "tenant-app");
+
+        assert apis["apps_v1"].create_namespaced_stateful_set.call_count == 1;
+        assert "valueFrom" in apis["env_list"][0];
+    } finally {
+        _set_ambient_db_url(prior);
+    }
+}
+
+
+test "database_mode=none wires no database at all" {
+    prior = _set_ambient_db_url(PLATFORM_DB_URL);
+    try {
+        cfg = KubernetesConfig(
+            app_name="tenant-app", namespace="tenant-a", database_mode="none"
+        );
+        apis = _run_deploy(cfg, "tenant-app");
+
+        assert apis["env_list"] == [];
+        assert apis["apps_v1"].create_namespaced_stateful_set.call_count == 0;
+    } finally {
+        _set_ambient_db_url(prior);
+    }
+}
+
+
+test "external mode requested with no url is a hard error" {
+    prior = _set_ambient_db_url(PLATFORM_DB_URL);
+    try {
+        cfg = KubernetesConfig(
+            app_name="tenant-app", namespace="tenant-a", database_mode="external"
+        );
+        raised = False;
+        try {
+            _run_deploy(cfg, "tenant-app");
+        } except ValueError as e {
+            raised = True;
+            assert "JAC_DB_URL" in str(e);
+        }
+        assert raised , "external mode without a url must not silently fall back to the ambient env";
+    } finally {
+        _set_ambient_db_url(prior);
+    }
+}
+
+
+test "a bare service host that cannot be qualified fails the deploy" {
+    prior = _set_ambient_db_url(None);
+    prior_ns = _set_pod_namespace(None);
+    try {
+        cfg = KubernetesConfig(
+            app_name="tenant-app",
+            namespace="tenant-a",
+            database_mode="external",
+            database_url=PLATFORM_DB_URL
+        );
+        raised = False;
+        try {
+            _run_deploy(cfg, "tenant-app");
+        } except ValueError as e {
+            raised = True;
+            message = str(e);
+            assert "platform-postgres-service" in message;
+            assert "tenant-a" in message;
+            assert "svc.cluster.local" in message;
+            assert "database_namespace" in message;
+        }
+        assert raised , "a manifest whose database host cannot resolve must not be reported as a successful deploy";
+    } finally {
+        _set_pod_namespace(prior_ns);
+        _set_ambient_db_url(prior);
+    }
+}
+
+
+test "a bare service host is qualified against the namespace that owns it" {
+    prior = _set_ambient_db_url(None);
+    prior_ns = _set_pod_namespace(None);
+    try {
+        cfg = KubernetesConfig(
+            app_name="tenant-app",
+            namespace="tenant-a",
+            database_mode="external",
+            database_url=PLATFORM_DB_URL,
+            database_namespace="platform"
+        );
+        apis = _run_deploy(cfg, "tenant-app");
+
+        assert apis["env_list"]
+            == [
+                {
+                    "name": "JAC_DB_URL",
+                    "value": "postgresql://platform@platform-postgres-service.platform.svc.cluster.local:5432/platform"
+                }
+            ];
+    } finally {
+        _set_pod_namespace(prior_ns);
+        _set_ambient_db_url(prior);
+    }
+}
+
+
+test "a bare service host in the target namespace is left alone" {
+    prior = _set_ambient_db_url(None);
+    prior_ns = _set_pod_namespace("tenant-a");
+    try {
+        cfg = KubernetesConfig(
+            app_name="tenant-app",
+            namespace="tenant-a",
+            database_mode="external",
+            database_url=PLATFORM_DB_URL
+        );
+        apis = _run_deploy(cfg, "tenant-app");
+
+        assert apis["env_list"] == [{"name": "JAC_DB_URL", "value": PLATFORM_DB_URL}];
+    } finally {
+        _set_pod_namespace(prior_ns);
+        _set_ambient_db_url(prior);
+    }
+}
+
+
 test "the runtime path still honours ambient JAC_DB_URL for this process" {
     # JAC_DB_URL keeps meaning 'the database THIS PROCESS connects to'.
     prior = _set_ambient_db_url(PLATFORM_DB_URL);
     try {
         runtime = get_scale_config().get_database_config();
         assert runtime.get("url") == PLATFORM_DB_URL;
+        deploy_view = get_scale_config().get_deploy_database_config();
+        assert deploy_view.get("url") != PLATFORM_DB_URL , "the deploy-intent view must not see the process's own database";
     } finally {
         _set_ambient_db_url(prior);
     }
+}
+
+
+test "no deploy module can reach the env-reading database resolver" {
+    # The separation is structural: get_database_config() answers 'what database
+    # does THIS PROCESS use', and nothing on the deploy path may ask it.
+    import from pathlib { Path }
+    import jaclang;
+    deploy_root = Path(jaclang.__file__).parent / "scale" / "deploy";
+    assert deploy_root.is_dir() , f"could not locate the deploy package at {deploy_root}";
+
+    offenders = [];
+    for source in sorted(deploy_root.rglob("*.jac")) {
+        if "get_database_config" in source.read_text() {
+            offenders.append(str(source));
+        }
+    }
+    assert offenders == [] , f"deploy modules must call get_deploy_database_config(), not the env-reading get_database_config(): {offenders}";
 }
