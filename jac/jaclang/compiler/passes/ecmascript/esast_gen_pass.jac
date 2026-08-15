@@ -34,7 +34,7 @@ import from jaclang.jac0core.diagnostics {
     E5080,
     E5081,
     E5085,
-    E5086
+    E5086,
     E5099
 }
 
