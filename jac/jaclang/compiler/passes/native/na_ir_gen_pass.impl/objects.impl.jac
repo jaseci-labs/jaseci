@@ -201,6 +201,7 @@ impl NaIRGenPass._register_archetypes(module: uni.Module) -> None {
     self._emit_osp_setup();
 
     self._predemote_capability_constructors();
+    self._codegen_constructors_first(archetypes);
 
     for arch in archetypes {
         arch_name = arch.name.value if arch.name else "unknown";
@@ -291,6 +292,35 @@ impl NaIRGenPass._predemote_capability_constructors -> None {
             _viols,
             keep_func=_slot in self.vtable_method_indices.get(_cls, {})
         );
+    }
+}
+
+impl NaIRGenPass._codegen_constructors_first(archetypes: list) -> None {
+    """Lower every constructor body before any other body is lowered.
+
+    The companion to `_predemote_capability_constructors`, for the demotions
+    the capability partition cannot predict: a structured error or an emitter
+    exception while lowering a constructor. Those only surface at the
+    constructor's own codegen point, and a construction site lowered before
+    that point would already hold a direct reference to what becomes an abort
+    stub. Lowering constructors first means every non-constructor body sees a
+    settled answer from `_demoted_init_of`. A constructor that constructs
+    another class whose constructor demotes later in this same pass is the one
+    case left, and it is bounded by construction order among constructors.
+    """;
+    for arch in archetypes {
+        arch_name = arch.name.value if arch.name else "unknown";
+        if arch.body is None {
+            continue;
+        }
+        for stmt in arch.body {
+            if isinstance(stmt, uni.Ability)
+                and isinstance(stmt.signature, uni.FuncSignature)
+                and stmt.name_ref is not None
+                and stmt.name_ref.sym_name in self._constructor_slots() {
+                self._codegen_method(arch_name, stmt);
+            }
+        }
     }
 }
 
@@ -723,7 +753,7 @@ impl NaIRGenPass._codegen_method(
     if func is None {
         return;
     }
-    if full_name in self._native_skipped_methods {
+    if full_name in self._native_skipped_methods or func.blocks {
         return;
     }
 

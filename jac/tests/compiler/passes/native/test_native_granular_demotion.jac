@@ -290,6 +290,39 @@ test "constructing a class whose constructor demoted refuses loudly" {
     );
 }
 
+test "a constructor that fails late still refuses an earlier-lowered caller" {
+    (prog, ir, census) = _compile_with_census("granular_ctor_late_failure.jac");
+    errors = [str(e) for e in prog.errors_had];
+    assert not prog.errors_had , (
+        f"the caller must cascade into a seam, not fail the module: {errors}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "Early.pure" in layout.methods , (
+        f"clean sibling method was lost: {list(layout.methods)}"
+    );
+    assert "Sink.init" not in layout.methods , (
+        "an initializer the emitter could not lower must demote"
+    );
+    assert "Early.make" not in layout.methods , (
+        "a construction site lowered before the initializer demoted must "
+        "still refuse; binding it early would call an abort stub with no "
+        "diagnostic"
+    );
+    seams = _seams_of(census, "granular_ctor_late_failure.jac");
+    make_seams = [
+        s
+        for s in seams
+        if s.startswith("Early.make: ")
+    ];
+    assert len(make_seams) == 1 , (
+        f"expected exactly one census seam for Early.make, got: {seams}"
+    );
+    assert "Sink" in make_seams[0] , (
+        f"the cascade reason must name the refused construction: " f"{make_seams[0]}"
+    );
+}
+
 test "granular seams are waiver-eligible through seal_demotion_report" {
     import from jaclang.utils.precompile_bytecode { seal_demotion_report }
     (_prog, _ir, census) = _compile_with_census("granular_method_seam.jac");

@@ -933,6 +933,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _constructor_slots -> tuple;
     def _constructor_ability_for(cls: str, slot: str) -> (uni.Ability | None);
     def _predemote_capability_constructors -> None;
+    def _codegen_constructors_first(archetypes: list) -> None;
     def _demoted_init_of(type_name: str) -> (str | None);
     def _rename_demoted_symbol(name: str, func: ir.Function) -> None;
     def _codegen_no_sig_method(arch_name: str, method: uni.Ability) -> None;
