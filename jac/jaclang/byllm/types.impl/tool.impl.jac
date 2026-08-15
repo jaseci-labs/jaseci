@@ -134,8 +134,8 @@ impl Tool._parse_finish_arguments(args_json: dict, params: dict) -> dict {
         candidates.append(args_json["final_output"]);
     } elif len(args_json) == 1 {
         candidates.append(list(args_json.values())[0]);
-        candidates.append(args_json);
-    } elif args_json {
+    }
+    if args_json {
         candidates.append(args_json);
     }
     for candidate in candidates {

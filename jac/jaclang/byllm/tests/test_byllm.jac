@@ -1028,6 +1028,14 @@ test "finish tool argument resolution heals recoverable shapes" {
     }
     bare = Tool.make_finish_tool(str).parse_arguments("just the answer");  # type: ignore[arg-type]
     assert bare == {"final_output": "just the answer"} , f"bare payload: got {bare}";
+    # Output type whose OWN field is named final_output, sent flattened.
+    self_named = dataclasses.make_dataclass(
+        "_SelfNamed", [("final_output", str), ("score", int)]
+    );
+    parsed = Tool.make_finish_tool(self_named).parse_arguments(
+        {"final_output": "ok", "score": 5}
+    );
+    assert parsed["final_output"].score == 5 , f"self-named flattened: got {parsed}";
 }
 
 test "unusable tool arguments raise recoverable errors" {
