@@ -10,17 +10,18 @@ exits by raising: the `@__jac_se_guard__` boundary decorator, which sits ABOVE
 `@torch.compile` and is therefore eager, drains it on that path. Assertions run
 against the generated Python source, plus the detection tag table where source
 alone cannot distinguish "not detected" from "detected but declined"."""
-import ast;
 import os;
 import tempfile;
-import from tests.support { JAC_ROOT }
+import from tests.support {
+    graphmend_break_kinds as _break_kinds,
+    graphmend_compile_path as _compile_path,
+    graphmend_pysrc as _pysrc
+}
 import from jaclang.jac0core.jaclib {
     __jac_log_emit__,
     __jac_log_flush_hook__,
     __jac_log_register__
 }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
 
 glob _LOG_SEEN: list = [];
 
@@ -32,36 +33,6 @@ def _record_log(msg: str) {
 """Raise from inside a replayed log call (flush-hook probe)."""
 def _raise_log(msg: str) {
     raise RuntimeError("logger down");
-}
-
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
-     );
-
-"""Compile a source file and return its generated Python source."""
-def _compile_path(path: str, gm: bool) -> str {
-    prog = JacProgram();
-    mod = prog.compile(
-        file_path=path, options=CompileOptions(graphmend=gm, type_check=False)
-    );
-    pa = mod.gen.py_ast;
-    mod_ast = pa[0] if isinstance(pa, list) else pa;
-    return ast.unparse(mod_ast);
-}
-
-"""Compile a checked-in .jac fixture and return its generated Python source."""
-def _pysrc(name: str, gm: bool) -> str {
-    return _compile_path(os.path.join(FIXTURES, name), gm);
-}
-
-"""Compile a fixture with graphmend on and list the detection tags recorded."""
-def _break_kinds(name: str) -> list {
-    prog = JacProgram();
-    prog.compile(
-        file_path=os.path.join(FIXTURES, name),
-        options=CompileOptions(graphmend=True, type_check=False)
-    );
-    return [k.value for k in prog.graphmend_breaks.values()];
 }
 
 """A Python-source model with a print between tensor ops.

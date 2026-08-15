@@ -13,7 +13,6 @@ the harmless *trailing* break left by the epilogue flush even though the
 expensive compute is a single contiguous graph).
 
 Skipped automatically when PyTorch is not installed."""
-import ast;
 import builtins;
 import contextlib;
 import io;
@@ -21,13 +20,10 @@ import logging;
 import os;
 import pytest;
 import tempfile;
-import from tests.support { JAC_ROOT }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compile_options { CompileOptions }
-
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
-     );
+import from tests.support {
+    GRAPHMEND_FIXTURES as FIXTURES,
+    graphmend_compile_path as _compile_path
+}
 
 """nn.Module logger models, written to temp files at test time rather than
 checked in as .py fixtures: the repository does not accept new Python files.
@@ -77,16 +73,6 @@ def _torch -> any {
     } except ImportError {
         pytest.skip("torch not installed");
     }
-}
-
-"""Compile a source file and return its generated Python source."""
-def _compile_path(path: str, gm: bool) -> str {
-    prog = JacProgram();
-    mod = prog.compile(
-        file_path=path, options=CompileOptions(graphmend=gm, type_check=False)
-    );
-    pa = mod.gen.py_ast;
-    return ast.unparse(pa[0] if isinstance(pa, list) else pa);
 }
 
 """Compile a generated .py model source and return its Python lowering."""

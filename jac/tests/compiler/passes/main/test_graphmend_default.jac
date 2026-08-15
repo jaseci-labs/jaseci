@@ -16,16 +16,12 @@ import ast;
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
-import from tests.support { JAC_ROOT }
+import from tests.support { GRAPHMEND_FIXTURES as FIXTURES }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.jir { get_module_cache_path }
 import from jaclang.project.config { JacConfig }
 import jaclang.project.config as config_mod;
-
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
-     );
 
 glob TORCH_MAIN = "import torch;\n\n"
          + "@torch.compile()\n"

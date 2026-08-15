@@ -13,14 +13,10 @@ Skipped automatically when PyTorch is not installed."""
 import ast;
 import os;
 import pytest;
-import from tests.support { JAC_ROOT }
+import from tests.support { GRAPHMEND_FIXTURES as FIXTURES }
 import from jaclang.jac0core.jaclib { __jac_trap_guard__ }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
-     );
 
 """Import torch or skip the calling test."""
 def _torch -> any {

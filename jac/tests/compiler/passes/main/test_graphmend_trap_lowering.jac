@@ -6,29 +6,13 @@ detected" from "detected but declined by the trap pass"."""
 import ast;
 import os;
 import tempfile;
-import from tests.support { JAC_ROOT }
+import from tests.support {
+    GRAPHMEND_FIXTURES as FIXTURES,
+    graphmend_compile_path as _compile_path,
+    graphmend_pysrc as _pysrc
+}
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
-     );
-
-"""Compile a source file and return its generated Python source."""
-def _compile_path(path: str, gm: bool) -> str {
-    prog = JacProgram();
-    mod = prog.compile(
-        file_path=path, options=CompileOptions(graphmend=gm, type_check=False)
-    );
-    pa = mod.gen.py_ast;
-    mod_ast = pa[0] if isinstance(pa, list) else pa;
-    return ast.unparse(mod_ast);
-}
-
-"""Compile a checked-in .jac fixture and return its generated Python source."""
-def _pysrc(name: str, gm: bool) -> str {
-    return _compile_path(os.path.join(FIXTURES, name), gm);
-}
 
 """Compile a fixture with graphmend on and count the detection tags recorded.
 

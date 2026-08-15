@@ -11,13 +11,9 @@ resolution must match structurally; these tests guard
 import ast;
 import os;
 import tempfile;
-import from tests.support { JAC_ROOT }
+import from tests.support { GRAPHMEND_FIXTURES as FIXTURES }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
-     );
 
 """A Python model wrapped at a call site through a variable, written to a temp
 file at test time rather than checked in as a .py fixture: the repository does

@@ -9,13 +9,9 @@ CLI through the generic Arg.config_key bridge, so precedence is: explicit
 CLI flag > jac.toml > built-in default."""
 import ast;
 import os;
-import from tests.support { JAC_ROOT }
+import from tests.support { GRAPHMEND_FIXTURES as FIXTURES }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-
-glob FIXTURES = os.path.join(
-         JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "graphmend"
-     );
 
 """Compile a checked-in fixture under graphmend with a disable list and
 return its generated Python source."""
