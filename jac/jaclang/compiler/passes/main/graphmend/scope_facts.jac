@@ -4,6 +4,7 @@ import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.main.graphmend.ast_edit { split_params }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    decorator_base,
     has_torch_compile_decorator,
     is_torch_attr_target
 }
@@ -558,7 +559,7 @@ def _wrapper_closures(deco: uni.Ability) -> list[uni.Ability] {
 def _resolve_decorator(
     site: uni.Ability, dec: uni.Expr, prog: JacProgram, seen: set[str]
 ) -> (uni.Ability | None) {
-    base = dec.target if isinstance(dec, uni.FuncCall) else dec;
+    base = decorator_base(dec);
     if not isinstance(base, uni.Name) {
         return None;
     }
@@ -781,7 +782,7 @@ def wrapping_classes(
 def _decorated_with(arch: uni.Archetype, decorator: str) -> bool {
     for ab in arch.get_all_sub_nodes(uni.Ability) {
         for dec in (ab.decorators or []) {
-            base = dec.target if isinstance(dec, uni.FuncCall) else dec;
+            base = decorator_base(dec);
             if isinstance(base, uni.Name) and (base.value == decorator) {
                 return True;
             }
