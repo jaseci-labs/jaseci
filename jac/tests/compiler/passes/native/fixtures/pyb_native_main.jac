@@ -12,7 +12,7 @@ glob KEEPER: list[Kid] = [];
 obj Kid(PyBase) {
     has extra: int = 1;
 
-    def postinit -> None {
+    def postinit {
         super.postinit();
         self.extra = self.count + 1;
     }

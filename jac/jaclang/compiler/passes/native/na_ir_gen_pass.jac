@@ -307,7 +307,9 @@ obj NaIRGenPass(ModuleCodegenPass) {
         di_cu: object = None,
         _di_current_sp: object = None,
         _func_loc: dict[str, int] = {},
-        _func_def_mod: dict[str, str] = {};
+        _func_def_mod: dict[str, str] = {},
+        _pyb_base_memo: dict[str, object] = {},
+        _pyb_helper_fns: dict[str, ir.Function] = {};
 
     static has REQUIRES: tuple = (
         'inference',
@@ -812,6 +814,49 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> None;
 
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
+    def _pyb_base_of(arch_name: str) -> (tuple | None);
+    def _pyb_helper(name: str) -> ir.Function;
+    def _pyb_emit_conv1(
+        name: str,
+        cfn: ir.Function,
+        arg_ty: ir.Type,
+        ret_ty: ir.Type,
+        gil_on: ir.Function,
+        gil_off: ir.Function
+    ) -> ir.Function;
+
+    def _pyb_cstr(text: str) -> ir.Value;
+    def _pyb_owner_addr(obj_val: ir.Value) -> ir.Value;
+    def _pyb_shadow_of_val(obj_val: ir.Value) -> ir.Value;
+    def _pyb_to_py(nd: (uni.UniNode | None), val: ir.Value) -> (ir.Value | None);
+    def _pyb_ret_key(nd: uni.FuncCall) -> (str | None);
+    def _pyb_from_py(handle: ir.Value, type_key: (str | None)) -> (ir.Value | None);
+    def _pyb_build_args(params: list, skip_kwargs: bool = False) -> (tuple | None);
+    def _pyb_bridge_call(fn_name: str, args: list[ir.Value]) -> ir.Value;
+    def _codegen_pyb_field_load(
+        nd: uni.AtomTrailer, obj_val: ir.Value, field_name: str
+    ) -> (ir.Value | None);
+
+    def _codegen_pyb_field_assign(
+        target: uni.AtomTrailer, value: ir.Value, obj_val: ir.Value
+    ) -> (ir.Value | None);
+
+    def _codegen_pyb_method_call(
+        nd: uni.FuncCall, type_name: str, method_name: str
+    ) -> (ir.Value | None);
+
+    def _codegen_pyb_super_call(
+        nd: uni.FuncCall, method_name: str
+    ) -> (ir.Value | None);
+
+    def _codegen_pyb_shadow_init(
+        nd: (uni.FuncCall | uni.Name),
+        type_name: str,
+        obj_ptr: ir.Value,
+        params: list,
+        native_fields: dict
+    ) -> bool;
+
     def _codegen_method(
         arch_name: str,
         method: uni.Ability,

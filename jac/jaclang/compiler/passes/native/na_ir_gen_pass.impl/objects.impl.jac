@@ -1127,6 +1127,20 @@ impl NaIRGenPass._codegen_instantiation(
             for p in params
             if not isinstance(p, uni.KWPair)
         ];
+        if _pos_args and self._pyb_base_of(type_name) is not None {
+            self.emit(
+                E5092,
+                node_override=nd,
+                kind="constructor call",
+                name=type_name,
+                help_text=(
+                    f"'{type_name}' inherits from a Python-side base, so its "
+                    f"constructor arguments cannot be matched positionally; "
+                    f"use keyword arguments."
+                )
+            );
+            return None;
+        }
         if _pos_args {
             _order = self.struct_field_order.get(type_name);
             if _order is None or len(_pos_args) > len(_order) {
@@ -1156,6 +1170,7 @@ impl NaIRGenPass._codegen_instantiation(
         and f"{type_name}.drop" not in self.func_symtab
         and not self.struct_field_inline.get(type_name, None)
         and not self.region_stack
+        and self._pyb_base_of(type_name) is None
     );
     _headerless = self._nogc_headerless() and not self._arch_is_osp_name(type_name);
     if _stack_ok and _headerless {
@@ -1565,6 +1580,12 @@ impl NaIRGenPass._codegen_instantiation(
         }
     }
 
+    if not self._codegen_pyb_shadow_init(
+        nd, type_name, obj_ptr, params, field_indices
+    ) {
+        return None;
+    }
+
     init_fn: (ir.Function | None) = None;
     _init_owner: str = type_name;
     for _init_cls in self._mro_of(type_name) {
@@ -1777,6 +1798,13 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
             return self._emit_class_routed_call(
                 nd, _sup_full, _sup_names, _self_val, self._self_arch
             );
+        }
+        if self._pyb_base_of(self._self_arch) is not None {
+            _pyb_sup = self._codegen_pyb_super_call(nd, method_name);
+            if _pyb_sup is not None {
+                return _pyb_sup;
+            }
+            return None;
         }
         self.emit(
             E5092,
@@ -2352,6 +2380,10 @@ impl NaIRGenPass._codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None) {
                     f"code. Call it from a Python/@sv context instead."
                 )
             );
+            return None;
+        }
+        if self._pyb_base_of(type_name) is not None {
+            return self._codegen_pyb_method_call(nd, type_name, method_name);
         }
         return None;
     }
@@ -2860,6 +2892,16 @@ impl NaIRGenPass._codegen_field_assign(
             and (field_indices is None or field_name not in field_indices)
         )
     ) {
+        if (
+            field_name is not None
+            and obj_val is not None
+            and type_name is not None
+            and _setter is None
+            and self._pyb_base_of(type_name) is not None
+        ) {
+            self._codegen_pyb_field_assign(target, value, obj_val);
+            return;
+        }
         if len(self.errors_had) == _fa_errs {
             self.emit(
                 E5092,

@@ -82,7 +82,7 @@ test "a native class over a Python-side base compiles with no seams" {
     (_eng, ir) = compile_native("pyb_native_main.jac");
     layout = ir.gen.native_layout;
     assert layout is not None , "no native layout was exported";
-    for m in ["Kid.postinit", "Kid.poke", "Kid.read_back"] {
+    for m in ["Kid.__post_init__", "Kid.poke", "Kid.read_back"] {
         assert m in layout.methods , (
             f"{m} was demoted instead of lowering: {sorted(layout.methods)}"
         );

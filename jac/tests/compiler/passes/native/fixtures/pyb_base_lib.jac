@@ -13,7 +13,7 @@ obj PyBase(ABC) {
         count: int = 0,
         trace: str = "";
 
-    def postinit -> None {
+    def postinit {
         self.trace = self.trace + "|base";
         self.count = self.count + 10;
     }
