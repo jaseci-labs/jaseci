@@ -8,6 +8,7 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts {
     find_class,
     lexical_ability,
     module_imports_plain,
+    self_attr_name,
     wrapping_classes
 }
 import from jaclang.jac0core.constant { SymbolType }
@@ -414,17 +415,13 @@ impl PredicateCtrlFlowPass._arg_classes(
         }
         return [];
     }
-    if not (
-        isinstance(arg, uni.AtomTrailer)
-        and isinstance(arg.right, uni.Name)
-        and isinstance(arg.target, uni.Name)
-        and (arg.target.value == 'self')
-    ) {
+    attr = self_attr_name(arg);
+    if attr is None {
         return [];
     }
     out: list[uni.Archetype] = [];
     for k in selfcls {
-        ann_name = attr_annotation(k, arg.right.value);
+        ann_name = attr_annotation(k, attr);
         if ann_name is None {
             return [];
         }

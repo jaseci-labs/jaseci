@@ -563,6 +563,18 @@ def _resolve_decorator(
     return find_ability(mod, base.value, prog, seen);
 }
 
+def self_attr_name(nd: (uni.Expr | None)) -> (str | None) {
+    if (
+        isinstance(nd, uni.AtomTrailer)
+        and isinstance(nd.right, uni.Name)
+        and isinstance(nd.target, uni.Name)
+        and (nd.target.value == 'self')
+    ) {
+        return nd.right.value;
+    }
+    return None;
+}
+
 def lexical_ability(scope: (uni.Ability | None), name: str) -> (uni.Ability | None) {
     cur: (uni.Ability | None) = scope;
     while cur is not None {
@@ -591,17 +603,13 @@ def _resolve_callee(
         }
         return find_ability(mod, t.value, prog, seen);
     }
-    if (
-        isinstance(t, uni.AtomTrailer)
-        and isinstance(t.right, uni.Name)
-        and isinstance(t.target, uni.Name)
-        and (t.target.value == 'self')
-    ) {
+    attr = self_attr_name(t);
+    if attr is not None {
         arch = site.find_parent_of_type(uni.Archetype);
         if arch is None {
             return None;
         }
-        return symbol_ability(arch.lookup(t.right.value, deep=False));
+        return symbol_ability(arch.lookup(attr, deep=False));
     }
     return None;
 }
@@ -811,14 +819,7 @@ def attr_annotation(arch: uni.Archetype, attr: str) -> (str | None) {
             continue;
         }
         t = a.target[0];
-        if (
-            isinstance(t, uni.AtomTrailer)
-            and isinstance(t.right, uni.Name)
-            and isinstance(t.target, uni.Name)
-            and (t.target.value == 'self')
-            and (t.right.value == attr)
-            and (a.value.value in params)
-        ) {
+        if (self_attr_name(t) == attr) and (a.value.value in params) {
             return params[a.value.value];
         }
     }
@@ -852,14 +853,9 @@ def attr_dict_kind(arch: uni.Archetype, attr: str) -> (str | None) {
 def _init_reachable(arch: uni.Archetype, ctor: uni.Ability) -> list[uni.Ability] {
     called: set[str] = set();
     for c in ctor.get_all_sub_nodes(uni.FuncCall) {
-        t = c.target;
-        if (
-            isinstance(t, uni.AtomTrailer)
-            and isinstance(t.right, uni.Name)
-            and isinstance(t.target, uni.Name)
-            and (t.target.value == 'self')
-        ) {
-            called.add(t.right.value);
+        attr = self_attr_name(c.target);
+        if attr is not None {
+            called.add(attr);
         }
     }
     out: list[uni.Ability] = [ctor];
@@ -898,16 +894,12 @@ def _negated_dict_isinstance_attr(stmt: uni.IfStmt) -> (str | None) {
         if not (isinstance(ty, uni.Name) and (ty.value == 'dict')) {
             continue;
         }
-        if not (
-            isinstance(recv, uni.AtomTrailer)
-            and isinstance(recv.right, uni.Name)
-            and isinstance(recv.target, uni.Name)
-            and (recv.target.value == 'self')
-        ) {
+        attr = self_attr_name(recv);
+        if attr is None {
             continue;
         }
         if _under_not(c, stmt) {
-            return recv.right.value;
+            return attr;
         }
     }
     return None;
@@ -931,12 +923,9 @@ def _is_none_check_attr(cond: uni.Expr) -> (str | None) {
         return None;
     }
     for at in cond.get_all_sub_nodes(uni.AtomTrailer) {
-        if (
-            isinstance(at.right, uni.Name)
-            and isinstance(at.target, uni.Name)
-            and (at.target.value == 'self')
-        ) {
-            return at.right.value;
+        attr = self_attr_name(at);
+        if attr is not None {
+            return attr;
         }
     }
     return None;
