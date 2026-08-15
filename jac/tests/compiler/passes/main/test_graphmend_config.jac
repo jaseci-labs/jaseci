@@ -7,25 +7,20 @@ flags: CLI `--graphmend-disable` -> JacProgram.graphmend_disable ->
 CompileOptions.graphmend_disable -> per-pass gating. jac.toml reaches the
 CLI through the generic Arg.config_key bridge, so precedence is: explicit
 CLI flag > jac.toml > built-in default."""
-import ast;
 import os;
-import from tests.support { GRAPHMEND_FIXTURES as FIXTURES }
-import from jaclang.jac0core.program { JacProgram }
+import from tests.support {
+    GRAPHMEND_FIXTURES as FIXTURES,
+    graphmend_compile_opts as _compile_opts
+}
 import from jaclang.jac0core.compile_options { CompileOptions }
 
 """Compile a checked-in fixture under graphmend with a disable list and
 return its generated Python source."""
 def _pysrc(name: str, disable: list) -> str {
-    prog = JacProgram();
-    mod = prog.compile(
-        file_path=os.path.join(FIXTURES, name),
-        options=CompileOptions(
-            graphmend=True, graphmend_disable=disable, type_check=False
-        )
-    );
-    pa = mod.gen.py_ast;
-    mod_ast = pa[0] if isinstance(pa, list) else pa;
-    return ast.unparse(mod_ast);
+    return _compile_opts(
+        os.path.join(FIXTURES, name),
+        CompileOptions(graphmend=True, graphmend_disable=disable, type_check=False)
+    )[0];
 }
 
 test "disabling trap leaves guards unlowered while where and defer still fire" {
