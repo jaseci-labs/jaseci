@@ -53,42 +53,58 @@ def torch_call(at: uni.UniNode, fname: str, args: list) -> uni.FuncCall {
     );
 }
 
-def insert_after(stmt: uni.UniNode, new_stmt: uni.UniNode) -> None {
-    parent = stmt.parent;
-    if parent is None {
-        return;
+def stmt_slot(at: uni.UniNode) -> (tuple | None) {
+    cur: (uni.UniNode | None) = at;
+    while cur is not None {
+        parent = cur.parent;
+        if parent is None {
+            return None;
+        }
+        holder: any = parent;
+        body = holder?.body;
+        if isinstance(body, list) {
+            return (parent, cur, body)
+                if ((cur in body) and (cur in parent.kid))
+                else None;
+        }
+        cur = parent;
     }
-    holder: any = parent;
-    body = holder?.body;
-    if isinstance(body, list) and (stmt in body) {
-        i = body.index(stmt);
-        setattr(holder, 'body', body[:(i + 1)] + [new_stmt] + body[(i + 1):]);
-    }
-    if stmt in parent.kid {
-        j = parent.kid.index(stmt);
-        parent.set_kids(
-            list(parent.kid[:(j + 1)]) + [new_stmt] + list(parent.kid[(j + 1):])
-        );
-    }
-    new_stmt.parent = parent;
+    return None;
 }
 
-def replace_stmt(old: uni.UniNode, new_nodes: list) -> None {
+def insert_after(stmt: uni.UniNode, new_stmt: uni.UniNode) -> bool {
+    slot = stmt_slot(stmt);
+    if slot is None {
+        return False;
+    }
+    (parent, anchor, body) = slot;
+    holder: any = parent;
+    i = body.index(anchor);
+    j = parent.kid.index(anchor);
+    setattr(holder, 'body', list(body[:(i + 1)]) + [new_stmt] + list(body[(i + 1):]));
+    parent.set_kids(
+        list(parent.kid[:(j + 1)]) + [new_stmt] + list(parent.kid[(j + 1):])
+    );
+    new_stmt.parent = parent;
+    return True;
+}
+
+def replace_stmt(old: uni.UniNode, new_nodes: list) -> bool {
     parent = old.parent;
     if parent is None {
-        return;
+        return False;
     }
     holder: any = parent;
     body = holder?.body;
-    if isinstance(body, list) and (old in body) {
-        i = body.index(old);
-        setattr(holder, 'body', list(body[:i]) + new_nodes + list(body[(i + 1):]));
+    if (not isinstance(body, list)) or (old not in body) or (old not in parent.kid) {
+        return False;
     }
-    if old in parent.kid {
-        j = parent.kid.index(old);
-        parent.set_kids(list(parent.kid[:j]) + new_nodes + list(parent.kid[(j + 1):]));
-    }
+    i = body.index(old);
+    j = parent.kid.index(old);
+    setattr(holder, 'body', list(body[:i]) + new_nodes + list(body[(i + 1):]));
+    parent.set_kids(list(parent.kid[:j]) + new_nodes + list(parent.kid[(j + 1):]));
     for child in new_nodes {
         child.parent = parent;
     }
+    return True;
 }

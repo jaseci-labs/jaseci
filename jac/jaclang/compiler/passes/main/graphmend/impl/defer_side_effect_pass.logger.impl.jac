@@ -101,7 +101,11 @@ impl DeferSideEffectPass.exit_assignment(nd: uni.Assignment) -> None {
         self._pre_hook_register_stmt(nd, tgt.value),
         self._hook_register_stmt(nd, tgt.value)
     ];
-    insert_after(nd, self._hook_guard_stmt(nd, tgt.value, hooks));
+    if not insert_after(nd, self._hook_guard_stmt(nd, tgt.value, hooks)) {
+        return;
+    }
+    need_helper(self.prog, nd, GraphMendHelper.SE_REGION_OPEN);
+    need_helper(self.prog, nd, GraphMendHelper.LOG_FLUSH_HOOK);
 }
 
 impl DeferSideEffectPass._hook_guard_stmt(
@@ -119,7 +123,6 @@ impl DeferSideEffectPass._hook_guard_stmt(
 impl DeferSideEffectPass._pre_hook_register_stmt(
     at: uni.UniNode, name: str
 ) -> uni.ExprStmt {
-    need_helper(self.prog, at, GraphMendHelper.SE_REGION_OPEN);
     recv = gen_name(at, name, False);
     meth = gen_name(at, 'register_forward_pre_hook', False);
     target = uni.AtomTrailer(
@@ -135,7 +138,6 @@ impl DeferSideEffectPass._pre_hook_register_stmt(
 impl DeferSideEffectPass._hook_register_stmt(
     at: uni.UniNode, name: str
 ) -> uni.ExprStmt {
-    need_helper(self.prog, at, GraphMendHelper.LOG_FLUSH_HOOK);
     recv = gen_name(at, name, False);
     meth = gen_name(at, 'register_forward_hook', False);
     target = uni.AtomTrailer(

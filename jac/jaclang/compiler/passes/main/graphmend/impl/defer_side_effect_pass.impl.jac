@@ -70,9 +70,11 @@ impl DeferSideEffectPass.exit_module(nd: uni.Module) -> None {
         return;
     }
     for (anchor, reg) in self._pending_regs {
+        placed = False;
         if (anchor is not None) and (anchor.parent is nd) and (anchor in nd.kid) {
-            insert_after(anchor, reg);
-        } else {
+            placed = insert_after(anchor, reg);
+        }
+        if not placed {
             self._append_module_stmt(nd, reg);
         }
     }
