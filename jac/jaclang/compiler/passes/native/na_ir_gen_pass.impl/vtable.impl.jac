@@ -99,9 +99,10 @@ impl NaIRGenPass._isinstance_needs_class_name(names: list[str]) -> bool {
     """;
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
 
-    if self._vtable_less_reach is None {
+    _reach = self._vtable_less_reach;
+    if _reach is None {
         reg = get_layout_registry(self.ir_in, self.prog);
-        _reach: set[str] = set();
+        _reach = set();
         for cand in reg.mro_order {
             if self._arch_has_vtable(cand) {
                 continue;
@@ -113,7 +114,7 @@ impl NaIRGenPass._isinstance_needs_class_name(names: list[str]) -> bool {
         self._vtable_less_reach = _reach;
     }
     for name in names {
-        if name in self._vtable_less_reach {
+        if name in _reach {
             return True;
         }
     }
@@ -141,9 +142,10 @@ impl NaIRGenPass._isinstance_unprovable_class(
     """;
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
 
-    if self._short_mro_reach is None {
+    _missing = self._short_mro_reach;
+    if _missing is None {
         reg = get_layout_registry(self.ir_in, self.prog);
-        _missing: dict[str, list[str]] = {};
+        _missing = {};
         for cand in reg.mro_order {
             recorded = self._mro_of(cand);
             for step in recorded {
@@ -163,7 +165,7 @@ impl NaIRGenPass._isinstance_unprovable_class(
         self._short_mro_reach = _missing;
     }
     for name in names {
-        for cand in (self._short_mro_reach.get(name) or []) {
+        for cand in (_missing.get(name) or []) {
             if operand_arch is None or operand_arch in self._mro_of(cand) {
                 return cand;
             }
