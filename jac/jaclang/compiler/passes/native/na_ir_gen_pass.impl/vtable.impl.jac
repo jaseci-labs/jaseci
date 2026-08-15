@@ -99,13 +99,22 @@ impl NaIRGenPass._isinstance_needs_class_name(names: list[str]) -> bool {
     """;
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
 
-    reg = get_layout_registry(self.ir_in, self.prog);
-    for cand in reg.mro_order {
-        cand_mro = self._mro_of(cand);
-        for name in names {
-            if name in cand_mro and not self._arch_has_vtable(cand) {
-                return True;
+    if self._vtable_less_reach is None {
+        reg = get_layout_registry(self.ir_in, self.prog);
+        _reach: set[str] = set();
+        for cand in reg.mro_order {
+            if self._arch_has_vtable(cand) {
+                continue;
             }
+            for step in self._mro_of(cand) {
+                _reach.add(step);
+            }
+        }
+        self._vtable_less_reach = _reach;
+    }
+    for name in names {
+        if name in self._vtable_less_reach {
+            return True;
         }
     }
     return False;
@@ -125,15 +134,25 @@ impl NaIRGenPass._isinstance_unprovable_class(names: list[str]) -> (str | None) 
     """;
     import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
 
-    reg = get_layout_registry(self.ir_in, self.prog);
-    for cand in reg.mro_order {
-        recorded = self._mro_of(cand);
-        for step in recorded {
-            for anc in self._mro_of(step) {
-                if anc not in recorded and anc in names {
-                    return cand;
+    if self._short_mro_reach is None {
+        reg = get_layout_registry(self.ir_in, self.prog);
+        _missing: dict[str, str] = {};
+        for cand in reg.mro_order {
+            recorded = self._mro_of(cand);
+            for step in recorded {
+                for anc in self._mro_of(step) {
+                    if anc not in recorded and anc not in _missing {
+                        _missing[anc] = cand;
+                    }
                 }
             }
+        }
+        self._short_mro_reach = _missing;
+    }
+    for name in names {
+        _cand = self._short_mro_reach.get(name);
+        if _cand is not None {
+            return _cand;
         }
     }
     return None;

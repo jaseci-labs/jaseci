@@ -182,6 +182,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _isa_fn: (ir.Function | None) = None,
         _isa_seq_fn: (ir.Function | None) = None,
         _runtime_class_name_fn: (ir.Function | None) = None,
+        _vtable_less_reach: (set[str] | None) = None,
+        _short_mro_reach: (dict[str, str] | None) = None,
         osp_type_tag_field: dict[str, int] = {},
         osp_reports_field: dict[str, int] = {},
         osp_thunk_funcs: dict[str, ir.Function] = {},
