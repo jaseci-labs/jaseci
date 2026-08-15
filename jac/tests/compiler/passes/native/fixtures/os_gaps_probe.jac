@@ -38,7 +38,7 @@ with entry {
     print(normpath("a/../b"));
     print(normpath("//a//b"));
 
-    _ = os.system("touch -d @1700000000 /tmp/jac_os_gaps_mtime.txt");
+    _ = os.system("touch -t 202311141322.20 /tmp/jac_os_gaps_mtime.txt");
     print(os.path.getmtime("/tmp/jac_os_gaps_mtime.txt"));
     print(os.path.normcase("A/B"));
     print(os.path.normcase(""));

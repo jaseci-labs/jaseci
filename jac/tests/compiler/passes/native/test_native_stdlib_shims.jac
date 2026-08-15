@@ -17,8 +17,10 @@ its sibling module attributes, which had no dispatch at all (only `sys.*` and
 `math.*` resolved as module attributes); the `relpath` / `normcase` added to
 the bundled `os/path.jac`; the `abspath` / `splitext` / `normpath` that were
 already written there; and the `getmtime` / `normcase` intrinsics now
-reachable through the flat `import os`. The mtime is pinned to a fixed epoch
-with `touch -d` so both runs read the same stamp.
+reachable through the flat `import os`. The mtime is pinned with `touch -t`
+-- POSIX, so it behaves the same under GNU and BSD touch -- which makes both
+runs read one stamp; the absolute value is irrelevant, only that the two
+pathways agree on it.
 
 `logging_probe.jac` writes on stderr, where CPython's default handler writes,
 and pins the parts of the surface that are congruent: the default WARNING
