@@ -77,13 +77,11 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _provably_non_tensor(e: uni.Expr) -> bool;
     def _same_lhs(a: uni.Assignment, b: uni.Assignment) -> (uni.Name | None);
     def _split_params(params: any) -> tuple[list[uni.Expr], dict[str, uni.KWPair]];
-    def _gen_name(at: uni.UniNode, value: str, store: bool) -> uni.Name;
     def _assign(target: uni.Name, value: uni.Expr) -> uni.Assignment;
     def _make_where(
         at: uni.UniNode, cond: uni.Expr, t: uni.Expr, f: uni.Expr
     ) -> uni.FuncCall;
 
-    def _torch_call(at: uni.UniNode, fname: str, args: list) -> uni.FuncCall;
     def _hoist(
         at: uni.UniNode, cond: uni.Expr, t: uni.Expr, f: uni.Expr
     ) -> tuple[list, uni.Name, uni.Name, uni.Name];
@@ -92,7 +90,6 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _is_assert_async(stmt: uni.UniNode) -> bool;
     def _is_eq_assert(stmt: uni.UniNode) -> bool;
     def _gate_asserts(setups: list, n: int, taken_when_true: bool) -> list;
-    def _replace(old: uni.UniNode, new_nodes: list) -> None;
     def _setups_safe(setups: Sequence[uni.CodeBlockStmt], region: uni.IfStmt) -> bool;
     def _effect_neutral(s: uni.UniNode, region: uni.IfStmt) -> bool;
     def _is_existence_guard(s: uni.UniNode, region: uni.IfStmt) -> bool;

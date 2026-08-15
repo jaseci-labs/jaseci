@@ -1,5 +1,11 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper, Tokens as Tok }
+import from jaclang.compiler.passes.main.graphmend.ast_edit {
+    gen_name,
+    gen_string,
+    insert_after,
+    need_helper
+}
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     has_torch_compile_decorator
 }
@@ -65,7 +71,7 @@ impl DeferSideEffectPass.exit_module(nd: uni.Module) -> None {
     }
     for (anchor, reg) in self._pending_regs {
         if (anchor is not None) and (anchor.parent is nd) and (anchor in nd.kid) {
-            self._insert_after(anchor, reg);
+            insert_after(anchor, reg);
         } else {
             self._append_module_stmt(nd, reg);
         }
@@ -90,11 +96,11 @@ impl DeferSideEffectPass.exit_return_stmt(nd: uni.ReturnStmt) -> None {
     }
     n = self._counter;
     self._counter += 1;
-    tmp = self._gen_name(nd, f"__gm_ret_{n}", True);
+    tmp = gen_name(nd, f"__gm_ret_{n}", True);
     ret_assign = uni.Assignment(
         target=[tmp], value=nd.expr, type_tag=None, mutable=True, kid=[tmp, nd.expr]
     );
-    ref = self._gen_name(nd, f"__gm_ret_{n}", False);
+    ref = gen_name(nd, f"__gm_ret_{n}", False);
     nd.expr = ref;
     nd.set_kids([ref]);
     self._insert_before(nd, ret_assign);
@@ -132,8 +138,8 @@ impl DeferSideEffectPass._attach_se_guard(nd: uni.Ability) -> None {
     if id(nd) in self._guarded {
         return;
     }
-    self._need_helper(nd, GraphMendHelper.SE_GUARD);
-    guard = self._gen_name(nd, '__jac_se_guard__', False);
+    need_helper(self.prog, nd, GraphMendHelper.SE_GUARD);
+    guard = gen_name(nd, '__jac_se_guard__', False);
     nd.decorators = [guard] + list(nd.decorators or []);
     nd.set_kids([guard] + list(nd.kid));
     guard.parent = nd;
@@ -144,44 +150,8 @@ impl DeferSideEffectPass._is_compiled_entry(nd: uni.Ability) -> bool {
     return has_torch_compile_decorator(nd) or (nd?.sym_name == 'forward');
 }
 
-impl DeferSideEffectPass._need_helper(
-    at: uni.UniNode, helper: GraphMendHelper
-) -> None {
-    mod = at.find_parent_of_type(uni.Module);
-    if mod is None {
-        return;
-    }
-    needed = self.prog.graphmend_helpers.get(id(mod));
-    if needed is None {
-        needed = set();
-        self.prog.graphmend_helpers[id(mod)] = needed;
-    }
-    needed.add(helper);
-}
-
-impl DeferSideEffectPass._gen_name(
-    at: uni.UniNode, value: str, store: bool
-) -> uni.Name {
-    anchor: any = at;
-    nm = uni.Name.gen_stub_from_node(anchor, value);
-    if store {
-        nm.expr_ctx = uni.ExprCtx.STORE;
-    }
-    return nm;
-}
-
 impl DeferSideEffectPass._str(at: uni.UniNode, text: str) -> uni.String {
-    return uni.String(
-        orig_src=at.loc.orig_src,
-        name='STRING',
-        value=f'"{text}"',
-        line=at.loc.first_line,
-        end_line=at.loc.last_line,
-        col_start=at.loc.col_start,
-        col_end=at.loc.col_end,
-        pos_start=at.loc.pos_start,
-        pos_end=at.loc.pos_end
-    );
+    return gen_string(at, f'"{text}"');
 }
 
 impl DeferSideEffectPass._has_unpack(call: uni.FuncCall) -> bool {
@@ -280,7 +250,7 @@ impl DeferSideEffectPass._snapshot(
     n = self._se_arg_counter;
     self._se_arg_counter += 1;
     tmp = f"__gm_se_arg_{n}";
-    store = self._gen_name(call, tmp, True);
+    store = gen_name(call, tmp, True);
     hoists.append(
         uni.Assignment(
             target=[store], value=v, type_tag=None, mutable=True, kid=[store, v]
@@ -290,8 +260,8 @@ impl DeferSideEffectPass._snapshot(
 }
 
 impl DeferSideEffectPass._clone_guard(at: uni.UniNode, tmp: str) -> uni.IfElseExpr {
-    recv = self._gen_name(at, tmp, False);
-    clone_nm = self._gen_name(at, 'clone', False);
+    recv = gen_name(at, tmp, False);
+    clone_nm = gen_name(at, 'clone', False);
     trailer = uni.AtomTrailer(
         target=recv,
         right=clone_nm,
@@ -302,8 +272,8 @@ impl DeferSideEffectPass._clone_guard(at: uni.UniNode, tmp: str) -> uni.IfElseEx
     clone_call = uni.FuncCall(
         target=trailer, params=[], genai_call=None, kid=[trailer]
     );
-    has_nm = self._gen_name(at, 'hasattr', False);
-    test_recv = self._gen_name(at, tmp, False);
+    has_nm = gen_name(at, 'hasattr', False);
+    test_recv = gen_name(at, tmp, False);
     attr_name = self._str(at, 'clone');
     test = uni.FuncCall(
         target=has_nm,
@@ -311,7 +281,7 @@ impl DeferSideEffectPass._clone_guard(at: uni.UniNode, tmp: str) -> uni.IfElseEx
         genai_call=None,
         kid=[has_nm, test_recv, attr_name]
     );
-    else_recv = self._gen_name(at, tmp, False);
+    else_recv = gen_name(at, tmp, False);
     val_cfg = uni.CfgExpr(expr=clone_call, kid=[clone_call]);
     cond_cfg = uni.CfgExpr(expr=test, kid=[test]);
     else_cfg = uni.CfgExpr(expr=else_recv, kid=[else_recv]);
@@ -326,8 +296,8 @@ impl DeferSideEffectPass._clone_guard(at: uni.UniNode, tmp: str) -> uni.IfElseEx
 impl DeferSideEffectPass._buffer_append(
     at: uni.UniNode, ent: uni.TupleVal
 ) -> uni.FuncCall {
-    self._need_helper(at, GraphMendHelper.SE_EMIT);
-    emit = self._gen_name(at, '__jac_se_emit__', False);
+    need_helper(self.prog, at, GraphMendHelper.SE_EMIT);
+    emit = gen_name(at, '__jac_se_emit__', False);
     params = list(ent.values);
     return uni.FuncCall(
         target=emit, params=params, genai_call=None, kid=[emit] + params
@@ -335,8 +305,8 @@ impl DeferSideEffectPass._buffer_append(
 }
 
 impl DeferSideEffectPass._flush_stmt(at: uni.UniNode) -> uni.ExprStmt {
-    self._need_helper(at, GraphMendHelper.SE_FLUSH);
-    helper = self._gen_name(at, '__jac_se_flush__', False);
+    need_helper(self.prog, at, GraphMendHelper.SE_FLUSH);
+    helper = gen_name(at, '__jac_se_flush__', False);
     call = uni.FuncCall(target=helper, params=[], genai_call=None, kid=[helper]);
     return uni.ExprStmt(expr=call, in_fstring=False, kid=[call]);
 }
@@ -383,28 +353,6 @@ impl DeferSideEffectPass._append_module_stmt(
         mod.set_kids(list(mod.kid) + [new_stmt]);
     }
     new_stmt.parent = mod;
-}
-
-impl DeferSideEffectPass._insert_after(
-    stmt: uni.UniNode, new_stmt: uni.UniNode
-) -> None {
-    parent = stmt.parent;
-    if parent is None {
-        return;
-    }
-    holder: any = parent;
-    body = holder?.body;
-    if isinstance(body, list) and (stmt in body) {
-        i = body.index(stmt);
-        setattr(holder, 'body', body[:(i + 1)] + [new_stmt] + body[(i + 1):]);
-    }
-    if stmt in parent.kid {
-        j = parent.kid.index(stmt);
-        parent.set_kids(
-            list(parent.kid[:(j + 1)]) + [new_stmt] + list(parent.kid[(j + 1):])
-        );
-    }
-    new_stmt.parent = parent;
 }
 
 impl DeferSideEffectPass._insert_before(

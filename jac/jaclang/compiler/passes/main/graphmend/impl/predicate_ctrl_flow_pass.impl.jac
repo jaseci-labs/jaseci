@@ -2,6 +2,11 @@ import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind }
+import from jaclang.compiler.passes.main.graphmend.ast_edit {
+    gen_name,
+    replace_stmt,
+    torch_call
+}
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     cond_materializes_scalar,
     is_torch_attr_target
@@ -81,7 +86,7 @@ impl PredicateCtrlFlowPass._rewrite_assignment(
     }
     (stmts, c_ref, t_ref, f_ref) = self._hoist(nd, nd.condition, true_e, false_e);
     where_call = self._make_where(nd, c_ref, t_ref, f_ref);
-    self._replace(nd, stmts + [self._assign(lhs, where_call)]);
+    replace_stmt(nd, stmts + [self._assign(lhs, where_call)]);
 }
 
 impl PredicateCtrlFlowPass._rewrite_return(
@@ -96,7 +101,7 @@ impl PredicateCtrlFlowPass._rewrite_return(
     (stmts, c_ref, t_ref, f_ref) = self._hoist(nd, nd.condition, true_e, false_e);
     where_call = self._make_where(nd, c_ref, t_ref, f_ref);
     ret = uni.ReturnStmt(expr=where_call, kid=[where_call]);
-    self._replace(nd, stmts + [ret]);
+    replace_stmt(nd, stmts + [ret]);
 }
 
 impl PredicateCtrlFlowPass._merge_common_call(
@@ -152,12 +157,12 @@ impl PredicateCtrlFlowPass._merge_common_call(
     }
     n = self._counter;
     self._counter += 1;
-    cond_tmp = self._gen_name(nd, f"__gm_cond_{n}", True);
+    cond_tmp = gen_name(nd, f"__gm_cond_{n}", True);
     cond_assign = self._assign(cond_tmp, nd.condition);
     merged: list = [];
     for i in range(len(a_pos)) {
         if i in diff {
-            cref = self._gen_name(nd, f"__gm_cond_{n}", False);
+            cref = gen_name(nd, f"__gm_cond_{n}", False);
             merged.append(self._make_where(nd, cref, a_pos[i], b_pos[i]));
         } else {
             merged.append(a_pos[i]);
@@ -173,7 +178,7 @@ impl PredicateCtrlFlowPass._merge_common_call(
     gated_true = self._gate_asserts(list(true_setups), n, True);
     gated_false = self._gate_asserts(list(false_setups), n, False);
     new_nodes = [cond_assign] + gated_true + gated_false + [call_stmt];
-    self._replace(nd, new_nodes);
+    replace_stmt(nd, new_nodes);
 }
 
 impl PredicateCtrlFlowPass._has_call(e: uni.UniNode) -> bool {
@@ -222,7 +227,7 @@ impl PredicateCtrlFlowPass._same_lhs(
     if (
         isinstance(ta, uni.Name) and isinstance(tb, uni.Name) and (ta.value == tb.value)
     ) {
-        return self._gen_name(ta, ta.value, True);
+        return gen_name(ta, ta.value, True);
     }
     return None;
 }
@@ -244,17 +249,6 @@ impl PredicateCtrlFlowPass._split_params(
     return (pos, kw);
 }
 
-impl PredicateCtrlFlowPass._gen_name(
-    at: uni.UniNode, value: str, store: bool
-) -> uni.Name {
-    anchor: any = at;
-    nm = uni.Name.gen_stub_from_node(anchor, value);
-    if store {
-        nm.expr_ctx = uni.ExprCtx.STORE;
-    }
-    return nm;
-}
-
 impl PredicateCtrlFlowPass._assign(
     target: uni.Name, value: uni.Expr
 ) -> uni.Assignment {
@@ -266,24 +260,7 @@ impl PredicateCtrlFlowPass._assign(
 impl PredicateCtrlFlowPass._make_where(
     at: uni.UniNode, cond: uni.Expr, t: uni.Expr, f: uni.Expr
 ) -> uni.FuncCall {
-    return self._torch_call(at, 'where', [cond, t, f]);
-}
-
-impl PredicateCtrlFlowPass._torch_call(
-    at: uni.UniNode, fname: str, args: list
-) -> uni.FuncCall {
-    torch_nm = self._gen_name(at, 'torch', False);
-    fn_nm = self._gen_name(at, fname, False);
-    target = uni.AtomTrailer(
-        target=torch_nm,
-        right=fn_nm,
-        is_attr=True,
-        is_null_ok=False,
-        kid=[torch_nm, fn_nm]
-    );
-    return uni.FuncCall(
-        target=target, params=args, genai_call=None, kid=[target] + args
-    );
+    return torch_call(at, 'where', [cond, t, f]);
 }
 
 impl PredicateCtrlFlowPass._hoist(
@@ -291,11 +268,11 @@ impl PredicateCtrlFlowPass._hoist(
 ) -> tuple[list, uni.Name, uni.Name, uni.Name] {
     n = self._counter;
     (stmts, cond_ref) = self._hoist_cond(at, cond);
-    true_tmp = self._gen_name(at, f"__gm_true_{n}", True);
-    false_tmp = self._gen_name(at, f"__gm_false_{n}", True);
+    true_tmp = gen_name(at, f"__gm_true_{n}", True);
+    false_tmp = gen_name(at, f"__gm_false_{n}", True);
     stmts = stmts + [self._assign(true_tmp, t), self._assign(false_tmp, f)];
-    true_ref = self._gen_name(at, f"__gm_true_{n}", False);
-    false_ref = self._gen_name(at, f"__gm_false_{n}", False);
+    true_ref = gen_name(at, f"__gm_true_{n}", False);
+    false_ref = gen_name(at, f"__gm_false_{n}", False);
     return (stmts, cond_ref, true_ref, false_ref);
 }
 
@@ -304,8 +281,8 @@ impl PredicateCtrlFlowPass._hoist_cond(
 ) -> tuple[list, uni.Name] {
     n = self._counter;
     self._counter += 1;
-    cond_tmp = self._gen_name(at, f"__gm_cond_{n}", True);
-    cond_ref = self._gen_name(at, f"__gm_cond_{n}", False);
+    cond_tmp = gen_name(at, f"__gm_cond_{n}", True);
+    cond_ref = gen_name(at, f"__gm_cond_{n}", False);
     return ([self._assign(cond_tmp, cond)], cond_ref);
 }
 
@@ -352,11 +329,11 @@ impl PredicateCtrlFlowPass._gate_asserts(
             continue;
         }
         check = pos[0];
-        cref = self._gen_name(s, f"__gm_cond_{n}", False);
+        cref = gen_name(s, f"__gm_cond_{n}", False);
         gate: uni.Expr = (
-            self._torch_call(s, 'logical_not', [cref]) if taken_when_true else cref
+            torch_call(s, 'logical_not', [cref]) if taken_when_true else cref
         );
-        new_check = self._torch_call(s, 'logical_or', [gate, check]);
+        new_check = torch_call(s, 'logical_or', [gate, check]);
         new_params = [new_check] + list(call.params[1:]);
         new_call = uni.FuncCall(
             target=call.target,
@@ -367,24 +344,4 @@ impl PredicateCtrlFlowPass._gate_asserts(
         out.append(uni.ExprStmt(expr=new_call, in_fstring=False, kid=[new_call]));
     }
     return out;
-}
-
-impl PredicateCtrlFlowPass._replace(old: uni.UniNode, new_nodes: list) -> None {
-    parent = old.parent;
-    if parent is None {
-        return;
-    }
-    holder: any = parent;
-    body = holder?.body;
-    if isinstance(body, list) and (old in body) {
-        i = body.index(old);
-        setattr(holder, 'body', list(body[:i]) + new_nodes + list(body[(i + 1):]));
-    }
-    if old in parent.kid {
-        j = parent.kid.index(old);
-        parent.set_kids(list(parent.kid[:j]) + new_nodes + list(parent.kid[(j + 1):]));
-    }
-    for child in new_nodes {
-        child.parent = parent;
-    }
 }

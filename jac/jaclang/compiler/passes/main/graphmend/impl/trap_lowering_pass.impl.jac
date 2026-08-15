@@ -1,6 +1,14 @@
 import builtins;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
+import from jaclang.compiler.passes.main.graphmend.ast_edit {
+    gen_name,
+    gen_string,
+    insert_after,
+    need_helper,
+    replace_stmt,
+    torch_call
+}
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     has_torch_compile_decorator,
     is_torch_attr_target
@@ -24,8 +32,8 @@ impl TrapLoweringPass.exit_assignment(nd: uni.Assignment) -> None {
     if not isinstance(tgt, uni.Name) {
         return;
     }
-    self._need_helper(nd, GraphMendHelper.TRAP_GUARD);
-    self._insert_after(nd, self._boundary_attach_stmt(nd, tgt.value));
+    need_helper(self.prog, nd, GraphMendHelper.TRAP_GUARD);
+    insert_after(nd, self._boundary_attach_stmt(nd, tgt.value));
 }
 
 impl TrapLoweringPass._boundary_attach_stmt(
@@ -39,26 +47,6 @@ impl TrapLoweringPass._boundary_attach_stmt(
     return uni.Assignment(
         target=[store], value=call, type_tag=None, mutable=True, kid=[store, call]
     );
-}
-
-impl TrapLoweringPass._insert_after(stmt: uni.UniNode, new_stmt: uni.UniNode) -> None {
-    parent = stmt.parent;
-    if parent is None {
-        return;
-    }
-    holder: any = parent;
-    body = holder?.body;
-    if isinstance(body, list) and (stmt in body) {
-        i = body.index(stmt);
-        setattr(holder, 'body', body[:(i + 1)] + [new_stmt] + body[(i + 1):]);
-    }
-    if stmt in parent.kid {
-        j = parent.kid.index(stmt);
-        parent.set_kids(
-            list(parent.kid[:(j + 1)]) + [new_stmt] + list(parent.kid[(j + 1):])
-        );
-    }
-    new_stmt.parent = parent;
 }
 
 impl TrapLoweringPass.before_pass -> None {
@@ -94,7 +82,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         and (cond.op.value == 'not') {
         x = cond.operand;
     } elif self._condition_is_tensor(cond, nd) {
-        x = self._torch_call(nd, 'logical_not', [cond]);
+        x = torch_call(nd, 'logical_not', [cond]);
         negated_compare = True;
     }
     if x is None {
@@ -118,14 +106,14 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     eq = self._torch_equal_args(x);
     if eq is not None {
         (a, b) = eq;
-        self._need_helper(nd, GraphMendHelper.EQ_ASSERT);
-        self._replace(nd, [self._eq_assert_stmt(nd, a, b, marked)]);
+        need_helper(self.prog, nd, GraphMendHelper.EQ_ASSERT);
+        replace_stmt(nd, [self._eq_assert_stmt(nd, a, b, marked)]);
         self._mark_guard(wrap);
     } elif negated_compare {
-        self._replace(nd, [self._assert_async_stmt(nd, x, marked)]);
+        replace_stmt(nd, [self._assert_async_stmt(nd, x, marked)]);
         self._mark_guard(wrap);
     } elif self._returns_tensor_bool(x) and self._tensor_receiver_provable(x, nd) {
-        self._replace(nd, [self._assert_async_stmt(nd, x, marked)]);
+        replace_stmt(nd, [self._assert_async_stmt(nd, x, marked)]);
         self._mark_guard(wrap);
     }
 }
@@ -186,25 +174,12 @@ impl TrapLoweringPass._marked_message(
     return self._str(at, text);
 }
 
-impl TrapLoweringPass._need_helper(at: uni.UniNode, helper: GraphMendHelper) -> None {
-    mod = at.find_parent_of_type(uni.Module);
-    if mod is None {
-        return;
-    }
-    needed = self.prog.graphmend_helpers.get(id(mod));
-    if needed is None {
-        needed = set();
-        self.prog.graphmend_helpers[id(mod)] = needed;
-    }
-    needed.add(helper);
-}
-
 impl TrapLoweringPass._mark_guard(ability: (uni.Ability | None)) -> None {
     if ability is None {
         return;
     }
     self._guarded_fns.add(id(ability));
-    self._need_helper(ability, GraphMendHelper.TRAP_GUARD);
+    need_helper(self.prog, ability, GraphMendHelper.TRAP_GUARD);
 }
 
 impl TrapLoweringPass.exit_ability(nd: uni.Ability) -> None {
@@ -269,23 +244,12 @@ impl TrapLoweringPass._raise_message(rs: uni.RaiseStmt) -> (uni.Expr | None) {
 }
 
 impl TrapLoweringPass._gen_name(at: uni.UniNode, value: str) -> uni.Name {
-    anchor: any = at;
-    return uni.Name.gen_stub_from_node(anchor, value);
+    return gen_name(at, value, False);
 }
 
 impl TrapLoweringPass._str(at: uni.UniNode, text: str) -> uni.String {
     esc = text.encode('unicode_escape').decode('ascii').replace('"', '\\"');
-    return uni.String(
-        orig_src=at.loc.orig_src,
-        name='STRING',
-        value=f'"{esc}"',
-        line=at.loc.first_line,
-        end_line=at.loc.last_line,
-        col_start=at.loc.col_start,
-        col_end=at.loc.col_end,
-        pos_start=at.loc.pos_start,
-        pos_end=at.loc.pos_end
-    );
+    return gen_string(at, f'"{esc}"');
 }
 
 impl TrapLoweringPass._call_stmt(call: uni.FuncCall) -> uni.ExprStmt {
@@ -353,23 +317,6 @@ impl TrapLoweringPass._operand_is_tensor(e: uni.Expr, site: uni.UniNode) -> bool
         }
     }
     return self._tensor_expr_provable(e, site);
-}
-
-impl TrapLoweringPass._torch_call(
-    at: uni.UniNode, fname: str, args: list
-) -> uni.FuncCall {
-    torch_nm = self._gen_name(at, 'torch');
-    fn_nm = self._gen_name(at, fname);
-    target = uni.AtomTrailer(
-        target=torch_nm,
-        right=fn_nm,
-        is_attr=True,
-        is_null_ok=False,
-        kid=[torch_nm, fn_nm]
-    );
-    return uni.FuncCall(
-        target=target, params=args, genai_call=None, kid=[target] + args
-    );
 }
 
 impl TrapLoweringPass._tensor_receiver_provable(
@@ -452,24 +399,4 @@ impl TrapLoweringPass._binds_torch_tensor(ann: uni.Name) -> bool {
     }
     mp = mi.parent.from_loc if isinstance(mi.parent, uni.Import) else None;
     return (mp is not None) and (mp.dot_path_str == 'torch');
-}
-
-impl TrapLoweringPass._replace(old: uni.UniNode, new_nodes: list) -> None {
-    parent = old.parent;
-    if parent is None {
-        return;
-    }
-    holder: any = parent;
-    body = holder?.body;
-    if isinstance(body, list) and (old in body) {
-        i = body.index(old);
-        setattr(holder, 'body', list(body[:i]) + new_nodes + list(body[(i + 1):]));
-    }
-    if old in parent.kid {
-        j = parent.kid.index(old);
-        parent.set_kids(list(parent.kid[:j]) + new_nodes + list(parent.kid[(j + 1):]));
-    }
-    for child in new_nodes {
-        child.parent = parent;
-    }
 }

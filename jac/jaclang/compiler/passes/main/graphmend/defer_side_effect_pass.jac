@@ -1,5 +1,4 @@
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { GraphMendHelper }
 import from jaclang.jac0core.passes { UniPass }
 
 obj DeferSideEffectPass(UniPass) {
@@ -44,8 +43,6 @@ obj DeferSideEffectPass(UniPass) {
     def _hook_guard_stmt(at: uni.UniNode, name: str, body: list) -> uni.IfStmt;
     def _attach_se_guard(nd: uni.Ability) -> None;
     def _is_compiled_entry(nd: uni.Ability) -> bool;
-    def _need_helper(at: uni.UniNode, helper: GraphMendHelper) -> None;
-    def _gen_name(at: uni.UniNode, value: str, store: bool) -> uni.Name;
     def _str(at: uni.UniNode, text: str) -> uni.String;
     def _has_unpack(call: uni.FuncCall) -> bool;
     def _split_params(params: any) -> tuple[list[uni.Expr], list[uni.KWPair]];
@@ -61,6 +58,5 @@ obj DeferSideEffectPass(UniPass) {
     def _flush_stmt(at: uni.UniNode) -> uni.ExprStmt;
     def _append_stmt(ability: uni.Ability, new_stmt: uni.UniNode) -> None;
     def _append_module_stmt(mod: uni.Module, new_stmt: uni.UniNode) -> None;
-    def _insert_after(stmt: uni.UniNode, new_stmt: uni.UniNode) -> None;
     def _insert_before(stmt: uni.UniNode, new_stmt: uni.UniNode) -> None;
 }

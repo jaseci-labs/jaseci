@@ -1,5 +1,4 @@
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { GraphMendHelper }
 import from jaclang.jac0core.passes { UniPass }
 
 glob _TENSOR_BOOL_OPS: set[str] = {'all', 'any', 'allclose'};
@@ -11,11 +10,9 @@ obj TrapLoweringPass(UniPass) {
     static has REQUIRES: tuple = ('graph-breaks', );
 
     def before_pass -> None;
-    def _need_helper(at: uni.UniNode, helper: GraphMendHelper) -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
     def exit_assignment(nd: uni.Assignment) -> None;
     def _boundary_attach_stmt(at: uni.UniNode, name: str) -> uni.Assignment;
-    def _insert_after(stmt: uni.UniNode, new_stmt: uni.UniNode) -> None;
     def _inside_try(nd: uni.UniNode) -> bool;
     def _enclosing_compiled_fn(nd: uni.UniNode) -> (uni.Ability | None);
     def _exception_type_name(rs: uni.RaiseStmt) -> (str | None);
@@ -29,7 +26,6 @@ obj TrapLoweringPass(UniPass) {
     def _returns_tensor_bool(x: uni.Expr) -> bool;
     def _condition_is_tensor(cond: uni.Expr, site: uni.UniNode) -> bool;
     def _operand_is_tensor(e: uni.Expr, site: uni.UniNode) -> bool;
-    def _torch_call(at: uni.UniNode, fname: str, args: list) -> uni.FuncCall;
     def _tensor_receiver_provable(x: uni.Expr, site: uni.UniNode) -> bool;
     def _tensor_expr_provable(e: uni.Expr, site: uni.UniNode) -> bool;
     def _param_is_tensor(name: str, site: uni.UniNode) -> bool;
@@ -46,6 +42,4 @@ obj TrapLoweringPass(UniPass) {
     def _assert_async_stmt(
         at: uni.UniNode, x: uni.Expr, msg: uni.Expr
     ) -> uni.ExprStmt;
-
-    def _replace(old: uni.UniNode, new_nodes: list) -> None;
 }
