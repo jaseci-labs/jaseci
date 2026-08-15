@@ -1145,10 +1145,9 @@ jobs:
       with:
         submodules: true
 
-    - name: Set up Python 3.12
-      uses: actions/setup-python@v3
-      with:
-        python-version: 3.12
+    # No setup-python: every step below runs through the jac binary, which
+    # brings its own CPython. The pin existed only because check-guide.sh
+    # piped into a host `python3`; it now pipes into `jac -c`.
 
     - name: Set up Node.js
       uses: actions/setup-node@v4
