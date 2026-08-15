@@ -1,5 +1,4 @@
 import hashlib;
-import re;
 import from collections.abc { Sequence }
 import from contextvars { ContextVar }
 import from dataclasses { field }
@@ -127,7 +126,17 @@ def native_safe_sym(src: str) -> str {
     if src in ("osp_kernel", "fmt_kernel") {
         return src;
     }
-    safe = re.sub(r'[^a-zA-Z0-9_]', '_', src);
+    safe = '';
+    for ch in src {
+        if ((ch >= 'a') and (ch <= 'z'))
+            or ((ch >= 'A') and (ch <= 'Z'))
+            or ((ch >= '0') and (ch <= '9'))
+            or (ch == '_') {
+            safe += ch;
+        } else {
+            safe += '_';
+        }
+    }
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
 }
 

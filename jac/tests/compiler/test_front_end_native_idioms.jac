@@ -17,6 +17,7 @@ import os;
 import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.jac0core.codeinfo { native_safe_sym }
 import from jaclang.jac0core.helpers { pascal_to_snake }
 
 glob FIXTURES = os.path.join(
@@ -80,6 +81,64 @@ test "pascal_to_snake is deterministic across repeat calls without a cache" {
     first = pascal_to_snake(probe);
     assert first == "a_very_distinct_archetype_name";
     assert pascal_to_snake(probe) == first;
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# pascal_to_snake / native_safe_sym: `re.sub` -> explicit character loops
+# ─────────────────────────────────────────────────────────────────────
+
+# Both functions used `re.sub` with an ASCII-only character class, so their
+# real contract is code-point ranges, not the Unicode-aware `str` predicates
+# an eyeballed rewrite reaches for: `"É".isupper()` and `"é".isalnum()` are
+# both True, while `[A-Z]` and `[a-zA-Z0-9_]` match neither. These pin the
+# regex semantics so a loop that drifts to `isupper`/`isalnum` fails here.
+test "pascal_to_snake splits on ASCII capitals only" {
+    assert pascal_to_snake("") == "";
+    assert pascal_to_snake("A") == "a";
+    assert pascal_to_snake("a") == "a";
+    assert pascal_to_snake("AB") == "a_b";
+    assert pascal_to_snake("HTTPServer") == "h_t_t_p_server";
+    assert pascal_to_snake("Foo2Bar") == "foo2_bar";
+    assert pascal_to_snake("2Fast") == "2_fast";
+    assert pascal_to_snake("foo_bar") == "foo_bar";
+    assert pascal_to_snake("_Leading") == "__leading";
+    assert pascal_to_snake("Multi\nLine") == "multi\n_line";
+}
+
+test "pascal_to_snake never splits before a non-ASCII capital" {
+    assert pascal_to_snake("FooÉbar") == "fooébar";
+    assert pascal_to_snake("Éclair") == "éclair";
+    assert pascal_to_snake("CaféBar") == "café_bar";
+}
+
+"""Strip the sha1 disambiguator native_safe_sym appends to its sanitized stem."""
+def safe_sym_stem(src: str) -> str {
+    return native_safe_sym(src).rsplit("_", 1)[0];
+}
+
+test "native_safe_sym replaces every non-ASCII-word character with underscore" {
+    assert safe_sym_stem("plain") == "plain";
+    assert safe_sym_stem("pkg.mod") == "pkg_mod";
+    assert safe_sym_stem("a/b\\c.d-e f") == "a_b_c_d_e_f";
+    assert safe_sym_stem("Mixed_CASE09") == "Mixed_CASE09";
+    assert safe_sym_stem("") == "";
+    assert safe_sym_stem("trailing.") == "trailing_";
+}
+
+test "native_safe_sym treats non-ASCII letters as unsafe" {
+    assert safe_sym_stem("café") == "caf_";
+    assert safe_sym_stem("naïve_mod") == "na_ve_mod";
+}
+
+test "native_safe_sym keeps the kernel modules unhashed" {
+    assert native_safe_sym("osp_kernel") == "osp_kernel";
+    assert native_safe_sym("fmt_kernel") == "fmt_kernel";
+}
+
+test "native_safe_sym keeps distinct sources distinct after sanitizing" {
+    assert native_safe_sym("a.b") != native_safe_sym("a_b");
+    assert safe_sym_stem("a.b") == safe_sym_stem("a_b");
+    assert native_safe_sym("a.b") == native_safe_sym("a.b");
 }
 
 # ─────────────────────────────────────────────────────────────────────

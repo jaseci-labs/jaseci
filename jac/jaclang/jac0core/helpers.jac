@@ -2,12 +2,17 @@ import dis;
 import marshal;
 import os;
 import pdb;
-import re;
 import from traceback { TracebackException }
 
 def pascal_to_snake(pascal_string: str) -> str {
-    snake_string = re.sub('(?<!^)(?=[A-Z])', '_', pascal_string).lower();
-    return snake_string;
+    snake_string = '';
+    for (idx, ch) in enumerate(pascal_string) {
+        if (idx > 0) and (ch >= 'A') and (ch <= 'Z') {
+            snake_string += '_';
+        }
+        snake_string += ch;
+    }
+    return snake_string.lower();
 }
 
 def add_line_numbers(s: str) -> str {
