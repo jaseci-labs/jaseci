@@ -75,6 +75,8 @@ obj PredicateCtrlFlowPass(UniPass) {
     def _has_call(e: uni.UniNode) -> bool;
     def _has_none(a: uni.Expr, b: uni.Expr) -> bool;
     def _provably_non_tensor(e: uni.Expr) -> bool;
+    def _scalar_literal(e: uni.Expr) -> bool;
+    def _non_tensor_container(e: uni.Expr) -> bool;
     def _same_lhs(a: uni.Assignment, b: uni.Assignment) -> (uni.Name | None);
     def _split_params(params: any) -> tuple[list[uni.Expr], dict[str, uni.KWPair]];
     def _assign(target: uni.Name, value: uni.Expr) -> uni.Assignment;

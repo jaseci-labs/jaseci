@@ -1,7 +1,7 @@
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { GraphBreakKind }
+import from jaclang.jac0core.constant { GraphBreakKind, Tokens as Tok }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
     gen_name,
     replace_stmt,
@@ -190,9 +190,26 @@ impl PredicateCtrlFlowPass._has_none(a: uni.Expr, b: uni.Expr) -> bool {
 }
 
 impl PredicateCtrlFlowPass._provably_non_tensor(e: uni.Expr) -> bool {
+    return self._scalar_literal(e) or self._non_tensor_container(e);
+}
+
+impl PredicateCtrlFlowPass._scalar_literal(e: uni.Expr) -> bool {
     if isinstance(e, uni.AtomUnit) {
         inner = e.value;
-        return isinstance(inner, uni.Expr) and self._provably_non_tensor(inner);
+        return isinstance(inner, uni.Expr) and self._scalar_literal(inner);
+    }
+    if isinstance(e, uni.UnaryExpr) {
+        return (e.op is not None)
+            and (e.op.name in [Tok.PLUS, Tok.MINUS, Tok.BW_NOT, Tok.NOT])
+            and self._scalar_literal(e.operand);
+    }
+    return isinstance(e, (uni.Int, uni.Float, uni.Bool));
+}
+
+impl PredicateCtrlFlowPass._non_tensor_container(e: uni.Expr) -> bool {
+    if isinstance(e, uni.AtomUnit) {
+        inner = e.value;
+        return isinstance(inner, uni.Expr) and self._non_tensor_container(inner);
     }
     if isinstance(
         e,
@@ -211,7 +228,8 @@ impl PredicateCtrlFlowPass._provably_non_tensor(e: uni.Expr) -> bool {
         return True;
     }
     if isinstance(e, uni.BinaryExpr) {
-        return self._provably_non_tensor(e.left) or self._provably_non_tensor(e.right);
+        return self._non_tensor_container(e.left)
+            or self._non_tensor_container(e.right);
     }
     return False;
 }
