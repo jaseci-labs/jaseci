@@ -95,6 +95,19 @@ glob JS_GLOBALS: dict[str, str] = {
      );
 
 
+def _runtime_decorators(nd: UniNode) -> list {
+    import from jaclang.jac0core.codeinfo { is_native_comptime_decorator }
+    out: list = [];
+    for dec in (nd.decorators or []) {
+        _nm = dec.sym_name if isinstance(dec, Name) else '';
+        if _nm and is_native_comptime_decorator(_nm) {
+            continue;
+        }
+        out.append(dec);
+    }
+    return out;
+}
+
 impl classify_native_import(item: UniNode) -> tuple {
     mod_name: (str | None) = None;
     if isinstance(item, ModulePath) and item.path {
@@ -305,7 +318,10 @@ impl native_capability_violations(mod: Module) -> list {
                 continue;
             }
 
-            if isinstance(nd, (Ability, ArchSpec, ImplDef)) and nd.decorators {
+            _rt_decs = _runtime_decorators(nd)
+                if isinstance(nd, (Ability, ArchSpec, ImplDef))
+                else [];
+            if _rt_decs {
                 _dec_static_fn = (
                     isinstance(nd, Ability)
                     and not isinstance(nd.parent, Archetype)
@@ -313,7 +329,7 @@ impl native_capability_violations(mod: Module) -> list {
                     and not nd.get_all_sub_nodes(typ=YieldExpr)
                 );
                 if _dec_static_fn {
-                    for _dexpr in nd.decorators {
+                    for _dexpr in _rt_decs {
                         if not isinstance(_dexpr, Name) {
                             _dec_static_fn = False;
                             break;
@@ -329,7 +345,7 @@ impl native_capability_violations(mod: Module) -> list {
                     }
                     out.append(
                         (
-                            nd.decorators[0],
+                            _rt_decs[0],
                             "decorator",
                             f"on {_dec_owner}",
                             _NATIVE_DECORATOR_HELP
