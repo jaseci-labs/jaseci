@@ -3,6 +3,7 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     has_torch_compile_decorator
 }
+import from jaclang.jac0core.passes.sym_resolve { symbol_ability, symbol_archetype }
 import type from jaclang.jac0core.program { JacProgram }
 
 def compiled_region_ids(
@@ -70,11 +71,7 @@ def _resolve_callee(
         if arch is None {
             return None;
         }
-        for ab in arch.get_all_sub_nodes(uni.Ability) {
-            if ab.sym_name == t.right.value {
-                return ab;
-            }
-        }
+        return symbol_ability(arch.lookup(t.right.value, deep=False));
     }
     return None;
 }
@@ -82,14 +79,9 @@ def _resolve_callee(
 def find_ability(
     mod: uni.Module, name: str, prog: JacProgram, seen: set[str]
 ) -> (uni.Ability | None) {
-    for ab in mod.get_all_sub_nodes(uni.Ability) {
-        if (
-            (ab.sym_name == name)
-            and (ab.find_parent_of_type(uni.Archetype) is None)
-            and (ab.find_parent_of_type(uni.Ability) is None)
-        ) {
-            return ab;
-        }
+    found = symbol_ability(mod.lookup(name, deep=False));
+    if found is not None {
+        return found;
     }
     for imp in mod.get_all_sub_nodes(uni.Import) {
         if imp.from_loc is None {
@@ -118,10 +110,9 @@ def find_ability(
 def find_class(
     mod: uni.Module, name: str, prog: JacProgram, seen: set[str]
 ) -> (uni.Archetype | None) {
-    for arch in mod.get_all_sub_nodes(uni.Archetype) {
-        if arch.sym_name == name {
-            return arch;
-        }
+    found = symbol_archetype(mod.lookup(name, deep=False));
+    if found is not None {
+        return found;
     }
     for imp in mod.get_all_sub_nodes(uni.Import) {
         if imp.from_loc is None {

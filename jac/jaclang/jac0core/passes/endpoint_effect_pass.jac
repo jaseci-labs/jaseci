@@ -1,6 +1,7 @@
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { SymbolType, Tokens as Tok }
+import from jaclang.jac0core.passes.sym_resolve { call_target_symbol, symbol_ability }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 
 class EndpointEffectPass(UniPass) {
@@ -89,7 +90,7 @@ class EndpointEffectPass(UniPass) {
         }
 
         if isinstance(nd, uni.FuncCall) {
-            arch_sym = self._call_target_symbol(nd);
+            arch_sym = call_target_symbol(nd);
             if arch_sym
                 and arch_sym.sym_type in [SymbolType.NODE_ARCH, SymbolType.EDGE_ARCH] {
                 self._is_writer = True;
@@ -123,41 +124,8 @@ class EndpointEffectPass(UniPass) {
         }
     }
 
-    def _call_target_symbol(
-        self: EndpointEffectPass, call: uni.FuncCall
-    ) -> (uni.Symbol | None) {
-        if isinstance(call.target, uni.Name) {
-            sym = call.target.sym;
-            if not sym and call.target.sym_tab {
-                sym = call.target.sym_tab.lookup(call.target.sym_name, deep=True);
-            }
-            return sym;
-        }
-
-        if isinstance(call.target, uni.AtomTrailer) {
-            attrs = call.target.as_attr_list;
-            if attrs {
-                last = attrs[-1];
-                if isinstance(last, uni.AstSymbolNode) and last.sym {
-                    return last.sym;
-                }
-            }
-        }
-        return None;
-    }
-
     def _callee_body(self: EndpointEffectPass, call: uni.FuncCall) -> list {
-        sym = self._call_target_symbol(call);
-        if not sym or not sym.defn {
-            return [];
-        }
-        defn_node = sym.defn[0];
-        ability = None;
-        if isinstance(defn_node, uni.Ability) {
-            ability = defn_node;
-        } elif defn_node.parent and isinstance(defn_node.parent, uni.Ability) {
-            ability = defn_node.parent;
-        }
+        ability = symbol_ability(call_target_symbol(call));
         if ability {
             return self._resolved_body(ability);
         }

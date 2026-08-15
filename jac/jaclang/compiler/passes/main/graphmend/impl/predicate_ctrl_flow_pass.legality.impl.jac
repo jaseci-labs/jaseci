@@ -8,6 +8,7 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts {
     module_imports_plain,
     wrapping_classes
 }
+import from jaclang.jac0core.passes.sym_resolve { symbol_ability }
 
 impl PredicateCtrlFlowPass._setups_safe(
     setups: Sequence[uni.CodeBlockStmt], region: uni.IfStmt
@@ -151,12 +152,7 @@ impl PredicateCtrlFlowPass._signature_accepts(
 impl PredicateCtrlFlowPass._module_fn(
     mod: uni.Module, name: str
 ) -> (uni.Ability | None) {
-    for ab in mod.get_all_sub_nodes(uni.Ability) {
-        if ab?.sym_name == name {
-            return ab;
-        }
-    }
-    return None;
+    return symbol_ability(mod.lookup(name, deep=False));
 }
 
 impl PredicateCtrlFlowPass._dispatch_table_fns(mod: uni.Module) -> list[uni.Ability] {
