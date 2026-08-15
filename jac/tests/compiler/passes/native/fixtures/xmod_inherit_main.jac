@@ -6,6 +6,10 @@ must sit *after* the inherited ones, a constructor keyword naming an
 inherited field, and an imported method reading the same object through the
 base's own offsets. The library's instances go through the same reads, so a
 layout that only satisfies the subclass would be caught too.
+
+`Deep` is the two-link case: `Mid`'s layout is itself already flattened over
+`Base`, so adopting it adopts the whole chain, and `d.bump` reaches a method
+declared two links up through the wrapper `Mid` carries.
 """
 
 import from xmod_inherit_lib { Base, Mid, make_base, read_tag }
@@ -41,6 +45,8 @@ def run_probe {
     print(d.mid);
     print(d.extra);
     print(d.describe());
+    print(d.bump(2));
+    print(d.depth);
 }
 
 with entry {
