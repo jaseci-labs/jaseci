@@ -15,6 +15,9 @@ glob _STRIP_RE = re.compile(
      _NAME_RE = re.compile('[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*');
 
 def module_imports_torch(src: str, file_path: str) -> bool {
+    if 'torch' not in src {
+        return False;
+    }
     if file_path.endswith('.py') {
         return _py_imports_torch(src);
     }
