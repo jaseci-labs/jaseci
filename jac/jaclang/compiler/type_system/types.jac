@@ -218,7 +218,9 @@ obj FunctionType(TypeBase) {
         parameters: (list[Parameter] | None) = None,
         function_flags: int = 0,
         type_params: (list[TypeVarType] | None) = None,
-        is_async: bool = False;
+        is_async: bool = False,
+        type_guard: (TypeBase | None) = None,
+        type_guard_is_strict: bool = False;
 
     with entry {
         CATEGORY: ClassVar[TypeCategory] = TypeCategory.Function;

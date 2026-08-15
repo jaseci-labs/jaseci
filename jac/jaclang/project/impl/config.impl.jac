@@ -82,7 +82,7 @@ impl JacConfig.discover(
 }
 
 impl JacConfig.load(toml_path: Path) -> JacConfig {
-    import from jaclang.jac0core.helpers { read_toml_with_encoding }
+    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
     if not toml_path.exists() {
         raise FileNotFoundError(f"Configuration file not found: {toml_path}");
     }
@@ -249,7 +249,7 @@ impl JacConfig.apply_profile_overlay(profile_name: str | None = None) -> None {
 }
 
 impl JacConfig.merge_from_toml_file(toml_path: Path) -> None {
-    import from jaclang.jac0core.helpers { read_toml_with_encoding }
+    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
     if not toml_path.exists() {
         return;
     }
@@ -465,10 +465,8 @@ impl JacConfig.save -> None {
     old_doc: dict[str, any] = {};
     if self.toml_path.exists() {
         import tomllib;
-        import from jaclang.jac0core.helpers {
-            MalformedJacTomlError,
-            read_file_with_encoding
-        }
+        import from jaclang.jac0core.helpers { read_file_with_encoding }
+        import from jaclang.jac0core.tomlio { MalformedJacTomlError }
         text = read_file_with_encoding(str(self.toml_path));
         try {
             old_doc = tomllib.loads(text);

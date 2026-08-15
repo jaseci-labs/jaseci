@@ -1,99 +1,19 @@
-import dis;
-import marshal;
 import os;
-import pdb;
-import re;
-import from traceback { TracebackException }
 
 def pascal_to_snake(pascal_string: str) -> str {
-    snake_string = re.sub('(?<!^)(?=[A-Z])', '_', pascal_string).lower();
-    return snake_string;
+    snake_string = '';
+    for (idx, ch) in enumerate(pascal_string) {
+        if (idx > 0) and (ch >= 'A') and (ch <= 'Z') {
+            snake_string += '_';
+        }
+        snake_string += ch;
+    }
+    return snake_string.lower();
 }
 
 def add_line_numbers(s: str) -> str {
     lines = s.split('\n');
     return '\n'.join(f"{(i + 1)}:       {line}" for (i, line) in enumerate(lines));
-}
-
-def dump_traceback(e: Exception) -> str {
-    trace_dump = '';
-    def byte_offset_to_char_offset(string: str, offset: int) -> int {
-        return len(string.encode('utf-8')[:offset].decode('utf-8', errors='replace'));
-    }
-    """Return (jac_filename, jac_source) if available, else (None, None).""";
-    def get_jac_source_info(py_filename: str) -> tuple[((str | None), (str | None))] {
-        return (None, None);
-    }
-    tb = TracebackException(`type(e), e, e.__traceback__, limit=None, compact=True);
-    trace_dump += f"Error: {str(e)}\n";
-    tb.stack.pop(0);
-    tb.stack.reverse();
-    dump_tab_width = 2;
-    """Check if a frame is part of the Jac internal runtime.""";
-    def is_internal_runtime_frame(filename: str) -> bool {
-        normalized: str = filename.replace('\\', '/');
-        return (
-            ('/jaclang/runtimelib/' in normalized)
-            or ('/jaclang/jac0core/' in normalized)
-            or ('/jaclang/vendor/' in normalized)
-            or ('/jaclang/plugin.py' in normalized)
-            or normalized.endswith('/jaclang/meta_importer.py')
-        );
-    }
-    seen_runtime_marker: bool = False;
-    collapse_internal: bool = True;
-    for (idx, frame) in enumerate(tb.stack) {
-        is_internal: bool = is_internal_runtime_frame(frame.filename);
-        if (is_internal and collapse_internal) {
-            if not seen_runtime_marker {
-                trace_dump += f"\n{(' ' * dump_tab_width)}... [internal runtime calls]";
-                seen_runtime_marker = True;
-            }
-            continue;
-        }
-        seen_runtime_marker = False;
-        func_signature: str = frame.name + ('()' if frame.name.isidentifier() else '');
-        (jac_filename, jac_source) = get_jac_source_info(frame.filename);
-        display_filename: str = jac_filename or frame.filename;
-        display_source: (str | None) = jac_source;
-        if (
-            (idx == 0)
-            and (
-                (frame.lineno is not None) and frame.line and (frame.line.strip() != '')
-            )
-        ) {
-            line_o = frame.line;
-            if frame?._original_line {
-                line_o = frame._original_line.rstrip();
-            } elif frame?._original_lines {
-                line_o = frame._original_lines.split('\n')[0].rstrip();
-            }
-            if ((frame.colno is not None) and (frame.end_colno is not None)) {
-                off_start = byte_offset_to_char_offset(line_o, frame.colno) - 1;
-                off_end = byte_offset_to_char_offset(line_o, frame.end_colno) - 1;
-                file_source = display_source;
-                if (file_source is None) {
-                    try {
-                        file_source = read_file_with_encoding(frame.filename);
-                    } except Exception {
-                        file_source = '';
-                    }
-                }
-                if file_source {
-                    lines = file_source.split('\n');
-                    for i in range((frame.lineno - 1)) {
-                        off_start += len(lines[i]) + 1;
-                        off_end += len(lines[i]) + 1;
-                    }
-                    trace_dump += pretty_print_source_location(
-                        display_filename, file_source, frame.lineno, off_start, off_end
-                    );
-                }
-            }
-        }
-        trace_dump += f"\n{(' ' * dump_tab_width)}at {func_signature} {display_filename}:{frame.lineno}";
-    }
-    return trace_dump;
 }
 
 class ANSIColors {
@@ -248,13 +168,13 @@ def format_related_spans(
     return result;
 }
 
-class Jdb(pdb.Pdb) {
-    def init(self: Jdb, *args: any, **kwargs: any) -> None;
-    def has_breakpoint(self: Jdb, bytecode: bytes) -> bool;
-}
-
-glob debugger = Jdb(),
-     _JAC_TEXT_ENCODINGS = ['utf-8-sig', 'utf-8', 'utf-16', 'utf-16le', 'utf-16be'];
+glob _JAC_TEXT_ENCODINGS = [
+         'utf-8-sig',
+         'utf-8',
+         'utf-16',
+         'utf-16le',
+         'utf-16be'
+     ];
 
 def read_file_with_encoding(file_path: str) -> str {
     for encoding in _JAC_TEXT_ENCODINGS {
@@ -272,46 +192,6 @@ def read_file_with_encoding(file_path: str) -> str {
     }
     raise OSError(
         f"Could not read file {file_path} with any encoding. Report this issue:https://github.com/jaseci-labs/jaseci/issues"
-    );
-}
-
-import tomllib;
-
-class MalformedJacTomlError(tomllib.TOMLDecodeError) {
-    has file_path: str,
-        original: tomllib.TOMLDecodeError;
-
-    def init(
-        self: MalformedJacTomlError, file_path: str, original: tomllib.TOMLDecodeError
-    ) {
-        msg = f"jac.toml is malformed at {file_path}: {original}";
-        if hasattr(original, "doc") and hasattr(original, "pos") {
-            tomllib.TOMLDecodeError.__init__(
-                self, msg, getattr(original, "doc"), getattr(original, "pos")
-            );
-        } else {
-            tomllib.TOMLDecodeError.__init__(self, msg);
-        }
-        self.file_path = file_path;
-        self.original = original;
-    }
-}
-
-
-def read_toml_with_encoding(file_path: str) -> dict {
-    try {
-        return tomllib.loads(read_file_with_encoding(file_path));
-    } except tomllib.TOMLDecodeError as exc {
-        raise MalformedJacTomlError(file_path, exc);
-    }
-}
-
-def _warn_malformed_jac_toml(exc: MalformedJacTomlError) {
-    import sys;
-    sys.stderr.write(
-        f"warning: jac.toml is malformed ({exc.file_path}): {exc.original}; "
-        "ignoring [plugins].disabled. "
-        "Run a `jac` CLI command for the actionable error.\n"
     );
 }
 
@@ -432,7 +312,6 @@ def _extract_version_tuple(expr: 'uni.Expr') -> tuple[int, int] | None {
 
 def evaluate_version_condition(condition: 'uni.Expr') -> bool | None {
     import sys;
-    import operator;
     import jaclang.jac0core.unitree as uni;
     import from jaclang.jac0core.constant { Tokens as Tok }
 
@@ -465,21 +344,24 @@ def evaluate_version_condition(condition: 'uni.Expr') -> bool | None {
     }
 
     current = (sys.version_info.major, sys.version_info.minor);
-    op_map: dict = {
-        ">=": operator.ge,
-        "GtE": operator.ge,
-        ">": operator.gt,
-        "Gt": operator.gt,
-        "<=": operator.le,
-        "LtE": operator.le,
-        "<": operator.lt,
-        "Lt": operator.lt,
-        "==": operator.eq,
-        "Eq": operator.eq,
-        "!=": operator.ne,
-        "NotEq": operator.ne
-    };
-
     op_str = cond.ops[0].value;
-    return op_map[op_str](current, target) if op_str in op_map else None;
+    if op_str in (">=", "GtE") {
+        return current >= target;
+    }
+    if op_str in (">", "Gt") {
+        return current > target;
+    }
+    if op_str in ("<=", "LtE") {
+        return current <= target;
+    }
+    if op_str in ("<", "Lt") {
+        return current < target;
+    }
+    if op_str in ("==", "Eq") {
+        return current == target;
+    }
+    if op_str in ("!=", "NotEq") {
+        return current != target;
+    }
+    return None;
 }
