@@ -113,6 +113,8 @@ import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
 import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
 import from jaclang.compiler.type_system.types {
     AnyType,
+    ClassDetailsPrivate,
+    ClassDetailsShared,
     ClassType,
     EnumMemberInfo,
     EnumMemberType,
@@ -351,6 +353,8 @@ obj TypeEvaluator {
         js_globals_module: Module postinit;
 
     def postinit -> None;
+    def _read_dunder_all(path: str) -> (set[str] | None);
+    def _read_ambient_imports_by_module(path: str) -> dict[str, set[str]];
     def _load_stub_module(path: str) -> Module;
     def _get_type_from_module(module: Module, name: str) -> TypeBase;
     def _prefetch_types;

@@ -114,7 +114,12 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.passes.transform { Alert }
 import from jaclang.compiler.type_system.type_utils { compute_mro_linearization }
-import from jaclang.compiler.type_system.types { ClassType, TypeFlags, UnknownType }
+import from jaclang.compiler.type_system.types {
+    ClassDetailsShared,
+    ClassType,
+    TypeFlags,
+    UnknownType
+}
 
 glob CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "checker"
@@ -183,25 +188,25 @@ test "bug_3_list_element_type_first_only" {
 # =========================================================================
 test "bug_6_mro_not_c3_diamond" {
     # Build a diamond hierarchy manually to check MRO order
-    a_shared = ClassType.ClassDetailsShared(
+    a_shared = ClassDetailsShared(
         class_name="A", symbol_table=None, mro=[], base_classes=[]
     );
     a_type = ClassType(_shared=a_shared, flags=TypeFlags.Instantiable);
     a_type.shared.mro = [a_type];
 
-    b_shared = ClassType.ClassDetailsShared(
+    b_shared = ClassDetailsShared(
         class_name="B", symbol_table=None, mro=[], base_classes=[a_type]
     );
     b_type = ClassType(_shared=b_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(b_type);
 
-    c_shared = ClassType.ClassDetailsShared(
+    c_shared = ClassDetailsShared(
         class_name="C", symbol_table=None, mro=[], base_classes=[a_type]
     );
     c_type = ClassType(_shared=c_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(c_type);
 
-    d_shared = ClassType.ClassDetailsShared(
+    d_shared = ClassDetailsShared(
         class_name="D", symbol_table=None, mro=[], base_classes=[b_type, c_type]
     );
     d_type = ClassType(_shared=d_shared, flags=TypeFlags.Instantiable);
@@ -228,7 +233,7 @@ test "bug_6_mro_not_c3_diamond" {
 # =========================================================================
 test "cyclic_heritage_mro_does_not_recurse" {
     # Self-referential: A lists itself as a base.
-    a_shared = ClassType.ClassDetailsShared(
+    a_shared = ClassDetailsShared(
         class_name="A", symbol_table=None, mro=[], base_classes=[]
     );
     a_type = ClassType(_shared=a_shared, flags=TypeFlags.Instantiable);
@@ -237,11 +242,11 @@ test "cyclic_heritage_mro_does_not_recurse" {
     assert a_type.shared.mro and a_type.shared.mro[0] is a_type;
 
     # Mutual cycle: B -> C -> B.
-    b_shared = ClassType.ClassDetailsShared(
+    b_shared = ClassDetailsShared(
         class_name="B", symbol_table=None, mro=[], base_classes=[]
     );
     b_type = ClassType(_shared=b_shared, flags=TypeFlags.Instantiable);
-    c_shared = ClassType.ClassDetailsShared(
+    c_shared = ClassDetailsShared(
         class_name="C", symbol_table=None, mro=[], base_classes=[]
     );
     c_type = ClassType(_shared=c_shared, flags=TypeFlags.Instantiable);
