@@ -8,15 +8,19 @@ exactly that line -- `type_system/types.jac` and `jac0core/passes/transform.jac`
 the base every pass inherits -- so the reach was most of the pass tree.
 
 Nothing about `ABC` needs to survive to run time. Jac models abstractness with
-its own bodiless-ability rule, and the *server* lane emits `@abstractmethod`
-from `Ability.is_abstract` rather than reading it, so the Python spelling is a
-restatement of something the compiler already knows.
+its own `abst` keyword, and the *server* lane emits `@abstractmethod` from
+`Ability.is_abstract` rather than reading it, so the base is a restatement of
+something the compiler already knows.
 
-The erasure is scoped to names, not to the module: `abc` exposes machinery that
-is emphatically not compile-time (`ABCMeta.register` performs virtual
-subclassing, which the native lane has no way to honor), so only `ABC` and
-`abstractmethod` are waved through and every other spelling still refuses.
-That boundary is what the refusal tests below pin.
+Exactly one name is erased, and the narrowness is the point. `abstractmethod`
+is deliberately absent: `test_native_method_kind_keywords` pins the contract
+that the keyword forms (`abst`, `class def`, `static def`) cross into native
+while the hand-written decorator spellings demote their method to a seam, and
+the compiler's own sources were migrated to the keywords for that reason
+(#8039). Waving the decorator's import through would have quietly argued the
+other side. `ABCMeta` is absent too, because `register` performs virtual
+subclassing a native unit cannot honor. Those refusals are pinned below
+alongside the acceptance, so the boundary cannot drift in either direction.
 """
 
 import ctypes;
@@ -53,8 +57,19 @@ test "an abc marker import no longer blocks native placement" {
         "`import from abc { ABC }` still demotes the module, so every import "
         "closure reaching it stays demoted too"
     );
+}
+
+
+test "the abstractmethod import keeps refusing" {
+    verdict = scan_verdict(module_with("import from abc { abstractmethod }"));
+    assert verdict != "OK" , (
+        "`abstractmethod` was waved through, which argues against the "
+        "contract test_native_method_kind_keywords pins: the keyword forms "
+        "cross into native and the decorator spellings demote. Jac's `abst` "
+        "is the native spelling; the decorator is not"
+    );
     assert scan_verdict(module_with("import from abc { ABC, abstractmethod }"))
-        == "OK" , "the two erasable abc names are not accepted together";
+        != "OK" , "one non-erasable name in the list has to refuse the import";
 }
 
 
@@ -76,7 +91,7 @@ test "a bare abc module import still refuses" {
 }
 
 
-test "an ABC base and an abstractmethod lower natively" {
+test "an ABC base over an abst method lowers natively" {
     prog = JacProgram();
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "abc_marker_base.jac"),
@@ -87,7 +102,7 @@ test "an ABC base and an abstractmethod lower natively" {
 }
 
 
-test "the erased markers leave the archetype's behavior intact" {
+test "the erased base leaves the archetype's behavior intact" {
     prog = JacProgram();
     ir = prog.compile(
         file_path=os.path.join(FIXTURES, "abc_marker_base.jac"),

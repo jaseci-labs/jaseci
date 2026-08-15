@@ -141,10 +141,7 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "enum",
          "collections.abc"
      },
-     NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
-         "abc": frozenset({"ABC", "abstractmethod"})
-     },
-     NATIVE_COMPTIME_DECORATORS: frozenset = frozenset({"abstractmethod"}),
+     NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {"abc": frozenset({"ABC"})},
      _effective_codespace_ctx: ContextVar[str] = ContextVar(
          "jac_effective_default_codespace", default=""
      ),
@@ -163,10 +160,6 @@ def native_comptime_import_names(module_name: str, names: list[str]) -> bool {
         }
     }
     return True;
-}
-
-def is_native_comptime_decorator(name: str) -> bool {
-    return name in NATIVE_COMPTIME_DECORATORS;
 }
 
 def set_effective_default_codespace(value: str) {
