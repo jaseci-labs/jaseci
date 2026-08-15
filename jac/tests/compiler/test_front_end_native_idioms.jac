@@ -14,6 +14,8 @@ closure and are deliberately untouched.
 """
 
 import os;
+import types;
+import jaclang.jac0core.helpers as helpers_mod;
 import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -139,6 +141,97 @@ test "native_safe_sym keeps distinct sources distinct after sanitizing" {
     assert native_safe_sym("a.b") != native_safe_sym("a_b");
     assert safe_sym_stem("a.b") == safe_sym_stem("a_b");
     assert native_safe_sym("a.b") == native_safe_sym("a.b");
+}
+
+# ─────────────────────────────────────────────────────────────────────
+# helpers.jac: the Python-only tenants moved to their own modules
+# ─────────────────────────────────────────────────────────────────────
+
+# `helpers.jac` sits under most of the front end, so every module-scope
+# import it carried was inherited by every closure above it. The debugger
+# (`pdb`/`dis`/`marshal`), the jac.toml reader (`tomllib`), and the traceback
+# renderer (`traceback`) each moved to their own module, leaving `os` as the
+# only module object bound at helpers' module scope. This is the acceptance
+# criterion for that move, spelled so re-adding an import fails here.
+test "helpers module scope binds os and nothing else" {
+    bound = sorted(
+        [
+            nm
+            for (nm, val) in vars(helpers_mod).items()
+            if isinstance(val, types.ModuleType) and not nm.startswith("__")
+        ]
+    );
+    assert bound == ["os"] , f"helpers.jac module scope grew imports: {bound}";
+}
+
+test "helpers no longer exports the moved symbols" {
+    for gone in [
+        "Jdb",
+        "MalformedJacTomlError",
+        "TracebackException",
+        "debugger",
+        "dump_traceback",
+        "read_toml_with_encoding"
+    ] {
+        assert not hasattr(helpers_mod, gone) , (
+            f"{gone} is still reachable from helpers.jac"
+        );
+    }
+}
+
+test "the moved symbols resolve from their new modules" {
+    import from jaclang.jac0core.debugger { Jdb, debugger }
+    import from jaclang.jac0core.tomlio {
+        MalformedJacTomlError,
+        read_toml_with_encoding
+    }
+    import from jaclang.jac0core.traceback_render { dump_traceback }
+    assert isinstance(debugger, Jdb);
+    assert callable(read_toml_with_encoding);
+    assert callable(dump_traceback);
+    assert issubclass(MalformedJacTomlError, Exception);
+}
+
+# The exception crosses a module boundary into `tomllib`, and existing
+# `except MalformedJacTomlError` sites catch by identity, so the move has to
+# leave exactly one class object reachable under exactly one base.
+test "MalformedJacTomlError keeps its identity and its tomllib base" {
+    import tempfile;
+    import tomllib;
+    import from jaclang.jac0core.tomlio {
+        MalformedJacTomlError,
+        read_toml_with_encoding
+    }
+    assert issubclass(MalformedJacTomlError, tomllib.TOMLDecodeError);
+    with tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", suffix=".toml", delete=False
+    ) as f {
+        f.write("this is not valid toml [[[\n");
+        temp_path = f.name;
+    }
+    raised: (Exception | None) = None;
+    try {
+        try {
+            read_toml_with_encoding(temp_path);
+        } except tomllib.TOMLDecodeError as exc {
+            raised = exc;
+        }
+    } finally {
+        os.unlink(temp_path);
+    }
+    assert type(raised) is MalformedJacTomlError , (
+        f"malformed toml must raise the one MalformedJacTomlError, got {raised!r}"
+    );
+    assert getattr(raised, "file_path") == temp_path;
+}
+
+test "Jdb.has_breakpoint still reads the compiled bytecode" {
+    import marshal;
+    import from jaclang.jac0core.debugger { debugger }
+    with_bp = compile("breakpoint()\n", "<probe>", "exec");
+    without_bp = compile("x = 1\n", "<probe>", "exec");
+    assert debugger.has_breakpoint(marshal.dumps(with_bp));
+    assert not debugger.has_breakpoint(marshal.dumps(without_bp));
 }
 
 # ─────────────────────────────────────────────────────────────────────
