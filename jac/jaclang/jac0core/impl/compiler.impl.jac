@@ -1278,7 +1278,8 @@ impl JacCompiler._compile_once(
             target_program=actual_program,
             passes=get_py_code_gen(
                 native=needs_native,
-                provided=actual_program._analyses_run.get(id(mod_targ), set())
+                provided=actual_program._analyses_run.get(id(mod_targ), set()),
+                graphmend=options.graphmend is True
             ),
             cancel_token=options.cancel_token
         );

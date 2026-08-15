@@ -419,7 +419,9 @@ def native_pipeline_available -> tuple[bool, str] {
 }
 
 def get_py_code_gen(
-    native: bool = True, provided: (set[str] | None) = None
+    native: bool = True,
+    provided: (set[str] | None) = None,
+    graphmend: bool = True
 ) -> list[type[Transform[uni.Module, uni.Module]]] {
     if _codegen_sched_loading.get() or _ir_sched_loading.get() {
         return [PyastGenPass, PyBytecodeGenPass];
@@ -429,18 +431,6 @@ def get_py_code_gen(
         import from jaclang.compiler.passes.ecmascript { EsastGenPass }
         import from jaclang.compiler.passes.main.pyjac_ast_link_pass {
             PyJacAstLinkPass
-        }
-        import from jaclang.compiler.passes.main.graphmend.graph_break_detect_pass {
-            GraphBreakDetectPass
-        }
-        import from jaclang.compiler.passes.main.graphmend.trap_lowering_pass {
-            TrapLoweringPass
-        }
-        import from jaclang.compiler.passes.main.graphmend.predicate_ctrl_flow_pass {
-            PredicateCtrlFlowPass
-        }
-        import from jaclang.compiler.passes.main.graphmend.defer_side_effect_pass {
-            DeferSideEffectPass
         }
 
         passes: list[type[Transform[uni.Module, uni.Module]]] = [EsastGenPass];
@@ -474,17 +464,29 @@ def get_py_code_gen(
                 )
             );
         }
-        passes.extend(
-            [
-                GraphBreakDetectPass,
-                TrapLoweringPass,
-                PredicateCtrlFlowPass,
-                DeferSideEffectPass,
-                PyastGenPass,
-                PyJacAstLinkPass,
-                PyBytecodeGenPass
-            ]
-        );
+        if graphmend {
+            import from jaclang.compiler.passes.main.graphmend.graph_break_detect_pass {
+                GraphBreakDetectPass
+            }
+            import from jaclang.compiler.passes.main.graphmend.trap_lowering_pass {
+                TrapLoweringPass
+            }
+            import from jaclang.compiler.passes.main.graphmend.predicate_ctrl_flow_pass {
+                PredicateCtrlFlowPass
+            }
+            import from jaclang.compiler.passes.main.graphmend.defer_side_effect_pass {
+                DeferSideEffectPass
+            }
+            passes.extend(
+                [
+                    GraphBreakDetectPass,
+                    TrapLoweringPass,
+                    PredicateCtrlFlowPass,
+                    DeferSideEffectPass
+                ]
+            );
+        }
+        passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
         return passes;
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
