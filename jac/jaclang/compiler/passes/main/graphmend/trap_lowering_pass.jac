@@ -8,6 +8,8 @@ obj TrapLoweringPass(UniPass) {
     has _enabled: bool = False,
         _guarded_fns: set[int] = set();
 
+    static has REQUIRES: tuple = ('graph-breaks', );
+
     def before_pass -> None;
     def _need_helper(at: uni.UniNode, helper: GraphMendHelper) -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;

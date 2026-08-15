@@ -8,6 +8,8 @@ obj GraphBreakDetectPass(UniPass) {
         _entry_ids: set[int] = set(),
         _mat_seen: set[str] = set();
 
+    static has PROVIDES: tuple = ('graph-breaks', );
+
     def before_pass -> None;
     def _collect_entry_points -> set[int];
     def _resolve_wrapped_entry(call: uni.FuncCall) -> (uni.UniNode | None);

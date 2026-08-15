@@ -55,6 +55,8 @@ obj PredicateCtrlFlowPass(UniPass) {
         _counter: int = 0,
         _mat_seen: set[str] = set();
 
+    static has REQUIRES: tuple = ('graph-breaks', );
+
     def before_pass -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
     def _rewrite_assignment(

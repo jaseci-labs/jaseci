@@ -11,18 +11,19 @@ obj DeferSideEffectPass(UniPass) {
         _defer_mods: set[int] = set(),
         _pending_regs: list[tuple[(uni.Archetype | None), uni.Assignment]] = [];
 
-    static has _LOG_METHODS: set[str] = {
-        'debug',
-        'info',
-        'warning',
-        'warning_once',
-        'error',
-        'exception',
-        'critical',
-        'fatal',
-        'log',
-        'warn'
-    };
+    static has REQUIRES: tuple = ('graph-breaks', ),
+        _LOG_METHODS: set[str] = {
+            'debug',
+            'info',
+            'warning',
+            'warning_once',
+            'error',
+            'exception',
+            'critical',
+            'fatal',
+            'log',
+            'warn'
+        };
 
     def before_pass -> None;
     def exit_func_call(nd: uni.FuncCall) -> None;
