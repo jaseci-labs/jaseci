@@ -11,8 +11,7 @@ def k8s_safe_slug(name: str, fallback: str = 'jaseci') -> str {
     return slug or fallback;
 }
 
-def resolve_database_mode(config: dict[str, any]) -> str {
-    raw = config.get('database_mode');
+def normalize_database_mode(raw: any) -> str {
     mode = str(raw or '').strip().lower() or 'auto';
     if mode not in DATABASE_MODES {
         raise ValueError(
@@ -20,6 +19,11 @@ def resolve_database_mode(config: dict[str, any]) -> str {
             f"{', '.join(DATABASE_MODES)}, got {raw!r}."
         );
     }
+    return mode;
+}
+
+def resolve_database_mode(config: dict[str, any]) -> str {
+    mode = normalize_database_mode(config.get('database_mode'));
     if mode == 'auto' and config.get('postgres_enabled') is False {
         return 'none';
     }
@@ -88,6 +92,10 @@ obj KubernetesConfig(BaseConfig) {
         kube_context: str = "",
         kubeconfig: str = "",
         labels: dict[str, str] = {};
+
+    def postinit {
+        self.database_mode = normalize_database_mode(self.database_mode);
+    }
 
     def database_enabled -> bool {
         return self.database_mode != 'none';
