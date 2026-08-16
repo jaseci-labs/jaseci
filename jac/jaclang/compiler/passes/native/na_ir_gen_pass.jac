@@ -828,12 +828,19 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _extract_import_module_name(imp: uni.Import) -> (str | None);
     def _walk_imported_module_types(imported_mod: uni.Module) -> None;
     def _walk_imported_module_type_names(imported_mod: uni.Module) -> None;
-    def _walk_imported_module_abilities(imported_mod: uni.Module) -> None;
+    def _walk_imported_module_abilities(
+        imported_mod: uni.Module, with_fn_verdicts: bool = True
+    ) -> None;
+
     def _register_imported_hierarchy(imported_mod: uni.Module) -> None;
     def _register_imported_archetype(arch: uni.Archetype) -> None;
     def _forward_declare_archetype_methods(arch: uni.Archetype) -> None;
     def _register_imported_globals(nd: uni.GlobalVars, source_path: str = "") -> None;
-    def _forward_declare_imported_ability(nd: uni.Ability) -> None;
+    def _forward_declare_imported_ability(
+        nd: uni.Ability, unavailable: (set | None) = None, imp_layout: any = None
+    ) -> None;
+
+    def _imported_function_demotions(imported_mod: uni.Module) -> (set | None);
     def _register_archetypes(module: uni.Module) -> None;
     def _compute_osp_model(archetypes: list[uni.Archetype]) -> None;
     def _osp_active -> bool;
