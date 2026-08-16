@@ -2019,6 +2019,8 @@ def decode_string_literal(text: str) -> str | bytes {
     return _decode_str_escapes(body);
 }
 
+def is_identifier_slot(nd: UniNode) -> bool;
+
 def find_python_scope_node_of(nd: UniNode) -> (UniScopeNode | None);
 
 def find_typed_decl_scope_of(nd: AstSymbolNode) -> UniScopeNode;

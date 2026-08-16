@@ -442,6 +442,9 @@ impl UniScopeNode.find_scope(name: str) -> (UniScopeNode | None) {
 impl UniScopeNode.get_enclosing_captures -> list[Symbol] {
     out: list[Symbol] = [];
     for name in self.get_all_sub_nodes(Name) {
+        if is_identifier_slot(name) {
+            continue;
+        }
         sym = name.sym;
         if (sym is None) {
             continue;
@@ -2768,6 +2771,26 @@ impl NameAtom.expr_ctx.getter -> ExprCtx {
 
 impl NameAtom.expr_ctx.setter(expr_ctx: ExprCtx) {
     self._expr_ctx = expr_ctx;
+}
+
+impl is_identifier_slot(nd: UniNode) -> bool {
+    par = nd.parent;
+    if isinstance(par, KWPair) {
+        return par.key is nd;
+    }
+    if isinstance(par, AtomTrailer) {
+        return par.is_attr and (par.right is nd);
+    }
+    if isinstance(par, (HasVar, ParamVar, Archetype, Enum)) {
+        return par.name is nd;
+    }
+    if isinstance(par, Ability) {
+        return par.name_ref is nd;
+    }
+    if isinstance(par, ModuleItem) {
+        return (par.name is nd) or (par.alias is nd);
+    }
+    return False;
 }
 
 impl find_python_scope_node_of(nd: UniNode) -> (UniScopeNode | None) {
