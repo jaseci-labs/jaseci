@@ -161,20 +161,21 @@ impl TrapLoweringPass._covering_entry(nd: uni.UniNode) -> (str | None) {
     if ab is None {
         return None;
     }
-    bound = facts_for(ab).boundary.get(ab);
+    facts = facts_for(ab);
+    bound = facts.boundary.get(ab);
     if bound is None {
         return None;
     }
     site_key = entry_key(ab);
     root_key = entry_key(bound);
-    if root_key in self.prog.graphmend_wrapped {
-        self.prog.graphmend_covered_by[site_key] = root_key;
+    if root_key in facts.wrapped_keys {
+        facts.covered_by[site_key] = root_key;
         return root_key;
     }
     guard_mod = entry_module(site_key);
-    for wrapped in sorted(self.prog.graphmend_wrapped) {
+    for wrapped in sorted(facts.wrapped_keys) {
         if claim_chain_reaches(self.prog, entry_module(wrapped), guard_mod) {
-            self.prog.graphmend_covered_by[site_key] = wrapped;
+            facts.covered_by[site_key] = wrapped;
             return wrapped;
         }
     }

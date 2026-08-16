@@ -1,17 +1,4 @@
 import ast as ast3;
-import re;
-
-glob _STRIP_RE = re.compile(
-         "'''[\\s\\S]*?'''"
-             + '|"""[\\s\\S]*?"""'
-             + '|"(?:\\\\.|[^"\\\\\\n])*"'
-             + "|'(?:\\\\.|[^'\\\\\\n])*'"
-             + '|#\\*[\\s\\S]*?\\*#'
-             + '|#[^\\n]*'
-     ),
-     _FROM_RE = re.compile('\\bimport\\s+(?:type\\s+)?from\\s+([.\\w]+)'),
-     _PLAIN_RE = re.compile('\\bimport\\s+(?!from\\b)([^;{}]*);'),
-     _NAME_RE = re.compile('[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*');
 
 def module_imports_torch(src: str, file_path: str) -> bool {
     if 'torch' not in src {
@@ -20,7 +7,7 @@ def module_imports_torch(src: str, file_path: str) -> bool {
     if file_path.endswith('.py') {
         return _py_imports_torch(src);
     }
-    return _jac_imports_torch(src);
+    return _jac_binds_torch(src, file_path);
 }
 
 def file_imports_torch(file_path: str) -> bool {
@@ -64,25 +51,16 @@ def _py_imports_torch(src: str) -> bool {
     return False;
 }
 
-def _jac_imports_torch(src: str) -> bool {
-    cleaned = _STRIP_RE.sub(' ', src);
-    for m in _FROM_RE.finditer(cleaned) {
-        path = m.group(1);
-        if (not path.startswith('.')) and _is_torch_path(path) {
-            return True;
-        }
+def _jac_binds_torch(src: str, file_path: str) -> bool {
+    import from jaclang.jac0core.parser { parse as rd_parse }
+    import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.compiler.passes.main.graphmend.scope_facts {
+        module_binds_torch
     }
-    for pm in _PLAIN_RE.finditer(cleaned) {
-        for item in pm.group(1).split(',') {
-            entry = item.strip();
-            if (not entry) or entry.startswith('.') {
-                continue;
-            }
-            nm = _NAME_RE.match(entry);
-            if (nm is not None) and _is_torch_path(nm.group(0)) {
-                return True;
-            }
-        }
+    try {
+        (mod, _had_error) = rd_parse(src, file_path, prog=JacProgram());
+    } except Exception {
+        return False;
     }
-    return False;
+    return module_binds_torch(mod);
 }

@@ -1,19 +1,18 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind }
-import from jaclang.compiler.passes.main.graphmend.ast_edit { facts_for, split_params }
+import from jaclang.compiler.passes.main.graphmend.ast_edit { facts_for }
 import from jaclang.compiler.passes.main.graphmend.scope_facts {
     body_is_only,
+    collect_wrap_entries,
     compiled_region_ids,
-    entry_key,
-    find_ability,
-    find_class,
+    materialize_claim_chain,
+    module_has_wrap_site,
     register_claim
 }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     cond_is_data_dependent,
     defining_assignment,
-    is_side_effect_name,
-    is_torch_attr_target
+    is_side_effect_name
 }
 
 impl GraphBreakDetectPass.before_pass -> None {
@@ -23,18 +22,15 @@ impl GraphBreakDetectPass.before_pass -> None {
         return;
     }
     register_claim(self.prog, self.ir_in, self._mat_seen);
-    wrapped = self._collect_entry_points();
+    materialize_claim_chain(self.prog, self.ir_in.loc.mod_path, self._mat_seen);
+    self._saw_compile_call = module_has_wrap_site(self.ir_in);
+    wrapped = collect_wrap_entries(
+        self.prog, self.ir_in, self._mat_seen, facts_for(self.ir_in).wrapped_keys
+    );
     self._entry_ids = set();
     for e in wrapped {
         if isinstance(e, uni.Ability) {
             self._entry_ids.add(id(e));
-            self.prog.graphmend_wrapped.add(entry_key(e));
-        } elif isinstance(e, uni.Archetype) {
-            for meth in e.get_all_sub_nodes(uni.Ability) {
-                if meth.sym_name == 'forward' {
-                    self.prog.graphmend_wrapped.add(entry_key(meth));
-                }
-            }
         }
     }
     self._entry_ids |= compiled_region_ids(
@@ -83,106 +79,6 @@ impl GraphBreakDetectPass.enter_ability(nd: uni.Ability) -> None {
         return;
     }
     self.prune_signal = True;
-}
-
-impl GraphBreakDetectPass._collect_entry_points -> list[uni.UniNode] {
-    out: list[uni.UniNode] = [];
-    ids: set[int] = set();
-    for call in self.ir_in.get_all_sub_nodes(uni.FuncCall) {
-        if is_torch_attr_target(call.target, 'compile') {
-            self._saw_compile_call = True;
-            entry = self._resolve_wrapped_entry(call);
-            if (entry is not None) and (id(entry) not in ids) {
-                ids.add(id(entry));
-                out.append(entry);
-            }
-        }
-    }
-    return out;
-}
-
-impl GraphBreakDetectPass._resolve_wrapped_entry(
-    call: uni.FuncCall
-) -> (uni.UniNode | None) {
-    pos = split_params(call.params)[0];
-    if not pos {
-        return None;
-    }
-    arg = pos[0];
-    inner = arg.target if isinstance(arg, uni.FuncCall) else arg;
-    if not isinstance(inner, uni.Name) {
-        return None;
-    }
-    resolved = self._def_node(inner.value, call);
-    if resolved is not None {
-        return resolved;
-    }
-    imported = self._import_def_node(inner.value, call);
-    if imported is not None {
-        return imported;
-    }
-    assign = self._var_assignment(inner.value, call);
-    if (assign is not None) and (assign.value is not None) {
-        v = assign.value;
-        cls = v.target if isinstance(v, uni.FuncCall) else v;
-        if isinstance(cls, uni.Name) {
-            local = self._def_node(cls.value, call);
-            if local is not None {
-                return local;
-            }
-            return self._import_def_node(cls.value, call);
-        }
-    }
-    return None;
-}
-
-impl GraphBreakDetectPass._import_def_node(
-    name: str, ctx: uni.UniNode
-) -> (uni.UniNode | None) {
-    mod = ctx.find_parent_of_type(uni.Module);
-    if mod is None {
-        return None;
-    }
-    cls = find_class(mod, name, self.prog, self._mat_seen);
-    if cls is not None {
-        return cls;
-    }
-    return find_ability(mod, name, self.prog, self._mat_seen);
-}
-
-impl GraphBreakDetectPass._def_node(
-    name: str, ctx: uni.UniNode
-) -> (uni.UniNode | None) {
-    st = ctx.sym_tab;
-    if not st {
-        return None;
-    }
-    sym = st.lookup(name, deep=True);
-    if (not sym) or (not sym.defn) {
-        return None;
-    }
-    cur: (uni.UniNode | None) = sym.defn[0];
-    while cur {
-        if isinstance(cur, (uni.Ability, uni.Archetype)) {
-            return cur;
-        }
-        cur = cur.parent;
-    }
-    return None;
-}
-
-impl GraphBreakDetectPass._var_assignment(
-    name: str, ctx: uni.UniNode
-) -> (uni.Assignment | None) {
-    st = ctx.sym_tab;
-    if not st {
-        return None;
-    }
-    sym = st.lookup(name, deep=True);
-    if not sym {
-        return None;
-    }
-    return defining_assignment(sym);
 }
 
 impl GraphBreakDetectPass._in_torch_compiled_scope(nd: uni.UniNode) -> bool {

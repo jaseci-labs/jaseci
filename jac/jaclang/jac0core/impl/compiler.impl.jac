@@ -132,27 +132,34 @@ impl JacCompiler.get_bytecode(
     if options is None {
         options = CompileOptions(type_check=False);
     }
-    gm_setting: bool = options.graphmend is True;
-    if gm_setting and actual_program is not self._internal_program {
-        import from jaclang.compiler.passes.main.graphmend.auto_detect {
-            file_imports_torch
-        }
-        gm_setting = file_imports_torch(full_target);
+    gm_setting: bool = (options.graphmend is True)
+        and actual_program is not self._internal_program;
+    if gm_setting {
+        import from jaclang.jac0core.jir { read_source_shared }
+        src_probe = read_source_shared(full_target);
+        gm_setting = (src_probe is not None) and ('torch' in src_probe);
     }
-    gm_active = actual_program is not self._internal_program and gm_setting is True;
-    gm_variant = "";
-    if gm_active {
+    real_target = "";
+    gm_region = "";
+    if gm_setting {
         import from jaclang.compiler.passes.main.graphmend.scope_facts {
-            region_context_key
+            region_context_probe
         }
         real_target = os.path.realpath(full_target);
+        probe_key = region_context_probe(actual_program, real_target);
+        gm_setting = probe_key is not None;
+        gm_region = probe_key or "";
+    }
+    gm_active = gm_setting;
+    gm_variant = "";
+    if gm_active {
         gm_variant = ";".join(
             [
                 "graphmend",
                 "disable=" + ",".join(sorted(options.graphmend_disable or [])),
                 "claimed="
                     + str(int((real_target in target_program.graphmend_claimed))),
-                "region=" + region_context_key(actual_program, real_target)
+                "region=" + gm_region
             ]
         );
     }
@@ -1294,17 +1301,20 @@ impl JacCompiler._compile_once(
         set_effective_default_codespace(options.default_codespace);
     }
     keep_str = use_str or read_file_with_encoding(file_path);
-    if options.graphmend {
-        import from jaclang.compiler.passes.main.graphmend.auto_detect {
-            module_imports_torch
-        }
-        options.graphmend = module_imports_torch(keep_str, file_path);
+    if (options.graphmend is True) and ('torch' not in keep_str) {
+        options.graphmend = False;
     }
     had_parse_errors = len(actual_program.errors_had);
     mod_targ = self.parse_str(
         keep_str, file_path, actual_program, cancel_token=options.cancel_token
     );
     had_parse_errors = len(actual_program.errors_had) > had_parse_errors;
+    if options.graphmend is True {
+        import from jaclang.compiler.passes.main.graphmend.scope_facts {
+            module_binds_torch
+        }
+        options.graphmend = module_binds_torch(mod_targ);
+    }
 
     cur_mod_path = os.path.normpath(file_path);
     blocking_errs_pre_ir = self._count_module_blocking_errors(

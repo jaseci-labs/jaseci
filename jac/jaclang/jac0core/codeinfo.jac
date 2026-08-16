@@ -570,7 +570,9 @@ obj GraphMendFacts {
     has breaks: dict[(UniNode, GraphBreakKind)] = field(default_factory=`dict),
         boundary: dict[(Ability, Ability)] = field(default_factory=`dict),
         helpers: set[GraphMendHelper] = field(default_factory=`set),
-        noop: bool = False;
+        noop: bool = False,
+        wrapped_keys: set[str] = field(default_factory=`set),
+        covered_by: dict[(str, str)] = field(default_factory=`dict);
 }
 
 obj CodeGenTarget {
