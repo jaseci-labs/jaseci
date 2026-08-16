@@ -20,6 +20,9 @@ import from jaclang.runtimelib.invocation {
 }
 
 
+enum DispatchMode { SSE = "sse", JSON = "json", ERROR = "error" }
+
+
 obj CallState {
     has lock: any,
         done: bool = False,
@@ -133,10 +136,6 @@ def set_stream_emit(fn: any) {
 
 
 def runtime -> any {
-    # Accessor for the booted PreparedInvocationRuntime (dispatcher + introspector).
-    # The opt-in [desktop.http] sidecar shares this SAME dispatcher so uploads and
-    # webhooks funnel through the one InvocationDispatcher, exactly like the native
-    # webview path -- no second graph boot, no forked execution semantics.
     return _runtime;
 }
 
@@ -162,11 +161,7 @@ def shutdown {
             } except Exception { }
         }
     }
-    # Let each cancelled pump run its finally (close the generator -> commit-at-
-    # drain teardown -> deregister) while the runtime + graph DB are still open,
-    # so shutdown neither leaks a live stream nor races a commit against a closed
-    # user_manager. Best-effort join: the pumps are daemon threads honoring the
-    # cancel flag, so this returns promptly.
+
     for h in active_streams {
         th = h.thread;
         if th is not None and th.is_alive() {
@@ -233,19 +228,13 @@ def shutdown {
 
 
 def _transport_body(result: any) -> dict {
-    transport = result.to_transport();
-    body: dict = {"ok": transport.ok};
-    if transport.ok {
-        body["data"] = transport.data;
-    } elif transport.error {
-        err: dict = {"code": transport.error.code, "message": transport.error.message};
-        if transport.error.details is not None {
-            err["details"] = transport.error.details;
+    body = result.to_body();
+    if not result.ok {
+        rid = result.request_id or new_request_id();
+        err = body.get("error");
+        if isinstance(err, dict) {
+            err["request_id"] = rid;
         }
-        if transport.meta and transport.meta.request_id {
-            err["request_id"] = transport.meta.request_id;
-        }
-        body["error"] = err;
     }
     return body;
 }
@@ -425,7 +414,7 @@ def _open_native_stream(gen: object) -> str {
 def dispatch_outcome(payload_json: str) -> dict {
     if _BOOT_ERROR {
         return {
-            "mode": "error",
+            "mode": DispatchMode.ERROR,
             "status": 500,
             "body": _error_envelope(
                 "NATIVE_BOOT_ERROR", "in-process backend failed to start", _BOOT_ERROR
@@ -437,7 +426,7 @@ def dispatch_outcome(payload_json: str) -> dict {
     runtime = _runtime;
     if runtime is None {
         return {
-            "mode": "error",
+            "mode": DispatchMode.ERROR,
             "status": 500,
             "body": _error_envelope(
                 "NOT_BOOTED", "in-process dispatch called before boot()"
@@ -449,7 +438,7 @@ def dispatch_outcome(payload_json: str) -> dict {
         req = json.loads(payload_json);
     } except Exception as e {
         return {
-            "mode": "error",
+            "mode": DispatchMode.ERROR,
             "status": 400,
             "body": _error_envelope(
                 "NATIVE_DISPATCH_ERROR", "invalid invocation payload: " + str(e)
@@ -464,7 +453,7 @@ def dispatch_outcome(payload_json: str) -> dict {
         kind = InvocationKind.FUNCTION;
     } else {
         return {
-            "mode": "error",
+            "mode": DispatchMode.ERROR,
             "status": 400,
             "body": _error_envelope(
                 "NATIVE_DISPATCH_ERROR", "unsupported invocation kind: " + str(kind_raw)
@@ -484,7 +473,7 @@ def dispatch_outcome(payload_json: str) -> dict {
     );
     if result.is_stream {
         return {
-            "mode": "sse",
+            "mode": DispatchMode.SSE,
             "status": int(result.http_status or 200),
             "body": "",
             "stream": result.stream
@@ -492,7 +481,7 @@ def dispatch_outcome(payload_json: str) -> dict {
     }
     http_status = result.http_status;
     return {
-        "mode": "json",
+        "mode": DispatchMode.JSON,
         "status": http_status,
         "body": json.dumps(
             {"status": http_status, "ok": result.ok, "body": _transport_body(result)}
@@ -505,16 +494,8 @@ def dispatch_outcome(payload_json: str) -> dict {
 def _transport_json(result: any) -> tuple[int, str] {
     transport = result.to_transport();
     status = int(result.http_status or (200 if transport.ok else 500));
-    body: dict = {"type": transport.type, "ok": transport.ok};
-    if transport.ok {
-        body["data"] = transport.data;
-    } elif transport.error {
-        err: dict = {"code": transport.error.code, "message": transport.error.message};
-        if transport.error.details is not None {
-            err["details"] = transport.error.details;
-        }
-        body["error"] = err;
-    }
+    body: dict = {"type": transport.type};
+    body.update(result.to_body());
     if transport.meta {
         meta: dict = {};
         if transport.meta.request_id {
@@ -532,9 +513,6 @@ def _transport_json(result: any) -> tuple[int, str] {
 
 
 def _get_surface -> any {
-    # Lazily build (and cache) the transport-neutral route table from the booted
-    # runtime's introspector. Reset to None on every (re-)boot so HMR reloads pick
-    # up added/removed walkers + functions. Returns None only when not booted.
     if _http_surface is None {
         rt = _runtime;
         if rt is None {
@@ -547,8 +525,6 @@ def _get_surface -> any {
 
 
 def route_exists(method: str, path: str) -> bool {
-    # Front-door predicate (used by the CEF broker) to decide whether an incoming
-    # HTTP-shaped path is a walker/function route before delegating to forward().
     if _runtime is None {
         return False;
     }
@@ -569,10 +545,6 @@ def _bridge_error(status: int, message: str) -> dict {
 
 
 def _bridge_resolve(method: str, path: str, body: bytes, token: str) -> dict {
-    # Shared route resolution + invocation for both sv-bridge front doors
-    # (`forward` -> 3-tuple, `forward_outcome` -> broker outcome dict). Returns
-    # either {"error": {status, body}} for a pre-execution failure, or
-    # {"result": InvocationResult} for an executed call (which may be streaming).
     if _BOOT_ERROR {
         return {"error": _bridge_error(503, "backend boot failed")};
     }
@@ -585,9 +557,6 @@ def _bridge_resolve(method: str, path: str, body: bytes, token: str) -> dict {
         return {"error": _bridge_error(503, "backend not booted")};
     }
 
-    # Route + verb resolution is owned by http_surface: custom @restspec paths and
-    # verbs, path params, and the walker `/{nd}` node variant all resolve here
-    # instead of the old hard-coded `/walker/{name}` split.
     parsed = urlparse(path);
     matched = surface.match(method, parsed.path);
     if matched is None {
@@ -608,9 +577,6 @@ def _bridge_resolve(method: str, path: str, body: bytes, token: str) -> dict {
         }
     }
 
-    # http_surface combines path params + query params (GET binding, with light
-    # scalar coercion) + JSON body into the request; validation/422 stays in the
-    # dispatcher.
     query = parse_qs(parsed.query) if parsed.query else {};
     request = surface.bind(route, path_params, query, body_data, token);
     result = _invoke_on_worker_loop(runtime.dispatcher, request);
@@ -628,10 +594,6 @@ def forward(
     }
     result = resolved.get("result");
     if result.is_stream {
-        # A direct (non-broker) caller cannot carry a live generator back through
-        # the 3-tuple, so materialize the shared SSE frames into the body. The
-        # broker path (forward_outcome) instead streams the generator
-        # incrementally. Both use the same runtimelib/streaming frame helpers.
         body_text = "".join(iter_sse_frames(result.stream));
         return (int(result.http_status or 200), body_text, "text/event-stream");
     }
@@ -641,17 +603,11 @@ def forward(
 
 
 def forward_outcome(method: str, path: str, body: bytes, token: str = "") -> dict {
-    # Streaming-aware sv bridge for the CEF broker. A streaming result comes back
-    # tagged {mode: "sse", stream: <generator>} so the broker drains it
-    # incrementally as text/event-stream (a client disconnect closes the response,
-    # which cancels the generator via drain_sse -> the stream-lifecycle teardown).
-    # Non-streaming results + pre-execution errors come back as {mode: "json"} the
-    # broker renders verbatim (preserving the sv status code).
     resolved = _bridge_resolve(method, path, body, token);
     err = resolved.get("error");
     if err is not None {
         return {
-            "mode": "json",
+            "mode": DispatchMode.JSON,
             "status": int(err["status"]),
             "body": str(err["body"]),
             "content_type": "application/json"
@@ -660,14 +616,14 @@ def forward_outcome(method: str, path: str, body: bytes, token: str = "") -> dic
     result = resolved.get("result");
     if result.is_stream {
         return {
-            "mode": "sse",
+            "mode": DispatchMode.SSE,
             "status": int(result.http_status or 200),
             "stream": result.stream
         };
     }
     (status, text) = _transport_json(result);
     return {
-        "mode": "json",
+        "mode": DispatchMode.JSON,
         "status": status,
         "body": text,
         "content_type": "application/json"
@@ -677,7 +633,7 @@ def forward_outcome(method: str, path: str, body: bytes, token: str = "") -> dic
 
 def dispatch(payload_json: str) -> str {
     outcome = dispatch_outcome(payload_json);
-    if outcome.get("mode") == "sse" {
+    if outcome.get("mode") == DispatchMode.SSE {
         stream = outcome.get("stream");
         if stream is None {
             return _error_envelope(

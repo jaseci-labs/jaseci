@@ -586,7 +586,8 @@ test "async streaming drains context-bound through the native pump (Phase 3)" {
 test "dispatch_outcome exposes SSE mode for streaming functions" {
     import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch {
         boot,
-        dispatch_outcome
+        dispatch_outcome,
+        DispatchMode
     }
 
     if not _BOOTED {
@@ -605,7 +606,7 @@ test "dispatch_outcome exposes SSE mode for streaming functions" {
             }
         )
     );
-    assert outcome["mode"] == "sse";
+    assert outcome["mode"] == DispatchMode.SSE;
     assert outcome["stream"] is not None;
     frames = list(outcome["stream"]);
     assert frames == [{"n": 0}, {"n": 1}, {"n": 2}];

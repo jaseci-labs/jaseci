@@ -6,6 +6,7 @@ import importlib;
 import socketserver;
 import threading;
 import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch {
+    DispatchMode,
     boot as inprocess_boot,
     runtime as inprocess_runtime,
     dispatch_sync as inprocess_dispatch_sync,
@@ -39,9 +40,6 @@ obj HostContext {
         http: any = None;
 
     def http_bootstrap_js -> str {
-        # JS the host injects (via wv.on_load) so the renderer discovers the opt-in
-        # sidecar as window.__JAC_HTTP__ = {base, token, capabilities}. Empty when
-        # no sidecar is running, matching how __JAC_NATIVE__/__JAC_BROKER__ are set.
         if self.http is None {
             return "";
         }
@@ -50,8 +48,6 @@ obj HostContext {
     }
 
     def close_http {
-        # Stop the opt-in FastAPI sidecar on host close (best-effort; swallows all
-        # errors so it can never block the rest of the shutdown sequence).
         h = self.http;
         if h is None {
             return;
@@ -80,7 +76,7 @@ obj HostContext {
         ctl = stream_control(req_json);
         if ctl is not None {
             return {
-                "mode": "json",
+                "mode": DispatchMode.JSON,
                 "status": 200,
                 "body": json.dumps(ctl),
                 "stream": None
@@ -91,7 +87,7 @@ obj HostContext {
             return inprocess_dispatch_outcome(payload);
         }
         return {
-            "mode": "json",
+            "mode": DispatchMode.JSON,
             "status": 200,
             "body": self.host.dispatch(req_json) as str,
             "stream": None
@@ -329,8 +325,6 @@ def _start_loopback(
 
 
 def _start_http_sidecar(ctx: HostContext, http_cfg: dict) {
-    # Opt-in [desktop.http] sidecar. Lazy-imports http_sidecar (which itself lazy-
-    # imports FastAPI/uvicorn), so a disabled app never loads the scale HTTP stack.
     if not http_cfg.get("enabled") {
         return;
     }
@@ -350,7 +344,9 @@ def _start_http_sidecar(ctx: HostContext, http_cfg: dict) {
     try {
         ctx.http = sidecar_start(rt.dispatcher, rt.introspector, caps, port);
         sys.stdout.write(
-            "JAC_DESKTOP_HTTP_SIDECAR " + str(ctx.http.base) + " caps="
+            "JAC_DESKTOP_HTTP_SIDECAR "
+                + str(ctx.http.base)
+                + " caps="
                 + ",".join(ctx.http.capabilities)
                 + "\n"
         );

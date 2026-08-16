@@ -138,7 +138,7 @@ impl JacDesktopConfig.validate(self: JacDesktopConfig) -> None {
     }
 }
 
-def _validate_http_config(http: dict[str, any]) -> None {
+def _validate_http_config(http: dict[str, any]) {
     import from jaclang.runtimelib.client.desktop_config { HTTP_CAPABILITIES }
     raw_caps = http.get('capabilities', []);
     if raw_caps is not None and not isinstance(raw_caps, list) {

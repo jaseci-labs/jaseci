@@ -20,6 +20,9 @@ import from jaclang.runtimelib.client.targets.desktop.native.oauth_broker {
     build_sso_login_url,
     make_handler
 }
+import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch {
+    DispatchMode
+}
 
 """Start a broker server in a temp dir. Returns (srv, port, store, opened, web_dir)."""
 def _start_server -> tuple {
@@ -520,7 +523,7 @@ test "broker streams SSE when the sv bridge tags a streaming outcome" {
             yield {"n": 1};
             yield {"n": 2};
         }
-        return {"mode": "sse", "status": 200, "stream": gen()};
+        return {"mode": DispatchMode.SSE, "status": 200, "stream": gen()};
     }
     handler = make_handler(web_dir, store, sv_bridge=fake_sv);
     srv = socketserver.TCPServer(("127.0.0.1", 0), handler);
@@ -558,7 +561,7 @@ test "broker renders a json-mode sv outcome verbatim" {
     store = SessionStore(os.path.join(root_dir, "data", "session.json"));
     def fake_sv(method: str, path: str, body: bytes, token: str) -> dict {
         return {
-            "mode": "json",
+            "mode": DispatchMode.JSON,
             "status": 418,
             "body": json.dumps({"ok": True, "data": {"echo": path}}),
             "content_type": "application/json"
@@ -590,7 +593,7 @@ test "broker invoke streams SSE when dispatch returns sse mode" {
             yield {"n": 0};
             yield {"n": 1};
         }
-        return {"mode": "sse", "status": 200, "body": "", "stream": gen()};
+        return {"mode": DispatchMode.SSE, "status": 200, "body": "", "stream": gen()};
     }
     handler = make_handler(web_dir, store, dispatch=fake_dispatch);
     srv = socketserver.TCPServer(("127.0.0.1", 0), handler);

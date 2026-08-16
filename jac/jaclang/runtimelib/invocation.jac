@@ -1,5 +1,4 @@
 import uuid;
-import from typing { Any }
 import from jaclang.runtimelib.transport { ErrorInfo }
 import type from jaclang.runtimelib.transport { TransportResponse }
 import type from jaclang.runtimelib.server {
@@ -15,7 +14,7 @@ enum InvocationKind { WALKER = "walker", FUNCTION = "function" }
 obj InvocationRequest {
     has kind: InvocationKind,
         name: str,
-        fields: dict[(str, Any)] = {},
+        fields: dict[str, any] = {},
         node_id: (str | None) = None,
         token: str = "",
         resolved_user: (str | None) = None,
@@ -34,6 +33,12 @@ obj InvocationResult {
 
     static def from_transport(response: TransportResponse) -> InvocationResult;
     def to_transport -> TransportResponse;
+    def to_body -> dict;
+}
+
+obj ValidationOutcome {
+    has error: (str | None) = None,
+        fields: dict = {};
 }
 
 
@@ -70,4 +75,86 @@ def _invoke_sync(
 
 def new_request_id -> str {
     return uuid.uuid4().hex[:12];
+}
+
+
+def coerce_scalar(type_name: str, value: any) -> tuple[bool, any] {
+    core = type_name.strip().replace("typing.", "");
+    while core.startswith("(") and core.endswith(")") {
+        core = core[1:-1];
+    }
+    core = core.replace(" ", "");
+    if core.startswith("Optional[") and core.endswith("]") {
+        core = core[9:-1];
+    }
+    if core.startswith("Union[") and core.endswith("]") {
+        parts = [
+            p
+            for p in core[6:-1].split(",")
+            if p not in ("", "None", "NoneType")
+        ];
+        if len(parts) == 1 {
+            core = parts[0];
+        }
+    }
+    if "|" in core {
+        parts = [
+            p
+            for p in core.split("|")
+            if p not in ("", "None", "NoneType")
+        ];
+        if len(parts) == 1 {
+            core = parts[0];
+        }
+    }
+
+    if value is None {
+        return (True, value);
+    }
+    if core == "int" {
+        if isinstance(value, bool) {
+            return (True, value);
+        }
+        if isinstance(value, int) {
+            return (True, value);
+        }
+        try {
+            return (True, int(value));
+        } except Exception {
+            return (False, value);
+        }
+    }
+    if core == "float" {
+        if isinstance(value, bool) {
+            return (True, value);
+        }
+        if isinstance(value, (int, float)) {
+            return (True, float(value));
+        }
+        try {
+            return (True, float(value));
+        } except Exception {
+            return (False, value);
+        }
+    }
+    if core == "bool" {
+        if isinstance(value, bool) {
+            return (True, value);
+        }
+        if isinstance(value, str) {
+            low = value.strip().lower();
+            if low in ("true", "1", "yes", "on") {
+                return (True, True);
+            }
+            if low in ("false", "0", "no", "off") {
+                return (True, False);
+            }
+            return (False, value);
+        }
+        if isinstance(value, int) {
+            return (True, bool(value));
+        }
+        return (False, value);
+    }
+    return (True, value);
 }

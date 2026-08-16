@@ -1,10 +1,9 @@
+import type from jaclang.runtimelib.http_surface { RouteSpec }
+
 impl JacAPIServerEndpoints.register_walkers_endpoints -> None {
     import from jaclang.runtimelib.http_surface { build_surface }
     import from jaclang.runtimelib.invocation { InvocationKind }
-    # Derive verb + path from the transport-neutral route table so the FastAPI
-    # adapter never re-implements @restspec path/verb resolution -- it now shares
-    # http_surface with the desktop sv bridge. The base (root) route carries the
-    # walker's method + path; the `/{nd}` node variant is that same path + "/{nd}".
+
     surface = build_surface(self.introspector);
     base_routes: dict = {};
     for r in surface.routes {
@@ -66,15 +65,13 @@ impl JacAPIServerEndpoints.register_walkers_endpoints -> None {
 }
 
 impl JacAPIServerEndpoints.create_walker_parameters(
-    walker_name: str, invoke_on_root: bool, route: any
+    walker_name: str, invoke_on_root: bool, route: RouteSpec
 ) -> list[APIParameter] {
     import from typing { get_type_hints }
     parameters: list[APIParameter] = [];
 
     walker_cls = self.get_walkers()[walker_name];
-    # Path/query/body classification comes from the shared RouteSpec so it cannot
-    # drift from the desktop bridge. FILE (UploadFile) + pydantic type_obj stay
-    # here as HTTP-only concerns.
+
     path_param_names = route.path_params;
     query_field_names = route.query_fields;
     walker_fields = self.introspector.introspect_walker(self.get_walkers()[walker_name])[
@@ -167,8 +164,7 @@ impl JacAPIServerEndpoints.create_walker_callback(
 impl JacAPIServerEndpoints.register_functions_endpoints -> None {
     import from jaclang.runtimelib.http_surface { build_surface }
     import from jaclang.runtimelib.invocation { InvocationKind }
-    # Function verb + path (incl. @restspec overrides) come from the shared route
-    # table, same source the desktop sv bridge uses.
+
     surface = build_surface(self.introspector);
     fn_routes: dict = {};
     for r in surface.routes {
@@ -200,9 +196,7 @@ impl JacAPIServerEndpoints.register_functions_endpoints -> None {
                 method=spec_method,
                 path=final_path,
                 callback=self.create_function_callback(func_name),
-                parameters=self.create_function_parameters(
-                    func_name, route=route
-                ),
+                parameters=self.create_function_parameters(func_name, route=route),
                 response_model=None,
                 media_type=raw_media,
                 tags=['Functions'],
@@ -218,7 +212,7 @@ impl JacAPIServerEndpoints.register_functions_endpoints -> None {
 }
 
 impl JacAPIServerEndpoints.create_function_parameters(
-    func_name: str, route: any
+    func_name: str, route: RouteSpec
 ) -> list[APIParameter] {
     import from typing { get_type_hints }
     parameters: list[APIParameter] = [];

@@ -246,6 +246,51 @@ test "openapi capability exposes /openapi.json" {
 }
 
 
+test "websocket route invokes a walker per message through the sidecar" {
+    # End-to-end coverage for _ws_walker (http_sidecar): connect with the gate
+    # token, send a JSON invocation, and assert the walker's report comes back in
+    # the shared {ok, data} envelope. Self-skips when FastAPI / uvicorn /
+    # websockets are unavailable (the lean local env); it runs in CI where the
+    # sidecar deps are installed.
+    try {
+        import fastapi;
+        import uvicorn;
+        import websockets;
+    } except Exception as e {
+        import pytest;
+        pytest.skip("fastapi/uvicorn/websockets unavailable: " + str(e));
+    }
+    import asyncio;
+    import from jaclang.runtimelib.invocation { prepare_invocation_runtime }
+    import from jaclang.runtimelib.client.targets.desktop.native.http_sidecar {
+        start as sidecar_start
+    }
+
+    graph = tempfile.mkdtemp(prefix="jac_sidecar_ws_test_");
+    rt = prepare_invocation_runtime(_FIXTURE, os.path.join(graph, "graph"));
+    handle = sidecar_start(rt.dispatcher, rt.introspector, ["websockets"], 0);
+    try {
+        uri = "ws://127.0.0.1:" + str(handle.port) + "/ws/walker/greet";
+
+        async def _round_trip -> dict {
+            async with websockets.connect(
+                uri, additional_headers={"x-jac-sidecar-token": handle.token}
+            ) as conn {
+                await conn.send(json.dumps({"name": "Ada"}));
+                raw = await conn.recv();
+            }
+            return json.loads(raw);
+        }
+        body = asyncio.run(_round_trip());
+        assert body["ok"] == True , body;
+        assert body["data"]["reports"][0]["greeting"] == "hello Ada" , body;
+    } finally {
+        handle.stop();
+        rt.close();
+    }
+}
+
+
 test "sidecar stops cleanly on close" {
     if not _ensure() {
         import pytest;

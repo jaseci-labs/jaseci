@@ -31,6 +31,7 @@ import from jaclang.runtimelib.server { JacAPIServer as JServer }
 import from jaclang.runtimelib.server { UserManager as CoreUserManager }
 import from jaclang.runtimelib.server { JsonValue }
 import from jaclang.runtimelib.transport { TransportResponse, Meta }
+import type from jaclang.runtimelib.http_surface { RouteSpec }
 import from jaclang.scale.config.config_loader { get_scale_config }
 import from jaclang.scale.webhook.webhook { ApiKeyManager, WebhookUtils }
 import from jaclang.scale.observability.metrics { MetricsCollector }
@@ -187,7 +188,7 @@ obj JacAPIServerEndpoints {
     ) -> Callable[..., (TransportResponse | StreamingResponse)];
 
     def create_walker_parameters(
-        walker_name: str, invoke_on_root: bool, route: any
+        walker_name: str, invoke_on_root: bool, route: RouteSpec
     ) -> list[APIParameter];
 
     def register_functions_endpoints -> None;
@@ -196,7 +197,7 @@ obj JacAPIServerEndpoints {
     ) -> Callable[..., (TransportResponse | StreamingResponse)];
 
     def create_function_parameters(
-        func_name: str, route: any
+        func_name: str, route: RouteSpec
     ) -> list[APIParameter];
 
     def get_walker_protocol(walker_name: str) -> str;

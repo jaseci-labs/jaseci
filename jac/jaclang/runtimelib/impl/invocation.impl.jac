@@ -78,6 +78,24 @@ impl InvocationResult.to_transport -> TransportResponse {
 }
 
 
+impl InvocationResult.to_body -> dict {
+    body: dict = {"ok": self.ok};
+    if self.ok {
+        body["data"] = self.data;
+        return body;
+    }
+    err = self.error;
+    code = err.code if err is not None else "EXECUTION_ERROR";
+    message = err.message if err is not None else "Invocation failed";
+    envelope: dict = {"code": code, "message": message};
+    if err is not None and err.details is not None {
+        envelope["details"] = err.details;
+    }
+    body["error"] = envelope;
+    return body;
+}
+
+
 def _normalize_execution_result(result: any, request_id: str) -> TransportResponse {
     if isgenerator(result) or isinstance(result, AsyncGenerator) {
         return TransportResponse.success(
@@ -109,102 +127,15 @@ def _normalize_execution_result(result: any, request_id: str) -> TransportRespon
 }
 
 
-def _normalize_scalar_type(type_name: str) -> str {
-    core = type_name.strip().replace("typing.", "");
-    while core.startswith("(") and core.endswith(")") {
-        core = core[1:-1];
-    }
-    core = core.replace(" ", "");
-    if core.startswith("Optional[") and core.endswith("]") {
-        core = core[9:-1];
-    }
-    if core.startswith("Union[") and core.endswith("]") {
-        parts = [
-            p
-            for p in core[6:-1].split(",")
-            if p not in ("", "None", "NoneType")
-        ];
-        if len(parts) == 1 {
-            core = parts[0];
-        }
-    }
-    if "|" in core {
-        parts = [
-            p
-            for p in core.split("|")
-            if p not in ("", "None", "NoneType")
-        ];
-        if len(parts) == 1 {
-            core = parts[0];
-        }
-    }
-    return core;
-}
-
-
-def _coerce_scalar(type_name: str, value: any) -> tuple[(bool, any)] {
-    core = _normalize_scalar_type(type_name);
-    if value is None {
-        return (True, value);
-    }
-    if core == "int" {
-        if isinstance(value, bool) {
-            return (True, value);
-        }
-        if isinstance(value, int) {
-            return (True, value);
-        }
-        try {
-            return (True, int(value));
-        } except Exception {
-            return (False, value);
-        }
-    }
-    if core == "float" {
-        if isinstance(value, bool) {
-            return (True, value);
-        }
-        if isinstance(value, (int, float)) {
-            return (True, float(value));
-        }
-        try {
-            return (True, float(value));
-        } except Exception {
-            return (False, value);
-        }
-    }
-    if core == "bool" {
-        if isinstance(value, bool) {
-            return (True, value);
-        }
-        if isinstance(value, str) {
-            low = value.strip().lower();
-            if low in ("true", "1", "yes", "on") {
-                return (True, True);
-            }
-            if low in ("false", "0", "no", "off") {
-                return (True, False);
-            }
-            return (False, value);
-        }
-        if isinstance(value, int) {
-            return (True, bool(value));
-        }
-        return (False, value);
-    }
-    return (True, value);
-}
-
-
 def _validate_fields(
     field_meta: dict, fields: dict, drop_unknown: bool
-) -> tuple[((str | None), dict)] {
+) -> ValidationOutcome {
     for (fname, meta) in field_meta.items() {
         if fname == "_jac_spawn_node" {
             continue;
         }
         if isinstance(meta, dict) and meta.get("required") and fname not in fields {
-            return (f"Missing required field '{fname}'", None);
+            return ValidationOutcome(error=f"Missing required field '{fname}'");
         }
     }
     coerced: dict = {};
@@ -222,13 +153,15 @@ def _validate_fields(
         }
         meta = field_meta[fname];
         type_name = meta.get("type", "Any") if isinstance(meta, dict) else "Any";
-        (ok, cv) = _coerce_scalar(type_name, value);
+        (ok, cv) = coerce_scalar(type_name, value);
         if not ok {
-            return (f"Field '{fname}' expected type {type_name}", None);
+            return ValidationOutcome(
+                error=f"Field '{fname}' expected type {type_name}"
+            );
         }
         coerced[fname] = cv;
     }
-    return (None, coerced);
+    return ValidationOutcome(fields=coerced);
 }
 
 
@@ -331,12 +264,11 @@ impl InvocationDispatcher.invoke(request: InvocationRequest) -> InvocationResult
         _ensure_guest_user(self.user_manager);
     }
 
-    (verr, coerced_fields) = _validate_fields(
-        field_meta, dict(request.fields), drop_unknown
-    );
-    if verr is not None {
-        return _validation_error(verr, request_id);
+    validation = _validate_fields(field_meta, dict(request.fields), drop_unknown);
+    if validation.error is not None {
+        return _validation_error(validation.error, request_id);
     }
+    coerced_fields = validation.fields;
 
     if request.kind == InvocationKind.WALKER {
         if request.node_id {

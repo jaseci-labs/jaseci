@@ -10,6 +10,9 @@ import webbrowser;
 import from collections.abc { Callable }
 import from urllib.parse { parse_qs, quote, urlparse }
 import from jaclang.runtimelib.streaming { drain_sse }
+import from jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch {
+    DispatchMode
+}
 
 glob _LOOPBACK_HOSTS: frozenset = frozenset({"127.0.0.1", "localhost", "::1"});
 
@@ -211,23 +214,28 @@ def make_handler(
             drain_sse(gen, _write_frame);
         }
 
+        def _stream_outcome(self: _BrokerHandler, result: object) -> bool {
+            if not isinstance(result, dict) {
+                return False;
+            }
+            mode = result.get("mode");
+            if getattr(mode, "value", mode) != DispatchMode.SSE.value {
+                return False;
+            }
+            stream = result.get("stream");
+            if stream is None {
+                self.send_error(500);
+                return True;
+            }
+            self._write_sse(stream, int(result.get("status") or 200));
+            return True;
+        }
+
         def _render_sv(self: _BrokerHandler, result: object) {
-            # Render an sv-bridge result. The streaming-aware bridge
-            # (`forward_outcome`) hands back a dict outcome: mode "sse" drains the
-            # carried generator as text/event-stream (client disconnect cancels
-            # it via drain_sse), mode "json" is echoed verbatim. A legacy tuple
-            # bridge (status, body, content_type) is still echoed verbatim.
+            if self._stream_outcome(result) {
+                return;
+            }
             if isinstance(result, dict) {
-                mode = str(result.get("mode") or "json");
-                if mode == "sse" {
-                    stream = result.get("stream");
-                    if stream is None {
-                        self.send_error(500);
-                        return;
-                    }
-                    self._write_sse(stream, int(result.get("status") or 200));
-                    return;
-                }
                 self._raw_response(
                     str(result.get("body") or ""),
                     int(result.get("status") or 200),
@@ -245,17 +253,10 @@ def make_handler(
                 return;
             }
             result = dispatch(body);
+            if self._stream_outcome(result) {
+                return;
+            }
             if isinstance(result, dict) {
-                mode = str(result.get("mode") or "json");
-                if mode == "sse" {
-                    stream = result.get("stream");
-                    if stream is None {
-                        self.send_error(500);
-                        return;
-                    }
-                    self._write_sse(stream, int(result.get("status") or 200));
-                    return;
-                }
                 raw = str(result.get("body") or "");
                 self._raw_json(raw, int(result.get("status") or 200));
                 return;
@@ -383,9 +384,7 @@ def make_handler(
                 self._sse_events();
                 return;
             }
-            # GET walker/function routes (custom @restspec paths + query binding)
-            # ride the sv bridge; http_surface's route table decides membership so
-            # ordinary static GETs still fall through to SimpleHTTPRequestHandler.
+
             if sv_bridge is not None
                 and sv_router is not None
                 and sv_router("GET", self.path) {
@@ -497,8 +496,7 @@ def make_handler(
                 raw = self.rfile.read(n) if n > 0 else b"";
                 auth = self.headers.get("Authorization", "") or "";
                 token = auth[7:] if auth.startswith("Bearer ") else "";
-                # Pass the full path (with query) so http_surface can bind query
-                # params for custom @restspec verbs.
+
                 self._render_sv(sv_bridge("POST", self.path, raw, token));
                 return;
             }

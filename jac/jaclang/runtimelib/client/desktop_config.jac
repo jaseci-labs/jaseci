@@ -1,5 +1,6 @@
 import from pathlib { Path }
 import from jaclang.project.plugin_config { PluginConfigBase }
+import from jaclang.runtimelib.http_surface { HTTP_CAPABILITIES }
 
 obj DesktopIdentity {
     has name: str,
@@ -43,11 +44,6 @@ obj DispatchConfig {
         );
     }
 }
-
-# Capabilities the opt-in [desktop.http] FastAPI sidecar can expose. Kept in sync
-# with the sidecar registration in
-# runtimelib/client/targets/desktop/native/http_sidecar.jac.
-glob HTTP_CAPABILITIES: tuple = ("multipart", "webhooks", "websockets", "openapi");
 
 obj HttpConfig {
     has enabled: bool = False,
