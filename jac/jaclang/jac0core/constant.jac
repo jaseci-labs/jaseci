@@ -138,6 +138,11 @@ enum GraphMendHelper {
     LOG_FLUSH_HOOK = '__jac_log_flush_hook__'
 }
 
+glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
+         {"TypeVar", "ParamSpec", "TypeVarTuple"}
+     ),
+     NATIVE_COMPTIME_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"});
+
 glob BROWSER_SEED_GLOBALS: frozenset[str] = frozenset(
          {
              "window",

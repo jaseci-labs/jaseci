@@ -8,6 +8,12 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
     is exactly the cross-module-trust "layout only" case. Bases that are
     native (same unit or linked import) recurse so a native class over a
     Python-based native class classifies the same way.
+
+    A subscripted generic base (`Transform[Module, Module]`) is unwrapped
+    to its target before resolution: the subscript is type-position
+    information the bridge does not need, and leaving it wrapped made the
+    base invisible, so stores to inherited fields demoted instead of
+    bridging.
     """;
     import os;
     if arch_name in self._pyb_base_memo {
@@ -24,6 +30,10 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
     }
     _own_path = os.path.realpath(self.ir_in.loc.mod_path) if self.ir_in?.loc else "";
     for base_expr in (arch.base_classes or []) {
+        if isinstance(base_expr, uni.AtomTrailer)
+            and isinstance(base_expr.right, uni.IndexSlice) {
+            base_expr = base_expr.target;
+        }
         bname = self._get_name(base_expr);
         if bname is None {
             continue;

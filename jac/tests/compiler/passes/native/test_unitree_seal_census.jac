@@ -18,10 +18,18 @@ suite never degrades into a "fewer than N seams" threshold: an un-waived seam
 fails, and a waiver that stops matching a real seam fails too. Two kinds are
 waived, and only two: a backend gap, named by the construct it cannot lower,
 and a method that calls Python-only infrastructure (import resolution, the
-type system, CPython `ast` handles, `eval`) which no native unit can host.
-Neither kind is reachable from a parse, and that is proved rather than
-asserted: `test_sealed_seam_reachability.jac` builds an over-approximated call
-closure from the sealed entry points and fails if any name below is in it.
+type system, CPython `ast` handles) which no native unit can host. Neither
+kind is reachable from a parse, and that is proved rather than asserted:
+`test_sealed_seam_reachability.jac` builds an over-approximated call closure
+from the sealed entry points and fails if any name below is in it.
+
+`eval` used to be the third kind, and it is gone: `String.lit_value` and
+`MultiString.lit_value` decoded literals through CPython, which stranded
+every sealed caller of a literal value -- `sem_def_match_pass.connect_sems`
+among them -- on an abort stub. `unitree.decode_string_literal` replaced it
+with one implementation both lanes run, proved CPython-exact against `eval`
+in `tests/compiler/test_literal_decoding.jac`, so the pair lowers and the
+two waivers are gone rather than reworded.
 """
 
 import os;
@@ -103,14 +111,6 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
          "unitree.jac::DeleteStmt.py_ast_targets.__get__": (
              "Python-only: reads `gen.py_ast`, a list of CPython `ast` "
              "objects. Reached only from `PyastGenPass`."
-         ),
-         "unitree.jac::String.lit_value.__get__": (
-             "Python-only: decodes literals with `eval` and an "
-             "`isinstance(str_field, bytes)` narrowing. Literal values are "
-             "read by the passes, not by the parser that builds the token."
-         ),
-         "unitree.jac::MultiString.lit_value.__get__": (
-             "Python-only: joins `String.lit_value`, waived above."
          ),
          "unitree.jac::BuiltinType.lit_value.__get__": (
              "Python-only: indexes `Literal.type_map`, a static dict of "
