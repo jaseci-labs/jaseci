@@ -1163,7 +1163,8 @@ impl NaIRGenPass._imported_function_demotions(
                 }
             } except Exception { }
         }
-        if real_path in self.prog._na_dep_inflight
+        if not bool(_opts_src.aot_mode)
+            or real_path in self.prog._na_dep_inflight
             or not _fd_os.path.isfile(real_path) {
             return None;
         }
