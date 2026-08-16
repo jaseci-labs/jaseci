@@ -11,6 +11,11 @@ import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
 import from jaclang.jac0core.unitree { UniNode }
 import type from jaclang.jac0core.program { JacProgram }
 
+glob _NATIVE_PASS_TIER_MEMO: dict[type, str] = {},
+     _NATIVE_SERVED_PASSES: set[str] = set();
+
+def _require_native_pass_tier(pass_type: type) -> None;
+
 obj Alert {
     has msg: str,
         loc: CodeLocInfo,
