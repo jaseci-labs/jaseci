@@ -1808,6 +1808,8 @@ obj PythonModuleAst(EmptyToken) {
 
 glob _HEX_DIGITS: str = '0123456789abcdefABCDEF',
      _OCT_DIGITS: str = '01234567',
+     _LIT_PREFIX_CHARS: str = 'bBrR',
+     _MAX_CODE_POINT: int = 1114111,
      _SIMPLE_ESCAPES: dict[str, str] = {
          '\\': '\\',
          "'": "'",
@@ -1820,6 +1822,58 @@ glob _HEX_DIGITS: str = '0123456789abcdefABCDEF',
          't': '\t',
          'v': '\x0b'
      };
+
+def _lit_prefix_len(text: str) -> int {
+    n = len(text);
+    i = 0;
+    while (i < n and i < 2) {
+        ch = text[i];
+        if (ch == '"' or ch == "'") {
+            return i;
+        }
+        if (ch not in _LIT_PREFIX_CHARS) {
+            return -1;
+        }
+        i += 1;
+    }
+    if (i < n and (text[i] == '"' or text[i] == "'")) {
+        return i;
+    }
+    return -1;
+}
+
+def _lit_quote_len(text: str, start: int) -> int {
+    if ((len(text) - start) >= 6) {
+        opener = text[start:start + 3];
+        if (opener == '"""' or opener == "'''") {
+            return 3;
+        }
+    }
+    return 1;
+}
+
+def _hex_escape_value(text: str, at: int, width: int, kind: str) -> int {
+    digits = text[at + 2:at + 2 + width];
+    bad = len(digits) != width;
+    if not bad {
+        for c in digits {
+            if (c not in _HEX_DIGITS) {
+                bad = True;
+                break;
+            }
+        }
+    }
+    if bad {
+        raise ValueError(
+            f"truncated \\{kind} escape: expected {width} hex digits, got '{digits}'"
+        );
+    }
+    code = int(digits, 16);
+    if (code > _MAX_CODE_POINT) {
+        raise ValueError(f"illegal Unicode character in \\{kind}{digits} escape");
+    }
+    return code;
+}
 
 def _decode_str_escapes(text: str) -> str {
     if ('\\' not in text) {
@@ -1859,32 +1913,94 @@ def _decode_str_escapes(text: str) -> str {
             i = j;
             continue;
         }
-        if (nxt in 'xuU') {
+        if (nxt == 'x' or nxt == 'u' or nxt == 'U') {
             width = 2 if (nxt == 'x') else (4 if (nxt == 'u') else 8);
-            digits = text[i + 2:i + 2 + width];
-            ok = len(digits) == width;
-            if ok {
-                for c in digits {
-                    if (c not in _HEX_DIGITS) {
-                        ok = False;
-                        break;
-                    }
-                }
-            }
-            code = int(digits, 16) if ok else 0;
-            if (ok and code <= 1114111) {
-                out.append(chr(code));
-                i += 2 + width;
-            } else {
-                out.append('\\');
-                out.append(nxt);
-                i += 2;
-            }
+            out.append(chr(_hex_escape_value(text, i, width, nxt)));
+            i += 2 + width;
             continue;
+        }
+        if (nxt == 'N') {
+            raise ValueError(
+                "the \\N{name} escape is not supported: the Unicode name "
+                "database is not available to the compiler, so write the "
+                "code point as \\uXXXX or \\UXXXXXXXX instead"
+            );
         }
         out.append('\\');
         out.append(nxt);
         i += 2;
     }
     return ''.join(out);
+}
+
+def _decode_bytes_escapes(text: str, is_raw: bool) -> bytes {
+    out: list[int] = [];
+    i = 0;
+    n = len(text);
+    while (i < n) {
+        ch = text[i];
+        code = ord(ch);
+        if (code > 127) {
+            raise ValueError('bytes can only contain ASCII literal characters');
+        }
+        if (is_raw or ch != '\\' or (i + 1) >= n) {
+            out.append(code);
+            i += 1;
+            continue;
+        }
+        nxt = text[i + 1];
+        if (nxt in _SIMPLE_ESCAPES) {
+            out.append(ord(_SIMPLE_ESCAPES[nxt]));
+            i += 2;
+            continue;
+        }
+        if (nxt == '\n') {
+            i += 2;
+            continue;
+        }
+        if (nxt == '\r') {
+            i += 3 if ((i + 2) < n and text[i + 2] == '\n') else 2;
+            continue;
+        }
+        if (nxt in _OCT_DIGITS) {
+            j = i + 1;
+            end = min(n, i + 4);
+            while (j < end and text[j] in _OCT_DIGITS) {
+                j += 1;
+            }
+            out.append(int(text[i + 1:j], 8) % 256);
+            i = j;
+            continue;
+        }
+        if (nxt == 'x') {
+            out.append(_hex_escape_value(text, i, 2, 'x'));
+            i += 4;
+            continue;
+        }
+        if (ord(nxt) > 127) {
+            raise ValueError('bytes can only contain ASCII literal characters');
+        }
+        out.append(92);
+        out.append(ord(nxt));
+        i += 2;
+    }
+    return bytes(out);
+}
+
+def decode_string_literal(text: str) -> str | bytes {
+    start = _lit_prefix_len(text);
+    if (start < 0) {
+        return text;
+    }
+    prefix = text[:start].lower();
+    quote_len = _lit_quote_len(text, start);
+    body = text[start + quote_len:len(text) - quote_len];
+    is_raw = 'r' in prefix;
+    if ('b' in prefix) {
+        return _decode_bytes_escapes(body, is_raw);
+    }
+    if is_raw {
+        return body;
+    }
+    return _decode_str_escapes(body);
 }
