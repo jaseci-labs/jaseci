@@ -356,3 +356,42 @@ test "a demoted constructor is waiver-eligible like any other seam" {
     );
     assert not stale2 , f"the waiver must not read as stale: {stale2}";
 }
+
+# An argument the emitter drops is the silent-miscompile class, not a seam
+# reason, unless the emitter says so out loud. `_emit_open` reads `open`
+# positionally and ignores everything past the mode, so `encoding=` has to
+# refuse. It also has to be reachable: with `encoding` absent from the text
+# overload the call was a type error instead, and a type error in a native
+# module refuses the module rather than the function that wrote it.
+test "an open() keyword argument demotes its function instead of miscompiling" {
+    (prog, ir, census) = _compile_with_census("granular_open_kwarg.jac");
+    assert not prog.errors_had , (
+        f"`open(path, 'r', encoding=...)` type-checks -- `encoding` is on the "
+        f"text overload in `na_builtins.pyi` -- so the emitter's refusal has "
+        f"to demote its owning function, not refuse the module: {[
+            str(e) for e in prog.errors_had
+        ]}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "reads_plain" in layout.functions , (
+        f"the sibling that opens the same file positionally must still lower: "
+        f"{sorted(layout.functions)}"
+    );
+    assert "reads_with_encoding" not in layout.functions , (
+        "silently dropping `encoding=` would emit a `fopen` that ignores what "
+        "the source asked for; the function must leave the native layout"
+    );
+    seams = [
+        s
+        for s in _seams_of(census, "granular_open_kwarg.jac")
+        if s.startswith("reads_with_encoding: ")
+    ];
+    assert len(seams) == 1 , (
+        f"expected exactly one census seam for reads_with_encoding, got: "
+        f"{_seams_of(census, 'granular_open_kwarg.jac')}"
+    );
+    assert "open" in seams[0] , (
+        f"the seam reason must name the construct it refused: {seams[0]}"
+    );
+}

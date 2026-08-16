@@ -1,18 +1,4 @@
-"""Torch-gated integration tests for GraphMend deferred side effects.
-
-Confirm the runtime claim that deferral defragments the FX graph: compile each
-fixture with and without graphmend and count how many contiguous graphs
-TorchDynamo's backend actually receives. A side-effect call splits the forward
-pass into multiple graphs; GraphMend collapses it back to one, and the deferred
-output must still be produced -- including when the compiled code raises.
-
-Graph count (via a counting backend) is used rather than
-``explain().graph_break_count`` (which under-reports for small functions) or
-``fullgraph=True`` (which is stricter than how models actually run: it rejects
-the harmless *trailing* break left by the epilogue flush even though the
-expensive compute is a single contiguous graph).
-
-Skipped automatically when PyTorch is not installed."""
+"""Torch-gated: deferral collapses the split forward pass back to one FX graph."""
 import builtins;
 import contextlib;
 import io;

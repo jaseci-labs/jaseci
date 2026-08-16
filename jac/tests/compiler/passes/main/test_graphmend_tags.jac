@@ -1,9 +1,4 @@
-"""GraphMend pass scheduling tags and the schedule-time gate.
-
-GraphBreakDetectPass provides the graph-breaks tag the three transform passes
-require, and the four passes are scheduled only when GraphMend is live for the
-module: an off compile never instantiates them, and the `before_pass` prune is
-only the second line of defense."""
+"""Pass-schedule tags and the schedule-time gate."""
 import os;
 import from tests.support { GRAPHMEND_FIXTURES as FIXTURES }
 import from jaclang.jac0core.compiler { get_py_code_gen, validate_schedule }

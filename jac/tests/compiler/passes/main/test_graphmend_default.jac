@@ -1,13 +1,4 @@
-"""GraphMend default-on behavior.
-
-With nothing passed and no jac.toml keys, compiling any module engages
-GraphMend exactly when the module imports torch, while torch-free modules stay
-byte-identical to a graphmend-off compile. The gate is open by default at every
-layer that carries it (CompileOptions, JacProgram, the jac.toml run section),
-`[run] graphmend = false` is the only control and there is no CLI enable flag.
-GraphMend-active compiles fold their configuration into the bytecode cache key,
-so a same-config recompile hits and any flip misses instead of serving the wrong
-variant."""
+"""GraphMend engages by default on torch-importing modules; others stay byte-identical."""
 import os;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }

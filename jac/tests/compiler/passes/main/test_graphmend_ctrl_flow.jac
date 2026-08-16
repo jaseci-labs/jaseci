@@ -1,8 +1,4 @@
-"""GraphMend predicated control-flow (torch.where) tests.
-
-Assertions run against the generated Python source (the lowering target),
-plus the detection tag table where source alone cannot distinguish "not
-detected" from "detected but declined by the predication pass"."""
+"""Predicated control flow: rewrite shapes and per-condition declines."""
 import os;
 import tempfile;
 import from tests.support {

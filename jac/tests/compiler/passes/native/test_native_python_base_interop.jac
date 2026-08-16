@@ -67,6 +67,7 @@ def run_py_lane(fixture_stem: str, func_name: str) -> object {
     try {
         sys.modules.pop(fixture_stem, None);
         sys.modules.pop("pyb_base_lib", None);
+        sys.modules.pop("pyb_gen_base_lib", None);
         mod = importlib.import_module(fixture_stem);
         return getattr(mod, func_name)();
     } finally {
@@ -75,6 +76,7 @@ def run_py_lane(fixture_stem: str, func_name: str) -> object {
         }
         sys.modules.pop(fixture_stem, None);
         sys.modules.pop("pyb_base_lib", None);
+        sys.modules.pop("pyb_gen_base_lib", None);
     }
 }
 
@@ -133,5 +135,25 @@ test "releasing the native owner drops its Python shadow" {
     assert transient == EXPECTED , f"run_all returned {transient}";
     assert len(_pyb_shadows) == 0 , (
         f"transient instances leaked {len(_pyb_shadows)} shadow(s)"
+    );
+}
+
+test "a subscripted generic Python-side base still bridges" {
+    # Every compiler pass inherits through a subscripted generic
+    # (`Transform[Module, Module]`), so the base reference is an AtomTrailer
+    # carrying an IndexSlice rather than a bare Name. The bridge must unwrap
+    # it; before it did, inherited stores and calls demoted silently.
+    (eng, ir) = compile_native("pyb_gen_base_main.jac");
+    layout = ir.gen.native_layout;
+    assert layout is not None , "no native layout was exported";
+    assert "Kid.poke" in layout.methods , (
+        f"Kid.poke was demoted instead of bridging: {sorted(layout.methods)}"
+    );
+    get_func(eng, "jac_entry", None)();
+    native_val = get_func(eng, "run_all", ctypes.c_int64)();
+    assert native_val == 100 , f"native lane produced {native_val}, expected 100";
+    py_val = run_py_lane("pyb_gen_base_main", "run_all");
+    assert native_val == py_val , (
+        f"lane divergence: native {native_val} vs python {py_val}"
     );
 }

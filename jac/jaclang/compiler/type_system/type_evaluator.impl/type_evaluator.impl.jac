@@ -2487,8 +2487,7 @@ impl TypeEvaluator._assign_class(
     src_type = unwrapped_src;
     dest_type = unwrapped_dest;
 
-    dest_brand = dest_type.private.distinct_key;
-    if dest_brand is not None and src_type.private.distinct_key != dest_brand {
+    if self._distinct_brand_mismatch(src_type, dest_type) {
         return False;
     }
     if src_type.shared.same_class(dest_type.shared) {
@@ -3006,7 +3005,8 @@ impl TypeEvaluator.assign_type(
 
         if isinstance(dest_type, ClassType)
             and dest_type.is_builtin("int")
-            and self._in_native_context() {
+            and self._in_native_context()
+            and not self._distinct_brand_mismatch(src_type, dest_type) {
             return True;
         }
     }
@@ -3015,7 +3015,8 @@ impl TypeEvaluator.assign_type(
         and isinstance(dest_type, ClassType)
         and src_type.is_class_instance()
         and dest_type.is_class_instance()
-        and self._in_native_context() {
+        and self._in_native_context()
+        and not self._distinct_brand_mismatch(src_type, dest_type) {
         src_is_ptr = (
             src_type.is_builtin("int")
             or src_type.is_builtin("str")
@@ -5259,6 +5260,22 @@ impl TypeEvaluator._brand_distinct_alias(
         distinct_key=key
     );
     return ClassType(_shared=resolved.shared, private=private, flags=resolved.flags);
+}
+
+impl TypeEvaluator._distinct_brand_mismatch(
+    src_type: TypeBase, dest_type: TypeBase
+) -> bool {
+    if not isinstance(dest_type, ClassType) {
+        return False;
+    }
+    dest_brand = dest_type.private.distinct_key;
+    if dest_brand is None {
+        return False;
+    }
+    src_brand = (
+        src_type.private.distinct_key if isinstance(src_type, ClassType) else None
+    );
+    return src_brand != dest_brand;
 }
 
 impl TypeEvaluator._resolve_type_alias_rhs(value: Expr) -> TypeBase {

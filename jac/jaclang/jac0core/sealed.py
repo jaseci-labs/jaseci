@@ -596,6 +596,22 @@ def native_artifact_for(fullname: str) -> tuple[str, dict] | None:
     return None
 
 
+def native_artifact_names() -> list[str]:
+    """Every module fullname any loaded image carries a native artifact for.
+
+    The pass-serving binder enumerates these at first pass construction to
+    bind each sealed pass artifact; resolution and integrity stay with
+    ``native_artifact_for``.
+    """
+    _jaclang_image()
+    names: list[str] = []
+    for img in _images:
+        for fullname in img.native_artifacts:
+            if fullname not in names:
+                names.append(fullname)
+    return names
+
+
 def image_for_bundle_dir(bundle_dir: str | Path) -> SealedImage | None:
     """Map a ``_precompiled`` directory back to its loaded sealed image.
 
