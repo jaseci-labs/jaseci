@@ -409,6 +409,9 @@ impl TrapLoweringPass._assigned_tensor_provable(
     if sym is None {
         return False;
     }
+    if len(sym.defn) > 1 {
+        return False;
+    }
     assign = defining_assignment(sym);
     if (assign is None) or (assign.value is None) {
         return False;

@@ -100,6 +100,20 @@ test "tensor-bool guard without a receiver proof is declined" {
     assert _break_count("guard_unproven_receiver.jac") == 1;
 }
 
+test "a later tensor definition cannot prove the guard-site receiver" {
+    # `m` is a list at the guard and rebound to a tensor only after it;
+    # defining_assignment resolves the textually last definition, so proving
+    # through it reads the future. A name with more than one definition is
+    # flow-sensitive and must refuse to prove, as trace_symbol_attr already
+    # does; the original guard (and its list semantics) survives unchanged.
+    src = _pysrc("guard_late_tensor_def.jac", True);
+    assert "torch._assert_async(" not in src;
+    assert "@__jac_trap_guard__" not in src;
+    assert "if not m.all():" in src;
+    assert "raise ValueError('flags must be all true')" in src;
+    assert _break_count("guard_late_tensor_def.jac") == 1;
+}
+
 test "a comparison guard lowers on the negated condition" {
     # `if a != b: raise` is the same guard as `if not (a == b)`, so it lowers;
     # the assert takes the negation, keeping the guard's original truth value.
