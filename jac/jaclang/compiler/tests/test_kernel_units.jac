@@ -47,8 +47,9 @@ test "storing bytes already at an artifact key leaves the file untouched" {
     text = "; artifact store canary\n";
     store_unit_artifact(unit, "canary", fp, text);
     path = unit_artifact_path(unit, "canary", fp);
-    stamp = os.path.getmtime(path) - 5.0;
-    os.utime(path, (stamp, stamp));
+    back = os.path.getmtime(path) - 5.0;
+    os.utime(path, (back, back));
+    stamp = os.path.getmtime(path);
     store_unit_artifact(unit, "canary", fp, text);
     assert os.path.getmtime(path) == stamp , (
         "a store of the bytes already at this key rewrote the artifact"
