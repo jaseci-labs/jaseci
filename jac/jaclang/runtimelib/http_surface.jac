@@ -222,7 +222,8 @@ def build_surface(introspector: any) -> HttpSurface {
 
     walkers = introspector.get_walkers();
     for (wname, wcls) in walkers.items() {
-        rs = wcls?.restspec;
+        wobj: any = wcls;
+        rs = wobj?.restspec;
         method = _norm_method(getattr(rs, "method", "")) if rs else "POST";
         rpath = (getattr(rs, "path", "") or "") if rs else "";
         spec_path = rpath or f"/walker/{wname}";
@@ -257,7 +258,8 @@ def build_surface(introspector: any) -> HttpSurface {
 
     functions = introspector.get_functions();
     for (fname, fobj) in functions.items() {
-        rs = fobj?.restspec;
+        fobj_any: any = fobj;
+        rs = fobj_any?.restspec;
         method = _norm_method(getattr(rs, "method", "")) if rs else "POST";
         rpath = (getattr(rs, "path", "") or "") if rs else "";
         spec_path = rpath or f"/function/{fname}";
