@@ -356,7 +356,7 @@ test "the excluded escape is refused by the lexer and by the decoder" {
             for d in diags
             if d.is_error
         };
-        assert "E0108" in codes , (
+        assert "E0109" in codes , (
             f"the lexer refused {text!r} with {sorted(codes)}, not the code "
             "the diagnostics reference documents for this escape"
         );
