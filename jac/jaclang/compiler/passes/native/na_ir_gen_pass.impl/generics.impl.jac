@@ -369,6 +369,8 @@ impl NaIRGenPass._stamp_mono_method(
         self._gen_ctx = saved_gen_ctx;
     }
     if full_name in self._native_skipped_methods {
+        self._mono_fns.pop(memo_key, None);
+        self.llvm_module.globals.pop(fn.name, None);
         return None;
     }
     return fn;

@@ -33,6 +33,8 @@ class JacProgram {
         graphmend_noop_mods: set[str],
         graphmend_hub_digests: dict[(str, tuple[(uni.Module, str)])],
         _native_cache: dict[(str, any)],
+        _na_dep_units: dict[(str, any)],
+        _na_dep_inflight: set,
         _hub_cache_times: dict[str, float],
         _dependents: dict[str, set[str]],
         _track_dependencies: bool,

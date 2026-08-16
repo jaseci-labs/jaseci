@@ -19,6 +19,10 @@ impl JacProgram.init(
     self.graphmend_hub_digests: dict[(str, tuple[(uni.Module, str)])] = {};
     self._native_cache: dict = {};
 
+    self._na_dep_units: dict = {};
+
+    self._na_dep_inflight: set = set();
+
     self._hub_cache_times: dict[str, float] = {};
 
     self._dependents: dict[str, set[str]] = {};

@@ -7,6 +7,7 @@ import types;
 import from threading { Event }
 import from contextvars { ContextVar }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.unitree { ability_of_symbol }
 import from jaclang.jac0core.jir {
     SEC_BYTECODE,
     SEC_MTIR,
@@ -151,6 +152,16 @@ def run_pass(
 }
 
 def get_symtab_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+    if not _ir_sched_loading.get() {
+        _tok = _ir_sched_loading.set(True);
+        try {
+            import jaclang.compiler.symbol_utils;
+        } except ImportError as e {
+            fail_loud_on_compiler_source(e);
+        } finally {
+            _ir_sched_loading.reset(_tok);
+        }
+    }
     return validate_schedule(
         [ASTValidationPass, SymTabBuildPass, DeclImplMatchPass, PlacementApplyPass],
         origin='symtab-ir schedule'
@@ -335,6 +346,79 @@ def fail_loud_on_compiler_source(err: ImportError) -> None {
         "the Jac compiler's own source failed to compile, so the pass "
         f"schedule cannot be built: {real}\n{err}"
     ) from err;
+}
+
+glob _native_sched_failure: dict[str, str] = {};
+
+def _note_native_schedule_failure(err: (BaseException | None)) {
+    if err is None {
+        _native_sched_failure.pop('reason', None);
+    } else {
+        _native_sched_failure['reason'] = f"{type(err).__name__}: {err}";
+    }
+}
+
+def native_schedule_failure -> str {
+    return _native_sched_failure.get('reason', '');
+}
+
+def compiler_source_failure_origin(err: BaseException) -> (str | None) {
+    root = _compiler_source_root() + os.sep;
+    cursor: any = err;
+    for _ in range(8) {
+        if cursor is None {
+            break;
+        }
+        for cand in (cursor?.jac_source_path, cursor?.path) {
+            if isinstance(cand, str) and cand {
+                real = os.path.realpath(cand);
+                if real.startswith(root) {
+                    return real;
+                }
+            }
+        }
+        name = cursor?.name;
+        if isinstance(name, str)
+            and (name == 'jaclang' or name.startswith('jaclang.')) {
+            return name;
+        }
+        cursor = cursor?.__cause__ or cursor?.__context__;
+    }
+    return None;
+}
+
+def module_import_in_flight(file_path: str) -> bool {
+    for mod in list(sys.modules.values()) {
+        spec = mod?.__spec__;
+        if spec is None {
+            continue;
+        }
+        if spec?.origin == file_path and bool(spec?._initializing) {
+            return True;
+        }
+    }
+    return False;
+}
+
+def import_error_re_enters(err: BaseException, file_path: str) -> (str | None) {
+    if not isinstance(err, ImportError) or not module_import_in_flight(file_path) {
+        return None;
+    }
+    cursor: any = err;
+    for _ in range(8) {
+        if cursor is None {
+            break;
+        }
+        name = cursor?.name;
+        if isinstance(name, str) and name {
+            spec = sys.modules.get(name)?.__spec__;
+            if spec is not None and spec?.origin == file_path {
+                return name;
+            }
+        }
+        cursor = cursor?.__cause__ or cursor?.__context__;
+    }
+    return None;
 }
 
 def get_boundary_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
@@ -583,6 +667,7 @@ def get_py_code_gen(
                     origin='native codegen schedule'
                 )
             );
+            _note_native_schedule_failure(None);
         }
         if graphmend {
             import from jaclang.compiler.passes.main.graphmend.graph_break_detect_pass {
@@ -611,6 +696,9 @@ def get_py_code_gen(
         return passes;
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
+        if native {
+            _note_native_schedule_failure(e);
+        }
         return [PyastGenPass, PyBytecodeGenPass];
     } finally {
         _codegen_sched_loading.reset(_tok);
@@ -901,34 +989,6 @@ def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
         return False;
     }
     return plain_native_import_target(nd, prog) is not None;
-}
-
-def _ability_of_defn(defn_node: uni.UniNode) -> (uni.Ability | None) {
-    if isinstance(defn_node, uni.Ability) {
-        return defn_node;
-    }
-    if isinstance(defn_node.parent, uni.Ability) {
-        return defn_node.parent;
-    }
-    return None;
-}
-
-def ability_of_symbol(sym: (uni.Symbol | None)) -> (uni.Ability | None) {
-    if sym is None or not sym.defn {
-        return None;
-    }
-    decl = _ability_of_defn(sym.defn[0]);
-
-    if decl is not None and str(decl.loc.mod_path).endswith(".pyi") {
-        for alt in sym.defn {
-            alt_decl = _ability_of_defn(alt);
-            if alt_decl is not None
-                and not str(alt_decl.loc.mod_path).endswith(".pyi") {
-                return alt_decl;
-            }
-        }
-    }
-    return decl;
 }
 
 enum ClientImportVerdict {
@@ -1250,6 +1310,7 @@ obj JacCompiler {
     ) -> list[uni.Module];
 
     def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
+    def stamp_boundary_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def compile(
         file_path: str,
         target_program: JacProgram,
@@ -1290,6 +1351,10 @@ obj JacCompiler {
     static def _scrub_native_artifacts_on_error(
         target_program: JacProgram, mod: uni.Module
     ) -> bool;
+
+    static def _report_missing_native_ir(
+        target_program: JacProgram, mod: uni.Module
+    ) -> None;
 
     static def _prepare_tool_program(
         source_str: str, file_path: str, expand: bool = False

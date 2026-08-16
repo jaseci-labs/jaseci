@@ -1990,12 +1990,12 @@ impl MachOLinker.build_shared_object -> bytes {
         got_offset = i * 8;
         _lookup = sym_name[1:] if sym_name.startswith("_") else sym_name;
         _lib = self.symbol_lib_map.get(_lookup);
-        if _lib == PROCESS_LOOKUP_LIB {
+        if _lib == PROCESS_LOOKUP_LIB or _lib is None {
             bind_data.append(
                 BIND_OPCODE_SET_DYLIB_SPECIAL_IMM | BIND_SPECIAL_FLAT_LOOKUP_IMM
             );
         } else {
-            ordinal = lib_ordinals.get(_lib, 1) if _lib is not None else 1;
+            ordinal = lib_ordinals.get(_lib, 1);
             bind_data.append(0x20);
             bind_data.extend(_encode_uleb128(ordinal));
         }
