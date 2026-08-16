@@ -7,8 +7,8 @@ two backends construct identical boxed structures (and so scalar `list[any]`
 elements box correctly). Every `pformat` result is compared as an exact string;
 inputs are compact (fit CPython's `width=80` on one line) and float-free, the
 documented scope. `p13`-`p19` pin Python repr string-escaping: backslash,
-\n/\t/\r short forms, quote selection with either and both quote types, and
-\xNN hex escapes for other C0 controls (U+0001) and DEL (U+007F), built via
+\\n/\\t/\\r short forms, quote selection with either and both quote types, and
+\\xNN hex escapes for other C0 controls (U+0001) and DEL (U+007F), built via
 JSON \\uXXXX escapes so both backends construct identical strings. ES/JS opts out.
 """
 

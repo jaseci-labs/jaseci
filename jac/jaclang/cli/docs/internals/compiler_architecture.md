@@ -255,6 +255,14 @@ The pipeline uses a **re-entrancy guard** (`_ir_sched_loading`,
 compiler's own pass modules degrades gracefully to the bootstrap subset
 instead of recursing forever.
 
+Every schedule builder also degrades on `ImportError`, but only for
+**absence**: a pass module a partial build does not ship, or a partially
+initialized one mid-bootstrap. A compiler-source file that resolves and then
+fails to compile is not absence, so `fail_loud_on_compiler_source` re-raises it
+as `CompilerSourceError` naming the file and its diagnostics before any arm
+degrades. Silently dropping a backend because the compiler's own source will
+not parse is what made issue #8218 take a bisect to find.
+
 ---
 
 ## One Owner Per Analysis: The Analysis Contract
@@ -454,15 +462,28 @@ allocation header with reference counts (see `HDR_*` globals in
 flow through the interop bridge generated from `BoundaryAnalysisPass`.
 
 **Sealed AOT native artifacts.** The compiler dogfoods this backend for its
-own hot path: sealing a release AOT-compiles `jac0core/parser/lexer.jac`
-(plus its `tokens.jac` closure) into a per-platform shared library at
-`_precompiled/native/<triple>/libjac_lexer.*`, alongside a persisted
-`NativeModuleLayout` JSON describing the marshal layout. Both are recorded
-in `MANIFEST.json` (format 4) under `native_artifacts` with sha256 digests
-that fail closed on mismatch. A sealed runtime binds the library with plain
-ctypes (`jac0core/native_dylib.jac`) at startup -- no LLVM on the boot path
--- and `parse()` uses it when present; dev trees without a seal
-transparently fall back to the bytecode lexer.
+own hot path: sealing a release AOT-compiles
+`compiler/native_materialize.jac` -- the materializer root, whose native
+closure carries the parser, lexer and `unitree` -- and
+`jac0core/unitree.jac` into per-platform shared libraries at
+`_precompiled/native/<triple>/libjac_native_materialize.*` /
+`libjac_unitree.*`, alongside persisted `NativeModuleLayout` JSON. The
+materializer is native jac, generated at seal time from the unitree
+layout by `jaclang/utils/gen_native_materialize.jac` (never checked in),
+with per-class emitters that rebuild the parsed tree as
+real Python `unitree` objects through CPython C-API clib externs resolved
+from the host process (ELF lazy PLT / Mach-O flat lookup), feeding the
+unchanged downstream pipeline. Everything is recorded in `MANIFEST.json`
+(format 6): `native_artifacts` carries per-file sha256 digests that fail
+closed on mismatch, and the `native` record ({roots, skip_reason}) is the
+build's own statement of what it sealed, which `load_image` enforces at
+startup -- a jaclang image that cannot serve its declared roots on this
+host refuses to load. A sealed runtime binds the library with plain ctypes
+(`jac0core/native_dylib.jac`) at startup -- no LLVM on the boot path, the
+materializer entries GIL-held via PYFUNCTYPE -- and `parse()` serves
+natively with no bytecode fallback: artifact damage raises rather than
+degrading. Dev trees without a seal parse on the bytecode tier, which is
+also the bootstrap that builds the seal.
 
 ---
 

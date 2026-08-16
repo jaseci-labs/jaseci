@@ -1249,17 +1249,16 @@ test "test_jir_cache_invalidated_on_version_mismatch" {
 
     setup_test();
     try {
-        lsp = create_server();
-        # Type-check the caller to force JIR cache creation for the dependency.
-        caller_file = uris.from_fs_path(fixture_path("cross_module_func_caller.jac"));
-        lsp.type_check_file(caller_file);
-
-        # Locate the JIR cache for the dependency module.
+        # A full compile writes the bytecode module cache; dependency loads
+        # derive trees per process and persist nothing (#8190).
+        import from jaclang.jac0core.compiler { JacCompiler }
+        import from jaclang.jac0core.program { JacProgram }
         dep_src = fixture_path("cross_module_func.jac");
+        JacCompiler().get_bytecode(dep_src, JacProgram());
         cache_path = get_module_cache_path(dep_src);
 
         # Sanity: cache should exist and be valid right now.
-        assert cache_path.exists() , "JIR cache was not written";
+        assert cache_path.exists() , "module cache was not written";
         assert is_module_cache_valid(dep_src, cache_path) , "Fresh cache should be valid";
 
         # Tamper: overwrite jaclang_version_hash with a fake value.

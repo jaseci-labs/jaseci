@@ -19,6 +19,7 @@ import pytest;
 import from pathlib { Path }
 
 import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.jac0core.compiler { run_pass }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
@@ -63,7 +64,7 @@ def compile_react(path: str) -> str {
         if not issubclass(e.from_pass, TypeCheckPass)
     ];
     assert not fatal , f"compile errors in {path}: {[str(e) for e in fatal]}";
-    es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=ReactBackend());
+    es_pass = run_pass(EsastGenPass, ir, prog, backend=ReactBackend());
     return es_to_js(es_pass.ir_out.gen.es_ast);
 }
 

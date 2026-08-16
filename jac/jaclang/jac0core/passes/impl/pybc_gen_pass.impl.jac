@@ -1,14 +1,12 @@
-impl PyBytecodeGenPass.transform(
-    self: PyBytecodeGenPass, ir_in: uni.Module
-) -> uni.Module {
+impl PyBytecodeGenPass.transform(self: PyBytecodeGenPass, ir_in: Module) -> Module {
     self.process_modules(ir_in);
     return ir_in;
 }
 
 impl PyBytecodeGenPass.process_modules(
-    self: PyBytecodeGenPass, root_module: uni.Module
+    self: PyBytecodeGenPass, root_module: Module
 ) -> None {
-    mods = [root_module] + root_module.get_all_sub_nodes(uni.Module);
+    mods = [root_module] + root_module.get_all_sub_nodes(Module);
     for mod in mods {
         self.cur_node = mod;
         self.compile_module_to_bytecode(mod);
@@ -16,7 +14,7 @@ impl PyBytecodeGenPass.process_modules(
 }
 
 impl PyBytecodeGenPass.compile_module_to_bytecode(
-    self: PyBytecodeGenPass, mod: uni.Module
+    self: PyBytecodeGenPass, mod: Module
 ) -> None {
     if (not mod.gen.py_ast or not isinstance(mod.gen.py_ast[0], ast3.Module)) {
         self.emit(E5040, node_override=mod, path=mod.loc.mod_path);

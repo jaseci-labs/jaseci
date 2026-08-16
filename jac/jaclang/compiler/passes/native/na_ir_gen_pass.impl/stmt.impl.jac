@@ -3020,7 +3020,9 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     }
 
     coll_name = self._get_name(nd.collection);
-    _coll_memo: (ir.Value | None) = self._str_norm(self._codegen_expr(nd.collection));
+    _coll_memo: (ir.Value | None) = self._opt_unwrap_iterable(
+        self._str_norm(self._codegen_expr(nd.collection))
+    );
 
     dict_type_key: (str | None) = self._dict_key_of(nd.collection);
     if _coll_memo is not None {
@@ -3093,6 +3095,36 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
             var_types=[ir.IntType(8).as_pointer()],
             rc_vars=False,
             coll_release_op="fors_coll"
+        );
+        return;
+    }
+
+    if self._tuple_iter_shape(nd.collection, _coll_memo) {
+        _tup_seq = self._tuple_iter_seq(nd.collection, _coll_memo);
+        if _tup_seq is None {
+            if len(self.errors_had) == _for_errs0 {
+                self.emit(
+                    E5092,
+                    node_override=nd.collection or nd,
+                    kind="for-loop iterable",
+                    name="tuple with mixed element storage",
+                    help_text="Every element of an iterated tuple must share one storage width, because the loop variable is a single slot and the checker types it from the tuple's FIRST element -- boxing the elements instead would answer `isinstance` in the body against the wrong member. Use a list literal, whose element type widens to a union, or bind the elements individually."
+                );
+            }
+            return;
+        }
+        (_ts_val, _ts_spec, _ts_elem, _ts_cast) = _tup_seq;
+        self._codegen_for_indexed(
+            nd,
+            kind="list",
+            collection_val=_ts_val,
+            helpers=self.list_helpers[_ts_spec],
+            var_names=[loop_var_name],
+            var_types=[_ts_elem],
+            rc_vars=True,
+            coll_release_op="fort_coll",
+            elem_cast=_ts_cast,
+            unpack_target=_unpack_target
         );
         return;
     }
@@ -3881,6 +3913,14 @@ impl NaIRGenPass._codegen_for_indexed(
         self.builder.store(collection_val, _gen_coll_slot);
     }
 
+    _coll_slot_var: (str | None) = None;
+    if _gen_coll_slot is None
+        and coll_release_op
+        and kind != "range"
+        and self._is_owned(collection_val) {
+        _coll_slot_var = self._bind_loop_coll_slot(collection_val);
+    }
+
     if kind == "range" {
         len_val = collection_val;
         idx_alloca = self._entry_alloca(i64, var_names[0]);
@@ -4110,6 +4150,8 @@ impl NaIRGenPass._codegen_for_indexed(
             _coll_end, op=coll_release_op or "for_coll", loc=_for_loc
         );
         self.builder.store(ir.Constant(_coll_end.type, None), _gen_coll_slot);
+    } elif _coll_slot_var is not None {
+        self._release_loop_coll_slot(_coll_slot_var, op=coll_release_op, loc=_for_loc);
     } elif coll_release_op
         and isinstance(collection_val.type, ir.PointerType)
         and self._is_owned(collection_val) {

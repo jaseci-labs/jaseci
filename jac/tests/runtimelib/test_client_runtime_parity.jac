@@ -19,6 +19,7 @@ import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.jac0core.compiler { run_pass }
 import from jaclang.compiler.passes.ecmascript { EsastGenPass }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
@@ -114,7 +115,7 @@ def _compiled_body(path: Path, backend: any, name: str) -> str {
         if not issubclass(e.from_pass, TypeCheckPass)
     ];
     assert not fatal , f"{path.name} failed to compile: {[str(e) for e in fatal]}";
-    js = es_to_js(EsastGenPass(ir_in=ir, prog=prog, backend=backend).ir_out.gen.es_ast);
+    js = es_to_js(run_pass(EsastGenPass, ir, prog, backend=backend).ir_out.gen.es_ast);
     start = js.find(f"function {name}(");
     assert start >= 0 , f"{path.name} emitted no `function {name}(`";
     body = [];
