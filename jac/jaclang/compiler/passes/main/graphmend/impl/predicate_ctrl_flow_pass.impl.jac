@@ -10,6 +10,10 @@ import from jaclang.compiler.passes.main.graphmend.ast_edit {
     split_params_keyed,
     torch_call
 }
+import from jaclang.compiler.passes.main.graphmend.scope_facts {
+    module_reaches_autograd,
+    region_in_inference_ctx
+}
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     cond_materializes_scalar,
     is_torch_attr_target
@@ -20,7 +24,9 @@ impl PredicateCtrlFlowPass.before_pass -> None {
         and "where" not in self.prog._compile_options.graphmend_disable;
     if not self._enabled {
         self.prune_signal = True;
+        return;
     }
+    self._autograd_reachable = module_reaches_autograd(self.ir_in);
 }
 
 impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
@@ -28,6 +34,9 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
         return;
     }
     if current_graphmend_facts().breaks.get(nd) != GraphBreakKind.DYN_CTRL_FL {
+        return;
+    }
+    if self._autograd_reachable and (not region_in_inference_ctx(nd)) {
         return;
     }
     eb = nd.else_body;
