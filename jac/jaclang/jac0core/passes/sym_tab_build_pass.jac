@@ -25,7 +25,6 @@ import from jaclang.jac0core.unitree {
     IterForStmt,
     LambdaExpr,
     ListCompr,
-    ListVal,
     MatchCase,
     Module,
     ModuleItem,
@@ -39,11 +38,9 @@ import from jaclang.jac0core.unitree {
     Test,
     Token,
     TryStmt,
-    TupleVal,
     TypeAlias,
     TypeParam,
     TypedCtxBlock,
-    UnaryExpr,
     UniNode,
     UniScopeNode,
     WhileStmt,
@@ -54,7 +51,7 @@ import from jaclang.jac0core.unitree {
     record_cross_scope_rebind,
     rebind_or_def_insert
 }
-import from jaclang.jac0core.constant { SymbolAccess, Tokens }
+import from jaclang.jac0core.constant { SymbolAccess }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.diagnostics { E0064, E0077 }
 
