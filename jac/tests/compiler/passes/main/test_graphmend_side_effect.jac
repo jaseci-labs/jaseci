@@ -349,28 +349,33 @@ test "a jac glob call-site wrap gets the forward hook registrations" {
     );
 }
 
-test "serve refuses GraphMend so the process-global defer buffers never serve" {
-    # The defer buffers are process-global by design: the emit runs inside the
-    # compiled region, where a context lookup is not traceable and reintroduces
-    # the break the transform removes. Serve is therefore refused outright.
+test "serve declines defer only, leaving trap and where to run" {
+    # The defer buffers are process-global, so the transform whose residual that
+    # is declines under serve; the other two transforms are unaffected.
     import from jaclang.jac0core.compile_options {
         CompileOptions,
-        graphmend_refused_for_serve,
-        refuse_graphmend_under_serve
+        defer_declines_here,
+        mark_process_serving,
+        process_is_serving
     }
     import jaclang.jac0core.compile_options as opt_mod;
     saved = dict(opt_mod._serving_probe);
     try {
         opt_mod._serving_probe["serving"] = False;
-        assert graphmend_refused_for_serve() is False;
-        refuse_graphmend_under_serve();
-        assert graphmend_refused_for_serve() is True;
-        assert CompileOptions(type_check=False).graphmend is False , (
-            "a compile under serve must not carry GraphMend"
+        assert process_is_serving() is False;
+        assert defer_declines_here() is False;
+        mark_process_serving();
+        assert process_is_serving() is True;
+        assert defer_declines_here() is True , (
+            "defer must decline while the buffers are process-global and serving"
         );
-        assert CompileOptions(type_check=False, graphmend=True).graphmend is False , (
-            "an explicit graphmend=True must still lose to the serve refusal"
+        assert CompileOptions(type_check=False).graphmend is not False , (
+            "serve must not disable graphmend wholesale; only defer declines"
         );
+        assert "trap"
+            not in (CompileOptions(type_check=False).graphmend_disable or []) , "trap must still run under serve";
+        assert "where"
+            not in (CompileOptions(type_check=False).graphmend_disable or []) , "where must still run under serve";
     } finally {
         opt_mod._serving_probe.clear();
         opt_mod._serving_probe.update(saved);

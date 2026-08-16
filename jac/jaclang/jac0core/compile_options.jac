@@ -1,14 +1,19 @@
 import from dataclasses { field }
 
 glob _config_probe: dict = {"active": False},
-     _serving_probe: dict[(str, bool)] = {"serving": False};
+     _serving_probe: dict[(str, bool)] = {"serving": False},
+     GM_DEFER_BUFFERS_THREAD_SCOPED: bool = False;
 
-def refuse_graphmend_under_serve {
+def mark_process_serving {
     _serving_probe["serving"] = True;
 }
 
-def graphmend_refused_for_serve -> bool {
+def process_is_serving -> bool {
     return bool(_serving_probe["serving"]);
+}
+
+def defer_declines_here -> bool {
+    return (not GM_DEFER_BUFFERS_THREAD_SCOPED) and process_is_serving();
 }
 
 def _project_config -> any {
@@ -27,9 +32,6 @@ def _project_config -> any {
 }
 
 def resolved_graphmend_setting -> bool {
-    if graphmend_refused_for_serve() {
-        return False;
-    }
     cfg = _project_config();
     if cfg is None {
         return True;
@@ -100,8 +102,6 @@ obj CompileOptions {
         native_cfg = cfg.build.native if cfg is not None else None;
         if self.graphmend is None {
             self.graphmend = resolved_graphmend_setting();
-        } elif self.graphmend and graphmend_refused_for_serve() {
-            self.graphmend = False;
         }
         if self.graphmend_disable is None {
             self.graphmend_disable = resolved_graphmend_disable_setting();

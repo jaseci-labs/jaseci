@@ -408,12 +408,14 @@ def _fake_run_jab(filename: str, port: any, args: list, serve_only: bool) -> int
     return 0;
 }
 
-glob _serve_gm: list = [];
+glob _serve_gm: list = [],
+     _serve_defer: list = [];
 
 def _fake_start(**kwargs: any) -> int {
-    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.jac0core.compile_options { CompileOptions, defer_declines_here }
     _dispatch_calls.append("start");
     _serve_gm.append(CompileOptions(type_check=False).graphmend);
+    _serve_defer.append(defer_declines_here());
     return 0;
 }
 
@@ -511,9 +513,9 @@ test "a prebuilt .jab runs instead of being refused over graphmend" {
     assert "cannot be combined" not in captured.getvalue();
 }
 
-test "a serve plan runs unrefused and refuses GraphMend for the server" {
-    # The defer buffers are process-global, so serve refuses GraphMend outright
-    # even where the project config asks for it.
+test "a serve plan runs unrefused and marks the process serving" {
+    # Serve marks the process so the defer transform declines while its buffers
+    # are process-global; the other transforms are untouched.
     d = _mk_project(
         "kind = \"service\"\nentry-point = \"api.sv.jac\"\n\n"
             + "[run]\ngraphmend = true\n",
@@ -523,6 +525,7 @@ test "a serve plan runs unrefused and refuses GraphMend for the server" {
     old_start = execution.start;
     _dispatch_calls.clear();
     _serve_gm.clear();
+    _serve_defer.clear();
     os.chdir(d);
     captured = io.StringIO();
     sys.stderr = captured;
@@ -541,8 +544,11 @@ test "a serve plan runs unrefused and refuses GraphMend for the server" {
     assert rc == 0;
     assert _dispatch_calls == ["start"];
     assert "cannot be combined" not in captured.getvalue();
-    assert _serve_gm == [False] , (
-        f"serve must refuse GraphMend even with config on, saw {_serve_gm}"
+    assert _serve_gm == [True] , (
+        f"serve must leave graphmend on for trap and where, saw {_serve_gm}"
+    );
+    assert _serve_defer == [True] , (
+        f"serve must make the defer transform decline, saw {_serve_defer}"
     );
     _cleanup();
 }

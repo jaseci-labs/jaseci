@@ -15,8 +15,10 @@ import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
 }
 
 impl DeferSideEffectPass.before_pass -> None {
+    import from jaclang.jac0core.compile_options { defer_declines_here }
     self._enabled = (self.prog._compile_options.graphmend is True)
-        and "defer" not in (self.prog._compile_options.graphmend_disable or []);
+        and "defer" not in (self.prog._compile_options.graphmend_disable or [])
+        and (not defer_declines_here());
     if not self._enabled {
         self.prune_signal = True;
     }
