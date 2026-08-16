@@ -36,8 +36,47 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 }
 import from jaclang.scale.deploy.target.kubernetes.monitoring { MonitoringDeployer }
 import from jaclang.scale.config.config_loader { get_scale_config }
+import from jaclang.scale.injector.pvc_injector { bundle_keys_from_pod_spec }
 
-glob logger = logging.getLogger(__name__);
+glob logger = logging.getLogger(__name__),
+     REVISION_ANNOTATION: str = "deployment.kubernetes.io/revision";
+
+
+def _revision_sort_key(item: dict[str, any]) -> int {
+    return int(item.get("revision", 0));
+}
+
+
+def replica_sets_at_revision(sets: list[any], revision: int) -> dict[str, any] {
+    owned: dict[str, any] = {};
+    for rs in sets {
+        try {
+            annotations = dict(rs.metadata.annotations or {});
+            if annotations.get(REVISION_ANNOTATION) != str(revision) {
+                continue;
+            }
+            owners = list(rs.metadata.owner_references or []);
+            if not owners {
+                continue;
+            }
+            owned[str(owners[0].name)] = rs;
+        } except Exception {
+            continue;
+        }
+    }
+    return owned;
+}
+
+
+def strip_pod_template_hash(template: dict[str, any]) -> dict[str, any] {
+    cleaned = dict(template);
+    metadata = dict(cleaned.get("metadata") or {});
+    labels = dict(metadata.get("labels") or {});
+    labels.pop("pod-template-hash", None);
+    metadata["labels"] = labels;
+    cleaned["metadata"] = metadata;
+    return cleaned;
+}
 
 
 obj KubernetesTarget(KubernetesTargetBase) {
@@ -1171,6 +1210,119 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 );
             }
         }
+    }
+
+    def _owned_replica_sets(apps_v1: any, namespace: str) -> list[any] {
+        try {
+            return list(
+                apps_v1.list_namespaced_replica_set(
+                    namespace=namespace, label_selector="managed=jac-scale"
+                ).items
+            );
+        } except Exception as e {
+            if self.logger {
+                self.logger.warn(
+                    f"Could not list ReplicaSets: {e}", {"namespace": namespace}
+                );
+            }
+            return [];
+        }
+    }
+
+    def list_revisions(app_name: str) -> list[dict[str, any]] {
+        self._load_cluster_config();
+        apps_v1 = client.AppsV1Api();
+        namespace: str = self.k8s_config.namespace;
+        serializer = client.ApiClient();
+        revisions: list[dict[str, any]] = [];
+
+        for rs in self._owned_replica_sets(apps_v1, namespace) {
+            try {
+                annotations = dict(rs.metadata.annotations or {});
+                raw_revision = annotations.get(REVISION_ANNOTATION);
+                if raw_revision is None {
+                    continue;
+                }
+                owners = list(rs.metadata.owner_references or []);
+                deployment = str(owners[0].name) if owners else "";
+                pod_spec = serializer.sanitize_for_serialization(rs.spec.template.spec);
+                created = rs.metadata.creation_timestamp;
+                revisions.append(
+                    {
+                        "deployment": deployment,
+                        "revision": int(raw_revision),
+                        "replica_set": str(rs.metadata.name),
+                        "bundle_keys": bundle_keys_from_pod_spec(dict(pod_spec)),
+                        "created": created.isoformat() if created else "",
+                        "replicas": int(rs.spec.replicas or 0)
+                    }
+                );
+            } except Exception {
+                continue;
+            }
+        }
+        return sorted(revisions, key=_revision_sort_key, reverse=True);
+    }
+
+    def referenced_bundle_keys(app_name: str) -> set[str] {
+        keys: set[str] = set();
+        for item in self.list_revisions(app_name) {
+            for key in item.get("bundle_keys", []) {
+                keys.add(str(key));
+            }
+        }
+        return keys;
+    }
+
+    def rollback_to(app_name: str, revision: int) -> DeploymentResult {
+        self._load_cluster_config();
+        apps_v1 = client.AppsV1Api();
+        namespace: str = self.k8s_config.namespace;
+        serializer = client.ApiClient();
+
+        targets = replica_sets_at_revision(
+            self._owned_replica_sets(apps_v1, namespace), revision
+        );
+
+        if not targets {
+            return DeploymentResult(
+                success=False,
+                message=(
+                    f"No retained revision {revision} for '{app_name}' in "
+                    f"'{namespace}'. It is older than revision_history_limit "
+                    f"({self.k8s_config.revision_history_limit}), or was never "
+                    "deployed."
+                )
+            );
+        }
+
+        reverted: list[str] = [];
+        for (name, rs) in targets.items() {
+            template = strip_pod_template_hash(
+                dict(serializer.sanitize_for_serialization(rs.spec.template))
+            );
+            try {
+                apps_v1.patch_namespaced_deployment(
+                    name=name,
+                    namespace=namespace,
+                    body=[
+                        {"op": "replace", "path": "/spec/template", "value": template}
+                    ]
+                );
+            } except Exception as e {
+                return DeploymentResult(
+                    success=False,
+                    message=f"Reverting '{name}' to revision {revision} failed: {e}",
+                    details={"reverted": reverted}
+                );
+            }
+            reverted.append(name);
+        }
+        return DeploymentResult(
+            success=True,
+            message=(f"Reverted {len(reverted)} deployment(s) to revision {revision}"),
+            details={"reverted": reverted, "revision": revision}
+        );
     }
 
     def _apply_or_replace(

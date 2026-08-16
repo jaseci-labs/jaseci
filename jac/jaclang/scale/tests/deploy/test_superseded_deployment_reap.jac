@@ -4,7 +4,11 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
-import from jaclang.scale.deploy.target.kubernetes.target { KubernetesTarget }
+import from jaclang.scale.deploy.target.kubernetes.target {
+    KubernetesTarget,
+    replica_sets_at_revision,
+    strip_pod_template_hash
+}
 
 # A Deployment as a pre-0.34.9 toolchain wrote it: bare app name, no role label,
 # and the same pod selector the current one uses.
@@ -179,4 +183,73 @@ test "reaping survives a cluster that cannot list Deployments" {
     _target().reap_superseded_deployments(
         BrokenAppsV1(), "standup", _bundle_for("standup")
     );
+}
+
+
+# Revision based rollback (#8089). Selecting which ReplicaSet backs a revision
+# is the decision worth testing; the patch call around it is a single client
+# call. A ReplicaSet is keyed by its owning Deployment because a fleet reverts
+# per Deployment, and one with no owner is not ours to revert.
+def _replica_set(deployment: str, revision: str, owned: bool = True) -> any {
+    return SimpleNamespace(
+        metadata=SimpleNamespace(
+            name=f"{deployment}-{revision}",
+            annotations={"deployment.kubernetes.io/revision": revision},
+            owner_references=([SimpleNamespace(name=deployment)] if owned else [])
+        )
+    );
+}
+
+
+test "only the ReplicaSets at the requested revision are selected" {
+    # Newest last on purpose: both ReplicaSets key off the same Deployment, so a
+    # selector that ignored the revision would leave revision 3 as the winner.
+    sets = [
+        _replica_set("orders-deployment", "2"),
+        _replica_set("orders-deployment", "3"),
+        _replica_set("gateway-deployment", "2")
+    ];
+
+    picked = replica_sets_at_revision(sets, 2);
+
+    assert sorted(picked.keys()) == ["gateway-deployment", "orders-deployment"];
+    assert picked["orders-deployment"].metadata.name == "orders-deployment-2";
+}
+
+
+test "an ownerless ReplicaSet is never a revert target" {
+    picked = replica_sets_at_revision(
+        [_replica_set("orders-deployment", "2", owned=False)], 2
+    );
+
+    assert picked == {};
+}
+
+
+test "a revision with no retained ReplicaSet selects nothing" {
+    assert replica_sets_at_revision([_replica_set("orders-deployment", "3")], 1) == {};
+}
+
+
+# pod-template-hash is stamped by the ReplicaSet controller. Reverting a
+# template that still carries it pins the new ReplicaSet to the old hash, so
+# the controller cannot own the pods it creates.
+test "reverting a template drops pod-template-hash and keeps the rest" {
+    cleaned = strip_pod_template_hash(
+        {
+            "metadata": {
+                "labels": {
+                    "app": "orders",
+                    "managed": "jac-scale",
+                    "pod-template-hash": "76785c59cb"
+                }
+            },
+            "spec": {"containers": []}
+        }
+    );
+
+    labels = cleaned["metadata"]["labels"];
+    assert "pod-template-hash" not in labels;
+    assert labels == {"app": "orders", "managed": "jac-scale"};
+    assert cleaned["spec"] == {"containers": []};
 }
