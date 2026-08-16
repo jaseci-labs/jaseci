@@ -230,6 +230,66 @@ test "a guard lowers the same when the wrapping entry is a cache hit" {
     }
 }
 
+glob BROKEN_TORCH_SRC = "import torch;\n\n"
+         + "def broken(x: any) -> any {\n"
+         + "    return torch.relu(x;\n"
+         + "}\n";
+
+"""Count the alerts recorded against `path` in `prog`."""
+def _target_errors(prog: JacProgram, path: str) -> int {
+    real = os.path.realpath(path);
+    n = 0;
+    for e in prog.errors_had {
+        try {
+            p = os.path.realpath(e.loc.mod_path);
+        } except Exception {
+            continue;
+        }
+        if p == real {
+            n += 1;
+        }
+    }
+    return n;
+}
+
+test "a broken torch source reports its errors exactly once through the probe" {
+    # The probe parses the target speculatively and trims the alerts it added;
+    # the real compile must then report them once, neither zero nor twice.
+    old_config = config_mod._config;
+    try {
+        with TemporaryDirectory() as tmpdir {
+            tmpdir = os.path.realpath(tmpdir);
+            with open(os.path.join(tmpdir, "jac.toml"), "w") as fh {
+                fh.write(
+                    "[project]\nname = \"gmbroken\"\nversion = \"0.1.0\"\n"
+                        + "entry-point = \"broken.jac\"\n"
+                );
+            }
+            broken_path = os.path.join(tmpdir, "broken.jac");
+            with open(broken_path, "w") as fh {
+                fh.write(BROKEN_TORCH_SRC);
+            }
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
+            prog_on = JacProgram();
+            assert prog_on.get_bytecode(broken_path) is None;
+            n_on = _target_errors(prog_on, broken_path);
+            assert n_on > 0 , (
+                "a broken source must still report its errors after the probe"
+            );
+            config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
+            prog_off = JacProgram();
+            assert prog_off.get_bytecode(broken_path) is None;
+            n_off = _target_errors(prog_off, broken_path);
+            assert n_on == n_off , (
+                f"the probe changed the error count: {n_on} with the probe, "
+                + f"{n_off} without"
+            );
+        }
+    } finally {
+        config_mod._config = old_config;
+    }
+}
+
 test "a wrap seen only through facts materialization covers the guard" {
     # The entry is parsed into the hub by the claim walk, never compiled; the
     # lowering decision must derive from that closure, not from compile events.
