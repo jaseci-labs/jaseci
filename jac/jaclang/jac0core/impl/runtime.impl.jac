@@ -937,8 +937,15 @@ impl JacBuiltin.se_guard(fn: any) -> any {
 }
 
 impl JacBuiltin.log_register(fn: any) -> int {
+    key = (id(getattr(fn, '__func__', fn)), id(getattr(fn, '__self__', fn)));
+    slot = _gm_log_slots.get(key);
+    if slot is not None {
+        return slot;
+    }
     _gm_log_registry.append(fn);
-    return len(_gm_log_registry) - 1;
+    slot = len(_gm_log_registry) - 1;
+    _gm_log_slots[key] = slot;
+    return slot;
 }
 
 impl JacBuiltin.log_emit(slot: int, args: tuple, kwargs: dict) -> None {
