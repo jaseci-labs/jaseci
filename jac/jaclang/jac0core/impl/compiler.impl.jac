@@ -156,18 +156,13 @@ impl JacCompiler.get_bytecode(
             ]
         );
     }
-    import from jaclang.jac0core.codeinfo { GraphMendFacts, swap_graphmend_facts }
     prev_variant = swap_graphmend_cache_variant(gm_variant);
-    prev_facts = swap_graphmend_facts(GraphMendFacts()) if gm_active else None;
     try {
         return self._get_bytecode_variant(
             full_target, target_program, actual_program, gm_active
         );
     } finally {
         swap_graphmend_cache_variant(prev_variant);
-        if gm_active {
-            swap_graphmend_facts(prev_facts);
-        }
     }
 }
 
@@ -362,13 +357,10 @@ impl JacCompiler._get_bytecode_variant(
                     ;
                 }
                 import from jaclang.jac0core.jir { SEC_GM_NOOP, write_module_cache }
-                import from jaclang.jac0core.codeinfo { current_graphmend_facts }
                 cache_bc: any = result.gen?.py_bytecode;
                 if cache_bc is not None and not result.parse_failed {
-                    gm_noop = gm_active
-                        and (
-                            result.loc.mod_path in current_graphmend_facts().noop_mods
-                        );
+                    gm_facts = result.gen.graphmend_facts;
+                    gm_noop = gm_active and (gm_facts is not None) and gm_facts.noop;
                     if gm_noop {
                         gm_v = swap_graphmend_cache_variant("");
                         try {
@@ -1543,34 +1535,18 @@ impl JacCompiler._compile_once(
         actual_program._compile_options = options;
 
         import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
-        import from jaclang.jac0core.codeinfo {
-            GraphMendFacts,
-            installed_graphmend_facts,
-            swap_graphmend_facts
-        }
         needs_native = is_native_mod
             or ModuleCodegenPass.has_native_context_stmts(mod_targ);
-        gm_scoped = (options.graphmend is True)
-            and (installed_graphmend_facts() is None);
-        if gm_scoped {
-            swap_graphmend_facts(GraphMendFacts());
-        }
-        try {
-            self.run_schedule(
-                mod=mod_targ,
-                target_program=actual_program,
-                passes=get_py_code_gen(
-                    native=needs_native,
-                    provided=actual_program._analyses_run.get(id(mod_targ), set()),
-                    graphmend=options.graphmend is True
-                ),
-                cancel_token=options.cancel_token
-            );
-        } finally {
-            if gm_scoped {
-                swap_graphmend_facts(None);
-            }
-        }
+        self.run_schedule(
+            mod=mod_targ,
+            target_program=actual_program,
+            passes=get_py_code_gen(
+                native=needs_native,
+                provided=actual_program._analyses_run.get(id(mod_targ), set()),
+                graphmend=options.graphmend is True
+            ),
+            cancel_token=options.cancel_token
+        );
         if mod_targ.decided_codespace == 'native' {
             _scrubbed = JacCompiler._scrub_native_artifacts_on_error(
                 actual_program, mod_targ

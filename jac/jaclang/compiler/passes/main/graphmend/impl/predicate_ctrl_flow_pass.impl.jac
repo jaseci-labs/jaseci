@@ -1,9 +1,9 @@
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.codeinfo { current_graphmend_facts }
 import from jaclang.jac0core.constant { GraphBreakKind, Tokens as Tok }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
+    facts_for,
     gen_name,
     replace_stmt,
     split_params,
@@ -33,7 +33,7 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if not self._enabled {
         return;
     }
-    if current_graphmend_facts().breaks.get(nd) != GraphBreakKind.DYN_CTRL_FL {
+    if facts_for(nd).breaks.get(nd) != GraphBreakKind.DYN_CTRL_FL {
         return;
     }
     if self._autograd_reachable and (not region_in_inference_ctx(nd)) {

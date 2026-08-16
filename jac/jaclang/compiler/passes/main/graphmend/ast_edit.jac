@@ -1,6 +1,24 @@
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.codeinfo { current_graphmend_facts }
+import from jaclang.jac0core.codeinfo { GraphMendFacts }
 import from jaclang.jac0core.constant { GraphMendHelper }
+
+def facts_for(nd: uni.UniNode) -> GraphMendFacts {
+    mod: (uni.Module | None) = None;
+    if isinstance(nd, uni.Module) {
+        mod = nd;
+    } else {
+        mod = nd.find_parent_of_type(uni.Module);
+    }
+    if mod is None {
+        return GraphMendFacts();
+    }
+    facts = mod.gen.graphmend_facts;
+    if facts is None {
+        facts = GraphMendFacts();
+        mod.gen.graphmend_facts = facts;
+    }
+    return facts;
+}
 
 def gen_name(at: uni.UniNode, value: str, store: bool) -> uni.Name {
     anchor: any = at;
@@ -25,18 +43,8 @@ def gen_string(at: uni.UniNode, value: str) -> uni.String {
     );
 }
 
-def need_helper(at: uni.UniNode, helper: GraphMendHelper) -> None {
-    mod = at.find_parent_of_type(uni.Module);
-    if mod is None {
-        return;
-    }
-    facts = current_graphmend_facts();
-    needed = facts.helpers.get(mod);
-    if needed is None {
-        needed = set();
-        facts.helpers[mod] = needed;
-    }
-    needed.add(helper);
+def need_helper(at: uni.UniNode, helper: GraphMendHelper) {
+    facts_for(at).helpers.add(helper);
 }
 
 def torch_call(at: uni.UniNode, fname: str, args: list) -> uni.FuncCall {

@@ -59,20 +59,17 @@ def graphmend_pysrc(name: str, gm: bool) -> str {
 }
 
 """Compile a graphmend fixture with the transforms on and list the detection
-tags recorded in the per-compilation facts carrier."""
+tags recorded on the compiled module's facts."""
 def graphmend_break_kinds(name: str) -> list {
-    import from jaclang.jac0core.codeinfo { GraphMendFacts, swap_graphmend_facts }
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.program { JacProgram }
-    facts = GraphMendFacts();
-    prev = swap_graphmend_facts(facts);
-    try {
-        JacProgram().compile(
-            file_path=os.path.join(GRAPHMEND_FIXTURES, name),
-            options=CompileOptions(graphmend=True, type_check=False)
-        );
-    } finally {
-        swap_graphmend_facts(prev);
+    mod = JacProgram().compile(
+        file_path=os.path.join(GRAPHMEND_FIXTURES, name),
+        options=CompileOptions(graphmend=True, type_check=False)
+    );
+    facts = mod.gen.graphmend_facts;
+    if facts is None {
+        return [];
     }
     return [k.value for k in facts.breaks.values()];
 }

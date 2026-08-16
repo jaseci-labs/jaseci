@@ -1,8 +1,8 @@
 import builtins;
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.codeinfo { current_graphmend_facts }
 import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
+    facts_for,
     gen_name,
     gen_string,
     insert_after,
@@ -72,7 +72,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if not self._enabled {
         return;
     }
-    if current_graphmend_facts().breaks.get(nd) != GraphBreakKind.VAL_GUARD {
+    if facts_for(nd).breaks.get(nd) != GraphBreakKind.VAL_GUARD {
         return;
     }
     if self._inside_try(nd) {
@@ -145,7 +145,7 @@ impl TrapLoweringPass._boundary_ability(nd: uni.UniNode) -> (uni.Ability | None)
     if has_torch_compile_decorator(ab) {
         return ab;
     }
-    seed = current_graphmend_facts().boundary.get(ab);
+    seed = facts_for(ab).boundary.get(ab);
     if (seed is None) or (not has_torch_compile_decorator(seed)) {
         return None;
     }
@@ -161,7 +161,7 @@ impl TrapLoweringPass._covering_entry(nd: uni.UniNode) -> (str | None) {
     if ab is None {
         return None;
     }
-    bound = current_graphmend_facts().boundary.get(ab);
+    bound = facts_for(ab).boundary.get(ab);
     if bound is None {
         return None;
     }

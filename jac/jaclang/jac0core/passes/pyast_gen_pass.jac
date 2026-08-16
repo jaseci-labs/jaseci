@@ -12,11 +12,7 @@ import from jaclang.jac0core.constant {
 }
 import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.codeinfo {
-    BoundaryTypeInfo,
-    InteropBinding,
-    installed_graphmend_facts
-}
+import from jaclang.jac0core.codeinfo { BoundaryTypeInfo, InteropBinding }
 import from jaclang.jac0core.passes.ast_gen { BaseAstGenPass }
 import from jaclang.jac0core.passes.ast_gen.jsx_processor { PyJsxProcessor }
 import from jaclang.jac0core.diagnostics {

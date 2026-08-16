@@ -2,8 +2,7 @@ import os;
 import sys;
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.codeinfo { current_graphmend_facts }
-import from jaclang.compiler.passes.main.graphmend.ast_edit { split_params }
+import from jaclang.compiler.passes.main.graphmend.ast_edit { facts_for, split_params }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     AUTOGRAD_ITEM_NAMES,
     AUTOGRAD_MODULE_PATHS,
@@ -32,28 +31,27 @@ def compiled_region_ids(
     }
     ids: set[int] = set();
     work: list[uni.Ability] = [];
-    bounds = current_graphmend_facts().boundary;
     for m in mods {
         for nd in _compile_entry_seeds(m) {
             if isinstance(nd, uni.Archetype) {
                 ids.add(id(nd));
             } elif isinstance(nd, uni.Ability) {
-                _seed(work, bounds, nd);
+                _seed(work, nd);
             }
         }
         for fwd in module_entry_forwards(prog, m, seen) {
-            _seed(work, bounds, fwd);
+            _seed(work, fwd);
         }
     }
     for w in (wrapped or []) {
         if isinstance(w, uni.Archetype) {
             for meth in w.get_all_sub_nodes(uni.Ability) {
                 if meth.sym_name == 'forward' {
-                    _seed(work, bounds, meth);
+                    _seed(work, meth);
                 }
             }
         } elif isinstance(w, uni.Ability) {
-            _seed(work, bounds, w);
+            _seed(work, w);
         }
     }
     while work {
@@ -62,12 +60,12 @@ def compiled_region_ids(
             continue;
         }
         ids.add(id(ab));
-        owner = bounds.get(ab) or ab;
+        owner = facts_for(ab).boundary.get(ab) or ab;
         callee: (uni.Ability | None) = None;
         for call in ab.get_all_sub_nodes(uni.FuncCall) {
             callee = _resolve_callee(ab, call, prog, seen);
             if (callee is not None) and (id(callee) not in ids) {
-                bounds.setdefault(callee, owner);
+                facts_for(callee).boundary.setdefault(callee, owner);
                 work.append(callee);
             }
         }
@@ -78,7 +76,7 @@ def compiled_region_ids(
             }
             for closure in _wrapper_closures(deco) {
                 if id(closure) not in ids {
-                    bounds.setdefault(closure, owner);
+                    facts_for(closure).boundary.setdefault(closure, owner);
                     work.append(closure);
                 }
             }
@@ -87,10 +85,8 @@ def compiled_region_ids(
     return ids;
 }
 
-def _seed(
-    work: list[uni.Ability], bounds: dict[uni.Ability, uni.Ability], ab: uni.Ability
-) {
-    bounds[ab] = ab;
+def _seed(work: list[uni.Ability], ab: uni.Ability) {
+    facts_for(ab).boundary[ab] = ab;
     work.append(ab);
 }
 

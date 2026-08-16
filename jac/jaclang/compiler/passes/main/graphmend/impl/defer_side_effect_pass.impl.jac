@@ -1,8 +1,8 @@
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.codeinfo { current_graphmend_facts }
 import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper, Tokens as Tok }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
     append_stmt,
+    facts_for,
     gen_name,
     gen_string,
     insert_after,
@@ -27,7 +27,7 @@ impl DeferSideEffectPass.exit_func_call(nd: uni.FuncCall) -> None {
     if not self._enabled {
         return;
     }
-    if current_graphmend_facts().breaks.get(nd) != GraphBreakKind.SIDE_EFFECT {
+    if facts_for(nd).breaks.get(nd) != GraphBreakKind.SIDE_EFFECT {
         return;
     }
     parent = nd.parent;
@@ -153,7 +153,7 @@ impl DeferSideEffectPass._attach_se_guard(nd: uni.Ability) -> None {
 }
 
 impl DeferSideEffectPass._is_compiled_entry(nd: uni.Ability) -> bool {
-    return current_graphmend_facts().boundary.get(nd) is nd;
+    return facts_for(nd).boundary.get(nd) is nd;
 }
 
 impl DeferSideEffectPass._str(at: uni.UniNode, text: str) -> uni.String {
