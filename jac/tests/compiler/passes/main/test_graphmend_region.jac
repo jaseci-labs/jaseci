@@ -231,8 +231,8 @@ test "an entry-less torch module shares its cache artifact with off" {
             assert not prog_b.mod.hub , (
                 "a second auto run must hit the stamped shared artifact"
             );
+            config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
             prog_off = JacProgram();
-            prog_off.graphmend_enabled = False;
             code_off = prog_off.get_bytecode(conf_path);
             assert code_off is not None;
             assert not prog_off.mod.hub , (
@@ -260,8 +260,8 @@ test "a reached helper module keeps its own gm cache variant" {
             assert _mentions_symbol(code_used, "__jac_se_emit__") , (
                 "the reached helper must be transformed in realistic order"
             );
+            config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
             prog_off = JacProgram();
-            prog_off.graphmend_enabled = False;
             code_off = prog_off.get_bytecode(used_path);
             assert code_off is not None;
             assert prog_off.mod.hub , (

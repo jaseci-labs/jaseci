@@ -83,7 +83,6 @@ def _mk_gm_project(tmp: str) -> tuple[str, str] {
 
 test "the graphmend gate is open by default at every layer that carries it" {
     assert CompileOptions().graphmend is True;
-    assert JacProgram().graphmend_enabled is True;
     assert JacConfig.from_toml_str("[project]\nname = \"p\"\n").run.graphmend is True;
     assert JacConfig.from_toml_str("[run]\nmain = true\n").run.graphmend is True;
     assert JacConfig.from_toml_str("[run]\ngraphmend = false\n").run.graphmend is False;
@@ -113,26 +112,22 @@ test "default compile options leave a torch-free module identical to off" {
 test "run graphmend in jac toml is the off switch without a cli flag" {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import jaclang.cli.commands.execution as execution;
-    prog = Jac.get_program();
-    prev_enabled = prog.graphmend_enabled;
-    prev_disable = prog.graphmend_disable;
+    prev_disable = Jac.get_program().graphmend_disable;
     old_config = config_mod._config;
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
-        execution._apply_graphmend("");
-        assert Jac.get_program().graphmend_enabled is True;
+        assert execution._apply_graphmend("") is True;
+        assert CompileOptions().graphmend is True;
         config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
-        execution._apply_graphmend("");
-        assert Jac.get_program().graphmend_enabled is False;
+        assert execution._apply_graphmend("") is False;
+        assert CompileOptions().graphmend is False;
         config_mod._config = JacConfig.from_toml_str("[project]\nname = \"p\"\n");
-        execution._apply_graphmend(" trap ");
-        assert Jac.get_program().graphmend_enabled is True;
+        assert execution._apply_graphmend(" trap ") is True;
+        assert CompileOptions().graphmend is True;
         assert Jac.get_program().graphmend_disable == ["trap"];
     } finally {
         config_mod._config = old_config;
-        cur = Jac.get_program();
-        cur.graphmend_enabled = prev_enabled;
-        cur.graphmend_disable = prev_disable;
+        Jac.get_program().graphmend_disable = prev_disable;
     }
 }
 
@@ -144,17 +139,14 @@ test "a run with no torch leaves the stdlib loader untouched" {
     import from importlib.machinery { SourceFileLoader }
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import jaclang.cli.commands.execution as execution;
-    prog = Jac.get_program();
-    prev_enabled = prog.graphmend_enabled;
-    prev_disable = prog.graphmend_disable;
+    prev_disable = Jac.get_program().graphmend_disable;
     old_config = config_mod._config;
     prev_hook = _unhook_loader();
     saved_torch = sys.modules.pop("torch", None);
     before = SourceFileLoader.__dict__.get("get_code");
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
-        execution._apply_graphmend("");
-        assert Jac.get_program().graphmend_enabled is True;
+        assert execution._apply_graphmend("") is True;
         assert SourceFileLoader.__dict__.get("get_code") is before , (
             "a torch-free run must not patch SourceFileLoader.get_code"
         );
@@ -168,9 +160,7 @@ test "a run with no torch leaves the stdlib loader untouched" {
         _unhook_loader();
         _rehook_loader(prev_hook);
         config_mod._config = old_config;
-        cur = Jac.get_program();
-        cur.graphmend_enabled = prev_enabled;
-        cur.graphmend_disable = prev_disable;
+        Jac.get_program().graphmend_disable = prev_disable;
     }
 }
 
@@ -179,14 +169,12 @@ test "torch entering the process installs the import claim loader hook" {
     # install point. An off run stays unpatched even then.
     import sys;
     import from importlib.machinery { SourceFileLoader }
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.meta_importer { JacMetaImporter }
-    prog = Jac.get_program();
-    prev_enabled = prog.graphmend_enabled;
+    old_config = config_mod._config;
     prev_hook = _unhook_loader();
     saved_torch = sys.modules.pop("torch", None);
     try {
-        prog.graphmend_enabled = "auto";
+        config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
         JacMetaImporter().find_spec("json.decoder", None);
         assert not getattr(SourceFileLoader, "_jac_graphmend_hooked", False) , (
             "an unrelated import must not install the hook"
@@ -196,7 +184,7 @@ test "torch entering the process installs the import claim loader hook" {
             "importing torch must install the hook"
         );
         _unhook_loader();
-        prog.graphmend_enabled = False;
+        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
         JacMetaImporter().find_spec("torch", None);
         assert not getattr(SourceFileLoader, "_jac_graphmend_hooked", False) , (
             "an off run must stay unpatched even under torch"
@@ -207,7 +195,7 @@ test "torch entering the process installs the import claim loader hook" {
         }
         _unhook_loader();
         _rehook_loader(prev_hook);
-        Jac.get_program().graphmend_enabled = prev_enabled;
+        config_mod._config = old_config;
     }
 }
 
@@ -220,7 +208,7 @@ test "the loader hook transforms a claimed py loaded from a file location" {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.meta_importer { install_graphmend_loader_hook }
     prog = Jac.get_program();
-    prev_enabled = prog.graphmend_enabled;
+    old_config = config_mod._config;
     prev_hook = _unhook_loader();
     saved_torch = sys.modules.pop("torch", None);
     with TemporaryDirectory() as tmpdir {
@@ -230,7 +218,7 @@ test "the loader hook transforms a claimed py loaded from a file location" {
         }
         real = os.path.realpath(path);
         try {
-            prog.graphmend_enabled = "auto";
+            config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
             prog.graphmend_claimed.add(real);
             install_graphmend_loader_hook();
             spec = importlib.util.spec_from_file_location("claimed_net", path);
@@ -246,7 +234,7 @@ test "the loader hook transforms a claimed py loaded from a file location" {
             prog.graphmend_claimed.discard(real);
             _unhook_loader();
             _rehook_loader(prev_hook);
-            Jac.get_program().graphmend_enabled = prev_enabled;
+            config_mod._config = old_config;
         }
     }
 }
@@ -289,13 +277,14 @@ test "flipping the graphmend configuration misses the cached variant" {
             prog_a = JacProgram();
             code_a = prog_a.get_bytecode(main_path);
             assert code_a is not None and _mentions_symbol(code_a, "_assert_async");
+            config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
             prog_off = JacProgram();
-            prog_off.graphmend_enabled = False;
             code_off = prog_off.get_bytecode(main_path);
             assert prog_off.mod.hub , (
                 "an off run must not reuse the graphmend-on artifact"
             );
             assert not _mentions_symbol(code_off, "_assert_async");
+            config_mod._config = JacConfig.load(Path(tmpdir) / "jac.toml");
             prog_on = JacProgram();
             code_on = prog_on.get_bytecode(main_path);
             assert prog_on.mod.hub , (
@@ -326,12 +315,32 @@ test "an open gate shares the cache artifact with off for a torch-free module" {
             code_a = prog_a.get_bytecode(helper_path);
             assert code_a is not None;
             assert prog_a.mod.hub;
+            config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
             prog_off = JacProgram();
-            prog_off.graphmend_enabled = False;
             code_off = prog_off.get_bytecode(helper_path);
             assert code_off is not None;
             assert not prog_off.mod.hub , (
                 "a gate resolving to off must share the explicit-off artifact"
+            );
+        }
+    } finally {
+        config_mod._config = old_config;
+    }
+}
+
+test "a compile with no cli run command honors run graphmend false" {
+    # The serve, test, build and library paths reach get_bytecode without ever
+    # passing through the cli run command, so the config alone must gate them.
+    old_config = config_mod._config;
+    try {
+        with TemporaryDirectory() as tmpdir {
+            tmpdir = os.path.realpath(tmpdir);
+            (main_path, helper_path) = _mk_gm_project(tmpdir);
+            config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
+            code = JacProgram().get_bytecode(main_path);
+            assert code is not None;
+            assert not _mentions_symbol(code, "_assert_async") , (
+                "a compile outside the cli run path ignored run graphmend false"
             );
         }
     } finally {
@@ -391,9 +400,8 @@ def _ambient_variant -> str {
 }
 
 """Compile one module on its own thread; nothing shared crosses the boundary."""
-def _race_worker(gm_on: bool, path: str) -> any {
+def _race_worker(path: str) -> any {
     prog = JacProgram();
-    prog.graphmend_enabled = gm_on;
     try {
         return prog.get_bytecode(path);
     } finally {
@@ -425,16 +433,16 @@ test "concurrent compiles under different settings keep their own cache key" {
             _RACE_GATE[os.path.realpath(main_path)] = (engaged_in, off_in, False);
             _RACE_GATE[os.path.realpath(plain_path)] = (off_in, engaged_done, False);
             _RACE_DONE[os.path.realpath(main_path)] = engaged_done;
-            engaged = flow _race_worker(True, main_path) ;
+            engaged = flow _race_worker(main_path) ;
             assert engaged_in.wait(60) , "the engaged compile never started";
-            plain = flow _race_worker(False, str(plain_path)) ;
+            plain = flow _race_worker(str(plain_path)) ;
             code_on = wait engaged ;
             code_plain = wait plain ;
             left_behind = _ambient_variant();
             assert code_on is not None and code_plain is not None;
             assert _mentions_symbol(code_on, "_assert_async");
+            config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
             prog_after = JacProgram();
-            prog_after.graphmend_enabled = False;
             code_after = prog_after.get_bytecode(main_path);
             assert code_after is not None;
             assert prog_after.mod.hub , (

@@ -406,9 +406,11 @@ test "a torch-free import is answered without touching the filesystem" {
     import sys;
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.meta_importer { _graphmend_claims }
+    import from jaclang.project.config { JacConfig }
+    import jaclang.project.config as config_mod;
     prog = Jac.get_program();
-    prev_enabled = prog.graphmend_enabled;
     prev_claimed = set(prog.graphmend_claimed);
+    old_config = config_mod._config;
     saved_torch = sys.modules.pop("torch", None);
     with tempfile.TemporaryDirectory() as tmp {
         path = _write(tmp, "thirdparty.py", "x = 1\n");
@@ -417,7 +419,7 @@ test "a torch-free import is answered without touching the filesystem" {
         os.path.isfile = _counting_isfile;
         os.path.realpath = _counting_realpath;
         try {
-            prog.graphmend_enabled = "auto";
+            config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
             prog.graphmend_claimed.clear();
             assert _graphmend_claims("thirdparty", path) is False;
             assert FS_CALLS == [] , (
@@ -434,8 +436,8 @@ test "a torch-free import is answered without touching the filesystem" {
             if saved_torch is not None {
                 sys.modules["torch"] = saved_torch;
             }
+            config_mod._config = old_config;
             cur = Jac.get_program();
-            cur.graphmend_enabled = prev_enabled;
             cur.graphmend_claimed.clear();
             cur.graphmend_claimed.update(prev_claimed);
         }

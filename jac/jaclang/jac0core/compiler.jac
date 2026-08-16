@@ -1196,7 +1196,9 @@ obj JacCompiler {
 
     static def _check_native_abi(layout: any, full_target: str) -> None;
     def get_bytecode(
-        full_target: str, target_program: JacProgram
+        full_target: str,
+        target_program: JacProgram,
+        options: (CompileOptions | None) = None
     ) -> (types.CodeType | None);
 
     def _get_bytecode_variant(

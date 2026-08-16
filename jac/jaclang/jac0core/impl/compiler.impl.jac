@@ -124,10 +124,15 @@ impl JacCompiler._check_native_abi(layout: any, full_target: str) -> None {
 }
 
 impl JacCompiler.get_bytecode(
-    full_target: str, target_program: JacProgram
+    full_target: str,
+    target_program: JacProgram,
+    options: (CompileOptions | None) = None
 ) -> (types.CodeType | None) {
     actual_program = self._resolve_program(full_target, target_program);
-    gm_setting: bool = target_program.graphmend_enabled;
+    if options is None {
+        options = CompileOptions(type_check=False);
+    }
+    gm_setting: bool = options.graphmend is True;
     if gm_setting and actual_program is not self._internal_program {
         import from jaclang.compiler.passes.main.graphmend.auto_detect {
             file_imports_torch

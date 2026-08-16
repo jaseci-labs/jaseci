@@ -111,18 +111,15 @@ test "the cli disable flag reaches the program state" {
     import from jaclang.project.config { JacConfig }
     import jaclang.project.config as config_mod;
     prog = Jac.get_program();
-    prev_enabled = prog.graphmend_enabled;
     prev_disable = prog.graphmend_disable;
     old_config = config_mod._config;
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
-        execution._apply_graphmend(" trap , defer ");
+        gm_on = execution._apply_graphmend(" trap , defer ");
         assert Jac.get_program().graphmend_disable == ["trap", "defer"];
-        assert Jac.get_program().graphmend_enabled is True;
+        assert gm_on is True;
     } finally {
         config_mod._config = old_config;
-        cur = Jac.get_program();
-        cur.graphmend_enabled = prev_enabled;
-        cur.graphmend_disable = prev_disable;
+        Jac.get_program().graphmend_disable = prev_disable;
     }
 }

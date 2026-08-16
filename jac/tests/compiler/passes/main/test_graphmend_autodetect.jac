@@ -108,11 +108,10 @@ glob GAIN_PLAIN_SRC = 'def f(x: any) -> any {\n'
          + '        raise ValueError("mask must be all true");\n    }\n'
          + '    return torch.sin(x) * 2.0;\n}\n';
 
-"""Compile through the on-disk bytecode cache under the given graphmend gate."""
-def _cached(path: str, gm: bool) -> any {
+"""Compile through the on-disk bytecode cache under the default open gate."""
+def _cached(path: str) -> any {
     import from jaclang.jac0core.program { JacProgram }
     prog = JacProgram();
-    prog.graphmend_enabled = gm;
     code = prog.get_bytecode(path);
     assert code is not None;
     return code;
@@ -141,18 +140,18 @@ test "a source that gains or loses a torch import reruns detection" {
             fh.write(GAIN_PLAIN_SRC);
         }
         cache_path = get_module_cache_path(target);
-        assert not _has_assert_async(_cached(target, True));
+        assert not _has_assert_async(_cached(target));
         assert is_module_cache_valid(target, cache_path);
-        assert not _has_assert_async(_cached(target, True));
+        assert not _has_assert_async(_cached(target));
         with open(target, "w") as fh {
             fh.write(GAIN_TORCH_SRC);
         }
         assert not is_module_cache_valid(target, cache_path);
-        assert _has_assert_async(_cached(target, True));
+        assert _has_assert_async(_cached(target));
         with open(target, "w") as fh {
             fh.write(GAIN_PLAIN_SRC);
         }
-        assert not _has_assert_async(_cached(target, True));
+        assert not _has_assert_async(_cached(target));
     }
 }
 
@@ -239,29 +238,25 @@ test "the configured gate reads false as off and anything else as on" {
     }
 }
 
-test "the cli mapper carries the configured gate to the program" {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+test "the configured gate binds compile options without the cli mapper" {
     import jaclang.cli.commands.execution as execution;
     import from jaclang.project.config { JacConfig }
     import jaclang.project.config as config_mod;
-    prog = Jac.get_program();
-    prev_enabled = prog.graphmend_enabled;
-    prev_disable = prog.graphmend_disable;
+    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    prev_disable = Jac.get_program().graphmend_disable;
     old_config = config_mod._config;
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
-        execution._apply_graphmend("");
-        assert Jac.get_program().graphmend_enabled is True;
+        assert execution._apply_graphmend("") is True;
+        assert CompileOptions().graphmend is True;
         config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
-        execution._apply_graphmend("");
-        assert Jac.get_program().graphmend_enabled is False;
+        assert execution._apply_graphmend("") is False;
+        assert CompileOptions().graphmend is False;
         config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = \"on\"\n");
-        execution._apply_graphmend("");
-        assert Jac.get_program().graphmend_enabled is True;
+        assert execution._apply_graphmend("") is True;
+        assert CompileOptions().graphmend is True;
     } finally {
         config_mod._config = old_config;
-        cur = Jac.get_program();
-        cur.graphmend_enabled = prev_enabled;
-        cur.graphmend_disable = prev_disable;
+        Jac.get_program().graphmend_disable = prev_disable;
     }
 }

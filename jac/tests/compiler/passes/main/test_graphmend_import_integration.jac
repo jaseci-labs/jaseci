@@ -10,7 +10,6 @@ import sys;
 import tempfile;
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.runtime { JacRuntime }
 
 glob PY_CLAIMED_NET_SRC = '''
 import torch
@@ -49,15 +48,16 @@ def _mk_pkg(tmp: str, src: str) {
 
 test "an imported model package is claimed and transformed with no config" {
     # No local torch.compile: the module is claimed because it seeds GraphMend
-    # on its own, under plain auto with nothing configured.
+    # on its own, with nothing configured and the default gate open.
     torch = _torch();
-    prog = JacRuntime.get_program();
-    saved_en = prog.graphmend_enabled;
+    import from jaclang.project.config { JacConfig }
+    import jaclang.project.config as config_mod;
+    old_config = config_mod._config;
     with tempfile.TemporaryDirectory() as tmp {
         _mk_pkg(tmp, PY_CLAIMED_NET_SRC);
         sys.path.insert(0, tmp);
         try {
-            prog.graphmend_enabled = "auto";
+            config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
             sys.modules.pop("claimedmodel", None);
             sys.modules.pop("claimedmodel.net", None);
             net = importlib.import_module("claimedmodel.net");
@@ -70,7 +70,7 @@ test "an imported model package is claimed and transformed with no config" {
             # torch itself must be unaffected
             assert hasattr(torch, "_dynamo");
         } finally {
-            prog.graphmend_enabled = saved_en;
+            config_mod._config = old_config;
             sys.path.remove(tmp);
             sys.modules.pop("claimedmodel", None);
             sys.modules.pop("claimedmodel.net", None);
@@ -102,8 +102,9 @@ test "a claimed guard raises the original exception through the boundary" {
     # wraps `forward` in place on the instance. A failing guard must surface as
     # the original ValueError, and the good path must compute normally.
     torch = _torch();
-    prog = JacRuntime.get_program();
-    saved_en = prog.graphmend_enabled;
+    import from jaclang.project.config { JacConfig }
+    import jaclang.project.config as config_mod;
+    old_config = config_mod._config;
     with tempfile.TemporaryDirectory() as tmp {
         _mk_pkg(tmp, PY_GUARDED_NET_SRC);
         entry_path = os.path.join(tmp, "entry.py");
@@ -132,7 +133,7 @@ test "a claimed guard raises the original exception through the boundary" {
         }
         torch.compile = _shim;
         try {
-            prog.graphmend_enabled = "auto";
+            config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
             sys.modules.pop("claimedmodel", None);
             sys.modules.pop("claimedmodel.net", None);
             exec(compile(entry_src, "entry.py", "exec"), ns);
@@ -156,7 +157,7 @@ test "a claimed guard raises the original exception through the boundary" {
             assert "GM-TRAP" not in str(raised) , "internal trap marker leaked";
         } finally {
             torch.compile = orig_compile;
-            prog.graphmend_enabled = saved_en;
+            config_mod._config = old_config;
             sys.path.remove(tmp);
             sys.modules.pop("claimedmodel", None);
             sys.modules.pop("claimedmodel.net", None);
