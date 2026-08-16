@@ -256,6 +256,8 @@ impl NaIRGenPass._codegen_bound_args(
     if _has_pack and func.function_type.var_arg {
         _has_pack = False;
     }
+    _sig_is_callees = (self_offset - _self_skip + len(callee_sig.get_parameters()))
+        == len(func.args);
     if _has_pack {
         _chk = self_offset - _self_skip
             + len(callee_sig.posonly_params or [])
@@ -272,6 +274,9 @@ impl NaIRGenPass._codegen_bound_args(
                 }
             }
             if not _vt_ok {
+                if _sig_is_callees {
+                    self._emit_pack_slot_refusal(nd, "*");
+                }
                 _has_pack = False;
             }
             _chk += 1;
@@ -290,6 +295,9 @@ impl NaIRGenPass._codegen_bound_args(
                 }
             }
             if not _dt_ok {
+                if _sig_is_callees {
+                    self._emit_pack_slot_refusal(nd, "**");
+                }
                 _has_pack = False;
             }
         }
@@ -560,6 +568,36 @@ impl NaIRGenPass._codegen_bound_args(
         args.append(self._default_arg_fallback(func.args[slot].type));
     }
     return args;
+}
+
+impl NaIRGenPass._emit_pack_slot_refusal(nd: uni.FuncCall, star: str) -> None {
+    """Refuse a call whose callee declares a pack it could not lay out.
+
+    Binding the extras positionally into a slot that is not a pack is the one
+    answer this site may never give: the callee reads that slot as its whole
+    parameter pack, so the mismatch is a silent misread at run time rather
+    than a missing feature.
+
+    Reached only when the signature that declares the pack is the one the
+    called function was built from. A bundled native module whose typeshed
+    stub is variadic while its own definition is fixed-arity -- `os.path.join`
+    is the standing example -- resolves a signature belonging to a different
+    implementation, and positional binding against the real one is correct.
+    """;
+    _sink = "*args" if star == "*" else "**kwargs";
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="variadic call",
+        name=star,
+        help_text=(
+            f"The callee declares a `{star}` pack, but its `{_sink}` slot did "
+            f"not lay out as a native list or dict, so the arguments this "
+            f"site would pack have nowhere to go. Annotate the pack with an "
+            f"element type that lowers, or move the call to a @sv/Python "
+            f"context."
+        )
+    );
 }
 
 impl NaIRGenPass._codegen_varargs_list(
