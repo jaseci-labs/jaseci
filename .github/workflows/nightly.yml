@@ -202,5 +202,5 @@ jobs:
     - name: Install the latest CPU-only torch and run the graph-count suites
       uses: ./.github/actions/graphmend-torch
       with:
-        torch-spec: torch
+        specs: torch numpy
         expected-tests: "18"

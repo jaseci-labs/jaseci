@@ -308,6 +308,10 @@ jobs:
       # graphmend-torch-latest canary runs the same suites unpinned, so drift
       # surfaces there instead of in someone's merge queue.
       TORCH_VERSION: "2.13.0"
+      # Not a torch requirement, but torch warns on import without it and the
+      # suites run under `filterwarnings = error`. Pinned for the same reason
+      # torch is.
+      NUMPY_VERSION: "2.5.1"
     steps:
       - uses: actions/checkout@v5
       - name: Restore typeshed stdlib stubs into the checkout
@@ -335,7 +339,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: .pip-cache
-          key: torch-cpu-${{ runner.os }}-${{ runner.arch }}-${{ env.TORCH_VERSION }}
+          key: torch-cpu-${{ runner.os }}-${{ runner.arch }}-${{ env.TORCH_VERSION }}-np${{ env.NUMPY_VERSION }}
 
       # torch lands in the binary's global site, which lives under HOME, so
       # HOME is left alone for the rest of the job. These suites drive the
@@ -344,7 +348,7 @@ jobs:
       - name: Install torch and run the graph-count suites
         uses: ./.github/actions/graphmend-torch
         with:
-          torch-spec: torch==${{ env.TORCH_VERSION }}
+          specs: torch==${{ env.TORCH_VERSION }} numpy==${{ env.NUMPY_VERSION }}
           expected-tests: "18"
 
       - name: Save cached torch CPU wheels
@@ -352,7 +356,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: .pip-cache
-          key: torch-cpu-${{ runner.os }}-${{ runner.arch }}-${{ env.TORCH_VERSION }}
+          key: torch-cpu-${{ runner.os }}-${{ runner.arch }}-${{ env.TORCH_VERSION }}-np${{ env.NUMPY_VERSION }}
 
   # Native lowering unavailable (LLVM shim absent): user programs must compile
   # cleanly in the server codespace with zero scheduling errors and no
