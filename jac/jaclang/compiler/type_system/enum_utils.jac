@@ -26,19 +26,19 @@ glob ENUM_RESERVED_NAMES: set[str] = {
 def is_excluded_enum_member_name(name: str) -> bool;
 
 def create_enum_member_info(
-    assignment: Assignment, evaluator: "TypeEvaluator"
+    assignment: Assignment, evaluator: TypeEvaluator
 ) -> (EnumMemberInfo | None);
 
 def validate_enum_member_annotation(
-    assignment: Assignment, member_info: EnumMemberInfo, evaluator: "TypeEvaluator"
+    assignment: Assignment, member_info: EnumMemberInfo, evaluator: TypeEvaluator
 ) -> None;
 
 def build_enum_members(
     enum_node: Enum | Archetype,
-    evaluator: "TypeEvaluator",
+    evaluator: TypeEvaluator,
     enum_value_type: TypeBase | None = None
 ) -> dict[str, EnumMemberInfo];
 
 def get_special_enum_value_type_from_bases(
-    base_classes: list[TypeBase], prefetch: "PrefetchedTypes"
+    base_classes: list[TypeBase], prefetch: PrefetchedTypes
 ) -> (TypeBase | None);

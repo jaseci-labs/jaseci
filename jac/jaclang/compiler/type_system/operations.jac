@@ -117,7 +117,7 @@ def _is_float_like(t: ClassType) -> bool {
 }
 
 def get_numeric_promotion_type(
-    evaluator: 'TypeEvaluator', left_type: TypeBase, right_type: TypeBase, op: str
+    evaluator: TypeEvaluator, left_type: TypeBase, right_type: TypeBase, op: str
 ) -> TypeBase | None {
     if not isinstance(left_type, ClassType) or not isinstance(right_type, ClassType) {
         return None;
@@ -161,7 +161,7 @@ def get_numeric_promotion_type(
 }
 
 def get_pow_result_type(
-    evaluator: 'TypeEvaluator',
+    evaluator: TypeEvaluator,
     left_type: TypeBase,
     right_type: TypeBase,
     right_node: (UniNode | None)
@@ -194,7 +194,7 @@ def get_pow_result_type(
     return evaluator._convert_to_instance(float_class);
 }
 
-def is_annotation_type(evaluator: 'TypeEvaluator', ty: TypeBase) -> bool {
+def is_annotation_type(evaluator: TypeEvaluator, ty: TypeBase) -> bool {
     if ty.is_instantiable() or isinstance(ty, UnionType) {
         return True;
     }
@@ -219,7 +219,7 @@ def is_annotation_type(evaluator: 'TypeEvaluator', ty: TypeBase) -> bool {
 }
 
 def get_type_of_binary_operation(
-    evaluator: 'TypeEvaluator', expr: BinaryExpr
+    evaluator: TypeEvaluator, expr: BinaryExpr
 ) -> TypeBase {
     left_type = evaluator.get_type_of_expression(expr.left);
     right_type = evaluator.get_type_of_expression(expr.right);
