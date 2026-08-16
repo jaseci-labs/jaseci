@@ -53,7 +53,9 @@ test "an interleaved compile does not clobber the in-flight break table" {
         self: any, mod: any, target_program: any, passes: any, cancel_token: any = None
     ) {
         is_entry = str(mod.loc.mod_path).endswith("val_guard.jac");
-        if state["interleaved"] or (GraphBreakDetectPass not in passes) or not is_entry {
+        if state["interleaved"]
+            or (GraphBreakDetectPass not in passes)
+            or not is_entry {
             orig(self, mod, target_program, passes, cancel_token);
             return;
         }
@@ -88,7 +90,9 @@ test "an interleaved compile records its facts into its own carrier" {
         self: any, mod: any, target_program: any, passes: any, cancel_token: any = None
     ) {
         is_entry = str(mod.loc.mod_path).endswith("val_guard.jac");
-        if state["interleaved"] or (GraphBreakDetectPass not in passes) or not is_entry {
+        if state["interleaved"]
+            or (GraphBreakDetectPass not in passes)
+            or not is_entry {
             orig(self, mod, target_program, passes, cancel_token);
             return;
         }

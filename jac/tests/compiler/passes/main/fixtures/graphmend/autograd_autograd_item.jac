@@ -12,6 +12,6 @@ def f(x: any, y: any) -> any {
     return z;
 }
 
-def cfg() -> None {
+def cfg {
     autograd.set_detect_anomaly(True);
 }

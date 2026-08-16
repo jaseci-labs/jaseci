@@ -12,7 +12,7 @@ def f(x: any, y: any) -> any {
     return z;
 }
 
-def run_epoch(x: any, y: any) -> None {
+def run_epoch(x: any, y: any) {
     loss = f(x, y).sum();
     loss.backward();
 }

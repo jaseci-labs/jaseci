@@ -609,9 +609,7 @@ glob _graphmend_facts_ctx: ContextVar[(GraphMendFacts | None)] = ContextVar(
          "jac_graphmend_facts", default=None
      );
 
-def swap_graphmend_facts(
-    facts: (GraphMendFacts | None)
-) -> (GraphMendFacts | None) {
+def swap_graphmend_facts(facts: (GraphMendFacts | None)) -> (GraphMendFacts | None) {
     prev = _graphmend_facts_ctx.get();
     _graphmend_facts_ctx.set(facts);
     return prev;

@@ -11,6 +11,6 @@ def f(x: any, y: any) -> any {
     return z;
 }
 
-def advance(optimizer: any) -> None {
+def advance(optimizer: any) {
     optimizer.step();
 }

@@ -2,7 +2,7 @@
 nothing; the permit needs a name that declares at a genuine `import torch`."""
 import torch;
 
-def _stub() -> any {
+def _stub -> any {
     return 0;
 }
 
@@ -19,6 +19,6 @@ def f(x: any, y: any) -> any {
     return z;
 }
 
-def run_epoch(loss: any) -> None {
+def run_epoch(loss: any) {
     loss.backward();
 }

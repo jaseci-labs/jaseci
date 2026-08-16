@@ -14,6 +14,6 @@ def f(x: any, y: any) -> any {
     return z;
 }
 
-def run_epoch(loss: any) -> None {
+def run_epoch(loss: any) {
     loss.backward();
 }

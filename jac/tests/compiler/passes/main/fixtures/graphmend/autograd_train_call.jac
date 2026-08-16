@@ -11,6 +11,6 @@ def f(x: any, y: any) -> any {
     return z;
 }
 
-def fit(net: any) -> None {
+def fit(net: any) {
     net.train();
 }
