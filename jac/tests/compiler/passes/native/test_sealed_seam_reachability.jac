@@ -84,7 +84,10 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
          "jac0core/passes/semantic_analysis_pass.jac",
          "compiler/passes/main/sem_def_match_pass.jac"
      ),
-     SYM_TAB_ROOT = "jac0core/passes/sym_tab_build_pass.jac",
+     WAVE4_ROOTS: tuple = (
+         "jac0core/passes/sym_tab_build_pass.jac",
+         "jac0core/passes/decl_impl_match_pass.jac"
+     ),
      # Documented carve-outs of the receiver-blind accessor rule: `x.a` adds
      # every class's `a` accessor, so a live read of a polymorphic slot flags
      # implementors the receiver's DECLARED type can never be. Each entry
@@ -545,36 +548,49 @@ test "wave-2 roots: no waived seam is native-reachable beyond the argued slots" 
 }
 
 
-test "sym_tab_build's live surface stays clear of the import-resolution stubs" {
-    # Wave 2's stop-the-line finding, now cleared: live exit_module_path
-    # used to read Import.is_jac, whose implementation chains into
-    # __jac_detected and ModulePath.resolve_relative_path, the waived
-    # filesystem import-resolution family -- sealed, that aborts on the
-    # first plain import. Import detection is driver-stamped data now
-    # (the compile driver stamps Import.jac_detected alongside
-    # absorbed_mod, the #8242 pattern) and the pass consumes the slot, so
-    # this walk pins the cleared state: the root's live surface reaches
-    # no waived seam at all. The root is seal-ready; the sealing wave
-    # owns adding it to NATIVE_SEAL_ROOTS and the wave census.
-    (seen, _waived) = pass_reachable(SYM_TAB_ROOT);
-    for needed in (
-        "SymTabBuildPass._bind_import_path_symbols",
-        "UniScopeNode.def_insert"
+test "wave-4 roots: each walk reaches the pass's own machinery" {
+    # sym_tab_build was wave 2's stop-the-line refusal: live
+    # exit_module_path read Import.is_jac, chaining into __jac_detected
+    # and ModulePath.resolve_relative_path, the waived filesystem
+    # import-resolution family. Import detection is driver-stamped data
+    # now (Import.jac_detected, the #8242 absorbed_mod pattern), the
+    # cleared-state pin held, and this wave replaces it with full
+    # sealed-root membership for both declaration binders.
+    for (rel, needed) in (
+        (
+            "jac0core/passes/sym_tab_build_pass.jac",
+            ("SymTabBuildPass._bind_import_path_symbols", "UniScopeNode.def_insert")
+        ),
+        (
+            "jac0core/passes/decl_impl_match_pass.jac",
+            ("bind_assignment_targets", "UniScopeNode.lookup")
+        )
     ) {
-        assert needed in seen , (
-            f"'{needed}' is missing from the reachable set -- the walk found "
-            "nothing, so the clean verdict below would be vacuous"
+        (seen, _waived) = pass_reachable(rel);
+        for name in needed {
+            assert name in seen , (
+                f"{rel}: '{name}' is missing from the reachable set -- the "
+                "walk found nothing there, so a clean waiver verdict would "
+                "be vacuous"
+            );
+        }
+    }
+}
+
+
+test "wave-4 roots: no waived seam is native-reachable from the live surface" {
+    for rel in WAVE4_ROOTS {
+        (seen, waived) = pass_reachable(rel);
+        hit = sorted(
+            name
+            for name in waived
+            if name in seen
+        );
+        assert not hit , (
+            f"{rel}: {len(hit)} waived seam(s) are reachable through native "
+            "calls from the root's live entry surface, so the sealed artifact "
+            "can abort at runtime -- remove the waiver and fix the seam:\n"
+            + "\n".join(f"  {name}" for name in hit)
         );
     }
-    hit = sorted(
-        name
-        for name in _waived_names()
-        if name in seen
-    );
-    assert not hit , (
-        f"sym_tab_build's live surface reaches {len(hit)} waived seam(s) "
-        "again, so a sealed artifact could abort at runtime -- the "
-        "import-detection stamp (or a new read) has regressed:\n"
-        + "\n".join(f"  {name}" for name in hit)
-    );
 }
