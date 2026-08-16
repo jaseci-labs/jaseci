@@ -335,6 +335,16 @@ def fail_loud_on_compiler_source(err: ImportError) -> None {
     ) from err;
 }
 
+glob _native_sched_failure: dict[str, str] = {};
+
+def _note_native_schedule_failure(err: BaseException) {
+    _native_sched_failure['reason'] = f"{type(err).__name__}: {err}";
+}
+
+def native_schedule_failure -> str {
+    return _native_sched_failure.get('reason', '');
+}
+
 def get_boundary_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     return validate_schedule(
         [BoundaryAnalysisPass, EndpointEffectPass], origin='boundary-analysis schedule'
@@ -586,6 +596,9 @@ def get_py_code_gen(
         return passes;
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
+        if native {
+            _note_native_schedule_failure(e);
+        }
         return [PyastGenPass, PyBytecodeGenPass];
     } finally {
         _codegen_sched_loading.reset(_tok);
@@ -1256,6 +1269,10 @@ obj JacCompiler {
     static def _scrub_native_artifacts_on_error(
         target_program: JacProgram, mod: uni.Module
     ) -> bool;
+
+    static def _report_missing_native_ir(
+        target_program: JacProgram, mod: uni.Module
+    ) -> None;
 
     static def _prepare_tool_program(
         source_str: str, file_path: str, expand: bool = False
