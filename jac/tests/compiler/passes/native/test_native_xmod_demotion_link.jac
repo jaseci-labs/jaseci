@@ -43,9 +43,8 @@ import from tests.support { TESTS_DIR }
 
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
-     );
-
-glob _CANARY_DRIVER: str = (
+     ),
+     _CANARY_DRIVER: str = (
          "import ctypes, sys\n"
          "lib, raw = sys.argv[1], sys.argv[2]\n"
          "syms = [s for s in raw.split(',') if s]\n"
@@ -163,7 +162,7 @@ importer function that must cascade, `clean_caller` the sibling that must
 stay lowered."""
 def _assert_link_protocol(
     fixture: str, stem: str, callee: str, caller: str, clean_caller: str
-) -> None {
+) {
     (prog, ir, census) = _compile_with_census(fixture);
     errors = [str(e) for e in prog.errors_had];
     assert not prog.errors_had , (
@@ -191,7 +190,11 @@ def _assert_link_protocol(
         f"can never resolve: {dangling}"
     );
     seams = _seams_of(census, fixture);
-    cascade = [s for s in seams if s.startswith(f"{caller}: ")];
+    cascade = [
+        s
+        for s in seams
+        if s.startswith(f"{caller}: ")
+    ];
     assert cascade , (
         f"the census must record '{caller}' as a seam of the importer: {seams}"
     );
@@ -201,8 +204,7 @@ def _assert_link_protocol(
     );
     verdict = _link_and_canary(ir, stem);
     assert verdict == "CANARY_OK" , (
-        f"the sealed-artifact canary must pass once the caller cascades: "
-        f"{verdict}"
+        f"the sealed-artifact canary must pass once the caller cascades: " f"{verdict}"
     );
 }
 

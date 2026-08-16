@@ -1140,20 +1140,15 @@ impl NaIRGenPass._imported_function_demotions(
     } elif imported_mod.gen.llvm_ir is not None {
         entry = imported_mod;
     } else {
-        import from jaclang.jac0core.compile_options {
-            CompileOptions as _FdOpts
-        }
+        import from jaclang.jac0core.compile_options { CompileOptions as _FdOpts }
         _opts_src = self.prog?._compile_options or _FdOpts();
         if not bool(getattr(_opts_src, "no_ir_cache", False)) {
             try {
                 import from jaclang.compiler.passes.native.na_compile_pass {
                     native_dep_cache_paths
                 }
-                (_fd_ir_p, _fd_meta_p) = native_dep_cache_paths(
-                    real_path, _opts_src
-                );
-                if _fd_os.path.exists(_fd_ir_p)
-                    and _fd_os.path.exists(_fd_meta_p) {
+                (_fd_ir_p, _fd_meta_p) = native_dep_cache_paths(real_path, _opts_src);
+                if _fd_os.path.exists(_fd_ir_p) and _fd_os.path.exists(_fd_meta_p) {
                     import json as _fd_json;
                     with open(_fd_meta_p, "r") as _fd_mf {
                         _fd_meta = _fd_json.loads(_fd_mf.read());
@@ -1180,9 +1175,7 @@ impl NaIRGenPass._imported_function_demotions(
         units[real_path] = entry;
     }
 
-    if entry is None
-        or isinstance(entry, str)
-        or entry.gen.llvm_ir is None {
+    if entry is None or isinstance(entry, str) or entry.gen.llvm_ir is None {
         _fd_all: set = set();
         for _fd_stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
             if (

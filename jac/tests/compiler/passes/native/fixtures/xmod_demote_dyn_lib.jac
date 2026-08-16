@@ -5,10 +5,7 @@ no AST-level capability check refuses it, so the demotion verdict exists
 only after NaIRGenPass lowers the dependency. `double` must stay native.
 """
 
-enum Hue {
-    RED = 1,
-    GREEN = 2
-}
+enum Hue { RED = 1, GREEN = 2 }
 
 def from_code(x: int) -> int {
     h = Hue(x);
