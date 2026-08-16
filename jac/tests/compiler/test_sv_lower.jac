@@ -8,7 +8,7 @@ import from jaclang.jac0core.codeinfo { BoundaryTypeInfo, InteropManifest }
 import from pathlib { Path }
 import tempfile;
 
-def _todo_manifest() -> InteropManifest {
+def _todo_manifest -> InteropManifest {
     manifest = InteropManifest();
     manifest.walker_access = {"add_todo": False, "list_todos": False, "clear": False};
     manifest.boundary_types = {
@@ -117,9 +117,20 @@ test "emit_jacgraph_templates includes graph runtime" {
     assert "JacGraph.kt" in files;
     assert "object JacGraph" in files["JacGraph.kt"];
     assert "jac_graph.json" in files["JacGraph.kt"];
+    assert "jac_oplog.json" in files["JacGraph.kt"];
+    assert "GraphOp" in files["JacGraph.kt"];
     assert "JacGraphSerializers.kt" in files;
     assert "registerNodeSubclass" in files["JacGraphSerializers.kt"];
     assert "abstract class Walker" in files["Walker.kt"];
+}
+
+test "emit_jacgraph_templates local-first includes sync runtime" {
+    files = emit_jacgraph_templates("dev.jac.test", "local-first");
+    assert "JacSync.kt" in files;
+    assert "JacSyncWorker.kt" in files;
+    assert "JacHttp.kt" in files;
+    assert "last-writer-wins" in files["JacSync.kt"].lower();
+    assert "WorkManager" in files["JacSyncWorker.kt"];
 }
 
 test "run_sv_lower registers node types for graph persistence" {

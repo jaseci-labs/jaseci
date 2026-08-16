@@ -297,6 +297,22 @@ object JacBackends {{
 """;
 }
 
+def _emit_jac_http(package_name: str) -> str {
+    import os;
+    import jaclang;
+    tpl_dir = os.path.join(
+        os.path.dirname(jaclang.__file__),
+        "compiler",
+        "passes",
+        "compose",
+        "gradle_templates",
+        "jacgraph"
+    );
+    with open(os.path.join(tpl_dir, "JacHttp.kt"), encoding="utf-8") as f {
+        return f.read().replace("{{package}}", package_name);
+    }
+}
+
 def _emit_remote_backend(
     package_name: str, manifest: any, walker_names: list[str]
 ) -> str {
@@ -314,12 +330,8 @@ def _emit_remote_backend(
 
     return f"""package {package_name}
 
-import java.net.HttpURLConnection
-import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 
@@ -327,36 +339,23 @@ class RemoteBackend(
     var baseUrl: String = JacEnvironment.BACKEND_URL,
     var token: String? = null,
 ) : JacBackend {{
-    @PublishedApi
-    internal val json = Json {{ ignoreUnknownKeys = true; encodeDefaults = true }}
-
     suspend inline fun <reified Req, reified Res> call(
         walker: String,
         req: Req,
         nodeId: String? = null
     ): Res = withContext(Dispatchers.IO) {{
         val suffix = nodeId?.let {{ "/$it" }} ?: ""
-        val url = URL(baseUrl + "/walker/" + walker + suffix)
-        (url.openConnection() as HttpURLConnection).run {{
-            requestMethod = "POST"
-            setRequestProperty("Content-Type", "application/json")
-            setRequestProperty("Accept", "application/json")
-            token?.let {{ setRequestProperty("Authorization", "Bearer $it") }}
-            doOutput = true
-            outputStream.use {{ it.write(json.encodeToString(req).toByteArray()) }}
-            val code = responseCode
-            val stream = if (code in 200..299) inputStream else errorStream
-            val body = stream?.bufferedReader()?.readText() ?: ""
-            if (code == 401) {{
-                token = null
-            }}
-            if (code !in 200..299) {{
-                throw RuntimeException("RemoteBackend HTTP $code: $body")
-            }}
-            val data = json.parseToJsonElement(body).jsonObject["data"]
-                ?: throw RuntimeException("RemoteBackend: missing data field")
-            json.decodeFromJsonElement<Res>(data)
+        val url = baseUrl + "/walker/" + walker + suffix
+        val (code, body) = JacHttp.postJson(url, req, token)
+        if (code == 401) {{
+            token = null
         }}
+        if (code !in 200..299) {{
+            throw RuntimeException("RemoteBackend HTTP $code: $body")
+        }}
+        val data = JacHttp.json.parseToJsonElement(body).jsonObject["data"]
+            ?: throw RuntimeException("RemoteBackend: missing data field")
+        JacHttp.json.decodeFromJsonElement<Res>(data)
     }}
 
 {methods_src}
@@ -364,17 +363,25 @@ class RemoteBackend(
 """;
 }
 
+def _device_init_reg_lines(node_names: list[str]) -> str {
+    reg_lines = "\n".join(
+        f"        JacGraphSerializers.registerNodeSubclass("
+        f"{name}::class, {name}.serializer())" for name in node_names
+    );
+    if reg_lines {
+        reg_lines += "\n";
+    }
+    return reg_lines;
+}
+
 def _emit_jac_backend_init(
-    package_name: str, deploy: str, node_names: list[str] = []
+    package_name: str,
+    deploy: str,
+    node_names: list[str] = [],
+    sync_url: (str | None) = None
 ) -> str {
+    reg_lines = _device_init_reg_lines(node_names);
     if deploy == "device" {
-        reg_lines = "\n".join(
-            f"        JacGraphSerializers.registerNodeSubclass("
-            f"{name}::class, {name}.serializer())" for name in node_names
-        );
-        if reg_lines {
-            reg_lines += "\n";
-        }
         return f"""package {package_name}
 
 import android.content.Context
@@ -383,6 +390,24 @@ object JacBackendInit {{
     fun install(context: Context? = null) {{
 {reg_lines}        context?.let {{ JacGraph.init(it) }}
         JacBackends.current = DeviceBackend()
+    }}
+}}
+""";
+    }
+    if deploy == "local-first" {
+        sync_lit = escape_kotlin(sync_url or "");
+        return f"""package {package_name}
+
+import android.content.Context
+
+object JacBackendInit {{
+    fun install(context: Context? = null) {{
+{reg_lines}        context?.let {{ ctx ->
+            JacGraph.init(ctx)
+            JacSync.init(ctx, "{sync_lit}")
+            JacSync.schedulePeriodicSync(ctx)
+        }}
+        JacBackends.current = LocalFirstBackend()
     }}
 }}
 """;
@@ -443,12 +468,40 @@ class DeviceBackend : JacBackend {{
 """;
 }
 
+def _emit_local_first_backend(
+    package_name: str, manifest: any, walker_names: list[str]
+) -> str {
+    walker_methods: list[str] = [];
+    for wname in sorted(walker_names) {
+        pascal = walker_to_pascal(wname);
+        req_name = f"{pascal}Request";
+        res_name = f"{pascal}Response";
+        walker_methods.append(
+            f"    override suspend fun {wname}(req: {req_name}, nodeId: String?): "
+            f"{res_name} {{\n"
+            f"        val result = device.{wname}(req, nodeId)\n"
+            f"        JacSync.requestSync()\n"
+            f"        return result\n"
+            f"    }}"
+        );
+    }
+    methods_src = '\n'.join(walker_methods);
+    return f"""package {package_name}
+
+class LocalFirstBackend(
+    private val device: DeviceBackend = DeviceBackend(),
+) : JacBackend {{
+{methods_src}
+}}
+""";
+}
+
 def _combine_sv_backend_sources(
     files: dict[str, str], package_name: str, exclude: set[str]
 ) -> str {
     imports: set[str] = set();
     bodies: list[str] = [];
-    order = ["JacBoundary.kt", "JacBackend.kt", "RemoteBackend.kt"];
+    order = ["JacBoundary.kt", "JacBackend.kt", "JacHttp.kt", "RemoteBackend.kt"];
     for fname in order {
         if fname in exclude or fname not in files {
             continue;
@@ -485,31 +538,40 @@ impl emit_sv_backend(
     node_names: list[str] = []
 ) -> dict[str, str] {
     effective = deploy;
-    if deploy not in ("remote", "device") {
+    if deploy == "local-first" and not sync_url {
         try {
             import from jaclang.cli.console { console }
             console.warning(
-                f"  sv deploy={deploy} backend not yet available, emitting remote"
+                "  sv deploy=local-first requires [sv].sync URL; sync worker will no-op"
             );
         } except Exception {
             ;
         }
-        effective = "remote";
     }
     walker_names = _collect_pub_walker_names(manifest);
     files: dict[str, str] = {
         "JacBoundary.kt": _emit_boundary_types(package_name, manifest),
         "JacBackend.kt": _emit_backend_interface(package_name, manifest, walker_names),
-        "JacBackendInit.kt": _emit_jac_backend_init(package_name, effective, node_names)
+        "JacBackendInit.kt": _emit_jac_backend_init(
+            package_name, effective, node_names, sync_url
+        )
     };
     if effective == "device" {
         files["DeviceBackend.kt"] = _emit_device_backend(
+            package_name, manifest, walker_names
+        );
+    } elif effective == "local-first" {
+        files["DeviceBackend.kt"] = _emit_device_backend(
+            package_name, manifest, walker_names
+        );
+        files["LocalFirstBackend.kt"] = _emit_local_first_backend(
             package_name, manifest, walker_names
         );
     } else {
         files["RemoteBackend.kt"] = _emit_remote_backend(
             package_name, manifest, walker_names
         );
+        files["JacHttp.kt"] = _emit_jac_http(package_name);
     }
     return files;
 }

@@ -603,9 +603,9 @@ impl ComposeEmit.write -> list[Path] {
     for (backend_name, backend_src) in backend_files.items() {
         files[f"{screens_root}/{backend_name}"] = backend_src;
     }
-    if self.model.intent.sv_deploy == "device" {
+    if self.model.intent.sv_deploy in ("device", "local-first") {
         for (graph_name, graph_src) in emit_jacgraph_templates(
-            self.model.intent.package_name
+            self.model.intent.package_name, self.model.intent.sv_deploy
         ).items() {
             files[f"{screens_root}/{graph_name}"] = graph_src;
         }

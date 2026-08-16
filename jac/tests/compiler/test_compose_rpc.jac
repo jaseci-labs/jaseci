@@ -7,7 +7,7 @@ import from jaclang.jac0core.codeinfo { BoundaryTypeInfo, InteropManifest }
 import from pathlib { Path }
 import tempfile;
 
-def _greet_manifest() -> InteropManifest {
+def _greet_manifest -> InteropManifest {
     manifest = InteropManifest();
     manifest.walker_access = {"greet": False};
     manifest.boundary_types = {
@@ -33,7 +33,9 @@ test "emit_jac_client includes request fields from boundary_types" {
     assert "data class GreetRequest" in code;
     assert "val name: String" in code;
     assert "interface JacBackend" in code;
+    assert "object JacHttp" in code;
     assert "class RemoteBackend" in code;
+    assert "JacHttp.postJson" in code;
     assert 'suspend fun greet(req: GreetRequest' in code;
 }
 
@@ -51,10 +53,29 @@ test "emit_sv_backend emits split backend files for remote deploy" {
     assert "data class GreetRequest" in files["JacBoundary.kt"];
 }
 
-test "emit_sv_backend falls back to remote for local-first deploy with warning path" {
+test "emit_sv_backend emits LocalFirstBackend for local-first deploy" {
     files = emit_sv_backend("dev.jac.test", _greet_manifest(), "local-first", None);
-    assert "RemoteBackend.kt" in files;
-    assert "DeviceBackend.kt" not in files;
+    assert "LocalFirstBackend.kt" in files;
+    assert "DeviceBackend.kt" in files;
+    assert "RemoteBackend.kt" not in files;
+    assert "JacBackends.current = LocalFirstBackend()" in files["JacBackendInit.kt"];
+    assert "JacSync.init" in files["JacBackendInit.kt"];
+}
+
+test "emit_sv_backend remote emits JacHttp helper" {
+    files = emit_sv_backend("dev.jac.test", _greet_manifest(), "remote", None);
+    assert "JacHttp.kt" in files;
+    assert "object JacHttp" in files["JacHttp.kt"];
+    assert "JacHttp.postJson" in files["RemoteBackend.kt"];
+}
+
+test "emit_sv_backend local-first includes sync URL in init" {
+    files = emit_sv_backend(
+        "dev.jac.test", _greet_manifest(), "local-first", "https://sync.example.test/"
+    );
+    assert "https://sync.example.test/" in files["JacBackendInit.kt"];
+    assert "class LocalFirstBackend" in files["LocalFirstBackend.kt"];
+    assert "JacSync.requestSync()" in files["LocalFirstBackend.kt"];
 }
 
 test "emit_sv_backend emits DeviceBackend for device deploy" {

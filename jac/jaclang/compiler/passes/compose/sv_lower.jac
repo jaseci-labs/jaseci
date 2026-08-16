@@ -6,5 +6,7 @@ obj SvLowerResult {
         diagnostics: list[str] = [];
 }
 
-def emit_jacgraph_templates(package_name: str) -> dict[str, str];
+def emit_jacgraph_templates(
+    package_name: str, deploy: str = "device"
+) -> dict[str, str];
 def run_sv_lower(mod: uni.Module, manifest: any, package_name: str) -> SvLowerResult;

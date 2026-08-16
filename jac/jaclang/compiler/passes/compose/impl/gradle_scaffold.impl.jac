@@ -288,13 +288,17 @@ impl build_gradle_scaffold(
         "JacRouting.kt": _jac_routing(package_name, effective_routes),
         "JacTheme.kt": _jac_theme(package_name)
     };
-    if sv_deploy != "device" {
+    if sv_deploy not in ("device", "local-first") {
         infra_files["JacEnvironment.kt"] = _jac_environment(package_name, backend_url);
+    }
+    effective_deps = list(gradle_deps);
+    if sv_deploy == "local-first" {
+        effective_deps.append("androidx.work:work-runtime-ktx:2.10.0");
     }
     files: dict[str, str] = {
         "build.gradle.kts": _root_gradle(),
         "gradle.properties": _gradle_properties(),
-        "app/build.gradle.kts": _app_gradle(package_name, gradle_deps),
+        "app/build.gradle.kts": _app_gradle(package_name, effective_deps),
         "app/src/main/res/values/styles.xml": _styles_xml(),
         "app/src/main/res/values/strings.xml": _strings_xml(app_name)
     };
@@ -303,7 +307,7 @@ impl build_gradle_scaffold(
         files["app/src/main/AndroidManifest.xml"] = _android_manifest(
             app_name, dev=True
         );
-        files["hot/build.gradle.kts"] = _hot_gradle(package_name, gradle_deps);
+        files["hot/build.gradle.kts"] = _hot_gradle(package_name, effective_deps);
         files["hot/src/main/AndroidManifest.xml"] = _hot_manifest();
         files[f"{base_root}/JacDevHostActivity.kt"] = _jac_dev_host_activity(
             package_name

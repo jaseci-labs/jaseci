@@ -359,7 +359,7 @@ impl AndroidTarget._compile_compose_modules(
     self._populate_compose_routes(model, project_dir, program);
 
     deploy = resolve_sv_deploy(project_dir);
-    if deploy == "device" {
+    if deploy in ("device", "local-first") {
         import from jaclang.compiler.passes.compose.sv_lower { run_sv_lower }
         pkg = resolve_package_name(project_dir);
         lower = run_sv_lower(mod, model.intent.interop_manifest, pkg);

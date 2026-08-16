@@ -9,7 +9,7 @@ import from jaclang.compiler.passes.compose.rpc_client {
     walker_to_pascal
 }
 
-def _jacgraph_tpl_dir() -> str {
+def _jacgraph_tpl_dir -> str {
     import os;
     import jaclang;
     return os.path.join(
@@ -34,17 +34,27 @@ def _read_jacgraph_tpl(name: str, package_name: str) -> str {
     return _JACGRAPH_TPL_CACHE[name].replace("{{package}}", package_name);
 }
 
-impl emit_jacgraph_templates(package_name: str) -> dict[str, str] {
+impl emit_jacgraph_templates(
+    package_name: str, deploy: str = "device"
+) -> dict[str, str] {
     anchor = _read_jacgraph_tpl("JacAnchor.kt", package_name);
     graph = _read_jacgraph_tpl("JacGraph.kt", package_name);
     serializers = _read_jacgraph_tpl("JacGraphSerializers.kt", package_name);
     walker_src = _read_jacgraph_tpl("Walker.kt", package_name);
-    return {
+    files: dict[str, str] = {
         "JacAnchor.kt": anchor,
         "JacGraph.kt": graph,
         "JacGraphSerializers.kt": serializers,
         "Walker.kt": walker_src
     };
+    if deploy == "local-first" {
+        files["JacHttp.kt"] = _read_jacgraph_tpl("JacHttp.kt", package_name);
+        files["JacSync.kt"] = _read_jacgraph_tpl("JacSync.kt", package_name);
+        files["JacSyncWorker.kt"] = _read_jacgraph_tpl(
+            "JacSyncWorker.kt", package_name
+        );
+    }
+    return files;
 }
 
 def _jac_type_text(type_expr: (uni.Expr | None)) -> str {
