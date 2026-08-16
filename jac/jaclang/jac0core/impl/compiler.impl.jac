@@ -842,7 +842,16 @@ impl JacCompiler.resolve_absorb_imports(
 ) -> None {
     import from jaclang.jac0core.unitree { find_python_scope_node_of }
     for imp in mod.get_all_sub_nodes(uni.Import) {
-        imp.jac_detected = imp.is_jac;
+        if imp.from_loc is not None {
+            for item in imp.items {
+                if (
+                    isinstance(item, uni.ModulePath) and item.path and not item.alias
+                ) {
+                    imp.jac_detected = imp.is_jac;
+                    break;
+                }
+            }
+        }
         if not imp.is_absorb {
             continue;
         }

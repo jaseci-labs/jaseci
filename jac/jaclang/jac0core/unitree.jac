@@ -453,15 +453,6 @@ obj PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def postinit -> None;
 }
 
-"""Driver-stamped boundary classification for one Import node.
-
-The compile driver resolves every filesystem, config, and program-state
-question an import raises (native module resolution, service and pin
-verdicts, client-native edges, source-module lookup, bridged-item decls)
-and stamps the answers here before `BoundaryAnalysisPass` runs, so the
-pass consumes data instead of touching the resolver, the filesystem, or
-`prog` state.
-"""
 obj ImportBoundaryFacts {
     has native_from_path: (str | None) = None,
         from_loc_resolved: (str | None) = None,
