@@ -153,7 +153,7 @@ test "py2jac named unicode escape stays loud" {
 
     # Resolving a character name needs the Unicode name database, which the
     # compiler does not carry, so Jac has no exact rendering for this escape.
-    # The emitted code therefore has to refuse at E0109 rather than compile to
+    # The emitted code therefore has to refuse at E0110 rather than compile to
     # a string that silently differs from the Python original.
     (_toks, _comments, diags, errs) = tokenize_full(code, "py2jac_named_unicode.jac");
     assert errs , f"the converted Jac lexes clean, so the escape went silent:\n{code}";
@@ -162,7 +162,7 @@ test "py2jac named unicode escape stays loud" {
         for d in diags
         if d.is_error
     };
-    assert "E0109" in codes , f"refused with {sorted(codes)}, not E0109";
+    assert "E0110" in codes , f"refused with {sorted(codes)}, not E0110";
 }
 
 """Implicit string concat across a backslash line-continuation must emit valid Jac (#6928)."""

@@ -294,8 +294,8 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E0107 = _err(
          "E0107", Category.SYNTAX, "Lexer stuck at EOF in mode {mode} (pos={pos})"
      ),
-     E0109 = _err(
-         "E0109",
+     E0110 = _err(
+         "E0110",
          Category.SYNTAX,
          "Unsupported escape sequence '\\N{{...}}'",
          help="Resolving a Unicode character name needs the name database, which the compiler does not carry. Write the code point as \\uXXXX or \\UXXXXXXXX, or prefix the string with r to keep the backslash."
