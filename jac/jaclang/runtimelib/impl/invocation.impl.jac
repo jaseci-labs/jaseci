@@ -375,7 +375,8 @@ impl _invoke_sync(
     try {
         asyncio.get_running_loop();
     } except RuntimeError {
-        return asyncio.run(dispatcher.invoke(request));
+        disp: any = dispatcher;
+        return asyncio.run(disp.invoke(request));
     }
     raise RuntimeError(
         "_invoke_sync cannot be called from a running event loop; use await dispatcher.invoke()"
