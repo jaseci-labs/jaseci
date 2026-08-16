@@ -15,6 +15,8 @@ import from jaclang.compiler.passes.ecmascript.backends.preact { PreactBackend }
 import from jaclang.compiler.passes.ecmascript.backends.solid { SolidBackend }
 import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
+import from jaclang.runtimelib.client_surface { with_runtime_globals }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
@@ -57,6 +59,15 @@ def _write_temp_jac(code: str) -> str {
         tmp.write(code);
         return tmp.name;
     }
+}
+
+test "with_runtime_globals is a no-op when imports are already present" {
+    js = 'import {__jacJsx, __jacSpawn} from "@jac/runtime";\n__jacJsx(null, {}, null);\n';
+    out = with_runtime_globals(js, ReactBackend());
+    assert out == js , (
+        "harness prepends must not duplicate compiler-owned runtime imports"
+    );
+    assert _count_runtime_imports(out, "__jacJsx") == 1 , out;
 }
 
 test "raw React JSX imports __jacJsx from @jac/runtime" {
