@@ -1290,7 +1290,7 @@ obj JacCompiler {
     def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_boundary_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_client_kind_facts(mod: uni.Module, target_program: JacProgram) -> None;
-
+    def stamp_access_check_facts(mod: uni.Module) -> None;
     def compile(
         file_path: str,
         target_program: JacProgram,

@@ -879,6 +879,22 @@ impl JacCompiler.resolve_absorb_imports(
     }
 }
 
+impl JacCompiler.stamp_access_check_facts(mod: uni.Module) -> None {
+    import from jaclang.jac0core.modresolver { find_jac_project_root }
+    mod.jac_project_root = find_jac_project_root(mod.loc.mod_path) if mod.loc else None;
+    enforce = False;
+    try {
+        import from jaclang.project.config { get_config }
+        config = get_config();
+        if (config and config.check) {
+            enforce = config.check.enforce_access;
+        }
+    } except Exception {
+        enforce = False;
+    }
+    mod.access_enforced = enforce;
+}
+
 impl JacCompiler.stamp_client_kind_facts(
     mod: uni.Module, target_program: JacProgram
 ) -> None {
@@ -1491,6 +1507,7 @@ impl JacCompiler.run_schedule(
         origin=(f"schedule for module {mod.loc.mod_path if mod.loc else mod.name}")
     );
     _policy = build_diagnostic_policy(target_program);
+    self.stamp_access_check_facts(mod);
     jsx_guard_pass = _jsx_intrinsic_guard_pass_type();
     for current_pass in passes {
         if (cancel_token and cancel_token.is_set()) {
