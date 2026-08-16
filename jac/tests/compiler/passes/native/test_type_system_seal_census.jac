@@ -85,13 +85,14 @@ all. It was waived as "Python-only", but the real defect was a declared type:
 `name`, while every caller passes the `Archetype` that does. Narrowing to the
 `Archetype` made both the checker and the backend accept it, so the method
 lowers rather than being excused.
+
+A seventh left with #8256. `TypeBase.category.__get__` reads `self.CATEGORY`,
+a `ClassVar` the abstract base declares without a value and every subclass
+redefines. The backend now gives each declaring class its own constant and
+picks between them on the receiver's vtable, so the accessor lowers and the
+read answers per class rather than defaulting.
 """
 glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
-         "types.jac::TypeBase.category.__get__": (
-             "Backend gap: reads `self.CATEGORY`, a `ClassVar` declared on the "
-             "abstract base and redefined per subclass. A class-level slot is "
-             "not part of the instance layout the accessor is emitted against."
-         ),
          "types.jac::ClassType.clone_as_instance": (
              "Backend gap: calls `TypeFlags(...)` to re-tag the cloned flags. "
              "An `IntEnum` invoked as a constructor is a value-to-member "
