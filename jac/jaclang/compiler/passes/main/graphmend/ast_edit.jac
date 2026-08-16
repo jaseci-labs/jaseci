@@ -113,6 +113,41 @@ def insert_after(stmt: uni.UniNode, new_stmt: uni.UniNode) -> bool {
     return True;
 }
 
+def insert_before(stmt: uni.UniNode, new_stmt: uni.UniNode) -> bool {
+    slot = stmt_slot(stmt);
+    if slot is None {
+        return False;
+    }
+    (parent, anchor, body) = slot;
+    holder: any = parent;
+    i = body.index(anchor);
+    j = parent.kid.index(anchor);
+    setattr(holder, 'body', list(body[:i]) + [new_stmt] + list(body[i:]));
+    parent.set_kids(list(parent.kid[:j]) + [new_stmt] + list(parent.kid[j:]));
+    new_stmt.parent = parent;
+    return True;
+}
+
+def append_stmt(owner: uni.UniNode, new_stmt: uni.UniNode) -> bool {
+    holder: any = owner;
+    body = holder?.body;
+    if not isinstance(body, list) {
+        return False;
+    }
+    last = body[-1] if body else None;
+    setattr(holder, 'body', list(body) + [new_stmt]);
+    if (last is not None) and (last in owner.kid) {
+        j = owner.kid.index(last);
+        owner.set_kids(
+            list(owner.kid[:(j + 1)]) + [new_stmt] + list(owner.kid[(j + 1):])
+        );
+    } else {
+        owner.set_kids(list(owner.kid) + [new_stmt]);
+    }
+    new_stmt.parent = owner;
+    return True;
+}
+
 def replace_stmt(old: uni.UniNode, new_nodes: list) -> bool {
     parent = old.parent;
     if parent is None {
