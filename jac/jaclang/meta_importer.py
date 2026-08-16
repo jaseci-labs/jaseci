@@ -115,6 +115,33 @@ def _bootstrap_compile(
     return code
 
 
+class JacSourceCompileError(ImportError):
+    """A .jac module was found on disk but its source failed to compile.
+
+    Distinct from a module that is simply absent (``ModuleNotFoundError``) or
+    only partially initialized mid-bootstrap (``cannot import name ...``): the
+    file resolved, so this is a defect in that file, never a condition to
+    degrade around silently. It subclasses ``ImportError`` so existing handlers
+    keep their behavior; callers that must not degrade -- the compiler's own
+    pass-schedule builders -- opt in by inspecting ``jac_source_path``.
+    """
+
+    def __init__(self, message: str, jac_source_path: str) -> None:
+        """Record the .jac file whose compile produced this failure."""
+        super().__init__(message)
+        self.jac_source_path = jac_source_path
+
+
+def _retained_failure_details(file_path: str) -> str:
+    """Recover diagnostics the internal compile closure already evicted."""
+    try:
+        from jaclang.jac0core.compiler import compiler_source_failure_details
+
+        return compiler_source_failure_details(file_path) or ""
+    except Exception:
+        return ""
+
+
 def _module_scoped_alerts(program: object, file_path: str) -> list:
     """Collect compile alerts recorded against file_path (or its annexes).
 
@@ -355,10 +382,16 @@ class JacMetaImporter(importlib.abc.MetaPathFinder, importlib.abc.Loader):
                 internal = getattr(compiler, "internal_program", None)
                 if internal is not None:
                     alerts = _module_scoped_alerts(internal, file_path)
-            if alerts:
-                details = "\n".join(a.pretty_print() for a in alerts)
-                raise ImportError(f"{file_path} failed to compile:\n{details}")
-            raise ImportError(f"No bytecode found for {file_path}")
+            details = "\n".join(a.pretty_print() for a in alerts)
+            if not details:
+                details = _retained_failure_details(file_path)
+            if details:
+                raise JacSourceCompileError(
+                    f"{file_path} failed to compile:\n{details}", file_path
+                )
+            raise JacSourceCompileError(
+                f"No bytecode found for {file_path}", file_path
+            )
 
         # MTIR is written keyed by file stem but byllm looks up by func.__module__;
         # re-key to the fullname so submodule imports resolve. __main__ is already

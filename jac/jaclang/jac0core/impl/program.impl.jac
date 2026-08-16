@@ -11,6 +11,10 @@ impl JacProgram.init(
     self._compile_options: CompileOptions = CompileOptions();
     self._native_cache: dict = {};
 
+    self._na_dep_units: dict = {};
+
+    self._na_dep_inflight: set = set();
+
     self._hub_cache_times: dict[str, float] = {};
 
     self._dependents: dict[str, set[str]] = {};
@@ -158,11 +162,6 @@ impl JacProgram.load_dependency_module(
     use_str: (str | None) = None
 ) -> uni.Module {
     import from pathlib { Path }
-    import from jaclang.jac0core.jir {
-        jir_cacheable_source_path,
-        read_module_jir_cache,
-        write_module_jir_cache,
-    }
 
     resolved_path = str(Path(source_path).resolve());
     compiler = self._get_compiler();
@@ -181,38 +180,27 @@ impl JacProgram.load_dependency_module(
     }
 
     mod: uni.Module;
-    from_jir_cache = False;
     if resolved_path in self.mod.hub {
         mod = self.mod.hub[resolved_path];
     } elif resolved_path in target_hub {
         mod = target_hub[resolved_path];
     } else {
-        jir_mod: (object | None) = None;
-        if use_str is None {
-            jir_mod = read_module_jir_cache(resolved_path);
-        }
-        if jir_mod is not None {
-            mod = jir_mod;
-            from_jir_cache = True;
-            if resolved_path.endswith('.pyi') and not mod.stub_only {
-                mod.stub_only = True;
-            }
-        } elif resolved_path.endswith('.pyi') {
+        if resolved_path.endswith('.pyi') {
             import ast as py_ast;
             import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+            import from jaclang.jac0core.compiler { run_pass }
             import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
             import from jaclang.jac0core.helpers { read_file_with_encoding }
             src = use_str or read_file_with_encoding(source_path);
             uni_source = uni.Source(src, source_path);
-            mod = PyastBuildPass(
-                ir_in=uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
-                prog=self,
+            mod = run_pass(
+                PyastBuildPass,
+                uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
+                self
             ).ir_out;
-            SymTabBuildPass(ir_in=mod, prog=self);
+            compiler.resolve_absorb_imports(mod, self);
+            run_pass(SymTabBuildPass, mod, self);
             mod.stub_only = True;
-            if jir_cacheable_source_path(resolved_path) {
-                write_module_jir_cache(resolved_path, mod);
-            }
         } else {
             mod = self.compile(
                 source_path,
@@ -221,61 +209,15 @@ impl JacProgram.load_dependency_module(
                 type_check=False,
                 symtab_ir_only=True
             );
-            if jir_cacheable_source_path(resolved_path) {
-                write_module_jir_cache(resolved_path, mod);
-            }
         }
         target_hub[resolved_path] = mod;
         target_program.hub_cache_stamp(resolved_path);
-        if from_jir_cache {
-            self._relink_absorbed_imports(mod);
-        }
     }
 
     if importer_path is not None {
         self.record_dependency(importer_path, resolved_path);
     }
     return mod;
-}
-
-impl JacProgram._relink_absorbed_imports(self: JacProgram, mod: uni.Module) -> None {
-    import from pathlib { Path }
-    import from jaclang.jac0core.constant { SymbolAccess }
-    import from jaclang.jac0core.passes.sym_tab_build_pass { find_python_scope_node_of }
-    for imp in mod.get_all_sub_nodes(uni.Import) {
-        if not imp.is_absorb or not imp.items {
-            continue;
-        }
-        path_node = imp.items[0];
-        if not isinstance(path_node, uni.ModulePath) {
-            continue;
-        }
-        scope = find_python_scope_node_of(imp);
-        if scope is None {
-            continue;
-        }
-        src_path = path_node.resolve_relative_path();
-        if not src_path or not Path(src_path).exists() {
-            continue;
-        }
-        src_mod = self.load_dependency_module(src_path);
-        for sym in src_mod.names_in_scope.values() {
-            if sym.access != SymbolAccess.PRIVATE and sym.defn {
-                scope.def_insert(
-                    sym.defn[0], single_decl='import absorb', imported=True
-                );
-            }
-        }
-        for overload_syms in src_mod.names_in_scope_overload.values() {
-            for sym in overload_syms {
-                if sym.access != SymbolAccess.PRIVATE and sym.defn {
-                    scope.def_insert(
-                        sym.defn[0], single_decl='import absorb', imported=True
-                    );
-                }
-            }
-        }
-    }
 }
 
 impl JacProgram.hub_key(path: str) -> str {
@@ -342,6 +284,7 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
         for mod in self.mod.hub.values() {
             for nd in mod.get_all_sub_nodes(uni.Expr) {
                 nd.type = None;
+                nd.narrowed_type = None;
             }
         }
     }
