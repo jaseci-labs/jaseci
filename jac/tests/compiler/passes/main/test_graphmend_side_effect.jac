@@ -1,15 +1,4 @@
-"""GraphMend deferred side-effect transformation tests.
-
-print/logger calls are rewritten into appends on a PROCESS-GLOBAL buffer
-(`__jac_se_emit__`), and the buffer is flushed after all compute (the return
-value is hoisted into a temp so the flush is a trailing eager epilogue). This
-keeps the forward pass a single contiguous FX graph while preserving the calls.
-
-The buffer is global rather than function-local so it outlives a frame that
-exits by raising: the `@__jac_se_guard__` boundary decorator, which sits ABOVE
-`@torch.compile` and is therefore eager, drains it on that path. Assertions run
-against the generated Python source, plus the detection tag table where source
-alone cannot distinguish "not detected" from "detected but declined"."""
+"""Deferred side-effect rewrites: buffered emits, hoisted returns, eager flush boundary."""
 import os;
 import tempfile;
 import from tests.support {

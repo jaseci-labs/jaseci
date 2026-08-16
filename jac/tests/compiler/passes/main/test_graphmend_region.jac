@@ -1,12 +1,4 @@
-"""GraphMend compiled-region invariant.
-
-GraphMend analysis and transformation are restricted to the compiled region:
-the torch.compile entry points (decorated functions and classes, call-site
-wraps, and the proven Module forward seeds) plus their transitive callees. A
-function never reachable from any entry must stay byte-identical no matter
-which transformable patterns it contains, and a torch-importing module with no
-torch.compile usage at all must compile byte-identical to a graphmend-off run
-under auto and explicit on alike."""
+"""The compiled region bounds every rewrite; unreached code stays byte-identical."""
 import ast;
 import os;
 import from pathlib { Path }

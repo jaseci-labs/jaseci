@@ -1,13 +1,4 @@
-"""GraphMend per-transform configuration tests.
-
-Each transform (trap: guard lowering, where: branch predication, defer:
-side-effect deferral) is independently disableable through the single
-comma-list disable option, threaded the same way as the other GraphMend
-flags: CLI `--graphmend-disable` -> JacProgram.graphmend_disable ->
-CompileOptions.graphmend_disable -> per-pass gating. jac.toml reaches the
-CLI through the generic Arg.config_key bridge, so precedence is: explicit
-CLI flag > jac.toml > built-in default. The only other GraphMend key is
-`[run] graphmend`, a plain off switch: absent means on, `false` disables."""
+"""Per-transform disable options, threaded from the CLI and jac.toml to per-pass gating."""
 import os;
 import from tests.support {
     GRAPHMEND_FIXTURES as FIXTURES,
