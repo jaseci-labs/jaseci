@@ -536,6 +536,20 @@ def param_names(fn: uni.Ability) -> list[str] {
     return out;
 }
 
+def param_annotation(fn: uni.Ability, name: str) -> (uni.Expr | None) {
+    sig = fn.signature;
+    if not isinstance(sig, uni.FuncSignature) {
+        return None;
+    }
+    for p in (sig.get_parameters() or []) {
+        if (p?.name is None) or (p.name.value != name) {
+            continue;
+        }
+        return p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
+    }
+    return None;
+}
+
 def _wrapper_closures(deco: uni.Ability) -> list[uni.Ability] {
     params = param_names(deco);
     out: list[uni.Ability] = [];
@@ -863,29 +877,16 @@ def attr_annotation(arch: uni.Archetype, attr: str) -> (str | None) {
     if ctor is None {
         return None;
     }
-    params: dict[str, str] = {};
-    sig = ctor.signature;
-    if isinstance(sig, uni.FuncSignature) {
-        for p in (sig.get_parameters() or []) {
-            if p?.name is None {
-                continue;
-            }
-            ann = p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
-            if isinstance(ann, uni.Name) {
-                params[p.name.value] = ann.value;
-            }
-        }
-    }
-    if not params {
-        return None;
-    }
     for a in ctor.get_all_sub_nodes(uni.Assignment) {
         if (len(a.target) != 1) or (not isinstance(a.value, uni.Name)) {
             continue;
         }
-        t = a.target[0];
-        if (self_attr_name(t) == attr) and (a.value.value in params) {
-            return params[a.value.value];
+        if self_attr_name(a.target[0]) != attr {
+            continue;
+        }
+        ann = param_annotation(ctor, a.value.value);
+        if isinstance(ann, uni.Name) {
+            return ann.value;
         }
     }
     return None;

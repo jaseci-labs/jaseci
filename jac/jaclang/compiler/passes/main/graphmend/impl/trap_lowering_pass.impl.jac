@@ -13,7 +13,8 @@ import from jaclang.compiler.passes.main.graphmend.ast_edit {
 import from jaclang.compiler.passes.main.graphmend.scope_facts {
     claim_chain_reaches,
     entry_key,
-    entry_module
+    entry_module,
+    param_annotation
 }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     defining_assignment,
@@ -423,21 +424,11 @@ impl TrapLoweringPass._param_is_tensor(name: str, site: uni.UniNode) -> bool {
     if ab is None {
         return False;
     }
-    sig = ab.signature;
-    if not isinstance(sig, uni.FuncSignature) {
-        return False;
+    ann = param_annotation(ab, name);
+    if isinstance(ann, uni.Name) {
+        return self._binds_torch_tensor(ann);
     }
-    for p in (sig.get_parameters() or []) {
-        if (p?.name is None) or (p.name.value != name) {
-            continue;
-        }
-        ann = p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
-        if isinstance(ann, uni.Name) {
-            return self._binds_torch_tensor(ann);
-        }
-        return is_torch_attr_target(ann, 'Tensor');
-    }
-    return False;
+    return is_torch_attr_target(ann, 'Tensor');
 }
 
 impl TrapLoweringPass._torch_binds_module(site: uni.UniNode) -> bool {
