@@ -1,3 +1,4 @@
+import from jaclang.runtimelib { sv_client }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.config.config_loader {
     get_scale_config,
@@ -709,7 +710,7 @@ obj ManifestBuilder {
             if peer_name == GATEWAY_NAME {
                 continue;
             }
-            key = f"JAC_SV_{peer_name.upper()}_URL";
+            key = sv_client.peer_url_env_key(peer_name);
             if key in seen_peer_keys {
                 continue;
             }

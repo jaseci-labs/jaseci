@@ -28,6 +28,8 @@ import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.diagnostics { E2004, E2005, W2006, W2007, E2008, W2029 }
 
+def inform_from_walker(nd: UniNode) -> None;
+
 class SemanticAnalysisPass(UniPass) {
     def enter_archetype(self: SemanticAnalysisPass, nd: Archetype) -> None;
     def _check_archetype(self: SemanticAnalysisPass, nd: Archetype) -> None;

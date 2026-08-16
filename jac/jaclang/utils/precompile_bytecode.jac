@@ -286,25 +286,33 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/unitree.jac",
          "jac0core/passes/annex_pass.jac",
+         "jac0core/passes/ast_validation_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/semantic_analysis_pass.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac",
+         "compiler/passes/main/sem_def_match_pass.jac",
          "compiler/native_materialize.jac",
 
      ),
      NATIVE_SEAL_CLOSURE: tuple = (
          "jac0core/constant.jac",
+         "jac0core/diagnostics.jac",
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
          "jac0core/parser/tokens.jac",
          "jac0core/passes/annex_pass.jac",
          "jac0core/passes/annex_weave.jac",
+         "jac0core/passes/ast_validation_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/semantic_analysis_pass.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "compiler/native_materialize.jac",
+         "compiler/passes/main/sem_def_match_pass.jac",
+         "runtimelib/na_stdlib/keyword.jac",
 
      );
 
@@ -340,6 +348,10 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
 
      ),
+     _SEMANTIC_ANALYSIS_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/semantic_analysis_pass.jac::SemanticAnalysisPass.enter_has_var",
+
+     ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
          "compiler/native_materialize.jac": _UNITREE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _UNITREE_SEAM_WAIVERS,
@@ -352,7 +364,12 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          ),
          "jac0core/passes/endpoint_effect_pass.jac": (
              _UNITREE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
-         )
+         ),
+         "jac0core/passes/ast_validation_pass.jac": _UNITREE_SEAM_WAIVERS,
+         "jac0core/passes/semantic_analysis_pass.jac": (
+             _UNITREE_SEAM_WAIVERS + _SEMANTIC_ANALYSIS_SEAM_WAIVERS
+         ),
+         "compiler/passes/main/sem_def_match_pass.jac": _UNITREE_SEAM_WAIVERS
      };
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
@@ -1050,21 +1067,258 @@ def _native_lib_filename(stem: str) -> str {
     return f"libjac_{stem}.so";
 }
 
+glob NATIVE_SEAL_INDEX_NAME: str = "SEAL_INDEX.json",
+     NATIVE_SEAL_INDEX_FORMAT: int = 1;
+
+def seal_index_path(precompiled_dir: Path, triple: str) -> Path {
+    return precompiled_dir / "native" / triple / NATIVE_SEAL_INDEX_NAME;
+}
+
+def read_seal_index(precompiled_dir: Path, triple: str) -> dict[str, dict] {
+    try {
+        doc = json.loads(
+            seal_index_path(precompiled_dir, triple).read_text(encoding="utf-8")
+        );
+    } except Exception {
+        return {};
+    }
+    if not isinstance(doc, dict)
+        or doc.get("format") != NATIVE_SEAL_INDEX_FORMAT
+        or doc.get("triple") != triple {
+        return {};
+    }
+    recorded = doc.get("artifacts");
+    if not isinstance(recorded, dict) {
+        return {};
+    }
+    return {
+        k: v
+        for (k, v) in recorded.items()
+        if isinstance(v, dict)
+    };
+}
+
+def write_seal_index(precompiled_dir: Path, triple: str, records: dict[str, dict]) {
+    path = seal_index_path(precompiled_dir, triple);
+    path.parent.mkdir(parents=True, exist_ok=True);
+    path.write_text(
+        json.dumps(
+            {
+                "format": NATIVE_SEAL_INDEX_FORMAT,
+                "triple": triple,
+                "artifacts": records
+            },
+            sort_keys=True,
+            indent=1
+        )
+            + "\n",
+        encoding="utf-8"
+    );
+}
+
+def seal_closure_sources(root_src: Path, deps: (list[str] | None) = None) -> list[str] {
+    base = root_src.resolve().parent;
+    found: list[str] = [str(root_src.resolve())];
+    for raw in (deps or []) {
+        if not raw {
+            continue;
+        }
+        dep = Path(raw);
+        if not dep.is_absolute() {
+            dep = base / raw;
+        }
+        if dep.is_file() {
+            found.append(str(dep.resolve()));
+        }
+    }
+    return sorted(set(found));
+}
+
+def seal_source_label(pkg_path: Path, path: Path) -> str {
+    try {
+        return path.resolve().relative_to(Path(pkg_path).resolve()).as_posix();
+    } except ValueError {
+        return path.resolve().as_posix();
+    }
+}
+
+def seal_source_keys(pkg_path: Path, paths: list[str]) -> (dict[str, str] | None) {
+    import from jaclang.jac0core.jir { module_cache_key }
+    pkg_root = Path(pkg_path).resolve();
+    keys: dict[str, str] = {};
+    for raw in sorted(set(paths)) {
+        if not raw {
+            continue;
+        }
+        src = Path(raw);
+        if not src.is_absolute() {
+            src = pkg_root / raw;
+        }
+        if not src.is_file() {
+            return None;
+        }
+        try {
+            keys[seal_source_label(pkg_path, src)] = module_cache_key(str(src));
+        } except Exception {
+            return None;
+        }
+    }
+    return keys or None;
+}
+
+def seal_artifact_key(rel: str, triple: str, source_keys: dict[str, str]) -> str {
+    h = hashlib.sha256();
+    h.update(f"{NATIVE_SEAL_INDEX_FORMAT}|{rel}|{triple}".encode());
+    for (label, key) in sorted(source_keys.items()) {
+        h.update(f"|{label}={key}".encode());
+    }
+    return h.hexdigest();
+}
+
+def seal_waiver_digest(rel: str, waivers: (dict | None) = None) -> str {
+    (qualified, _bare) = seal_waiver_names(rel, waivers);
+    h = hashlib.sha256();
+    for name in sorted(qualified) {
+        h.update(f"{name}|".encode());
+    }
+    return h.hexdigest();
+}
+
+def seal_reuse_decision(
+    record: (dict | None),
+    precompiled_dir: Path,
+    rel: str,
+    triple: str,
+    identity: str,
+    waiver_digest: str,
+    source_keys: (dict[str, str] | None)
+) -> str {
+    if not record {
+        return "no artifact for it is recorded in the seal index";
+    }
+    if record.get("triple") != triple {
+        return f"it was built for {record.get('triple')!r}, not {triple!r}";
+    }
+    if record.get("compiler") != identity {
+        return "the compiler that built it is not the one running now";
+    }
+    if record.get("waivers") != waiver_digest {
+        return "its demotion waiver table changed, so the seal gate must re-run";
+    }
+    recorded = record.get("sources");
+    if not isinstance(recorded, dict) or not recorded {
+        return "the index records no source closure for it";
+    }
+    if source_keys is None {
+        return "a source in its recorded closure is gone or unreadable";
+    }
+    changed = sorted(
+        label
+        for label in recorded
+        if recorded.get(label) != source_keys.get(label)
+    );
+    if changed {
+        shown = ", ".join(changed[:4]);
+        more = f" and {len(changed) - 4} more" if len(changed) > 4 else "";
+        return f"{len(changed)} closure source(s) changed: {shown}{more}";
+    }
+    if record.get("key") != seal_artifact_key(rel, triple, source_keys) {
+        return "its recorded input key does not match the closure on disk";
+    }
+    for (path_field, sha_field) in (
+        ("lib", "lib_sha256"),
+        ("layout", "layout_sha256")
+    ) {
+        rel_out = record.get(path_field);
+        if not rel_out {
+            return f"the index records no {path_field} path for it";
+        }
+        out_file = precompiled_dir / str(rel_out);
+        if not out_file.is_file() {
+            return f"its {path_field} is missing from the output tree";
+        }
+        if hashlib.sha256(out_file.read_bytes()).hexdigest() != record.get(sha_field) {
+            return f"its {path_field} on disk does not match the recorded sha256";
+        }
+    }
+    return "";
+}
+
+def seal_export_symbols(layout_dict: dict, clib_symbols: any = None) -> list[str] {
+    clib = set(clib_symbols or ());
+    names = {
+        fn_name
+        for fn_name in (layout_dict.get("functions") or {})
+        if fn_name not in clib
+    };
+    for struct_def in (layout_dict.get("structs") or {}).values() {
+        for kinds in (struct_def.get("accessors") or {}).values() {
+            names.update(kinds.values());
+        }
+    }
+    return sorted(names);
+}
+
+glob PRECOMPILED_KEEP_DIRS: tuple = ("native", );
+
+def prune_stale_precompiled_dirs(precompiled_dir: Path, pyver: str) -> int {
+    removed = 0;
+    for stale_dir in sorted(precompiled_dir.iterdir()) {
+        if not stale_dir.is_dir()
+            or stale_dir.name == pyver
+            or stale_dir.name in PRECOMPILED_KEEP_DIRS {
+            continue;
+        }
+        shutil.rmtree(stale_dir, ignore_errors=True);
+        removed += 1;
+    }
+    return removed;
+}
+
+def prune_native_outputs(precompiled_dir: Path, triple: str, keep: set[str]) -> int {
+    native_root = precompiled_dir / "native";
+    if not native_root.is_dir() {
+        return 0;
+    }
+    index_rel = seal_index_path(precompiled_dir, triple).relative_to(
+        precompiled_dir
+    ).as_posix();
+    removed = 0;
+    for found in sorted(native_root.rglob("*")) {
+        if not found.is_file() {
+            continue;
+        }
+        rel_out = found.relative_to(precompiled_dir).as_posix();
+        if rel_out in keep or rel_out == index_rel {
+            continue;
+        }
+        found.unlink(missing_ok=True);
+        removed += 1;
+    }
+    for found in sorted(native_root.rglob("*"), reverse=True) {
+        if found.is_dir() and not any(found.iterdir()) {
+            found.rmdir();
+        }
+    }
+    return removed;
+}
+
 def seal_native_artifacts(
     pkg_path: Path,
     precompiled_dir: Path,
     modules: (tuple | None) = None,
-    waivers: (dict | None) = None
+    waivers: (dict | None) = None,
+    canary_reused: bool = True
 ) -> (dict[str, dict] | None) {
     artifacts: dict[str, dict] = {};
-    stale_native = precompiled_dir / "native";
-    if stale_native.is_dir() {
-        shutil.rmtree(stale_native, ignore_errors=True);
-    }
-
     if sys.platform.startswith("win") {
+        stale_native = precompiled_dir / "native";
+        if stale_native.is_dir() {
+            shutil.rmtree(stale_native, ignore_errors=True);
+        }
         return artifacts;
     }
+    import from jaclang.jac0core.jir { cache_mode }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.codeinfo { native_layout_to_dict }
@@ -1073,6 +1327,13 @@ def seal_native_artifacts(
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
     pkg_name = pkg_path.name;
+    triple = llvm.get_default_triple();
+    out_dir = precompiled_dir / "native" / triple;
+    identity = compiler_identity();
+    (forced_rebuild, _no_precompile) = cache_mode();
+    index = {} if forced_rebuild else read_seal_index(precompiled_dir, triple);
+    fresh_index: dict[str, dict] = dict(index);
+    kept: dict[str, dict] = {};
     _seal_layouts: dict[str, dict] = {};
     _mat_manifest: (dict[str, any] | None) = None;
     _gen_root_src: (Path | None) = None;
@@ -1109,6 +1370,79 @@ def seal_native_artifacts(
             console.error(f"NATIVE SEAL: missing source {src}");
             return None;
         }
+        stem = ext_registry.base_stem(os.path.basename(rel));
+        parts = [
+            p
+            for p in os.path.dirname(rel).split("/")
+            if p
+        ];
+        fullname = ".".join([pkg_name] + parts + [stem]);
+        lib_path = out_dir / _native_lib_filename(stem);
+        layout_path = out_dir / f"{stem}.layout.json";
+        waiver_digest = seal_waiver_digest(rel, waivers);
+        record = index.get(rel);
+        why = "a full rebuild was requested (JAC_REBUILD)";
+        if not forced_rebuild {
+            why = seal_reuse_decision(
+                record,
+                precompiled_dir,
+                rel,
+                triple,
+                identity,
+                waiver_digest,
+                seal_source_keys(pkg_path, sorted((record or {}).get("sources") or {}))
+            );
+        }
+        if not why and record is not None {
+            reuse_lib = precompiled_dir / str(record["lib"]);
+            reuse_layout = precompiled_dir / str(record["layout"]);
+            reused_layout: (dict | None) = None;
+            try {
+                reused_layout = json.loads(reuse_layout.read_text(encoding="utf-8"));
+            } except Exception as _layout_exc {
+                why = f"its layout could not be read back: {_layout_exc}";
+            }
+            if reused_layout is not None {
+                reused_exports = seal_export_symbols(
+                    reused_layout, record.get("clib_symbols")
+                );
+                canary = "";
+                if canary_reused {
+                    canary = seal_native_canary(str(reuse_lib), reused_exports);
+                    if not canary and rel == "compiler/native_materialize.jac" {
+                        canary = seal_parse_parity_canary(
+                            str(reuse_lib), reused_layout
+                        );
+                    }
+                }
+                if canary {
+                    why = f"its canary no longer passes: {canary}";
+                } else {
+                    _seal_layouts[rel] = reused_layout;
+                    artifacts[fullname] = {
+                        "lib": record["lib"],
+                        "layout": record["layout"],
+                        "triple": triple,
+                        "lib_sha256": record["lib_sha256"],
+                        "layout_sha256": record["layout_sha256"]
+                    };
+                    kept[rel] = record;
+                    fresh_index[rel] = record;
+                    if _gen_root_src is not None
+                        and rel == "compiler/native_materialize.jac" {
+                        _gen_root_src.unlink(missing_ok=True);
+                        _gen_root_src = None;
+                    }
+                    console.print(
+                        f"  Native artifact: {fullname} -> {reuse_lib.name} "
+                        f"reused ({reuse_lib.stat().st_size:,} bytes, "
+                        f"{len(reused_exports)} exports)"
+                    );
+                    continue;
+                }
+            }
+        }
+        console.print(f"  Building {rel}: {why}.");
         prog = JacProgram();
         na_census_begin();
         try {
@@ -1229,7 +1563,6 @@ def seal_native_artifacts(
             layout_dict["materialize_manifest"] = _mat_manifest;
         }
         _stub_syms = set(seal_abort_stubs(llvm_ir_text));
-        accessor_syms: set[str] = set();
         for _sd in layout_dict["structs"].values() {
             _live = {
                 _fname: {
@@ -1243,16 +1576,11 @@ def seal_native_artifacts(
                 for (_fname, _kinds) in _live.items()
                 if _kinds
             };
-            for _kinds in _sd["accessors"].values() {
-                accessor_syms.update(_kinds.values());
-            }
         }
-        exports = sorted(set(exports) | accessor_syms);
-        triple = llvm.get_default_triple();
-        out_dir = precompiled_dir / "native" / triple;
+        exports = seal_export_symbols(layout_dict, _clib_syms);
         out_dir.mkdir(parents=True, exist_ok=True);
-        stem = ext_registry.base_stem(os.path.basename(rel));
-        lib_path = out_dir / _native_lib_filename(stem);
+        lib_path.unlink(missing_ok=True);
+        layout_path.unlink(missing_ok=True);
         transitive = list(manifest.native_transitive_sources) if manifest else [];
         (ok, err) = emit_shared_library(
             str(ir.gen.llvm_ir),
@@ -1279,7 +1607,6 @@ def seal_native_artifacts(
             purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
-        layout_path = out_dir / f"{stem}.layout.json";
         layout_path.write_text(
             json.dumps(layout_dict, sort_keys=True) + "\n", encoding="utf-8"
         );
@@ -1299,12 +1626,6 @@ def seal_native_artifacts(
                 return None;
             }
         }
-        parts = [
-            p
-            for p in os.path.dirname(rel).split("/")
-            if p
-        ];
-        fullname = ".".join([pkg_name] + parts + [stem]);
         artifacts[fullname] = {
             "lib": lib_path.relative_to(precompiled_dir).as_posix(),
             "layout": layout_path.relative_to(precompiled_dir).as_posix(),
@@ -1312,6 +1633,23 @@ def seal_native_artifacts(
             "lib_sha256": hashlib.sha256(lib_path.read_bytes()).hexdigest(),
             "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest()
         };
+        built_keys = seal_source_keys(
+            pkg_path, seal_closure_sources(src, closure_deps)
+        );
+        if built_keys is not None {
+            new_record = dict(artifacts[fullname]);
+            new_record["key"] = seal_artifact_key(rel, triple, built_keys);
+            new_record["compiler"] = identity;
+            new_record["waivers"] = waiver_digest;
+            new_record["module"] = fullname;
+            new_record["clib_symbols"] = sorted(_clib_syms);
+            new_record["sources"] = built_keys;
+            fresh_index[rel] = new_record;
+            kept[rel] = new_record;
+        } else {
+            fresh_index.pop(rel, None);
+        }
+        write_seal_index(precompiled_dir, triple, fresh_index);
         if _gen_root_src is not None and rel == "compiler/native_materialize.jac" {
             _gen_root_src.unlink(missing_ok=True);
             _gen_root_src = None;
@@ -1321,6 +1659,13 @@ def seal_native_artifacts(
             f"({lib_path.stat().st_size:,} bytes, {len(exports)} exports)"
         );
     }
+    write_seal_index(precompiled_dir, triple, kept);
+    live: set[str] = set();
+    for rec in kept.values() {
+        live.add(str(rec["lib"]));
+        live.add(str(rec["layout"]));
+    }
+    prune_native_outputs(precompiled_dir, triple, live);
     return artifacts;
 }
 
@@ -1428,7 +1773,12 @@ def collect_payloads(pkg_path: Path) -> dict[str, str] {
 }
 
 def seal_finalize(
-    pkg_path: Path, precompiled_dir: Path, pkg_name: str, pyver: str, embed_src: bool
+    pkg_path: Path,
+    precompiled_dir: Path,
+    pkg_name: str,
+    pyver: str,
+    embed_src: bool,
+    canary_reused: bool = True
 ) -> int {
     writes = (
         FORMAT_VERSION,
@@ -1507,7 +1857,9 @@ def seal_finalize(
     native_seal: (dict[str, any] | None) = None;
     if pkg_name == "jaclang" {
         console.print("  Sealing AOT native artifacts...");
-        native_artifacts = seal_native_artifacts(pkg_path, precompiled_dir);
+        native_artifacts = seal_native_artifacts(
+            pkg_path, precompiled_dir, canary_reused=canary_reused
+        );
         if native_artifacts is None {
             console.error("Seal aborted: native artifact build failed.");
             return 1;
@@ -1622,6 +1974,7 @@ def main {
     seal_compile = "--seal-compile" in args;
     finalize_only = "--seal-finalize" in args;
     embed_src = "--debug-src" in args;
+    canary_reused = "--seal-skip-reused-canary" not in args;
     exclude_jac0core = seal or seal_compile;
     args = [
         a
@@ -1656,6 +2009,11 @@ def main {
         console.print(
             "--debug-src: embed zlib source text in each .jir (dev tracebacks)."
         );
+        console.print("--seal-skip-reused-canary: do not re-run the load and parity");
+        console.print("        canaries on native artifacts the seal reused unchanged");
+        console.print(
+            "        (tightest dev loop; the canaries still run on rebuilds)."
+        );
         sys.exit(1);
     }
 
@@ -1685,7 +2043,12 @@ def main {
         console.print(f"Sealing {pkg_name} for {pyver} (finalize)...");
         sys.exit(
             seal_finalize(
-                Path(package_dir), precompiled_dir, pkg_name, pyver, embed_src
+                Path(package_dir),
+                precompiled_dir,
+                pkg_name,
+                pyver,
+                embed_src,
+                canary_reused
             )
         );
     }
@@ -1710,11 +2073,7 @@ def main {
     out_dir.mkdir(parents=True, exist_ok=True);
     (precompiled_dir / RESULT_NAME).unlink(missing_ok=True);
 
-    for stale_dir in sorted(precompiled_dir.iterdir()) {
-        if stale_dir.is_dir() and stale_dir.name != pyver {
-            shutil.rmtree(stale_dir, ignore_errors=True);
-        }
-    }
+    prune_stale_precompiled_dirs(precompiled_dir, pyver);
     pkg_path = Path(package_dir);
     expected: set[str] = {
         str(Path(p).relative_to(pkg_path).with_suffix(".jir")) for p in jac_files
@@ -1793,7 +2152,11 @@ def main {
     );
 
     if seal {
-        sys.exit(seal_finalize(pkg_path, precompiled_dir, pkg_name, pyver, embed_src));
+        sys.exit(
+            seal_finalize(
+                pkg_path, precompiled_dir, pkg_name, pyver, embed_src, canary_reused
+            )
+        );
     }
 }
 

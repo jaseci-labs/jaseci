@@ -453,6 +453,18 @@ obj PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def postinit -> None;
 }
 
+obj ImportBoundaryFacts {
+    has native_from_path: (str | None) = None,
+        from_loc_resolved: (str | None) = None,
+        is_service: bool = False,
+        pinned_server: bool = False,
+        client_native_edge: bool = False,
+        sv_source_mod: (Module | None) = None,
+        native_absorb_path: (str | None) = None,
+        native_item_paths: dict[(str, str)] = {},
+        bridged_decls: dict[(str, Ability)] = {};
+}
+
 obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
@@ -463,7 +475,9 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
         is_typed: bool = False,
         clib_decls: (Sequence[UniNode] | None) = None,
         hint: (SubTag[Token] | None) postinit,
-        absorbed_mod: (Module | None) postinit;
+        absorbed_mod: (Module | None) postinit,
+        jac_detected: (bool | None) postinit,
+        boundary_facts: (ImportBoundaryFacts | None) postinit;
 
     def postinit -> None;
 
@@ -2004,3 +2018,25 @@ def decode_string_literal(text: str) -> str | bytes {
     }
     return _decode_str_escapes(body);
 }
+
+def find_python_scope_node_of(nd: UniNode) -> (UniScopeNode | None);
+
+def find_typed_decl_scope_of(nd: AstSymbolNode) -> UniScopeNode;
+
+def def_insert_unpacking(
+    nd: Expr, sym_tab: UniScopeNode, rebind_in_python_scope: bool = False
+) -> None;
+
+def bind_assignment_targets(nd: Assignment) -> None;
+
+def lookup_enclosing_binding(from_scope: UniScopeNode, name: str) -> (Symbol | None);
+
+def rebind_or_def_insert(
+    target: AstSymbolNode, py_scope: UniScopeNode, single_decl: str
+) -> None;
+
+def record_cross_scope_rebind(py_scope: UniScopeNode, name: str, sym: Symbol) -> None;
+
+def _ability_of_defn(defn_node: UniNode) -> (Ability | None);
+
+def ability_of_symbol(sym: (Symbol | None)) -> (Ability | None);

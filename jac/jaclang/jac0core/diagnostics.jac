@@ -50,6 +50,19 @@ def _reg(
     help_text: str | None = None,
     blocks_codegen: bool = False
 ) -> DiagnosticInfo {
+    sitting = DIAGNOSTICS.get(code);
+    if sitting is not None {
+        raise ValueError(
+            f"diagnostic code {code} is claimed twice. It is already "
+            f"registered as {sitting.severity.value}/{sitting.category.value} "
+            f"'{sitting.message_template}' and is registered again as "
+            f"{severity.value}/{category.value} '{template}'. A code names "
+            "exactly one diagnostic: the second registration would shadow "
+            "the first everywhere it is referenced, and the native link "
+            "refuses this module on the duplicate symbol. Give the later "
+            "claimant a code of its own and move its pins."
+        );
+    }
     info = DiagnosticInfo(
         code=code,
         severity=severity,
@@ -170,12 +183,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E0034",
          Category.SYNTAX,
          "Expected 'with' after 'can' ability name (use 'def' for function-style declarations)"
-     ),
-     E0108 = _err(
-         "E0108",
-         Category.SYNTAX,
-         "Comptime expansion failed -- {details}",
-         help="The compile-time evaluator rejected this construct. Comptime code is a deterministic, fuel-bounded subset of Jac: pure values and control flow, reflect.* facts, and ct.name/ct.typ/ct.expr fragments; no I/O, no runtime APIs, and results must lower to literals."
      ),
      E0040 = _err(
          "E0040",
@@ -300,11 +307,17 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E0107 = _err(
          "E0107", Category.SYNTAX, "Lexer stuck at EOF in mode {mode} (pos={pos})"
      ),
-     E0108 = _err(
-         "E0108",
+     E0110 = _err(
+         "E0110",
          Category.SYNTAX,
          "Unsupported escape sequence '\\N{{...}}'",
          help="Resolving a Unicode character name needs the name database, which the compiler does not carry. Write the code point as \\uXXXX or \\UXXXXXXXX, or prefix the string with r to keep the backslash."
+     ),
+     E0109 = _err(
+         "E0109",
+         Category.SYNTAX,
+         "Comptime expansion failed -- {details}",
+         help="The compile-time evaluator rejected this construct. Comptime code is a deterministic, fuel-bounded subset of Jac: pure values and control flow, reflect.* facts, and ct.name/ct.typ/ct.expr fragments; no I/O, no runtime APIs, and results must lower to literals."
      ),
      W0100 = _warn(
          "W0100",
