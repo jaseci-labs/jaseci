@@ -1,7 +1,7 @@
 import from collections.abc { Sequence }
 import from pathlib { Path }
 import from jaclang.jac0core.constant { Tokens as Tok }
-import from jaclang.jac0core.passes { UniPass }
+import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from jaclang { JacRuntime as Jac }
 import from jaclang.jac0core.mtp {
