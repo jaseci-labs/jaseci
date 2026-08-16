@@ -447,6 +447,7 @@ def get_ir_gen_sched(
         }
 
         import jaclang.compiler.symbol_utils;
+        import jaclang.compiler.expr_keys;
         import jaclang.compiler.passes.main.layout_pass;
         import jaclang.compiler.type_registry;
         import jaclang.compiler.intrinsic_registry;
