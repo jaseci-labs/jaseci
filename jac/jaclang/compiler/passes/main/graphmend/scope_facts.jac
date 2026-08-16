@@ -355,14 +355,14 @@ def claim_path(prog: JacProgram, path: str) -> bool {
     if known and (rp in prog.graphmend_claim_walked) {
         return True;
     }
-    mod = load_module_for_claim(prog, rp);
+    mod = _compile_for_facts(prog, rp);
     if mod is None {
         return known;
     }
     return register_claim(prog, mod, set());
 }
 
-def load_module_for_claim(prog: JacProgram, path: str) -> (uni.Module | None) {
+def _compile_for_facts(prog: JacProgram, path: str) -> (uni.Module | None) {
     existing = prog.mod.hub.get(path);
     if existing is not None {
         return existing;
@@ -405,7 +405,7 @@ def _import_paths(imp: uni.Import) -> list[str] {
         _add_resolved(out, from_loc);
         for item in imp.items {
             if isinstance(item, uni.ModuleItem) {
-                _add_resolved_item(out, item);
+                _add_resolved(out, item);
             }
         }
         return out;
@@ -426,17 +426,9 @@ def _denied_path(mp: uni.ModulePath) -> bool {
     return (top in {'torch', 'jaclang'}) or (top in sys.stdlib_module_names);
 }
 
-def _add_resolved(out: list[str], mp: uni.ModulePath) -> None {
+def _add_resolved(out: list[str], src: (uni.ModulePath | uni.ModuleItem)) -> None {
     try {
-        _keep(out, mp.resolve_relative_path());
-    } except Exception {
-        return;
-    }
-}
-
-def _add_resolved_item(out: list[str], item: uni.ModuleItem) -> None {
-    try {
-        _keep(out, item.resolve_relative_path());
+        _keep(out, src.resolve_relative_path());
     } except Exception {
         return;
     }
@@ -782,18 +774,7 @@ def materialize_module(
         return prog.mod.hub.get(path);
     }
     seen.add(path);
-    existing = prog.mod.hub.get(path);
-    if existing is not None {
-        return existing;
-    }
-    _saved_opts = prog._compile_options;
-    try {
-        return prog.compile(file_path=path, no_cgen=True, type_check=False);
-    } except Exception {
-        return None;
-    } finally {
-        prog._compile_options = _saved_opts;
-    }
+    return _compile_for_facts(prog, path);
 }
 
 def module_imports_plain(mod: uni.Module, name: str) -> bool {
