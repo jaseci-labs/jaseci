@@ -2,17 +2,13 @@
 #
 # Turns a prepared_cfg (flat IR from flowgraph) into a native PyCode: EXTENDED_ARG
 # folding, mandatory CACHE padding, deterministic const/name tables, PEP 626 line
-# table (ported from CPython 3.14 Python/assemble.c), and (for this slice) an
-# empty exception table.
+# table (ported from CPython 3.14 Python/assemble.c), and exception-table
+# encoding for comprehension cleanup regions.
 #
 # Product module: imports flowgraph + compiler_ir + opcode_meta + objects only.
 
 import from objects { PyCode }
-import from opcode_meta {
-    OP_CACHE,
-    OP_EXTENDED_ARG,
-    opcode_cache_count,
-}
+import from opcode_meta { OP_CACHE, OP_EXTENDED_ARG, opcode_cache_count, }
 import from compiler_ir {
     cinstr,
     cloc,
@@ -20,11 +16,74 @@ import from compiler_ir {
     same_loc,
     NO_LINE,
     instr_size_codeunits,
+    except_region,
 }
-import from flowgraph { verified_cfg }
+import from flowgraph { verified_cfg, flatten_blocks }
+
+glob CONTINUATION_BIT: int = 64;
+
+def append_except_varint(out: list[int], value: int, first_msb: int) {
+    msb = first_msb;
+    if value >= 1 << 18 {
+        out.append(((value >> 18) & 0x3F) | CONTINUATION_BIT | msb);
+        msb = 0;
+    }
+    if value >= 1 << 12 {
+        out.append(((value >> 12) & 0x3F) | CONTINUATION_BIT | msb);
+        msb = 0;
+    }
+    if value >= 1 << 6 {
+        out.append(((value >> 6) & 0x3F) | CONTINUATION_BIT | msb);
+        msb = 0;
+    }
+    out.append((value & 0x3F) | msb);
+}
+
+def assemble_exception_table(
+    regions: list[except_region], block_starts: list[int]
+) -> list[int] {
+    out: list[int] = [];
+    ri = 0;
+    while ri < len(regions) {
+        reg = regions[ri];
+        if reg.start_block < 0
+            or reg.end_block < 0
+            or reg.handler_block < 0
+            or reg.start_block >= len(block_starts)
+            or reg.end_block >= len(block_starts)
+            or reg.handler_block >= len(block_starts) {
+            ri = ri + 1;
+            continue;
+        }
+        start = block_starts[reg.start_block];
+        end = block_starts[reg.end_block];
+        target = block_starts[reg.handler_block];
+        if end <= start {
+            ri = ri + 1;
+            continue;
+        }
+        depth = reg.stack_depth - 1;
+        if reg.preserve_lasti {
+            depth = depth - 1;
+        }
+        if depth < 0 {
+            depth = 0;
+        }
+        depth_lasti = depth << 1;
+        if reg.preserve_lasti {
+            depth_lasti = depth_lasti | 1;
+        }
+        append_except_varint(out, start, 128);
+        append_except_varint(out, end - start, 0);
+        append_except_varint(out, target, 0);
+        append_except_varint(out, depth_lasti, 0);
+        ri = ri + 1;
+    }
+    return out;
+}
 
 # ---------------- bytecode emission ----------------
-def emit_instr(code: list[int], ins: cinstr) -> None {
+def emit_instr(code: list[int], ins: cinstr) {
     oparg = ins.oparg;
     op = ins.opcode;
     # EXTENDED_ARG chain, high bytes first (assemble write_instr fall-through).
@@ -59,7 +118,7 @@ glob LI_SHORT0: int = 0,
      LI_LONG: int = 14,
      LI_NONE: int = 15;
 
-def write_varint(out: list[int], val: int) -> None {
+def write_varint(out: list[int], val: int) {
     v = val;
     while v >= 64 {
         out.append(64 | (v & 63));
@@ -68,7 +127,7 @@ def write_varint(out: list[int], val: int) -> None {
     out.append(v);
 }
 
-def write_signed_varint(out: list[int], val: int) -> None {
+def write_signed_varint(out: list[int], val: int) {
     v = val;
     if v < 0 {
         # (0 - val) << 1 | 1, matching CPython's unsigned conversion.
@@ -78,13 +137,11 @@ def write_signed_varint(out: list[int], val: int) -> None {
     }
 }
 
-def write_entry_start(out: list[int], code: int, length: int) -> None {
+def write_entry_start(out: list[int], code: int, length: int) {
     out.append(128 | (code << 3) | (length - 1));
 }
 
-def write_location_info_entry(
-    out: list[int], st: lintable_state, lc: cloc
-) -> None {
+def write_location_info_entry(out: list[int], st: lintable_state, lc: cloc) -> None {
     if lc.lineno == NO_LINE {
         write_entry_start(out, LI_NONE, st.length);
         return;
@@ -99,18 +156,18 @@ def write_location_info_entry(
             st.a_lineno = lc.lineno;
             return;
         }
-    }
-    elif lc.end_lineno == lc.lineno {
-        if line_delta == 0 and column < 80 and end_column >= column
-        and end_column - column < 16 {
+    } elif lc.end_lineno == lc.lineno {
+        if line_delta == 0
+            and column < 80
+            and end_column >= column
+            and end_column - column < 16 {
             column_group = column >> 3;
             write_entry_start(out, LI_SHORT0 + column_group, st.length);
             out.append(((column & 7) << 4) | (end_column - column));
             # short form does NOT update a_lineno (matches CPython).
             return;
         }
-        if line_delta >= 0 and line_delta < 3 and column < 128
-        and end_column < 128 {
+        if line_delta >= 0 and line_delta < 3 and column < 128 and end_column < 128 {
             write_entry_start(out, LI_ONE_LINE0 + line_delta, st.length);
             out.append(column);
             out.append(end_column);
@@ -133,8 +190,8 @@ def write_location_info_entry(
 # Per-call mutable state threaded through the location encoder (CPython's
 # `struct assembler` a_lineno + a_location_off).
 obj lintable_state {
-    has a_lineno: int = 1;
-    has length: int = 0;
+    has a_lineno: int = 1,
+        length: int = 0;
 }
 
 # Emit a run of `isize` code units all carrying location `lc`, chunked into
@@ -189,6 +246,12 @@ def assemble(cfg: verified_cfg) -> PyCode {
         i = i + 1;
     }
     linetable = assemble_linetable(flat, u.firstlineno);
+    block_starts = cfg.block_starts;
+    if len(block_starts) == 0 {
+        fr = flatten_blocks(u);
+        block_starts = fr.block_starts;
+    }
+    exctab = assemble_exception_table(u.except_regions, block_starts);
     return PyCode(
         t="code",
         argcount=u.argcount,
@@ -207,6 +270,6 @@ def assemble(cfg: verified_cfg) -> PyCode {
         qualname=u.qualname,
         firstlineno=u.firstlineno,
         linetable=linetable,
-        exceptiontable=[]
+        exceptiontable=exctab
     );
 }

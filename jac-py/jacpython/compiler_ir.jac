@@ -92,17 +92,21 @@ obj cfg_builder {
         self.cur.instrs.append(ins);
     }
 
-    def push_loop(continue_blk: basicblock, break_blk: basicblock, break_is_stub: bool) {
+    def push_loop(
+        continue_blk: basicblock, break_blk: basicblock, break_is_stub: bool
+    ) {
         self.loop_stack.append(
             loop_frame(
-                continue_blk=continue_blk, break_blk=break_blk, break_is_stub=break_is_stub
+                continue_blk=continue_blk,
+                break_blk=break_blk,
+                break_is_stub=break_is_stub
             )
         );
     }
 
     def pop_loop {
         if len(self.loop_stack) > 0 {
-            self.loop_stack = self.loop_stack[0 : len(self.loop_stack) - 1];
+            self.loop_stack = self.loop_stack[0:len(self.loop_stack) - 1];
         }
     }
 
@@ -152,6 +156,25 @@ obj basicblock {
         instrs: list[cinstr];
 }
 
+# Deferred comprehension cleanup handler (emitted after module RETURN_VALUE).
+obj comp_handler {
+    has region_index: int,
+        fast_index: int,
+        loc: cloc,
+        second_fast_index: int = -1,
+        swap_depth: int = 2,
+        group: int = 0;
+}
+
+# Protected region for assemble_exception_table (comprehensions, try/finally).
+obj except_region {
+    has start_block: int,
+        end_block: int,
+        handler_block: int,
+        stack_depth: int,
+        preserve_lasti: bool = False;
+}
+
 # Unverified CFG plus compile metadata from codegen. Flowgraph verification
 # produces verified_cfg; assembly accepts verified CFG only (Phase 2 contract).
 obj unverified_cfg {
@@ -170,6 +193,9 @@ obj unverified_cfg {
         names: list[str] = [],
         blocks: list[basicblock] = [],
         next_block_id: int = 0,
+        except_regions: list[except_region] = [],
+        comp_handlers: list[comp_handler] = [],
+        comp_handler_group: int = 0,
         # Set by codegen on unsupported nodes; product_compile checks before
         # flowgraph verification (PLAN.md: no silent codegen paths).
         diag: compiler_diagnostic | None = None,

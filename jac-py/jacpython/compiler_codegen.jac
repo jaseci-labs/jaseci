@@ -48,6 +48,21 @@ import from opcode_meta {
     OP_FOR_ITER,
     OP_END_FOR,
     OP_POP_ITER,
+    OP_BUILD_LIST,
+    OP_LIST_APPEND,
+    OP_BUILD_SET,
+    OP_SET_ADD,
+    OP_BUILD_MAP,
+    OP_MAP_ADD,
+    OP_LOAD_FAST,
+    OP_LOAD_FAST_BORROW,
+    OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW,
+    OP_LOAD_FAST_AND_CLEAR,
+    OP_STORE_FAST,
+    OP_STORE_FAST_STORE_FAST,
+    OP_STORE_FAST_LOAD_FAST,
+    OP_UNPACK_SEQUENCE,
+    OP_RERAISE,
     NB_ADD,
     NB_SUBTRACT,
     NB_MULTIPLY,
@@ -99,6 +114,7 @@ import from ast_nodes {
     Load,
     Store,
     Lt,
+    Gt,
     Add,
     Sub,
     Mult,
@@ -128,6 +144,7 @@ import from ast_nodes {
     SetComp,
     DictComp,
     GeneratorExp,
+    comprehension,
     Await,
     Yield,
     YieldFrom,
@@ -166,14 +183,27 @@ import from compiler_ir {
     basicblock,
     cinstr,
     loc,
+    no_loc,
     mk_instr,
     mk_jump,
     cfg_builder,
     stmt_cont,
     new_cfg_builder,
     loop_frame,
+    except_region,
+    comp_handler,
 }
-import from compiler_symtable { sym_block, sym_dict_get, sym_scope_of, SCOPE_GLOBAL_EXPLICIT, SCOPE_GLOBAL_IMPLICIT }
+import from compiler_symtable {
+    sym_block,
+    sym_dict_get,
+    sym_flag_set,
+    sym_scope_of,
+    sym_sorted_names,
+    DEF_COMP_ITER,
+    SCOPE_GLOBAL_EXPLICIT,
+    SCOPE_GLOBAL_IMPLICIT,
+    SCOPE_LOCAL,
+}
 import from compiler_diagnostics { lowering_diagnostic }
 
 # Record the first codegen diagnostic on the builder's unit.
@@ -188,10 +218,33 @@ def codegen_busy(g: cfg_builder) -> bool {
     return g.u.diag is not None;
 }
 
-# Name load opcode from symtable facts. Module scope always uses LOAD_NAME
-# (CPython: implicit globals are still LOAD_NAME at module level). LOAD_GLOBAL
-# is for nested scopes with explicit/implicit global classification.
+# Module fast locals: comprehension iteration variables (DEF_COMP_ITER) at module
+# scope; function locals otherwise.
+def fast_varnames_from_sym(top: sym_block) -> list[str] {
+    names = sym_sorted_names(top.symbols);
+    out: list[str] = [];
+    ni = 0;
+    while ni < len(names) {
+        name = names[ni];
+        flags = top.symbols[name];
+        if top.block_type == "module" {
+            if sym_flag_set(flags, DEF_COMP_ITER) {
+                out.append(name);
+            }
+        } elif sym_scope_of(flags) == SCOPE_LOCAL {
+            out.append(name);
+        }
+        ni = ni + 1;
+    }
+    return out;
+}
+
+# Name load opcode from symtable facts. Module scope uses LOAD_NAME for globals
+# and LOAD_FAST when the name is a comprehension / local slot in varnames.
 def name_load_opcode(g: cfg_builder, name: str) -> int {
+    if fast_local_index(g, name) >= 0 {
+        return OP_LOAD_FAST;
+    }
     if g.sym_top is None or g.sym_top.block_type == "module" {
         return OP_LOAD_NAME;
     }
@@ -515,6 +568,22 @@ def expr_loc(e: expr) -> cloc {
         c = e as Compare;
         return nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
     }
+    if isinstance(e, ListComp) {
+        lc = e as ListComp;
+        return nloc(lc.lineno, lc.end_lineno, lc.col_offset, lc.end_col_offset);
+    }
+    if isinstance(e, SetComp) {
+        sc = e as SetComp;
+        return nloc(sc.lineno, sc.end_lineno, sc.col_offset, sc.end_col_offset);
+    }
+    if isinstance(e, DictComp) {
+        dc = e as DictComp;
+        return nloc(dc.lineno, dc.end_lineno, dc.col_offset, dc.end_col_offset);
+    }
+    if isinstance(e, Tuple) {
+        t = e as Tuple;
+        return nloc(t.lineno, t.end_lineno, t.col_offset, t.end_col_offset);
+    }
     return loc(1, 1, 0, 0);
 }
 
@@ -592,7 +661,19 @@ def cmpop_oparg(op: PyObj) -> int {
     if isinstance(op, Lt) {
         return 2;
     }
+    if isinstance(op, Gt) {
+        return 132;
+    }
     return -1;
+}
+
+# Comprehension filters use bool-context compare opargs (base + 16).
+def cmpop_filter_oparg(op: PyObj) -> int {
+    base = cmpop_oparg(op);
+    if base < 0 {
+        return -1;
+    }
+    return base + 16;
 }
 
 # Chained-compare lowering (compile.c): keep the middle operand on the stack
@@ -770,7 +851,10 @@ def visit_expr(
         cloc = nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
         if isinstance(c.value, PyInt) {
             v = (c.value as PyInt).val;
-            if register_int_const and v >= 0 and v <= 255 and not g.u.dead_small_int_const {
+            if register_int_const
+                and v >= 0
+                and v <= 255
+                and not g.u.dead_small_int_const {
                 g.u.add_const(c.value);
                 g.u.dead_small_int_const = True;
             } elif register_int_const and (v < 0 or v > 255) {
@@ -876,8 +960,22 @@ def visit_expr(
         g.emit_op(OP_BINARY_OP, NB_SUBSCR, sloc);
         return None;
     }
+    if isinstance(e, ListComp) {
+        visit_list_comp(g, e as ListComp);
+        return None;
+    }
+    if isinstance(e, SetComp) {
+        visit_set_comp(g, e as SetComp);
+        return None;
+    }
+    if isinstance(e, DictComp) {
+        visit_dict_comp(g, e as DictComp);
+        return None;
+    }
     codegen_fail(
-        g, "NotImplementedError", "unsupported expression: " + ast_node_name(e as ast_node)
+        g,
+        "NotImplementedError",
+        "unsupported expression: " + ast_node_name(e as ast_node)
     );
     return None;
 }
@@ -897,7 +995,9 @@ def top_loc(e: expr) -> cloc {
 # Build a unverified_cfg for an eval-mode expression. Emits RESUME (module/eval
 # scope: lineno 0), the expression, then RETURN_VALUE carrying the expression's
 # span. addNone is false for eval (no trailing None push).
-def compile_eval(e: expr, filename: str, name: str, firstlineno: int) -> unverified_cfg {
+def compile_eval(
+    e: expr, filename: str, name: str, firstlineno: int
+) -> unverified_cfg {
     u = unverified_cfg(
         filename=filename, name=name, qualname=name, firstlineno=firstlineno
     );
@@ -913,7 +1013,9 @@ def compile_eval(e: expr, filename: str, name: str, firstlineno: int) -> unverif
     if cleanup is not None {
         if isinstance(e, Call) {
             ca = e as Call;
-            cloc_call = nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset);
+            cloc_call = nloc(
+                ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset
+            );
             emit_compare_cleanup(g, cleanup, cloc_call);
             g.emit_op(OP_CALL, len(ca.args), cloc_call);
             g.emit_op(OP_RETURN_VALUE, 0, eloc);
@@ -1061,7 +1163,9 @@ def visit_delete_target(g: cfg_builder, t: expr) -> stmt_cont {
         return stmt_cont(loc=tloc);
     }
     codegen_fail(
-        g, "NotImplementedError", "unsupported deletion target: " + ast_node_name(t as ast_node)
+        g,
+        "NotImplementedError",
+        "unsupported deletion target: " + ast_node_name(t as ast_node)
     );
     return stmt_cont(loc=expr_loc(t));
 }
@@ -1078,6 +1182,751 @@ def exec_tail_emits_code(body: list[stmt], from_idx: int) -> bool {
     return False;
 }
 
+def fast_local_index(g: cfg_builder, name: str) -> int {
+    vi = 0;
+    while vi < len(g.u.varnames) {
+        if g.u.varnames[vi] == name {
+            return vi;
+        }
+        vi = vi + 1;
+    }
+    return -1;
+}
+
+def comp_name_bound(name: str, bound_names: list[str]) -> bool {
+    bi = 0;
+    while bi < len(bound_names) {
+        if bound_names[bi] == name {
+            return True;
+        }
+        bi = bi + 1;
+    }
+    return False;
+}
+
+def comp_target_slots(g: cfg_builder, target: expr) -> list[int] | None {
+    if isinstance(target, Name) {
+        fi = fast_local_index(g, (target as Name).id);
+        if fi < 0 {
+            return None;
+        }
+        return [fi];
+    }
+    if isinstance(target, Tuple) {
+        elts = (target as Tuple).elts;
+        if len(elts) != 2 {
+            return None;
+        }
+        if not isinstance(elts[0], Name) or not isinstance(elts[1], Name) {
+            return None;
+        }
+        fi0 = fast_local_index(g, (elts[0] as Name).id);
+        fi1 = fast_local_index(g, (elts[1] as Name).id);
+        if fi0 < 0 or fi1 < 0 {
+            return None;
+        }
+        return [fi0, fi1];
+    }
+    return None;
+}
+
+def comp_bound_names_from_target(target: expr) -> list[str] | None {
+    if isinstance(target, Name) {
+        return [(target as Name).id];
+    }
+    if isinstance(target, Tuple) {
+        elts = (target as Tuple).elts;
+        if len(elts) != 2 {
+            return None;
+        }
+        if not isinstance(elts[0], Name) or not isinstance(elts[1], Name) {
+            return None;
+        }
+        return [(elts[0] as Name).id, (elts[1] as Name).id];
+    }
+    return None;
+}
+
+def comp_name_fast_index(g: cfg_builder, e: expr, bound_names: list[str]) -> int {
+    if not isinstance(e, Name) {
+        return -1;
+    }
+    nid = (e as Name).id;
+    if not comp_name_bound(nid, bound_names) {
+        return -1;
+    }
+    return fast_local_index(g, nid);
+}
+
+def comp_append_handler(
+    g: cfg_builder,
+    start_blk: int,
+    protect_end: int,
+    stack_depth: int,
+    fast_index: int,
+    cloc_comp: cloc,
+    handler_group: int,
+    second_fast_index: int = -1,
+    swap_depth: int = 2
+) {
+    reg = except_region(
+        start_block=start_blk,
+        end_block=protect_end,
+        handler_block=-1,
+        stack_depth=stack_depth
+    );
+    g.u.except_regions.append(reg);
+    g.u.comp_handlers.append(
+        comp_handler(
+            region_index=len(g.u.except_regions) - 1,
+            fast_index=fast_index,
+            second_fast_index=second_fast_index,
+            swap_depth=swap_depth,
+            loc=cloc_comp,
+            group=handler_group
+        )
+    );
+}
+
+# Lower a comprehension element expression. The innermost loop target is already
+# on the stack from STORE_FAST_LOAD_FAST; references to bound names must not load.
+def visit_comp_elt(
+    g: cfg_builder, e: expr, bound_names: list[str], filter_compare: bool = False
+) {
+    if isinstance(e, Name) {
+        n = e as Name;
+        if comp_name_bound(n.id, bound_names) {
+            return;
+        }
+        visit_expr(g, e);
+        return;
+    }
+    if isinstance(e, Compare) {
+        c = e as Compare;
+        cloc_cmp = expr_loc(c);
+        visit_comp_elt(g, c.left, bound_names, filter_compare);
+        if codegen_busy(g) {
+            return;
+        }
+        ci = 0;
+        while ci < len(c.comparators) {
+            visit_comp_elt(g, c.comparators[ci], bound_names, filter_compare);
+            if codegen_busy(g) {
+                return;
+            }
+            oparg = cmpop_oparg(c.ops[ci]);
+            if filter_compare {
+                oparg = cmpop_filter_oparg(c.ops[ci]);
+            }
+            if oparg < 0 {
+                codegen_fail(
+                    g, "NotImplementedError", "unsupported comparison operator"
+                );
+                return;
+            }
+            g.emit_op(OP_COMPARE_OP, oparg, cloc_cmp);
+            ci = ci + 1;
+        }
+        return;
+    }
+    if isinstance(e, Call) {
+        ca = e as Call;
+        floc = call_func_loc(ca.func);
+        visit_comp_elt(g, ca.func, bound_names, filter_compare);
+        if codegen_busy(g) {
+            return;
+        }
+        g.emit_op(OP_PUSH_NULL, 0, floc);
+        call_args = ca.args;
+        if call_args is None {
+            call_args = [];
+        }
+        ai = 0;
+        while ai < len(call_args) {
+            visit_comp_elt(g, call_args[ai], bound_names, filter_compare);
+            if codegen_busy(g) {
+                return;
+            }
+            ai = ai + 1;
+        }
+        cloc_call = nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset);
+        g.emit_op(OP_CALL, len(call_args), cloc_call);
+        return;
+    }
+    if isinstance(e, BinOp) {
+        b = e as BinOp;
+        bl = nloc(b.lineno, b.end_lineno, b.col_offset, b.end_col_offset);
+        visit_comp_elt(g, b.left, bound_names, filter_compare);
+        if codegen_busy(g) {
+            return;
+        }
+        visit_comp_elt(g, b.right, bound_names, filter_compare);
+        if codegen_busy(g) {
+            return;
+        }
+        opid = binop_id(b.op);
+        if opid < 0 {
+            codegen_fail(g, "NotImplementedError", "unsupported binary operator");
+            return;
+        }
+        g.emit_op(OP_BINARY_OP, opid, bl);
+        return;
+    }
+    if isinstance(e, UnaryOp) {
+        un = e as UnaryOp;
+        ul = nloc(un.lineno, un.end_lineno, un.col_offset, un.end_col_offset);
+        visit_comp_elt(g, un.operand, bound_names, filter_compare);
+        if codegen_busy(g) {
+            return;
+        }
+        opc = unary_opcode(un.op);
+        if opc < 0 {
+            codegen_fail(g, "NotImplementedError", "unsupported unary operator");
+            return;
+        }
+        g.emit_op(opc, 0, ul);
+        return;
+    }
+    visit_expr(g, e);
+}
+
+def comp_emit_bind_target(g: cfg_builder, target: expr, slots: list[int]) {
+    tloc = expr_loc(target);
+    if len(slots) == 1 {
+        pair_arg = slots[0] * 16 + slots[0];
+        g.emit_op(OP_STORE_FAST_LOAD_FAST, pair_arg, tloc);
+        return;
+    }
+    unpack_loc = tloc;
+    store_loc = tloc;
+    if isinstance(target, Tuple) {
+        elts = (target as Tuple).elts;
+        if len(elts) > 0 {
+            store_loc = expr_loc(elts[0]);
+        }
+    }
+    g.emit_op(OP_UNPACK_SEQUENCE, len(slots), unpack_loc);
+    pair_arg = slots[0] * 16 + slots[1];
+    g.emit_op(OP_STORE_FAST_STORE_FAST, pair_arg, store_loc);
+}
+
+def comp_emit_filters(
+    g: cfg_builder,
+    ifs: list[expr],
+    bound_names: list[str],
+    loop_hdr: basicblock,
+    stack_depth: int,
+    cloc_comp: cloc,
+    fast_index: int,
+    region_start: int,
+    handler_group: int,
+    filter_jump_loc: cloc,
+    second_fast_index: int = -1,
+    swap_depth: int = 2
+) -> tuple[basicblock | None, int] {
+    element_entry: basicblock | None = None;
+    ii = 0;
+    while ii < len(ifs) {
+        ife = ifs[ii];
+        visit_comp_elt(g, ife, bound_names, True);
+        if codegen_busy(g) {
+            return (element_entry, region_start);
+        }
+        filter_post = g.new_block();
+        comp_append_handler(
+            g,
+            region_start,
+            filter_post.id,
+            stack_depth,
+            fast_index,
+            cloc_comp,
+            handler_group,
+            second_fast_index,
+            swap_depth
+        );
+        g.use(filter_post);
+        pass_blk = g.new_block();
+        g.emit_jump(OP_POP_JUMP_IF_TRUE, pass_blk.id, filter_jump_loc);
+        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, filter_jump_loc);
+        g.use(pass_blk);
+        region_start = pass_blk.id;
+        element_entry = pass_blk;
+        ii = ii + 1;
+    }
+    return (element_entry, region_start);
+}
+
+def comp_finish_loop(
+    g: cfg_builder,
+    loop_hdr: basicblock,
+    for_iter_idx: int,
+    region_start: int,
+    iter_loc: cloc,
+    stack_depth: int,
+    slots: list[int],
+    cloc_comp: cloc,
+    handler_group: int,
+    second_fast: int,
+    swap_depth: int
+) {
+    after = g.new_block();
+    loop_hdr.instrs[for_iter_idx].target_block = after.id;
+    g.use(after);
+    g.emit_op(OP_END_FOR, 0, iter_loc);
+    g.emit_op(OP_POP_ITER, 0, iter_loc);
+    protect_end = g.new_block();
+    comp_append_handler(
+        g,
+        region_start,
+        protect_end.id,
+        stack_depth,
+        slots[0],
+        cloc_comp,
+        handler_group,
+        second_fast,
+        swap_depth
+    );
+    g.use(protect_end);
+    comp_emit_cleanup(g, slots, cloc_comp, swap_depth);
+}
+
+def comp_emit_single_elt(
+    g: cfg_builder,
+    elt: expr,
+    bound_names: list[str],
+    add_op: int,
+    elt_loc: cloc,
+    has_filters: bool,
+    filter_jump_loc: cloc | None = None
+) {
+    emit_loc = elt_loc;
+    if has_filters and filter_jump_loc is not None {
+        emit_loc = filter_jump_loc;
+    }
+    if has_filters
+        and len(bound_names) == 1
+        and isinstance(elt, Name)
+        and (elt as Name).id == bound_names[0] {
+        fi = fast_local_index(g, (elt as Name).id);
+        g.emit_op(OP_LOAD_FAST_BORROW, fi, emit_loc);
+        g.emit_op(add_op, 2, emit_loc);
+        return;
+    }
+    visit_comp_elt(g, elt, bound_names);
+    if codegen_busy(g) {
+        return;
+    }
+    g.emit_op(add_op, 2, emit_loc);
+}
+
+def comp_dict_map_loc(dc: DictComp) -> cloc {
+    return nloc(
+        dc.key.lineno, dc.value.end_lineno, dc.key.col_offset, dc.value.end_col_offset
+    );
+}
+
+def visit_comp_dict_kv(
+    g: cfg_builder, dc: DictComp, bound_names: list[str], has_filters: bool = False
+) {
+    kfi = comp_name_fast_index(g, dc.key, bound_names);
+    kv_loc = expr_loc(dc.key);
+    map_loc = comp_dict_map_loc(dc);
+    if isinstance(dc.key, Name) and isinstance(dc.value, Name) and kfi >= 0 {
+        vfi = comp_name_fast_index(g, dc.value, bound_names);
+        if vfi >= 0 {
+            pair_arg = kfi * 16 + vfi;
+            g.emit_op(OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW, pair_arg, expr_loc(dc.key));
+            g.emit_op(OP_MAP_ADD, 2, map_loc);
+            return;
+        }
+    }
+    if isinstance(dc.key, Name) and kfi >= 0 {
+        if isinstance(dc.value, BinOp) {
+            b = dc.value as BinOp;
+            if isinstance(b.left, Name)
+                and (b.left as Name).id == (dc.key as Name).id {
+                pair_arg = kfi * 16 + kfi;
+                pair_loc = expr_loc(b.left);
+                if has_filters {
+                    pair_loc = expr_loc(dc.key);
+                }
+                g.emit_op(OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW, pair_arg, pair_loc);
+                visit_comp_elt(g, b.right, bound_names);
+                if codegen_busy(g) {
+                    return;
+                }
+                opid = binop_id(b.op);
+                if opid < 0 {
+                    codegen_fail(
+                        g, "NotImplementedError", "unsupported binary operator"
+                    );
+                    return;
+                }
+                bl = nloc(b.lineno, b.end_lineno, b.col_offset, b.end_col_offset);
+                g.emit_op(OP_BINARY_OP, opid, bl);
+                g.emit_op(OP_MAP_ADD, 2, map_loc);
+                return;
+            }
+        }
+        g.emit_op(OP_LOAD_FAST_BORROW, kfi, kv_loc);
+        visit_comp_elt(g, dc.value, bound_names);
+        if codegen_busy(g) {
+            return;
+        }
+        g.emit_op(OP_MAP_ADD, 2, map_loc);
+        return;
+    }
+    visit_comp_elt(g, dc.key, bound_names);
+    if codegen_busy(g) {
+        return;
+    }
+    visit_comp_elt(g, dc.value, bound_names);
+    if codegen_busy(g) {
+        return;
+    }
+    g.emit_op(OP_MAP_ADD, 2, map_loc);
+}
+
+def comp_emit_cleanup(
+    g: cfg_builder, slots: list[int], cloc_comp: cloc, swap_depth: int
+) {
+    g.emit_op(OP_SWAP, swap_depth, cloc_comp);
+    if len(slots) == 2 {
+        g.emit_op(OP_STORE_FAST, slots[1], cloc_comp);
+        g.emit_op(OP_STORE_FAST, slots[0], cloc_comp);
+        return;
+    }
+    g.emit_op(OP_STORE_FAST, slots[0], cloc_comp);
+}
+
+def comp_emit_setup(
+    g: cfg_builder,
+    gen: comprehension,
+    slots: list[int],
+    build_op: int,
+    cloc_comp: cloc,
+    iter_loc: cloc
+) -> tuple[int, basicblock, int] {
+    visit_expr(g, gen.iter);
+    if codegen_busy(g) {
+        loop_hdr = g.new_block();
+        return (-1, loop_hdr, -1);
+    }
+    g.emit_op(OP_GET_ITER, 0, iter_loc);
+    si = 0;
+    while si < len(slots) {
+        g.emit_op(OP_LOAD_FAST_AND_CLEAR, slots[si], cloc_comp);
+        si = si + 1;
+    }
+    swap_depth = 2;
+    if len(slots) == 2 {
+        swap_depth = 3;
+        g.emit_op(OP_SWAP, swap_depth, cloc_comp);
+    } else {
+        g.emit_op(OP_SWAP, swap_depth, cloc_comp);
+    }
+    comp_body = g.new_block();
+    g.use(comp_body);
+    start_blk = g.cur.id;
+    g.emit_op(build_op, 0, cloc_comp);
+    g.emit_op(OP_SWAP, 2, cloc_comp);
+    loop_hdr = g.new_block();
+    g.use(loop_hdr);
+    for_iter_idx = len(loop_hdr.instrs);
+    g.emit_jump(OP_FOR_ITER, 0, iter_loc);
+    return (start_blk, loop_hdr, for_iter_idx);
+}
+
+# Emit comprehension cleanup handlers after the module RETURN_VALUE (dead code on
+# the normal path; reached only via the exception table).
+def emit_deferred_comp_handlers(g: cfg_builder) {
+    emitted_groups: list[int] = [];
+    emitted_blocks: list[int] = [];
+    hi = 0;
+    while hi < len(g.u.comp_handlers) {
+        h = g.u.comp_handlers[hi];
+        handler_blk = -1;
+        gi = 0;
+        while gi < len(emitted_groups) {
+            if emitted_groups[gi] == h.group {
+                handler_blk = emitted_blocks[gi];
+                break;
+            }
+            gi = gi + 1;
+        }
+        if handler_blk < 0 {
+            handler = g.new_block();
+            handler_blk = handler.id;
+            emitted_groups.append(h.group);
+            emitted_blocks.append(handler_blk);
+            g.use(handler);
+            noloc = no_loc();
+            g.emit_op(OP_SWAP, 2, noloc);
+            g.emit_op(OP_POP_TOP, 0, noloc);
+            if h.second_fast_index >= 0 {
+                g.emit_op(OP_SWAP, 3, h.loc);
+                g.emit_op(OP_STORE_FAST, h.second_fast_index, h.loc);
+                g.emit_op(OP_STORE_FAST, h.fast_index, h.loc);
+            } else {
+                g.emit_op(OP_SWAP, h.swap_depth, h.loc);
+                g.emit_op(OP_STORE_FAST, h.fast_index, h.loc);
+            }
+            g.emit_op(OP_RERAISE, 0, h.loc);
+        }
+        g.u.except_regions[h.region_index].handler_block = handler_blk;
+        hi = hi + 1;
+    }
+}
+
+# Inline list comprehension (module-level / expression context).
+def visit_list_comp(g: cfg_builder, lc: ListComp) {
+    if len(lc.generators) == 0 {
+        codegen_fail(g, "NotImplementedError", "empty list comprehension");
+        return;
+    }
+    gen = lc.generators[0];
+    bound_names = comp_bound_names_from_target(gen.target);
+    slots = comp_target_slots(g, gen.target);
+    if bound_names is None or slots is None {
+        codegen_fail(g, "NotImplementedError", "unsupported list comprehension target");
+        return;
+    }
+    cloc_comp = expr_loc(lc);
+    iter_loc = expr_loc(gen.iter);
+    elt_loc = expr_loc(lc.elt);
+    filter_jump_loc = expr_loc(lc.elt);
+    handler_group = g.u.comp_handler_group;
+    g.u.comp_handler_group = handler_group + 1;
+    setup = comp_emit_setup(g, gen, slots, OP_BUILD_LIST, cloc_comp, iter_loc);
+    if codegen_busy(g) {
+        return;
+    }
+    start_blk = setup[0];
+    loop_hdr = setup[1];
+    for_iter_idx = setup[2];
+    swap_depth = 2;
+    stack_depth = 3;
+    second_fast = -1;
+    if len(slots) == 2 {
+        swap_depth = 3;
+        stack_depth = 4;
+        second_fast = slots[1];
+    }
+    comp_emit_bind_target(g, gen.target, slots);
+    if codegen_busy(g) {
+        return;
+    }
+    filt = comp_emit_filters(
+        g,
+        gen.ifs,
+        bound_names,
+        loop_hdr,
+        stack_depth,
+        cloc_comp,
+        slots[0],
+        start_blk,
+        handler_group,
+        filter_jump_loc,
+        second_fast,
+        swap_depth
+    );
+    if codegen_busy(g) {
+        return;
+    }
+    region_start = filt[1];
+    comp_emit_single_elt(
+        g,
+        lc.elt,
+        bound_names,
+        OP_LIST_APPEND,
+        elt_loc,
+        len(gen.ifs) > 0,
+        filter_jump_loc
+    );
+    if codegen_busy(g) {
+        return;
+    }
+    if len(gen.ifs) > 0 {
+        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, filter_jump_loc);
+    } else {
+        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, elt_loc);
+    }
+    comp_finish_loop(
+        g,
+        loop_hdr,
+        for_iter_idx,
+        region_start,
+        iter_loc,
+        stack_depth,
+        slots,
+        cloc_comp,
+        handler_group,
+        second_fast,
+        swap_depth
+    );
+}
+
+# Inline set comprehension.
+def visit_set_comp(g: cfg_builder, sc: SetComp) {
+    if len(sc.generators) == 0 {
+        codegen_fail(g, "NotImplementedError", "empty set comprehension");
+        return;
+    }
+    gen = sc.generators[0];
+    bound_names = comp_bound_names_from_target(gen.target);
+    slots = comp_target_slots(g, gen.target);
+    if bound_names is None or slots is None {
+        codegen_fail(g, "NotImplementedError", "unsupported set comprehension target");
+        return;
+    }
+    cloc_comp = expr_loc(sc);
+    iter_loc = expr_loc(gen.iter);
+    elt_loc = expr_loc(sc.elt);
+    filter_jump_loc = expr_loc(sc.elt);
+    handler_group = g.u.comp_handler_group;
+    g.u.comp_handler_group = handler_group + 1;
+    setup = comp_emit_setup(g, gen, slots, OP_BUILD_SET, cloc_comp, iter_loc);
+    if codegen_busy(g) {
+        return;
+    }
+    start_blk = setup[0];
+    loop_hdr = setup[1];
+    for_iter_idx = setup[2];
+    swap_depth = 2;
+    stack_depth = 3;
+    second_fast = -1;
+    if len(slots) == 2 {
+        swap_depth = 3;
+        stack_depth = 4;
+        second_fast = slots[1];
+    }
+    comp_emit_bind_target(g, gen.target, slots);
+    if codegen_busy(g) {
+        return;
+    }
+    filt = comp_emit_filters(
+        g,
+        gen.ifs,
+        bound_names,
+        loop_hdr,
+        stack_depth,
+        cloc_comp,
+        slots[0],
+        start_blk,
+        handler_group,
+        filter_jump_loc,
+        second_fast,
+        swap_depth
+    );
+    if codegen_busy(g) {
+        return;
+    }
+    region_start = filt[1];
+    comp_emit_single_elt(
+        g, sc.elt, bound_names, OP_SET_ADD, elt_loc, len(gen.ifs) > 0, filter_jump_loc
+    );
+    if codegen_busy(g) {
+        return;
+    }
+    if len(gen.ifs) > 0 {
+        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, filter_jump_loc);
+    } else {
+        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, elt_loc);
+    }
+    comp_finish_loop(
+        g,
+        loop_hdr,
+        for_iter_idx,
+        region_start,
+        iter_loc,
+        stack_depth,
+        slots,
+        cloc_comp,
+        handler_group,
+        second_fast,
+        swap_depth
+    );
+}
+
+# Inline dict comprehension.
+def visit_dict_comp(g: cfg_builder, dc: DictComp) {
+    if len(dc.generators) == 0 {
+        codegen_fail(g, "NotImplementedError", "empty dict comprehension");
+        return;
+    }
+    gen = dc.generators[0];
+    bound_names = comp_bound_names_from_target(gen.target);
+    slots = comp_target_slots(g, gen.target);
+    if bound_names is None or slots is None {
+        codegen_fail(g, "NotImplementedError", "unsupported dict comprehension target");
+        return;
+    }
+    cloc_comp = expr_loc(dc);
+    iter_loc = expr_loc(gen.iter);
+    filter_jump_loc = comp_dict_map_loc(dc);
+    handler_group = g.u.comp_handler_group;
+    g.u.comp_handler_group = handler_group + 1;
+    setup = comp_emit_setup(g, gen, slots, OP_BUILD_MAP, cloc_comp, iter_loc);
+    if codegen_busy(g) {
+        return;
+    }
+    start_blk = setup[0];
+    loop_hdr = setup[1];
+    for_iter_idx = setup[2];
+    swap_depth = 2;
+    stack_depth = 3;
+    second_fast = -1;
+    if len(slots) == 2 {
+        swap_depth = 3;
+        stack_depth = 4;
+        second_fast = slots[1];
+    }
+    comp_emit_bind_target(g, gen.target, slots);
+    if codegen_busy(g) {
+        return;
+    }
+    filt = comp_emit_filters(
+        g,
+        gen.ifs,
+        bound_names,
+        loop_hdr,
+        stack_depth,
+        cloc_comp,
+        slots[0],
+        start_blk,
+        handler_group,
+        filter_jump_loc,
+        second_fast,
+        swap_depth
+    );
+    if codegen_busy(g) {
+        return;
+    }
+    region_start = filt[1];
+    visit_comp_dict_kv(g, dc, bound_names, len(gen.ifs) > 0);
+    if codegen_busy(g) {
+        return;
+    }
+    if len(gen.ifs) > 0 {
+        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, filter_jump_loc);
+    } else {
+        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, comp_dict_map_loc(dc));
+    }
+    comp_finish_loop(
+        g,
+        loop_hdr,
+        for_iter_idx,
+        region_start,
+        iter_loc,
+        stack_depth,
+        slots,
+        cloc_comp,
+        handler_group,
+        second_fast,
+        swap_depth
+    );
+}
+
 # Module-level epilogue (LOAD_CONST None; RETURN_VALUE).
 def emit_module_return(g: cfg_builder, lc: cloc) {
     none_idx = g.u.add_const(py_none());
@@ -1085,12 +1934,17 @@ def emit_module_return(g: cfg_builder, lc: cloc) {
     g.emit_op(OP_RETURN_VALUE, 0, lc);
 }
 
-# Lower statements [from_idx..] in order.
+# Lower statements [from_idx..] in order. When tail/tail_idx are set, the suffix
+# starting at tail_idx is the enclosing construct's continuation. tail_join is an
+# optional shared join block for nested if/loop tails owned by an outer visitor.
 def visit_stmts(
     g: cfg_builder,
     stmts: list[stmt],
     from_idx: int = 0,
-    more_follows_after: bool = False
+    more_follows_after: bool = False,
+    tail: list[stmt] | None = None,
+    tail_idx: int = 0,
+    tail_join: basicblock | None = None
 ) -> stmt_cont {
     if len(stmts) == 0 or from_idx >= len(stmts) {
         return stmt_cont(loc=loc(1, 1, 0, 0));
@@ -1103,7 +1957,10 @@ def visit_stmts(
         if not follow {
             follow = exec_tail_emits_code(stmts, si + 1);
         }
-        cont = visit_stmt(g, stmts[si], follow, stmts, si + 1);
+        if not follow and tail is not None {
+            follow = exec_tail_emits_code(tail, tail_idx);
+        }
+        cont = visit_stmt(g, stmts[si], follow, tail, tail_idx, tail_join);
         last = cont.loc;
         if cont.terminated {
             terminated = True;
@@ -1111,23 +1968,41 @@ def visit_stmts(
         if codegen_busy(g) {
             return stmt_cont(loc=last, terminated=terminated);
         }
-        si = si + 1;
+        if cont.next_si >= 0 {
+            si = cont.next_si;
+        } else {
+            si = si + 1;
+        }
     }
     return stmt_cont(loc=last, terminated=terminated);
 }
 
-# Lower a statement suffix (used to duplicate tails after if/while/for).
+# Lower a statement suffix once at the current block.
 def visit_stmt_tail(
-    g: cfg_builder,
-    tail: list[stmt],
-    from_idx: int,
-    more_follows_after: bool = False
+    g: cfg_builder, tail: list[stmt], from_idx: int, more_follows_after: bool = False
 ) -> stmt_cont {
     return visit_stmts(g, tail, from_idx, more_follows_after);
 }
 
+# Emit tail suffix and finish the module when CPython duplicates it per branch.
+def emit_tail_and_finish(
+    g: cfg_builder, tail: list[stmt], tail_idx: int, end_loc: cloc
+) -> stmt_cont {
+    tail_cont = visit_stmt_tail(g, tail, tail_idx);
+    if codegen_busy(g) {
+        return tail_cont;
+    }
+    emit_module_return(g, tail_cont.loc);
+    return stmt_cont(loc=end_loc, next_si=len(tail), terminated=True);
+}
+
 def visit_if(
-    g: cfg_builder, i: If, more_code_follows: bool, tail: list[stmt], tail_idx: int
+    g: cfg_builder,
+    i: If,
+    more_code_follows: bool,
+    tail: list[stmt],
+    tail_idx: int,
+    tail_join: basicblock | None = None
 ) -> stmt_cont {
     iloc = nloc(i.lineno, i.end_lineno, i.col_offset, i.end_col_offset);
     test_loc = expr_loc(i.test);
@@ -1139,33 +2014,60 @@ def visit_if(
     false_blk = g.new_block();
     has_else = len(i.orelse) > 0;
     if more_code_follows {
+        tail_more = exec_tail_emits_code(tail, tail_idx);
         if has_else {
-            dup_tail = g.new_block();
+            if tail_more {
+                join = g.new_block();
+                g.emit_jump(OP_POP_JUMP_IF_FALSE, false_blk.id, test_loc);
+                body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx);
+                if codegen_busy(g) {
+                    return stmt_cont(loc=body_cont.loc);
+                }
+                g.emit_jump(OP_JUMP_FORWARD, join.id, iloc);
+                g.use(false_blk);
+                else_cont = visit_stmts(g, i.orelse, 0, False, tail, tail_idx);
+                if codegen_busy(g) {
+                    return stmt_cont(loc=else_cont.loc);
+                }
+                g.use(join);
+                tail_cont = visit_stmt_tail(
+                    g, tail, tail_idx, exec_tail_emits_code(tail, tail_idx + 1)
+                );
+                return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+            }
             g.emit_jump(OP_POP_JUMP_IF_FALSE, false_blk.id, test_loc);
-            body_cont = visit_stmts(g, i.body);
+            body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx);
             if codegen_busy(g) {
                 return stmt_cont(loc=body_cont.loc);
             }
-            g.emit_jump(OP_JUMP_FORWARD, dup_tail.id, iloc);
+            fin = emit_tail_and_finish(g, tail, tail_idx, iloc);
+            if codegen_busy(g) {
+                return fin;
+            }
             g.use(false_blk);
-            else_cont = visit_stmts(g, i.orelse);
+            else_cont = visit_stmts(g, i.orelse, 0, False, tail, tail_idx);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
-            g.emit_jump(OP_JUMP_FORWARD, dup_tail.id, iloc);
-            g.use(dup_tail);
-            tail_cont = visit_stmt_tail(g, tail, tail_idx);
-            return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+            return emit_tail_and_finish(g, tail, tail_idx, iloc);
         }
-        tail_blk = g.new_block();
-        g.emit_jump(OP_POP_JUMP_IF_FALSE, tail_blk.id, test_loc);
-        body_cont = visit_stmts(g, i.body);
+        join = tail_join;
+        owns_tail = False;
+        if join is None {
+            join = g.new_block();
+            owns_tail = True;
+        }
+        g.emit_jump(OP_POP_JUMP_IF_FALSE, join.id, test_loc);
+        body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx, join);
         if codegen_busy(g) {
             return stmt_cont(loc=body_cont.loc);
         }
-        g.use(tail_blk);
-        tail_cont = visit_stmt_tail(g, tail, tail_idx);
-        return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+        if owns_tail {
+            g.use(join);
+            tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+            return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+        }
+        return stmt_cont(loc=body_cont.loc);
     }
     g.emit_jump(OP_POP_JUMP_IF_FALSE, false_blk.id, test_loc);
     body_cont = visit_stmts(g, i.body);
@@ -1198,20 +2100,75 @@ def visit_while(
         return stmt_cont(loc=wloc);
     }
     g.emit_op(OP_TO_BOOL, 0, test_loc);
-    exit_blk = g.new_block();
-    tail_dup_blk = None;
+    has_break = loop_body_has_break(w.body);
     if more_code_follows {
-        tail_dup_blk = g.new_block();
-        g.emit_jump(OP_POP_JUMP_IF_FALSE, tail_dup_blk.id, test_loc);
-    } else {
+        exit_blk = g.new_block();
         g.emit_jump(OP_POP_JUMP_IF_FALSE, exit_blk.id, test_loc);
-    }
-    break_blk = exit_blk;
-    if more_code_follows {
         break_blk = g.new_block();
+        g.push_loop(head, break_blk, has_break);
+        body_cont = visit_stmts(g, w.body);
+        if codegen_busy(g) {
+            g.pop_loop();
+            return stmt_cont(loc=body_cont.loc);
+        }
+        if not body_cont.terminated {
+            g.emit_jump(OP_JUMP_BACKWARD, head.id, body_cont.loc);
+        }
+        g.pop_loop();
+        tail_more = exec_tail_emits_code(tail, tail_idx);
+        if has_break {
+            g.use(break_blk);
+            g.emit_op(OP_NOP, 0, wloc);
+            if tail_more {
+                g.emit_jump(OP_JUMP_FORWARD, exit_blk.id, wloc);
+            } else {
+                br_cont = emit_tail_and_finish(g, tail, tail_idx, wloc);
+                if codegen_busy(g) {
+                    return br_cont;
+                }
+            }
+        }
+        g.use(exit_blk);
+        if len(w.orelse) > 0 {
+            else_cont = visit_stmts(g, w.orelse);
+            if codegen_busy(g) {
+                return stmt_cont(loc=else_cont.loc);
+            }
+        }
+        if has_break and not tail_more {
+            return stmt_cont(loc=wloc, next_si=len(tail), terminated=True);
+        }
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
     }
-    break_is_stub = more_code_follows;
-    g.push_loop(head, break_blk, break_is_stub);
+    if len(g.loop_stack) > 0 {
+        after_body = g.new_block();
+        g.emit_jump(OP_POP_JUMP_IF_FALSE, after_body.id, test_loc);
+        if has_break {
+            break_blk = g.new_block();
+            g.push_loop(head, break_blk, True);
+        } else {
+            g.push_loop(head, after_body, False);
+        }
+        body_cont = visit_stmts(g, w.body);
+        if codegen_busy(g) {
+            g.pop_loop();
+            return stmt_cont(loc=body_cont.loc);
+        }
+        if not body_cont.terminated {
+            g.emit_jump(OP_JUMP_BACKWARD, head.id, body_cont.loc);
+        }
+        g.pop_loop();
+        if has_break {
+            g.use(break_blk);
+            g.emit_jump(OP_JUMP_BACKWARD, after_body.id, wloc);
+        }
+        g.use(after_body);
+        return stmt_cont(loc=wloc, terminated=False);
+    }
+    g.emit_jump(OP_POP_JUMP_IF_FALSE, 0, test_loc);
+    pop_false_ins = g.cur.instrs[len(g.cur.instrs) - 1];
+    g.push_loop(head, head, False);
     body_cont = visit_stmts(g, w.body);
     if codegen_busy(g) {
         g.pop_loop();
@@ -1221,17 +2178,8 @@ def visit_while(
         g.emit_jump(OP_JUMP_BACKWARD, head.id, body_cont.loc);
     }
     g.pop_loop();
-    if more_code_follows {
-        g.use(break_blk);
-        g.emit_op(OP_NOP, 0, wloc);
-        br_cont = visit_stmt_tail(g, tail, tail_idx);
-        if codegen_busy(g) {
-            return br_cont;
-        }
-        g.use(tail_dup_blk);
-        tail_cont = visit_stmt_tail(g, tail, tail_idx);
-        return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
-    }
+    exit_blk = g.new_block();
+    pop_false_ins.target_block = exit_blk.id;
     g.use(exit_blk);
     if len(w.orelse) > 0 {
         else_cont = visit_stmts(g, w.orelse);
@@ -1279,19 +2227,59 @@ def visit_for(
     loop_hdr = g.new_block();
     g.use(loop_hdr);
     after = g.new_block();
-    break_blk = after;
-    needs_break_stub = more_code_follows;
-    if not needs_break_stub {
-        needs_break_stub = loop_body_has_break(f.body);
+    has_break = loop_body_has_break(f.body);
+    if more_code_follows {
+        break_blk = g.new_block();
+        g.push_loop(loop_hdr, break_blk, has_break);
+        g.emit_jump(OP_FOR_ITER, after.id, iter_loc);
+        store = visit_store_target_tos(g, f.target);
+        if codegen_busy(g) {
+            g.pop_loop();
+            return stmt_cont(loc=store.loc);
+        }
+        body_cont = visit_stmts(g, f.body);
+        if codegen_busy(g) {
+            g.pop_loop();
+            return stmt_cont(loc=body_cont.loc);
+        }
+        if not body_cont.terminated {
+            g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, body_cont.loc);
+        }
+        g.pop_loop();
+        tail_more = exec_tail_emits_code(tail, tail_idx);
+        if has_break {
+            g.use(break_blk);
+            g.emit_op(OP_POP_TOP, 0, iter_loc);
+            if tail_more {
+                g.emit_jump(OP_JUMP_FORWARD, after.id, iter_loc);
+            } else {
+                br_cont = emit_tail_and_finish(g, tail, tail_idx, floc);
+                if codegen_busy(g) {
+                    return br_cont;
+                }
+            }
+        }
+        g.use(after);
+        g.emit_op(OP_END_FOR, 0, iter_loc);
+        g.emit_op(OP_POP_ITER, 0, iter_loc);
+        if len(f.orelse) > 0 {
+            else_cont = visit_stmts(g, f.orelse);
+            if codegen_busy(g) {
+                return stmt_cont(loc=else_cont.loc);
+            }
+        }
+        if has_break and not tail_more {
+            return stmt_cont(loc=floc, next_si=len(tail), terminated=True);
+        }
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
     }
+    break_blk = after;
+    needs_break_stub = has_break;
     if needs_break_stub {
         break_blk = g.new_block();
     }
-    tail_dup_blk = None;
-    if more_code_follows {
-        tail_dup_blk = g.new_block();
-    }
-    g.push_loop(loop_hdr, break_blk, more_code_follows or needs_break_stub);
+    g.push_loop(loop_hdr, break_blk, needs_break_stub);
     g.emit_jump(OP_FOR_ITER, after.id, iter_loc);
     store = visit_store_target_tos(g, f.target);
     if codegen_busy(g) {
@@ -1310,21 +2298,6 @@ def visit_for(
     if needs_break_stub {
         g.use(break_blk);
         g.emit_op(OP_POP_TOP, 0, iter_loc);
-        if more_code_follows {
-            br_cont = visit_stmt_tail(g, tail, tail_idx);
-            if codegen_busy(g) {
-                return br_cont;
-            }
-            g.use(after);
-            g.emit_op(OP_END_FOR, 0, iter_loc);
-            g.emit_op(OP_POP_ITER, 0, iter_loc);
-            if len(f.orelse) > 0 {
-                visit_stmts(g, f.orelse);
-            }
-            g.use(tail_dup_blk);
-            tail_cont = visit_stmt_tail(g, tail, tail_idx);
-            return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
-        }
         emit_module_return(g, iter_loc);
     }
     g.use(after);
@@ -1348,7 +2321,8 @@ def visit_stmt(
     s: stmt,
     more_code_follows: bool = False,
     tail: list[stmt] | None = None,
-    tail_idx: int = 0
+    tail_idx: int = 0,
+    tail_join: basicblock | None = None
 ) -> stmt_cont {
     if codegen_busy(g) {
         return stmt_cont(loc=stmt_loc(s));
@@ -1411,7 +2385,9 @@ def visit_stmt(
         opid = inplace_binop_id(aa.op);
         aloc = nloc(aa.lineno, aa.end_lineno, aa.col_offset, aa.end_col_offset);
         if opid < 0 {
-            codegen_fail(g, "NotImplementedError", "unsupported augmented assignment operator");
+            codegen_fail(
+                g, "NotImplementedError", "unsupported augmented assignment operator"
+            );
             return stmt_cont(loc=stmt_loc(s));
         }
         if isinstance(aa.target, Name) {
@@ -1477,7 +2453,9 @@ def visit_stmt(
         eloc = nloc(x.lineno, x.end_lineno, x.col_offset, x.end_col_offset);
         if cmp_cleanup is not None and isinstance(x.value, Call) {
             ca = x.value as Call;
-            cloc_call = nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset);
+            cloc_call = nloc(
+                ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset
+            );
             g.emit_op(OP_POP_TOP, 0, eloc);
             after = g.new_block();
             g.emit_jump(OP_JUMP_FORWARD, after.id, eloc);
@@ -1509,7 +2487,7 @@ def visit_stmt(
         if t is None {
             t = [];
         }
-        return visit_if(g, s as If, more_code_follows, t, tail_idx);
+        return visit_if(g, s as If, more_code_follows, t, tail_idx, tail_join);
     }
     if isinstance(s, While) {
         t = tail;
@@ -1552,7 +2530,9 @@ def visit_stmt(
         return stmt_cont(loc=cloc_stmt, terminated=True);
     }
     codegen_fail(
-        g, "NotImplementedError", "unsupported statement: " + ast_node_name(s as ast_node)
+        g,
+        "NotImplementedError",
+        "unsupported statement: " + ast_node_name(s as ast_node)
     );
     return stmt_cont(loc=stmt_loc(s));
 }
@@ -1585,6 +2565,9 @@ def compile_exec(
     u = unverified_cfg(
         filename=filename, name=name, qualname=name, firstlineno=firstlineno
     );
+    if sym_top is not None {
+        u.varnames = fast_varnames_from_sym(sym_top);
+    }
     entry = u.add_block();
     g = new_cfg_builder(u, entry, sym_top);
     g.emit_op(OP_RESUME, 0, loc(0, firstlineno, 0, 0));
@@ -1613,5 +2596,6 @@ def compile_exec(
     none_idx = u.add_const(py_none());
     g.emit_op(OP_LOAD_CONST, none_idx, last);
     g.emit_op(OP_RETURN_VALUE, 0, last);
+    emit_deferred_comp_handlers(g);
     return u;
 }

@@ -33,10 +33,7 @@ import from compiler_ir {
     mk_instr,
     instr_size_codeunits,
 }
-import from compiler_diagnostics {
-    compiler_diagnostic,
-    internal_compiler_diagnostic,
-}
+import from compiler_diagnostics { compiler_diagnostic, internal_compiler_diagnostic, }
 
 # Verified CFG: flat instruction stream with stack depth, ready for assembly.
 # Phase 3 adds hard errors on underflow and inconsistent joins via diag.
@@ -44,6 +41,7 @@ obj verified_cfg {
     has unit: unverified_cfg,
         flat: list[cinstr],
         stacksize: int,
+        block_starts: list[int] = [],
         diag: compiler_diagnostic | None = None;
 }
 
@@ -211,7 +209,8 @@ def block_has_dead_code_after_terminator(b: basicblock) -> bool {
         if past_term {
             return True;
         }
-        if is_unconditional_jump_opcode(ins.opcode) or is_scope_exit_opcode(ins.opcode) {
+        if is_unconditional_jump_opcode(ins.opcode)
+            or is_scope_exit_opcode(ins.opcode) {
             past_term = True;
         }
         ii = ii + 1;
@@ -269,14 +268,20 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
     entry = u.blocks[0];
 
     if not stackdepth_push(startdepths, work, entry, 0) {
-        return (0, stackdepth_diag("ValueError", "Invalid CFG, inconsistent stackdepth"));
+        return (
+            0,
+            stackdepth_diag("ValueError", "Invalid CFG, inconsistent stackdepth")
+        );
     }
     while len(work) > 0 {
         bid = work[len(work) - 1];
-        work = work[0 : len(work) - 1];
+        work = work[0:len(work) - 1];
         b = find_block(u, bid);
         if b is None {
-            return (0, stackdepth_diag("ValueError", "Invalid CFG, missing basic block"));
+            return (
+                0,
+                stackdepth_diag("ValueError", "Invalid CFG, missing basic block")
+            );
         }
         depth = startdepths[bid];
         next_id = b.id + 1;
@@ -302,7 +307,10 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
             }
             new_depth = depth + eff;
             if new_depth < 0 {
-                return (0, stackdepth_diag("ValueError", "Invalid CFG, stack underflow"));
+                return (
+                    0,
+                    stackdepth_diag("ValueError", "Invalid CFG, stack underflow")
+                );
             }
             if new_depth > maxdepth {
                 maxdepth = new_depth;
@@ -311,14 +319,18 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
                 if ins.target_block < 0 {
                     return (
                         0,
-                        stackdepth_diag("ValueError", "Invalid CFG, jump missing target block")
+                        stackdepth_diag(
+                            "ValueError", "Invalid CFG, jump missing target block"
+                        )
                     );
                 }
                 target = find_block(u, ins.target_block);
                 if target is None {
                     return (
                         0,
-                        stackdepth_diag("ValueError", "Invalid CFG, invalid jump target")
+                        stackdepth_diag(
+                            "ValueError", "Invalid CFG, invalid jump target"
+                        )
                     );
                 }
                 jeff = stack_effect(ins.opcode, ins.oparg, 1);
@@ -336,7 +348,10 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
                 }
                 target_depth = depth + jeff;
                 if target_depth < 0 {
-                    return (0, stackdepth_diag("ValueError", "Invalid CFG, stack underflow"));
+                    return (
+                        0,
+                        stackdepth_diag("ValueError", "Invalid CFG, stack underflow")
+                    );
                 }
                 if target_depth > maxdepth {
                     maxdepth = target_depth;
@@ -344,12 +359,22 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
                 if not stackdepth_push(startdepths, work, target, target_depth) {
                     return (
                         0,
-                        stackdepth_diag("ValueError", "Invalid CFG, inconsistent stackdepth")
+                        stackdepth_diag(
+                            "ValueError",
+                            "Invalid CFG, inconsistent stackdepth at block "
+                                + str(target.id)
+                                + " via jump (want "
+                                + str(target_depth)
+                                + " have "
+                                + str(startdepths[target.id])
+                                + ")"
+                        )
                     );
                 }
             }
             depth = new_depth;
-            if is_unconditional_jump_opcode(ins.opcode) or is_scope_exit_opcode(ins.opcode) {
+            if is_unconditional_jump_opcode(ins.opcode)
+                or is_scope_exit_opcode(ins.opcode) {
                 next_blk = None;
                 break;
             }
@@ -359,7 +384,16 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
             if not stackdepth_push(startdepths, work, next_blk, depth) {
                 return (
                     0,
-                    stackdepth_diag("ValueError", "Invalid CFG, inconsistent stackdepth")
+                    stackdepth_diag(
+                        "ValueError",
+                        "Invalid CFG, inconsistent stackdepth at block "
+                            + str(next_blk.id)
+                            + " via fallthrough (want "
+                            + str(depth)
+                            + " have "
+                            + str(startdepths[next_blk.id])
+                            + ")"
+                    )
                 );
             }
         }
@@ -385,5 +419,7 @@ def verify_cfg(u: unverified_cfg) -> verified_cfg {
     block_starts = fr.block_starts;
     resolve_jump_offsets(flat, block_starts);
     rewrite_small_ints(u, flat);
-    return verified_cfg(unit=u, flat=flat, stacksize=stacksize);
+    return verified_cfg(
+        unit=u, flat=flat, block_starts=block_starts, stacksize=stacksize
+    );
 }

@@ -7,13 +7,7 @@
 # Test harness only: host_oracle produces PyCode; product_compile must not import
 # this module.
 
-import from objects {
-    PyObj,
-    PyCode,
-    PyInt,
-    PyError,
-    is_error,
-}
+import from objects { PyObj, PyCode, PyInt, PyError, is_error, }
 import from host_oracle { host_compile_marshal }
 import from product_compile { compile_source }
 import from pyc_first { unmarshal, exec_code, to_host }
@@ -50,9 +44,8 @@ def _vm_host_raises(setup_src, body_src):
         return type(exc).__name__, str(exc)
 ::py::
 
-def host_result_key(
-    setup: str, body: str, mode: str, key: str
-) -> any {
+
+def host_result_key(setup: str, body: str, mode: str, key: str) -> any {
     ns = _vm_host_exec(setup, body, mode) as dict;
     return ns[key];
 }
@@ -66,9 +59,7 @@ def host_raises(setup: str, body: str) -> tuple[str, str] | None {
     return (pair[0] as str, pair[1] as str);
 }
 
-def jac_run_oracle(
-    setup: str, body: str, mode: str, ns: dict[str, PyObj]
-) -> PyObj {
+def jac_run_oracle(setup: str, body: str, mode: str, ns: dict[str, PyObj]) -> PyObj {
     if setup != "" {
         setup_co = unmarshal(host_compile_marshal(setup, "<vm-setup>", "exec", 0));
         out = exec_code(setup_co, [], ns);
@@ -76,15 +67,11 @@ def jac_run_oracle(
             return out;
         }
     }
-    body_co = unmarshal(
-        host_compile_marshal(body, "<vm-body>", mode, 0)
-    );
+    body_co = unmarshal(host_compile_marshal(body, "<vm-body>", mode, 0));
     return exec_code(body_co, [], ns);
 }
 
-def assert_vm_value_matches_host(
-    setup: str, body: str, mode: str, key: str
-) {
+def assert_vm_value_matches_host(setup: str, body: str, mode: str, key: str) {
     ns: dict[str, PyObj] = {};
     out = jac_run_oracle(setup, body, mode, ns);
     assert not is_error(out);
@@ -219,10 +206,7 @@ test "vm: DELETE_SUBSCR removes element" {
 # vm-opcode: OP_POP_JUMP_IF_FALSE
 test "vm: POP_JUMP_IF_FALSE selects else branch" {
     assert_vm_value_matches_host(
-        "x = 0\n",
-        "if x:\n    result = 1\nelse:\n    result = 2\n",
-        "exec",
-        "result",
+        "x = 0\n", "if x:\n    result = 1\nelse:\n    result = 2\n", "exec", "result",
     );
 }
 
@@ -241,6 +225,7 @@ test "vm: JUMP_FORWARD from native codegen matches host behavior" {
         "x": PyInt(t="int", val=1),
         "y": PyInt(t="int", val=2),
         "z": PyInt(t="int", val=3),
+
     };
     co = compile_source(body, "<jf>", "exec", 0);
     assert not is_error(co);
@@ -260,20 +245,14 @@ test "vm: COPY preserves chained assignment RHS" {
 # vm-opcode: OP_SWAP
 test "vm: SWAP supports chained comparison" {
     assert_vm_value_matches_host(
-        "a = 1\nb = 2\nc = 3\n",
-        "result = (a < b < c)\n",
-        "exec",
-        "result",
+        "a = 1\nb = 2\nc = 3\n", "result = (a < b < c)\n", "exec", "result",
     );
 }
 
 # vm-opcode: OP_TO_BOOL
 test "vm: TO_BOOL drives conditional branch" {
     assert_vm_value_matches_host(
-        "x = 1\n",
-        "if x:\n    result = 1\nelse:\n    result = 0\n",
-        "exec",
-        "result",
+        "x = 1\n", "if x:\n    result = 1\nelse:\n    result = 0\n", "exec", "result",
     );
 }
 
@@ -310,10 +289,131 @@ test "vm: END_FOR completes for-loop" {
 # vm-opcode: OP_JUMP_BACKWARD
 test "vm: JUMP_BACKWARD drives while-loop" {
     assert_vm_value_matches_host(
+        "", "i = 0\nwhile i < 3:\n    i += 1\nresult = i\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_NOP
+test "vm: NOP is a no-op in while break path" {
+    assert_vm_value_matches_host(
+        "x = 1\n", "while x: break\nresult = 0\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_POP_ITER
+test "vm: POP_ITER completes for-loop iterator cleanup" {
+    assert_vm_value_matches_host(
         "",
-        "i = 0\nwhile i < 3:\n    i += 1\nresult = i\n",
+        "total = 0\nfor i in range(3):\n    total += i\nresult = total\n",
         "exec",
         "result",
+    );
+}
+
+# vm-opcode: OP_BUILD_LIST
+test "vm: BUILD_LIST builds list comprehension accumulator" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = [x for x in y]\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_BUILD_SET
+test "vm: BUILD_SET builds set comprehension accumulator" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = {x for x in y}\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_LIST_APPEND
+test "vm: LIST_APPEND appends in list comprehension" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = [x for x in y]\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_SET_ADD
+test "vm: SET_ADD adds in set comprehension" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = {x for x in y}\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_BUILD_MAP
+test "vm: BUILD_MAP builds dict comprehension accumulator" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = {x: x for x in y}\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_MAP_ADD
+test "vm: MAP_ADD adds in dict comprehension" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = {x: x for x in y}\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_LOAD_FAST_BORROW
+test "vm: LOAD_FAST_BORROW loads comprehension element" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = [x for x in y if x > 0]\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW
+test "vm: LOAD_FAST_BORROW_LOAD_FAST_BORROW loads dict comp key and value" {
+    assert_vm_value_matches_host(
+        "pairs = [(1, 2), (3, 4)]\n",
+        "result = {k: v for k, v in pairs}\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_STORE_FAST_STORE_FAST
+test "vm: STORE_FAST_STORE_FAST binds dict comp tuple target" {
+    assert_vm_value_matches_host(
+        "pairs = [(1, 2), (3, 4)]\n",
+        "result = {k: v for k, v in pairs}\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_UNPACK_SEQUENCE
+test "vm: UNPACK_SEQUENCE unpacks dict comp tuple target" {
+    assert_vm_value_matches_host(
+        "pairs = [(1, 2), (3, 4)]\n",
+        "result = {k: v for k, v in pairs}\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_LOAD_FAST_AND_CLEAR
+test "vm: LOAD_FAST_AND_CLEAR saves comprehension loop binding" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = [x for x in y]\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_STORE_FAST
+test "vm: STORE_FAST restores comprehension loop binding" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = [x for x in y]\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_STORE_FAST_LOAD_FAST
+test "vm: STORE_FAST_LOAD_FAST binds comprehension iteration variable" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = [x for x in y]\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_RERAISE
+test "vm: RERAISE propagates comprehension cleanup failures" {
+    assert_vm_value_matches_host(
+        "y = [1, 2, 3]\n", "result = [x for x in y]\n", "exec", "result",
     );
 }
 
@@ -332,12 +432,7 @@ test "vm: namespace mutation matches host for multi-assign" {
 
 test "vm: exception type and handler result match host" {
     setup = "";
-    body = (
-        "try:\n"
-        "    1 // 0\n"
-        "except ZeroDivisionError:\n"
-        "    result = 99\n"
-    );
+    body = "try:\n" "    1 // 0\n" "except ZeroDivisionError:\n" "    result = 99\n";
     assert_vm_value_matches_host(setup, body, "exec", "result");
 }
 

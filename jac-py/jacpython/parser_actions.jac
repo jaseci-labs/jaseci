@@ -91,7 +91,7 @@ obj pa_cmpop_expr_pair {
         expr: expr;
 }
 
-obj pa_key_value_pair {
+obj kv_pair {
     has key: expr,
         value: expr;
 }
@@ -188,11 +188,7 @@ def pa_constant_none(
 }
 
 def pa_constant_bool(
-    val: bool,
-    lineno: int,
-    col_offset: int,
-    end_lineno: int,
-    end_col_offset: int
+    val: bool, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int
 ) -> Constant {
     return Constant(
         value=PyBool(t="bool", val=val),
@@ -311,11 +307,7 @@ def pa_ast_call(
 }
 
 def pa_ast_starred(
-    value: expr,
-    lineno: int,
-    col_offset: int,
-    end_lineno: int,
-    end_col_offset: int
+    value: expr, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int
 ) -> Starred {
     return Starred(
         value=value,
@@ -398,8 +390,14 @@ def pa_collect_call_seqs(
 ) -> Call {
     if kwargs is None {
         return pa_ast_call(
-            Name(id="", ctx=Load(), lineno=lineno, col_offset=col_offset,
-                 end_lineno=end_lineno, end_col_offset=end_col_offset),
+            Name(
+                id="",
+                ctx=Load(),
+                lineno=lineno,
+                col_offset=col_offset,
+                end_lineno=end_lineno,
+                end_col_offset=end_col_offset
+            ),
             args,
             [],
             lineno,
@@ -411,18 +409,18 @@ def pa_collect_call_seqs(
     if isinstance(kwargs, Call) {
         c = kwargs as Call;
         return pa_ast_call(
-            c.func,
-            args,
-            c.keywords,
-            lineno,
-            col_offset,
-            end_lineno,
-            end_col_offset
+            c.func, args, c.keywords, lineno, col_offset, end_lineno, end_col_offset
         );
     }
     return pa_ast_call(
-        Name(id="", ctx=Load(), lineno=lineno, col_offset=col_offset,
-             end_lineno=end_lineno, end_col_offset=end_col_offset),
+        Name(
+            id="",
+            ctx=Load(),
+            lineno=lineno,
+            col_offset=col_offset,
+            end_lineno=end_lineno,
+            end_col_offset=end_col_offset
+        ),
         args,
         [],
         lineno,
@@ -553,11 +551,7 @@ def pa_set_context(target: expr, ctx: expr_context) -> expr {
 
 # star_expressions as a statement -> Expr (expression statement).
 def pa_ast_expr_stmt(
-    value: expr,
-    lineno: int,
-    col_offset: int,
-    end_lineno: int,
-    end_col_offset: int
+    value: expr, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int
 ) -> Expr {
     return Expr(
         value=value,
@@ -632,10 +626,7 @@ def pa_ast_return(
 
 # pass -> Pass.
 def pa_ast_pass(
-    lineno: int,
-    col_offset: int,
-    end_lineno: int,
-    end_col_offset: int
+    lineno: int, col_offset: int, end_lineno: int, end_col_offset: int
 ) -> Pass {
     return Pass(
         lineno=lineno,
@@ -784,7 +775,9 @@ def pa_ast_continue(
     );
 }
 
-def pa_constant_from_expr(value: expr, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> Constant {
+def pa_constant_from_expr(
+    value: expr, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int
+) -> Constant {
     return Constant(
         value=py_none(),
         lineno=lineno,
@@ -808,18 +801,48 @@ def pa_seq_append_to_end(head: list[expr] | None, item: expr) -> list[expr] {
     return out;
 }
 
-def pa_get_keys(pairs: list[object]) -> list[expr] { return []; }
-def pa_get_values(pairs: list[object]) -> list[expr] { return []; }
-def pa_get_patterns(pairs: list[object]) -> list[pattern] { return []; }
-def pa_get_pattern_keys(pairs: list[object]) -> list[expr] { return []; }
-def pa_map_names_to_ids(names: list[expr]) -> list[str] { return []; }
-def pa_seq_count_dots(name: expr) -> int { return 0; }
-def pa_empty_arguments() -> arguments { return arguments(posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]); }
-def pa_dummy_name(lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> Name {
-    return Name(id="_", ctx=Load(), lineno=lineno, col_offset=col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
+def pa_get_keys(pairs: list[object]) -> list[expr] {
+    return [];
 }
-def pa_interactive_exit(p: peg_parser) -> list[stmt] { return []; }
-def pa_aug_op(target: expr) -> operator { return Add(); }
+def pa_get_values(pairs: list[object]) -> list[expr] {
+    return [];
+}
+def pa_get_patterns(pairs: list[object]) -> list[pattern] {
+    return [];
+}
+def pa_get_pattern_keys(pairs: list[object]) -> list[expr] {
+    return [];
+}
+def pa_map_names_to_ids(names: list[expr]) -> list[str] {
+    return [];
+}
+def pa_seq_count_dots(name: expr) -> int {
+    return 0;
+}
+def pa_empty_arguments -> arguments {
+    return arguments(
+        posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]
+    );
+}
+def pa_dummy_name(
+    lineno: int, col_offset: int, end_lineno: int, end_col_offset: int
+) -> Name {
+    return Name(
+        id="_",
+        ctx=Load(),
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+def pa_interactive_exit(p: peg_parser) -> list[stmt] {
+    return [];
+}
+def pa_aug_op(target: expr) -> operator {
+    return Add();
+}
 # arguments rule returns a dummy Call from pa_collect_call_seqs; peel args/keywords.
 def pa_call_args(`node: expr) -> list[expr] {
     if `node is None {
@@ -840,30 +863,73 @@ def pa_call_keywords(`node: expr) -> list[keyword] {
     }
     return [];
 }
-def pa_comp_field(`node: expr, field: str) -> expr { return `node; }
-def pa_seq_first(seq: list[object]) -> expr | None { return None; }
-def pa_seq_last(seq: list[object]) -> expr | None { return None; }
-def pa_seq_len(seq: list[object]) -> int { return len(seq); }
-def pa_seq_get(seq: list[object], index: int) -> object | None { return None; }
-def pa_or_pattern_singleton(patterns: list[pattern], lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pattern {
-    return MatchOr(patterns=patterns, lineno=lineno, col_offset=col_offset, end_lineno=end_lineno, end_col_offset=end_col_offset);
+
+def pa_comp_field(`node: expr, field: str) -> expr {
+    pair = `node as kv_pair;
+    if field == "key" {
+        return pair.key;
+    }
+    return pair.value;
 }
-def pa_err_occurred(p: peg_parser) -> bool { return peg_has_error(p); }
-def pa_expr_lineno(`node: expr) -> int { return `node.lineno; }
-def pa_expr_end_col_offset(`node: expr) -> int { return `node.end_col_offset; }
-def pa_expr_end_lineno(`node: expr) -> int { return `node.end_lineno; }
+
+def pa_seq_first(seq: list[object]) -> expr | None {
+    return None;
+}
+def pa_seq_last(seq: list[object]) -> expr | None {
+    return None;
+}
+def pa_seq_len(seq: list[object]) -> int {
+    return len(seq);
+}
+def pa_seq_get(seq: list[object], index: int) -> object | None {
+    return None;
+}
+def pa_or_pattern_singleton(
+    patterns: list[pattern],
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> pattern {
+    return MatchOr(
+        patterns=patterns,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
+}
+
+def pa_err_occurred(p: peg_parser) -> bool {
+    return peg_has_error(p);
+}
+def pa_expr_lineno(`node: expr) -> int {
+    return `node.lineno;
+}
+def pa_expr_end_col_offset(`node: expr) -> int {
+    return `node.end_col_offset;
+}
+def pa_expr_end_lineno(`node: expr) -> int {
+    return `node.end_lineno;
+}
 
 def pa_raise_syntax(p: peg_parser, on_next: bool, message: str) -> None {
-    if peg_has_error(p) { return None; }
+    if peg_has_error(p) {
+        return None;
+    }
     peg_raise_syntax_error(p, on_next, message);
     return None;
 }
 
-def pa_raise_syntax_known_expr(p: peg_parser, on_next: bool, `node: expr, message: str) -> None {
+def pa_raise_syntax_known_expr(
+    p: peg_parser, on_next: bool, `node: expr, message: str
+) -> None {
     return pa_raise_syntax(p, on_next, message);
 }
 
-def pa_raise_syntax_known_range(p: peg_parser, on_next: bool, a: expr, b: expr, message: str) -> None {
+def pa_raise_syntax_known_range(
+    p: peg_parser, on_next: bool, a: expr, b: expr, message: str
+) -> None {
     return pa_raise_syntax(p, on_next, message);
 }
 
@@ -879,49 +945,205 @@ def pa_raise_kvpair_error(p: peg_parser, `node: expr) -> None {
     return pa_raise_syntax(p, False, "':' expected after dictionary key");
 }
 
-def pa_check_legacy_stmt_or_raise(p: peg_parser, a: object, b: object) -> None { return None; }
-
-def pa_checked_future_import(module: object, names: object, level: object) -> object { return None; }
-def pa_nonparen_genexp_in_call(a: object, b: object) -> object { return None; }
-def pa_arguments_parsing_error(`node: object) -> object { return None; }
-def pa_check_legacy_stmt(p: peg_parser, `node: object) -> bool { return False; }
-def pa_concatenate_strings(parts: list[object]) -> expr | None { return None; }
-def pa_concatenate_tstrings(parts: list[object]) -> expr | None { return None; }
-def pa_constant_from_string(spelling: str) -> Constant | None { return None; }
-def pa_constant_from_token(tok: peg_token | None) -> Constant | None { return None; }
-def pa_decoded_constant_from_token(tok: peg_token | None) -> Constant | None { return None; }
-def pa_ensure_imaginary(`node: expr) -> expr { return `node; }
-def pa_ensure_real(`node: expr) -> expr { return `node; }
-def pa_get_expr_name(`node: expr) -> str { return ""; }
-def pa_get_last_comprehension_item(`node: object) -> object { return None; }
-def pa_join_names_with_dot(a: expr, b: expr) -> expr { return a; }
-def pa_join_sequences(a: list[object], b: list[object]) -> list[object] { return a; }
-def pa_alias_for_star(`node: object) -> alias | None { return None; }
-def pa_add_type_comment_to_arg(arg: arg, comment: object) -> arg { return arg; }
-def pa_seq_delete_starred_exprs(seq: list[object]) -> list[object] { return seq; }
-def pa_seq_extract_starred_exprs(seq: list[object]) -> list[object] { return seq; }
-def pa_setup_full_format_spec(`node: object) -> object { return `node; }
-def pa_check_fstring_conversion(a: object, b: object) -> object { return a; }
-def pa_function_def_decorators(decs: list[expr], stmt: stmt) -> stmt { return stmt; }
-def pa_class_def_decorators(decs: list[expr], stmt: stmt) -> stmt { return stmt; }
-def pa_key_value_pair(key: expr, value: expr, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_key_value_pair {
-    return pa_key_value_pair(key=key, value=value);
+def pa_check_legacy_stmt_or_raise(p: peg_parser, a: object, b: object) -> None {
+    return None;
 }
-def pa_key_pattern_pair(key: expr, pat: pattern, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_key_pattern_pair {
+
+def pa_checked_future_import(module: object, names: object, level: object) -> object {
+    return None;
+}
+def pa_nonparen_genexp_in_call(a: object, b: object) -> object {
+    return None;
+}
+def pa_arguments_parsing_error(`node: object) -> object {
+    return None;
+}
+def pa_check_legacy_stmt(p: peg_parser, `node: object) -> bool {
+    return False;
+}
+def pa_concatenate_strings(parts: list[object]) -> expr | None {
+    return None;
+}
+def pa_concatenate_tstrings(parts: list[object]) -> expr | None {
+    return None;
+}
+def pa_constant_from_string(spelling: str) -> Constant | None {
+    return None;
+}
+def pa_constant_from_token(tok: peg_token | None) -> Constant | None {
+    return None;
+}
+def pa_decoded_constant_from_token(tok: peg_token | None) -> Constant | None {
+    return None;
+}
+def pa_ensure_imaginary(`node: expr) -> expr {
+    return `node;
+}
+def pa_ensure_real(`node: expr) -> expr {
+    return `node;
+}
+def pa_get_expr_name(`node: expr) -> str {
+    return "";
+}
+def pa_get_last_comprehension_item(`node: object) -> object {
+    return None;
+}
+def pa_join_names_with_dot(a: expr, b: expr) -> expr {
+    return a;
+}
+def pa_join_sequences(a: list[object], b: list[object]) -> list[object] {
+    return a;
+}
+def pa_alias_for_star(`node: object) -> alias | None {
+    return None;
+}
+def pa_add_type_comment_to_arg(arg: arg, comment: object) -> arg {
+    return arg;
+}
+def pa_seq_delete_starred_exprs(seq: list[object]) -> list[object] {
+    return seq;
+}
+def pa_seq_extract_starred_exprs(seq: list[object]) -> list[object] {
+    return seq;
+}
+def pa_setup_full_format_spec(`node: object) -> object {
+    return `node;
+}
+def pa_check_fstring_conversion(a: object, b: object) -> object {
+    return a;
+}
+def pa_function_def_decorators(decs: list[expr], stmt: stmt) -> stmt {
+    return stmt;
+}
+def pa_class_def_decorators(decs: list[expr], stmt: stmt) -> stmt {
+    return stmt;
+}
+def pa_key_value_pair(
+    key: expr,
+    value: expr,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> kv_pair {
+    return kv_pair(key=key, value=value);
+}
+
+def pa_key_pattern_pair(
+    key: expr,
+    pat: pattern,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> pa_key_pattern_pair {
     return pa_key_pattern_pair(key=key, pattern=pat);
 }
-def pa_name_default_pair(arg: arg, `default: expr | None, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_name_default_pair {
+
+def pa_name_default_pair(
+    arg: arg,
+    `default: expr | None,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> pa_name_default_pair {
     return pa_name_default_pair(arg=arg, default=`default);
 }
-def pa_keyword_or_starred(arg: str | None, value: expr, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> pa_keyword_or_starred {
+
+def pa_keyword_or_starred(
+    arg: str | None,
+    value: expr,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> pa_keyword_or_starred {
     return pa_keyword_or_starred(arg=arg, value=value);
 }
-def pa_make_arguments(a: object, b: object, c: object, d: object, e: object, f: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> arguments {
+
+def pa_make_arguments(
+    a: object,
+    b: object,
+    c: object,
+    d: object,
+    e: object,
+    f: object,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> arguments {
     return pa_empty_arguments();
 }
-def pa_star_etc(a: object, b: object, c: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> object { return None; }
-def pa_slash_with_default(a: object, b: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> object { return None; }
-def pa_joined_str(a: object, b: list[expr], c: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> expr | None { return None; }
-def pa_template_str(a: object, b: list[expr], c: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> expr | None { return None; }
-def pa_formatted_value(a: object, b: object, c: object, d: object, e: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> expr | None { return None; }
-def pa_interpolation(a: object, b: object, c: object, d: object, e: object, f: object, lineno: int, col_offset: int, end_lineno: int, end_col_offset: int) -> expr | None { return None; }
+
+def pa_star_etc(
+    a: object,
+    b: object,
+    c: object,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> object {
+    return None;
+}
+def pa_slash_with_default(
+    a: object,
+    b: object,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> object {
+    return None;
+}
+def pa_joined_str(
+    a: object,
+    b: list[expr],
+    c: object,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> expr | None {
+    return None;
+}
+def pa_template_str(
+    a: object,
+    b: list[expr],
+    c: object,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> expr | None {
+    return None;
+}
+def pa_formatted_value(
+    a: object,
+    b: object,
+    c: object,
+    d: object,
+    e: object,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> expr | None {
+    return None;
+}
+def pa_interpolation(
+    a: object,
+    b: object,
+    c: object,
+    d: object,
+    e: object,
+    f: object,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
+) -> expr | None {
+    return None;
+}

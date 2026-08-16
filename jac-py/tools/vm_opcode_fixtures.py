@@ -71,6 +71,22 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "COPY",
     "SWAP",
     "TO_BOOL",
+    "NOP",
+    "POP_ITER",
+    "BUILD_LIST",
+    "BUILD_SET",
+    "LIST_APPEND",
+    "SET_ADD",
+    "BUILD_MAP",
+    "MAP_ADD",
+    "LOAD_FAST_BORROW",
+    "LOAD_FAST_BORROW_LOAD_FAST_BORROW",
+    "STORE_FAST_STORE_FAST",
+    "UNPACK_SEQUENCE",
+    "LOAD_FAST_AND_CLEAR",
+    "STORE_FAST",
+    "STORE_FAST_LOAD_FAST",
+    "RERAISE",
     # Band 3: VM fixtures land before native codegen emits these opcodes.
     "GET_ITER",
     "FOR_ITER",
@@ -161,6 +177,81 @@ FIXTURES: tuple[VmFixture, ...] = (
     VmFixture(
         "JUMP_BACKWARD",
         "i = 0\nwhile i < 3:\n    i += 1\nresult = i\n",
+    ),
+    VmFixture("NOP", "while x: break\nresult = 0\n", setup="x = 1\n"),
+    VmFixture(
+        "POP_ITER",
+        "total = 0\nfor i in range(3):\n    total += i\nresult = total\n",
+    ),
+    VmFixture(
+        "BUILD_LIST",
+        "result = [x for x in y]\n",
+        setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "BUILD_SET",
+        "result = {x for x in y}\n",
+        setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "LIST_APPEND",
+        "result = [x for x in y]\n",
+        setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "SET_ADD",
+        "result = {x for x in y}\n",
+        setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "BUILD_MAP",
+        "result = {x: x for x in y}\n",
+        setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "MAP_ADD",
+        "result = {x: x for x in y}\n",
+        setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "LOAD_FAST_BORROW",
+        "result = [x for x in y if x > 0]\n",
+        setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "LOAD_FAST_BORROW_LOAD_FAST_BORROW",
+        "result = {k: v for k, v in pairs}\n",
+        setup="pairs = [(1, 2), (3, 4)]\n",
+    ),
+    VmFixture(
+        "STORE_FAST_STORE_FAST",
+        "result = {k: v for k, v in pairs}\n",
+        setup="pairs = [(1, 2), (3, 4)]\n",
+    ),
+    VmFixture(
+        "UNPACK_SEQUENCE",
+        "result = {k: v for k, v in pairs}\n",
+        setup="pairs = [(1, 2), (3, 4)]\n",
+    ),
+    VmFixture(
+        "LOAD_FAST_AND_CLEAR",
+        "result = [x for x in y]\n",
+        setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "STORE_FAST",
+        "result = [x for x in y]\n",
+        setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "STORE_FAST_LOAD_FAST",
+        "result = [x for x in y]\n",
+        setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "RERAISE",
+        "result = [x for x in y]\n",
+        setup="y = [1, 2, 3]\n",
     ),
 )
 
@@ -362,14 +453,10 @@ def _dis_opcode_names(
 
 def _parse_codegen_emission_opcodes(path: Path) -> set[str]:
     text = path.read_text()
-    # Drop imports-only noise: keep opcodes referenced outside the import block.
-    import_end = text.find("}\n", text.find("import from opcode_meta"))
-    body = text[import_end + 2 :] if import_end >= 0 else text
-    body_ops: set[str] = set()
-    for match in EMIT_RE.findall(body):
-        if match.startswith("OP_"):
-            body_ops.add(match.removeprefix("OP_"))
-    return body_ops
+    emitted: set[str] = set()
+    for match in re.finditer(r"emit_(?:op|jump)\(\s*(OP_[A-Z0-9_]+)", text):
+        emitted.add(match.group(1).removeprefix("OP_"))
+    return emitted
 
 
 def _iter_tagged_test_blocks(text: str):

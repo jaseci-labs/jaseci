@@ -92,6 +92,58 @@ test "layer10: while break matches oracle" {
     assert_matches_oracle("while x: break\n");
 }
 
+test "layer10: while continue matches oracle" {
+    assert_matches_oracle("while x: continue\n");
+}
+
+test "layer10: for continue matches oracle" {
+    assert_matches_oracle("for x in y: continue\n");
+}
+
+test "layer10: while body break matches oracle" {
+    assert_matches_oracle("while x:\n    break\n");
+}
+
+test "layer10: nested if then following stmt matches oracle" {
+    assert_matches_oracle("if x:\n    if y: a = 1\nb = 2\n");
+}
+
+test "layer10: while else then following stmt matches oracle" {
+    assert_matches_oracle("while x: pass\nelse: z = 1\na = 2\n");
+}
+
+test "layer10: for else then following stmt matches oracle" {
+    assert_matches_oracle("for x in y: pass\nelse: z = 1\na = 2\n");
+}
+
+test "layer10: list comprehension assign matches oracle" {
+    assert_matches_oracle("result = [x for x in y]\n");
+}
+
+test "layer10: list comprehension filter with nontrivial expr matches oracle" {
+    assert_matches_oracle("result = [x for x in y if x + 1 > 0]\n");
+}
+
+test "layer10: dict comprehension assign matches oracle" {
+    assert_matches_oracle("result = {c: c + c for c in z}\n");
+}
+
+test "layer10: dict comprehension filter matches oracle" {
+    assert_matches_oracle("result = {x: x + 1 for x in y if x > 0}\n");
+}
+
+test "layer10: dict comprehension tuple target matches oracle" {
+    assert_matches_oracle("result = {k: v for k, v in pairs}\n");
+}
+
+test "layer10: set comprehension assign matches oracle" {
+    assert_matches_oracle("result = {x for x in y}\n");
+}
+
+test "layer10: set comprehension filter matches oracle" {
+    assert_matches_oracle("result = {x for x in y if x > 0}\n");
+}
+
 # ---------------- VM execution ----------------
 
 test "layer10: while loop executes in ceval" {
@@ -113,9 +165,11 @@ test "layer10: for loop executes in ceval" {
                 PyInt(t="int", val=1),
                 PyInt(t="int", val=2),
                 PyInt(t="int", val=3),
+
             ],
         ),
         "total": PyInt(t="int", val=0),
+
     };
     out = exec_code(co as PyCode, [], ns);
     assert not is_error(out);
