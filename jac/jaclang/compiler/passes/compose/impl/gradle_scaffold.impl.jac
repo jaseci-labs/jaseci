@@ -171,18 +171,31 @@ def _android_manifest(app_name: str, dev: bool = False) -> str {
     return _tpl(name, {"label": escape_android_xml(app_name)});
 }
 
-def _module_gradle(android_plugin: str, package_name: str, default_config: str) -> str {
+def _module_gradle(
+    android_plugin: str,
+    package_name: str,
+    default_config: str,
+    gradle_deps: list[str] = []
+) -> str {
+    extra = "";
+    if gradle_deps {
+        extra = "\n".join(
+            [f'    implementation("{escape_kotlin(dep)}")' for dep in gradle_deps]
+        );
+        extra = "\n" + extra;
+    }
     return _tpl(
         "module.gradle.kts",
         {
             "android_plugin": android_plugin,
             "namespace": escape_kotlin(package_name),
-            "default_config": default_config
+            "default_config": default_config,
+            "extra_dependencies": extra
         }
     );
 }
 
-def _app_gradle(package_name: str) -> str {
+def _app_gradle(package_name: str, gradle_deps: list[str] = []) -> str {
     pkg = escape_kotlin(package_name);
     default_config = (
         f'    defaultConfig {{\n'
@@ -193,12 +206,16 @@ def _app_gradle(package_name: str) -> str {
         f'        versionName = "0.1.0"\n'
         f'    }}'
     );
-    return _module_gradle("com.android.application", package_name, default_config);
+    return _module_gradle(
+        "com.android.application", package_name, default_config, gradle_deps
+    );
 }
 
-def _hot_gradle(package_name: str) -> str {
+def _hot_gradle(package_name: str, gradle_deps: list[str] = []) -> str {
     default_config = '    defaultConfig {\n        minSdk = 26\n    }';
-    return _module_gradle("com.android.library", package_name, default_config);
+    return _module_gradle(
+        "com.android.library", package_name, default_config, gradle_deps
+    );
 }
 
 def _main_activity(package_name: str) -> str {
@@ -258,7 +275,9 @@ impl build_gradle_scaffold(
     app_name: str,
     backend_url: str,
     routes: list[str],
-    dev: bool = False
+    dev: bool = False,
+    gradle_deps: list[str] = [],
+    sv_deploy: str = "remote"
 ) -> dict[str, str] {
     pkg_path = package_to_path(package_name);
     base_root = f"app/src/main/java/{pkg_path}";
@@ -267,13 +286,15 @@ impl build_gradle_scaffold(
     infra_files: dict[str, str] = {
         "MainActivity.kt": _main_activity(package_name),
         "JacRouting.kt": _jac_routing(package_name, effective_routes),
-        "JacEnvironment.kt": _jac_environment(package_name, backend_url),
         "JacTheme.kt": _jac_theme(package_name)
     };
+    if sv_deploy != "device" {
+        infra_files["JacEnvironment.kt"] = _jac_environment(package_name, backend_url);
+    }
     files: dict[str, str] = {
         "build.gradle.kts": _root_gradle(),
         "gradle.properties": _gradle_properties(),
-        "app/build.gradle.kts": _app_gradle(package_name),
+        "app/build.gradle.kts": _app_gradle(package_name, gradle_deps),
         "app/src/main/res/values/styles.xml": _styles_xml(),
         "app/src/main/res/values/strings.xml": _strings_xml(app_name)
     };
@@ -282,7 +303,7 @@ impl build_gradle_scaffold(
         files["app/src/main/AndroidManifest.xml"] = _android_manifest(
             app_name, dev=True
         );
-        files["hot/build.gradle.kts"] = _hot_gradle(package_name);
+        files["hot/build.gradle.kts"] = _hot_gradle(package_name, gradle_deps);
         files["hot/src/main/AndroidManifest.xml"] = _hot_manifest();
         files[f"{base_root}/JacDevHostActivity.kt"] = _jac_dev_host_activity(
             package_name

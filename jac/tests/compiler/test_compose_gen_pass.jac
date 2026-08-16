@@ -230,7 +230,7 @@ def:pub Counter() -> Composable {
     }
 }
 
-test "jac_to_kotlin lowers walker spawn to JacClient call" {
+test "jac_to_kotlin lowers walker spawn to JacBackends.current call" {
     import from jaclang.compiler.passes.compose.jac_to_kotlin { jac_expr_to_kt }
     import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
     import from jaclang.compiler.passes.ecmascript.intent.detection {
@@ -263,7 +263,7 @@ def test_spawn -> None {
                                 found = True;
                                 kt_node = jac_expr_to_kt(stmt.value);
                                 src_kt = kt_to_source(kt_node);
-                                assert "JacClient.greet" in src_kt;
+                                assert "JacBackends.current.greet" in src_kt;
                                 assert "GreetRequest" in src_kt;
                                 assert "name=name" in src_kt.replace(" ", "");
                             }
@@ -276,7 +276,7 @@ def test_spawn -> None {
     }
 }
 
-test "Compose view onClick handler lowers spawn to JacClient in kotlin_ast" {
+test "Compose view onClick handler lowers spawn to JacBackends.current in kotlin_ast" {
     src = '''
 def:pub app -> Composable {
     has greeting: str = "";
@@ -312,7 +312,7 @@ def:pub app -> Composable {
         }
         assert on_click is not None;
         handler_src = kt_to_source(on_click);
-        assert "JacClient" in handler_src;
+        assert "JacBackends.current" in handler_src;
     }
 }
 
@@ -386,7 +386,7 @@ def:pub app -> Composable {
         screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
         assert "rememberCoroutineScope()" in screens;
         assert "scope.launch" in screens;
-        assert "JacClient.greet" in screens;
+        assert "JacBackends.current.greet" in screens;
         assert "val greeting = result" not in screens;
         assert "greeting = result.reports[0]" in screens;
     }
@@ -424,7 +424,7 @@ def:pub app -> Composable {
     }
 }
 
-test "ComposeEmit wraps JacClient onCheckedChange in coroutine scope" {
+test "ComposeEmit wraps JacBackends.current onCheckedChange in coroutine scope" {
     src = '''
 def:pub app -> Composable {
     has checked: bool = False;
@@ -453,7 +453,7 @@ def:pub app -> Composable {
         screens = ComposeEmit(model=model, out_dir=Path(tmp)).emit_screens();
         assert "rememberCoroutineScope()" in screens;
         assert "scope.launch" in screens;
-        assert "JacClient.greet" in screens;
+        assert "JacBackends.current.greet" in screens;
     }
 }
 
@@ -503,7 +503,7 @@ def:pub app -> Composable {
         assert 'next_greeting = "Request failed"' in screens;
         assert 'val next_greeting = "Request failed"' not in screens;
         # A local assigned exactly once stays `val`.
-        assert "val result = JacClient" in screens;
+        assert "val result = JacBackends.current" in screens;
         # The reactive state receives the bare assignment carrying the final value.
         assert "greeting = next_greeting" in screens;
         assert "val greeting = next_greeting" not in screens;

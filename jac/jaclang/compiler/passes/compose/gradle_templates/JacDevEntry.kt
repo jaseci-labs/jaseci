@@ -18,6 +18,7 @@ import androidx.compose.runtime.SideEffect
 object JacDevEntry {
     @JvmStatic
     fun mount(activity: ComponentActivity) {
+        JacBackendInit.install(activity)
         activity.setContent {
             MaterialTheme {
                 JacApp(JacRoutes.initialPath, null, 0)

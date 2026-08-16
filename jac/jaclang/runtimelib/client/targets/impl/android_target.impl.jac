@@ -10,7 +10,9 @@ import from jaclang.runtimelib.client.targets.android.config {
     load_client_cfg,
     resolve_package_name,
     resolve_type_check,
-    apply_android_cfg_to_model
+    resolve_sv_deploy,
+    apply_android_cfg_to_model,
+    resolve_gradle_dependencies
 }
 import from jaclang.runtimelib.client.targets.android.dev_server {
     publish_hot_module,
@@ -356,6 +358,18 @@ impl AndroidTarget._compile_compose_modules(
     self._attach_interop_manifest(model, mod);
     self._populate_compose_routes(model, project_dir, program);
 
+    deploy = resolve_sv_deploy(project_dir);
+    if deploy == "device" {
+        import from jaclang.compiler.passes.compose.sv_lower { run_sv_lower }
+        pkg = resolve_package_name(project_dir);
+        lower = run_sv_lower(mod, model.intent.interop_manifest, pkg);
+        model.sv_lower_files = lower.files;
+        model.sv_node_names = lower.node_names;
+        for diag in lower.diagnostics {
+            model.intent.add_diagnostic(diag);
+        }
+    }
+
     n_comp = len(model.intent.components);
     n_routes = len(model.intent.routes);
     n_walkers = 0;
@@ -366,7 +380,7 @@ impl AndroidTarget._compile_compose_modules(
     console.print(
         f"  ✔ Compose model recorded ({n_comp} components, {n_routes} routes"
             + (f", {n_walkers} walkers" if n_walkers else "")
-            + ")",
+            + f", deploy={deploy})",
         style="success"
     );
     return (model, mod);
@@ -388,7 +402,8 @@ impl AndroidTarget.build(
     self._apply_android_cfg_to_model(model, project_dir);
 
     console.print(f"  Emitting Compose project → {android_dir}", style="muted");
-    emitter = ComposeEmit(model=model, out_dir=android_dir);
+    gradle_deps = resolve_gradle_dependencies(project_dir);
+    emitter = ComposeEmit(model=model, out_dir=android_dir, gradle_deps=gradle_deps);
     written = emitter.write();
     console.print(f"  ✔ Wrote {len(written)} files", style="success");
 
@@ -470,7 +485,10 @@ impl AndroidTarget.dev(
         "  Emitting Compose DEV project (base :app host + :hot module)...",
         style="muted"
     );
-    emitter = ComposeEmit(model=model, out_dir=android_dir, dev=True);
+    gradle_deps = resolve_gradle_dependencies(project_dir);
+    emitter = ComposeEmit(
+        model=model, out_dir=android_dir, dev=True, gradle_deps=gradle_deps
+    );
     emitter.write();
 
     base_apk = self._run_gradle_assemble(android_dir, task=":app:assembleDebug");

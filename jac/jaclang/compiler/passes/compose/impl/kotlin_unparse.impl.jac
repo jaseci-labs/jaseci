@@ -9,7 +9,6 @@ glob _KT_HARD_KEYWORDS: set[str] = {
          'var',
          'when',
          'class',
-         'this',
          'typeof',
          'as'
      };

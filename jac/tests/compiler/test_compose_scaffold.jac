@@ -6,6 +6,39 @@ regression-sensitive contract. These tests assert it without touching Gradle,
 the SDK, or a device.
 """
 import from jaclang.compiler.passes.compose.gradle_scaffold { build_gradle_scaffold }
+import from jaclang.runtimelib.client.targets.android.config {
+    resolve_sv_deploy,
+    resolve_sv_sync_url
+}
+import from pathlib { Path }
+import tempfile;
+
+test "resolve_sv_deploy defaults to remote and validates deploy dial" {
+    with tempfile.TemporaryDirectory() as tmp {
+        project_dir = Path(tmp);
+        assert resolve_sv_deploy(project_dir) == "remote";
+        (project_dir / "jac.toml").write_text(
+            '[sv]\ndeploy = "device"\n', encoding="utf-8"
+        );
+        assert resolve_sv_deploy(project_dir) == "device";
+        (project_dir / "jac.toml").write_text(
+            '[sv]\ndeploy = "local-first"\nsync = "https://example.test/"\n',
+            encoding="utf-8"
+        );
+        assert resolve_sv_deploy(project_dir) == "local-first";
+        assert resolve_sv_sync_url(project_dir) == "https://example.test/";
+        (project_dir / "jac.toml").write_text(
+            '[sv]\ndeploy = "bogus"\n', encoding="utf-8"
+        );
+        raised = False;
+        try {
+            resolve_sv_deploy(project_dir);
+        } except RuntimeError {
+            raised = True;
+        }
+        assert raised;
+    }
+}
 
 test "dev scaffold splits host into :app and app code into :hot" {
     files = build_gradle_scaffold(
@@ -60,4 +93,40 @@ test "dev host manifest has the jacDevServer intent surface" {
     assert "jacDevServer" in host_kt;
     assert "DexClassLoader" in host_kt;
     assert "/_jac/dev/modules/manifest.json" in host_kt;
+}
+
+test "gradle scaffold emits extra dependencies from jac.toml coordinates" {
+    files = build_gradle_scaffold(
+        "dev.jac.myapp",
+        "A",
+        "",
+        ["/"],
+        dev=False,
+        gradle_deps=["io.coil-kt:coil-compose:2.7.0"]
+    );
+    gradle = files["app/build.gradle.kts"];
+    assert 'implementation("io.coil-kt:coil-compose:2.7.0")' in gradle;
+}
+
+test "device deploy scaffold omits JacEnvironment backend URL" {
+    files = build_gradle_scaffold(
+        "dev.jac.myapp", "A", "http://10.0.2.2:8000", ["/"], sv_deploy="device"
+    );
+    has_env = False;
+    for k in files {
+        if "JacEnvironment.kt" in k {
+            has_env = True;
+        }
+    }
+    assert not has_env;
+
+    # Remote deploy still carries it — the RPC client reads BACKEND_URL.
+    remote = build_gradle_scaffold("dev.jac.myapp", "A", "http://x", ["/"]);
+    has_env = False;
+    for k in remote {
+        if "JacEnvironment.kt" in k {
+            has_env = True;
+        }
+    }
+    assert has_env;
 }

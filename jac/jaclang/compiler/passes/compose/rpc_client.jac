@@ -6,5 +6,13 @@ obj RpcClientEmitter {
 }
 
 def emit_jac_client(package_name: str, manifest: any) -> str;
+def emit_sv_backend(
+    package_name: str,
+    manifest: any,
+    deploy: str,
+    sync_url: (str | None),
+    node_names: list[str] = []
+) -> dict[str, str];
+
 def walker_to_pascal(walker_name: str) -> str;
 def kotlin_default_literal(jac_type: str, value: any) -> (str | None);

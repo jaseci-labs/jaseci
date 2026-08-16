@@ -21,6 +21,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        JacBackendInit.install(this)
         enableEdgeToEdge()
         restoreThemePreference()
         applyIntentRoute(intent)

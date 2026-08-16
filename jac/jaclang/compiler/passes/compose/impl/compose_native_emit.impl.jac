@@ -48,11 +48,16 @@ def _kt_needs_coroutine(kt_node: any, depth: int = 0) -> bool {
     if isinstance(kt_node, kt.KtCall) {
         callee = kt_node.callee;
         if isinstance(callee, kt.KtMemberAccess) {
-            if (
-                isinstance(callee.object, kt.KtIdentifier)
-                and callee.object.name == "JacClient"
-            ) {
-                return True;
+            recv = callee.object;
+            if isinstance(recv, kt.KtMemberAccess) {
+                if (
+                    isinstance(recv.object, kt.KtIdentifier)
+                    and recv.object.name == "JacBackends"
+                    and isinstance(recv.property, kt.KtIdentifier)
+                    and recv.property.name == "current"
+                ) {
+                    return True;
+                }
             }
         }
     }
@@ -150,7 +155,7 @@ impl ComposeNativeEmitter._event_needs_coroutine(attr: ComposeAttr) -> bool {
     if _kt_needs_coroutine(handler) {
         return True;
     }
-    return "JacClient" in kt_to_source(handler);
+    return "JacBackends.current" in kt_to_source(handler);
 }
 
 impl ComposeNativeEmitter._scan_coroutine_need(elem: ComposeElement) -> None {
@@ -213,11 +218,12 @@ impl ComposeNativeEmitter._emit_children(children: list) -> list[kt.KtNode] {
             nodes.append(kt.KtIf(`test=child.test, consequent=cons, alternate=alt));
         } elif isinstance(child, ComposeEachChild) {
             body_nodes = self._emit_child_list(child.body);
+            body_src = "\n".join([kt_to_source(n) for n in body_nodes]);
             nodes.append(
                 kt.KtRaw(
                     code=(
-                        f"{kt_to_source(child.items)}.forEach {{ {child.item_name} ->\n"
-                        + "\n".join([f"    {kt_to_source(n)}" for n in body_nodes])
+                        f"for ({child.item_name} in {kt_to_source(child.items)}) {{\n"
+                        + "\n".join([f"    {line}" for line in body_src.split("\n") if line])
                         + "\n}"
                     )
                 )

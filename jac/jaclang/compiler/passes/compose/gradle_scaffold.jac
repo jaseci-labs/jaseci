@@ -3,7 +3,9 @@ def build_gradle_scaffold(
     app_name: str,
     backend_url: str,
     routes: list[str],
-    dev: bool = False
+    dev: bool = False,
+    gradle_deps: list[str] = [],
+    sv_deploy: str = "remote"
 ) -> dict[str, str];
 
 def package_to_path(package_name: str) -> str;

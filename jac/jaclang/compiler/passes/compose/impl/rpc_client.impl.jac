@@ -94,7 +94,7 @@ def _emit_data_class(class_name: str, info: any, emitter: RpcClientEmitter) -> s
     fields: list[tuple[str, str]] = getattr(info, 'fields', []) or [];
     defaults = getattr(info, 'field_defaults', {}) or {};
     if not fields {
-        return f'@Serializable\ndata class {class_name}()\n';
+        return f"@Serializable\nclass {class_name}\n";
     }
     params: list[str] = [];
     for (fname, ftype) in fields {
@@ -184,30 +184,38 @@ def _walker_response_info(manifest: any, pascal: str) -> any {
     );
 }
 
-def _emit_jac_client_body(package_name: str, manifest: any) -> str {
-    emitter = RpcClientEmitter(package_name=package_name);
-    boundary_types: dict = {};
+def _collect_pub_walker_names(manifest: any) -> list[str] {
     walker_names: list[str] = [];
-    if manifest is not None {
-        boundary_types = dict(getattr(manifest, 'boundary_types', {}) or {});
-        access: dict[str, bool] = getattr(manifest, 'walker_access', {}) or {};
-        bindings: dict[str, any] = getattr(manifest, 'bindings', {}) or {};
-        seen: set[str] = set();
-        for name in access.keys() {
-            if _is_pub_walker(manifest, name) and name not in seen {
+    if manifest is None {
+        return walker_names;
+    }
+    access: dict[str, bool] = getattr(manifest, 'walker_access', {}) or {};
+    bindings: dict[str, any] = getattr(manifest, 'bindings', {}) or {};
+    seen: set[str] = set();
+    for name in access.keys() {
+        if _is_pub_walker(manifest, name) and name not in seen {
+            walker_names.append(name);
+            seen.add(name);
+        }
+    }
+    for name in bindings.keys() {
+        binding = bindings[name];
+        if getattr(binding, 'kind', '') == 'walker' and name not in seen {
+            if _is_pub_walker(manifest, name) {
                 walker_names.append(name);
                 seen.add(name);
             }
         }
-        for name in bindings.keys() {
-            binding = bindings[name];
-            if getattr(binding, 'kind', '') == 'walker' and name not in seen {
-                if _is_pub_walker(manifest, name) {
-                    walker_names.append(name);
-                    seen.add(name);
-                }
-            }
-        }
+    }
+    return walker_names;
+}
+
+def _collect_boundary_type_blocks(
+    manifest: any, walker_names: list[str], emitter: RpcClientEmitter
+) -> str {
+    boundary_types: dict = {};
+    if manifest is not None {
+        boundary_types = dict(getattr(manifest, 'boundary_types', {}) or {});
     }
 
     type_names: set[str] = set();
@@ -247,19 +255,61 @@ def _emit_jac_client_body(package_name: str, manifest: any) -> str {
         type_blocks.append(_emit_data_class(tname, info, emitter));
         emitted.add(tname);
     }
+    return '\n\n'.join(type_blocks);
+}
 
+def _emit_boundary_types(package_name: str, manifest: any) -> str {
+    emitter = RpcClientEmitter(package_name=package_name);
+    walker_names = _collect_pub_walker_names(manifest);
+    types_src = _collect_boundary_type_blocks(manifest, walker_names, emitter);
+    return f"""package {package_name}
+
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
+
+{types_src}
+""";
+}
+
+def _emit_backend_interface(
+    package_name: str, manifest: any, walker_names: list[str]
+) -> str {
+    iface_methods: list[str] = [];
+    for wname in sorted(walker_names) {
+        pascal = walker_to_pascal(wname);
+        req_name = f"{pascal}Request";
+        res_name = f"{pascal}Response";
+        iface_methods.append(
+            f"    suspend fun {wname}(req: {req_name}, nodeId: String? = null): "
+            f"{res_name}"
+        );
+    }
+    methods_src = '\n'.join(iface_methods);
+    return f"""package {package_name}
+
+interface JacBackend {{
+{methods_src}
+}}
+
+object JacBackends {{
+    lateinit var current: JacBackend
+}}
+""";
+}
+
+def _emit_remote_backend(
+    package_name: str, manifest: any, walker_names: list[str]
+) -> str {
     walker_methods: list[str] = [];
     for wname in sorted(walker_names) {
         pascal = walker_to_pascal(wname);
         req_name = f"{pascal}Request";
         res_name = f"{pascal}Response";
         walker_methods.append(
-            f"    suspend fun {wname}(req: {req_name}, nodeId: String? = null): "
-            f"{res_name} = call(\"{escape_kotlin(wname)}\", req, nodeId)"
+            f"    override suspend fun {wname}(req: {req_name}, nodeId: String?): "
+            f'{res_name} = call("{escape_kotlin(wname)}", req, nodeId)'
         );
     }
-
-    types_src = '\n\n'.join(type_blocks);
     methods_src = '\n'.join(walker_methods);
 
     return f"""package {package_name}
@@ -268,20 +318,17 @@ import java.net.HttpURLConnection
 import java.net.URL
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
 
-{types_src}
-
-object JacClient {{
+class RemoteBackend(
+    var baseUrl: String = JacEnvironment.BACKEND_URL,
+    var token: String? = null,
+) : JacBackend {{
     @PublishedApi
     internal val json = Json {{ ignoreUnknownKeys = true; encodeDefaults = true }}
-    var baseUrl: String = JacEnvironment.BACKEND_URL
-    var token: String? = null
 
     suspend inline fun <reified Req, reified Res> call(
         walker: String,
@@ -304,10 +351,10 @@ object JacClient {{
                 token = null
             }}
             if (code !in 200..299) {{
-                throw RuntimeException("JacClient HTTP $code: $body")
+                throw RuntimeException("RemoteBackend HTTP $code: $body")
             }}
             val data = json.parseToJsonElement(body).jsonObject["data"]
-                ?: throw RuntimeException("JacClient: missing data field")
+                ?: throw RuntimeException("RemoteBackend: missing data field")
             json.decodeFromJsonElement<Res>(data)
         }}
     }}
@@ -315,6 +362,163 @@ object JacClient {{
 {methods_src}
 }}
 """;
+}
+
+def _emit_jac_backend_init(
+    package_name: str, deploy: str, node_names: list[str] = []
+) -> str {
+    if deploy == "device" {
+        reg_lines = "\n".join(
+            f"        JacGraphSerializers.registerNodeSubclass("
+            f"{name}::class, {name}.serializer())" for name in node_names
+        );
+        if reg_lines {
+            reg_lines += "\n";
+        }
+        return f"""package {package_name}
+
+import android.content.Context
+
+object JacBackendInit {{
+    fun install(context: Context? = null) {{
+{reg_lines}        context?.let {{ JacGraph.init(it) }}
+        JacBackends.current = DeviceBackend()
+    }}
+}}
+""";
+    }
+    return f"""package {package_name}
+
+import android.content.Context
+
+object JacBackendInit {{
+    fun install(context: Context? = null) {{
+        JacBackends.current = RemoteBackend()
+    }}
+}}
+""";
+}
+
+def _emit_device_backend(
+    package_name: str, manifest: any, walker_names: list[str]
+) -> str {
+    walker_methods: list[str] = [];
+    for wname in sorted(walker_names) {
+        pascal = walker_to_pascal(wname);
+        req_name = f"{pascal}Request";
+        res_name = f"{pascal}Response";
+        wclass = pascal;
+        walker_methods.append(
+            f"    override suspend fun {wname}(req: {req_name}, nodeId: String?): "
+            f"{res_name} {{\n"
+            f"        val w = {wclass}("
+                + ", ".join(
+                    [
+                        f"{fname} = req.{fname}"
+                        for (fname, _) in (
+                            getattr(
+                                _walker_request_info(manifest, wname, pascal),
+                                'fields',
+                                []
+                            )
+                            or []
+                        )
+                    ]
+                )
+                + ")\n"
+                f"        val reports = w.spawnOn(nodeId?.let {{ JacGraph.byId(it) }} "
+                f"?: JacGraph.root)\n"
+                f"        JacGraph.persist()\n"
+                f"        return {res_name}(reports = reports.map {{ it?.toString() "
+                f"?: \"\" }})\n"
+                f"    }}"
+        );
+    }
+    methods_src = '\n'.join(walker_methods);
+    return f"""package {package_name}
+
+class DeviceBackend : JacBackend {{
+{methods_src}
+}}
+""";
+}
+
+def _combine_sv_backend_sources(
+    files: dict[str, str], package_name: str, exclude: set[str]
+) -> str {
+    imports: set[str] = set();
+    bodies: list[str] = [];
+    order = ["JacBoundary.kt", "JacBackend.kt", "RemoteBackend.kt"];
+    for fname in order {
+        if fname in exclude or fname not in files {
+            continue;
+        }
+        src = files[fname];
+        lines = src.split('\n');
+        body_lines: list[str] = [];
+        in_body = False;
+        for line in lines {
+            if not in_body {
+                if line.startswith('import ') {
+                    imports.add(line);
+                } elif line.startswith('package ') {
+                    ;
+                } elif line.strip() {
+                    in_body = True;
+                    body_lines.append(line);
+                }
+            } else {
+                body_lines.append(line);
+            }
+        }
+        bodies.append('\n'.join(body_lines).strip());
+    }
+    imp_block = '\n'.join(sorted(imports));
+    return (f"package {package_name}\n\n{imp_block}\n\n" + '\n\n'.join(bodies) + "\n");
+}
+
+impl emit_sv_backend(
+    package_name: str,
+    manifest: any,
+    deploy: str,
+    sync_url: (str | None),
+    node_names: list[str] = []
+) -> dict[str, str] {
+    effective = deploy;
+    if deploy not in ("remote", "device") {
+        try {
+            import from jaclang.cli.console { console }
+            console.warning(
+                f"  sv deploy={deploy} backend not yet available, emitting remote"
+            );
+        } except Exception {
+            ;
+        }
+        effective = "remote";
+    }
+    walker_names = _collect_pub_walker_names(manifest);
+    files: dict[str, str] = {
+        "JacBoundary.kt": _emit_boundary_types(package_name, manifest),
+        "JacBackend.kt": _emit_backend_interface(package_name, manifest, walker_names),
+        "JacBackendInit.kt": _emit_jac_backend_init(package_name, effective, node_names)
+    };
+    if effective == "device" {
+        files["DeviceBackend.kt"] = _emit_device_backend(
+            package_name, manifest, walker_names
+        );
+    } else {
+        files["RemoteBackend.kt"] = _emit_remote_backend(
+            package_name, manifest, walker_names
+        );
+    }
+    return files;
+}
+
+def _emit_jac_client_body(package_name: str, manifest: any) -> str {
+    files = emit_sv_backend(package_name, manifest, "remote", None);
+    return _combine_sv_backend_sources(
+        files, package_name, exclude={"JacBackendInit.kt"}
+    );
 }
 
 impl RpcClientEmitter.emit(manifest: any) -> str {

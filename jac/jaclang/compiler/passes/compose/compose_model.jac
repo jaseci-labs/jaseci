@@ -4,7 +4,9 @@ import type from jaclang.compiler.passes.compose.view_ir { ComposeElement }
 obj ComposeModule {
     has intent: IntentModule = IntentModule(),
         compose_views: dict[str, ComposeElement] = {},
-        kotlin_imports: list[str] = [];
+        kotlin_imports: list[str] = [],
+        sv_lower_files: dict[str, str] = {},
+        sv_node_names: list[str] = [];
 
     def compose_view_for(name: str) -> (ComposeElement | None) {
         return self.compose_views.get(name);
@@ -42,6 +44,14 @@ obj ComposeModule {
         }
         for line in other.kotlin_imports {
             self.add_kotlin_import(line);
+        }
+        for (name, src) in other.sv_lower_files.items() {
+            self.sv_lower_files[name] = src;
+        }
+        for name in other.sv_node_names {
+            if name not in self.sv_node_names {
+                self.sv_node_names.append(name);
+            }
         }
     }
 }

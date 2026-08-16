@@ -7,6 +7,7 @@ obj ComposeEmit {
     has model: ComposeModule,
         out_dir: Path,
         dev: bool = False,
+        gradle_deps: list[str] = [],
         _plan: any = None;
 
     def write -> list[Path];

@@ -15,7 +15,8 @@ import from jaclang.compiler.passes.compose.gradle_scaffold {
     emit_jac_design,
     escape_kotlin
 }
-import from jaclang.compiler.passes.compose.rpc_client { emit_jac_client }
+import from jaclang.compiler.passes.compose.rpc_client { emit_sv_backend }
+import from jaclang.compiler.passes.compose.sv_lower { emit_jacgraph_templates }
 import from jaclang.compiler.passes.compose.compose_native_emit { ComposeNativeEmitter }
 import from jaclang.compiler.passes.compose.reactive_compose { ReactiveComposeEmitter }
 
@@ -381,7 +382,7 @@ fun {name}({sig}) {{
 }
 
 def _merge_prelude(react_prelude: str, needs_scope: bool, body: str = "") -> str {
-    if body and ("JacClient" in body or "scope.launch" in body) {
+    if body and ("JacBackends.current" in body or "scope.launch" in body) {
         needs_scope = True;
     }
     if needs_scope and "rememberCoroutineScope()" not in react_prelude {
@@ -562,7 +563,9 @@ impl ComposeEmit.write -> list[Path] {
         self.model.intent.app_name,
         self.model.intent.backend_url,
         routes,
-        self.dev
+        self.dev,
+        self.gradle_deps,
+        self.model.intent.sv_deploy
     );
 
     pkg_path = package_to_path(self.model.intent.package_name);
@@ -572,8 +575,12 @@ impl ComposeEmit.write -> list[Path] {
     screens_root = hot_root if self.dev else base_root;
 
     screens_src = self.emit_screens();
-    client_src = emit_jac_client(
-        self.model.intent.package_name, self.model.intent.interop_manifest
+    backend_files = emit_sv_backend(
+        self.model.intent.package_name,
+        self.model.intent.interop_manifest,
+        self.model.intent.sv_deploy,
+        self.model.intent.sv_sync_url,
+        self.model.sv_node_names
     );
 
     if self.model.intent.diagnostics {
@@ -593,7 +600,19 @@ impl ComposeEmit.write -> list[Path] {
         );
     }
     files[f"{screens_root}/Screens.kt"] = screens_src;
-    files[f"{screens_root}/JacClient.kt"] = client_src;
+    for (backend_name, backend_src) in backend_files.items() {
+        files[f"{screens_root}/{backend_name}"] = backend_src;
+    }
+    if self.model.intent.sv_deploy == "device" {
+        for (graph_name, graph_src) in emit_jacgraph_templates(
+            self.model.intent.package_name
+        ).items() {
+            files[f"{screens_root}/{graph_name}"] = graph_src;
+        }
+        for (lower_name, lower_src) in self.model.sv_lower_files.items() {
+            files[f"{screens_root}/{lower_name}"] = lower_src;
+        }
+    }
     files[f"{screens_root}/JacMath.kt"] = _emit_jac_math(
         self.model.intent.package_name
     );

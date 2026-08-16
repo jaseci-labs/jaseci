@@ -40,6 +40,8 @@ obj IntentModule {
         package_name: str = "dev.jac.generated",
         app_name: str = "Jac App",
         backend_url: str = "",
+        sv_deploy: str = "remote",
+        sv_sync_url: (str | None) = None,
         diagnostics: list[str] = [],
         interop_manifest: any = None;
 

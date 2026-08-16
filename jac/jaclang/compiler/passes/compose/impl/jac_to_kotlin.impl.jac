@@ -1,7 +1,8 @@
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.jac0core.constant { EdgeDir, Tokens as Tok }
 import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 import from jaclang.compiler.passes.ecmascript.intent.detection { assignment_kt_op }
+import from jaclang.compiler.passes.compose.kotlin_unparse { kt_to_source }
 
 glob _JAC_ARITH_RT: dict[str, str] = {
          Tok.DIV.name: 'truediv',
@@ -147,10 +148,22 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         return kt.KtLiteral(value=None);
     }
     if isinstance(nd, uni.Name) or isinstance(nd, uni.SpecialVarRef) {
+        if self.walker_mode and nd.sym_name == "here" {
+            return kt.KtIdentifier(name="here");
+        }
+        if self.walker_mode and nd.sym_name == "root" {
+            return kt.KtMemberAccess(
+                object=kt.KtIdentifier(name="JacGraph"),
+                property=kt.KtIdentifier(name="root")
+            );
+        }
         if nd.sym_name in self.reactive_vars {
             return self.lower_state_read(nd.sym_name);
         }
-        name_map = {'None': 'null', 'True': 'true', 'False': 'false', 'self': 'this'};
+        if nd.sym_name == 'self' {
+            return kt.KtIdentifier(name='this');
+        }
+        name_map = {'None': 'null', 'True': 'true', 'False': 'false'};
         return kt.KtIdentifier(name=_kt_id(name_map.get(nd.sym_name, nd.sym_name)));
     }
     if isinstance(nd, uni.AtomUnit) {
@@ -248,6 +261,21 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         return kt.KtCall(callee=callee, args=args, named_args=named);
     }
     if isinstance(nd, uni.AtomTrailer) {
+        if isinstance(nd.right, uni.EdgeRefTrailer) {
+            edge_kt = self._convert_edge_ref(nd.right);
+            if edge_kt is not None {
+                return edge_kt;
+            }
+        }
+        if isinstance(nd.right, uni.FilterCompr) {
+            edge_ref = self._edge_ref_trailer_from(nd.target);
+            if edge_ref is not None {
+                edge_kt = self._convert_edge_ref(edge_ref, nd.right);
+                if edge_kt is not None {
+                    return edge_kt;
+                }
+            }
+        }
         base = self.convert_expr(nd.target);
         if nd.right is None {
             return base;
@@ -328,6 +356,12 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
         return self.convert_expr(nd.right);
     }
     if isinstance(nd, uni.BinaryExpr) {
+        if isinstance(nd.op, uni.ConnectOp) {
+            connect_kt = self._convert_connect(nd);
+            if connect_kt is not None {
+                return connect_kt;
+            }
+        }
         op_tok = nd.op if isinstance(nd.op, uni.Token) else None;
         op_key = _op_name(op_tok);
         if op_key == Tok.KW_SPAWN.name {
@@ -417,6 +451,12 @@ impl JacToKotlin.convert_expr(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
     }
     if isinstance(nd, uni.AwaitExpr) {
         return self.convert_expr(nd.target);
+    }
+    if isinstance(nd, uni.EdgeRefTrailer) {
+        edge_kt = self._convert_edge_ref(nd);
+        if edge_kt is not None {
+            return edge_kt;
+        }
     }
     self.diagnostics.append(
         f"jac_to_kotlin: unsupported expression {type(nd).__name__}"
@@ -511,6 +551,45 @@ impl JacToKotlin.convert_stmt(nd: (uni.UniNode | None)) -> (kt.KtNode | None) {
             catch_body.extend(self.convert_stmts(list(handler.body)));
         }
         return kt.KtTry(try_body=try_body, catch_param='e', catch_body=catch_body);
+    }
+    if isinstance(nd, uni.DeleteStmt) {
+        if not self.walker_mode {
+            self.diagnostics.append("jac_to_kotlin: del is only supported in walker bodies");
+            return None;
+        }
+        del_expr = self.convert_expr(nd.target);
+        del_args: list[kt.KtNode] = [];
+        if del_expr is not None {
+            del_args.append(del_expr);
+        }
+        return kt.KtCall(
+            callee=kt.KtMemberAccess(
+                object=kt.KtIdentifier(name="JacGraph"),
+                property=kt.KtIdentifier(name="delete")
+            ),
+            args=del_args
+        );
+    }
+    if isinstance(nd, uni.ReportStmt) {
+        if not self.walker_mode {
+            self.diagnostics.append(
+                "jac_to_kotlin: report is only supported in walker bodies"
+            );
+            return None;
+        }
+        expr = self.convert_expr(nd.expr);
+        return kt.KtCall(
+            callee=kt.KtIdentifier(name="report"),
+            args=[expr] if expr else []
+        );
+    }
+    if isinstance(nd, uni.VisitStmt) {
+        self.diagnostics.append("sv_lower: visit is not supported in Phase 2");
+        return None;
+    }
+    if isinstance(nd, uni.DisengageStmt) {
+        self.diagnostics.append("sv_lower: disengage is not supported in Phase 2");
+        return None;
     }
     self.diagnostics.append(
         f"jac_to_kotlin: unsupported statement {type(nd).__name__}"
@@ -653,6 +732,235 @@ impl JacToKotlin._resolve_spawn_target(expr: uni.Expr) -> (kt.KtNode | None) {
     return self.convert_expr(expr);
 }
 
+impl JacToKotlin._convert_connect(nd: uni.BinaryExpr) -> (kt.KtNode | None) {
+    if not self.walker_mode {
+        return None;
+    }
+    co = nd.op;
+    if not isinstance(co, uni.ConnectOp) {
+        return None;
+    }
+    if co.edge_dir != EdgeDir.OUT {
+        self.diagnostics.append("sv_lower: only ++> (outbound connect) is supported");
+        return None;
+    }
+    if co.conn_type is not None {
+        self.diagnostics.append("sv_lower: typed-edge connect (+>:) is not supported");
+        return None;
+    }
+    left = self.convert_expr(nd.left);
+    if left is None {
+        return None;
+    }
+    ctor = self._connect_node_ctor(nd.right, co);
+    if ctor is None {
+        self.diagnostics.append("sv_lower: connect RHS must be a node constructor call");
+        return None;
+    }
+    spawned_call = kt.KtCall(
+        callee=kt.KtMemberAccess(
+            object=kt.KtIdentifier(name="JacGraph"),
+            property=kt.KtIdentifier(name="spawnNode")
+        ),
+        args=[ctor]
+    );
+    connect_stmt = kt.KtCall(
+        callee=kt.KtMemberAccess(
+            object=kt.KtIdentifier(name="JacGraph"),
+            property=kt.KtIdentifier(name="connect")
+        ),
+        args=[left, kt.KtIdentifier(name="it")]
+    );
+    return kt.KtCall(
+        callee=kt.KtMemberAccess(
+            object=spawned_call, property=kt.KtIdentifier(name="also")
+        ),
+        trailing_lambda=kt.KtLambda(params=["it"], expression_body=connect_stmt)
+    );
+}
+
+def _edge_type_name(filt: (uni.FilterCompr | None)) -> (str | None) {
+    if filt is None or filt.f_type is None {
+        return None;
+    }
+    if isinstance(filt.f_type, uni.Name) {
+        return filt.f_type.sym_name;
+    }
+    if isinstance(filt.f_type, uni.AtomExpr) {
+        return filt.f_type.sym_name;
+    }
+    return None;
+}
+
+def _edge_dir_kotlin(edge_dir: EdgeDir) -> (str | None) {
+    if edge_dir == EdgeDir.OUT {
+        return "OUT";
+    }
+    if edge_dir == EdgeDir.IN {
+        return "IN";
+    }
+    if edge_dir == EdgeDir.ANY {
+        return "ANY";
+    }
+    return None;
+}
+
+impl JacToKotlin._edge_ref_trailer_from(target: uni.UniNode) -> (uni.EdgeRefTrailer | None) {
+    if isinstance(target, uni.EdgeRefTrailer) {
+        if target.edges_only or target.is_async {
+            return None;
+        }
+        return target;
+    }
+    if (
+        isinstance(target, uni.AtomTrailer)
+        and isinstance(target.right, uni.FilterCompr)
+    ) {
+        return self._edge_ref_trailer_from(target.target);
+    }
+    return None;
+}
+
+impl JacToKotlin._convert_edge_ref(
+    nd: uni.EdgeRefTrailer, trailing_filt: (uni.FilterCompr | None) = None
+) -> (kt.KtNode | None) {
+    if not self.walker_mode {
+        return None;
+    }
+    chain = nd.chain or [];
+    if not chain {
+        self.diagnostics.append("sv_lower: empty edge reference");
+        return None;
+    }
+    idx = 0;
+    origin: (kt.KtNode | None) = None;
+    if isinstance(chain[0], uni.EdgeOpRef) {
+        origin = kt.KtIdentifier(name="here");
+    } else {
+        origin = self.convert_expr(chain[0]);
+        idx = 1;
+    }
+    if origin is None {
+        return None;
+    }
+    if idx >= len(chain) or not isinstance(chain[idx], uni.EdgeOpRef) {
+        self.diagnostics.append("sv_lower: malformed edge reference");
+        return None;
+    }
+    if idx + 1 < len(chain) and isinstance(chain[idx + 1], uni.EdgeOpRef) {
+        self.diagnostics.append("sv_lower: multi-hop edge references are not supported");
+        return None;
+    }
+    step = chain[idx];
+    if step.edge_dir != EdgeDir.OUT {
+        self.diagnostics.append("sv_lower: only outbound --> edge references are supported");
+        return None;
+    }
+    dir_member = _edge_dir_kotlin(step.edge_dir);
+    if dir_member is None {
+        self.diagnostics.append("sv_lower: unsupported edge direction");
+        return None;
+    }
+    if step.filter_cond is not None {
+        self.diagnostics.append("sv_lower: edge-type filters on hops are not supported");
+        return None;
+    }
+    filt: (uni.FilterCompr | None) = trailing_filt;
+    if idx + 1 < len(chain) {
+        next_item = chain[idx + 1];
+        if isinstance(next_item, uni.FilterCompr) {
+            filt = next_item;
+        }
+    }
+    if filt and filt.compares {
+        self.diagnostics.append("sv_lower: node predicate filters are not supported");
+        return None;
+    }
+    type_name = _edge_type_name(filt);
+    args: list[kt.KtNode] = [
+        origin,
+        kt.KtMemberAccess(
+            object=kt.KtIdentifier(name="Dir"),
+            property=kt.KtIdentifier(name=dir_member)
+        )
+    ];
+    neighbors = kt.KtCall(
+        callee=kt.KtMemberAccess(
+            object=kt.KtIdentifier(name="JacGraph"),
+            property=kt.KtIdentifier(name="neighbors")
+        ),
+        args=args
+    );
+    if type_name {
+        return kt.KtRaw(
+            code=f"{kt_to_source(neighbors)}.filterIsInstance<{type_name}>()"
+        );
+    }
+    return neighbors;
+}
+
+def _func_call_type_name(call: uni.FuncCall) -> (str | None) {
+    cur: any = call.target;
+    while isinstance(cur, (uni.FuncCall, uni.AtomTrailer)) {
+        if isinstance(cur, uni.FuncCall) {
+            cur = cur.target;
+        } else {
+            cur = cur.target;
+        }
+    }
+    if isinstance(cur, uni.AtomExpr) {
+        return cur.sym_name;
+    }
+    if isinstance(cur, uni.Name) {
+        return cur.sym_name;
+    }
+    return None;
+}
+
+impl JacToKotlin._connect_node_ctor(
+    expr: uni.Expr, co: uni.ConnectOp
+) -> (kt.KtNode | None) {
+    if isinstance(expr, uni.FuncCall) {
+        type_name = _func_call_type_name(expr);
+        if not type_name {
+            return None;
+        }
+        named = self._spawn_request_named_args(expr);
+        return kt.KtCall(
+            callee=kt.KtIdentifier(name=type_name), args=[], named_args=named
+        );
+    }
+    if co.conn_assign is not None and co.conn_type is not None {
+        type_name: (str | None) = None;
+        if isinstance(co.conn_type, uni.Name) {
+            type_name = co.conn_type.sym_name;
+        } elif isinstance(co.conn_type, uni.AtomExpr) {
+            type_name = co.conn_type.sym_name;
+        }
+        if not type_name {
+            return None;
+        }
+        named: list[kt.KtNamedArg] = [];
+        for pair in (co.conn_assign.assigns or []) {
+            if isinstance(pair, uni.KWPair) {
+                key = (
+                    pair.key.sym_name
+                        if isinstance(pair.key, uni.Name)
+                        else str(pair.key)
+                );
+                val = self.convert_expr(pair.value);
+                if val {
+                    named.append(kt.KtNamedArg(name=key, value=val));
+                }
+            }
+        }
+        return kt.KtCall(
+            callee=kt.KtIdentifier(name=type_name), args=[], named_args=named
+        );
+    }
+    return self.convert_expr(expr);
+}
+
 impl JacToKotlin._convert_spawn(nd: uni.BinaryExpr) -> (kt.KtNode | None) {
     import from jaclang.compiler.passes.compose.rpc_client { walker_to_pascal }
 
@@ -685,7 +993,10 @@ impl JacToKotlin._convert_spawn(nd: uni.BinaryExpr) -> (kt.KtNode | None) {
     }
     return kt.KtCall(
         callee=kt.KtMemberAccess(
-            object=kt.KtIdentifier(name="JacClient"),
+            object=kt.KtMemberAccess(
+                object=kt.KtIdentifier(name="JacBackends"),
+                property=kt.KtIdentifier(name="current")
+            ),
             property=kt.KtIdentifier(name=walker_name)
         ),
         args=[req_call],

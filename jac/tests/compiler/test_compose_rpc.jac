@@ -1,8 +1,13 @@
-"""Tests for typed RPC emission — JacClient.kt from InteropManifest."""
-import from jaclang.compiler.passes.compose.rpc_client { emit_jac_client }
+"""Tests for typed RPC emission — JacBackend seam from InteropManifest."""
+import from jaclang.compiler.passes.compose.rpc_client {
+    emit_jac_client,
+    emit_sv_backend
+}
 import from jaclang.jac0core.codeinfo { BoundaryTypeInfo, InteropManifest }
+import from pathlib { Path }
+import tempfile;
 
-test "emit_jac_client includes request fields from boundary_types" {
+def _greet_manifest() -> InteropManifest {
     manifest = InteropManifest();
     manifest.walker_access = {"greet": False};
     manifest.boundary_types = {
@@ -19,11 +24,44 @@ test "emit_jac_client includes request fields from boundary_types" {
             field_defaults={"reports": []}
         )
     };
-    code = emit_jac_client("dev.jac.test", manifest);
+    return manifest;
+}
+
+test "emit_jac_client includes request fields from boundary_types" {
+    code = emit_jac_client("dev.jac.test", _greet_manifest());
     assert "@Serializable" in code;
     assert "data class GreetRequest" in code;
     assert "val name: String" in code;
+    assert "interface JacBackend" in code;
+    assert "class RemoteBackend" in code;
     assert 'suspend fun greet(req: GreetRequest' in code;
+}
+
+test "emit_sv_backend emits split backend files for remote deploy" {
+    files = emit_sv_backend("dev.jac.test", _greet_manifest(), "remote", None);
+    assert "JacBoundary.kt" in files;
+    assert "JacBackend.kt" in files;
+    assert "RemoteBackend.kt" in files;
+    assert "JacBackendInit.kt" in files;
+    assert "interface JacBackend" in files["JacBackend.kt"];
+    assert "object JacBackends" in files["JacBackend.kt"];
+    assert "lateinit var current" in files["JacBackend.kt"];
+    assert "class RemoteBackend" in files["RemoteBackend.kt"];
+    assert "JacBackends.current = RemoteBackend()" in files["JacBackendInit.kt"];
+    assert "data class GreetRequest" in files["JacBoundary.kt"];
+}
+
+test "emit_sv_backend falls back to remote for local-first deploy with warning path" {
+    files = emit_sv_backend("dev.jac.test", _greet_manifest(), "local-first", None);
+    assert "RemoteBackend.kt" in files;
+    assert "DeviceBackend.kt" not in files;
+}
+
+test "emit_sv_backend emits DeviceBackend for device deploy" {
+    files = emit_sv_backend("dev.jac.test", _greet_manifest(), "device", None);
+    assert "DeviceBackend.kt" in files;
+    assert "RemoteBackend.kt" not in files;
+    assert "class DeviceBackend" in files["DeviceBackend.kt"];
 }
 
 test "renamed walker field changes generated GreetRequest" {

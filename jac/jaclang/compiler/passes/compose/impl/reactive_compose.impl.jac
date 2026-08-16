@@ -25,6 +25,9 @@ impl ReactiveComposeEmitter._stmts_src(
 def _emit_state_field(field: StateField) -> str {
     emitter = ReactiveComposeEmitter();
     init = emitter._expr_src(field.init_expr);
+    if init == "listOf()" {
+        init = "listOf<String>()";
+    }
     return (f"    var {field.name} by remember {{ mutableStateOf({init}) }}");
 }
 
@@ -91,11 +94,20 @@ impl ReactiveComposeEmitter.emit_prelude(comp: IntentComponent) -> str {
     for r in comp.refs {
         lines.append(_emit_ref_field(r));
     }
+    seen_entry_async = False;
     for e in comp.effects {
+        if e.is_async and e.is_entry {
+            if seen_entry_async {
+                continue;
+            }
+            seen_entry_async = True;
+        }
         lines.append(_emit_effect(e));
     }
-    for a in comp.asyncs {
-        lines.append(_emit_async_boundary(a));
+    if not seen_entry_async {
+        for a in comp.asyncs {
+            lines.append(_emit_async_boundary(a));
+        }
     }
     if not lines {
         return "";

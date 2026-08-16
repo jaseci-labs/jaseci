@@ -41,8 +41,17 @@ obj AndroidHotReloadHandler {
             );
             if model is not None {
                 import from jaclang.compiler.passes.compose.compose_emit { ComposeEmit }
+                import from jaclang.runtimelib.client.targets.android.config {
+                    resolve_gradle_dependencies
+                }
                 model.intent.package_name = self.package_name;
-                emitter = ComposeEmit(model=model, out_dir=self.android_dir, dev=True);
+                gradle_deps = resolve_gradle_dependencies(self.project_dir);
+                emitter = ComposeEmit(
+                    model=model,
+                    out_dir=self.android_dir,
+                    dev=True,
+                    gradle_deps=gradle_deps
+                );
                 emitter.write();
             }
             (version, dex_path) = self.target._build_hot_dex(

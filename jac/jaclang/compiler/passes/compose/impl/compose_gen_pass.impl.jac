@@ -143,13 +143,15 @@ impl ComposeGenPass.exit_assignment(nd: uni.Assignment) -> None {
 }
 
 impl ComposeGenPass.exit_ability(nd: uni.Ability) -> None {
+    inner = unwrap_ability_body(nd);
+    if inner {
+        self._sync_lowerer_reactive_vars();
+    }
     if isinstance(nd.signature, uni.EventSignature) and nd.in_client_context() {
         self._session().record_and_lower_effect(nd);
     }
 
-    inner = unwrap_ability_body(nd);
     if inner {
-        self._sync_lowerer_reactive_vars();
         comp_name = self.model.intent.current;
         if comp_name is not None {
             view = self.view_builder.lower_component_view(inner);
@@ -180,7 +182,8 @@ glob _KOTLIN_IMPORT_ROOTS: set[str] = {
          "org",
          "io",
          "dev",
-         "net"
+         "net",
+         "coil"
      };
 
 def _kotlin_import_lines(nd: uni.Import) -> list[str] {

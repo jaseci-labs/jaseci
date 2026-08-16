@@ -3,6 +3,7 @@ import from jaclang.compiler.passes.compose { kotlin_ast as kt }
 
 obj JacToKotlin {
     has reactive_vars: set[str] = set(),
+        walker_mode: bool = False,
         diagnostics: list[str] = [],
         declared_locals: set[str] = set(),
         _mutable_locals: set[str] = set();
@@ -18,6 +19,12 @@ obj JacToKotlin {
     def lower_state_read(name: str) -> kt.KtNode;
     def _lambda_body(nd: uni.LambdaExpr) -> list[kt.KtNode];
     def _convert_spawn(nd: uni.BinaryExpr) -> (kt.KtNode | None);
+    def _convert_connect(nd: uni.BinaryExpr) -> (kt.KtNode | None);
+    def _convert_edge_ref(
+        nd: uni.EdgeRefTrailer, trailing_filt: (uni.FilterCompr | None) = None
+    ) -> (kt.KtNode | None);
+    def _edge_ref_trailer_from(target: uni.UniNode) -> (uni.EdgeRefTrailer | None);
+    def _connect_node_ctor(expr: uni.Expr, co: uni.ConnectOp) -> (kt.KtNode | None);
     def _resolve_spawn_walker(expr: uni.Expr) -> (tuple[str, uni.FuncCall] | None);
     def _resolve_spawn_target(expr: uni.Expr) -> (kt.KtNode | None);
     def _is_root_reference(expr: uni.Expr) -> bool;
