@@ -359,6 +359,7 @@ obj Module(AstDocNode, UniScopeNode) {
         is_raised_from_py: bool = False,
         decided_codespace: str = "",
         parse_failed: bool = False,
+        mobui_enforced_root: (str | None) = None,
         annex_mods: list[Module] postinit;
 
     def postinit -> None;
