@@ -50,6 +50,19 @@ def _reg(
     help_text: str | None = None,
     blocks_codegen: bool = False
 ) -> DiagnosticInfo {
+    sitting = DIAGNOSTICS.get(code);
+    if sitting is not None {
+        raise ValueError(
+            f"diagnostic code {code} is claimed twice. It is already "
+            f"registered as {sitting.severity.value}/{sitting.category.value} "
+            f"'{sitting.message_template}' and is registered again as "
+            f"{severity.value}/{category.value} '{template}'. A code names "
+            "exactly one diagnostic: the second registration would shadow "
+            "the first everywhere it is referenced, and the native link "
+            "refuses this module on the duplicate symbol. Give the later "
+            "claimant a code of its own and move its pins."
+        );
+    }
     info = DiagnosticInfo(
         code=code,
         severity=severity,
