@@ -106,9 +106,16 @@ obj pa_keyword_or_starred {
         value: expr;
 }
 
-obj pa_name_default_pair {
+obj name_default_pair {
     has arg: arg,
         default: expr | None;
+}
+
+obj star_etc_node {
+    has vararg: arg | None = None,
+        kwonlyargs: list[arg] = [],
+        kw_defaults: list[expr | None] = [],
+        kwarg: arg | None = None;
 }
 
 def pa_extra(
@@ -819,9 +826,97 @@ def pa_map_names_to_ids(names: list[expr]) -> list[str] {
 def pa_seq_count_dots(name: expr) -> int {
     return 0;
 }
+def pa_body_end_span(body: list[stmt]) -> tuple[int, int] {
+    last = body[len(body) - 1];
+    end_lineno = last.lineno;
+    end_col_offset = last.col_offset;
+    if last.end_lineno is not None {
+        end_lineno = last.end_lineno;
+    }
+    if last.end_col_offset is not None {
+        end_col_offset = last.end_col_offset;
+    }
+    return (end_lineno, end_col_offset);
+}
+
 def pa_empty_arguments -> arguments {
     return arguments(
-        posonlyargs=[], args=[], kwonlyargs=[], kw_defaults=[], defaults=[]
+        posonlyargs=[],
+        args=[],
+        vararg=None,
+        kwonlyargs=[],
+        kw_defaults=[],
+        kwarg=None,
+        defaults=[]
+    );
+}
+
+def pa_args_from_list(seq: object | None) -> list[arg] {
+    if seq is None {
+        return [];
+    }
+    out: list[arg] = [];
+    raw = seq as list[object];
+    i = 0;
+    while i < len(raw) {
+        out.append(raw[i] as arg);
+        i = i + 1;
+    }
+    return out;
+}
+
+def pa_append_args_from_pairs(
+    args: list[arg], defaults: list[expr], pairs: object | None
+) -> tuple[list[arg], list[expr]] {
+    if pairs is None {
+        return (args, defaults);
+    }
+    raw = pairs as list[object];
+    if len(raw) == 0 {
+        return (args, defaults);
+    }
+    i = 0;
+    while i < len(raw) {
+        pair = raw[i] as name_default_pair;
+        args.append(pair.arg);
+        if pair.default is not None {
+            defaults.append(pair.default as expr);
+        }
+        i = i + 1;
+    }
+    return (args, defaults);
+}
+
+def pa_make_arguments(
+    slash_no_default: object,
+    slash_with_default: object,
+    plain_names: object,
+    names_with_default: object,
+    star_etc: object
+) -> arguments {
+    posonlyargs = pa_args_from_list(slash_no_default);
+    args = pa_args_from_list(plain_names);
+    defaults: list[expr] = [];
+    (args, defaults) = pa_append_args_from_pairs(args, defaults, names_with_default);
+    vararg: arg | None = None;
+    kwonlyargs: list[arg] = [];
+    kw_defaults: list[expr | None] = [];
+    kwarg: arg | None = None;
+    if star_etc is not None {
+        se = star_etc as star_etc_node;
+        vararg = se.vararg;
+        kwonlyargs = se.kwonlyargs;
+        kw_defaults = se.kw_defaults;
+        kwarg = se.kwarg;
+    }
+    return arguments(
+        posonlyargs=posonlyargs,
+        args=args,
+        vararg=vararg,
+        kwonlyargs=kwonlyargs,
+        kw_defaults=kw_defaults,
+        kwarg=kwarg,
+        defaults=defaults
     );
 }
 def pa_dummy_name(
@@ -1041,14 +1136,9 @@ def pa_key_pattern_pair(
 }
 
 def pa_name_default_pair(
-    arg: arg,
-    `default: expr | None,
-    lineno: int,
-    col_offset: int,
-    end_lineno: int,
-    end_col_offset: int
-) -> pa_name_default_pair {
-    return pa_name_default_pair(arg=arg, default=`default);
+    arg: arg, `default: expr | None
+) -> name_default_pair {
+    return name_default_pair(arg=arg, default=`default);
 }
 
 def pa_keyword_or_starred(
@@ -1062,21 +1152,6 @@ def pa_keyword_or_starred(
     return pa_keyword_or_starred(arg=arg, value=value);
 }
 
-def pa_make_arguments(
-    a: object,
-    b: object,
-    c: object,
-    d: object,
-    e: object,
-    f: object,
-    lineno: int,
-    col_offset: int,
-    end_lineno: int,
-    end_col_offset: int
-) -> arguments {
-    return pa_empty_arguments();
-}
-
 def pa_star_etc(
     a: object,
     b: object,
@@ -1085,8 +1160,33 @@ def pa_star_etc(
     col_offset: int,
     end_lineno: int,
     end_col_offset: int
-) -> object {
-    return None;
+) -> star_etc_node | None {
+    if a is None and b is None and c is None {
+        return None;
+    }
+    vararg: arg | None = None;
+    if a is not None {
+        vararg = a as arg;
+    }
+    kwonlyargs: list[arg] = [];
+    kw_defaults: list[expr | None] = [];
+    if b is not None {
+        raw = b as list[object];
+        pi = 0;
+        while pi < len(raw) {
+            pair = raw[pi] as name_default_pair;
+            kwonlyargs.append(pair.arg);
+            kw_defaults.append(pair.default);
+            pi = pi + 1;
+        }
+    }
+    kwarg: arg | None = None;
+    if c is not None {
+        kwarg = c as arg;
+    }
+    return star_etc_node(
+        vararg=vararg, kwonlyargs=kwonlyargs, kw_defaults=kw_defaults, kwarg=kwarg
+    );
 }
 def pa_slash_with_default(
     a: object,

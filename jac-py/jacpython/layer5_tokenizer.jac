@@ -73,3 +73,12 @@ test "tokenizer: ends with ENDMARKER" {
     assert isinstance(last, tok_token);
     assert (last as tok_token).tok_type == ENDMARKER;
 }
+
+test "tokenizer: exec blank line between stmts does not hang" {
+    src = "def f(x):\n    return x + 1\n\nresult = f(2)\n";
+    tokens = tokenize_all(src, "<tok-test>", True);
+    assert len(tokens) > 0;
+    last = tokens[len(tokens) - 1];
+    assert isinstance(last, tok_token);
+    assert (last as tok_token).tok_type == ENDMARKER;
+}

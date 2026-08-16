@@ -7,6 +7,7 @@ Reads:
   Include/opcode_ids.h
   Include/opcode.h
   Include/cpython/code.h
+  Include/internal/pycore_code.h
   Include/internal/pycore_opcode_metadata.h
   Include/internal/pycore_opcode_utils.h
 
@@ -31,6 +32,7 @@ PROVENANCE = [
     "reference/cpython/Include/opcode_ids.h",
     "reference/cpython/Include/opcode.h",
     "reference/cpython/Include/cpython/code.h",
+    "reference/cpython/Include/internal/pycore_code.h",
     "reference/cpython/Include/internal/pycore_opcode_metadata.h",
     "reference/cpython/Include/internal/pycore_opcode_utils.h",
 ]
@@ -39,6 +41,9 @@ MAX_REAL_OPCODE = 254
 HAS_JUMP_FLAG = 8
 
 _DEFINE_RE = re.compile(r"^#define\s+([A-Z_][A-Z0-9_]*)\s+(-?0[xX][0-9a-fA-F]+|-?\d+)\s*$")
+_COMPARISON_DEFINE_RE = re.compile(
+    r"^#define\s+(COMPARISON_[A-Z_]+)\s+(.+?)\s*$"
+)
 _CASE_RE = re.compile(r"^\s*case\s+([A-Z_][A-Z0-9_]*)\s*:\s*$")
 _RETURN_RE = re.compile(r"^\s*return\s+(.+?);\s*$")
 _ARRAY_ENTRY_RE = re.compile(r"^\s*\[([A-Za-z_][A-Za-z0-9_]*|\d+)\]\s*=\s*([^,]+),\s*$")
@@ -73,6 +78,16 @@ SCOPE_EXIT_OPS = ["RETURN_VALUE", "RAISE_VARARGS", "RERAISE"]
 BLOCK_PUSH_OPS = ["SETUP_FINALLY", "SETUP_WITH", "SETUP_CLEANUP"]
 ASSEMBLER_OPS = ["JUMP_FORWARD", "JUMP_BACKWARD", "JUMP_BACKWARD_NO_INTERRUPT"]
 
+# codegen.c compare_masks[] keyed by Py_LT..Py_GE (cmp_op tuple order).
+COMPARE_MASK_EXPRS: list[tuple[str, str]] = [
+    ("CMP_LT", "COMPARISON_LESS_THAN"),
+    ("CMP_LE", "COMPARISON_LESS_THAN | COMPARISON_EQUALS"),
+    ("CMP_EQ", "COMPARISON_EQUALS"),
+    ("CMP_NE", "COMPARISON_NOT_EQUALS"),
+    ("CMP_GT", "COMPARISON_GREATER_THAN"),
+    ("CMP_GE", "COMPARISON_GREATER_THAN | COMPARISON_EQUALS"),
+]
+
 
 def _read(path: str) -> str:
     with open(path) as fh:
@@ -86,6 +101,49 @@ def parse_defines(text: str) -> dict[str, int]:
         if m:
             out[m.group(1)] = int(m.group(2), 0)
     return out
+
+
+def parse_comparison_defines(text: str) -> dict[str, int]:
+    raw: dict[str, str] = {}
+    for line in text.splitlines():
+        m = _COMPARISON_DEFINE_RE.match(line.strip())
+        if m:
+            raw[m.group(1)] = m.group(2)
+    resolved: dict[str, int] = {}
+    pending = dict(raw)
+    while pending:
+        progressed = False
+        for name, expr in list(pending.items()):
+            substituted = expr
+            unresolved = False
+            for other in pending:
+                if other != name and re.search(rf"\b{re.escape(other)}\b", substituted):
+                    unresolved = True
+                    break
+            if unresolved:
+                continue
+            for rname, rval in resolved.items():
+                substituted = re.sub(
+                    rf"\b{re.escape(rname)}\b", str(rval), substituted
+                )
+            substituted = substituted.strip()
+            if not re.fullmatch(r"[\d\s|()+]+", substituted):
+                raise ValueError(f"unsupported comparison define: {name} = {expr}")
+            resolved[name] = eval(substituted, {"__builtins__": {}})  # noqa: S307
+            del pending[name]
+            progressed = True
+        if not progressed:
+            raise ValueError(f"unresolved comparison defines: {sorted(pending)}")
+    return resolved
+
+
+def eval_comparison_expr(expr: str, comparison_defs: dict[str, int]) -> int:
+    substituted = expr.strip()
+    for name, val in sorted(comparison_defs.items(), key=lambda kv: len(kv[0]), reverse=True):
+        substituted = re.sub(rf"\b{re.escape(name)}\b", str(val), substituted)
+    if not re.fullmatch(r"[\d\s|()+]+", substituted):
+        raise ValueError(f"unsupported comparison mask expression: {expr}")
+    return eval(substituted, {"__builtins__": {}})  # noqa: S307
 
 
 def parse_switch_function(text: str, func_name: str) -> list[tuple[str, str]]:
@@ -214,6 +272,31 @@ def emit_switch_fn(
     out.append("")
 
 
+def emit_compare_helpers(comparison_defs: dict[str, int], out: list[str]) -> None:
+    items = sorted(comparison_defs.items(), key=lambda kv: kv[0])
+    emit_glob_constants("COMPARISON", items, out)
+    out.append("# COMPARE_OP oparg low bits (codegen.c compare_masks[]).")
+    out.append("def compare_mask(cmp_kind: int) -> int {")
+    for cmp_name, mask_expr in COMPARE_MASK_EXPRS:
+        mask_val = eval_comparison_expr(mask_expr, comparison_defs)
+        out.append(f"    if cmp_kind == {cmp_name} {{")
+        out.append(f"        return {mask_val};")
+        out.append("    }")
+    out.append("    return 0;")
+    out.append("}")
+    out.append("")
+    out.append("# cmp_kind in top three bits, compare mask in low four (codegen.c).")
+    out.append("def compare_oparg(cmp_kind: int) -> int {")
+    out.append("    return (cmp_kind << 5) | compare_mask(cmp_kind);")
+    out.append("}")
+    out.append("")
+    out.append("# Bool-context filters set the fifth-lowest bit (codegen.c).")
+    out.append("def compare_filter_oparg(cmp_kind: int) -> int {")
+    out.append("    return compare_oparg(cmp_kind) | 16;")
+    out.append("}")
+    out.append("")
+
+
 def emit_classifier(name: str, op_names: list[str], out: list[str]) -> None:
     out.append(f"def {name}(op: int) -> bool {{")
     if len(op_names) == 1:
@@ -244,6 +327,9 @@ def generate() -> str:
     opcode_ids = parse_defines(_read(os.path.join(_CPY, "Include", "opcode_ids.h")))
     nb_defs = parse_defines(_read(os.path.join(_CPY, "Include", "opcode.h")))
     code_defs = parse_defines(_read(os.path.join(_CPY, "Include", "cpython", "code.h")))
+    comparison_defs = parse_comparison_defines(
+        _read(os.path.join(_CPY, "Include", "internal", "pycore_code.h"))
+    )
     meta_text = _read(
         os.path.join(_CPY, "Include", "internal", "pycore_opcode_metadata.h")
     )
@@ -301,6 +387,9 @@ def generate() -> str:
 
     out.append("# ---------------- rich-compare kinds (cmp_op tuple order) ----------------")
     emit_glob_constants("CMP", CMP_CONSTANTS, out)
+
+    out.append("# ---------------- compare masks (pycore_code.h COMPARISON_*) ----------------")
+    emit_compare_helpers(comparison_defs, out)
 
     out.append("# ---------------- code-object flags (code.h CO_*) ----------------")
     emit_glob_constants("CO", co_items, out)

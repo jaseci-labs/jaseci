@@ -144,6 +144,27 @@ def _measure_indent(st: tok_state) -> int {
     return col;
 }
 
+def _consume_bol_newline(st: tok_state) -> None {
+    if st.pos >= len(st.source) {
+        return;
+    }
+    ch = st.source[st.pos];
+    if ch == "\r" {
+        st.pos = st.pos + 1;
+        if st.pos < len(st.source) and st.source[st.pos] == "\n" {
+            st.pos = st.pos + 1;
+        }
+    } elif ch == "\n" {
+        st.pos = st.pos + 1;
+    } else {
+        return;
+    }
+    st.lineno = st.lineno + 1;
+    st.col_offset = 0;
+    st.line_start = st.pos;
+    st.at_bol = True;
+}
+
 def _process_bol_indent(st: tok_state) -> int {
     # Returns 0 ok, 1 blank line consumed, -1 error.
     if not st.exec_input or st.paren_level > 0 {
@@ -155,12 +176,12 @@ def _process_bol_indent(st: tok_state) -> int {
         ch = st.source[st.pos];
         if ch == "#" {
             if _skip_comment_line(st) {
-                st.at_bol = True;
+                _consume_bol_newline(st);
                 return 1;
             }
         }
         if ch == "\n" or ch == "\r" {
-            st.at_bol = True;
+            _consume_bol_newline(st);
             return 1;
         }
     }

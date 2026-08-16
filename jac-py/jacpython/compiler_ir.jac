@@ -200,7 +200,9 @@ obj unverified_cfg {
         # flowgraph verification (PLAN.md: no silent codegen paths).
         diag: compiler_diagnostic | None = None,
         # CPython keeps one dead small-int const (first 0..255 literal seen).
-        dead_small_int_const: bool = False;
+        dead_small_int_const: bool = False,
+        # Set after MAKE_FUNCTION; suppresses dead small-int consts on call args.
+        nested_code_emitted: bool = False;
 
     def add_block -> basicblock {
         b = basicblock(id=self.next_block_id, instrs=[]);

@@ -21,6 +21,9 @@ import from ast_nodes {
     And,
     Attribute,
     Subscript,
+    FunctionDef,
+    arguments,
+    arg,
     Lt,
     Load,
     Store,
@@ -28,10 +31,13 @@ import from ast_nodes {
     Mult,
     USub,
 }
+import from parser { parse_file }
+import from ast_nodes { Module }
 import from compiler_codegen { compile_eval, compile_exec }
 import from flowgraph { verify_cfg }
 import from assembler { assemble }
 import from compiler_validate { validate_module_body }
+import from compiler_symtable { build_module_symtable }
 import from compiler_diagnostics { compiler_diag_kind, compiler_diag_message }
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code }
@@ -50,10 +56,25 @@ def compile_handbuilt(e: expr, filename: str = "<f>") -> PyCode {
     return assemble(verify_cfg(u));
 }
 
+def compile_parsed_exec(source: str, filename: str = "<f>") -> PyCode {
+    m = parse_file(source, filename);
+    assert m is not None;
+    body = (m as Module).body;
+    vr = validate_module_body(body);
+    assert vr.diag is None;
+    sr = build_module_symtable(body);
+    assert sr.diag is None;
+    u = compile_exec(body, filename, "<module>", 1, sr.top);
+    assert u.diag is None;
+    return assemble(verify_cfg(u));
+}
+
 def compile_handbuilt_exec(body: list[stmt], filename: str = "<f>") -> PyCode {
     vr = validate_module_body(body);
     assert vr.diag is None;
-    u = compile_exec(body, filename, "<module>", 1);
+    sr = build_module_symtable(body);
+    assert sr.diag is None;
+    u = compile_exec(body, filename, "<module>", 1, sr.top);
     assert u.diag is None;
     return assemble(verify_cfg(u));
 }
@@ -615,4 +636,134 @@ test "compiler_slice: 1+1 executes in ceval" {
     assert not is_error(outcome);
     assert isinstance(outcome, PyInt);
     assert expect_int(outcome) == 2;
+}
+
+def ast_band4_fn_call -> list[stmt] {
+    xarg = arg(
+        arg="x",
+        annotation=None,
+        type_comment=None,
+        lineno=1,
+        col_offset=5,
+        end_lineno=1,
+        end_col_offset=6
+    );
+    xload = Name(
+        id="x", ctx=Load(), lineno=2, col_offset=11, end_lineno=2, end_col_offset=12
+    );
+    one = Constant(
+        value=PyInt(t="int", val=1),
+        kind=None,
+        lineno=2,
+        col_offset=15,
+        end_lineno=2,
+        end_col_offset=16
+    );
+    fbody = [
+        Return(
+            value=BinOp(
+                left=xload,
+                op=Add(),
+                right=one,
+                lineno=2,
+                col_offset=11,
+                end_lineno=2,
+                end_col_offset=16
+            ),
+            lineno=2,
+            col_offset=4,
+            end_lineno=2,
+            end_col_offset=16
+        ),
+
+    ];
+    fdef = FunctionDef(
+        name="f",
+        args=arguments(
+            posonlyargs=[],
+            args=[xarg],
+            vararg=None,
+            kwonlyargs=[],
+            kw_defaults=[],
+            kwarg=None,
+            defaults=[]
+        ),
+        body=fbody,
+        decorator_list=[],
+        returns=None,
+        type_comment=None,
+        type_params=[],
+        lineno=1,
+        col_offset=0,
+        end_lineno=2,
+        end_col_offset=16
+    );
+    result = Name(
+        id="result", ctx=Store(), lineno=4, col_offset=0, end_lineno=4, end_col_offset=6
+    );
+    fload = Name(
+        id="f", ctx=Load(), lineno=4, col_offset=9, end_lineno=4, end_col_offset=10
+    );
+    two = Constant(
+        value=PyInt(t="int", val=2),
+        kind=None,
+        lineno=4,
+        col_offset=11,
+        end_lineno=4,
+        end_col_offset=12
+    );
+    return [
+        fdef,
+        Assign(
+            targets=[result],
+            value=Call(
+                func=fload,
+                args=[two],
+                keywords=[],
+                lineno=4,
+                col_offset=9,
+                end_lineno=4,
+                end_col_offset=13
+            ),
+            type_comment=None,
+            lineno=4,
+            col_offset=0,
+            end_lineno=4,
+            end_col_offset=13
+        ),
+
+    ];
+}
+
+test "compiler_slice: band4 def f(x) return x+1 call matches oracle" {
+    src = "def f(x):\n    return x + 1\n\nresult = f(2)\n";
+    actual = compile_handbuilt_exec(ast_band4_fn_call());
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    fn = actual.consts[0] as PyCode;
+    exp_fn = exp.consts[0] as PyCode;
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 1;
+    assert fn.varnames == ["x"];
+    assert fn.flags == 3;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band4 parsed source executes in ceval" {
+    src = "def f(x):\n    return x + 1\n\nresult = f(2)\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "compiler_slice: band4 def f(x) return x+1 call executes in ceval" {
+    co = compile_handbuilt_exec(ast_band4_fn_call());
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
 }

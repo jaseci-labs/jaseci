@@ -166,6 +166,37 @@ test "layer9: eval (x < y < z) and q matches oracle" {
     assert act.stacksize == exp.stacksize;
 }
 
+test "layer9: f(x<y<z) matches oracle" {
+    co = compile_source("f(x<y<z)", "<f>", "eval", 0);
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    expected = oracle_eval("f(x<y<z)", "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    act = co as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: f(x<y<z) executes in ceval" {
+    setup = unmarshal(
+        host_compile_marshal(
+            "def f(x):\n    return 1 if x else 0\n", "<setup>", "exec", 0
+        )
+    );
+    ns: dict[str, PyObj] = {};
+    setup_out = exec_code(setup, [], ns);
+    assert not is_error(setup_out);
+    ns["x"] = PyInt(t="int", val=1);
+    ns["y"] = PyInt(t="int", val=2);
+    ns["z"] = PyInt(t="int", val=3);
+    co = compile_source("f(x<y<z)", "<f>", "eval", 0);
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert isinstance(out, PyInt);
+    assert expect_int(out) == 1;
+}
+
 test "layer9: chained assignment executes in ceval" {
     co = product_exec("x = y = 5\n");
     ns: dict[str, PyObj] = {};
@@ -173,6 +204,36 @@ test "layer9: chained assignment executes in ceval" {
     assert not is_error(out);
     assert expect_int(ns["x"]) == 5;
     assert expect_int(ns["y"]) == 5;
+}
+
+# ---------------- Band 4: thin function slice ----------------
+
+test "layer9: def f(x) return x+1 and call matches oracle" {
+    src = "def f(x):\n    return x + 1\n\nresult = f(2)\n";
+    assert_matches_oracle(src);
+}
+
+test "layer9: def f(x) return x+1 and call executes in ceval" {
+    src = "def f(x):\n    return x + 1\n\nresult = f(2)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "layer9: nested function PyCode has fast locals and argcount" {
+    src = "def f(x):\n    return x + 1\n\nresult = f(2)\n";
+    co = product_exec(src);
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    mod = co as PyCode;
+    assert len(mod.consts) >= 1;
+    assert isinstance(mod.consts[0], PyCode);
+    fn = mod.consts[0] as PyCode;
+    assert fn.argcount == 1;
+    assert fn.varnames == ["x"];
+    assert fn.flags == 3;
 }
 
 # ---------------- VM execution ----------------

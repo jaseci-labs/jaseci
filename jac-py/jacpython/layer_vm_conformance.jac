@@ -146,6 +146,11 @@ test "vm: CALL invokes callable" {
     assert_vm_value_matches_host("", "result = len([1, 2, 3])\n", "exec", "result");
 }
 
+# vm-opcode: OP_MAKE_FUNCTION
+test "vm: MAKE_FUNCTION builds function object" {
+    assert_vm_value_matches_host("", "def f():\n    return 1\nresult = f()\n", "exec", "result");
+}
+
 # vm-opcode: OP_COMPARE_OP
 test "vm: COMPARE_OP orders values" {
     assert_vm_value_matches_host("", "result = 1 < 2\n", "exec", "result");

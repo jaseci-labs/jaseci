@@ -13,7 +13,7 @@
 # Product module: imports compiler_ir + opcode_meta + ast_nodes only. No host
 # tokenize/ast/compile/marshal.
 
-import from objects { PyObj, PyInt, py_none, PySlice }
+import from objects { PyObj, PyInt, py_none, PySlice, PyCode }
 import from opcode_meta {
     OP_RESUME,
     OP_RETURN_VALUE,
@@ -21,7 +21,10 @@ import from opcode_meta {
     OP_LOAD_SMALL_INT,
     OP_LOAD_NAME,
     OP_LOAD_GLOBAL,
+    OP_MAKE_FUNCTION,
     OP_BINARY_OP,
+    CO_OPTIMIZED,
+    CO_NEWLOCALS,
     OP_UNARY_NEGATIVE,
     OP_UNARY_INVERT,
     OP_UNARY_NOT,
@@ -90,6 +93,14 @@ import from opcode_meta {
     NB_INPLACE_XOR,
     NB_INPLACE_AND,
     NB_INPLACE_MATRIX_MULTIPLY,
+    CMP_LT,
+    CMP_LE,
+    CMP_EQ,
+    CMP_NE,
+    CMP_GT,
+    CMP_GE,
+    compare_oparg,
+    compare_filter_oparg,
 }
 import from ast_nodes {
     ast_node,
@@ -115,6 +126,10 @@ import from ast_nodes {
     Store,
     Lt,
     Gt,
+    Eq,
+    NotEq,
+    LtE,
+    GtE,
     Add,
     Sub,
     Mult,
@@ -157,6 +172,7 @@ import from ast_nodes {
     Tuple,
     FunctionDef,
     AsyncFunctionDef,
+    arguments,
     ClassDef,
     TypeAlias,
     For,
@@ -205,6 +221,8 @@ import from compiler_symtable {
     SCOPE_LOCAL,
 }
 import from compiler_diagnostics { lowering_diagnostic }
+import from flowgraph { verify_cfg }
+import from assembler { assemble }
 
 # Record the first codegen diagnostic on the builder's unit.
 def codegen_fail(g: cfg_builder, kind: str, message: str) {
@@ -218,16 +236,45 @@ def codegen_busy(g: cfg_builder) -> bool {
     return g.u.diag is not None;
 }
 
-# Module fast locals: comprehension iteration variables (DEF_COMP_ITER) at module
-# scope; function locals otherwise.
-def fast_varnames_from_sym(top: sym_block) -> list[str] {
-    names = sym_sorted_names(top.symbols);
+# Fast locals for a compile unit. Module scope: comprehension iteration variables
+# only. Function scope: parameters (definition order) then other locals (sorted).
+def fast_varnames_from_sym(block: sym_block) -> list[str] {
+    if block.block_type == "function" {
+        out: list[str] = [];
+        pi = 0;
+        while pi < len(block.varnames) {
+            out.append(block.varnames[pi]);
+            pi = pi + 1;
+        }
+        names = sym_sorted_names(block.symbols);
+        ni = 0;
+        while ni < len(names) {
+            name = names[ni];
+            flags = block.symbols[name];
+            if sym_scope_of(flags) == SCOPE_LOCAL {
+                found = False;
+                fi = 0;
+                while fi < len(out) {
+                    if out[fi] == name {
+                        found = True;
+                    }
+                    fi = fi + 1;
+                }
+                if not found {
+                    out.append(name);
+                }
+            }
+            ni = ni + 1;
+        }
+        return out;
+    }
+    names = sym_sorted_names(block.symbols);
     out: list[str] = [];
     ni = 0;
     while ni < len(names) {
         name = names[ni];
-        flags = top.symbols[name];
-        if top.block_type == "module" {
+        flags = block.symbols[name];
+        if block.block_type == "module" {
             if sym_flag_set(flags, DEF_COMP_ITER) {
                 out.append(name);
             }
@@ -237,6 +284,61 @@ def fast_varnames_from_sym(top: sym_block) -> list[str] {
         ni = ni + 1;
     }
     return out;
+}
+
+def sym_function_child(parent: sym_block, fn_name: str) -> sym_block | None {
+    ci = 0;
+    while ci < len(parent.children) {
+        ch = parent.children[ci];
+        if ch.block_type == "function" and ch.name == fn_name {
+            return ch;
+        }
+        ci = ci + 1;
+    }
+    return None;
+}
+
+def unit_fail(u: unverified_cfg, kind: str, message: str) {
+    if u.diag is None {
+        u.diag = lowering_diagnostic(kind=kind, message=message);
+    }
+}
+
+# Band 4 thin slice: positional parameters only (no *args, **kwargs, kw-only).
+def function_argcounts(args: arguments) -> tuple[int, int, int] | None {
+    if args.vararg is not None {
+        return None;
+    }
+    if args.kwarg is not None {
+        return None;
+    }
+    if len(args.kwonlyargs) > 0 {
+        return None;
+    }
+    posonly = len(args.posonlyargs);
+    regular = len(args.args);
+    return (posonly + regular, posonly, 0);
+}
+
+def emit_name_load(g: cfg_builder, name: str, tloc: cloc) {
+    fi = fast_local_index(g, name);
+    if fi >= 0 {
+        g.emit_op(OP_LOAD_FAST_BORROW, fi, tloc);
+        return;
+    }
+    opc = name_load_opcode(g, name);
+    idx = g.u.add_name(name);
+    g.emit_op(opc, idx, tloc);
+}
+
+def emit_name_store(g: cfg_builder, name: str, tloc: cloc) {
+    fi = fast_local_index(g, name);
+    if fi >= 0 {
+        g.emit_op(OP_STORE_FAST, fi, tloc);
+        return;
+    }
+    idx = g.u.add_name(name);
+    g.emit_op(OP_STORE_NAME, idx, tloc);
 }
 
 # Name load opcode from symtable facts. Module scope uses LOAD_NAME for globals
@@ -656,24 +758,45 @@ def unary_opcode(op: PyObj) -> int {
     return -1;
 }
 
-# cmpop -> CPython 3.14 COMPARE_OP oparg (low bits carry cache metadata).
-def cmpop_oparg(op: PyObj) -> int {
+# cmpop AST node -> CMP_* rich-compare kind (cmp_op tuple order).
+def ast_cmp_kind(op: PyObj) -> int {
     if isinstance(op, Lt) {
-        return 2;
+        return CMP_LT;
+    }
+    if isinstance(op, LtE) {
+        return CMP_LE;
+    }
+    if isinstance(op, Eq) {
+        return CMP_EQ;
+    }
+    if isinstance(op, NotEq) {
+        return CMP_NE;
     }
     if isinstance(op, Gt) {
-        return 132;
+        return CMP_GT;
+    }
+    if isinstance(op, GtE) {
+        return CMP_GE;
     }
     return -1;
 }
 
-# Comprehension filters use bool-context compare opargs (base + 16).
-def cmpop_filter_oparg(op: PyObj) -> int {
-    base = cmpop_oparg(op);
-    if base < 0 {
+# cmpop -> CPython 3.14 COMPARE_OP oparg (low bits carry cache metadata).
+def cmpop_oparg(op: PyObj) -> int {
+    kind = ast_cmp_kind(op);
+    if kind < 0 {
         return -1;
     }
-    return base + 16;
+    return compare_oparg(kind);
+}
+
+# Comprehension filters use bool-context compare opargs (base | 16).
+def cmpop_filter_oparg(op: PyObj) -> int {
+    kind = ast_cmp_kind(op);
+    if kind < 0 {
+        return -1;
+    }
+    return compare_filter_oparg(kind);
 }
 
 # Chained-compare lowering (compile.c): keep the middle operand on the stack
@@ -869,10 +992,9 @@ def visit_expr(
     }
     if isinstance(e, Name) {
         n = e as Name;
-        idx = g.u.add_name(n.id);
-        g.emit_op(
-            name_load_opcode(g, n.id),
-            idx,
+        emit_name_load(
+            g,
+            n.id,
             nloc(n.lineno, n.end_lineno, n.col_offset, n.end_col_offset)
         );
         return None;
@@ -934,7 +1056,9 @@ def visit_expr(
         }
         ai = 0;
         while ai < len(call_args) {
-            arg_cleanup = visit_expr(g, call_args[ai], False, False);
+            arg_cleanup = visit_expr(
+                g, call_args[ai], False, False, not g.u.nested_code_emitted
+            );
             if arg_cleanup is not None {
                 cmp_cleanup = arg_cleanup;
             }
@@ -1099,9 +1223,8 @@ def visit_store_target_tos(g: cfg_builder, t: expr) -> stmt_cont {
     }
     if isinstance(t, Name) {
         n = t as Name;
-        idx = g.u.add_name(n.id);
         tloc = expr_loc(n);
-        g.emit_op(OP_STORE_NAME, idx, tloc);
+        emit_name_store(g, n.id, tloc);
         return stmt_cont(loc=tloc);
     }
     if isinstance(t, Attribute) {
@@ -2395,9 +2518,8 @@ def visit_stmt(
             visit_expr(g, n);
             visit_expr(g, aa.value);
             g.emit_op(OP_BINARY_OP, opid, aloc);
-            idx = g.u.add_name(n.id);
             tloc = expr_loc(n);
-            g.emit_op(OP_STORE_NAME, idx, tloc);
+            emit_name_store(g, n.id, tloc);
             return stmt_cont(loc=tloc);
         }
         if isinstance(aa.target, Attribute) {
@@ -2529,6 +2651,13 @@ def visit_stmt(
         g.emit_jump(OP_JUMP_BACKWARD, frame.continue_blk.id, cloc_stmt);
         return stmt_cont(loc=cloc_stmt, terminated=True);
     }
+    if isinstance(s, Return) {
+        visit_return_stmt(g, s as Return);
+        return stmt_cont(loc=stmt_loc(s), terminated=True);
+    }
+    if isinstance(s, FunctionDef) {
+        return visit_function_def(g, s as FunctionDef);
+    }
     codegen_fail(
         g,
         "NotImplementedError",
@@ -2548,6 +2677,103 @@ def visit_return_stmt(g: cfg_builder, r: Return) {
     none_idx = g.u.add_const(py_none());
     g.emit_op(OP_LOAD_CONST, none_idx, rloc);
     g.emit_op(OP_RETURN_VALUE, 0, rloc);
+}
+
+# Lower `def name(...): ...` at module/class scope into nested PyCode + MAKE_FUNCTION.
+def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
+    floc = nloc(fd.lineno, fd.end_lineno, fd.col_offset, fd.end_col_offset);
+    if g.sym_top is None {
+        codegen_fail(g, "SystemError", "function definition without symtable");
+        return stmt_cont(loc=floc);
+    }
+    sym_fn = sym_function_child(g.sym_top, fd.name);
+    if sym_fn is None {
+        codegen_fail(g, "SystemError", "missing symtable for function " + fd.name);
+        return stmt_cont(loc=floc);
+    }
+    if len(fd.decorator_list) > 0 {
+        codegen_fail(
+            g, "NotImplementedError", "function decorators not yet supported"
+        );
+        return stmt_cont(loc=floc);
+    }
+    u_fn = compile_function_cfg(fd, g.u.filename, sym_fn);
+    if u_fn.diag is not None {
+        g.u.diag = u_fn.diag;
+        return stmt_cont(loc=floc);
+    }
+    cfg_fn = verify_cfg(u_fn);
+    if cfg_fn.diag is not None {
+        g.u.diag = cfg_fn.diag;
+        return stmt_cont(loc=floc);
+    }
+    co = assemble(cfg_fn);
+    g.u.nested_code_emitted = True;
+    cidx = g.u.add_const(co);
+    g.emit_op(OP_LOAD_CONST, cidx, floc);
+    g.emit_op(OP_MAKE_FUNCTION, 0, floc);
+    nidx = g.u.add_name(fd.name);
+    g.emit_op(OP_STORE_NAME, nidx, floc);
+    return stmt_cont(loc=floc);
+}
+
+# Build unverified_cfg for a function body (nested code object before assembly).
+def compile_function_cfg(
+    fd: FunctionDef, filename: str, sym_fn: sym_block
+) -> unverified_cfg {
+    counts = function_argcounts(fd.args);
+    u = unverified_cfg(
+        filename=filename,
+        name=fd.name,
+        qualname=fd.name,
+        firstlineno=fd.lineno
+    );
+    if counts is None {
+        unit_fail(
+            u,
+            "NotImplementedError",
+            "unsupported function signature: "
+                + fd.name
+                + " (Band 4: positional args only)"
+        );
+        return u;
+    }
+    (argcount, posonly, kwonly) = counts;
+    u.argcount = argcount;
+    u.posonlyargcount = posonly;
+    u.kwonlyargcount = kwonly;
+    u.flags = CO_OPTIMIZED | CO_NEWLOCALS;
+    u.varnames = fast_varnames_from_sym(sym_fn);
+    entry = u.add_block();
+    g = new_cfg_builder(u, entry, sym_fn);
+    g.emit_op(OP_RESUME, 0, loc(0, fd.lineno, 0, 0));
+    last = loc(0, fd.lineno, 0, 0);
+    terminated = False;
+    bi = 0;
+    while bi < len(fd.body) {
+        s = fd.body[bi];
+        cont = visit_stmt(
+            g, s, exec_tail_emits_code(fd.body, bi + 1), fd.body, bi + 1
+        );
+        last = cont.loc;
+        if cont.terminated {
+            terminated = True;
+        }
+        if codegen_busy(g) {
+            return u;
+        }
+        if cont.next_si >= 0 {
+            bi = cont.next_si;
+        } else {
+            bi = bi + 1;
+        }
+    }
+    if not terminated {
+        none_idx = u.add_const(py_none());
+        g.emit_op(OP_LOAD_CONST, none_idx, last);
+        g.emit_op(OP_RETURN_VALUE, 0, last);
+    }
+    return u;
 }
 
 # Build a unverified_cfg for an exec-mode module body. Emits RESUME (module scope:

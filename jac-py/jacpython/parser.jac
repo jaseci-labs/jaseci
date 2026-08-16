@@ -105,6 +105,7 @@ import from parser_actions {
     pa_call_keywords,
     pa_comp_field,
     pa_empty_arguments,
+    pa_body_end_span,
     pa_dummy_name,
     pa_interactive_exit,
     pa_seq_count_dots,
@@ -6441,12 +6442,6 @@ def rule_function_def_raw(p: peg_parser) -> stmt | None {
         start_lineno = t0.lineno;
         start_col_offset = t0.col_offset;
     }
-    invalid_def_raw = rule_invalid_def_raw(p);
-    if invalid_def_raw is not None {
-        res = invalid_def_raw;
-        return res;
-    }
-    peg_reset(p, mark);
     kw = peg_expect_token(p, 574);
     if kw is not None {
         n = pa_name_from_token(peg_expect_token(p, NAME));
@@ -6463,21 +6458,23 @@ def rule_function_def_raw(p: peg_parser) -> stmt | None {
                         tc = rule_func_type_comment(p);
                         b = rule_block(p);
                         if b is not None {
-                            end_tok = p.tokens[p.mark - 1];
-                            end_lineno = end_tok.end_lineno;
-                            end_col_offset = end_tok.end_col_offset;
+                            (end_lineno, end_col_offset) = pa_body_end_span(b);
+                            tps: list[type_param] = [];
+                            if t is not None {
+                                tps = t as list[type_param];
+                            }
                             res = FunctionDef(
                                 name=pa_name_id(n),
                                 args=(
                                     params
                                         if params is not None
-                                        else pa_check(pa_empty_arguments())
+                                        else pa_empty_arguments()
                                 ),
                                 body=b,
-                                decorator_list=None,
+                                decorator_list=[],
                                 returns=a,
                                 type_comment=None,
-                                type_params=t,
+                                type_params=tps,
                                 lineno=start_lineno,
                                 col_offset=start_col_offset,
                                 end_lineno=end_lineno,
@@ -10434,16 +10431,14 @@ def rule_lambda_param(p: peg_parser) -> arg | None {
     return None;
 }
 
-def rule_lambda_param_maybe_default(p: peg_parser) -> pa_name_default_pair | None {
+def rule_lambda_param_maybe_default(p: peg_parser) -> name_default_pair | None {
     mark = peg_mark(p);
     a = rule_lambda_param(p);
     if a is not None {
         c = rule_default(p);
         lit = peg_expect_token(p, 12);
         if lit is not None {
-            res = pa_name_default_pair(
-                a, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-            );
+            res = pa_name_default_pair(a, c);
             return res;
         }
     }
@@ -10452,9 +10447,7 @@ def rule_lambda_param_maybe_default(p: peg_parser) -> pa_name_default_pair | Non
     if a is not None {
         c = rule_default(p);
         if (peg_positive_lookahead_token(p, 11)) {
-            res = pa_name_default_pair(
-                a, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-            );
+            res = pa_name_default_pair(a, c);
             return res;
         }
     }
@@ -10484,7 +10477,7 @@ def rule_lambda_param_no_default(p: peg_parser) -> arg | None {
     return None;
 }
 
-def rule_lambda_param_with_default(p: peg_parser) -> pa_name_default_pair | None {
+def rule_lambda_param_with_default(p: peg_parser) -> name_default_pair | None {
     mark = peg_mark(p);
     a = rule_lambda_param(p);
     if a is not None {
@@ -10492,9 +10485,7 @@ def rule_lambda_param_with_default(p: peg_parser) -> pa_name_default_pair | None
         if c is not None {
             lit = peg_expect_token(p, 12);
             if lit is not None {
-                res = pa_name_default_pair(
-                    a, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-                );
+                res = pa_name_default_pair(a, c);
                 return res;
             }
         }
@@ -10505,9 +10496,7 @@ def rule_lambda_param_with_default(p: peg_parser) -> pa_name_default_pair | None
         c = rule_default(p);
         if c is not None {
             if (peg_positive_lookahead_token(p, 11)) {
-                res = pa_name_default_pair(
-                    a, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-                );
+                res = pa_name_default_pair(a, c);
                 return res;
             }
         }
@@ -10530,12 +10519,7 @@ def rule_lambda_parameters(p: peg_parser) -> arguments | None {
                     None,
                     b,
                     c,
-                    d,
-                    start_lineno,
-                    start_col_offset,
-                    end_lineno,
-                    end_col_offset
-                );
+                    d);
                 return res;
             }
         }
@@ -10551,12 +10535,7 @@ def rule_lambda_parameters(p: peg_parser) -> arguments | None {
                 a,
                 None,
                 b,
-                c,
-                start_lineno,
-                start_col_offset,
-                end_lineno,
-                end_col_offset
-            );
+                c);
             return res;
         }
     }
@@ -10571,12 +10550,7 @@ def rule_lambda_parameters(p: peg_parser) -> arguments | None {
                 None,
                 a,
                 b,
-                c,
-                start_lineno,
-                start_col_offset,
-                end_lineno,
-                end_col_offset
-            );
+                c);
             return res;
         }
     }
@@ -10589,12 +10563,7 @@ def rule_lambda_parameters(p: peg_parser) -> arguments | None {
             None,
             None,
             a,
-            b,
-            start_lineno,
-            start_col_offset,
-            end_lineno,
-            end_col_offset
-        );
+            b);
         return res;
     }
     peg_reset(p, mark);
@@ -10605,12 +10574,7 @@ def rule_lambda_parameters(p: peg_parser) -> arguments | None {
             None,
             None,
             None,
-            a,
-            start_lineno,
-            start_col_offset,
-            end_lineno,
-            end_col_offset
-        );
+            a);
         return res;
     }
     peg_reset(p, mark);
@@ -10716,8 +10680,7 @@ def rule_lambda_star_etc(p: peg_parser) -> object | None {
             if b is not None {
                 c = rule_lambda_kwds(p);
                 res = pa_star_etc(
-                    a, b, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-                );
+                    a, b, c);
                 return res;
             }
         }
@@ -10733,12 +10696,7 @@ def rule_lambda_star_etc(p: peg_parser) -> object | None {
                 res = pa_star_etc(
                     None,
                     b,
-                    c,
-                    start_lineno,
-                    start_col_offset,
-                    end_lineno,
-                    end_col_offset
-                );
+                    c);
                 return res;
             }
         }
@@ -10747,8 +10705,7 @@ def rule_lambda_star_etc(p: peg_parser) -> object | None {
     a = rule_lambda_kwds(p);
     if a is not None {
         res = pa_star_etc(
-            None, None, a, start_lineno, start_col_offset, end_lineno, end_col_offset
-        );
+            None, None, a);
         return res;
     }
     peg_reset(p, mark);
@@ -11460,7 +11417,7 @@ def rule_param(p: peg_parser) -> arg | None {
     return None;
 }
 
-def rule_param_maybe_default(p: peg_parser) -> pa_name_default_pair | None {
+def rule_param_maybe_default(p: peg_parser) -> name_default_pair | None {
     mark = peg_mark(p);
     a = rule_param(p);
     if a is not None {
@@ -11468,9 +11425,7 @@ def rule_param_maybe_default(p: peg_parser) -> pa_name_default_pair | None {
         lit = peg_expect_token(p, 12);
         if lit is not None {
             tc = peg_expect_token(p, TYPE_COMMENT);
-            res = pa_name_default_pair(
-                a, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-            );
+            res = pa_name_default_pair(a, c);
             return res;
         }
     }
@@ -11480,9 +11435,7 @@ def rule_param_maybe_default(p: peg_parser) -> pa_name_default_pair | None {
         c = rule_default(p);
         tc = peg_expect_token(p, TYPE_COMMENT);
         if (peg_positive_lookahead_token(p, 8)) {
-            res = pa_name_default_pair(
-                a, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-            );
+            res = pa_name_default_pair(a, c);
             return res;
         }
     }
@@ -11572,7 +11525,7 @@ def rule_param_star_annotation(p: peg_parser) -> arg | None {
     return None;
 }
 
-def rule_param_with_default(p: peg_parser) -> pa_name_default_pair | None {
+def rule_param_with_default(p: peg_parser) -> name_default_pair | None {
     mark = peg_mark(p);
     a = rule_param(p);
     if a is not None {
@@ -11581,9 +11534,7 @@ def rule_param_with_default(p: peg_parser) -> pa_name_default_pair | None {
             lit = peg_expect_token(p, 12);
             if lit is not None {
                 tc = peg_expect_token(p, TYPE_COMMENT);
-                res = pa_name_default_pair(
-                    a, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-                );
+                res = pa_name_default_pair(a, c);
                 return res;
             }
         }
@@ -11595,9 +11546,7 @@ def rule_param_with_default(p: peg_parser) -> pa_name_default_pair | None {
         if c is not None {
             tc = peg_expect_token(p, TYPE_COMMENT);
             if (peg_positive_lookahead_token(p, 8)) {
-                res = pa_name_default_pair(
-                    a, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-                );
+                res = pa_name_default_pair(a, c);
                 return res;
             }
         }
@@ -11620,12 +11569,7 @@ def rule_parameters(p: peg_parser) -> arguments | None {
                     None,
                     b,
                     c,
-                    d,
-                    start_lineno,
-                    start_col_offset,
-                    end_lineno,
-                    end_col_offset
-                );
+                    d);
                 return res;
             }
         }
@@ -11641,12 +11585,7 @@ def rule_parameters(p: peg_parser) -> arguments | None {
                 a,
                 None,
                 b,
-                c,
-                start_lineno,
-                start_col_offset,
-                end_lineno,
-                end_col_offset
-            );
+                c);
             return res;
         }
     }
@@ -11661,12 +11600,7 @@ def rule_parameters(p: peg_parser) -> arguments | None {
                 None,
                 a,
                 b,
-                c,
-                start_lineno,
-                start_col_offset,
-                end_lineno,
-                end_col_offset
-            );
+                c);
             return res;
         }
     }
@@ -11679,12 +11613,7 @@ def rule_parameters(p: peg_parser) -> arguments | None {
             None,
             None,
             a,
-            b,
-            start_lineno,
-            start_col_offset,
-            end_lineno,
-            end_col_offset
-        );
+            b);
         return res;
     }
     peg_reset(p, mark);
@@ -11695,12 +11624,7 @@ def rule_parameters(p: peg_parser) -> arguments | None {
             None,
             None,
             None,
-            a,
-            start_lineno,
-            start_col_offset,
-            end_lineno,
-            end_col_offset
-        );
+            a);
         return res;
     }
     peg_reset(p, mark);
@@ -11709,15 +11633,15 @@ def rule_parameters(p: peg_parser) -> arguments | None {
 
 def rule_params(p: peg_parser) -> arguments | None {
     mark = peg_mark(p);
-    invalid_parameters = rule_invalid_parameters(p);
-    if invalid_parameters is not None {
-        res = invalid_parameters;
-        return res;
-    }
-    peg_reset(p, mark);
     parameters = rule_parameters(p);
     if parameters is not None {
         res = parameters;
+        return res;
+    }
+    peg_reset(p, mark);
+    invalid_parameters = rule_invalid_parameters(p);
+    if invalid_parameters is not None {
+        res = invalid_parameters;
         return res;
     }
     peg_reset(p, mark);
@@ -12907,8 +12831,7 @@ def rule_star_etc(p: peg_parser) -> object | None {
             if b is not None {
                 c = rule_kwds(p);
                 res = pa_star_etc(
-                    a, b, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-                );
+                    a, b, c);
                 return res;
             }
         }
@@ -12922,8 +12845,7 @@ def rule_star_etc(p: peg_parser) -> object | None {
             if b is not None {
                 c = rule_kwds(p);
                 res = pa_star_etc(
-                    a, b, c, start_lineno, start_col_offset, end_lineno, end_col_offset
-                );
+                    a, b, c);
                 return res;
             }
         }
@@ -12939,12 +12861,7 @@ def rule_star_etc(p: peg_parser) -> object | None {
                 res = pa_star_etc(
                     None,
                     b,
-                    c,
-                    start_lineno,
-                    start_col_offset,
-                    end_lineno,
-                    end_col_offset
-                );
+                    c);
                 return res;
             }
         }
@@ -12953,8 +12870,7 @@ def rule_star_etc(p: peg_parser) -> object | None {
     a = rule_kwds(p);
     if a is not None {
         res = pa_star_etc(
-            None, None, a, start_lineno, start_col_offset, end_lineno, end_col_offset
-        );
+            None, None, a);
         return res;
     }
     peg_reset(p, mark);

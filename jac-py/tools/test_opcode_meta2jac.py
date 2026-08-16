@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -13,10 +14,21 @@ _HERE = Path(__file__).resolve().parent
 _REPO = _HERE.parent.parent
 
 
+def _generator_python() -> str:
+    """CPython for generator scripts; jac test sets sys.executable to jac."""
+    exe = Path(sys.executable)
+    if exe.name.startswith("python"):
+        return str(exe)
+    found = shutil.which("python3")
+    if found is not None:
+        return found
+    return "python3"
+
+
 class OpcodeMeta2JacTests(unittest.TestCase):
     def test_regeneration_matches_checked_in_output(self) -> None:
         proc = subprocess.run(
-            [sys.executable, str(_HERE / "opcode_meta2jac.py"), "--check"],
+            [_generator_python(), str(_HERE / "opcode_meta2jac.py"), "--check"],
             cwd=_REPO,
             capture_output=True,
             text=True,
@@ -67,14 +79,14 @@ class OpcodeMeta2JacTests(unittest.TestCase):
                     check=True,
                 )
             out_a = subprocess.run(
-                [sys.executable, "jac-py/tools/opcode_meta2jac.py", "--stdout"],
+                [_generator_python(), "jac-py/tools/opcode_meta2jac.py", "--stdout"],
                 cwd=Path(tmp) / "repo_a",
                 capture_output=True,
                 text=True,
                 check=True,
             ).stdout
             out_b = subprocess.run(
-                [sys.executable, "jac-py/tools/opcode_meta2jac.py", "--stdout"],
+                [_generator_python(), "jac-py/tools/opcode_meta2jac.py", "--stdout"],
                 cwd=Path(tmp) / "repo_b",
                 capture_output=True,
                 text=True,
