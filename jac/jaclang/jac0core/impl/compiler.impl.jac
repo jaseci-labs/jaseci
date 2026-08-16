@@ -1410,6 +1410,7 @@ impl JacCompiler._report_missing_native_ir(
         return;
     }
     import from jaclang.jac0core.diagnostics { E5092 }
+    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
     import from jaclang.jac0core.passes.transform { Alert }
     reason = native_schedule_failure();
     if not reason {
@@ -1418,14 +1419,16 @@ impl JacCompiler._report_missing_native_ir(
             reason = _why;
         }
     }
-    detail = (
-        f"the native codegen schedule could not be built ({reason})"
-            if reason
-            else (
-                "the native codegen passes ran but emitted neither IR nor a "
-                "diagnostic; this is a compiler bug -- please report it"
-            )
-    );
+    if reason {
+        detail = f"the native codegen schedule could not be built ({reason})";
+    } elif not ModuleCodegenPass.has_native_context_stmts(mod) {
+        detail = "the module declares no native code for the backend to lower";
+    } else {
+        detail = (
+            "the native codegen passes ran but emitted neither IR nor a "
+            "diagnostic; this is a compiler bug -- please report it"
+        );
+    }
     from_pass: any = PyastGenPass;
     try {
         import from jaclang.compiler.passes.native { NaIRGenPass }
