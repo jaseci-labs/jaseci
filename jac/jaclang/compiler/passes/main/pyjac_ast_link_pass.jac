@@ -18,7 +18,7 @@ import from jaclang.jac0core.unitree {
     UniNode
 }
 import from jaclang.jac0core.constant { CodeContext }
-import from jaclang.jac0core.passes { UniPass }
+import from jaclang.jac0core.passes.uni_pass { UniPass }
 
 obj PyJacAstLinkPass(UniPass) {
     def link_jac_py_nodes(jac_node: UniNode, py_nodes: list[ast3.AST]) -> None;

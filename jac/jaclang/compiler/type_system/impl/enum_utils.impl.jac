@@ -10,7 +10,7 @@ impl is_excluded_enum_member_name(name: str) -> bool {
 }
 
 impl create_enum_member_info(
-    assignment: Assignment, evaluator: "TypeEvaluator"
+    assignment: Assignment, evaluator: TypeEvaluator
 ) -> (EnumMemberInfo | None) {
     if (
         not assignment.target
@@ -45,7 +45,7 @@ impl create_enum_member_info(
 }
 
 impl validate_enum_member_annotation(
-    assignment: Assignment, member_info: EnumMemberInfo, evaluator: "TypeEvaluator"
+    assignment: Assignment, member_info: EnumMemberInfo, evaluator: TypeEvaluator
 ) -> None {
     if assignment.type_tag is None or member_info.value_type is None {
         return;
@@ -67,7 +67,7 @@ impl validate_enum_member_annotation(
 
 impl build_enum_members(
     enum_node: Enum | Archetype,
-    evaluator: "TypeEvaluator",
+    evaluator: TypeEvaluator,
     enum_value_type: TypeBase | None = None
 ) -> dict[str, EnumMemberInfo] {
     members: dict[str, EnumMemberInfo] = {};
@@ -124,7 +124,7 @@ impl build_enum_members(
 }
 
 impl get_special_enum_value_type_from_bases(
-    base_classes: list[TypeBase], prefetch: "PrefetchedTypes"
+    base_classes: list[TypeBase], prefetch: PrefetchedTypes
 ) -> (TypeBase | None) {
     if not prefetch
         or not prefetch.enum_class

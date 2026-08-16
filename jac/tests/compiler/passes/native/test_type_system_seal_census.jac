@@ -78,6 +78,13 @@ walked or sliced `list[T] | None` slots and now lower. Three entries survived
 that erasure but for a reason their old text did not name -- the two
 remaining `clone_*` methods and `specialize_func_type_vars` -- so their
 waivers were rewritten rather than kept.
+
+A sixth left when `ClassType.get_class_symbol` stopped needing a waiver at
+all. It was waived as "Python-only", but the real defect was a declared type:
+`ClassDetailsShared.symbol_table` is typed `UniScopeNode`, which has no
+`name`, while every caller passes the `Archetype` that does. Narrowing to the
+`Archetype` made both the checker and the backend accept it, so the method
+lowers rather than being excused.
 """
 glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
          "types.jac::TypeBase.category.__get__": (
@@ -93,10 +100,6 @@ glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
          "types.jac::ClassType.clone_as_class": (
              "Backend gap: same `TypeFlags(...)` constructor call as "
              "`clone_as_instance`."
-         ),
-         "types.jac::ClassType.get_class_symbol": (
-             "Python-only: reaches `UniScopeNode.name.sym`, and `Symbol` is a "
-             "symbol-table handle the native unit does not model."
          ),
          "types.jac::ClassType.lookup_member_symbol": (
              "Python-only: calls `collect_member_syms` from `type_utils`, a "

@@ -1,5 +1,6 @@
 impl DeclImplMatchPass.transform(self: DeclImplMatchPass, ir_in: Module) -> Module {
-    self._e2026_reported = set();
+    fresh_reported: set[int] = set();
+    self._e2026_reported = fresh_reported;
     self.cur_node = ir_in;
 
     self.connect_impls(ir_in.sym_tab, ir_in.sym_tab);
@@ -82,14 +83,14 @@ impl DeclImplMatchPass._connect_one_impl(
     target_sym_tab: UniScopeNode
 ) -> None {
     arch_refs = sym_name.split('.')[1:];
-    name_of_links: list = [];
+    name_of_links: list[NameAtom] = [];
     lookup = target_sym_tab.lookup(arch_refs[0]);
     if (lookup and not isinstance(lookup.decl.name_of, AstImplNeedingNode)) {
         lookup = target_sym_tab.parent_scope.lookup(arch_refs[0])
             if target_sym_tab.parent_scope
             else target_sym_tab.lookup(arch_refs[0]);
     }
-    decl_node = self.defn_lookup(lookup)
+    decl_node: (NameAtom | None) = self.defn_lookup(lookup)
         if ((len(arch_refs) == 1) and lookup)
         else self._find_archetype_defn(lookup) if lookup else None;
     name_of_links.append(decl_node) if decl_node else None;
@@ -108,7 +109,8 @@ impl DeclImplMatchPass._connect_one_impl(
                         break;
                     }
                 }
-                decl_node = acc_match.name_ref if acc_match else None;
+                acc_name = acc_match.name_ref if acc_match else None;
+                decl_node = acc_name if isinstance(acc_name, NameAtom) else None;
                 name_of_links.append(decl_node) if decl_node else None;
                 continue;
             }
@@ -125,9 +127,6 @@ impl DeclImplMatchPass._connect_one_impl(
         if len(name_of_links) > 0 {
             self.emit(E2009, node_override=impl_node);
         }
-        return;
-    } elif (isinstance(decl_node, Ability) and decl_node.is_abstract) {
-        self.emit(W2010, node_override=decl_node, name=decl_node.py_resolve_name());
         return;
     }
     if (
@@ -191,7 +190,6 @@ impl DeclImplMatchPass._connect_one_impl(
 impl DeclImplMatchPass._report_bare_redecls(
     self: DeclImplMatchPass, sym_tab: UniScopeNode
 ) -> None {
-    import from jaclang.jac0core.ext_registry { is_annex }
     for sym in sym_tab.names_in_scope.values() {
         stub: (UniNode | None) = None;
         bare: (UniNode | None) = None;
@@ -203,9 +201,12 @@ impl DeclImplMatchPass._report_bare_redecls(
             if not isinstance(defn_node, AstImplNeedingNode) {
                 continue;
             }
+            defn_path = defn_node.loc.mod_path;
             if defn_node.body is None {
                 stub = defn_node;
-            } elif is_annex(defn_node.loc.mod_path) {
+            } elif (
+                defn_path.endswith('.impl.jac') or defn_path.endswith('.test.jac')
+            ) {
                 bare = defn_node;
             }
         }

@@ -517,17 +517,17 @@ class JacScalePluginConfig {
                         "boot_health_timeout": {
                             "type": "float",
                             "default": None,
-                            "description": "Seconds to wait for a service's health endpoint during boot; absent uses the process manager default"
+                            "description": "How long a service process may take to answer /healthz before it is given up on (seconds); absent uses the process manager default (60). Applies both when the orchestrator starts the declared services at boot and when an inter-service import spawns a peer lazily. For the lazy spawn this is a stall budget rather than a wall-clock cap: a child that is still writing to its log keeps the clock resetting, so a slow cold compile is not cut off, while a child that dies is reported immediately. Raise it for services with an expensive import graph."
                         },
                         "boot_max_wait": {
                             "type": "int",
                             "default": 90,
-                            "description": "Maximum seconds to wait for all services to boot"
+                            "description": "Overall window (seconds) the orchestrator waits for the whole service set to report healthy at boot before it proceeds anyway. Distinct from `boot_health_timeout`, which is per service."
                         },
                         "health_monitor_interval": {
                             "type": "float",
                             "default": None,
-                            "description": "Seconds between health-monitor polls of running services; absent uses the process manager default"
+                            "description": "Cadence (seconds) of the background health check that restarts services which died after boot; absent uses the process manager default (10)."
                         },
                         "ingress": {
                             "type": "dict",

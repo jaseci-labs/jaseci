@@ -39,7 +39,7 @@ impl NaIRGenPass._ensure_fmt_kernel -> bool {
     if kernel_mod is None {
         return False;
     }
-    self._walk_imported_module_abilities(kernel_mod);
+    self._walk_imported_module_abilities(kernel_mod, with_fn_verdicts=False);
     self._fmt_kernel_mod = kernel_mod;
 
     _manifest = self.ir_in.gen.interop_manifest if (self.ir_in?.gen) else None;
@@ -65,6 +65,6 @@ impl NaIRGenPass._get_fmt_kernel_fn(name: str) -> (ir.Function | None) {
         return existing;
     }
     _km: any = self._fmt_kernel_mod;
-    self._walk_imported_module_abilities(_km);
+    self._walk_imported_module_abilities(_km, with_fn_verdicts=False);
     return self.func_symtab.get(name);
 }

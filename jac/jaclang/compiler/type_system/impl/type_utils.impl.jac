@@ -16,11 +16,12 @@ impl primitive_type_name_of(ty: (TypeBase | None)) -> (str | None) {
 }
 
 impl expr_primitive_name(prog: object, expr_node: UniNode) -> str {
+    import from jaclang.jac0core.program { JacProgram }
     _ty = expr_node?.type;
-    if _ty is None {
+    if _ty is None and isinstance(prog, JacProgram) {
         try {
             _te = prog.get_type_evaluator();
-            if _te {
+            if _te and isinstance(expr_node, Expr) {
                 _ty = _te.get_type_of_expression(expr_node);
             }
         } except Exception {
@@ -251,11 +252,17 @@ impl doc_of_sym(sym: Symbol) -> (str | None) {
     }
     decl = sym.decl.name_of;
     if isinstance(decl, AstDocNode) and decl.doc {
-        return decl.doc.lit_value;
+        doc_lit = decl.doc.lit_value;
+        if isinstance(doc_lit, str) {
+            return doc_lit;
+        }
     }
     if isinstance(decl, HasVar) {
         if (arch_has := decl.find_parent_of_type(ArchHas)) and arch_has.doc {
-            return arch_has.doc.lit_value;
+            arch_doc_lit = arch_has.doc.lit_value;
+            if isinstance(arch_doc_lit, str) {
+                return arch_doc_lit;
+            }
         }
     }
     return None;
@@ -286,14 +293,17 @@ impl get_completion_items(ty: (TypeBase | UniScopeNode)) -> list[CompletionItem]
             }
         }
     } elif isinstance(ty, ModuleType) {
-        for (name, sym) in ty.symbol_table.names_in_scope.items() {
-            ret.append(completion_item_from_sym(name, sym));
+        mod_symtab = ty.symbol_table;
+        if mod_symtab is not None {
+            for (name, sym) in mod_symtab.names_in_scope.items() {
+                ret.append(completion_item_from_sym(name, sym));
+            }
         }
     }
     return ret;
 }
 
-impl completion_kind_from_sym(sym: Symbol) -> int {
+impl completion_kind_from_sym(sym: Symbol) -> CompletionItemKind {
     match sym.decl.name_of {
         case ModulePath():
             return CompletionItemKind.Module;
@@ -604,10 +614,12 @@ impl apply_solved_type_vars(
         }
 
         if class_type is not None and ty.name {
-            for (idx, tp) in enumerate(class_type.shared.type_params) {
+            cls_type_params = class_type.shared.type_params or [];
+            cls_type_args = class_type.private.type_args or [];
+            for (idx, tp) in enumerate(cls_type_params) {
                 if tp.name == ty.name {
-                    if idx < len(class_type.private.type_args) {
-                        resolved = class_type.private.type_args[idx];
+                    if idx < len(cls_type_args) {
+                        resolved = cls_type_args[idx];
                         return convert_to_instance(resolved);
                     } else {
                         return UnknownType();
@@ -721,7 +733,7 @@ impl build_type_var_solution(class_type: ClassType) -> dict[str, TypeBase] {
         }
         specialized = specialize_for_base_class(class_type, mro_cls);
         if specialized.private.type_args {
-            for (idx, tp) in enumerate(specialized.shared.type_params) {
+            for (idx, tp) in enumerate(specialized.shared.type_params or []) {
                 if tp.name and idx < len(specialized.private.type_args) {
                     arg = specialized.private.type_args[idx];
                     if not isinstance(arg, TypeVarType) {

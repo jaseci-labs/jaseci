@@ -573,6 +573,19 @@ impl module_is_client(filepath: str) -> bool {
         result = mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
     } except Exception as probe_exc {
+        import from jaclang.jac0core.compiler {
+            CompilerSourceError,
+            compiler_source_failure_origin
+        }
+        origin = compiler_source_failure_origin(probe_exc);
+        if origin is not None {
+            raise CompilerSourceError(
+                f"the client-codespace probe for {path} failed inside the "
+                f"compiler's own source ({origin}), so the module's codespace "
+                f"is unknown; refusing to degrade it to the server codespace: "
+                f"{type(probe_exc).__name__}: {probe_exc}"
+            ) from probe_exc;
+        }
         try {
             os.write(
                 2,
