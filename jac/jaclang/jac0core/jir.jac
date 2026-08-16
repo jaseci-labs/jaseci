@@ -676,6 +676,8 @@ def read_source_shared(file_path: str) -> (str | None) {
     }
     hit = _SRC_SHARED.get(file_path);
     if (hit is not None) and (hit[0] == st.st_mtime_ns) and (hit[1] == st.st_size) {
+        _SRC_SHARED.pop(file_path, None);
+        _SRC_SHARED[file_path] = hit;
         return hit[2];
     }
     import from jaclang.jac0core.helpers { read_file_with_encoding }
@@ -684,8 +686,13 @@ def read_source_shared(file_path: str) -> (str | None) {
     } except Exception {
         return None;
     }
-    if len(_SRC_SHARED) >= 4 {
-        _SRC_SHARED.clear();
+    if file_path in _SRC_SHARED {
+        _SRC_SHARED.pop(file_path, None);
+    } elif len(_SRC_SHARED) >= 4 {
+        oldest = next(iter(_SRC_SHARED), None);
+        if oldest is not None {
+            _SRC_SHARED.pop(oldest, None);
+        }
     }
     _SRC_SHARED[file_path] = (st.st_mtime_ns, st.st_size, src);
     return src;
