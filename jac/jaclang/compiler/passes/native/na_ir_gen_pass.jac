@@ -644,6 +644,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> dict;
 
     def _default_arg_fallback(t: ir.Type) -> ir.Value;
+    def _empty_container_for_field(
+        ftype: (ir.Type | None), label: str
+    ) -> (ir.Value | None);
+
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;
     def _jacval_truthy(jv: ir.Value) -> ir.Value;
@@ -717,6 +721,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None;
     def _codegen_enum_layout(enum_name: str, owner: (uni.Module | None)) -> None;
+    def _enum_ctor_layout(enum_name: str) -> (any | None);
+    def _enum_ctor_target(nd: uni.FuncCall) -> (str | None);
+    def _emit_enum_ctor_refusal(nd: uni.FuncCall, enum_name: str, why: str) -> None;
+    def _codegen_enum_ctor(nd: uni.FuncCall, enum_name: str) -> (ir.Value | None);
     def _build_enum_string_table(
         enum_name: str, entries: list, with_values: bool = True
     ) -> None;
@@ -866,6 +874,22 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _osp_isa_bases(arch_name: str) -> list[int];
     def _codegen_archetype(nd: uni.Archetype) -> None;
     def _register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None;
+    def _register_class_consts(
+        nd: uni.Archetype, arch_name: str, block: uni.ModuleCode
+    ) -> None;
+
+    def _register_one_class_const(
+        arch_name: str,
+        fname: str,
+        target: uni.UniNode,
+        assign: uni.Assignment,
+        owns: bool
+    ) -> None;
+
+    def _class_const_enum_init(
+        value: uni.UniNode, ftype: ir.Type
+    ) -> (ir.Constant | None);
+
     def _forward_declare_method(
         arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None
     ) -> None;
@@ -931,6 +955,17 @@ obj NaIRGenPass(ModuleCodegenPass) {
         obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
     ) -> (ir.Value | None);
 
+    def _narrow_receiver_ptr(obj_val: ir.Value, type_name: str) -> (ir.Value | None);
+    def _class_const_global(
+        arch_name: str, field_name: str
+    ) -> (ir.GlobalVariable | None);
+
+    def _class_const_variants(arch_name: str, field_name: str) -> tuple;
+    def _codegen_class_const_read(
+        obj_val: ir.Value, type_name: str, field_name: str
+    ) -> (ir.Value | None);
+
+    def _class_const_declarer(arch_name: str, field_name: str) -> (str | None);
     def _emit_class_routed_call(
         nd: uni.FuncCall,
         _sfull: str,

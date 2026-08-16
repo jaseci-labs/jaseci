@@ -449,9 +449,11 @@ def get_ir_gen_sched(
         }
 
         import jaclang.compiler.symbol_utils;
+        import jaclang.compiler.expr_keys;
         import jaclang.compiler.passes.main.layout_pass;
         import jaclang.compiler.type_registry;
         import jaclang.compiler.intrinsic_registry;
+        import jaclang.project.client_kind;
 
         passes: list[type[Transform[uni.Module, uni.Module]]] = [
             ASTValidationPass,
@@ -760,6 +762,17 @@ obj _SetupProgress {
 }
 
 glob setup_progress = _SetupProgress();
+
+def _jsx_intrinsic_guard_pass_type -> (type | None) {
+    try {
+        import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
+            JsxIntrinsicGuardPass
+        }
+        return JsxIntrinsicGuardPass;
+    } except ImportError {
+        return None;
+    }
+}
 
 def _coerce_module(module: uni.Module, context: CodeContext) {
     module.decided_codespace = context.value;
@@ -1311,6 +1324,8 @@ obj JacCompiler {
 
     def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_boundary_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    def stamp_client_kind_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    def stamp_access_check_facts(mod: uni.Module) -> None;
     def compile(
         file_path: str,
         target_program: JacProgram,

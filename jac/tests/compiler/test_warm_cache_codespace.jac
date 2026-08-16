@@ -26,7 +26,11 @@ import jaclang.jac0core.program as program_mod;
 import from tests.support { TESTS_DIR }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.compiler { CompilerSourceError, get_symtab_ir_sched }
+import from jaclang.jac0core.compiler {
+    CompilerSourceError,
+    get_ir_gen_sched,
+    get_symtab_ir_sched
+}
 import from jaclang.jac0core.codeinfo {
     get_effective_default_codespace_override,
     set_effective_default_codespace
@@ -40,6 +44,9 @@ import from jaclang.runtimelib.cl_test_runner { _COLOR_CACHE, module_is_client }
 
 glob SYMBOL_UTILS: str = os.path.join(
          os.path.dirname(str(jaclang.__file__)), "compiler", "symbol_utils.jac"
+     ),
+     EXPR_KEYS: str = os.path.join(
+         os.path.dirname(str(jaclang.__file__)), "compiler", "expr_keys.jac"
      );
 
 
@@ -133,29 +140,47 @@ test "a symtab-only compile survives being the first to need symbol_utils" {
 }
 
 
+test "the ir-gen schedule pre-imports the narrowing keys its passes reach" {
+    saved_mod = sys.modules.pop("jaclang.compiler.expr_keys");
+    try {
+        get_ir_gen_sched();
+        restored = sys.modules.get("jaclang.compiler.expr_keys");
+        assert restored is not None , (
+            "building the ir-gen schedule left expr_keys unimported, so "
+            "CFGBuildPass reaching it at run time would be the first to import it"
+        );
+        assert hasattr(restored, "collect_assigned_symbols") , (
+            "expr_keys came back half-initialized"
+        );
+    } finally {
+        sys.modules["jaclang.compiler.expr_keys"] = saved_mod;
+    }
+}
+
+
 test "a compile that re-enters the module being imported says so" {
-    su = sys.modules["jaclang.compiler.symbol_utils"];
-    saved_fn = su.collect_assigned_symbols;
-    sys.modules["jac_reentrant_probe"] = initializing_stub(SYMBOL_UTILS);
-    delattr(su, "collect_assigned_symbols");
+    ek = sys.modules["jaclang.compiler.expr_keys"];
+    saved_fn = ek.collect_assigned_symbols;
+    sys.modules["jac_reentrant_probe"] = initializing_stub(EXPR_KEYS);
+    delattr(ek, "collect_assigned_symbols");
     try {
         prog = JacProgram();
         compiler = prog._get_compiler();
         raised = False;
         try {
             compiler.compile(
-                file_path=SYMBOL_UTILS,
+                file_path=EXPR_KEYS,
                 target_program=compiler.internal_program,
                 options=CompileOptions(type_check=False, no_cgen=True)
             );
         } except CompilerSourceError as loud {
             raised = True;
             assert "re-entered" in str(loud) , str(loud);
-            assert "jaclang.compiler.symbol_utils" in str(loud) , str(loud);
+            assert "jaclang.compiler.expr_keys" in str(loud) , str(loud);
         }
         assert raised , "a re-entrant compile degraded quietly instead of refusing";
     } finally {
-        setattr(su, "collect_assigned_symbols", saved_fn);
+        setattr(ek, "collect_assigned_symbols", saved_fn);
         del sys.modules["jac_reentrant_probe"];
     }
 }

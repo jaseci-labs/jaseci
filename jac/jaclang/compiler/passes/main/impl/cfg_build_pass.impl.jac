@@ -396,7 +396,7 @@ impl CFGBuildPass._wire_bool_operands(
     true_target: (UniCFGNode | None),
     false_target: (UniCFGNode | None)
 ) -> CfgExpr {
-    import from jaclang.compiler.symbol_utils { collect_narrowing_symbols }
+    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
     for cfg in values {
         cfg.affected_symbols.update(collect_narrowing_symbols(cfg.expr));
     }
@@ -466,7 +466,7 @@ impl CFGBuildPass.exit_bool_expr(nd: BoolExpr) -> None {
 }
 
 impl CFGBuildPass.exit_if_else_expr(nd: IfElseExpr) -> None {
-    import from jaclang.compiler.symbol_utils { collect_narrowing_symbols }
+    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
     nd.condition.affected_symbols.update(collect_narrowing_symbols(nd.condition.expr));
 
     unwrapped_cond = _unwrap_parens(nd.condition.expr);
@@ -560,7 +560,7 @@ impl _is_structural_child(nd: UniNode) -> bool {
 }
 
 impl CFGBuildPass.enter_node(nd: UniNode) -> None {
-    import from jaclang.compiler.symbol_utils { collect_assigned_symbols }
+    import from jaclang.compiler.expr_keys { collect_assigned_symbols }
     if isinstance(nd, (CodeBlockStmt, Archetype))
         and not isinstance(nd, (Semi, ModuleCode, GlobalVars, SemDef, TypeAlias))
         and not _is_structural_child(nd) {
@@ -571,17 +571,17 @@ impl CFGBuildPass.enter_node(nd: UniNode) -> None {
 }
 
 impl CFGBuildPass.enter_if_stmt(nd: IfStmt) -> None {
-    import from jaclang.compiler.symbol_utils { collect_narrowing_symbols }
+    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
     nd.affected_symbols.update(collect_narrowing_symbols(nd.condition));
 }
 
 impl CFGBuildPass.enter_else_if(nd: ElseIf) -> None {
-    import from jaclang.compiler.symbol_utils { collect_narrowing_symbols }
+    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
     nd.affected_symbols.update(collect_narrowing_symbols(nd.condition));
 }
 
 impl CFGBuildPass.enter_assert_stmt(nd: AssertStmt) -> None {
-    import from jaclang.compiler.symbol_utils { collect_narrowing_symbols }
+    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
     nd.affected_symbols.update(collect_narrowing_symbols(nd.condition));
 }
 
@@ -736,7 +736,7 @@ impl CFGBuildPass.exit_dict_compr(nd: DictCompr) -> None {
 impl CFGBuildPass._wire_compr_filters(
     target_node: UniCFGNode, comprs: list[InnerCompr]
 ) -> None {
-    import from jaclang.compiler.symbol_utils { collect_narrowing_symbols }
+    import from jaclang.compiler.expr_keys { collect_narrowing_symbols }
     if not comprs {
         return;
     }

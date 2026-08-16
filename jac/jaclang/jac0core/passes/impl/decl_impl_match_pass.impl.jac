@@ -278,6 +278,9 @@ impl DeclImplMatchPass._resolve_symbols_in_subtree(
         if isinstance(name_node.parent, AtomTrailer) {
             continue;
         }
+        if is_identifier_slot(name_node) {
+            continue;
+        }
         if name_node.sym_tab {
             try {
                 name_node.sym_tab.use_lookup(name_node);

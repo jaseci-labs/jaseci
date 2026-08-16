@@ -296,3 +296,44 @@ test "a body-scoped from-import demotes only its owning function" {
         f"the seam reason must name the blocking construct: {seams[0]}"
     );
 }
+
+
+test "a dataclasses field import is a compile-time declaration" {
+    assert _rejected_imports("dataclasses_field_default.jac") == [] , (
+        "`field` only ever appears as a has-field default, where the "
+        "declaration site consumes it; the native lane never calls it, so "
+        "the import belongs in the compile-time vocabulary"
+    );
+    assert _scan_verdict(_module_with("import from dataclasses { field }")) == "OK" , (
+        "the inferred-placement scanner reads the same vocabulary, so a "
+        "`field` import must stop demoting the module there too"
+    );
+}
+
+
+test "a non-marker dataclasses name still refuses" {
+    verdict = _scan_verdict(_module_with("import from dataclasses { dataclass }"));
+    assert verdict != "OK" , (
+        "the vocabulary is per name: `field` erases at the declaration site "
+        f"and `dataclass` does not, so listing it must still refuse: {verdict}"
+    );
+}
+
+
+test "a field-defaulted archetype lowers and builds its defaults" {
+    (prog, ir) = _compile_native("dataclasses_field_default.jac");
+    assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";
+    assert ir is not None and ir.gen.llvm_ir , (
+        "no native IR for an archetype whose has-fields default through "
+        "`dataclasses.field`"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "run" in layout.functions , (
+        f"the declaration-site marker demoted its module: {sorted(layout.functions)}"
+    );
+    assert _native_int_fn(ir, "run")() == 13 , (
+        "a `default_factory` field must arrive as an empty container of the "
+        "declared type and a `default` field as that literal"
+    );
+}

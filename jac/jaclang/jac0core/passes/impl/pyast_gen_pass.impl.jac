@@ -3372,7 +3372,7 @@ impl PyastGenPass.exit_k_w_pair(nd: uni.KWPair) -> None {
     nd.gen.py_ast = [
         self.sync(
             ast3.keyword(
-                arg=self.py_ast_val(nd.key).id
+                arg=nd.key.sym_name
                     if (nd.key and isinstance(self.py_ast_val(nd.key), ast3.Name))
                     else None,
                 value=cast(ast3.expr, self.py_ast_val(nd.value))
@@ -4317,11 +4317,13 @@ impl PyastGenPass.exit_name(nd: uni.Name) -> None {
             return;
         }
     }
-    if (name in self._get_builtin_names()) {
-        self.builtin_imports.add(name);
-    }
-    if (name in self._get_ambient_typing_names()) {
-        self.typing_imports.add(name);
+    if not uni.is_identifier_slot(nd) {
+        if (name in self._get_builtin_names()) {
+            self.builtin_imports.add(name);
+        }
+        if (name in self._get_ambient_typing_names()) {
+            self.typing_imports.add(name);
+        }
     }
     nd.gen.py_ast = [self.sync(ast3.Name(id=name, ctx=self.py_ctx(nd)))];
 }
