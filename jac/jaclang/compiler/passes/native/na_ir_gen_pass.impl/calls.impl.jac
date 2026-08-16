@@ -1248,6 +1248,13 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         return self._codegen_intrinsic(nd, _intrinsic_entry);
     }
 
+    if _call_kind != "method" and func_name not in self.local_vars {
+        _ec_name = self._enum_ctor_target(nd);
+        if _ec_name is not None {
+            return self._codegen_enum_ctor(nd, _ec_name);
+        }
+    }
+
     import from jaclang.compiler.type_system { types as jtypes }
     _callee_t = nd.target?.type;
     if isinstance(_callee_t, jtypes.ClassType)
