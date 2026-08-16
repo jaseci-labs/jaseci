@@ -337,8 +337,12 @@ def fail_loud_on_compiler_source(err: ImportError) -> None {
 
 glob _native_sched_failure: dict[str, str] = {};
 
-def _note_native_schedule_failure(err: BaseException) {
-    _native_sched_failure['reason'] = f"{type(err).__name__}: {err}";
+def _note_native_schedule_failure(err: (BaseException | None)) {
+    if err is None {
+        _native_sched_failure.pop('reason', None);
+    } else {
+        _native_sched_failure['reason'] = f"{type(err).__name__}: {err}";
+    }
 }
 
 def native_schedule_failure -> str {
@@ -591,6 +595,7 @@ def get_py_code_gen(
                     origin='native codegen schedule'
                 )
             );
+            _note_native_schedule_failure(None);
         }
         passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
         return passes;
