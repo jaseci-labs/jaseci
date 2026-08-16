@@ -432,8 +432,9 @@ def _denied_path(mp: uni.ModulePath) -> bool {
 }
 
 def _add_resolved(out: list[str], src: (uni.ModulePath | uni.ModuleItem)) -> None {
+    resolver: any = src;
     try {
-        _keep(out, src.resolve_relative_path());
+        _keep(out, resolver.resolve_relative_path());
     } except Exception {
         return;
     }
