@@ -28,7 +28,7 @@ impl DeferSideEffectPass._is_logger_call(nd: uni.FuncCall) -> bool {
 impl DeferSideEffectPass._base_binds_at_module(base: uni.Name) -> bool {
     sym = base.sym;
     if sym is None {
-        return True;
+        return False;
     }
     decl = sym.decl;
     return (decl is not None) and (decl.find_parent_of_type(uni.Ability) is None);
