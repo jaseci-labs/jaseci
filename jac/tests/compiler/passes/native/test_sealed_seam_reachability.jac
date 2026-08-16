@@ -68,7 +68,6 @@ import from jaclang.compiler.passes.main.layout_pass {
 import from jaclang.jac0core.sealed { native_artifact_for }
 import from jaclang.utils.precompile_bytecode {
     _UNITREE_SEAM_WAIVERS,
-    NATIVE_SEAL_ROOTS,
     seal_waiver_names
 }
 
@@ -354,14 +353,20 @@ def pass_reachable(rel: str) -> tuple {
         return _PASS_MEMO[rel];
     }
     tables = _program_tables(rel);
-    (arch_of, mod_funcs, _globs, _reg, arch_mod, _func_mod) = tables;
+    (arch_of, mod_funcs, _globs, _reg, arch_mod, func_mod) = tables;
     (_qualified, waived) = seal_waiver_names(rel);
     root_path = os.path.realpath(str(PKG_PATH / rel));
 
+    # Module-level functions seed only for the root: a pass artifact's entry
+    # surface is the root's own declarations, and a closure module's free
+    # functions (unitree's symbol binders) are covered seeded by the parser
+    # walk above. They still join this walk the moment anything the root
+    # reaches calls them, so nothing is lost -- only phantom entries that no
+    # caller of the sealed pass can name.
     seeds: set = set();
     seeds.add("<module>");
     for fname in mod_funcs {
-        if fname not in waived {
+        if fname not in waived and func_mod.get(fname) == root_path {
             seeds.add(fname);
         }
     }
@@ -540,20 +545,17 @@ test "wave-2 roots: no waived seam is native-reachable beyond the argued slots" 
 }
 
 
-test "sym_tab_build stays out of the seal while import detection probes" {
-    # Wave 2's stop-the-line finding, pinned so it self-clears: live
-    # exit_module_path reads Import.is_jac, whose implementation chains
-    # into __jac_detected and ModulePath.resolve_relative_path, the waived
-    # filesystem import-resolution family. A sealed sym_tab_build would
-    # abort on the first plain import. The root seals when import
-    # detection becomes driver-stamped data on the Import node (the #8242
-    # absorbed_mod pattern); when this walk stops reaching those waived
-    # names, this test fails, which is the signal to add the root to
-    # NATIVE_SEAL_ROOTS and extend the wave census.
-    assert SYM_TAB_ROOT not in NATIVE_SEAL_ROOTS , (
-        "sym_tab_build_pass joined NATIVE_SEAL_ROOTS while its live "
-        "exit_module_path still reaches the import-resolution stubs"
-    );
+test "sym_tab_build's live surface stays clear of the import-resolution stubs" {
+    # Wave 2's stop-the-line finding, now cleared: live exit_module_path
+    # used to read Import.is_jac, whose implementation chains into
+    # __jac_detected and ModulePath.resolve_relative_path, the waived
+    # filesystem import-resolution family -- sealed, that aborts on the
+    # first plain import. Import detection is driver-stamped data now
+    # (the compile driver stamps Import.jac_detected alongside
+    # absorbed_mod, the #8242 pattern) and the pass consumes the slot, so
+    # this walk pins the cleared state: the root's live surface reaches
+    # no waived seam at all. The root is seal-ready; the sealing wave
+    # owns adding it to NATIVE_SEAL_ROOTS and the wave census.
     (seen, _waived) = pass_reachable(SYM_TAB_ROOT);
     for needed in (
         "SymTabBuildPass._bind_import_path_symbols",
@@ -561,7 +563,7 @@ test "sym_tab_build stays out of the seal while import detection probes" {
     ) {
         assert needed in seen , (
             f"'{needed}' is missing from the reachable set -- the walk found "
-            "nothing, so the import-resolution verdict below would be vacuous"
+            "nothing, so the clean verdict below would be vacuous"
         );
     }
     hit = sorted(
@@ -569,10 +571,10 @@ test "sym_tab_build stays out of the seal while import detection probes" {
         for name in _waived_names()
         if name in seen
     );
-    assert "ModulePath.resolve_relative_path" in hit , (
-        "sym_tab_build's live surface no longer reaches the "
-        "import-resolution stubs -- import detection is data now, so the "
-        "refusal is stale: add the root to NATIVE_SEAL_ROOTS, give it a "
-        "waiver table, and extend test_pass_seal_wave2_census.jac"
+    assert not hit , (
+        f"sym_tab_build's live surface reaches {len(hit)} waived seam(s) "
+        "again, so a sealed artifact could abort at runtime -- the "
+        "import-detection stamp (or a new read) has regressed:\n"
+        + "\n".join(f"  {name}" for name in hit)
     );
 }

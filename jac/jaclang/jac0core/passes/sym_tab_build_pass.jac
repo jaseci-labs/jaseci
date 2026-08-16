@@ -11,7 +11,6 @@ import from jaclang.jac0core.unitree {
     ElseStmt,
     Enum,
     Except,
-    Expr,
     ExprAsItem,
     FinallyStmt,
     ForeverStmt,
@@ -26,7 +25,6 @@ import from jaclang.jac0core.unitree {
     IterForStmt,
     LambdaExpr,
     ListCompr,
-    ListVal,
     MatchCase,
     Module,
     ModuleItem,
@@ -37,21 +35,23 @@ import from jaclang.jac0core.unitree {
     SemDef,
     SetCompr,
     SwitchCase,
-    Symbol,
     Test,
     Token,
     TryStmt,
-    TupleVal,
     TypeAlias,
     TypeParam,
     TypedCtxBlock,
-    UnaryExpr,
     UniNode,
     UniScopeNode,
     WhileStmt,
-    WithStmt
+    WithStmt,
+    bind_assignment_targets,
+    def_insert_unpacking,
+    find_python_scope_node_of,
+    record_cross_scope_rebind,
+    rebind_or_def_insert
 }
-import from jaclang.jac0core.constant { SymbolAccess, Tokens }
+import from jaclang.jac0core.constant { SymbolAccess }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.diagnostics { E0064, E0077 }
 
@@ -184,21 +184,3 @@ class SymTabBuildPass(UniPass) {
     def enter_switch_case(self: SymTabBuildPass, nd: SwitchCase) -> None;
     def exit_switch_case(self: SymTabBuildPass, nd: SwitchCase) -> None;
 }
-
-def find_python_scope_node_of(nd: UniNode) -> (UniScopeNode | None);
-
-def find_typed_decl_scope_of(nd: AstSymbolNode) -> UniScopeNode;
-
-def def_insert_unpacking(
-    nd: Expr, sym_tab: UniScopeNode, rebind_in_python_scope: bool = False
-) -> None;
-
-def bind_assignment_targets(nd: Assignment) -> None;
-
-def lookup_enclosing_binding(from_scope: UniScopeNode, name: str) -> (Symbol | None);
-
-def rebind_or_def_insert(
-    target: AstSymbolNode, py_scope: UniScopeNode, single_decl: str
-) -> None;
-
-def record_cross_scope_rebind(py_scope: UniScopeNode, name: str, sym: Symbol) -> None;

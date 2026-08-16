@@ -15,16 +15,13 @@ import from jaclang.jac0core.unitree {
     SpecialVarRef,
     Symbol,
     UniNode,
-    UniScopeNode
-}
-import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.passes.sym_tab_build_pass {
+    UniScopeNode,
     bind_assignment_targets,
     find_python_scope_node_of
 }
+import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.diagnostics {
     E2009,
-    W2010,
     E2011,
     E2012,
     W2013,

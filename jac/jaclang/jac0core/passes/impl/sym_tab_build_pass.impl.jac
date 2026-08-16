@@ -70,66 +70,6 @@ impl SymTabBuildPass.exit_global_vars(self: SymTabBuildPass, nd: GlobalVars) -> 
     }
 }
 
-impl lookup_enclosing_binding(from_scope: UniScopeNode, name: str) -> (Symbol | None) {
-    import from jaclang.jac0core.constant { SymbolType }
-    scope = find_python_scope_node_of(from_scope);
-    while scope is not None {
-        if isinstance(scope, Module) {
-            sym = scope.names_in_scope.get(name);
-            if sym is not None and sym.sym_type == SymbolType.MOD_VAR {
-                return sym;
-            }
-            return None;
-        }
-        if isinstance(scope, (Ability, ImplDef, Test, LambdaExpr)) {
-            sym = scope.names_in_scope.get(name);
-            if sym is not None {
-                return sym;
-            }
-        }
-        scope = find_python_scope_node_of(scope);
-    }
-    return None;
-}
-
-impl record_cross_scope_rebind(py_scope: UniScopeNode, name: str, sym: Symbol) -> None {
-    import from jaclang.jac0core.constant { SymbolType }
-    outer_tab = sym.parent_tab;
-    if outer_tab is None or outer_tab is py_scope {
-        return;
-    }
-    if not isinstance(py_scope, (Ability, ImplDef, Test)) {
-        return;
-    }
-    if py_scope.names_in_scope is outer_tab.names_in_scope {
-        return;
-    }
-    if isinstance(outer_tab, Module) {
-        if sym.sym_type == SymbolType.MOD_VAR {
-            py_scope.implicit_rebinds[name] = sym;
-        }
-        return;
-    }
-    if isinstance(outer_tab, (Ability, ImplDef, Test)) {
-        py_scope.implicit_rebinds[name] = sym;
-    }
-}
-
-impl rebind_or_def_insert(
-    target: AstSymbolNode, py_scope: UniScopeNode, single_decl: str
-) -> None {
-    if isinstance(py_scope, (Ability, ImplDef, Test, LambdaExpr)) {
-        outer_sym = lookup_enclosing_binding(py_scope, target.sym_name);
-        if outer_sym is not None {
-            outer_sym.add_use(target.name_spec);
-            py_scope.names_in_scope[target.sym_name] = outer_sym;
-            py_scope.implicit_rebinds[target.sym_name] = outer_sym;
-            return;
-        }
-    }
-    py_scope.def_insert(target, single_decl=single_decl);
-}
-
 impl SymTabBuildPass.exit_assignment(self: SymTabBuildPass, nd: Assignment) -> None {
     if nd.find_parent_of_type(ImplDef) is not None {
         return;
@@ -237,7 +177,8 @@ impl SymTabBuildPass.exit_module_path(self: SymTabBuildPass, nd: ModulePath) -> 
         and not nd.is_import_from
         and nd.parent_of_type(Import)
         and not (
-            nd.parent_of_type(Import).from_loc and nd.parent_of_type(Import).is_jac
+            nd.parent_of_type(Import).from_loc
+            and nd.parent_of_type(Import).jac_detected
         )
     ) {
         if isinstance(nd.path[0], Name) {
@@ -622,109 +563,4 @@ impl SymTabBuildPass.enter_switch_case(self: SymTabBuildPass, nd: SwitchCase) ->
 
 impl SymTabBuildPass.exit_switch_case(self: SymTabBuildPass, nd: SwitchCase) -> None {
     self.pop_scope();
-}
-
-impl find_python_scope_node_of(nd: UniNode) -> (UniScopeNode | None) {
-    while nd.parent {
-        scope_parent = nd.parent;
-        if isinstance(scope_parent, UniScopeNode)
-            and UniScopeNode.is_python_scoping(scope_parent) {
-            return scope_parent;
-        }
-        nd = scope_parent;
-    }
-    return None;
-}
-
-impl find_typed_decl_scope_of(nd: AstSymbolNode) -> UniScopeNode {
-    if UniScopeNode.is_python_scoping(nd.sym_tab) {
-        return nd.sym_tab;
-    }
-    py_scope = find_python_scope_node_of(nd);
-    if isinstance(py_scope, (Ability, ImplDef, Test, LambdaExpr)) {
-        return py_scope;
-    }
-    return nd.sym_tab;
-}
-
-impl def_insert_unpacking(
-    nd: Expr, sym_tab: UniScopeNode, rebind_in_python_scope: bool = False
-) -> None {
-    if isinstance(nd, Name) {
-        if rebind_in_python_scope {
-            if ((existing := sym_tab.lookup(nd.sym_name, deep=False)) is not None) {
-                existing.add_use(nd.name_spec);
-                return;
-            }
-            py_scope = find_python_scope_node_of(nd);
-            if py_scope is not None {
-                if ((outer := py_scope.lookup(nd.sym_name, deep=False)) is not None) {
-                    outer.add_use(nd.name_spec);
-                    record_cross_scope_rebind(py_scope, nd.sym_name, outer);
-                } else {
-                    rebind_or_def_insert(nd, py_scope, single_decl='local var');
-                }
-                return;
-            }
-        }
-        sym_tab.def_insert(nd, single_decl='iterator');
-    } elif isinstance(nd, (TupleVal, ListVal)) {
-        for target_var in nd.values {
-            if isinstance(target_var, Expr) {
-                def_insert_unpacking(target_var, sym_tab, rebind_in_python_scope);
-            }
-        }
-    } elif (isinstance(nd, UnaryExpr) and (nd.op.name == Tokens.STAR_MUL)) {
-        def_insert_unpacking(nd.operand, sym_tab, rebind_in_python_scope);
-    }
-}
-
-impl bind_assignment_targets(nd: Assignment) -> None {
-    import from jaclang.jac0core.constant { SymbolType }
-    for i in nd.target {
-        if isinstance(i, AstSymbolNode) {
-            if isinstance(i, (ListVal, TupleVal)) {
-                def_insert_unpacking(i, i.sym_tab, rebind_in_python_scope=True);
-            } elif (
-                (i.sym_name in i.sym_tab.names_in_scope)
-                and ((sym := i.sym_tab.names_in_scope[i.sym_name]) is not None)
-            ) {
-                sym.add_use(i.name_spec);
-                record_cross_scope_rebind(i.sym_tab, i.sym_name, sym);
-            } elif (
-                (nd.type_tag is None)
-                and ((outer_has := i.sym_tab.lookup(i.sym_name, deep=True)) is not None)
-                and outer_has.sym_type == SymbolType.HAS_VAR
-                and isinstance(outer_has.parent_tab, Ability)
-            ) {
-                outer_has.add_use(i.name_spec);
-            } elif (
-                (nd.type_tag is None) and not UniScopeNode.is_python_scoping(i.sym_tab)
-            ) {
-                py_scope = find_python_scope_node_of(i);
-                if py_scope is not None {
-                    if (
-                        (outer := py_scope.lookup(i.sym_name, deep=False)) is not None
-                    ) {
-                        outer.add_use(i.name_spec);
-                        record_cross_scope_rebind(py_scope, i.sym_name, outer);
-                    } else {
-                        rebind_or_def_insert(i, py_scope, single_decl='local var');
-                    }
-                } else {
-                    i.sym_tab.def_insert(i, single_decl='local var');
-                }
-            } elif (
-                (nd.type_tag is None)
-                and isinstance(i.sym_tab, (Ability, ImplDef, Test, LambdaExpr))
-            ) {
-                rebind_or_def_insert(i, i.sym_tab, single_decl='local var');
-            } else {
-                if isinstance(i.sym_tab, Enum) {
-                    i.name_spec._sym_category = SymbolType.ENUM_MEMBER;
-                }
-                find_typed_decl_scope_of(i).def_insert(i, single_decl='local var');
-            }
-        }
-    }
 }
