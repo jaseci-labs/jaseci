@@ -850,7 +850,9 @@ impl NaIRGenPass._walk_imported_module_types(imported_mod: uni.Module) -> None {
     }
 }
 
-impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> None {
+impl NaIRGenPass._walk_imported_module_abilities(
+    imported_mod: uni.Module, with_fn_verdicts: bool = True
+) -> None {
     _imp_layout = imported_mod.gen.native_layout;
     if _imp_layout is None and imported_mod?.loc and imported_mod.loc.mod_path {
         import os as _wl_os;
@@ -895,7 +897,7 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
         }
     }
     _imp_fn_unavail: (set | None) = None;
-    if _imp_layout is None and not _wl_internal {
+    if with_fn_verdicts and _imp_layout is None and not _wl_internal {
         _imp_fn_unavail = self._imported_function_demotions(imported_mod);
     }
     for _imp_arch in ModuleCodegenPass.iter_context_stmts(imported_mod) {
