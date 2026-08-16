@@ -705,11 +705,7 @@ def find_ability(
         return found;
     }
     for imp in mod.get_all_sub_nodes(uni.Import) {
-        if imp.from_loc is None {
-            continue;
-        }
-        top = imp.from_loc.dot_path_str.lstrip('.').split('.')[0];
-        if (top in {'torch', 'jaclang'}) or (top in sys.stdlib_module_names) {
+        if (imp.from_loc is None) or _denied_path(imp.from_loc) {
             continue;
         }
         target = _import_target(imp, name);

@@ -91,6 +91,16 @@ test "a cross module helper is transformed when its entry is in the hub" {
     assert "print('FAR-ORPHAN', x)" in _fn_src(src, "far_orphan");
 }
 
+test "a relative import named like a stdlib module keeps its call edge" {
+    # The sibling json.jac only shares a stdlib name: its import is relative,
+    # which the deny list exempts for class lookups and must exempt for
+    # ability lookups the same way.
+    prog = JacProgram();
+    _pysrc_in(prog, os.path.join("region_relstd", "entry.jac"));
+    src = _pysrc_in(prog, os.path.join("region_relstd", "json.jac"));
+    assert "__jac_se_emit__" in _fn_src(src, "near_helper");
+}
+
 test "a wrapped entry function is transformed through the wrap" {
     src = _pysrc("region_wrap_fn.jac", True);
     assert "__jac_se_emit__" in _fn_src(src, "wrapped");
