@@ -1,9 +1,11 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper, Tokens as Tok }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
+    append_stmt,
     gen_name,
     gen_string,
     insert_after,
+    insert_before,
     need_helper,
     split_params
 }
@@ -51,7 +53,7 @@ impl DeferSideEffectPass.exit_func_call(nd: uni.FuncCall) -> None {
     parent.expr = append_call;
     parent.set_kids([append_call]);
     for h in hoists {
-        self._insert_before(parent, h);
+        insert_before(parent, h);
     }
     self._needs_se.add(id(ability));
 }
@@ -76,7 +78,7 @@ impl DeferSideEffectPass.exit_module(nd: uni.Module) -> None {
             placed = insert_after(anchor, reg);
         }
         if not placed {
-            self._append_module_stmt(nd, reg);
+            append_stmt(nd, reg);
         }
     }
     self._pending_regs = [];
@@ -94,7 +96,7 @@ impl DeferSideEffectPass.exit_return_stmt(nd: uni.ReturnStmt) -> None {
         return;
     }
     if nd.expr is None {
-        self._insert_before(nd, self._flush_stmt(nd));
+        insert_before(nd, self._flush_stmt(nd));
         return;
     }
     n = self._counter;
@@ -106,8 +108,8 @@ impl DeferSideEffectPass.exit_return_stmt(nd: uni.ReturnStmt) -> None {
     ref = gen_name(nd, f"__gm_ret_{n}", False);
     nd.expr = ref;
     nd.set_kids([ref]);
-    self._insert_before(nd, ret_assign);
-    self._insert_before(nd, self._flush_stmt(nd));
+    insert_before(nd, ret_assign);
+    insert_before(nd, self._flush_stmt(nd));
 }
 
 impl DeferSideEffectPass.exit_ability(nd: uni.Ability) -> None {
@@ -130,7 +132,7 @@ impl DeferSideEffectPass.exit_ability(nd: uni.Ability) -> None {
     }
     tail = body[-1];
     if not isinstance(tail, uni.ReturnStmt) {
-        self._append_stmt(nd, self._flush_stmt(nd));
+        append_stmt(nd, self._flush_stmt(nd));
     }
     if has_torch_compile_decorator(nd) {
         self._attach_se_guard(nd);
@@ -297,68 +299,4 @@ impl DeferSideEffectPass._flush_stmt(at: uni.UniNode) -> uni.ExprStmt {
     helper = gen_name(at, '__jac_se_flush__', False);
     call = uni.FuncCall(target=helper, params=[], genai_call=None, kid=[helper]);
     return uni.ExprStmt(expr=call, in_fstring=False, kid=[call]);
-}
-
-impl DeferSideEffectPass._append_stmt(
-    ability: uni.Ability, new_stmt: uni.UniNode
-) -> None {
-    body = ability.body;
-    if (not isinstance(body, list)) or (not body) {
-        return;
-    }
-    last = body[-1];
-    ability.body = list(body) + [new_stmt];
-    if last in ability.kid {
-        j = ability.kid.index(last);
-        ability.set_kids(
-            list(ability.kid[:(j + 1)]) + [new_stmt] + list(ability.kid[(j + 1):])
-        );
-    }
-    new_stmt.parent = ability;
-}
-
-impl DeferSideEffectPass._append_module_stmt(
-    mod: uni.Module, new_stmt: uni.UniNode
-) -> None {
-    holder: any = mod;
-    body = holder?.body;
-    if not isinstance(body, list) {
-        return;
-    }
-    if body {
-        last = body[-1];
-        setattr(holder, 'body', list(body) + [new_stmt]);
-        if last in mod.kid {
-            j = mod.kid.index(last);
-            mod.set_kids(
-                list(mod.kid[:(j + 1)]) + [new_stmt] + list(mod.kid[(j + 1):])
-            );
-        } else {
-            mod.set_kids(list(mod.kid) + [new_stmt]);
-        }
-    } else {
-        setattr(holder, 'body', [new_stmt]);
-        mod.set_kids(list(mod.kid) + [new_stmt]);
-    }
-    new_stmt.parent = mod;
-}
-
-impl DeferSideEffectPass._insert_before(
-    stmt: uni.UniNode, new_stmt: uni.UniNode
-) -> None {
-    parent = stmt.parent;
-    if parent is None {
-        return;
-    }
-    holder: any = parent;
-    body = holder?.body;
-    if isinstance(body, list) and (stmt in body) {
-        i = body.index(stmt);
-        setattr(holder, 'body', body[:i] + [new_stmt] + body[i:]);
-    }
-    if stmt in parent.kid {
-        j = parent.kid.index(stmt);
-        parent.set_kids(list(parent.kid[:j]) + [new_stmt] + list(parent.kid[j:]));
-    }
-    new_stmt.parent = parent;
 }

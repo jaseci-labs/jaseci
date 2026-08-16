@@ -27,17 +27,11 @@ def compiled_region_ids(
     work: list[uni.Ability] = [];
     bounds = prog.graphmend_boundary;
     for m in mods {
-        for arch in m.get_all_sub_nodes(uni.Archetype) {
-            if has_torch_compile_decorator(arch) {
-                ids.add(id(arch));
-                for meth in arch.get_all_sub_nodes(uni.Ability) {
-                    _seed(work, bounds, meth);
-                }
-            }
-        }
-        for ab in m.get_all_sub_nodes(uni.Ability) {
-            if has_torch_compile_decorator(ab) {
-                _seed(work, bounds, ab);
+        for nd in _compile_entry_seeds(m) {
+            if isinstance(nd, uni.Archetype) {
+                ids.add(id(nd));
+            } elif isinstance(nd, uni.Ability) {
+                _seed(work, bounds, nd);
             }
         }
         for fwd in module_entry_forwards(prog, m, seen) {
@@ -89,6 +83,24 @@ def compiled_region_ids(
 def _seed(work: list[uni.Ability], bounds: dict[int, uni.Ability], ab: uni.Ability) {
     bounds[id(ab)] = ab;
     work.append(ab);
+}
+
+def _compile_entry_seeds(mod: uni.Module) -> list[uni.UniNode] {
+    out: list[uni.UniNode] = [];
+    for arch in mod.get_all_sub_nodes(uni.Archetype) {
+        if has_torch_compile_decorator(arch) {
+            out.append(arch);
+            for meth in arch.get_all_sub_nodes(uni.Ability) {
+                out.append(meth);
+            }
+        }
+    }
+    for ab in mod.get_all_sub_nodes(uni.Ability) {
+        if has_torch_compile_decorator(ab) {
+            out.append(ab);
+        }
+    }
+    return out;
 }
 
 def region_context_key(prog: JacProgram, target_path: str) -> str {
@@ -287,15 +299,8 @@ def module_is_seed(prog: JacProgram, mod: uni.Module, seen: set[str]) -> bool {
             return True;
         }
     }
-    for ab in mod.get_all_sub_nodes(uni.Ability) {
-        if has_torch_compile_decorator(ab) {
-            return True;
-        }
-    }
-    for arch in mod.get_all_sub_nodes(uni.Archetype) {
-        if has_torch_compile_decorator(arch) {
-            return True;
-        }
+    if _compile_entry_seeds(mod) {
+        return True;
     }
     return len(module_entry_forwards(prog, mod, seen)) > 0;
 }
@@ -355,14 +360,14 @@ def claim_path(prog: JacProgram, path: str) -> bool {
     if known and (rp in prog.graphmend_claim_walked) {
         return True;
     }
-    mod = load_module_for_claim(prog, rp);
+    mod = _compile_for_facts(prog, rp);
     if mod is None {
         return known;
     }
     return register_claim(prog, mod, set());
 }
 
-def load_module_for_claim(prog: JacProgram, path: str) -> (uni.Module | None) {
+def _compile_for_facts(prog: JacProgram, path: str) -> (uni.Module | None) {
     existing = prog.mod.hub.get(path);
     if existing is not None {
         return existing;
@@ -405,7 +410,7 @@ def _import_paths(imp: uni.Import) -> list[str] {
         _add_resolved(out, from_loc);
         for item in imp.items {
             if isinstance(item, uni.ModuleItem) {
-                _add_resolved_item(out, item);
+                _add_resolved(out, item);
             }
         }
         return out;
@@ -426,17 +431,10 @@ def _denied_path(mp: uni.ModulePath) -> bool {
     return (top in {'torch', 'jaclang'}) or (top in sys.stdlib_module_names);
 }
 
-def _add_resolved(out: list[str], mp: uni.ModulePath) -> None {
+def _add_resolved(out: list[str], src: (uni.ModulePath | uni.ModuleItem)) -> None {
+    resolver: any = src;
     try {
-        _keep(out, mp.resolve_relative_path());
-    } except Exception {
-        return;
-    }
-}
-
-def _add_resolved_item(out: list[str], item: uni.ModuleItem) -> None {
-    try {
-        _keep(out, item.resolve_relative_path());
+        _keep(out, resolver.resolve_relative_path());
     } except Exception {
         return;
     }
@@ -537,6 +535,20 @@ def param_names(fn: uni.Ability) -> list[str] {
         }
     }
     return out;
+}
+
+def param_annotation(fn: uni.Ability, name: str) -> (uni.Expr | None) {
+    sig = fn.signature;
+    if not isinstance(sig, uni.FuncSignature) {
+        return None;
+    }
+    for p in (sig.get_parameters() or []) {
+        if (p?.name is None) or (p.name.value != name) {
+            continue;
+        }
+        return p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
+    }
+    return None;
 }
 
 def _wrapper_closures(deco: uni.Ability) -> list[uni.Ability] {
@@ -705,11 +717,7 @@ def find_ability(
         return found;
     }
     for imp in mod.get_all_sub_nodes(uni.Import) {
-        if imp.from_loc is None {
-            continue;
-        }
-        top = imp.from_loc.dot_path_str.lstrip('.').split('.')[0];
-        if (top in {'torch', 'jaclang'}) or (top in sys.stdlib_module_names) {
+        if (imp.from_loc is None) or _denied_path(imp.from_loc) {
             continue;
         }
         target = _import_target(imp, name);
@@ -786,18 +794,7 @@ def materialize_module(
         return prog.mod.hub.get(path);
     }
     seen.add(path);
-    existing = prog.mod.hub.get(path);
-    if existing is not None {
-        return existing;
-    }
-    _saved_opts = prog._compile_options;
-    try {
-        return prog.compile(file_path=path, no_cgen=True, type_check=False);
-    } except Exception {
-        return None;
-    } finally {
-        prog._compile_options = _saved_opts;
-    }
+    return _compile_for_facts(prog, path);
 }
 
 def module_imports_plain(mod: uni.Module, name: str) -> bool {
@@ -881,29 +878,16 @@ def attr_annotation(arch: uni.Archetype, attr: str) -> (str | None) {
     if ctor is None {
         return None;
     }
-    params: dict[str, str] = {};
-    sig = ctor.signature;
-    if isinstance(sig, uni.FuncSignature) {
-        for p in (sig.get_parameters() or []) {
-            if p?.name is None {
-                continue;
-            }
-            ann = p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
-            if isinstance(ann, uni.Name) {
-                params[p.name.value] = ann.value;
-            }
-        }
-    }
-    if not params {
-        return None;
-    }
     for a in ctor.get_all_sub_nodes(uni.Assignment) {
         if (len(a.target) != 1) or (not isinstance(a.value, uni.Name)) {
             continue;
         }
-        t = a.target[0];
-        if (self_attr_name(t) == attr) and (a.value.value in params) {
-            return params[a.value.value];
+        if self_attr_name(a.target[0]) != attr {
+            continue;
+        }
+        ann = param_annotation(ctor, a.value.value);
+        if isinstance(ann, uni.Name) {
+            return ann.value;
         }
     }
     return None;

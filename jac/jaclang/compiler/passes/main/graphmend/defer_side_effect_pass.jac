@@ -55,7 +55,4 @@ obj DeferSideEffectPass(UniPass) {
     def _clone_guard(at: uni.UniNode, tmp: str) -> uni.IfElseExpr;
     def _buffer_append(at: uni.UniNode, ent: uni.TupleVal) -> uni.FuncCall;
     def _flush_stmt(at: uni.UniNode) -> uni.ExprStmt;
-    def _append_stmt(ability: uni.Ability, new_stmt: uni.UniNode) -> None;
-    def _append_module_stmt(mod: uni.Module, new_stmt: uni.UniNode) -> None;
-    def _insert_before(stmt: uni.UniNode, new_stmt: uni.UniNode) -> None;
 }

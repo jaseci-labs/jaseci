@@ -8,6 +8,7 @@ import from jaclang.compiler.passes.main.graphmend.scope_facts {
     find_class,
     lexical_ability,
     module_imports_plain,
+    param_annotation,
     param_names,
     self_attr_name,
     wrapping_classes
@@ -380,20 +381,10 @@ impl PredicateCtrlFlowPass._arg_classes(
         if site is None {
             return [];
         }
-        sig = site.signature;
-        if not isinstance(sig, uni.FuncSignature) {
-            return [];
-        }
-        for p in (sig.get_parameters() or []) {
-            if (p?.name is None) or (p.name.value != arg.value) {
-                continue;
-            }
-            ann = p.type_tag.tag if isinstance(p.type_tag, uni.SubTag) else p.type_tag;
-            if isinstance(ann, uni.Name) {
-                cls = find_class(mod, ann.value, self.prog, self._mat_seen);
-                return [cls] if (cls is not None) else [];
-            }
-            return [];
+        ann = param_annotation(site, arg.value);
+        if isinstance(ann, uni.Name) {
+            cls = find_class(mod, ann.value, self.prog, self._mat_seen);
+            return [cls] if (cls is not None) else [];
         }
         return [];
     }

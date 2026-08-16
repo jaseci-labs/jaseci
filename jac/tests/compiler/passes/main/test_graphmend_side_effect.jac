@@ -13,6 +13,12 @@ import from jaclang.jac0core.jaclib {
     __jac_se_emit__,
     __jac_se_region_open__
 }
+import jaclang.jac0core.unitree as uni;
+import from jaclang.compiler.passes.main.graphmend.ast_edit {
+    append_stmt,
+    gen_name,
+    insert_before
+}
 
 glob _LOG_SEEN: list = [];
 
@@ -283,6 +289,50 @@ test "a nested region exit leaves the enclosing region's buffers intact" {
     assert _NESTED_SEEN == ["outer-se", "outer-log"] , (
         f"entries replayed twice: {_NESTED_SEEN}"
     );
+}
+
+glob GLOB_TAIL_SRC = "import torch;\n\nglob m = torch.relu;\n";
+
+"""Compile a .jac source string and return its module node."""
+def _compile_mod(src: str) -> uni.Module {
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.jac0core.program { JacProgram }
+    with tempfile.TemporaryDirectory() as tmp {
+        path = os.path.join(tmp, "glob_mod.jac");
+        with open(path, "w") as fh {
+            fh.write(src);
+        }
+        return JacProgram().compile(
+            file_path=path, options=CompileOptions(type_check=False)
+        );
+    }
+}
+
+test "insert_before climbs out of a module-level glob to the module body" {
+    # The anchor assignment lives in a GlobalVars, whose assignments list has
+    # no statement slot; the insert must land on the module body before the
+    # glob statement, not be dropped.
+    mod = _compile_mod(GLOB_TAIL_SRC);
+    gv = mod.get_all_sub_nodes(uni.GlobalVars)[0];
+    anchor = gv.assignments[0];
+    nm = gen_name(anchor, "__gm_probe__", False);
+    stmt = uni.ExprStmt(expr=nm, in_fstring=False, kid=[nm]);
+    assert insert_before(anchor, stmt);
+    assert stmt in mod.body;
+    assert mod.body.index(stmt) == mod.body.index(gv) - 1;
+    assert mod.kid.index(stmt) == mod.kid.index(gv) - 1;
+    assert stmt.parent is mod;
+}
+
+test "append_stmt lands after a trailing module-level glob" {
+    mod = _compile_mod(GLOB_TAIL_SRC);
+    gv = mod.get_all_sub_nodes(uni.GlobalVars)[0];
+    nm = gen_name(gv, "__gm_probe__", False);
+    stmt = uni.ExprStmt(expr=nm, in_fstring=False, kid=[nm]);
+    assert append_stmt(mod, stmt);
+    assert mod.body[-1] is stmt;
+    assert mod.kid.index(stmt) == mod.kid.index(gv) + 1;
+    assert stmt.parent is mod;
 }
 
 test "a jac glob call-site wrap gets the forward hook registrations" {
