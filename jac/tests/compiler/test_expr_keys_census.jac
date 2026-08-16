@@ -1,4 +1,4 @@
-"""The narrowing-key walk that CFGBuildPass calls is native-clean (#8201).
+"""The narrowing-key walk CFGBuildPass calls is native-clean (#8201).
 
 `collect_narrowing_symbols` and `collect_assigned_symbols` used to live in
 `jaclang/compiler/symbol_utils.jac`, which imports the Python-side compiler
@@ -9,23 +9,24 @@ live, unwaivable call into a Python-only module. The bodies now live in
 `constant`; `symbol_utils` re-exports them so its other consumers are
 unchanged.
 
-Two things are pinned here, the same discipline the wave census tests keep:
+The measurement is one census, asserted three ways. `expr_keys` has to
+compile natively, produce IR and carry zero seams -- a zero-seam census
+without IR would mean "not reached", not "clean" -- and no seam of
+`cfg_build_pass` may name either function, because the reason string is
+what a sealed build turns into an `abort()` stub.
 
-  1. `expr_keys` compiles natively, produces IR and has zero seams. A
-     zero-seam census without IR would mean "not reached", not "clean", so
-     both halves are asserted. If someone adds a Python-side import to
-     `expr_keys`, this fails before CFGBuildPass silently grows the family
-     back.
-  2. No seam of `cfg_build_pass` names either function. The census is the
-     measurement that matters: the reason string is what a sealed build
-     would turn into an `abort()` stub.
+The residue is left honest rather than asserted away. `cfg_build_pass`
+still carries four own seams: `_find_next_cfg_stmt_after` reads
+`parent?.body` on a base-typed `UniNode` (no common base declares `body`,
+so the backend has no static offset), and `CoalesceBBPass.enter_node`,
+`CoalesceBBPass._node_label` and `cfg_dot_from_file` are the dot-graph
+tooling family, reachable only from `jac tool` through `lang_tools`.
 
-The residue is left honest rather than asserted away. `cfg_build_pass` still
-carries four own seams: `_find_next_cfg_stmt_after` reads `parent?.body` on a
-base-typed `UniNode` (no common base declares `body`, so the backend has no
-static offset), and `CoalesceBBPass.enter_node`, `CoalesceBBPass._node_label`
-and `cfg_dot_from_file` are the dot-graph tooling family, reachable only from
-`jac tool` through `lang_tools`.
+One census, one test, deliberately. Each native root compile holds the
+whole closure's IR, and `jac test` spreads tests across xdist workers with
+no shared memo, so a file of N tests over one root is N full compiles in up
+to N workers. The compiler suite runs on a 16GB runner that already loses
+communication when this accumulates.
 """
 
 import pytest;
@@ -41,23 +42,13 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      KEYS_MOD: str = "compiler/expr_keys.jac",
      HOISTED: tuple = ("collect_narrowing_symbols", "collect_assigned_symbols");
 
-glob _CENSUS_MEMO: dict[(str, tuple)] = {};
-
-"""A root's dotted module name, for the sealed-runtime skip gate."""
-def _root_module_name(rel: str) -> str {
-    return "jaclang." + rel[:-4].replace("/", ".");
-}
-
 """Compile one root the way seal_native_artifacts does, up to the census."""
 def _root_census(rel: str) -> tuple {
-    if native_artifact_for(_root_module_name(rel)) is not None {
+    if native_artifact_for("jaclang." + rel[:-4].replace("/", ".")) is not None {
         pytest.skip(
             f"{rel} is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );
-    }
-    if rel in _CENSUS_MEMO {
-        return _CENSUS_MEMO[rel];
     }
     prog = JacProgram();
     na_census_begin();
@@ -78,14 +69,11 @@ def _root_census(rel: str) -> tuple {
     }
     has_ir = ir is not None and ir.gen.llvm_ir is not None;
     errors = [str(e) for e in prog.errors_had];
-    result = (census, has_ir, errors, );
-    _CENSUS_MEMO[rel] = result;
-    return result;
+    return (census, has_ir, errors, );
 }
 
 """The census record for one package-relative module in a root's closure."""
-def _record_for(rel: str, member: str) -> (dict | None) {
-    (census, _has_ir, _errors) = _root_census(rel);
+def _record_for(census: dict, member: str) -> (dict | None) {
     for (path, rec) in census.items() {
         where = Path(path).resolve().relative_to(PKG_PATH.resolve()).as_posix();
         if where == member {
@@ -96,40 +84,32 @@ def _record_for(rel: str, member: str) -> (dict | None) {
 }
 
 
-test "the cfg root compiles clean and produces native IR" {
-    (_census, has_ir, errors) = _root_census(CFG_ROOT);
+test "the hoisted narrowing walk lowers, and no cfg seam names it" {
+    (census, has_ir, errors) = _root_census(CFG_ROOT);
     assert not errors , (
         f"{CFG_ROOT} compile errors (a census below would be 'not reached', "
         f"not 'clean'): {errors[:5]}"
     );
-    assert has_ir , (
-        f"no LLVM IR for {CFG_ROOT} -- the compile aborted before codegen"
-    );
-}
+    assert has_ir , f"no LLVM IR for {CFG_ROOT}: the compile aborted before codegen";
 
-
-test "expr_keys joins the cfg closure and lowers with no seams" {
-    rec = _record_for(CFG_ROOT, KEYS_MOD);
-    assert rec is not None , (
+    keys = _record_for(census, KEYS_MOD);
+    assert keys is not None , (
         f"{KEYS_MOD} is not in {CFG_ROOT}'s native closure; CFGBuildPass no "
         "longer reaches the hoisted narrowing walk, or it reaches it through "
         "a module that does not lower"
     );
-    assert rec["outcome"] == "native" , (
-        f"{KEYS_MOD} did not lower natively: [{rec['code']}] {rec['detail']}"
+    assert keys["outcome"] == "native" , (
+        f"{KEYS_MOD} did not lower natively: [{keys['code']}] {keys['detail']}"
     );
-    seams = rec["seams"] or [];
-    assert not seams , (
-        f"{KEYS_MOD} grew native seams, so CFGBuildPass would demote again: " f"{seams}"
+    assert not (keys["seams"] or []) , (
+        f"{KEYS_MOD} grew native seams, so CFGBuildPass would demote again: "
+        f"{keys['seams']}"
     );
-}
 
-
-test "no cfg seam names the hoisted narrowing walk" {
-    rec = _record_for(CFG_ROOT, CFG_ROOT);
-    assert rec is not None , f"{CFG_ROOT} is missing from its own census";
+    cfg = _record_for(census, CFG_ROOT);
+    assert cfg is not None , f"{CFG_ROOT} is missing from its own census";
     offenders: list[str] = [];
-    for seam in (rec["seams"] or []) {
+    for seam in (cfg["seams"] or []) {
         for name in HOISTED {
             if name in str(seam) {
                 offenders.append(str(seam));

@@ -17,7 +17,7 @@ inferred type arguments a type-erased generic archetype cannot carry (the
 defaults moved to the read sites, which is what CPython's `ContextVar.get`
 means anyway).
 
-What this test pins is the measured result: `codeinfo` produces IR and every
+What this pins is the measured result: `codeinfo` produces IR and every
 remaining refusal is a per-callable seam, so the module ships. Each seam is
 filesystem, config or Python-codegen machinery, none of it the data model.
 
@@ -35,6 +35,10 @@ producing IR, and `unitree` is a member of every sealed closure there is.
 That is wave work, and `test_unitree_seal_census.jac` is the guard that
 catches it. This change is deliberately closure-neutral for every sealed
 root.
+
+One census, one test, deliberately: see the note in
+`test_expr_keys_census.jac` on what a file of N tests over one root costs
+the 16GB compiler-suite runner.
 """
 
 import pytest;
@@ -76,8 +80,6 @@ glob CODEINFO_SEAMS: tuple = (
          "resolve_native_module"
      );
 
-glob _CENSUS_MEMO: dict[(str, tuple)] = {};
-
 """Compile one root the way seal_native_artifacts does, up to the census."""
 def _root_census(rel: str) -> tuple {
     if native_artifact_for("jaclang." + rel[:-4].replace("/", ".")) is not None {
@@ -85,9 +87,6 @@ def _root_census(rel: str) -> tuple {
             f"{rel} is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );
-    }
-    if rel in _CENSUS_MEMO {
-        return _CENSUS_MEMO[rel];
     }
     prog = JacProgram();
     na_census_begin();
@@ -108,9 +107,7 @@ def _root_census(rel: str) -> tuple {
     }
     has_ir = ir is not None and ir.gen.llvm_ir is not None;
     errors = [str(e) for e in prog.errors_had];
-    result = (census, has_ir, errors, );
-    _CENSUS_MEMO[rel] = result;
-    return result;
+    return (census, has_ir, errors, );
 }
 
 """The seam names one closure member reported, sorted."""
@@ -130,8 +127,8 @@ def _seam_names(census: dict, member: str) -> tuple {
 }
 
 
-test "codeinfo compiles clean and produces native IR" {
-    (_census, has_ir, errors) = _root_census(CODEINFO);
+test "codeinfo produces native IR, and every refusal left is a seam" {
+    (census, has_ir, errors) = _root_census(CODEINFO);
     assert not errors , (
         "codeinfo must reach the backend with nothing fatal left; a "
         f"module-scope refusal hides every other one: {errors[:5]}"
@@ -140,36 +137,24 @@ test "codeinfo compiles clean and produces native IR" {
         "no LLVM IR for codeinfo -- the compile aborted before codegen, so "
         "a zero-error census would mean 'not reached', not 'clean'"
     );
-}
 
-
-test "codeinfo's native closure is exactly the measured set" {
-    (census, _has_ir, _errors) = _root_census(CODEINFO);
-    seen = tuple(
+    seen_closure = tuple(
         sorted(
             Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in census
         )
     );
-    assert seen == CODEINFO_CLOSURE , (
-        f"codeinfo's native closure changed: {seen} != {CODEINFO_CLOSURE}"
+    assert seen_closure == CODEINFO_CLOSURE , (
+        f"codeinfo's native closure changed: {seen_closure} != {CODEINFO_CLOSURE}"
     );
-}
 
-
-test "every codeinfo refusal is a per-callable seam, and only these" {
-    (census, _has_ir, _errors) = _root_census(CODEINFO);
-    seen = _seam_names(census, CODEINFO);
-    assert seen == CODEINFO_SEAMS , (
+    seen_seams = _seam_names(census, CODEINFO);
+    assert seen_seams == CODEINFO_SEAMS , (
         "codeinfo's seam set moved. A new name means the data model grew a "
         "refusal the backend cannot lower; a missing one means a seam "
-        f"cleared and this table should shrink: {seen} != {CODEINFO_SEAMS}"
+        f"cleared and this table should shrink: {seen_seams} != {CODEINFO_SEAMS}"
     );
-}
 
-
-test "no codeinfo refusal names the declaration-site field marker" {
-    (census, _has_ir, errors) = _root_census(CODEINFO);
-    for text in [*errors, *_seam_names(census, CODEINFO)] {
+    for text in [*errors, *seen_seams] {
         assert "dataclasses" not in text , (
             "`dataclasses.field` is a compile-time declaration the has-field "
             f"default consumes; nothing may refuse it again: {text}"
