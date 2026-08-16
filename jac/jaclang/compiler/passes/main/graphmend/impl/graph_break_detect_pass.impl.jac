@@ -1,7 +1,6 @@
 import jaclang.jac0core.unitree as uni;
-import from jaclang.jac0core.codeinfo { current_graphmend_facts }
 import from jaclang.jac0core.constant { GraphBreakKind }
-import from jaclang.compiler.passes.main.graphmend.ast_edit { split_params }
+import from jaclang.compiler.passes.main.graphmend.ast_edit { facts_for, split_params }
 import from jaclang.compiler.passes.main.graphmend.scope_facts {
     body_is_only,
     compiled_region_ids,
@@ -70,12 +69,7 @@ impl GraphBreakDetectPass.before_pass -> None {
 }
 
 impl GraphBreakDetectPass._record_noop(local: bool) -> None {
-    path = self.ir_in.loc.mod_path;
-    if (not local) and (not self._saw_compile_call) {
-        current_graphmend_facts().noop_mods.add(path);
-    } else {
-        current_graphmend_facts().noop_mods.discard(path);
-    }
+    facts_for(self.ir_in).noop = (not local) and (not self._saw_compile_call);
 }
 
 impl GraphBreakDetectPass.enter_ability(nd: uni.Ability) -> None {
@@ -222,7 +216,7 @@ impl GraphBreakDetectPass.enter_func_call(nd: uni.FuncCall) -> None {
         } elif name != 'print' {
             return;
         }
-        current_graphmend_facts().breaks[nd] = GraphBreakKind.SIDE_EFFECT;
+        facts_for(nd).breaks[nd] = GraphBreakKind.SIDE_EFFECT;
     }
 }
 
@@ -294,8 +288,8 @@ impl GraphBreakDetectPass.enter_if_stmt(nd: uni.IfStmt) -> None {
         return;
     }
     if body_is_only(nd.body, uni.RaiseStmt) {
-        current_graphmend_facts().breaks[nd] = GraphBreakKind.VAL_GUARD;
+        facts_for(nd).breaks[nd] = GraphBreakKind.VAL_GUARD;
     } else {
-        current_graphmend_facts().breaks[nd] = GraphBreakKind.DYN_CTRL_FL;
+        facts_for(nd).breaks[nd] = GraphBreakKind.DYN_CTRL_FL;
     }
 }
