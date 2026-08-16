@@ -286,25 +286,33 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/unitree.jac",
          "jac0core/passes/annex_pass.jac",
+         "jac0core/passes/ast_validation_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/semantic_analysis_pass.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac",
+         "compiler/passes/main/sem_def_match_pass.jac",
          "compiler/native_materialize.jac",
 
      ),
      NATIVE_SEAL_CLOSURE: tuple = (
          "jac0core/constant.jac",
+         "jac0core/diagnostics.jac",
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
          "jac0core/parser/tokens.jac",
          "jac0core/passes/annex_pass.jac",
          "jac0core/passes/annex_weave.jac",
+         "jac0core/passes/ast_validation_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/semantic_analysis_pass.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "compiler/native_materialize.jac",
+         "compiler/passes/main/sem_def_match_pass.jac",
+         "runtimelib/na_stdlib/keyword.jac",
 
      );
 
@@ -340,6 +348,10 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
 
      ),
+     _SEMANTIC_ANALYSIS_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/semantic_analysis_pass.jac::SemanticAnalysisPass.enter_has_var",
+
+     ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
          "compiler/native_materialize.jac": _UNITREE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _UNITREE_SEAM_WAIVERS,
@@ -352,7 +364,12 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          ),
          "jac0core/passes/endpoint_effect_pass.jac": (
              _UNITREE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
-         )
+         ),
+         "jac0core/passes/ast_validation_pass.jac": _UNITREE_SEAM_WAIVERS,
+         "jac0core/passes/semantic_analysis_pass.jac": (
+             _UNITREE_SEAM_WAIVERS + _SEMANTIC_ANALYSIS_SEAM_WAIVERS
+         ),
+         "compiler/passes/main/sem_def_match_pass.jac": _UNITREE_SEAM_WAIVERS
      };
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {

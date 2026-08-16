@@ -192,7 +192,11 @@ impl SymTabBuildPass._exit_import_absorb(self: SymTabBuildPass, nd: Import) -> N
     if (sym_table_to_update is None) {
         return;
     }
-    import_all_module_path_node: ModulePath = nd.items[0];
+    first_item = nd.items[0];
+    if not isinstance(first_item, ModulePath) {
+        return;
+    }
+    import_all_module_path_node: ModulePath = first_item;
     module: (Module | None) = nd.absorbed_mod;
     if (module is None) {
         return;
@@ -622,10 +626,12 @@ impl SymTabBuildPass.exit_switch_case(self: SymTabBuildPass, nd: SwitchCase) -> 
 
 impl find_python_scope_node_of(nd: UniNode) -> (UniScopeNode | None) {
     while nd.parent {
-        if UniScopeNode.is_python_scoping(nd.parent) {
-            return nd.parent;
+        scope_parent = nd.parent;
+        if isinstance(scope_parent, UniScopeNode)
+            and UniScopeNode.is_python_scoping(scope_parent) {
+            return scope_parent;
         }
-        nd = nd.parent;
+        nd = scope_parent;
     }
     return None;
 }

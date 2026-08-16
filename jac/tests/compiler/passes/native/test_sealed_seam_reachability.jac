@@ -80,7 +80,26 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
          "jac0core/passes/uni_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac"
      ),
-     SEM_DEF_ROOT = "compiler/passes/main/sem_def_match_pass.jac",
+     WAVE2_ROOTS: tuple = (
+         "jac0core/passes/ast_validation_pass.jac",
+         "jac0core/passes/semantic_analysis_pass.jac",
+         "compiler/passes/main/sem_def_match_pass.jac"
+     ),
+     SYM_TAB_ROOT = "jac0core/passes/sym_tab_build_pass.jac",
+     # Documented carve-outs of the receiver-blind accessor rule: `x.a` adds
+     # every class's `a` accessor, so a live read of a polymorphic slot flags
+     # implementors the receiver's DECLARED type can never be. Each entry
+     # argues one such slot for one root; anything reachable outside its
+     # entry still fails. sem_def's `semdef.value` is typed MultiString and
+     # parser-built, so the only lit_value a semdef can dispatch is the
+     # (now live) MultiString decoder; the two entries below decode values
+     # (a `type` object, `...`) that a MultiString can never hold.
+     ACCESSOR_ARGUED: dict[(str, tuple)] = {
+         "compiler/passes/main/sem_def_match_pass.jac": (
+             "BuiltinType.lit_value.__get__",
+             "Ellipsis.lit_value.__get__"
+         )
+     },
      _CLOSURE_MEMO: list = [],
      _PASS_MEMO: dict[(str, tuple)] = {};
 
@@ -466,24 +485,83 @@ test "wave-1 roots: no waived seam is native-reachable from the live surface" {
 }
 
 
-test "sem_def_match stays out of the seal while lit_value cannot lower" {
-    # The stop-the-line finding of wave 1, pinned so it self-clears:
-    # `connect_sems` reads `semdef.value.lit_value` through the vtable, and
-    # the String/MultiString decoders are eval-bound Python-only seams that
-    # ship as abort stubs in any artifact that links unitree. A sealed
-    # sem_def would abort on the first real semdef, so the root is refused,
-    # not waived. When literal decoding lowers natively this walk stops
-    # reaching a waived name and this test fails, which is the signal to add
-    # the root to NATIVE_SEAL_ROOTS.
-    assert SEM_DEF_ROOT not in NATIVE_SEAL_ROOTS , (
-        "sem_def_match_pass joined NATIVE_SEAL_ROOTS while its live "
-        "connect_sems still reaches the eval-bound lit_value stubs"
+test "wave-2 roots: each walk reaches the pass's own machinery" {
+    for (rel, needed) in (
+        (
+            "jac0core/passes/ast_validation_pass.jac",
+            ("ASTValidationPass._returns_jsx", "AstSymbolNode.sym_name.__get__")
+        ),
+        (
+            "jac0core/passes/semantic_analysis_pass.jac",
+            ("SemanticAnalysisPass._check_archetype", "Archetype.get_methods")
+        ),
+        (
+            "compiler/passes/main/sem_def_match_pass.jac",
+            ("SemDefMatchPass.resolve_sem_target", "UniScopeNode.lookup")
+        )
+    ) {
+        (seen, _waived) = pass_reachable(rel);
+        for name in needed {
+            assert name in seen , (
+                f"{rel}: '{name}' is missing from the reachable set -- the "
+                "walk found nothing there, so a clean waiver verdict would "
+                "be vacuous"
+            );
+        }
+    }
+}
+
+
+test "wave-2 roots: no waived seam is native-reachable beyond the argued slots" {
+    for rel in WAVE2_ROOTS {
+        (seen, waived) = pass_reachable(rel);
+        argued = set(ACCESSOR_ARGUED.get(rel, ()));
+        hit = sorted(
+            name
+            for name in waived
+            if name in seen and name not in argued
+        );
+        assert not hit , (
+            f"{rel}: {len(hit)} waived seam(s) are reachable through native "
+            "calls from the root's live entry surface, so the sealed artifact "
+            "can abort at runtime -- remove the waiver and fix the seam:\n"
+            + "\n".join(f"  {name}" for name in hit)
+        );
+        stale_argued = sorted(
+            name
+            for name in argued
+            if name not in seen or name not in waived
+        );
+        assert not stale_argued , (
+            f"{rel}: argued carve-out entries that the walk no longer flags "
+            f"(or that stopped being waived) -- drop them: {stale_argued}"
+        );
+    }
+}
+
+
+test "sym_tab_build stays out of the seal while import detection probes" {
+    # Wave 2's stop-the-line finding, pinned so it self-clears: live
+    # exit_module_path reads Import.is_jac, whose implementation chains
+    # into __jac_detected and ModulePath.resolve_relative_path, the waived
+    # filesystem import-resolution family. A sealed sym_tab_build would
+    # abort on the first plain import. The root seals when import
+    # detection becomes driver-stamped data on the Import node (the #8242
+    # absorbed_mod pattern); when this walk stops reaching those waived
+    # names, this test fails, which is the signal to add the root to
+    # NATIVE_SEAL_ROOTS and extend the wave census.
+    assert SYM_TAB_ROOT not in NATIVE_SEAL_ROOTS , (
+        "sym_tab_build_pass joined NATIVE_SEAL_ROOTS while its live "
+        "exit_module_path still reaches the import-resolution stubs"
     );
-    (seen, _waived) = pass_reachable(SEM_DEF_ROOT);
-    for needed in ("SemDefMatchPass.resolve_sem_target", "UniScopeNode.lookup") {
+    (seen, _waived) = pass_reachable(SYM_TAB_ROOT);
+    for needed in (
+        "SymTabBuildPass._bind_import_path_symbols",
+        "UniScopeNode.def_insert"
+    ) {
         assert needed in seen , (
             f"'{needed}' is missing from the reachable set -- the walk found "
-            "nothing, so the lit_value verdict below would be vacuous"
+            "nothing, so the import-resolution verdict below would be vacuous"
         );
     }
     hit = sorted(
@@ -491,10 +569,10 @@ test "sem_def_match stays out of the seal while lit_value cannot lower" {
         for name in _waived_names()
         if name in seen
     );
-    assert "String.lit_value.__get__" in hit , (
-        "sem_def_match's live surface no longer reaches "
-        "String.lit_value.__get__ -- literal decoding lowers now, so the "
+    assert "ModulePath.resolve_relative_path" in hit , (
+        "sym_tab_build's live surface no longer reaches the "
+        "import-resolution stubs -- import detection is data now, so the "
         "refusal is stale: add the root to NATIVE_SEAL_ROOTS, give it a "
-        "waiver table, and extend test_pass_seal_wave1_census.jac"
+        "waiver table, and extend test_pass_seal_wave2_census.jac"
     );
 }
