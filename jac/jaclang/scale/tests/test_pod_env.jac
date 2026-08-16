@@ -4,7 +4,8 @@ import unittest.mock as mock;
 import from pathlib { Path }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     ManifestBuilder,
-    GATEWAY_NAME
+    GATEWAY_NAME,
+    CONFIG_HASH_ANNOTATION
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -100,6 +101,49 @@ test "every generated deployment rolls with surge, never delete-and-recreate" {
         assert strategy["type"] == "RollingUpdate";
         assert strategy["rollingUpdate"] == {"maxSurge": 1, "maxUnavailable": 0};
     }
+}
+
+
+# Config-only deploys. Secret sections are stripped from the bundle so they
+# never reach the content digest, and the Secret is referenced by a constant
+# name, so without a hash on the pod template a changed value produced a byte
+# identical template: the patch was a no-op, no rollout happened, and running
+# pods kept serving the old value while the deploy reported success.
+def _config_annotations(secrets: dict[str, str]) -> dict[str, str] {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg, secrets=secrets);
+    manifest = builder._build_deployment_manifest("jac-shop", {});
+    return manifest["spec"]["template"]["metadata"]["annotations"];
+}
+
+
+test "a changed secret changes the pod template" {
+    before = _config_annotations({"MARKER": "v1"});
+    after = _config_annotations({"MARKER": "v2"});
+
+    assert before[CONFIG_HASH_ANNOTATION] != after[CONFIG_HASH_ANNOTATION] , (
+        "a config-only change left the pod template identical, so the patch "
+        "is a no-op and running pods keep the old value"
+    );
+}
+
+
+# Key order must not matter, or an unrelated redeploy would roll every pod.
+test "an unchanged secret leaves the pod template untouched" {
+    first = _config_annotations({"MARKER": "v1", "OTHER": "x"});
+    second = _config_annotations({"OTHER": "x", "MARKER": "v1"});
+
+    assert first == second;
+}
+
+
+test "the config hash never carries a secret value" {
+    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+    builder = ManifestBuilder(k8s_config=cfg, secrets={"API_KEY": "sk-not-in-here"});
+
+    rendered = json.dumps(builder._build_deployment_manifest("jac-shop", {}));
+
+    assert "sk-not-in-here" not in rendered , "the pod template leaked a secret";
 }
 
 

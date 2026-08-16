@@ -2,7 +2,8 @@ import os;
 import from pathlib { Path }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     ManifestBuilder,
-    merge_manifest_overlay
+    merge_manifest_overlay,
+    CONFIG_HASH_ANNOTATION
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -128,6 +129,38 @@ test "build_behavior overlay policies list replaces wholesale, not merged by ite
     assert result["scaleDown"]["policies"][0]["value"] == 1;
     assert result["scaleDown"]["policies"][1]["value"] == 10;
 }
+
+# The overlay is user-supplied, so it must not be able to drop the config hash.
+# Suppressing it would silently restore the config-only no-op the annotation
+# fixes, in the one place a user is most likely to set annotations.
+test "a template annotation overlay cannot drop the config hash" {
+    builder = ManifestBuilder(
+        k8s_config=KubernetesConfig(app_name="t", namespace="t-ns"),
+        secrets={"MARKER": "v1"},
+        microservices_config={
+            "services": {
+                "billing_ops": {
+                    "deployment_overlay": {
+                        "spec": {
+                            "template": {"metadata": {"annotations": {"team": "ops"}}}
+                        }
+                    }
+                }
+            }
+        },
+        dry_run=True
+    );
+
+    manifest = builder._build_deployment_manifest("billing_ops", {});
+    annotations = manifest["spec"]["template"]["metadata"]["annotations"];
+
+    assert annotations.get("team") == "ops" , "the overlay annotation was lost";
+    assert CONFIG_HASH_ANNOTATION in annotations , (
+        "the overlay dropped the config hash, so config-only deploys go back to "
+        "being a no-op"
+    );
+}
+
 
 test "deployment manifest applies the service overlay on the first build" {
     b = _builder(
