@@ -696,10 +696,19 @@ jobs:
         chmod +x "$PWD/jac/zig-out/bin/jac"
         echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
-    - name: Run Solid jsdom runtime test
+    - name: Run jsdom runtime tests
+      # Every suite here skips itself unless JAC_CLIENT_INTEGRATION is set, so
+      # this step is the ONLY place they actually execute -- the ungated
+      # `jac test tests/` lane collects them and skips. A jsdom suite not named
+      # here is a suite that never runs.
       env:
         JAC_CLIENT_INTEGRATION: "1"
-      run: jac test jac/tests/runtimelib/test_solid_jsdom.jac -x
+      run: |
+        jac test \
+          jac/tests/runtimelib/test_solid_jsdom.jac \
+          jac/tests/runtimelib/test_react_state_semantics.jac \
+          jac/tests/runtimelib/test_react_auth_jsdom.jac \
+          -x
 
     - name: Run dependency-free desktop tests
       run: jac test jac/tests/runtimelib/client/test_desktop_binding.jac
