@@ -34,7 +34,7 @@ def _build(header_src: str, app_src: str) -> tuple {
     with open(os.path.join(d, "hdr.h"), "w") as f {
         f.write(header_src);
     }
-    app_path = os.path.join(d, "app.na.jac");
+    app_path = os.path.join(d, "app.jac");
     with open(app_path, "w") as f {
         f.write(app_src);
     }
@@ -85,7 +85,8 @@ test "a clib header binding drives a real extern call through the JIT" {
         return;
     }
     hdr = "double sqrt(double x);\n";
-    app = f'import from clib("{libm}", header="hdr.h") {{ sqrt }}\n' + "\ndef:pub call_sqrt(x: f64) -> f64 {\n    return sqrt(x);\n}\n\nwith entry {}\n";
+    app = f'import from clib("{libm}", header="hdr.h") {{ sqrt }}\n'
+        + "\ndef:pub call_sqrt(x: f64) -> f64 {\n    return sqrt(x);\n}\n\nwith entry {}\n";
     (prog, ir) = _build(hdr, app);
     assert not prog.errors_had , f"errors: {[str(e) for e in prog.errors_had]}";
     eng = ir.gen.native_engine;
@@ -110,7 +111,7 @@ test "a bound header is a cache dependency, so editing it flips the module key" 
     with open(sub_path, "w") as f {
         f.write("int a;\n");
     }
-    app_path = os.path.join(d, "app.na.jac");
+    app_path = os.path.join(d, "app.jac");
     with open(app_path, "w") as f {
         f.write('import from clib("m", header="hdr.h") { sqrt }\n');
     }
@@ -157,7 +158,7 @@ test "the compact clib(...) form round-trips through unparse" {
     with open(os.path.join(d, "hdr.h"), "w") as f {
         f.write(hdr);
     }
-    p2 = os.path.join(d, "rt.na.jac");
+    p2 = os.path.join(d, "rt.jac");
     with open(p2, "w") as f {
         f.write(out);
     }

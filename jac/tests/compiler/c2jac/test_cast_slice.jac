@@ -125,15 +125,52 @@ test "ptr_idioms.c folds malloc-array/realloc/deref/address-of" {
     assert res.diags == [] , f"expected no diags, got {res.diags}";
 }
 
+test "for_ptr_idiom.c elides realloc on pointer params inside loops" {
+    src = _read("for_ptr_idiom.c");
+    res = lift_c_str(src, "for_ptr_idiom.c");
+    out = res.module.unparse(requires_format=True);
+    assert "def sum_then_free(n: int, p: object) -> int {" in out , out;
+    assert "s += p[i];" in out;
+    assert "def grow_in_loop(n: int, arr: object) -> int {" in out;
+    assert "arr = arr;" in out;
+    assert "s += arr[i];" in out;
+    assert "__c_unsupported__(" not in out;
+    assert res.diags == [] , f"expected no diags, got {res.diags}";
+}
+
+test "edge_cases.c lifts goto_test and pointer_arithmetic idioms" {
+    src = _read("edge_cases.c");
+    res = lift_c_str(src, "edge_cases.c");
+    out = res.module.unparse(requires_format=True);
+    assert "def goto_test(n: int) -> int {" in out , out;
+    assert "while (i < n) {" in out , out;
+    assert "def pointer_arithmetic(arr: object, n: int) -> int {" in out , out;
+    assert "sum += p;" in out , out;
+    assert "p += 1;" in out , out;
+    assert "goto_test" not in res.quarantined_functions , res.quarantined_functions;
+    assert "pointer_arithmetic" not in res.quarantined_functions , res.quarantined_functions;
+}
+
+test "postfix increment lowers to a walrus expression for scalars" {
+    src = "int f(int i) { return i++; }\n";
+    res = lift_c_str(src, "postfix_inc.c");
+    out = res.module.unparse(requires_format=True);
+    assert "return (i := i + 1 - 1);" in out , out;
+    assert res.quarantined_functions == [] , res.quarantined_functions;
+}
+
 test "cfor.c promotes a C for-loop to a Jac IterForStmt" {
     src = _read("cfor.c");
     res = lift_c_str(src, "cfor.c");
     out = res.module.unparse(requires_format=True);
     assert "for i = 0 while i < n with i += 1 {" in out , out;
     assert "continue;" in out;
-    # `sum_for` promotes faithfully; the only diag is W4213 from `count_odds`'s
-    # `i % 2` parity test (signed `%`), orthogonal to the for-loop promotion here.
-    assert [d[0] for d in res.diags] == ["W4213"] , res.diags;
+    # `sum_for` and `count_odds` both promote faithfully; the `i % 2` parity
+    # test lowers to a C-semantics `c_imod` call (no W4213 -- C truncates toward
+    # zero where Jac `%` floors), so the lift is diag-free and neither function
+    # quarantines.
+    assert res.diags == [] , res.diags;
+    assert "c_imod(" in out , out;
 }
 
 test "for_incdec_body.c lowers statement-position ++/-- to augassign" {
@@ -186,7 +223,8 @@ test "enum_flags.c lifts an enum whose members are unreferenced (no rewrite)" {
     src = _read("enum_flags.c");
     res = lift_c_str(src, "enum_flags.c");
     out = res.module.unparse(requires_format=True);
-    assert "enum Permissions { PERM_READ = 1, PERM_WRITE = 2, PERM_EXEC = 4, PERM_ALL = 7 }" in out , out;
+    assert "enum Permissions { PERM_READ = 1, PERM_WRITE = 2, PERM_EXEC = 4, PERM_ALL = 7 }"
+        in out , out;
     assert "def has_read(p: int) -> int {" in out;
     assert res.diags == [] , f"expected no diags, got {res.diags}";
 }
@@ -207,16 +245,18 @@ test "enum_collision.c lowers function-local enums to scoped int consts" {
     assert res.diags == [] , f"expected no diags, got {res.diags}";
 }
 
-test "enum_tu_collision.c surrogates a hoist that collides with a function name" {
+test "enum_tu_collision.c hoists non-colliding enum consts and prefixes func collisions" {
     src = _read("enum_tu_collision.c");
     res = lift_c_str(src, "enum_tu_collision.c");
     out = res.module.unparse(requires_format=True);
-    # `enum { STATUS_OK = 1, ... } g_state;` at module scope can't hoist —
-    # STATUS_OK collides with the module function — so it flags a 4290 hole
-    assert "__c_unsupported__(" in out , out;
-    assert "g_state: int;" in out;
-    assert len(res.diags) == 1 , res.diags;
-    assert res.diags[0][0] == "W4290";
+    # STATUS_OK collides with the module function — hoisted under `_enum_STATUS_OK`
+    assert "def STATUS_OK() -> int {" in out , out;
+    assert "glob _enum_STATUS_OK = 1;" in out;
+    assert "glob STATUS_ERR = 2;" in out;
+    assert "glob g_state: int;" in out;
+    assert "return STATUS_ERR;" in out;
+    assert "__c_unsupported__(" not in out;
+    assert res.diags == [] , f"expected no diags, got {res.diags}";
 }
 
 test "switch_basic.c lowers a clean switch to an if/elif chain (no diag)" {

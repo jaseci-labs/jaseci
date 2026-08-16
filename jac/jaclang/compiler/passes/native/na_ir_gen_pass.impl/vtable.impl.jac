@@ -73,8 +73,9 @@ impl NaIRGenPass._codegen_virtual_call(
     i32 = ir.IntType(32);
     i8_ptr = ir.IntType(8).as_pointer();
 
+    vtable_recv = coerced[0] if len(coerced) > 0 else obj_val;
     vtable_ptr_ptr = self.builder.gep(
-        obj_val, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="vtable.ptr.ptr"
+        vtable_recv, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="vtable.ptr.ptr"
     );
     vtable_ptr = self.builder.load(vtable_ptr_ptr, name="vtable.ptr");
 

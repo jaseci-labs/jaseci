@@ -104,15 +104,18 @@ def _na_codegen(fixture: str, calls: list[str]) -> tuple[bool, str] {
     }
     na_path = os.path.abspath(na_path);
     prog = JacProgram();
-    prog._auto_promote_native = True;
-    prog._auto_promote_target = na_path;
-    opts = CompileOptions(aot_mode=True, type_check=False);
+    # autonative was retired; force_codespace='native' is the loud mandate that
+    # replaced it (no server demotion), so a fixture that can't lower errors
+    # out at the assert below instead of silently producing no IR.
+    opts = CompileOptions(
+        type_check=False, force_codespace='native', force_target_program=True
+    );
     mod = prog.compile(file_path=na_path, options=opts);
     assert not prog.errors_had , f"na errors for {fixture}: {[
         str(e) for e in prog.errors_had
     ]}";
     ir = mod.gen.llvm_ir;
-    return (mod.gen.native_compat, str(ir) if ir is not None else "");
+    return (ir is not None, str(ir) if ir is not None else "");
 }
 
 

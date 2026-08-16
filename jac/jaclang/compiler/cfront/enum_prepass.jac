@@ -23,16 +23,18 @@ glob _INT_USE_BINOPS: set[str] = {
 obj EnumVerdicts {
     has verdicts: dict[int, EnumShape],
         name_map: dict[int, dict[str, int]],
-        reasons: dict[int, str];
+        reasons: dict[int, str],
+        func_collisions: dict[int, set[str]];
 
     def init {
         self.verdicts = {};
         self.name_map = {};
         self.reasons = {};
+        self.func_collisions = {};
     }
 }
 
-def _collect_tu_names(file_ast: c_ast.Node) -> set[str] {
+def _collect_tu_func_names(file_ast: c_ast.Node) -> set[str] {
     names: set[str] = set();
     ext = file_ast.ext;
     if ext is None {
@@ -45,7 +47,19 @@ def _collect_tu_names(file_ast: c_ast.Node) -> set[str] {
             if nm {
                 names.add(nm);
             }
-        } elif isinstance(entry, c_ast.Decl) or isinstance(entry, c_ast.Typedef) {
+        }
+    }
+    return names;
+}
+
+def _collect_tu_decl_names(file_ast: c_ast.Node) -> set[str] {
+    names: set[str] = set();
+    ext = file_ast.ext;
+    if ext is None {
+        return names;
+    }
+    for entry in ext {
+        if isinstance(entry, c_ast.Decl) or isinstance(entry, c_ast.Typedef) {
             nm = entry.name;
             if nm {
                 names.add(nm);
@@ -101,25 +115,34 @@ def _collect_enums(nd: c_ast.Node, results: list[c_ast.Node]) {
 }
 
 def _classify_enum(
-    en: c_ast.Node, seen_glob_names: set[str], int_use_names: set[str]
-) -> tuple[EnumShape, dict[str, int] | None, str] {
+    en: c_ast.Node,
+    seen_glob_names: set[str],
+    tu_func_names: set[str],
+    int_use_names: set[str]
+) -> tuple[EnumShape, dict[str, int] | None, str, set[str]] {
     name_map = _enum_explicit_values(en.values);
     used_as_int = name_map is not None and any(nm in int_use_names for nm in name_map);
     if en.name is not None and name_map is not None and not used_as_int {
-        return (EnumShape.ENUM_AS_ENUM, name_map, "");
+        return (EnumShape.ENUM_AS_ENUM, name_map, "", set());
     }
     if name_map is not None {
         if any(nm in seen_glob_names for nm in name_map) {
             return (
                 EnumShape.NONE,
                 None,
-                "enumerator name collides with an existing module global"
+                "enumerator name collides with an existing module global",
+                set()
             );
         }
+        func_collisions: set[str] = set();
         for nm in name_map {
-            seen_glob_names.add(nm);
+            if nm in tu_func_names {
+                func_collisions.add(nm);
+            } else {
+                seen_glob_names.add(nm);
+            }
         }
-        return (EnumShape.ENUM_AS_CONSTS, name_map, "");
+        return (EnumShape.ENUM_AS_CONSTS, name_map, "", func_collisions);
     }
     ep2: EnumPairs = eval_enumerators(en.values);
     best_map: dict[str, int] = {};
@@ -131,12 +154,17 @@ def _classify_enum(
         reason = "enumerator name collides with an existing module global"
             if collision
             else "enum has non-constant enumerator values";
-        return (EnumShape.NONE, None, reason);
+        return (EnumShape.NONE, None, reason, set());
     }
+    func_collisions = set();
     for nm in best_map {
-        seen_glob_names.add(nm);
+        if nm in tu_func_names {
+            func_collisions.add(nm);
+        } else {
+            seen_glob_names.add(nm);
+        }
     }
-    return (EnumShape.ENUM_AS_CONSTS, best_map, "");
+    return (EnumShape.ENUM_AS_CONSTS, best_map, "", func_collisions);
 }
 
 def build_enum_map(file_ast: c_ast.Node) -> EnumVerdicts {
@@ -144,7 +172,8 @@ def build_enum_map(file_ast: c_ast.Node) -> EnumVerdicts {
     enums: list[c_ast.Node] = [];
     _collect_enums(file_ast, enums);
 
-    seen_glob_names: set[str] = _collect_tu_names(file_ast);
+    seen_glob_names: set[str] = _collect_tu_decl_names(file_ast);
+    tu_func_names: set[str] = _collect_tu_func_names(file_ast);
 
     int_use_names: set[str] = set();
     _collect_int_use_names(file_ast, int_use_names);
@@ -152,13 +181,18 @@ def build_enum_map(file_ast: c_ast.Node) -> EnumVerdicts {
         if en.values is None {
             continue;
         }
-        (verdict, nm_map, reason) = _classify_enum(en, seen_glob_names, int_use_names);
+        (verdict, nm_map, reason, func_coll) = _classify_enum(
+            en, seen_glob_names, tu_func_names, int_use_names
+        );
         ev.verdicts[id(en)] = verdict;
         if nm_map is not None {
             ev.name_map[id(en)] = nm_map;
         }
         if reason {
             ev.reasons[id(en)] = reason;
+        }
+        if func_coll {
+            ev.func_collisions[id(en)] = func_coll;
         }
     }
     return ev;

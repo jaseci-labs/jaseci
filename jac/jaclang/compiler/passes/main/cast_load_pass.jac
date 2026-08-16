@@ -45,6 +45,8 @@ import from jaclang.compiler.cfront.c_idioms {
     malloc_array_match,
     malloc_struct_type,
     realloc_ptr_arg,
+    realloc_elidable,
+    ptr_realloc_elidable,
     flatten_mult,
     sizeof_type
 }
@@ -118,7 +120,10 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
         orig_src: uni.Source postinit,
         enum_verdicts: EnumVerdicts postinit,
         _list_bound: set[str] postinit,
+        _ptr_params: set[str] postinit,
         _enum_member_owner: dict[str, str] postinit,
+        _enum_const_aliases: dict[str, str] postinit,
+        _enum_const_aliases: dict[str, str] postinit,
         _var_types: dict[str, JacPrim] postinit,
         _var_unsigned: set[str] postinit,
         _func_depth: int postinit,
@@ -128,10 +133,13 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
         _quarantined: list[str] postinit,
         _module_globals: set[str] postinit,
         _func_global_writes: set[str] postinit,
+        _needs_cdiv: bool postinit,
         _struct_fields: dict[str, list[tuple[str, object]]] postinit;
 
     def postinit -> None;
     def _build_member_owner_map -> dict[str, str];
+    def _build_const_alias_map -> dict[str, str];
+    def _build_const_alias_map -> dict[str, str];
     def _collect_enum_nodes(nd: c_ast.Node, out: list) -> None;
     def transform(ir_in: uni.CModuleAst) -> uni.Module;
     def nu(nd: uni.UniNode) -> uni.UniNode;
@@ -156,6 +164,11 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
     def _ident(c_node: c_ast.Node, value: str) -> uni.Name;
     def _op_tok(c_node: c_ast.Node, tok: str, value: str) -> uni.Token;
     def _surrogate_expr(c_node: c_ast.Node) -> uni.FuncCall;
+    def _cdiv_call(
+        c_node: c_ast.Node, op: str, left: uni.Expr, right: uni.Expr
+    ) -> uni.FuncCall;
+
+    def _cdiv_helpers -> list;
     def _surrogate_stmt(c_node: c_ast.Node) -> uni.UniNode;
     def _scope_bind(assign: uni.Assignment) -> uni.UniNode;
     def _collect_module_globals(ext: list) -> set[str];
@@ -164,12 +177,15 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
     def proc_compound(nd: c_ast.Node) -> list[uni.CodeBlockStmt];
     def proc_func_def(nd: c_ast.Node) -> uni.Ability;
     def _lift_goto_ladder(nd: c_ast.Node) -> list[uni.CodeBlockStmt] | None;
+    def _lift_goto_loop(nd: c_ast.Node) -> list[uni.CodeBlockStmt] | None;
     def _walk_c(nd: c_ast.Node, gotos: list, labels: list) -> None;
     def _goto_raise(c_node: c_ast.Node) -> uni.RaiseStmt;
     def _lift_prefix_stmt(
         it: c_ast.Node, lbl_name: str
     ) -> list[uni.CodeBlockStmt] | None;
 
+    def _if_goto_tail(if_nd: c_ast.Node, lbl_name: str) -> list | None;
+    def _is_goto_only_if(if_nd: c_ast.Node, lbl_name: str) -> bool;
     def proc_decl(nd: c_ast.Node) -> object;
     def proc_return(nd: c_ast.Node) -> uni.ReturnStmt;
     def proc_binary_op(nd: c_ast.Node) -> object;
@@ -238,6 +254,8 @@ obj CastBuildPass(Transform[uni.CModuleAst, uni.Module]) {
 
     def proc_unary_op(nd: c_ast.Node) -> object;
     def _pre_incdec_walrus(nd: c_ast.Node) -> uni.AtomUnit | None;
+    def _post_incdec_walrus(nd: c_ast.Node) -> uni.AtomUnit | None;
+    def _deref_postfix_incdec(nd: c_ast.Node) -> c_ast.UnaryOp | None;
     def proc_assignment(nd: c_ast.Node) -> object;
     def proc_struct_ref(nd: c_ast.Node) -> object;
     def proc_array_ref(nd: c_ast.Node) -> object;

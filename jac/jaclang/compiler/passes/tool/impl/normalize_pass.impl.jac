@@ -160,14 +160,6 @@ impl NormalizePass.enter_import(nd: uni.Import) -> None {
         nd.set_kids(nodes=new_kid);
         return;
     }
-    ctx_tok = nd._source_context_token();
-    if nd.code_context == CodeContext.CLIENT
-    and (ctx_tok is not None or not nd.in_client_context()) {
-        new_kid.append(ctx_tok or nd.gen_token(Tok.KW_CLIENT));
-    } elif nd.code_context == CodeContext.SERVER
-    and (ctx_tok is not None or nd.in_client_context()) {
-        new_kid.append(ctx_tok or nd.gen_token(Tok.KW_SERVER));
-    }
     if nd.is_absorb {
         new_kid.append(nd.gen_token(Tok.KW_INCLUDE));
     } else {
@@ -1770,7 +1762,7 @@ impl NormalizePass._fix_zero_toks_in_subtree(nd: uni.UniNode) -> None {
             body_max: int | None = None;
             for j in range(i) {
                 if kid_last[j] is not None
-                and (body_max is None or kid_last[j] > body_max) {
+                    and (body_max is None or kid_last[j] > body_max) {
                     body_max = kid_last[j];
                 }
             }

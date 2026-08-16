@@ -28,7 +28,7 @@ def _compile_bindings(src: str) -> tuple {
     # Write generated `.na.jac` (optionally with a consumer) to a temp file and
     # run it through the native compiler. Returns (prog, ir).
     out_dir = tempfile.mkdtemp();
-    path = os.path.join(out_dir, "bind_probe.na.jac");
+    path = os.path.join(out_dir, "bind_probe.jac");
     with open(path, "w") as f {
         f.write(src);
     }
@@ -269,7 +269,8 @@ test "a generated binding makes a real extern call through the JIT (#7055)" {
         return;
     }
     (out, _rep) = bindings_from_source("double sqrt(double x);\n", "libm.h", libm);
-    consumer = out + "\ndef:pub jac_call_sqrt(x: f64) -> f64 {\n    return sqrt(x);\n}\n\nwith entry {}\n";
+    consumer = out
+        + "\ndef:pub jac_call_sqrt(x: f64) -> f64 {\n    return sqrt(x);\n}\n\nwith entry {}\n";
     (prog, ir) = _compile_bindings(consumer);
     assert not prog.errors_had , f"nacompile errors: {[
         str(e) for e in prog.errors_had

@@ -79,17 +79,21 @@ test "for_comma.c promotes past a pure comma-init and flags a dropped operand" {
     assert res.diags[0][0] == "W4204";
 }
 
-test "for_cast.c elides a cast (W4201) and quarantines signed `/` (W4212)" {
+test "for_cast.c elides a cast (W4201) and lowers signed `/` to a C-semantics helper" {
     res = lift_c_str(_read("for_cast.c"), "for_cast.c");
     out = res.module.unparse(requires_format=True);
     codes = [d[0] for d in res.diags];
-    # The `(int)` cast is elided (W4201, style band). The signed `/` cannot be
-    # faithfully lowered -- C truncates toward zero where Jac `//` floors -- so
-    # it emits behavior-band W4212 and quarantines the containing function.
+    # The `(int)` cast is elided (W4201, style band). The signed `/` cannot use
+    # Jac `//` directly (C truncates toward zero, Jac floors), so it lowers
+    # faithfully to a `c_idiv(...)` call backed by a once-per-module helper that
+    # restores C truncation -- no behavior-band diag, so the containing function
+    # is not quarantined.
     assert "W4201" in codes , res.diags;
-    assert "W4212" in codes , res.diags;
-    assert "truncate_sum" in res.quarantined_functions;
-    assert "quarantined function 'truncate_sum'" in out , out;
+    assert "W4212" not in codes , res.diags;
+    assert "def c_idiv(a: int, b: int) -> int" in out , out;
+    assert "c_idiv(" in out , out;
+    assert "truncate_sum" not in res.quarantined_functions;
+    assert "quarantined function" not in out , out;
 }
 
 test "for_ternary.c lifts a body ternary to a Jac if-else expression" {
@@ -113,8 +117,9 @@ test "do_while_continue.c flags W4203 and quarantines the function" {
     res = lift_c_str(_read("do_while_continue.c"), "do_while_continue.c");
     out = res.module.unparse(requires_format=True);
     codes = [d[0] for d in res.diags];
-    # The `n % 2` parity test also flags signed `%` (W4213); both it and the
-    # do-while `continue` (W4203) are behavior-band and quarantine the function.
+    # The `n % 2` parity test lowers faithfully to a `c_imod` call (C truncates
+    # toward zero); only the do-while `continue` (W4203) is behavior-band and
+    # quarantines the function.
     assert "W4203" in codes , res.diags;
     assert res.quarantined_functions;
     assert "quarantined function" in out , out;
@@ -193,10 +198,13 @@ test "goto_error.c lifts a forward error ladder to try/finally + raise (GOTO_LIF
     assert res.diags == [] , res.diags;
 }
 
-test "backward goto stays Tier-B (GOTO_LIFTER is forward-only)" {
+test "backward goto lifts to a while loop (GOTO_LOOP)" {
     src = "int h(int n) { int i = 0;\nloop: i++; if (i < n) goto loop; return i; }\n";
     res = lift_c_str(src, "backward_goto.c");
-    # A backward `goto loop` is irreducible flow: recognition must bail and the
-    # function falls back to the existing whole-function quarantine.
-    assert res.quarantined_functions == ["h"] , res.quarantined_functions;
+    out = res.module.unparse(requires_format=True);
+    assert "while True {" in out , out;
+    assert "i += 1;" in out , out;
+    assert "break;" in out , out;
+    assert res.quarantined_functions == [] , res.quarantined_functions;
+    assert res.diags == [] , res.diags;
 }
