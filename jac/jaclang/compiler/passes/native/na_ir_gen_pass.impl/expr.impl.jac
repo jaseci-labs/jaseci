@@ -1875,7 +1875,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
                 obj_val = self._codegen_expr(nd.target);
                 if obj_val is not None {
-                    return self._codegen_field_access(obj_val, right_name, type_name);
+                    return self._read_field_or_refuse(
+                        nd, obj_val, right_name, type_name
+                    );
                 }
             }
         }
@@ -1888,7 +1890,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                     type_name = self._infer_type_name(obj_val);
                 }
                 if type_name is not None {
-                    return self._codegen_field_access(obj_val, right_name, type_name);
+                    return self._read_field_or_refuse(
+                        nd, obj_val, right_name, type_name
+                    );
                 }
             }
         }

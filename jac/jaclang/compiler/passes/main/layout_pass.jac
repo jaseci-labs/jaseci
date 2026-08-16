@@ -135,6 +135,184 @@ def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
     return module.gen.layout_registry or LayoutRegistry();
 }
 
+def layout_slot_count(lay: ArchetypeLayout) -> int {
+    top = 0;
+    for slot in [lay.vtable_ptr_slot, lay.type_tag_slot, lay.reports_slot] {
+        if slot is not None and (slot + 1) > top {
+            top = slot + 1;
+        }
+    }
+    for finfo in lay.fields {
+        if (finfo.index + 1) > top {
+            top = finfo.index + 1;
+        }
+    }
+    return top;
+}
+
+def headers_agree(child: ArchetypeLayout, base: ArchetypeLayout) -> bool {
+    return child.vtable_ptr_slot == base.vtable_ptr_slot
+        and child.type_tag_slot == base.type_tag_slot
+        and child.reports_slot == base.reports_slot;
+}
+
+def adopt_imported_bases(module: Module) -> list[str] {
+    """Flatten ancestors that only reached the registry after the pass ran.
+
+    A consumer that subclasses an imported archetype linearizes it from a
+    base whose declaration lives in another module, so `_collect_archetypes`
+    never sees it and `_build_layout` skips the ancestor whose layout is
+    absent. The importing codegen merges the defining module's layouts in
+    afterwards, which is late for a registry nothing revisits -- so revisit
+    it here, once, with the ancestors in hand.
+
+    A subclass adopts its primary ancestor's slot assignment verbatim, which
+    is what makes the two units agree: the ancestor's own methods, and the
+    consumer's when it passes the object back, read the object through the
+    offsets the defining module assigned. Where the header slots disagree --
+    a flat ancestor with no vtable under a subclass that needs one -- no
+    assignment satisfies both, so the layout is left as it was and the field
+    access stays refused.
+
+    Only layouts this module built are eligible: the merge shares the very
+    objects the defining module's registry holds, and reassigning slots in
+    one of those would move a field under the unit that owns it.
+    """;
+    reg = module.gen.layout_registry;
+    if reg is None {
+        return [];
+    }
+    adopted: list[str] = [];
+    for name in reg.local_names {
+        lay = reg.layouts.get(name);
+        if lay is None {
+            continue;
+        }
+        ancestors: list[ArchetypeLayout] = [];
+        for anc in (lay.mro or [])[1:] {
+            anc_lay = reg.layouts.get(anc);
+            if anc_lay is not None {
+                ancestors.append(anc_lay);
+            }
+        }
+        if not ancestors {
+            continue;
+        }
+        absent = False;
+        for anc_lay in ancestors {
+            for finfo in anc_lay.fields {
+                if finfo.name not in lay.field_index {
+                    absent = True;
+                }
+            }
+            for mslot in anc_lay.methods {
+                if mslot.name not in lay.method_index {
+                    absent = True;
+                }
+            }
+        }
+        if not absent or not headers_agree(lay, ancestors[0]) {
+            continue;
+        }
+        adopt_ancestor_slots(lay, ancestors);
+        adopted.append(name);
+    }
+    return adopted;
+}
+
+def adopt_ancestor_slots(lay: ArchetypeLayout, ancestors: list[ArchetypeLayout]) {
+    primary = ancestors[0];
+    fields: list[FieldInfo] = [];
+    field_index: dict[str, int] = {};
+    parent_field_start: dict[str, int] = {};
+    seen: set[str] = set();
+    if lay.reports_slot is not None {
+        field_index["reports"] = lay.reports_slot;
+        seen.add("reports");
+    }
+    for finfo in primary.fields {
+        if finfo.name in seen {
+            continue;
+        }
+        seen.add(finfo.name);
+        fields.append(clone_field(finfo, finfo.index));
+        field_index[finfo.name] = finfo.index;
+    }
+    parent_field_start[primary.name] = layout_slot_count(primary) - len(primary.fields);
+    next_idx = layout_slot_count(primary);
+    for anc_lay in ancestors[1:] {
+        parent_field_start[anc_lay.name] = next_idx;
+        for finfo in anc_lay.fields {
+            if finfo.name in seen {
+                continue;
+            }
+            seen.add(finfo.name);
+            fields.append(clone_field(finfo, next_idx));
+            field_index[finfo.name] = next_idx;
+            next_idx += 1;
+        }
+    }
+    for finfo in lay.fields {
+        if finfo.name in seen {
+            continue;
+        }
+        seen.add(finfo.name);
+        fields.append(clone_field(finfo, next_idx));
+        field_index[finfo.name] = next_idx;
+        next_idx += 1;
+    }
+    lay.fields = sorted(fields, key=lambda (f) { f.index; });
+    lay.field_index = field_index;
+    lay.parent_field_start = parent_field_start;
+    adopt_ancestor_methods(lay, ancestors);
+    for anc_lay in ancestors {
+        lay.is_acyclic = lay.is_acyclic and anc_lay.is_acyclic;
+    }
+}
+
+def clone_field(finfo: FieldInfo, index: int) -> FieldInfo {
+    return FieldInfo(
+        name=finfo.name,
+        index=index,
+        type_tag=finfo.type_tag,
+        type_node=finfo.type_node,
+        default_expr=finfo.default_expr,
+        owner=finfo.owner,
+        is_func_ptr=finfo.is_func_ptr,
+        decl_node=finfo.decl_node
+    );
+}
+
+def adopt_ancestor_methods(lay: ArchetypeLayout, ancestors: list[ArchetypeLayout]) {
+    order: list[str] = [];
+    source: dict[str, MethodSlot] = {};
+    for anc_lay in ancestors {
+        for mslot in anc_lay.methods {
+            if mslot.name not in source {
+                source[mslot.name] = mslot;
+                order.append(mslot.name);
+            }
+        }
+    }
+    for mslot in lay.methods {
+        if mslot.name not in source {
+            order.append(mslot.name);
+        }
+        source[mslot.name] = mslot;
+    }
+    methods: list[MethodSlot] = [];
+    method_index: dict[str, int] = {};
+    for (i, mname) in enumerate(order) {
+        held = source[mname];
+        methods.append(
+            MethodSlot(name=mname, index=i, owner=held.owner, signature=held.signature)
+        );
+        method_index[mname] = i;
+    }
+    lay.methods = methods;
+    lay.method_index = method_index;
+}
+
 def is_comptime_base_name(name: str, archetypes: dict[str, Archetype]) -> bool {
     import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
     return name in NATIVE_COMPTIME_BASES and name not in archetypes;
@@ -244,6 +422,7 @@ obj LayoutRegistry {
         class_parents: dict[str, list[str]] = {},
         mro_order: dict[str, list[str]] = {},
         topo_order: list[str] = [],
+        local_names: list[str] = [],
         enums: dict[str, EnumLayout] = {};
 
     def get_layout(name: str) -> (ArchetypeLayout | None);
