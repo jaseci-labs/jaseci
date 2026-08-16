@@ -72,9 +72,9 @@ impl GraphBreakDetectPass.before_pass -> None {
 impl GraphBreakDetectPass._record_noop(local: bool) -> None {
     path = self.ir_in.loc.mod_path;
     if (not local) and (not self._saw_compile_call) {
-        self.prog.graphmend_noop_mods.add(path);
+        current_graphmend_facts().noop_mods.add(path);
     } else {
-        self.prog.graphmend_noop_mods.discard(path);
+        current_graphmend_facts().noop_mods.discard(path);
     }
 }
 

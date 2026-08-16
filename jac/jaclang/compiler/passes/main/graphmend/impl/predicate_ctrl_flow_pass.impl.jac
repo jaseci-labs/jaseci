@@ -21,7 +21,7 @@ import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
 
 impl PredicateCtrlFlowPass.before_pass -> None {
     self._enabled = (self.prog._compile_options.graphmend is True)
-        and "where" not in self.prog._compile_options.graphmend_disable;
+        and "where" not in (self.prog._compile_options.graphmend_disable or []);
     if not self._enabled {
         self.prune_signal = True;
         return;

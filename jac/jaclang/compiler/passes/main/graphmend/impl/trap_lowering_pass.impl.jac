@@ -62,7 +62,7 @@ impl TrapLoweringPass._boundary_attach_stmt(
 
 impl TrapLoweringPass.before_pass -> None {
     self._enabled = (self.prog._compile_options.graphmend is True)
-        and "trap" not in self.prog._compile_options.graphmend_disable;
+        and "trap" not in (self.prog._compile_options.graphmend_disable or []);
     if not self._enabled {
         self.prune_signal = True;
     }

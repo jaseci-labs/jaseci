@@ -608,7 +608,8 @@ obj CodeGenTarget {
 obj GraphMendFacts {
     has breaks: dict[(UniNode, GraphBreakKind)] = field(default_factory=`dict),
         boundary: dict[(Ability, Ability)] = field(default_factory=`dict),
-        helpers: dict[(Module, set[GraphMendHelper])] = field(default_factory=`dict);
+        helpers: dict[(Module, set[GraphMendHelper])] = field(default_factory=`dict),
+        noop_mods: set[str] = field(default_factory=`set);
 }
 
 glob _graphmend_facts_ctx: ContextVar[(GraphMendFacts | None)] = ContextVar(

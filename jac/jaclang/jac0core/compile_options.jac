@@ -37,6 +37,19 @@ def resolved_graphmend_setting -> bool {
     return bool(cfg.run.graphmend);
 }
 
+def resolved_graphmend_disable_setting -> list[str] {
+    cfg = _project_config();
+    raw = str(cfg.run.graphmend_disable) if cfg is not None else "";
+    out: list[str] = [];
+    for part in raw.split(',') {
+        stripped = part.strip().lower();
+        if stripped in ('trap', 'where', 'defer') and stripped not in out {
+            out.append(stripped);
+        }
+    }
+    return out;
+}
+
 def resolved_graphmend_claim_imports_setting -> bool {
     cfg = _project_config();
     if cfg is None {
@@ -57,7 +70,7 @@ obj CompileOptions {
         aot_mode: bool = False,
         graphmend: (bool | None) = None,
         graphmend_claim_imports: (bool | None) = None,
-        graphmend_disable: list[str] = field(default_factory=`list),
+        graphmend_disable: (list[str] | None) = None,
         force_codespace: str = "",
         na_gc_mode: (str | None) = None,
         nogc_enforce_all: bool = False,
@@ -89,6 +102,9 @@ obj CompileOptions {
             self.graphmend = resolved_graphmend_setting();
         } elif self.graphmend and graphmend_refused_for_serve() {
             self.graphmend = False;
+        }
+        if self.graphmend_disable is None {
+            self.graphmend_disable = resolved_graphmend_disable_setting();
         }
         if self.graphmend_claim_imports is None {
             self.graphmend_claim_imports = (

@@ -112,7 +112,6 @@ test "default compile options leave a torch-free module identical to off" {
 test "run graphmend in jac toml is the off switch without a cli flag" {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import jaclang.cli.commands.execution as execution;
-    prev_disable = Jac.get_program().graphmend_disable;
     old_config = config_mod._config;
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
@@ -124,10 +123,11 @@ test "run graphmend in jac toml is the off switch without a cli flag" {
         config_mod._config = JacConfig.from_toml_str("[project]\nname = \"p\"\n");
         assert execution._apply_graphmend(" trap ") is True;
         assert CompileOptions().graphmend is True;
-        assert Jac.get_program().graphmend_disable == ["trap"];
+        assert CompileOptions().graphmend_disable == ["trap"] , (
+            "the cli flag must reach the carrier every entry point reads"
+        );
     } finally {
         config_mod._config = old_config;
-        Jac.get_program().graphmend_disable = prev_disable;
     }
 }
 
@@ -139,7 +139,6 @@ test "a run with no torch leaves the stdlib loader untouched" {
     import from importlib.machinery { SourceFileLoader }
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import jaclang.cli.commands.execution as execution;
-    prev_disable = Jac.get_program().graphmend_disable;
     old_config = config_mod._config;
     prev_hook = _unhook_loader();
     saved_torch = sys.modules.pop("torch", None);
@@ -160,7 +159,6 @@ test "a run with no torch leaves the stdlib loader untouched" {
         _unhook_loader();
         _rehook_loader(prev_hook);
         config_mod._config = old_config;
-        Jac.get_program().graphmend_disable = prev_disable;
     }
 }
 

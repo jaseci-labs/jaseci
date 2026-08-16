@@ -149,7 +149,7 @@ impl JacCompiler.get_bytecode(
         gm_variant = ";".join(
             [
                 "graphmend",
-                "disable=" + ",".join(sorted(target_program.graphmend_disable)),
+                "disable=" + ",".join(sorted(options.graphmend_disable or [])),
                 "claimed="
                     + str(int((real_target in target_program.graphmend_claimed))),
                 "region=" + region_context_key(actual_program, real_target)
@@ -311,11 +311,7 @@ impl JacCompiler._get_bytecode_variant(
         setup_progress.on_internal_compile(full_target);
         self._internal_bytecode_depth += 1;
     }
-    options = CompileOptions(
-        type_check=False,
-        graphmend=gm_active,
-        graphmend_disable=list(target_program.graphmend_disable)
-    );
+    options = CompileOptions(type_check=False, graphmend=gm_active);
     result: (uni.Module | None) = None;
     try {
         result = self.compile(
@@ -366,10 +362,13 @@ impl JacCompiler._get_bytecode_variant(
                     ;
                 }
                 import from jaclang.jac0core.jir { SEC_GM_NOOP, write_module_cache }
+                import from jaclang.jac0core.codeinfo { current_graphmend_facts }
                 cache_bc: any = result.gen?.py_bytecode;
                 if cache_bc is not None and not result.parse_failed {
                     gm_noop = gm_active
-                        and (result.loc.mod_path in actual_program.graphmend_noop_mods);
+                        and (
+                            result.loc.mod_path in current_graphmend_facts().noop_mods
+                        );
                     if gm_noop {
                         gm_v = swap_graphmend_cache_variant("");
                         try {

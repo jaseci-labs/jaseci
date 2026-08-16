@@ -237,7 +237,7 @@ def _graphmend_may_engage(graphmend: bool, filename: str) -> bool {
 }
 
 def _apply_graphmend(graphmend_disable: str = "") -> bool {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+    import from jaclang.project.config { get_config }
     gm_disable: list[str] = [];
     for part in graphmend_disable.split(',') {
         stripped = part.strip().lower();
@@ -253,8 +253,11 @@ def _apply_graphmend(graphmend_disable: str = "") -> bool {
         }
         gm_disable.append(stripped);
     }
+    cfg = get_config();
+    if gm_disable and cfg is not None {
+        cfg.run.graphmend_disable = ",".join(gm_disable);
+    }
     gm_on = _configured_graphmend();
-    Jac.get_program().graphmend_disable = gm_disable;
     if gm_on and 'torch' in sys.modules {
         import from jaclang.meta_importer { install_graphmend_loader_hook_for_torch }
         install_graphmend_loader_hook_for_torch();

@@ -243,7 +243,6 @@ test "the configured gate binds compile options without the cli mapper" {
     import from jaclang.project.config { JacConfig }
     import jaclang.project.config as config_mod;
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
-    prev_disable = Jac.get_program().graphmend_disable;
     old_config = config_mod._config;
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
@@ -257,6 +256,5 @@ test "the configured gate binds compile options without the cli mapper" {
         assert CompileOptions().graphmend is True;
     } finally {
         config_mod._config = old_config;
-        Jac.get_program().graphmend_disable = prev_disable;
     }
 }

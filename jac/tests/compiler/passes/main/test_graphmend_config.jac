@@ -105,21 +105,18 @@ test "explicit cli flags beat jac.toml which beats built-in defaults" {
     assert silent["graphmend_disable"] == "";
 }
 
-test "the cli disable flag reaches the program state" {
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
+test "the cli disable flag reaches the compile options carrier" {
     import jaclang.cli.commands.execution as execution;
+    import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.project.config { JacConfig }
     import jaclang.project.config as config_mod;
-    prog = Jac.get_program();
-    prev_disable = prog.graphmend_disable;
     old_config = config_mod._config;
     try {
         config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
         gm_on = execution._apply_graphmend(" trap , defer ");
-        assert Jac.get_program().graphmend_disable == ["trap", "defer"];
+        assert CompileOptions().graphmend_disable == ["trap", "defer"];
         assert gm_on is True;
     } finally {
         config_mod._config = old_config;
-        Jac.get_program().graphmend_disable = prev_disable;
     }
 }

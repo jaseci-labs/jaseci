@@ -9,13 +9,11 @@ impl JacProgram.init(
     self.type_evaluator: (TypeEvaluator | None) = None;
     self._compiler: (JacCompiler | None) = None;
     self._compile_options: CompileOptions = CompileOptions();
-    self.graphmend_disable: list[str] = [];
     self.graphmend_claimed: set[str] = set();
     self.graphmend_claim_walked: set[str] = set();
     self.graphmend_wrapped: set[str] = set();
     self.graphmend_claim_parent: dict[str, str] = {};
     self.graphmend_covered_by: dict[str, str] = {};
-    self.graphmend_noop_mods: set[str] = set();
     self.graphmend_hub_digests: dict[(str, tuple[(uni.Module, str)])] = {};
     self._native_cache: dict = {};
 
