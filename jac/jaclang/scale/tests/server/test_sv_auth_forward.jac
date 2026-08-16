@@ -64,6 +64,27 @@ def _install_unreachable_walker_transport(round_trips: dict) -> any {
     return original;
 }
 
+obj _StubMsCfg {
+    has data: dict[str, any];
+
+    def get_microservices_config -> dict[str, any] {
+        return self.data;
+    }
+}
+
+"""Point the scale config loader at an in-memory microservices config."""
+def _install_ms_config(data: dict[str, any]) -> any {
+    import jaclang.scale.config.config_loader as cfg_mod;
+    original = getattr(cfg_mod, "get_scale_config");
+    setattr(cfg_mod, "get_scale_config", lambda { _StubMsCfg(data=data); });
+    return original;
+}
+
+def _restore_ms_config(original: any) {
+    import jaclang.scale.config.config_loader as cfg_mod;
+    setattr(cfg_mod, "get_scale_config", original);
+}
+
 test "set/get/reset auth context round-trips" {
     tok = set_current_auth("Bearer abc");
     assert get_current_auth() == "Bearer abc";
@@ -291,6 +312,8 @@ import from jaclang.scale.runtime.rpc.breaker {
     _BREAKER_TRIP_THRESHOLD
 }
 
+glob _PROBE_TTL: float = 60.0;
+
 """Trip the breaker OPEN without going through the transport."""
 def _trip_breaker(mod: str) {
     _breaker_reset(mod);
@@ -302,7 +325,7 @@ def _trip_breaker(mod: str) {
 """Take the HALF_OPEN probe lease the way a real caller would, and return it."""
 def _take_probe(mod: str) -> int {
     _breaker_force_cooldown_elapsed(mod);
-    (admitted, probe) = breaker_admit(mod);
+    (admitted, probe) = breaker_admit(mod, _PROBE_TTL);
     assert admitted and probe != 0;
     return probe;
 }
@@ -504,7 +527,7 @@ test "only one caller is admitted while a HALF_OPEN probe is in flight" {
     _trip_breaker(mod);
     probe = _take_probe(mod);
 
-    (admitted, second_probe) = breaker_admit(mod);
+    (admitted, second_probe) = breaker_admit(mod, _PROBE_TTL);
     assert not admitted , "a second caller was admitted into a live probe";
     assert second_probe == 0;
     assert breaker_should_skip(mod);
@@ -587,10 +610,12 @@ test "concurrent callers do not pile onto a HALF_OPEN probe" {
 }
 
 test "a probe that dies without a verdict does not wedge the breaker shut" {
+    import time;
     mod = "breaker_probe_abandoned_test";
     _trip_breaker(mod);
     _breaker_force_cooldown_elapsed(mod);
 
+    abandoned_at = time.time();
     original_post = sv_http.post_stream_aware_sync;
 
     def fake(*args: any, **kwargs: any) -> tuple[str, any] {
@@ -610,9 +635,13 @@ test "a probe that dies without a verdict does not wedge the breaker shut" {
         assert st is not None and st["state"] == "OPEN" , (
             f"abandoned probe left the breaker in {st}"
         );
+        assert st["opened_at"] >= abandoned_at , (
+            "an unclassified failure must restart the cooldown, so a peer that "
+            + "keeps abandoning probes is retried once per cooldown, not freely"
+        );
 
         _breaker_force_cooldown_elapsed(mod);
-        (admitted, probe) = breaker_admit(mod);
+        (admitted, probe) = breaker_admit(mod, _PROBE_TTL);
         assert admitted and probe != 0;
     } finally {
         sv_http.post_stream_aware_sync = original_post;
@@ -626,11 +655,11 @@ test "a probe that never reports back is reclaimed after the probe timeout" {
     _trip_breaker(mod);
     stale_probe = _take_probe(mod);
 
-    (admitted, blocked_probe) = breaker_admit(mod);
+    (admitted, blocked_probe) = breaker_admit(mod, _PROBE_TTL);
     assert not admitted and blocked_probe == 0;
 
     _breaker_force_probe_expired(mod);
-    (reclaimed, fresh_probe) = breaker_admit(mod);
+    (reclaimed, fresh_probe) = breaker_admit(mod, _PROBE_TTL);
     assert reclaimed , "a stuck probe pinned the breaker in HALF_OPEN";
     assert fresh_probe != stale_probe;
 
@@ -651,11 +680,11 @@ test "a probe lease is reclaimed at the deadline its caller set" {
     (admitted, spent_probe) = breaker_admit(mod, 0.0);
     assert admitted and spent_probe != 0;
 
-    (reclaimed, fresh_probe) = breaker_admit(mod, 60.0);
+    (reclaimed, fresh_probe) = breaker_admit(mod, _PROBE_TTL);
     assert reclaimed , "a lease past its deadline pinned the breaker in HALF_OPEN";
     assert fresh_probe != spent_probe;
 
-    (blocked, no_probe) = breaker_admit(mod, 60.0);
+    (blocked, no_probe) = breaker_admit(mod, _PROBE_TTL);
     assert not blocked and no_probe == 0;
 
     _breaker_reset(mod);
@@ -663,7 +692,6 @@ test "a probe lease is reclaimed at the deadline its caller set" {
 
 test "a probe lease outlasts the rpc_timeout of the call holding it" {
     import time;
-    import jaclang.scale.runtime.rpc.rpc as plugin_mod;
     import from jaclang.runtimelib.serving.client { ClientConnectionError }
 
     mod = "breaker_slow_probe_test";
@@ -677,15 +705,14 @@ test "a probe lease outlasts the rpc_timeout of the call holding it" {
     def fake(*args: any, **kwargs: any) -> tuple[str, any] {
         in_flight["state"] = _breaker_peek(mod);
         in_flight["at"] = time.time();
+        in_flight["timeout"] = kwargs.get("timeout");
         raise ClientConnectionError(detail="connection refused");
     }
     sv_http.post_stream_aware_sync = fake;
 
-    original_resolver = getattr(plugin_mod, "_sv_rpc_timeout");
-    def fake_resolver(module_name: str) -> float {
-        return slow_timeout;
-    }
-    setattr(plugin_mod, "_sv_rpc_timeout", fake_resolver);
+    original_cfg = _install_ms_config(
+        {"services": {mod: {"rpc_timeout": slow_timeout}}}
+    );
 
     try {
         sv_client.register(mod, "http://demo.invalid");
@@ -699,11 +726,15 @@ test "a probe lease outlasts the rpc_timeout of the call holding it" {
         assert st is not None and st["state"] == "HALF_OPEN" , (
             "the probe never reached the transport"
         );
+        assert in_flight["timeout"] == slow_timeout , (
+            f"the call ran under {in_flight['timeout']}s, not the configured "
+            + f"{slow_timeout}s"
+        );
         assert st["probe_expires_at"] - in_flight["at"] > slow_timeout , (
             "the probe lease expires while the call holding it can still be running"
         );
     } finally {
-        setattr(plugin_mod, "_sv_rpc_timeout", original_resolver);
+        _restore_ms_config(original_cfg);
         sv_http.post_stream_aware_sync = original_post;
         sv_client.unregister(mod);
         _breaker_reset(mod);
@@ -716,7 +747,7 @@ test "a stale probe success does not close the breaker around a live probe" {
     stale_probe = _take_probe(mod);
 
     _breaker_force_probe_expired(mod);
-    (reclaimed, fresh_probe) = breaker_admit(mod);
+    (reclaimed, fresh_probe) = breaker_admit(mod, _PROBE_TTL);
     assert reclaimed and fresh_probe != stale_probe;
 
     breaker_record_success(mod, stale_probe);
@@ -726,7 +757,7 @@ test "a stale probe success does not close the breaker around a live probe" {
     );
     assert st["probe"] == fresh_probe;
 
-    (admitted, blocked_probe) = breaker_admit(mod);
+    (admitted, blocked_probe) = breaker_admit(mod, _PROBE_TTL);
     assert not admitted and blocked_probe == 0;
 
     _breaker_reset(mod);
@@ -736,7 +767,7 @@ test "a stale probe success does not close the breaker around a live probe" {
 def _strand_probe(mod: str) -> int {
     stale_probe = _take_probe(mod);
     _breaker_force_probe_expired(mod);
-    (reclaimed, fresh_probe) = breaker_admit(mod);
+    (reclaimed, fresh_probe) = breaker_admit(mod, _PROBE_TTL);
     assert reclaimed and fresh_probe != stale_probe;
     breaker_record_success(mod, fresh_probe);
     return stale_probe;
@@ -980,31 +1011,17 @@ test "sv_service_call falls back to sv_client.resolve_url when hookspec empty" {
 }
 
 
-obj _K8sStubMsCfg {
-    has data: dict[str, any];
-
-    def get_microservices_config -> dict[str, any] {
-        return self.data;
-    }
-}
-
 test "ensure_sv_service registers DNS URL when in K8s mode" {
     import os;
-    import jaclang.scale.config.config_loader as cfg_mod;
     import from jaclang.scale.plugin { JacScalePlugin }
 
     orig_k8s_host = os.environ.get("KUBERNETES_SERVICE_HOST");
     orig_ns = os.environ.get("POD_NAMESPACE");
-    original_cfg = getattr(cfg_mod, "get_scale_config");
 
     os.environ["KUBERNETES_SERVICE_HOST"] = "10.0.0.1";
     os.environ["POD_NAMESPACE"] = "prod";
-    setattr(
-        cfg_mod,
-        "get_scale_config",
-        lambda { _K8sStubMsCfg(
-            data={"routes": {"k9_2_peer": "/api/peer"}, "gateway_port": 8000}
-        ); }
+    original_cfg = _install_ms_config(
+        {"routes": {"k9_2_peer": "/api/peer"}, "gateway_port": 8000}
     );
 
     if "k9_2_peer" in sv_client._registry {
@@ -1031,7 +1048,7 @@ test "ensure_sv_service registers DNS URL when in K8s mode" {
         } else {
             os.environ["POD_NAMESPACE"] = orig_ns;
         }
-        setattr(cfg_mod, "get_scale_config", original_cfg);
+        _restore_ms_config(original_cfg);
     }
 }
 

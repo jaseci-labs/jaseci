@@ -2,7 +2,6 @@ import from threading { Lock as _BreakerLock }
 glob _BREAKER_TRIP_THRESHOLD: int = 5,
      _BREAKER_COOLDOWN_SECONDS: float = 30.0,
      _BREAKER_PROBE_GRACE_SECONDS: float = 30.0,
-     _BREAKER_DEFAULT_PROBE_TTL_SECONDS: float = 60.0,
      _BREAKER_NO_PROBE: int = 0,
      _breaker_state: dict[str, dict] = {},
      _breaker_lock = _BreakerLock();
@@ -73,9 +72,7 @@ def breaker_should_skip(provider: str) -> bool {
     }
 }
 
-def breaker_admit(
-    provider: str, probe_ttl: float = _BREAKER_DEFAULT_PROBE_TTL_SECONDS
-) -> tuple[bool, int] {
+def breaker_admit(provider: str, probe_ttl: float) -> tuple[bool, int] {
     import time;
     with _breaker_lock {
         st = _breaker_state.get(provider);
