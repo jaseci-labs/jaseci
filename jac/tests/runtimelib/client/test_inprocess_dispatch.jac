@@ -357,10 +357,7 @@ test "a generator raising mid-stream emits an error frame and deregisters" {
             time.sleep(0.01);
         }
         assert closed.wait(2.0) , "the raising generator must be closed (finally ran)";
-        types = [
-            f["type"]
-            for f in frames
-        ];
+        types = [f["type"] for f in frames];
         assert "data" in types , types;
         assert types[-1] == "error" , types;
         err = frames[-1]["error"];

@@ -159,9 +159,7 @@ def _desktop_config_schema -> PluginConfigSchema {
                         [],
                         "Capabilities to expose: multipart, webhooks, websockets, openapi"
                     ),
-                    "port": schema_int_option(
-                        0, "Loopback port (0 = random)"
-                    )
+                    "port": schema_int_option(0, "Loopback port (0 = random)")
                 }
             ),
             "plugins": schema_dict_option(

@@ -33,7 +33,9 @@ import tempfile;
 import from pathlib { Path }
 import from jaclang.runtimelib.http_surface { build_surface }
 
-glob _FIXTURE: str = str(Path(str(__file__)).parent / "fixtures" / "http_surface_app.jac"),
+glob _FIXTURE: str = str(
+         Path(str(__file__)).parent / "fixtures" / "http_surface_app.jac"
+     ),
      _CLIENT: any = None,
      _RT: any = None,
      _SURF: any = None,
@@ -250,9 +252,7 @@ test "restspec custom path + verb resolves identically across transports" {
     assert _strip_ids(a["data"]) == _strip_ids(b["data"]) , (a["data"], b["data"]);
 
     # POST /things/{thing_id}/update -- path param bound + JSON body field.
-    pa = _norm_scale(
-        _CLIENT.post("/things/widget-9/update", json={"label": "shiny"})
-    );
+    pa = _norm_scale(_CLIENT.post("/things/widget-9/update", json={"label": "shiny"}));
     pb = _desktop("POST", "/things/widget-9/update", {"label": "shiny"});
     assert pa["status"] == 200 and pb["status"] == 200 , (pa, pb);
     rep_a = pa["data"]["reports"][0];
@@ -313,7 +313,9 @@ test "streaming responses frame identically as SSE across transports" {
     assert a.status_code == 200 , a.text;
     assert "text/event-stream" in a.headers.get("content-type", "") , a.headers;
 
-    (dstatus, dtext, dctype) = _desktop_raw("POST", "/function/stream_numbers", {"n": 3});
+    (dstatus, dtext, dctype) = _desktop_raw(
+        "POST", "/function/stream_numbers", {"n": 3}
+    );
     assert dstatus == 200 , dtext;
     assert "text/event-stream" in dctype , dctype;
 
@@ -340,6 +342,10 @@ test "wrong-verb rejection: both reject, documented 405 vs 404 divergence" {
     # Documented, asserted divergence in the exact code (not a bug -- a transport
     # surface difference): FastAPI knows the path and answers 405 Method Not
     # Allowed; the lean verb-keyed bridge matcher finds no route and answers 404.
-    assert a["status"] == 405 , f"expected FastAPI 405 for wrong verb, got {a['status']}";
-    assert b["status"] == 404 , f"expected bridge 404 for wrong verb, got {b['status']}";
+    assert a["status"] == 405 , f"expected FastAPI 405 for wrong verb, got {a[
+        'status'
+    ]}";
+    assert b["status"] == 404 , f"expected bridge 404 for wrong verb, got {b[
+        'status'
+    ]}";
 }

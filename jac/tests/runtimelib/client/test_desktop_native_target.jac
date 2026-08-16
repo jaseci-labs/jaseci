@@ -142,7 +142,6 @@ test "desktop http sidecar config loads and validates from jac.toml" {
         assert h1.capabilities == [] , "no capabilities by default";
         assert h1.port == 0 , "port defaults to 0 (random loopback)";
         reset_desktop_config();
-
         # Explicit values load, and to_dict round-trips for the boot config.
         with open(Path(d) / "jac.toml", "w") as f {
             f.write(
@@ -161,7 +160,6 @@ test "desktop http sidecar config loads and validates from jac.toml" {
         assert as_dict["enabled"] == True and as_dict["port"] == 8123;
         assert as_dict["capabilities"] == ["multipart", "openapi"];
         reset_desktop_config();
-
         # Unknown capability is rejected by validate().
         with open(Path(d) / "jac.toml", "w") as f {
             f.write(
@@ -179,7 +177,6 @@ test "desktop http sidecar config loads and validates from jac.toml" {
         }
         assert rejected , "unknown [desktop.http] capability must be rejected";
         reset_desktop_config();
-
         # Out-of-range port is rejected.
         with open(Path(d) / "jac.toml", "w") as f {
             f.write(
@@ -209,7 +206,15 @@ test "generated host wires the http sidecar config and __JAC_HTTP__ injection" {
     }
 
     src = _generate_host_source(
-        "T", 800, 600, "test-app", "", 30.0, 128, False, {},
+        "T",
+        800,
+        600,
+        "test-app",
+        "",
+        30.0,
+        128,
+        False,
+        {},
         {"enabled": True, "capabilities": ["multipart"], "port": 0}
     );
     # The opt-in http config rides the frozen boot config into host_boot.boot().

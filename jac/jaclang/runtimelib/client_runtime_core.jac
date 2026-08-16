@@ -33,7 +33,6 @@ def:pub __jacClearCache -> None;
 
 def:pub __jacDesktopBroker -> str;
 
-# --- Centralized client routing (docs/desktop-portal-architecture.md §7) -------
 def:pub __jacHttpSidecar -> dict;
 def:pub __jacHttpHasCapability(cap: str) -> bool;
 def:pub __jacCapabilityError(cap: str) -> dict;

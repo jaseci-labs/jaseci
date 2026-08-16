@@ -32,7 +32,9 @@ import from jaclang.runtimelib.http_surface { HttpSurface, RouteSpec, build_surf
 import from jaclang.runtimelib.invocation { InvocationKind }
 
 
-glob _FIXTURE: str = str(Path(str(__file__)).parent / "fixtures" / "http_surface_app.jac"),
+glob _FIXTURE: str = str(
+         Path(str(__file__)).parent / "fixtures" / "http_surface_app.jac"
+     ),
      _RT: any = None,
      _SURF: any = None,
      _MY_CTX: any = None,
@@ -73,10 +75,7 @@ test "http_surface + native dispatch import without pulling FastAPI/starlette/py
 """match() resolves verb + literal/param segments; specificity prefers literals."""
 test "route surface matches verbs, path params, and prefers literal routes" {
     literal = RouteSpec(
-        method="GET",
-        path_template="/a/b",
-        kind=InvocationKind.WALKER,
-        name="Literal"
+        method="GET", path_template="/a/b", kind=InvocationKind.WALKER, name="Literal"
     );
     templated = RouteSpec(
         method="GET",
@@ -122,10 +121,7 @@ test "route surface binds query (coerced), path params, node, and body" {
         query_fields=["name", "age"]
     );
     req = surface.bind(
-        get_spec,
-        {},
-        {"name": ["Alice"], "age": ["30"], "v": ["cachebust"]},
-        None
+        get_spec, {}, {"name": ["Alice"], "age": ["30"], "v": ["cachebust"]}, None
     );
     assert req.kind == InvocationKind.WALKER and req.name == "Search";
     assert req.node_id is None;
@@ -230,7 +226,9 @@ def _forward(method: str, path: str, body: any = None, token: str = "") -> tuple
 
 """Drive inprocess_dispatch.forward_outcome() (the streaming-aware broker bridge)
 under the same hermetic global swap, returning its outcome dict."""
-def _forward_outcome(method: str, path: str, body: any = None, token: str = "") -> dict {
+def _forward_outcome(
+    method: str, path: str, body: any = None, token: str = ""
+) -> dict {
     import from jaclang { JacRuntime as Jac }
     import jaclang.jac0core.runtime as _rtmod;
     import jaclang.runtimelib.client.targets.desktop.native.inprocess_dispatch as ipd;

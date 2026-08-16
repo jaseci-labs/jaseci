@@ -562,15 +562,6 @@ impl __jacDesktopBroker -> str {
     return "";
 }
 
-# --- Centralized client routing ------------------------------------------------
-# ONE place implements the decision tree from the desktop portal architecture:
-#   standard walker/function -> __jac_invoke (native) else fetch(api_base) (web)
-#   file upload              -> sidecar HTTP if [desktop.http] present else error
-#   OAuth / session          -> broker (handled in jacSsoLogin / jacLogout)
-#   @jac/desktop plugins     -> broker POST /__jac/invoke (handled in desktop_api)
-# __doWalkerFetch / __doFuncFetch consult __jacRoute so the native-vs-web choice
-# lives here instead of being duplicated inline at each call site.
-
 impl __jacHttpSidecar -> dict {
     h = globalThis.__JAC_HTTP__;
     if h and h["base"] {
@@ -589,8 +580,6 @@ impl __jacHttpHasCapability(cap: str) -> bool {
 }
 
 impl __jacCapabilityError(cap: str) -> dict {
-    # Mirror the sv-side runtimelib.http_surface.capability_error envelope so both
-    # front doors fail identically when an HTTP-only feature is used in lean mode.
     status = 415 if cap == "multipart" else 501;
     return {
         "ok": False,

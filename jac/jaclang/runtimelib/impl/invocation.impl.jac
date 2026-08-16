@@ -204,7 +204,7 @@ impl InvocationDispatcher.invoke(request: InvocationRequest) -> InvocationResult
             );
         }
         requires_auth = self.introspector.is_auth_required_for_walker(request.name);
-        target = walkers[request.name];
+        target: any = walkers[request.name];
         field_meta = self.introspector.introspect_walker(target).get("fields", {});
         drop_unknown = True;
     } else {

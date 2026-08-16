@@ -26,7 +26,9 @@ import from pathlib { Path }
 import from urllib.request { Request, urlopen }
 import from urllib.error { HTTPError, URLError }
 
-glob _FIXTURE: str = str(Path(str(__file__)).parent / "fixtures" / "http_sidecar_app.jac"),
+glob _FIXTURE: str = str(
+         Path(str(__file__)).parent / "fixtures" / "http_sidecar_app.jac"
+     ),
      _RT: any = None,
      _HANDLE: any = None,
      _BUILD_FAILED: str = "";
@@ -124,18 +126,35 @@ def _build_multipart(fields: dict, files: dict) -> tuple[bytes, str] {
     body = b"";
     for (k, v) in fields.items() {
         header = (
-            "--" + boundary + crlf
-            + "Content-Disposition: form-data; name=\"" + str(k) + "\"" + crlf + crlf
+            "--"
+            + boundary
+            + crlf
+            + "Content-Disposition: form-data; name=\""
+            + str(k)
+            + "\""
+            + crlf
+            + crlf
         );
-        body = body + header.encode("utf-8") + str(v).encode("utf-8") + crlf.encode("utf-8");
+        body = body
+            + header.encode("utf-8")
+            + str(v).encode("utf-8")
+            + crlf.encode("utf-8");
     }
     for (k, pair) in files.items() {
         (fname, data) = pair;
         header = (
-            "--" + boundary + crlf
-            + "Content-Disposition: form-data; name=\"" + str(k) + "\"; filename=\""
-            + str(fname) + "\"" + crlf
-            + "Content-Type: application/octet-stream" + crlf + crlf
+            "--"
+            + boundary
+            + crlf
+            + "Content-Disposition: form-data; name=\""
+            + str(k)
+            + "\"; filename=\""
+            + str(fname)
+            + "\""
+            + crlf
+            + "Content-Type: application/octet-stream"
+            + crlf
+            + crlf
         );
         body = body + header.encode("utf-8") + data + crlf.encode("utf-8");
     }
@@ -173,9 +192,7 @@ test "multipart upload reaches the shared dispatcher through the sidecar" {
         pytest.skip("sidecar backend unavailable: " + _BUILD_FAILED);
     }
     payload = b"hello upload bytes";
-    (body, ctype) = _build_multipart(
-        {"label": "avatar"}, {"file": ("a.bin", payload)}
-    );
+    (body, ctype) = _build_multipart({"label": "avatar"}, {"file": ("a.bin", payload)});
     (status, text) = _req(
         "/walker/save_upload",
         body=body,

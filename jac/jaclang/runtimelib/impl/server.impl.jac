@@ -1731,12 +1731,6 @@ impl JacAPIServer.build_app -> ServingApp {
         app.add_middleware(custom_headers_middleware(custom_headers));
     }
 
-        }
-    }
-    if custom_headers {
-        app.add_middleware(custom_headers_middleware(custom_headers));
-    }
-
     def _bearer_token(request: Request) -> (str | None) {
         auth_header = request.headers.get('Authorization');
         return auth_header[7:]
@@ -2078,10 +2072,7 @@ impl JacAPIServer.build_app -> ServingApp {
         if data is None {
             return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
-        import from jaclang.runtimelib.invocation {
-            InvocationKind,
-            InvocationRequest
-        }
+        import from jaclang.runtimelib.invocation { InvocationKind, InvocationRequest }
         token = _bearer_token(request) or "";
         username = request.state?.username if request?.state else None;
         result = asyncio.run(
@@ -2105,10 +2096,7 @@ impl JacAPIServer.build_app -> ServingApp {
         if data is None {
             return JSONResponse(content={'error': 'Invalid JSON'}, status_code=400);
         }
-        import from jaclang.runtimelib.invocation {
-            InvocationKind,
-            InvocationRequest
-        }
+        import from jaclang.runtimelib.invocation { InvocationKind, InvocationRequest }
         token = _bearer_token(request) or "";
         username = request.state?.username if request?.state else None;
         result = asyncio.run(
