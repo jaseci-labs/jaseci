@@ -1,34 +1,37 @@
 impl BoundaryAnalysisPass.before_pass(self: BoundaryAnalysisPass) -> None {
-    self._func_defs: dict[(str, tuple[(InteropContext, uni.Ability)])] = {};
+    self._func_defs: dict[(str, tuple[(InteropContext, Ability)])] = {};
     self._imported_native_funcs: dict[(str, tuple[(str, InteropContext)])] = {};
 
     self._imported_native_modules: dict[(str, tuple[(str, InteropContext)])] = {};
 }
 
 impl BoundaryAnalysisPass._resolved_native_decl(
-    self: BoundaryAnalysisPass, name_node: (uni.UniNode | None)
-) -> (uni.Ability | None) {
-    if name_node is None or not isinstance(name_node, uni.AstSymbolNode) {
+    self: BoundaryAnalysisPass, name_node: (UniNode | None)
+) -> (Ability | None) {
+    if name_node is None or not isinstance(name_node, AstSymbolNode) {
         return None;
     }
     import from jaclang.jac0core.compiler { ability_of_symbol }
     decl = ability_of_symbol(name_node.sym);
-    if decl is not None and isinstance(decl.signature, uni.FuncSignature) {
+    if decl is not None and isinstance(decl.signature, FuncSignature) {
         return decl;
     }
     return None;
 }
 
 impl BoundaryAnalysisPass._signature_of_decl(
-    self: BoundaryAnalysisPass, decl: (uni.Ability | None)
+    self: BoundaryAnalysisPass, decl: (Ability | None)
 ) -> tuple[(str, list[str], list[str])] {
     ret_type: str = 'int';
     param_types: list[str] = [];
     param_names: list[str] = [];
-    if decl is not None and isinstance(decl.signature, uni.FuncSignature) {
+    if decl is not None and isinstance(decl.signature, FuncSignature) {
         sig = decl.signature;
         for plist in [sig.posonly_params, sig.params or [], sig.kwonlyargs] {
             for p in plist {
+                if not isinstance(p, ParamVar) {
+                    continue;
+                }
                 param_names.append(p.sym_name);
                 if p.type_tag {
                     param_types.append(self._extract_type_name(p.type_tag.tag));
@@ -45,7 +48,7 @@ impl BoundaryAnalysisPass._signature_of_decl(
 }
 
 impl BoundaryAnalysisPass._get_context(
-    self: BoundaryAnalysisPass, nd: uni.UniNode
+    self: BoundaryAnalysisPass, nd: UniNode
 ) -> InteropContext {
     import from jaclang.jac0core.constant { CodeContext }
     cs = nd.codespace();
@@ -59,23 +62,23 @@ impl BoundaryAnalysisPass._get_context(
 }
 
 impl BoundaryAnalysisPass._extract_type_name(
-    self: BoundaryAnalysisPass, expr: (uni.UniNode | None)
+    self: BoundaryAnalysisPass, expr: (UniNode | None)
 ) -> str {
     if (expr is None) {
         return 'int';
     }
-    if isinstance(expr, uni.Name) {
+    if isinstance(expr, Name) {
         return expr.value;
     }
-    if isinstance(expr, uni.Token) {
+    if isinstance(expr, Token) {
         return expr.value;
     }
 
-    if isinstance(expr, uni.BuiltinType) {
+    if isinstance(expr, BuiltinType) {
         return expr?.sym_name or str(getattr(expr, 'value', 'int'));
     }
 
-    if isinstance(expr, uni.AtomTrailer) {
+    if isinstance(expr, AtomTrailer) {
         target_name = self._extract_type_name(expr.target);
         if expr.right {
             inner = self._extract_subscript_inner(expr.right);
@@ -86,7 +89,7 @@ impl BoundaryAnalysisPass._extract_type_name(
         return target_name;
     }
 
-    if isinstance(expr, uni.BinaryExpr) {
+    if isinstance(expr, BinaryExpr) {
         left = self._extract_type_name(expr.left);
         right = self._extract_type_name(expr.right);
         return f"{left} | {right}";
@@ -117,7 +120,7 @@ impl BoundaryAnalysisPass._in_native_module(self: BoundaryAnalysisPass) -> bool 
 }
 
 impl BoundaryAnalysisPass._native_source_module_of(
-    self: BoundaryAnalysisPass, mod: (uni.Module | None)
+    self: BoundaryAnalysisPass, mod: (Module | None)
 ) -> (str | None) {
     import os;
     if mod is None or mod is self.ir_in or mod.loc is None or not mod.loc.mod_path {
@@ -144,8 +147,8 @@ impl BoundaryAnalysisPass._native_source_module_of(
 }
 
 impl BoundaryAnalysisPass._absorbed_module(
-    self: BoundaryAnalysisPass, item: uni.ModulePath
-) -> (uni.Module | None) {
+    self: BoundaryAnalysisPass, item: ModulePath
+) -> (Module | None) {
     import os;
     try {
         path = item.resolve_relative_path();
@@ -155,7 +158,7 @@ impl BoundaryAnalysisPass._absorbed_module(
     if not path {
         return None;
     }
-    mod: (uni.Module | None) = None;
+    mod: (Module | None) = None;
     if (self.prog and self.prog.mod and self.prog.mod.hub) {
         mod = self.prog.mod.hub.get(path);
         if mod is None {
@@ -173,12 +176,12 @@ impl BoundaryAnalysisPass._absorbed_module(
 }
 
 impl BoundaryAnalysisPass._register_native_absorb(
-    self: BoundaryAnalysisPass, nd: uni.Import
+    self: BoundaryAnalysisPass, nd: Import
 ) -> None {
     import from jaclang.jac0core.compiler { import_declares_native_target }
     import from jaclang.jac0core.constant { SymbolAccess }
     item = nd.items[0];
-    if not (isinstance(item, uni.ModulePath) and item.path) {
+    if not (isinstance(item, ModulePath) and item.path) {
         return;
     }
     module_name = '.'.join(getattr(p, 'value', str(p)) for p in item.path);
@@ -207,10 +210,10 @@ impl BoundaryAnalysisPass._register_native_absorb(
             continue;
         }
         defn0 = sym.defn[0];
-        if defn0.find_parent_of_type(uni.Import) is not None {
+        if defn0.find_parent_of_type(Import) is not None {
             continue;
         }
-        src = self._native_source_module_of(defn0.find_parent_of_type(uni.Module))
+        src = self._native_source_module_of(defn0.find_parent_of_type(Module))
             or native_path;
         self._imported_native_funcs[name] = (src, import_context);
         if (is_native_ctx and name not in manifest.bindings) {
@@ -230,13 +233,11 @@ impl BoundaryAnalysisPass._register_native_absorb(
     }
 }
 
-impl BoundaryAnalysisPass.enter_import(
-    self: BoundaryAnalysisPass, nd: uni.Import
-) -> None {
+impl BoundaryAnalysisPass.enter_import(self: BoundaryAnalysisPass, nd: Import) -> None {
     import from jaclang.jac0core.compiler { import_declares_native_target }
     import from jaclang.jac0core.ext_registry { is_server_module }
     import_context = self._get_context(nd);
-    if (nd.from_loc and isinstance(nd.from_loc, uni.ModulePath)) {
+    if (nd.from_loc and isinstance(nd.from_loc, ModulePath)) {
         module_name = nd.from_loc?.dot_path_str;
         if (not module_name and nd.from_loc?.path and nd.from_loc.path) {
             module_name = '.'.join(
@@ -298,13 +299,13 @@ impl BoundaryAnalysisPass.enter_import(
             if (native_path and nd.items) {
                 manifest = self.ir_in.gen.interop_manifest;
                 for item in nd.items {
-                    if isinstance(item, uni.ModuleItem) {
+                    if isinstance(item, ModuleItem) {
                         func_name = getattr(item.name, 'value', str(item.name));
                         _item_sym = item.name.sym
-                            if isinstance(item.name, uni.AstSymbolNode)
+                            if isinstance(item.name, AstSymbolNode)
                             else None;
                         _src = self._native_source_module_of(
-                            _item_sym.defn[0].find_parent_of_type(uni.Module)
+                            _item_sym.defn[0].find_parent_of_type(Module)
                         )
                             if (_item_sym and _item_sym.defn)
                             else None;
@@ -344,7 +345,7 @@ impl BoundaryAnalysisPass.enter_import(
     if (not nd.from_loc) and nd.items and (not nd.clib_decls) {
         import from jaclang.jac0core.codeinfo { is_bundled_native_module }
         for item in nd.items {
-            if isinstance(item, uni.ModulePath) and item.path {
+            if isinstance(item, ModulePath) and item.path {
                 whole_name = '.'.join(getattr(p, 'value', str(p)) for p in item.path);
                 _eligible = is_bundled_native_module(whole_name)
                     or (item.alias is None and len(item.path) == 1);
@@ -370,12 +371,9 @@ impl BoundaryAnalysisPass.enter_import(
 }
 
 impl BoundaryAnalysisPass._register_sv_import(
-    self: BoundaryAnalysisPass,
-    nd: uni.Import,
-    module_name: str,
-    caller_ctx: InteropContext
+    self: BoundaryAnalysisPass, nd: Import, module_name: str, caller_ctx: InteropContext
 ) -> None {
-    source_mod: (uni.Module | None) = None;
+    source_mod: (Module | None) = None;
     if nd.from_loc {
         try {
             resolved_path = nd.from_loc.resolve_relative_path();
@@ -410,7 +408,7 @@ impl BoundaryAnalysisPass._register_sv_import(
     }
     manifest = self.ir_in.gen.interop_manifest;
     for item in nd.items {
-        if not isinstance(item, uni.ModuleItem) {
+        if not isinstance(item, ModuleItem) {
             continue;
         }
         sym_name = getattr(item.name, 'value', str(item.name));
@@ -432,7 +430,7 @@ impl BoundaryAnalysisPass._register_sv_import(
             manifest.bindings[local_name] = binding;
             continue;
         }
-        ability_node: (uni.Ability | None) = source_abilities.get(sym_name);
+        ability_node: (Ability | None) = source_abilities.get(sym_name);
         (ret_type, param_types, param_names) = self._signature_of_decl(ability_node);
         binding = InteropBinding(
             name=sym_name,
@@ -450,7 +448,7 @@ impl BoundaryAnalysisPass._register_sv_import(
 }
 
 impl BoundaryAnalysisPass._register_na_client_import(
-    self: BoundaryAnalysisPass, nd: uni.Import
+    self: BoundaryAnalysisPass, nd: Import
 ) -> None {
     import from jaclang.jac0core.codeinfo { native_wasm_stem }
     import from jaclang.jac0core.diagnostics { E5083 }
@@ -477,7 +475,7 @@ impl BoundaryAnalysisPass._register_na_client_import(
         }
     }
     for item in nd.items {
-        if not isinstance(item, uni.ModuleItem) {
+        if not isinstance(item, ModuleItem) {
             continue;
         }
         sym_name = getattr(item.name, 'value', str(item.name));
@@ -498,7 +496,7 @@ impl BoundaryAnalysisPass._register_na_client_import(
 }
 
 impl BoundaryAnalysisPass._register_client_bridged_import(
-    self: BoundaryAnalysisPass, nd: uni.Import
+    self: BoundaryAnalysisPass, nd: Import
 ) -> None {
     import from jaclang.jac0core.compiler {
         ClientImportVerdict,
@@ -517,7 +515,7 @@ impl BoundaryAnalysisPass._register_client_bridged_import(
     manifest = self.ir_in.gen.interop_manifest;
     module_name = nd.from_loc.base_module_name if nd.from_loc else '';
     for item in nd.items {
-        if not isinstance(item, uni.ModuleItem) {
+        if not isinstance(item, ModuleItem) {
             continue;
         }
         verdict = classify_client_import_item(source_mod, item);
@@ -548,7 +546,7 @@ impl BoundaryAnalysisPass._register_client_bridged_import(
 impl BoundaryAnalysisPass._collect_abilities(
     self: BoundaryAnalysisPass, nd: any, out: dict[str, any]
 ) -> None {
-    if isinstance(nd, uni.Ability) and nd.sym_name {
+    if isinstance(nd, Ability) and nd.sym_name {
         out[nd.sym_name] = nd;
     }
     if nd?.kid and nd.kid {
@@ -561,7 +559,7 @@ impl BoundaryAnalysisPass._collect_abilities(
 impl BoundaryAnalysisPass._collect_pub_walkers(
     self: BoundaryAnalysisPass, nd: any, out: dict[str, any]
 ) -> None {
-    if isinstance(nd, uni.Archetype) and nd.sym_name {
+    if isinstance(nd, Archetype) and nd.sym_name {
         is_walker = nd.arch_kind == "walker";
         is_pub = False;
         try {
@@ -597,13 +595,13 @@ impl BoundaryAnalysisPass._extract_walker_has_fields(
         else [walker_nd.body];
     for item in body_items {
         has_vars: list = [];
-        if isinstance(item, uni.HasVar) {
+        if isinstance(item, HasVar) {
             has_vars = [item];
-        } elif isinstance(item, uni.ArchHas) {
+        } elif isinstance(item, ArchHas) {
             has_vars = [
                 k
                 for k in item.kid
-                if isinstance(k, uni.HasVar)
+                if isinstance(k, HasVar)
             ];
         }
         for hv in has_vars {
@@ -647,7 +645,7 @@ impl BoundaryAnalysisPass._parse_only_source_module(
 impl BoundaryAnalysisPass._find_archetype(
     self: BoundaryAnalysisPass, nd: any, target: str
 ) -> any {
-    if (isinstance(nd, (uni.Archetype, uni.Enum)) and nd?.sym_name == target) {
+    if (isinstance(nd, (Archetype, Enum)) and nd?.sym_name == target) {
         return nd;
     }
     if nd?.kid and nd.kid {
@@ -662,18 +660,18 @@ impl BoundaryAnalysisPass._find_archetype(
 }
 
 impl BoundaryAnalysisPass.enter_ability(
-    self: BoundaryAnalysisPass, nd: uni.Ability
+    self: BoundaryAnalysisPass, nd: Ability
 ) -> None {
     if (
         nd.sym_name
-        and isinstance(nd.signature, uni.FuncSignature)
-        and nd.find_parent_of_type(uni.Ability) is None
-        and nd.find_parent_of_type(uni.LambdaExpr) is None
+        and isinstance(nd.signature, FuncSignature)
+        and nd.find_parent_of_type(Ability) is None
+        and nd.find_parent_of_type(LambdaExpr) is None
     ) {
         nd_cc = nd.code_context;
-        if nd_cc == uni.CodeContext.NATIVE {
+        if nd_cc == CodeContext.NATIVE {
             ctx = InteropContext.NATIVE;
-        } elif nd_cc == uni.CodeContext.CLIENT {
+        } elif nd_cc == CodeContext.CLIENT {
             ctx = InteropContext.CLIENT;
         } else {
             ctx = self._get_context(nd);
@@ -683,32 +681,31 @@ impl BoundaryAnalysisPass.enter_ability(
 }
 
 impl BoundaryAnalysisPass.enter_func_call(
-    self: BoundaryAnalysisPass, nd: uni.FuncCall
+    self: BoundaryAnalysisPass, nd: FuncCall
 ) -> None {
     if (
-        isinstance(nd.target, uni.Name)
+        isinstance(nd.target, Name)
         and nd.target.sym is not None
         and nd.target.sym.decl is not None
     ) {
-        _decl_ab = nd.target.sym.decl.find_parent_of_type(uni.Ability);
+        _decl_ab = nd.target.sym.decl.find_parent_of_type(Ability);
         if (
-            _decl_ab is not None
-            and _decl_ab.find_parent_of_type(uni.Ability) is not None
+            _decl_ab is not None and _decl_ab.find_parent_of_type(Ability) is not None
         ) {
             return;
         }
     }
     func_name = None;
-    if isinstance(nd.target, uni.Name) {
+    if isinstance(nd.target, Name) {
         func_name = nd.target.value;
-    } elif isinstance(nd.target, uni.NameAtom) {
+    } elif isinstance(nd.target, NameAtom) {
         func_name = nd.target.sym_name;
-    } elif isinstance(nd.target, uni.AtomTrailer) and nd.target.is_attr {
+    } elif isinstance(nd.target, AtomTrailer) and nd.target.is_attr {
         base = nd.target.target;
         base_name = None;
-        if isinstance(base, uni.Name) {
+        if isinstance(base, Name) {
             base_name = base.value;
-        } elif isinstance(base, uni.NameAtom) {
+        } elif isinstance(base, NameAtom) {
             base_name = base.sym_name;
         }
         if base_name is not None and base_name in self._imported_native_modules {
@@ -798,20 +795,20 @@ impl BoundaryAnalysisPass.enter_func_call(
 }
 
 impl BoundaryAnalysisPass._extract_subscript_inner(
-    self: BoundaryAnalysisPass, expr: (uni.UniNode | None)
+    self: BoundaryAnalysisPass, expr: (UniNode | None)
 ) -> str {
     if expr is None {
         return '';
     }
 
-    if isinstance(expr, uni.Name) {
+    if isinstance(expr, Name) {
         return expr.value;
     }
-    if isinstance(expr, uni.Token) {
+    if isinstance(expr, Token) {
         return expr.value;
     }
 
-    if isinstance(expr, uni.IndexSlice) {
+    if isinstance(expr, IndexSlice) {
         for k in expr.kid {
             result = self._extract_subscript_inner(k);
             if result {
@@ -820,7 +817,7 @@ impl BoundaryAnalysisPass._extract_subscript_inner(
         }
     }
 
-    if isinstance(expr, uni.Slice) {
+    if isinstance(expr, Slice) {
         for k in expr.kid {
             result = self._extract_subscript_inner(k);
             if result {
@@ -829,7 +826,7 @@ impl BoundaryAnalysisPass._extract_subscript_inner(
         }
     }
 
-    if isinstance(expr, (uni.ListVal, uni.TupleVal)) {
+    if isinstance(expr, (ListVal, TupleVal)) {
         if expr.values {
             parts = [self._extract_type_name(v) for v in expr.values];
             return ', '.join(
@@ -843,17 +840,17 @@ impl BoundaryAnalysisPass._extract_subscript_inner(
 }
 
 impl BoundaryAnalysisPass._extract_all_subscript_types(
-    self: BoundaryAnalysisPass, expr: (uni.UniNode | None)
+    self: BoundaryAnalysisPass, expr: (UniNode | None)
 ) -> list[str] {
     if expr is None {
         return [];
     }
     result: list[str] = [];
-    if isinstance(expr, (uni.Name, uni.Token)) {
+    if isinstance(expr, (Name, Token)) {
         result.extend(self._extract_all_type_names(expr));
         return result;
     }
-    if isinstance(expr, (uni.ListVal, uni.TupleVal)) {
+    if isinstance(expr, (ListVal, TupleVal)) {
         for v in expr.values {
             result.extend(self._extract_all_type_names(v));
         }
@@ -869,7 +866,7 @@ impl BoundaryAnalysisPass._extract_all_subscript_types(
 }
 
 impl BoundaryAnalysisPass._extract_all_type_names(
-    self: BoundaryAnalysisPass, expr: (uni.UniNode | None)
+    self: BoundaryAnalysisPass, expr: (UniNode | None)
 ) -> list[str] {
     prims = {
         'str',
@@ -891,24 +888,24 @@ impl BoundaryAnalysisPass._extract_all_type_names(
     if expr is None {
         return [];
     }
-    if isinstance(expr, uni.Name) {
+    if isinstance(expr, Name) {
         if expr.value not in prims {
             return [expr.value];
         }
         return [];
     }
-    if isinstance(expr, uni.Token) {
+    if isinstance(expr, Token) {
         if expr.value not in prims {
             return [expr.value];
         }
         return [];
     }
 
-    if isinstance(expr, uni.BuiltinType) {
+    if isinstance(expr, BuiltinType) {
         return [];
     }
 
-    if isinstance(expr, uni.AtomTrailer) {
+    if isinstance(expr, AtomTrailer) {
         result: list[str] = [];
         result.extend(self._extract_all_type_names(expr.target));
         if expr.right {
@@ -917,7 +914,7 @@ impl BoundaryAnalysisPass._extract_all_type_names(
         return result;
     }
 
-    if isinstance(expr, uni.BinaryExpr) {
+    if isinstance(expr, BinaryExpr) {
         result: list[str] = [];
         result.extend(self._extract_all_type_names(expr.left));
         result.extend(self._extract_all_type_names(expr.right));
@@ -927,7 +924,7 @@ impl BoundaryAnalysisPass._extract_all_type_names(
 }
 
 impl BoundaryAnalysisPass._collect_boundary_type(
-    self: BoundaryAnalysisPass, type_name: str, source_mod: (uni.Module | None)
+    self: BoundaryAnalysisPass, type_name: str, source_mod: (Module | None)
 ) -> None {
     prims = {
         'str',
@@ -964,11 +961,11 @@ impl BoundaryAnalysisPass._collect_boundary_type(
         sym = mod.sym_tab.lookup(type_name, deep=True) if mod.sym_tab else None;
         if sym and sym.defn {
             candidate = sym.defn[0];
-            if isinstance(candidate, uni.NameAtom) and candidate.parent {
+            if isinstance(candidate, NameAtom) and candidate.parent {
                 candidate = candidate.parent;
             }
 
-            if isinstance(candidate, (uni.Archetype, uni.Enum)) {
+            if isinstance(candidate, (Archetype, Enum)) {
                 arch_node = candidate;
                 break;
             }
@@ -991,7 +988,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
         return;
     }
 
-    if isinstance(arch_node, uni.Archetype) {
+    if isinstance(arch_node, Archetype) {
         _ak = arch_node.arch_kind;
         kind = _ak if _ak in ("node", "walker") else "obj";
         fields: list[tuple[(str, str)]] = [];
@@ -1004,13 +1001,13 @@ impl BoundaryAnalysisPass._collect_boundary_type(
                 else [arch_node.body];
             for item in body_items {
                 has_vars: list = [];
-                if isinstance(item, uni.HasVar) {
+                if isinstance(item, HasVar) {
                     has_vars = [item];
-                } elif isinstance(item, uni.ArchHas) {
+                } elif isinstance(item, ArchHas) {
                     has_vars = [
                         k
                         for k in item.kid
-                        if isinstance(k, uni.HasVar)
+                        if isinstance(k, HasVar)
                     ];
                 }
                 for hv in has_vars {
@@ -1051,7 +1048,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
         return;
     }
 
-    if isinstance(arch_node, uni.Enum) {
+    if isinstance(arch_node, Enum) {
         members: list[tuple[(str, Any)]] = [];
         next_auto = 1;
         if arch_node.body {
@@ -1059,20 +1056,20 @@ impl BoundaryAnalysisPass._collect_boundary_type(
                 if isinstance(arch_node.body, list)
                 else [arch_node.body];
             for item in body_items {
-                if isinstance(item, uni.Assignment) {
+                if isinstance(item, Assignment) {
                     member_name = '';
                     member_val = None;
                     targets = item.target
                         if isinstance(item.target, list)
                         else [item.target];
                     for tgt in targets {
-                        if isinstance(tgt, uni.AstSymbolNode) {
+                        if isinstance(tgt, AstSymbolNode) {
                             member_name = tgt.sym_name;
                             break;
                         }
                     }
                     if item.value {
-                        if isinstance(item.value, uni.MultiString) {
+                        if isinstance(item.value, MultiString) {
                             if item.value.strings {
                                 s = item.value.strings[0];
                                 raw = getattr(s, 'value', str(s));
@@ -1082,7 +1079,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
                                     member_val = raw;
                                 }
                             }
-                        } elif isinstance(item.value, uni.Token) {
+                        } elif isinstance(item.value, Token) {
                             member_val = item.value.value;
                             try {
                                 member_val = int(item.value.value);
@@ -1108,31 +1105,31 @@ impl BoundaryAnalysisPass._collect_boundary_type(
 impl BoundaryAnalysisPass._literal_default(
     self: BoundaryAnalysisPass, expr: any
 ) -> tuple[(bool, any)] {
-    if isinstance(expr, uni.Null) {
+    if isinstance(expr, Null) {
         return (True, None);
     }
-    if isinstance(expr, (uni.Bool, uni.Int, uni.Float)) {
+    if isinstance(expr, (Bool, Int, Float)) {
         return (True, expr.lit_value);
     }
-    if isinstance(expr, uni.MultiString) {
+    if isinstance(expr, MultiString) {
         for part in expr.strings {
-            if not isinstance(part, uni.String) {
+            if not isinstance(part, String) {
                 return (False, None);
             }
         }
     }
-    if isinstance(expr, (uni.String, uni.MultiString)) {
+    if isinstance(expr, (String, MultiString)) {
         val = expr.lit_value;
         return (True, val) if isinstance(val, str) else (False, None);
     }
     if (
-        isinstance(expr, uni.UnaryExpr)
+        isinstance(expr, UnaryExpr)
         and expr.op.value == '-'
-        and isinstance(expr.operand, (uni.Int, uni.Float))
+        and isinstance(expr.operand, (Int, Float))
     ) {
         return (True, -expr.operand.lit_value);
     }
-    if isinstance(expr, (uni.ListVal, uni.TupleVal)) {
+    if isinstance(expr, (ListVal, TupleVal)) {
         items = [];
         for v in (expr.values or []) {
             (rep, val) = self._literal_default(v);
@@ -1143,13 +1140,13 @@ impl BoundaryAnalysisPass._literal_default(
         }
         return (True, items);
     }
-    if isinstance(expr, uni.DictVal) {
+    if isinstance(expr, DictVal) {
         entries = {};
         for kv in expr.kv_pairs {
-            if not isinstance(kv, uni.KVPair) or kv.key is None {
+            if not isinstance(kv, KVPair) or kv.key is None {
                 return (False, None);
             }
-            if isinstance(kv.key, uni.Name) {
+            if isinstance(kv.key, Name) {
                 (krep, kval) = (True, kv.key.value);
             } else {
                 (krep, kval) = self._literal_default(kv.key);
@@ -1192,7 +1189,7 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
             continue;
         }
         err_node = binding.ast_node
-            if isinstance(binding.ast_node, uni.UniNode)
+            if isinstance(binding.ast_node, UniNode)
             else self.ir_in;
         for (i, pt) in enumerate(binding.param_types) {
             if pt not in ctypes_wire {
@@ -1220,25 +1217,25 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
     }
 
     for binding in manifest.server_exports_to_client {
-        if binding.ast_node and isinstance(binding.ast_node, uni.Ability) {
-            cl_src_mod: (uni.Module | None) = None;
-            walk_node: (uni.UniNode | None) = binding.ast_node;
+        if binding.ast_node and isinstance(binding.ast_node, Ability) {
+            cl_src_mod: (Module | None) = None;
+            walk_node: (UniNode | None) = binding.ast_node;
             while walk_node {
-                if isinstance(walk_node, uni.Module) {
+                if isinstance(walk_node, Module) {
                     cl_src_mod = walk_node;
                     break;
                 }
                 walk_node = walk_node.parent;
             }
             sig = binding.ast_node.signature;
-            if isinstance(sig, uni.FuncSignature) {
+            if isinstance(sig, FuncSignature) {
                 if sig.return_type {
                     for tn in self._extract_all_type_names(sig.return_type) {
                         self._collect_boundary_type(tn, cl_src_mod);
                     }
                 }
                 for p in sig.params {
-                    if p.type_tag {
+                    if isinstance(p, ParamVar) and p.type_tag {
                         for tn in self._extract_all_type_names(p.type_tag.tag) {
                             self._collect_boundary_type(tn, cl_src_mod);
                         }
@@ -1249,25 +1246,25 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
     }
 
     for binding in manifest.server_exports_to_server {
-        source_mod_obj: (uni.Module | None) = None;
-        if (binding.ast_node and isinstance(binding.ast_node, uni.Ability)) {
-            walker_node: (uni.UniNode | None) = binding.ast_node;
+        source_mod_obj: (Module | None) = None;
+        if (binding.ast_node and isinstance(binding.ast_node, Ability)) {
+            walker_node: (UniNode | None) = binding.ast_node;
             while walker_node {
-                if isinstance(walker_node, uni.Module) {
+                if isinstance(walker_node, Module) {
                     source_mod_obj = walker_node;
                     break;
                 }
                 walker_node = walker_node.parent;
             }
             sig = binding.ast_node.signature;
-            if isinstance(sig, uni.FuncSignature) {
+            if isinstance(sig, FuncSignature) {
                 if sig.return_type {
                     for tn in self._extract_all_type_names(sig.return_type) {
                         self._collect_boundary_type(tn, source_mod_obj);
                     }
                 }
                 for p in sig.params {
-                    if p.type_tag {
+                    if isinstance(p, ParamVar) and p.type_tag {
                         for tn in self._extract_all_type_names(p.type_tag.tag) {
                             self._collect_boundary_type(tn, source_mod_obj);
                         }
@@ -1289,7 +1286,7 @@ impl BoundaryAnalysisPass.after_pass(self: BoundaryAnalysisPass) -> None {
     if has_client and self.ir_in and self.ir_in.body {
         for item in self.ir_in.body {
             if (
-                isinstance(item, (uni.Archetype, uni.Enum))
+                isinstance(item, (Archetype, Enum))
                 and not item.in_client_context()
                 and not item.in_native_context()
             ) {
@@ -1307,10 +1304,10 @@ impl BoundaryAnalysisPass._record_access_levels(
         return;
     }
     for item in self.ir_in.body {
-        if isinstance(item, uni.Ability) and item?.sym_name {
+        if isinstance(item, Ability) and item?.sym_name {
             is_pub = item.access is not None and item.access.tag.name == Tok.KW_PUB;
             manifest.func_access[item.sym_name] = not is_pub;
-        } elif isinstance(item, uni.Archetype) and item?.sym_name {
+        } elif isinstance(item, Archetype) and item?.sym_name {
             is_walker = bool(item?.arch_type) and item.arch_type?.name == Tok.KW_WALKER;
             if is_walker {
                 is_pub = item.access is not None and item.access.tag.name == Tok.KW_PUB;

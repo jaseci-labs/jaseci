@@ -15,6 +15,26 @@ impl NaIRGenPass._dict_key_spec(key_type: ir.Type) -> tuple {
     return ("i64", 0);
 }
 
+impl NaIRGenPass._peer_dict_key -> (str | None) {
+    """Dict layout an empty display should adopt from the operand beside it.
+
+    Set only where one branch's container answers for the other's: a ternary
+    arm and the right operand of `or`/`and`. An empty `{}` has no entries to
+    infer from, so `h.tbl or {}` would otherwise pick its own flavour, and
+    the phi would erase both branches to `i8*`.
+    """;
+    _pt = self._peer_container_ty;
+    if _pt is None or not isinstance(_pt, ir.PointerType) {
+        return None;
+    }
+    for (_spec, _dt) in self.dict_types.items() {
+        if _dt.as_pointer() == _pt {
+            return _spec;
+        }
+    }
+    return None;
+}
+
 impl NaIRGenPass._unwrap_opt_container(val: ir.Value) -> ir.Value {
     _pay = self._opt_payload_of(val.type);
     if _pay is None or not isinstance(_pay, ir.PointerType) {
@@ -335,7 +355,7 @@ impl NaIRGenPass._dict_key_reconcile(
 
 impl NaIRGenPass._codegen_dict_val(nd: uni.DictVal) -> (ir.Value | None) {
     if not nd.kv_pairs {
-        _dk = self._dict_key_of(nd);
+        _dk = self._peer_dict_key() or self._dict_key_of(nd);
         _helpers = self.dict_helpers.get(_dk) if _dk is not None else None;
         if _helpers is not None {
             _empty_dv = self.builder.call(_helpers["new"], [], name="dict.empty");

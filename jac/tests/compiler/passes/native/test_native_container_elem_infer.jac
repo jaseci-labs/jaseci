@@ -81,6 +81,15 @@ def compile_na_inline(label: str, code: str) -> JacProgram {
     return prog;
 }
 
+"""Like `compile_na_inline`, but also hand back the compiled module so a
+granular demotion (epic #8201) is observable through the native layout."""
+def compile_na_inline_ir(label: str, code: str) -> tuple {
+    path = os.path.join(FIXTURES, f"_elem_infer_{label}.jac");
+    prog = JacProgram();
+    ir = prog.compile(file_path=path, use_str=code, options=native_force_opts());
+    return (prog, ir, );
+}
+
 """Return True if the program emitted at least one alert with the given code."""
 def has_error_code(prog: JacProgram, code: str) -> bool {
     for alrt in prog.errors_had {
@@ -203,8 +212,9 @@ test "un-inferable elem type: equality against an unboxable peer is refused" {
     # tuple literal -- has no tagged representation, and its old catch-all
     # stored tag=0/payload=0, so `x[0] == (1, 2)` compared a real element
     # against a null-ish tagged value and could answer True for `0 == (0, 0)`.
-    # The guard is now symmetric with the ordering branch: unboxable -> E5090.
-    prog = compile_na_inline(
+    # The guard is now symmetric with the ordering branch: unboxable peers
+    # refuse to lower, and the refusal demotes the owning function to a seam.
+    (prog, ir) = compile_na_inline_ir(
         "eq_tuple",
         "def f -> int {\n"
             + "    x = [];\n"
@@ -216,14 +226,19 @@ test "un-inferable elem type: equality against an unboxable peer is refused" {
             + "    return 0;\n"
             + "}\n"
     );
-    assert has_error_code(prog, "E5090") , (
-        "expected E5090 for equality between a tagged element and an unboxable "
-        + f"aggregate peer, got {[str(e) for e in prog.errors_had]}"
+    assert not prog.errors_had , (
+        "the unboxable-peer refusal is owned by f(), which must demote, got "
+        + f"{[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "f" not in ir.gen.native_layout.functions , (
+        "the refused comparison's function must be demoted out of the layout, "
+        + "never answer True for 0 == (0, 0)"
     );
 }
 
 test "un-inferable elem type: an unorderable mixed comparison is refused, not guessed" {
-    prog = compile_na_inline(
+    (prog, ir) = compile_na_inline_ir(
         "order_str",
         "def f() -> int {\n"
             + "    x = [];\n"
@@ -235,9 +250,14 @@ test "un-inferable elem type: an unorderable mixed comparison is refused, not gu
             + "    return 0;\n"
             + "}\n"
     );
-    assert has_error_code(prog, "E5090") , (
-        "expected E5090 for an ordering comparison between a tagged element and "
-        + f"a str, got {[str(e) for e in prog.errors_had]}"
+    assert not prog.errors_had , (
+        "the unorderable-comparison refusal is owned by f(), which must "
+        + f"demote, got {[str(e) for e in prog.errors_had]}"
+    );
+    assert ir.gen.native_layout is not None , "whole-module native compile aborted";
+    assert "f" not in ir.gen.native_layout.functions , (
+        "the refused comparison's function must be demoted out of the layout, "
+        + "never guessed"
     );
 }
 

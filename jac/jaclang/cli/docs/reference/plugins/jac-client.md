@@ -885,7 +885,7 @@ Import from `@jac/runtime`:
 | `useLocation()` | object | Current location: `location.pathname`, `location.search` |
 | `Link` | component | Navigation: `<Link to="/path">Text</Link>` |
 | `Outlet` | component | Render child routes in layouts |
-| `AuthGuard` | component | Protect routes: `<AuthGuard redirect="/login">` |
+| `AuthGuard` | component | Protect routes: `<AuthGuard redirect="/login">`; renders its children, or the matched child route when given none |
 
 ---
 
@@ -1011,7 +1011,11 @@ client_secret = "your-google-client-secret"
 
 ### AuthGuard for Protected Routes
 
-Use `AuthGuard` to protect routes in file-based routing:
+`AuthGuard(redirect: str = "/login", children: any = None)` redirects
+unauthenticated visitors to `redirect`. Given children it renders them; given
+none it renders `<Outlet />`, i.e. the matched child route.
+
+In file-based routing, a group layout protects everything under it:
 
 ```jac
 import from "@jac/runtime" { AuthGuard, Outlet }
@@ -1022,6 +1026,23 @@ def:pub AuthShell() -> JsxLayout {
         <Outlet />
     </AuthGuard>
 }
+```
+
+In manual routing, use it as a pathless parent route to protect a group:
+
+<!-- jac-skip -->
+```jac
+<Route element={<AuthGuard redirect="/login" />}>
+    <Route path="/dashboard" element={<Dashboard />} />
+</Route>
+```
+
+...or wrap a single page:
+
+<!-- jac-skip -->
+```jac
+<Route path="/dashboard"
+       element={<AuthGuard redirect="/login"><Dashboard /></AuthGuard>} />
 ```
 
 ---

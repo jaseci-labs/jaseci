@@ -1,6 +1,23 @@
-import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.unitree {
+    Ability,
+    Archetype,
+    Assignment,
+    AstImplNeedingNode,
+    AstSymbolNode,
+    AtomTrailer,
+    FuncSignature,
+    HasVar,
+    ImplDef,
+    Module,
+    Name,
+    NameAtom,
+    ParamVar,
+    SpecialVarRef,
+    Symbol,
+    UniNode,
+    UniScopeNode
+}
 import from jaclang.jac0core.passes.transform { Transform }
-import from jaclang.jac0core.unitree { Symbol, UniScopeNode }
 import from jaclang.jac0core.passes.sym_tab_build_pass {
     bind_assignment_targets,
     find_python_scope_node_of
@@ -17,14 +34,14 @@ import from jaclang.jac0core.diagnostics {
     W2080
 }
 
-class DeclImplMatchPass(Transform[uni.Module, uni.Module]) {
+class DeclImplMatchPass(Transform[Module, Module]) {
     has _e2026_reported: set[int];
 
-    def transform(self: DeclImplMatchPass, ir_in: uni.Module) -> uni.Module;
-    def defn_lookup(self: DeclImplMatchPass, lookup: Symbol) -> (uni.NameAtom | None);
+    def transform(self: DeclImplMatchPass, ir_in: Module) -> Module;
+    def defn_lookup(self: DeclImplMatchPass, lookup: Symbol) -> (NameAtom | None);
     def _find_archetype_defn(
         self: DeclImplMatchPass, lookup: Symbol
-    ) -> (uni.NameAtom | None);
+    ) -> (NameAtom | None);
 
     def connect_impls(
         self: DeclImplMatchPass,
@@ -34,7 +51,7 @@ class DeclImplMatchPass(Transform[uni.Module, uni.Module]) {
 
     def _connect_one_impl(
         self: DeclImplMatchPass,
-        impl_node: uni.ImplDef,
+        impl_node: ImplDef,
         sym_name: str,
         target_sym_tab: UniScopeNode
     ) -> None;
@@ -42,20 +59,20 @@ class DeclImplMatchPass(Transform[uni.Module, uni.Module]) {
     def _report_bare_redecls(self: DeclImplMatchPass, sym_tab: UniScopeNode) -> None;
     def validate_params_match(
         self: DeclImplMatchPass,
-        impl_node: uni.ImplDef,
+        impl_node: ImplDef,
         sym_name: str,
-        valid_decl: uni.AstSymbolNode
+        valid_decl: AstSymbolNode
     ) -> None;
 
     def _resolve_symbols_in_subtree(
-        self: DeclImplMatchPass, root_node: uni.UniNode
+        self: DeclImplMatchPass, root_node: UniNode
     ) -> None;
 
     def _populate_self_member_symbols(
-        self: DeclImplMatchPass, impl_def: uni.ImplDef, archetype: uni.Archetype
+        self: DeclImplMatchPass, impl_def: ImplDef, archetype: Archetype
     ) -> None;
 
     def _populate_inline_init_symbols(
-        self: DeclImplMatchPass, archetype: uni.Archetype
+        self: DeclImplMatchPass, archetype: Archetype
     ) -> None;
 }

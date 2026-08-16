@@ -1,6 +1,7 @@
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
 impl JacAutoLintPass.postinit -> None {
+    import from jaclang.jac0core.compiler { diagnostic_policy_for }
     import from jaclang.project.config {
         JacConfig,
         get_config_for_path,
@@ -13,7 +14,13 @@ impl JacAutoLintPass.postinit -> None {
         get_config_for_path(Path(mod_path)) if mod_path else get_explicit_config()
     )
         or JacConfig();
-    self._project_config = config;
+    _opts = self.prog._compile_options;
+    _extra: list[str] = (
+        list(_opts.suppress_codes)
+            if (_opts is not None and _opts.suppress_codes)
+            else []
+    );
+    self.policy = diagnostic_policy_for(config, _extra);
     if config.check?.lint {
         self._exclude_patterns = config.check.lint.exclude;
         self._project_root = str(config.project_root) if config.project_root else "";

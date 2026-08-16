@@ -22,9 +22,10 @@ impl _ensure_js_generated(mod: Module, program: any) -> None {
             }
         }
         import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+        import from jaclang.jac0core.compiler { run_pass }
         _err_mark = len(program.errors_had);
         _warn_mark = len(program.warnings_had);
-        EsastGenPass(ir_in=mod, prog=program);
+        run_pass(EsastGenPass, mod, program);
         if len(program.errors_had) > _err_mark {
             try {
                 import sys;
@@ -47,7 +48,7 @@ impl _ensure_js_generated(mod: Module, program: any) -> None {
                 demote_client_pulled_elements
             }
             if demote_client_pulled_elements(mod, program, _err_mark, _warn_mark) {
-                EsastGenPass(ir_in=mod, prog=program);
+                run_pass(EsastGenPass, mod, program);
             }
         }
     }

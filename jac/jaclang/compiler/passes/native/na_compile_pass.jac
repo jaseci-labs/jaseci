@@ -1,7 +1,7 @@
 import jaclang.compiler.passes.native.llvm.binding as llvm;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { Transform }
-import from jaclang.jac0core.codeinfo { CodeGenTarget }
+import from jaclang.jac0core.codeinfo { CodeGenTarget, install_native_static_init }
 import from jaclang.jac0core.diagnostics {
     E5020,
     W5021,
