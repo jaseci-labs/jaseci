@@ -46,6 +46,7 @@ impl DepClibMeta.to_meta -> dict {
         "exported_symbols": self.exported_symbols,
         "imported_symbols": self.imported_symbols,
         "owned_symbols": self.owned_symbols,
+        "demoted_symbols": self.demoted_symbols,
         "transitive_deps": self.transitive_deps,
         "options_fingerprint": self.options_fingerprint
     };
@@ -58,9 +59,24 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
         exported_symbols=meta.get("exported_symbols", []),
         imported_symbols=meta.get("imported_symbols", []),
         owned_symbols=meta.get("owned_symbols", []),
+        demoted_symbols=meta.get("demoted_symbols", []),
         transitive_deps=meta.get("transitive_deps", []),
         options_fingerprint=meta.get("options_fingerprint", "")
     );
+}
+
+impl native_demoted_ir_symbols(llvm_ir_text: str) -> list[str] {
+    import re as _ds_re;
+    _ds_def = _ds_re.compile(
+        r'^define\b[^@\n]*@(?:"([^"]+\.__jac_demoted)"'
+        r'|([A-Za-z0-9_.$\-]+\.__jac_demoted))\(',
+        _ds_re.MULTILINE
+    );
+    found: set[str] = set();
+    for (_ds_q, _ds_bare) in _ds_def.findall(llvm_ir_text) {
+        found.add((_ds_q or _ds_bare)[:-len(".__jac_demoted")]);
+    }
+    return sorted(found);
 }
 
 impl DepClibMeta.propagate_to(gen: CodeGenTarget) -> None {
@@ -494,14 +510,25 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 work_queue.append((_DepBinding(dep_mod_path), dep_base));
             }
         } else {
-            import_options = _link_opts.clone_for_native_import();
-            try {
-                imported_ir = self.prog.compile(
-                    file_path=full_path, options=import_options
-                );
-            } except Exception as e {
-                self.emit(E5024, path=full_path, error=str(e));
-                continue;
+            imported_ir = None;
+            _na_units = self.prog._na_dep_units;
+            if real_path in _na_units {
+                _memo_entry = _na_units.pop(real_path);
+                if isinstance(_memo_entry, str) {
+                    self.emit(E5024, path=full_path, error=_memo_entry);
+                    continue;
+                }
+                imported_ir = _memo_entry;
+            } else {
+                import_options = _link_opts.clone_for_native_import();
+                try {
+                    imported_ir = self.prog.compile(
+                        file_path=full_path, options=import_options
+                    );
+                } except Exception as e {
+                    self.emit(E5024, path=full_path, error=str(e));
+                    continue;
+                }
             }
             if imported_ir is None or imported_ir.gen.llvm_ir is None {
                 self.emit(E5024, path=full_path, error="No LLVM IR generated");
@@ -532,6 +559,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
             meta.owned_symbols = sorted(_owned_seen);
             imported_llvm_str_raw = str(imported_ir.gen.llvm_ir);
+            meta.demoted_symbols = native_demoted_ir_symbols(imported_llvm_str_raw);
             meta.clib_paths = imported_ir.gen._clib_paths or [];
             meta.clib_symbol_lib = imported_ir.gen._clib_symbol_lib or {};
             meta.exported_symbols = imported_ir.gen._exported_symbols or [];

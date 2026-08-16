@@ -19,6 +19,7 @@ obj DepClibMeta {
         exported_symbols: list[str] = [],
         imported_symbols: list[str] = [],
         owned_symbols: list[str] = [],
+        demoted_symbols: list[str] = [],
         transitive_deps: list[str] = [],
         options_fingerprint: str = "";
 
@@ -29,6 +30,7 @@ obj DepClibMeta {
 
 def native_compiler_fingerprint(options: any) -> str;
 def native_dep_cache_paths(real_path: str, options: any) -> tuple;
+def native_demoted_ir_symbols(llvm_ir_text: str) -> list[str];
 
 
 obj NativeCompilePass(Transform) {
