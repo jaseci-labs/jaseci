@@ -286,15 +286,23 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 
 glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/unitree.jac",
+         "jac0core/passes/annex_pass.jac",
+         "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/uni_pass.jac",
+         "jac0core/passes/endpoint_effect_pass.jac",
          "compiler/native_materialize.jac",
 
-     );
-
-glob NATIVE_SEAL_CLOSURE: tuple = (
+     ),
+     NATIVE_SEAL_CLOSURE: tuple = (
          "jac0core/constant.jac",
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
          "jac0core/parser/tokens.jac",
+         "jac0core/passes/annex_pass.jac",
+         "jac0core/passes/annex_weave.jac",
+         "jac0core/passes/endpoint_effect_pass.jac",
+         "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "compiler/native_materialize.jac",
@@ -316,9 +324,38 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::Ellipsis.lit_value.__get__",
 
      ),
+     _MODULE_CODEGEN_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_context_stmts",
+         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_module_imports",
+         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_nested_imports",
+         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.has_native_context_stmts",
+         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.shared_archetypes_for_context",
+         "jac0core/passes/module_codegen_pass.jac::client_capability_violations",
+
+     ),
+     _UNI_PASS_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
+         "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
+
+     ),
+     _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_ability",
+         "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
+
+     ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
          "compiler/native_materialize.jac": _UNITREE_SEAM_WAIVERS,
-         "jac0core/unitree.jac": _UNITREE_SEAM_WAIVERS
+         "jac0core/unitree.jac": _UNITREE_SEAM_WAIVERS,
+         "jac0core/passes/annex_pass.jac": _UNITREE_SEAM_WAIVERS,
+         "jac0core/passes/module_codegen_pass.jac": (
+             _UNITREE_SEAM_WAIVERS + _MODULE_CODEGEN_SEAM_WAIVERS
+         ),
+         "jac0core/passes/uni_pass.jac": (
+             _UNITREE_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
+         ),
+         "jac0core/passes/endpoint_effect_pass.jac": (
+             _UNITREE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
+         )
      };
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
@@ -907,6 +944,64 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
             }
             return nl.join(detail);
         }
+    }
+    return _merge_probe_parity(np);
+}
+
+glob _MERGE_PROBE_MAIN: tuple = (
+         "obj Widget {",
+         "    has size: int = 1;",
+         "    def grow(n: int) -> int;",
+         "}",
+         "with entry { print(Widget(size=2)); }",
+
+     ),
+     _MERGE_PROBE_ANNEX: tuple = (
+         "impl Widget.grow(n: int) -> int {",
+         "    self.size += n;",
+         "    return self.size;",
+         "}",
+         "test \"widget grows\" { assert Widget().grow(2) == 3; }",
+
+     );
+
+def _merge_probe_parity(np: any) -> str {
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.parser { Parser }
+    import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
+    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+
+    nl = chr(10);
+    main_src = nl.join(list(_MERGE_PROBE_MAIN));
+    annex_src = nl.join(list(_MERGE_PROBE_ANNEX));
+    main_path = "__seal_merge_probe__.jac";
+    annex_path = "__seal_merge_probe__.impl.jac";
+    sys.stderr.write("    canary: mat_merge_probe (native annex merge)\n");
+    sys.stderr.flush();
+    (merged, m_errs, a_errs) = np.merge_probe(
+        main_src, main_path, annex_src, annex_path
+    );
+    if m_errs or a_errs {
+        return (
+            f"merge probe: the probe sources did not parse cleanly "
+            f"(main {m_errs}, annex {a_errs} error(s))"
+        );
+    }
+    (mt, _mc, _mld, _mle) = tokenize_full(main_src, main_path);
+    py_main = Parser(tokens=mt, file_path=main_path, source_code=main_src).parse();
+    (at, _ac, _ald, _ale) = tokenize_full(annex_src, annex_path);
+    py_annex = Parser(tokens=at, file_path=annex_path, source_code=annex_src).parse();
+    JacAnnexPass._merge_annex(py_main, py_annex);
+    if len(merged.body) != len(py_main.body) {
+        return (
+            f"merge probe: woven body lengths diverged (native "
+            f"{len(merged.body)} vs bytecode {len(py_main.body)})"
+        );
+    }
+    native_up = unparse_node(merged);
+    py_up = unparse_node(py_main);
+    if native_up != py_up {
+        return _parity_text_report("mat_merge_probe", native_up, py_up);
     }
     return "";
 }
