@@ -37,6 +37,14 @@ def resolved_graphmend_setting -> bool {
     return bool(cfg.run.graphmend);
 }
 
+def resolved_graphmend_claim_imports_setting -> bool {
+    cfg = _project_config();
+    if cfg is None {
+        return False;
+    }
+    return bool(cfg.run.graphmend_claim_imports);
+}
+
 obj CompileOptions {
     has type_check: bool = True,
         emit_diagnostics: bool = True,
@@ -48,6 +56,7 @@ obj CompileOptions {
         force_target_program: bool = False,
         aot_mode: bool = False,
         graphmend: (bool | None) = None,
+        graphmend_claim_imports: (bool | None) = None,
         graphmend_disable: list[str] = field(default_factory=`list),
         force_codespace: str = "",
         na_gc_mode: (str | None) = None,
@@ -80,6 +89,11 @@ obj CompileOptions {
             self.graphmend = resolved_graphmend_setting();
         } elif self.graphmend and graphmend_refused_for_serve() {
             self.graphmend = False;
+        }
+        if self.graphmend_claim_imports is None {
+            self.graphmend_claim_imports = (
+                bool(cfg.run.graphmend_claim_imports) if cfg is not None else False
+            );
         }
         if self.na_gc_mode is None {
             self.na_gc_mode = gc_cfg.default if gc_cfg else "cycles";

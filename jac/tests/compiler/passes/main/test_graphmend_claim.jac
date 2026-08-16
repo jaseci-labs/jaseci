@@ -419,7 +419,9 @@ test "a torch-free import is answered without touching the filesystem" {
         os.path.isfile = _counting_isfile;
         os.path.realpath = _counting_realpath;
         try {
-            config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
+            config_mod._config = JacConfig.from_toml_str(
+                "[run]\ngraphmend_claim_imports = true\n"
+            );
             prog.graphmend_claimed.clear();
             assert _graphmend_claims("thirdparty", path) is False;
             assert FS_CALLS == [] , (

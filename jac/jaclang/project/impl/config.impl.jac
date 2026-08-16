@@ -1119,6 +1119,9 @@ impl _parse_toml_data(
             cache=run_data.get("cache", True),
             diagnostics=run_data.get("diagnostics", "error"),
             graphmend=_graphmend_gate(run_data.get("graphmend", True)),
+            graphmend_claim_imports=_graphmend_gate(
+                run_data.get("graphmend_claim_imports", False)
+            ),
             graphmend_disable=run_data.get("graphmend_disable", "")
         );
     }

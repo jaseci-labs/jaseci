@@ -42,6 +42,7 @@ obj RunConfig {
         cache: bool = True,
         diagnostics: str = "error",
         graphmend: bool = True,
+        graphmend_claim_imports: bool = False,
         graphmend_disable: str = "";
 }
 

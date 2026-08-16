@@ -256,8 +256,8 @@ def _apply_graphmend(graphmend_disable: str = "") -> bool {
     gm_on = _configured_graphmend();
     Jac.get_program().graphmend_disable = gm_disable;
     if gm_on and 'torch' in sys.modules {
-        import from jaclang.meta_importer { install_graphmend_loader_hook }
-        install_graphmend_loader_hook();
+        import from jaclang.meta_importer { install_graphmend_loader_hook_for_torch }
+        install_graphmend_loader_hook_for_torch();
     }
     return gm_on;
 }
