@@ -1,7 +1,12 @@
 """Pass-schedule tags and the schedule-time gate."""
 import os;
 import from tests.support { GRAPHMEND_FIXTURES as FIXTURES }
-import from jaclang.jac0core.compiler { get_py_code_gen, validate_schedule }
+import from jaclang.jac0core.compiler {
+    get_py_code_gen,
+    providers_for,
+    resolve_schedule,
+    validate_schedule
+}
 import from jaclang.compiler.passes.main.graphmend.graph_break_detect_pass {
     GraphBreakDetectPass
 }
@@ -21,8 +26,32 @@ test "detect pass provides the graph-breaks tag" {
 
 test "transform passes require the graph-breaks tag" {
     for p in [TrapLoweringPass, PredicateCtrlFlowPass, DeferSideEffectPass] {
-        assert p.REQUIRES == ('graph-breaks', );
+        assert 'graph-breaks' in p.REQUIRES;
     }
+}
+
+test "the transform ordering constraints are declared as tags" {
+    assert 'lowered-guards' in TrapLoweringPass.PROVIDES;
+    assert 'lowered-guards' in PredicateCtrlFlowPass.REQUIRES;
+    assert 'predicated-branches' in PredicateCtrlFlowPass.PROVIDES;
+    assert 'predicated-branches' in DeferSideEffectPass.REQUIRES;
+}
+
+test "the graphmend schedule order derives from tags, not goal position" {
+    sched = resolve_schedule(
+        [DeferSideEffectPass, PredicateCtrlFlowPass, TrapLoweringPass],
+        providers=providers_for(
+            [GraphBreakDetectPass, TrapLoweringPass, PredicateCtrlFlowPass]
+        ),
+        origin='graphmend tag-derivation test'
+    );
+    assert sched
+        == [
+            GraphBreakDetectPass,
+            TrapLoweringPass,
+            PredicateCtrlFlowPass,
+            DeferSideEffectPass
+        ];
 }
 
 glob GM_PASSES = [

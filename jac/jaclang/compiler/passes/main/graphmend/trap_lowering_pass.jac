@@ -8,7 +8,8 @@ obj TrapLoweringPass(UniPass) {
         _guarded_fns: list[uni.Ability] = [],
         _tensor_trace: set[str] = set();
 
-    static has REQUIRES: tuple = ('graph-breaks', );
+    static has REQUIRES: tuple = ('graph-breaks', ),
+        PROVIDES: tuple = ('lowered-guards', );
 
     def before_pass -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;

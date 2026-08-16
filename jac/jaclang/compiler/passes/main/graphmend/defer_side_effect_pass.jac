@@ -10,7 +10,7 @@ obj DeferSideEffectPass(UniPass) {
         _defer_mods: set[int] = set(),
         _pending_regs: list[tuple[(uni.Archetype | None), uni.Assignment]] = [];
 
-    static has REQUIRES: tuple = ('graph-breaks', ),
+    static has REQUIRES: tuple = ('graph-breaks', 'predicated-branches'),
         _LOG_METHODS: set[str] = {
             'debug',
             'info',

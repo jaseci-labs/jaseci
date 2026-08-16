@@ -55,7 +55,8 @@ obj PredicateCtrlFlowPass(UniPass) {
         _counter: int = 0,
         _mat_seen: set[str] = set();
 
-    static has REQUIRES: tuple = ('graph-breaks', );
+    static has REQUIRES: tuple = ('graph-breaks', 'lowered-guards'),
+        PROVIDES: tuple = ('predicated-branches', );
 
     def before_pass -> None;
     def exit_if_stmt(nd: uni.IfStmt) -> None;
