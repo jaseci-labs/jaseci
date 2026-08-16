@@ -1,6 +1,7 @@
 """Torch-gated: an imported .py module that seeds GraphMend is claimed at
-import time with nothing configured, runs its transformed bytecode, and still
-raises its original exception. Skipped when PyTorch is absent."""
+import time under the [run] graphmend_claim_imports opt-in, runs its
+transformed bytecode, and still raises its original exception. Skipped when
+PyTorch is absent."""
 import ast;
 import dis;
 import importlib;
@@ -46,9 +47,10 @@ def _mk_pkg(tmp: str, src: str) {
     }
 }
 
-test "an imported model package is claimed and transformed with no config" {
+test "an imported model package is claimed and transformed under the opt in" {
     # No local torch.compile: the module is claimed because it seeds GraphMend
-    # on its own, with nothing configured and the default gate open.
+    # on its own, once [run] graphmend_claim_imports grants consent for
+    # imported code.
     torch = _torch();
     import from jaclang.project.config { JacConfig }
     import jaclang.project.config as config_mod;
@@ -57,7 +59,9 @@ test "an imported model package is claimed and transformed with no config" {
         _mk_pkg(tmp, PY_CLAIMED_NET_SRC);
         sys.path.insert(0, tmp);
         try {
-            config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
+            config_mod._config = JacConfig.from_toml_str(
+                "[run]\ngraphmend_claim_imports = true\n"
+            );
             sys.modules.pop("claimedmodel", None);
             sys.modules.pop("claimedmodel.net", None);
             net = importlib.import_module("claimedmodel.net");
@@ -133,7 +137,9 @@ test "a claimed guard raises the original exception through the boundary" {
         }
         torch.compile = _shim;
         try {
-            config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
+            config_mod._config = JacConfig.from_toml_str(
+                "[run]\ngraphmend_claim_imports = true\n"
+            );
             sys.modules.pop("claimedmodel", None);
             sys.modules.pop("claimedmodel.net", None);
             exec(compile(entry_src, "entry.py", "exec"), ns);

@@ -201,6 +201,7 @@ main = true             # Run as main module
 cache = true            # Use bytecode cache
 diagnostics = "error"   # Diagnostic verbosity: "error", "all", or "none"
 graphmend = true        # GraphMend off switch: set false to disable it everywhere; no CLI flag
+graphmend_claim_imports = false  # Opt-in: let GraphMend claim and recompile imported .py code
 graphmend_disable = ""  # GraphMend transforms to skip: "trap", "where", "defer"
 ```
 

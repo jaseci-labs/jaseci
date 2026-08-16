@@ -164,9 +164,10 @@ test "a run with no torch leaves the stdlib loader untouched" {
     }
 }
 
-test "torch entering the process installs the import claim loader hook" {
+test "torch entering the process installs the hook only under the opt in" {
     # torch is the first moment a claim can be granted, so that import is the
-    # install point. An off run stays unpatched even then.
+    # install point; but claiming imported code is its own consent, so with
+    # [run] graphmend_claim_imports unset even torch leaves the class alone.
     import sys;
     import from importlib.machinery { SourceFileLoader }
     import from jaclang.meta_importer { JacMetaImporter }
@@ -174,17 +175,26 @@ test "torch entering the process installs the import claim loader hook" {
     prev_hook = _unhook_loader();
     saved_torch = sys.modules.pop("torch", None);
     try {
-        config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
+        config_mod._config = JacConfig.from_toml_str(
+            "[run]\ngraphmend_claim_imports = true\n"
+        );
         JacMetaImporter().find_spec("json.decoder", None);
         assert not getattr(SourceFileLoader, "_jac_graphmend_hooked", False) , (
             "an unrelated import must not install the hook"
         );
         JacMetaImporter().find_spec("torch", None);
         assert getattr(SourceFileLoader, "_jac_graphmend_hooked", False) , (
-            "importing torch must install the hook"
+            "importing torch under the opt-in must install the hook"
         );
         _unhook_loader();
-        config_mod._config = JacConfig.from_toml_str("[run]\ngraphmend = false\n");
+        config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
+        JacMetaImporter().find_spec("torch", None);
+        assert not getattr(SourceFileLoader, "_jac_graphmend_hooked", False) , (
+            "without the claim-imports opt-in torch must not install the hook"
+        );
+        config_mod._config = JacConfig.from_toml_str(
+            "[run]\ngraphmend = false\ngraphmend_claim_imports = true\n"
+        );
         JacMetaImporter().find_spec("torch", None);
         assert not getattr(SourceFileLoader, "_jac_graphmend_hooked", False) , (
             "an off run must stay unpatched even under torch"
@@ -202,7 +212,8 @@ test "torch entering the process installs the import claim loader hook" {
 test "the loader hook transforms a claimed py loaded from a file location" {
     # A spec built straight from a file location never reaches a meta-path
     # finder, so the hook on SourceFileLoader.get_code is its only interception
-    # point; a registered claim is enough, with no torch in the process.
+    # point; a registered claim plus the claim-imports opt-in is enough, with
+    # no torch in the process.
     import importlib.util;
     import sys;
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
@@ -218,7 +229,9 @@ test "the loader hook transforms a claimed py loaded from a file location" {
         }
         real = os.path.realpath(path);
         try {
-            config_mod._config = JacConfig.from_toml_str("[run]\nmain = true\n");
+            config_mod._config = JacConfig.from_toml_str(
+                "[run]\ngraphmend_claim_imports = true\n"
+            );
             prog.graphmend_claimed.add(real);
             install_graphmend_loader_hook();
             spec = importlib.util.spec_from_file_location("claimed_net", path);
