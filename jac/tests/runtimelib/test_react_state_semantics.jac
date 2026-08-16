@@ -17,25 +17,20 @@ Integration test: real `bun install` of react + jsdom, so it runs only when
 `JAC_CLIENT_INTEGRATION` is set (mirrors `test_solid_jsdom.jac`).
 """
 
-import json;
 import os;
-import re;
-import shutil;
-import subprocess;
 import pytest;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
-import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.program { JacProgram }
-import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
-import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
-import from jaclang.runtimelib.client_surface { with_runtime_globals }
-import from jaclang.runtimelib.runtime_source { resolve_client_runtime_cl_path }
 import from jaclang.runtimelib.client.bun_installer { get_bun }
-import from jaclang.jac0core.compiler { run_pass }
+import from .react_jsdom_harness {
+    bun_install,
+    compile_page,
+    require_client_integration,
+    run_harness,
+    write_runtime
+}
 
 glob FIXTURES = str(
          Path(__file__).parent.parent
@@ -44,16 +39,6 @@ glob FIXTURES = str(
              / "ecmascript"
              / "fixtures"
      ),
-     # Mirrors `_default_client_deps("react")` runtime deps; jsdom is test-only.
-     _DEPS: dict[str, str] = {
-         "jsdom": "^24.0.0",
-         "react": "^18.2.0",
-         "react-dom": "^18.2.0",
-         "react-router-dom": "^6.22.0",
-         "react-error-boundary": "^5.0.0",
-         "@tanstack/react-form": "^1.33.0",
-         "zod": "^4.3.6"
-     },
      # The react backend emits plain JS (`__jacJsx(...)` calls, no JSX syntax),
      # so no babel step is needed: build a jsdom DOM, publish browser globals,
      # mount with react-dom/client, flush, and assert each contract face.
@@ -131,105 +116,23 @@ console.log(`\\n${failures.length ? "FAILED" : "OK"}: ${failures.length} failure
 process.exit(failures.length ? 1 : 0);
 """;
 
-"""Skip unless the client toolchain integration flag is set."""
-def _require_client_integration {
-    if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
-            "React state-semantics jsdom test does a real bun install; "
-            "set JAC_CLIENT_INTEGRATION=1 to run"
-        );
-    }
-}
-
-def _compile_react(path: str) -> str {
-    prog = JacProgram();
-    # type_check=True so typed builtin calls (e.g. `len(list)`) lower to
-    # their JS forms, matching the production bundler pipeline.
-    ir = prog.compile(
-        file_path=str(path), options=CompileOptions(type_check=True, no_cgen=True)
-    );
-    fatal = [
-        e
-        for e in prog.errors_had
-        if not issubclass(e.from_pass, TypeCheckPass)
-    ];
-    assert not fatal , f"compile errors in {path}: {[str(e) for e in fatal]}";
-    es_pass = run_pass(EsastGenPass, ir, prog, backend=ReactBackend());
-    return es_to_js(es_pass.ir_out.gen.es_ast);
-}
-
-"""Point the shim's dotted core import at a flat sibling (mirrors the bundler)."""
-def _rewrite_core_specifier(runtime_js: str) -> str {
-    m = re.search(r"""["'](\.[^"']*client_runtime_core\.js)["']""", runtime_js);
-    if m {
-        return runtime_js.replace(m.group(1), "./client_runtime_core.js");
-    }
-    return runtime_js;
-}
-
-def _wire_jac_runtime(js: str) -> str {
-    for q in ['"', "'"] {
-        js = js.replace(f"{q}@jac/runtime{q}", f"{q}./jac_runtime.js{q}");
-    }
-    return js;
-}
-
 test "react state semantics: all four contract faces hold live in jsdom" {
-    _require_client_integration();
+    require_client_integration("React state-semantics");
     bun = get_bun();
     if bun is None {
         pytest.skip("bun is required but could not be located/installed");
     }
 
-    backend = ReactBackend();
-    component_js = _wire_jac_runtime(
-        with_runtime_globals(
-            _compile_react(os.path.join(FIXTURES, "state_semantics_component.jac")),
-            backend
-        )
-    );
-    runtime_path = resolve_client_runtime_cl_path("react");
-    runtime_js = _rewrite_core_specifier(_compile_react(runtime_path));
-    core_js = _compile_react(
-        str(Path(runtime_path).parent / "client_runtime_core.jac")
+    component_js = compile_page(
+        os.path.join(FIXTURES, "state_semantics_component.jac"), ReactBackend()
     );
 
     with TemporaryDirectory() as tmp {
         work = Path(tmp);
         (work / "component.js").write_text(component_js, encoding="utf-8");
-        (work / "jac_runtime.js").write_text(runtime_js, encoding="utf-8");
-        (work / "client_runtime_core.js").write_text(core_js, encoding="utf-8");
+        write_runtime(work);
         (work / "harness.mjs").write_text(_HARNESS, encoding="utf-8");
-        (work / "package.json").write_text(
-            json.dumps(
-                {
-                    "name": "react-state-semantics-test",
-                    "private": True,
-                    "type": "module",
-                    "dependencies": _DEPS
-                }
-            ),
-            encoding="utf-8"
-        );
-        install = subprocess.run(
-            [bun, "install"], cwd=str(work), capture_output=True, text=True, timeout=300
-        );
-        assert install.returncode == 0 , (
-            f"bun install failed (exit {install.returncode}):\n"
-            f"{install.stdout}\n{install.stderr}"
-        );
-        node_bin = shutil.which("node");
-        if node_bin {
-            cmd = [node_bin, str(work / "harness.mjs")];
-        } else {
-            cmd = [bun, "run", str(work / "harness.mjs")];
-        }
-        run = subprocess.run(
-            cmd, cwd=str(work), capture_output=True, text=True, timeout=120
-        );
-        detail = (run.stdout or "") + "\n" + (run.stderr or "");
-        assert run.returncode == 0 , (
-            f"react state-semantics harness failed (exit {run.returncode}):\n{detail}"
-        );
+        bun_install(bun, work, "react-state-semantics-test");
+        run_harness(bun, work, [], "react state-semantics");
     }
 }
