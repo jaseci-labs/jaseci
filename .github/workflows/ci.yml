@@ -322,10 +322,19 @@ jobs:
   # torch and FAILS if any of them skips.
   test-graphmend-torch:
     name: GraphMend Graph Counts
-    needs: [changes, build-jac]
+    # Deliberately NOT gated on build-jac, for the reason jac-check and
+    # contribution-checks are not: a gate that a failing sibling job turns into
+    # a skip is the same silent green this lane exists to remove, one level up.
+    # Observed on run 31918166404, where an unrelated seal failure in build-jac
+    # skipped every job that needed it.
+    needs: changes
     if: ${{ github.event_name != 'pull_request' || needs.changes.outputs.graphmend == 'true' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     env:
+      # Dev lane: the suites drive JacProgram in-process, so this runs THIS
+      # checkout's compiler, which is what the graph-count claim is about.
+      # nightly's canary covers the same suites on the sealed artifact.
+      JAC_NO_DEV_SOURCE: ""
       # PINNED, not floored. The assertion is an exact graph count, so a Dynamo
       # change upstream would redden PRs that never touched GraphMend, and a
       # gate that reddens for unrelated reasons gets switched off. The nightly
@@ -338,21 +347,12 @@ jobs:
       NUMPY_VERSION: "2.5.1"
     steps:
       - uses: actions/checkout@v5
-      - name: Restore typeshed stdlib stubs into the checkout
-        uses: actions/download-artifact@v4
-        with:
-          name: typeshed-stdlib
-          path: jac/jaclang/vendor/typeshed/stdlib
-      - name: Download the jac binary
-        uses: actions/download-artifact@v4
-        with:
-          name: jac-binary
-          path: bin
-      - name: Put jac on PATH
-        # upload-artifact strips the executable bit; restore it.
-        run: |
-          chmod +x "$PWD/bin/jac"
-          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      # Also redirects XDG_CACHE_HOME into the workspace, which is where the
+      # runtime site the torch install targets then lives; every later step in
+      # this job inherits it, so install and run agree on one site.
+      - name: Set up jac (dev lane)
+        uses: ./.github/actions/setup-jac-dev
 
       # Restore/save split with the SAVE GATED TO MAIN, matching every other
       # big read-mostly cache here. The wheel set is ~250 MB and its key only
@@ -365,10 +365,10 @@ jobs:
           path: .pip-cache
           key: torch-cpu-${{ runner.os }}-${{ runner.arch }}-${{ env.TORCH_VERSION }}-np${{ env.NUMPY_VERSION }}
 
-      # torch lands in the binary's global site, which lives under HOME, so
-      # HOME is left alone for the rest of the job. These suites drive the
-      # compiler in-process and spawn no `jac` subprocesses, so they need none
-      # of the isolation test-compiler sets up.
+      # No HOME/mktemp isolation here: torch lands in the runtime site under
+      # XDG_CACHE_HOME, and these suites drive the compiler in-process without
+      # spawning `jac` subprocesses, so they need none of what test-compiler
+      # sets up and would lose the install if the root moved.
       - name: Install torch and run the graph-count suites
         uses: ./.github/actions/graphmend-torch
         with:
