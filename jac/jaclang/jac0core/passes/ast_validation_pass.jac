@@ -7,6 +7,7 @@ import from jaclang.jac0core.unitree {
     AtomTrailer,
     BinaryExpr,
     ContextAwareNode,
+    CtName,
     CtrlStmt,
     DeleteStmt,
     ElseStmt,
@@ -100,10 +101,10 @@ class ASTValidationPass(UniPass) {
     ) -> None;
 
     def _scope_declares_state(
-        self: ASTValidationPass, scope: UniNode, name: str
+        self: ASTValidationPass, scope: (Ability | ImplDef), name: str
     ) -> bool;
 
-    def _returns_jsx(self: ASTValidationPass, scope: UniNode) -> bool;
+    def _returns_jsx(self: ASTValidationPass, scope: (Ability | ImplDef)) -> bool;
     def enter_in_for_stmt(self: ASTValidationPass, nd: InForStmt) -> None;
     def enter_inner_compr(self: ASTValidationPass, nd: InnerCompr) -> None;
     def enter_has_var(self: ASTValidationPass, nd: HasVar) -> None;
@@ -119,13 +120,13 @@ class ASTValidationPass(UniPass) {
     def enter_jsx_slot(self: ASTValidationPass, nd: JsxSlot) -> None;
     def enter_expr_stmt(self: ASTValidationPass, nd: ExprStmt) -> None;
     def _check_slot_body(
-        self: ASTValidationPass, stmts: list, in_loop: bool, loop_kw: str
+        self: ASTValidationPass, stmts: list[UniNode], in_loop: bool, loop_kw: str
     ) -> None;
 
     def _check_slot_else(
         self: ASTValidationPass, else_body: object, in_loop: bool, loop_kw: str
     ) -> None;
 
-    def _slot_emits_keyless_jsx(self: ASTValidationPass, stmts: list) -> bool;
+    def _slot_emits_keyless_jsx(self: ASTValidationPass, stmts: list[UniNode]) -> bool;
     def _slot_has_key_attr(self: ASTValidationPass, el: JsxElement) -> bool;
 }
