@@ -338,9 +338,9 @@ jobs:
             SIZE_GB=24
           fi
           if [ "$SIZE_GB" -lt 4 ]; then
-            echo "::warning::$SWAP_DIR has ${AVAIL_GB}G free, too little to spare;" \
-                 "the seal runs on the stock swap and may exhaust the runner"
-            exit 0
+            echo "::error::$SWAP_DIR has ${AVAIL_GB}G free, too little to spare;" \
+                 "the seal needs swap headroom at this root count and would exhaust the runner"
+            exit 1
           fi
           SWAP_FILE="$SWAP_DIR/jac-seal-swap"
           sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
