@@ -584,7 +584,6 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _callee_sig_of(nd: uni.FuncCall) -> (uni.FuncSignature | None);
     def _arch_init_sig_of(type_name: str) -> (uni.FuncSignature | None);
     def _arch_method_sig_of(type_name: str, mname: str) -> (uni.FuncSignature | None);
-
     def _type_expr_names(nd: (uni.UniNode | None)) -> (set[str] | None);
     def _dunder_operand_declared_names(
         type_name: str, mname: str
