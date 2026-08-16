@@ -1,9 +1,4 @@
-"""GraphMend entry-point resolution on plain Python (.py) source files.
-
-Real models are rarely decorated: `torch.compile(model)` lives at a call site,
-and an imported model module has no local wrap at all and seeds on the `forward`
-methods whose classes bind a torch Module base. The .py front-end unparses
-differently from .jac-origin nodes, so resolution must match structurally."""
+"""Entry-point resolution and claiming on plain Python source."""
 import ast;
 import os;
 import tempfile;

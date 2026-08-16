@@ -1,15 +1,4 @@
-"""Torch-gated integration tests for GraphMend predicated control flow.
-
-Confirm the runtime claim that predication defragments the FX graph: compile
-each fixture with and without graphmend and count how many contiguous graphs
-TorchDynamo's backend actually receives. A data-dependent branch splits the
-forward pass into multiple graphs; GraphMend collapses it back to one.
-
-Graph count (via a counting backend) is used rather than
-``explain().graph_break_count`` (which under-reports for small functions) or
-``fullgraph=True`` (which is stricter than how models actually run).
-
-Skipped automatically when PyTorch is not installed."""
+"""Torch-gated: predication collapses the split forward pass back to one FX graph."""
 import ast;
 import os;
 import pytest;

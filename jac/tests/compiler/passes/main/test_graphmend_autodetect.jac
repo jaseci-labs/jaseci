@@ -1,11 +1,4 @@
-"""GraphMend automatic activation behind the off switch.
-
-With the gate open (the default) GraphMend engages for exactly the modules
-that import `torch` or a `torch.*` submodule, detected syntactically without
-torch installed; a relative `.torch` names a sibling and must not trigger, and
-a torch-free module must stay byte-identical to an off compile. Temp files are
-generated at test time because the repository takes no new .py files, and a
-`torch.jac` sibling would shadow the real torch for other suites."""
+"""Automatic activation on torch-importing modules, behind the boolean off switch."""
 import os;
 import tempfile;
 import from tests.support {

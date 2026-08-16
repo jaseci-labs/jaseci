@@ -1,8 +1,4 @@
-"""GraphMend trap-lowering (validation guard) tests.
-
-Assertions run against the generated Python source (the lowering target),
-plus the detection tag table where source alone cannot distinguish "not
-detected" from "detected but declined by the trap pass"."""
+"""Guard lowering: rewrite shapes and one decline fixture per legality condition."""
 import ast;
 import os;
 import tempfile;
