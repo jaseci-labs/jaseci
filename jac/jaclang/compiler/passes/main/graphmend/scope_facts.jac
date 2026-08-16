@@ -27,17 +27,11 @@ def compiled_region_ids(
     work: list[uni.Ability] = [];
     bounds = prog.graphmend_boundary;
     for m in mods {
-        for arch in m.get_all_sub_nodes(uni.Archetype) {
-            if has_torch_compile_decorator(arch) {
-                ids.add(id(arch));
-                for meth in arch.get_all_sub_nodes(uni.Ability) {
-                    _seed(work, bounds, meth);
-                }
-            }
-        }
-        for ab in m.get_all_sub_nodes(uni.Ability) {
-            if has_torch_compile_decorator(ab) {
-                _seed(work, bounds, ab);
+        for nd in _compile_entry_seeds(m) {
+            if isinstance(nd, uni.Archetype) {
+                ids.add(id(nd));
+            } elif isinstance(nd, uni.Ability) {
+                _seed(work, bounds, nd);
             }
         }
         for fwd in module_entry_forwards(prog, m, seen) {
@@ -89,6 +83,24 @@ def compiled_region_ids(
 def _seed(work: list[uni.Ability], bounds: dict[int, uni.Ability], ab: uni.Ability) {
     bounds[id(ab)] = ab;
     work.append(ab);
+}
+
+def _compile_entry_seeds(mod: uni.Module) -> list[uni.UniNode] {
+    out: list[uni.UniNode] = [];
+    for arch in mod.get_all_sub_nodes(uni.Archetype) {
+        if has_torch_compile_decorator(arch) {
+            out.append(arch);
+            for meth in arch.get_all_sub_nodes(uni.Ability) {
+                out.append(meth);
+            }
+        }
+    }
+    for ab in mod.get_all_sub_nodes(uni.Ability) {
+        if has_torch_compile_decorator(ab) {
+            out.append(ab);
+        }
+    }
+    return out;
 }
 
 def region_context_key(prog: JacProgram, target_path: str) -> str {
@@ -287,15 +299,8 @@ def module_is_seed(prog: JacProgram, mod: uni.Module, seen: set[str]) -> bool {
             return True;
         }
     }
-    for ab in mod.get_all_sub_nodes(uni.Ability) {
-        if has_torch_compile_decorator(ab) {
-            return True;
-        }
-    }
-    for arch in mod.get_all_sub_nodes(uni.Archetype) {
-        if has_torch_compile_decorator(arch) {
-            return True;
-        }
+    if _compile_entry_seeds(mod) {
+        return True;
     }
     return len(module_entry_forwards(prog, mod, seen)) > 0;
 }
