@@ -93,6 +93,7 @@ obj EnumLayout {
         underlying: str = "i64",
         is_string_enum: bool = False,
         is_class_form: bool = False,
+        all_values_known: bool = True,
         members: list[EnumMemberLayout] = [];
 }
 

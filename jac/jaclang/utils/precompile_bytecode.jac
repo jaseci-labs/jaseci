@@ -299,6 +299,8 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/passes/uni_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac",
          "compiler/passes/main/sem_def_match_pass.jac",
+         "compiler/passes/main/access_check_pass.jac",
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
          "compiler/native_materialize.jac",
 
      ),
@@ -320,7 +322,11 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "compiler/native_materialize.jac",
+         "compiler/passes/main/access_check_pass.jac",
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
          "compiler/passes/main/sem_def_match_pass.jac",
+         "project/client_kind_paths.jac",
+         "runtimelib/client/targets/react_native/html_tag_map.jac",
          "runtimelib/na_stdlib/keyword.jac",
 
      );
@@ -386,7 +392,9 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
              _UNITREE_SEAM_WAIVERS + _SYM_TAB_BUILD_SEAM_WAIVERS
          ),
          "jac0core/passes/decl_impl_match_pass.jac": _UNITREE_SEAM_WAIVERS,
-         "compiler/passes/main/sem_def_match_pass.jac": _UNITREE_SEAM_WAIVERS
+         "compiler/passes/main/sem_def_match_pass.jac": _UNITREE_SEAM_WAIVERS,
+         "compiler/passes/main/access_check_pass.jac": _UNITREE_SEAM_WAIVERS,
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _UNITREE_SEAM_WAIVERS
      };
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {

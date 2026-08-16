@@ -88,6 +88,10 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
          "jac0core/passes/sym_tab_build_pass.jac",
          "jac0core/passes/decl_impl_match_pass.jac"
      ),
+     WAVE5_ROOTS: tuple = (
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
+         "compiler/passes/main/access_check_pass.jac"
+     ),
      # Documented carve-outs of the receiver-blind accessor rule: `x.a` adds
      # every class's `a` accessor, so a live read of a polymorphic slot flags
      # implementors the receiver's DECLARED type can never be. Each entry
@@ -580,6 +584,61 @@ test "wave-4 roots: each walk reaches the pass's own machinery" {
 
 test "wave-4 roots: no waived seam is native-reachable from the live surface" {
     for rel in WAVE4_ROOTS {
+        (seen, waived) = pass_reachable(rel);
+        hit = sorted(
+            name
+            for name in waived
+            if name in seen
+        );
+        assert not hit , (
+            f"{rel}: {len(hit)} waived seam(s) are reachable through native "
+            "calls from the root's live entry surface, so the sealed artifact "
+            "can abort at runtime -- remove the waiver and fix the seam:\n"
+            + "\n".join(f"  {name}" for name in hit)
+        );
+    }
+}
+
+
+test "wave-5 roots: each walk reaches the pass's own machinery" {
+    # Both roots used to answer a driver question themselves -- the jsx
+    # guard resolved the client kind from config in before_pass, the
+    # access checker read get_config and walked the filesystem for
+    # project roots -- and both read the answer off a stamped Module
+    # slot now. The names below are the work each pass does after the
+    # stamp, so a clean waiver verdict is not vacuous.
+    for (rel, needed) in (
+        (
+            "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
+            (
+                "JsxIntrinsicGuardPass._check_element",
+                "JsxIntrinsicGuardPass._is_exempt",
+                "mobui_module_exempt"
+            )
+        ),
+        (
+            "compiler/passes/main/access_check_pass.jac",
+            (
+                "AccessCheckPass._check_use",
+                "AccessCheckPass._is_subclass_of",
+                "UniNode.find_parent_of_type"
+            )
+        )
+    ) {
+        (seen, _waived) = pass_reachable(rel);
+        for name in needed {
+            assert name in seen , (
+                f"{rel}: '{name}' is missing from the reachable set -- the "
+                "walk found nothing there, so a clean waiver verdict would "
+                "be vacuous"
+            );
+        }
+    }
+}
+
+
+test "wave-5 roots: no waived seam is native-reachable from the live surface" {
+    for rel in WAVE5_ROOTS {
         (seen, waived) = pass_reachable(rel);
         hit = sorted(
             name
