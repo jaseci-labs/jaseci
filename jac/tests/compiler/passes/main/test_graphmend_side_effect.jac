@@ -46,6 +46,11 @@ def _record_nested(msg: str) {
     _NESTED_SEEN.append(msg);
 }
 
+"""Registered twice by the slot-stability test; never called."""
+def _slot_probe(msg: str) {
+    ;
+}
+
 """A Python-source model with a print between tensor ops.
 
 Written to a temp file at test time rather than checked in as a .py fixture:
@@ -194,6 +199,44 @@ test "a logging-named method on a non-logger receiver is not tagged" {
     assert _break_kinds("se_foreign_warn.jac") == [];
 }
 
+test "an unresolved logger base refuses the module-slot proof" {
+    # _base_binds_at_module is the proof that the receiver binds at module
+    # scope, so the slot registration emitted there can resolve the name; a
+    # Name with no symbol proves nothing and must fail closed. Detection
+    # (_base_binds_logger) filters unresolved bases before this pass runs, so
+    # the polarity is pinned on the proof itself, not on an end-to-end rewrite
+    # that would pass either way.
+    import from jaclang.compiler.passes.main.graphmend.defer_side_effect_pass {
+        DeferSideEffectPass
+    }
+    import from jaclang.jac0core.compile_options { CompileOptions }
+    import from jaclang.jac0core.program { JacProgram }
+    prog = JacProgram();
+    with tempfile.TemporaryDirectory() as tmp {
+        path = os.path.join(tmp, "defer_polarity.jac");
+        with open(path, "w") as fh {
+            fh.write("with entry { x = 1; }\n");
+        }
+        mod = prog.compile(
+            file_path=path, options=CompileOptions(graphmend=False, type_check=False)
+        );
+    }
+    dp = DeferSideEffectPass(ir_in=mod, prog=prog);
+    base = gen_name(mod, "logger", False);
+    assert base.sym is None;
+    assert dp._base_binds_at_module(base) is False , (
+        "an unresolved base must not prove a module-scope binding"
+    );
+    meth = gen_name(mod, "warning", False);
+    trailer = uni.AtomTrailer(
+        target=base, right=meth, is_attr=True, is_null_ok=False, kid=[base, meth]
+    );
+    call = uni.FuncCall(target=trailer, params=[], genai_call=None, kid=[trailer]);
+    assert dp._is_logger_call(call) is False , (
+        "an unproven base must take the buffered path, not a module slot"
+    );
+}
+
 test "a user-defined name matching a logging pattern is not tagged" {
     # `warn_and_scale` contains the `warn` pattern, but the name resolves to a
     # local function; rewriting it would defer arbitrary user compute.
@@ -244,6 +287,30 @@ test "a deferred logger call emits immediately when no region is open" {
     assert _EAGER_LOG_SEEN == ["eager", "deferred"] , (
         f"deferred call was not replayed: {_EAGER_LOG_SEEN}"
     );
+}
+
+test "re-registering the same callable reuses its slot" {
+    # Module re-execution re-runs the emitted slot registrations, and the
+    # registry can never evict: live slot integers sit in module globals and
+    # in compiled graphs, so removal or renumbering would break them. Reusing
+    # the existing slot for an equivalent callable is what bounds regrowth.
+    import jaclang.jac0core.runtime as rt;
+    s1 = __jac_log_register__(_slot_probe);
+    n1 = len(rt._gm_log_registry);
+    s2 = __jac_log_register__(_slot_probe);
+    assert s2 == s1 , f"same callable got a new slot: {s1} then {s2}";
+    assert len(rt._gm_log_registry) == n1 , "re-registration grew the registry";
+    assert rt._gm_log_registry[s1] is _slot_probe;
+    # A bound method re-read from the same instance is a fresh object each
+    # access; dedup must key on the underlying function and receiver.
+    import logging;
+    lg = logging.getLogger("gm_slot_dedup");
+    b1 = __jac_log_register__(lg.info);
+    n2 = len(rt._gm_log_registry);
+    b2 = __jac_log_register__(lg.info);
+    assert b2 == b1 , f"same bound method got a new slot: {b1} then {b2}";
+    assert len(rt._gm_log_registry) == n2;
+    assert b1 != s1;
 }
 
 test "a raising log call cannot replay stale entries on the next pass" {
