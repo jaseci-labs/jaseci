@@ -192,19 +192,14 @@ impl SymTabBuildPass._exit_import_absorb(self: SymTabBuildPass, nd: Import) -> N
     if (sym_table_to_update is None) {
         return;
     }
-    import_all_module_path_node: ModulePath = nd.items[0];
-    import_all_module_path = import_all_module_path_node.resolve_relative_path();
-    module: (Module | None) = None;
-    if (import_all_module_path in self.prog.mod.hub) {
-        module = self.prog.mod.hub[import_all_module_path];
-    } else {
-        try {
-            module = self.prog.compile(
-                import_all_module_path, no_cgen=True, type_check=False
-            );
-        } except Exception {
-            return;
-        }
+    first_item = nd.items[0];
+    if not isinstance(first_item, ModulePath) {
+        return;
+    }
+    import_all_module_path_node: ModulePath = first_item;
+    module: (Module | None) = nd.absorbed_mod;
+    if (module is None) {
+        return;
     }
     self._bind_import_path_symbols(import_all_module_path_node);
     if module {
@@ -631,10 +626,12 @@ impl SymTabBuildPass.exit_switch_case(self: SymTabBuildPass, nd: SwitchCase) -> 
 
 impl find_python_scope_node_of(nd: UniNode) -> (UniScopeNode | None) {
     while nd.parent {
-        if UniScopeNode.is_python_scoping(nd.parent) {
-            return nd.parent;
+        scope_parent = nd.parent;
+        if isinstance(scope_parent, UniScopeNode)
+            and UniScopeNode.is_python_scoping(scope_parent) {
+            return scope_parent;
         }
-        nd = nd.parent;
+        nd = scope_parent;
     }
     return None;
 }

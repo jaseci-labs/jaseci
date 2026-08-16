@@ -3,6 +3,10 @@ import from collections.abc { Sequence }
 import from contextvars { ContextVar }
 import from dataclasses { field }
 import from typing { Any }
+import from jaclang.jac0core.constant {
+    NATIVE_COMPTIME_TYPE_MARKERS,
+    TYPE_PARAM_CONSTRUCTORS
+}
 import from jaclang.jac0core.srcloc { CodeLocInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { IndexInfo, SliceInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
@@ -140,6 +144,30 @@ def native_safe_sym(src: str) -> str {
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
 }
 
+def native_glob_init_symbols(manifest: object) -> list[str] {
+    syms: list[str] = [];
+    sources = (manifest.native_transitive_sources if manifest else []) or [];
+    for src in sources {
+        if not src {
+            continue;
+        }
+        sym = f"__jac_glob_init_{native_safe_sym(src)}";
+        if sym not in syms {
+            syms.append(sym);
+        }
+    }
+    syms.append("__jac_glob_init");
+    return syms;
+}
+
+def install_native_static_init(engine: object, manifest: object) -> None {
+    if engine is None {
+        return;
+    }
+    engine.static_init_symbols = native_glob_init_symbols(manifest);
+    engine.static_init_chained = {"jac_entry"};
+}
+
 glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "sys",
          "math",
@@ -157,15 +185,9 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "jac_native_closure_cap", default=0
      );
 
-glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
-         {"TypeVar", "ParamSpec", "TypeVarTuple"}
-     );
-
 glob NATIVE_COMPTIME_BASES: frozenset = frozenset({"ABC"});
 
 glob NATIVE_COMPTIME_IDENTITY_CALLS: frozenset = frozenset({"cast"});
-
-glob NATIVE_COMPTIME_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"});
 
 glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
          "abc": NATIVE_COMPTIME_BASES,

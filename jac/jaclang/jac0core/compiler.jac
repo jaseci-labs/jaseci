@@ -40,9 +40,125 @@ import from jaclang.jac0core.passes {
     SymTabBuildPass,
     Transform
 }
+import from jaclang.jac0core.passes.transform { DiagnosticPolicy }
 import from jaclang.jac0core.program { JacProgram }
 
+def diagnostic_policy_for(
+    config: any, extra_suppress_tokens: (list | None) = None
+) -> DiagnosticPolicy {
+    import from jaclang.jac0core.diagnostic_utils { resolve_diagnostic_tokens }
+    tokens: list[str] = [];
+    categories: list[str] = [];
+    lint_active = False;
+    lint_select: list[str] = [];
+    lint_ignore: list[str] = [];
+    check = config.check if (config and config.check) else None;
+    if check is not None {
+        if check.suppress {
+            tokens = list(check.suppress);
+        }
+        if check.suppress_categories {
+            categories = list(check.suppress_categories);
+        }
+        lint = check.lint;
+        if lint {
+            lint_active = True;
+            lint_select = list(lint.select);
+            lint_ignore = list(lint.ignore);
+        }
+    }
+    if extra_suppress_tokens {
+        tokens.extend(extra_suppress_tokens);
+    }
+    resolved: list[str] = [];
+    if tokens {
+        (resolved, _unknown) = resolve_diagnostic_tokens(tokens);
+    }
+    return DiagnosticPolicy(
+        suppress_codes=resolved,
+        suppress_categories=categories,
+        lint_active=lint_active,
+        lint_select=lint_select,
+        lint_ignore=lint_ignore
+    );
+}
+
+def build_diagnostic_policy(prog: JacProgram) -> DiagnosticPolicy {
+    config: any = None;
+    try {
+        import from jaclang.project.config { get_config }
+        config = get_config();
+    } except Exception {
+        config = None;
+    }
+    opts = prog._compile_options;
+    extra: list[str] = (
+        list(opts.suppress_codes) if (opts is not None and opts.suppress_codes) else []
+    );
+    return diagnostic_policy_for(config, extra);
+}
+
+def deliver_alerts(
+    errors: list,
+    warnings: list,
+    prog: JacProgram,
+    policy: (DiagnosticPolicy | None) = None
+) {
+    pol = policy if policy is not None else build_diagnostic_policy(prog);
+    for alrt in errors {
+        if alrt.code is not None and pol.is_suppressed(alrt.code, alrt.loc) {
+            continue;
+        }
+        prog.errors_had.append(alrt);
+    }
+    for alrt in warnings {
+        if alrt.code is not None and pol.is_suppressed(alrt.code, alrt.loc) {
+            continue;
+        }
+        prog.warnings_had.append(alrt);
+    }
+}
+
+def run_pass(
+    pass_cls: type,
+    ir_in: any,
+    prog: JacProgram,
+    cancel_token: any = None,
+    policy: (DiagnosticPolicy | None) = None,
+    **kwargs: any
+) -> any {
+    pol = policy if policy is not None else build_diagnostic_policy(prog);
+    errors: list = [];
+    warnings: list = [];
+    inst: any = None;
+    try {
+        inst = pass_cls(
+            ir_in=ir_in,
+            prog=prog,
+            cancel_token=cancel_token,
+            policy=pol,
+            errors_had=errors,
+            warnings_had=warnings,
+            **kwargs
+        );
+    } finally {
+        eff = inst.policy if (inst is not None and inst.policy is not None) else pol;
+        deliver_alerts(errors, warnings, prog, eff);
+    }
+    return inst;
+}
+
 def get_symtab_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+    if not _ir_sched_loading.get() {
+        _tok = _ir_sched_loading.set(True);
+        try {
+            import jaclang.compiler.symbol_utils;
+        } except ImportError as e {
+            fail_loud_on_compiler_source(e);
+        } finally {
+            _ir_sched_loading.reset(_tok);
+        }
+    }
     return validate_schedule(
         [ASTValidationPass, SymTabBuildPass, DeclImplMatchPass, PlacementApplyPass],
         origin='symtab-ir schedule'
@@ -229,6 +345,79 @@ def fail_loud_on_compiler_source(err: ImportError) -> None {
     ) from err;
 }
 
+glob _native_sched_failure: dict[str, str] = {};
+
+def _note_native_schedule_failure(err: (BaseException | None)) {
+    if err is None {
+        _native_sched_failure.pop('reason', None);
+    } else {
+        _native_sched_failure['reason'] = f"{type(err).__name__}: {err}";
+    }
+}
+
+def native_schedule_failure -> str {
+    return _native_sched_failure.get('reason', '');
+}
+
+def compiler_source_failure_origin(err: BaseException) -> (str | None) {
+    root = _compiler_source_root() + os.sep;
+    cursor: any = err;
+    for _ in range(8) {
+        if cursor is None {
+            break;
+        }
+        for cand in (cursor?.jac_source_path, cursor?.path) {
+            if isinstance(cand, str) and cand {
+                real = os.path.realpath(cand);
+                if real.startswith(root) {
+                    return real;
+                }
+            }
+        }
+        name = cursor?.name;
+        if isinstance(name, str)
+            and (name == 'jaclang' or name.startswith('jaclang.')) {
+            return name;
+        }
+        cursor = cursor?.__cause__ or cursor?.__context__;
+    }
+    return None;
+}
+
+def module_import_in_flight(file_path: str) -> bool {
+    for mod in list(sys.modules.values()) {
+        spec = mod?.__spec__;
+        if spec is None {
+            continue;
+        }
+        if spec?.origin == file_path and bool(spec?._initializing) {
+            return True;
+        }
+    }
+    return False;
+}
+
+def import_error_re_enters(err: BaseException, file_path: str) -> (str | None) {
+    if not isinstance(err, ImportError) or not module_import_in_flight(file_path) {
+        return None;
+    }
+    cursor: any = err;
+    for _ in range(8) {
+        if cursor is None {
+            break;
+        }
+        name = cursor?.name;
+        if isinstance(name, str) and name {
+            spec = sys.modules.get(name)?.__spec__;
+            if spec is not None and spec?.origin == file_path {
+                return name;
+            }
+        }
+        cursor = cursor?.__cause__ or cursor?.__context__;
+    }
+    return None;
+}
+
 def get_boundary_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     return validate_schedule(
         [BoundaryAnalysisPass, EndpointEffectPass], origin='boundary-analysis schedule'
@@ -349,6 +538,19 @@ def get_type_check_sched(
     );
 }
 
+def typeshed_stubs_available -> bool {
+    return os.path.exists(
+        os.path.join(
+            os.path.dirname(__file__),
+            '..',
+            'vendor',
+            'typeshed',
+            'stdlib',
+            'builtins.pyi'
+        )
+    );
+}
+
 def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     if _typecheck_sched_loading.get() {
         return [];
@@ -359,15 +561,7 @@ def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
 
         import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 
-        stub_path = os.path.join(
-            os.path.dirname(__file__),
-            '..',
-            'vendor',
-            'typeshed',
-            'stdlib',
-            'builtins.pyi'
-        );
-        if not os.path.exists(stub_path) {
+        if not typeshed_stubs_available() {
             return [];
         }
         return validate_schedule([TypeInferencePass], origin='inference schedule');
@@ -394,7 +588,7 @@ def native_pipeline_available -> tuple[bool, str] {
         return (True, '');
     }
     reason = '';
-    if not get_inference_sched() {
+    if not typeshed_stubs_available() {
         reason = (
             'native pipeline unavailable: type inference '
             + '(vendor/typeshed stubs) is not available in this environment'
@@ -404,6 +598,17 @@ def native_pipeline_available -> tuple[bool, str] {
         try {
             import from jaclang.compiler.passes.native.llvm.binding.ffi { _find_shim }
             _find_shim();
+        } except ModuleNotFoundError {
+            reason = (
+                'native pipeline unavailable: LLVM shim (libjacllvm) '
+                + 'not found in this environment'
+            );
+        } except ImportError as e {
+            fail_loud_on_compiler_source(e);
+            return (
+                False,
+                'native pipeline undecided: the compiler is still initializing'
+            );
         } except Exception {
             reason = (
                 'native pipeline unavailable: LLVM shim (libjacllvm) '
@@ -459,11 +664,15 @@ def get_py_code_gen(
                     origin='native codegen schedule'
                 )
             );
+            _note_native_schedule_failure(None);
         }
         passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
         return passes;
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
+        if native {
+            _note_native_schedule_failure(e);
+        }
         return [PyastGenPass, PyBytecodeGenPass];
     } finally {
         _codegen_sched_loading.reset(_tok);
@@ -1089,6 +1298,11 @@ obj JacCompiler {
         cancel_token: (Event | None) = None
     ) -> uni.Module;
 
+    def load_annex_modules(
+        mod: uni.Module, target_program: JacProgram
+    ) -> list[uni.Module];
+
+    def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
     def compile(
         file_path: str,
         target_program: JacProgram,
@@ -1129,6 +1343,10 @@ obj JacCompiler {
     static def _scrub_native_artifacts_on_error(
         target_program: JacProgram, mod: uni.Module
     ) -> bool;
+
+    static def _report_missing_native_ir(
+        target_program: JacProgram, mod: uni.Module
+    ) -> None;
 
     static def _prepare_tool_program(
         source_str: str, file_path: str, expand: bool = False

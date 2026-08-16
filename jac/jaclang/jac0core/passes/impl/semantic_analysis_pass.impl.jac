@@ -1,18 +1,19 @@
+impl inform_from_walker(nd: UniNode) -> None {
+    for i in nd.get_all_sub_nodes(VisitStmt)
+        + nd.get_all_sub_nodes(DisengageStmt)
+        + nd.get_all_sub_nodes(EdgeOpRef)
+        + nd.get_all_sub_nodes(EventSignature)
+        + nd.get_all_sub_nodes(TypedCtxBlock) {
+        i.from_walker = True;
+    }
+}
+
 impl SemanticAnalysisPass.enter_archetype(
     self: SemanticAnalysisPass, nd: Archetype
 ) -> None {
-    def inform_from_walker(nd: UniNode) {
-        for i in nd.get_all_sub_nodes(VisitStmt)
-            + nd.get_all_sub_nodes(DisengageStmt)
-            + nd.get_all_sub_nodes(EdgeOpRef)
-            + nd.get_all_sub_nodes(EventSignature)
-            + nd.get_all_sub_nodes(TypedCtxBlock) {
-            i.from_walker = True;
-        }
-    }
     if (nd.arch_kind == "walker") {
         inform_from_walker(nd);
-        for i in self.get_all_sub_nodes(nd, Ability) {
+        for i in nd.get_all_sub_nodes(Ability) {
             if isinstance(i.body, ImplDef) {
                 inform_from_walker(i.body);
             }
@@ -42,7 +43,7 @@ impl SemanticAnalysisPass._check_archetype(
                 }
             }
         }
-        post_init_vars: list = [];
+        post_init_vars: list[HasVar] = [];
         postinit_method: (Ability | None) = None;
         for item in nd.body {
             if isinstance(item, ArchHas) {
@@ -83,7 +84,13 @@ impl SemanticAnalysisPass._check_archetype(
             prop_name = (
                 method.name_ref.value if isinstance(method.name_ref, Name) else "x"
             );
-            for dec in (method.decorators or ()) {
+            method_decorators: list[UniNode] = [];
+            if method.decorators is not None {
+                for dec_item in method.decorators {
+                    method_decorators.append(dec_item);
+                }
+            }
+            for dec in method_decorators {
                 prop_dec = "";
                 if isinstance(dec, Name) {
                     if dec.sym_name == 'classmethod' {

@@ -256,6 +256,8 @@ impl NaIRGenPass._codegen_bound_args(
     if _has_pack and func.function_type.var_arg {
         _has_pack = False;
     }
+    _sig_is_callees = (self_offset - _self_skip + len(callee_sig.get_parameters()))
+        == len(func.args);
     if _has_pack {
         _chk = self_offset - _self_skip
             + len(callee_sig.posonly_params or [])
@@ -272,6 +274,9 @@ impl NaIRGenPass._codegen_bound_args(
                 }
             }
             if not _vt_ok {
+                if _sig_is_callees {
+                    self._emit_pack_slot_refusal(nd, "*");
+                }
                 _has_pack = False;
             }
             _chk += 1;
@@ -290,6 +295,9 @@ impl NaIRGenPass._codegen_bound_args(
                 }
             }
             if not _dt_ok {
+                if _sig_is_callees {
+                    self._emit_pack_slot_refusal(nd, "**");
+                }
                 _has_pack = False;
             }
         }
@@ -560,6 +568,36 @@ impl NaIRGenPass._codegen_bound_args(
         args.append(self._default_arg_fallback(func.args[slot].type));
     }
     return args;
+}
+
+impl NaIRGenPass._emit_pack_slot_refusal(nd: uni.FuncCall, star: str) -> None {
+    """Refuse a call whose callee declares a pack it could not lay out.
+
+    Binding the extras positionally into a slot that is not a pack is the one
+    answer this site may never give: the callee reads that slot as its whole
+    parameter pack, so the mismatch is a silent misread at run time rather
+    than a missing feature.
+
+    Reached only when the signature that declares the pack is the one the
+    called function was built from. A bundled native module whose typeshed
+    stub is variadic while its own definition is fixed-arity -- `os.path.join`
+    is the standing example -- resolves a signature belonging to a different
+    implementation, and positional binding against the real one is correct.
+    """;
+    _sink = "*args" if star == "*" else "**kwargs";
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="variadic call",
+        name=star,
+        help_text=(
+            f"The callee declares a `{star}` pack, but its `{_sink}` slot did "
+            f"not lay out as a native list or dict, so the arguments this "
+            f"site would pack have nowhere to go. Annotate the pack with an "
+            f"element type that lowers, or move the call to a @sv/Python "
+            f"context."
+        )
+    );
 }
 
 impl NaIRGenPass._codegen_varargs_list(
@@ -1091,7 +1129,7 @@ impl NaIRGenPass._codegen_intrinsic(
 impl NaIRGenPass._emit_intrinsic_misuse(
     nd: uni.FuncCall, intr: object, reason: str
 ) -> None {
-    for e in self.prog.errors_had {
+    for e in self.errors_had {
         if (
             e.code is E5095
             and e.loc.mod_path == nd.loc.mod_path
@@ -2105,6 +2143,9 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
             }
         }
     }
+    if not self._call_args_lowered(nd, func, func_name, coerced) {
+        return None;
+    }
     result = self.builder.call(func, coerced, name=f"call.{func_name}");
     if func_name in self.clib_extern_names {
         result = self._clib_sext_ret(func_name, result);
@@ -3106,6 +3147,40 @@ impl NaIRGenPass._unwrap_cfg_expr(e: any) -> any {
         _cur = _cur.expr;
     }
     return _cur;
+}
+
+impl NaIRGenPass._call_args_lowered(
+    nd: uni.UniNode, func: ir.Function, func_name: str, coerced: list
+) -> bool {
+    """Whether every argument reached the callee's parameter type.
+
+    `_coerce_type` answers with the value unchanged when it has no coercion
+    for a pair, so a lowering that lost a type upstream reaches the builder
+    with an argument the callee cannot take. The builder's `TypeError` is
+    then reported as an internal compiler error, which buries the real
+    defect under a crash. Refusing here demotes the one callable and names
+    the parameter that did not line up, so the census records a fact rather
+    than a stack trace.
+    """;
+    _n = min(len(coerced), len(func.args));
+    for _i in range(_n) {
+        if coerced[_i].type == func.args[_i].type {
+            continue;
+        }
+        self.emit(
+            E5092,
+            node_override=nd,
+            kind="call argument",
+            name=f"{func_name} parameter {_i + 1}",
+            help_text=f"The argument lowered to `{coerced[_i].type}` but "
+            f"`{func_name}` takes `{func.args[_i].type}` there, and no "
+            "coercion connects the two. Some type upstream of this call was "
+            "lost -- an unlinked imported archetype, an erased container "
+            "element, or a narrow the backend could not follow."
+        );
+        return False;
+    }
+    return True;
 }
 
 impl NaIRGenPass._spec_from_container_ptr(t: (ir.Type | None)) -> (str | None) {

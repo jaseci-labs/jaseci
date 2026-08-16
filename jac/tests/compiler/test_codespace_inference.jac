@@ -12,6 +12,7 @@ import from tests.support { JAC_ROOT }
 import jaclang;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURE_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "codespace"
@@ -584,7 +585,7 @@ test "cross-module pulled elements dual-emit for the server side" {
         "pulled glob must be an ES export of the pulled module"
     );
     assert util_js.strip() , "pulled module must produce client JS";
-    PyastGenPass(ir_in=util, prog=prog);
+    run_pass(PyastGenPass, util, prog);
     py_src = py_ast_mod.unparse(util.gen.py_ast);
     assert 'def register' in py_src , (
         "pulled element must still exist in the python module (dual emit)"
@@ -625,10 +626,10 @@ test "codespace stamps invalidate stale module codegen" {
     );
     util = hub_module(prog, "infer_xmod_util.jac");
     assert util is not None , "imported module missing from hub";
-    EsastGenPass(ir_in=util, prog=prog);
+    run_pass(EsastGenPass, util, prog);
     app = hub_module(prog, "infer_xmod_app.jac");
     assert app is not None;
-    EsastGenPass(ir_in=app, prog=prog);
+    run_pass(EsastGenPass, app, prog);
     _ensure_js_generated(util, prog);
     assert 'register' in util.gen.client_manifest.exports , (
         "pull stamps must invalidate the pre-pull ES cache so the pulled def "

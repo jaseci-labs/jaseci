@@ -655,7 +655,8 @@ obj TypeEvaluator {
     def validate_typevar_in_type_expr(expr: Expr) -> None;
     def validate_typevar_scope(expr: Expr, type_var: TypeVarType) -> None;
     def validate_typevar_variance(func: Ability) -> None;
-    def _get_enclosing_class_type_params(node_: UniNode) -> list[TypeVarType];
+    def _type_var_bound_in_scope(node_: UniNode, name: str) -> bool;
+    def _get_signature_type_params(sig: FuncSignature) -> list[TypeVarType];
     def _get_function_type_params(func: Ability) -> list[TypeVarType];
     def _get_outer_scope_type_params(node_: UniNode) -> list[TypeVarType];
     def create_key_for_reference(expr: Expr) -> str | None;
@@ -727,6 +728,7 @@ obj TypeEvaluator {
     def _is_type_alias_annotation(annotation_type: TypeBase, tag_expr: Expr) -> bool;
     def _resolve_type_alias_rhs(value: Expr) -> TypeBase;
     def _brand_distinct_alias(node_: TypeAlias, resolved: TypeBase) -> TypeBase;
+    def _distinct_brand_mismatch(src_type: TypeBase, dest_type: TypeBase) -> bool;
     def _resolve_string_type_expr(
         type_str: str, scope: UniScopeNode
     ) -> TypeBase | None;

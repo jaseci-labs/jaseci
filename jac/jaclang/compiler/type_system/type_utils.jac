@@ -74,13 +74,6 @@ obj ParamAssignmentTracker {
     def get_unmatched_required_params -> list[Parameter];
 }
 
-obj CompletionItem {
-    has label: str,
-        kind: int,
-        detail: (str | None) = None,
-        documentation: (str | None) = None;
-}
-
 enum CompletionItemKind {
     Text = 1,
     Method = 2,
@@ -109,11 +102,18 @@ enum CompletionItemKind {
     TypeParameter = 25,
 }
 
+obj CompletionItem {
+    has label: str,
+        kind: CompletionItemKind,
+        detail: (str | None) = None,
+        documentation: (str | None) = None;
+}
+
 def doc_of_sym(sym: Symbol) -> (str | None);
 
 def completion_item_from_sym(name: str, sym: Symbol) -> CompletionItem;
 
-def completion_kind_from_sym(sym: Symbol) -> int;
+def completion_kind_from_sym(sym: Symbol) -> CompletionItemKind;
 
 def get_completion_items(ty: (TypeBase | UniScopeNode)) -> list[CompletionItem];
 

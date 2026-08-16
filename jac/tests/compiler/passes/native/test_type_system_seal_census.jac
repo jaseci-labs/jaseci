@@ -16,12 +16,13 @@ questions:
   one) has to reach zero seams before the stage can seal, so it fails loudly
   here rather than at seal time.
 * `ts_decl_parser.jac` -- already clean, and pinned so it stays that way.
-* `type_evaluator.jac` -- measurable at all. A construct that no method owns
-  (`postinit` owns nothing, per #8234) refuses the module instead of demoting
-  one method, and the census then records no seams whatsoever: 196 methods'
-  worth of measurement lost to one un-lowerable statement. The pin is that the
-  module reaches per-method demotion, plus an enumeration of the refusals that
-  still escape an owner.
+* `type_evaluator.jac` -- measurable at all. A construct that no callable owns
+  refuses the module instead of demoting one method, and the census then
+  records no seams whatsoever: 196 methods' worth of measurement lost to one
+  un-lowerable statement. The pin is that the module reaches per-method
+  demotion, plus an enumeration of the refusals that still escape an owner.
+  Since #8234 a constructor owns its own body, so what remains ownerless here
+  is field declarations alone.
 
 Waivers are enumerated one at a time and name what blocks each, so the suite
 never degrades into a "fewer than N" threshold: an un-waived seam fails, and a
@@ -69,58 +70,48 @@ Keyed `<module>::<Type>.<method>` exactly as `_seal_demotions` keys them, so an
 entry reads the same as one in `NATIVE_SEAL_DEMOTION_WAIVERS` when the stage
 eventually joins `NATIVE_SEAL_ROOTS`. A `<field>.__get__` entry is a property;
 #8074 made accessors lower as methods, so their bodies reach the backend.
+
+Five element-erasure waivers left this table when optional containers learned
+to keep their element layout: `TypeBase.mangle`, `ClassType.__str__`,
+`FunctionType.__str__`, `UnionType.__str__` and `ClassType.clone_with_literal`
+walked or sliced `list[T] | None` slots and now lower. Three entries survived
+that erasure but for a reason their old text did not name -- the two
+remaining `clone_*` methods and `specialize_func_type_vars` -- so their
+waivers were rewritten rather than kept.
+
+A sixth left when `ClassType.get_class_symbol` stopped needing a waiver at
+all. It was waived as "Python-only", but the real defect was a declared type:
+`ClassDetailsShared.symbol_table` is typed `UniScopeNode`, which has no
+`name`, while every caller passes the `Archetype` that does. Narrowing to the
+`Archetype` made both the checker and the backend accept it, so the method
+lowers rather than being excused.
 """
 glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
-         "types.jac::TypeBase.mangle": (
-             "Backend gap: comprehends over `private.type_args`, a "
-             "`list[TypeBase] | None` whose element type erases to a pointer, "
-             "so the comprehension has no element layout to walk."
-         ),
          "types.jac::TypeBase.category.__get__": (
              "Backend gap: reads `self.CATEGORY`, a `ClassVar` declared on the "
              "abstract base and redefined per subclass. A class-level slot is "
              "not part of the instance layout the accessor is emitted against."
          ),
-         "types.jac::ClassType.__str__": (
-             "Backend gap: same element-erased comprehension over "
-             "`private.type_args` as `TypeBase.mangle`."
-         ),
          "types.jac::ClassType.clone_as_instance": (
-             "Backend gap: slices `private.type_args` (an optional list) into "
-             "a fresh `ClassDetailsPrivate`; the emitter has no layout for the "
-             "sliced element type."
+             "Backend gap: calls `TypeFlags(...)` to re-tag the cloned flags. "
+             "An `IntEnum` invoked as a constructor is a value-to-member "
+             "lookup, which has no native form."
          ),
          "types.jac::ClassType.clone_as_class": (
-             "Backend gap: same optional-list slice into `ClassDetailsPrivate` "
-             "as `clone_as_instance`."
-         ),
-         "types.jac::ClassType.clone_with_literal": (
-             "Backend gap: same optional-list slice into `ClassDetailsPrivate` "
-             "as `clone_as_instance`."
-         ),
-         "types.jac::ClassType.get_class_symbol": (
-             "Python-only: reaches `UniScopeNode.name.sym`, and `Symbol` is a "
-             "symbol-table handle the native unit does not model."
+             "Backend gap: same `TypeFlags(...)` constructor call as "
+             "`clone_as_instance`."
          ),
          "types.jac::ClassType.lookup_member_symbol": (
              "Python-only: calls `collect_member_syms` from `type_utils`, a "
              "module outside this closure that walks symbol tables."
-         ),
-         "types.jac::FunctionType.__str__": (
-             "Backend gap: formats `parameters`, an optional list of "
-             "`Parameter`, through `or []` guards the emitter cannot type."
          ),
          "types.jac::FunctionType.specialize": (
              "Python-only: calls `build_type_var_solution` from `type_utils`, "
              "outside this closure."
          ),
          "types.jac::FunctionType.specialize_func_type_vars": (
-             "Backend gap: iterates `clone.parameters`, an optional list, so "
-             "the for-loop has no element type."
-         ),
-         "types.jac::UnionType.__str__": (
-             "Backend gap: joins a generator over `self.types`, an optional "
-             "list, which erases the element type."
+             "Python-only: calls `apply_solved_type_vars` from `type_utils`, "
+             "outside this closure. Its optional-list iteration lowers now."
          ),
          "types.jac::create_callable_type": (
              "Backend gap: reads `ParameterCategory.Positional`, an `IntEnum` "
@@ -137,11 +128,14 @@ glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
 """Native refusals in the evaluator that no method owns, and so refuse the module.
 
 Keyed `<file>::<message>` with the location dropped, because these move with
-every edit above them. Each is a construct sitting outside an ability body --
-`postinit` (#8234) or a field declaration -- where there is nothing to demote.
-The seven CPython `ast` handles that used to head this list are gone: they now
-live in `TypeEvaluator._read_dunder_all` and
-`TypeEvaluator._read_ambient_imports_by_module`, which own their own demotion.
+every edit above them. What is left is field declarations: a `has` type that
+has no native layout is not inside any ability body, so there is nothing to
+demote and the module pays for it. The seven CPython `ast` handles that used
+to head this list moved into `TypeEvaluator._read_dunder_all` and
+`TypeEvaluator._read_ambient_imports_by_module` (#8237); the three that
+`postinit` used to strand are owned seams since #8234 made a constructor
+demotable like any other callable, and now read as
+`TypeEvaluator.__post_init__` in the census instead.
 """
 glob EVALUATOR_FATAL_WAIVERS: dict[(str, str)] = {
          "type_evaluator.jac::Native lowering failed for type 'TypeBase'": (
@@ -167,29 +161,7 @@ glob EVALUATOR_FATAL_WAIVERS: dict[(str, str)] = {
          (
              "type_evaluator.jac::Native lowering failed for type "
              "'dict[int, TypeBase]'"
-         ): "Field declaration: a cache holding abstract `TypeBase` values.",
-         (
-             "type_evaluator.jac::Native lowering failed for integer operator "
-             "layout 'BW_OR on %\"Set.ptr\"* vs i8*'"
-         ): (
-             "Module-scoped: a set union whose operands lower to mismatched "
-             "pointer layouts, emitted outside any ability."
-         ),
-         (
-             "type_evaluator.impl.jac::Native lowering failed for expression "
-             "'FuncCall'"
-         ): (
-             "`postinit` (#8234): the stub-module loads and prefetch lookups "
-             "call methods that are themselves seams. With no owner to demote, "
-             "each call refuses the module instead."
-         ),
-         (
-             "type_evaluator.impl.jac::Native lowering failed for for-loop "
-             "iterable element type 'typing_ambient_flat'"
-         ): (
-             "`postinit` (#8234): iterates a `set[str]` built by union, whose "
-             "element type the emitter cannot recover."
-         )
+         ): "Field declaration: a cache holding abstract `TypeBase` values."
      };
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};

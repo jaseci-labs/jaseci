@@ -404,6 +404,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _container_type_args(t: any) -> list;
     def _unwrap_cfg_expr(e: any) -> any;
     def _spec_from_container_ptr(t: (ir.Type | None)) -> (str | None);
+    def _call_args_lowered(
+        nd: uni.UniNode, func: ir.Function, func_name: str, coerced: list
+    ) -> bool;
+
     def _emit_new(nd: uni.FuncCall) -> (ir.Value | None);
 
     has lambda_captures: dict[str, list[tuple]] = {},
@@ -553,6 +557,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _foreign_optional_field(tb: any) -> bool;
     def _typevar_optional_field(tb: any) -> bool;
     def _erased_typevar_names(tb: any) -> list[str];
+    def _erased_seq_type(tb: any) -> (ir.Type | None);
+    def _erased_sig_typevars(nd: uni.Archetype) -> dict;
     def _reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bool;
     def _emit_scalar_type_arg_refusal(
         nd: uni.UniNode, type_name: str, fname: str, tv_name: str, arg: any
@@ -572,6 +578,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _tuple_key_of(expr: (uni.UniNode | None)) -> (str | None);
     def _set_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _dict_key_of(expr: (uni.UniNode | None)) -> (str | None);
+    def _peer_dict_key -> (str | None);
     def _list_spec_of(expr: (uni.UniNode | None)) -> (str | None);
     def _spec_of(
         expr: (uni.UniNode | None), names: tuple, registry: dict
@@ -605,6 +612,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.FuncCall, func: ir.Function, self_offset: int = 0
     ) -> list;
 
+    def _emit_pack_slot_refusal(nd: uni.FuncCall, star: str) -> None;
     def _codegen_varargs_list(
         nd: uni.FuncCall, extras: list, expected: (ir.Type | None)
     ) -> (ir.Value | None);
@@ -684,6 +692,12 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_jacval_eq(left: ir.Value, right: ir.Value) -> ir.Value;
     def _opt_membership_operand(left: ir.Value, slot_type: ir.Type) -> tuple;
     def _opt_unwrap_attr(obj_val: ir.Value) -> ir.Value;
+    def _opt_unwrap_guarded(
+        val: (ir.Value | None), what: str, msg: str
+    ) -> (ir.Value | None);
+
+    def _opt_unwrap_iterable(coll_val: (ir.Value | None)) -> (ir.Value | None);
+    def _opt_unwrap_subscript(val: (ir.Value | None)) -> (ir.Value | None);
     def _codegen_int_pow(base: ir.Value, exp: ir.Value) -> ir.Value;
     def _codegen_int_floor_divmod(
         left: ir.Value, right: ir.Value
@@ -930,6 +944,11 @@ obj NaIRGenPass(ModuleCodegenPass) {
         full_name: str, func: ir.Function, viols: list, keep_func: bool = False
     ) -> bool;
 
+    def _constructor_slots -> tuple;
+    def _constructor_ability_for(cls: str, slot: str) -> (uni.Ability | None);
+    def _predemote_capability_constructors -> None;
+    def _codegen_constructors_first(archetypes: list) -> None;
+    def _demoted_init_of(type_name: str) -> (str | None);
     def _rename_demoted_symbol(name: str, func: ir.Function) -> None;
     def _codegen_no_sig_method(arch_name: str, method: uni.Ability) -> None;
     def _forward_declare_event_method(arch_name: str, method: uni.Ability) -> None;
@@ -974,6 +993,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> (ir.Value | None);
 
     def _codegen_method_call(nd: uni.FuncCall) -> (ir.Value | None);
+    def _unregistered_class_target(target: uni.UniNode) -> (str | None);
     def _emit_obj_str(val: ir.Value) -> (ir.Value | None);
     def _emit_optional_str(
         val: ir.Value, part: (uni.UniNode | None)
@@ -1187,6 +1207,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_isinstance_runtime(
         nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
     ) -> (ir.Value | None);
+
+    def _read_field_or_refuse(
+        nd: uni.UniNode, obj_val: ir.Value, field_name: str, arch_name: str
+    ) -> (ir.Value | None);
+
+    def _unadopted_field_owner(arch_name: str, field_name: str) -> (str | None);
+    def _emit_field_access_refusal(
+        nd: uni.UniNode, arch_name: str, field_name: str
+    ) -> None;
 
     def _mro_of(arch_name: str) -> list[str];
     def _arch_layout(arch_name: str) -> (ArchetypeLayout | None);

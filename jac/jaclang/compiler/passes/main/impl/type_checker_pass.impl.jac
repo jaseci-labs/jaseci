@@ -1010,7 +1010,6 @@ impl TypeCheckPass._insert_builtin_symbols(self: TypeCheckPass) -> None {
         return;
     }
     if (self.ir_in.parent_scope is not None) {
-        self.logger.debug('Builtins module is already bound, skipping.');
         return;
     }
     self.ir_in.parent_scope = self.evaluator.builtins_module;
