@@ -887,15 +887,15 @@ impl JacBuiltin.log_report(expr: any, custom: bool = False) -> None {
 }
 
 impl JacBuiltin.se_emit(callee: any, args: tuple, kwargs: dict) -> None {
-    if _gm_se_depth.get() > 0 {
-        _gm_ctx_buffer(_gm_se_buffer).append((callee, args, kwargs));
+    if _gm_se_depth[0] > 0 {
+        _gm_se_buffer.append((callee, args, kwargs));
     } else {
         callee(*args, **kwargs);
     }
 }
 
 impl JacBuiltin.se_region_enter -> None {
-    _gm_se_depth.set(_gm_se_depth.get() + 1);
+    _gm_se_depth[0] += 1;
 }
 
 impl JacBuiltin.se_region_open(module: any, inputs: any) -> any {
@@ -904,22 +904,17 @@ impl JacBuiltin.se_region_open(module: any, inputs: any) -> any {
 }
 
 impl JacBuiltin.se_region_exit -> None {
-    depth = _gm_se_depth.get();
-    if depth > 0 {
-        _gm_se_depth.set(depth - 1);
+    if _gm_se_depth[0] > 0 {
+        _gm_se_depth[0] -= 1;
     }
 }
 
 impl JacBuiltin.se_flush -> None {
-    if _gm_se_depth.get() > 0 {
+    if _gm_se_depth[0] > 0 {
         return;
     }
-    buf = _gm_se_buffer.get();
-    if not buf {
-        return;
-    }
-    pending: list[tuple] = list(buf);
-    buf.clear();
+    pending: list[tuple] = list(_gm_se_buffer);
+    _gm_se_buffer.clear();
     for entry in pending {
         (fn, args, kwargs) = entry;
         fn(*args, **kwargs);
@@ -947,8 +942,8 @@ impl JacBuiltin.log_register(fn: any) -> int {
 }
 
 impl JacBuiltin.log_emit(slot: int, args: tuple, kwargs: dict) -> None {
-    if _gm_se_depth.get() > 0 {
-        _gm_ctx_buffer(_gm_log_buffer).append((slot, args, kwargs));
+    if _gm_se_depth[0] > 0 {
+        _gm_log_buffer.append((slot, args, kwargs));
     } else {
         _gm_log_registry[slot](*args, **kwargs);
     }
@@ -957,15 +952,11 @@ impl JacBuiltin.log_emit(slot: int, args: tuple, kwargs: dict) -> None {
 impl JacBuiltin.log_flush_hook(module: any, inputs: any, output: any) -> any {
     JacBuiltin.se_region_exit();
     JacBuiltin.se_flush();
-    if _gm_se_depth.get() > 0 {
+    if _gm_se_depth[0] > 0 {
         return output;
     }
-    buf = _gm_log_buffer.get();
-    if not buf {
-        return output;
-    }
-    pending: list[tuple] = list(buf);
-    buf.clear();
+    pending: list[tuple] = list(_gm_log_buffer);
+    _gm_log_buffer.clear();
     for entry in pending {
         (slot, args, kwargs) = entry;
         _gm_log_registry[slot](*args, **kwargs);

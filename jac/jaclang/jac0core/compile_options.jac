@@ -1,6 +1,15 @@
 import from dataclasses { field }
 
-glob _config_probe: dict = {"active": False};
+glob _config_probe: dict = {"active": False},
+     _serving_probe: dict[(str, bool)] = {"serving": False};
+
+def refuse_graphmend_under_serve {
+    _serving_probe["serving"] = True;
+}
+
+def graphmend_refused_for_serve -> bool {
+    return bool(_serving_probe["serving"]);
+}
 
 def _project_config -> any {
     if _config_probe["active"] {
@@ -18,6 +27,9 @@ def _project_config -> any {
 }
 
 def resolved_graphmend_setting -> bool {
+    if graphmend_refused_for_serve() {
+        return False;
+    }
     cfg = _project_config();
     if cfg is None {
         return True;
@@ -65,7 +77,9 @@ obj CompileOptions {
         gc_cfg = cfg.gc if cfg is not None else None;
         native_cfg = cfg.build.native if cfg is not None else None;
         if self.graphmend is None {
-            self.graphmend = bool(cfg.run.graphmend) if cfg is not None else True;
+            self.graphmend = resolved_graphmend_setting();
+        } elif self.graphmend and graphmend_refused_for_serve() {
+            self.graphmend = False;
         }
         if self.na_gc_mode is None {
             self.na_gc_mode = gc_cfg.default if gc_cfg else "cycles";

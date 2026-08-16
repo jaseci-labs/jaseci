@@ -96,6 +96,8 @@ def _execute_plan(
         );
     }
     if plan.action == "serve" {
+        import from jaclang.jac0core.compile_options { refuse_graphmend_under_serve }
+        refuse_graphmend_under_serve();
         return start(
             filename=plan.entry_path,
             port=plan.flags.get("port", 8000),
@@ -607,8 +609,10 @@ impl start(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from pathlib { Path }
     import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
+    import from jaclang.jac0core.compile_options { refuse_graphmend_under_serve }
 
     use_line_buffered_output();
+    refuse_graphmend_under_serve();
     set_effective_default_codespace('server');
 
     import from jaclang.runtimelib.client.cli { run_client_start }

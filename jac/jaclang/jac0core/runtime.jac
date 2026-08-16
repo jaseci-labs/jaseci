@@ -136,22 +136,9 @@ def resolve_ref(
 }
 
 glob _gm_log_registry: list = [],
-     _gm_log_buffer: ContextVar[(list | None)] = ContextVar(
-         'jac_gm_log_buffer', default=None
-     ),
-     _gm_se_buffer: ContextVar[(list | None)] = ContextVar(
-         'jac_gm_se_buffer', default=None
-     ),
-     _gm_se_depth: ContextVar[int] = ContextVar('jac_gm_se_depth', default=0);
-
-def _gm_ctx_buffer(cvar: ContextVar[(list | None)]) -> list {
-    buf = cvar.get();
-    if buf is None {
-        buf = [];
-        cvar.set(buf);
-    }
-    return buf;
-}
+     _gm_log_buffer: list = [],
+     _gm_se_buffer: list = [],
+     _gm_se_depth: list = [0];
 
 class JacClassReferences {
     with entry {

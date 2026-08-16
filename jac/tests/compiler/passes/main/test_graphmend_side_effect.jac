@@ -349,73 +349,30 @@ test "a jac glob call-site wrap gets the forward hook registrations" {
     );
 }
 
-glob _THREAD_SEEN: list = [],
-     _THREAD_SLOT: list = [];
-
-"""Record a deferred call with the thread that actually ran it."""
-def _record_thread(tag: str) {
-    import threading;
-    _THREAD_SEEN.append((tag, threading.get_ident()));
-}
-
-test "two threads in deferred regions never replay each other's calls" {
-    # A threaded server interleaves requests; each thread's open region must
-    # buffer and flush only its own calls, never a concurrent thread's.
-    import threading;
-    if not _THREAD_SLOT {
-        _THREAD_SLOT.append(__jac_log_register__(_record_thread));
+test "serve refuses GraphMend so the process-global defer buffers never serve" {
+    # The defer buffers are process-global by design: the emit runs inside the
+    # compiled region, where a context lookup is not traceable and reintroduces
+    # the break the transform removes. Serve is therefore refused outright.
+    import from jaclang.jac0core.compile_options {
+        CompileOptions,
+        graphmend_refused_for_serve,
+        refuse_graphmend_under_serve
     }
-    _THREAD_SEEN.clear();
-    started = threading.Event();
-    peer_emitted = threading.Event();
-    flushed = threading.Event();
-    idents: dict = {};
-    def _first {
-        idents["first"] = threading.get_ident();
-        __jac_se_region_open__(None, None);
-        __jac_se_emit__(_record_thread, ("first-se", ), {});
-        __jac_log_emit__(_THREAD_SLOT[0], ("first-log", ), {});
-        started.set();
-        peer_emitted.wait(30);
-        __jac_log_flush_hook__(None, None, None);
-        flushed.set();
+    import jaclang.jac0core.compile_options as opt_mod;
+    saved = dict(opt_mod._serving_probe);
+    try {
+        opt_mod._serving_probe["serving"] = False;
+        assert graphmend_refused_for_serve() is False;
+        refuse_graphmend_under_serve();
+        assert graphmend_refused_for_serve() is True;
+        assert CompileOptions(type_check=False).graphmend is False , (
+            "a compile under serve must not carry GraphMend"
+        );
+        assert CompileOptions(type_check=False, graphmend=True).graphmend is False , (
+            "an explicit graphmend=True must still lose to the serve refusal"
+        );
+    } finally {
+        opt_mod._serving_probe.clear();
+        opt_mod._serving_probe.update(saved);
     }
-    def _second {
-        idents["second"] = threading.get_ident();
-        started.wait(30);
-        __jac_se_region_open__(None, None);
-        __jac_se_emit__(_record_thread, ("second-se", ), {});
-        __jac_log_emit__(_THREAD_SLOT[0], ("second-log", ), {});
-        peer_emitted.set();
-        flushed.wait(30);
-        __jac_log_flush_hook__(None, None, None);
-    }
-    t1 = threading.Thread(target=_first);
-    t2 = threading.Thread(target=_second);
-    t1.start();
-    t2.start();
-    t1.join(60);
-    t2.join(60);
-    assert not t1.is_alive() and not t2.is_alive() , "workers deadlocked";
-    assert len(_THREAD_SEEN) == 4 , (
-        f"expected each thread to flush its own two calls, saw {_THREAD_SEEN}"
-    );
-    by_tag = {tag: ident for (tag, ident) in _THREAD_SEEN};
-    assert by_tag.get("first-se") == idents["first"] , (
-        f"first thread's deferred emit replayed elsewhere: {_THREAD_SEEN}"
-    );
-    assert by_tag.get("first-log") == idents["first"] , (
-        f"first thread's deferred log replayed elsewhere: {_THREAD_SEEN}"
-    );
-    assert by_tag.get("second-se") == idents["second"] , (
-        f"second thread's deferred emit replayed elsewhere: {_THREAD_SEEN}"
-    );
-    assert by_tag.get("second-log") == idents["second"] , (
-        f"second thread's deferred log replayed elsewhere: {_THREAD_SEEN}"
-    );
-    _THREAD_SEEN.clear();
-    __jac_se_emit__(_record_thread, ("main-eager", ), {});
-    assert _THREAD_SEEN == [("main-eager", threading.get_ident())] , (
-        "worker-thread region state leaked into the main thread"
-    );
 }

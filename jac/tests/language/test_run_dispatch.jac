@@ -511,12 +511,12 @@ test "a prebuilt .jab runs instead of being refused over graphmend" {
     assert "cannot be combined" not in captured.getvalue();
 }
 
-test "a serve plan runs unrefused and binds the graphmend off switch" {
-    # Serve never passes through the cli run command, so the discovered config
-    # alone must reach the compiles the server performs.
+test "a serve plan runs unrefused and refuses GraphMend for the server" {
+    # The defer buffers are process-global, so serve refuses GraphMend outright
+    # even where the project config asks for it.
     d = _mk_project(
         "kind = \"service\"\nentry-point = \"api.sv.jac\"\n\n"
-            + "[run]\ngraphmend = false\n",
+            + "[run]\ngraphmend = true\n",
         "api.sv.jac"
     );
     old = os.getcwd();
@@ -526,6 +526,8 @@ test "a serve plan runs unrefused and binds the graphmend off switch" {
     os.chdir(d);
     captured = io.StringIO();
     sys.stderr = captured;
+    import jaclang.jac0core.compile_options as opt_mod;
+    saved_serving = dict(opt_mod._serving_probe);
     try {
         execution.start = _fake_start;
         rc = execution.run(filename="");
@@ -533,12 +535,14 @@ test "a serve plan runs unrefused and binds the graphmend off switch" {
         sys.stderr = sys.__stderr__;
         execution.start = old_start;
         os.chdir(old);
+        opt_mod._serving_probe.clear();
+        opt_mod._serving_probe.update(saved_serving);
     }
     assert rc == 0;
     assert _dispatch_calls == ["start"];
     assert "cannot be combined" not in captured.getvalue();
     assert _serve_gm == [False] , (
-        f"a compile under serve must inherit run graphmend false, saw {_serve_gm}"
+        f"serve must refuse GraphMend even with config on, saw {_serve_gm}"
     );
     _cleanup();
 }
