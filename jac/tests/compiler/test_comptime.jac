@@ -90,8 +90,18 @@ test "expansion errors surface as diagnostics with locations" {
     prog = JacProgram();
     (mod, err) = parse(src, "ct_err.jac", prog=prog);
     assert err , "expected expansion failure";
-    assert prog.errors_had , "expected an E0108 diagnostic";
+    assert prog.errors_had , "expected an E0109 diagnostic";
     assert "comptime" in prog.errors_had[0].msg;
+    codes = {
+        str(e.code.code)
+        for e in prog.errors_had
+        if e.code is not None
+    };
+    assert "E0109" in codes , (
+        "a comptime expansion failure has to carry its own code. It read "
+        f"{sorted(codes)}: E0108 here means the duplicate definition is back, "
+        "and the escape-sequence diagnostic is shadowing this one again."
+    );
 }
 
 

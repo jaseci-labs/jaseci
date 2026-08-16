@@ -155,6 +155,7 @@ Emitted by the parser and lexer during source code parsing.
 | `E0106` | Unexpected character in JSX tag: '{ch}' |
 | `E0107` | Lexer stuck at EOF in mode {mode} |
 | `E0108` | Unsupported escape sequence '\N{...}' |
+| `E0109` | Comptime expansion failed -- {details} |
 
 ---
 
