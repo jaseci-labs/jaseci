@@ -37,7 +37,8 @@ glob PT_NULL = 0,
      PT_LOAD = 1,
      PT_DYNAMIC = 2,
      PT_INTERP = 3,
-     PT_PHDR = 6;
+     PT_PHDR = 6,
+     PT_GNU_STACK = 0x6474e551;
 
 glob PF_X = 0x1,
      PF_W = 0x2,
@@ -1740,7 +1741,7 @@ impl ElfLinker.build_shared_object -> bytes {
     num_dynsyms = len(dynsym_names);
 
     ehdr_size = 64;
-    num_phdrs = 4;
+    num_phdrs = 5;
     phdr_size = num_phdrs * 56;
     cur_offset = ehdr_size + phdr_size;
     cur_offset = _align(cur_offset, 8);
@@ -2363,6 +2364,11 @@ impl ElfLinker.build_shared_object -> bytes {
         dynamic_size,
         dynamic_size,
         8
+    );
+    phdr_off += 56;
+
+    struct.pack_into(
+        "<IIQQQQQQ", output, phdr_off, PT_GNU_STACK, PF_R | PF_W, 0, 0, 0, 0, 0, 16
     );
 
     output[hash_foff:hash_foff + len(hash_data)] = hash_data;

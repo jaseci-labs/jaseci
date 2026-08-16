@@ -132,24 +132,57 @@ runs:
         path: jac/.bun-build
         key: bun-build-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/runtimelib/client/bun_installer.jac') }}
 
+    # Identity of the compiler this build runs, as git blob ids over the same
+    # file set jir.jac hashes for its module keys (jaclang.jac0core.jir:
+    # COMPILER_DIGEST_ROOTS, .jac/.py only, test material excluded). Keep the
+    # two rules in lockstep. Git ids rather than hashFiles: git enumerates the
+    # roots exhaustively, and the listing is immune to step ordering and to
+    # untracked artifacts restored into the tree (the shim cache above lands in
+    # jaclang/compiler/**, which a hashFiles glob folds in only on a shim hit).
+    - name: Fingerprint the compiler tree
+      id: compiler-fp
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        list="$(git ls-tree -r HEAD -- \
+          jac/jaclang/jac0.py \
+          jac/jaclang/jac0core \
+          jac/jaclang/compiler \
+          jac/jaclang/utils/precompile_bytecode.jac \
+          | grep -E '\.(jac|py)$' \
+          | grep -vE '(^|/)(tests|test)/|\.test\.jac$' || true)"
+        n="$(printf '%s\n' "$list" | grep -c . || true)"
+        # A moved root would silently fingerprint nothing, which is the
+        # unsoundness this scoping exists to remove. ~289 files today.
+        if [ "$n" -lt 100 ]; then
+          echo "::error::compiler fingerprint listed only $n file(s): the roots moved. Update this step and COMPILER_DIGEST_ROOTS in jaclang/jac0core/jir.jac together."
+          exit 1
+        fi
+        fp="$(printf '%s\n' "$list" | git hash-object --stdin)"
+        echo "fp=${fp:0:16} ($n compiler sources)"
+        echo "fp=${fp:0:16}" >> "$GITHUB_OUTPUT"
+
     # The JIR precompile is mkpayload's single most expensive stage (~24 min:
     # it compiles every bundled jaclang module). Each .jir embeds a
     # content-addressed module key (jaclang version + python version + source +
-    # annex hashes), and mkpayload seeds site/_precompiled from
-    # jac/.precompiled-build, recompiling ONLY the modules whose key no longer
-    # matches. A stale or partial tree is therefore useful rather than
-    # dangerous -- which is why, unlike the binary cache, this one uses
-    # restore-keys: any prior build's tree turns the full precompile into a
-    # recompile of just the changed modules.
+    # annex hashes + the compiler-content digest of #8178), and mkpayload seeds
+    # site/_precompiled from jac/.precompiled-build, recompiling ONLY the
+    # modules whose key no longer matches. Within one compiler tree a stale or
+    # partial tree is therefore useful rather than dangerous -- which is why,
+    # unlike the binary cache, this one uses restore-keys: any prior build's
+    # tree turns the full precompile into a recompile of just the changed
+    # modules. Across compiler trees it is neither: every key misses, so the
+    # compiler fingerprint scopes the prefix and a compiler-touching commit
+    # starts cold rather than dragging a tree it cannot use.
     - name: Restore cached JIR precompile tree
       id: precompiled-cache
       if: steps.cache.outputs.cache-hit != 'true'
       uses: actions/cache/restore@v4
       with:
         path: jac/.precompiled-build
-        key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+        key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-c${{ steps.compiler-fp.outputs.fp }}-${{ hashFiles('jac/jaclang/**') }}
         restore-keys: |
-          jac-precompiled-${{ runner.os }}-${{ runner.arch }}-
+          jac-precompiled-${{ runner.os }}-${{ runner.arch }}-c${{ steps.compiler-fp.outputs.fp }}-
 
     # The payload's compressed deps-layer frame (mkpayload --layer-cache): the
     # level-19 zstd of the ~600 MB dependency layer, the pack's single most
@@ -244,6 +277,55 @@ runs:
       # configuring (and fetching) the neovim + Lua closure. Load-bearing on a
       # binary-cache hit, where no full build ran to fetch it otherwise.
       run: zig build -Dno-ninja fetch-typeshed --summary all
+
+    # Same capacity floor build-binaries.yml gained in #8279, for the workflows
+    # that build the binary through this action. The seal that closes
+    # `zig build` compiles every NATIVE_SEAL_ROOTS entry in ONE process and each
+    # materializer crossing strands that crossing's native tree, so the peak
+    # grows with the root count: 19.3 GiB at eleven roots, 22.4 GiB at thirteen
+    # (both /usr/bin/time -v, one process). A 16 GiB runner with a 4 GiB stock
+    # swapfile dies in between -- which is exactly how the thirteen-root seal
+    # first showed up here, as "the runner lost communication" 30 minutes into
+    # this step with no diagnostic. The stranded pages are cold (written once,
+    # never read again), so swap holds them for the price of disk. Retire this
+    # step when the crossing reclaims its tree (#8139).
+    - name: Swap headroom for the sealed precompile (Linux)
+      if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "--- before"
+        free -h
+        swapon --show || true
+        df -h
+        WORK_DEV="$(df -P "$RUNNER_TEMP" | awk 'NR==2 {print $1}')"
+        MNT_DEV="$(df -P /mnt 2>/dev/null | awk 'NR==2 {print $1}' || true)"
+        if [ -n "$MNT_DEV" ] && [ "$MNT_DEV" != "$WORK_DEV" ]; then
+          SWAP_DIR=/mnt
+          RESERVE_GB=2
+        else
+          SWAP_DIR="$RUNNER_TEMP"
+          RESERVE_GB=25
+        fi
+        AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
+        SIZE_GB=$(( AVAIL_GB - RESERVE_GB ))
+        if [ "$SIZE_GB" -gt 24 ]; then
+          SIZE_GB=24
+        fi
+        if [ "$SIZE_GB" -lt 4 ]; then
+          echo "::error::$SWAP_DIR has ${AVAIL_GB}G free, too little to spare;" \
+               "the seal needs swap headroom at this root count and would exhaust the runner"
+          exit 1
+        fi
+        SWAP_FILE="$SWAP_DIR/jac-seal-swap"
+        sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
+          || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
+        sudo chmod 600 "$SWAP_FILE"
+        sudo mkswap "$SWAP_FILE"
+        sudo swapon "$SWAP_FILE"
+        echo "--- after"
+        free -h
+        swapon --show
 
     - name: Build the jac binary
       if: steps.cache.outputs.cache-hit != 'true'
@@ -351,7 +433,7 @@ runs:
       uses: actions/cache/save@v4
       with:
         path: jac/.precompiled-build
-        key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('jac/jaclang/**') }}
+        key: jac-precompiled-${{ runner.os }}-${{ runner.arch }}-c${{ steps.compiler-fp.outputs.fp }}-${{ hashFiles('jac/jaclang/**') }}
 
     # Same prefix-hit re-save logic as the precompile cache above.
     - name: Save payload deps-layer cache (main only)

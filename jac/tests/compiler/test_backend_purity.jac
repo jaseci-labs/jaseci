@@ -42,7 +42,7 @@ glob FORBIDDEN: dict[str, str] = {
      # at sites where the declaration IS the fact.
      SANCTIONED: dict[tuple, tuple] = {
          ("ecmascript/impl/esast_gen_pass.impl.jac", "symbol_utils"): (
-             5,
+             6,
              "collect_field_names/symbol_owner_archetype - symbol-FACT "
              "readers over an already-resolved walker symbol. "
              "The former classify_call fallback is deleted (#7418): "
@@ -66,7 +66,17 @@ glob FORBIDDEN: dict[str, str] = {
              "module is a guaranteed runtime ReferenceError - the "
              "reporter consumes stamped code_context and symbol facts, "
              "shared with StaticAnalysisPass so build-only and "
-             "check-only runs agree"
+             "check-only runs agree. Plus client_value_ref_targets / "
+             "client_bridged_endpoint at exit_module (#8072): the same "
+             "shape one level up - client code naming a module element "
+             "that the bundle never binds is a guaranteed runtime "
+             "ReferenceError, so the backend asks the central resolver "
+             "which references have no client binding and which are "
+             "endpoints it must bind a forwarder for. It consumes "
+             "stamped code_context, resolved `.sym`, and the declared "
+             "access tag; the same resolver drives W6007 in "
+             "StaticAnalysisPass, which is the point - the emit path and "
+             "the check path must not disagree about what is bound"
          ),
          ("ecmascript/impl/esast_gen_pass.impl.jac", ".lookup("): (
              2,
@@ -119,11 +129,18 @@ glob FORBIDDEN: dict[str, str] = {
              "central classification instead of re-implementing name "
              "resolution. The former classify_call fallback is deleted "
              "(#7418): call_kind is stamped authoritatively by the required "
-             "inference schedule; and qualified_builtin_name as the "
-             "symbol-identity builtin recognizer for `builtins.<name>` / "
-             "aliased builtins-module calls - the backend consumes the central "
-             "symbol-resolved classification instead of textual name matching "
-             "(so a user object named builtins is not mis-dispatched)"
+             "inference schedule; qualified_builtin_name as the "
+            "symbol-identity builtin recognizer for `builtins.<name>` / "
+            "aliased builtins-module calls - the backend consumes the central "
+            "symbol-resolved classification instead of textual name matching "
+            "(so a user object named builtins is not mis-dispatched). Plus "
+            "comptime_identity_call_arg (#8223) and the "
+            "is_comptime_field_marker pair (#8201), declaration-"
+            "surface reads on the same terms: whether `cast` or `field` "
+            "here is the erasable `typing.cast` / `dataclasses.field` is "
+            "answered by the module's own import list and by the call's "
+            "own position in a `has` declaration, facts that are "
+            "themselves the declaration and live on no analysis product"
          ),
          ("native/na_ir_gen_pass.impl/objects.impl.jac", "symbol_utils"): (
              1,

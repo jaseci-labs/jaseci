@@ -60,13 +60,26 @@ obj UniNode {
     def resolve_tok_range -> tuple[(Token, Token)];
     def gen_token(name: Tok, value: (str | None) = None) -> Token;
     def get_all_sub_nodes[T](typ: type[T]) -> list[T] {
-        import from jaclang.jac0core.passes { UniPass }
-        return UniPass.get_all_sub_nodes(nd=self, typ=typ);
+        result: list[T] = [];
+        if typ in self._sub_node_tab {
+            for i in self._sub_node_tab[typ] {
+                if isinstance(i, typ) {
+                    result.append(i);
+                }
+            }
+        }
+        return result;
     }
 
     def find_parent_of_type[T](typ: type[T]) -> (T | None) {
-        import from jaclang.jac0core.passes { UniPass }
-        return UniPass.find_parent_of_type(nd=self, typ=typ);
+        nd: (UniNode | None) = self.parent;
+        while nd is not None {
+            if isinstance(nd, typ) {
+                return nd;
+            }
+            nd = nd.parent;
+        }
+        return None;
     }
 
     def parent_of_type[T](typ: type[T]) -> T {
@@ -168,8 +181,6 @@ obj UniScopeNode(UniNode) {
     def chain_use_lookup(node_list: Sequence[AstSymbolNode]) -> None;
     def update_expr_ctx_for_def(nd: AstSymbolNode) -> None;
     def _fix_store_ctx(item: UniNode) -> None;
-    def _fix_store_items(items: Sequence[UniNode]) -> None;
-    def _capture_names(nd: UniNode, out: list[Name]) -> None;
     def __repr__ -> str;
 }
 
@@ -203,7 +214,6 @@ obj ContextAwareNode(UniNode) {
         codespace_dual: bool = False;
 
     def postinit -> None;
-    def set_code_context(ctx: CodeContext) -> None;
 }
 
 obj AstDocNode(UniNode) {
@@ -250,6 +260,7 @@ obj ConditionalNode(UniCFGNode) {
 obj Expr(UniNode) {
     has _type_sym_tab: (UniScopeNode | None) postinit,
         type: (TypeBase | None) postinit,
+        narrowed_type: (TypeBase | None) postinit,
         attached_tokens: (list[Token] | None) postinit;
 
     def postinit -> None;
@@ -283,8 +294,8 @@ obj CodeBlockStmt(UniCFGNode) {
     def postinit -> None;
 }
 
-obj AstImplNeedingNode[T](AstSymbolNode) {
-    has body: (T | None);
+obj AstImplNeedingNode(AstSymbolNode) {
+    has body: (Sequence[UniNode] | UniNode | None);
     has needs_impl: bool { getter; }
 }
 
@@ -347,7 +358,11 @@ obj Module(AstDocNode, UniScopeNode) {
         src_terminals: list[Token] = [],
         is_raised_from_py: bool = False,
         decided_codespace: str = "",
-        parse_failed: bool = False;
+        parse_failed: bool = False,
+        mobui_enforced_root: (str | None) = None,
+        jac_project_root: (str | None) = None,
+        access_enforced: bool = False,
+        annex_mods: list[Module] postinit;
 
     def postinit -> None;
 
@@ -414,12 +429,10 @@ obj Test(ContextAwareNode, AstSymbolNode, ElementStmt, CodeBlockStmt, UniScopeNo
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (Name | Token),
+    has name: Name,
         body: Sequence[CodeBlockStmt],
         description: (String | None) = None,
         decorators: (Sequence[Expr] | None) = None;
-
-    static has TEST_COUNT: int = 0;
 
     def postinit -> None;
 }
@@ -443,6 +456,18 @@ obj PyInlineCode(ElementStmt, ArchBlockStmt, EnumBlockStmt, CodeBlockStmt) {
     def postinit -> None;
 }
 
+obj ImportBoundaryFacts {
+    has native_from_path: (str | None) = None,
+        from_loc_resolved: (str | None) = None,
+        is_service: bool = False,
+        pinned_server: bool = False,
+        client_native_edge: bool = False,
+        sv_source_mod: (Module | None) = None,
+        native_absorb_path: (str | None) = None,
+        native_item_paths: dict[(str, str)] = {},
+        bridged_decls: dict[(str, Ability)] = {};
+}
+
 obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
@@ -452,7 +477,10 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
         is_absorb: bool,
         is_typed: bool = False,
         clib_decls: (Sequence[UniNode] | None) = None,
-        hint: (SubTag[Token] | None) postinit;
+        hint: (SubTag[Token] | None) postinit,
+        absorbed_mod: (Module | None) postinit,
+        jac_detected: (bool | None) postinit,
+        boundary_facts: (ImportBoundaryFacts | None) postinit;
 
     def postinit -> None;
 
@@ -1797,6 +1825,8 @@ obj PythonModuleAst(EmptyToken) {
 
 glob _HEX_DIGITS: str = '0123456789abcdefABCDEF',
      _OCT_DIGITS: str = '01234567',
+     _LIT_PREFIX_CHARS: str = 'bBrR',
+     _MAX_CODE_POINT: int = 1114111,
      _SIMPLE_ESCAPES: dict[str, str] = {
          '\\': '\\',
          "'": "'",
@@ -1809,6 +1839,58 @@ glob _HEX_DIGITS: str = '0123456789abcdefABCDEF',
          't': '\t',
          'v': '\x0b'
      };
+
+def _lit_prefix_len(text: str) -> int {
+    n = len(text);
+    i = 0;
+    while (i < n and i < 2) {
+        ch = text[i];
+        if (ch == '"' or ch == "'") {
+            return i;
+        }
+        if (ch not in _LIT_PREFIX_CHARS) {
+            return -1;
+        }
+        i += 1;
+    }
+    if (i < n and (text[i] == '"' or text[i] == "'")) {
+        return i;
+    }
+    return -1;
+}
+
+def _lit_quote_len(text: str, start: int) -> int {
+    if ((len(text) - start) >= 6) {
+        opener = text[start:start + 3];
+        if (opener == '"""' or opener == "'''") {
+            return 3;
+        }
+    }
+    return 1;
+}
+
+def _hex_escape_value(text: str, at: int, width: int, kind: str) -> int {
+    digits = text[at + 2:at + 2 + width];
+    bad = len(digits) != width;
+    if not bad {
+        for c in digits {
+            if (c not in _HEX_DIGITS) {
+                bad = True;
+                break;
+            }
+        }
+    }
+    if bad {
+        raise ValueError(
+            f"truncated \\{kind} escape: expected {width} hex digits, got '{digits}'"
+        );
+    }
+    code = int(digits, 16);
+    if (code > _MAX_CODE_POINT) {
+        raise ValueError(f"illegal Unicode character in \\{kind}{digits} escape");
+    }
+    return code;
+}
 
 def _decode_str_escapes(text: str) -> str {
     if ('\\' not in text) {
@@ -1848,28 +1930,18 @@ def _decode_str_escapes(text: str) -> str {
             i = j;
             continue;
         }
-        if (nxt in 'xuU') {
+        if (nxt == 'x' or nxt == 'u' or nxt == 'U') {
             width = 2 if (nxt == 'x') else (4 if (nxt == 'u') else 8);
-            digits = text[i + 2:i + 2 + width];
-            ok = len(digits) == width;
-            if ok {
-                for c in digits {
-                    if (c not in _HEX_DIGITS) {
-                        ok = False;
-                        break;
-                    }
-                }
-            }
-            code = int(digits, 16) if ok else 0;
-            if (ok and code <= 1114111) {
-                out.append(chr(code));
-                i += 2 + width;
-            } else {
-                out.append('\\');
-                out.append(nxt);
-                i += 2;
-            }
+            out.append(chr(_hex_escape_value(text, i, width, nxt)));
+            i += 2 + width;
             continue;
+        }
+        if (nxt == 'N') {
+            raise ValueError(
+                "the \\N{name} escape is not supported: the Unicode name "
+                "database is not available to the compiler, so write the "
+                "code point as \\uXXXX or \\UXXXXXXXX instead"
+            );
         }
         out.append('\\');
         out.append(nxt);
@@ -1881,3 +1953,99 @@ def _decode_str_escapes(text: str) -> str {
 def fstring_escape_interior(value: str) -> str {
     return value.replace("{", "{{").replace("}", "}}");
 }
+
+def _decode_bytes_escapes(text: str, is_raw: bool) -> bytes {
+    out: list[int] = [];
+    i = 0;
+    n = len(text);
+    while (i < n) {
+        ch = text[i];
+        code = ord(ch);
+        if (code > 127) {
+            raise ValueError('bytes can only contain ASCII literal characters');
+        }
+        if (is_raw or ch != '\\' or (i + 1) >= n) {
+            out.append(code);
+            i += 1;
+            continue;
+        }
+        nxt = text[i + 1];
+        if (nxt in _SIMPLE_ESCAPES) {
+            out.append(ord(_SIMPLE_ESCAPES[nxt]));
+            i += 2;
+            continue;
+        }
+        if (nxt == '\n') {
+            i += 2;
+            continue;
+        }
+        if (nxt == '\r') {
+            i += 3 if ((i + 2) < n and text[i + 2] == '\n') else 2;
+            continue;
+        }
+        if (nxt in _OCT_DIGITS) {
+            j = i + 1;
+            end = min(n, i + 4);
+            while (j < end and text[j] in _OCT_DIGITS) {
+                j += 1;
+            }
+            out.append(int(text[i + 1:j], 8) % 256);
+            i = j;
+            continue;
+        }
+        if (nxt == 'x') {
+            out.append(_hex_escape_value(text, i, 2, 'x'));
+            i += 4;
+            continue;
+        }
+        if (ord(nxt) > 127) {
+            raise ValueError('bytes can only contain ASCII literal characters');
+        }
+        out.append(92);
+        out.append(ord(nxt));
+        i += 2;
+    }
+    return bytes(out);
+}
+
+def decode_string_literal(text: str) -> str | bytes {
+    start = _lit_prefix_len(text);
+    if (start < 0) {
+        return text;
+    }
+    prefix = text[:start].lower();
+    quote_len = _lit_quote_len(text, start);
+    body = text[start + quote_len:len(text) - quote_len];
+    is_raw = 'r' in prefix;
+    if ('b' in prefix) {
+        return _decode_bytes_escapes(body, is_raw);
+    }
+    if is_raw {
+        return body;
+    }
+    return _decode_str_escapes(body);
+}
+
+def is_identifier_slot(nd: UniNode) -> bool;
+
+def find_python_scope_node_of(nd: UniNode) -> (UniScopeNode | None);
+
+def find_typed_decl_scope_of(nd: AstSymbolNode) -> UniScopeNode;
+
+def def_insert_unpacking(
+    nd: Expr, sym_tab: UniScopeNode, rebind_in_python_scope: bool = False
+) -> None;
+
+def bind_assignment_targets(nd: Assignment) -> None;
+
+def lookup_enclosing_binding(from_scope: UniScopeNode, name: str) -> (Symbol | None);
+
+def rebind_or_def_insert(
+    target: AstSymbolNode, py_scope: UniScopeNode, single_decl: str
+) -> None;
+
+def record_cross_scope_rebind(py_scope: UniScopeNode, name: str, sym: Symbol) -> None;
+
+def _ability_of_defn(defn_node: UniNode) -> (Ability | None);
+
+def ability_of_symbol(sym: (Symbol | None)) -> (Ability | None);
