@@ -151,6 +151,66 @@ test "vm: MAKE_FUNCTION builds function object" {
     assert_vm_value_matches_host("", "def f():\n    return 1\nresult = f()\n", "exec", "result");
 }
 
+# vm-opcode: OP_MAKE_CELL
+test "vm: MAKE_CELL allocates closure cell" {
+    assert_vm_value_matches_host(
+        "",
+        "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_COPY_FREE_VARS
+test "vm: COPY_FREE_VARS copies closure cells into inner frame" {
+    assert_vm_value_matches_host(
+        "",
+        "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_LOAD_DEREF
+test "vm: LOAD_DEREF reads closure cell" {
+    assert_vm_value_matches_host(
+        "",
+        "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_STORE_DEREF
+test "vm: STORE_DEREF writes closure cell" {
+    assert_vm_value_matches_host(
+        "",
+        "def outer():\n    x = 1\n    def inner():\n        nonlocal x\n        x = 2\n    inner()\n    return x\nresult = outer()\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_BUILD_TUPLE
+test "vm: BUILD_TUPLE assembles closure freevar tuple" {
+    assert_vm_value_matches_host(
+        "",
+        "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_SET_FUNCTION_ATTRIBUTE
+test "vm: SET_FUNCTION_ATTRIBUTE attaches closure to function" {
+    assert_vm_value_matches_host(
+        "",
+        "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",
+        "exec",
+        "result",
+    );
+}
+
 # vm-opcode: OP_COMPARE_OP
 test "vm: COMPARE_OP orders values" {
     assert_vm_value_matches_host("", "result = 1 < 2\n", "exec", "result");

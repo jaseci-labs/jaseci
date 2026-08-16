@@ -57,6 +57,12 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "PUSH_NULL",
     "CALL",
     "MAKE_FUNCTION",
+    "MAKE_CELL",
+    "COPY_FREE_VARS",
+    "LOAD_DEREF",
+    "STORE_DEREF",
+    "BUILD_TUPLE",
+    "SET_FUNCTION_ATTRIBUTE",
     "COMPARE_OP",
     "POP_TOP",
     "STORE_NAME",
@@ -88,6 +94,13 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "STORE_FAST",
     "STORE_FAST_LOAD_FAST",
     "RERAISE",
+    # Band 4 closures: cell/free var emission.
+    "MAKE_CELL",
+    "COPY_FREE_VARS",
+    "LOAD_DEREF",
+    "STORE_DEREF",
+    "BUILD_TUPLE",
+    "SET_FUNCTION_ATTRIBUTE",
     # Band 3: VM fixtures land before native codegen emits these opcodes.
     "GET_ITER",
     "FOR_ITER",
@@ -118,6 +131,30 @@ FIXTURES: tuple[VmFixture, ...] = (
     VmFixture("PUSH_NULL", "result = len([1])\n"),
     VmFixture("CALL", "result = len([1, 2, 3])\n"),
     VmFixture("MAKE_FUNCTION", "def f():\n    return 1\nresult = f()\n"),
+    VmFixture(
+        "MAKE_CELL",
+        "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",
+    ),
+    VmFixture(
+        "COPY_FREE_VARS",
+        "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",
+    ),
+    VmFixture(
+        "LOAD_DEREF",
+        "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",
+    ),
+    VmFixture(
+        "STORE_DEREF",
+        "def outer():\n    x = 1\n    def inner():\n        nonlocal x\n        x = 2\n    inner()\n    return x\nresult = outer()\n",
+    ),
+    VmFixture(
+        "BUILD_TUPLE",
+        "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",
+    ),
+    VmFixture(
+        "SET_FUNCTION_ATTRIBUTE",
+        "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",
+    ),
     VmFixture("COMPARE_OP", "result = 1 < 2\n"),
     VmFixture("POP_TOP", "x\nresult = 0\n", setup="x = 1\n"),
     VmFixture("STORE_NAME", "x = 7\nresult = x\n"),
