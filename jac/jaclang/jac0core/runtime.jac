@@ -136,6 +136,7 @@ def resolve_ref(
 }
 
 glob _gm_log_registry: list = [],
+     _gm_log_slots: dict = {},
      _gm_log_buffer: list = [],
      _gm_se_buffer: list = [],
      _gm_se_depth: list = [0];
