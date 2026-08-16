@@ -446,9 +446,7 @@ obj EsastGenPass(BaseAstGenPass[es.Statement]) {
         acc_name: str, value: es.Expression, anchor: uni.UniNode
     ) -> es.ExpressionStatement;
 
-    def _jsx_fragment(
-        children: es.Expression, anchor: uni.UniNode
-    ) -> es.Expression;
+    def _jsx_fragment(children: es.Expression, anchor: uni.UniNode) -> es.Expression;
 
     def _view_alloc_index(acc_name: str) -> int;
     def _view_assign_stmt(
