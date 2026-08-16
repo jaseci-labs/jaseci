@@ -13,13 +13,16 @@ description: >
 
   Expects `jac` already on PATH (setup-jac, or the ci.yml binary artifact).
 inputs:
-  torch-spec:
+  specs:
     description: >
-      pip spec to install. ci.yml pins an exact version so the gate cannot
-      redden for reasons outside the PR; the nightly canary passes a bare
-      `torch` to catch Dynamo drift.
+      Space-separated pip specs. ci.yml pins exact versions so the gate cannot
+      redden for reasons outside the PR; the nightly canary passes bare names to
+      catch Dynamo drift. numpy belongs here even though torch does not require
+      it: without it torch's C extension warns on import, and pytest.ini runs
+      with `filterwarnings = error`, so the warning aborts the import and every
+      later test sees a half-built torch module.
     required: false
-    default: torch
+    default: torch numpy
   expected-tests:
     description: >
       Floor on the number of tests that must PASS. Deliberately a hard floor,
@@ -39,16 +42,21 @@ runs:
       env:
         PIP_INDEX_URL: https://download.pytorch.org/whl/cpu
         PIP_CACHE_DIR: ${{ github.workspace }}/.pip-cache
-      run: jac install --global "${{ inputs.torch-spec }}"
+      run: |
+        set -euo pipefail
+        read -r -a specs <<< "${{ inputs.specs }}"
+        jac install --global "${specs[@]}"
 
     - name: Graph-count suites
       shell: bash
       working-directory: jac
       run: |
         set -uo pipefail
-        # torch.version.cuda must print None: a CUDA build here means the
-        # index-url pin stopped taking effect.
-        jac -c 'import torch; print("torch", torch.__version__, "cuda:", torch.version.cuda)'
+        # Preflight under the suites' own warning policy (pytest.ini sets
+        # `filterwarnings = error`), so an import that only warns here fails
+        # with one legible message instead of 18 stack traces. cuda must be
+        # None: a CUDA build means the index pin stopped taking effect.
+        jac -c 'import warnings; warnings.simplefilter("error"); import torch; print("torch", torch.__version__, "cuda:", torch.version.cuda)'
         rc=0
         JAC_TEST_JOBS=auto jac test \
           tests/compiler/passes/main/test_graphmend_trap_integration.jac \
