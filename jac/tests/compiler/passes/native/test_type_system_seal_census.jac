@@ -91,17 +91,15 @@ a `ClassVar` the abstract base declares without a value and every subclass
 redefines. The backend now gives each declaring class its own constant and
 picks between them on the receiver's vtable, so the accessor lowers and the
 read answers per class rather than defaulting.
+
+The two `clone_as_*` waivers left with #8266. `TypeFlags(...)` is a
+value-to-member lookup, and for an int-valued enum the member *is* the value,
+so the emitter checks it against the declared member table and raises the
+`ValueError` CPython raises. `create_callable_type` is unaffected: its
+`ParameterCategory` members are `auto()`, which no fold reaches, so the table
+that read needs still cannot be encoded.
 """
 glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
-         "types.jac::ClassType.clone_as_instance": (
-             "Backend gap: calls `TypeFlags(...)` to re-tag the cloned flags. "
-             "An `IntEnum` invoked as a constructor is a value-to-member "
-             "lookup, which has no native form."
-         ),
-         "types.jac::ClassType.clone_as_class": (
-             "Backend gap: same `TypeFlags(...)` constructor call as "
-             "`clone_as_instance`."
-         ),
          "types.jac::ClassType.lookup_member_symbol": (
              "Python-only: calls `collect_member_syms` from `type_utils`, a "
              "module outside this closure that walks symbol tables."
