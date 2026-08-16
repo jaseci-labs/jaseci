@@ -3,7 +3,6 @@ import types;
 import from threading { Event }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.compile_options { CompileOptions }
-import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
 import from jaclang.jac0core.mtp { Info }
 import from jaclang.jac0core.passes { Alert }
 import type from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
@@ -29,12 +28,9 @@ class JacProgram {
         graphmend_disable: list[str],
         graphmend_claimed: set[str],
         graphmend_claim_walked: set[str],
-        graphmend_boundary: dict[int, uni.Ability],
         graphmend_wrapped: set[str],
         graphmend_claim_parent: dict[str, str],
         graphmend_covered_by: dict[str, str],
-        graphmend_breaks: dict[uni.UniNode, GraphBreakKind],
-        graphmend_helpers: dict[int, set[GraphMendHelper]],
         graphmend_noop_mods: set[str],
         graphmend_hub_digests: dict[(str, tuple[(uni.Module, str)])],
         _native_cache: dict[(str, any)],

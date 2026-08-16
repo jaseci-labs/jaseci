@@ -8,9 +8,10 @@ import from jaclang.jac0core.constant {
     TYPE_PARAM_CONSTRUCTORS
 }
 import from jaclang.jac0core.srcloc { CodeLocInfo }
+import type from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
 import type from jaclang.compiler.passes.ecmascript.estree { IndexInfo, SliceInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
-import type from jaclang.jac0core.unitree { CommentToken }
+import type from jaclang.jac0core.unitree { Ability, CommentToken, Module, UniNode }
 import type from jaclang.compiler.passes.tool.doc_ir { Doc }
 import type from jaclang.jac0core.unitree { Source, Token }
 import type from jaclang.jac0core.osp_model { OspModel }
@@ -596,4 +597,35 @@ obj CodeGenTarget {
     has doc_ir: Doc { getter; setter(value: Doc); }
     has client_manifest: ClientManifest { getter; setter(value: ClientManifest); }
     has interop_manifest: InteropManifest { getter; setter(value: InteropManifest); }
+}
+
+obj GraphMendFacts {
+    has breaks: dict[(UniNode, GraphBreakKind)] = field(default_factory=`dict),
+        boundary: dict[(Ability, Ability)] = field(default_factory=`dict),
+        helpers: dict[(Module, set[GraphMendHelper])] = field(default_factory=`dict);
+}
+
+glob _graphmend_facts_ctx: ContextVar[(GraphMendFacts | None)] = ContextVar(
+         "jac_graphmend_facts", default=None
+     );
+
+def swap_graphmend_facts(
+    facts: (GraphMendFacts | None)
+) -> (GraphMendFacts | None) {
+    prev = _graphmend_facts_ctx.get();
+    _graphmend_facts_ctx.set(facts);
+    return prev;
+}
+
+def installed_graphmend_facts -> (GraphMendFacts | None) {
+    return _graphmend_facts_ctx.get();
+}
+
+def current_graphmend_facts -> GraphMendFacts {
+    facts = _graphmend_facts_ctx.get();
+    if facts is None {
+        facts = GraphMendFacts();
+        _graphmend_facts_ctx.set(facts);
+    }
+    return facts;
 }

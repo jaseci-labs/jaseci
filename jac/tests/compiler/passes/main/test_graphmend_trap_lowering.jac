@@ -14,15 +14,22 @@ import from jaclang.jac0core.compile_options { CompileOptions }
 
 """Compile a fixture with graphmend on and count the detection tags recorded.
 
-Observes detection directly (the side table survives the full compile), so a
-guard the trap pass would decline anyway still cannot hide a mis-tag."""
+Observes detection directly (the test holds the facts carrier it installs for
+the compile), so a guard the trap pass would decline anyway still cannot hide
+a mis-tag."""
 def _break_count(name: str) -> int {
-    prog = JacProgram();
-    prog.compile(
-        file_path=os.path.join(FIXTURES, name),
-        options=CompileOptions(graphmend=True, type_check=False)
-    );
-    return len(prog.graphmend_breaks);
+    import from jaclang.jac0core.codeinfo { GraphMendFacts, swap_graphmend_facts }
+    facts = GraphMendFacts();
+    prev = swap_graphmend_facts(facts);
+    try {
+        JacProgram().compile(
+            file_path=os.path.join(FIXTURES, name),
+            options=CompileOptions(graphmend=True, type_check=False)
+        );
+    } finally {
+        swap_graphmend_facts(prev);
+    }
+    return len(facts.breaks);
 }
 
 """A Python-source model with a tensor-bool validation guard.
@@ -397,13 +404,19 @@ test "a lowered guard's detection tag stays bound to its own node" {
     # to a node allocated later in the same compile. Keyed by a bare address,
     # that node reads as tagged -- worst case a generated torch._assert_async
     # inherits SIDE_EFFECT and gets wrapped in __jac_se_emit__.
-    prog = JacProgram();
-    mod = prog.compile(
-        file_path=os.path.join(FIXTURES, "val_guard.jac"),
-        options=CompileOptions(graphmend=True, type_check=False)
-    );
-    assert prog.graphmend_breaks;
-    for key in prog.graphmend_breaks {
+    import from jaclang.jac0core.codeinfo { GraphMendFacts, swap_graphmend_facts }
+    facts = GraphMendFacts();
+    prev = swap_graphmend_facts(facts);
+    try {
+        mod = JacProgram().compile(
+            file_path=os.path.join(FIXTURES, "val_guard.jac"),
+            options=CompileOptions(graphmend=True, type_check=False)
+        );
+    } finally {
+        swap_graphmend_facts(prev);
+    }
+    assert facts.breaks;
+    for key in facts.breaks {
         assert isinstance(key, uni.UniNode) , (
             "detection tags are keyed by a recyclable address, not by node"
         );
@@ -417,7 +430,7 @@ test "a lowered guard's detection tag stays bound to its own node" {
     }
     detached = [
         k
-        for k in prog.graphmend_breaks
+        for k in facts.breaks
         if id(k) not in live
     ];
     assert detached , "expected the lowered guard's node to have been detached";

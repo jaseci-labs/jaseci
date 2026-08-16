@@ -1,6 +1,7 @@
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 import from collections.abc { Sequence }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.codeinfo { current_graphmend_facts }
 import from jaclang.jac0core.constant { GraphBreakKind, Tokens as Tok }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
     gen_name,
@@ -26,7 +27,7 @@ impl PredicateCtrlFlowPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if not self._enabled {
         return;
     }
-    if self.prog.graphmend_breaks.get(nd) != GraphBreakKind.DYN_CTRL_FL {
+    if current_graphmend_facts().breaks.get(nd) != GraphBreakKind.DYN_CTRL_FL {
         return;
     }
     eb = nd.else_body;

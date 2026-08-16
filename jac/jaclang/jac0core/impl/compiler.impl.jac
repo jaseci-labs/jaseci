@@ -151,13 +151,18 @@ impl JacCompiler.get_bytecode(
             ]
         );
     }
+    import from jaclang.jac0core.codeinfo { GraphMendFacts, swap_graphmend_facts }
     prev_variant = swap_graphmend_cache_variant(gm_variant);
+    prev_facts = swap_graphmend_facts(GraphMendFacts()) if gm_active else None;
     try {
         return self._get_bytecode_variant(
             full_target, target_program, actual_program, gm_active
         );
     } finally {
         swap_graphmend_cache_variant(prev_variant);
+        if gm_active {
+            swap_graphmend_facts(prev_facts);
+        }
     }
 }
 
@@ -167,11 +172,6 @@ impl JacCompiler._get_bytecode_variant(
     actual_program: JacProgram,
     gm_active: bool
 ) -> (types.CodeType | None) {
-    if gm_active {
-        actual_program.graphmend_breaks.clear();
-        actual_program.graphmend_helpers.clear();
-        actual_program.graphmend_boundary.clear();
-    }
     (rebuild, no_precompile) = cache_mode();
     symtab_only_recovery = False;
 
@@ -1336,18 +1336,34 @@ impl JacCompiler._compile_once(
         actual_program._compile_options = options;
 
         import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
+        import from jaclang.jac0core.codeinfo {
+            GraphMendFacts,
+            installed_graphmend_facts,
+            swap_graphmend_facts
+        }
         needs_native = is_native_mod
             or ModuleCodegenPass.has_native_context_stmts(mod_targ);
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=get_py_code_gen(
-                native=needs_native,
-                provided=actual_program._analyses_run.get(id(mod_targ), set()),
-                graphmend=options.graphmend is True
-            ),
-            cancel_token=options.cancel_token
-        );
+        gm_scoped = (options.graphmend is True)
+            and (installed_graphmend_facts() is None);
+        if gm_scoped {
+            swap_graphmend_facts(GraphMendFacts());
+        }
+        try {
+            self.run_schedule(
+                mod=mod_targ,
+                target_program=actual_program,
+                passes=get_py_code_gen(
+                    native=needs_native,
+                    provided=actual_program._analyses_run.get(id(mod_targ), set()),
+                    graphmend=options.graphmend is True
+                ),
+                cancel_token=options.cancel_token
+            );
+        } finally {
+            if gm_scoped {
+                swap_graphmend_facts(None);
+            }
+        }
         if mod_targ.decided_codespace == 'native' {
             JacCompiler._scrub_native_artifacts_on_error(actual_program, mod_targ);
         }

@@ -1,5 +1,6 @@
 import builtins;
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.codeinfo { current_graphmend_facts }
 import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
     gen_name,
@@ -43,7 +44,7 @@ impl TrapLoweringPass.exit_assignment(nd: uni.Assignment) -> None {
     if not insert_after(nd, self._boundary_attach_stmt(nd, tgt.value)) {
         return;
     }
-    need_helper(self.prog, nd, GraphMendHelper.TRAP_GUARD);
+    need_helper(nd, GraphMendHelper.TRAP_GUARD);
 }
 
 impl TrapLoweringPass._boundary_attach_stmt(
@@ -71,7 +72,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     if not self._enabled {
         return;
     }
-    if self.prog.graphmend_breaks.get(nd) != GraphBreakKind.VAL_GUARD {
+    if current_graphmend_facts().breaks.get(nd) != GraphBreakKind.VAL_GUARD {
         return;
     }
     if self._inside_try(nd) {
@@ -116,7 +117,7 @@ impl TrapLoweringPass.exit_if_stmt(nd: uni.IfStmt) -> None {
     eq = self._torch_equal_args(x);
     if eq is not None {
         (a, b) = eq;
-        need_helper(self.prog, nd, GraphMendHelper.EQ_ASSERT);
+        need_helper(nd, GraphMendHelper.EQ_ASSERT);
         replace_stmt(nd, [self._eq_assert_stmt(nd, a, b, marked)]);
         self._mark_guard(wrap);
     } elif negated_compare {
@@ -144,7 +145,7 @@ impl TrapLoweringPass._boundary_ability(nd: uni.UniNode) -> (uni.Ability | None)
     if has_torch_compile_decorator(ab) {
         return ab;
     }
-    seed = self.prog.graphmend_boundary.get(id(ab));
+    seed = current_graphmend_facts().boundary.get(ab);
     if (seed is None) or (not has_torch_compile_decorator(seed)) {
         return None;
     }
@@ -160,7 +161,7 @@ impl TrapLoweringPass._covering_entry(nd: uni.UniNode) -> (str | None) {
     if ab is None {
         return None;
     }
-    bound = self.prog.graphmend_boundary.get(id(ab));
+    bound = current_graphmend_facts().boundary.get(ab);
     if bound is None {
         return None;
     }
@@ -230,7 +231,7 @@ impl TrapLoweringPass._mark_guard(ability: (uni.Ability | None)) -> None {
         }
     }
     self._guarded_fns.append(ability);
-    need_helper(self.prog, ability, GraphMendHelper.TRAP_GUARD);
+    need_helper(ability, GraphMendHelper.TRAP_GUARD);
 }
 
 impl TrapLoweringPass.after_pass -> None {

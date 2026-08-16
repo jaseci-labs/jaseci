@@ -1,4 +1,5 @@
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.codeinfo { current_graphmend_facts }
 import from jaclang.jac0core.constant { GraphBreakKind, GraphMendHelper, Tokens as Tok }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
     append_stmt,
@@ -26,7 +27,7 @@ impl DeferSideEffectPass.exit_func_call(nd: uni.FuncCall) -> None {
     if not self._enabled {
         return;
     }
-    if self.prog.graphmend_breaks.get(nd) != GraphBreakKind.SIDE_EFFECT {
+    if current_graphmend_facts().breaks.get(nd) != GraphBreakKind.SIDE_EFFECT {
         return;
     }
     parent = nd.parent;
@@ -143,7 +144,7 @@ impl DeferSideEffectPass._attach_se_guard(nd: uni.Ability) -> None {
     if id(nd) in self._guarded {
         return;
     }
-    need_helper(self.prog, nd, GraphMendHelper.SE_GUARD);
+    need_helper(nd, GraphMendHelper.SE_GUARD);
     guard = gen_name(nd, '__jac_se_guard__', False);
     nd.decorators = [guard] + list(nd.decorators or []);
     nd.set_kids([guard] + list(nd.kid));
@@ -152,7 +153,7 @@ impl DeferSideEffectPass._attach_se_guard(nd: uni.Ability) -> None {
 }
 
 impl DeferSideEffectPass._is_compiled_entry(nd: uni.Ability) -> bool {
-    return self.prog.graphmend_boundary.get(id(nd)) is nd;
+    return current_graphmend_facts().boundary.get(nd) is nd;
 }
 
 impl DeferSideEffectPass._str(at: uni.UniNode, text: str) -> uni.String {
@@ -286,7 +287,7 @@ impl DeferSideEffectPass._clone_guard(at: uni.UniNode, tmp: str) -> uni.IfElseEx
 impl DeferSideEffectPass._buffer_append(
     at: uni.UniNode, ent: uni.TupleVal
 ) -> uni.FuncCall {
-    need_helper(self.prog, at, GraphMendHelper.SE_EMIT);
+    need_helper(at, GraphMendHelper.SE_EMIT);
     emit = gen_name(at, '__jac_se_emit__', False);
     params = list(ent.values);
     return uni.FuncCall(
@@ -295,7 +296,7 @@ impl DeferSideEffectPass._buffer_append(
 }
 
 impl DeferSideEffectPass._flush_stmt(at: uni.UniNode) -> uni.ExprStmt {
-    need_helper(self.prog, at, GraphMendHelper.SE_FLUSH);
+    need_helper(at, GraphMendHelper.SE_FLUSH);
     helper = gen_name(at, '__jac_se_flush__', False);
     call = uni.FuncCall(target=helper, params=[], genai_call=None, kid=[helper]);
     return uni.ExprStmt(expr=call, in_fstring=False, kid=[call]);

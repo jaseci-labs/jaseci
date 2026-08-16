@@ -41,7 +41,7 @@ impl DeferSideEffectPass._logger_emit(nd: uni.FuncCall) -> (uni.FuncCall | None)
     slot_name = f"_gm_log_slot_{n}";
     reg = self._register_assignment(nd, slot_name, callee);
     self._pending_regs.append((self._toplevel_archetype(nd), reg));
-    need_helper(self.prog, nd, GraphMendHelper.LOG_EMIT);
+    need_helper(nd, GraphMendHelper.LOG_EMIT);
     (pos, kws) = split_params(nd.params);
     emit = gen_name(nd, '__jac_log_emit__', False);
     slot_ref = gen_name(nd, slot_name, False);
@@ -56,7 +56,7 @@ impl DeferSideEffectPass._logger_emit(nd: uni.FuncCall) -> (uni.FuncCall | None)
 impl DeferSideEffectPass._register_assignment(
     at: uni.UniNode, slot_name: str, callee: uni.Expr
 ) -> uni.Assignment {
-    need_helper(self.prog, at, GraphMendHelper.LOG_REGISTER);
+    need_helper(at, GraphMendHelper.LOG_REGISTER);
     reg_fn = gen_name(at, '__jac_log_register__', False);
     reg_call = uni.FuncCall(
         target=reg_fn, params=[callee], genai_call=None, kid=[reg_fn, callee]
@@ -105,8 +105,8 @@ impl DeferSideEffectPass.exit_assignment(nd: uni.Assignment) -> None {
     if not insert_after(nd, self._hook_guard_stmt(nd, tgt.value, hooks)) {
         return;
     }
-    need_helper(self.prog, nd, GraphMendHelper.SE_REGION_OPEN);
-    need_helper(self.prog, nd, GraphMendHelper.LOG_FLUSH_HOOK);
+    need_helper(nd, GraphMendHelper.SE_REGION_OPEN);
+    need_helper(nd, GraphMendHelper.LOG_FLUSH_HOOK);
 }
 
 impl DeferSideEffectPass._hook_guard_stmt(

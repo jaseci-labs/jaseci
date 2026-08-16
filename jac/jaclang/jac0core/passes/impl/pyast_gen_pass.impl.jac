@@ -957,7 +957,9 @@ impl PyastGenPass.exit_module(nd: uni.Module) -> None {
         self.builtin_imports.update(child_pass.builtin_imports);
         self.typing_imports.update(child_pass.typing_imports);
     }
-    for _gm_helper in (self.prog.graphmend_helpers.get(id(nd)) or set()) {
+    _gm_facts = installed_graphmend_facts();
+    _gm_helpers = _gm_facts.helpers.get(nd) if (_gm_facts is not None) else None;
+    for _gm_helper in (_gm_helpers or set()) {
         self.jaclib_obj(_gm_helper.value);
     }
     is_builtin_module = (

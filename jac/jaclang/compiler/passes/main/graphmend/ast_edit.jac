@@ -1,6 +1,6 @@
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.codeinfo { current_graphmend_facts }
 import from jaclang.jac0core.constant { GraphMendHelper }
-import type from jaclang.jac0core.program { JacProgram }
 
 def gen_name(at: uni.UniNode, value: str, store: bool) -> uni.Name {
     anchor: any = at;
@@ -25,15 +25,16 @@ def gen_string(at: uni.UniNode, value: str) -> uni.String {
     );
 }
 
-def need_helper(prog: JacProgram, at: uni.UniNode, helper: GraphMendHelper) -> None {
+def need_helper(at: uni.UniNode, helper: GraphMendHelper) -> None {
     mod = at.find_parent_of_type(uni.Module);
     if mod is None {
         return;
     }
-    needed = prog.graphmend_helpers.get(id(mod));
+    facts = current_graphmend_facts();
+    needed = facts.helpers.get(mod);
     if needed is None {
         needed = set();
-        prog.graphmend_helpers[id(mod)] = needed;
+        facts.helpers[mod] = needed;
     }
     needed.add(helper);
 }

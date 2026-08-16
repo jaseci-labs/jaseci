@@ -2,6 +2,7 @@ import os;
 import sys;
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.codeinfo { current_graphmend_facts }
 import from jaclang.compiler.passes.main.graphmend.ast_edit { split_params }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     decorator_base,
@@ -25,7 +26,7 @@ def compiled_region_ids(
     }
     ids: set[int] = set();
     work: list[uni.Ability] = [];
-    bounds = prog.graphmend_boundary;
+    bounds = current_graphmend_facts().boundary;
     for m in mods {
         for nd in _compile_entry_seeds(m) {
             if isinstance(nd, uni.Archetype) {
@@ -55,12 +56,12 @@ def compiled_region_ids(
             continue;
         }
         ids.add(id(ab));
-        owner = bounds.get(id(ab)) or ab;
+        owner = bounds.get(ab) or ab;
         callee: (uni.Ability | None) = None;
         for call in ab.get_all_sub_nodes(uni.FuncCall) {
             callee = _resolve_callee(ab, call, prog, seen);
             if (callee is not None) and (id(callee) not in ids) {
-                bounds.setdefault(id(callee), owner);
+                bounds.setdefault(callee, owner);
                 work.append(callee);
             }
         }
@@ -71,7 +72,7 @@ def compiled_region_ids(
             }
             for closure in _wrapper_closures(deco) {
                 if id(closure) not in ids {
-                    bounds.setdefault(id(closure), owner);
+                    bounds.setdefault(closure, owner);
                     work.append(closure);
                 }
             }
@@ -80,8 +81,10 @@ def compiled_region_ids(
     return ids;
 }
 
-def _seed(work: list[uni.Ability], bounds: dict[int, uni.Ability], ab: uni.Ability) {
-    bounds[id(ab)] = ab;
+def _seed(
+    work: list[uni.Ability], bounds: dict[uni.Ability, uni.Ability], ab: uni.Ability
+) {
+    bounds[ab] = ab;
     work.append(ab);
 }
 
