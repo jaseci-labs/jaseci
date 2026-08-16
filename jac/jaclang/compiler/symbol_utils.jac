@@ -114,6 +114,31 @@ def comptime_identity_call_arg(nd: FuncCall) -> (Expr | None) {
     return params[1];
 }
 
+def is_comptime_field_marker(nd: FuncCall) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_FIELD_MARKERS }
+    owner = nd.parent;
+    if not isinstance(owner, HasVar) or owner.value is not nd {
+        return False;
+    }
+    tgt = nd.target;
+    if not isinstance(tgt, Name) or tgt.sym_name not in NATIVE_COMPTIME_FIELD_MARKERS {
+        return False;
+    }
+    return comptime_import_binds(nd, tgt.sym_name);
+}
+
+def comptime_field_marker_default(nd: FuncCall) -> (Expr | None) {
+    for arg in (nd.params or []) {
+        if not isinstance(arg, KWPair) or not isinstance(arg.key, Name) {
+            continue;
+        }
+        if arg.key.sym_name == 'default' and isinstance(arg.value, Expr) {
+            return arg.value;
+        }
+    }
+    return None;
+}
+
 def resolve_expr_symbol(expr: Expr, module: (Module | None) = None) -> (Symbol | None) {
     if isinstance(expr, AstSymbolNode) and expr.sym {
         return expr.sym;

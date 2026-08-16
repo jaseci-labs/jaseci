@@ -644,6 +644,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> dict;
 
     def _default_arg_fallback(t: ir.Type) -> ir.Value;
+    def _empty_container_for_field(
+        ftype: (ir.Type | None), label: str
+    ) -> (ir.Value | None);
+
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;
     def _jacval_truthy(jv: ir.Value) -> ir.Value;

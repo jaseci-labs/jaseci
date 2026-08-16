@@ -1382,6 +1382,45 @@ impl NaIRGenPass._stack_alloc_target_ok(nd: uni.UniNode) -> bool {
     return sym is not None and sym.na_stack_ok;
 }
 
+impl NaIRGenPass._empty_container_for_field(
+    ftype: (ir.Type | None), label: str
+) -> (ir.Value | None) {
+    if ftype is None or not isinstance(ftype, ir.PointerType) {
+        return None;
+    }
+    for (dict_key, dtype) in self.dict_types.items() {
+        if ftype == dtype.as_pointer() {
+            dict_helpers = self.dict_helpers.get(dict_key);
+            return (
+                self.builder.call(dict_helpers["new"], [], name=f"dict.{label}")
+                    if dict_helpers is not None
+                    else None
+            );
+        }
+    }
+    for (list_key, ltype) in self.list_types.items() {
+        if ftype == ltype.as_pointer() {
+            list_helpers = self.list_helpers.get(list_key);
+            return (
+                self.builder.call(list_helpers["new"], [], name=f"list.{label}")
+                    if list_helpers is not None
+                    else None
+            );
+        }
+    }
+    for (set_key, stype) in self.set_types.items() {
+        if ftype == stype.as_pointer() {
+            set_helpers = self.set_helpers.get(set_key);
+            return (
+                self.builder.call(set_helpers["new"], [], name=f"set.{label}")
+                    if set_helpers is not None
+                    else None
+            );
+        }
+    }
+    return None;
+}
+
 impl NaIRGenPass._codegen_instantiation(
     nd: (uni.FuncCall | uni.Name),
     type_name_override: (str | None) = None,
@@ -1713,33 +1752,9 @@ impl NaIRGenPass._codegen_instantiation(
         }
         val = self._codegen_expr(init_expr);
         if val is None {
-            ftype_probe = field_types.get(key_name);
-            if ftype_probe is not None and isinstance(ftype_probe, ir.PointerType) {
-                for (dict_key, dtype) in self.dict_types.items() {
-                    if ftype_probe == dtype.as_pointer() {
-                        helpers = self.dict_helpers.get(dict_key);
-                        if helpers is not None {
-                            val = self.builder.call(
-                                helpers["new"], [], name=f"dict.ctor.{key_name}"
-                            );
-                        }
-                        break;
-                    }
-                }
-                if val is None {
-                    for (elem_key, ltype) in self.list_types.items() {
-                        if ftype_probe == ltype.as_pointer() {
-                            helpers = self.list_helpers.get(elem_key);
-                            if helpers is not None {
-                                val = self.builder.call(
-                                    helpers["new"], [], name=f"list.ctor.{key_name}"
-                                );
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
+            val = self._empty_container_for_field(
+                field_types.get(key_name), f"ctor.{key_name}"
+            );
             if val is None {
                 continue;
             }
@@ -1792,34 +1807,9 @@ impl NaIRGenPass._codegen_instantiation(
             val = self._codegen_expr(default_expr);
 
             if val is None {
-                ftype_probe = field_types.get(fname);
-                if ftype_probe is not None
-                    and isinstance(ftype_probe, ir.PointerType) {
-                    for (dict_key, dtype) in self.dict_types.items() {
-                        if ftype_probe == dtype.as_pointer() {
-                            helpers = self.dict_helpers.get(dict_key);
-                            if helpers is not None {
-                                val = self.builder.call(
-                                    helpers["new"], [], name=f"dict.dflt.{fname}"
-                                );
-                            }
-                            break;
-                        }
-                    }
-                    if val is None {
-                        for (elem_key, ltype) in self.list_types.items() {
-                            if ftype_probe == ltype.as_pointer() {
-                                helpers = self.list_helpers.get(elem_key);
-                                if helpers is not None {
-                                    val = self.builder.call(
-                                        helpers["new"], [], name=f"list.dflt.{fname}"
-                                    );
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
+                val = self._empty_container_for_field(
+                    field_types.get(fname), f"dflt.{fname}"
+                );
             }
             if val is not None
                 and fname in self.struct_field_inline.get(type_name, set()) {
