@@ -201,8 +201,6 @@ def _graphmend_claims(fullname: str, path: str) -> bool:
         from jaclang.jac0core.runtime import JacRuntime as Jac
 
         program = Jac.get_program()
-        if getattr(program, "graphmend_enabled", False) is False:
-            return False
         claimed = getattr(program, "graphmend_claimed", None) or ()
     except Exception:
         return False
@@ -210,6 +208,13 @@ def _graphmend_claims(fullname: str, path: str) -> bool:
     if top in ("torch", "jaclang") or top in sys.stdlib_module_names:
         return False
     if not claimed and "torch" not in sys.modules:
+        return False
+    try:
+        from jaclang.jac0core.compile_options import resolved_graphmend_setting
+
+        if resolved_graphmend_setting() is False:
+            return False
+    except Exception:
         return False
     if not os.path.isfile(path):
         return False
@@ -279,9 +284,9 @@ def install_graphmend_loader_hook_for_torch() -> None:
     ):
         return
     try:
-        from jaclang.jac0core.runtime import JacRuntime as Jac
+        from jaclang.jac0core.compile_options import resolved_graphmend_setting
 
-        if getattr(Jac.get_program(), "graphmend_enabled", False) is False:
+        if resolved_graphmend_setting() is False:
             return
     except Exception:
         return

@@ -395,11 +395,11 @@ test "unknown explicit kind is reported by jac run" {
 }
 
 """An entry GraphMend engages on: the torch import is never executed."""
-glob TORCH_ENTRY = "import from jaclang.jac0core.runtime { JacRuntime as Jac }\n"
+glob TORCH_ENTRY = "import from jaclang.jac0core.compile_options { CompileOptions }\n"
          + "def _unused -> None {\n    import torch;\n}\n"
-         + "with entry { print(f\"GM={Jac.get_program().graphmend_enabled}\"); }",
-     PLAIN_ENTRY = "import from jaclang.jac0core.runtime { JacRuntime as Jac }\n"
-         + "with entry { print(f\"GM={Jac.get_program().graphmend_enabled}\"); }";
+         + "with entry { print(f\"GM={CompileOptions().graphmend}\"); }",
+     PLAIN_ENTRY = "import from jaclang.jac0core.compile_options { CompileOptions }\n"
+         + "with entry { print(f\"GM={CompileOptions().graphmend}\"); }";
 
 glob _dispatch_calls: list[str] = [];
 
@@ -408,8 +408,12 @@ def _fake_run_jab(filename: str, port: any, args: list, serve_only: bool) -> int
     return 0;
 }
 
+glob _serve_gm: list = [];
+
 def _fake_start(**kwargs: any) -> int {
+    import from jaclang.jac0core.compile_options { CompileOptions }
     _dispatch_calls.append("start");
+    _serve_gm.append(CompileOptions(type_check=False).graphmend);
     return 0;
 }
 
@@ -507,15 +511,18 @@ test "a prebuilt .jab runs instead of being refused over graphmend" {
     assert "cannot be combined" not in captured.getvalue();
 }
 
-test "a serve plan runs instead of being refused over graphmend" {
+test "a serve plan runs unrefused and binds the graphmend off switch" {
+    # Serve never passes through the cli run command, so the discovered config
+    # alone must reach the compiles the server performs.
     d = _mk_project(
         "kind = \"service\"\nentry-point = \"api.sv.jac\"\n\n"
-            + "[run]\ngraphmend = true\n",
+            + "[run]\ngraphmend = false\n",
         "api.sv.jac"
     );
     old = os.getcwd();
     old_start = execution.start;
     _dispatch_calls.clear();
+    _serve_gm.clear();
     os.chdir(d);
     captured = io.StringIO();
     sys.stderr = captured;
@@ -530,6 +537,9 @@ test "a serve plan runs instead of being refused over graphmend" {
     assert rc == 0;
     assert _dispatch_calls == ["start"];
     assert "cannot be combined" not in captured.getvalue();
+    assert _serve_gm == [False] , (
+        f"a compile under serve must inherit run graphmend false, saw {_serve_gm}"
+    );
     _cleanup();
 }
 

@@ -208,12 +208,16 @@ def precompile_unit(
 ) -> bytes | None {
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.jac0core.program { JacProgram }
+    import from jaclang.jac0core.compile_options { CompileOptions }
 
     compiler = Jac.get_compiler();
 
     program = JacProgram();
-    program.graphmend_enabled = False;
-    code = compiler.get_bytecode(full_target=jac_path, target_program=program);
+    code = compiler.get_bytecode(
+        full_target=jac_path,
+        target_program=program,
+        options=CompileOptions(type_check=False, graphmend=False)
+    );
     compiler.internal_program.release_compile_closure();
     program.release_compile_closure();
     if code is None {

@@ -17,6 +17,14 @@ def _project_config -> any {
     }
 }
 
+def resolved_graphmend_setting -> bool {
+    cfg = _project_config();
+    if cfg is None {
+        return True;
+    }
+    return bool(cfg.run.graphmend);
+}
+
 obj CompileOptions {
     has type_check: bool = True,
         emit_diagnostics: bool = True,
@@ -27,7 +35,7 @@ obj CompileOptions {
         resolve_annex_parent: bool = False,
         force_target_program: bool = False,
         aot_mode: bool = False,
-        graphmend: bool = True,
+        graphmend: (bool | None) = None,
         graphmend_disable: list[str] = field(default_factory=`list),
         force_codespace: str = "",
         na_gc_mode: (str | None) = None,
@@ -56,6 +64,9 @@ obj CompileOptions {
         cfg = _project_config();
         gc_cfg = cfg.gc if cfg is not None else None;
         native_cfg = cfg.build.native if cfg is not None else None;
+        if self.graphmend is None {
+            self.graphmend = bool(cfg.run.graphmend) if cfg is not None else True;
+        }
         if self.na_gc_mode is None {
             self.na_gc_mode = gc_cfg.default if gc_cfg else "cycles";
         }
