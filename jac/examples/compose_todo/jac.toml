@@ -1,0 +1,26 @@
+[project]
+name = "compose-todo"
+version = "0.1.0"
+description = "Jac Jetpack Compose TODO app (checkboxes, delete, priority)"
+entry-point = "main.jac"
+kind = "client"
+
+[client]
+framework = "compose"
+
+[client.android]
+package = "dev.jac.todo"
+app_name = "Jac TODO"
+avd = "Small_Phone"
+
+[dependencies.gradle]
+coil-compose = "io.coil-kt:coil-compose:2.7.0"
+
+[sv]
+deploy = "device"
+
+[serve]
+base_route_app = "app"
+
+[dev]
+jaclang_source = "../.."
