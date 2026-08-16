@@ -10,18 +10,21 @@ import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     GRAD_OFF_CTX_ATTRS,
     OPTIM_RECEIVER_PATTERNS,
     decorator_base,
+    defining_assignment,
     expr_uses_attr,
     has_torch_compile_decorator,
     is_torch_attr_target
 }
 import from jaclang.jac0core.passes.sym_resolve { symbol_ability, symbol_archetype }
+import type from jaclang.jac0core.passes { Alert }
 import type from jaclang.jac0core.program { JacProgram }
 
 def compiled_region_ids(
     prog: JacProgram,
     current: uni.Module,
     seen: set[str],
-    wrapped: (list[uni.UniNode] | None) = None
+    wrapped: (list[uni.UniNode] | None) = None,
+    walked: (set[str] | None) = None
 ) -> set[int] {
     mods: list[uni.Module] = [current];
     for m in prog.mod.hub.values() {
@@ -31,19 +34,31 @@ def compiled_region_ids(
     }
     ids: set[int] = set();
     work: list[uni.Ability] = [];
+    path_memo: dict[int, str] = {};
     for m in mods {
-        for nd in _compile_entry_seeds(m) {
+        seeds = _compile_entry_seeds(m);
+        fwds = module_entry_forwards(prog, m, seen);
+        if (walked is not None) and (seeds or fwds) {
+            walked.add(_mod_path(m, path_memo));
+        }
+        for nd in seeds {
             if isinstance(nd, uni.Archetype) {
                 ids.add(id(nd));
             } elif isinstance(nd, uni.Ability) {
                 _seed(work, nd);
             }
         }
-        for fwd in module_entry_forwards(prog, m, seen) {
+        for fwd in fwds {
             _seed(work, fwd);
         }
     }
     for w in (wrapped or []) {
+        if walked is not None {
+            wmod = w.find_parent_of_type(uni.Module);
+            if wmod is not None {
+                walked.add(_mod_path(wmod, path_memo));
+            }
+        }
         if isinstance(w, uni.Archetype) {
             for meth in w.get_all_sub_nodes(uni.Ability) {
                 if meth.sym_name == 'forward' {
@@ -60,6 +75,12 @@ def compiled_region_ids(
             continue;
         }
         ids.add(id(ab));
+        if walked is not None {
+            ab_mod = ab.find_parent_of_type(uni.Module);
+            if ab_mod is not None {
+                walked.add(_mod_path(ab_mod, path_memo));
+            }
+        }
         owner = facts_for(ab).boundary.get(ab) or ab;
         callee: (uni.Ability | None) = None;
         for call in ab.get_all_sub_nodes(uni.FuncCall) {
@@ -108,36 +129,241 @@ def _compile_entry_seeds(mod: uni.Module) -> list[uni.UniNode] {
     return out;
 }
 
-def region_context_key(prog: JacProgram, target_path: str) -> str {
+def _mod_path(mod: uni.Module, memo: dict[int, str]) -> str {
+    key = id(mod);
+    hit = memo.get(key);
+    if hit is not None {
+        return hit;
+    }
+    path = _norm(mod.loc.mod_path);
+    memo[key] = path;
+    return path;
+}
+
+def region_context_probe(prog: JacProgram, target_path: str) -> (str | None) {
+    tnorm = _norm(target_path);
+    fresh = tnorm not in prog.mod.hub;
+    pre_errs = len(prog.errors_had);
+    pre_warns = len(prog.warnings_had);
+    try {
+        target = _compile_for_facts(prog, tnorm);
+        if (target is None) or (not module_binds_torch(target)) {
+            return None;
+        }
+        return region_closure_key(prog, target, target_path);
+    } finally {
+        if fresh {
+            prog.errors_had = _without_target_alerts(prog.errors_had, tnorm, pre_errs);
+            prog.warnings_had = _without_target_alerts(
+                prog.warnings_had, tnorm, pre_warns
+            );
+        }
+    }
+}
+
+def _without_target_alerts(alerts: list[Alert], tnorm: str, keep: int) -> list[Alert] {
+    out: list[Alert] = list(alerts[:keep]);
+    for a in alerts[keep:] {
+        keep_it = True;
+        try {
+            keep_it = _norm(a.loc.mod_path) != tnorm;
+        } except Exception {
+            keep_it = True;
+        }
+        if keep_it {
+            out.append(a);
+        }
+    }
+    return out;
+}
+
+def region_closure_key(prog: JacProgram, target: uni.Module, target_path: str) -> str {
     import hashlib;
+    seen: set[str] = set();
+    walked: set[str] = set();
+    wrap_keys: set[str] = set();
+    register_claim(prog, target, seen);
+    materialize_claim_chain(prog, target_path, seen);
+    wrapped = collect_wrap_entries(prog, target, seen, wrap_keys, walked);
+    compiled_region_ids(prog, target, seen, wrapped, walked);
+    tnorm = _norm(target_path);
     parts: list[str] = [];
-    for (path, mod) in prog.mod.hub.items() {
-        if path == target_path {
+    for path in sorted(walked | seen) {
+        if path == tnorm {
             continue;
         }
-        parts.append(path + '\x00' + _hub_source_digest(prog, path, mod));
+        parts.append(path + '\x00' + _closure_source_digest(prog, path));
     }
     if not parts {
         return '';
     }
     h = hashlib.sha256();
-    for part in sorted(parts) {
+    for part in parts {
         h.update(part.encode('utf-8'));
         h.update(b"\n");
     }
     return h.hexdigest()[:16];
 }
 
-def _hub_source_digest(prog: JacProgram, path: str, mod: uni.Module) -> str {
+def _closure_source_digest(prog: JacProgram, path: str) -> str {
     import hashlib;
-    cached = prog.graphmend_hub_digests.get(path);
-    if (cached is not None) and (cached[0] is mod) {
-        return cached[1];
+    mod = prog.mod.hub.get(path);
+    src: (str | None) = None;
+    if (mod is not None) and (mod.source is not None) {
+        src = mod.source.value;
     }
-    src = mod.source.value if (mod.source is not None) else '';
-    digest = hashlib.sha256(src.encode('utf-8')).hexdigest()[:16];
-    prog.graphmend_hub_digests[path] = (mod, digest);
-    return digest;
+    if src is None {
+        import from jaclang.jac0core.jir { read_source_shared }
+        src = read_source_shared(path);
+    }
+    return hashlib.sha256((src or '').encode('utf-8')).hexdigest()[:16];
+}
+
+def materialize_claim_chain(prog: JacProgram, target_path: str, seen: set[str]) {
+    cur = prog.graphmend_claim_parent.get(_norm(target_path));
+    while (cur is not None) and (cur not in seen) {
+        seen.add(cur);
+        _compile_for_facts(prog, cur);
+        cur = prog.graphmend_claim_parent.get(cur);
+    }
+}
+
+def module_has_wrap_site(mod: uni.Module) -> bool {
+    for call in mod.get_all_sub_nodes(uni.FuncCall) {
+        if is_torch_attr_target(call.target, 'compile') {
+            return True;
+        }
+    }
+    return False;
+}
+
+def collect_wrap_entries(
+    prog: JacProgram,
+    current: uni.Module,
+    seen: set[str],
+    wrap_keys: set[str],
+    walked: (set[str] | None) = None
+) -> list[uni.UniNode] {
+    out: list[uni.UniNode] = [];
+    ids: set[int] = set();
+    mods: list[uni.Module] = [current];
+    for m in prog.mod.hub.values() {
+        if m is not current {
+            mods.append(m);
+        }
+    }
+    for m in mods {
+        first = True;
+        for call in m.get_all_sub_nodes(uni.FuncCall) {
+            if not is_torch_attr_target(call.target, 'compile') {
+                continue;
+            }
+            if first {
+                if walked is not None {
+                    walked.add(_norm(m.loc.mod_path));
+                }
+                first = False;
+            }
+            entry = resolve_wrapped_entry(prog, call, seen);
+            if entry is None {
+                continue;
+            }
+            if isinstance(entry, uni.Ability) {
+                wrap_keys.add(entry_key(entry));
+            } elif isinstance(entry, uni.Archetype) {
+                for meth in entry.get_all_sub_nodes(uni.Ability) {
+                    if meth.sym_name == 'forward' {
+                        wrap_keys.add(entry_key(meth));
+                    }
+                }
+            }
+            if id(entry) not in ids {
+                ids.add(id(entry));
+                out.append(entry);
+            }
+        }
+    }
+    return out;
+}
+
+def resolve_wrapped_entry(
+    prog: JacProgram, call: uni.FuncCall, seen: set[str]
+) -> (uni.UniNode | None) {
+    pos = split_params(call.params)[0];
+    if not pos {
+        return None;
+    }
+    arg = pos[0];
+    inner = arg.target if isinstance(arg, uni.FuncCall) else arg;
+    if not isinstance(inner, uni.Name) {
+        return None;
+    }
+    resolved = _wrap_def_node(inner.value, call);
+    if resolved is not None {
+        return resolved;
+    }
+    imported = _wrap_import_def(prog, inner.value, call, seen);
+    if imported is not None {
+        return imported;
+    }
+    assign = _wrap_var_assignment(inner.value, call);
+    if (assign is not None) and (assign.value is not None) {
+        v = assign.value;
+        cls = v.target if isinstance(v, uni.FuncCall) else v;
+        if isinstance(cls, uni.Name) {
+            local = _wrap_def_node(cls.value, call);
+            if local is not None {
+                return local;
+            }
+            return _wrap_import_def(prog, cls.value, call, seen);
+        }
+    }
+    return None;
+}
+
+def _wrap_def_node(name: str, ctx: uni.UniNode) -> (uni.UniNode | None) {
+    st = ctx.sym_tab;
+    if not st {
+        return None;
+    }
+    sym = st.lookup(name, deep=True);
+    if (not sym) or (not sym.defn) {
+        return None;
+    }
+    cur: (uni.UniNode | None) = sym.defn[0];
+    while cur {
+        if isinstance(cur, (uni.Ability, uni.Archetype)) {
+            return cur;
+        }
+        cur = cur.parent;
+    }
+    return None;
+}
+
+def _wrap_import_def(
+    prog: JacProgram, name: str, ctx: uni.UniNode, seen: set[str]
+) -> (uni.UniNode | None) {
+    mod = ctx.find_parent_of_type(uni.Module);
+    if mod is None {
+        return None;
+    }
+    cls = find_class(mod, name, prog, seen);
+    if cls is not None {
+        return cls;
+    }
+    return find_ability(mod, name, prog, seen);
+}
+
+def _wrap_var_assignment(name: str, ctx: uni.UniNode) -> (uni.Assignment | None) {
+    st = ctx.sym_tab;
+    if not st {
+        return None;
+    }
+    sym = st.lookup(name, deep=True);
+    if not sym {
+        return None;
+    }
+    return defining_assignment(sym);
 }
 
 def entry_key(ab: uni.Ability) -> str {

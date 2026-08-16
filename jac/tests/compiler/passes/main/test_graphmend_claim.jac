@@ -46,6 +46,12 @@ def _src(prog: JacProgram, path: str) -> str {
     return ast.unparse(pa[0] if isinstance(pa, list) else pa);
 }
 
+"""The facts carrier recorded on the compiled module for `path` in `prog`."""
+def _mod_facts(prog: JacProgram, path: str) -> any {
+    mod = prog.mod.hub.get(os.path.realpath(path));
+    return mod.gen.graphmend_facts if (mod is not None) else None;
+}
+
 """Lay out a package whose seed module imports one in-package helper."""
 def _seed_pkg(tmp: str) -> tuple[str, str] {
     _write(tmp, os.path.join("pkg", "__init__.py"), "");
@@ -291,7 +297,10 @@ test "an imported class wrapped at the importer's call site registers as an entr
         net = _write(tmp, os.path.join("pkg", "net.py"), WRAP_NET_SRC);
         prog = JacProgram();
         _src(prog, entry);
-        assert prog.graphmend_wrapped , "the cross-module wrap registered no entry";
+        entry_facts = _mod_facts(prog, entry);
+        assert (entry_facts is not None) and entry_facts.wrapped_keys , (
+            "the cross-module wrap registered no entry"
+        );
         net_src = _src(prog, net);
         assert "__jac_se_emit__(print," in net_src , (
             "the wrapped forward's call chain was not transformed"
@@ -337,30 +346,32 @@ def verify(mask: torch.Tensor):
 ''';
 
 """Lay out entry -> net -> deep, compile importer-first, and return the deep
-module's generated source together with the program."""
-def _chain_src(tmp: str, entry_src: str) -> tuple[str, JacProgram] {
+module's generated source together with its facts carrier."""
+def _chain_src(tmp: str, entry_src: str) -> tuple[str, any] {
     _write(tmp, os.path.join("pkg", "__init__.py"), "");
     entry = _write(tmp, os.path.join("pkg", "entry.py"), entry_src);
     _write(tmp, os.path.join("pkg", "net.py"), CHAIN_NET_SRC);
     deep = _write(tmp, os.path.join("pkg", "deep.py"), CHAIN_DEEP_SRC);
     prog = JacProgram();
     _src(prog, entry);
-    return (_src(prog, deep), prog);
+    deep_src = _src(prog, deep);
+    return (deep_src, _mod_facts(prog, deep));
 }
 
 test "a guard two hops down the claim chain lowers under the entry's wrap" {
     # The guard's module is claimed through the model module, which is claimed
     # through the entry; the wrap at the entry is what decodes its marker.
     with tempfile.TemporaryDirectory() as tmp {
-        (deep_src, prog) = _chain_src(tmp, CHAIN_ENTRY_SRC);
+        (deep_src, facts) = _chain_src(tmp, CHAIN_ENTRY_SRC);
         assert (
             "torch._assert_async(mask.all(), "
             "'[[GM-TRAP ValueError]]mask must be all true[[/GM-TRAP]]')"
             in deep_src
         );
+        assert facts is not None;
         covering = [
             entry
-            for (guard, entry) in prog.graphmend_covered_by.items()
+            for (guard, entry) in facts.covered_by.items()
             if guard.endswith("::verify")
         ];
         assert covering , "no covering entry was recorded for the guard";
@@ -374,10 +385,10 @@ test "the same guard declines when the entry does not wrap the model" {
     # Identical claim chain, no torch.compile anywhere: nothing would decode
     # the marker, so the derivation must not invent a boundary.
     with tempfile.TemporaryDirectory() as tmp {
-        (deep_src, prog) = _chain_src(tmp, CHAIN_NO_WRAP_SRC);
+        (deep_src, facts) = _chain_src(tmp, CHAIN_NO_WRAP_SRC);
         assert "torch._assert_async(" not in deep_src;
         assert "raise ValueError" in deep_src;
-        assert not prog.graphmend_covered_by , (
+        assert (facts is None) or (not facts.covered_by) , (
             "no entry can cover anything in a program with no boundary"
         );
     }
