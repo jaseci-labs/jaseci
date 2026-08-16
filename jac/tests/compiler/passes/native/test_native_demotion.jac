@@ -4,8 +4,9 @@ The native (.jac) backend is best-effort -- a construct it cannot lower must
 fall back to the Python implementation, never crash the whole compile with an
 uncaught Python exception. These tests pin two guarantees:
 
-1. A void-typed value bound to a variable surfaces E5090 (the "native pathway
-   does not yet support ..." diagnostic) instead of asserting deep in
+1. A void-typed value bound to a variable demotes its owning free function
+   with a diagnostic that names the binding (epic #8201 made free functions
+   seam-demotable like methods) instead of asserting deep in
    `_entry_alloca` -> `PointerType.as_pointer()`.
 2. A method whose body raises a hard error in the emitter is demoted to
    Python-only (workstream A4, #6930), so sibling methods in the same module
@@ -21,17 +22,22 @@ glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      );
 
-# --- Fix B: void binding is a diagnostic, not a crash ---
-test "void binding surfaces E5090 instead of crashing" {
-    prog = JacProgram();
-    # Previously raised AssertionError in PointerType.as_pointer (void pointee).
-    prog.compile(
-        file_path=os.path.join(FIXTURES, "void_binding.jac"),
-        options=native_force_opts()
+# --- Fix B: void binding is a named seam, not a crash ---
+test "void binding demotes its function with a named reason, not a crash" {
+    # Previously raised AssertionError in PointerType.as_pointer (void pointee);
+    # the granular-demotion contract then turned the loud module error into a
+    # per-function seam whose reason still names the void binding.
+    (log, ir) = _demotion_log("void_binding.jac");
+    block = _demote_block(log, "caller");
+    assert "void" in block , f"the demotion reason should name the binding:\n{block}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "sink" in layout.functions , (
+        f"clean sibling function was lost: {list(layout.functions)}"
     );
-    assert prog.errors_had , "expected an E5090 diagnostic for the void binding";
-    _msgs = [str(e) for e in prog.errors_had];
-    assert any("void" in m for m in _msgs) , f"no void-binding diagnostic in {_msgs}";
+    assert "caller" not in layout.functions , (
+        "the function with the void binding should be demoted/skipped"
+    );
 }
 
 # --- Fix A: a hard emitter error in one method does not abort the module ---

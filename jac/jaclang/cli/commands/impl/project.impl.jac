@@ -1357,7 +1357,7 @@ impl jacpack(action: str = "", path: str = "", output: str = "") -> int {
         } else {
             jac_toml_path = template_dir / "jac.toml";
             if jac_toml_path.exists() {
-                import from jaclang.jac0core.helpers { read_toml_with_encoding }
+                import from jaclang.jac0core.tomlio { read_toml_with_encoding }
                 jac_config = read_toml_with_encoding(str(jac_toml_path));
                 name = jac_config.get("jacpack", {}).get("name", template_dir.name);
             } else {

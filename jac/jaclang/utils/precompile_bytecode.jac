@@ -19,8 +19,9 @@ import from jaclang.jac0core.jir {
     SEC_BYTECODE,
     SEC_DEBUG_SRC,
     FORMAT_VERSION,
-    compute_module_key,
-    jir_matches_source,
+    compute_precompile_module_key,
+    precompiled_jir_matches_source,
+    running_compiler_digest,
     PRECOMPILE_SENTINEL
 }
 import from jaclang.jac0core.sealed {
@@ -35,6 +36,20 @@ import from jaclang.jac0core.sealed {
 }
 
 glob RESULT_NAME: str = "PRECOMPILE_RESULT.json";
+
+def compiler_identity -> str {
+    digest = running_compiler_digest();
+    if digest.startswith("0:") {
+        raise RuntimeError(
+            "Precompile aborted: no compiler sources found under the running "
+            "jaclang package, so this build cannot state which compiler it is. "
+            "Every seeded .jir would then be reusable by any other compiler at "
+            "this version -- the #8178 failure mode. Check that jac0core/ and "
+            "compiler/ ship with the running jaclang."
+        );
+    }
+    return digest;
+}
 
 def find_package_dir(source_dir: str) -> str | None {
     src = Path(source_dir).resolve();
@@ -211,7 +226,7 @@ def precompile_unit(
         extra = {SEC_DEBUG_SRC: zlib.compress(Path(jac_path).read_bytes(), 9)};
     }
     return write_precompiled_jir(
-        patched, compute_module_key(jac_path), FLAG_PRECOMPILED, extra
+        patched, compute_precompile_module_key(jac_path), FLAG_PRECOMPILED, extra
     );
 }
 
@@ -270,55 +285,91 @@ def seal_bootstrap(pkg_dir: Path, out_dir: Path, embed_src: bool) -> int {
 
 glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/unitree.jac",
+         "jac0core/passes/annex_pass.jac",
+         "jac0core/passes/ast_validation_pass.jac",
+         "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/semantic_analysis_pass.jac",
+         "jac0core/passes/uni_pass.jac",
+         "jac0core/passes/endpoint_effect_pass.jac",
+         "compiler/passes/main/sem_def_match_pass.jac",
          "compiler/native_materialize.jac",
 
-     );
-
-glob NATIVE_SEAL_CLOSURE: tuple = (
+     ),
+     NATIVE_SEAL_CLOSURE: tuple = (
          "jac0core/constant.jac",
+         "jac0core/diagnostics.jac",
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
          "jac0core/parser/tokens.jac",
+         "jac0core/passes/annex_pass.jac",
+         "jac0core/passes/annex_weave.jac",
+         "jac0core/passes/ast_validation_pass.jac",
+         "jac0core/passes/endpoint_effect_pass.jac",
+         "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/semantic_analysis_pass.jac",
+         "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "compiler/native_materialize.jac",
+         "compiler/passes/main/sem_def_match_pass.jac",
+         "runtimelib/na_stdlib/keyword.jac",
 
      );
 
 glob _UNITREE_SEAM_WAIVERS: tuple = (
-         "jac0core/unitree.jac::UniNode._construct_sub_node_tab",
          "jac0core/unitree.jac::ModulePath.resolve_relative_path",
          "jac0core/unitree.jac::ModulePath.native_bundled_path",
          "jac0core/unitree.jac::Ability.event_trigger_type_names",
          "jac0core/unitree.jac::UniNode.gen.__get__",
          "jac0core/unitree.jac::Module.annexable_by.__get__",
-         "jac0core/unitree.jac::Import.is_jac.__get__",
          "jac0core/unitree.jac::Import.__jac_detected.__get__",
          "jac0core/unitree.jac::Import.is_service_import.__get__",
-         "jac0core/unitree.jac::ModulePath.string_path_value.__get__",
-         "jac0core/unitree.jac::ModulePath.dot_path_str.__get__",
-         "jac0core/unitree.jac::ModulePath.base_module_name.__get__",
-         "jac0core/unitree.jac::FuncSignature.is_in_py_class.__get__",
          "jac0core/unitree.jac::DeleteStmt.py_ast_targets.__get__",
-         "jac0core/unitree.jac::AstAccessNode.access_type.__get__",
-         "jac0core/unitree.jac::TypeAlias.access_type.__get__",
-         "jac0core/unitree.jac::GlobalVars.access_type.__get__",
-         "jac0core/unitree.jac::Archetype.access_type.__get__",
-         "jac0core/unitree.jac::Enum.access_type.__get__",
-         "jac0core/unitree.jac::Ability.access_type.__get__",
-         "jac0core/unitree.jac::NameAtom.sem_token.__get__",
-         "jac0core/unitree.jac::Name.sem_token.__get__",
-         "jac0core/unitree.jac::SpecialVarRef.sem_token.__get__",
-         "jac0core/unitree.jac::BuiltinType.sem_token.__get__",
-         "jac0core/unitree.jac::String.lit_value.__get__",
-         "jac0core/unitree.jac::MultiString.lit_value.__get__",
          "jac0core/unitree.jac::BuiltinType.lit_value.__get__",
          "jac0core/unitree.jac::Ellipsis.lit_value.__get__",
 
      ),
+     _MODULE_CODEGEN_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_context_stmts",
+         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_module_imports",
+         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_nested_imports",
+         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.has_native_context_stmts",
+         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.shared_archetypes_for_context",
+         "jac0core/passes/module_codegen_pass.jac::client_capability_violations",
+
+     ),
+     _UNI_PASS_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
+         "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
+
+     ),
+     _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_ability",
+         "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
+
+     ),
+     _SEMANTIC_ANALYSIS_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/semantic_analysis_pass.jac::SemanticAnalysisPass.enter_has_var",
+
+     ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
          "compiler/native_materialize.jac": _UNITREE_SEAM_WAIVERS,
-         "jac0core/unitree.jac": _UNITREE_SEAM_WAIVERS
+         "jac0core/unitree.jac": _UNITREE_SEAM_WAIVERS,
+         "jac0core/passes/annex_pass.jac": _UNITREE_SEAM_WAIVERS,
+         "jac0core/passes/module_codegen_pass.jac": (
+             _UNITREE_SEAM_WAIVERS + _MODULE_CODEGEN_SEAM_WAIVERS
+         ),
+         "jac0core/passes/uni_pass.jac": (
+             _UNITREE_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
+         ),
+         "jac0core/passes/endpoint_effect_pass.jac": (
+             _UNITREE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
+         ),
+         "jac0core/passes/ast_validation_pass.jac": _UNITREE_SEAM_WAIVERS,
+         "jac0core/passes/semantic_analysis_pass.jac": (
+             _UNITREE_SEAM_WAIVERS + _SEMANTIC_ANALYSIS_SEAM_WAIVERS
+         ),
+         "compiler/passes/main/sem_def_match_pass.jac": _UNITREE_SEAM_WAIVERS
      };
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
@@ -453,7 +504,11 @@ def seal_abort_stubs(llvm_ir_text: str) -> list[str] {
             and abort_re.match(body[1]) is not None
             and body[2] == "unreachable"
         ) {
-            stubs.append(matched.group(1) or matched.group(2));
+            stub_name = matched.group(1) or matched.group(2);
+            if stub_name.endswith(".__jac_demoted") {
+                stub_name = stub_name[:-len(".__jac_demoted")];
+            }
+            stubs.append(stub_name);
         }
     }
     return sorted(set(stubs));
@@ -590,6 +645,8 @@ glob _PARITY_CANARY_LINES: tuple = (
          "    return self.a if self.a else -1;",
          "}",
          "test \"canary t\" { assert Canary(a=5).m(2) >= -1; }",
+         "test { assert Canary(a=1).m() >= -1; }",
+         "test box_holds { assert Canary(a=2).m() >= -1; }",
          "with entry { print({'k': [1, 2.5, True, None]}); }",
 
      ),
@@ -653,9 +710,157 @@ glob _PARITY_CANARY_LINES: tuple = (
          "    }",
          "}",
          "test \"box holds\" { assert Box(x=1).m() >= -1; }",
+         "test { assert Box(x=2).m() >= -1; }",
+         "test \"...\" { assert Box(x=3).m() >= -1; }",
          "with entry { b = Box(x=5); print(f'v={b.m(2)}', {'s': [1, 2.5, True, None]}); }  # trailing",
 
      );
+
+glob _PARITY_IDENT_PROBES: tuple = (
+         '"abc"',
+         '"ABC"',
+         '"a1"',
+         '"a b"',
+         '" ab"',
+         '"ab "',
+         "'abc'",
+         '"a-b"',
+         '"..."'
+     );
+
+def _parity_test_names(mod: any) -> list[str] {
+    import jaclang.jac0core.unitree as uni;
+    out: list[str] = [];
+    for nd in mod._in_mod_nodes {
+        if isinstance(nd, uni.Test) {
+            out.append(str(getattr(nd.__dict__.get("name"), "value", "<none>")));
+        }
+    }
+    return out;
+}
+
+
+def _parity_ident_probe(np: any) -> str {
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.parser { Parser }
+
+    nl = chr(10);
+    rows: list[str] = [
+        "    ident-derivation probe: a described test whose ident derives "
+        "must not consume a generated ordinal, so the trailing bare test "
+        "must be _jac_gen_1 on both tiers"
+    ];
+    for pi in range(len(_PARITY_IDENT_PROBES)) {
+        desc = _PARITY_IDENT_PROBES[pi];
+        path = f"__seal_parity_probe_{pi}__.jac";
+        src = nl.join(["test " + desc + " { assert 1; }", "test { assert 1; }"]);
+        n_names: list[str] = [];
+        try {
+            (n_mod, _ne, _npd, _nc, _nld, _nle) = np.parse(src, path);
+            n_names = _parity_test_names(n_mod);
+        } except Exception as probe_exc {
+            n_names = [f"<{type(probe_exc).__name__}: {probe_exc}>"];
+        }
+        (toks, _pc, _pld, _ple) = tokenize_full(src, path);
+        p_names = _parity_test_names(
+            Parser(tokens=toks, file_path=path, source_code=src).parse()
+        );
+        verdict = "ok" if n_names == p_names else "DIVERGED";
+        rows.append(
+            f"      test {desc:<8} native {n_names} vs bytecode {p_names}"
+            f"  {verdict}"
+        );
+    }
+    return nl.join(rows);
+}
+
+
+def _parity_diff_at(left: any, right: any) -> int {
+    limit = min(len(left), len(right));
+    for i in range(limit) {
+        if left[i] != right[i] {
+            return i;
+        }
+    }
+    return limit;
+}
+
+
+def _parity_window(items: list, at: int, span: int, sep: str = " ") -> str {
+    lo = max(0, at - span);
+    hi = min(len(items), at + span + 1);
+    out = sep.join([str(x) for x in items[lo:hi]]);
+    if lo > 0 {
+        out = f"...{out}";
+    }
+    if hi < len(items) {
+        out = f"{out}...";
+    }
+    return out;
+}
+
+
+def _parity_pairwise(left: list, right: list, cap: int) -> tuple[(list[str], int)] {
+    shown: list[str] = [];
+    total = 0;
+    for i in range(max(len(left), len(right))) {
+        l_at = str(left[i]) if i < len(left) else "<end>";
+        r_at = str(right[i]) if i < len(right) else "<end>";
+        if l_at == r_at {
+            continue;
+        }
+        total += 1;
+        if len(shown) < cap {
+            shown.append(f"[{i + 1}] native {l_at!r} vs bytecode {r_at!r}");
+        }
+    }
+    return (shown, total, );
+}
+
+
+def _parity_text_report(canary_path: str, native_up: str, py_up: str) -> str {
+    nl = chr(10);
+    off = _parity_diff_at(native_up, py_up);
+    line = native_up.count(nl, 0, off) + 1;
+    col = off - native_up.rfind(nl, 0, off);
+    n_toks = native_up.split();
+    p_toks = py_up.split();
+    at = _parity_diff_at(n_toks, p_toks);
+    (shown, total) = _parity_pairwise(n_toks, p_toks, 6);
+    out = [
+        f"{canary_path}: unparse diverged at line {line}, col {col} "
+        f"(char {off} of {len(native_up)} native / {len(py_up)} bytecode)",
+        f"    {total} differing token(s) of {len(n_toks)} native / "
+        f"{len(p_toks)} bytecode",
+        f"    native   {_parity_window(n_toks, at, 8)}",
+        f"    bytecode {_parity_window(p_toks, at, 8)}"
+    ];
+    for entry in shown {
+        out.append(f"    {entry}");
+    }
+    if total > len(shown) {
+        out.append(f"    ... and {total - len(shown)} more");
+    }
+    return nl.join(out);
+}
+
+
+def _parity_sym_report(canary_path: str, n_syms: list, p_syms: list) -> str {
+    nl = chr(10);
+    at = _parity_diff_at(n_syms, p_syms);
+    n_show = n_syms[at] if at < len(n_syms) else "<end>";
+    p_show = p_syms[at] if at < len(p_syms) else "<end>";
+    return nl.join(
+        [
+            f"{canary_path}: symbol names diverged at entry {at + 1} of "
+            f"{len(n_syms)} native / {len(p_syms)} bytecode: "
+            f"native {n_show!r} vs bytecode {p_show!r}",
+            f"    native   {_parity_window(n_syms, at, 3, sep=', ')}",
+            f"    bytecode {_parity_window(p_syms, at, 3, sep=', ')}"
+        ]
+    );
+}
+
 
 def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
     import traceback;
@@ -717,46 +922,100 @@ def seal_parse_parity_canary(lib_path: str, layout_dict: dict) -> str {
         }
         native_up = unparse_node(native_mod);
         py_up = unparse_node(py_mod);
-        if native_up != py_up {
-            n_lines = native_up.splitlines();
-            p_lines = py_up.splitlines();
-            at = -1;
-            for (li, pair) in enumerate(zip(n_lines, p_lines)) {
-                if pair[0] != pair[1] {
-                    at = li;
-                    break;
-                }
-            }
-            if at < 0 {
-                at = min(len(n_lines), len(p_lines));
-            }
-            n_show = n_lines[at] if at < len(n_lines) else "<end>";
-            p_show = p_lines[at] if at < len(p_lines) else "<end>";
+        n_syms: list[str] = [];
+        p_syms: list[str] = [];
+        try {
+            n_syms = _sym_name_fingerprint(native_mod);
+            p_syms = _sym_name_fingerprint(py_mod);
+        } except Exception as sym_exc {
             return (
-                f"{canary_path}: unparse fingerprints diverged at line "
-                f"{at + 1}: native {n_show!r} vs bytecode {p_show!r}"
+                f"{canary_path}: symbol fingerprint raised "
+                f"{type(sym_exc).__name__}: {sym_exc}"
             );
         }
-        n_syms = _sym_name_fingerprint(native_mod);
-        p_syms = _sym_name_fingerprint(py_mod);
-        if n_syms != p_syms {
-            at = -1;
-            for (si, sym_pair) in enumerate(zip(n_syms, p_syms)) {
-                if sym_pair[0] != sym_pair[1] {
-                    at = si;
-                    break;
-                }
+        if native_up != py_up or n_syms != p_syms {
+            if env_na_debug() {
+                sys.stderr.write(
+                    f"--- {canary_path}: native unparse ---{nl}{native_up}{nl}"
+                    f"--- {canary_path}: bytecode unparse ---{nl}{py_up}{nl}"
+                );
+                sys.stderr.flush();
             }
-            if at < 0 {
-                at = min(len(n_syms), len(p_syms));
+            detail: list[str] = [];
+            if native_up != py_up {
+                detail.append(_parity_text_report(canary_path, native_up, py_up));
             }
-            n_show = n_syms[at] if at < len(n_syms) else "<end>";
-            p_show = p_syms[at] if at < len(p_syms) else "<end>";
-            return (
-                f"{canary_path}: symbol names diverged at entry {at + 1}: "
-                f"native {n_show!r} vs bytecode {p_show!r}"
-            );
+            if n_syms != p_syms {
+                detail.append(_parity_sym_report(canary_path, n_syms, p_syms));
+            }
+            try {
+                detail.append(_parity_ident_probe(np));
+            } except Exception as probe_exc {
+                detail.append(
+                    f"    ident-derivation probe unavailable: "
+                    f"{type(probe_exc).__name__}: {probe_exc}"
+                );
+            }
+            return nl.join(detail);
         }
+    }
+    return _merge_probe_parity(np);
+}
+
+glob _MERGE_PROBE_MAIN: tuple = (
+         "obj Widget {",
+         "    has size: int = 1;",
+         "    def grow(n: int) -> int;",
+         "}",
+         "with entry { print(Widget(size=2)); }",
+
+     ),
+     _MERGE_PROBE_ANNEX: tuple = (
+         "impl Widget.grow(n: int) -> int {",
+         "    self.size += n;",
+         "    return self.size;",
+         "}",
+         "test \"widget grows\" { assert Widget().grow(2) == 3; }",
+
+     );
+
+def _merge_probe_parity(np: any) -> str {
+    import from jaclang.jac0core.parser.lexer { tokenize_full }
+    import from jaclang.jac0core.parser.parser { Parser }
+    import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
+    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+
+    nl = chr(10);
+    main_src = nl.join(list(_MERGE_PROBE_MAIN));
+    annex_src = nl.join(list(_MERGE_PROBE_ANNEX));
+    main_path = "__seal_merge_probe__.jac";
+    annex_path = "__seal_merge_probe__.impl.jac";
+    sys.stderr.write("    canary: mat_merge_probe (native annex merge)\n");
+    sys.stderr.flush();
+    (merged, m_errs, a_errs) = np.merge_probe(
+        main_src, main_path, annex_src, annex_path
+    );
+    if m_errs or a_errs {
+        return (
+            f"merge probe: the probe sources did not parse cleanly "
+            f"(main {m_errs}, annex {a_errs} error(s))"
+        );
+    }
+    (mt, _mc, _mld, _mle) = tokenize_full(main_src, main_path);
+    py_main = Parser(tokens=mt, file_path=main_path, source_code=main_src).parse();
+    (at, _ac, _ald, _ale) = tokenize_full(annex_src, annex_path);
+    py_annex = Parser(tokens=at, file_path=annex_path, source_code=annex_src).parse();
+    JacAnnexPass._merge_annex(py_main, py_annex);
+    if len(merged.body) != len(py_main.body) {
+        return (
+            f"merge probe: woven body lengths diverged (native "
+            f"{len(merged.body)} vs bytecode {len(py_main.body)})"
+        );
+    }
+    native_up = unparse_node(merged);
+    py_up = unparse_node(py_main);
+    if native_up != py_up {
+        return _parity_text_report("mat_merge_probe", native_up, py_up);
     }
     return "";
 }
@@ -808,21 +1067,258 @@ def _native_lib_filename(stem: str) -> str {
     return f"libjac_{stem}.so";
 }
 
+glob NATIVE_SEAL_INDEX_NAME: str = "SEAL_INDEX.json",
+     NATIVE_SEAL_INDEX_FORMAT: int = 1;
+
+def seal_index_path(precompiled_dir: Path, triple: str) -> Path {
+    return precompiled_dir / "native" / triple / NATIVE_SEAL_INDEX_NAME;
+}
+
+def read_seal_index(precompiled_dir: Path, triple: str) -> dict[str, dict] {
+    try {
+        doc = json.loads(
+            seal_index_path(precompiled_dir, triple).read_text(encoding="utf-8")
+        );
+    } except Exception {
+        return {};
+    }
+    if not isinstance(doc, dict)
+        or doc.get("format") != NATIVE_SEAL_INDEX_FORMAT
+        or doc.get("triple") != triple {
+        return {};
+    }
+    recorded = doc.get("artifacts");
+    if not isinstance(recorded, dict) {
+        return {};
+    }
+    return {
+        k: v
+        for (k, v) in recorded.items()
+        if isinstance(v, dict)
+    };
+}
+
+def write_seal_index(precompiled_dir: Path, triple: str, records: dict[str, dict]) {
+    path = seal_index_path(precompiled_dir, triple);
+    path.parent.mkdir(parents=True, exist_ok=True);
+    path.write_text(
+        json.dumps(
+            {
+                "format": NATIVE_SEAL_INDEX_FORMAT,
+                "triple": triple,
+                "artifacts": records
+            },
+            sort_keys=True,
+            indent=1
+        )
+            + "\n",
+        encoding="utf-8"
+    );
+}
+
+def seal_closure_sources(root_src: Path, deps: (list[str] | None) = None) -> list[str] {
+    base = root_src.resolve().parent;
+    found: list[str] = [str(root_src.resolve())];
+    for raw in (deps or []) {
+        if not raw {
+            continue;
+        }
+        dep = Path(raw);
+        if not dep.is_absolute() {
+            dep = base / raw;
+        }
+        if dep.is_file() {
+            found.append(str(dep.resolve()));
+        }
+    }
+    return sorted(set(found));
+}
+
+def seal_source_label(pkg_path: Path, path: Path) -> str {
+    try {
+        return path.resolve().relative_to(Path(pkg_path).resolve()).as_posix();
+    } except ValueError {
+        return path.resolve().as_posix();
+    }
+}
+
+def seal_source_keys(pkg_path: Path, paths: list[str]) -> (dict[str, str] | None) {
+    import from jaclang.jac0core.jir { module_cache_key }
+    pkg_root = Path(pkg_path).resolve();
+    keys: dict[str, str] = {};
+    for raw in sorted(set(paths)) {
+        if not raw {
+            continue;
+        }
+        src = Path(raw);
+        if not src.is_absolute() {
+            src = pkg_root / raw;
+        }
+        if not src.is_file() {
+            return None;
+        }
+        try {
+            keys[seal_source_label(pkg_path, src)] = module_cache_key(str(src));
+        } except Exception {
+            return None;
+        }
+    }
+    return keys or None;
+}
+
+def seal_artifact_key(rel: str, triple: str, source_keys: dict[str, str]) -> str {
+    h = hashlib.sha256();
+    h.update(f"{NATIVE_SEAL_INDEX_FORMAT}|{rel}|{triple}".encode());
+    for (label, key) in sorted(source_keys.items()) {
+        h.update(f"|{label}={key}".encode());
+    }
+    return h.hexdigest();
+}
+
+def seal_waiver_digest(rel: str, waivers: (dict | None) = None) -> str {
+    (qualified, _bare) = seal_waiver_names(rel, waivers);
+    h = hashlib.sha256();
+    for name in sorted(qualified) {
+        h.update(f"{name}|".encode());
+    }
+    return h.hexdigest();
+}
+
+def seal_reuse_decision(
+    record: (dict | None),
+    precompiled_dir: Path,
+    rel: str,
+    triple: str,
+    identity: str,
+    waiver_digest: str,
+    source_keys: (dict[str, str] | None)
+) -> str {
+    if not record {
+        return "no artifact for it is recorded in the seal index";
+    }
+    if record.get("triple") != triple {
+        return f"it was built for {record.get('triple')!r}, not {triple!r}";
+    }
+    if record.get("compiler") != identity {
+        return "the compiler that built it is not the one running now";
+    }
+    if record.get("waivers") != waiver_digest {
+        return "its demotion waiver table changed, so the seal gate must re-run";
+    }
+    recorded = record.get("sources");
+    if not isinstance(recorded, dict) or not recorded {
+        return "the index records no source closure for it";
+    }
+    if source_keys is None {
+        return "a source in its recorded closure is gone or unreadable";
+    }
+    changed = sorted(
+        label
+        for label in recorded
+        if recorded.get(label) != source_keys.get(label)
+    );
+    if changed {
+        shown = ", ".join(changed[:4]);
+        more = f" and {len(changed) - 4} more" if len(changed) > 4 else "";
+        return f"{len(changed)} closure source(s) changed: {shown}{more}";
+    }
+    if record.get("key") != seal_artifact_key(rel, triple, source_keys) {
+        return "its recorded input key does not match the closure on disk";
+    }
+    for (path_field, sha_field) in (
+        ("lib", "lib_sha256"),
+        ("layout", "layout_sha256")
+    ) {
+        rel_out = record.get(path_field);
+        if not rel_out {
+            return f"the index records no {path_field} path for it";
+        }
+        out_file = precompiled_dir / str(rel_out);
+        if not out_file.is_file() {
+            return f"its {path_field} is missing from the output tree";
+        }
+        if hashlib.sha256(out_file.read_bytes()).hexdigest() != record.get(sha_field) {
+            return f"its {path_field} on disk does not match the recorded sha256";
+        }
+    }
+    return "";
+}
+
+def seal_export_symbols(layout_dict: dict, clib_symbols: any = None) -> list[str] {
+    clib = set(clib_symbols or ());
+    names = {
+        fn_name
+        for fn_name in (layout_dict.get("functions") or {})
+        if fn_name not in clib
+    };
+    for struct_def in (layout_dict.get("structs") or {}).values() {
+        for kinds in (struct_def.get("accessors") or {}).values() {
+            names.update(kinds.values());
+        }
+    }
+    return sorted(names);
+}
+
+glob PRECOMPILED_KEEP_DIRS: tuple = ("native", );
+
+def prune_stale_precompiled_dirs(precompiled_dir: Path, pyver: str) -> int {
+    removed = 0;
+    for stale_dir in sorted(precompiled_dir.iterdir()) {
+        if not stale_dir.is_dir()
+            or stale_dir.name == pyver
+            or stale_dir.name in PRECOMPILED_KEEP_DIRS {
+            continue;
+        }
+        shutil.rmtree(stale_dir, ignore_errors=True);
+        removed += 1;
+    }
+    return removed;
+}
+
+def prune_native_outputs(precompiled_dir: Path, triple: str, keep: set[str]) -> int {
+    native_root = precompiled_dir / "native";
+    if not native_root.is_dir() {
+        return 0;
+    }
+    index_rel = seal_index_path(precompiled_dir, triple).relative_to(
+        precompiled_dir
+    ).as_posix();
+    removed = 0;
+    for found in sorted(native_root.rglob("*")) {
+        if not found.is_file() {
+            continue;
+        }
+        rel_out = found.relative_to(precompiled_dir).as_posix();
+        if rel_out in keep or rel_out == index_rel {
+            continue;
+        }
+        found.unlink(missing_ok=True);
+        removed += 1;
+    }
+    for found in sorted(native_root.rglob("*"), reverse=True) {
+        if found.is_dir() and not any(found.iterdir()) {
+            found.rmdir();
+        }
+    }
+    return removed;
+}
+
 def seal_native_artifacts(
     pkg_path: Path,
     precompiled_dir: Path,
     modules: (tuple | None) = None,
-    waivers: (dict | None) = None
+    waivers: (dict | None) = None,
+    canary_reused: bool = True
 ) -> (dict[str, dict] | None) {
     artifacts: dict[str, dict] = {};
-    stale_native = precompiled_dir / "native";
-    if stale_native.is_dir() {
-        shutil.rmtree(stale_native, ignore_errors=True);
-    }
-
     if sys.platform.startswith("win") {
+        stale_native = precompiled_dir / "native";
+        if stale_native.is_dir() {
+            shutil.rmtree(stale_native, ignore_errors=True);
+        }
         return artifacts;
     }
+    import from jaclang.jac0core.jir { cache_mode }
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.codeinfo { native_layout_to_dict }
@@ -831,6 +1327,13 @@ def seal_native_artifacts(
     import jaclang.compiler.passes.native.llvm.binding as llvm;
 
     pkg_name = pkg_path.name;
+    triple = llvm.get_default_triple();
+    out_dir = precompiled_dir / "native" / triple;
+    identity = compiler_identity();
+    (forced_rebuild, _no_precompile) = cache_mode();
+    index = {} if forced_rebuild else read_seal_index(precompiled_dir, triple);
+    fresh_index: dict[str, dict] = dict(index);
+    kept: dict[str, dict] = {};
     _seal_layouts: dict[str, dict] = {};
     _mat_manifest: (dict[str, any] | None) = None;
     _gen_root_src: (Path | None) = None;
@@ -854,12 +1357,92 @@ def seal_native_artifacts(
             _mat_manifest = generate_materialize_root(
                 unitree_layout, src, _UNITREE_SEAM_WAIVERS
             );
+            for _mat_warn in (_mat_manifest.pop("warnings", None) or []) {
+                console.warning(
+                    f"NATIVE SEAL: the materializer erased a slot: {_mat_warn}. "
+                    "The Python side must reconstruct it (postinit or a lazy "
+                    "accessor) or the materialized tree loses that value."
+                );
+            }
             _gen_root_src = src;
         }
         if not src.is_file() {
             console.error(f"NATIVE SEAL: missing source {src}");
             return None;
         }
+        stem = ext_registry.base_stem(os.path.basename(rel));
+        parts = [
+            p
+            for p in os.path.dirname(rel).split("/")
+            if p
+        ];
+        fullname = ".".join([pkg_name] + parts + [stem]);
+        lib_path = out_dir / _native_lib_filename(stem);
+        layout_path = out_dir / f"{stem}.layout.json";
+        waiver_digest = seal_waiver_digest(rel, waivers);
+        record = index.get(rel);
+        why = "a full rebuild was requested (JAC_REBUILD)";
+        if not forced_rebuild {
+            why = seal_reuse_decision(
+                record,
+                precompiled_dir,
+                rel,
+                triple,
+                identity,
+                waiver_digest,
+                seal_source_keys(pkg_path, sorted((record or {}).get("sources") or {}))
+            );
+        }
+        if not why and record is not None {
+            reuse_lib = precompiled_dir / str(record["lib"]);
+            reuse_layout = precompiled_dir / str(record["layout"]);
+            reused_layout: (dict | None) = None;
+            try {
+                reused_layout = json.loads(reuse_layout.read_text(encoding="utf-8"));
+            } except Exception as _layout_exc {
+                why = f"its layout could not be read back: {_layout_exc}";
+            }
+            if reused_layout is not None {
+                reused_exports = seal_export_symbols(
+                    reused_layout, record.get("clib_symbols")
+                );
+                canary = "";
+                if canary_reused {
+                    canary = seal_native_canary(str(reuse_lib), reused_exports);
+                    if not canary and rel == "compiler/native_materialize.jac" {
+                        canary = seal_parse_parity_canary(
+                            str(reuse_lib), reused_layout
+                        );
+                    }
+                }
+                if canary {
+                    why = f"its canary no longer passes: {canary}";
+                } else {
+                    _seal_layouts[rel] = reused_layout;
+                    artifacts[fullname] = {
+                        "lib": record["lib"],
+                        "layout": record["layout"],
+                        "triple": triple,
+                        "lib_sha256": record["lib_sha256"],
+                        "layout_sha256": record["layout_sha256"]
+                    };
+                    kept[rel] = record;
+                    fresh_index[rel] = record;
+                    if _gen_root_src is not None
+                        and rel == "compiler/native_materialize.jac" {
+                        _gen_root_src.unlink(missing_ok=True);
+                        _gen_root_src = None;
+                    }
+                    console.print(
+                        f"  Native artifact: {fullname} -> {reuse_lib.name} "
+                        f"reused ({reuse_lib.stat().st_size:,} bytes, "
+                        f"{len(reused_exports)} exports)"
+                    );
+                    continue;
+                }
+            }
+        }
+        console.print(f"  Building {rel}: {why}.");
         prog = JacProgram();
         na_census_begin();
         try {
@@ -980,7 +1563,6 @@ def seal_native_artifacts(
             layout_dict["materialize_manifest"] = _mat_manifest;
         }
         _stub_syms = set(seal_abort_stubs(llvm_ir_text));
-        accessor_syms: set[str] = set();
         for _sd in layout_dict["structs"].values() {
             _live = {
                 _fname: {
@@ -994,16 +1576,11 @@ def seal_native_artifacts(
                 for (_fname, _kinds) in _live.items()
                 if _kinds
             };
-            for _kinds in _sd["accessors"].values() {
-                accessor_syms.update(_kinds.values());
-            }
         }
-        exports = sorted(set(exports) | accessor_syms);
-        triple = llvm.get_default_triple();
-        out_dir = precompiled_dir / "native" / triple;
+        exports = seal_export_symbols(layout_dict, _clib_syms);
         out_dir.mkdir(parents=True, exist_ok=True);
-        stem = ext_registry.base_stem(os.path.basename(rel));
-        lib_path = out_dir / _native_lib_filename(stem);
+        lib_path.unlink(missing_ok=True);
+        layout_path.unlink(missing_ok=True);
         transitive = list(manifest.native_transitive_sources) if manifest else [];
         (ok, err) = emit_shared_library(
             str(ir.gen.llvm_ir),
@@ -1030,7 +1607,6 @@ def seal_native_artifacts(
             purge_native_ir_cache(str(src), closure_deps);
             return None;
         }
-        layout_path = out_dir / f"{stem}.layout.json";
         layout_path.write_text(
             json.dumps(layout_dict, sort_keys=True) + "\n", encoding="utf-8"
         );
@@ -1039,10 +1615,10 @@ def seal_native_artifacts(
             if parity {
                 console.error(
                     f"NATIVE SEAL: {rel}: the emitted artifact "
-                    f"{lib_path.name} failed its parse parity canary: "
-                    f"{parity}. The seal refuses artifacts whose parses do "
-                    "not match the bytecode parser; set JAC_NA_DEBUG=1 for "
-                    "the traceback."
+                    f"{lib_path.name} failed its parse parity canary. The "
+                    "seal refuses artifacts whose parses do not match the "
+                    "bytecode parser; set JAC_NA_DEBUG=1 for the full "
+                    f"unparsed texts and the traceback.{chr(10)}{parity}"
                 );
                 lib_path.unlink(missing_ok=True);
                 layout_path.unlink(missing_ok=True);
@@ -1050,12 +1626,6 @@ def seal_native_artifacts(
                 return None;
             }
         }
-        parts = [
-            p
-            for p in os.path.dirname(rel).split("/")
-            if p
-        ];
-        fullname = ".".join([pkg_name] + parts + [stem]);
         artifacts[fullname] = {
             "lib": lib_path.relative_to(precompiled_dir).as_posix(),
             "layout": layout_path.relative_to(precompiled_dir).as_posix(),
@@ -1063,6 +1633,23 @@ def seal_native_artifacts(
             "lib_sha256": hashlib.sha256(lib_path.read_bytes()).hexdigest(),
             "layout_sha256": hashlib.sha256(layout_path.read_bytes()).hexdigest()
         };
+        built_keys = seal_source_keys(
+            pkg_path, seal_closure_sources(src, closure_deps)
+        );
+        if built_keys is not None {
+            new_record = dict(artifacts[fullname]);
+            new_record["key"] = seal_artifact_key(rel, triple, built_keys);
+            new_record["compiler"] = identity;
+            new_record["waivers"] = waiver_digest;
+            new_record["module"] = fullname;
+            new_record["clib_symbols"] = sorted(_clib_syms);
+            new_record["sources"] = built_keys;
+            fresh_index[rel] = new_record;
+            kept[rel] = new_record;
+        } else {
+            fresh_index.pop(rel, None);
+        }
+        write_seal_index(precompiled_dir, triple, fresh_index);
         if _gen_root_src is not None and rel == "compiler/native_materialize.jac" {
             _gen_root_src.unlink(missing_ok=True);
             _gen_root_src = None;
@@ -1072,6 +1659,13 @@ def seal_native_artifacts(
             f"({lib_path.stat().st_size:,} bytes, {len(exports)} exports)"
         );
     }
+    write_seal_index(precompiled_dir, triple, kept);
+    live: set[str] = set();
+    for rec in kept.values() {
+        live.add(str(rec["lib"]));
+        live.add(str(rec["layout"]));
+    }
+    prune_native_outputs(precompiled_dir, triple, live);
     return artifacts;
 }
 
@@ -1179,7 +1773,12 @@ def collect_payloads(pkg_path: Path) -> dict[str, str] {
 }
 
 def seal_finalize(
-    pkg_path: Path, precompiled_dir: Path, pkg_name: str, pyver: str, embed_src: bool
+    pkg_path: Path,
+    precompiled_dir: Path,
+    pkg_name: str,
+    pyver: str,
+    embed_src: bool,
+    canary_reused: bool = True
 ) -> int {
     writes = (
         FORMAT_VERSION,
@@ -1220,6 +1819,27 @@ def seal_finalize(
         return 1;
     }
 
+    identity = compiler_identity();
+    foreign: list[str] = [];
+    for p in sealable_sources(str(pkg_path)) {
+        rel = Path(p).relative_to(pkg_path);
+        jir = precompiled_dir / pyver / rel.with_suffix(".jir");
+        if not precompiled_jir_matches_source(jir.read_bytes(), p, identity) {
+            foreign.append(str(rel));
+        }
+    }
+    if foreign {
+        console.error(
+            f"Seal aborted: {len(foreign)} module(s) carry a JIR this compiler "
+            f"did not produce (first: {foreign[:5]}). Their module keys name a "
+            "different compiler content digest, so the seed served bytecode "
+            "built by another compiler at this same version (#8178). Delete "
+            f"{precompiled_dir} and re-run the precompile."
+        );
+        return 1;
+    }
+    console.print(f"  Compiler identity: {identity} (verified over every JIR)");
+
     out_dir = precompiled_dir / pyver;
 
     stale_boot = precompiled_dir / "bootstrap";
@@ -1237,7 +1857,9 @@ def seal_finalize(
     native_seal: (dict[str, any] | None) = None;
     if pkg_name == "jaclang" {
         console.print("  Sealing AOT native artifacts...");
-        native_artifacts = seal_native_artifacts(pkg_path, precompiled_dir);
+        native_artifacts = seal_native_artifacts(
+            pkg_path, precompiled_dir, canary_reused=canary_reused
+        );
         if native_artifacts is None {
             console.error("Seal aborted: native artifact build failed.");
             return 1;
@@ -1322,6 +1944,7 @@ def write_manifest(
         "python_tag": pyver,
         "jir_format_version": FORMAT_VERSION,
         "jaclang_version": jac_ver,
+        "compiler_digest": compiler_identity(),
         "modules": modules
     };
     if payloads {
@@ -1351,6 +1974,7 @@ def main {
     seal_compile = "--seal-compile" in args;
     finalize_only = "--seal-finalize" in args;
     embed_src = "--debug-src" in args;
+    canary_reused = "--seal-skip-reused-canary" not in args;
     exclude_jac0core = seal or seal_compile;
     args = [
         a
@@ -1385,6 +2009,11 @@ def main {
         console.print(
             "--debug-src: embed zlib source text in each .jir (dev tracebacks)."
         );
+        console.print("--seal-skip-reused-canary: do not re-run the load and parity");
+        console.print("        canaries on native artifacts the seal reused unchanged");
+        console.print(
+            "        (tightest dev loop; the canaries still run on rebuilds)."
+        );
         sys.exit(1);
     }
 
@@ -1414,13 +2043,19 @@ def main {
         console.print(f"Sealing {pkg_name} for {pyver} (finalize)...");
         sys.exit(
             seal_finalize(
-                Path(package_dir), precompiled_dir, pkg_name, pyver, embed_src
+                Path(package_dir),
+                precompiled_dir,
+                pkg_name,
+                pyver,
+                embed_src,
+                canary_reused
             )
         );
     }
 
     console.print(f"Precompiling {pkg_name} for {pyver}...");
     console.print(f"  Package directory: {package_dir}");
+    console.print(f"  Compiler identity: {compiler_identity()}");
 
     jac_files = (
         sealable_sources(package_dir)
@@ -1438,11 +2073,7 @@ def main {
     out_dir.mkdir(parents=True, exist_ok=True);
     (precompiled_dir / RESULT_NAME).unlink(missing_ok=True);
 
-    for stale_dir in sorted(precompiled_dir.iterdir()) {
-        if stale_dir.is_dir() and stale_dir.name != pyver {
-            shutil.rmtree(stale_dir, ignore_errors=True);
-        }
-    }
+    prune_stale_precompiled_dirs(precompiled_dir, pyver);
     pkg_path = Path(package_dir);
     expected: set[str] = {
         str(Path(p).relative_to(pkg_path).with_suffix(".jir")) for p in jac_files
@@ -1472,7 +2103,7 @@ def main {
         try {
             if jir_path.is_file() {
                 existing = jir_path.read_bytes();
-                if jir_matches_source(existing, jac_path)
+                if precompiled_jir_matches_source(existing, jac_path)
                     and embed_src == (read_debug_source(existing) is not None) {
                     reused += 1;
                     continue;
@@ -1482,6 +2113,7 @@ def main {
             jir_bytes = precompile_unit(jac_path, package_dir, embed_src);
             if jir_bytes is None {
                 console.print(f"  SKIP (no bytecode): {rel}");
+                jir_path.unlink(missing_ok=True);
                 failed += 1;
                 continue;
             }
@@ -1491,6 +2123,7 @@ def main {
             compiled += 1;
         } except Exception as e {
             console.error(f"FAIL: {rel} - {e}");
+            jir_path.unlink(missing_ok=True);
             failed += 1;
         }
     }
@@ -1519,7 +2152,11 @@ def main {
     );
 
     if seal {
-        sys.exit(seal_finalize(pkg_path, precompiled_dir, pkg_name, pyver, embed_src));
+        sys.exit(
+            seal_finalize(
+                pkg_path, precompiled_dir, pkg_name, pyver, embed_src, canary_reused
+            )
+        );
     }
 }
 

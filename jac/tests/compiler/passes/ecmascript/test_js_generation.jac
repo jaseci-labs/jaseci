@@ -26,6 +26,7 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.modresolver { convert_to_js_import_path }
 import from jaclang.jac0core.passes.transform { Alert }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
@@ -87,7 +88,7 @@ def compile_fixture_to_js(fixture_name: str, fixture_dir: str = "") -> str {
         f"Compilation errors in {fixture_name}: {[str(e) for e in _fatal]}"
     );
 
-    es_pass = EsastGenPass(ir_in=ir, prog=prog);
+    es_pass = run_pass(EsastGenPass, ir, prog);
     es_ir = es_pass.ir_out;
 
     assert hasattr(es_ir.gen, "es_ast") , "es_ast attribute missing";
@@ -1165,7 +1166,7 @@ test "sv import duplicate kwarg is a compile error" {
     fixture = os.path.join(FIXTURES, "svc_kwargs/sv_import_kwargs_dup.jac");
     prog = JacProgram();
     ir = prog.compile(file_path=fixture, no_cgen=True, type_check=True);
-    EsastGenPass(ir_in=ir, prog=prog);
+    run_pass(EsastGenPass, ir, prog);
 
     dup_errs = [
         e
@@ -3070,7 +3071,7 @@ test "unimplemented client statement is a hard error, not a silent drop (#7922)"
     try {
         prog = JacProgram();
         ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
-        EsastGenPass(ir_in=ir, prog=prog);
+        run_pass(EsastGenPass, ir, prog);
         drops = [
             e
             for e in prog.errors_had
@@ -3109,7 +3110,7 @@ test "supported client statements do not trip the completeness guard (#7922)" {
     try {
         prog = JacProgram();
         ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
-        EsastGenPass(ir_in=ir, prog=prog);
+        run_pass(EsastGenPass, ir, prog);
         drops = [
             e
             for e in prog.errors_had

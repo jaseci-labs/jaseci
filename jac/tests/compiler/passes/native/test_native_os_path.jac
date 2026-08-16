@@ -43,5 +43,5 @@ test "unsupported os path members fail the native compile loudly" {
     );
     combined = (comp.stdout or "") + (comp.stderr or "");
     assert comp.returncode != 0 , f"unsupported os.path member compiled silently: {combined[-400:]}";
-    assert "getmtime" in combined , f"diagnostic does not name the member: {combined[-400:]}";
+    assert "islink" in combined , f"diagnostic does not name the member: {combined[-400:]}";
 }
