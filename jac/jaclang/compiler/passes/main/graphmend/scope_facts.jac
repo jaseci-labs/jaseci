@@ -4,7 +4,13 @@ import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.main.graphmend.ast_edit { split_params }
 import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
+    AUTOGRAD_ITEM_NAMES,
+    AUTOGRAD_MODULE_PATHS,
+    AUTOGRAD_SIGNAL_ATTRS,
+    GRAD_OFF_CTX_ATTRS,
+    OPTIM_RECEIVER_PATTERNS,
     decorator_base,
+    expr_uses_attr,
     has_torch_compile_decorator,
     is_torch_attr_target
 }
@@ -186,6 +192,148 @@ def module_binds_torch(mod: uni.Module) -> bool {
         }
     }
     return False;
+}
+
+def module_reaches_autograd(mod: uni.Module) -> bool {
+    if expr_uses_attr(mod, AUTOGRAD_SIGNAL_ATTRS) {
+        return True;
+    }
+    for kw in mod.get_all_sub_nodes(uni.KWPair) {
+        if (kw.key is not None) and (kw.key.sym_name == 'requires_grad') {
+            return True;
+        }
+    }
+    for tr in mod.get_all_sub_nodes(uni.AtomTrailer) {
+        if (
+            tr.is_attr
+            and isinstance(tr.right, uni.Name)
+            and (tr.right.value == 'step')
+            and _optim_spelled(tr.target)
+        ) {
+            return True;
+        }
+    }
+    for mp in mod.get_all_sub_nodes(uni.ModulePath) {
+        if mp.level != 0 {
+            continue;
+        }
+        p = mp.dot_path_str;
+        for prefix in AUTOGRAD_MODULE_PATHS {
+            if (p == prefix) or p.startswith(prefix + '.') {
+                return True;
+            }
+        }
+    }
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        fl = imp.from_loc;
+        if (fl is None) or (fl.level != 0) or (fl.dot_path_str != 'torch') {
+            continue;
+        }
+        for item in imp.items {
+            if (
+                isinstance(item, uni.ModuleItem)
+                and isinstance(item.name, uni.Name)
+                and (item.name.value in AUTOGRAD_ITEM_NAMES)
+            ) {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+def _optim_spelled(recv: (uni.Expr | None)) -> bool {
+    if recv is None {
+        return False;
+    }
+    names = list(recv.get_all_sub_nodes(uni.Name));
+    if isinstance(recv, uni.Name) {
+        names.append(recv);
+    }
+    for nm in names {
+        low = nm.value.lower();
+        for pat in OPTIM_RECEIVER_PATTERNS {
+            if pat in low {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
+def region_in_inference_ctx(region: uni.UniNode) -> bool {
+    mod = region.find_parent_of_type(uni.Module);
+    if mod is None {
+        return False;
+    }
+    cur: (uni.UniNode | None) = region.parent;
+    while cur is not None {
+        if isinstance(cur, uni.WithStmt) {
+            return _with_disables_grad(cur, mod);
+        }
+        if isinstance(cur, uni.Ability) {
+            return _deco_disables_grad(cur, mod);
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+def _with_disables_grad(ws: uni.WithStmt, mod: uni.Module) -> bool {
+    items = list(ws.exprs or []);
+    if not items {
+        return False;
+    }
+    for item in items {
+        e = item.expr;
+        if not isinstance(e, uni.FuncCall) {
+            return False;
+        }
+        if (e.params or []) or (not _grad_off_target(e.target, mod)) {
+            return False;
+        }
+    }
+    return True;
+}
+
+def _deco_disables_grad(ab: uni.Ability, mod: uni.Module) -> bool {
+    for dec in (ab.decorators or []) {
+        if isinstance(dec, uni.FuncCall) {
+            if (not (dec.params or [])) and _grad_off_target(dec.target, mod) {
+                return True;
+            }
+        } elif _grad_off_target(dec, mod) {
+            return True;
+        }
+    }
+    return False;
+}
+
+def _grad_off_target(t: (uni.Expr | None), mod: uni.Module) -> bool {
+    if not (isinstance(t, uni.AtomTrailer) and isinstance(t.right, uni.Name)) {
+        return False;
+    }
+    if t.right.value not in GRAD_OFF_CTX_ATTRS {
+        return False;
+    }
+    base = t.target;
+    if not (isinstance(base, uni.Name) and (base.value == 'torch')) {
+        return False;
+    }
+    return _torch_root_declares(base, mod);
+}
+
+def _torch_root_declares(nm: uni.Name, mod: uni.Module) -> bool {
+    decl = _sym_decl(nm);
+    if decl is not None {
+        mp = decl.find_parent_of_type(uni.ModulePath);
+        return (
+            (mp is not None)
+            and (not mp.is_import_from)
+            and (mp.dot_path_str == 'torch')
+        );
+    }
+    return module_imports_plain(mod, 'torch');
 }
 
 def binds_torch_module_base(

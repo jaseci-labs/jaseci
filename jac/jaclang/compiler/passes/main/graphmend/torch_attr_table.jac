@@ -20,7 +20,23 @@ glob DYNAMIC_TORCH_ATTRS: set[str] = {
      },
      SCALAR_TORCH_ATTRS: set[str] = {'item', 'tolist', 'equal', 'allclose'},
      LOGGING_PATTERNS: list[str] = ['logger', 'logging', 'warn', 'critical'],
-     SIDE_EFFECT_CALLS: set[str] = {'print'};
+     SIDE_EFFECT_CALLS: set[str] = {'print'},
+     AUTOGRAD_SIGNAL_ATTRS: set[str] = {
+         'autograd',
+         'backward',
+         'enable_grad',
+         'grad',
+         'requires_grad',
+         'requires_grad_',
+         'set_grad_enabled',
+         'train',
+         'training',
+         'zero_grad'
+     },
+     AUTOGRAD_MODULE_PATHS: list[str] = ['torch.autograd', 'torch.optim'],
+     AUTOGRAD_ITEM_NAMES: set[str] = {'autograd', 'optim'},
+     OPTIM_RECEIVER_PATTERNS: list[str] = ['optim', 'sched'],
+     GRAD_OFF_CTX_ATTRS: set[str] = {'no_grad', 'inference_mode'};
 
 def cond_is_data_dependent(cond: uni.Expr) -> bool {
     return cond_traces_attr(cond, DYNAMIC_TORCH_ATTRS, False);

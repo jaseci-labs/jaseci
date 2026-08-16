@@ -52,6 +52,7 @@ glob _PURE_BUILTINS: set[str] = {
 
 obj PredicateCtrlFlowPass(UniPass) {
     has _enabled: bool = False,
+        _autograd_reachable: bool = False,
         _counter: int = 0,
         _mat_seen: set[str] = set();
 
