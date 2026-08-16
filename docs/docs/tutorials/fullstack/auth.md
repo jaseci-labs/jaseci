@@ -450,7 +450,7 @@ def:pub AuthShell() -> JsxLayout {
 The `AuthGuard` component:
 
 - Checks if user is logged in via `jacIsLoggedIn()`
-- If authenticated: renders child routes via `<Outlet />`
+- If authenticated: renders its children, or - given none - the matched child route via `<Outlet />`
 - If not authenticated: redirects to the specified path
 
 ---
