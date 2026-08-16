@@ -85,6 +85,19 @@ def emit_shared_library(
     import sys;
 
     (ir_str, extra_exports) = inject_shared_init(llvm_ir_str, transitive_sources);
+    is_elf = not sys.platform.startswith("win") and sys.platform != "darwin";
+    if is_elf and clib_paths and "@atexit(" not in ir_str {
+        ir_str += (
+            "\n; --- atexit shim: glibc exports __cxa_atexit dynamically but "
+            "keeps atexit\n; in libc_nonshared.a, so a floor-archive member "
+            "that calls it would leave\n; the artifact with an unresolvable "
+            "reference at dlopen ---\n"
+            "declare i32 @__cxa_atexit(ptr, ptr, ptr)\n"
+            "define hidden i32 @atexit(ptr %f) {\nentry:\n"
+            "  %r = call i32 @__cxa_atexit(ptr %f, ptr null, ptr null)\n"
+            "  ret i32 %r\n}\n"
+        );
+    }
     exports: list[str] = [];
     for _s in list(export_symbols) + extra_exports + ["__jac_shared_init"] {
         if _s and _s not in exports {

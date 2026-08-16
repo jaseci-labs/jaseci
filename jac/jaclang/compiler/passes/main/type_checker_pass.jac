@@ -52,7 +52,7 @@ import from jaclang.jac0core.unitree {
     WithStmt,
     YieldExpr
 }
-import from jaclang.jac0core.passes { UniPass }
+import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.diagnostics {
     DiagnosticInfo,

@@ -840,8 +840,18 @@ impl JacCompiler.load_annex_modules(
 impl JacCompiler.resolve_absorb_imports(
     mod: uni.Module, target_program: JacProgram
 ) -> None {
-    import from jaclang.jac0core.passes.sym_tab_build_pass { find_python_scope_node_of }
+    import from jaclang.jac0core.unitree { find_python_scope_node_of }
     for imp in mod.get_all_sub_nodes(uni.Import) {
+        if imp.from_loc is not None {
+            for item in imp.items {
+                if (
+                    isinstance(item, uni.ModulePath) and item.path and not item.alias
+                ) {
+                    imp.jac_detected = imp.is_jac;
+                    break;
+                }
+            }
+        }
         if not imp.is_absorb {
             continue;
         }
@@ -866,6 +876,158 @@ impl JacCompiler.resolve_absorb_imports(
             }
         }
         imp.absorbed_mod = module;
+    }
+}
+
+impl JacCompiler.stamp_boundary_facts(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    import from jaclang.jac0core.codeinfo {
+        is_bundled_native_module,
+        resolve_native_module
+    }
+    import from jaclang.jac0core.placement_pins { config_module_pin }
+
+    base_dir = '.';
+    if mod.loc {
+        base_dir = os.path.dirname(mod.loc.mod_path);
+    }
+    in_native_mod = mod.loc is not None and mod.decided_codespace == 'native';
+
+    def resolve_native(module_name: str, inferred_ok: bool) -> (str | None) {
+        (src_mod_str, _full_path) = resolve_native_module(
+            module_name, base_dir, allow_inferred=inferred_ok
+        );
+        return src_mod_str;
+    }
+
+    def parse_only_module(file_path: str) -> (uni.Module | None) {
+        try {
+            src_text = read_file_with_encoding(file_path);
+            return JacCompiler().parse_str(
+                source_str=src_text, file_path=file_path, target_program=JacProgram()
+            );
+        } except Exception {
+            return None;
+        }
+    }
+
+    for nd in mod.get_all_sub_nodes(uni.Import) {
+        facts = uni.ImportBoundaryFacts();
+        nd.boundary_facts = facts;
+        native_ctx = nd.codespace() == CodeContext.NATIVE;
+
+        if (nd.from_loc and isinstance(nd.from_loc, uni.ModulePath)) {
+            module_name = nd.from_loc.dot_path_str;
+            if (not module_name and nd.from_loc.path) {
+                module_name = '.'.join(p.value for p in nd.from_loc.path);
+            }
+            if module_name {
+                cl_na_edge = is_client_native_edge_import(nd, target_program);
+                facts.client_native_edge = cl_na_edge;
+                na_intent = (
+                    native_ctx
+                    or in_native_mod
+                    or import_declares_native_target(nd)
+                    or cl_na_edge
+                );
+                facts.native_from_path = resolve_native(module_name, na_intent);
+                try {
+                    facts.from_loc_resolved = nd.from_loc.resolve_relative_path();
+                } except Exception {
+                    facts.from_loc_resolved = None;
+                }
+                facts.is_service = nd.is_service_import;
+                if (nd.items and not facts.is_service and nd.in_client_context()) {
+                    resolved = facts.from_loc_resolved;
+                    if (resolved is not None and resolved.endswith('.jac')) {
+                        try {
+                            facts.pinned_server = (
+                                config_module_pin(resolved) == 'server'
+                            );
+                        } except Exception {
+                            facts.pinned_server = False;
+                        }
+                    }
+                }
+                if (
+                    (facts.is_service and not facts.native_from_path)
+                    or (nd.items and not facts.is_service and facts.pinned_server)
+                ) {
+                    source_mod: (uni.Module | None) = None;
+                    resolved_path = facts.from_loc_resolved;
+                    if resolved_path is not None {
+                        if (target_program.mod and target_program.mod.hub) {
+                            source_mod = target_program.mod.hub.get(resolved_path);
+                        }
+                        if (source_mod is None and os.path.isfile(resolved_path)) {
+                            source_mod = parse_only_module(resolved_path);
+                        }
+                    }
+                    facts.sv_source_mod = source_mod;
+                }
+                if (
+                    nd.items
+                    and not facts.is_service
+                    and not facts.pinned_server
+                    and not cl_na_edge
+                    and is_client_boundary_import(nd)
+                ) {
+                    linked_mod = symbol_linked_source_module(nd);
+                    if linked_mod is not None {
+                        for item in nd.items {
+                            if not isinstance(item, uni.ModuleItem) {
+                                continue;
+                            }
+                            verdict = classify_client_import_item(linked_mod, item);
+                            if verdict != ClientImportVerdict.BRIDGED {
+                                continue;
+                            }
+                            sym_name = item.name.value;
+                            decl = ability_of_symbol(linked_mod.lookup(sym_name));
+                            if decl is not None {
+                                facts.bridged_decls[sym_name] = decl;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if ((not nd.from_loc) and nd.is_absorb and nd.items and (not nd.clib_decls)) {
+            item = nd.items[0];
+            if (isinstance(item, uni.ModulePath) and item.path) {
+                module_name = '.'.join(p.value for p in item.path);
+                if module_name {
+                    na_intent = (
+                        native_ctx or in_native_mod or import_declares_native_target(nd)
+                    );
+                    facts.native_absorb_path = resolve_native(module_name, na_intent);
+                }
+            }
+            continue;
+        }
+
+        if ((not nd.from_loc) and nd.items and (not nd.clib_decls)) {
+            for item in nd.items {
+                if (isinstance(item, uni.ModulePath) and item.path) {
+                    whole_name = '.'.join(p.value for p in item.path);
+                    eligible = is_bundled_native_module(whole_name)
+                        or (item.alias is None and len(item.path) == 1);
+                    if (whole_name and eligible) {
+                        na_intent = (
+                            native_ctx
+                            or in_native_mod
+                            or import_declares_native_target(nd)
+                        );
+                        item_path = resolve_native(whole_name, na_intent);
+                        if item_path {
+                            facts.native_item_paths[whole_name] = item_path;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1323,6 +1485,9 @@ impl JacCompiler.run_schedule(
         }
         if current_pass is SymTabBuildPass {
             self.resolve_absorb_imports(mod, target_program);
+        }
+        if current_pass is BoundaryAnalysisPass {
+            self.stamp_boundary_facts(mod, target_program);
         }
         run_pass(
             current_pass, mod, target_program, cancel_token=cancel_token, policy=_policy

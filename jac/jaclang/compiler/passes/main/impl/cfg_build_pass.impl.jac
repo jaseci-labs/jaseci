@@ -618,10 +618,10 @@ impl CFGBuildPass.exit_if_stmt(nd: IfStmt) -> None {
             self.link_bbs(nd, entry);
         }
     } else {
-        if true_target {
+        if true_target is not None {
             self.link_bbs(nd, true_target);
         }
-        if false_target {
+        if false_target is not None {
             self.link_bbs(nd, false_target);
         }
     }
@@ -770,7 +770,9 @@ impl CFGBuildPass._wire_compr_filters(
                 compr.kid[idx] = cfg_pred;
             }
             cfg_pred.affected_symbols.update(collect_narrowing_symbols(cfg_pred.expr));
-            self.link_bbs(prev_node, cfg_pred);
+            if prev_node is not None {
+                self.link_bbs(prev_node, cfg_pred);
+            }
             self._set_and_link(cfg_pred, target_node, None);
             prev_node = cfg_pred;
             new_conditional.append(cfg_pred);
