@@ -43,6 +43,7 @@ import from ast_nodes {
     SetComp,
     DictComp,
     GeneratorExp,
+    Lambda,
     comprehension,
     Yield,
     YieldFrom,
@@ -78,6 +79,7 @@ obj sym_block {
     has block_type: str,
         name: str,
         lineno: int,
+        col_offset: int = -1,
         nested: bool = False,
         generator: bool = False,
         coroutine: bool = False,
@@ -247,12 +249,14 @@ obj sym_builder {
         name: str,
         lineno: int,
         nested: bool,
-        can_see_class_scope: bool = False
+        can_see_class_scope: bool = False,
+        col_offset: int = -1
     ) -> bool {
         child = sym_block(
             block_type=block_type,
             name=name,
             lineno=lineno,
+            col_offset=col_offset,
             nested=nested,
             can_see_class_scope=can_see_class_scope
         );
@@ -496,6 +500,23 @@ def sym_visit_load_expr(b: sym_builder, e: expr) -> bool {
     }
     if isinstance(e, GeneratorExp) {
         return sym_visit_genexp(b, e as GeneratorExp);
+    }
+    if isinstance(e, Lambda) {
+        lam = e as Lambda;
+        nested = sym_compute_nested(b);
+        in_class = b.cur.block_type == "class" or b.cur.can_see_class_scope;
+        if not b.push_block(
+            "function", "lambda", lam.lineno, nested, in_class, lam.col_offset
+        ) {
+            return False;
+        }
+        if not sym_visit_params(b, lam.args) {
+            return False;
+        }
+        if not sym_visit_load_expr(b, lam.body) {
+            return False;
+        }
+        return b.pop_block();
     }
     if isinstance(e, Yield) {
         b.cur.generator = True;
@@ -1032,11 +1053,15 @@ def sym_analyze_block(
         }
         ni = ni + 1;
     }
+    # Match CPython symtable.c analyze_block: only function-like blocks add their
+    # locals to newbound; module/class locals are not closure parents for
+    # top-level functions (self-recursion uses LOAD_GLOBAL, not LOAD_DEREF).
     newbound: dict[str, int] = {};
+    if sym_is_function_like(block) {
+        newbound = sym_set_union(newbound, local);
+    }
     if bound is not None {
-        newbound = sym_set_union(bound, local);
-    } else {
-        newbound = sym_set_union({}, local);
+        newbound = sym_set_union(newbound, bound);
     }
     child_free: dict[str, int] = {};
     ci = 0;
@@ -1056,20 +1081,26 @@ def sym_analyze_block(
         child_free = sym_set_union(child_free, cf);
         ci = ci + 1;
     }
-    for fk in child_free.keys() {
-        fname = fk as str;
+    child_free = sym_set_union(child_free, free);
+    fk_names = sym_set_keys(child_free);
+    fi = 0;
+    while fi < len(fk_names) {
+        fname = fk_names[fi];
         if sym_set_contains(local, fname) {
-            block.symbols[fname] = sym_set_scope(
-                sym_flag_add(sym_dict_get(block.symbols, fname, 0), DEF_LOCAL),
-                SCOPE_CELL
-            );
+            scopes[fname] = SCOPE_CELL;
             sym_set_discard(child_free, fname);
         } elif not sym_set_contains(local, fname)
             and sym_set_contains(newbound, fname) {
-            block.symbols[fname] = sym_set_scope(
-                sym_flag_add(sym_dict_get(block.symbols, fname, 0), SYM_USE), SCOPE_FREE
-            );
+            if fname in scopes {
+                scopes[fname] = SCOPE_FREE;
+            } else {
+                block.symbols[fname] = sym_set_scope(
+                    sym_flag_add(sym_dict_get(block.symbols, fname, 0), SYM_USE),
+                    SCOPE_FREE
+                );
+            }
         }
+        fi = fi + 1;
     }
     for name in scopes.keys() {
         scope = scopes[name];
@@ -1701,6 +1732,51 @@ test "compiler_symtable: closure free var matches oracle" {
     assert_sym_matches_oracle(
         "def outer(x):\n def inner():\n  return x\n return inner\n", ast_closure()
     );
+}
+
+test "compiler_symtable: recursive function self-call matches oracle" {
+    src = (
+        "def fact(n):\n"
+            + " if n <= 1:\n"
+            + "  return 1\n"
+            + " return n * fact(n - 1)\n\n"
+            + "result = fact(5)\n"
+    );
+    m = parse_file(src, "<t>");
+    assert m is not None;
+    sr = build_module_symtable((m as Module).body);
+    assert sr.diag is None;
+    native = sym_normalize(sr.top);
+    expected = host_sym_normalize(src, "exec");
+    assert _sym_oracle_equal_py(native, expected);
+}
+
+test "compiler_symtable: lambda assign matches oracle" {
+    src = "f = lambda x: x + 1\nresult = f(2)\n";
+    m = parse_file(src, "<t>");
+    assert m is not None;
+    sr = build_module_symtable((m as Module).body);
+    assert sr.diag is None;
+    native = sym_normalize(sr.top);
+    expected = host_sym_normalize(src, "exec");
+    assert _sym_oracle_equal_py(native, expected);
+}
+
+test "compiler_symtable: closure capture parsed matches oracle" {
+    src = (
+        "def outer(x):\n"
+            + "    def inner():\n"
+            + "        return x\n"
+            + "    return inner()\n\n"
+            + "result = outer(42)\n"
+    );
+    m = parse_file(src, "<t>");
+    assert m is not None;
+    sr = build_module_symtable((m as Module).body);
+    assert sr.diag is None;
+    native = sym_normalize(sr.top);
+    expected = host_sym_normalize(src, "exec");
+    assert _sym_oracle_equal_py(native, expected);
 }
 
 def ast_class_mangle -> list[stmt] {

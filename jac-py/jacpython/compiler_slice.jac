@@ -767,3 +767,127 @@ test "compiler_slice: band4 def f(x) return x+1 call executes in ceval" {
     assert not is_error(out);
     assert expect_int(ns["result"]) == 3;
 }
+
+test "compiler_slice: band4 recursive fact parsed matches oracle nested co_code" {
+    src = (
+        "def fact(n):\n"
+            + "    if n <= 1:\n"
+            + "        return 1\n"
+            + "    return n * fact(n - 1)\n\n"
+            + "result = fact(5)\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    fn = actual.consts[0] as PyCode;
+    exp_fn = exp.consts[0] as PyCode;
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 1;
+    assert fn.varnames == ["n"];
+    assert fn.flags == 3;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band4 recursive fact parsed executes in ceval" {
+    src = (
+        "def fact(n):\n"
+            + "    if n <= 1:\n"
+            + "        return 1\n"
+            + "    return n * fact(n - 1)\n\n"
+            + "result = fact(5)\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 120;
+}
+
+# ---------------- Band 4: lambdas slice ----------------
+
+test "compiler_slice: band4 lambda assign parsed matches oracle nested co_code" {
+    src = "f = lambda x: x + 1\nresult = f(2)\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    fn = actual.consts[0] as PyCode;
+    exp_fn = exp.consts[0] as PyCode;
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 1;
+    assert fn.varnames == ["x"];
+    assert fn.flags == 3;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band4 lambda assign parsed executes in ceval" {
+    src = "f = lambda x: x + 1\nresult = f(2)\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "compiler_slice: band4 inline lambda call parsed executes in ceval" {
+    src = "result = (lambda x: x + 1)(2)\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+# ---------------- Band 4: closures slice ----------------
+
+test "compiler_slice: band4 closure parsed matches oracle nested inner co_code" {
+    src = (
+        "def outer(x):\n"
+            + "    def inner():\n"
+            + "        return x\n"
+            + "    return inner()\n\n"
+            + "result = outer(42)\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    outer = actual.consts[0] as PyCode;
+    exp_outer = exp.consts[0] as PyCode;
+    inner = outer.consts[0] as PyCode;
+    exp_inner = exp_outer.consts[0] as PyCode;
+    assert inner.co_code == exp_inner.co_code;
+    assert inner.stacksize == exp_inner.stacksize;
+    assert len(inner.freevars) == 1;
+    assert inner.freevars[0] == "x";
+    assert len(outer.cellvars) == 1;
+    assert outer.cellvars[0] == "x";
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band4 closure parsed executes in ceval" {
+    src = (
+        "def outer(x):\n"
+            + "    def inner():\n"
+            + "        return x\n"
+            + "    return inner()\n\n"
+            + "result = outer(42)\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 42;
+}
+
+test "compiler_slice: band4 lambda closure parsed executes in ceval" {
+    src = "def outer(x):\n    return lambda: x\n\nresult = outer(7)()\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 7;
+}

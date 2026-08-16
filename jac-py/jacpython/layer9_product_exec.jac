@@ -236,6 +236,141 @@ test "layer9: nested function PyCode has fast locals and argcount" {
     assert fn.flags == 3;
 }
 
+# ---------------- Band 4: recursion slice ----------------
+
+test "layer9: if return in function compiles" {
+    src = "def f(n):\n    if n <= 1:\n        return 1\n    return 0\n";
+    co = product_exec(src);
+    assert not is_error(co);
+}
+
+test "layer9: recursive fact(n) matches oracle" {
+    src = (
+        "def fact(n):\n"
+            + "    if n <= 1:\n"
+            + "        return 1\n"
+            + "    return n * fact(n - 1)\n\n"
+            + "result = fact(5)\n"
+    );
+    assert_matches_oracle(src);
+}
+
+test "layer9: recursive fact(n) executes in ceval" {
+    src = (
+        "def fact(n):\n"
+            + "    if n <= 1:\n"
+            + "        return 1\n"
+            + "    return n * fact(n - 1)\n\n"
+            + "result = fact(5)\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 120;
+}
+
+# ---------------- Band 4: lambdas slice ----------------
+
+test "layer9: lambda assign matches oracle" {
+    src = "f = lambda x: x + 1\nresult = f(2)\n";
+    assert_matches_oracle(src);
+}
+
+test "layer9: lambda assign executes in ceval" {
+    src = "f = lambda x: x + 1\nresult = f(2)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "layer9: nested lambda PyCode has fast locals and argcount" {
+    src = "f = lambda x: x + 1\nresult = f(2)\n";
+    co = product_exec(src);
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    mod = co as PyCode;
+    assert len(mod.consts) >= 1;
+    assert isinstance(mod.consts[0], PyCode);
+    fn = mod.consts[0] as PyCode;
+    assert fn.argcount == 1;
+    assert fn.varnames == ["x"];
+    assert fn.flags == 3;
+}
+
+test "layer9: inline lambda call executes in ceval" {
+    src = "result = (lambda x: x + 1)(2)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+# ---------------- Band 4: closures slice ----------------
+
+test "layer9: nested closure capture matches oracle" {
+    src = (
+        "def outer(x):\n"
+            + "    def inner():\n"
+            + "        return x\n"
+            + "    return inner()\n\n"
+            + "result = outer(42)\n"
+    );
+    assert_matches_oracle(src);
+}
+
+test "layer9: nested closure capture executes in ceval" {
+    src = (
+        "def outer(x):\n"
+            + "    def inner():\n"
+            + "        return x\n"
+            + "    return inner()\n\n"
+            + "result = outer(42)\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 42;
+}
+
+test "layer9: nested inner PyCode has freevars and cellvars metadata" {
+    src = (
+        "def outer(x):\n"
+            + "    def inner():\n"
+            + "        return x\n"
+            + "    return inner()\n\n"
+            + "result = outer(42)\n"
+    );
+    co = product_exec(src);
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    mod = co as PyCode;
+    outer_co = mod.consts[0] as PyCode;
+    inner_co = outer_co.consts[0] as PyCode;
+    assert len(outer_co.cellvars) == 1;
+    assert outer_co.cellvars[0] == "x";
+    assert len(inner_co.freevars) == 1;
+    assert inner_co.freevars[0] == "x";
+    exp = oracle_exec(src, "<f>");
+    assert isinstance(exp, PyCode);
+    exp_outer = (exp as PyCode).consts[0] as PyCode;
+    exp_inner = exp_outer.consts[0] as PyCode;
+    assert inner_co.co_code == exp_inner.co_code;
+}
+
+test "layer9: lambda closure executes in ceval" {
+    src = "def outer(x):\n    return lambda: x\n\nresult = outer(7)()\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 7;
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {

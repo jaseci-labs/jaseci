@@ -22,6 +22,12 @@ import from opcode_meta {
     OP_LOAD_NAME,
     OP_LOAD_GLOBAL,
     OP_MAKE_FUNCTION,
+    OP_MAKE_CELL,
+    OP_COPY_FREE_VARS,
+    OP_LOAD_DEREF,
+    OP_STORE_DEREF,
+    OP_BUILD_TUPLE,
+    OP_SET_FUNCTION_ATTRIBUTE,
     OP_BINARY_OP,
     CO_OPTIMIZED,
     CO_NEWLOCALS,
@@ -219,6 +225,9 @@ import from compiler_symtable {
     SCOPE_GLOBAL_EXPLICIT,
     SCOPE_GLOBAL_IMPLICIT,
     SCOPE_LOCAL,
+    SCOPE_CELL,
+    SCOPE_FREE,
+    sym_block_tuple_names,
 }
 import from compiler_diagnostics { lowering_diagnostic }
 import from flowgraph { verify_cfg }
@@ -286,11 +295,120 @@ def fast_varnames_from_sym(block: sym_block) -> list[str] {
     return out;
 }
 
+def cellvars_from_sym(block: sym_block) -> list[str] {
+    return sym_block_tuple_names(block.symbols, SCOPE_CELL);
+}
+
+def freevars_from_sym(block: sym_block) -> list[str] {
+    return sym_block_tuple_names(block.symbols, SCOPE_FREE);
+}
+
+def varname_index(u: unverified_cfg, name: str) -> int {
+    vi = 0;
+    while vi < len(u.varnames) {
+        if u.varnames[vi] == name {
+            return vi;
+        }
+        vi = vi + 1;
+    }
+    return -1;
+}
+
+# Merged locals-plus index for MAKE_CELL / LOAD_DEREF / LOAD_FAST_BORROW (CPython 3.11+).
+def localsplus_index_u(u: unverified_cfg, name: str) -> int {
+    vi = varname_index(u, name);
+    if vi >= 0 {
+        return vi;
+    }
+    idx = len(u.varnames);
+    ci = 0;
+    while ci < len(u.cellvars) {
+        cname = u.cellvars[ci];
+        if varname_index(u, cname) < 0 {
+            if cname == name {
+                return idx;
+            }
+            idx = idx + 1;
+        }
+        ci = ci + 1;
+    }
+    fi = 0;
+    while fi < len(u.freevars) {
+        if u.freevars[fi] == name {
+            return idx;
+        }
+        idx = idx + 1;
+        fi = fi + 1;
+    }
+    return -1;
+}
+
+def localsplus_index(g: cfg_builder, name: str) -> int {
+    return localsplus_index_u(g.u, name);
+}
+
+# CPython emits MAKE_CELL(s), optional COPY_FREE_VARS, then RESUME.
+def emit_function_prologue(g: cfg_builder, sym_fn: sym_block, firstlineno: int) {
+    u = g.u;
+    u.cellvars = cellvars_from_sym(sym_fn);
+    u.freevars = freevars_from_sym(sym_fn);
+    ploc = loc(0, firstlineno, 0, 0);
+    ci = 0;
+    while ci < len(u.cellvars) {
+        lp = localsplus_index_u(u, u.cellvars[ci]);
+        g.emit_op(OP_MAKE_CELL, lp, ploc);
+        ci = ci + 1;
+    }
+    if len(u.freevars) > 0 {
+        g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), ploc);
+    }
+    g.emit_op(OP_RESUME, 0, ploc);
+}
+
+# Nested code on stack; closure tuple + SET_FUNCTION_ATTRIBUTE when inner has freevars.
+def emit_make_function_with_closure(
+    g: cfg_builder, sym_fn: sym_block, co: PyCode, tloc: cloc
+) {
+    child_free = freevars_from_sym(sym_fn);
+    if len(child_free) > 0 {
+        fi = 0;
+        while fi < len(child_free) {
+            lp = localsplus_index(g, child_free[fi]);
+            g.emit_op(OP_LOAD_FAST_BORROW, lp, tloc);
+            fi = fi + 1;
+        }
+        g.emit_op(OP_BUILD_TUPLE, len(child_free), tloc);
+    }
+    cidx = g.u.add_const(co);
+    g.emit_op(OP_LOAD_CONST, cidx, tloc);
+    g.emit_op(OP_MAKE_FUNCTION, 0, tloc);
+    if len(child_free) > 0 {
+        g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 8, tloc);
+    }
+}
+
 def sym_function_child(parent: sym_block, fn_name: str) -> sym_block | None {
     ci = 0;
     while ci < len(parent.children) {
         ch = parent.children[ci];
         if ch.block_type == "function" and ch.name == fn_name {
+            return ch;
+        }
+        ci = ci + 1;
+    }
+    return None;
+}
+
+def sym_function_child_at(
+    parent: sym_block, fn_name: str, lineno: int, col_offset: int
+) -> sym_block | None {
+    ci = 0;
+    while ci < len(parent.children) {
+        ch = parent.children[ci];
+        if ch.block_type == "function"
+            and ch.name == fn_name
+            and ch.lineno == lineno
+            and ch.col_offset == col_offset {
             return ch;
         }
         ci = ci + 1;
@@ -320,15 +438,33 @@ def function_argcounts(args: arguments) -> tuple[int, int, int] | None {
     return (posonly + regular, posonly, 0);
 }
 
-def emit_name_load(g: cfg_builder, name: str, tloc: cloc) {
+def emit_name_load(
+    g: cfg_builder, name: str, tloc: cloc, for_call: bool = False
+) -> bool {
+    # Returns True when a separate PUSH_NULL is required before CALL (LOAD_NAME
+    # and fast locals). LOAD_GLOBAL folds NULL into the oparg low bit (CPython 3.14).
     fi = fast_local_index(g, name);
     if fi >= 0 {
         g.emit_op(OP_LOAD_FAST_BORROW, fi, tloc);
-        return;
+        return True;
+    }
+    if g.sym_top is not None and g.sym_top.block_type != "module" {
+        flags = sym_dict_get(g.sym_top.symbols, name, 0);
+        scope = sym_scope_of(flags);
+        if scope == SCOPE_FREE or scope == SCOPE_CELL {
+            idx = localsplus_index(g, name);
+            g.emit_op(OP_LOAD_DEREF, idx, tloc);
+            return True;
+        }
     }
     opc = name_load_opcode(g, name);
     idx = g.u.add_name(name);
+    if for_call and opc == OP_LOAD_GLOBAL {
+        g.emit_op(opc, (idx << 1) | 1, tloc);
+        return False;
+    }
     g.emit_op(opc, idx, tloc);
+    return True;
 }
 
 def emit_name_store(g: cfg_builder, name: str, tloc: cloc) {
@@ -336,6 +472,15 @@ def emit_name_store(g: cfg_builder, name: str, tloc: cloc) {
     if fi >= 0 {
         g.emit_op(OP_STORE_FAST, fi, tloc);
         return;
+    }
+    if g.sym_top is not None and g.sym_top.block_type != "module" {
+        flags = sym_dict_get(g.sym_top.symbols, name, 0);
+        scope = sym_scope_of(flags);
+        if scope == SCOPE_FREE or scope == SCOPE_CELL {
+            idx = localsplus_index(g, name);
+            g.emit_op(OP_STORE_DEREF, idx, tloc);
+            return;
+        }
     }
     idx = g.u.add_name(name);
     g.emit_op(OP_STORE_NAME, idx, tloc);
@@ -1047,8 +1192,19 @@ def visit_expr(
     if isinstance(e, Call) {
         ca = e as Call;
         floc = call_func_loc(ca.func);
-        visit_expr(g, ca.func);
-        g.emit_op(OP_PUSH_NULL, 0, floc);
+        if isinstance(ca.func, Name) {
+            nf = ca.func as Name;
+            nloc_fn = nloc(
+                nf.lineno, nf.end_lineno, nf.col_offset, nf.end_col_offset
+            );
+            needs_null = emit_name_load(g, nf.id, nloc_fn, True);
+            if needs_null {
+                g.emit_op(OP_PUSH_NULL, 0, floc);
+            }
+        } else {
+            visit_expr(g, ca.func);
+            g.emit_op(OP_PUSH_NULL, 0, floc);
+        }
         cmp_cleanup: basicblock | None = None;
         call_args = ca.args;
         if call_args is None {
@@ -1094,6 +1250,10 @@ def visit_expr(
     }
     if isinstance(e, DictComp) {
         visit_dict_comp(g, e as DictComp);
+        return None;
+    }
+    if isinstance(e, Lambda) {
+        visit_lambda(g, e as Lambda);
         return None;
     }
     codegen_fail(
@@ -2119,6 +2279,30 @@ def emit_tail_and_finish(
     return stmt_cont(loc=end_loc, next_si=len(tail), terminated=True);
 }
 
+# Lower an if/while test (CPython bool context): single Compare uses COMPARE_OP
+# with bool oparg; other expressions use TO_BOOL after visit_expr.
+def visit_test_expr(g: cfg_builder, e: expr, test_loc: cloc) {
+    if isinstance(e, Compare) {
+        c = e as Compare;
+        if len(c.ops) == 1 {
+            cloc_cmp = nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
+            visit_expr(g, c.left);
+            visit_expr(g, c.comparators[0]);
+            oparg = cmpop_filter_oparg(c.ops[0]);
+            if oparg < 0 {
+                codegen_fail(
+                    g, "NotImplementedError", "unsupported comparison operator"
+                );
+                return;
+            }
+            g.emit_op(OP_COMPARE_OP, oparg, cloc_cmp);
+            return;
+        }
+    }
+    visit_expr(g, e);
+    g.emit_op(OP_TO_BOOL, 0, test_loc);
+}
+
 def visit_if(
     g: cfg_builder,
     i: If,
@@ -2129,11 +2313,10 @@ def visit_if(
 ) -> stmt_cont {
     iloc = nloc(i.lineno, i.end_lineno, i.col_offset, i.end_col_offset);
     test_loc = expr_loc(i.test);
-    visit_expr(g, i.test);
+    visit_test_expr(g, i.test, test_loc);
     if codegen_busy(g) {
         return stmt_cont(loc=iloc);
     }
-    g.emit_op(OP_TO_BOOL, 0, test_loc);
     false_blk = g.new_block();
     has_else = len(i.orelse) > 0;
     if more_code_follows {
@@ -2146,7 +2329,9 @@ def visit_if(
                 if codegen_busy(g) {
                     return stmt_cont(loc=body_cont.loc);
                 }
-                g.emit_jump(OP_JUMP_FORWARD, join.id, iloc);
+                if not body_cont.terminated {
+                    g.emit_jump(OP_JUMP_FORWARD, join.id, iloc);
+                }
                 g.use(false_blk);
                 else_cont = visit_stmts(g, i.orelse, 0, False, tail, tail_idx);
                 if codegen_busy(g) {
@@ -2156,7 +2341,11 @@ def visit_if(
                 tail_cont = visit_stmt_tail(
                     g, tail, tail_idx, exec_tail_emits_code(tail, tail_idx + 1)
                 );
-                return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+                return stmt_cont(
+                    loc=tail_cont.loc,
+                    next_si=len(tail),
+                    terminated=tail_cont.terminated
+                );
             }
             g.emit_jump(OP_POP_JUMP_IF_FALSE, false_blk.id, test_loc);
             body_cont = visit_stmts(g, i.body, 0, False, tail, tail_idx);
@@ -2188,7 +2377,11 @@ def visit_if(
         if owns_tail {
             g.use(join);
             tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
-            return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+            return stmt_cont(
+                loc=tail_cont.loc,
+                next_si=len(tail),
+                terminated=tail_cont.terminated
+            );
         }
         return stmt_cont(loc=body_cont.loc);
     }
@@ -2218,11 +2411,10 @@ def visit_while(
     test_loc = expr_loc(w.test);
     head = g.new_block();
     g.use(head);
-    visit_expr(g, w.test);
+    visit_test_expr(g, w.test, test_loc);
     if codegen_busy(g) {
         return stmt_cont(loc=wloc);
     }
-    g.emit_op(OP_TO_BOOL, 0, test_loc);
     has_break = loop_body_has_break(w.body);
     if more_code_follows {
         exit_blk = g.new_block();
@@ -2709,12 +2901,87 @@ def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
     }
     co = assemble(cfg_fn);
     g.u.nested_code_emitted = True;
-    cidx = g.u.add_const(co);
-    g.emit_op(OP_LOAD_CONST, cidx, floc);
-    g.emit_op(OP_MAKE_FUNCTION, 0, floc);
-    nidx = g.u.add_name(fd.name);
-    g.emit_op(OP_STORE_NAME, nidx, floc);
+    emit_make_function_with_closure(g, sym_fn, co, floc);
+    if g.sym_top is not None and g.sym_top.block_type == "function" {
+        fi = fast_local_index(g, fd.name);
+        if fi < 0 {
+            codegen_fail(
+                g, "SystemError", "missing fast local for nested function " + fd.name
+            );
+            return stmt_cont(loc=floc);
+        }
+        g.emit_op(OP_STORE_FAST, fi, floc);
+    } else {
+        nidx = g.u.add_name(fd.name);
+        g.emit_op(OP_STORE_NAME, nidx, floc);
+    }
     return stmt_cont(loc=floc);
+}
+
+# Lower `lambda ...: expr` into nested PyCode + MAKE_FUNCTION (value on stack).
+def visit_lambda(g: cfg_builder, lam: Lambda) {
+    lloc = nloc(lam.lineno, lam.end_lineno, lam.col_offset, lam.end_col_offset);
+    if g.sym_top is None {
+        codegen_fail(g, "SystemError", "lambda without symtable");
+        return;
+    }
+    sym_fn = sym_function_child_at(
+        g.sym_top, "lambda", lam.lineno, lam.col_offset
+    );
+    if sym_fn is None {
+        codegen_fail(g, "SystemError", "missing symtable for lambda");
+        return;
+    }
+    u_fn = compile_lambda_cfg(lam, g.u.filename, sym_fn);
+    if u_fn.diag is not None {
+        g.u.diag = u_fn.diag;
+        return;
+    }
+    cfg_fn = verify_cfg(u_fn);
+    if cfg_fn.diag is not None {
+        g.u.diag = cfg_fn.diag;
+        return;
+    }
+    co = assemble(cfg_fn);
+    g.u.nested_code_emitted = True;
+    emit_make_function_with_closure(g, sym_fn, co, lloc);
+}
+
+# Build unverified_cfg for a lambda body (expression + RETURN_VALUE).
+def compile_lambda_cfg(
+    lam: Lambda, filename: str, sym_fn: sym_block
+) -> unverified_cfg {
+    counts = function_argcounts(lam.args);
+    u = unverified_cfg(
+        filename=filename,
+        name="<lambda>",
+        qualname="<lambda>",
+        firstlineno=lam.lineno
+    );
+    if counts is None {
+        unit_fail(
+            u,
+            "NotImplementedError",
+            "unsupported lambda signature (Band 4: positional args only)"
+        );
+        return u;
+    }
+    (argcount, posonly, kwonly) = counts;
+    u.argcount = argcount;
+    u.posonlyargcount = posonly;
+    u.kwonlyargcount = kwonly;
+    u.flags = CO_OPTIMIZED | CO_NEWLOCALS;
+    u.varnames = fast_varnames_from_sym(sym_fn);
+    entry = u.add_block();
+    g = new_cfg_builder(u, entry, sym_fn);
+    emit_function_prologue(g, sym_fn, lam.lineno);
+    bloc = expr_loc(lam.body);
+    visit_expr(g, lam.body);
+    if codegen_busy(g) {
+        return u;
+    }
+    g.emit_op(OP_RETURN_VALUE, 0, bloc);
+    return u;
 }
 
 # Build unverified_cfg for a function body (nested code object before assembly).
@@ -2746,7 +3013,7 @@ def compile_function_cfg(
     u.varnames = fast_varnames_from_sym(sym_fn);
     entry = u.add_block();
     g = new_cfg_builder(u, entry, sym_fn);
-    g.emit_op(OP_RESUME, 0, loc(0, fd.lineno, 0, 0));
+    emit_function_prologue(g, sym_fn, fd.lineno);
     last = loc(0, fd.lineno, 0, 0);
     terminated = False;
     bi = 0;
