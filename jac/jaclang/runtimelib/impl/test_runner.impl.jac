@@ -920,11 +920,6 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
 impl ForkPool._dispatch(kid: dict[(str, any)]) -> bool {
     import json;
     if self._should_stop() or (self.cursor >= len(self.plan.files)) {
-        try {
-            os.write(kid["dispatch_fd"], b"q\n");
-        } except OSError {
-            ;
-        }
         return False;
     }
     idx = self.cursor;
@@ -1038,7 +1033,15 @@ impl ForkPool._pump -> None {
         if not live {
             break;
         }
-        fds = [k["result_fd"] for k in live];
+        busy = [
+            k
+            for k in live
+            if k["inflight"] is not None
+        ];
+        if not busy {
+            break;
+        }
+        fds = [k["result_fd"] for k in busy];
         try {
             (ready, _, _) = select.select(fds, [], []);
         } except OSError {
@@ -1047,7 +1050,7 @@ impl ForkPool._pump -> None {
         for fd in ready {
             owners = [
                 k
-                for k in live
+                for k in busy
                 if k["result_fd"] == fd
             ];
             if not owners {
