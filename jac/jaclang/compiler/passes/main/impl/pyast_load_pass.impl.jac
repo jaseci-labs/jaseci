@@ -1242,12 +1242,7 @@ impl PyastBuildPass.proc_continue(nd: py_ast.Continue) -> CtrlStmt {
 }
 
 impl PyastBuildPass.proc_constant(nd: py_ast.Constant) -> Expr {
-    type_mapping = {
-        str: String,
-        bytes: String,
-        bool: Bool,
-        type(None): Null
-    };
+    type_mapping = {str: String, bytes: String, bool: Bool, type(None): Null};
     value_type = type(nd.value);
     if isinstance(nd.value, complex) {
         cval = nd.value;
@@ -2395,9 +2390,7 @@ impl PyastBuildPass._eval_complex_literal_ast(
     return None;
 }
 
-impl PyastBuildPass._try_fold_complex_literal(
-    nd: py_ast.BinOp
-) -> (FuncCall | None) {
+impl PyastBuildPass._try_fold_complex_literal(nd: py_ast.BinOp) -> (FuncCall | None) {
     value = self._eval_complex_literal_ast(nd);
     if isinstance(value, complex) {
         return self._emit_complex_call(nd, value.real, value.imag);
