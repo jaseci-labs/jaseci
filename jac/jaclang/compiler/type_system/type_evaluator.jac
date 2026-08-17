@@ -313,7 +313,7 @@ obj ConditionInfo {
 glob _stub_module_memo: dict[str, tuple[float, Module]] = {};
 
 obj TypeEvaluator {
-    has program: "JacProgram",
+    has program: JacProgram,
         _BUILTINS_STUB_FILE_PATH: str postinit,
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
