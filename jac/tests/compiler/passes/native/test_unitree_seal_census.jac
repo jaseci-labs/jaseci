@@ -278,6 +278,47 @@ glob UNITREE_CLOSURE: tuple = (
              "Python-only: same function-local unitree import. This is the "
              "`.pyi` ingestion path -- version-guarded typeshed blocks -- "
              "which no sealed parse reaches."
+         ),
+         "transform.jac::Alert.pretty_print": (
+             "Rim work: renders source spans through "
+             "`helpers.pretty_print_source_location`, itself waived above. "
+             "Clears with it, and with diagnostics crossing as data."
+         ),
+         "transform.jac::BaseTransform.is_canceled": (
+             "Rim work: reads a `threading.Event` the driver owns. Clears "
+             "when cancellation crosses as a scalar the crossing reads."
+         ),
+         "transform.jac::Transform.ice": (
+             "Rim work: raises E9001 through Python diagnostics machinery. "
+             "Clears when ice construction lowers, or when the internal-"
+             "error guard moves behind the emit-as-data path."
+         ),
+         "uni_pass.jac::UniPass.get_all_sub_nodes": (
+             "Backend gap: a `type[T]`-generic static forwarding to the "
+             "same-named `UniNode` method; a TypeVar-bound signature does "
+             "not lower. Clears when generic statics lower, or when the "
+             "forwarding shim is retired."
+         ),
+         "uni_pass.jac::UniPass.find_parent_of_type": (
+             "Backend gap: the twin of `get_all_sub_nodes` above, and it "
+             "clears the same way."
+         ),
+         "uni_pass.jac::UniPass.__post_init__": (
+             "Backend gap: `super.__post_init__` does not lower across the "
+             "linked base. One of the four inherited-slot refusals the base "
+             "chain's arrival exposed; see `transform`/`traverse` below."
+         ),
+         "uni_pass.jac::UniPass.transform": (
+             "Backend gap, and the load-bearing one: a store to `ir_out`, a "
+             "slot inherited from `BaseTransform` rather than declared on "
+             "`UniPass`. Constructing a pass inside a native root lowers "
+             "now; *running* one stops here. Clears when a store to an "
+             "inherited slot of a linked base lowers."
+         ),
+         "uni_pass.jac::UniPass.traverse": (
+             "Backend gap: a store to `cur_node`, the same inherited-slot "
+             "refusal as `transform` above, and the other half of why a "
+             "natively constructed pass cannot yet walk a tree."
          )
      };
 
