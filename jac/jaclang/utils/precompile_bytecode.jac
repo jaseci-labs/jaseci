@@ -409,6 +409,33 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/uni_pass.jac::UniPass.traverse",
 
      ),
+     _MODULE_CODEGEN_SEAM_WAIVERS: tuple = (
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.iter_context_stmts"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.has_native_context_stmts"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.iter_module_imports"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.iter_nested_imports"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.shared_archetypes_for_context"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "client_capability_violations"
+         ),
+
+     ),
      _CLOSURE_SEAM_WAIVERS: tuple = (
          _UNITREE_SEAM_WAIVERS
          + _TYPES_SEAM_WAIVERS
@@ -416,6 +443,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          + _HELPERS_SEAM_WAIVERS
          + _TRANSFORM_SEAM_WAIVERS
          + _UNI_PASS_SEAM_WAIVERS
+         + _MODULE_CODEGEN_SEAM_WAIVERS
      ),
      _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_ability",
@@ -579,6 +607,18 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "diagnostics machinery. They clear as diagnostics cross as "
              "data and cancellation crosses as a scalar the crossing reads, "
              "which is the same mechanism the emit-as-data path names."
+         ),
+         (
+             "module_codegen isinstance against an unreachable layout",
+             _MODULE_CODEGEN_SEAM_WAIVERS,
+             "One cause and five cascades. `iter_context_stmts` tests "
+             "`isinstance` against `ElementStmt`, a unitree class whose "
+             "layout is not reachable from these roots, which is the same "
+             "named backend gap `type_utils`'s `class_implements_protocol` "
+             "and `doc_of_sym` are waived for above. The other five all call "
+             "it. They clear together the day `isinstance` against an "
+             "unreachable layout lowers -- one mechanism, six waivers, and "
+             "no separate work of their own."
          ),
          (
              "uni_pass generic statics and inherited field stores",
