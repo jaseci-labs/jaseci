@@ -72,9 +72,14 @@ impl _parse_filter_expr(expr: str) -> any {
         return None;
     }
     pos = [0];
-    tree = _parse_or(toks, pos);
+    tree: any = None;
+    try {
+        tree = _parse_or(toks, pos);
+    } except ValueError {
+        return ("word", text.lower());
+    }
     if pos[0] != len(toks) {
-        raise ValueError(f"could not parse filter expression: {expr!r}");
+        return ("word", text.lower());
     }
     return tree;
 }
@@ -588,7 +593,8 @@ impl run_file(
     try {
         importlib.import_module(qualified);
     } except BaseException as exc {
-        import_error = f"{type(exc).__name__}: {exc}";
+        import from traceback { format_exception }
+        import_error = "".join(format_exception(exc)).rstrip();
     }
     import_output = _capture_end(capture);
     try {
@@ -605,60 +611,64 @@ impl run_file(
                 )
             ];
         }
-        for (_key, registered) in JacTestCheck.test_suite_path.items() {
-            for info in registered {
-                label = info.display_name;
-                if (selector is not None) and not selector.matches(label) {
-                    continue;
-                }
-                result = JacTestResult();
-                started = time.perf_counter();
-                capture = _capture_begin();
-                try {
-                    _fresh_jac_state(clear_modules=False);
-                    info.test_case.run(result);
-                } finally {
-                    captured = _capture_end(capture);
-                }
-                elapsed = time.perf_counter() - started;
-                status = PASSED;
-                message = "";
-                if result.skipped {
-                    status = SKIPPED;
-                    message = str(result.skipped[0][1]);
-                } elif result.failures {
-                    status = FAILED;
-                    message = str(result.failures[0][1]);
-                } elif result.errors {
-                    status = ERROR;
-                    message = str(result.errors[0][1]);
-                }
-                if (status in (FAILED, ERROR)) and captured.strip() {
-                    message += "\n--- captured output ---\n" + captured.rstrip();
-                }
-                outcomes.append(
-                    TestOutcome(
-                        file=abs_path,
-                        name=label,
-                        status=status,
-                        message=message,
-                        duration=elapsed
-                    )
+        pending: list = [];
+        for (_key, registered) in list(JacTestCheck.test_suite_path.items()) {
+            for info in list(registered) {
+                pending.append(info);
+            }
+        }
+        for info in pending {
+            label = info.display_name;
+            if (selector is not None) and not selector.matches(label) {
+                continue;
+            }
+            result = JacTestResult();
+            started = time.perf_counter();
+            capture = _capture_begin();
+            try {
+                _fresh_jac_state(clear_modules=False);
+                info.test_case.run(result);
+            } finally {
+                captured = _capture_end(capture);
+            }
+            elapsed = time.perf_counter() - started;
+            status = PASSED;
+            message = "";
+            if result.skipped {
+                status = SKIPPED;
+                message = str(result.skipped[0][1]);
+            } elif result.failures {
+                status = FAILED;
+                message = str(result.failures[0][1]);
+            } elif result.errors {
+                status = ERROR;
+                message = str(result.errors[0][1]);
+            }
+            if (status in (FAILED, ERROR)) and captured.strip() {
+                message += "\n--- captured output ---\n" + captured.rstrip();
+            }
+            outcomes.append(
+                TestOutcome(
+                    file=abs_path,
+                    name=label,
+                    status=status,
+                    message=message,
+                    duration=elapsed
+                )
+            );
+            failed = seen_failures
+                + len(
+                    [
+                        o
+                        for o in outcomes
+                        if o.is_failure()
+                    ]
                 );
-                failed = seen_failures
-                    + len(
-                        [
-                            o
-                            for o in outcomes
-                            if o.is_failure()
-                        ]
-                    );
-                if xit and (failed > 0) {
-                    return outcomes;
-                }
-                if maxfail and (failed >= maxfail) {
-                    return outcomes;
-                }
+            if xit and (failed > 0) {
+                return outcomes;
+            }
+            if maxfail and (failed >= maxfail) {
+                return outcomes;
             }
         }
     } finally {
@@ -841,12 +851,13 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
                 seen_failures=int(request.get("seen", 0))
             );
         } except BaseException as exc {
+            import from traceback { format_exception }
             outcomes = [
                 TestOutcome(
                     file=request["path"],
                     name=os.path.basename(request["path"]),
                     status=ERROR,
-                    message=f"{type(exc).__name__}: {exc}"
+                    message="".join(format_exception(exc)).rstrip()
                 )
             ];
         }
@@ -1087,12 +1098,13 @@ impl _run_serial(
                 seen_failures=reporter.failure_count()
             );
         } except BaseException as exc {
+            import from traceback { format_exception }
             outcomes = [
                 TestOutcome(
                     file=path,
                     name=os.path.basename(path),
                     status=ERROR,
-                    message=f"{type(exc).__name__}: {exc}"
+                    message="".join(format_exception(exc)).rstrip()
                 )
             ];
         }

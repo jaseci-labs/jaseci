@@ -5570,11 +5570,10 @@ test "a failing native test must not abort the host process" {
 
 test "jac test runs .jac test blocks end to end" {
     fixture = os.path.join(FIXTURES, "test_blocks.jac");
-    # Pure .jac (native) test blocks are run by the native runner; the outer
-    # collector handles .jac (incl. inline na) but not standalone .jac yet, so
-    # force the native runner here. 3 tests, exactly 1 deliberate failure.
+    # The fixture holds 3 native `test` blocks, exactly 1 of them a deliberate
+    # failure. Serial so the summary is not interleaved by worker output.
     env = dict(os.environ);
-    env["JAC_TEST_NATIVE"] = "1";
+    env["JAC_TEST_JOBS"] = "0";
     result = subprocess.run(
         [sys.executable, "-m", "jaclang", "test", fixture],
         capture_output=True,
@@ -5583,12 +5582,9 @@ test "jac test runs .jac test blocks end to end" {
         env=env
     );
     output = result.stdout + result.stderr;
-    assert "Ran 3 tests" in output , (
-        f"expected 3 tests to run.\nstdout: {result.stdout[-800:]}\n"
+    assert "2 passed, 1 failed" in output , (
+        f"expected 3 tests to run with 1 failure.\nstdout: {result.stdout[-800:]}\n"
         f"stderr: {result.stderr[-800:]}"
-    );
-    assert "FAILED (failures=1)" in output , (
-        f"expected exactly the deliberate failure.\noutput tail: {output[-800:]}"
     );
     assert "test_blocks.jac:23" in output , (
         f"failure report must point at the failing assert.\noutput tail: {output[-800:]}"

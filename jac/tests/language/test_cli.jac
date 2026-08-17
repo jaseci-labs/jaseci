@@ -581,24 +581,44 @@ test "run test native broken import surfaces error" {
 }
 
 test "directory discovery skips impl annexes and dedupes test annexes" {
-    # Collection rules, asserted against the runner's discovery directly:
-    # an `.impl.jac` annex is never a suite, and a `foo.test.jac` annex
-    # resolves to its base module so the pair is collected once, not twice.
-    # The end-to-end CLI path for these rules lives in
-    # tests/cli/test_test_discovery.jac.
+    # Collection rules, asserted against the runner's discovery directly, on a
+    # tree built for the purpose. The end-to-end CLI path for the same rules
+    # lives in tests/cli/test_test_discovery.jac.
     import from jaclang.runtimelib.test_runner { discover }
-    plan = discover(directory=fixture_path(""));
-    names = [os.path.basename(f) for f in plan.files];
-    assert "circle_pure.impl.jac" not in names;
-    assert "circle_clean.impl.jac" not in names;
-    # The annex and its base resolve to one suite, reported under the base.
-    assert "circle_pure.test.jac" not in names;
-    assert "circle_pure.jac" in names;
-    # A plain module under a declared [test] root is still a suite (#7151).
-    assert "circle_clean_tests.jac" in names;
-    # fixtures/ nested below the root stays excluded.
-    for f in plan.files {
-        assert (os.sep + "fixtures" + os.sep) not in os.path.dirname(f) + os.sep;
+    tree_root = tempfile.mkdtemp();
+    try {
+        Path(os.path.join(tree_root, "widget.jac")).write_text("def area -> int;\n");
+        Path(os.path.join(tree_root, "widget.impl.jac")).write_text(
+            "impl area -> int {\n    return 4;\n}\n"
+        );
+        Path(os.path.join(tree_root, "widget.test.jac")).write_text(
+            'test "widget area" {\n    assert area() == 4;\n}\n'
+        );
+        Path(os.path.join(tree_root, "plain_suite.jac")).write_text(
+            'test "plain" {\n    assert True;\n}\n'
+        );
+        os.makedirs(os.path.join(tree_root, "fixtures"));
+        trap = os.path.join(tree_root, "fixtures", "input.jac");
+        Path(trap).write_text('test "never collected" {\n    assert False;\n}\n');
+
+        names = [os.path.basename(f) for f in discover(directory=tree_root).files];
+        # An impl annex is never a suite.
+        assert "widget.impl.jac" not in names;
+        # A .test.jac annex resolves to its base module, so the pair collects
+        # once, reported under the base rather than the annex.
+        assert "widget.test.jac" not in names;
+        assert "widget.jac" in names;
+        # Every .jac under a declared [test] tree_root is a suite (#7151), even one
+        # whose name follows no test-naming convention.
+        assert "plain_suite.jac" in names;
+        # A fixtures/ input is a test input, not a suite.
+        assert "input.jac" not in names;
+
+        # ... but naming a fixtures/ file directly still collects it.
+        explicit = [os.path.basename(f) for f in discover(paths=[trap]).files];
+        assert explicit == ["input.jac"];
+    } finally {
+        shutil.rmtree(tree_root, ignore_errors=True);
     }
 }
 
