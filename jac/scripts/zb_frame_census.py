@@ -19,6 +19,26 @@ Buckets:
                M4 deletes what remains.
   other     -- everything else under jaclang (bootstrap, stdlib shims).
 
+Bucket order is load-bearing: the first prefix that matches wins, and
+`typesys` is tested before `passes` because the type checker lives at
+`compiler/passes/main/type_checker_pass.jac`, inside the `compiler/passes/`
+catch-all. It was bucketed as `passes` until that ordering was fixed, which
+put the half of M2's work with the visitor in it on the pass tier's line and
+left `typesys` reading only the evaluator's own frames. The baselines beside
+this file predate the fix and have to be regenerated cold before they are
+compared against; on chess the correction is +4,076 frames.
+
+That correction is small, and the reason is worth knowing before `typesys` is
+read as M2's whole cost: a pass's *traversal* is billed to
+`jac0core/passes/uni_pass.jac`, because `UniPass.traverse` / `enter_node` /
+`exit_node` are the frames that walk the tree no matter which pass is walking
+it. A pass module's own count is only its `enter_*` / `exit_*` bodies -- 4,076
+of chess's 50.8M `passes` frames for the checker. So `typesys` reaching zero
+would mean the type system's *bodies* are gone, not the walk that drives them,
+and `passes` cannot reach zero until every pass on the schedule is sealed,
+type checker included. The trend line sums both, which is why it is the number
+the arc is graded on.
+
 Usage:
   .venv/bin/python jac/scripts/zb_frame_census.py TARGET.jac [--json OUT]
 
@@ -38,6 +58,14 @@ BUCKET_PREFIXES = [
         "jac0core/impl/unitree",
         "compiler/native_materialize",
     )),
+    # Tested before "passes": the checker sits under compiler/passes/main/,
+    # which the pass tier's catch-all would otherwise claim.
+    ("typesys", (
+        "compiler/type_system/",
+        "jac0core/type_system/",
+        "compiler/passes/main/type_checker_pass",
+        "compiler/passes/main/impl/type_checker_pass",
+    )),
     ("passes", (
         "jac0core/passes/annex_pass",
         "jac0core/passes/module_codegen_pass",
@@ -55,10 +83,6 @@ BUCKET_PREFIXES = [
         "compiler/passes/main/capability_check_pass",
         "compiler/passes/main/boundary_analysis",
         "compiler/passes/",
-    )),
-    ("typesys", (
-        "compiler/type_system/",
-        "jac0core/type_system/",
     )),
     ("codegen", (
         "jac0core/passes/jcir_gen_pass",
