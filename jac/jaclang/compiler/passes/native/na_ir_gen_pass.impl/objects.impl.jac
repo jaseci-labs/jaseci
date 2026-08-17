@@ -836,6 +836,14 @@ impl NaIRGenPass._forward_declare_method(
     }
 
     _self_type = self._class_form_enum_self_type(arch_name) or struct_type.as_pointer();
+
+    # Same declaration-time window as `_maybe_declare_ability` (#8285): a
+    # signature type that survives every erasure below refuses here, long
+    # before `_codegen_method` marks the body, so its owner is claimed now.
+    _sig_mark = len(self.errors_had);
+    _saved_sig_kind = self._sig_decl_kind;
+    self._sig_decl_kind = "signature type";
+
     param_types: list[ir.Type] = [] if _is_static else [_self_type];
     for p in _m_params {
         param_types.append(
@@ -854,6 +862,7 @@ impl NaIRGenPass._forward_declare_method(
             param_types.append(self._resolve_sig_type(field));
         }
     }
+    self._sig_decl_kind = _saved_sig_kind;
     fnty = ir.FunctionType(ret_type, param_types);
     func = ir.Function(self.llvm_module, fnty, name=full_name);
 
@@ -872,6 +881,15 @@ impl NaIRGenPass._forward_declare_method(
     self.func_symtab[full_name] = func;
     if _is_static {
         self.static_methods[full_name] = True;
+    }
+
+    if len(self.errors_had) > _sig_mark {
+        self._demote_method_if_unlowerable(
+            full_name,
+            func,
+            _sig_mark,
+            keep_func=method_name in self.vtable_method_indices.get(arch_name, {})
+        );
     }
 }
 

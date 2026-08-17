@@ -57,6 +57,14 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     }
     sig = nd.signature;
 
+    # A signature resolves here, before any body opens a demotion window, so a
+    # type the backend cannot lower used to have no owner and cost the whole
+    # module its IR -- and every importer with it (#8285). The owning callable
+    # is known right here, so the failures are bracketed and spent on it below.
+    _sig_mark = len(self.errors_had);
+    _saved_sig_kind = self._sig_decl_kind;
+    self._sig_decl_kind = "signature type";
+
     param_types: list[ir.Type] = [];
     for p in sig.get_parameters() {
         param_types.append(
@@ -71,6 +79,7 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     } else {
         ret_type = self._resolve_jac_type(sig.return_type);
     }
+    self._sig_decl_kind = _saved_sig_kind;
 
     fnty = ir.FunctionType(ret_type, param_types);
 
@@ -126,6 +135,14 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
 
     self._record_ret_facts(name, sig);
     self.has_native_code = True;
+
+    if len(self.errors_had) > _sig_mark {
+        self.generator_fns.pop(name, None);
+        self.decorated_fns.pop(name, None);
+        if self._demote_method_if_unlowerable(name, func, _sig_mark) {
+            self._rename_demoted_symbol(name, func);
+        }
+    }
 }
 
 impl NaIRGenPass._normalize_type_key(key: str) -> str {

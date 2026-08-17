@@ -178,6 +178,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _native_skipped_methods: set[str] = set(),
         _capability_demotions: dict[int, list] = {},
         _claimed_capability_demotions: set[int] = set(),
+        _sig_decl_kind: (str | None) = None,
         _class_name_consts: dict[str, ir.Value] = {},
         _isa_fn: (ir.Function | None) = None,
         _isa_seq_fn: (ir.Function | None) = None,
