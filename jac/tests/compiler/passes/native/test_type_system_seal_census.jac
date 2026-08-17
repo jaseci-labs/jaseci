@@ -26,11 +26,12 @@ questions:
   demotion, plus an enumeration of the refusals that still escape an owner.
   Since #8234 a constructor owns its own body, so what remains ownerless here
   is field declarations alone.
-* `enum_utils.jac` and `operations.jac` -- refused outright, and pinned as
-  refused. A parameter typed `TypeEvaluator` is resolved before any body opens
-  a demotion window, so it strands the module the way a field declaration
-  does. Nothing of either module's own bodies is measurable until that
-  changes, but the unit around them links now, and that is pinned too.
+* `enum_utils.jac` and `operations.jac` -- measurable since #8285. A parameter
+  typed `TypeEvaluator` is resolved when the ability is declared, which used to
+  be before any body opened a demotion window, so it stranded the module the
+  way a field declaration does. The declaration owns the refusal now: each
+  callable that names an evaluator-side type in its signature is a seam, every
+  other body in both modules lowers, and the module keeps its IR.
 
 Waivers are enumerated one at a time and name what blocks each, so the suite
 never degrades into a "fewer than N" threshold: an un-waived seam fails, and a
@@ -98,11 +99,11 @@ glob TYPES_CLOSURE: tuple = (
          "types.jac",
          "unitree.jac"
      ),
-     # A module refused by a signature type still links its dependencies: the
-     # refusal costs it its own IR, not the unit around it. Both refused
-     # modules reach the same set, so it is named once and the module's own
-     # file is added per case.
-     REFUSED_MODULE_CLOSURE: tuple = (
+     # The two modules whose evaluator-side signatures demote (#8285) reach the
+     # same set, so it is named once and the module's own file is added per
+     # case. A signature refusal costs its callable a native body, not the unit
+     # around it, so this is the closure of a module that lowers.
+     SIGNATURE_SEAM_CLOSURE: tuple = (
          "_hashlib_native.jac",
          "const_fold.jac",
          "constant.jac",
@@ -204,13 +205,12 @@ CPython `ast` handles that used to head this list moved into
 demotable like any other callable, and now read as
 `TypeEvaluator.__post_init__` in the census instead.
 
-Three entries name a different file, and that is the keystone's doing. The
-evaluator imports `enum_utils` and `operations`, and now that `types.jac`
-links, both are compiled as dependencies instead of being dropped before
-placement, so their own declaration-time refusals join this compile's error
-list. They are pinned twice on purpose: by module in
-`SIGNATURE_REFUSED_MODULES` below, and by construct here, so a refusal that
-moves fails whichever way it moves.
+Three entries used to name a different file: the evaluator imports
+`enum_utils` and `operations`, both are compiled as dependencies now that
+`types.jac` links, and each carried a declaration-time signature refusal that
+joined this compile's error list. #8285 gave those refusals their owning
+callable, so they are seams in their own modules' tables below and no longer
+reach anyone's error list.
 """
 glob EVALUATOR_FATAL_WAIVERS: dict[(str, str)] = {
          "type_evaluator.jac::Native lowering failed for type '[MultiString]'": (
@@ -227,43 +227,39 @@ glob EVALUATOR_FATAL_WAIVERS: dict[(str, str)] = {
          ): (
              "Field declaration: a cache keyed by tuple holding optional "
              "`TypeBase`; neither half has a native layout."
-         ),
-         "enum_utils.jac::Native lowering failed for type 'TypeEvaluator'": (
-             "A dependency's signature refusal, pinned by module in "
-             "`SIGNATURE_REFUSED_MODULES`: `enum_utils` takes the evaluator as "
-             "a parameter, and a signature resolves before any body opens a "
-             "demotion window."
-         ),
-         "enum_utils.jac::Native lowering failed for type 'PrefetchedTypes'": (
-             "The same declaration-time refusal on `enum_utils`'s other "
-             "evaluator-side type: `PrefetchedTypes` is declared in "
-             "`type_evaluator.jac`, which has no native layout of its own."
-         ),
-         "operations.jac::Native lowering failed for type 'TypeEvaluator'": (
-             "The `enum_utils` refusal in the stage's other free-function "
-             "module, same declaration-time shape."
          )
      };
 
-"""Modules whose whole native compile is refused by a parameter's type.
+"""Seams in the two modules that used to be refused whole by a signature.
 
-Not a seam table: these two never reach codegen at all, so nothing about their
-bodies is measured. Both hold `def f(evaluator: TypeEvaluator, ...)` at module
-scope, and `TypeEvaluator` is the stage's upper half -- a class with no native
-layout. A signature is resolved when the ability is declared, before any body
-opens a demotion window, so the failure has no owner and costs the module its
-IR the way an un-lowerable field declaration does.
+Both hold `def f(evaluator: TypeEvaluator, ...)` at module scope, and
+`TypeEvaluator` is the stage's upper half -- a class with no native layout. A
+signature is resolved when the ability is declared, and until #8285 that was
+before any body opened a demotion window, so the failure had no owner and cost
+the module its IR the way an un-lowerable field declaration does. The
+declaration now owns it, which is the same clearing mechanism #8234 and #8237
+applied to constructors and to `postinit` handles.
 
-That asymmetry is the clearing mechanism, and it is the same one #8234 and
-#8237 already applied twice: a constructor now owns its body, and the
-evaluator's `postinit` handles now demote as `__post_init__`. Declaration-time
-signature resolution is the third case and the only one left. Until it lands,
-both modules are un-sealable and un-measurable, which is why they are pinned
-here by their refusal rather than waived into a seam table.
+What is left is a seam per callable that names the evaluator-side type in its
+signature, and nothing else: every other body in both modules lowers. These go
+when `type_evaluator.jac` gets a native layout, which is M2's work, not this
+table's.
 """
-glob SIGNATURE_REFUSED_MODULES: dict[(str, str)] = {
-         "enum_utils.jac": "TypeEvaluator",
-         "operations.jac": "TypeEvaluator"
+glob SIGNATURE_SEAM_WAIVERS: dict[(str, dict)] = {
+         "enum_utils.jac": {
+             "enum_utils.jac::create_enum_member_info": "TypeEvaluator",
+             "enum_utils.jac::validate_enum_member_annotation": "TypeEvaluator",
+             "enum_utils.jac::build_enum_members": "TypeEvaluator",
+             "enum_utils.jac::get_special_enum_value_type_from_bases": (
+                 "PrefetchedTypes"
+             )
+         },
+         "operations.jac": {
+             "operations.jac::get_numeric_promotion_type": "TypeEvaluator",
+             "operations.jac::get_pow_result_type": "TypeEvaluator",
+             "operations.jac::is_annotation_type": "TypeEvaluator",
+             "operations.jac::get_type_of_binary_operation": "TypeEvaluator"
+         }
      };
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
@@ -479,27 +475,30 @@ test "every ownerless refusal in the evaluator is enumerated" {
 }
 
 
-test "a signature type still refuses its whole module" {
-    for (mod, tname) in sorted(SIGNATURE_REFUSED_MODULES.items()) {
+test "a signature type demotes its callable, not its module" {
+    for (mod, waived) in sorted(SIGNATURE_SEAM_WAIVERS.items()) {
         (census, has_ir, fatal) = _census_of(TS_PATH / mod);
-        assert not has_ir , (
-            f"{mod} produced native IR. If declaration-time signature "
-            "resolution learned to demote the owning ability, this module is "
-            "measurable now: drop it from SIGNATURE_REFUSED_MODULES and give "
-            "it a seam table of its own."
-        );
-        want = f"Native lowering failed for type '{tname}'";
-        assert any(want in f for f in fatal) , (
-            f"{mod} no longer refuses on `{tname}` in a parameter. It still "
-            f"has no IR, so something else strands it now:\n"
+        assert has_ir , (
+            f"no LLVM IR for {mod} -- a signature the backend cannot resolve "
+            f"has to demote the ability that carries it, so nothing here is "
+            f"module-fatal any more:\n"
             + "\n".join(f"  {f}" for f in fatal)
         );
+        found = _seams_of(census, (mod, ));
+        _assert_waivers_match(found, waived, mod);
+        for (key, tname) in sorted(waived.items()) {
+            assert "signature type" in found[key] and tname in found[key] , (
+                f"{key} demotes for a different reason now; a signature "
+                f"refusal has to name the annotation it could not resolve: "
+                f"{found[key]}"
+            );
+        }
         seen = tuple(sorted({os.path.basename(p) for p in census}));
-        want = tuple(sorted(REFUSED_MODULE_CLOSURE + (mod, )));
+        want = tuple(sorted(SIGNATURE_SEAM_CLOSURE + (mod, )));
         assert seen == want , (
-            f"{mod}'s closure is {seen}, not {want}. The refusal costs the "
-            "module its own IR, not the unit around it, so a change here is a "
-            "change in what it links rather than in what refuses it."
+            f"{mod}'s closure is {seen}, not {want}. The demotions cost each "
+            "callable its native body, not the unit around them, so a change "
+            "here is a change in what the module links."
         );
     }
 }

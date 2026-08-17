@@ -432,8 +432,7 @@ test "an unresolvable signature annotation demotes its callable" {
         f"expected exactly one census seam for takes_peer, got: {seams}"
     );
     assert "E5092" in owned[0] and "Peer" in owned[0] , (
-        f"the seam reason must name the annotation it could not resolve: "
-        f"{owned[0]}"
+        f"the seam reason must name the annotation it could not resolve: " f"{owned[0]}"
     );
     assert "signature type" in owned[0] , (
         f"the seam reason must say the refusal came from a signature, not a "

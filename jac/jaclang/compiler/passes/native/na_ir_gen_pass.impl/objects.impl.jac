@@ -837,9 +837,6 @@ impl NaIRGenPass._forward_declare_method(
 
     _self_type = self._class_form_enum_self_type(arch_name) or struct_type.as_pointer();
 
-    # Same declaration-time window as `_maybe_declare_ability` (#8285): a
-    # signature type that survives every erasure below refuses here, long
-    # before `_codegen_method` marks the body, so its owner is claimed now.
     _sig_mark = len(self.errors_had);
     _saved_sig_kind = self._sig_decl_kind;
     self._sig_decl_kind = "signature type";

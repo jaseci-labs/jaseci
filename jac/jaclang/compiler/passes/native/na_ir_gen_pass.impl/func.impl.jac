@@ -57,10 +57,6 @@ impl NaIRGenPass._maybe_declare_ability(nd: uni.ElementStmt) -> None {
     }
     sig = nd.signature;
 
-    # A signature resolves here, before any body opens a demotion window, so a
-    # type the backend cannot lower used to have no owner and cost the whole
-    # module its IR -- and every importer with it (#8285). The owning callable
-    # is known right here, so the failures are bracketed and spent on it below.
     _sig_mark = len(self.errors_had);
     _saved_sig_kind = self._sig_decl_kind;
     self._sig_decl_kind = "signature type";
