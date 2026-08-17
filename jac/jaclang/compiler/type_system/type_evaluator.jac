@@ -711,6 +711,7 @@ obj TypeEvaluator {
     def _get_type_from_match_pattern(pattern: MatchPattern) -> TypeBase | None;
     def _union_contains_none(union_type: TypeBase) -> bool;
     def _extract_isinstance_info(condition: Expr) -> tuple[str, TypeBase] | None;
+    def _isinstance_tuple_alternatives(arg_type: TypeBase) -> list[TypeBase] | None;
     def _extract_type_guard_info(condition: Expr) -> tuple[str, TypeBase, bool] | None;
     def _create_type_guard_type(name: str, guarded: TypeBase | None) -> TypeBase;
     def _type_guard_form_of(ty: TypeBase) -> str | None;

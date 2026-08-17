@@ -95,7 +95,7 @@ glob JS_GLOBALS: dict[str, str] = {
      );
 
 
-impl classify_native_import(item: UniNode) -> tuple {
+impl classify_native_import(item: UniNode) -> tuple[((str | None), bool)] {
     import from jaclang.jac0core.codeinfo { native_comptime_import_names }
     mod_name: (str | None) = None;
     if isinstance(item, ModulePath) and item.path {
@@ -202,7 +202,8 @@ impl name_in_type_position(name_nd: UniNode) -> bool {
 
 impl static_fstring_spec_text(spec: UniNode) -> (str | None) {
     if isinstance(spec, String) {
-        return spec.lit_value;
+        _lit = spec.lit_value;
+        return _lit if isinstance(_lit, str) else None;
     }
     if isinstance(spec, MultiString) {
         parts: list[str] = [];
@@ -210,7 +211,11 @@ impl static_fstring_spec_text(spec: UniNode) -> (str | None) {
             if not isinstance(s, String) {
                 return None;
             }
-            parts.append(s.lit_value);
+            _slit = s.lit_value;
+            if not isinstance(_slit, str) {
+                return None;
+            }
+            parts.append(_slit);
         }
         return "".join(parts);
     }
@@ -220,7 +225,11 @@ impl static_fstring_spec_text(spec: UniNode) -> (str | None) {
             if not isinstance(p, String) {
                 return None;
             }
-            parts2.append(p.lit_value);
+            _plit = p.lit_value;
+            if not isinstance(_plit, str) {
+                return None;
+            }
+            parts2.append(_plit);
         }
         return "".join(parts2);
     }
@@ -247,14 +256,16 @@ impl call_has_kwargs_sink(call: FuncCall) -> bool {
 }
 
 
-impl native_capability_violations(mod: Module) -> list {
+impl native_capability_violations(
+    mod: Module
+) -> list[tuple[(UniNode, str, str, (str | None))]] {
     import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
     import from jaclang.jac0core.constant { CodeContext, ExprCtx, Tokens as Tok }
-    out: list = [];
+    out: list[tuple[(UniNode, str, str, (str | None))]] = [];
     _stdlib_help: (str | None) = None;
 
-    _native_stmts: list = list(
-        ModuleCodegenPass.iter_context_stmts(mod, CodeContext.NATIVE)
+    _native_stmts: list[ElementStmt] = ModuleCodegenPass.iter_context_stmts(
+        mod, CodeContext.NATIVE
     );
     _runtime_used: set = set();
     _type_used: set = set();
@@ -302,6 +313,7 @@ impl native_capability_violations(mod: Module) -> list {
                     not stmt.is_absorb
                     and isinstance(item, ModulePath)
                     and item.alias is None
+                    and item.path is not None
                     and len(item.path) == 1
                 );
                 if (stmt.is_absorb or _plain_bare)
@@ -349,7 +361,7 @@ impl native_capability_violations(mod: Module) -> list {
             continue;
         }
 
-        work: list = [stmt];
+        work: list[UniNode] = [stmt];
         while work {
             nd = work.pop();
             if isinstance(nd, Import) {
@@ -662,9 +674,16 @@ impl native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None) {
     return None;
 }
 
-impl partition_native_capability_violations(viols: list) -> tuple {
-    _fatal: list = [];
-    _demotable: dict[int, list] = {};
+impl partition_native_capability_violations(
+    viols: list[tuple[(UniNode, str, str, (str | None))]]
+) -> tuple[
+    (
+        list[tuple[(UniNode, str, str, (str | None))]],
+        dict[int, list[tuple[(UniNode, str, str, (str | None))]]]
+    )
+] {
+    _fatal: list[tuple[(UniNode, str, str, (str | None))]] = [];
+    _demotable: dict[int, list[tuple[(UniNode, str, str, (str | None))]]] = {};
     for _v in viols {
         _owner = native_capability_demotion_owner(_v[0]);
         if _owner is None {
@@ -782,8 +801,7 @@ impl PortabilityWarnPass._check_js_methods(mod: Module) -> None {
         }
 
         parent = trailer.parent;
-        is_method_call = isinstance(parent, FuncCall) and parent.target is trailer;
-        if not is_method_call {
+        if not isinstance(parent, FuncCall) or parent.target is not trailer {
             continue;
         }
 

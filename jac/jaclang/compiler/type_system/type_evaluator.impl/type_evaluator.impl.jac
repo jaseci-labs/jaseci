@@ -5021,10 +5021,54 @@ impl TypeEvaluator._extract_isinstance_info(
         return (narrowing_key, narrowed);
     }
 
-    return (
-        narrowing_key,
-        self._convert_to_instance(self.get_type_of_expression(type_arg))
-    );
+    arg_type = self.get_type_of_expression(type_arg);
+    named_alts = self._isinstance_tuple_alternatives(arg_type);
+    if named_alts is not None {
+        if not named_alts {
+            return None;
+        }
+        return (
+            narrowing_key,
+            named_alts[0]
+                if len(named_alts) == 1
+                else UnionType(types=named_alts)
+        );
+    }
+
+    return (narrowing_key, self._convert_to_instance(arg_type));
+}
+
+impl TypeEvaluator._isinstance_tuple_alternatives(
+    arg_type: TypeBase
+) -> list[TypeBase] | None {
+    if (
+        not isinstance(arg_type, ClassType)
+        or not self.prefetch
+        or self.prefetch.tuple_class is None
+        or arg_type.shared != self.prefetch.tuple_class.shared
+    ) {
+        return None;
+    }
+    alts: list[TypeBase] = [];
+    for elem in (arg_type.private.type_args or []) {
+        if not isinstance(elem, ClassType) {
+            return [];
+        }
+        if elem.is_instantiable_class() {
+            alts.append(self._convert_to_instance(elem));
+            continue;
+        }
+        if (
+            self.prefetch.type_class is not None
+            and elem.shared == self.prefetch.type_class.shared
+            and elem.private.type_args
+        ) {
+            alts.append(self._convert_to_instance(elem.private.type_args[0]));
+            continue;
+        }
+        return [];
+    }
+    return alts;
 }
 
 impl TypeEvaluator._create_type_guard_type(
