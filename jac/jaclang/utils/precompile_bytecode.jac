@@ -473,6 +473,13 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
 
      ),
+     _JSX_GUARD_SEAM_WAIVERS: tuple = (
+         (
+             "compiler/passes/main/jsx_intrinsic_guard_pass.jac::"
+             "JsxIntrinsicGuardPass.before_pass"
+         ),
+
+     ),
      _CFG_BUILD_SEAM_WAIVERS: tuple = (
          "compiler/passes/main/cfg_build_pass.jac::cfg_dot_from_file",
          "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass.enter_node",
@@ -540,7 +547,9 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": (
+             _CLOSURE_SEAM_WAIVERS + _JSX_GUARD_SEAM_WAIVERS
+         ),
          "compiler/passes/main/cfg_build_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
          ),
@@ -655,6 +664,18 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "native root lowers now; running one still does not, and this "
              "is exactly where. They clear when a store to an inherited "
              "slot of a linked base lowers."
+         ),
+         (
+             "jsx guard inherited field read",
+             _JSX_GUARD_SEAM_WAIVERS,
+             "`before_pass` reads `self.ir_in`, a slot inherited from "
+             "`BaseTransform`. It is the read half of the family above -- "
+             "`uni_pass`'s `transform` and `traverse` refuse on the write "
+             "half of the same slots -- and it appeared for the same reason, "
+             "the base chain entering the closure. Three passes now refuse "
+             "on inherited-slot access and no pass refuses on anything else "
+             "about the chain, which is what makes this one mechanism rather "
+             "than three defects. It clears with them."
          ),
          (
              "endpoint effects written as codegen state",
