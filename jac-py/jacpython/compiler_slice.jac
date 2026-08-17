@@ -962,3 +962,82 @@ test "compiler_slice: band4 lambda default args parsed executes in ceval" {
     assert not is_error(out);
     assert expect_int(ns["result"]) == 3;
 }
+
+# ---------------- Band 4: *args / **kwargs / kw-only slice ----------------
+
+test "compiler_slice: parse varargs ast" {
+    src = "def f(a, *args):\n    return a + len(args)\n\nresult = f(1, 2, 3)\n";
+    m = parse_file(src, "<f>");
+    assert m is not None;
+    fd = (m as Module).body[0] as FunctionDef;
+    assert fd.args.vararg is not None;
+    assert (fd.args.vararg as arg).arg == "args";
+    assert len(fd.args.args) == 1;
+}
+
+test "compiler_slice: band4 varargs parsed matches oracle nested f co_code" {
+    src = "def f(a, *args):\n    return a + len(args)\n\nresult = f(1, 2, 3)\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    fn = first_nested_code(actual);
+    exp_fn = first_nested_code(exp);
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 1;
+    assert fn.kwonlyargcount == 0;
+    assert fn.varnames == ["a", "args"];
+    assert (fn.flags & 4) != 0;
+}
+
+test "compiler_slice: band4 varargs parsed executes in ceval" {
+    src = "def f(a, *args):\n    return a + len(args)\n\nresult = f(1, 2, 3)\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "compiler_slice: band4 varkw parsed executes in ceval" {
+    src = "def f(a, **kwargs):\n    return a + len(kwargs)\n\nresult = f(1, b=2, c=3)\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "compiler_slice: band4 kwonly default parsed matches oracle nested f co_code" {
+    src = "def f(a, *, b=10):\n    return a + b\n\nresult = f(2)\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    fn = first_nested_code(actual);
+    exp_fn = first_nested_code(exp);
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 1;
+    assert fn.kwonlyargcount == 1;
+    assert fn.varnames == ["a", "b"];
+}
+
+test "compiler_slice: band4 kwonly default parsed executes in ceval" {
+    src = "def f(a, *, b=10):\n    return a + b\n\nresult = f(2)\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 12;
+}
+
+test "compiler_slice: band4 varargs kwonly default parsed executes in ceval" {
+    src = "def f(a, *args, b=1):\n    return a + len(args) + b\n\nresult = f(1, 2, 3)\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 4;
+}

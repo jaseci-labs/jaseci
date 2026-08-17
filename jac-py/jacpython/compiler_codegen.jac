@@ -13,7 +13,7 @@
 # Product module: imports compiler_ir + opcode_meta + ast_nodes only. No host
 # tokenize/ast/compile/marshal.
 
-import from objects { PyObj, PyInt, py_none, PySlice, PyCode, PyTuple }
+import from objects { PyObj, PyInt, PyStr, py_none, PySlice, PyCode, PyTuple }
 import from opcode_meta {
     OP_RESUME,
     OP_RETURN_VALUE,
@@ -31,6 +31,8 @@ import from opcode_meta {
     OP_BINARY_OP,
     CO_OPTIMIZED,
     CO_NEWLOCALS,
+    CO_VARARGS,
+    CO_VARKEYWORDS,
     OP_UNARY_NEGATIVE,
     OP_UNARY_INVERT,
     OP_UNARY_NOT,
@@ -406,7 +408,47 @@ def emit_function_defaults(
     return True;
 }
 
-# Nested code on stack; defaults + closure tuple + SET_FUNCTION_ATTRIBUTE when needed.
+def args_have_kw_defaults(args: arguments) -> bool {
+    ki = 0;
+    while ki < len(args.kw_defaults) {
+        if args.kw_defaults[ki] is not None {
+            return True;
+        }
+        ki = ki + 1;
+    }
+    return False;
+}
+
+# Compile kw-only default expressions; leaves kwdefaults dict on stack.
+def emit_function_kwdefaults(
+    g: cfg_builder, args: arguments, tloc: cloc
+) -> bool {
+    pair_count = 0;
+    ki = 0;
+    while ki < len(args.kwonlyargs) {
+        kd: expr | None = None;
+        if ki < len(args.kw_defaults) {
+            kd = args.kw_defaults[ki];
+        }
+        if kd is not None {
+            a = args.kwonlyargs[ki] as arg;
+            key_idx = g.u.add_const(PyStr(t="str", val=a.arg));
+            g.emit_op(OP_LOAD_CONST, key_idx, tloc);
+            visit_expr(g, kd);
+            if codegen_busy(g) {
+                return False;
+            }
+            pair_count = pair_count + 1;
+        }
+        ki = ki + 1;
+    }
+    if pair_count > 0 {
+        g.emit_op(OP_BUILD_MAP, pair_count, tloc);
+    }
+    return True;
+}
+
+# Nested code on stack; defaults/kwdefaults/closure + SET_FUNCTION_ATTRIBUTE when needed.
 def emit_make_function_with_closure(
     g: cfg_builder,
     sym_fn: sym_block,
@@ -415,9 +457,15 @@ def emit_make_function_with_closure(
     args: arguments | None = None
 ) {
     has_defaults = args is not None and len(args.defaults) > 0;
+    has_kwdefaults = args is not None and args_have_kw_defaults(args);
     cidx = g.u.add_const(co);
     if has_defaults {
         if not emit_function_defaults(g, args.defaults, tloc) {
+            return;
+        }
+    }
+    if has_kwdefaults {
+        if not emit_function_kwdefaults(g, args, tloc) {
             return;
         }
     }
@@ -435,6 +483,9 @@ def emit_make_function_with_closure(
     g.emit_op(OP_MAKE_FUNCTION, 0, tloc);
     if len(child_free) > 0 {
         g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 8, tloc);
+    }
+    if has_kwdefaults {
+        g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 2, tloc);
     }
     if has_defaults {
         g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 1, tloc);
@@ -476,20 +527,22 @@ def unit_fail(u: unverified_cfg, kind: str, message: str) {
     }
 }
 
-# Band 4 thin slice: positional parameters only (no *args, **kwargs, kw-only).
-def function_argcounts(args: arguments) -> tuple[int, int, int] | None {
-    if args.vararg is not None {
-        return None;
-    }
-    if args.kwarg is not None {
-        return None;
-    }
-    if len(args.kwonlyargs) > 0 {
-        return None;
-    }
+def function_argcounts(args: arguments) -> tuple[int, int, int] {
     posonly = len(args.posonlyargs);
     regular = len(args.args);
-    return (posonly + regular, posonly, 0);
+    kwonly = len(args.kwonlyargs);
+    return (posonly + regular, posonly, kwonly);
+}
+
+def function_code_flags(args: arguments) -> int {
+    flags = CO_OPTIMIZED | CO_NEWLOCALS;
+    if args.vararg is not None {
+        flags = flags | CO_VARARGS;
+    }
+    if args.kwarg is not None {
+        flags = flags | CO_VARKEYWORDS;
+    }
+    return flags;
 }
 
 def emit_name_load(
@@ -3030,26 +3083,17 @@ def visit_lambda(g: cfg_builder, lam: Lambda) {
 def compile_lambda_cfg(
     lam: Lambda, filename: str, sym_fn: sym_block
 ) -> unverified_cfg {
-    counts = function_argcounts(lam.args);
+    (argcount, posonly, kwonly) = function_argcounts(lam.args);
     u = unverified_cfg(
         filename=filename,
         name="<lambda>",
         qualname="<lambda>",
         firstlineno=lam.lineno
     );
-    if counts is None {
-        unit_fail(
-            u,
-            "NotImplementedError",
-            "unsupported lambda signature (Band 4: positional args only)"
-        );
-        return u;
-    }
-    (argcount, posonly, kwonly) = counts;
     u.argcount = argcount;
     u.posonlyargcount = posonly;
     u.kwonlyargcount = kwonly;
-    u.flags = CO_OPTIMIZED | CO_NEWLOCALS;
+    u.flags = function_code_flags(lam.args);
     u.varnames = fast_varnames_from_sym(sym_fn);
     entry = u.add_block();
     g = new_cfg_builder(u, entry, sym_fn);
@@ -3067,28 +3111,17 @@ def compile_lambda_cfg(
 def compile_function_cfg(
     fd: FunctionDef, filename: str, sym_fn: sym_block
 ) -> unverified_cfg {
-    counts = function_argcounts(fd.args);
+    (argcount, posonly, kwonly) = function_argcounts(fd.args);
     u = unverified_cfg(
         filename=filename,
         name=fd.name,
         qualname=fd.name,
         firstlineno=fd.lineno
     );
-    if counts is None {
-        unit_fail(
-            u,
-            "NotImplementedError",
-            "unsupported function signature: "
-                + fd.name
-                + " (Band 4: positional args only)"
-        );
-        return u;
-    }
-    (argcount, posonly, kwonly) = counts;
     u.argcount = argcount;
     u.posonlyargcount = posonly;
     u.kwonlyargcount = kwonly;
-    u.flags = CO_OPTIMIZED | CO_NEWLOCALS;
+    u.flags = function_code_flags(fd.args);
     u.varnames = fast_varnames_from_sym(sym_fn);
     entry = u.add_block();
     g = new_cfg_builder(u, entry, sym_fn);

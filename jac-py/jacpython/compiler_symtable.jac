@@ -661,12 +661,6 @@ def sym_visit_params(b: sym_builder, args: arguments) -> bool {
         }
         pi = pi + 1;
     }
-    if args.vararg is not None {
-        va = args.vararg as arg;
-        if not b.add_def(va.arg, DEF_PARAM, va.lineno, va.col_offset) {
-            return False;
-        }
-    }
     pi = 0;
     while pi < len(args.kwonlyargs) {
         a = args.kwonlyargs[pi];
@@ -674,6 +668,12 @@ def sym_visit_params(b: sym_builder, args: arguments) -> bool {
             return False;
         }
         pi = pi + 1;
+    }
+    if args.vararg is not None {
+        va = args.vararg as arg;
+        if not b.add_def(va.arg, DEF_PARAM, va.lineno, va.col_offset) {
+            return False;
+        }
     }
     if args.kwarg is not None {
         ka = args.kwarg as arg;

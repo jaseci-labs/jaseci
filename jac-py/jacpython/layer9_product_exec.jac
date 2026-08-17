@@ -430,6 +430,77 @@ test "layer9: lambda default args executes in ceval" {
     assert expect_int(ns["result"]) == 3;
 }
 
+# ---------------- Band 4: *args / **kwargs / kw-only slice ----------------
+
+test "layer9: varargs matches oracle" {
+    src = "def f(a, *args):\n    return a + len(args)\n\nresult = f(1, 2, 3)\n";
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    fn = first_nested_code(act);
+    exp_fn = first_nested_code(exp);
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 1;
+    assert fn.varnames == ["a", "args"];
+}
+
+test "layer9: varargs executes in ceval" {
+    src = "def f(a, *args):\n    return a + len(args)\n\nresult = f(1, 2, 3)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "layer9: varkw executes in ceval" {
+    src = "def f(a, **kwargs):\n    return a + len(kwargs)\n\nresult = f(1, b=2, c=3)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "layer9: kwonly default matches oracle" {
+    src = "def f(a, *, b=10):\n    return a + b\n\nresult = f(2)\n";
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    fn = first_nested_code(act);
+    exp_fn = first_nested_code(exp);
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 1;
+    assert fn.kwonlyargcount == 1;
+    assert fn.varnames == ["a", "b"];
+}
+
+test "layer9: kwonly default executes in ceval" {
+    src = "def f(a, *, b=10):\n    return a + b\n\nresult = f(2)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 12;
+}
+
+test "layer9: varargs kwonly default executes in ceval" {
+    src = "def f(a, *args, b=1):\n    return a + len(args) + b\n\nresult = f(1, 2, 3)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 4;
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {
