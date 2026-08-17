@@ -289,37 +289,54 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/passes/ast_validation_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/semantic_analysis_pass.jac",
+         "jac0core/passes/sym_tab_build_pass.jac",
+         "jac0core/passes/decl_impl_match_pass.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac",
          "compiler/passes/main/sem_def_match_pass.jac",
+         "compiler/passes/main/access_check_pass.jac",
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
          "compiler/native_materialize.jac",
 
      ),
      NATIVE_SEAL_CLOSURE: tuple = (
          "jac0core/constant.jac",
          "jac0core/diagnostics.jac",
+         "jac0core/helpers.jac",
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
          "jac0core/parser/tokens.jac",
          "jac0core/passes/annex_pass.jac",
          "jac0core/passes/annex_weave.jac",
          "jac0core/passes/ast_validation_pass.jac",
+         "jac0core/passes/decl_impl_match_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/semantic_analysis_pass.jac",
+         "jac0core/passes/sym_tab_build_pass.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "compiler/native_materialize.jac",
+         "compiler/passes/main/access_check_pass.jac",
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
          "compiler/passes/main/sem_def_match_pass.jac",
+         "compiler/type_registry.jac",
+         "compiler/type_system/type_utils.jac",
+         "compiler/type_system/types.jac",
+         "project/client_kind_paths.jac",
+         "runtimelib/client/targets/react_native/html_tag_map.jac",
+         "runtimelib/na_stdlib/_hashlib_native.jac",
+         "runtimelib/na_stdlib/fnmatch.jac",
+         "runtimelib/na_stdlib/hashlib.jac",
          "runtimelib/na_stdlib/keyword.jac",
+         "runtimelib/na_stdlib/pathlib.jac",
 
      );
 
 glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::ModulePath.resolve_relative_path",
          "jac0core/unitree.jac::ModulePath.native_bundled_path",
-         "jac0core/unitree.jac::Ability.event_trigger_type_names",
          "jac0core/unitree.jac::UniNode.gen.__get__",
          "jac0core/unitree.jac::Module.annexable_by.__get__",
          "jac0core/unitree.jac::Import.__jac_detected.__get__",
@@ -328,6 +345,44 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::BuiltinType.lit_value.__get__",
          "jac0core/unitree.jac::Ellipsis.lit_value.__get__",
 
+     ),
+     _TYPES_SEAM_WAIVERS: tuple = (
+         "compiler/type_system/types.jac::ClassType.lookup_member_symbol",
+         "compiler/type_system/types.jac::FunctionType.specialize",
+         "compiler/type_system/types.jac::create_callable_type",
+
+     ),
+     _TYPE_UTILS_SEAM_WAIVERS: tuple = (
+         "compiler/type_system/type_utils.jac::expr_primitive_name",
+         "compiler/type_system/type_utils.jac::class_implements_protocol",
+         "compiler/type_system/type_utils.jac::collect_member_syms",
+         "compiler/type_system/type_utils.jac::doc_of_sym",
+         "compiler/type_system/type_utils.jac::completion_item_from_sym",
+         "compiler/type_system/type_utils.jac::get_completion_items",
+         "compiler/type_system/type_utils.jac::completion_kind_from_sym",
+         "compiler/type_system/type_utils.jac::compute_mro_linearization",
+         "compiler/type_system/type_utils.jac::build_type_var_solution",
+         "compiler/type_system/type_utils.jac::shadowed_type_var_names",
+         "compiler/type_system/type_utils.jac::build_solution_from_specialized_class",
+
+     ),
+     _HELPERS_SEAM_WAIVERS: tuple = (
+         "jac0core/helpers.jac::pretty_print_source_location",
+         "jac0core/helpers.jac::format_related_spans",
+         "jac0core/helpers.jac::read_file_with_encoding",
+         "jac0core/helpers.jac::normalize_exclude_patterns",
+         "jac0core/helpers.jac::read_jacignore_patterns",
+         "jac0core/helpers.jac::_is_version_info_access",
+         "jac0core/helpers.jac::_is_type_checking_ref",
+         "jac0core/helpers.jac::_extract_version_tuple",
+         "jac0core/helpers.jac::evaluate_version_condition",
+
+     ),
+     _CLOSURE_SEAM_WAIVERS: tuple = (
+         _UNITREE_SEAM_WAIVERS
+         + _TYPES_SEAM_WAIVERS
+         + _TYPE_UTILS_SEAM_WAIVERS
+         + _HELPERS_SEAM_WAIVERS
      ),
      _MODULE_CODEGEN_SEAM_WAIVERS: tuple = (
          "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_context_stmts",
@@ -352,24 +407,34 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/semantic_analysis_pass.jac::SemanticAnalysisPass.enter_has_var",
 
      ),
+     _SYM_TAB_BUILD_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/sym_tab_build_pass.jac::SymTabBuildPass.exit_global_vars",
+
+     ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
-         "compiler/native_materialize.jac": _UNITREE_SEAM_WAIVERS,
-         "jac0core/unitree.jac": _UNITREE_SEAM_WAIVERS,
-         "jac0core/passes/annex_pass.jac": _UNITREE_SEAM_WAIVERS,
+         "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
+         "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
+         "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/module_codegen_pass.jac": (
-             _UNITREE_SEAM_WAIVERS + _MODULE_CODEGEN_SEAM_WAIVERS
+             _CLOSURE_SEAM_WAIVERS + _MODULE_CODEGEN_SEAM_WAIVERS
          ),
          "jac0core/passes/uni_pass.jac": (
-             _UNITREE_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
+             _CLOSURE_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
          ),
          "jac0core/passes/endpoint_effect_pass.jac": (
-             _UNITREE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
+             _CLOSURE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
          ),
-         "jac0core/passes/ast_validation_pass.jac": _UNITREE_SEAM_WAIVERS,
+         "jac0core/passes/ast_validation_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/semantic_analysis_pass.jac": (
-             _UNITREE_SEAM_WAIVERS + _SEMANTIC_ANALYSIS_SEAM_WAIVERS
+             _CLOSURE_SEAM_WAIVERS + _SEMANTIC_ANALYSIS_SEAM_WAIVERS
          ),
-         "compiler/passes/main/sem_def_match_pass.jac": _UNITREE_SEAM_WAIVERS
+         "jac0core/passes/sym_tab_build_pass.jac": (
+             _CLOSURE_SEAM_WAIVERS + _SYM_TAB_BUILD_SEAM_WAIVERS
+         ),
+         "jac0core/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS
      };
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {

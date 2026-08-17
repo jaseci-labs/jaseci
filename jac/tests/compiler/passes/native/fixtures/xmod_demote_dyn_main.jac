@@ -7,7 +7,7 @@ reason naming the callee. `call_double` stays natively lowered.
 
 import from xmod_demote_dyn_lib { from_code, double }
 
-def call_dyn(x: int) -> int {
+def call_dyn(x: str) -> int {
     return from_code(x) + 1;
 }
 

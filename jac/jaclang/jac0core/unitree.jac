@@ -359,6 +359,9 @@ obj Module(AstDocNode, UniScopeNode) {
         is_raised_from_py: bool = False,
         decided_codespace: str = "",
         parse_failed: bool = False,
+        mobui_enforced_root: (str | None) = None,
+        jac_project_root: (str | None) = None,
+        access_enforced: bool = False,
         annex_mods: list[Module] postinit;
 
     def postinit -> None;
@@ -2018,6 +2021,8 @@ def decode_string_literal(text: str) -> str | bytes {
     }
     return _decode_str_escapes(body);
 }
+
+def is_identifier_slot(nd: UniNode) -> bool;
 
 def find_python_scope_node_of(nd: UniNode) -> (UniScopeNode | None);
 

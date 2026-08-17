@@ -879,6 +879,34 @@ impl JacCompiler.resolve_absorb_imports(
     }
 }
 
+impl JacCompiler.stamp_access_check_facts(mod: uni.Module) -> None {
+    import from jaclang.jac0core.modresolver { find_jac_project_root }
+    mod.jac_project_root = find_jac_project_root(mod.loc.mod_path) if mod.loc else None;
+    enforce = False;
+    try {
+        import from jaclang.project.config { get_config }
+        config = get_config();
+        if (config and config.check) {
+            enforce = config.check.enforce_access;
+        }
+    } except Exception {
+        enforce = False;
+    }
+    mod.access_enforced = enforce;
+}
+
+impl JacCompiler.stamp_client_kind_facts(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    import from jaclang.project.client_kind { resolve_client_kind_context }
+    opts = target_program._compile_options;
+    mod_path = mod.loc.mod_path if mod.loc else '';
+    (kind, proj_root) = resolve_client_kind_context(
+        mod_path, opts.project_kind, opts.project_root
+    );
+    mod.mobui_enforced_root = proj_root if kind == 'mobui' else None;
+}
+
 impl JacCompiler.stamp_boundary_facts(
     mod: uni.Module, target_program: JacProgram
 ) -> None {
@@ -1479,6 +1507,8 @@ impl JacCompiler.run_schedule(
         origin=(f"schedule for module {mod.loc.mod_path if mod.loc else mod.name}")
     );
     _policy = build_diagnostic_policy(target_program);
+    self.stamp_access_check_facts(mod);
+    jsx_guard_pass = _jsx_intrinsic_guard_pass_type();
     for current_pass in passes {
         if (cancel_token and cancel_token.is_set()) {
             break;
@@ -1488,6 +1518,9 @@ impl JacCompiler.run_schedule(
         }
         if current_pass is BoundaryAnalysisPass {
             self.stamp_boundary_facts(mod, target_program);
+        }
+        if jsx_guard_pass is not None and current_pass is jsx_guard_pass {
+            self.stamp_client_kind_facts(mod, target_program);
         }
         run_pass(
             current_pass, mod, target_program, cancel_token=cancel_token, policy=_policy
