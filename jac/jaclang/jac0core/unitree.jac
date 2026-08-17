@@ -231,7 +231,8 @@ obj AstElseBodyNode(UniNode) {
 }
 
 obj AstTypedVarNode(UniNode) {
-    has type_tag: (SubTag[Expr] | None) = None;
+    has type_tag: (SubTag[Expr] | None) = None,
+        type: (TypeBase | None) = None;
 }
 
 obj WalkerStmtOnlyNode(UniNode) {

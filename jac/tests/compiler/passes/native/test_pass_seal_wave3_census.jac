@@ -135,11 +135,13 @@ are more than half:
     leave before the pass is measured again; `_chunks_shape_of` returning
     a bare `(tuple | None)` is the pass's only element-erased signature.
 
-`cfg_build_pass` keeps the #8271 refusal unchanged; its any-element
-truthiness emitter bug and its `symbol_utils` dependency on
-`collect_narrowing_symbols` / `collect_assigned_symbols` are untouched
-here -- though the second is now a shorter hoist, since `expr_keys.jac`
-is a proven closure member and already holds both functions.
+`cfg_build_pass` was the fifth #8271 refusal and is no longer refused:
+wave 6 sealed it as the fifteenth root, and it and this root reached
+`compiler/expr_keys.jac` as a closure member independently -- cfg for
+`collect_narrowing_symbols` / `collect_assigned_symbols`, this one for
+the region predicate hoisted out of `symbol_utils.jac`. That leaves
+`static_analysis_pass` and `ownership_check_pass` as the cluster's
+remaining refusals, which is what `REFUSED_OWN_SEAMS` tracks.
 
 The measurement is a source-lane one: under a sealed jaclang image the
 census reads the image's trust boundary instead of each unit's own

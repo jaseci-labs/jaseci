@@ -570,7 +570,7 @@ impl LayoutPass._acyclic_walk(name: str, state: dict[str, int]) -> int {
     result = 1;
     for finfo in lay.fields {
         var = finfo.decl_node;
-        tb = var?.type if var is not None else None;
+        tb = var.type if isinstance(var, HasVar) else None;
         if tb is None {
             result = 2;
             break;
