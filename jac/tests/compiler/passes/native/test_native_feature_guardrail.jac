@@ -6,13 +6,19 @@ and emitting empty function bodies.
 
 Each test below targets one feature that NaIRGenPass currently no-ops.
 When a feature gains real support, its test here should be deleted and
-a behavioral test added to test_native_gen_pass.jac.
+a behavioral test added to test_native_gen_pass.jac -- unless the
+guardrail property survives the promotion in a stronger form, in which
+case the test stays and pins the lowering instead. That is what the set
+iteration below does: a demotion only promised Python would answer, so
+pinning the two lanes to the same value is a strictly better statement
+of "never miscompiles" than the demotion assertion it replaced.
 
 A regression that re-introduces silent-failure mode shows up here as a
 test that fails: "expected E5090, got no errors" — which is exactly the
 class of bug this guardrail exists to prevent.
 """
 
+import ctypes;
 import os;
 import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
@@ -82,6 +88,31 @@ def check_na_inline(label: str, code: str) -> JacProgram {
         )
     );
     return prog;
+}
+
+"""Call a no-argument int-returning function out of a compiled module's JIT
+engine. A guardrail that has become a lowering pin needs the native lane's
+answer, not just its layout membership."""
+def native_answer(eng: object, name: str) -> int {
+    assert eng is not None , f"no native engine produced for {name}";
+    addr = eng.get_function_address(name);
+    assert addr != 0 , f"'{name}' not found in the JIT engine";
+    return ctypes.CFUNCTYPE(ctypes.c_int64)(addr)();
+}
+
+"""Run the same snippet through the server (Python) lane and call one of its
+functions. This is the other half of a two-lane pin: a lowering is only correct
+if it agrees with the lane it replaced."""
+def server_answer(label: str, code: str, name: str) -> int {
+    path = os.path.join(FIXTURES_DIR, f"_guardrail_{label}.jac");
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=path, use_str=code, options=CompileOptions(default_codespace='server')
+    );
+    assert not prog.errors_had , f"server-lane compilation errors: {fmt_errors(prog)}";
+    ns: dict = {};
+    exec(compile(ir.gen.py, path, "exec"), ns);
+    return ns[name]();
 }
 
 """Return True if the program emitted at least one alert with the given code."""
@@ -269,29 +300,46 @@ test "guardrail: call to an undefined function is rejected" {
     )}";
 }
 
-# Iterating a `set` in a `for` loop is not lowered natively (the element type
-# resolves to nothing), which used to drop the loop body silently. Granular
-# demotion turns the structured E5092 into a per-function seam: the function
-# leaves the native layout (Python implements it) instead of miscompiling.
-test "guardrail: for-loop over a set demotes the function, never miscompiles" {
-    (prog, ir, log) = compile_na_inline_demote(
-        "for_over_set",
-        "def run() -> int {\n"
-        "    s: set[int] = {1, 2, 3};\n"
-        "    total: int = 0;\n"
-        "    for v in s { total = total + v; }\n"
-        "    return total;\n"
-        "}\n"
-    );
-    assert not prog.errors_had , f"A function-owned E5092 must demote, got: {fmt_errors(
+# Iterating a `set` in a `for` loop LOWERS. It used to drop the loop body
+# silently, then (with granular demotion) leave the function out of the native
+# layout entirely, because a set's element type resolved to nothing and the
+# native lane had no storage for an erased element. The rc-facts solver's
+# dataflow prerequisite fixed both halves: a set-typed lattice keeps its
+# element type, and `_codegen_for` grew a real set iteration to go with it.
+#
+# So this is no longer a guardrail against a silent drop -- it is the pin on
+# the lowering that replaced it, and it keeps the never-miscompile property in
+# the strongest available form. Demotion only ever promised that Python would
+# answer instead; agreement between the lanes promises the native answer is
+# right. A regression to a silent body-drop fails on the value, a regression to
+# demotion fails on layout membership, and either way this test names it.
+test "for-loop over a set lowers, and both lanes answer the same sum" {
+    src = "def run() -> int {\n"
+    "    s: set[int] = {1, 2, 3};\n"
+    "    total: int = 0;\n"
+    "    for v in s { total = total + v; }\n"
+    "    return total;\n"
+    "}\n";
+    (prog, ir, log) = compile_na_inline_demote("for_over_set", src);
+    assert not prog.errors_had , f"a lowered set loop must compile clean, got: {fmt_errors(
         prog
     )}";
     layout = ir.gen.native_layout;
     assert layout is not None , "whole-module native compile aborted";
-    assert "run" not in layout.functions , (
-        "the un-lowerable function must be demoted out of the native layout"
+    assert "run" in layout.functions , (
+        "iterating a set lowers now; run must stay in the native layout"
     );
-    assert "NA_DEBUG demote run" in log , f"no demotion recorded for run in:\n{log}";
+    assert "NA_DEBUG demote run" not in log , (
+        f"run must not demote for iterating a set:\n{log}"
+    );
+    native = native_answer(ir.gen.native_engine, "run");
+    assert native == 6 , (
+        f"the native lane must sum every element of the set once, got {native}"
+    );
+    server = server_answer("for_over_set", src, "run");
+    assert native == server , (
+        f"the lanes disagree on the set sum: native {native}, server {server}"
+    );
 }
 
 # A container stored inside another container comes back as a bare pointer:
