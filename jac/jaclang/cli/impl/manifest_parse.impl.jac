@@ -52,10 +52,6 @@ impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
         kwargs["nargs"] = argparse.REMAINDER;
         parser.add_argument(arg.name, **kwargs);
     } elif not arg_consumes_value(kind, arg.typ) {
-        # BooleanOptionalAction registers --X/--no-X on one dest and keeps a
-        # None default distinguishable, so handlers can tell "--no-X" from
-        # "flag not given" when the arg declares default=None. Flags already
-        # named no-* get no negated twin (argparse rejects --no-no-*).
         kwargs["action"] = (
             "store_true"
                 if arg.name.startswith("no-")
