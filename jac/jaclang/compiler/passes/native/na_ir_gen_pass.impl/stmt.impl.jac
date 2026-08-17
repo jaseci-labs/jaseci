@@ -1218,7 +1218,7 @@ impl NaIRGenPass._match_arch_cond(
         self.builder.position_at_end(fld_bb);
     }
     for (fname, sub_pat) in fields {
-        fv = self._codegen_field_access(subj, fname, arch_name);
+        fv = self._codegen_field_access(subj, fname, arch_name, pat);
         if fv is None {
             self.emit(
                 E5092,
@@ -1507,7 +1507,7 @@ impl NaIRGenPass._bind_match_arch(
         return;
     }
     for (fname, sub_pat) in fields {
-        fv = self._codegen_field_access(subj, fname, arch_name);
+        fv = self._codegen_field_access(subj, fname, arch_name, pat);
         if fv is not None {
             self._bind_match_pattern(sub_pat, fv, None);
         }

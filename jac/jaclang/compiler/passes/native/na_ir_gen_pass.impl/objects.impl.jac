@@ -454,7 +454,7 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
     for finfo in layout.fields {
         fname = finfo.name;
         var = finfo.decl_node;
-        ftype = ir.IntType(64);
+        ftype: ir.Type = ir.IntType(64);
         if var is not None and var.type_tag is not None {
             if finfo.owner in self.clib_struct_names {
                 _cf_fnty = False;
@@ -470,7 +470,13 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
                     ftype = self._resolve_jac_type(var.type_tag);
                 }
             } else {
+                _fld_mark = len(self.errors_had);
                 ftype = self._resolve_field_type(var);
+                _opaque = self._opaque_field_if_unlowerable(arch_name, fname, _fld_mark);
+                if _opaque is not None {
+                    ftype = _opaque;
+                    foreign_fields.add(fname);
+                }
                 if self._foreign_optional_field(var?.type) {
                     foreign_fields.add(fname);
                 }
@@ -1068,19 +1074,7 @@ impl NaIRGenPass._demote_method_if_unlowerable(
     _own = list(self.errors_had[local_mark:]);
 
     _na_debug = self._na_debug_on();
-    _warn = _na_debug or bool(self.prog._compile_options.native_debug);
-
-    if not _warn {
-        _warn = True;
-        try {
-            import from jaclang.project.config { get_config }
-            _cfg = get_config();
-            if _cfg and _cfg.check {
-                _warn = bool(_cfg.check.warn_native_seams);
-            }
-        } except Exception { }
-    }
-    if _warn {
+    if self._seam_warnings_on() {
         import sys;
         _why = "; ".join(str(e) for e in _own);
         sys.stderr.write(
@@ -1117,6 +1111,97 @@ impl NaIRGenPass._demote_method_if_unlowerable(
     self.func_symtab.pop(full_name, None);
     self._native_skipped_methods.add(full_name);
     return True;
+}
+
+impl NaIRGenPass._seam_warnings_on -> bool {
+    """Whether a seam this run takes should also be announced on stderr.""";
+    if self._na_debug_on() or bool(self.prog._compile_options.native_debug) {
+        return True;
+    }
+    try {
+        import from jaclang.project.config { get_config }
+        _cfg = get_config();
+        if _cfg and _cfg.check {
+            return bool(_cfg.check.warn_native_seams);
+        }
+    } except Exception { }
+    return True;
+}
+
+impl NaIRGenPass._opaque_field_if_unlowerable(
+    arch_name: str, fname: str, local_mark: int
+) -> (ir.Type | None) {
+    """Spend a field declaration's refusal on the field, not on the module.
+
+    A `has` type with no native layout sits outside every ability body, so
+    `_demote_method_if_unlowerable` has nothing to take it from and the
+    diagnostic used to survive to the end of the run, where a non-empty
+    `errors_had` withholds the module's IR. The declaration owns it here the
+    way #8285 made a signature's declaration own its own: the slot erases to
+    an opaque pointer, the field is recorded so that every read and write of
+    it refuses inside the callable that performs it, and the refusal is
+    re-published as a census seam keyed on the field rather than swallowed.
+
+    An erased slot is storage the native side never writes, so the field also
+    joins `struct_field_foreign` -- the constructor, the tracer, the arena and
+    the reference counter all already skip that set.
+    """;
+    if len(self.errors_had) <= local_mark {
+        return None;
+    }
+    _own = list(self.errors_had[local_mark:]);
+    _first = _own[0];
+    _code = _first.code.code if _first.code is not None else "";
+    _why = str(_first).split('\n')[0];
+
+    if self._seam_warnings_on() {
+        import sys;
+        sys.stderr.write(
+            f"warning: native seam -- erasing field {arch_name}.{fname} to an "
+            f"opaque slot (un-lowerable declaration): "
+            + "; ".join(str(e) for e in _own)
+            + "\n"
+        );
+    }
+    try {
+        import from jaclang.jac0core.compiler { na_census_seam }
+        na_census_seam(
+            self.ir_in.loc.mod_path,
+            f"{arch_name}.{fname}: " + (f"[{_code}] " if _code else "") + _why
+        );
+    } except Exception { }
+    del self.errors_had[local_mark:];
+    if arch_name not in self.struct_field_opaque {
+        self.struct_field_opaque[arch_name] = {};
+    }
+    self.struct_field_opaque[arch_name][fname] = _why;
+    return ir.IntType(8).as_pointer();
+}
+
+impl NaIRGenPass._refuse_opaque_field(
+    nd: (uni.UniNode | None), type_name: (str | None), fname: str
+) -> bool {
+    """Refuse a touch of an erased slot, inside the callable that touches it.
+
+    The slot carries no value the native side put there, so answering with
+    its bits would be wrong rather than merely un-lowered. Emitting here puts
+    the diagnostic inside the enclosing callable's demotion window, which is
+    what turns one un-lowerable declaration into a seam per method that reads
+    or writes it instead of a dead module.
+    """;
+    if type_name is None {
+        return False;
+    }
+    for _cn in self._mro_of(type_name) {
+        _why = self.struct_field_opaque.get(_cn, {}).get(fname);
+        if _why is not None {
+            self.emit(
+                E5092, node_override=nd, kind="erased field", name=f"{_cn}.{fname}"
+            );
+            return True;
+        }
+    }
+    return False;
 }
 
 impl NaIRGenPass._codegen_no_sig_method(arch_name: str, method: uni.Ability) -> None {
@@ -1243,7 +1328,7 @@ impl NaIRGenPass._read_field_or_refuse(
     touching.
     """;
     _mark = len(self.errors_had);
-    _val = self._codegen_field_access(obj_val, field_name, arch_name);
+    _val = self._codegen_field_access(obj_val, field_name, arch_name, nd);
     if _val is None and len(self.errors_had) == _mark {
         _val = self._codegen_class_const_read(obj_val, arch_name, field_name);
         if _val is None {
@@ -1909,6 +1994,9 @@ impl NaIRGenPass._codegen_instantiation(
     }
     for (key_name, init_expr) in _field_inits {
         if key_name not in field_indices or key_name in set_fields {
+            continue;
+        }
+        if self._refuse_opaque_field(init_expr, type_name, key_name) {
             continue;
         }
         if key_name in foreign_fields {
@@ -3383,11 +3471,17 @@ impl NaIRGenPass._codegen_class_const_read(
 }
 
 impl NaIRGenPass._codegen_field_access(
-    obj_val: ir.Value, field_name: str, type_name: str
+    obj_val: ir.Value,
+    field_name: str,
+    type_name: str,
+    nd: (uni.UniNode | None) = None
 ) -> (ir.Value | None) {
     field_indices = self.struct_field_indices.get(type_name);
     _getter = self._accessor_slot_of(type_name, field_name, "property");
     if _getter is None and (field_indices is None or field_name not in field_indices) {
+        return None;
+    }
+    if _getter is None and self._refuse_opaque_field(nd, type_name, field_name) {
         return None;
     }
     _recv = self._narrow_receiver_ptr(obj_val, type_name);
@@ -3590,6 +3684,10 @@ impl NaIRGenPass._codegen_field_assign(
                 name=(field_name or "<field>")
             );
         }
+        return;
+    }
+
+    if _setter is None and self._refuse_opaque_field(target, type_name, field_name) {
         return;
     }
 
