@@ -364,7 +364,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
      _TYPES_SEAM_WAIVERS: tuple = (
          "compiler/type_system/types.jac::ClassType.lookup_member_symbol",
          "compiler/type_system/types.jac::FunctionType.specialize",
-         "compiler/type_system/types.jac::create_callable_type",
 
      ),
      _TYPE_UTILS_SEAM_WAIVERS: tuple = (
@@ -518,10 +517,10 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "`lookup_member_symbol` and `specialize` are cascades of the "
              "`type_utils` waivers below -- `collect_member_syms` and "
              "`build_type_var_solution` -- and clear with their callees. "
-             "`create_callable_type` reads `ParameterCategory.Positional`, an "
-             "`IntEnum` member accessed off the class rather than through an "
-             "instance, whose `auto()` values no constant fold reaches; it "
-             "clears when class-level enum member reads lower."
+             "`create_callable_type` used to sit here for reading "
+             "`ParameterCategory.Positional`, whose `auto()` value no "
+             "constant fold reached; generated enum values gave it one and "
+             "the read lowers."
          ),
          (
              "type utils erased operands and unreachable layouts",
