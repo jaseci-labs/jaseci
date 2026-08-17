@@ -73,7 +73,7 @@ The most important files to know:
 
 - **`unitree.jac`** -- The unified AST that all backends share. If you're adding or changing syntax, you'll touch this.
 - **`compiler.jac`** -- The pass pipeline orchestrator. It defines schedules like `get_ir_gen_sched()` and `get_py_code_gen()` that chain passes together. This is the authoritative source for pass ordering.
-- **`jir.jac` / `jir_registry.jac`** -- The Jac Intermediate Representation and its node type registry. JIR is the serializable form of compiled modules.
+- **`jir.jac`** -- The JIR container: cached module bytecode plus typed sections (MTIR, placement, native objects), keyed by source content and the running compiler's identity. Trees are never persisted; they are working state, re-derived per process.
 - **`diagnostics.jac`** -- Error and warning reporting infrastructure.
 - **`modresolver.jac`** -- Module import and dependency resolution.
 - **`passes/`** -- Front-end passes: parsing (via Lark grammar), AST validation, symbol table construction, and declaration-implementation matching.
@@ -122,9 +122,8 @@ The compiler orchestrator in `jac0core/compiler.jac` defines several pass schedu
 2. `EsastGenPass` -- Generate JavaScript AST (for JS target)
 3. `NaIRGenPass` -- Generate LLVM IR (for native target)
 4. `NativeCompilePass` -- JIT-compile LLVM IR to machine code
-5. `PyastGenPass` -- Convert the unitree to a Python AST
-6. `PyJacAstLinkPass` -- Link the generated Python AST back to Jac source nodes
-7. `PyBytecodeGenPass` -- Compile the Python AST to bytecode
+5. `JcirGenPass` -- Lower the unitree into the compact codegen IR container
+6. `JcirBytecodeGenPass` -- Rebuild the Python AST from the container and compile it to bytecode
 
 See `jac0core/compiler.jac` for the authoritative ordering -- it uses re-entrancy guards during bootstrap that slightly alter the schedule when the compiler is compiling itself.
 

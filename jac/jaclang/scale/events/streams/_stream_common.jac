@@ -1,5 +1,5 @@
 import from typing { Callable }
-import from jaclang.scale.events.broker { Event, RetryPolicy }
+import from jaclang.scale.events.broker { Event, RetryPolicy, StreamPosition }
 import time;
 
 
@@ -9,7 +9,7 @@ def consumer_loop(
     group: str,
     handler: Callable[[Event], any],
     retry: RetryPolicy,
-    start_from: str = "latest"
+    start_from: str = StreamPosition.LATEST.value
 ) -> None {
     while not broker._stop_event.is_set() {
         events = broker.consume(

@@ -169,16 +169,23 @@ ingress_node_port = 30080
 
 | Key | Description | Default |
 |----------|-------------|---------|
-| `[scale.kubernetes]` `postgres_enabled` | Provision the Postgres StatefulSet | `true` |
+| `[scale.kubernetes]` `database_mode` | `provision`, `external`, `none`, or `auto` | `auto` |
+| `[scale.kubernetes]` `database_url` | Connection URL for `external` mode | `""` |
+| `[scale.kubernetes]` `database_namespace` | Namespace that runs the external database service | `""` |
 | `[scale.database]` `postgres_image` | Image used for the StatefulSet | `postgres:18` |
 | `[scale.database]` `postgres_storage` | Postgres data PVC size | `2Gi` |
 
-To use an external database instead of the auto-provisioned one, set the URL under `[scale.database]` (the `JAC_DB_URL` environment variable overrides it at runtime, and disables in-cluster provisioning):
+To use an external database instead of the auto-provisioned one, say so in the deploy config:
 
 ```toml
-[scale.database]
-url = "postgresql://user:pass@host:5432/jac"
+[scale.kubernetes]
+database_mode = "external"
+database_url = "postgresql://user:pass@host:5432/jac"
 ```
+
+Setting `[scale.database]` `url` in the app's own `jac.toml` has the same effect under `database_mode = "auto"`. The `JAC_DB_URL` environment variable does not: it names the database the *current process* connects to, and a deploy ignores it. That is what lets one process deploy apps that each get their own database. To provision even when a url is configured, set `database_mode = "provision"`.
+
+If the URL host is a bare Kubernetes service name and the app deploys into a different namespace, set `database_namespace` (or write the fully qualified `<service>.<namespace>.svc.cluster.local` host); otherwise the deploy fails rather than shipping a pod that cannot resolve its database.
 
 ### Authentication
 
@@ -247,7 +254,7 @@ Which `jaseci/jaclang` tag pods boot from is chosen automatically:
 
 | `jac.toml`                     | Base image                     |
 | ------------------------------ | ------------------------------ |
-| _(default)_                    | `jaseci/jaclang:latest`        |
+| *(default)*                    | `jaseci/jaclang:latest`        |
 | `[dev]`                        | `jaseci/jaclang:dev` (main HEAD) |
 | `[experimental]` `pr = <N>`    | `jaseci/jaclang:experimental-<N>` |
 

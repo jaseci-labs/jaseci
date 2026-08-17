@@ -1371,7 +1371,8 @@ impl grammar(output: str = "", strict: bool = False) -> int {
         }
         return 1;
     }
-    pass_ = GrammarExtractPass(ir_in=mod, prog=prog);
+    import from jaclang.jac0core.compiler { run_pass }
+    pass_ = run_pass(GrammarExtractPass, mod, prog);
     if len(pass_.rules) == 0 {
         console.error("No grammar rules extracted.");
         return 1;
@@ -1422,14 +1423,8 @@ def _iter_jac_files(
 }
 
 def _normalize_ignore_patterns(ignore: list) -> list {
-    normalized = [];
-    for p in (ignore or []) {
-        stripped = p.strip();
-        if stripped {
-            normalized.append(stripped.rstrip('/'));
-        }
-    }
-    return normalized;
+    import from jaclang.jac0core.helpers { normalize_exclude_patterns }
+    return normalize_exclude_patterns(ignore);
 }
 
 def _should_ignore(file_path: str, ignore_patterns: list) -> bool {
