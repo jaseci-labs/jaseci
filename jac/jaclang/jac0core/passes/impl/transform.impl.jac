@@ -143,36 +143,7 @@ impl DiagnosticPolicy._inline_suppressed(
     return diag.code in self._inline_cache[cache_key];
 }
 
-impl _require_native_pass_tier(pass_type: type) -> None {
-    if pass_type not in _NATIVE_PASS_TIER_MEMO {
-        fullname = getattr(pass_type, "__module__", "") or "";
-        fresh = "";
-        if fullname.startswith("jaclang.") {
-            import from jaclang.jac0core.sealed { native_artifact_for }
-            if native_artifact_for(fullname) is not None {
-                fresh = fullname;
-            }
-        }
-        _NATIVE_PASS_TIER_MEMO[pass_type] = fresh;
-    }
-    verdict = _NATIVE_PASS_TIER_MEMO[pass_type];
-    if verdict and verdict not in _NATIVE_SERVED_PASSES {
-        import from jaclang.jac0core.passes.pass_serve { bind_sealed_pass_artifacts }
-        bind_sealed_pass_artifacts();
-    }
-    if verdict and verdict not in _NATIVE_SERVED_PASSES {
-        raise RuntimeError(
-            f"{pass_type.__name__}: this sealed image carries a native "
-            f"artifact for {verdict}, but the pass's bytecode body was "
-            "reached instead of the artifact serving it. The install is "
-            "broken or the pass-serving layer is missing; reinstall or "
-            "rebuild the payload."
-        );
-    }
-}
-
 impl BaseTransform.postinit -> None {
-    _require_native_pass_tier(type(self));
     self.pre_transform();
     self.ir_out = self.timed_transform(ir_in=self.ir_in);
     self.post_transform();

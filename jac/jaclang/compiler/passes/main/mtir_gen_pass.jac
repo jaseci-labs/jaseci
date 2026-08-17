@@ -68,7 +68,6 @@ glob PRIMITIVE_TYPES: list[str] = [
 
 obj MTIRGenPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None;
 
     def postinit -> None;

@@ -436,7 +436,6 @@ obj LayoutRegistry {
 
 obj LayoutPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None,
         registry: LayoutRegistry postinit,
         isinstance_targets: set[str] postinit;

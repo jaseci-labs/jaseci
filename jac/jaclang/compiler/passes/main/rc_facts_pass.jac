@@ -114,7 +114,6 @@ def loop_body_locals(body: (Sequence[UniNode] | None)) -> list[str] {
 
 obj RcFactsPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None,
         _node_use: dict[int, set[SymId]] = {},
         _node_def: dict[int, set[SymId]] = {};
