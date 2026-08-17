@@ -1,0 +1,79 @@
+{
+ "buckets": {
+  "codegen": 31695619,
+  "other": 16858916,
+  "parser": 115184179,
+  "passes": 44145328,
+  "rim": 13173465,
+  "typesys": 151677
+ },
+ "errors": 0,
+ "modules": {
+  "codegen": {
+   "jac0core/codegen_ir.jac": 19784179,
+   "jac0core/codegen_shim.jac": 2397490,
+   "jac0core/jcir_facts.jac": 138,
+   "jac0core/passes/jcir_bc_gen_pass.jac": 138,
+   "jac0core/passes/jcir_gen_pass.jac": 9513674
+  },
+  "other": {
+   "compiler/expr_keys.jac": 181387,
+   "compiler/symbol_utils.jac": 2811,
+   "jac0core/archetype.jac": 1772472,
+   "jac0core/codeinfo.jac": 31498,
+   "jac0core/helpers.jac": 76797,
+   "jac0core/modresolver.jac": 70121,
+   "jac0core/passes/boundary_analysis_pass.jac": 66863,
+   "jac0core/placement.jac": 256068,
+   "jac0core/placement_pins.jac": 11948,
+   "jac0core/runtime.jac": 3480,
+   "jac0core/service_cut.jac": 9825,
+   "jac0core/srcloc.jac": 14367091
+  },
+  "parser": {
+   "jac0core/parser/frontend.jac": 405,
+   "jac0core/parser/lexer.jac": 44519789,
+   "jac0core/parser/parser.jac": 38250746,
+   "jac0core/parser/tokens.jac": 258696,
+   "jac0core/unitree.jac": 32154543
+  },
+  "passes": {
+   "compiler/passes/ecmascript/impl/esast_gen_pass.impl.jac": 5308,
+   "compiler/passes/main/cfg_build_pass.jac": 67853,
+   "compiler/passes/main/impl/cfg_build_pass.impl.jac": 1268107,
+   "compiler/passes/main/impl/mtir_gen_pass.impl.jac": 2515,
+   "compiler/passes/main/impl/pyast_load_pass.impl.jac": 104052,
+   "compiler/passes/main/pyast_load_pass.jac": 7772,
+   "jac0core/passes/ast_validation_pass.jac": 320749,
+   "jac0core/passes/decl_impl_match_pass.jac": 43162,
+   "jac0core/passes/endpoint_effect_pass.jac": 7364,
+   "jac0core/passes/semantic_analysis_pass.jac": 53501,
+   "jac0core/passes/sym_tab_build_pass.jac": 270207,
+   "jac0core/passes/uni_pass.jac": 41986967
+  },
+  "rim": {
+   "jac0core/compile_options.jac": 885,
+   "jac0core/compiler.jac": 13861,
+   "jac0core/jir.jac": 1687,
+   "jac0core/passes/transform.jac": 13156746,
+   "jac0core/program.jac": 286
+  },
+  "typesys": {
+   "compiler/type_system/impl/properties.impl.jac": 24,
+   "compiler/type_system/impl/type_utils.impl.jac": 13571,
+   "compiler/type_system/impl/types.impl.jac": 91955,
+   "compiler/type_system/operations.jac": 129,
+   "compiler/type_system/type_evaluator.impl/construct_types.impl.jac": 2050,
+   "compiler/type_system/type_evaluator.impl/evaluator_util_methods.impl.jac": 6445,
+   "compiler/type_system/type_evaluator.impl/imported.impl.jac": 1950,
+   "compiler/type_system/type_evaluator.impl/parameter_type_check.impl.jac": 580,
+   "compiler/type_system/type_evaluator.impl/type_evaluator.impl.jac": 22576,
+   "compiler/type_system/type_evaluator.jac": 3355,
+   "compiler/type_system/type_utils.jac": 8378,
+   "compiler/type_system/types.jac": 654
+  }
+ },
+ "target": "jac/examples/littleX/social_graph.jac",
+ "total": 221209184,
+ "trend_line": 75992624
+}
