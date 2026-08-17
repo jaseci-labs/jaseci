@@ -758,15 +758,10 @@ impl check_K8s_status -> None {
 }
 
 impl load_env_variables(code_folder: str) -> list {
-    env_file = os.path.join(code_folder, '.env');
-    env_vars = dotenv_values(env_file);
-    env_list = [];
-    if os.path.exists(env_file) {
-        for (key, value) in env_vars.items() {
-            env_list.append({'name': key, 'value': value});
-        }
-    }
-    return env_list;
+    return [
+        {'name': key, 'value': value}
+        for (key, value) in read_project_env(code_folder).items()
+    ];
 }
 
 impl create_k8s_secret(
