@@ -209,15 +209,11 @@ def _parse_splice(src: str, line_offset: int) -> CirSplice {
     tree = ast.parse(src);
     if line_offset {
         for w in ast.walk(tree) {
-            # `ast.AST` declares no position fields; only the statement and
-            # expression subclasses carry them, and the walk sees the base
-            # type. Read and write through the reflective pair rather than
-            # asserting an attribute the declared type does not have.
-            first = getattr(w, "lineno", None);
+            first = w?.lineno;
             if first is not None {
                 setattr(w, "lineno", first + line_offset);
             }
-            last = getattr(w, "end_lineno", None);
+            last = w?.end_lineno;
             if last is not None {
                 setattr(w, "end_lineno", last + line_offset);
             }
