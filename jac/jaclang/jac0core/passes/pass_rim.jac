@@ -38,79 +38,87 @@ nothing. A base carrying a slot would not be free: a native class over a
 Python-side base keeps that base's slots on a Python shadow, which is the
 hazard E5088 exists to refuse.
 
-This module is plain Python with no jaclang import-time dependencies, like the
-sibling `sealed.py` / `ext_registry.py`; the two host-side lookups it needs
-are imported lazily, at the call, so the patched-`native_artifact_for` seam
-the tier tests use stays the seam production reads.
+The module is rim machinery and never a sealable unit. It is written with
+`class`, not `obj`, so no dataclass shape is imposed on a base that must stay
+field-free; it names `jac0core.sealed` and `pass_serve`, the host-side
+lookups no native unit can host; and both of those are imported lazily, at
+the call, so the patched-`native_artifact_for` seam the tier tests use stays
+the seam production reads. What keeps it out of a native closure is
+`placement._comptime_only_import`: `transform.jac` imports exactly the one
+name `PassRim`, which `codeinfo.NATIVE_COMPTIME_RIM_BASES` allows, so the
+edge is erased before dependency resolution -- the same erasure that held
+while this file was plain Python.
 """
 
-from __future__ import annotations
+import from abc { ABC, ABCMeta }
 
-from abc import ABC, ABCMeta
-from typing import Any
+glob _NATIVE_PASS_TIER_MEMO: dict[type, str] = {},
+     _NATIVE_SERVED_PASSES: set[str] = set();
 
-_NATIVE_PASS_TIER_MEMO: dict[type, str] = {}
-_NATIVE_SERVED_PASSES: set[str] = set()
+"""Refuse a bytecode pass body the loaded image claims to serve natively.
 
+The verdict is memoized per class: a pass module is either sealed in this
+image or it is not, and that cannot change under a running interpreter.
+A sealed-but-unserved verdict triggers the serving binder once and is
+re-checked, so first construction of a sealed pass is what binds the
+artifacts rather than some separate startup step.
+"""
+def require_native_pass_tier(pass_type: type) {
+    if pass_type not in _NATIVE_PASS_TIER_MEMO {
+        fullname = getattr(pass_type, "__module__", "") or "";
+        fresh = "";
+        if fullname.startswith("jaclang.") {
+            import from jaclang.jac0core.sealed { native_artifact_for }
 
-def require_native_pass_tier(pass_type: type) -> None:
-    """Refuse a bytecode pass body the loaded image claims to serve natively.
+            if native_artifact_for(fullname) is not None {
+                fresh = fullname;
+            }
+        }
+        _NATIVE_PASS_TIER_MEMO[pass_type] = fresh;
+    }
+    verdict = _NATIVE_PASS_TIER_MEMO[pass_type];
+    if verdict and verdict not in _NATIVE_SERVED_PASSES {
+        import from jaclang.jac0core.passes.pass_serve { bind_sealed_pass_artifacts }
 
-    The verdict is memoized per class: a pass module is either sealed in this
-    image or it is not, and that cannot change under a running interpreter.
-    A sealed-but-unserved verdict triggers the serving binder once and is
-    re-checked, so first construction of a sealed pass is what binds the
-    artifacts rather than some separate startup step.
-    """
-    if pass_type not in _NATIVE_PASS_TIER_MEMO:
-        fullname = getattr(pass_type, "__module__", "") or ""
-        fresh = ""
-        if fullname.startswith("jaclang."):
-            from jaclang.jac0core.sealed import native_artifact_for
-
-            if native_artifact_for(fullname) is not None:
-                fresh = fullname
-        _NATIVE_PASS_TIER_MEMO[pass_type] = fresh
-    verdict = _NATIVE_PASS_TIER_MEMO[pass_type]
-    if verdict and verdict not in _NATIVE_SERVED_PASSES:
-        from jaclang.jac0core.passes.pass_serve import bind_sealed_pass_artifacts
-
-        bind_sealed_pass_artifacts()
-    if verdict and verdict not in _NATIVE_SERVED_PASSES:
+        bind_sealed_pass_artifacts();
+    }
+    if verdict and verdict not in _NATIVE_SERVED_PASSES {
         raise RuntimeError(
             f"{pass_type.__name__}: this sealed image carries a native "
             f"artifact for {verdict}, but the pass's bytecode body was "
             "reached instead of the artifact serving it. The install is "
             "broken or the pass-serving layer is missing; reinstall or "
             "rebuild the payload."
-        )
+        );
+    }
+}
 
-
-class _PassConstruction(ABCMeta):
-    """The construction seam every pass instance passes through."""
-
-    def __call__(cls, *args: Any, **kwargs: Any) -> Any:
-        """Check the tier, stamp the program handle, then initialize."""
-        require_native_pass_tier(cls)
-        try:
-            prog = kwargs.pop("prog")
-        except KeyError:
+"""The construction seam every pass instance passes through."""
+class _PassConstruction(ABCMeta) {
+    """Check the tier, stamp the program handle, then initialize."""
+    def __call__(cls: type, *args: any, **kwargs: any) -> any {
+        require_native_pass_tier(cls);
+        try {
+            prog = kwargs.pop("prog");
+        } except KeyError {
             raise TypeError(
                 f"{cls.__name__}: constructing a pass requires `prog`. The "
                 "driver stamps the program handle on the instance -- the "
                 "pass base declares no field for it, because a "
                 "`JacProgram`-typed slot has no native layout."
-            ) from None
-        inst = cls.__new__(cls)
-        inst.prog = prog
-        inst.__init__(*args, **kwargs)
-        return inst
+            ) from None;
+        }
+        inst = cls.__new__(cls);
+        inst.prog = prog;
+        inst.__init__(*args, **kwargs);
+        return inst;
+    }
+}
 
+"""Base of the pass base chain: everything about a pass that is not a tree.
 
-class PassRim(ABC, metaclass=_PassConstruction):
-    """Base of the pass base chain: everything about a pass that is not a tree.
-
-    `BaseTransform` inherits this instead of `ABC`. It contributes no field
-    and no initializer, so the native lane sees the same opaque Python base it
-    already saw; what it contributes is the metaclass, and therefore the seam.
-    """
+`BaseTransform` inherits this instead of `ABC`. It contributes no field
+and no initializer, so the native lane sees the same opaque Python base it
+already saw; what it contributes is the metaclass, and therefore the seam.
+"""
+class PassRim(ABC, metaclass=_PassConstruction) {}
