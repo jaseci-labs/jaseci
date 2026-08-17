@@ -774,9 +774,7 @@ impl secret_resource_version(
     core_v1: client.CoreV1Api, namespace: str, secret_name: str
 ) -> str {
     try {
-        secret = core_v1.read_namespaced_secret(
-            name=secret_name, namespace=namespace
-        );
+        secret = core_v1.read_namespaced_secret(name=secret_name, namespace=namespace);
         return str(secret.metadata.resource_version or "");
     } except Exception {
         return "";

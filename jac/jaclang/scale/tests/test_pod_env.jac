@@ -126,9 +126,9 @@ def _revision_of(manifest: dict[str, any]) -> str {
 }
 
 
-def _deployment(secrets: dict[str, str] = {}) -> dict[str, any] {
+def _deployment(secrets: (dict[str, str] | None) = None) -> dict[str, any] {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = ManifestBuilder(k8s_config=cfg, secrets=secrets);
+    builder = ManifestBuilder(k8s_config=cfg, secrets=secrets or {});
     return builder._build_deployment_manifest("jac-shop", {});
 }
 
