@@ -52,6 +52,7 @@ seal-affecting changes additionally pass the pooled seal battery.
 ## M2 — The type system and analysis cluster seal (typesys bucket → 0)
 
 ### Evaluator + type_checker (`zbl/evaluator-seal`) — **in flight**
+
 - [x] `[MultiString]` field refusal measured HONEST: `JacProgram` needs a native layout (label unquoted and truthful; the salvage's per-field seam mechanism audited and landed)
 - [x] `dict[tuple, TypeBase | NoneType]` CLEARED by real lowering — cache split into `tuple[int,int]`/`tuple[int,str]` dicts (110→109 seams; the id()-inside-tuple-constructor gotcha retired en route)
 - [x] First true census of `type_evaluator.jac`: has_ir=True, 0 fatal, closure 20, **109 seams across 50 causes** (90 cascades; `ArgsList` placement strands 21 methods; `**kwargs` 6; CPython `ast` ×4 = permanent floor)
@@ -60,11 +61,13 @@ seal-affecting changes additionally pass the pooled seal battery.
 - [ ] type_evaluator + type_checker seal (or honest refusal, mechanisms named)
 
 ### cfg (`zbl/cfg-seal`) — **in flight**
+
 - [x] The RECORDED bug didn't exist — the real family: bare `i8*` assumed to be a string at TWO sites (subscript on erased inner dicts = silent char-load miscompile; `in`/`not in` fell back to `strstr` over arbitrary pointers). Both fixed red-first; the salvage's guard REJECTED by measurement (would demote `w in s` on str params)
 - [x] `expr_keys.jac` hoist verified (8 import sites, zero symbol_utils refs) and pinned by test
 - [x] **cfg_build SEALED — the fifteenth root** (7.85MB, 117 exports, seam==waiver; `expr_keys.jac` joins the closure at zero seams; 4 own seams waived, 3 of them jac-dot-only). Seal peak 2.48 GiB/root (~55% over the old law) — CI budget recheck queued
 
 ### Analysis cluster (`zbl/analysis-cluster`) — **in flight**
+
 - [x] **rc_facts SEALED — the sixteenth root** (10 own seams → 0; five mechanisms: .gen stamps → Module slots, `is_builtin_region_name` hoisted to `expr_keys`, erased containers typed, `.items()` destructure typed, bound-method-across-module solved via `solve_backward_gen_kill`)
 - [ ] static_analysis: 8 → 6 (undeclared `_checked_scopes` stash declared); three mechanisms remain (`expr_primitive_name`'s evaluator fallback, ~200 lines of symbol_utils reporters, a `prog.type_evaluator` read)
 - [x] ownership map DONE: #8271's 60 seams measure **26**, six families; `emit related=` (11 seams) is ONE backend gap (`list[tuple[str, UniNode]]` mixed-element storage) — priced as the cheapest next buy and assigned to the burn-down mission; refusal pinned at measured counts both ways
@@ -72,6 +75,7 @@ seal-affecting changes additionally pass the pooled seal battery.
 - [x] dataflow lowers at ZERO seams (lattice typed `set[SymId]` + for-over-set lowering) — #8271's 'Python-only by construction' verdict REFUTED; rides in the rc_facts closure
 
 ### Gate 2 (`gate2-capability-seal`) — **in flight**
+
 - [ ] Pre-scan refusal of `import from typing { Any }`: ROOT-CAUSED, 3-item clearing list pinned (`BaseTransform.prog` — now GONE via rung 2 — and 2 × `CLIENT_RUNTIME_SOURCE_PATHS` shapes); fix deliberately deferred (widening `prog` would silently strip `self.prog.*` checks from non-shadowing passes) — re-attempt is cheap post-rung-2
 - [x] capability_check: 7 blockers → 0, **first native IR**, 7 → 5 seams = 3 named mechanisms (honest refusal). BONUS: **module_codegen 6 → 0 seams** — its recorded isinstance-waiver rationale was WRONG (the erasure was the bug); waiver table entry deleted
 - [ ] layout_pass: 11 → 2 blockers, produces IR (wave 5 had measured none), seams 23 → 22; acyclicity handoff resolved (premise refuted — `is_acyclic` was never stuck; the real defect was the undeclared `type` stash, now declared); family burn-down continues
