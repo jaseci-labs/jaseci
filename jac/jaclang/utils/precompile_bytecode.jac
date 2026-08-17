@@ -1789,9 +1789,8 @@ def seal_jobs(requested: (int | None) = None) -> int {
 glob _SEAL_WORKER_BOOT: str = "\n".join(
          (
              "import json, os, sys",
-             "for _p in reversed(json.loads(os.environ['JAC_SEAL_WORKER_SYS_PATH'])):",
-             "    if _p not in sys.path:",
-             "        sys.path.insert(0, _p)",
+             "_pp = [p for p in json.loads(os.environ['JAC_SEAL_WORKER_SYS_PATH']) if p]",
+             "sys.path[:] = _pp + [p for p in sys.path if p and p not in _pp]",
              "try:",
              "    import _jac_finder",
              "    _jac_finder.install()",
@@ -1802,6 +1801,15 @@ glob _SEAL_WORKER_BOOT: str = "\n".join(
              "_pb.main()"
          )
      );
+
+def seal_jaclang_root -> str {
+    try {
+        pkg_root = Path(str(__file__)).resolve().parent.parent;
+        return str(pkg_root) if (pkg_root / "jac0core").is_dir() else "";
+    } except Exception {
+        return "";
+    }
+}
 
 def seal_worker_spec(
     pkg_path: Path,
@@ -1817,7 +1825,8 @@ def seal_worker_spec(
         "waivers": (
             None if waivers is None else {k: list(v) for (k, v) in waivers.items()}
         ),
-        "compiler": identity
+        "compiler": identity,
+        "jaclang_root": seal_jaclang_root()
     };
 }
 
@@ -1842,13 +1851,7 @@ def _seal_worker_exec(job: dict) -> dict {
     rel = str(job["rel"]);
     env = dict(os.environ);
     env[NATIVE_SEAL_WORKER_ENV] = str(job["request"]);
-    env[NATIVE_SEAL_WORKER_PATH_ENV] = json.dumps(
-        [
-            p
-            for p in sys.path
-            if p
-        ]
-    );
+    env[NATIVE_SEAL_WORKER_PATH_ENV] = json.dumps([p or os.getcwd() for p in sys.path]);
 
     env[NATIVE_SEAL_JOBS_ENV] = "1";
     argv = [sys.executable];
@@ -2134,6 +2137,17 @@ def seal_worker_main -> int {
         "error": ""
     };
     try {
+        wanted_root = str(request.get("jaclang_root") or "");
+        running_root = seal_jaclang_root();
+        if wanted_root and running_root and wanted_root != running_root {
+            raise RuntimeError(
+                f"the seal worker for {rel} imported jaclang from "
+                f"{running_root}, not the {wanted_root} its parent is running. "
+                "A worker that resolves a different tree brands every type in "
+                "the closure differently from the sources it is sealing, which "
+                "surfaces as same-name type mismatches rather than as this."
+            );
+        }
         wanted = str(request.get("compiler") or "");
         running = compiler_identity();
         if wanted and wanted != running {

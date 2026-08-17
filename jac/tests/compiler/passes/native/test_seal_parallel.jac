@@ -34,8 +34,11 @@ and change.
 
 import contextlib;
 import io;
+import json;
 import os;
 import shutil;
+import subprocess;
+import sys;
 import tempfile;
 import jaclang;
 import from pathlib { Path }
@@ -150,6 +153,107 @@ test "JAC_SEAL_JOBS decides the pool size, and 1 means the sequential seal" {
         } else {
             os.environ[pb.NATIVE_SEAL_JOBS_ENV] = prior;
         }
+    }
+}
+
+"""This process's import path, with the interpreter's cwd entry made explicit."""
+def _parent_paths -> list[str] {
+    return [p or os.getcwd() for p in sys.path];
+}
+
+"""Run one worker by hand from `cwd`, with `rel` as its root; return the process."""
+def _worker_from(cwd: str, out: str, rel: str) -> any {
+    request = os.path.join(out, "request.json");
+    payload = dict(
+        pb.seal_worker_spec(PKG_PATH, Path(out), None, True, pb.compiler_identity())
+    );
+    payload["rel"] = rel;
+    payload["unitree_layout"] = None;
+    payload["result"] = os.path.join(out, "result.json");
+    Path(request).write_text(json.dumps(payload), encoding="utf-8");
+    env = dict(os.environ);
+    env[pb.NATIVE_SEAL_WORKER_ENV] = request;
+    env[pb.NATIVE_SEAL_WORKER_PATH_ENV] = json.dumps(
+        [p or os.getcwd() for p in sys.path]
+    );
+    env[pb.NATIVE_SEAL_JOBS_ENV] = "1";
+    env["PYTHONPATH"] = os.pathsep.join(_parent_paths());
+    argv = [sys.executable];
+    if sys.flags.no_site {
+        argv.append("-S");
+    }
+    argv += ["-c", pb._SEAL_WORKER_BOOT];
+    return subprocess.run(
+        argv, env=env, cwd=cwd, capture_output=True, text=True, errors="replace"
+    );
+}
+
+test "a worker takes the parent's import path ahead of its own cwd" {
+    decoy = tempfile.mkdtemp(prefix="jac_seal_decoy_");
+    try {
+        # Only the path prologue, so this costs a bare interpreter start and
+        # asserts the contract directly rather than through an import that the
+        # host's finders may resolve some other way.
+        prologue = pb._SEAL_WORKER_BOOT.split("try:")[0];
+        code = prologue + "print(json.dumps(sys.path))";
+        env = dict(os.environ);
+        env[pb.NATIVE_SEAL_WORKER_PATH_ENV] = json.dumps(_parent_paths());
+        # The payload build hands its worker a PYTHONPATH that already names
+        # every path the parent is running on. That is what let a boot which
+        # only inserted "the entries that are missing" insert nothing at all and
+        # leave the interpreter's implicit cwd entry in front -- so the worker
+        # imported whatever tree it happened to be standing in. Reproduce that
+        # arrangement, or the regression cannot arise here.
+        env["PYTHONPATH"] = os.pathsep.join(_parent_paths());
+        proc = subprocess.run(
+            [sys.executable, "-c", code],
+            env=env,
+            cwd=decoy,
+            capture_output=True,
+            text=True,
+            errors="replace"
+        );
+        assert proc.returncode == 0 , f"the worker prologue failed: {proc.stderr}";
+        child = json.loads(proc.stdout);
+        assert child[:len(_parent_paths())] == _parent_paths() , (
+            "the worker's import path does not begin with its parent's, in "
+            f"order: {child[:4]} vs {_parent_paths()[:4]}"
+        );
+        assert decoy not in child , (
+            f"the worker kept its own cwd on the import path: {child[:4]}"
+        );
+        assert "" not in child , (
+            f"the worker kept the interpreter's implicit cwd entry: {child[:4]}"
+        );
+    } finally {
+        shutil.rmtree(decoy, ignore_errors=True);
+    }
+}
+
+test "a worker reaches the seal from a cwd that has nothing to do with it" {
+    decoy = tempfile.mkdtemp(prefix="jac_seal_foreign_");
+    out = tempfile.mkdtemp(prefix="jac_seal_foreign_out_");
+    try {
+        os.makedirs(os.path.join(decoy, "jaclang"), exist_ok=True);
+        Path(os.path.join(decoy, "jaclang", "__init__.jac")).write_text(
+            "glob DECOY_JACLANG_BESIDE_THE_CWD: int = 1;\n", encoding="utf-8"
+        );
+        proc = _worker_from(decoy, out, "jac0core/passes/no_such_seal_root.jac");
+        err = proc.stderr or "";
+        assert "imported jaclang from" not in err , (
+            f"the worker resolved a different jaclang tree than its parent: {err}"
+        );
+        assert "NATIVE SEAL: missing source" in err , (
+            "the worker did not reach the seal with the parent's jaclang: "
+            f"rc={proc.returncode} {err}"
+        );
+        landed = json.loads(
+            Path(os.path.join(out, "result.json")).read_text(encoding="utf-8")
+        );
+        assert landed["ok"] is False , "a missing root must not report success";
+    } finally {
+        shutil.rmtree(decoy, ignore_errors=True);
+        shutil.rmtree(out, ignore_errors=True);
     }
 }
 
