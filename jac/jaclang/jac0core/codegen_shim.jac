@@ -209,13 +209,11 @@ def _parse_splice(src: str, line_offset: int) -> CirSplice {
     tree = ast.parse(src);
     if line_offset {
         for w in ast.walk(tree) {
-            first = w?.lineno;
-            if first is not None {
-                setattr(w, "lineno", first + line_offset);
-            }
-            last = w?.end_lineno;
-            if last is not None {
-                setattr(w, "end_lineno", last + line_offset);
+            for field in ("lineno", "end_lineno") {
+                cur = getattr(w, field, None);
+                if isinstance(cur, int) {
+                    setattr(w, field, cur + line_offset);
+                }
             }
         }
     }
