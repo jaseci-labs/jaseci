@@ -1,4 +1,4 @@
-"""Compilation tests – migrated from test_pyast_gen_pass.py and test_language.py.
+"""Compilation tests – migrated from the emitter and language suites.
 
 These tests verify that the Jac compiler can successfully compile various
 fixture files without errors, and test compilation-level behaviour.

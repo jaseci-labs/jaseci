@@ -67,7 +67,6 @@ a renamed symbol instead of demoting.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -155,10 +154,6 @@ glob UNITREE_CLOSURE: tuple = (
              "dict, and resolves the project root through "
              "`jac0core.modresolver`. The census reports E5092 -- the call "
              "will not lower -- not an E5090 import."
-         ),
-         "unitree.jac::DeleteStmt.py_ast_targets.__get__": (
-             "Python-only: reads `gen.py_ast`, a list of CPython `ast` "
-             "objects. Reached only from `PyastGenPass`."
          ),
          "unitree.jac::BuiltinType.lit_value.__get__": (
              "Python-only: indexes `Literal.type_map`, a static dict of "
@@ -289,7 +284,7 @@ def _unitree_census -> tuple[(dict, bool)] {
     # census at seal time (seal_demotion_report refuses un-waived seams),
     # which is the invariant this file pins for source lanes.
     if native_artifact_for("jaclang.jac0core.unitree") is not None {
-        pytest.skip(
+        testskip(
             "unitree is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );

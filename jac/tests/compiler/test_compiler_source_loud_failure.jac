@@ -29,8 +29,8 @@ import jaclang.jac0core.compiler as compiler_mod;
 import from jaclang.meta_importer { JacSourceCompileError }
 import from jaclang.jac0core.compiler {
     CompilerSourceError,
-    PyastGenPass,
-    PyBytecodeGenPass,
+    JcirBytecodeGenPass,
+    JcirGenPass,
     get_py_code_gen
 }
 import from jaclang.jac0core.passes { Transform }
@@ -84,9 +84,7 @@ def _absent_backend -> types.ModuleType {
 }
 
 """Run `get_py_code_gen` with `stub` standing in for the ES backend."""
-def _codegen_with(
-    stub: types.ModuleType
-) -> list[type[Transform[uni.Module, uni.Module]]] {
+def _codegen_with(stub: types.ModuleType) -> list[type[Transform]] {
     had = ES_BACKEND in sys.modules;
     saved: types.ModuleType = sys.modules[ES_BACKEND] if had else stub;
     sys.modules[ES_BACKEND] = stub;
@@ -145,10 +143,10 @@ test "a broken compiler source fails loudly instead of dropping backends" {
 
 test "an absent backend still degrades to the bytecode-only fallback" {
     sched = _codegen_with(_absent_backend());
-    assert sched == [PyastGenPass, PyBytecodeGenPass];
+    assert sched == [JcirGenPass, JcirBytecodeGenPass];
 }
 
 test "a broken module outside the compiler tree still degrades" {
     sched = _codegen_with(_broken_backend(USER_SRC));
-    assert sched == [PyastGenPass, PyBytecodeGenPass];
+    assert sched == [JcirGenPass, JcirBytecodeGenPass];
 }

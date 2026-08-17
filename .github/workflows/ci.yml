@@ -559,8 +559,8 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
       - name: Run all client tests
-        # Serial: xdist workers intermittently disagree on collection of
-        # test_react_native_target.jac.
+        # Serial: parallel workers intermittently disagreed on collection of
+        # test_react_native_target.jac under the old pytest-xdist runner.
         env:
           TEST_ENV: "true"
           JAC_TEST_JOBS: "0"
@@ -754,11 +754,12 @@ jobs:
       - name: Run aarch64 cross tests under qemu
         env:
           JAC_TEST_JOBS: "0"
-          PYTEST_ADDOPTS: -k aarch64
           # The sealed binary bundles host-arch musl only; point the
           # static-link search at the kit's cross runtime.
           JAC_NATIVE_MUSL_DIR: ${{ github.workspace }}/jac/.pbs-build/linux-aarch64/musl/lib
-        run: jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+        run: >-
+          jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+          -f aarch64
 
   test-native-macos:
     needs: [changes, build-kit-macos]
@@ -780,10 +781,11 @@ jobs:
       - name: Run bundled-stdlib equivalence pins (darwin)
         env:
           JAC_TEST_JOBS: "0"
-          # Pure-compute na modules that must agree on darwin; str/bytes guard
-          # the libc-binding divergence (musl static vs libSystem).
-          PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword or str or bytes"
-        run: jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
+        # Pure-compute na modules that must agree on darwin; str/bytes guard
+        # the libc-binding divergence (musl static vs libSystem).
+        run: >-
+          jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
+          -f "shutil or path or textwrap or keyword or str or bytes"
 
   # Launcher unit tests: trailer codec + .jab-overlay round-trip. Zig only.
   # Cross-platform matrix on purpose: the format code has OS-divergent

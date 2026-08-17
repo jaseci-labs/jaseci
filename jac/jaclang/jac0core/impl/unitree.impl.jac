@@ -970,6 +970,7 @@ impl Import.postinit -> None {
     self.absorbed_mod = None;
     self.jac_detected = None;
     self.boundary_facts = None;
+    self.native_only_drop = False;
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
     ContextAwareNode.postinit(self);
@@ -1877,12 +1878,6 @@ impl DeleteStmt.postinit -> None {
     CodeBlockStmt.postinit(self);
 }
 
-
-impl DeleteStmt.py_ast_targets.getter -> list {
-    return [i.gen.py_ast[0] for i in self.target.values]
-        if (isinstance(self.target, TupleVal) and self.target.values)
-        else self.target.gen.py_ast;
-}
 
 impl ReportStmt.postinit -> None {
     UniNode.postinit(self);

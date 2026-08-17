@@ -15,7 +15,6 @@ import os;
 import re;
 import shutil;
 import subprocess;
-import pytest;
 import from pathlib { Path }
 
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -42,7 +41,7 @@ glob REACT_JSDOM_DEPS: dict[str, str] = {
 """Skip unless the client toolchain integration flag is set."""
 def require_client_integration(suite: str) {
     if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
+        testskip(
             f"{suite} jsdom test does a real bun install; "
             "set JAC_CLIENT_INTEGRATION=1 to run"
         );

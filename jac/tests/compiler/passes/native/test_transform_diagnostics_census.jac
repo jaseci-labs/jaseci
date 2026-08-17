@@ -15,11 +15,17 @@ This census compiles `transform.jac` natively, the same measurement
 the emission path stays seam-free: none of its callables demote, and none of
 the module's residual native errors touch them. Callables off the emission
 path that reach real Python machinery (console rendering, the cancel-token
-handle, `RuntimeError` construction in `ice`, and the constructor's generic
-load plus `super` dispatch) remain legal per-callable seams and are waived
-one at a time. What is left module-fatal is the foreign class-typed field on
-the pass declaration, pinned here so the sealing lane sees exactly what
-remains.
+handle, `RuntimeError` construction in `ice`) remain legal per-callable
+seams and are waived one at a time. What is left module-fatal is the foreign
+class-typed field on the pass declaration, pinned here so the sealing lane
+sees exactly what remains.
+
+`Transform.__post_init__` was on that waived list, for "postinit's generic
+field load and its `super` dispatch". The generic field load is gone: the
+pass base chain stopped being generic (#8288 M1 rung 1), so a slot that
+lowered to a bare erased pointer is a `UniNode` now, and the constructor
+lowers. The waiver is dropped rather than reworded, which is the point of
+pinning it two ways.
 
 The measurement is a source-lane one. Under a sealed jaclang image every
 method of an imported jaclang-internal archetype is untrusted by design, so
@@ -28,7 +34,6 @@ path's own coupling; `_census` skips there.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -68,13 +73,6 @@ glob TRANSFORM_SEAM_WAIVERS: dict[(str, str)] = {
              "backend gap: constructs the `RuntimeError` it returns for the "
              "caller to raise."
          ),
-         "Transform.__post_init__": (
-             "backend gap in the constructor: postinit's generic field load "
-             "and its `super` dispatch. Runs once per pass construction, "
-             "which the Python driver performs anyway, so it is off the "
-             "emission path. #8244 gave the constructor its own violations, "
-             "so these demote the callable instead of the module."
-         ),
          "_require_native_pass_tier": (
              "Python-only by definition: the pass-tier tripwire consults the "
              "sealed image registry (jac0core.sealed) and triggers the "
@@ -94,7 +92,7 @@ glob _CENSUS_MEMO: list = [];
 
 def _census -> tuple {
     if _jaclang_image() is not None {
-        pytest.skip(
+        testskip(
             "this runtime is a sealed jaclang image, so na_ir_gen_pass "
             "untrusts every method of an imported jaclang-internal archetype "
             "that the image's layout does not carry; a source census here "
@@ -103,7 +101,7 @@ def _census -> tuple {
         );
     }
     if native_artifact_for("jaclang.jac0core.passes.transform") is not None {
-        pytest.skip(
+        testskip(
             "transform.jac is served from this runtime's native seal; the "
             "census gated the build via seal_demotion_report"
         );
@@ -237,10 +235,17 @@ test "residual native errors are exactly the known constructor gaps" {
         f"{len(unexpected)} native error(s) beyond the known constructor " "gaps:\n"
         + "\n".join(f"  {e}" for e in unexpected)
     );
-    assert len(errs) == len(KNOWN_CONSTRUCTOR_GAPS) , (
+    # Deduplicated, because the count that matters is how many distinct
+    # gaps are left, not how many times the emitter reaches one of them.
+    # `prog: JacProgram` is reported twice now that the constructor lowers
+    # far enough to type its parameter as well as its field -- one gap,
+    # two sites, and it clears in one move when `prog` leaves the base.
+    distinct = sorted(set(errs));
+    assert len(distinct) == len(KNOWN_CONSTRUCTOR_GAPS) , (
         f"constructor-gap inventory drifted (expected "
-        f"{len(KNOWN_CONSTRUCTOR_GAPS)}, got {len(errs)}) -- update "
-        "KNOWN_CONSTRUCTOR_GAPS so the sealing lane sees what is left:\n"
-        + "\n".join(f"  {e}" for e in errs)
+        f"{len(KNOWN_CONSTRUCTOR_GAPS)} distinct, got {len(distinct)}) -- "
+        "update KNOWN_CONSTRUCTOR_GAPS so the sealing lane sees what is "
+        "left:\n"
+        + "\n".join(f"  {e}" for e in distinct)
     );
 }

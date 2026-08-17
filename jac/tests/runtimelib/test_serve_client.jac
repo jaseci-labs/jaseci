@@ -7,7 +7,6 @@ import io;
 import json;
 import logging;
 import os;
-import pytest;
 import re;
 import shutil;
 import uuid;
@@ -27,7 +26,7 @@ suite); core CI skips them.
 """
 def _require_client_integration {
     if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
+        testskip(
             "client render requires the Vite/Bun toolchain; "
             "set JAC_CLIENT_INTEGRATION=1 to run"
         );
