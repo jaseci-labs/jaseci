@@ -1,20 +1,19 @@
 """Tests for `jac test` discovery of the configured `[test] directory`.
 
-Regression guard for issue #7151: the pytest-based `jac test` path must honor
-the native runner's contract that a declared `[test] directory` runs the
-`test` blocks of *every* `.jac` file beneath it -- not only files that follow
-the `test_*.jac` / `*.test.jac` naming conventions.
+Regression guard for issue #7151: `jac test` must honor the contract that a
+declared `[test] directory` runs the `test` blocks of *every* `.jac` file
+beneath it -- not only files that follow the `test_*.jac` / `*.test.jac`
+naming conventions.
 
-`jac test` signals the contract to the pytest plugin by passing
-`--jac-test-dir <dir>` for the *declared* test root -- the `[test] directory`
-from jac.toml or an explicit `-d <dir>`. The plugin then collects any `.jac`
-file under that root as a suite, while still excluding `impl` annexes and
-`fixtures/` inputs. Positional path targets (`jac test some/dir`) keep pytest
-naming rules, so unrelated `.jac` files are never swept in.
+The declared test root is the `[test] directory` from jac.toml or an explicit
+`-d <dir>`. Every `.jac` file under that root is collected as a suite, while
+`impl` annexes and `fixtures/` inputs stay excluded. Positional path targets
+(`jac test some/dir`) keep the `test_*` / `*.test` naming rules, so unrelated
+`.jac` files are never swept in.
 
-The `test` command is invoked in-process (it drives `pytest.main` itself), so
-these exercise the real collection path end to end. `JAC_TEST_JOBS=0` keeps the
-inner run single-process (no xdist workers nested inside the outer run).
+The `test` command is invoked in-process, so these exercise the real collection
+path end to end. `JAC_TEST_JOBS=0` keeps the inner run single-process, so no
+workers are forked inside the outer run.
 """
 
 import os;
@@ -33,7 +32,7 @@ def reset_config {
 
 
 """Create a temp project whose `[test] directory` holds a suite whose file
-name follows *no* pytest/Jac convention (`phase1_tests.jac`). Returns the
+name follows *no* test-naming convention (`phase1_tests.jac`). Returns the
 project root."""
 def make_project(with_fixture_trap: bool = False) -> str {
     proj = tempfile.mkdtemp(prefix="jac7151-");
@@ -85,7 +84,7 @@ def make_namespace_import_project -> str {
 }
 
 
-"""Run the `jac test` command inside *proj* with xdist disabled; return its
+"""Run the `jac test` command inside *proj* single-process; return its
 exit code. `test` is a keyword, so it is reached as a module attribute. With
 both *paths* and *directory* empty, config drives discovery from jac.toml."""
 def run_in(proj: str, paths: list[str], directory: str = "") -> int {
@@ -140,8 +139,8 @@ test "`-d` test root collects all .jac and skips fixtures/" {
 test "project-root-absolute import through a namespace package is collected" {
     # Regression guard for issue #7211: a suite whose project-root-absolute
     # import descends through an intermediate namespace package (`engine/`,
-    # which holds only `math/` and no direct `.jac`) must import during pytest
-    # collection, exactly as the native runner resolves it. Before the fix
+    # which holds only `math/` and no direct `.jac`) must import during
+    # collection. Before the fix
     # `JacMetaImporter.find_spec` only treated a directory as a Jac namespace
     # package when it held `.jac` files *directly*, so `import engine.math.vec3`
     # raised `ModuleNotFoundError("No module named 'engine'")`, the suite

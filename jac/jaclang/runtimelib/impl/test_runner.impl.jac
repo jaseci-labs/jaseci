@@ -714,6 +714,10 @@ impl Reporter.file_crashed(filepath: str, detail: str) -> None {
     );
 }
 
+impl Reporter.total_count -> int {
+    return sum(self.counts.values());
+}
+
 impl Reporter.failure_count -> int {
     return (
         self.counts.get(FAILED, 0)
@@ -1121,9 +1125,9 @@ impl run_tests(
     plan = discover(paths, directory, ignore);
     reporter = Reporter(verbose=verbose);
     if plan.is_empty() {
-        sys.stdout.write("no test files found\n");
+        sys.stdout.write("no tests ran (no test files collected)\n");
         sys.stdout.flush();
-        return 0;
+        return EXIT_NO_TESTS;
     }
     selector = _build_selector(test_name, filter);
     workers = resolve_jobs(jobs);
@@ -1141,5 +1145,12 @@ impl run_tests(
         );
         pool.run();
     }
-    return reporter.summarize(time.perf_counter() - started);
+    failures = reporter.summarize(time.perf_counter() - started);
+    if reporter.total_count() == 0 {
+        return EXIT_NO_TESTS;
+    }
+    if failures {
+        return EXIT_FAILED;
+    }
+    return EXIT_OK;
 }

@@ -1267,9 +1267,9 @@ impl `test(
         jobs_cfg = get_config();
         jobs = jobs_cfg.dev.test_jobs if jobs_cfg else '';
     }
-    failures = 0;
+    rc = 0;
     try {
-        failures = run_tests(
+        rc = run_tests(
             paths=paths,
             directory=directory,
             test_name=test_name,
@@ -1284,11 +1284,12 @@ impl `test(
         console.error(f"Error: {exc}");
         return 1;
     }
-    if failures {
-        console.error(f"Tests failed: {failures}");
-        return 1;
+    if rc == 5 {
+        console.error("No tests ran.");
+    } elif rc {
+        console.error("Tests failed.");
     }
-    return 0;
+    return rc;
 }
 
 impl gen_parser -> int {

@@ -69,6 +69,10 @@ obj JacTestResult(unittest.TestResult) {
     def _exc_info_to_string(err: any, `test: any) -> str;
 }
 
+glob EXIT_OK: int = 0,
+     EXIT_FAILED: int = 1,
+     EXIT_NO_TESTS: int = 5;
+
 obj Reporter {
     has verbose: bool = False,
         stream: any = None,
@@ -80,6 +84,7 @@ obj Reporter {
     def record(outcome: TestOutcome) -> None;
     def file_crashed(filepath: str, detail: str) -> None;
     def failure_count -> int;
+    def total_count -> int;
     def summarize(elapsed: float) -> int;
 }
 
