@@ -558,9 +558,8 @@ test "client import pulls a pure markerless module cross-module" {
 }
 
 test "cross-module pulled elements dual-emit for the server side" {
-    import ast as py_ast_mod;
     import from jaclang.runtimelib.client_bundle { _ensure_js_generated }
-    import from jaclang.jac0core.passes { PyastGenPass }
+    import from jaclang.jac0core.passes { JcirBytecodeGenPass, JcirGenPass }
     prog = JacProgram();
     prog.compile(os.path.join(FIXTURE_DIR, "infer_xmod_app.jac"), no_cgen=False);
     util = hub_module(prog, "infer_xmod_util.jac");
@@ -585,8 +584,9 @@ test "cross-module pulled elements dual-emit for the server side" {
         "pulled glob must be an ES export of the pulled module"
     );
     assert util_js.strip() , "pulled module must produce client JS";
-    run_pass(PyastGenPass, util, prog);
-    py_src = py_ast_mod.unparse(util.gen.py_ast);
+    run_pass(JcirGenPass, util, prog);
+    run_pass(JcirBytecodeGenPass, util, prog);
+    py_src = util.gen.py;
     assert 'def register' in py_src , (
         "pulled element must still exist in the python module (dual emit)"
     );

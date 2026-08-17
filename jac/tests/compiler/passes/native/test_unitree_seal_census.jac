@@ -156,10 +156,6 @@ glob UNITREE_CLOSURE: tuple = (
              "`jac0core.modresolver`. The census reports E5092 -- the call "
              "will not lower -- not an E5090 import."
          ),
-         "unitree.jac::DeleteStmt.py_ast_targets.__get__": (
-             "Python-only: reads `gen.py_ast`, a list of CPython `ast` "
-             "objects. Reached only from `PyastGenPass`."
-         ),
          "unitree.jac::BuiltinType.lit_value.__get__": (
              "Python-only: indexes `Literal.type_map`, a static dict of "
              "`type` objects, which has no native layout."

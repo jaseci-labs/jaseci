@@ -143,6 +143,28 @@ impl TypeCheckPass.exit_lambda_expr(self: TypeCheckPass, nd: LambdaExpr) -> None
     }
 }
 
+def _chunks_receiver_type(nd: FuncCall) -> (str | None) {
+    if not (
+        isinstance(nd.target, AtomTrailer)
+        and nd.target.is_attr
+        and isinstance(nd.target.right, Name)
+        and nd.target.right.sym_name == "chunks"
+        and nd.params is not None
+        and len(nd.params) == 1
+    ) {
+        return None;
+    }
+    try {
+        recv = nd.target.target.type;
+        if recv is None {
+            return None;
+        }
+        return recv.mangle();
+    } except Exception {
+        return None;
+    }
+}
+
 impl TypeCheckPass.exit_func_call(self: TypeCheckPass, nd: FuncCall) -> None {
     import from jaclang.compiler.symbol_utils {
         CallKind,
@@ -153,12 +175,15 @@ impl TypeCheckPass.exit_func_call(self: TypeCheckPass, nd: FuncCall) -> None {
 
     if self._lambda_depth > 0 {
         nd.call_kind = classify_call(nd).value;
+        nd.chunks_recv_type = _chunks_receiver_type(nd);
         nd.callee_decl = ability_of_symbol(resolve_expr_symbol(nd.target));
         return;
     }
     self.evaluator.get_type_of_expression(nd);
 
     nd.call_kind = classify_call(nd).value;
+
+    nd.chunks_recv_type = _chunks_receiver_type(nd);
 
     nd.callee_decl = ability_of_symbol(resolve_expr_symbol(nd.target));
 

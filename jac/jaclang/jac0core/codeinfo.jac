@@ -576,6 +576,7 @@ obj CodeGenTarget {
         _client_manifest: (ClientManifest | None) = None,
         py_ast: list = field(default_factory=`list),
         py_bytecode: (bytes | None) = None,
+        jcir: (bytes | None) = None,
         es_ast: EsNode | Sequence[EsNode] | SliceInfo | IndexInfo | None = None,
         llvm_ir: (ModuleRef | None) = None,
         native_engine: (ExecutionEngine | None) = None,

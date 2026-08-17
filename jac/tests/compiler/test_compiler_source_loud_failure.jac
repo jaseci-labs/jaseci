@@ -29,8 +29,8 @@ import jaclang.jac0core.compiler as compiler_mod;
 import from jaclang.meta_importer { JacSourceCompileError }
 import from jaclang.jac0core.compiler {
     CompilerSourceError,
-    PyastGenPass,
-    PyBytecodeGenPass,
+    JcirBytecodeGenPass,
+    JcirGenPass,
     get_py_code_gen
 }
 import from jaclang.jac0core.passes { Transform }
@@ -145,10 +145,10 @@ test "a broken compiler source fails loudly instead of dropping backends" {
 
 test "an absent backend still degrades to the bytecode-only fallback" {
     sched = _codegen_with(_absent_backend());
-    assert sched == [PyastGenPass, PyBytecodeGenPass];
+    assert sched == [JcirGenPass, JcirBytecodeGenPass];
 }
 
 test "a broken module outside the compiler tree still degrades" {
     sched = _codegen_with(_broken_backend(USER_SRC));
-    assert sched == [PyastGenPass, PyBytecodeGenPass];
+    assert sched == [JcirGenPass, JcirBytecodeGenPass];
 }

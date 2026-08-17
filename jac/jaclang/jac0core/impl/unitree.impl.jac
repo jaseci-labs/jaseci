@@ -1878,12 +1878,6 @@ impl DeleteStmt.postinit -> None {
 }
 
 
-impl DeleteStmt.py_ast_targets.getter -> list {
-    return [i.gen.py_ast[0] for i in self.target.values]
-        if (isinstance(self.target, TupleVal) and self.target.values)
-        else self.target.gen.py_ast;
-}
-
 impl ReportStmt.postinit -> None {
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);

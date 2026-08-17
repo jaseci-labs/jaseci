@@ -949,8 +949,6 @@ obj DeleteStmt(CodeBlockStmt) {
     has target: Expr;
 
     def postinit -> None;
-
-    has py_ast_targets: list { getter; }
 }
 
 obj ReportStmt(CodeBlockStmt) {
@@ -1271,6 +1269,7 @@ obj FuncCall(Expr) {
         params: (Sequence[(Expr | KWPair)] | None),
         genai_call: (Expr | None),
         call_kind: (str | None) = None,
+        chunks_recv_type: (str | None) = None,
         callee_decl: (Ability | None) postinit;
 
     def postinit -> None;
