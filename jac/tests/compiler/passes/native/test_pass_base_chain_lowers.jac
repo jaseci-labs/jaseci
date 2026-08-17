@@ -101,9 +101,14 @@ def _transform_seams -> dict[(str, str)] {
 
 test "the pass base chain declares no type parameters" {
     text = (PASSES_DIR / "transform.jac").read_text(encoding="utf-8");
-    assert "obj BaseTransform(ABC)" in text , (
-        "BaseTransform took type parameters again; a slot typed by one "
-        "lowers to an erased pointer and takes the constructor down with it"
+    # The base is `PassRim` rather than `ABC` since rung 2 moved the program
+    # handle and the tier check to the driver rim; what this pins is the
+    # absence of type parameters, so it matches the head of the declaration
+    # and requires the bracket to stay gone.
+    assert "obj BaseTransform(PassRim)" in text , (
+        "BaseTransform took type parameters again, or stopped inheriting "
+        "the rim; a slot typed by a class type parameter lowers to an "
+        "erased pointer and takes the constructor down with it"
     );
     assert "obj Transform(BaseTransform)" in text , (
         "Transform took type parameters again"

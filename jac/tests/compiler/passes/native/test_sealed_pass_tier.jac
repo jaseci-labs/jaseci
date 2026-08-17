@@ -36,8 +36,10 @@ around each patch so every test states its own precondition.
 """
 
 import dataclasses;
+import jaclang;
 import jaclang.jac0core.sealed as sealed;
 import jaclang.jac0core.unitree as uni;
+import from pathlib { Path }
 import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
 import from jaclang.jac0core.passes.pass_rim {
     _NATIVE_PASS_TIER_MEMO,
@@ -64,6 +66,13 @@ def _fake_artifact(fullname: str) -> (tuple | None) {
 
 def _run_annex -> object {
     return JacAnnexPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
+}
+
+"""The sealable unit's source, read from the installed tree it compiles from."""
+def _unit_source -> str {
+    return (
+        Path(jaclang.__file__).parent / "jac0core" / "passes" / "transform.jac"
+    ).read_text(encoding="utf-8");
 }
 
 def _skip_if_sealed {
