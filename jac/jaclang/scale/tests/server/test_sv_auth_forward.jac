@@ -6,6 +6,7 @@ import from jaclang.scale.runtime.context.auth_ctx {
     get_current_auth
 }
 import from jaclang.scale.plugin { JacScalePlugin }
+import jaclang.scale.runtime.rpc.rpc as rpc_mod;
 
 
 obj _MockRequest {
@@ -36,6 +37,21 @@ def _install_mock(handler: any) -> any {
     }
     sv_http.post_stream_aware_sync = fake;
     return original;
+}
+
+"""Pin rpc_timeout for one module; every other module keeps the real resolver."""
+def _install_rpc_timeout(module_name: str, seconds: float) -> any {
+    original = getattr(rpc_mod, "_sv_rpc_timeout");
+
+    def resolver(name: str) -> float {
+        return seconds if name == module_name else original(name);
+    }
+    setattr(rpc_mod, "_sv_rpc_timeout", resolver);
+    return original;
+}
+
+def _restore_rpc_timeout(original: any) {
+    setattr(rpc_mod, "_sv_rpc_timeout", original);
 }
 
 """Replace the function transport with one that always fails to connect."""
@@ -569,7 +585,6 @@ test "sv_service_call uses the default 10s timeout when no per-service override"
 
 
 test "sv_service_call honors per-service rpc_timeout from config" {
-    import jaclang.scale.runtime.rpc.rpc as plugin_mod;
     captured: dict = {};
 
     def handler(request: _MockRequest) -> _MockResponse {
@@ -578,19 +593,14 @@ test "sv_service_call honors per-service rpc_timeout from config" {
     }
 
     original_post = _install_mock(handler);
-
-    original_resolver = getattr(plugin_mod, "_sv_rpc_timeout");
-    def fake_resolver(module_name: str) -> float {
-        return 75.5 if module_name == "slow_mod" else 10.0;
-    }
-    setattr(plugin_mod, "_sv_rpc_timeout", fake_resolver);
+    original_resolver = _install_rpc_timeout("slow_mod", 75.5);
 
     try {
         sv_client.register("slow_mod", "http://demo.invalid");
         JacScalePlugin.sv_service_call("slow_mod", "run", {});
         assert captured["timeout"] == 75.5;
     } finally {
-        setattr(plugin_mod, "_sv_rpc_timeout", original_resolver);
+        _restore_rpc_timeout(original_resolver);
         sv_http.post_stream_aware_sync = original_post;
         sv_client.unregister("slow_mod");
     }
@@ -751,14 +761,9 @@ test "ensure_sv_service early-returns when peer already registered" {
 
 import socket;
 import threading;
-import jaclang.scale.runtime.rpc.rpc as rpc_mod;
 
 
-def _fast_rpc_timeout(module_name: str) -> float {
-    return 1.5;
-}
-
-
+"""Count round trips and delivered POSTs apart; an abandoned connect is not a delivery."""
 def _start_counting_server(counts: dict, reply: (bytes | None)) -> tuple {
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
@@ -774,16 +779,24 @@ def _start_counting_server(counts: dict, reply: (bytes | None)) -> tuple {
             } except OSError {
                 return;
             }
-            counts["n"] = counts["n"] + 1;
+            counts["conns"] = counts["conns"] + 1;
             held.append(conn);
             try {
-                conn.recv(65536);
-                if reply is not None {
+                data = conn.recv(65536);
+            } except OSError {
+                continue;
+            }
+            if not data.startswith(b"POST ") {
+                continue;
+            }
+            counts["posts"] = counts["posts"] + 1;
+            if reply is not None {
+                try {
                     conn.sendall(reply);
                     conn.close();
+                } except OSError {
+                    ;
                 }
-            } except OSError {
-                ;
             }
         }
     }
@@ -810,12 +823,11 @@ def _stop_counting_server(srv: any, held: list) {
 
 
 test "walker_call sends exactly one POST to a peer that never replies" {
-    counts: dict = {"n": 0};
+    counts: dict = {"conns": 0, "posts": 0};
     (srv, held, port) = _start_counting_server(counts, None);
     mod = "deaf_walker_mod";
     _breaker_reset(mod);
-    original_timeout = rpc_mod._sv_rpc_timeout;
-    rpc_mod._sv_rpc_timeout = _fast_rpc_timeout;
+    original_timeout = _install_rpc_timeout(mod, 1.5);
     try {
         sv_client.register(mod, f"http://127.0.0.1:{port}");
         raised_msg = "";
@@ -824,11 +836,11 @@ test "walker_call sends exactly one POST to a peer that never replies" {
         } except RuntimeError as e {
             raised_msg = str(e);
         }
-        assert counts["n"] == 1;
-        assert "after 1 attempts" in raised_msg;
-        assert "no response head within" in raised_msg;
+        assert "no response head within" in raised_msg , raised_msg;
+        assert counts["posts"] == 1 , raised_msg;
+        assert f"after {counts['conns']} attempts" in raised_msg , raised_msg;
     } finally {
-        rpc_mod._sv_rpc_timeout = original_timeout;
+        _restore_rpc_timeout(original_timeout);
         sv_client.unregister(mod);
         _stop_counting_server(srv, held);
         _breaker_reset(mod);
@@ -837,12 +849,11 @@ test "walker_call sends exactly one POST to a peer that never replies" {
 
 
 test "service_call sends exactly one POST to a peer that never replies" {
-    counts: dict = {"n": 0};
+    counts: dict = {"conns": 0, "posts": 0};
     (srv, held, port) = _start_counting_server(counts, None);
     mod = "deaf_service_mod";
     _breaker_reset(mod);
-    original_timeout = rpc_mod._sv_rpc_timeout;
-    rpc_mod._sv_rpc_timeout = _fast_rpc_timeout;
+    original_timeout = _install_rpc_timeout(mod, 1.5);
     try {
         sv_client.register(mod, f"http://127.0.0.1:{port}");
         raised_msg = "";
@@ -851,11 +862,11 @@ test "service_call sends exactly one POST to a peer that never replies" {
         } except RuntimeError as e {
             raised_msg = str(e);
         }
-        assert counts["n"] == 1;
-        assert "after 1 attempts" in raised_msg;
-        assert "no response head within" in raised_msg;
+        assert "no response head within" in raised_msg , raised_msg;
+        assert counts["posts"] == 1 , raised_msg;
+        assert f"after {counts['conns']} attempts" in raised_msg , raised_msg;
     } finally {
-        rpc_mod._sv_rpc_timeout = original_timeout;
+        _restore_rpc_timeout(original_timeout);
         sv_client.unregister(mod);
         _stop_counting_server(srv, held);
         _breaker_reset(mod);
@@ -864,7 +875,7 @@ test "service_call sends exactly one POST to a peer that never replies" {
 
 
 test "service_call does not retry an HTTP 500" {
-    counts: dict = {"n": 0};
+    counts: dict = {"conns": 0, "posts": 0};
     reply = (
         b"HTTP/1.1 500 Internal Server Error\r\n"
         + b"Content-Type: text/plain\r\n"
@@ -874,8 +885,7 @@ test "service_call does not retry an HTTP 500" {
     (srv, held, port) = _start_counting_server(counts, reply);
     mod = "http500_service_mod";
     _breaker_reset(mod);
-    original_timeout = rpc_mod._sv_rpc_timeout;
-    rpc_mod._sv_rpc_timeout = _fast_rpc_timeout;
+    original_timeout = _install_rpc_timeout(mod, 1.5);
     try {
         sv_client.register(mod, f"http://127.0.0.1:{port}");
         raised_msg = "";
@@ -884,11 +894,11 @@ test "service_call does not retry an HTTP 500" {
         } except RuntimeError as e {
             raised_msg = str(e);
         }
-        assert counts["n"] == 1;
-        assert "after 1 attempts" in raised_msg;
-        assert "HTTP 500" in raised_msg;
+        assert "HTTP 500" in raised_msg , raised_msg;
+        assert counts["posts"] == 1 , raised_msg;
+        assert f"after {counts['conns']} attempts" in raised_msg , raised_msg;
     } finally {
-        rpc_mod._sv_rpc_timeout = original_timeout;
+        _restore_rpc_timeout(original_timeout);
         sv_client.unregister(mod);
         _stop_counting_server(srv, held);
         _breaker_reset(mod);
