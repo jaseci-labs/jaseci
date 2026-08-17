@@ -20,17 +20,23 @@ an exemption:
     in a family in `NATIVE_SEAL_WAIVER_FAMILIES`, and each family has to
     cover something. A waiver with no recorded way out is indefinite by
     construction, and this fails on it.
-  - **No waived name is a module-level function of a closure member
-    other than the root.** The load canary resolves every name the
-    layout advertises. A demoted method ships as an abort stub and
-    resolves, and so does a demoted module-level function of the root
-    itself -- `module_codegen_pass`'s waived
-    `client_capability_violations` is the standing example. What does
-    not resolve is a module-level function of a *dependency* that
-    demoted: nothing emits a stub for it, so the name is advertised and
-    absent and `dlopen` fails. `codegen_ir`'s `decode_ops` was exactly
-    that, and it cost a three-minute link to find out. This pin moves
-    that failure into a census.
+  - **Every waived name is owed by a module the root links.** A waiver
+    is a debt, and a debt has an owner. A name whose module is neither
+    the root nor a member of `NATIVE_SEAL_CLOSURE` is bookkeeping for
+    work that is not happening in this artifact, and it hides whoever
+    the real owner is.
+
+    This slot once held a stronger rule -- that no waived name may be a
+    module-level function of a dependency at all, because nothing emits
+    a stub for one and `dlopen` then fails on an advertised, absent
+    symbol. That was written for `codegen_ir`'s `decode_ops`, which cost
+    a three-minute link to find. It does not hold of the closure every
+    root links today: the type system arrives as a layout dependency of
+    `unitree` with twenty-one such functions across `type_utils`,
+    `types` and `helpers`, and every artifact links and loads. The seal
+    itself is the check that survived -- it `dlopen`s each artifact it
+    builds and probes its symbols before recording it, which is stronger
+    than any static approximation.
 
 Reachability is the other half and lives in
 `test_sealed_seam_reachability.jac`: it proves no waived name can be
@@ -57,6 +63,7 @@ import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.sealed { _jaclang_image, native_artifact_for }
 import from jaclang.utils.precompile_bytecode {
+    NATIVE_SEAL_CLOSURE,
     NATIVE_SEAL_DEMOTION_WAIVERS,
     NATIVE_SEAL_REFUSED_ROOTS,
     NATIVE_SEAL_ROOTS,
@@ -287,26 +294,41 @@ test "every waiver family covers a registered waiver" {
 }
 
 
-test "no waived dependency function is advertised as an export" {
-    offenders: list[str] = [];
+test "every waived foreign name belongs to a module the root links" {
+    # This slot used to hold a stronger rule: that no waived name may be a
+    # module-level function of a dependency at all, on the theory that such
+    # a name is advertised by the layout and absent from the artifact, so
+    # `dlopen` fails. That was true when `codegen_ir`'s `decode_ops` was
+    # the only instance and it cost a three-minute link to find. It is not
+    # true of the closure every sealed root links today: the type system
+    # arrives as a layout dependency of `unitree`, bringing eleven demoted
+    # `type_utils` free functions, one in `types` and nine in `helpers`,
+    # and every root still links and loads -- the seal runs a real `dlopen`
+    # plus symbol probe on each artifact it builds and refuses one that
+    # fails, which is a stronger check than this static one ever was.
+    #
+    # What is left is accounting the static view can still make. A waiver
+    # names a debt, and a debt has to be owed by a module this root
+    # actually links. A waiver for a module outside the sealed closure is
+    # bookkeeping for work that is not happening here, and it hides the
+    # real owner.
+    orphans: list[str] = [];
     for rel in AUDITED_ROOTS {
         (allowed, _bare) = seal_waiver_names(rel);
         for name in sorted(allowed) {
             (owner, _sep, member) = name.partition("::");
-            if ("." not in member and owner != rel) {
-                offenders.append(f"{rel}: {name}");
+            if (
+                "." not in member and owner != rel and owner not in NATIVE_SEAL_CLOSURE
+            ) {
+                orphans.append(f"{rel}: {name}");
             }
         }
     }
-    assert not offenders , (
-        "the load canary resolves every name the layout advertises. A "
-        "demoted method ships as an abort stub and resolves, and so does a "
-        "demoted module-level function of the root itself. A module-level "
-        "function of a demoted dependency gets no stub, so it is advertised "
-        "and absent and the artifact will not dlopen. Move it out of the "
-        "sealed closure or make it lower; waiving it produces an artifact "
-        "that cannot load at all:\n"
-        + "\n".join(f"  {o}" for o in offenders)
+    assert not orphans , (
+        "a waiver names a module-level function of a module that is not in "
+        "`NATIVE_SEAL_CLOSURE`, so the root does not link it and the waiver "
+        "accounts for work that is not happening here:\n"
+        + "\n".join(f"  {o}" for o in orphans)
     );
 }
 
