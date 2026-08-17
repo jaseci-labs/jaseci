@@ -95,18 +95,33 @@ by unitree's `TypeBase`-typed fields once the keystone became linkable.
 `helpers.jac` arrives with them, and the remaining five are pure leaves those
 two reach: `pathlib`, `fnmatch`, `hashlib`, `_hashlib_native` and
 `type_registry` all lower whole and contribute no waiver.
+
+The pass base chain -- `transform`, `module_codegen_pass`, `uni_pass`, and
+`diagnostics`/`diagnostic_utils`/`logging` behind them -- joined when
+`transform.jac` stopped asking `codeinfo.jac` for `CodeLocInfo`, a symbol
+`srcloc.jac` declares. `codeinfo` fails the native placement pre-scan on its
+own `import from typing { Any }`, and the pre-scan is all-or-nothing over
+the transitive set, so that one re-export import had been keeping the whole
+chain out of every root's walk. `codeinfo` itself stays absent, for the
+reasons above.
 """
 glob UNITREE_CLOSURE: tuple = (
          "_hashlib_native.jac",
          "constant.jac",
+         "diagnostic_utils.jac",
+         "diagnostics.jac",
          "fnmatch.jac",
          "hashlib.jac",
          "helpers.jac",
+         "logging.jac",
+         "module_codegen_pass.jac",
          "pathlib.jac",
          "srcloc.jac",
+         "transform.jac",
          "type_registry.jac",
          "type_utils.jac",
          "types.jac",
+         "uni_pass.jac",
          "unitree.jac"
      ),
      # Seams that stay, each naming what has to land before it goes. Keyed
