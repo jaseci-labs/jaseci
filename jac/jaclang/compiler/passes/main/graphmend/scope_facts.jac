@@ -16,7 +16,6 @@ import from jaclang.compiler.passes.main.graphmend.torch_attr_table {
     is_torch_attr_target
 }
 import from jaclang.jac0core.passes.sym_resolve { symbol_ability, symbol_archetype }
-import type from jaclang.jac0core.passes { Alert }
 import type from jaclang.jac0core.program { JacProgram }
 
 def compiled_region_ids(
@@ -143,8 +142,6 @@ def _mod_path(mod: uni.Module, memo: dict[int, str]) -> str {
 def region_context_probe(prog: JacProgram, target_path: str) -> (str | None) {
     tnorm = _norm(target_path);
     fresh = tnorm not in prog.mod.hub;
-    pre_errs = len(prog.errors_had);
-    pre_warns = len(prog.warnings_had);
     try {
         target = _compile_for_facts(prog, tnorm);
         if (target is None) or (not module_binds_torch(target)) {
@@ -153,28 +150,9 @@ def region_context_probe(prog: JacProgram, target_path: str) -> (str | None) {
         return region_closure_key(prog, target, target_path);
     } finally {
         if fresh {
-            prog.errors_had = _without_target_alerts(prog.errors_had, tnorm, pre_errs);
-            prog.warnings_had = _without_target_alerts(
-                prog.warnings_had, tnorm, pre_warns
-            );
+            prog.drop_module_alerts(tnorm);
         }
     }
-}
-
-def _without_target_alerts(alerts: list[Alert], tnorm: str, keep: int) -> list[Alert] {
-    out: list[Alert] = list(alerts[:keep]);
-    for a in alerts[keep:] {
-        keep_it = True;
-        try {
-            keep_it = _norm(a.loc.mod_path) != tnorm;
-        } except Exception {
-            keep_it = True;
-        }
-        if keep_it {
-            out.append(a);
-        }
-    }
-    return out;
 }
 
 def region_closure_key(prog: JacProgram, target: uni.Module, target_path: str) -> str {
