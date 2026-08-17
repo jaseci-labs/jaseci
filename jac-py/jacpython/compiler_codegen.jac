@@ -817,6 +817,21 @@ def nloc(lineno: int, end_ln: int | None, col: int, end_col: int | None) -> cloc
     return loc(lineno, el, col, ec);
 }
 
+# CPython spans for `def`/`async def` run through the last body statement. The
+# generated parser's end_tok can point past the block (wrong end_lineno/col).
+def function_def_loc(fd: FunctionDef) -> cloc {
+    last = fd.body[len(fd.body) - 1];
+    end_ln = last.lineno;
+    end_col = last.col_offset;
+    if last.end_lineno is not None {
+        end_ln = last.end_lineno;
+    }
+    if last.end_col_offset is not None {
+        end_col = last.end_col_offset;
+    }
+    return nloc(fd.lineno, end_ln, fd.col_offset, end_col);
+}
+
 # Operator AST node -> NB_* binary-op id (opcode.h).
 def binop_id(op: PyObj) -> int {
     if isinstance(op, Add) {
@@ -3271,7 +3286,7 @@ def compile_class_cfg(
 
 # Lower `def name(...): ...` at module/class scope into nested PyCode + MAKE_FUNCTION.
 def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
-    floc = nloc(fd.lineno, fd.end_lineno, fd.col_offset, fd.end_col_offset);
+    floc = function_def_loc(fd);
     if g.sym_top is None {
         codegen_fail(g, "SystemError", "function definition without symtable");
         return stmt_cont(loc=floc);

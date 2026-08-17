@@ -14,11 +14,50 @@
 # jac-py/tools/p4_import_gate.py.
 
 ::py::
-import marshal
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+def _runner_python():
+    for name in ("python3.14", "python3", "python"):
+        found = shutil.which(name)
+        if found:
+            return found
+    return sys.executable
+
+
+def _bridge_path():
+    roots = [Path.cwd()]
+    walk = Path.cwd()
+    for _ in range(6):
+        if walk not in roots:
+            roots.append(walk)
+        if walk.parent == walk:
+            break
+        walk = walk.parent
+    for root in roots:
+        script = root / "jac-py" / "tools" / "host_compile_marshal_bridge.py"
+        if script.is_file():
+            return str(script)
+    raise RuntimeError("host_compile_marshal_bridge.py not found")
+
+
+_BRIDGE = _bridge_path()
 
 
 def _host_compile_marshal_py(source, filename, mode, optimize=0):
-    return marshal.dumps(compile(source, filename, mode, optimize=optimize))
+    payload = source
+    if isinstance(source, str):
+        payload = source.encode("utf-8")
+    proc = subprocess.run(
+        [_runner_python(), _BRIDGE, filename, mode, str(optimize)],
+        input=payload,
+        capture_output=True,
+        check=True,
+    )
+    return proc.stdout
 
 
 def _host_c_tokenize_py(source):

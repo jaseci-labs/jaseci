@@ -20,7 +20,6 @@ import from peg_runtime {
 }
 import from parser_actions {
     pa_cmpop_expr_pair, pa_key_value_pair, pa_key_pattern_pair, pa_keyword_or_starred,
-    keyword_or_starred_node,
     pa_name_default_pair, pa_make_cmpop_pair, pa_name_from_token, pa_name_id, pa_number_from_token,
     pa_ast_expression, pa_ast_binop, pa_ast_unaryop, pa_ast_boolop, pa_ast_compare, pa_ast_call,
     pa_ast_ifexp, pa_constant_bool, pa_constant_none, pa_constant_from_expr, pa_singleton_seq, pa_stmt_list_or_empty,
@@ -861,12 +860,14 @@ def rule__loop0_101(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_kwarg_or_starred(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -879,12 +880,14 @@ def rule__loop0_103(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_kwarg_or_double_starred(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -897,6 +900,7 @@ def rule__loop0_105(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lambda_param_with_default = rule_lambda_param_with_default(p);
         if lambda_param_with_default is None {
             break;
@@ -911,12 +915,14 @@ def rule__loop0_108(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_maybe_star_pattern(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -929,12 +935,14 @@ def rule__loop0_110(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 18);
         if lit is None {
             break;
         }
         elem = rule_closed_pattern(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -947,6 +955,7 @@ def rule__loop0_112(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         param_with_default = rule_param_with_default(p);
         if param_with_default is None {
             break;
@@ -961,12 +970,14 @@ def rule__loop0_113(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_pattern(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -979,12 +990,14 @@ def rule__loop0_116(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 13);
         if lit is None {
             break;
         }
         elem = rule_simple_stmt(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -997,12 +1010,14 @@ def rule__loop0_119(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule__tmp_139(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1015,12 +1030,14 @@ def rule__loop0_122(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_star_named_expression(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1033,6 +1050,7 @@ def rule__loop0_125(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_144(p);
         if rhs is None {
             break;
@@ -1047,12 +1065,14 @@ def rule__loop0_126(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_star_target(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1065,6 +1085,7 @@ def rule__loop0_130(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         tstring_middle = rule_tstring_middle(p);
         if tstring_middle is None {
             break;
@@ -1079,6 +1100,7 @@ def rule__loop0_131(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         tstring_format_spec = rule_tstring_format_spec(p);
         if tstring_format_spec is None {
             break;
@@ -1093,12 +1115,14 @@ def rule__loop0_133(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_expression(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1111,12 +1135,14 @@ def rule__loop0_135(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_type_param(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1129,12 +1155,14 @@ def rule__loop0_137(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_with_item(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1147,6 +1175,7 @@ def rule__loop0_155(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_158(p);
         if rhs is None {
             break;
@@ -1161,12 +1190,14 @@ def rule__loop0_17(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_del_target(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1179,12 +1210,14 @@ def rule__loop0_21(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_dotted_as_name(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1197,12 +1230,14 @@ def rule__loop0_23(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_double_starred_kvpair(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1215,6 +1250,7 @@ def rule__loop0_25(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         _newline = peg_expect_token(p, NEWLINE);
         if _newline is None {
             break;
@@ -1229,6 +1265,7 @@ def rule__loop0_27(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_145(p);
         if rhs is None {
             break;
@@ -1243,6 +1280,7 @@ def rule__loop0_29(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         fstring_middle = rule_fstring_middle(p);
         if fstring_middle is None {
             break;
@@ -1257,6 +1295,7 @@ def rule__loop0_30(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         fstring_format_spec = rule_fstring_format_spec(p);
         if fstring_format_spec is None {
             break;
@@ -1271,12 +1310,14 @@ def rule__loop0_34(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = pa_name_from_token(peg_expect_token(p, NAME));
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1289,6 +1330,7 @@ def rule__loop0_37(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_146(p);
         if rhs is None {
             break;
@@ -1303,12 +1345,14 @@ def rule__loop0_39(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_import_from_as_name(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1321,12 +1365,14 @@ def rule__loop0_42(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule__tmp_141(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1339,6 +1385,7 @@ def rule__loop0_47(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         star_named_expressions = rule_star_named_expressions(p);
         if star_named_expressions is None {
             break;
@@ -1353,6 +1400,7 @@ def rule__loop0_48(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_147(p);
         if rhs is None {
             break;
@@ -1367,12 +1415,14 @@ def rule__loop0_60(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_dotted_name(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1385,6 +1435,7 @@ def rule__loop0_66(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lambda_param_maybe_default = rule_lambda_param_maybe_default(p);
         if lambda_param_maybe_default is None {
             break;
@@ -1399,6 +1450,7 @@ def rule__loop0_67(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lambda_param_no_default = rule_lambda_param_no_default(p);
         if lambda_param_no_default is None {
             break;
@@ -1413,12 +1465,14 @@ def rule__loop0_68(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_lambda_param(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1431,6 +1485,7 @@ def rule__loop0_77(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         param_maybe_default = rule_param_maybe_default(p);
         if param_maybe_default is None {
             break;
@@ -1445,6 +1500,7 @@ def rule__loop0_78(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         param_no_default = rule_param_no_default(p);
         if param_no_default is None {
             break;
@@ -1459,6 +1515,7 @@ def rule__loop0_88(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         block = rule_block(p);
         if block is None {
             break;
@@ -1473,12 +1530,14 @@ def rule__loop0_92(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule__tmp_142(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1491,12 +1550,14 @@ def rule__loop0_94(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule__tmp_143(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1509,12 +1570,14 @@ def rule__loop0_96(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_key_value_pattern(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1527,12 +1590,14 @@ def rule__loop0_99(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule_keyword_pattern(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -1545,6 +1610,7 @@ def rule__loop1_106(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lambda_param_no_default = rule_lambda_param_no_default(p);
         if lambda_param_no_default is None {
             break;
@@ -1562,6 +1628,7 @@ def rule__loop1_107(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         case_block = rule_case_block(p);
         if case_block is None {
             break;
@@ -1579,6 +1646,7 @@ def rule__loop1_121(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_148(p);
         if rhs is None {
             break;
@@ -1596,6 +1664,7 @@ def rule__loop1_128(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_144(p);
         if rhs is None {
             break;
@@ -1613,6 +1682,7 @@ def rule__loop1_129(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         statement = rule_statement(p);
         if statement is None {
             break;
@@ -1630,6 +1700,7 @@ def rule__loop1_13(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         compare_op_bitwise_or_pair = rule_compare_op_bitwise_or_pair(p);
         if compare_op_bitwise_or_pair is None {
             break;
@@ -1647,6 +1718,7 @@ def rule__loop1_14(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_149(p);
         if rhs is None {
             break;
@@ -1664,6 +1736,7 @@ def rule__loop1_15(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_150(p);
         if rhs is None {
             break;
@@ -1681,6 +1754,7 @@ def rule__loop1_19(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_151(p);
         if rhs is None {
             break;
@@ -1698,6 +1772,7 @@ def rule__loop1_26(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_4(p);
         if rhs is None {
             break;
@@ -1715,6 +1790,7 @@ def rule__loop1_28(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         for_if_clause = rule_for_if_clause(p);
         if for_if_clause is None {
             break;
@@ -1732,6 +1808,7 @@ def rule__loop1_38(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_146(p);
         if rhs is None {
             break;
@@ -1749,6 +1826,7 @@ def rule__loop1_54(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_152(p);
         if rhs is None {
             break;
@@ -1766,6 +1844,7 @@ def rule__loop1_7(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_147(p);
         if rhs is None {
             break;
@@ -1783,6 +1862,7 @@ def rule__loop1_71(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lambda_param_maybe_default = rule_lambda_param_maybe_default(p);
         if lambda_param_maybe_default is None {
             break;
@@ -1800,6 +1880,7 @@ def rule__loop1_72(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lambda_param_with_default = rule_lambda_param_with_default(p);
         if lambda_param_with_default is None {
             break;
@@ -1817,6 +1898,7 @@ def rule__loop1_79(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         param_no_default = rule_param_no_default(p);
         if param_no_default is None {
             break;
@@ -1834,6 +1916,7 @@ def rule__loop1_81(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         param_maybe_default = rule_param_maybe_default(p);
         if param_maybe_default is None {
             break;
@@ -1851,6 +1934,7 @@ def rule__loop1_82(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         param_with_default = rule_param_with_default(p);
         if param_with_default is None {
             break;
@@ -1868,6 +1952,7 @@ def rule__loop1_85(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         rhs = rule__tmp_87(p);
         if rhs is None {
             break;
@@ -1885,6 +1970,7 @@ def rule__loop1_86(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         tstring = rule_tstring(p);
         if tstring is None {
             break;
@@ -1902,6 +1988,7 @@ def rule__loop1_89(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         except_block = rule_except_block(p);
         if except_block is None {
             break;
@@ -1919,6 +2006,7 @@ def rule__loop1_90(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         except_star_block = rule_except_star_block(p);
         if except_star_block is None {
             break;
@@ -8955,7 +9043,7 @@ def rule_kvpair(p: peg_parser) -> pa_key_value_pair | None {
     return None;
 }
 
-def rule_kwarg_or_double_starred(p: peg_parser) -> keyword_or_starred_node | None {
+def rule_kwarg_or_double_starred(p: peg_parser) -> pa_keyword_or_starred | None {
     mark = peg_mark(p);
     start_lineno = 1;
     start_col_offset = 0;
@@ -9002,7 +9090,7 @@ def rule_kwarg_or_double_starred(p: peg_parser) -> keyword_or_starred_node | Non
     return None;
 }
 
-def rule_kwarg_or_starred(p: peg_parser) -> keyword_or_starred_node | None {
+def rule_kwarg_or_starred(p: peg_parser) -> pa_keyword_or_starred | None {
     mark = peg_mark(p);
     start_lineno = 1;
     start_col_offset = 0;

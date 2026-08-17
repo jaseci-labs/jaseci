@@ -825,6 +825,7 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
             self.print("cut = False;")
         self.print("while True {")
         with self.indent():
+            self.print("comma_mark = peg_mark(p);")
             with self.local_variable_context():
                 self._emit_loop_body_nested(node.items, 0, node, is_gather, has_cut)
         self.print("}")
@@ -861,12 +862,16 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
             self.print(f"{v} = {call_clean};")
             self.print(f"if {v} is None {{")
             with self.indent():
+                if idx > 0:
+                    self.print("peg_reset(p, comma_mark);")
                 self.print("break;")
             self.print("}")
             self._emit_loop_body_nested(items, idx + 1, node, is_gather, has_cut)
             return
         self.print(f"if not ({call}) {{")
         with self.indent():
+            if idx > 0:
+                self.print("peg_reset(p, comma_mark);")
             self.print("break;")
         self.print("}")
         self._emit_loop_body_nested(items, idx + 1, node, is_gather, has_cut)
