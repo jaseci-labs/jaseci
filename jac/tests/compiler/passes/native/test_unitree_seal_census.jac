@@ -302,23 +302,6 @@ glob UNITREE_CLOSURE: tuple = (
          "uni_pass.jac::UniPass.find_parent_of_type": (
              "Backend gap: the twin of `get_all_sub_nodes` above, and it "
              "clears the same way."
-         ),
-         "uni_pass.jac::UniPass.__post_init__": (
-             "Backend gap: `super.__post_init__` does not lower across the "
-             "linked base. One of the four inherited-slot refusals the base "
-             "chain's arrival exposed; see `transform`/`traverse` below."
-         ),
-         "uni_pass.jac::UniPass.transform": (
-             "Backend gap, and the load-bearing one: a store to `ir_out`, a "
-             "slot inherited from `BaseTransform` rather than declared on "
-             "`UniPass`. Constructing a pass inside a native root lowers "
-             "now; *running* one stops here. Clears when a store to an "
-             "inherited slot of a linked base lowers."
-         ),
-         "uni_pass.jac::UniPass.traverse": (
-             "Backend gap: a store to `cur_node`, the same inherited-slot "
-             "refusal as `transform` above, and the other half of why a "
-             "natively constructed pass cannot yet walk a tree."
          )
      };
 

@@ -402,11 +402,8 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      _UNI_PASS_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
          "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
          "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
-         "jac0core/passes/uni_pass.jac::UniPass.transform",
-         "jac0core/passes/uni_pass.jac::UniPass.traverse",
 
      ),
      _MODULE_CODEGEN_SEAM_WAIVERS: tuple[str, ...] = (
@@ -460,11 +457,8 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          (
              "jac0core/passes/transform.jac::BaseTransform.is_canceled",
              "jac0core/passes/transform.jac::Transform.ice",
-             "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
              "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
-             "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
-             "jac0core/passes/uni_pass.jac::UniPass.transform",
-             "jac0core/passes/uni_pass.jac::UniPass.traverse"
+             "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type"
          )
          + _MODULE_CODEGEN_SEAM_WAIVERS
      ),
@@ -479,13 +473,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      ),
      _SYM_TAB_BUILD_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/sym_tab_build_pass.jac::SymTabBuildPass.exit_global_vars",
-
-     ),
-     _JSX_GUARD_SEAM_WAIVERS: tuple[str, ...] = (
-         (
-             "compiler/passes/main/jsx_intrinsic_guard_pass.jac::"
-             "JsxIntrinsicGuardPass.before_pass"
-         ),
 
      ),
      _CFG_BUILD_SEAM_WAIVERS: tuple[str, ...] = (
@@ -559,9 +546,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _JSX_GUARD_SEAM_WAIVERS
-         ),
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/cfg_build_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
          ),
@@ -660,34 +645,18 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "no separate work of their own."
          ),
          (
-             "uni_pass generic statics and inherited field stores",
+             "uni_pass generic statics",
              _UNI_PASS_SEAM_WAIVERS,
-             "Two families. `get_all_sub_nodes` and `find_parent_of_type` "
-             "are `type[T]`-generic statics that only forward to the "
-             "same-named `UniNode` methods, and the backend cannot lower "
-             "a TypeVar-bound signature; they clear when generic statics "
-             "lower, or when the forwarding shims are retired for the "
-             "`UniNode` methods they wrap. The other three are what the "
-             "base chain's arrival exposed and are the load-bearing ones: "
-             "`transform` and `traverse` refuse on a field assignment to "
-             "`ir_out` and `cur_node`, slots inherited from `BaseTransform` "
-             "rather than declared locally, and `__post_init__` refuses on "
-             "its `super.__post_init__` call. Constructing a pass inside a "
-             "native root lowers now; running one still does not, and this "
-             "is exactly where. They clear when a store to an inherited "
-             "slot of a linked base lowers."
-         ),
-         (
-             "jsx guard inherited field read",
-             _JSX_GUARD_SEAM_WAIVERS,
-             "`before_pass` reads `self.ir_in`, a slot inherited from "
-             "`BaseTransform`. It is the read half of the family above -- "
-             "`uni_pass`'s `transform` and `traverse` refuse on the write "
-             "half of the same slots -- and it appeared for the same reason, "
-             "the base chain entering the closure. Three passes now refuse "
-             "on inherited-slot access and no pass refuses on anything else "
-             "about the chain, which is what makes this one mechanism rather "
-             "than three defects. It clears with them."
+             "`get_all_sub_nodes` and `find_parent_of_type` are "
+             "`type[T]`-generic statics that only forward to the same-named "
+             "`UniNode` methods, and the backend cannot lower a TypeVar-bound "
+             "signature. They clear when generic statics lower, or when the "
+             "forwarding shims are retired for the `UniNode` methods they "
+             "wrap. This entry used to carry three more -- `transform`, "
+             "`traverse` and `__post_init__` -- which refused on access to "
+             "slots inherited from `BaseTransform`; the linearization repair "
+             "in #8320 cleared all three, and with them the reason a pass "
+             "could be constructed inside a native root but not run."
          ),
          (
              "endpoint effects written as codegen state",
