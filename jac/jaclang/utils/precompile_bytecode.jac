@@ -436,13 +436,36 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          ),
 
      ),
-     _CLOSURE_SEAM_WAIVERS: tuple = (
+     _LEAF_SEAM_WAIVERS: tuple = (
          _UNITREE_SEAM_WAIVERS
          + _TYPES_SEAM_WAIVERS
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
-         + _TRANSFORM_SEAM_WAIVERS
-         + _UNI_PASS_SEAM_WAIVERS
+     ),
+     _BASE_CHAIN_SEAM_WAIVERS: tuple = (
+         _TRANSFORM_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
+     ),
+     _CLOSURE_SEAM_WAIVERS: tuple = (
+         _LEAF_SEAM_WAIVERS + _BASE_CHAIN_SEAM_WAIVERS
+     ),
+     _MODULE_CODEGEN_ROOT_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/transform.jac::BaseTransform.is_canceled",
+         "jac0core/passes/transform.jac::Transform.ice",
+         "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
+         "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
+         "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
+
+     ),
+     _UNI_PASS_ROOT_SEAM_WAIVERS: tuple = (
+         (
+             "jac0core/passes/transform.jac::BaseTransform.is_canceled",
+             "jac0core/passes/transform.jac::Transform.ice",
+             "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
+             "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
+             "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
+             "jac0core/passes/uni_pass.jac::UniPass.transform",
+             "jac0core/passes/uni_pass.jac::UniPass.traverse"
+         )
          + _MODULE_CODEGEN_SEAM_WAIVERS
      ),
      _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple = (
@@ -509,8 +532,12 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/uni_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "jac0core/passes/module_codegen_pass.jac": (
+             _LEAF_SEAM_WAIVERS + _MODULE_CODEGEN_ROOT_SEAM_WAIVERS
+         ),
+         "jac0core/passes/uni_pass.jac": (
+             _LEAF_SEAM_WAIVERS + _UNI_PASS_ROOT_SEAM_WAIVERS
+         ),
          "jac0core/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/endpoint_effect_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
@@ -611,12 +638,15 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
          (
              "module_codegen isinstance against an unreachable layout",
              _MODULE_CODEGEN_SEAM_WAIVERS,
-             "One cause and five cascades. `iter_context_stmts` tests "
-             "`isinstance` against `ElementStmt`, a unitree class whose "
-             "layout is not reachable from these roots, which is the same "
-             "named backend gap `type_utils`'s `class_implements_protocol` "
-             "and `doc_of_sym` are waived for above. The other five all call "
-             "it. They clear together the day `isinstance` against an "
+             "One cause and five cascades, and they demote in exactly one "
+             "root -- `uni_pass.jac`, the only root that links "
+             "`module_codegen_pass` without also linking the unitree layout "
+             "that would make the test resolvable. `iter_context_stmts` "
+             "tests `isinstance` against `ElementStmt`, a unitree class "
+             "whose layout is not reachable there, which is the same named "
+             "backend gap `type_utils`'s `class_implements_protocol` and "
+             "`doc_of_sym` are waived for above. The other five all call it. "
+             "They clear together the day `isinstance` against an "
              "unreachable layout lowers -- one mechanism, six waivers, and "
              "no separate work of their own."
          ),
