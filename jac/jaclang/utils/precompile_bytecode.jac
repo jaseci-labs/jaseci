@@ -393,15 +393,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
      ),
-     _MODULE_CODEGEN_SEAM_WAIVERS: tuple = (
-         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_context_stmts",
-         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_module_imports",
-         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_nested_imports",
-         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.has_native_context_stmts",
-         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.shared_archetypes_for_context",
-         "jac0core/passes/module_codegen_pass.jac::client_capability_violations",
-
-     ),
      _UNI_PASS_SEAM_WAIVERS: tuple = (
          "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
          "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
@@ -461,9 +452,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/module_codegen_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _MODULE_CODEGEN_SEAM_WAIVERS
-         ),
+         "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
          ),
@@ -543,16 +532,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "function-local import that keeps `helpers` out of a "
              "module-level cycle with `unitree`; hoisting it is the clearing "
              "mechanism and it needs the cycle broken first."
-         ),
-         (
-             "module_codegen erased-operand isinstance",
-             _MODULE_CODEGEN_SEAM_WAIVERS,
-             "One backend gap and five call-cascades of it: "
-             "`iter_context_stmts` runs `isinstance` over an "
-             "element-erased sequence element, because `module.body` "
-             "reaches it as a bare `Sequence`. All six clear together "
-             "when the backend lowers `isinstance` over erased operands, "
-             "the unlanded remainder of the #8214 family."
          ),
          (
              "uni_pass TypeVar-generic statics",

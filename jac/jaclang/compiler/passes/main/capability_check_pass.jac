@@ -6,6 +6,7 @@ import from jaclang.jac0core.unitree {
     CtrlStmt,
     EdgeOpRef,
     EdgeRefTrailer,
+    ElementStmt,
     Enum,
     EventSignature,
     Expr,
@@ -33,13 +34,17 @@ import from jaclang.jac0core.unitree {
     YieldExpr
 }
 import from jaclang.jac0core.passes.transform { Transform }
+import from jaclang.jac0core.passes.module_codegen_pass {
+    ModuleCodegenPass,
+    client_capability_violations
+}
 import from jaclang.jac0core.constant { SymbolType }
 import from jaclang.jac0core.diagnostics { E5090, E5096, W6001, W6002, W6003, W6004 }
 import from jaclang.jac0core.codeinfo { NATIVE_SUPPORTED_STDLIB }
 
-glob NATIVE_REJECT_NODES: tuple = (PyInlineCode, );
+glob NATIVE_REJECT_NODES: tuple[type[PyInlineCode]] = (PyInlineCode, );
 
-def classify_native_import(item: UniNode) -> tuple;
+def classify_native_import(item: UniNode) -> tuple[((str | None), bool)];
 
 def import_bound_name(item: UniNode) -> (str | None);
 
@@ -55,11 +60,20 @@ def static_fstring_spec_text(spec: UniNode) -> (str | None);
 
 def call_has_kwargs_sink(call: FuncCall) -> bool;
 
-def native_capability_violations(mod: Module) -> list;
+def native_capability_violations(
+    mod: Module
+) -> list[tuple[(UniNode, str, str, (str | None))]];
 
 def native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None);
 
-def partition_native_capability_violations(viols: list) -> tuple;
+def partition_native_capability_violations(
+    viols: list[tuple[(UniNode, str, str, (str | None))]]
+) -> tuple[
+    (
+        list[tuple[(UniNode, str, str, (str | None))]],
+        dict[int, list[tuple[(UniNode, str, str, (str | None))]]]
+    )
+];
 
 obj PortabilityWarnPass(Transform) {
     has ir_in: Module,

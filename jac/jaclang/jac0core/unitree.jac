@@ -362,6 +362,8 @@ obj Module(AstDocNode, UniScopeNode) {
         mobui_enforced_root: (str | None) = None,
         jac_project_root: (str | None) = None,
         access_enforced: bool = False,
+        native_viols_reported: bool = False,
+        client_viols_reported: bool = False,
         annex_mods: list[Module] postinit;
 
     def postinit -> None;

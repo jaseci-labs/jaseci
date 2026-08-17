@@ -11,6 +11,7 @@ import from jaclang.jac0core.unitree {
     FuncCall,
     FuncSignature,
     HasVar,
+    IndexSlice,
     Module,
     Name,
     TupleVal,
@@ -392,7 +393,7 @@ def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
     return enum_member_literal(_asn.value);
 }
 
-def class_form_enum_member(t: any) -> (tuple | None) {
+def class_form_enum_member(t: any) -> (tuple[(str, (str | int), str)] | None) {
     try {
         import from jaclang.compiler.type_system.types {
             EnumMemberType as _EnumMemberType

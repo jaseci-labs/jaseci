@@ -36,14 +36,16 @@ obj ModuleCodegenPass(Transform) {
         return None;
     }
 
-    static def iter_woven_segments(module: Module) -> list[tuple[Sequence, bool]] {
+    static def iter_woven_segments(
+        module: Module
+    ) -> list[tuple[list[UniNode], bool]] {
         own_path = module.loc.mod_path;
-        annex_stmts = [
+        annex_stmts: list[UniNode] = [
             stmt
             for stmt in module.body
             if stmt.loc.mod_path and stmt.loc.mod_path != own_path
         ];
-        head_stmts = [
+        head_stmts: list[UniNode] = [
             stmt
             for stmt in module.body
             if not (stmt.loc.mod_path and stmt.loc.mod_path != own_path)
@@ -57,18 +59,20 @@ obj ModuleCodegenPass(Transform) {
         result: list[ElementStmt] = [];
         for (body, _strip) in ModuleCodegenPass.iter_woven_segments(module) {
             for stmt in body {
+                if not isinstance(stmt, ElementStmt) {
+                    continue;
+                }
+                elem: ElementStmt = stmt;
                 if ctx is None {
-                    result.append(stmt);
+                    result.append(elem);
                 } elif (
                     isinstance(stmt, ContextAwareNode) and stmt.code_context == ctx
                 ) {
-                    if isinstance(stmt, ElementStmt) {
-                        result.append(stmt);
-                    }
+                    result.append(elem);
                 } elif (
                     not isinstance(stmt, ContextAwareNode) and ctx == CodeContext.SERVER
                 ) {
-                    result.append(stmt);
+                    result.append(elem);
                 }
             }
         }
@@ -184,18 +188,14 @@ obj ModuleCodegenPass(Transform) {
     }
 }
 
-def client_capability_violations(mod: Module) -> list {
-    out: list = [];
-
-    reject: list = [(ConcurrentExpr, "flow/wait concurrency")];
+def client_capability_violations(mod: Module) -> list[tuple[(UniNode, str)]] {
+    out: list[tuple[(UniNode, str)]] = [];
     for _stmt in ModuleCodegenPass.iter_context_stmts(mod, CodeContext.CLIENT) {
-        if getattr(_stmt, 'codespace_dual', False) {
+        if isinstance(_stmt, ContextAwareNode) and _stmt.codespace_dual {
             continue;
         }
-        for (node_t, kind_name) in reject {
-            for _nd in _stmt.get_all_sub_nodes(typ=node_t) {
-                out.append((_nd, kind_name));
-            }
+        for _nd in _stmt.get_all_sub_nodes(typ=ConcurrentExpr) {
+            out.append((_nd, "flow/wait concurrency"));
         }
     }
     return out;
