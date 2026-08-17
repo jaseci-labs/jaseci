@@ -1,7 +1,7 @@
 import from jaclang.compiler.targets.abi { classify_foreign_fn }
 import from jaclang.jac0core.constant { OwnershipKind }
 
-impl NaIRGenPass.builder.getter -> ir.IRBuilder {
+impl NaIRGenPass.builder.`getter -> ir.IRBuilder {
     if self._builder is None {
         raise RuntimeError(
             "NaIRGenPass.builder read with no active IRBuilder "
@@ -1122,7 +1122,7 @@ impl NaIRGenPass._codegen_generator(nd: uni.Ability, func: ir.Function) -> None 
     ip_slot = self.builder.bitcast(gc["frame_i8"], i64p, name="gen.ip.slot");
     ip = self.builder.load(ip_slot, name="gen.ip");
     default_bb = resume_fn.append_basic_block("gen.exhausted");
-    sw = self.builder.switch(ip, default_bb);
+    sw = self.builder.`switch(ip, default_bb);
     sw.add_case(ir.Constant(i64, 0), body_bb);
     for (k, rbb) in enumerate(gc["resume_blocks"]) {
         sw.add_case(ir.Constant(i64, k + 1), rbb);

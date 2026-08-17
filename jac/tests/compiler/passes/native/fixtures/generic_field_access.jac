@@ -58,7 +58,7 @@ impl Holder.one_name_len -> int {
     return -1;
 }
 
-impl Holder.rank.getter -> Rank {
+impl Holder.rank.`getter -> Rank {
     return Rank.HIGH
         if (self.one and (self.one.slot.name == "hi"))
         else Rank.MID if (self.one and (self.one.slot.name == "mid")) else Rank.LOW;

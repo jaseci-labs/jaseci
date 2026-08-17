@@ -1,6 +1,6 @@
 import inspect;
 import from dataclasses { is_dataclass }
-import from enum { EnumMeta }
+import from `enum { EnumMeta }
 import from types { UnionType }
 import from typing { Any, Union, get_args, get_origin, get_type_hints }
 import from jaclang.runtimelib.serving.datatypes { Request, UploadFile }
@@ -79,7 +79,7 @@ def _construct_object(value: any, target: any) -> any {
         }
         if pname in value {
             kwargs[pname] = coerce_value(value[pname], hints.get(pname));
-        } elif param.default is inspect.Parameter.empty {
+        } elif param.`default is inspect.Parameter.empty {
             raise ValueError(f"missing required field '{pname}'");
         }
     }

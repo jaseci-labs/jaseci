@@ -296,7 +296,7 @@ def _param_view(fn: any) -> list[tuple] {
         if p.name == "self" {
             continue;
         }
-        view.append((p.name, p.kind.name, p.default));
+        view.append((p.name, p.kind.name, p.`default));
     }
     return view;
 }

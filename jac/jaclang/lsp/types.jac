@@ -1,4 +1,4 @@
-import from enum { IntEnum, StrEnum }
+import from `enum { IntEnum, StrEnum }
 import from typing { Dict, List, Optional, Union }
 
 glob TEXT_DOCUMENT_DID_OPEN = "textDocument/didOpen",
@@ -318,7 +318,7 @@ obj SemanticTokensLegend {
 }
 
 obj FileOperationPattern {
-    has glob: str = "";
+    has `glob: str = "";
 }
 
 obj FileOperationFilter {

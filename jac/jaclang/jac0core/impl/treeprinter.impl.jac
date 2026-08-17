@@ -9,11 +9,11 @@ impl SymbolTree.init(
     self.name = node_name;
 }
 
-impl SymbolTree.parent.getter -> (SymbolTree | None) {
+impl SymbolTree.parent.`getter -> (SymbolTree | None) {
     return self.__parent;
 }
 
-impl SymbolTree.parent.setter(self: SymbolTree, parent_node: (SymbolTree | None)) {
+impl SymbolTree.parent.`setter(self: SymbolTree, parent_node: (SymbolTree | None)) {
     if parent_node {
         self.__parent = parent_node;
         parent_node.kid.append(self);

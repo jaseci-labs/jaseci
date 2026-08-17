@@ -1229,14 +1229,14 @@ impl `test(
     if (not paths and not directory) {
         import from jaclang.project.config { get_config }
         cfg = get_config();
-        if (cfg and cfg.test.directory) {
-            directory = cfg.test.directory;
+        if (cfg and cfg.`test.directory) {
+            directory = cfg.`test.directory;
             if (cfg.project_root and not os.path.isabs(directory)) {
                 directory = os.path.join(str(cfg.project_root), directory);
             }
             if not Path(directory).is_dir() {
                 console.error(
-                    f"Error: [test] directory '{cfg.test.directory}' "
+                    f"Error: [test] directory '{cfg.`test.directory}' "
                     f"(resolved to '{directory}') does not exist."
                 );
                 return 1;
@@ -1350,7 +1350,7 @@ def _iter_jac_files(
                 result.append(path);
             }
         } elif path_obj.is_dir() {
-            for jac_file in path_obj.glob('**/*.jac') {
+            for jac_file in path_obj.`glob('**/*.jac') {
                 if not jac_file.is_file() {
                     continue;
                 }

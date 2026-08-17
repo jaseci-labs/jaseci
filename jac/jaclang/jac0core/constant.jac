@@ -1,4 +1,4 @@
-import from enum { IntFlag, StrEnum }
+import from `enum { IntFlag, StrEnum }
 
 enum SymbolType {
     MODULE = 'module',

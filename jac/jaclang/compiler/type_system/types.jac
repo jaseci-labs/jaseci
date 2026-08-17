@@ -1,5 +1,5 @@
 import from abc { ABC }
-import from enum { IntEnum, auto }
+import from `enum { IntEnum, auto }
 import from pathlib { Path }
 import from typing { ClassVar }
 import type from jaclang.jac0core.unitree { Expr, Symbol }

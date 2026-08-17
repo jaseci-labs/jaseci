@@ -136,7 +136,7 @@ class ModuleRef(ffi.ObjectRef) {
         return _decode_string(ffi.lib.LLVMPY_GetModuleName(self));
     }
 
-    @name.setter
+    @name.`setter
     def name(self: ModuleRef, value: Any) -> object {
         ffi.lib.LLVMPY_SetModuleName(self, _encode_string(value));
     }
@@ -160,7 +160,7 @@ class ModuleRef(ffi.ObjectRef) {
         }
     }
 
-    @data_layout.setter
+    @data_layout.`setter
     def data_layout(self: ModuleRef, strrep: Any) -> object {
         ffi.lib.LLVMPY_SetDataLayout(self, create_string_buffer(strrep.encode('utf8')));
     }
@@ -176,7 +176,7 @@ class ModuleRef(ffi.ObjectRef) {
         }
     }
 
-    @triple.setter
+    @triple.`setter
     def triple(self: ModuleRef, strrep: Any) -> object {
         ffi.lib.LLVMPY_SetTarget(self, create_string_buffer(strrep.encode('utf8')));
     }

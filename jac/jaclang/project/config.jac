@@ -33,7 +33,7 @@ obj ProjectConfig {
         entry_point: str = "main.jac",
         kind: str = "",
         urls: dict[str, str] = {},
-        include: PackageIncludeConfig = PackageIncludeConfig();
+        `include: PackageIncludeConfig = PackageIncludeConfig();
 }
 
 obj RunConfig {
@@ -57,7 +57,7 @@ obj GcEnforceConfig {
 }
 
 obj GcConfig {
-    has default: str = "cycles",
+    has `default: str = "cycles",
         enforce: GcEnforceConfig = GcEnforceConfig();
 }
 
@@ -169,7 +169,7 @@ obj JacConfig {
         run: RunConfig = RunConfig(),
         build: BuildConfig = BuildConfig(),
         gc: GcConfig = GcConfig(),
-        test: TestConfig = TestConfig(),
+        `test: TestConfig = TestConfig(),
         serve: ServeConfig = ServeConfig(),
         format: FormatConfig = FormatConfig(),
         precommit: PrecommitConfig = PrecommitConfig(),

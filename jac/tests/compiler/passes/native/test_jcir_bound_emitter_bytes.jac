@@ -117,7 +117,7 @@ def native_true_image -> bool {
 """Build the jcir artifact once for the whole file; (tmpdir, artifacts)."""
 def _built -> tuple {
     if native_true_image() {
-        pytest.skip(
+        pytest.`skip(
             "this runtime already serves jcir from its own native seal, so "
             "both sides of the comparison would be the sealed lane"
         );
@@ -142,13 +142,13 @@ def _built -> tuple {
 
 def _artifact_resolver(tmp: str, arts: dict) -> any {
     def _resolve(fullname: str) -> (tuple | None) {
-        entry = arts.get(fullname);
-        if entry is None {
+        `entry = arts.get(fullname);
+        if `entry is None {
             return None;
         }
-        lib_path = os.path.join(tmp, entry["lib"]);
+        lib_path = os.path.join(tmp, `entry["lib"]);
         layout = json.loads(
-            Path(os.path.join(tmp, entry["layout"])).read_text(encoding="utf-8")
+            Path(os.path.join(tmp, `entry["layout"])).read_text(encoding="utf-8")
         );
         return (lib_path, layout, );
     }

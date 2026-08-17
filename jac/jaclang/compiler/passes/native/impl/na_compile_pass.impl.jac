@@ -1,5 +1,5 @@
 impl native_compiler_fingerprint(options: any) -> str {
-    import glob as _cgl;
+    import `glob as _cgl;
     import hashlib as _cfh_hash;
     import os as _cfp_os;
     import jaclang as _jlm;
@@ -11,7 +11,7 @@ impl native_compiler_fingerprint(options: any) -> str {
         _cfp_os.path.join(_nat_dir, "na_ir_gen_pass.impl", "*.jac"),
 
     ] {
-        for _cf in sorted(_cgl.glob(_cp)) {
+        for _cf in sorted(_cgl.`glob(_cp)) {
             try {
                 with open(_cf, "rb") as _cfh {
                     _comp_h.update(_cfh.read());
@@ -581,15 +581,15 @@ impl NativeCompilePass._compile_and_link_native_imports(
             try {
                 os.makedirs(_ir_cache_dir, exist_ok=True);
 
-                import glob as _glob;
-                for stale in _glob.glob(
+                import `glob as _glob;
+                for stale in _glob.`glob(
                     os.path.join(_ir_cache_dir, f"{_src_stem}.*.ir_cache")
                 ) {
                     if stale != _cache_ir_path {
                         os.remove(stale);
                     }
                 }
-                for stale in _glob.glob(
+                for stale in _glob.`glob(
                     os.path.join(_ir_cache_dir, f"{_src_stem}.*.ir_meta")
                 ) {
                     if stale != _cache_meta_path {

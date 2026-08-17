@@ -11,7 +11,7 @@ import from ctypes {
     c_bool,
     c_void_p
 }
-import enum;
+import `enum;
 import from jaclang.compiler.passes.native.llvm.binding { ffi }
 import from jaclang.compiler.passes.native.llvm.binding.common {
     _decode_string,
@@ -180,7 +180,7 @@ class ValueRef(ffi.ObjectRef) {
         return _decode_string(ffi.lib.LLVMPY_GetValueName(self));
     }
 
-    @name.setter
+    @name.`setter
     def name(self: ValueRef, val: Any) -> object {
         ffi.lib.LLVMPY_SetValueName(self, _encode_string(val));
     }
@@ -190,7 +190,7 @@ class ValueRef(ffi.ObjectRef) {
         return Linkage(ffi.lib.LLVMPY_GetLinkage(self));
     }
 
-    @linkage.setter
+    @linkage.`setter
     def linkage(self: ValueRef, value: Any) -> object {
         if not isinstance(value, Linkage) {
             value = Linkage[value];
@@ -203,7 +203,7 @@ class ValueRef(ffi.ObjectRef) {
         return Visibility(ffi.lib.LLVMPY_GetVisibility(self));
     }
 
-    @visibility.setter
+    @visibility.`setter
     def visibility(self: ValueRef, value: Any) -> object {
         if not isinstance(value, Visibility) {
             value = Visibility[value];
@@ -216,7 +216,7 @@ class ValueRef(ffi.ObjectRef) {
         return StorageClass(ffi.lib.LLVMPY_GetDLLStorageClass(self));
     }
 
-    @storage_class.setter
+    @storage_class.`setter
     def storage_class(self: ValueRef, value: Any) -> object {
         if not isinstance(value, StorageClass) {
             value = StorageClass[value];

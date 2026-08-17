@@ -1136,11 +1136,11 @@ impl NaIRGenPass._imported_function_demotions(
     mod_path = imported_mod.loc.mod_path;
     real_path = _fd_os.path.realpath(mod_path);
     units = self.prog._na_dep_units;
-    entry: any = None;
+    `entry: any = None;
     if real_path in units {
-        entry = units[real_path];
+        `entry = units[real_path];
     } elif imported_mod.gen.llvm_ir is not None {
-        entry = imported_mod;
+        `entry = imported_mod;
     } else {
         import from jaclang.jac0core.compile_options { CompileOptions as _FdOpts }
         _opts_src = self.prog?._compile_options or _FdOpts();
@@ -1169,16 +1169,16 @@ impl NaIRGenPass._imported_function_demotions(
             return None;
         }
         try {
-            entry = self.prog.compile(
+            `entry = self.prog.compile(
                 file_path=mod_path, options=_opts_src.clone_for_native_import()
             );
         } except Exception as _fd_exc {
-            entry = f"{type(_fd_exc).__name__}: {_fd_exc}";
+            `entry = f"{type(_fd_exc).__name__}: {_fd_exc}";
         }
-        units[real_path] = entry;
+        units[real_path] = `entry;
     }
 
-    if entry is None or isinstance(entry, str) or entry.gen.llvm_ir is None {
+    if `entry is None or isinstance(`entry, str) or `entry.gen.llvm_ir is None {
         _fd_all: set = set();
         for _fd_stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
             if (
@@ -1193,7 +1193,7 @@ impl NaIRGenPass._imported_function_demotions(
         return _fd_all;
     }
     demoted: set = set();
-    _fd_mod = entry.gen.llvm_ir;
+    _fd_mod = `entry.gen.llvm_ir;
     _fd_names: list = [];
     try {
         _fd_names = list(_fd_mod.globals);

@@ -228,7 +228,7 @@ impl nacompile(
         _gc_cfg = _cfg.gc;
     }
     if not gc {
-        gc = _gc_cfg.default if _gc_cfg else "cycles";
+        gc = _gc_cfg.`default if _gc_cfg else "cycles";
     }
     if gc not in ("cycles", "rc", "none") {
         console.error(f"Invalid --gc mode '{gc}' (expected: cycles, rc, none)");
@@ -732,9 +732,9 @@ def _resolve_ca_bundle(pkg_root: str) -> (str | None) {
         return cand;
     }
 
-    import glob;
+    import `glob;
     hits = sorted(
-        glob.glob(
+        `glob.`glob(
             os.path.join(
                 pkg_root,
                 ".pbs-build",

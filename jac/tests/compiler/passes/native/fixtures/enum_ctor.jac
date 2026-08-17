@@ -8,7 +8,7 @@ same question. CPython raises `ValueError` for a value no member carries, and
 is exactly such a value.
 """
 
-import from enum { IntEnum }
+import from `enum { IntEnum }
 
 
 class Flags(IntEnum) {

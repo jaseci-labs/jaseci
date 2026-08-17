@@ -178,10 +178,10 @@ glob COMPILER_DIGEST_ROOTS: tuple = (
 def compiler_source_files(pkg_dir: str) -> list[str] {
     base = str(Path(pkg_dir));
     rels: list[str] = [];
-    for entry in COMPILER_DIGEST_ROOTS {
-        target = os.path.join(base, entry.replace("/", os.sep));
+    for `entry in COMPILER_DIGEST_ROOTS {
+        target = os.path.join(base, `entry.replace("/", os.sep));
         if os.path.isfile(target) {
-            rels.append(entry);
+            rels.append(`entry);
             continue;
         }
         if not os.path.isdir(target) {
@@ -432,7 +432,7 @@ def get_native_cache_dir(source_path: str) -> Path {
 }
 
 def scrub_cache_dirs(root_dir: str) -> int {
-    import glob as _glob;
+    import `glob as _glob;
     import shutil as _shutil;
     patterns = [
         os.path.join(root_dir, "**", ".jac", "cache"),
@@ -441,7 +441,7 @@ def scrub_cache_dirs(root_dir: str) -> int {
     removed = 0;
     seen: set[str] = set();
     for pattern in patterns {
-        for cache_dir in _glob.glob(pattern, recursive=True) {
+        for cache_dir in _glob.`glob(pattern, recursive=True) {
             if cache_dir in seen or not os.path.isdir(cache_dir) {
                 continue;
             }

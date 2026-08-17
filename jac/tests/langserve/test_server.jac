@@ -439,14 +439,14 @@ test "test_completion" {
             Case(pos=lspt.Position(8, 8), expected=["bar", "baz"]),
 
         ];
-        for case in test_cases {
+        for `case in test_cases {
             results = asyncio.run(
                 lsp.get_completion(
-                    base_module_file, case.pos, completion_trigger=case.trigger
+                    base_module_file, `case.pos, completion_trigger=`case.trigger
                 )
             );
             completions = results.items;
-            for completion in case.expected {
+            for completion in `case.expected {
                 assert completion in str(completions);
             }
         }
@@ -906,8 +906,8 @@ test "test_hover_types" {
 
         ];
 
-        for case in hover_cases {
-            (line, col, expected, should_not_contain) = case;
+        for `case in hover_cases {
+            (line, col, expected, should_not_contain) = `case;
             hover = lsp.get_hover_info(
                 narrowing_file, lspt.Position(line - 1, col - 1)
             );
@@ -1082,8 +1082,8 @@ test "test_hover_lhs_assignment" {
             (52, 12, "destructure_named_tuple read x", "int", "None"),
 
         ];
-        for case in cases {
-            (line, col, desc, expected, should_not_contain) = case;
+        for `case in cases {
+            (line, col, desc, expected, should_not_contain) = `case;
             hover = lsp.get_hover_info(lhs_file, lspt.Position(line - 1, col - 1));
             assert hover is not None , f"Hover should exist for {desc} at line {line}";
             assert expected in hover.contents.value , f"{desc}: expected '{expected}' in hover, got: {hover.contents.value}";
@@ -1287,10 +1287,10 @@ test "test_cross_module_imported_func_sem_token" {
         # "greet_user" on line 3 (import) should have FUNCTION sem token, not PROPERTY.
         import_tok = lsp.get_token_at_position(caller_file, lspt.Position(2, 35));
         assert import_tok is not None , "Expected token at import line";
-        sem = import_tok.sem_token;
-        assert sem is not None , "Expected sem_token for imported function";
-        assert sem[0] == JacSemTokenType.FUNCTION , (
-            f"Expected FUNCTION sem token for imported function, got: {sem[0]}"
+        `sem = import_tok.sem_token;
+        assert `sem is not None , "Expected sem_token for imported function";
+        assert `sem[0] == JacSemTokenType.FUNCTION , (
+            f"Expected FUNCTION sem token for imported function, got: {`sem[0]}"
         );
 
         # "greet_user" on line 5 (call site) should also have FUNCTION sem token.

@@ -7,7 +7,7 @@ stamped options fingerprint disagrees with the current build is a hard E5027,
 never a silent mixed-options link.
 """
 
-import glob;
+import `glob;
 import json;
 import os;
 import shutil;
@@ -61,7 +61,7 @@ def _compile_main(main_path: str, rc_debug: bool) -> JacProgram {
 
 def _dep_cache_files(tmp: str, dep_stem: str, ext: str) -> list[str] {
     cache_dir = str(get_native_cache_dir(os.path.join(tmp, f"{dep_stem}.jac")));
-    return sorted(glob.glob(os.path.join(cache_dir, f"{dep_stem}.*.{ext}")));
+    return sorted(`glob.`glob(os.path.join(cache_dir, f"{dep_stem}.*.{ext}")));
 }
 
 glob _CACHE_ENV_KEYS: tuple = ("XDG_CACHE_HOME", "HOME", "LOCALAPPDATA");

@@ -12,7 +12,7 @@ store of the bytes already at a key leaves the file alone rather than
 rewriting it under whatever other process is watching.
 """
 
-import glob;
+import `glob;
 import os;
 import jaclang.compiler.passes.ecmascript.jac_runtime_js as _rtjs;
 import jaclang.compiler.passes.native.na_compile_pass as _nacp;
@@ -26,7 +26,7 @@ import from jaclang.jac0core.kernel_units {
 
 def _sole_artifact(name: str, kind: str) -> str {
     units_dir = os.path.dirname(osp_core_unit_path('cl'));
-    hits = sorted(glob.glob(os.path.join(units_dir, f"{name}.*.{kind}")));
+    hits = sorted(`glob.`glob(os.path.join(units_dir, f"{name}.*.{kind}")));
     assert len(hits) == 1 , f"expected one {name} {kind} artifact, got {hits}";
     return hits[0];
 }

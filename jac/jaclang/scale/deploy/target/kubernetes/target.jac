@@ -780,7 +780,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             env_list=list(self._deploy_context.env_list),
             init_containers=self._deploy_context.init_containers
         );
-        present = {entry.get("name") for entry in ctx.env_list};
+        present = {`entry.get("name") for `entry in ctx.env_list};
         for (env_name, env_value) in self.env.items() {
             if env_name not in present {
                 ctx.env_list.append({"name": env_name, "value": str(env_value)});

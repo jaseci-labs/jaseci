@@ -17,7 +17,7 @@ glob registry = get_registry();
             "output",
             kind=ArgKind.OPTION,
             short="o",
-            default="",
+            `default="",
             help="Output binary path (defaults to filename without extension)"
         ),
         Arg.create(
@@ -29,7 +29,7 @@ glob registry = get_registry();
             "target",
             kind=ArgKind.OPTION,
             short="t",
-            default="",
+            `default="",
             help="Code target: native host (default) or 'wasm32' for a browser .wasm module"
         ),
         Arg.create(
@@ -48,7 +48,7 @@ glob registry = get_registry();
             "gc",
             kind=ArgKind.OPTION,
             short="",
-            default="",
+            `default="",
             help="Memory-management runtime to emit: 'cycles' (refcounting + cycle collector), 'rc' (refcounting only, no collector code), or 'none' (no refcounting call sites; memory is never reclaimed). Defaults to jac.toml [gc] default, else 'cycles'"
         ),
         Arg.create(

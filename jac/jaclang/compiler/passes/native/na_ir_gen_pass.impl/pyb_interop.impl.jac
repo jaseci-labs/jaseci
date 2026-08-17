@@ -184,9 +184,9 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
         dec = self._get_or_declare_extern("Py_DecRef", void, [i8p]);
         fn = self._define_function("__jac_pyb_to_i64", ir.FunctionType(i64, [i8p]));
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         work = fn.append_basic_block("work");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         isnull = b.icmp_unsigned(
             "==", fn.args[0], ir.Constant(i8p, None), name="isnull"
         );
@@ -205,10 +205,10 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
         dec = self._get_or_declare_extern("Py_DecRef", void, [i8p]);
         fn = self._define_function("__jac_pyb_to_bool", ir.FunctionType(i64, [i8p]));
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         work = fn.append_basic_block("work");
         null_bb = fn.append_basic_block("null");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         isnull = b.icmp_unsigned(
             "==", fn.args[0], ir.Constant(i8p, None), name="isnull"
         );
@@ -226,10 +226,10 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
         dec = self._get_or_declare_extern("Py_DecRef", void, [i8p]);
         fn = self._define_function("__jac_pyb_to_f64", ir.FunctionType(f64, [i8p]));
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         work = fn.append_basic_block("work");
         null_bb = fn.append_basic_block("null");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         isnull = b.icmp_unsigned(
             "==", fn.args[0], ir.Constant(i8p, None), name="isnull"
         );
@@ -247,12 +247,12 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
         dec = self._get_or_declare_extern("Py_DecRef", void, [i8p]);
         fn = self._define_function("__jac_pyb_to_bytes", ir.FunctionType(i8p, [i8p]));
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         work = fn.append_basic_block("work");
         null_bb = fn.append_basic_block("null");
         err_bb = fn.append_basic_block("err");
         ok_bb = fn.append_basic_block("ok");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         isnull = b.icmp_unsigned(
             "==", fn.args[0], ir.Constant(i8p, None), name="isnull"
         );
@@ -276,10 +276,10 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
         cfn = self._get_or_declare_extern("PyBytes_AsString", i8p, [i8p]);
         fn = self._define_function("__jac_pyb_bytes_data", ir.FunctionType(i8p, [i8p]));
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         work = fn.append_basic_block("work");
         null_bb = fn.append_basic_block("null");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         isnull = b.icmp_unsigned(
             "==", fn.args[0], ir.Constant(i8p, None), name="isnull"
         );
@@ -299,10 +299,10 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
         dec = self._get_or_declare_extern("Py_DecRef", void, [i8p]);
         fn = self._define_function("__jac_pyb_drop", ir.FunctionType(void, [i8p]));
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         work = fn.append_basic_block("work");
         done = fn.append_basic_block("done");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         isnull = b.icmp_unsigned(
             "==", fn.args[0], ir.Constant(i8p, None), name="isnull"
         );
@@ -332,10 +332,10 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
             "__jac_pyb_dict_set", ir.FunctionType(void, [i8p, i8p, i8p])
         );
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         work = fn.append_basic_block("work");
         done = fn.append_basic_block("done");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         isnull = b.icmp_unsigned(
             "==", fn.args[2], ir.Constant(i8p, None), name="isnull"
         );
@@ -354,12 +354,12 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
             "__jac_pyb_getattr", ir.FunctionType(i8p, [i8p, i8p])
         );
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         work = fn.append_basic_block("work");
         null_bb = fn.append_basic_block("null");
         err_bb = fn.append_basic_block("err");
         ok_bb = fn.append_basic_block("ok");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         isnull = b.icmp_unsigned(
             "==", fn.args[0], ir.Constant(i8p, None), name="isnull"
         );
@@ -387,12 +387,12 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
             "__jac_pyb_setattr", ir.FunctionType(void, [i8p, i8p, i8p])
         );
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         work = fn.append_basic_block("work");
         err_bb = fn.append_basic_block("err");
         fin_bb = fn.append_basic_block("fin");
         done = fn.append_basic_block("done");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         hnull = b.icmp_unsigned("==", fn.args[0], ir.Constant(i8p, None), name="hnull");
         vnull = b.icmp_unsigned("==", fn.args[2], ir.Constant(i8p, None), name="vnull");
         bad = b.or_(hnull, vnull, name="bad");
@@ -419,12 +419,12 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
             "__jac_pyb_callmeth", ir.FunctionType(i8p, [i8p, i8p, i8p, i8p])
         );
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         m_err = fn.append_basic_block("m_err");
         m_ok = fn.append_basic_block("m_ok");
         r_err = fn.append_basic_block("r_err");
         fin_bb = fn.append_basic_block("fin");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         g = b.call(gil_on, [], name="gil");
         rslot = b.alloca(i8p, name="rslot");
         b.store(ir.Constant(i8p, None), rslot);
@@ -467,14 +467,14 @@ impl NaIRGenPass._pyb_helper(name: str) -> ir.Function {
             "__jac_pyb_bridge", ir.FunctionType(i8p, [i8p, i8p])
         );
         fn.linkage = "private";
-        entry = fn.append_basic_block("entry");
+        `entry = fn.append_basic_block("entry");
         mod_err = fn.append_basic_block("mod_err");
         mod_ok = fn.append_basic_block("mod_ok");
         f_err = fn.append_basic_block("f_err");
         f_ok = fn.append_basic_block("f_ok");
         r_err = fn.append_basic_block("r_err");
         fin_bb = fn.append_basic_block("fin");
-        b = ir.IRBuilder(entry);
+        b = ir.IRBuilder(`entry);
         g = b.call(gil_on, [], name="gil");
         rslot = b.alloca(i8p, name="rslot");
         b.store(ir.Constant(i8p, None), rslot);

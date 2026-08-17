@@ -60,7 +60,7 @@ impl Parameter.clone -> Parameter {
     );
 }
 
-impl Parameter.is_optional.getter -> bool {
+impl Parameter.is_optional.`getter -> bool {
     return self.default_value is not None or self.has_default;
 }
 
@@ -411,7 +411,7 @@ impl ClassType.__str__ -> str {
     return f"{class_name}";
 }
 
-impl ClassType.shared.getter -> ClassDetailsShared {
+impl ClassType.shared.`getter -> ClassDetailsShared {
     assert self._shared is not None , "ClassType.shared accessed before construction (detached property ClassType?)";
     return self._shared;
 }
@@ -473,7 +473,7 @@ impl TypeBase.is_instantiable -> bool {
     return bool((self.flags & TypeFlags.Instantiable));
 }
 
-impl TypeBase.category.getter -> TypeCategory {
+impl TypeBase.category.`getter -> TypeCategory {
     return self.CATEGORY;
 }
 

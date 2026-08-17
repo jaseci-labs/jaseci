@@ -44,7 +44,7 @@ def _collect_from_dir(
 
     for pattern in patterns {
         effective = _make_recursive(pattern);
-        for file_path in sorted(pkg_dir.glob(effective)) {
+        for file_path in sorted(pkg_dir.`glob(effective)) {
             if not file_path.is_file() {
                 continue;
             }
@@ -94,7 +94,7 @@ impl collect_source_files(
         );
     }
 
-    pkg_include = config.project.include;
+    pkg_include = config.project.`include;
     data_map = pkg_include.data;
 
     global_patterns: list[str] = list(data_map.get("*", DEFAULT_INCLUDE_PATTERNS));
@@ -131,7 +131,7 @@ impl collect_source_files(
     if not result {
         pkg_name = config.project.name.replace("-", "_");
         for pattern in global_patterns {
-            for file_path in sorted(proj_root.glob(_make_recursive(pattern))) {
+            for file_path in sorted(proj_root.`glob(_make_recursive(pattern))) {
                 if not file_path.is_file() {
                     continue;
                 }

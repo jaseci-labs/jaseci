@@ -20,11 +20,11 @@ obj SubN(BaseN) {
     has kind: int { getter; }
 }
 
-impl BaseN.kind.getter -> int {
+impl BaseN.kind.`getter -> int {
     return 1;
 }
 
-impl SubN.kind.getter -> int {
+impl SubN.kind.`getter -> int {
     return 2;
 }
 

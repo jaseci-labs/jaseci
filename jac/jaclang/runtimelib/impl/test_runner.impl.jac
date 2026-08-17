@@ -164,8 +164,8 @@ impl _should_ignore(path: str, ignore: list[str]) -> bool {
         if not raw {
             continue;
         }
-        entry = os.path.abspath(raw);
-        if (target == entry) or target.startswith(entry + os.sep) {
+        `entry = os.path.abspath(raw);
+        if (target == `entry) or target.startswith(`entry + os.sep) {
             return True;
         }
     }
@@ -534,8 +534,8 @@ impl JacTestResult._exc_info_to_string(err: any, `test: any) -> str {
         } except Exception {
             src = "";
         }
-        entry = (filename, lineno, funcname, src);
-        last = entry;
+        `entry = (filename, lineno, funcname, src);
+        last = `entry;
         vendored = False;
         for marker in (".venv/", "site-packages/", "/unittest/") {
             if marker in filename {
@@ -548,7 +548,7 @@ impl JacTestResult._exc_info_to_string(err: any, `test: any) -> str {
         if ("/jaclang/" in filename) and ("/tests/" not in filename) {
             continue;
         }
-        entries.append(entry);
+        entries.append(`entry);
     }
     lines: list[str] = [];
     for (filename, lineno, funcname, src) in entries {
@@ -579,7 +579,7 @@ impl run_file(
     import importlib;
     import sys;
     import time;
-    import from jaclang.runtimelib.test { JacTestCheck }
+    import from jaclang.runtimelib.`test { JacTestCheck }
     import from jaclang.runtimelib.cl_test_runner { module_is_client, run_cl_test_file }
     import from jaclang.jac0core.ext_registry { base_stem }
     abs_path = os.path.abspath(filepath);
@@ -639,10 +639,10 @@ impl run_file(
         roots.append(project_root);
     }
     injected: list[str] = [];
-    for entry in (roots + [basedir, real_dir]) {
-        if entry not in sys.path {
-            sys.path.insert(0, entry);
-            injected.append(entry);
+    for `entry in (roots + [basedir, real_dir]) {
+        if `entry not in sys.path {
+            sys.path.insert(0, `entry);
+            injected.append(`entry);
         }
     }
     import_error = "";
@@ -729,9 +729,9 @@ impl run_file(
             }
         }
     } finally {
-        for entry in injected {
+        for `entry in injected {
             try {
-                sys.path.remove(entry);
+                sys.path.remove(`entry);
             } except ValueError {
                 ;
             }

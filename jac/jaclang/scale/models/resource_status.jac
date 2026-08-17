@@ -1,4 +1,4 @@
-import from enum { Enum }
+import from `enum { Enum }
 
 class ResourceStatus(Enum) {
     has UNKNOWN: str = 'unknown',

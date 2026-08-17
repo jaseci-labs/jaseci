@@ -32,7 +32,7 @@ def _handle_purge {
             "Remove all cached Jac files (JIR, bytecode, bootstrap) from the cache directories.\n"
         );
         print("Useful when switching branches or when cache becomes corrupted.");
-        sys.exit(0);
+        sys.`exit(0);
     }
 
     cache_dir = _get_cache_dir();
@@ -66,14 +66,14 @@ def _handle_purge {
 
     if not removed_dirs {
         print("No cache directories found.");
-        sys.exit(0);
+        sys.`exit(0);
     }
 
     print(f"Purged {total_files} cached files ({total_size / 1024:.1f} KB)");
     for rd in removed_dirs {
         print(f"Removed: {rd}");
     }
-    sys.exit(0);
+    sys.`exit(0);
 }
 
 """Run a bundled app if this binary was built with `jac build --as binary`.
@@ -117,7 +117,7 @@ def start_cli -> None {
     # A bundled-app binary runs its app instead of the jac CLI.
     app_rc = _run_bundled_app();
     if app_rc is not None {
-        sys.exit(app_rc);
+        sys.`exit(app_rc);
     }
 
     # Check if first argument is 'purge'

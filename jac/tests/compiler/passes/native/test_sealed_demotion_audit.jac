@@ -92,7 +92,7 @@ def _root_module_name(rel: str) -> str {
 """Skip when this runtime is itself sealed; the census would measure it."""
 def _require_source_lane {
     if _jaclang_image() is not None {
-        pytest.skip(
+        pytest.`skip(
             "this runtime is a sealed jaclang image; a source census here "
             "measures the image's trust boundary, not each unit's own seams"
         );

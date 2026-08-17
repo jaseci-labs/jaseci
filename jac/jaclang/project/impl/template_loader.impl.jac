@@ -85,7 +85,7 @@ impl load_template_from_directory(
     file_patterns = options.get("files", None);
     if file_patterns {
         for pattern in file_patterns {
-            for file_path in template_dir.glob(pattern) {
+            for file_path in template_dir.`glob(pattern) {
                 if file_path.is_file() and file_path.name != "jac.toml" {
                     relative_path = str(file_path.relative_to(template_dir));
                     files[relative_path] = _read_file_content(file_path);

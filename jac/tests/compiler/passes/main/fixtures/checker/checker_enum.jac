@@ -1,5 +1,5 @@
 """Tests for enum type checking."""
-import from enum { IntEnum }
+import from `enum { IntEnum }
 
 enum Color { RED = 1, GREEN = 2, BLUE = 3 }
 enum Status { PENDING = "pending", ACTIVE = "active" }

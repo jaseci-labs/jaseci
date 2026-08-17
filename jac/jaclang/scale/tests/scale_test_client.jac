@@ -1,6 +1,6 @@
 import os;
 import shutil;
-import glob;
+import `glob;
 import tempfile;
 import contextlib;
 import from pathlib { Path }
@@ -14,7 +14,7 @@ def make_client(fixture_file: str = "test_api.jac") -> ScaleTestClient {
     fixtures_dir = Path(__file__).parent / "fixtures";
     tmp = tempfile.mkdtemp();
 
-    for f in glob.glob(str(fixtures_dir / "*")) {
+    for f in `glob.`glob(str(fixtures_dir / "*")) {
         if Path(f).is_file() {
             shutil.copy2(f, Path(tmp) / Path(f).name);
         }

@@ -2,7 +2,7 @@ import json;
 import logging;
 import os;
 import threading;
-import from enum { StrEnum }
+import from `enum { StrEnum }
 import from typing { Any }
 import from uuid { UUID }
 
@@ -60,7 +60,7 @@ obj AnchorRow {
         arch_module: str = '',
         fingerprint: str = '',
         root_id: (UUID | None) = None,
-        props: dict = {},
+        `props: dict = {},
         src: (UUID | None) = None,
         dst: (UUID | None) = None,
         undirected: bool = False,

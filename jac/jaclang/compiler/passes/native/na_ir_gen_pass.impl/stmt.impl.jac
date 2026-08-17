@@ -738,9 +738,9 @@ impl NaIRGenPass._codegen_match(nd: uni.MatchStmt) -> None {
     func = self.builder.function;
     end_bb = func.append_basic_block(name="match.end");
     n = len(nd.cases);
-    for (ci, case) in enumerate(nd.cases) {
+    for (ci, `case) in enumerate(nd.cases) {
         subj_val = self.builder.load(subj_alloca, name="match.subj.l");
-        cond = self._match_pattern_cond(case.pattern, subj_val, subj_ty);
+        cond = self._match_pattern_cond(`case.pattern, subj_val, subj_ty);
         body_bb = func.append_basic_block(name=f"match.c{ci}.body");
         next_bb = func.append_basic_block(name=f"match.c{ci}.next")
             if ci < n - 1
@@ -752,12 +752,12 @@ impl NaIRGenPass._codegen_match(nd: uni.MatchStmt) -> None {
             }
             continue;
         }
-        if case.guard is not None {
+        if `case.guard is not None {
             bind_bb = func.append_basic_block(name=f"match.c{ci}.bind");
             self.builder.cbranch(cond, bind_bb, next_bb);
             self.builder.position_at_end(bind_bb);
-            self._bind_match_pattern(case.pattern, subj_val, subj_ty);
-            gval = self._codegen_expr(case.guard);
+            self._bind_match_pattern(`case.pattern, subj_val, subj_ty);
+            gval = self._codegen_expr(`case.guard);
             if gval is not None {
                 self.builder.cbranch(self._to_bool(gval), body_bb, next_bb);
             } else {
@@ -768,11 +768,11 @@ impl NaIRGenPass._codegen_match(nd: uni.MatchStmt) -> None {
         }
 
         self.builder.position_at_end(body_bb);
-        if case.guard is None {
-            self._bind_match_pattern(case.pattern, subj_val, subj_ty);
+        if `case.guard is None {
+            self._bind_match_pattern(`case.pattern, subj_val, subj_ty);
         }
-        if isinstance(case.body, (list, tuple)) {
-            self._codegen_body(case.body);
+        if isinstance(`case.body, (list, tuple)) {
+            self._codegen_body(`case.body);
         }
         if not self.builder.block.is_terminated {
             self.builder.branch(end_bb);

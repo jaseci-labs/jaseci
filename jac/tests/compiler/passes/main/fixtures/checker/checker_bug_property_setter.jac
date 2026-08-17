@@ -14,12 +14,12 @@ obj Container {
         return self._val;
     }
 
-    @val.setter
+    @val.`setter
     def val(new_val: int) {
         self._val = new_val;
     }
 
-    @val.deleter
+    @val.`deleter
     def val {
         self._val = 0;
     }
@@ -29,7 +29,7 @@ obj Container {
         return self._name;
     }
 
-    @name.setter
+    @name.`setter
     def name(new_name: str) {
         self._name = new_name;
     }

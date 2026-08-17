@@ -777,7 +777,7 @@ test "provider registry always carries the python provider" {
     reset_provider_registry();
     try {
         registry = get_provider_registry();
-        assert registry.has("python");
+        assert registry.`has("python");
         assert get_python_provider() is not None;
         assert registry.get_by_flag("--nope") is None;
     } finally {

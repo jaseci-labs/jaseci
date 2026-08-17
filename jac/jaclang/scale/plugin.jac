@@ -227,10 +227,10 @@ def stop_sv_sibling(module_name: str, timeout: float = 10.0) -> bool {
         proc.terminate();
     }
     try {
-        proc.wait(timeout=timeout);
+        proc.`wait(timeout=timeout);
     } except Exception {
         proc.kill();
-        proc.wait(timeout=5);
+        proc.`wait(timeout=5);
     }
     return True;
 }
@@ -420,25 +420,25 @@ def _scale_split(module_name: str) -> int {
         Arg.create(
             "service_name",
             kind=ArgKind.POSITIONAL,
-            default="",
+            `default="",
             help="Service name (stop/restart/logs), module to declare as a service (split), or a .jac app file for platform status/destroy"
         ),
         Arg.create(
             "lines",
             typ=int,
-            default=50,
+            `default=50,
             help="Number of log lines to show (for 'logs' action)"
         ),
         Arg.create(
             "target",
             typ=str,
-            default="kubernetes",
+            `default="kubernetes",
             help="Platform target for .jac app status/destroy (kubernetes, aws, gcp, etc.)"
         ),
         Arg.create(
             "component",
             typ=str,
-            default="",
+            `default="",
             help="Platform destroy: component to remove (application, database, monitoring; default: entire deployment)"
         ),
 

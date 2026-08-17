@@ -165,11 +165,11 @@ obj UploadFile {
     }
 }
 
-impl UploadFile.size.getter -> int {
+impl UploadFile.size.`getter -> int {
     return len(self.body);
 }
 
-impl UploadFile.file.getter -> any {
+impl UploadFile.file.`getter -> any {
     if self._stream is None {
         import io;
         self._stream = io.BytesIO(self.body);
@@ -279,7 +279,7 @@ class JSONResponse(Response) {
     }
 
     def body_bytes(self: JSONResponse) -> bytes {
-        return dumps(self.content, default=_json_default).encode('utf-8');
+        return dumps(self.content, `default=_json_default).encode('utf-8');
     }
 }
 

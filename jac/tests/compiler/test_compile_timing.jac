@@ -239,7 +239,7 @@ def baseline_tree -> str {
         return str(tree);
     }
     if shutil.which("git") is None {
-        pytest.skip("git is not on PATH; cannot materialize the baseline ref");
+        pytest.`skip("git is not on PATH; cannot materialize the baseline ref");
     }
     known = subprocess.run(
         ["git", "-C", REPO_ROOT, "cat-file", "-e", BASELINE_REF + "^{commit}"],
@@ -247,7 +247,7 @@ def baseline_tree -> str {
         text=True
     );
     if known.returncode != 0 {
-        pytest.skip(
+        pytest.`skip(
             f"baseline ref {BASELINE_REF[:12]} is not in this clone; fetch it "
             "(a shallow or fork clone may not carry it) to run the comparison"
         );
@@ -378,7 +378,7 @@ test "warm-compile phase timings for the corpus" {
 
 test "warm-compile phase timings against the pinned baseline" {
     if os.environ.get("JAC_TIMING_BASELINE", "") != "1" {
-        pytest.skip(
+        pytest.`skip(
             "set JAC_TIMING_BASELINE=1 to measure against "
             f"{BASELINE_REF[:12]}; the first run extracts that ref and "
             "bootstraps its compiler, which takes minutes"

@@ -166,10 +166,10 @@ def get_symtab_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     );
 }
 
-glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', default=False),
-     _codegen_sched_loading = ContextVar('jac_codegen_sched_loading', default=False),
+glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', `default=False),
+     _codegen_sched_loading = ContextVar('jac_codegen_sched_loading', `default=False),
      _typecheck_sched_loading = ContextVar(
-         'jac_typecheck_sched_loading', default=False
+         'jac_typecheck_sched_loading', `default=False
      );
 
 def pass_requires(p: type[Transform[uni.Module, uni.Module]]) -> tuple {

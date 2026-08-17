@@ -23,7 +23,7 @@ obj ShellCmd(cmd.Cmd) {
         prompt: str = "> ";
 
     def init(registry: Interface, *args: list, **kwargs: dict);
-    def default(line: str);
+    def `default(line: str);
     def do_quit(arg: str) -> bool;
 }
 
@@ -63,10 +63,10 @@ impl Interface.create_parser -> ArgumentParser {
         sig = inspect.signature(func);
         for (name, param) in sig.parameters.items() {
             kwargs = {};
-            if param.default == inspect.Parameter.empty {
+            if param.`default == inspect.Parameter.empty {
                 kwargs = {'required': True};
             } else {
-                kwargs = {'default': param.default};
+                kwargs = {'default': param.`default};
             }
             parser.add_argument(f"--{func.__name__}.{name}", **kwargs);
         }

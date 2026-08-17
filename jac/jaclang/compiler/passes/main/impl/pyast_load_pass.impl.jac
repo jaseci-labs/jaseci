@@ -297,10 +297,10 @@ impl PyastBuildPass.proc_arguments(nd: py_ast.arguments) -> FuncSignature {
         if not defaults {
             break;
         }
-        default = defaults.pop();
+        `default = defaults.pop();
 
-        if (default and isinstance(para, ParamVar) and isinstance(default, Expr)) {
-            para.value = default;
+        if (`default and isinstance(para, ParamVar) and isinstance(`default, Expr)) {
+            para.value = `default;
             para.add_kids_right([para.value]);
         }
     }
@@ -837,9 +837,9 @@ impl PyastBuildPass.proc_match(nd: py_ast.Match) -> MatchStmt {
     subject = self.convert(nd.subject);
     cases = [self.convert(i) for i in nd.cases];
     valid = [
-        case
-        for case in cases
-        if isinstance(case, MatchCase)
+        `case
+        for `case in cases
+        if isinstance(`case, MatchCase)
     ];
     if isinstance(subject, Expr) {
         return MatchStmt(target=subject, cases=valid, kid=[subject, *valid]);
@@ -885,7 +885,7 @@ impl PyastBuildPass.proc_joined_str(nd: py_ast.JoinedStr) -> MultiString {
     if (ast_seg is None) {
         ast_seg = 'f""';
     }
-    fstr_match = re.match('(?i)(fr|rf|f)(\'{3}|\\"{3}|\'|\\")', ast_seg);
+    fstr_match = re.`match('(?i)(fr|rf|f)(\'{3}|\\"{3}|\'|\\")', ast_seg);
 
     valid: list[(String | FormattedValue)] = [];
     for i in nd.values {
@@ -1048,13 +1048,13 @@ impl PyastBuildPass.proc_import(nd: py_ast.Import) -> Import {
 }
 
 impl PyastBuildPass.proc_if_exp(nd: py_ast.IfExp) -> IfElseExpr {
-    test = self.convert(nd.test);
+    `test = self.convert(nd.`test);
     body = self.convert(nd.body);
     orelse = self.convert(nd.orelse);
     if (
-        isinstance(test, Expr) and isinstance(body, Expr) and isinstance(orelse, Expr)
+        isinstance(`test, Expr) and isinstance(body, Expr) and isinstance(orelse, Expr)
     ) {
-        cond_cfg = CfgExpr(expr=test, kid=[test]);
+        cond_cfg = CfgExpr(expr=`test, kid=[`test]);
         val_cfg = CfgExpr(expr=body, kid=[body]);
         else_cfg = CfgExpr(expr=orelse, kid=[orelse]);
         return IfElseExpr(
@@ -1457,11 +1457,11 @@ impl PyastBuildPass.proc_attribute(nd: py_ast.Attribute) -> AtomTrailer {
 }
 
 impl PyastBuildPass.proc_assert(nd: py_ast.Assert) -> AssertStmt {
-    test = self.convert(nd.test);
+    `test = self.convert(nd.`test);
     msg = self.convert(nd.msg) if nd.msg else None;
-    if (isinstance(test, Expr) and (isinstance(msg, Expr) or (msg is None))) {
+    if (isinstance(`test, Expr) and (isinstance(msg, Expr) or (msg is None))) {
         return AssertStmt(
-            condition=test, error_msg=msg, kid=[test, msg] if msg else [test]
+            condition=`test, error_msg=msg, kid=[`test, msg] if msg else [`test]
         );
     } else {
         raise self.ice();
@@ -1554,7 +1554,7 @@ impl PyastBuildPass.proc_with(nd: py_ast.With) -> WithStmt {
 }
 
 impl PyastBuildPass.proc_if(nd: py_ast.If) -> IfStmt {
-    test = self.convert(nd.test);
+    `test = self.convert(nd.`test);
     body = [self.convert(stmt) for stmt in nd.body];
     valid_body = [
         stmt
@@ -1586,12 +1586,12 @@ impl PyastBuildPass.proc_if(nd: py_ast.If) -> IfStmt {
     } else {
         else_body = None;
     }
-    if isinstance(test, Expr) {
+    if isinstance(`test, Expr) {
         ret = IfStmt(
-            condition=test,
+            condition=`test,
             body=body2,
             else_body=else_body,
-            kid=[test, *body2, else_body] if else_body else [test, *body2]
+            kid=[`test, *body2, else_body] if else_body else [`test, *body2]
         );
     } else {
         raise self.ice();
@@ -1601,7 +1601,7 @@ impl PyastBuildPass.proc_if(nd: py_ast.If) -> IfStmt {
 
 
 impl PyastBuildPass.proc_while(nd: py_ast.While) -> WhileStmt {
-    test = self.convert(nd.test);
+    `test = self.convert(nd.`test);
     body = [self.convert(stmt) for stmt in nd.body];
     valid_body = [
         stmt
@@ -1621,12 +1621,12 @@ impl PyastBuildPass.proc_while(nd: py_ast.While) -> WhileStmt {
         raise self.ice('Length mismatch in for orelse');
     }
     fin_orelse = ElseStmt(body=val_orelse, kid=val_orelse) if orelse else None;
-    if isinstance(test, Expr) {
+    if isinstance(`test, Expr) {
         return WhileStmt(
-            condition=test,
+            condition=`test,
             body=valid_body,
             else_body=fin_orelse,
-            kid=[test, *valid_body]
+            kid=[`test, *valid_body]
         );
     } else {
         raise self.ice();

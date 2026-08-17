@@ -2,7 +2,7 @@ import os;
 import sys;
 import json;
 import shutil;
-import glob;
+import `glob;
 import tempfile;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
@@ -49,7 +49,7 @@ def setup_env -> str {
     # shared scale tiered-memory context rather than core's local SQLite store.
     os.environ["JAC_SCALE_RUNTIME"] = "1";
     tmp = tempfile.mkdtemp();
-    for f in glob.glob(str(FIXTURES / "*")) {
+    for f in `glob.`glob(str(FIXTURES / "*")) {
         if Path(f).is_file() {
             shutil.copy2(f, Path(tmp) / Path(f).name);
         }

@@ -19,11 +19,11 @@ impl TestResponse.json -> dict[str, any] {
     return self._json_cache;
 }
 
-impl TestResponse.ok.getter -> bool {
+impl TestResponse.ok.`getter -> bool {
     return 200 <= self.status_code < 300;
 }
 
-impl TestResponse.data.getter -> (dict[str, any] | None) {
+impl TestResponse.data.`getter -> (dict[str, any] | None) {
     response_json = self.json();
 
     if "data" in response_json {
@@ -231,12 +231,12 @@ impl JacTestClient._execute_request(
     );
 }
 
-impl JacTestClient.server.getter -> JacAPIServer {
+impl JacTestClient.server.`getter -> JacAPIServer {
     self._ensure_initialized();
     return self._server;
 }
 
-impl JacTestClient.user_manager.getter -> any {
+impl JacTestClient.user_manager.`getter -> any {
     self._ensure_initialized();
     return self._server.user_manager;
 }

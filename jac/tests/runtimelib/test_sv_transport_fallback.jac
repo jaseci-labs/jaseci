@@ -29,11 +29,11 @@ obj _StubResp {
     }
 }
 
-impl _StubResp.text.getter -> str {
+impl _StubResp.text.`getter -> str {
     return json.dumps(self.payload);
 }
 
-impl _StubResp.headers.getter -> any {
+impl _StubResp.headers.`getter -> any {
     h = Headers();
     h.set("Content-Type", self.content_type);
     return h;

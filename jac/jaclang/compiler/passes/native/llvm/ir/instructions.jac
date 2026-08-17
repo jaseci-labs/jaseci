@@ -173,7 +173,7 @@ class CallInstr(Instruction) {
         return self.operands[0];
     }
 
-    @callee.setter
+    @callee.`setter
     def callee(self: CallInstr, newcallee: Any) -> object {
         self.operands[0] = newcallee;
     }
@@ -335,8 +335,8 @@ class SwitchInstr(PredictableInstr, Terminator) {
     def descr(self: SwitchInstr, buf: Any) -> object {
         cases = [
             "{0} {1}, label {2}".format(
-                case.type, case.get_reference(), blk.get_reference()
-            ) for (case, blk) in self.cases
+                `case.type, `case.get_reference(), blk.get_reference()
+            ) for (`case, blk) in self.cases
         ];
         buf.append(
             "switch {0} {1}, label {2} [{3}]  {4}\n".format(

@@ -33,11 +33,11 @@ obj TestResponse {
     }
 }
 
-impl TestResponse.text.getter -> str {
+impl TestResponse.text.`getter -> str {
     return self.content.decode('utf-8', errors='replace');
 }
 
-impl TestResponse.ok.getter -> bool {
+impl TestResponse.ok.`getter -> bool {
     return 200 <= self.status_code < 300;
 }
 
@@ -164,7 +164,7 @@ obj ServingTestClient {
             (body, content_type) = _build_multipart(files, data);
             header_obj.set('Content-Type', content_type);
         } elif json is not None {
-            body = dumps(json, default=_test_json_default).encode('utf-8');
+            body = dumps(json, `default=_test_json_default).encode('utf-8');
             if header_obj.get('Content-Type') is None {
                 header_obj.set('Content-Type', 'application/json');
             }

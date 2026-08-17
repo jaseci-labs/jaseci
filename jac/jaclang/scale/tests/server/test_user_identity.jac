@@ -6,7 +6,7 @@ fixtures/identity_api/test_emailer_fake.jac).
 
 import contextlib;
 import gc;
-import glob;
+import `glob;
 import shutil;
 import socket;
 import subprocess;
@@ -29,7 +29,7 @@ glob FIXTURES_DIR: Path = Path(__file__).parent.parent
 # =============================================================================
 def _cleanup {
     for pattern in ["*.db", "*.db-wal", "*.db-shm"] {
-        for f in glob.glob(str(FIXTURES_DIR / pattern)) {
+        for f in `glob.`glob(str(FIXTURES_DIR / pattern)) {
             with contextlib.suppress(Exception) {
                 Path(f).unlink();
             }
@@ -81,7 +81,7 @@ def _start_server(port: int) -> subprocess.Popen {
         }
     }
     proc.terminate();
-    proc.wait();
+    proc.`wait();
     raise RuntimeError("Server failed to start within 30s");
 }
 
@@ -89,11 +89,11 @@ def _stop_server(proc: subprocess.Popen | None) {
     if proc {
         proc.terminate();
         with contextlib.suppress(subprocess.TimeoutExpired) {
-            proc.wait(timeout=5);
+            proc.`wait(timeout=5);
         }
         with contextlib.suppress(Exception) {
             proc.kill();
-            proc.wait();
+            proc.`wait();
         }
     }
     time.sleep(0.2);

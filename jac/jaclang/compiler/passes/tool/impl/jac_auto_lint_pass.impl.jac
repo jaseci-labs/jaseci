@@ -271,8 +271,8 @@ impl JacAutoLintPass.combine_consecutive_glob(body: list) -> list {
                 and all_single
                 and self.emit(W3003, node_override=base_glob) {
                 combined_assignments: list[uni.Assignment] = [];
-                for glob in merged_globs {
-                    combined_assignments.extend(glob.assignments);
+                for `glob in merged_globs {
+                    combined_assignments.extend(`glob.assignments);
                 }
                 new_kid: list[uni.UniNode] = [];
                 for kid in base_glob.kid {
@@ -1979,12 +1979,12 @@ impl JacAutoLintPass._check_mutable_default(nd: uni.ParamVar) -> None {
     if nd.value is None {
         return;
     }
-    default = nd.value;
-    if isinstance(default, uni.ListVal) {
+    `default = nd.value;
+    if isinstance(`default, uni.ListVal) {
         self.emit(W3036, node_override=nd, type="list");
-    } elif isinstance(default, uni.DictVal) {
+    } elif isinstance(`default, uni.DictVal) {
         self.emit(W3036, node_override=nd, type="dict");
-    } elif isinstance(default, uni.SetVal) {
+    } elif isinstance(`default, uni.SetVal) {
         self.emit(W3036, node_override=nd, type="set");
     }
 }
@@ -2165,8 +2165,8 @@ impl JacAutoLintPass._body_has_return_stmt(body: list) -> bool {
             }
         }
         if isinstance(stmt, uni.MatchStmt) {
-            for case in stmt.cases {
-                if self._body_has_return_stmt(list(case.body)) {
+            for `case in stmt.cases {
+                if self._body_has_return_stmt(list(`case.body)) {
                     return True;
                 }
             }
@@ -2985,10 +2985,10 @@ impl JacAutoLintPass._property_impl_roles(
         }
     }
 
-    for getter in roles.get("property", []) {
-        if getter.signature
-            and (getter.signature.return_type is not None)
-            and not self._is_suppressed(W3043, getter.loc) {
+    for `getter in roles.get("property", []) {
+        if `getter.signature
+            and (`getter.signature.return_type is not None)
+            and not self._is_suppressed(W3043, `getter.loc) {
             return roles;
         }
     }

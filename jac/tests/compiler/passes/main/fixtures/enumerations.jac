@@ -1,4 +1,4 @@
-import from enum { unique }
+import from `enum { unique }
 
 @ unique
 enum Color;

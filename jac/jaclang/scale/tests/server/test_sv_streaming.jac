@@ -27,11 +27,11 @@ obj _StubResp {
     has headers: any { getter; }
 }
 
-impl _StubResp.text.getter -> str {
+impl _StubResp.text.`getter -> str {
     return self.body_text;
 }
 
-impl _StubResp.headers.getter -> any {
+impl _StubResp.headers.`getter -> any {
     return self.headers_obj();
 }
 

@@ -432,7 +432,7 @@ obj Config {
         verbose: bool = False,
         level: int = 0;
 
-    class def default() -> Self;
+    class def `default() -> Self;
     def with_debug() -> Self;
     def with_verbose() -> Self;
     def with_level(n: int) -> Self;
@@ -459,7 +459,7 @@ impl Config.with_level(n: int) -> Self {
 
 with entry:__main__ {
     # --- Section 11: impl blocks ---
-    cfg = Config.default().with_debug().with_verbose().with_level(3);
+    cfg = Config.`default().with_debug().with_verbose().with_level(3);
     print(f"11.1: debug={cfg.debug} verbose={cfg.verbose} level={cfg.level}");
     # debug=True verbose=True level=3
 }

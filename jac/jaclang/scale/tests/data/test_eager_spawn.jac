@@ -1,7 +1,7 @@
 import os;
 import sys;
 import shutil;
-import glob;
+import `glob;
 import tempfile;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }
@@ -14,7 +14,7 @@ glob FIXTURES: Path = Path(__file__).parent.parent / "fixtures" / "microservice"
 
 def setup_env -> str {
     tmp = tempfile.mkdtemp();
-    for f in glob.glob(str(FIXTURES / "*")) {
+    for f in `glob.`glob(str(FIXTURES / "*")) {
         if Path(f).is_file() {
             shutil.copy2(f, Path(tmp) / Path(f).name);
         }

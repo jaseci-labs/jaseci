@@ -14,12 +14,12 @@ obj Container {
         return self._val;
     }
 
-    @val.setter
+    @val.`setter
     def val(new_val: int) {
         self._val = new_val;
     }
 
-    @val.setter
+    @val.`setter
     def val(new_val: int) {
         self._val = new_val * 2;
     }

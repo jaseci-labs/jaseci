@@ -86,7 +86,7 @@ def _in_excluded_dir(file_path: Path, pkg_root: Path) -> bool {
 }
 
 def _package_dirs(config: JacConfig, proj_root: Path) -> list[Path] {
-    package_patterns = config.project.include.packages;
+    package_patterns = config.project.`include.packages;
     if not package_patterns and config.project.name {
         package_patterns = [config.project.name.replace("-", "_")];
     }
@@ -215,9 +215,9 @@ impl resolve_npm_entry(config: JacConfig, files: list[NpmSourceFile],) -> str | 
     paths = {f.npm_path for f in files};
 
     npm = config._raw_data.get("npm", {});
-    entry = npm.get("entry", "") if isinstance(npm, dict) else "";
-    if entry {
-        candidate = npm_js_path(entry.replace("\\", "/"));
+    `entry = npm.get("entry", "") if isinstance(npm, dict) else "";
+    if `entry {
+        candidate = npm_js_path(`entry.replace("\\", "/"));
         if candidate in paths {
             return candidate;
         }

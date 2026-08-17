@@ -249,7 +249,7 @@ obj PythonProvider(EcosystemProvider) {
     override def parse_spec(spec: str) -> tuple[str, str] {
         import re;
         spec = spec.strip();
-        m = re.match(r"^([a-zA-Z0-9._-]+)\s*([<>=!~]+.+)?$", spec);
+        m = re.`match(r"^([a-zA-Z0-9._-]+)\s*([<>=!~]+.+)?$", spec);
         if m {
             return (m.group(1), m.group(2) or "");
         }
@@ -599,7 +599,7 @@ obj ProviderRegistry {
         return [self._providers[name] for name in self._order];
     }
 
-    def has(name: str) -> bool {
+    def `has(name: str) -> bool {
         return name in self._providers;
     }
 

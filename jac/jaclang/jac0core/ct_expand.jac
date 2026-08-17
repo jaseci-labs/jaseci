@@ -128,7 +128,7 @@ obj CtTarget {
         }
     }
 
-    def has(ctx: any) -> bool {
+    def `has(ctx: any) -> bool {
         want = ctx.value if isinstance(ctx, CodeContext) else str(ctx);
         return want in self.contexts;
     }
@@ -496,8 +496,8 @@ obj CtEval {
             kvp = self.node_arg(i, "kv_pair");
             pairs = self._compr_items(self.list_arg(i, "compr"), 0, None, kvp);
             out3: dict = {};
-            for entry in pairs {
-                out3[entry[0]] = entry[1];
+            for `entry in pairs {
+                out3[`entry[0]] = `entry[1];
             }
             return out3;
         }
@@ -1116,9 +1116,9 @@ obj CtExpander {
         }
         if isinstance(v, dict) {
             pairs: list[KVPair] = [];
-            for entry in v.items() {
-                kk = self.value_to_nodes(entry[0], loc);
-                vv = self.value_to_nodes(entry[1], loc);
+            for `entry in v.items() {
+                kk = self.value_to_nodes(`entry[0], loc);
+                vv = self.value_to_nodes(`entry[1], loc);
                 pairs.append(KVPair(key=kk, value=vv, kid=[kk, vv]));
             }
             lb = self._punct("LBRACE", "{", loc);
@@ -1245,9 +1245,9 @@ obj CtExpander {
         }
         self._visited[id(i)] = i;
         self.ev.burn();
-        for entry in list(i.__dict__.items()) {
-            fname: str = entry[0];
-            val: any = entry[1];
+        for `entry in list(i.__dict__.items()) {
+            fname: str = `entry[0];
+            val: any = `entry[1];
             if fname.startswith("_") or fname in _CT_SKIP_FIELDS {
                 continue;
             }
@@ -1441,9 +1441,9 @@ def _jac_str_lit(s: str) -> str {
 def _refresh_locs(mod: Module) {
     stack: list = [(mod, False)];
     while stack {
-        entry: tuple = stack.pop();
-        nd: UniNode = entry[0];
-        expanded: bool = entry[1];
+        `entry: tuple = stack.pop();
+        nd: UniNode = `entry[0];
+        expanded: bool = `entry[1];
         if expanded {
             if len(nd.kid) {
                 nd.loc.update_token_range(*nd.resolve_tok_range());

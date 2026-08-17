@@ -130,7 +130,7 @@ obj LocalEventStream(EventStreamBroker) {
             if self._stop_event.is_set() {
                 return [];
             }
-            sig.wait(timeout=min(remaining, 1.0));
+            sig.`wait(timeout=min(remaining, 1.0));
             if self._stop_event.is_set() {
                 return [];
             }

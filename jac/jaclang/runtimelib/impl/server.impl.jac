@@ -510,7 +510,7 @@ impl ExecutionManager.spawn_walker_sync(
         } else {
             target_node = ctx.get_root();
         }
-        result = await asyncio.to_thread(Jac.spawn, `walker, target_node);
+        result = await asyncio.to_thread(Jac.`spawn, `walker, target_node);
 
         if iscoroutine(result) {
             result = await result;
@@ -544,7 +544,7 @@ impl ExecutionManager.spawn_walker_async(
         } else {
             target_node = ctx.get_root();
         }
-        spawn_result = Jac.spawn(`walker, target_node);
+        spawn_result = Jac.`spawn(`walker, target_node);
         if iscoroutine(spawn_result) {
             result = await spawn_result;
         } else {
@@ -1146,10 +1146,10 @@ impl ModuleIntrospector.introspect_callable(
             'type': getattr(
                 type_hints.get(name, Any), '__name__', str(type_hints.get(name, Any))
             ),
-            'required': (param.default == inspect.Parameter.empty),
+            'required': (param.`default == inspect.Parameter.empty),
             'default': None
-                if (param.default == inspect.Parameter.empty)
-                else str(param.default)
+                if (param.`default == inspect.Parameter.empty)
+                else str(param.`default)
         } for (name, param) in sig.parameters.items()
     };
     return_type = type_hints.get('return', Any);
@@ -1203,13 +1203,13 @@ impl ModuleIntrospector.introspect_walker(
                 type_name = 'Any';
             }
         }
-        is_required = param.default == inspect.Parameter.empty;
+        is_required = param.`default == inspect.Parameter.empty;
         if is_required {
             default_val = None;
         } elif name in factory_defaults {
             default_val = factory_defaults[name];
         } else {
-            default_val = param.default;
+            default_val = param.`default;
         }
         fields[name] = {
             'type': type_name,
@@ -1333,9 +1333,9 @@ impl ModuleIntrospector._load_spa_routes -> (list[str] | None) {
             return None;
         }
         return [
-            entry.path
-            for entry in scanner.scan()
-            if entry.path not in ('*', '/*')
+            `entry.path
+            for `entry in scanner.scan()
+            if `entry.path not in ('*', '/*')
         ];
     } except Exception {
         return None;
@@ -2325,7 +2325,7 @@ impl JacAPIServer.load_module(force_reload: bool = False) -> None {
     self.introspector.load(force_reload);
 }
 
-impl JacAPIServer.module.getter -> object {
+impl JacAPIServer.module.`getter -> object {
     return self.introspector._module;
 }
 
@@ -2410,7 +2410,7 @@ impl JacAPIServer.start(
                     dist_dir = Path(self.base_path) / '.jac' / 'client' / 'dist';
                 }
 
-                bundle_exists = dist_dir.exists() and any(dist_dir.glob('client.*.js'));
+                bundle_exists = dist_dir.exists() and any(dist_dir.`glob('client.*.js'));
                 if bundle_exists {
                     console.print(
                         "  ✔ Client bundle found (rebuilt on first request if stale)",
@@ -2521,7 +2521,7 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
     def format_param(name: str, info: dict[(str, Any)]) -> str {
         req = 'required' if info['required'] else 'optional';
         `default = f", default: {info['default']}" if info.get('default') else '';
-        return f"{name}: {info['type']} ({req}{default})";
+        return f"{name}: {info['type']} ({req}{`default})";
     }
     console.print(('\n' + ('=' * 80)));
     console.print(f"JAC API SERVER - {server.module_name}");

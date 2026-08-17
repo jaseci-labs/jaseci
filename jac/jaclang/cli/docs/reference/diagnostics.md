@@ -75,6 +75,7 @@ Emitted by the parser and lexer during source code parsing.
 | `E0010` | '{keyword}' is not supported in Jac |
 | `E0012` | Use the `new(target, ...args)` ambient builtin to create new instances |
 | `E0013` | '{keyword}' is a keyword and cannot be used as a {context} name |
+| `E0014` | '{name}' is not a keyword -- remove the backtick |
 
 ### Operator / Expression Errors
 

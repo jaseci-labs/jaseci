@@ -1,4 +1,4 @@
-import enum;
+import `enum;
 import re;
 import from dataclasses { fields, is_dataclass }
 import from jaclang.byllm._optdeps.loguru { logger }
@@ -98,8 +98,8 @@ def _node_run_desc(node_arch: object, wkr: object) -> str {
         if not _ability_fires(osf, wkr) {
             continue;
         }
-        sem = msem.get(osf.name, "");
-        parts.append(osf.name + (f": {sem}" if sem else ""));
+        `sem = msem.get(osf.name, "");
+        parts.append(osf.name + (f": {`sem}" if `sem else ""));
     }
     return "; ".join(parts);
 }

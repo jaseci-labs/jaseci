@@ -9,7 +9,7 @@ impl UniNode.postinit -> None {
 }
 
 
-impl UniNode._sub_node_tab.getter -> dict[(type, list[UniNode])] {
+impl UniNode._sub_node_tab.`getter -> dict[(type, list[UniNode])] {
     if (self.__sub_node_tab is None) {
         self.__sub_node_tab = {};
         self._construct_sub_node_tab();
@@ -45,7 +45,7 @@ impl UniNode._invalidate_sub_node_tab -> None {
     }
 }
 
-impl UniNode.sym_tab.getter -> UniScopeNode {
+impl UniNode.sym_tab.`getter -> UniScopeNode {
     nd: (UniNode | None) = self;
 
     while nd is not None {
@@ -247,19 +247,19 @@ impl Symbol.init(
     self.semstr = '';
 }
 
-impl Symbol.decl.getter -> NameAtom {
+impl Symbol.decl.`getter -> NameAtom {
     return self.defn[0];
 }
 
-impl Symbol.sym_name.getter -> str {
+impl Symbol.sym_name.`getter -> str {
     return self.decl.sym_name;
 }
 
-impl Symbol.sym_type.getter -> SymbolType {
+impl Symbol.sym_type.`getter -> SymbolType {
     return self.decl.sym_category;
 }
 
-impl Symbol.sym_dotted_name.getter -> str {
+impl Symbol.sym_dotted_name.`getter -> str {
     out = [self.defn[0].sym_name];
     current_tab: (UniScopeNode | None) = self.parent_tab;
     while (current_tab is not None) {
@@ -270,14 +270,14 @@ impl Symbol.sym_dotted_name.getter -> str {
     return '.'.join(out);
 }
 
-impl Symbol.symbol_table.getter -> (UniScopeNode | None) {
+impl Symbol.symbol_table.`getter -> (UniScopeNode | None) {
     if self.parent_tab {
         return self.parent_tab.find_scope(self.sym_name);
     }
     return None;
 }
 
-impl Symbol.storage.getter -> SymbolStorage {
+impl Symbol.storage.`getter -> SymbolStorage {
     owner = self.parent_tab;
     while (owner is not None and not UniScopeNode.is_python_scoping(owner)) {
         owner = owner.parent_scope;
@@ -616,23 +616,23 @@ impl AstSymbolNode._init_symbol(
 }
 
 
-impl AstSymbolNode.sym.getter -> (Symbol | None) {
+impl AstSymbolNode.sym.`getter -> (Symbol | None) {
     return self.name_spec.sym;
 }
 
-impl AstSymbolNode.sym_name.getter -> str {
+impl AstSymbolNode.sym_name.`getter -> str {
     return self.name_spec.sym_name;
 }
 
-impl AstSymbolNode.sym_category.getter -> SymbolType {
+impl AstSymbolNode.sym_category.`getter -> SymbolType {
     return self.name_spec.sym_category;
 }
 
-impl AstSymbolNode.expr_ctx.getter -> ExprCtx {
+impl AstSymbolNode.expr_ctx.`getter -> ExprCtx {
     return self.name_spec.expr_ctx;
 }
 
-impl AstSymbolNode.type_sym_tab.getter -> (UniScopeNode | None) {
+impl AstSymbolNode.type_sym_tab.`getter -> (UniScopeNode | None) {
     return self.name_spec.type_sym_tab;
 }
 
@@ -646,7 +646,7 @@ impl AstSymbolStubNode._init_stub(sym_type: SymbolType) -> None {
 }
 
 
-impl AstAccessNode.access_type.getter -> SymbolAccess {
+impl AstAccessNode.access_type.`getter -> SymbolAccess {
     return SymbolAccess.PRIVATE
         if (self.access and (self.access.tag.name == Tok.KW_PRIV))
         else SymbolAccess.PROTECTED
@@ -654,7 +654,7 @@ impl AstAccessNode.access_type.getter -> SymbolAccess {
             else SymbolAccess.PUBLIC;
 }
 
-impl AstAccessNode.public_access.getter -> bool {
+impl AstAccessNode.public_access.`getter -> bool {
     return (self.access_type == SymbolAccess.PUBLIC);
 }
 
@@ -769,7 +769,7 @@ impl CodeBlockStmt.postinit -> None {
 }
 
 
-impl AstImplNeedingNode.needs_impl.getter -> bool {
+impl AstImplNeedingNode.needs_impl.`getter -> bool {
     return (self.body is None);
 }
 
@@ -783,11 +783,11 @@ impl NameAtom.postinit -> None {
 }
 
 
-impl NameAtom.sym_name.getter -> str {
+impl NameAtom.sym_name.`getter -> str {
     return self._sym_name;
 }
 
-impl NameAtom.sym_category.getter -> SymbolType {
+impl NameAtom.sym_category.`getter -> SymbolType {
     return self._sym_category;
 }
 
@@ -800,14 +800,14 @@ impl NameAtom.create_symbol(
     return sym;
 }
 
-impl NameAtom.clean_type.getter -> str {
+impl NameAtom.clean_type.`getter -> str {
     if self.type {
         return str(self.type).replace('builtins.', '');
     }
     return '';
 }
 
-impl NameAtom.sem_token.getter -> (tuple[(SemTokType, SemTokMod)] | None) {
+impl NameAtom.sem_token.`getter -> (tuple[(SemTokType, SemTokMod)] | None) {
     if isinstance(self.name_of, BuiltinType) {
         return (SemTokType.CLASS, SemTokMod.DECLARATION);
     }
@@ -874,7 +874,7 @@ impl Module.postinit -> None {
 }
 
 
-impl Module.annexable_by.getter -> (str | None) {
+impl Module.annexable_by.`getter -> (str | None) {
     if self.stub_only {
         return None;
     }
@@ -976,7 +976,7 @@ impl Import.postinit -> None {
     ContextAwareNode.postinit(self);
 }
 
-impl Import.is_jac.getter -> bool {
+impl Import.is_jac.`getter -> bool {
     if self.jac_detected is not None {
         return self.jac_detected;
     }
@@ -989,7 +989,7 @@ impl Import.is_jac.getter -> bool {
     return False;
 }
 
-impl Import.__jac_detected.getter -> bool {
+impl Import.__jac_detected.`getter -> bool {
     import from jaclang.jac0core.ext_registry { is_jac, INIT_FILES }
     if self.from_loc {
         if is_jac(self.from_loc.resolve_relative_path()) {
@@ -1019,7 +1019,7 @@ impl Import.__jac_detected.getter -> bool {
     );
 }
 
-impl Import.has_string_path.getter -> bool {
+impl Import.has_string_path.`getter -> bool {
     if (self.from_loc is not None and self.from_loc.string_path_value is not None) {
         return True;
     }
@@ -1031,7 +1031,7 @@ impl Import.has_string_path.getter -> bool {
     return False;
 }
 
-impl Import.is_service_import.getter -> bool {
+impl Import.is_service_import.`getter -> bool {
     if self.from_loc is None or not self.items {
         return False;
     }
@@ -1052,7 +1052,7 @@ impl Import.is_service_import.getter -> bool {
     return stem != own_stem;
 }
 
-impl Import.is_virtual_jac.getter -> bool {
+impl Import.is_virtual_jac.`getter -> bool {
     if self.from_loc is not None {
         return self.from_loc.dot_path_str.startswith('@jac/');
     }
@@ -1067,11 +1067,11 @@ impl Import.is_virtual_jac.getter -> bool {
     return False;
 }
 
-impl Import.has_clib_decls.getter -> bool {
+impl Import.has_clib_decls.`getter -> bool {
     return bool(self.clib_decls);
 }
 
-impl Import.ecosystem.getter -> str {
+impl Import.ecosystem.`getter -> str {
     if self.has_clib_decls {
         return 'clib';
     }
@@ -1093,14 +1093,14 @@ impl ModulePath.postinit -> None {
 }
 
 
-impl ModulePath.is_import_from.getter -> bool {
+impl ModulePath.is_import_from.`getter -> bool {
     if (self.parent and isinstance(self.parent, Import)) {
         return (self.parent.from_loc == self);
     }
     return False;
 }
 
-impl ModulePath.string_path_value.getter -> (str | None) {
+impl ModulePath.string_path_value.`getter -> (str | None) {
     if (self.path and (len(self.path) == 1) and isinstance(self.path[0], String)) {
         lv = self.path[0].lit_value;
         return lv if isinstance(lv, str) else None;
@@ -1108,7 +1108,7 @@ impl ModulePath.string_path_value.getter -> (str | None) {
     return None;
 }
 
-impl ModulePath.dot_path_str.getter -> str {
+impl ModulePath.dot_path_str.`getter -> str {
     spv = self.string_path_value;
     if spv is not None {
         return (('.' * self.level) + spv);
@@ -1118,7 +1118,7 @@ impl ModulePath.dot_path_str.getter -> str {
     );
 }
 
-impl ModulePath.base_module_name.getter -> str {
+impl ModulePath.base_module_name.`getter -> str {
     spv = self.string_path_value;
     if spv is not None {
         return spv;
@@ -1199,21 +1199,21 @@ impl ModuleItem.postinit -> None {
 }
 
 
-impl ModuleItem.from_parent.getter -> Import {
+impl ModuleItem.from_parent.`getter -> Import {
     if (not self.parent or not isinstance(self.parent, Import)) {
         raise ValueError('Import parent not found. Not Possible.');
     }
     return self.parent;
 }
 
-impl ModuleItem.from_mod_path.getter -> ModulePath {
+impl ModuleItem.from_mod_path.`getter -> ModulePath {
     if not self.from_parent.from_loc {
         raise ValueError('Module items should have module path. Not Possible.');
     }
     return self.from_parent.from_loc;
 }
 
-impl ModuleItem.binding_name.getter -> (Name | None) {
+impl ModuleItem.binding_name.`getter -> (Name | None) {
     if isinstance(self.name, Name) {
         return self.name;
     }
@@ -1289,12 +1289,12 @@ impl Archetype._get_impl_resolved_body -> list[UniNode] {
     return out;
 }
 
-impl Archetype.is_abstract.getter -> bool {
+impl Archetype.is_abstract.`getter -> bool {
     body = self._get_impl_resolved_body();
     return `any((isinstance(i, Ability) and i.is_abstract) for i in body);
 }
 
-impl Archetype.arch_kind.getter -> (str | None) {
+impl Archetype.arch_kind.`getter -> (str | None) {
     kind_map: dict[SymbolType, str] = {
         SymbolType.NODE_ARCH: "node",
         SymbolType.EDGE_ARCH: "edge",
@@ -1457,11 +1457,11 @@ impl Ability.postinit -> None {
 }
 
 
-impl Ability.is_method.getter -> bool {
+impl Ability.is_method.`getter -> bool {
     return (self.method_owner is not None);
 }
 
-impl Ability.is_cls_method.getter -> bool {
+impl Ability.is_cls_method.`getter -> bool {
     return (
         self.is_classmethod
         or (
@@ -1474,11 +1474,11 @@ impl Ability.is_cls_method.getter -> bool {
     );
 }
 
-impl Ability.is_def.getter -> bool {
+impl Ability.is_def.`getter -> bool {
     return (not self.signature or isinstance(self.signature, FuncSignature));
 }
 
-impl Ability.method_owner.getter -> Archetype | Enum | None {
+impl Ability.method_owner.`getter -> Archetype | Enum | None {
     found = (
         self.parent
             if (self.parent and isinstance(self.parent, (Archetype, Enum)))
@@ -1505,7 +1505,7 @@ impl Ability.method_owner.getter -> Archetype | Enum | None {
     return found;
 }
 
-impl Ability.is_genai_ability.getter -> bool {
+impl Ability.is_genai_ability.`getter -> bool {
     return isinstance(self.body, Expr);
 }
 
@@ -1577,7 +1577,7 @@ impl FuncSignature.get_parameters -> list[ParamVar] {
     return params;
 }
 
-impl FuncSignature.is_static.getter -> bool {
+impl FuncSignature.is_static.`getter -> bool {
     return (
         (isinstance(self.parent, Ability) and self.parent.is_static)
         or (
@@ -1588,7 +1588,7 @@ impl FuncSignature.is_static.getter -> bool {
     );
 }
 
-impl FuncSignature.is_in_py_class.getter -> bool {
+impl FuncSignature.is_in_py_class.`getter -> bool {
     is_archi = self.find_parent_of_type(Archetype);
     is_class = (is_archi is not None) and (is_archi.arch_type.name == Tok.KW_CLASS);
     return (
@@ -1624,11 +1624,11 @@ impl ParamVar.postinit -> None {
 }
 
 
-impl ParamVar.is_vararg.getter -> bool {
+impl ParamVar.is_vararg.`getter -> bool {
     return bool((self.unpack and (self.unpack.name == Tok.STAR_MUL.name)));
 }
 
-impl ParamVar.is_kwargs.getter -> bool {
+impl ParamVar.is_kwargs.`getter -> bool {
     return bool((self.unpack and (self.unpack.name == Tok.STAR_POW.name)));
 }
 
@@ -1723,7 +1723,7 @@ impl CtSplice.postinit -> None {
 }
 
 
-impl CtSplice.value.getter -> str {
+impl CtSplice.value.`getter -> str {
     return "$";
 }
 
@@ -1737,12 +1737,12 @@ impl CtSplice.create_symbol(
 }
 
 
-impl CtSplice.sym_name.getter -> str {
+impl CtSplice.sym_name.`getter -> str {
     return self.value;
 }
 
 
-impl CtSplice.sym.getter -> (Symbol | None) {
+impl CtSplice.sym.`getter -> (Symbol | None) {
     return None;
 }
 
@@ -1755,7 +1755,7 @@ impl CtName.postinit -> None {
 }
 
 
-impl CtName.value.getter -> str {
+impl CtName.value.`getter -> str {
     out = "";
     for p in self.parts {
         if isinstance(p, Name) {
@@ -1957,7 +1957,7 @@ impl LambdaExpr.postinit -> None {
     UniScopeNode._init_scope(self, name=f"{self.__class__.__name__}");
 }
 
-impl LambdaExpr.captures.getter -> list[Symbol] {
+impl LambdaExpr.captures.`getter -> list[Symbol] {
     return self.get_enclosing_captures();
 }
 
@@ -2007,7 +2007,7 @@ impl MultiString.postinit -> None {
     AstSymbolStubNode._init_stub(self, sym_type=SymbolType.STRING);
 }
 
-impl MultiString.lit_value.getter -> str | bytes {
+impl MultiString.lit_value.`getter -> str | bytes {
     text_parts: list[str] = [];
     byte_parts: list[int] = [];
     saw_bytes = False;
@@ -2128,7 +2128,7 @@ impl AtomTrailer.postinit -> None {
 }
 
 
-impl AtomTrailer.as_attr_list.getter -> list[AstSymbolNode] {
+impl AtomTrailer.as_attr_list.`getter -> list[AstSymbolNode] {
     left = self.right if isinstance(self.right, AtomTrailer) else self.target;
     right = self.target if isinstance(self.right, AtomTrailer) else self.right;
     trag_list: list[AstSymbolNode] = [];
@@ -2577,11 +2577,11 @@ impl Literal.init(
     Expr.postinit(self);
 }
 
-impl Literal.lit_value.getter -> int | str | float | bool | None | type | object {
+impl Literal.lit_value.`getter -> int | str | float | bool | None | type | object {
     raise NotImplementedError;
 }
 
-impl BuiltinType.lit_value.getter -> type {
+impl BuiltinType.lit_value.`getter -> type {
     if (self.value not in Literal.type_map) {
         raise TypeError(f"ICE: {self.value} is not a callable builtin");
     }
@@ -2592,15 +2592,15 @@ impl BuiltinType.lit_value.getter -> type {
     raise TypeError(f"ICE: {self.value} is not a callable builtin");
 }
 
-impl Float.lit_value.getter -> float {
+impl Float.lit_value.`getter -> float {
     return float(self.value);
 }
 
-impl Int.lit_value.getter -> int {
+impl Int.lit_value.`getter -> int {
     return int(self.value, 0);
 }
 
-impl String.lit_value.getter -> str | bytes {
+impl String.lit_value.`getter -> str | bytes {
     if (self.parent and isinstance(self.parent, FString)) {
         fstring_parent: FString = self.parent;
         is_raw = False;
@@ -2616,15 +2616,15 @@ impl String.lit_value.getter -> str | bytes {
     return decode_string_literal(self.value);
 }
 
-impl Bool.lit_value.getter -> bool {
+impl Bool.lit_value.`getter -> bool {
     return (self.value == 'True');
 }
 
-impl Null.lit_value.getter -> None {
+impl Null.lit_value.`getter -> None {
     return None;
 }
 
-impl Ellipsis.lit_value.getter -> object {
+impl Ellipsis.lit_value.`getter -> object {
     return ...;
 }
 
@@ -2710,7 +2710,7 @@ impl Source.init(source: str, mod_path: str) -> None {
     self.inline_suppressions = {};
 }
 
-impl Source.hash.getter -> str {
+impl Source.hash.`getter -> str {
     if not self._hash {
         h = 0xCBF29CE484222325;
         for b in self.value.encode() {
@@ -2721,7 +2721,7 @@ impl Source.hash.getter -> str {
     return self._hash;
 }
 
-impl Source.code.getter -> str {
+impl Source.code.`getter -> str {
     return self.value;
 }
 
@@ -2732,7 +2732,7 @@ impl PythonModuleAst.init(ast: object, orig_src: Source) -> None {
     self.file_path = orig_src.file_path;
 }
 
-impl UniNode.gen.getter -> CodeGenTarget {
+impl UniNode.gen.`getter -> CodeGenTarget {
     if (self._gen is None) {
         import from jaclang.jac0core.codeinfo { CodeGenTarget as _CGT }
         self._gen = _CGT();
@@ -2740,31 +2740,31 @@ impl UniNode.gen.getter -> CodeGenTarget {
     return self._gen;
 }
 
-impl UniNode.gen.setter(value: CodeGenTarget) {
+impl UniNode.gen.`setter(value: CodeGenTarget) {
     self._gen = value;
 }
 
-impl Expr.type_sym_tab.getter -> (UniScopeNode | None) {
+impl Expr.type_sym_tab.`getter -> (UniScopeNode | None) {
     return self._type_sym_tab;
 }
 
-impl Expr.type_sym_tab.setter(type_sym_tab: UniScopeNode) {
+impl Expr.type_sym_tab.`setter(type_sym_tab: UniScopeNode) {
     self._type_sym_tab = type_sym_tab;
 }
 
-impl NameAtom.sym.getter -> (Symbol | None) {
+impl NameAtom.sym.`getter -> (Symbol | None) {
     return self._sym;
 }
 
-impl NameAtom.sym.setter(sym: Symbol) {
+impl NameAtom.sym.`setter(sym: Symbol) {
     self._sym = sym;
 }
 
-impl NameAtom.expr_ctx.getter -> ExprCtx {
+impl NameAtom.expr_ctx.`getter -> ExprCtx {
     return self._expr_ctx;
 }
 
-impl NameAtom.expr_ctx.setter(expr_ctx: ExprCtx) {
+impl NameAtom.expr_ctx.`setter(expr_ctx: ExprCtx) {
     self._expr_ctx = expr_ctx;
 }
 

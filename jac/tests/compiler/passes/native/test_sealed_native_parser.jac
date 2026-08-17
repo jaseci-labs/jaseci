@@ -489,7 +489,7 @@ test "materializer parity holds across the jac0core source corpus" {
     # ships. Fixture-wide equivalence ran once on the integration branch
     # (1410 files, zero divergence); this keeps a representative slice green
     # in CI without that cost.
-    corpus = sorted((PKG_PATH / "jac0core").glob("*.jac"));
+    corpus = sorted((PKG_PATH / "jac0core").`glob("*.jac"));
     assert len(corpus) > 10;
     for src_file in corpus {
         _assert_parity(src_file.read_text(encoding="utf-8"), str(src_file));
@@ -502,7 +502,7 @@ a missing name_spec wiring are all unparse-invisible while being fatal to
 codegen). This walker compares every scalar, enum, list length, dict key
 set, and class name across both trees."""
 def _assert_field_parity(a: any, b: any, path: str = "mod") {
-    import enum as _py_enum;
+    import `enum as _py_enum;
     stack = [(a, b, path, )];
     seen: set = set();
     diffs: list = [];
@@ -780,8 +780,8 @@ test "the tripwire: bytecode branch refuses inside a native-sealed image" {
     } finally {
         sealed.native_tier_required = saved_fn;
         frontend._NATIVE_PARSE_MEMO.clear();
-        for entry in saved_memo {
-            frontend._NATIVE_PARSE_MEMO.append(entry);
+        for `entry in saved_memo {
+            frontend._NATIVE_PARSE_MEMO.append(`entry);
         }
     }
 }

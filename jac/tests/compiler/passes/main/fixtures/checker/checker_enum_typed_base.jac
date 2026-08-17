@@ -7,7 +7,7 @@ Plain `enum X { ... }` retains the prior behavior — its members are
 NOT int and any attempt to use them where an int is expected is an error.
 """
 
-import from enum { Enum }
+import from `enum { Enum }
 
 # Typed: int-backed
 enum Color: int {

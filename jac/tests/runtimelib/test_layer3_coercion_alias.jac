@@ -9,7 +9,7 @@ common primitive/container/temporal type changes.
 import io;
 import logging;
 import from datetime { date, datetime, time }
-import from enum { Enum }
+import from `enum { Enum }
 import from uuid { UUID, uuid4 }
 import from jaclang.jac0core.archetype { NodeAnchor, Root }
 # archetype_alias is an ambient Jac builtin (no import). Serializer is
