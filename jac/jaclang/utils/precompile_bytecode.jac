@@ -306,6 +306,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
      NATIVE_SEAL_CLOSURE: tuple = (
          "jac0core/codegen_ir.jac",
          "jac0core/constant.jac",
+         "jac0core/diagnostic_utils.jac",
          "jac0core/diagnostics.jac",
          "jac0core/helpers.jac",
          "jac0core/jcir_facts.jac",
@@ -321,6 +322,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/semantic_analysis_pass.jac",
          "jac0core/passes/sym_tab_build_pass.jac",
+         "jac0core/passes/transform.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
@@ -341,6 +343,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "runtimelib/na_stdlib/fnmatch.jac",
          "runtimelib/na_stdlib/hashlib.jac",
          "runtimelib/na_stdlib/keyword.jac",
+         "runtimelib/na_stdlib/logging.jac",
          "runtimelib/na_stdlib/pathlib.jac",
          "runtimelib/na_stdlib/textwrap.jac",
 
@@ -392,16 +395,27 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/helpers.jac::evaluate_version_condition",
 
      ),
+     _TRANSFORM_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/transform.jac::Alert.pretty_print",
+         "jac0core/passes/transform.jac::BaseTransform.is_canceled",
+         "jac0core/passes/transform.jac::Transform.ice",
+
+     ),
+     _UNI_PASS_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
+         "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
+         "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
+         "jac0core/passes/uni_pass.jac::UniPass.transform",
+         "jac0core/passes/uni_pass.jac::UniPass.traverse",
+
+     ),
      _CLOSURE_SEAM_WAIVERS: tuple = (
          _UNITREE_SEAM_WAIVERS
          + _TYPES_SEAM_WAIVERS
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
-     ),
-     _UNI_PASS_SEAM_WAIVERS: tuple = (
-         "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
-         "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
-
+         + _TRANSFORM_SEAM_WAIVERS
+         + _UNI_PASS_SEAM_WAIVERS
      ),
      _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_ability",
@@ -468,9 +482,8 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/uni_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
-         ),
+         "jac0core/passes/uni_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "jac0core/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/endpoint_effect_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
          ),
@@ -553,14 +566,37 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "mechanism and it needs the cycle broken first."
          ),
          (
-             "uni_pass TypeVar-generic statics",
+             "pass base chain rim surface",
+             _TRANSFORM_SEAM_WAIVERS,
+             "The base chain joined every pass root's closure when "
+             "`transform.jac` stopped reaching `codeinfo.jac` for a symbol "
+             "`srcloc.jac` declares, so these three are waived here for the "
+             "first time rather than newly demoted. All three are rim work "
+             "by design: `Alert.pretty_print` renders source spans through "
+             "`helpers.pretty_print_source_location`, already waived above; "
+             "`BaseTransform.is_canceled` reads a `threading.Event` the "
+             "driver owns; `Transform.ice` raises E9001 through Python "
+             "diagnostics machinery. They clear as diagnostics cross as "
+             "data and cancellation crosses as a scalar the crossing reads, "
+             "which is the same mechanism the emit-as-data path names."
+         ),
+         (
+             "uni_pass generic statics and inherited field stores",
              _UNI_PASS_SEAM_WAIVERS,
-             "`get_all_sub_nodes` and `find_parent_of_type` are "
-             "`type[T]`-generic statics that only forward to the "
+             "Two families. `get_all_sub_nodes` and `find_parent_of_type` "
+             "are `type[T]`-generic statics that only forward to the "
              "same-named `UniNode` methods, and the backend cannot lower "
-             "a TypeVar-bound signature. They clear when generic statics "
+             "a TypeVar-bound signature; they clear when generic statics "
              "lower, or when the forwarding shims are retired for the "
-             "`UniNode` methods they wrap."
+             "`UniNode` methods they wrap. The other three are what the "
+             "base chain's arrival exposed and are the load-bearing ones: "
+             "`transform` and `traverse` refuse on a field assignment to "
+             "`ir_out` and `cur_node`, slots inherited from `BaseTransform` "
+             "rather than declared locally, and `__post_init__` refuses on "
+             "its `super.__post_init__` call. Constructing a pass inside a "
+             "native root lowers now; running one still does not, and this "
+             "is exactly where. They clear when a store to an inherited "
+             "slot of a linked base lowers."
          ),
          (
              "endpoint effects written as codegen state",
