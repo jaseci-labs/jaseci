@@ -1789,7 +1789,7 @@ def seal_jobs(requested: (int | None) = None) -> int {
 glob _SEAL_WORKER_BOOT: str = "\n".join(
          (
              "import json, os, sys",
-             "_pp = [p for p in json.loads(os.environ['JAC_SEAL_WORKER_SYS_PATH']) if p]",
+             f"_pp = [p for p in json.loads(os.environ['{NATIVE_SEAL_WORKER_PATH_ENV}']) if p]",
              "sys.path[:] = _pp + [p for p in sys.path if p and p not in _pp]",
              "try:",
              "    import _jac_finder",
@@ -1844,21 +1844,43 @@ def _seal_worker_job(
     return {"rel": rel, "request": request, "result": result};
 }
 
+def seal_worker_env(request_path: str) -> dict[str, str] {
+    env = dict(os.environ);
+    env[NATIVE_SEAL_WORKER_ENV] = request_path;
+    env[NATIVE_SEAL_JOBS_ENV] = "1";
+    paths = [p or os.getcwd() for p in sys.path];
+    jac_root = seal_jaclang_root();
+    if jac_root {
+        home = os.path.dirname(jac_root);
+        paths = [home]
+            + [
+                p
+                for p in paths
+                if p != home
+            ];
+        if os.environ.get("JAC_DEV_SOURCE") != home {
+            env["JAC_NO_DEV_SOURCE"] = "1";
+        }
+    }
+    env[NATIVE_SEAL_WORKER_PATH_ENV] = json.dumps(paths);
+    return env;
+}
+
+def seal_worker_argv -> list[str] {
+    argv = [sys.executable];
+    if sys.flags.no_site {
+        argv.append("-S");
+    }
+    return argv + ["-c", _SEAL_WORKER_BOOT];
+}
+
 def _seal_worker_exec(job: dict) -> dict {
     import subprocess;
     import time;
 
     rel = str(job["rel"]);
-    env = dict(os.environ);
-    env[NATIVE_SEAL_WORKER_ENV] = str(job["request"]);
-    env[NATIVE_SEAL_WORKER_PATH_ENV] = json.dumps([p or os.getcwd() for p in sys.path]);
-
-    env[NATIVE_SEAL_JOBS_ENV] = "1";
-    argv = [sys.executable];
-    if sys.flags.no_site {
-        argv.append("-S");
-    }
-    argv += ["-c", _SEAL_WORKER_BOOT];
+    env = seal_worker_env(str(job["request"]));
+    argv = seal_worker_argv();
     started = time.monotonic();
     proc = subprocess.run(
         argv, env=env, capture_output=True, text=True, errors="replace"

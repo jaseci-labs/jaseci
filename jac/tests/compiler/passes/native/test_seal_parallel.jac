@@ -156,9 +156,9 @@ test "JAC_SEAL_JOBS decides the pool size, and 1 means the sequential seal" {
     }
 }
 
-"""This process's import path, with the interpreter's cwd entry made explicit."""
-def _parent_paths -> list[str] {
-    return [p or os.getcwd() for p in sys.path];
+"""The import path the pool hands a worker, as the sealer itself computes it."""
+def _worker_paths -> list[str] {
+    return json.loads(pb.seal_worker_env("unused")[pb.NATIVE_SEAL_WORKER_PATH_ENV]);
 }
 
 """Run one worker by hand from `cwd`, with `rel` as its root; return the process."""
@@ -171,24 +171,34 @@ def _worker_from(cwd: str, out: str, rel: str) -> any {
     payload["unitree_layout"] = None;
     payload["result"] = os.path.join(out, "result.json");
     Path(request).write_text(json.dumps(payload), encoding="utf-8");
-    env = dict(os.environ);
-    env[pb.NATIVE_SEAL_WORKER_ENV] = request;
-    env[pb.NATIVE_SEAL_WORKER_PATH_ENV] = json.dumps(
-        [p or os.getcwd() for p in sys.path]
-    );
-    env[pb.NATIVE_SEAL_JOBS_ENV] = "1";
-    env["PYTHONPATH"] = os.pathsep.join(_parent_paths());
-    argv = [sys.executable];
-    if sys.flags.no_site {
-        argv.append("-S");
-    }
-    argv += ["-c", pb._SEAL_WORKER_BOOT];
+    env = pb.seal_worker_env(request);
+    # The payload build hands its worker a PYTHONPATH that already names every
+    # path the parent is running on, which is the arrangement that let a boot
+    # inserting only "the entries that are missing" insert nothing at all.
+    env["PYTHONPATH"] = os.pathsep.join(_worker_paths());
     return subprocess.run(
-        argv, env=env, cwd=cwd, capture_output=True, text=True, errors="replace"
+        pb.seal_worker_argv(),
+        env=env,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        errors="replace"
     );
 }
 
-test "a worker takes the parent's import path ahead of its own cwd" {
+test "a worker's import path leads with the parent's own jaclang" {
+    want = _worker_paths();
+    assert want , "the sealer handed its worker no import path at all";
+    assert want[0] == os.path.dirname(str(PKG_PATH)) , (
+        "the worker's import path does not lead with the directory the parent's "
+        f"own jaclang lives in: {want[:3]}"
+    );
+    assert "" not in want , (
+        f"the worker's import path carries an implicit cwd entry: {want[:3]}"
+    );
+}
+
+test "a worker takes that path ahead of its own cwd" {
     decoy = tempfile.mkdtemp(prefix="jac_seal_decoy_");
     try {
         # Only the path prologue, so this costs a bare interpreter start and
@@ -196,15 +206,15 @@ test "a worker takes the parent's import path ahead of its own cwd" {
         # host's finders may resolve some other way.
         prologue = pb._SEAL_WORKER_BOOT.split("try:")[0];
         code = prologue + "print(json.dumps(sys.path))";
-        env = dict(os.environ);
-        env[pb.NATIVE_SEAL_WORKER_PATH_ENV] = json.dumps(_parent_paths());
+        want = _worker_paths();
+        env = pb.seal_worker_env("unused");
         # The payload build hands its worker a PYTHONPATH that already names
         # every path the parent is running on. That is what let a boot which
         # only inserted "the entries that are missing" insert nothing at all and
         # leave the interpreter's implicit cwd entry in front -- so the worker
         # imported whatever tree it happened to be standing in. Reproduce that
         # arrangement, or the regression cannot arise here.
-        env["PYTHONPATH"] = os.pathsep.join(_parent_paths());
+        env["PYTHONPATH"] = os.pathsep.join(want);
         proc = subprocess.run(
             [sys.executable, "-c", code],
             env=env,
@@ -215,9 +225,9 @@ test "a worker takes the parent's import path ahead of its own cwd" {
         );
         assert proc.returncode == 0 , f"the worker prologue failed: {proc.stderr}";
         child = json.loads(proc.stdout);
-        assert child[:len(_parent_paths())] == _parent_paths() , (
-            "the worker's import path does not begin with its parent's, in "
-            f"order: {child[:4]} vs {_parent_paths()[:4]}"
+        assert child[:len(want)] == want , (
+            "the worker's import path does not begin with what the sealer sent, "
+            f"in order: {child[:4]} vs {want[:4]}"
         );
         assert decoy not in child , (
             f"the worker kept its own cwd on the import path: {child[:4]}"
