@@ -363,7 +363,7 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
         if ename is None or ename in self.registry.enums or nd.body is None {
             continue;
         }
-        raw_members: list = [];
+        raw_members: list[tuple[(str, (UniNode | None))]] = [];
         for stmt in nd.body {
             if isinstance(stmt, Assignment) {
                 targets = stmt.target
@@ -377,7 +377,7 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             }
         }
 
-        member_values: list = [
+        member_values: list[(str | int | None)] = [
             enum_member_literal(vnode) for (_, vnode) in raw_members
         ];
         is_string_enum = False;
@@ -388,7 +388,8 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             }
         }
         members: list[EnumMemberLayout] = [];
-        for (ordinal, (mname, vnode)) in enumerate(raw_members) {
+        for (ordinal, member) in enumerate(raw_members) {
+            mname: str = member[0];
             str_value: (str | None) = None;
             int_value = 0;
             mval = member_values[ordinal];
@@ -553,9 +554,12 @@ impl LayoutPass._compute_acyclicity -> None {
 }
 
 impl LayoutPass._acyclic_walk(name: str, state: dict[str, int]) -> int {
-    cur = state.get(name);
-    if cur is not None {
-        return 2 if cur == 0 else cur;
+    if name in state {
+        cur = state[name];
+        if cur == 0 {
+            return 2;
+        }
+        return cur;
     }
     lay = self.registry.layouts.get(name);
     if lay is None or lay.has_vtable or lay.is_osp {
@@ -807,9 +811,10 @@ impl LayoutPass._is_layout_compatible_type(
             return True;
         }
         if target_name in {"list", "dict", "set", "frozenset", "tuple"} {
-            if type_node?.right and type_node.right?.slices {
-                for sl in type_node.right.slices {
-                    elem = sl.start if sl?.start else sl;
+            index = type_node.right;
+            if isinstance(index, IndexSlice) {
+                for sl in index.slices {
+                    elem: UniNode = sl.start if sl.start is not None else sl;
                     if isinstance(elem, TupleVal) and elem.values {
                         for tv in elem.values {
                             if not self._is_layout_compatible_type(tv, arch_map) {
@@ -827,7 +832,7 @@ impl LayoutPass._is_layout_compatible_type(
         }
     }
 
-    if type_node?.value and isinstance(type_node?.value, str) {
+    if isinstance(type_node, Name) {
         tname = type_node.value;
         if tname in LAYOUT_COMPATIBLE_SCALARS {
             return True;
