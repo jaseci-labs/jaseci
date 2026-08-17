@@ -13,6 +13,7 @@ import from jaclang.jac0core.unitree {
     HasVar,
     IndexSlice,
     Module,
+    ModuleItem,
     Name,
     TupleVal,
     UnaryExpr,
@@ -382,15 +383,129 @@ def enum_member_literal(value_expr: (UniNode | None)) -> (str | int | None) {
     return val;
 }
 
-def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
-    _scope = t.shared.symbol_table;
-    _sym = _scope.names_in_scope.get(member) if (_scope?.names_in_scope) else None;
-    _decl = _sym.decl if _sym is not None else None;
-    _asn = _decl.parent if (_decl is not None) else None;
-    if not isinstance(_asn, Assignment) or _asn.value is None {
-        return None;
+"""Is this member's value `enum.auto()`, the implicit-value spelling?
+
+Matched through the symbol rather than the spelling, the way the enum
+constructor matches its receiver through the resolved type: a module-local
+function named `auto` is not `enum`'s, and `import from enum { auto as a }`
+still is, because the use site's spelling never enters the answer.
+
+The symbol resolves to one of two declarations depending on how far
+inference has carried it. Once the name is bound through to the stub, the
+declaration is `enum.pyi`'s own `auto` class and the owning module names
+itself; before that it is the `ModuleItem` the import created, and the item
+carries the source module. Both are accepted, and both insist the module is
+`enum`, so nothing else named `auto` answers here.
+"""
+def is_enum_auto(value_expr: (UniNode | None)) -> bool {
+    if not isinstance(value_expr, FuncCall) or value_expr.params {
+        return False;
     }
-    return enum_member_literal(_asn.value);
+    _target = value_expr.target;
+    if not isinstance(_target, Name) {
+        return False;
+    }
+    _sym = _target.sym;
+    _decl = _sym.decl if _sym is not None else None;
+    if _decl is None {
+        return False;
+    }
+    _item = _decl.find_parent_of_type(ModuleItem);
+    if _item is not None and _item.name is not None {
+        _from = _item.from_parent.from_loc;
+        return (
+            _from is not None
+            and _from.dot_path_str == "enum"
+            and _item.name.value == "auto"
+        );
+    }
+    _mod = _decl.find_parent_of_type(Module);
+    return _mod is not None and _mod.name == "enum" and _sym.sym_name == "auto";
+}
+
+"""Every member's value, with `auto()` resolved against the ones before it.
+
+`auto()` has no value of its own to fold: CPython generates one from the
+members already assigned, `max(seen) + 1`, starting at 1. That makes the
+declaration order part of the answer, so the members arrive here as an
+ordered list rather than being asked for one at a time.
+
+An `auto()` that follows a member the fold could not reach stays unresolved
+rather than guessing: the maximum it counts from is unknown, so every
+`auto()` after such a member is `None` too, and `all_values_known` reads
+false for the layout the way it already does for the member that blocked it.
+A non-integer value blocks the same way -- a string-valued member leaves
+nothing for `max` to count from.
+"""
+def resolve_enum_member_values(
+    raw_members: list[tuple[(str, (UniNode | None))]]
+) -> list[(str | int | None)] {
+    out: list[(str | int | None)] = [];
+    _max: (int | None) = None;
+    _blocked = False;
+    for member in raw_members {
+        _vnode = member[1];
+        if is_enum_auto(_vnode) {
+            if _blocked {
+                out.append(None);
+                continue;
+            }
+            _next = 1 if _max is None else _max + 1;
+            _max = _next;
+            out.append(_next);
+            continue;
+        }
+        _lit = enum_member_literal(_vnode);
+        if isinstance(_lit, int) {
+            _max = _lit if (_max is None or _lit > _max) else _max;
+        } else {
+            _blocked = True;
+        }
+        out.append(_lit);
+    }
+    return out;
+}
+
+"""A class-form enum's members, in the order the source declares them.
+
+The scope dict is keyed by name and its iteration order is an accident of how
+the symbol table was filled; `auto()` reads its value off the members before
+it, so the order has to come from the source instead. Each member's
+assignment carries its own position, which is what this sorts on.
+"""
+def class_form_enum_members(scope: any) -> list[tuple[(str, (UniNode | None))]] {
+    out: list[tuple[(str, (UniNode | None))]] = [];
+    if scope is None or not (scope?.names_in_scope) {
+        return out;
+    }
+    _placed: list[tuple[(int, int, str)]] = [];
+    _values: dict[str, UniNode] = {};
+    for mname in scope.names_in_scope {
+        _sym = scope.names_in_scope.get(mname);
+        _decl = _sym.decl if _sym is not None else None;
+        _asn = _decl.parent if (_decl is not None) else None;
+        if not isinstance(_asn, Assignment) or _asn.value is None {
+            continue;
+        }
+        _placed.append((_asn.loc.first_line, _asn.loc.col_start, mname));
+        _values[mname] = _asn.value;
+    }
+    _placed.sort();
+    for entry in _placed {
+        out.append((entry[2], _values[entry[2]]));
+    }
+    return out;
+}
+
+def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
+    _members = class_form_enum_members(t.shared.symbol_table);
+    _values = resolve_enum_member_values(_members);
+    for (_idx, _member) in enumerate(_members) {
+        if _member[0] == member {
+            return _values[_idx];
+        }
+    }
+    return None;
 }
 
 def class_form_enum_member(t: any) -> (tuple[(str, (str | int), str)] | None) {

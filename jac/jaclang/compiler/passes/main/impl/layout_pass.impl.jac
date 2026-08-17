@@ -377,9 +377,9 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             }
         }
 
-        member_values: list[(str | int | None)] = [
-            enum_member_literal(vnode) for (_, vnode) in raw_members
-        ];
+        member_values: list[(str | int | None)] = resolve_enum_member_values(
+            raw_members
+        );
         is_string_enum = False;
         for mval in member_values {
             if isinstance(mval, str) {
@@ -420,17 +420,13 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             continue;
         }
         _scalar = class_form_enum_scalar(nd.name.type);
+        _cf_raw = class_form_enum_members(nd);
+        _cf_values = resolve_enum_member_values(_cf_raw);
         _cf_members: list[EnumMemberLayout] = [];
-        _cf_declared = 0;
+        _cf_declared = len(_cf_raw);
         _cf_typed = True;
-        for mname in nd.names_in_scope {
-            _msym = nd.names_in_scope.get(mname);
-            _mdecl = _msym.decl if _msym is not None else None;
-            _masn = _mdecl.parent if _mdecl is not None else None;
-            if isinstance(_masn, Assignment) and _masn.value is not None {
-                _cf_declared += 1;
-            }
-            _lit = class_form_enum_literal(nd.name.type, mname);
+        for (_cf_idx, _cf_member) in enumerate(_cf_raw) {
+            _lit = _cf_values[_cf_idx];
             if _lit is None {
                 continue;
             }
@@ -439,7 +435,7 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             }
             _cf_members.append(
                 EnumMemberLayout(
-                    name=mname,
+                    name=_cf_member[0],
                     ordinal=len(_cf_members),
                     int_value=(_lit if isinstance(_lit, int) else 0),
                     str_value=(_lit if isinstance(_lit, str) else None)
