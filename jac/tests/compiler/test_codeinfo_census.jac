@@ -21,25 +21,33 @@ What this pins is the measured result: `codeinfo` produces IR and every
 remaining refusal is a per-callable seam, so the module ships. Each seam is
 filesystem, config or Python-codegen machinery, none of it the data model.
 
-**codeinfo is inferred native now.** It stopped being a forced-root-only
-module when the last thing blocking its pre-scan left the language:
-`import from typing { Any }` is a hard error (E1122), so codeinfo spells the
-four annotations `any` and imports nothing from `typing` at all.
-`scan_native_blockers` answers `''` for it.
+**What it does not do, measured rather than assumed.** The nine
+`interop_manifest` seams in `boundary_analysis_pass` do not clear yet. They
+read `self.ir_in.gen.interop_manifest`, and `UniNode.gen`'s getter imports
+`CodeGenTarget` from `codeinfo` at run time; for that call to lower,
+`codeinfo` has to be *inferred* native, not merely compilable as a forced
+root.
 
-That was never going to be enough on its own, and the two measurements that
-said so were both right. Admitting the import would have dragged
-`transform.jac` into closures carrying `BaseTransform.prog: JacProgram`, a
-field with no native layout -- except that field no longer exists, because
-`pass_rim` stamps `prog` on the instance at construction (#8288). And
-`CLIENT_RUNTIME_SOURCE_PATHS` really did refuse to lower as a bare `tuple` of
-ragged rows, so it is a flat `list[str]` of "/"-joined relative paths now,
-rejoined at its one use site. With both answered, the closure grows from 13
-members to 19 and keeps producing IR -- `transform.jac` among them, which is
-the clearest evidence the rim did what it claimed.
+What used to stop that was an accident: `import from typing { Any }` made
+`scan_native_blockers` answer `unresolved import 'typing'`. That import is a
+hard error in the language now (E1122), so the accident is gone and the hold
+is deliberate -- `PLACEMENT_INFERENCE_HELD` names `codeinfo` and says why.
 
-`unitree` is a member of every sealed closure there is, so
-`test_unitree_seal_census.jac` remains the guard that catches closure drift.
+The hold is not bookkeeping. Letting inference through was measured on this
+base with the module-fatal glob already fixed, so `codeinfo` does produce IR;
+the problem is the blast radius. `unitree`'s closure goes from 11 members to
+19 and picks up 21 un-waived seams, and only 13 of those are `codeinfo`'s own
+filesystem-and-config machinery. The rest arrive with `passes/uni_pass.jac`
+and `passes/transform.jac`, and they include `UniPass.transform`,
+`UniPass.traverse` and `UniPass.get_all_sub_nodes` -- pass machinery a parse
+reaches, which is exactly the shape that must not ship as an `abort()` stub
+inside a sealed artifact. `unitree` is in `NATIVE_SEAL_ROOTS`, so this is a
+live seal, not a hypothetical one.
+
+Clearing the hold means answering `codeinfo`'s 13 seams and that closure,
+which is wave work; `test_unitree_seal_census.jac` is the guard that catches
+it either way. This change is deliberately closure-neutral for every sealed
+root.
 
 One census, one test, deliberately: see the note in
 `test_expr_keys_census.jac` on what a file of N tests over one root costs
@@ -63,19 +71,13 @@ glob CODEINFO_CLOSURE: tuple = (
          "compiler/type_system/types.jac",
          "jac0core/codeinfo.jac",
          "jac0core/constant.jac",
-         "jac0core/diagnostic_utils.jac",
-         "jac0core/diagnostics.jac",
          "jac0core/helpers.jac",
-         "jac0core/passes/module_codegen_pass.jac",
-         "jac0core/passes/transform.jac",
-         "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
          "runtimelib/na_stdlib/contextvars.jac",
          "runtimelib/na_stdlib/fnmatch.jac",
          "runtimelib/na_stdlib/hashlib.jac",
-         "runtimelib/na_stdlib/logging.jac",
          "runtimelib/na_stdlib/pathlib.jac"
      );
 
