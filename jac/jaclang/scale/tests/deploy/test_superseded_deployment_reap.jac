@@ -7,7 +7,11 @@ import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBu
 import from jaclang.scale.deploy.target.kubernetes.target {
     KubernetesTarget,
     replica_sets_at_revision,
-    strip_pod_template_hash
+    strip_pod_template_hash,
+    app_deployment_names,
+    app_bundle_digest,
+    releases_from_revisions,
+    fleet_targets_for_release
 }
 
 # A Deployment as a pre-0.34.9 toolchain wrote it: bare app name, no role label,
@@ -252,4 +256,115 @@ test "reverting a template drops pod-template-hash and keeps the rest" {
     assert "pod-template-hash" not in labels;
     assert labels == {"app": "orders", "managed": "jac-scale"};
     assert cleaned["spec"] == {"containers": []};
+}
+
+
+# App scoping. `managed=jac-scale` marks the product, not the app, and two apps
+# can share a namespace. Kubernetes revision numbers are per Deployment and
+# overlap freely, so an unscoped revert would patch a neighbour's fleet.
+test "the app's deployment set is derived from its own routes" {
+    names = app_deployment_names(
+        {"orders_app": "/orders", "cart_app": "/cart"}, "shop"
+    );
+
+    assert names
+        == ["cart-app-deployment", "orders-app-deployment", "gateway-deployment"] , f"the gateway rolls back last, so it is listed last: {names}";
+}
+
+
+test "a monolith with no routes still resolves its own deployment" {
+    assert app_deployment_names({}, "littlex")
+        == ["littlex-deployment", "gateway-deployment"];
+}
+
+
+# A release is a bundle digest, not a revision number: a service whose pod
+# template did not change gets no new revision, so the fleet drifts apart and
+# "revision 2" means different releases for different services.
+test "a release groups the revisions that share a bundle digest" {
+    releases = releases_from_revisions(
+        [
+            {
+                "deployment": "orders-app-deployment",
+                "revision": 4,
+                "bundle_digest": "aaa",
+                "created": "t4"
+            },
+            {
+                "deployment": "gateway-deployment",
+                "revision": 2,
+                "bundle_digest": "aaa",
+                "created": "t2"
+            },
+            {
+                "deployment": "orders-app-deployment",
+                "revision": 3,
+                "bundle_digest": "bbb",
+                "created": "t3"
+            }
+        ]
+    );
+
+    assert len(releases) == 2;
+    assert releases[0]["bundle_digest"] == "aaa";
+    assert releases[0]["deployments"]
+        == {"orders-app-deployment": 4, "gateway-deployment": 2} , "a release spans every service that shipped it, at whatever revision each took";
+}
+
+
+test "the app bundle digest is read from the app bundle, not the toolchain" {
+    assert app_bundle_digest(["toolchain/shop/ccc.tar.gz", "bundles/shop/aaa.jab"])
+        == "aaa";
+    assert app_bundle_digest(["toolchain/shop/ccc.tar.gz"]) == "";
+}
+
+
+# The blocker this guards: a fleet where one service has no retained revision
+# for the target release must refuse, not revert the rest and report success.
+test "a release missing a fleet member refuses rather than half reverting" {
+    releases = releases_from_revisions(
+        [
+            {
+                "deployment": "orders-app-deployment",
+                "revision": 2,
+                "bundle_digest": "aaa",
+                "created": "t"
+            }
+        ]
+    );
+
+    out = fleet_targets_for_release(
+        releases, 2, ["orders-app-deployment", "gateway-deployment"]
+    );
+
+    assert not out["ok"];
+    assert out["missing"] == ["gateway-deployment"];
+    assert out["targets"] == {} , "nothing may be patched when the fleet cannot fully revert";
+}
+
+
+test "a complete release resolves every member's own revision" {
+    releases = releases_from_revisions(
+        [
+            {
+                "deployment": "orders-app-deployment",
+                "revision": 4,
+                "bundle_digest": "aaa",
+                "created": "t"
+            },
+            {
+                "deployment": "gateway-deployment",
+                "revision": 2,
+                "bundle_digest": "aaa",
+                "created": "t"
+            }
+        ]
+    );
+
+    out = fleet_targets_for_release(
+        releases, 4, ["orders-app-deployment", "gateway-deployment"]
+    );
+
+    assert out["ok"];
+    assert out["targets"] == {"orders-app-deployment": 4, "gateway-deployment": 2} , "each service reverts to the revision that carried this release, not to 4";
 }

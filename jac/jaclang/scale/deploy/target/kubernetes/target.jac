@@ -47,6 +47,86 @@ def _revision_sort_key(item: dict[str, any]) -> int {
 }
 
 
+def app_deployment_names(routes: dict[str, str], app_name: str) -> list[str] {
+    names: list[str] = [];
+    for svc in sorted(dict(routes or {}).keys()) {
+        name = f"{k8s_safe_name(svc)}-deployment";
+        if name not in names {
+            names.append(name);
+        }
+    }
+    if not names {
+        names.append(f"{k8s_safe_name(app_name)}-deployment");
+    }
+    gateway = f"{k8s_safe_name(GATEWAY_NAME)}-deployment";
+    if gateway not in names {
+        names.append(gateway);
+    }
+    return names;
+}
+
+
+def app_bundle_digest(bundle_keys: list[str]) -> str {
+    for key in bundle_keys {
+        text = str(key);
+        if text.startswith("bundles/") and text.endswith(".jab") {
+            return text.rsplit("/", 1)[-1][:-len(".jab")];
+        }
+    }
+    return "";
+}
+
+
+def releases_from_revisions(entries: list[dict[str, any]]) -> list[dict[str, any]] {
+    by_digest: dict[str, dict[str, any]] = {};
+    for item in entries {
+        digest = str(item.get("bundle_digest", "") or "");
+        if not digest {
+            continue;
+        }
+        name = str(item.get("deployment", "") or "");
+        revision = int(item.get("revision", 0) or 0);
+        if digest not in by_digest {
+            by_digest[digest] = {
+                "bundle_digest": digest,
+                "revision": revision,
+                "created": str(item.get("created", "") or ""),
+                "deployments": {}
+            };
+        }
+        release = by_digest[digest];
+        release["deployments"][name] = revision;
+        if revision > int(release["revision"]) {
+            release["revision"] = revision;
+            release["created"] = str(item.get("created", "") or "");
+        }
+    }
+    return sorted(by_digest.values(), key=_revision_sort_key, reverse=True);
+}
+
+
+def fleet_targets_for_release(
+    releases: list[dict[str, any]], revision: int, expected: list[str]
+) -> dict[str, any] {
+    for release in releases {
+        if int(release.get("revision", 0) or 0) != int(revision) {
+            continue;
+        }
+        held = dict(release.get("deployments", {}) or {});
+        missing = [
+            name
+            for name in expected
+            if name not in held
+        ];
+        if missing {
+            return {"ok": False, "missing": sorted(missing), "targets": {}};
+        }
+        return {"ok": True, "missing": [], "targets": held};
+    }
+    return {"ok": False, "missing": list(expected), "targets": {}};
+}
+
+
 def replica_sets_at_revision(sets: list[any], revision: int) -> dict[str, any] {
     owned: dict[str, any] = {};
     for rs in sets {
@@ -1212,13 +1292,37 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _owned_replica_sets(apps_v1: any, namespace: str) -> list[any] {
+    def _app_deployment_names -> list[str] {
+        routes: dict[str, str] = {};
         try {
-            return list(
+            routes = dict(self._ms_cfg().get("routes", {}) or {});
+        } except Exception {
+            routes = {};
+        }
+        return app_deployment_names(routes, self.k8s_config.app_name);
+    }
+
+    def _owned_replica_sets(apps_v1: any, namespace: str) -> list[any] {
+        owned: list[str] = self._app_deployment_names();
+        try {
+            listed = list(
                 apps_v1.list_namespaced_replica_set(
                     namespace=namespace, label_selector="managed=jac-scale"
                 ).items
             );
+            scoped: list[any] = [];
+            for rs in listed {
+                rs_any: any = rs;
+                try {
+                    owners = list(rs_any.metadata.owner_references or []);
+                } except Exception {
+                    continue;
+                }
+                if owners and str(owners[0].name) in owned {
+                    scoped.append(rs_any);
+                }
+            }
+            return scoped;
         } except Exception as e {
             if self.logger {
                 self.logger.warn(
@@ -1229,7 +1333,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def list_revisions(app_name: str) -> list[dict[str, any]] {
+    def _revision_entries -> list[dict[str, any]] {
         self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         namespace: str = self.k8s_config.namespace;
@@ -1253,6 +1357,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         "revision": int(raw_revision),
                         "replica_set": str(rs.metadata.name),
                         "bundle_keys": bundle_keys_from_pod_spec(dict(pod_spec)),
+                        "bundle_digest": app_bundle_digest(
+                            bundle_keys_from_pod_spec(dict(pod_spec))
+                        ),
                         "created": created.isoformat() if created else "",
                         "replicas": int(rs.spec.replicas or 0)
                     }
@@ -1261,12 +1368,16 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 continue;
             }
         }
-        return sorted(revisions, key=_revision_sort_key, reverse=True);
+        return revisions;
+    }
+
+    def list_revisions(app_name: str) -> list[dict[str, any]] {
+        return releases_from_revisions(self._revision_entries());
     }
 
     def referenced_bundle_keys(app_name: str) -> set[str] {
         keys: set[str] = set();
-        for item in self.list_revisions(app_name) {
+        for item in self._revision_entries() {
             for key in item.get("bundle_keys", []) {
                 keys.add(str(key));
             }
@@ -1280,18 +1391,52 @@ obj KubernetesTarget(KubernetesTargetBase) {
         namespace: str = self.k8s_config.namespace;
         serializer = client.ApiClient();
 
-        targets = replica_sets_at_revision(
-            self._owned_replica_sets(apps_v1, namespace), revision
+        expected: list[str] = self._app_deployment_names();
+        resolved = fleet_targets_for_release(
+            self.list_revisions(app_name), revision, expected
         );
-
-        if not targets {
+        if not resolved.get("ok", False) {
+            missing = list(resolved.get("missing", []));
             return DeploymentResult(
                 success=False,
                 message=(
-                    f"No retained revision {revision} for '{app_name}' in "
-                    f"'{namespace}'. It is older than revision_history_limit "
-                    f"({self.k8s_config.revision_history_limit}), or was never "
-                    "deployed."
+                    f"Cannot roll '{app_name}' back to revision {revision} in "
+                    f"'{namespace}': no retained revision for "
+                    f"{', '.join(missing)}. It is older than "
+                    f"revision_history_limit "
+                    f"({self.k8s_config.revision_history_limit}), was never "
+                    "deployed, or the service set changed between releases."
+                ),
+                details={"missing": missing}
+            );
+        }
+
+        wanted: dict[str, any] = dict(resolved.get("targets", {}) or {});
+        by_name: dict[str, any] = {};
+        for rs in self._owned_replica_sets(apps_v1, namespace) {
+            try {
+                owners = list(rs.metadata.owner_references or []);
+                ann = dict(rs.metadata.annotations or {});
+            } except Exception {
+                continue;
+            }
+            if not owners {
+                continue;
+            }
+            name = str(owners[0].name);
+            if name in wanted and ann.get(REVISION_ANNOTATION) == str(wanted[name]) {
+                by_name[name] = rs;
+            }
+        }
+        targets = by_name;
+
+        if len(targets) != len(wanted) {
+            return DeploymentResult(
+                success=False,
+                message=(
+                    f"Refusing a partial rollback of '{app_name}': "
+                    f"{len(targets)} of {len(wanted)} deployment(s) resolved. "
+                    "A half reverted app serves two versions at once."
                 )
             );
         }
