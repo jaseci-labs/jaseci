@@ -92,14 +92,36 @@ are more than half:
     `_emit_post_seal_diagnostics`, `_emit_chunk_view_diagnostics` and
     `_emit_imm_mutation` all refuse as "inherited method call ...emit".
     Every one of them passes `related=`, and no emit in a root that
-    already seals ever does. `Transform.emit` declares that parameter as
-    `(list[tuple[str, UniNode]] | None)`, and the backend refuses that
-    type by name -- "Native lowering failed for type
-    'list[tuple[str, UniNode]]'" -- because a `(str, node)` pair is a
-    tuple of mixed element storage. This is one backend gap worth eleven
-    seams here and a twelfth in `static_analysis_pass`, and it is the
-    cheapest thing the next wave can buy. `_emit_view_diagnostics`
-    refuses on the same shape one level out, as a for-loop iterable.
+    already seals ever does.
+
+    That correlation was read here as its cause, and it is not.
+    `Transform.emit` does declare the parameter
+    `(list[tuple[str, UniNode]] | None)`, but the backend does not refuse
+    that type by name: a `(str, node)` pair is not mixed storage, the
+    tuple branch gives each element its own slot, and the whole shape
+    lowers wherever `UniNode` has a struct -- `Transform.emit`'s own body
+    reaches zero seams when `transform.jac` is compiled as a root. The
+    message that reading quoted appears only when the archetype is
+    outside the compiling closure, which is a different fault.
+
+    The real wall is the Python base. `Transform` is not in this root's
+    native closure, so `self.emit(...)` routes through the Python-object
+    bridge, and that bridge marshals int, bool, float, str and pointers
+    to registered structs -- an aggregate is none of them, so the call
+    refuses on the argument rather than on the type. The twelfth seam in
+    `static_analysis_pass` is the same wall reached by a different type:
+    `_check_undefined_names` passes an optional `str`, which the bridge
+    cannot carry either.
+
+    So the cheapest thing the next wave can buy here is not a lowering
+    change at all -- it is putting `transform.jac` in the closure, which
+    turns all twelve into ordinary native calls. Its own 33 seams are the
+    price, and they are the measurement to take first.
+
+    `_emit_view_diagnostics` is genuinely a mixed-storage refusal, and it
+    is unrelated to `related=`: it walks `(kv.key, kv.value)`, and
+    `KVPair` declares `key` optional and `value` not, so one slot would
+    have to hold both an optional-pointer jacket and a bare pointer.
   - driver facts (5 seams) -- `_nogc_module_enforced`, `_nogc_check_call`
     and `_emit_enforcement_diagnostics` read `self.prog._compile_options`
     through the `prog: any` wall, fetching `nogc_enforce_all`,

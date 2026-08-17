@@ -19,7 +19,7 @@ questions:
   to do so, and it does it with no waiver of its own, which is the shape the
   rest of the stage is aiming at.
 * `ts_decl_parser.jac` -- already clean, and pinned so it stays that way.
-* `type_evaluator.jac` -- censused for the first time. Field declarations were
+* `type_evaluator.jac` -- the stage's upper half. Field declarations were
   the last construct no callable owned: since #8234 a constructor owns its own
   body and since #8285 a signature owns its own annotation, but a `has` type is
   resolved while the struct is laid out, outside every body, so one
@@ -45,8 +45,8 @@ waiver that stops matching a real seam fails too, and a seam that starts
 demoting for a different reason than the one recorded fails as well, which
 keeps the baseline current as the backend grows. The two big tables are keyed
 cause-first -- one cause, the members that demote on it -- because that is the
-shape the measurement actually has: 109 evaluator seams across 50 causes, 46
-checker seams across 9, and in both the largest single cause is worth more than
+shape the measurement actually has: 106 evaluator seams across 46 causes, 42
+checker seams across 8, and in both the largest single cause is worth more than
 a third of the file. Every member is still named individually, so nothing here
 is a count.
 
@@ -166,9 +166,18 @@ read answers per class rather than defaulting.
 The two `clone_as_*` waivers left with #8266. `TypeFlags(...)` is a
 value-to-member lookup, and for an int-valued enum the member *is* the value,
 so the emitter checks it against the declared member table and raises the
-`ValueError` CPython raises. `create_callable_type` is unaffected: its
-`ParameterCategory` members are `auto()`, which no fold reaches, so the table
-that read needs still cannot be encoded.
+`ValueError` CPython raises. `create_callable_type` was recorded as unaffected
+by that change, and it was: its `ParameterCategory` members are `auto()`, and
+no fold reached them, so the table its read needed could not be encoded.
+
+That waiver is gone now, and it is the ninth. `auto()` has no value of its own
+to fold -- CPython generates one from the members already assigned -- so the
+answer belongs beside the enum's layout rather than in the constant folder.
+The members are read in source order and the generated value is
+`max(seen) + 1`, which gives `ParameterCategory` its table and lets a member
+read off the class lower. `test_native_enum_auto.jac` owns the rule; the size
+of what it bought is recorded in the evaluator's table below, because
+`ArgsList` was the same read.
 
 An eighth left when `type_utils` joined the closure.
 `FunctionType.specialize_func_type_vars` was waived as calling a function
@@ -192,10 +201,6 @@ glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
          "types.jac::FunctionType.specialize": (
              "Cascade: calls `type_utils.build_type_var_solution`, waived in "
              "the unitree census for its `enumerate(...)` for-loop iterable."
-         ),
-         "types.jac::create_callable_type": (
-             "Backend gap: reads `ParameterCategory.Positional`, an `IntEnum` "
-             "member accessed off the class, which has no instance layout."
          )
      },
      DECL_PARSER_SEAM_WAIVERS: dict[(str, str)] = {
@@ -244,33 +249,53 @@ glob EVALUATOR_CLOSURE: tuple = (
          "unitree.jac"
      );
 
-"""The evaluator's first true census: 109 seams, keyed by the cause they share.
+"""The evaluator's census: 106 seams, keyed by the cause they share.
 
-Keyed cause-first because the measurement has that shape. Ninety of the 109
-are cascades -- a method whose only refusal is that it calls a sibling the
-backend already demoted -- so a flat table would print the same sentence
-ninety times and hide the fact that the file's fate rests on a handful of
-roots. Reading it top-down, four causes are worth 36 seams between them:
-`get_type_of_expression` (21), `emit_diag` (6), `create_key_for_reference` (5)
-and `get_type_of_class` (4), and each of those is itself a cascade one or two
-steps above a root.
+Keyed cause-first because the measurement has that shape. Sixty-two of the
+106 are cascades on a sibling method -- a body whose only refusal is that it
+calls something the backend already demoted -- so a flat table would print
+the same sentence sixty-two times and hide the fact that the file's fate
+rests on a handful of roots.
+
+It read 109 across 50 causes when it was first taken, and one backend rule
+closed the difference rather than five separate ones. `ParameterCategory`
+spells its members `auto()`, no fold reached them, and every read off the
+class therefore lowered to nothing. Generating those values -- the rule
+`test_native_enum_auto.jac` owns -- retired four causes outright:
+`attribute access 'ArgsList'` and `'Positional'`, `function
+'create_callable_type'` and `method 'TypeEvaluator.get_type_of_ability'`.
+Three methods stopped demoting altogether: `get_type_of_ability`,
+`_get_setter_value_type` and `_get_special_form_type`.
+
+A fifth cause, `builtin call 'id'`, left the table without being fixed, and
+the distinction is the point of keying on causes. Its only member,
+`_type_var_bound_in_scope`, now demotes earlier under `get_type_of_class`;
+`id(x)` inside a tuple constructor still does not lower, it is just no longer
+the first thing that stops that body. Five other members moved the same way:
+`_map_ts_type` to a `FuncCall` expression, `_create_namedtuple_new_method`
+under `_build_field_params`, `_synthesize_typeddict_method` to a
+`CompareExpr`, and `_create_callable_type` and `get_type_of_expression` under
+`emit_diag`.
+
+That last move is the one that matters. `get_type_of_expression` heads its
+own 21-method cascade and was itself waiting on `get_type_of_ability`; now
+that the ability read lowers, it demotes on `emit_diag` instead. The `**`
+gap is no longer worth six seams. It is worth thirty -- `emit_diag`, the
+seven bodies that call it, and the twenty-one behind
+`get_type_of_expression` -- which makes it the largest single thing left in
+this file, and the reason the table below is topped by a cascade two steps
+above it.
 
 The roots, which is what M2 has to spend its work on:
 
-* `attribute access 'ArgsList'` and `'symbol'`, `'_sym_category'`, `'cur_node'`,
-  `'emit'`, `'name'`, `'prog'` -- reads the backend cannot place. The first
-  strands `get_type_of_ability`, which strands `get_type_of_expression`, which
-  is the 21-method cascade: one un-placed attribute read is worth a fifth of
-  the file.
 * `call argument unpacking '**'` -- `emit_diag` forwards `**kwargs` to the
-  diagnostic emitter. Six cascades hang off it, and the checker pays for the
-  same gap five more times in its own table.
+  diagnostic emitter. Thirty seams now hang off it, and the checker pays for
+  the same spelling five more times in its own table for a different reason.
+* `attribute access 'symbol'`, `'_sym_category'`, `'cur_node'`, `'emit'`,
+  `'name'`, `'prog'` -- reads the backend cannot place.
 * `Python module import 'ast'` -- four methods that read CPython's parser for
   `__all__`, ambient imports and string annotations. No native unit can host
   these; they are the stage's honest Python floor.
-* `builtin call 'id'` -- identity as a dict key. `id(x)` assigned to a local
-  lowers; `id(x)` inside a tuple constructor does not, which is why this
-  cause has one member left rather than two.
 * `function '...'` entries naming a callee outside this unit --
   `int_subscript_suffix` lives in `compiler/symbol_utils.jac`, which the
   closure above does not contain, so the call cannot resolve natively; the
@@ -338,11 +363,20 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
          ),
          "method 'TypeEvaluator.emit_diag'": (
              "TypeEvaluator._collect_typevars_from_base",
+             "TypeEvaluator._create_callable_type",
              "TypeEvaluator._diag_unnarrowed_optional",
              "TypeEvaluator._emit_untyped_external",
              "TypeEvaluator._resolve_intrinsic_jsx_tag",
              "TypeEvaluator._validate_component_jsx_props",
+             "TypeEvaluator.get_type_of_expression",
              "TypeEvaluator.validate_typevar_scope"
+         ),
+         "expression 'FuncCall'": (
+             "TypeEvaluator.__post_init__",
+             "TypeEvaluator._extract_tuple_element_type",
+             "TypeEvaluator._is_sv_async_call",
+             "TypeEvaluator._map_ts_type",
+             "TypeEvaluator._resolve_star_import_symbol"
          ),
          "method 'TypeEvaluator.create_key_for_reference'": (
              "TypeEvaluator._extract_callable_info",
@@ -351,23 +385,18 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator.classify_condition",
              "TypeEvaluator.get_narrowed_type_for_expr"
          ),
+         "method 'TypeEvaluator.get_type_of_class'": (
+             "TypeEvaluator._get_outer_scope_type_params",
+             "TypeEvaluator._get_type_of_self",
+             "TypeEvaluator._get_type_of_super",
+             "TypeEvaluator._type_var_bound_in_scope",
+             "TypeEvaluator.validate_typevar_variance"
+         ),
          "erased field 'TypeEvaluator.program'": (
              "TypeEvaluator._client_entry_mod_path",
              "TypeEvaluator._import_module_from_path",
              "TypeEvaluator._is_mobui_module",
              "TypeEvaluator._load_stub_module"
-         ),
-         "expression 'FuncCall'": (
-             "TypeEvaluator.__post_init__",
-             "TypeEvaluator._extract_tuple_element_type",
-             "TypeEvaluator._is_sv_async_call",
-             "TypeEvaluator._resolve_star_import_symbol"
-         ),
-         "method 'TypeEvaluator.get_type_of_class'": (
-             "TypeEvaluator._get_outer_scope_type_params",
-             "TypeEvaluator._get_type_of_self",
-             "TypeEvaluator._get_type_of_super",
-             "TypeEvaluator.validate_typevar_variance"
          ),
          "method 'TypeEvaluator.is_sub_class'": (
              "TypeEvaluator._find_predicate_for",
@@ -386,33 +415,25 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator._assign_class",
              "TypeEvaluator.assign_type_to_type_var"
          ),
-         "attribute access 'ArgsList'": (
-             "TypeEvaluator._map_ts_type",
-             "TypeEvaluator.get_type_of_ability"
-         ),
-         "attribute access 'Positional'": (
-             "TypeEvaluator._create_namedtuple_new_method",
-             "TypeEvaluator._synthesize_typeddict_method"
-         ),
          "attribute access 'symbol'": (
              "TypeEvaluator._get_method_with_overloads",
              "TypeEvaluator.get_type_of_member"
-         ),
-         "function 'collect_assignment_target_keys'": (
-             "TypeEvaluator._get_type_from_flow_node",
-             "TypeEvaluator._loop_body_writes_target"
          ),
          "for-loop iterable 'FuncCall'": (
              "TypeEvaluator._build_field_params",
              "TypeEvaluator._build_typeddict_fields"
          ),
-         "function 'create_callable_type'": (
-             "TypeEvaluator._create_callable_type",
-             "TypeEvaluator._get_special_form_type"
+         "function 'collect_assignment_target_keys'": (
+             "TypeEvaluator._get_type_from_flow_node",
+             "TypeEvaluator._loop_body_writes_target"
          ),
          "function 'get_special_enum_value_type_from_bases'": (
              "TypeEvaluator.get_type_of_class",
              "TypeEvaluator.get_type_of_enum"
+         ),
+         "method 'TypeEvaluator._build_field_params'": (
+             "TypeEvaluator._create_dataclass_init_method",
+             "TypeEvaluator._create_namedtuple_new_method"
          ),
          "method 'TypeEvaluator._classify_property_symbol'": (
              "TypeEvaluator.get_getter_type_from_property",
@@ -421,10 +442,6 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
          "method 'TypeEvaluator._extract_tuple_element_type'": (
              "TypeEvaluator._extract_tuple_element_type_path",
              "TypeEvaluator._tuple_literal_index_type"
-         ),
-         "method 'TypeEvaluator.get_type_of_ability'": (
-             "TypeEvaluator._get_setter_value_type",
-             "TypeEvaluator.get_type_of_expression"
          ),
          "method 'TypeEvaluator.get_type_of_enum'": (
              "TypeEvaluator._get_enum_member_type_for_decl",
@@ -440,6 +457,7 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
          ),
          "builtin call 'isinstance against `UniCFGNode`'": ("_find_cfg_node_for", ),
          "builtin call 'isinstance'": ("TypeEvaluator._union_narrowed_types", ),
+         "expression 'CompareExpr'": ("TypeEvaluator._synthesize_typeddict_method", ),
          "expression 'comprehension over an element-erased collection'": (
              "TypeEvaluator._ts_synth_class_types",
 
@@ -448,7 +466,6 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator.specialize_member_type",
 
          ),
-         "builtin call 'id'": ("TypeEvaluator._type_var_bound_in_scope", ),
          "function 'compute_mro_linearization'": ("TypeEvaluator.is_sub_class", ),
          "function 'find_jac_project_root'": (
              "TypeEvaluator._untyped_external_is_error",
@@ -474,10 +491,6 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
          ),
          "function 'sibling_declaration_file'": (
              "TypeEvaluator._get_ts_declared_item_type",
-
-         ),
-         "method 'TypeEvaluator._build_field_params'": (
-             "TypeEvaluator._create_dataclass_init_method",
 
          ),
          "method 'TypeEvaluator._collect_return_types'": (
@@ -555,16 +568,30 @@ glob CHECKER_CLOSURE: tuple = (
 
 """The checker's census, and the handshake decision it decides.
 
-Forty-six seams, and 34 of them -- every visitor the pass has except the eight
+Forty-two seams, and 35 of them -- every visitor the pass has except the seven
 that fail earlier for their own reasons -- are one cause: `self.evaluator` is
 not a declared field. `TypeCheckPass` inherits from `UniPass`, a Python-side
 base that no native unit contains, and `before_pass` stamps the evaluator onto
 `self` without a `has` for it. The backend therefore reads it the only way it
 can, through the Python-object bridge, and the bridge carries `int`, `bool`,
 `float`, `str` and class handles -- not a `TypeEvaluator`. So the read refuses,
-inside each of the 34 methods that performs it. `inherited field read 'prog'`
+inside each of the 35 methods that performs it. `inherited field read 'prog'`
 is the same mechanism one level up: `BaseTransform.prog` is typed `JacProgram`
 through an `import type`, so it has no layout to bridge either.
+
+It read 46 across 9 causes when it was first taken. The second-largest cause,
+`variadic parameter '**'`, was recorded here as the evaluator's `emit_diag`
+gap paid for a second time, and it was not: measured, the two spellings share
+no mechanism. This one was a backend bug of its own. Jac lets a method name
+its receiver, `TypeCheckPass.emit` does, and the argument binder then counted
+that receiver twice -- once as the call's own offset and again as the `self`
+still sitting in the parameter list it walked -- so the `**kwargs` slot was
+looked for one argument past the end of the callee. The pre-flight guard that
+decides whether the shape is lowerable already subtracted the receiver, so
+the two disagreed about the same signature and only the guard was right.
+`test_native_kwargs_explicit_self.jac` owns the rule now; four of the five
+seams cleared and the fifth, `_check_explicit_any`, moved up into the
+evaluator cause below, which is why that one reads 35 rather than 34.
 
 That is the measured answer to how the pair seals, and it says one closure
 rather than two roots with a stamped boundary:
@@ -577,7 +604,7 @@ rather than two roots with a stamped boundary:
 * One closure costs a module-level import and a `has evaluator: TypeEvaluator`
   on the pass. That puts the evaluator's twenty modules and the checker's
   fifteen into one unit of about twenty-two, gives `self.evaluator` a real
-  struct slot, and turns 34 boundary refusals into ordinary call-site cascades
+  struct slot, and turns 35 boundary refusals into ordinary call-site cascades
   that clear as the evaluator's own methods lower.
 * `before_pass` stays a seam either way, and that is the honest stamp: one
   method crosses to Python to fetch the evaluator off `JacProgram`, and every
@@ -587,18 +614,17 @@ rather than two roots with a stamped boundary:
 
 What blocks doing it in this change rather than recording it: the field cannot
 be declared `TypeEvaluator` without a value, and declaring it optional retypes
-34 method bodies from `TypeEvaluator` to `TypeEvaluator | None`, which is a
+35 method bodies from `TypeEvaluator` to `TypeEvaluator | None`, which is a
 type-checker change, not a backend one. That is M2's next step and it is
 gated on this measurement, which did not exist before.
 
-The other eight seams are ordinary backend gaps and are named individually.
-`variadic parameter '**'` is the same `**kwargs` gap the evaluator's
-`emit_diag` pays for, so it clears both halves at once.
+The other seven seams are ordinary backend gaps and are named individually.
 """
 glob CHECKER_SEAM_WAIVERS: dict[(str, tuple)] = {
          "inherited field read 'evaluator'": (
              "TypeCheckPass._body_always_returns",
              "TypeCheckPass._check_event_trigger_archetype",
+             "TypeCheckPass._check_explicit_any",
              "TypeCheckPass._enclosing_walker_report_elem_type",
              "TypeCheckPass._eval_unpacking_names",
              "TypeCheckPass._insert_builtin_symbols",
@@ -631,13 +657,6 @@ glob CHECKER_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeCheckPass.exit_while_stmt",
              "TypeCheckPass.exit_with_stmt",
              "TypeCheckPass.exit_yield_expr"
-         ),
-         "variadic parameter '**'": (
-             "TypeCheckPass._check_bare_generic",
-             "TypeCheckPass._check_explicit_any",
-             "TypeCheckPass._check_unresolved_lambda_params",
-             "TypeCheckPass._check_walker_reports_shape",
-             "TypeCheckPass.exit_impl_def"
          ),
          "expression 'AtomTrailer'": ("TypeCheckPass.emit", ),
          "expression 'FuncCall'": ("TypeCheckPass.after_pass", ),
@@ -1052,11 +1071,14 @@ test "the checker's cost of not declaring its evaluator is one number" {
         for k in found
         if "inherited field read 'evaluator'" in _seam_cause(found[k])
     );
-    assert len(boundary) == 34 , (
+    assert len(boundary) == 35 , (
         f"{len(boundary)} methods refuse on the un-declared `self.evaluator`, "
-        "not 34. This number is the handshake's price tag: it is what one "
+        "not 35. This number is the handshake's price tag: it is what one "
         "missing `has` on a pass costs, and the seal of the pair is not "
-        "closer until it moves."
+        "closer until it moves. It went up by one when the explicit-self "
+        "variadic bug cleared, because `_check_explicit_any` was failing "
+        "earlier for that reason and now reaches its evaluator read -- a "
+        "rise here can mean a gap elsewhere closed."
     );
     assert len(boundary) * 100 // max(len(found), 1) >= 70 , (
         "the boundary read has stopped being the checker's dominant cause; "
