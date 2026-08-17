@@ -54,7 +54,6 @@ import pytest;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT, TESTS_DIR }
 import from jaclang.jac0core.cache_paths { get_jir_cache_dir }
-import from jaclang.utils.precompile_bytecode { seal_timing_report }
 
 glob PROBE: str = os.path.join(
          TESTS_DIR, "compiler", "fixtures", "compile_timing_probe.jac"
@@ -81,14 +80,15 @@ glob CORPUS: list[str] = [
 
 """The ref this branch's compile cost is measured against.
 
-The most recent upstream `main` commit in this branch's history: `ee434887e`,
-the incremental seal reuse (#8275). Pinning the upstream commit the branch
-already contains, rather than main's tip, means the delta is exactly the
-phase-C lane work and nothing that landed upstream alongside it. Move it
-whenever the branch merges upstream again, and say so in the commit -- a moved
-baseline silently reinterprets every number here.
+Pre-cutover `main`: `f76ca633f`, the type-checker census and the pooled
+native seal (#8280), which is the commit this branch forked from. The
+baseline tree therefore runs the retired Python-AST emitter and this tree
+runs the container, so the delta is exactly the cost of the codegen
+change and nothing that landed upstream alongside it. Move it whenever
+the branch rebases, and say so in the commit -- a moved baseline silently
+reinterprets every number here.
 """
-glob BASELINE_REF: str = "ee434887e1100e6467b9aa7a96adb2b14535c732";
+glob BASELINE_REF: str = "f76ca633fa5f82038a0629325d5b8f9df6258e9d";
 
 """Gitignored build artifacts a fresh checkout of the baseline cannot produce.
 
@@ -459,38 +459,3 @@ test "the chess AOT binary stays inside its recorded run envelope" {
     }
 }
 
-test "the seal timing report ranks roots by what they cost" {
-    rows = [
-        ("jac0core/unitree.jac", "compiled", 40.0, 0.1, 30.0, 8.0, 2.0),
-        ("jac0core/passes/uni_pass.jac", "compiled", 10.0, 0.1, 7.0, 2.0, 1.0),
-        ("compiler/native_materialize.jac", "compiled", 50.0, 0.1, 20.0, 5.0, 25.0)
-    ];
-    lines = seal_timing_report(rows);
-    assert len(lines) == 4 , f"expected a header and three rows, got {lines}";
-    assert "3 root(s) in 100.0s -- 0 reused, 3 rebuilt" in lines[0] , lines[0];
-    ordered = [line.split()[0] for line in lines[1:]];
-    assert ordered
-        == [
-            "compiler/native_materialize.jac",
-            "jac0core/unitree.jac",
-            "jac0core/passes/uni_pass.jac"
-        ] , f"the report must lead with the most expensive root: {ordered}";
-    assert "50.0%" in lines[1] and "canary 25.0s" in lines[1] , lines[1];
-    assert seal_timing_report([]) == [] , "an empty seal reports no table";
-}
-
-test "a reused root is labelled, counted, and never priced as a rebuild" {
-    rows = [
-        ("jac0core/unitree.jac", "reused", 0.2, 0.05, 0.0, 0.0, 0.15),
-        ("compiler/native_materialize.jac", "compiled", 9.8, 0.05, 7.0, 2.0, 0.75)
-    ];
-    lines = seal_timing_report(rows);
-    assert "2 root(s) in 10.0s -- 1 reused, 1 rebuilt" in lines[0] , lines[0];
-    assert "compiled" in lines[1] and "compile 7.0s" in lines[1] , lines[1];
-    assert "reused" in lines[2] , lines[2];
-    assert "compile" not in lines[2] , (
-        "a reused root never ran the compiler, so quoting a compile cost for it "
-        f"would invent work that did not happen: {lines[2]}"
-    );
-    assert "check 0.05s" in lines[2] and "canary 0.15s" in lines[2] , lines[2];
-}

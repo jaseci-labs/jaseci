@@ -123,7 +123,8 @@ import from jaclang.jac0core.unitree {
     VisitStmt,
     WhileStmt,
     WithStmt,
-    YieldExpr
+    YieldExpr,
+    is_identifier_slot
 }
 import from jaclang.jac0core.constant {
     CodeContext,

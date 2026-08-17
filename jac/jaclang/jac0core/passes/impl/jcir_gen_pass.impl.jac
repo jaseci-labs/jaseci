@@ -2961,7 +2961,7 @@ impl JcirGenPass.exit_k_w_pair(nd: KWPair) -> None {
                 'keyword',
                 ['arg', 'value'],
                 [
-                    self.val(nd.key).get('id')
+                    nd.key.sym_name
                         if (nd.key and self.val(nd.key).cls == 'Name')
                         else None,
                     self.val(nd.value)
@@ -3941,11 +3941,13 @@ impl JcirGenPass.exit_name(nd: Name) -> None {
             return;
         }
     }
-    if (name in self._get_builtin_names()) {
-        self.builtin_imports.add(name);
-    }
-    if (name in self._get_ambient_typing_names()) {
-        self.typing_imports.add(name);
+    if not is_identifier_slot(nd) {
+        if (name in self._get_builtin_names()) {
+            self.builtin_imports.add(name);
+        }
+        if (name in self._get_ambient_typing_names()) {
+            self.typing_imports.add(name);
+        }
     }
     self.set_out(nd, [self.nod('Name', ['id', 'ctx'], [name, self.py_ctx(nd)])]);
 }
