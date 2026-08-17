@@ -19,7 +19,7 @@ import subprocess;
 import time;
 import from pathlib { Path }
 import from tempfile { mkdtemp }
-import from jaclang.scale.tests.server_support { get_free_port }
+import socket;
 
 glob _BUILD_LINE: str = "Building client bundle",
      _PAGE: str = "/cl/app";
@@ -63,6 +63,22 @@ def _build_attempts(log: Path) -> int {
 }
 
 
+"""Bind an ephemeral port and hand back its number.
+
+Inlined rather than taken from `jaclang.scale.tests.server_support`: that
+module imports `requests` at module scope, which is not installed for the
+runtime CI job, so importing one socket helper from it took this whole file
+down with a ModuleNotFoundError."""
+def get_free_port -> int {
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock {
+        sock.bind(("", 0));
+        sock.listen(1);
+        port = sock.getsockname()[1];
+    }
+    return port;
+}
+
+
 """GET *url* and return the HTTP status. urllib raises on 4xx/5xx, so an error
 response is reported as its status rather than as an exception. Uses the
 stdlib rather than `requests`: this test is swept by the runtime CI job, which
@@ -71,8 +87,11 @@ def _get_status(url: str, timeout: float) -> int {
     import from urllib.request { urlopen }
     import from urllib.error { HTTPError }
     try {
-        with urlopen(url, timeout=timeout) as resp {
+        resp = urlopen(url, timeout=timeout);
+        try {
             return resp.status;
+        } finally {
+            resp.close();
         }
     } except HTTPError as exc {
         return exc.code;
