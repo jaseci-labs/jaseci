@@ -1,7 +1,7 @@
 import from jaclang.jac0core.unitree { Module, SemDef, Symbol, UniScopeNode }
 import from jaclang.jac0core.passes.transform { Transform }
 
-obj SemDefMatchPass(Transform[Module, Module]) {
+obj SemDefMatchPass(Transform) {
     def transform(ir_in: Module) -> Module;
     def resolve_sem_target(
         semdef: SemDef, target_sym_tab: UniScopeNode

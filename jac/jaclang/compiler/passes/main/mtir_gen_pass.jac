@@ -66,7 +66,7 @@ glob PRIMITIVE_TYPES: list[str] = [
          'f64'
      ];
 
-obj MTIRGenPass(Transform[Module, Module]) {
+obj MTIRGenPass(Transform) {
     has ir_in: Module,
         prog: any,
         cancel_token: any = None;

@@ -38,7 +38,7 @@ import from jaclang.jac0core.program { JacProgram }
 
 glob ANNEX_MODULE: str = "jaclang.jac0core.passes.annex_pass";
 
-obj LocalPass(Transform[uni.Module, uni.Module]) {
+obj LocalPass(Transform) {
     def transform(ir_in: uni.Module) -> uni.Module {
         return ir_in;
     }

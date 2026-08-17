@@ -338,6 +338,28 @@ test "the auto-size is bounded by memory and cores, never zero" {
     );
 }
 
+test "a worker that dies on a signal is reported by that signal's name" {
+    # A worker writes its result after every failure it can catch, so a missing
+    # result means it died in native code. The bare number that used to be
+    # printed ("exited -6") said nothing: the reader had to know that -6 is
+    # SIGABRT before the line meant anything at all.
+    import signal;
+
+    assert pb._seal_exit_reason(-int(signal.SIGABRT)) == "on SIGABRT" , (
+        "an aborting worker must be reported as SIGABRT, not as a number"
+    );
+    assert pb._seal_exit_reason(-int(signal.SIGKILL)) == "on SIGKILL" , (
+        "a killed worker -- the out-of-memory signature -- must name SIGKILL"
+    );
+    assert pb._seal_exit_reason(1) == "with status 1" , (
+        "an ordinary nonzero exit is a status, not a signal"
+    );
+    assert pb._seal_exit_reason(0) == "with status 0" , "zero is still a status";
+    assert "9999" in pb._seal_exit_reason(-9999) , (
+        "an unrecognizable signal number must still be reported, not raise"
+    );
+}
+
 """A `sysconf` that answers the way Darwin's does: no SC_AVPHYS_PAGES at all."""
 def _darwin_sysconf(name: str) -> int {
     if name == "SC_PHYS_PAGES" {

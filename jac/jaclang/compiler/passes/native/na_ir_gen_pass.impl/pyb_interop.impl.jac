@@ -9,11 +9,13 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
     native (same unit or linked import) recurse so a native class over a
     Python-based native class classifies the same way.
 
-    A subscripted generic base (`Transform[Module, Module]`) is unwrapped
-    to its target before resolution: the subscript is type-position
-    information the bridge does not need, and leaving it wrapped made the
-    base invisible, so stores to inherited fields demoted instead of
-    bridging.
+    A subscripted generic base (`PyGenBase[int]`) is unwrapped to its
+    target before resolution: the subscript is type-position information
+    the bridge does not need, and leaving it wrapped made the base
+    invisible, so stores to inherited fields demoted instead of
+    bridging. The shape was found on the compiler's own pass chain, back
+    when it spelled `Transform[Module, Module]`; the chain is
+    monomorphic now, and user code still writes it.
     """;
     import os;
     if arch_name in self._pyb_base_memo {

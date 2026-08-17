@@ -148,6 +148,9 @@ impl NaIRGenPass._emit_exc_raise_helper -> None {
     err_fmt_global.initializer = err_fmt_const;
     err_fmt_ptr = b.bitcast(err_fmt_global, i8p);
     b.call(printf_fn, [err_fmt_ptr, msg_val]);
+
+    _fflush = self._get_or_declare_extern("fflush", ir.IntType(32), [i8p]);
+    b.call(_fflush, [ir.Constant(i8p, None)]);
     abort_fn = self.extern_funcs["abort"];
     b.call(abort_fn, []);
     b.unreachable();
