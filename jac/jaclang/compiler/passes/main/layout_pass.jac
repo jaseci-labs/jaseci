@@ -383,20 +383,6 @@ def enum_member_literal(value_expr: (UniNode | None)) -> (str | int | None) {
     return val;
 }
 
-"""Is this member's value `enum.auto()`, the implicit-value spelling?
-
-Matched through the symbol rather than the spelling, the way the enum
-constructor matches its receiver through the resolved type: a module-local
-function named `auto` is not `enum`'s, and `import from enum { auto as a }`
-still is, because the use site's spelling never enters the answer.
-
-The symbol resolves to one of two declarations depending on how far
-inference has carried it. Once the name is bound through to the stub, the
-declaration is `enum.pyi`'s own `auto` class and the owning module names
-itself; before that it is the `ModuleItem` the import created, and the item
-carries the source module. Both are accepted, and both insist the module is
-`enum`, so nothing else named `auto` answers here.
-"""
 def is_enum_auto(value_expr: (UniNode | None)) -> bool {
     if not isinstance(value_expr, FuncCall) or value_expr.params {
         return False;
@@ -423,20 +409,6 @@ def is_enum_auto(value_expr: (UniNode | None)) -> bool {
     return _mod is not None and _mod.name == "enum" and _sym.sym_name == "auto";
 }
 
-"""Every member's value, with `auto()` resolved against the ones before it.
-
-`auto()` has no value of its own to fold: CPython generates one from the
-members already assigned, `max(seen) + 1`, starting at 1. That makes the
-declaration order part of the answer, so the members arrive here as an
-ordered list rather than being asked for one at a time.
-
-An `auto()` that follows a member the fold could not reach stays unresolved
-rather than guessing: the maximum it counts from is unknown, so every
-`auto()` after such a member is `None` too, and `all_values_known` reads
-false for the layout the way it already does for the member that blocked it.
-A non-integer value blocks the same way -- a string-valued member leaves
-nothing for `max` to count from.
-"""
 def resolve_enum_member_values(
     raw_members: list[tuple[(str, (UniNode | None))]]
 ) -> list[(str | int | None)] {
@@ -466,13 +438,6 @@ def resolve_enum_member_values(
     return out;
 }
 
-"""A class-form enum's members, in the order the source declares them.
-
-The scope dict is keyed by name and its iteration order is an accident of how
-the symbol table was filled; `auto()` reads its value off the members before
-it, so the order has to come from the source instead. Each member's
-assignment carries its own position, which is what this sorts on.
-"""
 def class_form_enum_members(scope: any) -> list[tuple[(str, (UniNode | None))]] {
     out: list[tuple[(str, (UniNode | None))]] = [];
     if scope is None or not (scope?.names_in_scope) {

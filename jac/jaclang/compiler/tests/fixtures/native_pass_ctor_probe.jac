@@ -13,7 +13,7 @@ import from jaclang.jac0core.passes.uni_pass { UniPass }
 obj LocalCountPass(UniPass) {
     has seen: int = 0;
 
-    def enter_name(nd: Name) -> None {
+    def enter_name(nd: Name) {
         self.seen = self.seen + 1;
     }
 }

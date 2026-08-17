@@ -371,11 +371,6 @@ impl NaIRGenPass._codegen_bound_args(
     } else {
         _fixed = list(callee_sig.posonly_params or []) + list(callee_sig.params or []);
         _n_posonly = len(callee_sig.posonly_params or []);
-        # The receiver is already counted by `self_offset`. A callee that
-        # spells `self` out carries it in this list too, and every index
-        # below -- the per-parameter slot, the pack slot after them, and the
-        # positional split -- would then sit one past where it belongs. The
-        # pre-flight check subtracts it; so does this.
         if _self_skip and _fixed {
             _fixed = _fixed[1:];
             _n_posonly = _n_posonly - 1 if _n_posonly > 0 else 0;

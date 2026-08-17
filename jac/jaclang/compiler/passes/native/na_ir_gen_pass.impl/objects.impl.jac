@@ -472,7 +472,9 @@ impl NaIRGenPass._codegen_archetype(nd: uni.Archetype) -> None {
             } else {
                 _fld_mark = len(self.errors_had);
                 ftype = self._resolve_field_type(var);
-                _opaque = self._opaque_field_if_unlowerable(arch_name, fname, _fld_mark);
+                _opaque = self._opaque_field_if_unlowerable(
+                    arch_name, fname, _fld_mark
+                );
                 if _opaque is not None {
                     ftype = _opaque;
                     foreign_fields.add(fname);
@@ -1159,8 +1161,8 @@ impl NaIRGenPass._opaque_field_if_unlowerable(
         sys.stderr.write(
             f"warning: native seam -- erasing field {arch_name}.{fname} to an "
             f"opaque slot (un-lowerable declaration): "
-            + "; ".join(str(e) for e in _own)
-            + "\n"
+                + "; ".join(str(e) for e in _own)
+                + "\n"
         );
     }
     try {
@@ -3471,10 +3473,7 @@ impl NaIRGenPass._codegen_class_const_read(
 }
 
 impl NaIRGenPass._codegen_field_access(
-    obj_val: ir.Value,
-    field_name: str,
-    type_name: str,
-    nd: (uni.UniNode | None) = None
+    obj_val: ir.Value, field_name: str, type_name: str, nd: (uni.UniNode | None) = None
 ) -> (ir.Value | None) {
     field_indices = self.struct_field_indices.get(type_name);
     _getter = self._accessor_slot_of(type_name, field_name, "property");

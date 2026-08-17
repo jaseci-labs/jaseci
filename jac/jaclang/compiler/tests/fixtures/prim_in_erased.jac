@@ -22,11 +22,11 @@ obj Bag {
     has words: dict[int, dict[str, list[str]]] = {},
         tags: dict[int, dict[str, list[Tag]]] = {};
 
-    def seed_words -> None {
+    def seed_words {
         self.words[0] = {'items': ["alpha", "beta"]};
     }
 
-    def seed_tags(t: Tag) -> None {
+    def seed_tags(t: Tag) {
         self.tags[0] = {'items': [t]};
     }
 
