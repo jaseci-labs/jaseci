@@ -52,9 +52,32 @@ import from jaclang.jac0core.unitree {
     WithStmt,
     YieldExpr
 }
-import from jaclang.jac0core.passes { UniPass }
+import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.constant { Tokens as Tok }
+import from jaclang.compiler.type_system.types {
+    AnyType,
+    ClassType,
+    TypeBase,
+    TypeVarType,
+    UnionType,
+    UnknownType
+}
+import from jaclang.compiler.type_system.type_utils {
+    PropertyWriteKind,
+    get_declared_generator_return_type,
+    get_generator_yield_type,
+    is_generator_family_type
+}
+import from jaclang.compiler.type_system.operations {
+    ARITHMETIC_OPERATORS,
+    AUG_OPERATOR_MAP,
+    AUG_TO_BINARY_MAP,
+    BINARY_OPERATOR_MAP,
+    get_numeric_promotion_type,
+    get_pow_result_type
+}
 import from jaclang.jac0core.diagnostics {
+    Category,
     DiagnosticInfo,
     E1001,
     E1002,

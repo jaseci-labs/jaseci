@@ -1,7 +1,6 @@
 import from jaclang.jac0core.unitree { JsxElement, Module, Name, Token, UniNode }
 import from jaclang.jac0core.diagnostics { E1105 }
 import from jaclang.jac0core.passes.uni_pass { UniPass }
-import from jaclang.project.client_kind { resolve_client_kind_context }
 import from jaclang.project.client_kind_paths { mobui_module_exempt }
 
 glob _GENERIC_SUGGESTION: str = "an @jac/mobui component",
@@ -22,13 +21,12 @@ def _suggestion_for(tag: str) -> str {
 }
 
 class JsxIntrinsicGuardPass(UniPass) {
+    has _enforced_root: (str | None) = None,
+        _exempt_paths: dict[str, bool] = {};
+
     def before_pass(self: JsxIntrinsicGuardPass) {
-        opts = self.prog._compile_options;
-        (kind, proj_root) = resolve_client_kind_context(
-            self.ir_in.loc.mod_path, opts.project_kind, opts.project_root
-        );
-        self._enforced_root: (str | None) = proj_root if kind == "mobui" else None;
-        self._exempt_paths: dict[str, bool] = {};
+        self._enforced_root = self.ir_in.mobui_enforced_root;
+        self._exempt_paths.clear();
     }
 
     def enter_module(self: JsxIntrinsicGuardPass, nd: Module) {

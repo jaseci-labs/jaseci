@@ -7,6 +7,7 @@ import types;
 import from threading { Event }
 import from contextvars { ContextVar }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.unitree { ability_of_symbol }
 import from jaclang.jac0core.jir {
     SEC_BYTECODE,
     SEC_MTIR,
@@ -33,9 +34,9 @@ import from jaclang.jac0core.passes {
     DeclImplMatchPass,
     EndpointEffectPass,
     JacAnnexPass,
+    JcirBytecodeGenPass,
+    JcirGenPass,
     PlacementApplyPass,
-    PyastGenPass,
-    PyBytecodeGenPass,
     SemanticAnalysisPass,
     SymTabBuildPass,
     Transform
@@ -149,6 +150,16 @@ def run_pass(
 }
 
 def get_symtab_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+    if not _ir_sched_loading.get() {
+        _tok = _ir_sched_loading.set(True);
+        try {
+            import jaclang.compiler.symbol_utils;
+        } except ImportError as e {
+            fail_loud_on_compiler_source(e);
+        } finally {
+            _ir_sched_loading.reset(_tok);
+        }
+    }
     return validate_schedule(
         [ASTValidationPass, SymTabBuildPass, DeclImplMatchPass, PlacementApplyPass],
         origin='symtab-ir schedule'
@@ -349,6 +360,65 @@ def native_schedule_failure -> str {
     return _native_sched_failure.get('reason', '');
 }
 
+def compiler_source_failure_origin(err: BaseException) -> (str | None) {
+    root = _compiler_source_root() + os.sep;
+    cursor: any = err;
+    for _ in range(8) {
+        if cursor is None {
+            break;
+        }
+        for cand in (cursor?.jac_source_path, cursor?.path) {
+            if isinstance(cand, str) and cand {
+                real = os.path.realpath(cand);
+                if real.startswith(root) {
+                    return real;
+                }
+            }
+        }
+        name = cursor?.name;
+        if isinstance(name, str)
+            and (name == 'jaclang' or name.startswith('jaclang.')) {
+            return name;
+        }
+        cursor = cursor?.__cause__ or cursor?.__context__;
+    }
+    return None;
+}
+
+def module_import_in_flight(file_path: str) -> bool {
+    for mod in list(sys.modules.values()) {
+        spec = mod?.__spec__;
+        if spec is None {
+            continue;
+        }
+        if spec?.origin == file_path and bool(spec?._initializing) {
+            return True;
+        }
+    }
+    return False;
+}
+
+def import_error_re_enters(err: BaseException, file_path: str) -> (str | None) {
+    if not isinstance(err, ImportError) or not module_import_in_flight(file_path) {
+        return None;
+    }
+    cursor: any = err;
+    for _ in range(8) {
+        if cursor is None {
+            break;
+        }
+        name = cursor?.name;
+        if isinstance(name, str) and name {
+            spec = sys.modules.get(name)?.__spec__;
+            if spec is not None and spec?.origin == file_path {
+                return name;
+            }
+        }
+        cursor = cursor?.__cause__ or cursor?.__context__;
+    }
+    return None;
+}
+
 def get_boundary_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     return validate_schedule(
         [BoundaryAnalysisPass, EndpointEffectPass], origin='boundary-analysis schedule'
@@ -377,9 +447,11 @@ def get_ir_gen_sched(
         }
 
         import jaclang.compiler.symbol_utils;
+        import jaclang.compiler.expr_keys;
         import jaclang.compiler.passes.main.layout_pass;
         import jaclang.compiler.type_registry;
         import jaclang.compiler.intrinsic_registry;
+        import jaclang.project.client_kind;
 
         passes: list[type[Transform[uni.Module, uni.Module]]] = [
             ASTValidationPass,
@@ -552,18 +624,19 @@ def native_pipeline_available -> tuple[bool, str] {
     return verdict;
 }
 
+def _py_codegen_tail -> list[type[Transform[uni.Module, uni.Module]]] {
+    return [JcirGenPass, JcirBytecodeGenPass];
+}
+
 def get_py_code_gen(
     native: bool = True, provided: (set[str] | None) = None
 ) -> list[type[Transform[uni.Module, uni.Module]]] {
     if _codegen_sched_loading.get() or _ir_sched_loading.get() {
-        return [PyastGenPass, PyBytecodeGenPass];
+        return _py_codegen_tail();
     }
     _tok = _codegen_sched_loading.set(True);
     try {
         import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-        import from jaclang.compiler.passes.main.pyjac_ast_link_pass {
-            PyJacAstLinkPass
-        }
 
         passes: list[type[Transform[uni.Module, uni.Module]]] = [EsastGenPass];
         if native {
@@ -597,14 +670,14 @@ def get_py_code_gen(
             );
             _note_native_schedule_failure(None);
         }
-        passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
+        passes.extend(_py_codegen_tail());
         return passes;
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
         if native {
             _note_native_schedule_failure(e);
         }
-        return [PyastGenPass, PyBytecodeGenPass];
+        return _py_codegen_tail();
     } finally {
         _codegen_sched_loading.reset(_tok);
     }
@@ -665,6 +738,17 @@ obj _SetupProgress {
 }
 
 glob setup_progress = _SetupProgress();
+
+def _jsx_intrinsic_guard_pass_type -> (type | None) {
+    try {
+        import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
+            JsxIntrinsicGuardPass
+        }
+        return JsxIntrinsicGuardPass;
+    } except ImportError {
+        return None;
+    }
+}
 
 def _coerce_module(module: uni.Module, context: CodeContext) {
     module.decided_codespace = context.value;
@@ -894,34 +978,6 @@ def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
         return False;
     }
     return plain_native_import_target(nd, prog) is not None;
-}
-
-def _ability_of_defn(defn_node: uni.UniNode) -> (uni.Ability | None) {
-    if isinstance(defn_node, uni.Ability) {
-        return defn_node;
-    }
-    if isinstance(defn_node.parent, uni.Ability) {
-        return defn_node.parent;
-    }
-    return None;
-}
-
-def ability_of_symbol(sym: (uni.Symbol | None)) -> (uni.Ability | None) {
-    if sym is None or not sym.defn {
-        return None;
-    }
-    decl = _ability_of_defn(sym.defn[0]);
-
-    if decl is not None and str(decl.loc.mod_path).endswith(".pyi") {
-        for alt in sym.defn {
-            alt_decl = _ability_of_defn(alt);
-            if alt_decl is not None
-                and not str(alt_decl.loc.mod_path).endswith(".pyi") {
-                return alt_decl;
-            }
-        }
-    }
-    return decl;
 }
 
 enum ClientImportVerdict {
@@ -1234,6 +1290,9 @@ obj JacCompiler {
     ) -> list[uni.Module];
 
     def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
+    def stamp_boundary_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    def stamp_client_kind_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    def stamp_access_check_facts(mod: uni.Module) -> None;
     def compile(
         file_path: str,
         target_program: JacProgram,

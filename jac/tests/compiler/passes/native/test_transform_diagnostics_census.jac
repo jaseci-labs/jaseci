@@ -55,13 +55,10 @@ glob EMISSION_PATH: tuple = (
 
 """Waived per-callable seams: real Python machinery off the emission path."""
 glob TRANSFORM_SEAM_WAIVERS: dict[(str, str)] = {
-         "Alert.as_log": (
-             "console rendering: ANSI color attribute access; presentation "
-             "stays Python-side and only Python drivers call it."
-         ),
          "Alert.pretty_print": (
-             "console rendering: builds on `as_log` and the ANSI palette; "
-             "presentation stays Python-side."
+             "console rendering: calls `pretty_print_source_location` and "
+             "`format_related_spans` from `helpers`; presentation stays "
+             "Python-side."
          ),
          "BaseTransform.is_canceled": (
              "backend gap: dynamic `is_set()` on the threading.Event handle "

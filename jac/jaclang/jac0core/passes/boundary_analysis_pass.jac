@@ -1,4 +1,3 @@
-import from collections.abc { Sequence }
 import from jaclang.jac0core.unitree {
     Ability,
     ArchHas,
@@ -9,6 +8,8 @@ import from jaclang.jac0core.unitree {
     BinaryExpr,
     Bool,
     BuiltinType,
+    CtFor,
+    CtIf,
     DictVal,
     Enum,
     Float,
@@ -34,7 +35,8 @@ import from jaclang.jac0core.unitree {
     Token,
     TupleVal,
     UnaryExpr,
-    UniNode
+    UniNode,
+    ability_of_symbol
 }
 import from jaclang.jac0core.constant { CodeContext, SymbolType, Tokens as Tok }
 import from jaclang.jac0core.codeinfo {
@@ -45,6 +47,10 @@ import from jaclang.jac0core.codeinfo {
 import from jaclang.jac0core.passes.uni_pass { UniPass }
 
 class BoundaryAnalysisPass(UniPass) {
+    has _func_defs: dict[(str, tuple[(InteropContext, Ability)])],
+        _imported_native_funcs: dict[(str, tuple[(str, InteropContext)])],
+        _imported_native_modules: dict[(str, tuple[(str, InteropContext)])];
+
     def before_pass(self: BoundaryAnalysisPass) -> None;
     def _resolved_native_decl(
         self: BoundaryAnalysisPass, name_node: (UniNode | None)
@@ -56,18 +62,10 @@ class BoundaryAnalysisPass(UniPass) {
 
     def _get_context(self: BoundaryAnalysisPass, nd: UniNode) -> InteropContext;
     def _extract_type_name(self: BoundaryAnalysisPass, expr: (UniNode | None)) -> str;
-    def _resolve_native_module(
-        self: BoundaryAnalysisPass, module_name: str, inferred_ok: bool = True
-    ) -> (str | None);
-
     def _in_native_module(self: BoundaryAnalysisPass) -> bool;
     def _native_source_module_of(
         self: BoundaryAnalysisPass, mod: (Module | None)
     ) -> (str | None);
-
-    def _absorbed_module(
-        self: BoundaryAnalysisPass, item: ModulePath
-    ) -> (Module | None);
 
     def _register_native_absorb(self: BoundaryAnalysisPass, nd: Import) -> None;
     def enter_import(self: BoundaryAnalysisPass, nd: Import) -> None;
@@ -84,19 +82,21 @@ class BoundaryAnalysisPass(UniPass) {
     ) -> None;
 
     def _collect_abilities(
-        self: BoundaryAnalysisPass, nd: any, out: dict[str, any]
+        self: BoundaryAnalysisPass, nd: UniNode, out: dict[(str, Ability)]
     ) -> None;
 
     def _collect_pub_walkers(
-        self: BoundaryAnalysisPass, nd: any, out: dict[str, any]
+        self: BoundaryAnalysisPass, nd: UniNode, out: dict[(str, Archetype)]
     ) -> None;
 
     def _extract_walker_has_fields(
-        self: BoundaryAnalysisPass, walker_nd: any
+        self: BoundaryAnalysisPass, walker_nd: (Archetype | None)
     ) -> tuple[list[str], list[str]];
 
-    def _find_archetype(self: BoundaryAnalysisPass, nd: any, target: str) -> any;
-    def _parse_only_source_module(self: BoundaryAnalysisPass, file_path: str) -> any;
+    def _find_archetype(
+        self: BoundaryAnalysisPass, nd: UniNode, target: str
+    ) -> (Archetype | Enum | None);
+
     def enter_ability(self: BoundaryAnalysisPass, nd: Ability) -> None;
     def enter_func_call(self: BoundaryAnalysisPass, nd: FuncCall) -> None;
     def _extract_subscript_inner(
@@ -115,7 +115,10 @@ class BoundaryAnalysisPass(UniPass) {
         self: BoundaryAnalysisPass, type_name: str, source_mod: (Module | None)
     ) -> None;
 
-    def _literal_default(self: BoundaryAnalysisPass, expr: any) -> tuple[(bool, any)];
+    def _literal_default(
+        self: BoundaryAnalysisPass, expr: (UniNode | None)
+    ) -> tuple[(bool, any)];
+
     def after_pass(self: BoundaryAnalysisPass) -> None;
     def _record_access_levels(self: BoundaryAnalysisPass, manifest: any) -> None;
 }

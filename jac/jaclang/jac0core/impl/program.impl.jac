@@ -11,6 +11,10 @@ impl JacProgram.init(
     self._compile_options: CompileOptions = CompileOptions();
     self._native_cache: dict = {};
 
+    self._na_dep_units: dict = {};
+
+    self._na_dep_inflight: set = set();
+
     self._hub_cache_times: dict[str, float] = {};
 
     self._dependents: dict[str, set[str]] = {};

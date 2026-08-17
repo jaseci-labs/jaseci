@@ -625,7 +625,7 @@ impl Lexer.scan_string(quote: str) -> LexToken {
                         esc_line,
                         esc_col,
                         esc_pos,
-                        code_str="E0108"
+                        code_str="E0110"
                     );
                 } elif (
                     not is_raw
