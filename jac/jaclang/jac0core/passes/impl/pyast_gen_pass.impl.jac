@@ -3702,7 +3702,7 @@ impl PyastGenPass.gen_call_args(
 
 impl PyastGenPass.exit_func_call(nd: uni.FuncCall) -> None {
     if nd.genai_call {
-        self.ice('Type(by llm()) call feature is temporarily disabled.');
+        raise self.ice('Type(by llm()) call feature is temporarily disabled.');
     } else {
         if isinstance(nd.target, uni.SpecialVarRef)
             and nd.target.name == Tok.KW_ROOT

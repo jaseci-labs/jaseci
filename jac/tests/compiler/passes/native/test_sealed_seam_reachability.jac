@@ -99,6 +99,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
          "compiler/passes/main/access_check_pass.jac"
      ),
+     JCIR_ROOT = "jac0core/passes/jcir_gen_pass.jac",
      # Documented carve-outs of the receiver-blind accessor rule: `x.a` adds
      # every class's `a` accessor, so a live read of a polymorphic slot flags
      # implementors the receiver's DECLARED type can never be. Each entry
@@ -108,6 +109,10 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      # (now live) MultiString decoder; the two entries below decode values
      # (a `type` object, `...`) that a MultiString can never hold.
      ACCESSOR_ARGUED: dict[(str, tuple)] = {
+         "jac0core/passes/jcir_gen_pass.jac": (
+             "BuiltinType.lit_value.__get__",
+             "Ellipsis.lit_value.__get__"
+         ),
          "compiler/passes/main/sem_def_match_pass.jac": (
              "BuiltinType.lit_value.__get__",
              "Ellipsis.lit_value.__get__"
@@ -765,3 +770,52 @@ test "wave-5 roots: no waived seam is native-reachable from the live surface" {
         );
     }
 }
+
+
+test "the jcir walk reaches the emitter's own machinery" {
+    (seen, _waived) = pass_reachable(JCIR_ROOT);
+    for name in (
+        "JcirGenPass.resolve_stmt_block",
+        "JcirGenPass.val",
+        "CodegenIrWriter.emit_node",
+        "CgNode.get"
+    ) {
+        assert name in seen , (
+            f"{JCIR_ROOT}: '{name}' is missing from the reachable set -- the "
+            "walk found nothing there, so a clean waiver verdict would be "
+            "vacuous"
+        );
+    }
+}
+
+
+test "jcir: no waived seam is native-reachable from the live surface" {
+    # This root was refused for three reachable stubs and now has none.
+    # `_gen_native_interop_stubs` and unitree's `gen` accessor cleared when
+    # the interop stub emission moved off `enter_node`; `exit_func_call`
+    # cleared when its chunked-flow type question became a stamped field
+    # instead of a live `TypeBase.mangle` call.
+    #
+    # The two `lit_value` accessors the walk flags are carve-outs of the
+    # receiver-blind accessor rule, argued in ACCESSOR_ARGUED: the only live
+    # read is `exit_string`'s `nd.lit_value` on a parser-built `String`, so
+    # the only decoder a string can dispatch is the live one.
+    assert JCIR_ROOT in NATIVE_SEAL_ROOTS , (
+        f"{JCIR_ROOT} left NATIVE_SEAL_ROOTS; if it was refused again, the "
+        "refusal belongs in NATIVE_SEAL_REFUSED_ROOTS with its blocker"
+    );
+    (seen, waived) = pass_reachable(JCIR_ROOT);
+    argued = set(ACCESSOR_ARGUED.get(JCIR_ROOT, ()));
+    hit = sorted(
+        name
+        for name in waived
+        if name in seen and name not in argued
+    );
+    assert not hit , (
+        f"{JCIR_ROOT}: {len(hit)} waived seam(s) are reachable through "
+        "native calls from the root's live entry surface, so the sealed "
+        "artifact can abort at runtime -- remove the waiver and fix the "
+        "seam:\n" + "\n".join(f"  {name}" for name in hit)
+    );
+}
+

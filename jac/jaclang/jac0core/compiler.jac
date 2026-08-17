@@ -34,6 +34,8 @@ import from jaclang.jac0core.passes {
     DeclImplMatchPass,
     EndpointEffectPass,
     JacAnnexPass,
+    JcirBytecodeGenPass,
+    JcirGenPass,
     PlacementApplyPass,
     PyastGenPass,
     PyBytecodeGenPass,
@@ -624,11 +626,23 @@ def native_pipeline_available -> tuple[bool, str] {
     return verdict;
 }
 
+def jcir_codegen_enabled -> bool {
+    import os;
+    return os.environ.get('JAC_CODEGEN', '') == 'jcir';
+}
+
+def _py_codegen_tail -> list[type[Transform[uni.Module, uni.Module]]] {
+    if jcir_codegen_enabled() {
+        return [JcirGenPass, JcirBytecodeGenPass];
+    }
+    return [PyastGenPass, PyBytecodeGenPass];
+}
+
 def get_py_code_gen(
     native: bool = True, provided: (set[str] | None) = None
 ) -> list[type[Transform[uni.Module, uni.Module]]] {
     if _codegen_sched_loading.get() or _ir_sched_loading.get() {
-        return [PyastGenPass, PyBytecodeGenPass];
+        return _py_codegen_tail();
     }
     _tok = _codegen_sched_loading.set(True);
     try {
@@ -669,14 +683,18 @@ def get_py_code_gen(
             );
             _note_native_schedule_failure(None);
         }
-        passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
+        if jcir_codegen_enabled() {
+            passes.extend([JcirGenPass, JcirBytecodeGenPass]);
+        } else {
+            passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
+        }
         return passes;
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
         if native {
             _note_native_schedule_failure(e);
         }
-        return [PyastGenPass, PyBytecodeGenPass];
+        return _py_codegen_tail();
     } finally {
         _codegen_sched_loading.reset(_tok);
     }
