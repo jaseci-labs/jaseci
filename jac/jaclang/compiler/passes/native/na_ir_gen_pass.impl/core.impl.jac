@@ -986,6 +986,11 @@ impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None 
             _cons_reg.class_parents[_name] = _parents;
         }
     }
+    for (_name, _pmods) in _imp_reg.parent_mods.items() {
+        if _name not in _cons_reg.parent_mods {
+            _cons_reg.parent_mods[_name] = _pmods;
+        }
+    }
     for (_name, _mro) in _imp_reg.mro_order.items() {
         if _name not in _cons_reg.mro_order
             or (_name in _imp_reg.layouts and _name not in _cons_reg.layouts) {

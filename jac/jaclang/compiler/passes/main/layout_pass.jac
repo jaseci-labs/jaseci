@@ -68,6 +68,8 @@ obj MethodSlot {
 obj ArchetypeLayout {
     has name: str,
         arch_type: str,
+        decl_mod: str = "",
+        parent_mods: list[str] = [],
         parents: list[str] = [],
         mro: list[str] = [],
         fields: list[FieldInfo] = [],
@@ -154,6 +156,33 @@ def layout_slot_count(lay: ArchetypeLayout) -> int {
     return top;
 }
 
+def declaring_module_path(base_expr: UniNode) -> str {
+    """The path of the module that declares what `base_expr` names, or ''.
+
+    The layout registry is keyed by bare name and holds one entry per name,
+    so a consumer that merges several modules cannot tell two same-named
+    archetypes apart afterwards. This records, while the symbol is still in
+    hand, which module each parent reference actually resolved to. `''` is
+    the honest answer for a base that is not a jac archetype at all --
+    `class PropertyWriteKind(Enum)` against Python's `enum.Enum` -- and it
+    is a *distinguishing* answer rather than a missing one: a recorded `''`
+    tells the repair that no jac layout may be adopted through that edge.
+    """;
+    import os;
+    sym = base_expr?.sym;
+    decl = sym.decl if sym is not None else None;
+    if decl is None {
+        return "";
+    }
+    base_arch = decl.find_parent_of_type(Archetype);
+    if base_arch is None {
+        return "";
+    }
+    decl_mod = decl.find_parent_of_type(Module);
+    path = decl_mod.loc.mod_path if decl_mod?.loc else None;
+    return os.path.realpath(path) if path else "";
+}
+
 def headers_agree(child: ArchetypeLayout, base: ArchetypeLayout) -> bool {
     return child.vtable_ptr_slot == base.vtable_ptr_slot
         and child.type_tag_slot == base.type_tag_slot
@@ -197,6 +226,75 @@ def relax_vtable_header(
     return headers_agree(lay, ancestors[0]);
 }
 
+def extended_mro(reg: LayoutRegistry, lay: ArchetypeLayout) -> list[str] {
+    """`lay.mro`, continued through ancestors that recorded their own.
+
+    `mro_order` arrives from two places and only one of them is complete.
+    A module the consumer imported was compiled `symtab_ir_only`, so its
+    layout pass ran but its own `adopt_imported_bases` never did, and its
+    `class_parents` knew only the parents declared in that file. Its
+    linearization therefore stops one hop up -- `ModuleCodegenPass` reaches
+    `Transform` and not `BaseTransform` -- and `_register_imported_hierarchy`
+    copies that truncated answer into every consumer verbatim.
+
+    The repair extends the recorded chain rather than re-deriving one from
+    `class_parents`, and that choice is load-bearing. The registry is keyed
+    by bare name, so `class_parents` collides across modules: `type_utils`
+    declares `class PropertyWriteKind(Enum)` against Python's `enum.Enum`
+    while unitree declares an `Enum` archetype of its own, and re-deriving
+    walked the wrong one straight into unitree's scope methods. Each
+    ancestor's *own* recorded linearization was computed by the module that
+    declares it, with that module's name resolution, so continuing through
+    it inherits the right answer instead of guessing again.
+
+    Only the first hop needs checking, and it is checked by provenance
+    rather than by name. `parent_mods` recorded, while the symbol was still
+    in hand, which module each parent reference resolved to; the ancestor's
+    layout records which module declares it; and the splice happens only
+    when those agree. That is what keeps the registry's bare-name keying
+    from being followed into the wrong archetype -- `type_utils` declares
+    `class PropertyWriteKind(Enum)` against Python's `enum.Enum` and records
+    `''`, while the registry's single `Enum` entry is unitree's, so the edge
+    is refused instead of walking into unitree's scope methods. Past the
+    first hop the ancestor's own recorded chain is already the answer its
+    declaring module computed, with that module's name resolution, so it is
+    continued rather than re-checked.
+
+    The scan continues as the list grows, so a chain of any depth closes in
+    one pass, and nothing here depends on adoption having run -- which
+    matters, because this runs before it.
+    """;
+    out: list[str] = list(lay.mro or [lay.name]);
+    trusted: set[str] = set();
+    for (i, pname) in enumerate(lay.parents or []) {
+        anc_lay = reg.layouts.get(pname);
+        if anc_lay is None {
+            continue;
+        }
+        want = (lay.parent_mods or [])[i] if i < len(lay.parent_mods or []) else "";
+        if want and anc_lay.decl_mod and want == anc_lay.decl_mod {
+            trusted.add(pname);
+        }
+    }
+    idx = 1;
+    while idx < len(out) {
+        anc = out[idx];
+        anc_lay = reg.layouts.get(anc);
+        if anc_lay is not None
+            and (anc in trusted or anc not in (lay.parents or []))
+            and headers_agree(lay, anc_lay) {
+            for nxt in (reg.mro_order.get(anc) or [])[1:] {
+                if nxt not in out {
+                    out.append(nxt);
+                    trusted.add(nxt);
+                }
+            }
+        }
+        idx += 1;
+    }
+    return out;
+}
+
 def adopt_imported_bases(module: Module) -> list[str] {
     """Flatten ancestors that only reached the registry after the pass ran.
 
@@ -215,16 +313,39 @@ def adopt_imported_bases(module: Module) -> list[str] {
     assignment satisfies both, so the layout is left as it was and the field
     access stays refused.
 
-    Only layouts this module built are eligible: the merge shares the very
-    objects the defining module's registry holds, and reassigning slots in
-    one of those would move a field under the unit that owns it.
+    Two things this used to get wrong, and both were one defect seen from
+    different ends: it trusted `lay.mro`, which is truncated for anything
+    imported (see `merged_mro`), and it repaired only `local_names`. Those
+    compound. A chain like `JsxIntrinsicGuardPass -> UniPass ->
+    ModuleCodegenPass -> Transform -> BaseTransform` crosses four module
+    boundaries, so every ancestor above the leaf arrived truncated too, and
+    repairing only the leaf adopts from a parent that is itself missing the
+    slots. `ir_out` and `cur_node` were absent from every layout below
+    `Transform`, which is why a pass could be constructed natively but not
+    run.
+
+    So the repair runs over every layout the merged registry holds, ordered
+    by linearization depth so an ancestor is whole before anything adopts
+    from it. Mutating a shared ancestor is safe precisely because adoption
+    is verbatim: the result is a function of the primary ancestor's own
+    assignment, so every unit that performs this repair computes the same
+    answer, and doing it twice changes nothing. What is still refused is
+    what was refused before -- a header disagreement no assignment satisfies.
     """;
     reg = module.gen.layout_registry;
     if reg is None {
         return [];
     }
+    for (name, lay) in reg.layouts.items() {
+        full = extended_mro(reg, lay);
+        if len(full) > len(lay.mro or []) {
+            lay.mro = full;
+            reg.mro_order[name] = list(full);
+        }
+    }
+    order = sorted(reg.layouts.keys(), key=lambda (n: str) { len(reg.layouts[n].mro or [n]); });
     adopted: list[str] = [];
-    for name in reg.local_names {
+    for name in order {
         lay = reg.layouts.get(name);
         if lay is None {
             continue;
@@ -544,6 +665,7 @@ def class_form_enum_member(t: any) -> (tuple[(str, (str | int), str)] | None) {
 obj LayoutRegistry {
     has layouts: dict[str, ArchetypeLayout] = {},
         class_parents: dict[str, list[str]] = {},
+        parent_mods: dict[str, list[str]] = {},
         mro_order: dict[str, list[str]] = {},
         topo_order: list[str] = [],
         local_names: list[str] = [],

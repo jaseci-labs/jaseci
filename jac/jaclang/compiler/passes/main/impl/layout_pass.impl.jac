@@ -108,6 +108,7 @@ impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
     for (aname, arch) in archetypes.items() {
         if arch.base_classes {
             parents: list[str] = [];
+            parent_mods: list[str] = [];
             for base_expr in arch.base_classes {
                 pname: (str | None) = None;
                 if isinstance(base_expr, Name) {
@@ -119,9 +120,11 @@ impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
                     continue;
                 }
                 parents.append(pname);
+                parent_mods.append(declaring_module_path(base_expr));
             }
             if parents {
                 reg.class_parents[aname] = parents;
+                reg.parent_mods[aname] = parent_mods;
             }
         }
     }
@@ -359,9 +362,14 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
         current_idx += 1;
     }
 
+    import os as _lay_os;
+    _decl_mod = arch.find_parent_of_type(Module);
+    _decl_path = _decl_mod.loc.mod_path if _decl_mod?.loc else None;
     return ArchetypeLayout(
         name=aname,
         arch_type=arch_type_str,
+        decl_mod=(_lay_os.path.realpath(_decl_path) if _decl_path else ""),
+        parent_mods=list(reg.parent_mods.get(aname, [])),
         parents=parents,
         mro=mro,
         fields=fields,
