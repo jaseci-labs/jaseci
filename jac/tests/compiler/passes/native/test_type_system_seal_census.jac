@@ -45,8 +45,8 @@ waiver that stops matching a real seam fails too, and a seam that starts
 demoting for a different reason than the one recorded fails as well, which
 keeps the baseline current as the backend grows. The two big tables are keyed
 cause-first -- one cause, the members that demote on it -- because that is the
-shape the measurement actually has: 106 evaluator seams across 46 causes, 46
-checker seams across 9, and in both the largest single cause is worth more than
+shape the measurement actually has: 106 evaluator seams across 46 causes, 42
+checker seams across 8, and in both the largest single cause is worth more than
 a third of the file. Every member is still named individually, so nothing here
 is a count.
 
@@ -568,16 +568,30 @@ glob CHECKER_CLOSURE: tuple = (
 
 """The checker's census, and the handshake decision it decides.
 
-Forty-six seams, and 34 of them -- every visitor the pass has except the eight
+Forty-two seams, and 35 of them -- every visitor the pass has except the seven
 that fail earlier for their own reasons -- are one cause: `self.evaluator` is
 not a declared field. `TypeCheckPass` inherits from `UniPass`, a Python-side
 base that no native unit contains, and `before_pass` stamps the evaluator onto
 `self` without a `has` for it. The backend therefore reads it the only way it
 can, through the Python-object bridge, and the bridge carries `int`, `bool`,
 `float`, `str` and class handles -- not a `TypeEvaluator`. So the read refuses,
-inside each of the 34 methods that performs it. `inherited field read 'prog'`
+inside each of the 35 methods that performs it. `inherited field read 'prog'`
 is the same mechanism one level up: `BaseTransform.prog` is typed `JacProgram`
 through an `import type`, so it has no layout to bridge either.
+
+It read 46 across 9 causes when it was first taken. The second-largest cause,
+`variadic parameter '**'`, was recorded here as the evaluator's `emit_diag`
+gap paid for a second time, and it was not: measured, the two spellings share
+no mechanism. This one was a backend bug of its own. Jac lets a method name
+its receiver, `TypeCheckPass.emit` does, and the argument binder then counted
+that receiver twice -- once as the call's own offset and again as the `self`
+still sitting in the parameter list it walked -- so the `**kwargs` slot was
+looked for one argument past the end of the callee. The pre-flight guard that
+decides whether the shape is lowerable already subtracted the receiver, so
+the two disagreed about the same signature and only the guard was right.
+`test_native_kwargs_explicit_self.jac` owns the rule now; four of the five
+seams cleared and the fifth, `_check_explicit_any`, moved up into the
+evaluator cause below, which is why that one reads 35 rather than 34.
 
 That is the measured answer to how the pair seals, and it says one closure
 rather than two roots with a stamped boundary:
@@ -590,7 +604,7 @@ rather than two roots with a stamped boundary:
 * One closure costs a module-level import and a `has evaluator: TypeEvaluator`
   on the pass. That puts the evaluator's twenty modules and the checker's
   fifteen into one unit of about twenty-two, gives `self.evaluator` a real
-  struct slot, and turns 34 boundary refusals into ordinary call-site cascades
+  struct slot, and turns 35 boundary refusals into ordinary call-site cascades
   that clear as the evaluator's own methods lower.
 * `before_pass` stays a seam either way, and that is the honest stamp: one
   method crosses to Python to fetch the evaluator off `JacProgram`, and every
@@ -600,18 +614,17 @@ rather than two roots with a stamped boundary:
 
 What blocks doing it in this change rather than recording it: the field cannot
 be declared `TypeEvaluator` without a value, and declaring it optional retypes
-34 method bodies from `TypeEvaluator` to `TypeEvaluator | None`, which is a
+35 method bodies from `TypeEvaluator` to `TypeEvaluator | None`, which is a
 type-checker change, not a backend one. That is M2's next step and it is
 gated on this measurement, which did not exist before.
 
-The other eight seams are ordinary backend gaps and are named individually.
-`variadic parameter '**'` is the same `**kwargs` gap the evaluator's
-`emit_diag` pays for, so it clears both halves at once.
+The other seven seams are ordinary backend gaps and are named individually.
 """
 glob CHECKER_SEAM_WAIVERS: dict[(str, tuple)] = {
          "inherited field read 'evaluator'": (
              "TypeCheckPass._body_always_returns",
              "TypeCheckPass._check_event_trigger_archetype",
+             "TypeCheckPass._check_explicit_any",
              "TypeCheckPass._enclosing_walker_report_elem_type",
              "TypeCheckPass._eval_unpacking_names",
              "TypeCheckPass._insert_builtin_symbols",
@@ -644,13 +657,6 @@ glob CHECKER_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeCheckPass.exit_while_stmt",
              "TypeCheckPass.exit_with_stmt",
              "TypeCheckPass.exit_yield_expr"
-         ),
-         "variadic parameter '**'": (
-             "TypeCheckPass._check_bare_generic",
-             "TypeCheckPass._check_explicit_any",
-             "TypeCheckPass._check_unresolved_lambda_params",
-             "TypeCheckPass._check_walker_reports_shape",
-             "TypeCheckPass.exit_impl_def"
          ),
          "expression 'AtomTrailer'": ("TypeCheckPass.emit", ),
          "expression 'FuncCall'": ("TypeCheckPass.after_pass", ),
@@ -1064,11 +1070,14 @@ test "the checker's cost of not declaring its evaluator is one number" {
         for k in found
         if "inherited field read 'evaluator'" in _seam_cause(found[k])
     );
-    assert len(boundary) == 34 , (
+    assert len(boundary) == 35 , (
         f"{len(boundary)} methods refuse on the un-declared `self.evaluator`, "
-        "not 34. This number is the handshake's price tag: it is what one "
+        "not 35. This number is the handshake's price tag: it is what one "
         "missing `has` on a pass costs, and the seal of the pair is not "
-        "closer until it moves."
+        "closer until it moves. It went up by one when the explicit-self "
+        "variadic bug cleared, because `_check_explicit_any` was failing "
+        "earlier for that reason and now reaches its evaluator read -- a "
+        "rise here can mean a gap elsewhere closed."
     );
     assert len(boundary) * 100 // max(len(found), 1) >= 70 , (
         "the boundary read has stopped being the checker's dominant cause; "
