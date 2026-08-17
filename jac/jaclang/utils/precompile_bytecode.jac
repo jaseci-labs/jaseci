@@ -296,6 +296,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "compiler/passes/main/sem_def_match_pass.jac",
          "compiler/passes/main/access_check_pass.jac",
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
+         "compiler/passes/main/cfg_build_pass.jac",
          "jac0core/passes/jcir_gen_pass.jac",
          "compiler/native_materialize.jac",
 
@@ -322,8 +323,10 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
+         "compiler/expr_keys.jac",
          "compiler/native_materialize.jac",
          "compiler/passes/main/access_check_pass.jac",
+         "compiler/passes/main/cfg_build_pass.jac",
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
          "compiler/passes/main/sem_def_match_pass.jac",
          "compiler/type_registry.jac",
@@ -411,6 +414,16 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/sym_tab_build_pass.jac::SymTabBuildPass.exit_global_vars",
 
      ),
+     _CFG_BUILD_SEAM_WAIVERS: tuple = (
+         "compiler/passes/main/cfg_build_pass.jac::cfg_dot_from_file",
+         "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass.enter_node",
+         "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass._node_label",
+         (
+             "compiler/passes/main/cfg_build_pass.jac::"
+             "CFGBuildPass._find_next_cfg_stmt_after"
+         ),
+
+     ),
      _JCIR_INTEROP_SEAM_WAIVERS: tuple = (
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._gen_native_interop_stubs",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._generate_sv_to_sv_stubs",
@@ -470,6 +483,9 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/main/cfg_build_pass.jac": (
+             _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
+         ),
          "jac0core/passes/jcir_gen_pass.jac": (
              _CLOSURE_SEAM_WAIVERS
              + _JCIR_INTEROP_SEAM_WAIVERS
@@ -567,6 +583,22 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "twin of the `semantic_analysis` waiver and clears the same "
              "way: when ice construction lowers, or when the internal-error "
              "guard moves behind the emit-as-data path."
+         ),
+         (
+             "cfg_build graph tooling and erased basic-block storage",
+             _CFG_BUILD_SEAM_WAIVERS,
+             "`cfg_dot_from_file` opens a file and drives a whole "
+             "`JacProgram` -- the `jac dot` tool, never the compile "
+             "schedule -- and `CoalesceBBPass` exists only to serve it. "
+             "`enter_node` and `_node_label` are that pass's own surface: "
+             "the first subscripts `basic_blocks`, a "
+             "`dict[int, dict[str, list[UniCFGNode]]]` whose inner entry "
+             "reaches the emitter as a bare pointer, and the second "
+             "cascades on `unparse_node`. They clear together when a "
+             "container stored inside a container keeps its layout. "
+             "`_find_next_cfg_stmt_after` is on the real schedule and "
+             "reads a `Sequence` element through `cast`; it clears when "
+             "that read lowers."
          ),
          (
              "jcir interop manifest and driver reads",

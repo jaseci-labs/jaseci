@@ -294,9 +294,100 @@ test "guardrail: for-loop over a set demotes the function, never miscompiles" {
     assert "NA_DEBUG demote run" in log , f"no demotion recorded for run in:\n{log}";
 }
 
+# A container stored inside another container comes back as a bare pointer:
+# the outer dict keeps pointer-valued entries untyped, so the inner
+# `dict`/`list` arrives with no layout attached. Subscripting a bare pointer
+# used to fall straight through to the string-index emitter, which read the
+# inner container's header bytes as characters -- `b['items']` compiled to a
+# character load and raised IndexError at run time. Only an integer index can
+# mean "index this string", so a non-integer key is a seam, not a character.
+test "guardrail: subscripting an element-erased container is not a char read" {
+    (prog, ir, log) = compile_na_inline_demote(
+        "erased_subscript",
+        "def run(t: dict[int, dict[str, list[str]]]) -> int {\n"
+        "    for b in t.values() {\n"
+        "        if len(b['items']) > 0 { return 1; }\n"
+        "    }\n"
+        "    return 0;\n"
+        "}\n"
+    );
+    assert not prog.errors_had , f"A function-owned E5092 must demote, got: {fmt_errors(
+        prog
+    )}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "run" not in layout.functions , (
+        "an erased-container subscript must demote, not compile to a char read"
+    );
+    assert "subscript of an element-erased collection" in log , (
+        f"the demotion must name the erased subscript, got:\n{log}"
+    );
+}
+
+
+# The same erasure reaching a membership test: every registered container
+# answers `in` from its own layout, and the one pointer shape left over is the
+# substring test. It used to accept any two pointers, so an object needle
+# handed `strstr` a `%Tag*` and raised a raw llvmlite TypeError -- an ICE-shaped
+# demotion with no diagnostic of its own.
+test "guardrail: membership with a non-string needle names its seam" {
+    (prog, ir, log) = compile_na_inline_demote(
+        "erased_membership",
+        "obj Tag { has n: int = 0; }\n"
+        "def run(t: dict[str, list[Tag]], x: Tag) -> int {\n"
+        "    for v in t.values() {\n"
+        "        if x in v { return 1; }\n"
+        "    }\n"
+        "    return 0;\n"
+        "}\n"
+    );
+    assert not prog.errors_had , f"A function-owned E5092 must demote, got: {fmt_errors(
+        prog
+    )}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "run" not in layout.functions , (
+        "an erased-container membership test must demote"
+    );
+    assert "membership over an element-erased collection" in log , (
+        f"the demotion must name the erased membership test, got:\n{log}"
+    );
+    assert "TypeError" not in log , (
+        f"the seam must be a diagnostic, not a raw emitter crash:\n{log}"
+    );
+}
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Negative controls — supported features must NOT trigger E5090
 # ─────────────────────────────────────────────────────────────────────
+# The guards above must not cost the shapes that do lower: a substring test
+# over two plain strings, and a membership test over a directly-typed list.
+test "guardrail: string and typed-list membership still lower" {
+    (prog, ir, log) = compile_na_inline_demote(
+        "membership_ok",
+        "def sub(s: str, w: str) -> int { if w in s { return 1; } return 0; }\n"
+        "def nsub(s: str, w: str) -> int { if w not in s { return 1; } return 0; }\n"
+        "def lst(w: str) -> int {\n"
+        "    l: list[str] = [\"alpha\", \"beta\"];\n"
+        "    if w in l { return 1; }\n"
+        "    return 0;\n"
+        "}\n"
+        "def chr_at(s: str, i: int) -> str { return s[i]; }\n"
+    );
+    assert not prog.errors_had , f"Supported membership must not error, got: {fmt_errors(
+        prog
+    )}";
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    for name in ["sub", "nsub", "lst", "chr_at"] {
+        assert name in layout.functions , (
+            f"'{name}' must still lower natively; demotion log:\n{log}"
+        );
+    }
+}
+
+
 test "guardrail: supported features do not trigger E5090" {
     prog = compile_na_inline(
         "supported_ok",
