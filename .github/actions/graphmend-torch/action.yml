@@ -65,14 +65,16 @@ runs:
           tests/compiler/passes/main/test_graphmend_import_integration.jac \
           | tee /tmp/graphmend-torch.log || rc=$?
 
-        summary="$(grep -E '^=+ .*(passed|failed|error|skipped)' /tmp/graphmend-torch.log | tail -1)"
+        # The native jac test runner ends with "N passed, M skipped in T.TTs";
+        # the pytest fence variant is kept so the parse survives either runner.
+        summary="$(grep -E '^(=+ .*(passed|failed|error|skipped)|[0-9]+ (passed|failed|error|skipped|crashed).* in [0-9.]+s$)' /tmp/graphmend-torch.log | tail -1)"
         count() { printf '%s' "$summary" | grep -oE "[0-9]+ $1" | grep -oE '^[0-9]+' || true; }
         passed="$(count passed)"; skipped="$(count skipped)"
         passed="${passed:-0}"; skipped="${skipped:-0}"
         {
           echo "## GraphMend graph-count suites"
           echo '```'
-          echo "${summary:-(no pytest summary line found)}"
+          echo "${summary:-(no test-runner summary line found)}"
           grep -E '^(FAILED|ERROR)' /tmp/graphmend-torch.log | tail -40 || true
           echo '```'
           echo "passed=$passed skipped=$skipped (floor ${{ inputs.expected-tests }})"
