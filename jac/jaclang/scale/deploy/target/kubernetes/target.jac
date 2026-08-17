@@ -11,6 +11,8 @@ import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     create_k8s_secret,
     delete_if_exists,
     get_cluster_provider,
+    privileged_pss_labels,
+    PSS_ENFORCE_LABEL,
     _resolve_current_rs_hashes,
     _refresh_rs_hashes
 }
@@ -671,26 +673,26 @@ obj KubernetesTarget(KubernetesTargetBase) {
         try {
             ns = core_v1.read_namespace(name=namespace);
             labels: dict = dict(getattr(ns.metadata, "labels", {}) or {});
-            current: str = labels.get("pod-security.kubernetes.io/enforce", "");
-            if current {
+            new_labels = privileged_pss_labels(labels);
+            if new_labels is None {
                 if self.logger {
+                    current = labels.get(PSS_ENFORCE_LABEL, "");
                     self.logger.warn(
                         f"namespace '{namespace}' has "
-                        f"pod-security.kubernetes.io/enforce={current}; "
+                        f"{PSS_ENFORCE_LABEL}={current} from outside jac-scale; "
                         f"hostPath DaemonSets (node-exporter, Alloy) may be "
                         f"rejected. Relabel manually with `kubectl label "
                         f"namespace {namespace} "
-                        f"pod-security.kubernetes.io/enforce=privileged "
+                        f"{PSS_ENFORCE_LABEL}=privileged "
                         f"--overwrite` if you want to enable them."
                     );
                 }
                 return;
             }
-            patch = {
-                "metadata": {
-                    "labels": {"pod-security.kubernetes.io/enforce": "privileged"}
-                }
-            };
+            if not new_labels {
+                return;
+            }
+            patch = {"metadata": {"labels": new_labels}};
             core_v1.patch_namespace(name=namespace, body=patch);
             if self.logger {
                 self.logger.info(
