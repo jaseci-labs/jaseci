@@ -2289,10 +2289,25 @@ def _seal_worker_exec(job: dict) -> dict {
     if not out["ok"] and not out["error"] {
         out["error"] = (
             f"NATIVE SEAL: the worker sealing {rel} exited "
-            f"{proc.returncode} without writing a result."
+            f"{_seal_exit_reason(proc.returncode)} without writing a result. "
+            "The result file is written after every caught failure, so the "
+            "worker died in native code -- inside __jac_shared_init or the "
+            "load canary, not in the seal's Python."
         );
     }
     return out;
+}
+
+def _seal_exit_reason(code: int) -> str {
+    if code >= 0 {
+        return f"with status {code}";
+    }
+    import signal;
+    try {
+        return f"on {signal.Signals(-code).name}";
+    } except Exception {
+        return f"on signal {-code}";
+    }
 }
 
 def _seal_worker_run(job: dict, gate: any, state: dict) -> dict {
