@@ -287,10 +287,21 @@ obj _MatGen {
         return "_py_none()";
     }
 
-    def emit_list(v: str, expr: str, elem: str, out: list, ind: str, uid: str) {
+    def elem_materializable(elem: str) -> bool {
+        elem = _norm(elem);
+        eb = _base_of(elem);
+        return elem in _SCALARS or eb in self.ns or eb == "SubTag";
+    }
+
+    def emit_list(v: str, expr: str, elem: str, out: list, ind: str, uid: str) -> bool {
         elem = _norm(elem);
         eb = _base_of(elem);
         u = uid + "l";
+        if not self.elem_materializable(elem) {
+            self.warn(f"unhandled list element {repr(elem)} -> field erased to None");
+            out.append(ind + f"{v} = _py_none();");
+            return False;
+        }
         out.append(ind + f"{v} = PyList_New(len({expr}));");
         out.append(ind + f"li_{u} = 0;");
         out.append(ind + f"for it_{u} in {expr} {{");
@@ -304,6 +315,7 @@ obj _MatGen {
         out.append(ind + f"    PyList_SetItem({v}, li_{u}, e_{u});");
         out.append(ind + f"    li_{u} += 1;");
         out.append(ind + "}");
+        return True;
     }
 
     def key_expr(expr: str, kt: str) -> (str | None) {
@@ -394,7 +406,7 @@ obj _MatGen {
             if a in _SCALARS {
                 buf.append(pre + f"{v} = " + self.scalar_expr(expr, a) + ";");
             } elif ab == "list" {
-                self.emit_list(v, expr, _inner(a), buf, pre, uid);
+                emitted = self.emit_list(v, expr, _inner(a), buf, pre, uid);
             } elif ab == "dict" {
                 emitted = self.emit_dict(v, expr, _inner(a), buf, pre, uid);
             } elif ab == "set" {
@@ -419,6 +431,7 @@ obj _MatGen {
                 a
                 for a in arms
                 if _norm(a).startswith("list[")
+                    and self.elem_materializable(_inner(_norm(a)))
             ];
             cls_arms: list[str] = [];
             for a in arms {

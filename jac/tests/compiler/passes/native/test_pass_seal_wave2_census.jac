@@ -93,25 +93,49 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 """Each root's exact native closure, as package-relative paths."""
 glob WAVE2_CLOSURES: dict[(str, tuple)] = {
          "jac0core/passes/ast_validation_pass.jac": (
+             "compiler/type_registry.jac",
+             "compiler/type_system/type_utils.jac",
+             "compiler/type_system/types.jac",
              "jac0core/constant.jac",
              "jac0core/diagnostics.jac",
+             "jac0core/helpers.jac",
              "jac0core/passes/ast_validation_pass.jac",
              "jac0core/srcloc.jac",
              "jac0core/unitree.jac",
-             "runtimelib/na_stdlib/keyword.jac"
+             "runtimelib/na_stdlib/_hashlib_native.jac",
+             "runtimelib/na_stdlib/fnmatch.jac",
+             "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/keyword.jac",
+             "runtimelib/na_stdlib/pathlib.jac"
          ),
          "jac0core/passes/semantic_analysis_pass.jac": (
+             "compiler/type_registry.jac",
+             "compiler/type_system/type_utils.jac",
+             "compiler/type_system/types.jac",
              "jac0core/constant.jac",
              "jac0core/diagnostics.jac",
+             "jac0core/helpers.jac",
              "jac0core/passes/semantic_analysis_pass.jac",
              "jac0core/srcloc.jac",
-             "jac0core/unitree.jac"
+             "jac0core/unitree.jac",
+             "runtimelib/na_stdlib/_hashlib_native.jac",
+             "runtimelib/na_stdlib/fnmatch.jac",
+             "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/pathlib.jac"
          ),
          "compiler/passes/main/sem_def_match_pass.jac": (
              "compiler/passes/main/sem_def_match_pass.jac",
+             "compiler/type_registry.jac",
+             "compiler/type_system/type_utils.jac",
+             "compiler/type_system/types.jac",
              "jac0core/constant.jac",
+             "jac0core/helpers.jac",
              "jac0core/srcloc.jac",
-             "jac0core/unitree.jac"
+             "jac0core/unitree.jac",
+             "runtimelib/na_stdlib/_hashlib_native.jac",
+             "runtimelib/na_stdlib/fnmatch.jac",
+             "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/pathlib.jac"
          )
      };
 

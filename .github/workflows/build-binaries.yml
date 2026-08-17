@@ -299,20 +299,21 @@ jobs:
         working-directory: jac
         run: zig build fetch-llvm $DTARGET --summary all
 
-      # The seal that closes `zig build` compiles every NATIVE_SEAL_ROOTS entry
-      # in ONE process, and each materializer crossing it makes strands that
-      # crossing's native tree: the unitree parent/kid cycles defeat plain RC
-      # and the artifact collector is not yet multi-module-safe to arm (#8139;
-      # ci.yml chunks test-compiler against the same accumulation). Wave 4 took
-      # the seal from nine roots to eleven and the accumulation now outgrows a
-      # hosted Linux runner. On cd049457a both Linux legs died mid-seal with
-      # "the runner has received a shutdown signal" and exit 143 -- no zig
-      # diagnostic, no failed command, the signature of a runner whose memory
-      # is gone -- while the macOS leg, whose swap grows on demand, finished
-      # the same commit in 45m against a ~30m baseline. The stranded pages are
-      # cold (written once, never read again), so swap holds them for the price
-      # of the paging: give the Linux legs the headroom macOS takes for
-      # granted. Retire this step when the crossing reclaims its tree.
+      # Backstop, no longer the load-bearing fix. Each materializer crossing
+      # strands that crossing's native tree (the unitree parent/kid cycles
+      # defeat plain RC and the artifact collector is not yet multi-module-safe
+      # to arm, #8139), and while the seal compiled every NATIVE_SEAL_ROOTS
+      # entry in ONE process that accumulation summed over all thirteen roots
+      # into a peak no hosted Linux runner could hold: on cd049457a both Linux
+      # legs died mid-seal with "the runner has received a shutdown signal" and
+      # exit 143 -- no zig diagnostic, no failed command, the signature of a
+      # runner whose memory is gone. The seal now runs a worker process per
+      # root, so the stranded trees die with each worker and the peak is
+      # JAC_SEAL_JOBS times ONE root's high-water mark instead of the sum. This
+      # step stays because the seal must still survive JAC_SEAL_JOBS=1 (the
+      # documented sequential fallback) and because the stranded pages are cold
+      # -- written once, never read again -- so swap holds them for the price of
+      # the paging. Retire it when the crossing reclaims its tree in process.
       - name: Swap headroom for the sealed precompile (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -354,6 +355,15 @@ jobs:
 
       - name: Build the jac binary (one command)
         working-directory: jac
+        env:
+          # Size the seal's worker pool for a hosted runner. The auto-size
+          # divides free memory by a worker's budget and caps at the core
+          # count, which on a 16 GiB / 4 vCPU Linux runner lands at four; pin
+          # three so the fan-out leaves the runner its own headroom and the
+          # swapfile above stays a backstop rather than a working set. The
+          # macOS legs keep the auto-size (smaller memory, swap that grows on
+          # demand), which is what an empty value selects.
+          JAC_SEAL_JOBS: ${{ runner.os == 'Linux' && '3' || '' }}
         # On a dev-channel shim-cache hit, stage the shim outside its in-tree
         # place path: the build copies -Dshim-bin back there, and a self-copy
         # would read the file it is truncating. Mirrors setup-jac. The

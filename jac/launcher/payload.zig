@@ -1229,6 +1229,19 @@ fn mkPayload(
         }
     }
 
+    // The same C-floor archives the shipped payload gets, staged into the build
+    // work dir where the seal will look for them. The native seal links a floor
+    // archive whenever a sealed closure reaches a clib shim: with the type
+    // system in the closure, `type_registry`'s digest pulls the hashlib shim in
+    // and the artifact carries `EVP_*` references. `resolve_floor_dir` resolves
+    // them against the package's parent, which is `<work>` while precompiling
+    // and `<stage>` once staged, so an archive that only exists under `<stage>`
+    // is not there yet -- the seal emitted an artifact with an undefined
+    // `EVP_md5` and its own load canary refused it. A dev tree reads the same
+    // archives straight from `.pbs-build`, which is why only the payload build
+    // ever saw this.
+    try stageFloor(io, gpa, a, pbs_py_dir, work);
+
     // Linked-source mode implies skip-precompile: the compiler lives in the
     // linked tree and the dev override sets JAC_NO_PRECOMPILE, so a bundled JIR
     // cache would never be consulted anyway.
@@ -1513,6 +1526,8 @@ fn stageTree(io: Io, gpa: Allocator, a: Allocator, pbs_py_dir: []const u8, site:
 
     // Static C-floor archives + CA bundle so an installed binary can static-link
     // a bundled C floor at `nacompile` time, not just dev builds (#6978 0.2).
+    // mkPayload stages the same set into the build work dir before precompile,
+    // because the seal links them there; this is the shipped copy.
     try stageFloor(io, gpa, a, pbs_py_dir, stage);
 
     // Vendored static-musl runtime, so an installed binary can fully static-link

@@ -254,15 +254,11 @@ def find_destructure_index_path(target: UniNode, key: str) -> list[int] | None {
         matched_key = get_expr_key(target);
         return [] if matched_key == key else None;
     }
-    if isinstance(target, AtomUnit) and isinstance(target.value, UniNode) {
+    if isinstance(target, AtomUnit) {
         return find_destructure_index_path(target.value, key);
     }
     if isinstance(target, (TupleVal, ListVal)) and target.values {
         for (i, sub) in enumerate(target.values) {
-            if not isinstance(sub, UniNode) {
-                continue;
-            }
-
             if (
                 isinstance(sub, UnaryExpr)
                 and isinstance(sub.op, Token)

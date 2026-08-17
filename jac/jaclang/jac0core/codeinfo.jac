@@ -4,6 +4,7 @@ import from contextvars { ContextVar }
 import from dataclasses { field }
 import from typing { Any }
 import from jaclang.jac0core.constant {
+    NATIVE_COMPTIME_ANNOTATIONS,
     NATIVE_COMPTIME_TYPE_MARKERS,
     TYPE_PARAM_CONSTRUCTORS
 }
@@ -201,6 +202,7 @@ glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
          "typing": TYPE_PARAM_CONSTRUCTORS
              | NATIVE_COMPTIME_IDENTITY_CALLS
              | NATIVE_COMPTIME_TYPE_MARKERS
+             | NATIVE_COMPTIME_ANNOTATIONS
      };
 
 def native_comptime_import_names(module_name: str, names: list[str]) -> bool {
@@ -584,6 +586,7 @@ obj CodeGenTarget {
         _client_manifest: (ClientManifest | None) = None,
         py_ast: list = field(default_factory=`list),
         py_bytecode: (bytes | None) = None,
+        jcir: (bytes | None) = None,
         es_ast: EsNode | Sequence[EsNode] | SliceInfo | IndexInfo | None = None,
         llvm_ir: (ModuleRef | None) = None,
         native_engine: (ExecutionEngine | None) = None,

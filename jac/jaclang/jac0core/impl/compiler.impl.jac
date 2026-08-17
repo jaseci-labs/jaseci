@@ -1732,7 +1732,7 @@ impl JacCompiler._report_missing_native_ir(
             "diagnostic; this is a compiler bug -- please report it"
         );
     }
-    from_pass: any = PyastGenPass;
+    from_pass: any = JcirGenPass;
     try {
         import from jaclang.compiler.passes.native { NaIRGenPass }
         from_pass = NaIRGenPass;

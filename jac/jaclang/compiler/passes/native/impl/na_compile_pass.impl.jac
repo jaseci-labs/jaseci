@@ -596,12 +596,25 @@ impl NativeCompilePass._compile_and_link_native_imports(
                         os.remove(stale);
                     }
                 }
-                with open(_cache_ir_path, "w") as _wf {
-                    _wf.write(imported_llvm_str_raw);
-                }
+
                 _meta_obj = meta.to_meta();
-                with open(_cache_meta_path, "w") as _wmf {
-                    _wmf.write(json.dumps(_meta_obj));
+                _tmp_ir = f"{_cache_ir_path}.{os.getpid()}.tmp";
+                _tmp_meta = f"{_cache_meta_path}.{os.getpid()}.tmp";
+                try {
+                    with open(_tmp_ir, "w") as _wf {
+                        _wf.write(imported_llvm_str_raw);
+                    }
+                    with open(_tmp_meta, "w") as _wmf {
+                        _wmf.write(json.dumps(_meta_obj));
+                    }
+                    os.replace(_tmp_ir, _cache_ir_path);
+                    os.replace(_tmp_meta, _cache_meta_path);
+                } finally {
+                    for _leftover in (_tmp_ir, _tmp_meta) {
+                        try {
+                            os.remove(_leftover);
+                        } except OSError { }
+                    }
                 }
             } except Exception { }
         }

@@ -54,13 +54,19 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 
 """codeinfo's exact native closure, as package-relative paths."""
 glob CODEINFO_CLOSURE: tuple = (
+         "compiler/type_registry.jac",
+         "compiler/type_system/type_utils.jac",
+         "compiler/type_system/types.jac",
          "jac0core/codeinfo.jac",
          "jac0core/constant.jac",
+         "jac0core/helpers.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
          "runtimelib/na_stdlib/contextvars.jac",
-         "runtimelib/na_stdlib/hashlib.jac"
+         "runtimelib/na_stdlib/fnmatch.jac",
+         "runtimelib/na_stdlib/hashlib.jac",
+         "runtimelib/na_stdlib/pathlib.jac"
      );
 
 """codeinfo's own seams: filesystem, config and Python-codegen machinery."""
