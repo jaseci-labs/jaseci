@@ -73,6 +73,61 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
     return None;
 }
 
+impl NaIRGenPass._pyb_shadow_postinit_owner(arch_name: str) -> (str | None) {
+    """The Python-side ancestor of `arch_name` that owns a `postinit`, if any.
+
+    Construction of a native class over a Python-side base runs that
+    base's initializer on the Python shadow, not on the native object.
+    When the base chain carries a `postinit`, whatever it stores or
+    dispatches lands on the shadow, where the subclass's native slots do
+    not exist and its overrides are not on the shadow's class. This walk
+    is what names that ancestor so the refusal can point at it.
+
+    Native ancestors are walked through rather than reported: their
+    `postinit` lowers (or is demoted with its own diagnostic), so it is
+    not a shadow-side initializer. A subscripted base is unwrapped the
+    same way `_pyb_base_of` unwraps it.
+    """;
+    arch = self.arch_ast_map.get(arch_name);
+    if not isinstance(arch, uni.Archetype) {
+        return None;
+    }
+    seen: set = {arch_name};
+    queue: list = list(arch.base_classes or []);
+    while queue {
+        base_expr = queue.pop(0);
+        if isinstance(base_expr, uni.AtomTrailer)
+            and isinstance(base_expr.right, uni.IndexSlice) {
+            base_expr = base_expr.target;
+        }
+        bname = self._get_name(base_expr);
+        if bname is None or bname in seen {
+            continue;
+        }
+        seen.add(bname);
+        if bname in ("Node", "Edge", "Walker", "Object", "Obj", "Root", "Archetype") {
+            continue;
+        }
+        sym = base_expr?.sym;
+        decl = sym.decl if sym is not None else None;
+        base_arch = decl.find_parent_of_type(uni.Archetype) if decl is not None else None;
+        if base_arch is None {
+            continue;
+        }
+        if bname not in self.arch_ast_map {
+            for stmt in (base_arch.body or []) {
+                if isinstance(stmt, uni.Ability)
+                    and stmt.name_ref is not None
+                    and stmt.name_ref.sym_name in ("postinit", "__post_init__") {
+                    return bname;
+                }
+            }
+        }
+        queue.extend(base_arch.base_classes or []);
+    }
+    return None;
+}
+
 impl NaIRGenPass._pyb_cstr(text: str) -> ir.Value {
     return self._make_global_string(text, name_prefix=".pyb.str");
 }
@@ -896,6 +951,25 @@ impl NaIRGenPass._codegen_pyb_shadow_init(
         return True;
     }
     (bname, bpath) = pb;
+    suppress = 0;
+    for _sc in self._mro_of(type_name) {
+        for pn in [f"{_sc}.__post_init__", f"{_sc}.postinit"] {
+            if pn in self.method_funcs and pn not in self._native_skipped_methods {
+                suppress = 1;
+                break;
+            }
+        }
+        if suppress {
+            break;
+        }
+    }
+    if not suppress {
+        shadow_owner = self._pyb_shadow_postinit_owner(type_name);
+        if shadow_owner is not None {
+            self.emit(E5088, node_override=nd, cls=type_name, owner=shadow_owner);
+            return False;
+        }
+    }
     kwd = self.builder.call(self._pyb_helper("dict_new"), [], name="pyb.ctor.kw");
     for param in (params or []) {
         if not isinstance(param, uni.KWPair) or param.key is None {
@@ -922,18 +996,6 @@ impl NaIRGenPass._codegen_pyb_shadow_init(
             return False;
         }
         self.builder.call(self._pyb_helper("dict_set"), [kwd, self._pyb_cstr(kn), o]);
-    }
-    suppress = 0;
-    for _sc in self._mro_of(type_name) {
-        for pn in [f"{_sc}.__post_init__", f"{_sc}.postinit"] {
-            if pn in self.method_funcs and pn not in self._native_skipped_methods {
-                suppress = 1;
-                break;
-            }
-        }
-        if suppress {
-            break;
-        }
     }
     args: list = [
         self.builder.call(
