@@ -35,7 +35,111 @@ not one:
     `object` parameter is erased and does not lower either.
 
 `dataflow.jac` stays a closure member rather than a root of its own:
-with two functions it would be an artifact of pure plumbing.
+with a handful of functions it would be an artifact of pure plumbing.
+
+The other analysis-cluster roots are still refused, and
+`REFUSED_OWN_SEAMS` below pins how far each one got so the refusal
+cannot rot into a larger one unnoticed. Their blockers, named:
+
+`static_analysis_pass` -- 8 own seams down to 6. The two that cleared
+were an undeclared `self._checked_scopes` stashed by `transform` and
+read back as an inherited field, the same defect class wave 5 cleared on
+`jsx_intrinsic_guard_pass`; it is a declared `has` field now. The six
+that remain need three mechanisms this wave does not build:
+
+  - `expr_primitive_name` (reached by `_check_semantic_patterns`) takes
+    `prog: object`, imports `JacProgram` at function scope and calls
+    `prog.get_type_evaluator()` when a node carries no stamped type. It
+    is honestly waived today. It clears when the type evaluator reaches
+    passes as stamped data -- and note the fallback is the only coupled
+    half, so a stamped-`.type`-only variant would clear the call site
+    without clearing the function.
+  - `report_placement_warnings` and `report_serverless_kind_errors`
+    (`_check_placement_warnings`), plus `report_dead_client_import`
+    (`_check_client_imports`), live in `symbol_utils.jac`, whose own
+    imports reach `jac0core/compiler.jac`. Calling them natively would
+    pull that module into the closure. They clear by the hoist this wave
+    used for `is_builtin_region_name`, at roughly two hundred lines
+    rather than ten.
+  - `self.prog.type_evaluator.ambient_typing_names_by_module`
+    (`_check_redundant_imports`) is a live driver read through the
+    `prog: any` wall. It clears as a driver-stamped `Module` fact, the
+    #8274/#8281 pattern.
+
+  Two more are local shapes behind those: `_check_unreachable_code`
+  reads `.body` off a bare `list` filled by `get_all_sub_nodes(typ=typ)`
+  with a runtime type object, and `_check_client_imports` calls
+  `startswith` on a value out of an untyped tuple list. Both are
+  element erasure, and both sit in methods whose other blocker is one of
+  the three above, so neither is worth churning alone. The pass also
+  carries four type-checker errors of the same erasure -- a census with
+  errors reports "not reached", not "clean", so they gate a seal too.
+
+`ownership_check_pass` -- refused, and the map is what this wave
+produces for it rather than a fix. #8271 measured 60 own seams; on this
+tree it measures 26, and the collapse is partly the intervening merges
+and partly this wave, since the pass keys every `SymId` on `id(nd.sym)`
+and joins `set[SymId]` lattices. Its entry point is a single `transform`
+(no `enter_node`), and its 132 methods sit in five annexes of which four
+-- core, region, sendability and markers -- touch no Python module and
+no driver state at all. The 26 group into six families, and two of them
+are more than half:
+
+  - `emit` (11 seams) -- `_emit_diagnostics`, `_emit_borrow_diagnostics`,
+    `_emit_loop_move_diagnostics`, `_emit_move_while_borrowed`,
+    `_emit_escape_diagnostics`, `_emit_element_space_conflicts`,
+    `_emit_region_escape`, `_emit_region_escape_diagnostics`,
+    `_emit_post_seal_diagnostics`, `_emit_chunk_view_diagnostics` and
+    `_emit_imm_mutation` all refuse as "inherited method call ...emit".
+    Every one of them passes `related=`, and no emit in a root that
+    already seals ever does. `Transform.emit` declares that parameter as
+    `(list[tuple[str, UniNode]] | None)`, and the backend refuses that
+    type by name -- "Native lowering failed for type
+    'list[tuple[str, UniNode]]'" -- because a `(str, node)` pair is a
+    tuple of mixed element storage. This is one backend gap worth eleven
+    seams here and a twelfth in `static_analysis_pass`, and it is the
+    cheapest thing the next wave can buy. `_emit_view_diagnostics`
+    refuses on the same shape one level out, as a for-loop iterable.
+  - driver facts (5 seams) -- `_nogc_module_enforced`, `_nogc_check_call`
+    and `_emit_enforcement_diagnostics` read `self.prog._compile_options`
+    through the `prog: any` wall, fetching `nogc_enforce_all`,
+    `nogc_cli_target`, `nogc_enforce_modules`, `nogc_grandfathered`,
+    `na_gc_mode` and `nogc_debug` by `getattr` string key;
+    `_nogc_resolve_provenance` additionally imports `os`, `fnmatch`,
+    `jaclang` itself (for `__file__`) and calls `get_config()` inside
+    bare excepts; `_nogc_setup` then stores the answer to a
+    `CodeGenTarget` field. Every one is a driver fact, so the family
+    clears the way wave 5 cleared its two roots and the way
+    `rc_facts_pass` clears here: the driver resolves the provenance
+    verdict once at the `run_schedule` seam and stamps a `Module` slot,
+    and the pass consumes it. This is the family to land first -- it is
+    the only one with a Python surface, and it is entirely inside
+    `ownership_check_pass.enforce.impl.jac`.
+  - bound-method transfers (3 seams) -- `_run_dataflow`,
+    `_run_borrow_liveness` and `_run_reaching_borrows` hand
+    `self._transfer`, `self._live_transfer` and `self._reaching_transfer`
+    across the module boundary into `dataflow.jac` and refuse as
+    inherited field reads. This is the exact shape `rc_facts_pass`
+    cleared here, and `solve_backward_gen_kill` already exists for the
+    liveness one; the other two need their gen/kill forms added
+    alongside it.
+  - cross-pass import (2 seams) -- `_nogc_infer_locals` and
+    `_nogc_local_shape_expr_heap` call `result_ownership`, imported at
+    function scope from `rc_facts_pass`. Worth re-measuring first now
+    that that root seals.
+  - local erasure (4 seams) -- `transform`'s inline field reset,
+    `_emit_sendability_diagnostics` on a bare `set()`, `_flow_lend_joined`
+    on an `AtomTrailer`, `_spawn_move_gen` on a `CompareExpr`. Small,
+    and the same class this wave cleared in `rc_facts_pass`.
+  - dead weight -- `_borrow_region` has no caller repo-wide and should
+    leave before the pass is measured again; `_chunks_shape_of` returning
+    a bare `(tuple | None)` is the pass's only element-erased signature.
+
+`cfg_build_pass` keeps the #8271 refusal unchanged; its any-element
+truthiness emitter bug and its `symbol_utils` dependency on
+`collect_narrowing_symbols` / `collect_assigned_symbols` are untouched
+here -- though the second is now a shorter hoist, since `expr_keys.jac`
+is a proven closure member and already holds both functions.
 
 The measurement is a source-lane one: under a sealed jaclang image the
 census reads the image's trust boundary instead of each unit's own
@@ -75,6 +179,17 @@ glob WAVE3_CLOSURES: dict[(str, tuple)] = {
              "runtimelib/na_stdlib/hashlib.jac",
              "runtimelib/na_stdlib/pathlib.jac"
          )
+     };
+
+"""Analysis-cluster roots still refused, and their own-seam count.
+
+Refusing withholds the artifact, not the accounting: a refused root that
+grows new seams is a regression, and one that loses them is progress the
+next wave should collect. Neither may pass unnoticed.
+"""
+glob REFUSED_OWN_SEAMS: dict[(str, int)] = {
+         "compiler/passes/main/static_analysis_pass.jac": 6,
+         "compiler/passes/main/ownership_check_pass.jac": 26
      };
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
@@ -221,6 +336,28 @@ test "every wave-3 seam waiver still matches a real seam" {
         assert not stale , (
             f"{rel} waives seams that no longer demote -- drop them:\n"
             + "\n".join(f"  {k}" for k in stale)
+        );
+    }
+}
+
+
+test "each refused analysis root still measures its recorded seam count" {
+    for (rel, expected) in sorted(REFUSED_OWN_SEAMS.items()) {
+        assert rel not in NATIVE_SEAL_ROOTS , (
+            f"{rel} is sealed now -- move it out of REFUSED_OWN_SEAMS and "
+            "give it a closure and a waiver set above"
+        );
+        seams = _seams_by_key(rel);
+        mine = sorted(
+            k
+            for k in seams
+            if k.startswith(rel + "::")
+        );
+        assert len(mine) == expected , (
+            f"{rel}: {len(mine)} own seams, recorded {expected}. If this "
+            "dropped, collect the progress and lower the number; if it "
+            "rose, the new seams are:\n"
+            + "\n".join(f"  {k}: {seams[k]}" for k in mine)
         );
     }
 }

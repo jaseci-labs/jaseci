@@ -228,7 +228,8 @@ glob BUILTIN_NAMES: set[str] = {
 obj StaticAnalysisPass(Transform) {
     has ir_in: Module,
         prog: any,
-        cancel_token: any = None;
+        cancel_token: any = None,
+        _checked_scopes: set[int] = set();
 
     static has PROVIDES: tuple = ('static-checks', );
 

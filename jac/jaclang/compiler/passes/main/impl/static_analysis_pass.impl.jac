@@ -3,7 +3,8 @@ impl StaticAnalysisPass.postinit -> None {
 }
 
 impl StaticAnalysisPass.transform(ir_in: Module) -> Module {
-    self._checked_scopes: set[int] = set();
+    _fresh: set[int] = set();
+    self._checked_scopes = _fresh;
 
     self._check_unused_symbols(self.ir_in);
     self._check_undefined_names(self.ir_in);
