@@ -14,11 +14,11 @@ answered 5 natively, in silence. Now the construction refuses with
 E5088, which demotes the owning callable to its Python implementation --
 so both lanes answer 103 again and the reason is on the record.
 
-The non-generic control is what places the fault.
-`BaseTransform[T_in, T_out]` is how the compiler's pass chain reaches
-this path, but genericity is not why the path is wrong: the same
-construction with no type parameter anywhere was equally hollow, and
-refuses the same way.
+The non-generic control is what places the fault. The compiler's own
+pass chain reached this path through `BaseTransform[T_in, T_out]`, which
+is what put the defect on the M1 ladder, but genericity is not why the
+path is wrong: the same construction with no type parameter anywhere was
+equally hollow, and refuses the same way.
 
 The two shapes that stay legal are pinned here too, because a refusal
 that swallowed them would be worse than the silence it replaces: a
