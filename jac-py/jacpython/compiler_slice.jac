@@ -1016,6 +1016,15 @@ test "compiler_slice: band4 varargs parsed executes in ceval" {
     assert expect_int(ns["result"]) == 3;
 }
 
+test "compiler_slice: band4 varkw parsed matches oracle co_code" {
+    src = "def f(a, **kwargs):\n    return a + len(kwargs)\n\nresult = f(1, b=2, c=3)\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    assert actual.co_code == (expected as PyCode).co_code;
+    assert actual.stacksize == (expected as PyCode).stacksize;
+}
+
 test "compiler_slice: band4 varkw parsed executes in ceval" {
     src = "def f(a, **kwargs):\n    return a + len(kwargs)\n\nresult = f(1, b=2, c=3)\n";
     co = compile_parsed_exec(src);
@@ -1159,4 +1168,49 @@ test "compiler_slice: band5 empty class parsed executes in ceval" {
     out = exec_code(co, [], ns);
     assert not is_error(out);
     assert expect_str(ns["result"]) == "C";
+}
+
+# CPython 3.14.6 co_code for `class C: def m(self): return 1` body (with __classdict__).
+glob BAND5_CLASS_C_CO_CODE: list[int] = [
+    97, 0, 128, 0, 93, 0, 116, 1, 82, 0, 116, 2, 94, 1, 116, 3, 22, 0, 111, 0,
+    82, 1, 23, 0, 116, 4, 82, 2, 116, 5, 86, 0, 116, 6, 82, 3, 35, 0,
+];
+
+test "compiler_slice: band5 class method parsed matches oracle co_code" {
+    src = (
+        "class C:\n"
+            + "    def m(self):\n"
+            + "        return 1\n\n"
+            + "result = C().m()\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.stacksize == exp.stacksize;
+    nested = nested_code_by_name(actual, "C");
+    exp_nested = nested_code_by_name(exp, "C");
+    assert nested.co_code == BAND5_CLASS_C_CO_CODE;
+    assert nested.stacksize == exp_nested.stacksize;
+    assert nested.cellvars == ["__classdict__"];
+    method = nested_code_by_name(nested, "m");
+    exp_method = nested_code_by_name(exp_nested, "m");
+    assert method.co_code == exp_method.co_code;
+    assert method.argcount == 1;
+    assert method.varnames == ["self"];
+}
+
+test "compiler_slice: band5 class method parsed executes in ceval" {
+    src = (
+        "class C:\n"
+            + "    def m(self):\n"
+            + "        return 1\n\n"
+            + "result = C().m()\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1;
 }

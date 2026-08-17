@@ -607,6 +607,48 @@ test "layer9: empty class executes in ceval" {
     assert expect_str(ns["result"]) == "C";
 }
 
+# CPython 3.14.6 co_code for `class C: def m(self): return 1` body (with __classdict__).
+glob BAND5_CLASS_C_CO_CODE: list[int] = [
+    97, 0, 128, 0, 93, 0, 116, 1, 82, 0, 116, 2, 94, 1, 116, 3, 22, 0, 111, 0,
+    82, 1, 23, 0, 116, 4, 82, 2, 116, 5, 86, 0, 116, 6, 82, 3, 35, 0,
+];
+
+test "layer9: class method matches oracle" {
+    src = (
+        "class C:\n"
+            + "    def m(self):\n"
+            + "        return 1\n\n"
+            + "result = C().m()\n"
+    );
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.stacksize == exp.stacksize;
+    nested = nested_code_by_name(act, "C");
+    exp_nested = nested_code_by_name(exp, "C");
+    assert nested.co_code == BAND5_CLASS_C_CO_CODE;
+    assert nested.stacksize == exp_nested.stacksize;
+    assert nested.cellvars == ["__classdict__"];
+}
+
+test "layer9: class method executes in ceval" {
+    src = (
+        "class C:\n"
+            + "    def m(self):\n"
+            + "        return 1\n\n"
+            + "result = C().m()\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1;
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {

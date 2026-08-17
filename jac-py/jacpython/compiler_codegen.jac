@@ -40,6 +40,8 @@ import from opcode_meta {
     OP_UNARY_NOT,
     OP_PUSH_NULL,
     OP_CALL,
+    OP_CALL_KW,
+    OP_LOAD_LOCALS,
     OP_COMPARE_OP,
     OP_POP_TOP,
     OP_STORE_NAME,
@@ -182,6 +184,7 @@ import from ast_nodes {
     Tuple,
     FunctionDef,
     AsyncFunctionDef,
+    keyword,
     arguments,
     ClassDef,
     TypeAlias,
@@ -1326,15 +1329,18 @@ def visit_expr(
             if needs_null {
                 g.emit_op(OP_PUSH_NULL, 0, floc);
             }
+        } elif isinstance(ca.func, Attribute) {
+            attr = ca.func as Attribute;
+            aloc = expr_loc(attr);
+            visit_expr(g, attr.value);
+            idx = g.u.add_name(attr.attr);
+            g.emit_op(OP_LOAD_ATTR, (idx << 1) | 1, aloc);
         } else {
             visit_expr(g, ca.func);
             g.emit_op(OP_PUSH_NULL, 0, floc);
         }
         cmp_cleanup: basicblock | None = None;
-        call_args = ca.args;
-        if call_args is None {
-            call_args = [];
-        }
+        call_args = call_effective_args(ca);
         ai = 0;
         while ai < len(call_args) {
             arg_cleanup = visit_expr(
@@ -1346,7 +1352,16 @@ def visit_expr(
             ai = ai + 1;
         }
         cloc_call = nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset);
-        g.emit_op(OP_CALL, len(call_args), cloc_call);
+        kws = call_effective_keywords(ca);
+        if len(kws) > 0 {
+            emit_call_keyword_values(
+                g, ca, cloc_call, False, not g.u.nested_code_emitted
+            );
+            if codegen_busy(g) {
+                return cmp_cleanup;
+            }
+        }
+        emit_call_instruction(g, ca, cloc_call);
         return cmp_cleanup;
     }
     if isinstance(e, Attribute) {
@@ -1395,6 +1410,85 @@ def call_func_loc(f: expr) -> cloc {
     return expr_loc(f);
 }
 
+def call_effective_args(ca: Call) -> list[expr] {
+    args = ca.args;
+    if args is None {
+        args = [];
+    }
+    return args;
+}
+
+def call_effective_keywords(ca: Call) -> list[keyword] {
+    kws = ca.keywords;
+    if kws is None {
+        kws = [];
+    }
+    return kws;
+}
+
+# Push keyword-argument values, then the names tuple (bottom -> top: vals…, names).
+def emit_call_keyword_values(
+    g: cfg_builder,
+    ca: Call,
+    cloc_call: cloc,
+    comp_mode: bool = False,
+    register_int_const: bool = True
+) {
+    kws = call_effective_keywords(ca);
+    ki = 0;
+    while ki < len(kws) {
+        kw = kws[ki];
+        if kw.arg is None {
+            codegen_fail(
+                g, "NotImplementedError", "keyword argument unpacking not supported"
+            );
+            return;
+        }
+        if comp_mode {
+            visit_comp_elt(g, kw.value, [], False);
+        } else {
+            visit_expr(g, kw.value, False, False, register_int_const);
+        }
+        if codegen_busy(g) {
+            return;
+        }
+        ki = ki + 1;
+    }
+    if len(kws) == 0 {
+        return;
+    }
+    names: list[PyObj] = [];
+    ki = 0;
+    while ki < len(kws) {
+        names.append(PyStr(t="str", val=kws[ki].arg));
+        ki = ki + 1;
+    }
+    tup = PyTuple(t="tuple", items=names);
+    tidx = g.u.add_const(tup);
+    g.emit_op(OP_LOAD_CONST, tidx, cloc_call);
+}
+
+# Positional and keyword values must already be on the stack (names tuple last for CALL_KW).
+def emit_call_instruction(g: cfg_builder, ca: Call, cloc_call: cloc) {
+    args = call_effective_args(ca);
+    kws = call_effective_keywords(ca);
+    if len(kws) > 0 {
+        ki = 0;
+        while ki < len(kws) {
+            if kws[ki].arg is None {
+                codegen_fail(
+                    g, "NotImplementedError", "keyword argument unpacking not supported"
+                );
+                return;
+            }
+            ki = ki + 1;
+        }
+        g.emit_op(OP_CALL_KW, len(args) + len(kws), cloc_call);
+    } else {
+        g.emit_op(OP_CALL, len(args), cloc_call);
+    }
+}
+
 # The top-level expression's location, assigned to the trailing RETURN_VALUE in
 # eval mode (matches CPython's observed co_positions).
 def top_loc(e: expr) -> cloc {
@@ -1426,7 +1520,10 @@ def compile_eval(
                 ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset
             );
             emit_compare_cleanup(g, cleanup, cloc_call);
-            g.emit_op(OP_CALL, len(ca.args), cloc_call);
+            if len(call_effective_keywords(ca)) > 0 {
+                emit_call_keyword_values(g, ca, cloc_call);
+            }
+            emit_call_instruction(g, ca, cloc_call);
             g.emit_op(OP_RETURN_VALUE, 0, eloc);
         } else {
             g.use(cleanup);
@@ -1762,10 +1859,7 @@ def visit_comp_elt(
             return;
         }
         g.emit_op(OP_PUSH_NULL, 0, floc);
-        call_args = ca.args;
-        if call_args is None {
-            call_args = [];
-        }
+        call_args = call_effective_args(ca);
         ai = 0;
         while ai < len(call_args) {
             visit_comp_elt(g, call_args[ai], bound_names, filter_compare);
@@ -1775,7 +1869,14 @@ def visit_comp_elt(
             ai = ai + 1;
         }
         cloc_call = nloc(ca.lineno, ca.end_lineno, ca.col_offset, ca.end_col_offset);
-        g.emit_op(OP_CALL, len(call_args), cloc_call);
+        kws = call_effective_keywords(ca);
+        if len(kws) > 0 {
+            emit_call_keyword_values(g, ca, cloc_call, True);
+            if codegen_busy(g) {
+                return;
+            }
+        }
+        emit_call_instruction(g, ca, cloc_call);
         return;
     }
     if isinstance(e, BinOp) {
@@ -2916,7 +3017,10 @@ def visit_stmt(
             after = g.new_block();
             g.emit_jump(OP_JUMP_FORWARD, after.id, eloc);
             emit_compare_cleanup(g, cmp_cleanup, cloc_call);
-            g.emit_op(OP_CALL, len(ca.args), cloc_call);
+            if len(call_effective_keywords(ca)) > 0 {
+                emit_call_keyword_values(g, ca, cloc_call);
+            }
+            emit_call_instruction(g, ca, cloc_call);
             g.emit_op(OP_POP_TOP, 0, eloc);
             g.use(after);
         } elif cmp_cleanup is not None {
@@ -3017,9 +3121,30 @@ def visit_return_stmt(g: cfg_builder, r: Return) {
 }
 
 # Class body boilerplate through __firstlineno__ (CPython compile_class).
+def class_body_has_function(cd: ClassDef) -> bool {
+    bi = 0;
+    while bi < len(cd.body) {
+        s = cd.body[bi];
+        if isinstance(s, FunctionDef) or isinstance(s, AsyncFunctionDef) {
+            return True;
+        }
+        bi = bi + 1;
+    }
+    return False;
+}
+
 def emit_class_body_prologue(g: cfg_builder, cd: ClassDef) {
     cloc = nloc(cd.lineno, cd.end_lineno, cd.col_offset, cd.end_col_offset);
-    g.emit_op(OP_RESUME, 0, loc(0, cd.lineno, 0, 0));
+    ploc = loc(0, cd.lineno, 0, 0);
+    if len(g.u.cellvars) > 0 {
+        ci = 0;
+        while ci < len(g.u.cellvars) {
+            lp = localsplus_index_u(g.u, g.u.cellvars[ci]);
+            g.emit_op(OP_MAKE_CELL, lp, ploc);
+            ci = ci + 1;
+        }
+    }
+    g.emit_op(OP_RESUME, 0, ploc);
     nidx = g.u.add_name("__name__");
     g.emit_op(OP_LOAD_NAME, nidx, cloc);
     midx = g.u.add_name("__module__");
@@ -3031,15 +3156,26 @@ def emit_class_body_prologue(g: cfg_builder, cd: ClassDef) {
     emit_folded_int(g, cd.lineno, cloc);
     flidx = g.u.add_name("__firstlineno__");
     g.emit_op(OP_STORE_NAME, flidx, cloc);
+    if len(g.u.cellvars) > 0 {
+        g.emit_op(OP_LOAD_LOCALS, 0, cloc);
+        cd_lp = localsplus_index_u(g.u, "__classdict__");
+        g.emit_op(OP_STORE_DEREF, cd_lp, cloc);
+    }
 }
 
-# __static_attributes__ and implicit RETURN_VALUE None epilogue.
+# __static_attributes__, optional __classdictcell__, and implicit RETURN_VALUE None.
 def emit_class_body_epilogue(g: cfg_builder, last: cloc) {
     tup = PyTuple(t="tuple", items=[]);
     tidx = g.u.add_const(tup);
     g.emit_op(OP_LOAD_CONST, tidx, last);
     saidx = g.u.add_name("__static_attributes__");
     g.emit_op(OP_STORE_NAME, saidx, last);
+    if len(g.u.cellvars) > 0 {
+        cd_lp = localsplus_index_u(g.u, "__classdict__");
+        g.emit_op(OP_LOAD_FAST_BORROW, cd_lp, last);
+        cdidx = g.u.add_name("__classdictcell__");
+        g.emit_op(OP_STORE_NAME, cdidx, last);
+    }
     none_idx = g.u.add_const(py_none());
     g.emit_op(OP_LOAD_CONST, none_idx, last);
     g.emit_op(OP_RETURN_VALUE, 0, last);
@@ -3105,6 +3241,9 @@ def compile_class_cfg(
     );
     if sym_cls.nested {
         u.flags = CO_NESTED;
+    }
+    if class_body_has_function(cd) {
+        u.cellvars = ["__classdict__"];
     }
     entry = u.add_block();
     g = new_cfg_builder(u, entry, sym_cls);
