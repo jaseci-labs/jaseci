@@ -41,16 +41,11 @@ lowered to a bare erased pointer is a `UniNode` now, and the constructor
 lowers. Each waiver is dropped rather than reworded, which is the point of
 pinning them two ways.
 
-Rung 2 did not deliver closure membership and said so. Rung 3 does, and it
-was not the fused root that delivered it: `transform.jac` reached
-`codeinfo.jac` for `CodeLocInfo`, a symbol `srcloc.jac` declares and
-`codeinfo` re-exports, and `codeinfo.jac` fails the native placement
-pre-scan on its own `import from typing { Any }`. Since the pre-scan is
-all-or-nothing over the transitive dependency set, that one import kept the
-whole base chain out of every root's walk. Asking the declaring module
-instead links all three base modules, so `NATIVE_SEAL_CLOSURE` gains this
-unit and `NATIVE_SEAL_DEMOTION_WAIVERS` gains the three seams below -- the
-bookkeeping this file's earlier revision described as not yet owed.
+What rung 2 does **not** deliver is closure membership, and that is measured
+below rather than assumed: no sealed root's native closure reaches
+`transform.jac` even now, because the pass artifacts still carry the
+passes' own method bodies and not their base chain. The unit is ready to be
+linked; linking it is the fused root of rung 3.
 
 The measurement is a source-lane one. Under a sealed jaclang image every
 method of an imported jaclang-internal archetype is untrusted by design, so
@@ -268,20 +263,25 @@ test "residual native errors are exactly the known constructor gaps" {
 }
 
 
-test "the unit is clean enough to link, and the sealed roots link it" {
+test "the unit is clean enough to link, and no sealed root links it yet" {
     (census, _ir, _prog) = _census();
     linked = sorted(
         os.path.relpath(p, os.path.dirname(os.path.realpath(jaclang.__file__)))
         for p in census
         if os.path.realpath(p) != os.path.realpath(TRANSFORM_JAC)
     );
-    # `transform.jac` compiles as a root here with no module-fatal error and
-    # its own closure is the ordinary unitree family every root carries, so
-    # nothing about the unit blocks a root from linking it. That direction
-    # was always true. The other direction -- whether any root's walk
-    # *reaches* transform.jac -- turned on a single re-export import and is
-    # true now, which is why `NATIVE_SEAL_CLOSURE` lists this unit and the
-    # three seams above are waived rather than merely inventoried.
+    # The other half of the rung-2 claim, and the half a clean seam census
+    # cannot make on its own. `transform.jac` compiles as a root here with
+    # no module-fatal error, and its own closure is the ordinary unitree
+    # family every root carries -- so nothing about the unit blocks a root
+    # from linking it. What still holds is the other direction, measured in
+    # the wave censuses: no sealed root's closure *reaches* transform.jac,
+    # because a pass artifact carries the pass's own method bodies and not
+    # its base chain. Rung 3's fused root is what changes that, and when it
+    # does, `NATIVE_SEAL_CLOSURE` gains this unit and
+    # `NATIVE_SEAL_DEMOTION_WAIVERS` gains the three seams above -- neither
+    # is owed while no root links it, which is what the audit means by a
+    # waiver naming work that is not happening here.
     assert linked , (
         "transform.jac's own closure is empty, so the compile was never "
         "reached and the seam census above is vacuous"
@@ -290,29 +290,4 @@ test "the unit is clean enough to link, and the sealed roots link it" {
         f"transform.jac stopped linking unitree ({linked}); the measurement "
         "moved rather than the unit getting cleaner"
     );
-    assert "jac0core/codeinfo.jac" not in linked , (
-        "transform.jac reaches codeinfo.jac again. codeinfo fails the native "
-        "placement pre-scan, and the pre-scan is all-or-nothing over the "
-        "transitive set, so this does not cost compile time -- it takes the "
-        "whole base chain back out of every sealed root's walk"
-    );
-    import from jaclang.utils.precompile_bytecode {
-        NATIVE_SEAL_CLOSURE,
-        NATIVE_SEAL_DEMOTION_WAIVERS
-    }
-    assert "jac0core/passes/transform.jac" in NATIVE_SEAL_CLOSURE , (
-        "the roots link transform.jac but NATIVE_SEAL_CLOSURE does not "
-        "account for it"
-    );
-    # Checked against an ordinary consumer root rather than one of the
-    # chain's own members: `uni_pass.jac` and `module_codegen_pass.jac`
-    # resolve some of these on their own and carry reduced, measured sets,
-    # so they are the wrong place to ask whether the seam is accounted for.
-    ordinary = NATIVE_SEAL_DEMOTION_WAIVERS["jac0core/passes/ast_validation_pass.jac"];
-    for seam in TRANSFORM_SEAM_WAIVERS {
-        assert f"jac0core/passes/transform.jac::{seam}" in ordinary , (
-            f"{seam} is demoted inside a unit the roots now link, and no "
-            "waiver names it"
-        );
-    }
 }

@@ -61,12 +61,8 @@ glob WAVE5_CLOSURES: dict[(str, tuple)] = {
              "compiler/type_system/type_utils.jac",
              "compiler/type_system/types.jac",
              "jac0core/constant.jac",
-             "jac0core/diagnostic_utils.jac",
              "jac0core/diagnostics.jac",
              "jac0core/helpers.jac",
-             "jac0core/passes/module_codegen_pass.jac",
-             "jac0core/passes/transform.jac",
-             "jac0core/passes/uni_pass.jac",
              "jac0core/srcloc.jac",
              "jac0core/unitree.jac",
              "project/client_kind_paths.jac",
@@ -74,7 +70,6 @@ glob WAVE5_CLOSURES: dict[(str, tuple)] = {
              "runtimelib/na_stdlib/_hashlib_native.jac",
              "runtimelib/na_stdlib/fnmatch.jac",
              "runtimelib/na_stdlib/hashlib.jac",
-             "runtimelib/na_stdlib/logging.jac",
              "runtimelib/na_stdlib/pathlib.jac"
          ),
          "compiler/passes/main/access_check_pass.jac": (
@@ -83,18 +78,13 @@ glob WAVE5_CLOSURES: dict[(str, tuple)] = {
              "compiler/type_system/type_utils.jac",
              "compiler/type_system/types.jac",
              "jac0core/constant.jac",
-             "jac0core/diagnostic_utils.jac",
              "jac0core/diagnostics.jac",
              "jac0core/helpers.jac",
-             "jac0core/passes/module_codegen_pass.jac",
-             "jac0core/passes/transform.jac",
-             "jac0core/passes/uni_pass.jac",
              "jac0core/srcloc.jac",
              "jac0core/unitree.jac",
              "runtimelib/na_stdlib/_hashlib_native.jac",
              "runtimelib/na_stdlib/fnmatch.jac",
              "runtimelib/na_stdlib/hashlib.jac",
-             "runtimelib/na_stdlib/logging.jac",
              "runtimelib/na_stdlib/pathlib.jac"
          )
      };

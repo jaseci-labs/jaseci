@@ -41,14 +41,11 @@ The other analysis-cluster roots are still refused, and
 `REFUSED_OWN_SEAMS` below pins how far each one got so the refusal
 cannot rot into a larger one unnoticed. Their blockers, named:
 
-`static_analysis_pass` -- 8 own seams down to 6, and to **5** once the
-pass base chain joined every root's closure and the pass's own
-`transform` stopped routing through the Python-base bridge. The two that
-cleared earlier were an undeclared `self._checked_scopes` stashed by
-`transform` and read back as an inherited field, the same defect class
-wave 5 cleared on `jsx_intrinsic_guard_pass`; it is a declared `has`
-field now. The five that remain need three mechanisms this wave does not
-build:
+`static_analysis_pass` -- 8 own seams down to 6. The two that cleared
+were an undeclared `self._checked_scopes` stashed by `transform` and
+read back as an inherited field, the same defect class wave 5 cleared on
+`jsx_intrinsic_guard_pass`; it is a declared `has` field now. The six
+that remain need three mechanisms this wave does not build:
 
   - `expr_primitive_name` (reached by `_check_semantic_patterns`) takes
     `prog: object`, imports `JacProgram` at function scope and calls
@@ -79,23 +76,14 @@ build:
   errors reports "not reached", not "clean", so they gate a seal too.
 
 `ownership_check_pass` -- refused, and the map is what this wave
-produces for it rather than a fix. #8271 measured 60 own seams; the wave-3
-census measured 26, and it measures **13** now. The last halving was not
-work done on this pass: the `emit` family below was re-diagnosed as the
-Python-base wall rather than a lowering gap -- `Transform` sat outside
-this root's closure, so `self.emit` routed through the bridge, which
-marshals only scalars and registered-struct pointers -- and the base
-chain entering every root's closure made those calls resolve natively.
-The recorded number is lowered here rather than the family's note being
-rewritten, because the remaining 13 are the ones that were never about
-`emit`.
-
-The pass keys every `SymId` on `id(nd.sym)` and joins `set[SymId]`
-lattices. Its entry point is a single `transform` (no `enter_node`), and
-its 132 methods sit in five annexes of which four -- core, region,
-sendability and markers -- touch no Python module and no driver state at
-all. The families the 26 grouped into were six, and two were more than
-half:
+produces for it rather than a fix. #8271 measured 60 own seams; on this
+tree it measures 26, and the collapse is partly the intervening merges
+and partly this wave, since the pass keys every `SymId` on `id(nd.sym)`
+and joins `set[SymId]` lattices. Its entry point is a single `transform`
+(no `enter_node`), and its 132 methods sit in five annexes of which four
+-- core, region, sendability and markers -- touch no Python module and
+no driver state at all. The 26 group into six families, and two of them
+are more than half:
 
   - `emit` (11 seams) -- `_emit_diagnostics`, `_emit_borrow_diagnostics`,
     `_emit_loop_move_diagnostics`, `_emit_move_while_borrowed`,
@@ -207,18 +195,12 @@ glob WAVE3_CLOSURES: dict[(str, tuple)] = {
              "compiler/type_system/type_utils.jac",
              "compiler/type_system/types.jac",
              "jac0core/constant.jac",
-             "jac0core/diagnostic_utils.jac",
-             "jac0core/diagnostics.jac",
              "jac0core/helpers.jac",
-             "jac0core/passes/module_codegen_pass.jac",
-             "jac0core/passes/transform.jac",
-             "jac0core/passes/uni_pass.jac",
              "jac0core/srcloc.jac",
              "jac0core/unitree.jac",
              "runtimelib/na_stdlib/_hashlib_native.jac",
              "runtimelib/na_stdlib/fnmatch.jac",
              "runtimelib/na_stdlib/hashlib.jac",
-             "runtimelib/na_stdlib/logging.jac",
              "runtimelib/na_stdlib/pathlib.jac"
          )
      };
@@ -230,8 +212,8 @@ grows new seams is a regression, and one that loses them is progress the
 next wave should collect. Neither may pass unnoticed.
 """
 glob REFUSED_OWN_SEAMS: dict[(str, int)] = {
-         "compiler/passes/main/static_analysis_pass.jac": 5,
-         "compiler/passes/main/ownership_check_pass.jac": 13
+         "compiler/passes/main/static_analysis_pass.jac": 6,
+         "compiler/passes/main/ownership_check_pass.jac": 26
      };
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
