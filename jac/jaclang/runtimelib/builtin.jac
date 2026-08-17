@@ -74,11 +74,11 @@ def unsafe_html(html: any) -> dict;
 
 def managed(x: any) -> any;
 
-def skip_test(reason: str = "") -> None;
+def testskip(reason: str = "") -> None;
 
-def fail(reason: str = "") -> None;
+def testfail(reason: str = "") -> None;
 
-def raises(*excs: type, `match: (str | None) = None) -> RaisesContext;
+def testraises(*excs: type, `match: (str | None) = None) -> RaisesContext;
 
 obj RaisesContext {
     has excs: tuple,
@@ -130,9 +130,9 @@ glob __all__ = [
          'schema_upgrade',
          'unsafe_html',
          'managed',
-         'skip_test',
-         'fail',
-         'raises',
+         'testskip',
+         'testfail',
+         'testraises',
          'RaisesContext',
          'JacListView',
          '_jac_chunks',

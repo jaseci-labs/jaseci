@@ -67,14 +67,22 @@ __all__ = [
     "archetype_alias",
     "destroy",
     "new",
+    "jref",
     "printgraph",
     "restspec",
     "schedule",
     "unsafe_html",
+    "managed",
+    "JacListView",
+    # Schema evolution rule builders
+    "schema_was",
+    "schema_alias",
+    "schema_drop",
+    "schema_upgrade",
     # Test builtins (usable inside any `test` block, no import)
-    "skip_test",
-    "fail",
-    "raises",
+    "testskip",
+    "testfail",
+    "testraises",
     "RaisesContext",
     # Ambient values and constants
     "llm",
@@ -175,6 +183,9 @@ class f64(float): ...  # noqa: N801
 def jid(obj: object) -> str: ...
 def jobj(id: str) -> object: ...
 
+# Resolves an id string to its object; passes a non-str through unchanged.
+def jref(id_or_obj: object) -> object: ...
+
 # Generic over the class so `new(Date, ...).getTime()` keeps the constructed
 # type instead of collapsing to `object`. Constructor args stay `object` --
 # `new` forwards them verbatim, so they are not validated here.
@@ -208,6 +219,27 @@ _ManagedT = TypeVar("_ManagedT")
 
 def managed(x: _ManagedT) -> _ManagedT: ...
 
+# A window onto a slice of a backing sequence, without copying it.
+class JacListView:
+    backing: object
+    start: int
+    stop: int
+    def __len__(self) -> int: ...
+    def __getitem__(self, i: object) -> Any: ...
+    def __setitem__(self, i: object, v: object) -> None: ...
+    def __iter__(self) -> Any: ...
+
+# ── Schema evolution rule builders ─────────────────────────────────
+# Declared inside an archetype body to describe how a stored graph
+# migrates to the current shape.
+
+def schema_was(old_fqn: str) -> None: ...
+def schema_alias(new_name: str, stored: str) -> None: ...
+def schema_drop(field_name: str, until: str | None = None) -> None: ...
+def schema_upgrade(
+    fn: Callable[..., object], when: Callable[..., object] | None = None
+) -> None: ...
+
 # Returns a sentinel object that the JSX flattener turns into raw HTML
 # (`dangerouslySetInnerHTML` on jac-client, `innerHTML` on bare-serve).
 # Use only with content you trust -- the name is the security review hint.
@@ -225,9 +257,9 @@ class RaisesContext:
     def __exit__(self, exc_type: object, exc: object, tb: object) -> bool: ...
     def match(self, regexp: str) -> bool: ...
 
-def skip_test(reason: str = "") -> NoReturn: ...
-def fail(reason: str = "") -> NoReturn: ...
-def raises(
+def testskip(reason: str = "") -> NoReturn: ...
+def testfail(reason: str = "") -> NoReturn: ...
+def testraises(
     *excs: type[BaseException], match: str | None = None
 ) -> RaisesContext: ...
 

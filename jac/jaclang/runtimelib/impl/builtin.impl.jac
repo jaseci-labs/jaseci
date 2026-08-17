@@ -214,22 +214,22 @@ impl managed(x: any) -> any {
     return x;
 }
 
-impl skip_test(reason: str = "") -> None {
+impl testskip(reason: str = "") -> None {
     import from unittest { SkipTest }
     raise SkipTest(reason or "skipped");
 }
 
-impl fail(reason: str = "") -> None {
+impl testfail(reason: str = "") -> None {
     raise AssertionError(reason or "explicit failure");
 }
 
-impl raises(*excs: type, `match: (str | None) = None) -> RaisesContext {
+impl testraises(*excs: type, `match: (str | None) = None) -> RaisesContext {
     if not excs {
-        raise TypeError("raises() requires at least one exception type");
+        raise TypeError("testraises() requires at least one exception type");
     }
     for exc in excs {
         if not (isinstance(exc, type) and issubclass(exc, BaseException)) {
-            raise TypeError(f"raises() expects exception types, got {exc!r}");
+            raise TypeError(f"testraises() expects exception types, got {exc!r}");
         }
     }
     return RaisesContext(excs=excs, pattern=`match);
