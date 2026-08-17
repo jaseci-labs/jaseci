@@ -9,6 +9,7 @@ import from jaclang.scale._optdeps.kubernetes { client, ApiException }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     ensure_namespace_exists,
     create_k8s_secret,
+    secret_resource_version,
     delete_if_exists,
     get_cluster_provider,
     _resolve_current_rs_hashes,
@@ -18,6 +19,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
+    with_config_revision,
     ManifestBuilder,
     GATEWAY_NAME,
     k8s_safe_name
@@ -936,6 +938,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
+        config_revision: str = "";
         user_secret = bundle.get("user_secret");
         if user_secret {
             create_k8s_secret(
@@ -943,6 +946,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 namespace,
                 user_secret["metadata"]["name"],
                 user_secret["stringData"]
+            );
+            config_revision = secret_resource_version(
+                core_v1, namespace, str(user_secret["metadata"]["name"])
             );
             if self.logger {
                 self.logger.info(
@@ -970,7 +976,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
         }
 
-        for (svc_name, dep_manifest) in bundle["deployments"].items() {
+        for (svc_name, raw_manifest) in bundle["deployments"].items() {
+            dep_manifest = with_config_revision(raw_manifest, config_revision);
             self._apply_or_replace(
                 apps_v1,
                 "read_namespaced_deployment",

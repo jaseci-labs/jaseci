@@ -15,7 +15,7 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 
 
 glob GATEWAY_NAME: str = "__gateway__",
-     CONFIG_HASH_ANNOTATION: str = "jac-scale.config-hash",
+     CONFIG_REVISION_ANNOTATION: str = "jac-scale.config-revision",
      _UVICORN_EXIT_CUSHION_S: int = 5,
      _RFC1123_MAX_LEN: int = 253,
      _CLIENT_BUILD_ATTEMPTS: int = 3,
@@ -128,6 +128,24 @@ def merge_manifest_overlay(base: any, overlay: any) -> any {
         return merged_list;
     }
     return overlay;
+}
+
+
+def with_config_revision(manifest: dict[str, any], revision: str) -> dict[str, any] {
+    if not revision {
+        return manifest;
+    }
+    out = dict(manifest);
+    spec = dict(out.get("spec") or {});
+    template = dict(spec.get("template") or {});
+    metadata = dict(template.get("metadata") or {});
+    annotations = dict(metadata.get("annotations") or {});
+    annotations[CONFIG_REVISION_ANNOTATION] = str(revision);
+    metadata["annotations"] = annotations;
+    template["metadata"] = metadata;
+    spec["template"] = template;
+    out["spec"] = spec;
+    return out;
 }
 
 
@@ -648,15 +666,6 @@ obj ManifestBuilder {
         return f"{self.k8s_config.app_name}-secrets";
     }
 
-    def _config_hash -> str {
-        import json;
-        import hashlib;
-        payload = json.dumps(
-            {k: str(v) for (k, v) in self.secrets.items()}, sort_keys=True
-        );
-        return hashlib.sha256(payload.encode("utf-8")).hexdigest();
-    }
-
     def _owner_labels -> dict[str, str] {
         return {
             str(k): str(v) for (k, v) in dict(self.k8s_config.labels or {}).items()
@@ -862,9 +871,6 @@ obj ManifestBuilder {
         };
         svc_cfg = self._service_config(svc_name);
         replicas: int = int(svc_cfg.get("replicas", 1));
-        template_annotations: dict[str, str] = {
-            CONFIG_HASH_ANNOTATION: self._config_hash()
-        };
         manifest: dict[str, any] = {
             "apiVersion": "apps/v1",
             "kind": "Deployment",
@@ -880,10 +886,7 @@ obj ManifestBuilder {
                     "rollingUpdate": {"maxSurge": 1, "maxUnavailable": 0}
                 },
                 "selector": {"matchLabels": {"app": k8s_name}},
-                "template": {
-                    "metadata": {"labels": labels, "annotations": template_annotations},
-                    "spec": pod_spec
-                }
+                "template": {"metadata": {"labels": labels}, "spec": pod_spec}
             }
         };
         overlay = svc_cfg.get("deployment_overlay");
@@ -899,11 +902,6 @@ obj ManifestBuilder {
             tmpl_labels = manifest["spec"]["template"]["metadata"].get("labels", {});
             tmpl_labels.update({"app": k8s_name, "managed": "jac-scale"});
             manifest["spec"]["template"]["metadata"]["labels"] = tmpl_labels;
-            tmpl_annotations = manifest["spec"]["template"]["metadata"].get(
-                "annotations", {}
-            );
-            tmpl_annotations.update(template_annotations);
-            manifest["spec"]["template"]["metadata"]["annotations"] = tmpl_annotations;
         }
         return manifest;
     }

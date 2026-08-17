@@ -3,7 +3,8 @@ import from pathlib { Path }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     ManifestBuilder,
     merge_manifest_overlay,
-    CONFIG_HASH_ANNOTATION
+    CONFIG_REVISION_ANNOTATION,
+    with_config_revision
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -130,35 +131,41 @@ test "build_behavior overlay policies list replaces wholesale, not merged by ite
     assert result["scaleDown"]["policies"][1]["value"] == 10;
 }
 
-# The overlay is user-supplied, so it must not be able to drop the config hash.
-# Suppressing it would silently restore the config-only no-op the annotation
-# fixes, in the one place a user is most likely to set annotations.
-test "a template annotation overlay cannot drop the config hash" {
-    builder = ManifestBuilder(
-        k8s_config=KubernetesConfig(app_name="t", namespace="t-ns"),
-        secrets={"MARKER": "v1"},
-        microservices_config={
-            "services": {
-                "billing_ops": {
-                    "deployment_overlay": {
-                        "spec": {
-                            "template": {"metadata": {"annotations": {"team": "ops"}}}
+# The config marker is stamped at apply time, after the overlay has already been
+# merged, so an overlay cannot drop it OR forge it. Asserting only that the key
+# survives would pass without the stamping step at all, because recursive map
+# merging already preserves unrelated annotations; the overlay therefore sets
+# the marker to a wrong value and the applied one has to win.
+test "a deployment overlay cannot forge the config marker" {
+    b = _builder(
+        {
+            "billing_ops": {
+                "deployment_overlay": {
+                    "spec": {
+                        "template": {
+                            "metadata": {
+                                "annotations": {
+                                    "team": "ops",
+                                    "jac-scale.config-revision": "forged"
+                                }
+                            }
                         }
                     }
                 }
             }
-        },
-        dry_run=True
+        }
     );
 
-    manifest = builder._build_deployment_manifest("billing_ops", {});
-    annotations = manifest["spec"]["template"]["metadata"]["annotations"];
-
-    assert annotations.get("team") == "ops" , "the overlay annotation was lost";
-    assert CONFIG_HASH_ANNOTATION in annotations , (
-        "the overlay dropped the config hash, so config-only deploys go back to "
-        "being a no-op"
+    stamped = with_config_revision(
+        b._build_deployment_manifest("billing_ops", {"containers": []}), "9931"
     );
+    annotations = stamped["spec"]["template"]["metadata"]["annotations"];
+
+    assert annotations[CONFIG_REVISION_ANNOTATION] == "9931" , (
+        "an overlay must not be able to pin the marker and re-break config-only "
+        "deploys"
+    );
+    assert annotations.get("team") == "ops" , "unrelated overlay annotations survive";
 }
 
 

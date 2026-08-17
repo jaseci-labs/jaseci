@@ -770,6 +770,20 @@ impl load_env_variables(code_folder: str) -> list {
     return env_list;
 }
 
+impl secret_resource_version(
+    core_v1: client.CoreV1Api, namespace: str, secret_name: str
+) -> str {
+    try {
+        secret = core_v1.read_namespaced_secret(
+            name=secret_name, namespace=namespace
+        );
+        return str(secret.metadata.resource_version or "");
+    } except Exception {
+        return "";
+    }
+}
+
+
 impl create_k8s_secret(
     core_v1: client.CoreV1Api,
     namespace: str,

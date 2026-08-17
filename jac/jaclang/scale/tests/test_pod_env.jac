@@ -5,7 +5,8 @@ import from pathlib { Path }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     ManifestBuilder,
     GATEWAY_NAME,
-    CONFIG_HASH_ANNOTATION
+    CONFIG_REVISION_ANNOTATION,
+    with_config_revision
 }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
@@ -104,46 +105,78 @@ test "every generated deployment rolls with surge, never delete-and-recreate" {
 }
 
 
-# Config-only deploys. Secret sections are stripped from the bundle so they
-# never reach the content digest, and the Secret is referenced by a constant
-# name, so without a hash on the pod template a changed value produced a byte
-# identical template: the patch was a no-op, no rollout happened, and running
-# pods kept serving the old value while the deploy reported success.
-def _config_annotations(secrets: dict[str, str]) -> dict[str, str] {
+# Config-only deploys. Secret sections are stripped from the bundle before it is
+# packed and the Secret is referenced by a constant name, so a deploy that
+# changed only configuration produced a byte identical pod template: the patch
+# was a no-op and running pods kept the old values while the deploy reported
+# success.
+#
+# The marker is the Secret's own resourceVersion, stamped at apply time. It
+# carries no secret material, which matters because OPS_READ_RULES grants read
+# on deployments and replicasets while withholding secrets: a digest of the
+# resolved values would put a brute-forceable fingerprint of them on an object
+# that boundary deliberately exposes.
+
+def _revision_of(manifest: dict[str, any]) -> str {
+    return dict(
+        dict(dict(manifest["spec"])["template"])["metadata"].get("annotations", {})
+    ).get(
+        CONFIG_REVISION_ANNOTATION, ""
+    );
+}
+
+
+def _deployment(secrets: dict[str, str] = {}) -> dict[str, any] {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
     builder = ManifestBuilder(k8s_config=cfg, secrets=secrets);
-    manifest = builder._build_deployment_manifest("jac-shop", {});
-    return manifest["spec"]["template"]["metadata"]["annotations"];
+    return builder._build_deployment_manifest("jac-shop", {});
 }
 
 
 test "a changed secret changes the pod template" {
-    before = _config_annotations({"MARKER": "v1"});
-    after = _config_annotations({"MARKER": "v2"});
+    before = with_config_revision(_deployment({"MARKER": "v1"}), "1001");
+    after = with_config_revision(_deployment({"MARKER": "v2"}), "1002");
 
-    assert before[CONFIG_HASH_ANNOTATION] != after[CONFIG_HASH_ANNOTATION] , (
+    assert _revision_of(before) != _revision_of(after) , (
         "a config-only change left the pod template identical, so the patch "
         "is a no-op and running pods keep the old value"
     );
 }
 
 
-# Key order must not matter, or an unrelated redeploy would roll every pod.
 test "an unchanged secret leaves the pod template untouched" {
-    first = _config_annotations({"MARKER": "v1", "OTHER": "x"});
-    second = _config_annotations({"OTHER": "x", "MARKER": "v1"});
+    first = with_config_revision(_deployment({"MARKER": "v1"}), "1001");
+    second = with_config_revision(_deployment({"MARKER": "v1"}), "1001");
 
     assert first == second;
 }
 
 
-test "the config hash never carries a secret value" {
-    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = ManifestBuilder(k8s_config=cfg, secrets={"API_KEY": "sk-not-in-here"});
+# An app with no secrets has no Secret object and so no revision. Stamping a
+# constant here would still change every existing pod template once, rolling
+# fleets that have no configuration at all.
+test "an app with no secrets gets no marker and no rollout" {
+    manifest = with_config_revision(_deployment({}), "");
 
-    rendered = json.dumps(builder._build_deployment_manifest("jac-shop", {}));
+    assert "annotations"
+        not in dict(dict(dict(manifest["spec"])["template"])["metadata"]);
+}
 
-    assert "sk-not-in-here" not in rendered , "the pod template leaked a secret";
+
+# The marker must not be derived from the values themselves: OPS_READ_RULES
+# exposes deployments while withholding secrets, so a digest of low entropy
+# config could be recovered offline from metadata a reader is allowed to see.
+test "the marker is opaque and carries no secret material" {
+    manifest = with_config_revision(
+        _deployment({"API_KEY": "sk-not-in-here", "MARKER": "v1"}), "4242"
+    );
+
+    rendered = json.dumps(manifest);
+    assert "sk-not-in-here" not in rendered;
+    assert "v1" not in _revision_of(manifest);
+    assert _revision_of(manifest) == "4242" , (
+        "the marker is the Secret's resourceVersion, not a function of its values"
+    );
 }
 
 
