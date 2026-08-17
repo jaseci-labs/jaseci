@@ -62,7 +62,7 @@ impl EsastGenPass._literal_value(expr: (uni.UniNode | None)) -> (object | None) 
         }
     }
     if isinstance(expr, uni.DictVal) {
-        items: dict[(str, Any)] = {};
+        items: dict[(str, any)] = {};
         for pair in expr.kv_pairs {
             if (isinstance(pair, uni.KVPair) and pair.key) {
                 key_val = self._literal_value(pair.key);
@@ -1287,7 +1287,7 @@ impl EsastGenPass._extract_return_type(
 impl EsastGenPass._wrap_return_with_boundary(
     call_expr: es.Expression,
     ret_type: str,
-    boundary_types: dict[(str, Any)],
+    boundary_types: dict[(str, any)],
     jac_node: uni.UniNode,
     pre_awaited: bool
 ) -> es.Expression {
@@ -1411,7 +1411,7 @@ impl EsastGenPass._wrap_return_with_boundary(
 impl EsastGenPass._wrap_to_wire_if_boundary(
     expr: es.Expression,
     type_name: str,
-    boundary_types: dict[(str, Any)],
+    boundary_types: dict[(str, any)],
     jac_node: uni.UniNode
 ) -> es.Expression {
     if (type_name in boundary_types and boundary_types[type_name].kind != "enum") {

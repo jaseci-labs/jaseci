@@ -2,7 +2,7 @@ import collections;
 import from jaclang.compiler.passes.native.llvm.ir { context, values, types, _utils }
 class Module(object) {
     def init(
-        self: Module, name: Any = '', context: Any = context.global_context
+        self: Module, name: any = '', context: any = context.global_context
     ) -> object {
         self.context = context;
         self.name = name;
@@ -15,7 +15,7 @@ class Module(object) {
         self._metadatacache = {};
     }
 
-    def _fix_metadata_operands(self: Module, operands: Any) -> object {
+    def _fix_metadata_operands(self: Module, operands: any) -> object {
         fixed_ops = [];
         for op in operands {
             if (op is None) {
@@ -30,7 +30,7 @@ class Module(object) {
         return fixed_ops;
     }
 
-    def _fix_di_operands(self: Module, operands: Any) -> object {
+    def _fix_di_operands(self: Module, operands: any) -> object {
         fixed_ops = [];
         for (name, op) in operands {
             if isinstance(op, (`list, `tuple)) {
@@ -41,7 +41,7 @@ class Module(object) {
         return fixed_ops;
     }
 
-    def str_ditok_operands(self: Module, operands: Any) -> object {
+    def str_ditok_operands(self: Module, operands: any) -> object {
         str_ops = [];
         for (name, op) in operands {
             if ((name == 'encoding') and isinstance(op, values.DIToken)) {
@@ -58,7 +58,7 @@ class Module(object) {
         A MDValue instance is returned, it can then be associated to
         e.g. an instruction.
         """
-    def add_metadata(self: Module, operands: Any) -> object {
+    def add_metadata(self: Module, operands: any) -> object {
         if not isinstance(operands, (`list, `tuple)) {
             raise TypeError(
                 (
@@ -89,7 +89,7 @@ class Module(object) {
         an instruction.
         """
     def add_debug_info(
-        self: Module, kind: Any, operands: Any, is_distinct: Any = False
+        self: Module, kind: any, operands: any, is_distinct: any = False
     ) -> object {
         operands = `tuple(sorted(self._fix_di_operands(operands.items())));
         str_op_key = `tuple(sorted(self.str_ditok_operands(operands)));
@@ -115,7 +115,7 @@ class Module(object) {
         Example::
             module.add_named_metadata("llvm.ident", ["jaclang.compiler.passes.native.llvm/1.0"])
         """
-    def add_named_metadata(self: Module, name: Any, element: Any = None) -> object {
+    def add_named_metadata(self: Module, name: any, element: any = None) -> object {
         if (name in self.namedmetadata) {
             nmd = self.namedmetadata[name];
         } else {
@@ -158,14 +158,14 @@ class Module(object) {
     """
         Get a global value by name.
         """
-    def get_global(self: Module, name: Any) -> object {
+    def get_global(self: Module, name: any) -> object {
         return self.globals[name];
     }
 
     """
         Add a new global value.
         """
-    def add_global(self: Module, globalvalue: Any) -> object {
+    def add_global(self: Module, globalvalue: any) -> object {
         assert (globalvalue.name not in self.globals);
         self.globals[globalvalue.name] = globalvalue;
     }

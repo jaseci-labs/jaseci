@@ -470,7 +470,7 @@ impl JacScaleConfig.get_scheduler_config(self: JacScaleConfig) -> dict[str, any]
     };
 }
 
-impl JacScaleConfig.get_emailer_config(self: JacScaleConfig) -> dict[str, Any] {
+impl JacScaleConfig.get_emailer_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     emailer_config = config.get('emailer', {}) or {};
     smtp_config = dict(emailer_config.get('smtp', {}) or {});
@@ -493,7 +493,7 @@ impl JacScaleConfig.get_emailer_config(self: JacScaleConfig) -> dict[str, Any] {
     };
 }
 
-impl JacScaleConfig.get_auth_config(self: JacScaleConfig) -> dict[str, Any] {
+impl JacScaleConfig.get_auth_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     auth_config = config.get('auth', {}) or {};
     return {

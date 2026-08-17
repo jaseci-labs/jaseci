@@ -826,7 +826,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
             kind = _ak;
         }
         fields: list[tuple[(str, str)]] = [];
-        fdefaults: dict[(str, Any)] = {};
+        fdefaults: dict[(str, any)] = {};
         nested: list[str] = [];
 
         if arch_node.body {
@@ -883,7 +883,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
     }
 
     if isinstance(arch_node, Enum) {
-        members: list[tuple[(str, Any)]] = [];
+        members: list[tuple[(str, any)]] = [];
         next_auto = 1;
         if arch_node.body {
             body_items = arch_node.body

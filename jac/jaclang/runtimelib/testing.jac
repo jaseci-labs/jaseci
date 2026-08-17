@@ -2,7 +2,6 @@ import io;
 import json;
 import re;
 import from pathlib { Path }
-import from typing { Any }
 import from urllib.parse { urlencode }
 import type from jaclang.project.config { JacConfig }
 import type from jaclang.runtimelib.server { JacAPIServer }
@@ -35,7 +34,7 @@ obj JacTestClient {
         _server: (JacAPIServer | None) = None,
         _app: any = None,
         _auth_token: (str | None) = None,
-        _hot_reloader: (Any | None) = None,
+        _hot_reloader: (any | None) = None,
         _config: (JacConfig | None) = None;
 
     static def from_file(

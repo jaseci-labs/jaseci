@@ -1,7 +1,6 @@
 import base64;
 import os;
 import secrets as _pysecrets;
-import from typing { Any }
 import from jaclang.scale.deploy.target.deployment_target { DeploymentTarget }
 import from jaclang.scale.config.config_loader { get_scale_config }
 
@@ -191,7 +190,7 @@ obj KubernetesPostgresProvider {
                 if embedded
                 else str(self._db_cfg().get('postgres_image') or PG_IMAGE)
         );
-        container: dict[str, Any] = {
+        container: dict[str, any] = {
             'name': 'postgres',
             'image': image,
             'securityContext': {
@@ -318,7 +317,7 @@ obj KubernetesPostgresProvider {
     def cleanup { }
     def get_init_container(
         app_name: str, wait_image: str
-    ) -> (dict[(str, Any)] | None) {
+    ) -> (dict[(str, any)] | None) {
         if self._mode() in ('external', 'none') {
             return None;
         }
