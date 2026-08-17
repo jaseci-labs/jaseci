@@ -58,18 +58,34 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 """Each root's exact native closure, as package-relative paths."""
 glob WAVE4_CLOSURES: dict[(str, tuple)] = {
          "jac0core/passes/sym_tab_build_pass.jac": (
+             "compiler/type_registry.jac",
+             "compiler/type_system/type_utils.jac",
+             "compiler/type_system/types.jac",
              "jac0core/constant.jac",
              "jac0core/diagnostics.jac",
+             "jac0core/helpers.jac",
              "jac0core/passes/sym_tab_build_pass.jac",
              "jac0core/srcloc.jac",
-             "jac0core/unitree.jac"
+             "jac0core/unitree.jac",
+             "runtimelib/na_stdlib/_hashlib_native.jac",
+             "runtimelib/na_stdlib/fnmatch.jac",
+             "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/pathlib.jac"
          ),
          "jac0core/passes/decl_impl_match_pass.jac": (
+             "compiler/type_registry.jac",
+             "compiler/type_system/type_utils.jac",
+             "compiler/type_system/types.jac",
              "jac0core/constant.jac",
              "jac0core/diagnostics.jac",
+             "jac0core/helpers.jac",
              "jac0core/passes/decl_impl_match_pass.jac",
              "jac0core/srcloc.jac",
-             "jac0core/unitree.jac"
+             "jac0core/unitree.jac",
+             "runtimelib/na_stdlib/_hashlib_native.jac",
+             "runtimelib/na_stdlib/fnmatch.jac",
+             "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/pathlib.jac"
          )
      };
 

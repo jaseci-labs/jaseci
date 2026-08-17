@@ -123,7 +123,8 @@ enum OwnershipKind: int { NONE = 0, OWN = 1, BORROW = 2, MUT_BORROW = 3, IMM = 4
 glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
          {"TypeVar", "ParamSpec", "TypeVarTuple"}
      ),
-     NATIVE_COMPTIME_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"});
+     NATIVE_COMPTIME_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"}),
+     NATIVE_COMPTIME_ANNOTATIONS: frozenset = frozenset({"ClassVar"});
 
 glob BROWSER_SEED_GLOBALS: frozenset[str] = frozenset(
          {

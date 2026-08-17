@@ -1187,6 +1187,51 @@ jobs:
         chmod +x "$PWD/jac/zig-out/bin/jac"
         echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
+    # The same capacity floor build-binaries.yml gained in #8279 and
+    # .github/actions/setup-jac carries for the workflows that build through
+    # it. This job does not build the binary -- it downloads build-jac's -- but
+    # the step below runs the precompiler, and the inline seal that closes it
+    # is the same one-process compile of every NATIVE_SEAL_ROOTS entry, with
+    # the same stranded materializer trees. It died here exactly as it died
+    # there: "the runner lost communication" and no diagnostic.
+    - name: Swap headroom for the sealed precompile (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "--- before"
+        free -h
+        swapon --show || true
+        df -h
+        WORK_DEV="$(df -P "$RUNNER_TEMP" | awk 'NR==2 {print $1}')"
+        MNT_DEV="$(df -P /mnt 2>/dev/null | awk 'NR==2 {print $1}' || true)"
+        if [ -n "$MNT_DEV" ] && [ "$MNT_DEV" != "$WORK_DEV" ]; then
+          SWAP_DIR=/mnt
+          RESERVE_GB=2
+        else
+          SWAP_DIR="$RUNNER_TEMP"
+          RESERVE_GB=25
+        fi
+        AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
+        SIZE_GB=$(( AVAIL_GB - RESERVE_GB ))
+        if [ "$SIZE_GB" -gt 24 ]; then
+          SIZE_GB=24
+        fi
+        if [ "$SIZE_GB" -lt 4 ]; then
+          echo "::error::$SWAP_DIR has ${AVAIL_GB}G free, too little to spare;" \
+               "the seal needs swap headroom at this root count and would exhaust the runner"
+          exit 1
+        fi
+        SWAP_FILE="$SWAP_DIR/jac-seal-swap"
+        sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
+          || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
+        sudo chmod 600 "$SWAP_FILE"
+        sudo mkswap "$SWAP_FILE"
+        sudo swapon "$SWAP_FILE"
+        echo "--- after"
+        free -h
+        swapon --show
+
     - name: Precompile all packages
       run: |
         jac run jac/jaclang/utils/precompile_bytecode.jac ./jac

@@ -4,6 +4,7 @@ import from contextvars { ContextVar }
 import from dataclasses { field }
 import from typing { Any }
 import from jaclang.jac0core.constant {
+    NATIVE_COMPTIME_ANNOTATIONS,
     NATIVE_COMPTIME_TYPE_MARKERS,
     TYPE_PARAM_CONSTRUCTORS
 }
@@ -200,6 +201,7 @@ glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
          "typing": TYPE_PARAM_CONSTRUCTORS
              | NATIVE_COMPTIME_IDENTITY_CALLS
              | NATIVE_COMPTIME_TYPE_MARKERS
+             | NATIVE_COMPTIME_ANNOTATIONS
      };
 
 def native_comptime_import_names(module_name: str, names: list[str]) -> bool {
