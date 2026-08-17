@@ -298,18 +298,17 @@ def is_native_by_location(file_path: str) -> bool {
     return ap.startswith(os.path.join(pkg, "runtimelib", "na_stdlib") + os.sep);
 }
 
-glob CLIENT_RUNTIME_SOURCE_PATHS: tuple = (
-         ("runtimelib", "client_runtime.jac"),
-         ("runtimelib", "client_runtime_core.jac"),
-         ("runtimelib", "solid_runtime.jac"),
-         ("runtimelib", "pwa_runtime.jac"),
-         ("runtimelib", "wasm_host.jac"),
-         ("runtimelib", "client", "client_mobui.jac"),
-         ("runtimelib", "client", "client_runtime_core.jac"),
-         ("runtimelib", "client", "client_runtime_native.jac"),
-         ("runtimelib", "client", "targets", "desktop", "plugin", "desktop_api.jac"),
-
-     );
+glob CLIENT_RUNTIME_SOURCE_PATHS: list[str] = [
+         "runtimelib/client_runtime.jac",
+         "runtimelib/client_runtime_core.jac",
+         "runtimelib/solid_runtime.jac",
+         "runtimelib/pwa_runtime.jac",
+         "runtimelib/wasm_host.jac",
+         "runtimelib/client/client_mobui.jac",
+         "runtimelib/client/client_runtime_core.jac",
+         "runtimelib/client/client_runtime_native.jac",
+         "runtimelib/client/targets/desktop/plugin/desktop_api.jac"
+     ];
 
 
 def is_client_by_location(file_path: str) -> bool {
@@ -320,8 +319,8 @@ def is_client_by_location(file_path: str) -> bool {
     }
     ap = os.path.abspath(file_path);
     pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
-    for parts in CLIENT_RUNTIME_SOURCE_PATHS {
-        if ap == os.path.join(pkg, *parts) {
+    for rel in CLIENT_RUNTIME_SOURCE_PATHS {
+        if ap == os.path.join(pkg, rel.replace("/", os.sep)) {
             return True;
         }
     }

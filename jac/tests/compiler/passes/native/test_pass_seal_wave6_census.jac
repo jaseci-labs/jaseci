@@ -1,4 +1,4 @@
-"""Sealing wave 6: capability_check_pass reaches IR, and what the last five seams are.
+"""Sealing wave 6: capability_check_pass reaches IR, and what the last seam is.
 
 Same harness as waves 1, 2, 4 and 5 -- `na_census_begin` plus
 `force_codespace='native'`, exactly what `seal_native_artifacts` runs -- and
@@ -35,28 +35,39 @@ Python-base boundary `Transform.emit` sits behind, and the two
 `viols_reported` flags moved off `UniNode.gen` onto `Module` -- `gen`'s
 getter is a standing seam, so every read behind it was one too.
 
-## The five that remain, and what each one waits on
+## The one that remains, and what it waits on
 
-Three are one fact: `jac0core/codeinfo.jac` is not in the closure.
-`scan_native_blockers` refuses it for `import from typing { Any }`, and
-`test_native_comptime_any.jac` carries that measurement and its three-item
-clearing list. `classify_native_import` reads codeinfo's compile-time import
-table, `base_expr_is_erased` reads its erased-base table, and
-`name_in_type_position` is a pure cascade of the second.
+Four of the five cleared at once, and one fact did it: `jac0core/codeinfo.jac`
+joined the closure. The pre-scan used to refuse it for
+`import from typing { Any }`; that import is a hard error in the language now
+(E1122), codeinfo spells those four annotations `any`, and
+`scan_native_blockers` answers `''`. `classify_native_import` reads
+codeinfo's compile-time import table and `base_expr_is_erased` reads its
+erased-base table, so both resolve; `name_in_type_position` was a pure
+cascade of the second and went with it.
 
-Two are the pass-tier boundary. `native_capability_violations` calls
-`ModuleCodegenPass.iter_context_stmts` and `ClientCapabilityCheckPass`
-calls `client_capability_violations`, and both of those now lower --
-`module_codegen_pass` went from six own seams to zero in this wave, and its
-whole waiver tuple is deleted. The scan admits it as a dependency of
-capability, and it still does not join capability's closure: a sealed pass
-root is its own artifact, so one pass calling another crosses an artifact
-boundary rather than inlining it. These two clear when that crossing is
-linked, not when the callee is fixed -- the callee is already fixed.
+The old three-item clearing list is spent. Item 1, `BaseTransform.prog:
+JacProgram`, was cleared by the pass rim (#8288) rather than by widening --
+`transform.jac` is a closure member here now, which is the proof. Items 2 and
+3 were both `CLIENT_RUNTIME_SOURCE_PATHS`, a bare `tuple` of ragged rows that
+would not lower under either annotation; it is a flat `list[str]` of
+"/"-joined relative paths now, rejoined at its one use site.
 
-That is why this file pins `module_codegen_pass`'s zero separately below. It
-is the half of the work that landed, and it is invisible from capability's
-own census.
+`ClientCapabilityCheckPass.transform` cleared too, which the wave-5 reading
+did not predict: it was filed as a pass-tier crossing, but
+`module_codegen_pass` joins the closure alongside codeinfo, so the call to
+`client_capability_violations` inlines instead of crossing an artifact
+boundary.
+
+That leaves `native_capability_violations`, and it is the real pass-tier
+crossing: it calls `ModuleCodegenPass.iter_context_stmts` through the pass
+tier rather than through the closure. The callee has been fixed since this
+wave -- `module_codegen_pass` went from six own seams to zero and its whole
+waiver tuple is deleted -- so this one clears when the crossing is linked,
+not when anything is repaired. Capability is one linked crossing away from
+sealing.
+
+That is why this file pins `module_codegen_pass`'s zero separately below.
 """
 
 import os;
@@ -78,29 +89,27 @@ glob CAPABILITY_CLOSURE: tuple = (
          "compiler/type_registry.jac",
          "compiler/type_system/type_utils.jac",
          "compiler/type_system/types.jac",
+         "jac0core/codeinfo.jac",
          "jac0core/constant.jac",
+         "jac0core/diagnostic_utils.jac",
          "jac0core/diagnostics.jac",
          "jac0core/helpers.jac",
+         "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/transform.jac",
+         "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
+         "runtimelib/na_stdlib/contextvars.jac",
          "runtimelib/na_stdlib/fnmatch.jac",
          "runtimelib/na_stdlib/hashlib.jac",
+         "runtimelib/na_stdlib/logging.jac",
          "runtimelib/na_stdlib/pathlib.jac"
      );
 
-"""capability's own five, each mapped to the mechanism that clears it."""
+"""capability's own one, mapped to the mechanism that clears it."""
 glob CAPABILITY_SEAMS: dict[(str, str)] = {
-         "classify_native_import":
-             "codeinfo not in closure: reads native_comptime_import_names",
-         "base_expr_is_erased":
-             "codeinfo not in closure: reads NATIVE_COMPTIME_BASES",
-         "name_in_type_position":
-             "cascade of base_expr_is_erased",
-         "native_capability_violations":
-             "pass-tier crossing: calls ModuleCodegenPass.iter_context_stmts",
-         "ClientCapabilityCheckPass.transform":
-             "pass-tier crossing: calls client_capability_violations"
+         "native_capability_violations": "pass-tier crossing: calls ModuleCodegenPass.iter_context_stmts"
      };
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
@@ -192,8 +201,7 @@ test "capability_check_pass's native closure is exactly the measured set" {
     (census, _has_ir, _errors) = _root_census(CAPABILITY);
     seen = tuple(
         sorted(
-            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
-            for p in census
+            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in census
         )
     );
     assert seen == CAPABILITY_CLOSURE , (
