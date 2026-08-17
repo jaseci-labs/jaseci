@@ -91,16 +91,11 @@ glob CAPABILITY_CLOSURE: tuple = (
 
 """capability's own five, each mapped to the mechanism that clears it."""
 glob CAPABILITY_SEAMS: dict[(str, str)] = {
-         "classify_native_import":
-             "codeinfo not in closure: reads native_comptime_import_names",
-         "base_expr_is_erased":
-             "codeinfo not in closure: reads NATIVE_COMPTIME_BASES",
-         "name_in_type_position":
-             "cascade of base_expr_is_erased",
-         "native_capability_violations":
-             "pass-tier crossing: calls ModuleCodegenPass.iter_context_stmts",
-         "ClientCapabilityCheckPass.transform":
-             "pass-tier crossing: calls client_capability_violations"
+         "classify_native_import": "codeinfo not in closure: reads native_comptime_import_names",
+         "base_expr_is_erased": "codeinfo not in closure: reads NATIVE_COMPTIME_BASES",
+         "name_in_type_position": "cascade of base_expr_is_erased",
+         "native_capability_violations": "pass-tier crossing: calls ModuleCodegenPass.iter_context_stmts",
+         "ClientCapabilityCheckPass.transform": "pass-tier crossing: calls client_capability_violations"
      };
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
@@ -192,8 +187,7 @@ test "capability_check_pass's native closure is exactly the measured set" {
     (census, _has_ir, _errors) = _root_census(CAPABILITY);
     seen = tuple(
         sorted(
-            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
-            for p in census
+            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in census
         )
     );
     assert seen == CAPABILITY_CLOSURE , (

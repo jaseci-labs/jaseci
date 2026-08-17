@@ -5041,9 +5041,7 @@ impl TypeEvaluator._extract_isinstance_info(
         }
         return (
             narrowing_key,
-            named_alts[0]
-                if len(named_alts) == 1
-                else UnionType(types=named_alts)
+            named_alts[0] if len(named_alts) == 1 else UnionType(types=named_alts)
         );
     }
 

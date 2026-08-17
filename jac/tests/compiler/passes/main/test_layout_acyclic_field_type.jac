@@ -53,9 +53,8 @@ import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
 
 glob FIXTURE = os.path.join(
          TESTS_DIR, "compiler", "passes", "main", "fixtures", "layout_acyclicity.jac"
-     );
-
-glob _REG_MEMO: list = [];
+     ),
+     _REG_MEMO: list = [];
 
 """The fixture's layout registry, built once through the real pass."""
 def _registry -> any {

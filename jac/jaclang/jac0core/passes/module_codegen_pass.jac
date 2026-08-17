@@ -36,9 +36,7 @@ obj ModuleCodegenPass(Transform) {
         return None;
     }
 
-    static def iter_woven_segments(
-        module: Module
-    ) -> list[tuple[list[UniNode], bool]] {
+    static def iter_woven_segments(module: Module) -> list[tuple[list[UniNode], bool]] {
         own_path = module.loc.mod_path;
         annex_stmts: list[UniNode] = [
             stmt
