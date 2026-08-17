@@ -1,7 +1,6 @@
 """Torch-gated: guard lowering collapses the split forward pass back to one FX graph."""
 import ast;
 import os;
-import pytest;
 import from tests.support { GRAPHMEND_FIXTURES as FIXTURES }
 import from jaclang.jac0core.jaclib { __jac_trap_guard__ }
 import from jaclang.jac0core.program { JacProgram }
@@ -13,7 +12,7 @@ def _torch -> any {
         import torch;
         return torch;
     } except ImportError {
-        pytest.skip("torch not installed");
+        testskip("torch not installed");
     }
 }
 

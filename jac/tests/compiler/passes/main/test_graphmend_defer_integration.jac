@@ -4,7 +4,6 @@ import contextlib;
 import io;
 import logging;
 import os;
-import pytest;
 import tempfile;
 import from tests.support {
     GRAPHMEND_FIXTURES as FIXTURES,
@@ -57,7 +56,7 @@ def _torch -> any {
         import torch;
         return torch;
     } except ImportError {
-        pytest.skip("torch not installed");
+        testskip("torch not installed");
     }
 }
 

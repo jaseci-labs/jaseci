@@ -6,7 +6,6 @@ import ast;
 import dis;
 import importlib;
 import os;
-import pytest;
 import sys;
 import tempfile;
 import from jaclang.jac0core.program { JacProgram }
@@ -31,7 +30,7 @@ def _torch -> any {
         import torch;
         return torch;
     } except ImportError {
-        pytest.skip("torch not installed");
+        testskip("torch not installed");
     }
 }
 
