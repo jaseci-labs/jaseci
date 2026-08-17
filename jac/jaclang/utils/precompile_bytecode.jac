@@ -441,7 +441,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_archetype",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_enum",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_ctrl_stmt",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_ellipsis",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_module",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_multi_string",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_element",
@@ -605,12 +604,14 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
          (
              "jcir named backend gaps",
              _JCIR_LOWERING_SEAM_WAIVERS,
-             "Named constructs the backend does not yet lower: an "
-             "`Ellipsis` constant, element-erased list reads, and "
-             "`_merge_module_bodies` on the generic base pass. Each "
-             "clears when the named construct lowers; the generic-base "
-             "one also clears by the monomorphic-override route that "
-             "already cleared `_flatten_ast_list` on this pass."
+             "Named constructs the backend does not yet lower: reads and "
+             "assignments of element-erased list elements, comprehensions "
+             "over element-erased collections, and `_merge_module_bodies` "
+             "on the generic base pass. `exit_archetype`, `exit_enum` and "
+             "`exit_ability` are cascades of `_get_sem_decorator`. Each "
+             "clears when the named construct lowers; the generic-base one "
+             "also clears by the monomorphic-override route that already "
+             "cleared `_flatten_ast_list` on this pass."
          ),
          (
              "jcir html entity decoding",

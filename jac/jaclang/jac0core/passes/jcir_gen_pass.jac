@@ -295,8 +295,12 @@ def write_ir_value(w: CodegenIrWriter, v: object) {
         w.emit_list(len(v));
     } else {
         raise ValueError(
-            f"JCIR emitter produced a {type(v).__name__} value, which is "
-            f"outside the v1 constant domain: {v!r}"
+            "JCIR emitter produced a value outside the v1 constant domain. "
+            "The whole domain is None, a CgEllipsis marker, a CgNode, a "
+            "CgSplice, bool, int, float, str, bytes, and a list of those; a "
+            "value of any other type reached a recipe slot, most often "
+            "because a producer put a live Python object where an encodable "
+            "one belongs."
         );
     }
 }
