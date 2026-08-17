@@ -33,7 +33,6 @@ import json;
 import os;
 import shutil;
 import tempfile;
-import pytest;
 import jaclang;
 import jaclang.jac0core.parser.frontend as frontend;
 import jaclang.jac0core.sealed as sealed;
@@ -64,7 +63,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 """Build the three artifacts once for the whole file; (tmpdir, artifacts)."""
 def _built -> tuple {
     if native_true_image() {
-        pytest.skip(
+        testskip(
             "this runtime already serves from its own native seal; the "
             "binder ran for real at first pass construction"
         );
@@ -214,7 +213,7 @@ test "a sealed pass whose artifact cannot bind refuses construction" {
     sealed.native_artifact_for = _artifact_resolver(tmp, broken);
     sealed.native_artifact_names = lambda { list(broken.keys()); };
     try {
-        with pytest.raises(RuntimeError, match=ANNEX_MODULE) {
+        with testraises(RuntimeError, `match=ANNEX_MODULE) {
             _run_annex();
         }
         assert ANNEX_MODULE not in _NATIVE_SERVED_PASSES , (
@@ -237,7 +236,7 @@ test "the merge canary refuses a merge that did not weave" {
     sealed.native_artifact_for = _artifact_resolver(tmp, only_annex);
     sealed.native_artifact_names = lambda { list(only_annex.keys()); };
     try {
-        with pytest.raises(RuntimeError, match="no native parser") {
+        with testraises(RuntimeError, `match="no native parser") {
             _run_annex();
         }
         assert ANNEX_MODULE not in _NATIVE_SERVED_PASSES;

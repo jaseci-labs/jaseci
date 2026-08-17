@@ -4,7 +4,7 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.diagnostics { W5050, E5051 }
 import from jaclang.jac0core.passes { Transform }
 
-obj JacFormatPass(Transform[uni.Module, uni.Module]) {
+obj JacFormatPass(Transform) {
     has _pending_suffixes: list[str] = [],
         _line_has_content: bool = False,
         _rendering_suffix: bool = False;

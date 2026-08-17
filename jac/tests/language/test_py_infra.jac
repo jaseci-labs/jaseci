@@ -13,7 +13,6 @@ import sys;
 import tempfile;
 import shutil;
 import importlib;
-import pytest;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import from unittest.mock { patch }

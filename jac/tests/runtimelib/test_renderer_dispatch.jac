@@ -23,7 +23,6 @@ import os;
 import shutil;
 import subprocess;
 import importlib;
-import pytest;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
@@ -32,7 +31,7 @@ def _jac_client_plugin_dir -> str {
     plugin = importlib.import_module("jaclang.runtimelib.client");
     paths = `list(getattr(plugin, "__path__", []) or []);
     if not paths {
-        pytest.fail("jaclang.runtimelib.client has no __path__");
+        testfail("jaclang.runtimelib.client has no __path__");
     }
     return paths[0];
 }
@@ -80,23 +79,23 @@ def _compile_runtime_to_js -> str {
     core_src = os.path.join(plugin_dir, "client_runtime_core.jac");
     native_src = os.path.join(plugin_dir, "client_runtime_native.jac");
     if not os.path.isfile(core_src) or not os.path.isfile(native_src) {
-        pytest.skip("client_runtime_core.jac or client_runtime_native.jac not found");
+        testskip("client_runtime_core.jac or client_runtime_native.jac not found");
     }
     jac_bin = shutil.which("jac");
     if not jac_bin {
-        pytest.skip("`jac` CLI not on PATH");
+        testskip("`jac` CLI not on PATH");
     }
     core_result = subprocess.run(
         [jac_bin, "jac2js", core_src], capture_output=True, text=True, check=False
     );
     if core_result.returncode != 0 {
-        pytest.skip(f"jac2js core failed: {core_result.stderr}");
+        testskip(f"jac2js core failed: {core_result.stderr}");
     }
     native_result = subprocess.run(
         [jac_bin, "jac2js", native_src], capture_output=True, text=True, check=False
     );
     if native_result.returncode != 0 {
-        pytest.skip(f"jac2js native failed: {native_result.stderr}");
+        testskip(f"jac2js native failed: {native_result.stderr}");
     }
     _compiled_runtime_js = (
         _strip_esm_export_line(core_result.stdout)
@@ -260,7 +259,7 @@ def _slice_renderer_fns(js: str) -> str {
 def _run_node(snippet: str) -> tuple[int, str, str] {
     node_bin = shutil.which("node");
     if not node_bin {
-        pytest.skip("node not on PATH");
+        testskip("node not on PATH");
     }
     with TemporaryDirectory() as tmp_name {
         tmp = str(tmp_name);

@@ -970,6 +970,7 @@ impl Import.postinit -> None {
     self.absorbed_mod = None;
     self.jac_detected = None;
     self.boundary_facts = None;
+    self.native_only_drop = False;
     UniNode.postinit(self);
     CodeBlockStmt.postinit(self);
     ContextAwareNode.postinit(self);

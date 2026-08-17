@@ -102,7 +102,7 @@ def _bootstrap_compile(
     try:
         cache_file.parent.mkdir(parents=True, exist_ok=True)
         # Process-unique temp + atomic replace so concurrent bootstraps (e.g.
-        # parallel xdist workers) can't read a half-written cache file.
+        # parallel test workers) can't read a half-written cache file.
         tmp_file = cache_file.with_suffix(cache_file.suffix + f".{os.getpid()}.tmp")
         try:
             tmp_file.write_bytes(marshal.dumps(code))

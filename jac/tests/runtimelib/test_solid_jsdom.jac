@@ -23,7 +23,6 @@ import os;
 import re;
 import shutil;
 import subprocess;
-import pytest;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
@@ -773,7 +772,7 @@ process.exit(failures.length ? 1 : 0);
 """Skip unless the bun/npm client toolchain is opted in (mirrors preact e2e)."""
 def _require_client_integration {
     if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
+        testskip(
             "Solid jsdom test needs bun + a real npm install; "
             "set JAC_CLIENT_INTEGRATION=1 to run"
         );
@@ -823,7 +822,7 @@ test "solid counter mounts and reacts in jsdom" {
     _require_client_integration();
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = SolidBackend();
@@ -897,7 +896,7 @@ test "solid native control flow (<For>/<Show>) renders + reacts in jsdom (Branch
     _require_client_integration();
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = SolidBackend();
@@ -964,7 +963,7 @@ test "solid file-based routing mounts, navigates, and guards in jsdom" {
     _require_client_integration();
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = SolidBackend();
@@ -1086,7 +1085,7 @@ test "solid JacForm renders and validates in jsdom (TanStack Form end-to-end)" {
     _require_client_integration();
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = SolidBackend();
@@ -1154,7 +1153,7 @@ test "solid P2 jsdom matrix: dynamic prop, ref e2e, and callback prop" {
     _require_client_integration();
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = SolidBackend();

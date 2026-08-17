@@ -18,7 +18,6 @@ Integration test: real `bun install` of react + jsdom, so it runs only when
 """
 
 import os;
-import pytest;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
@@ -120,7 +119,7 @@ test "react state semantics: all four contract faces hold live in jsdom" {
     require_client_integration("React state-semantics");
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     component_js = compile_page(

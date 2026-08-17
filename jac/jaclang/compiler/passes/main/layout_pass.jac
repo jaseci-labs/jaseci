@@ -434,7 +434,7 @@ obj LayoutRegistry {
     def is_primary_ancestor(child: str, ancestor: str) -> bool;
 }
 
-obj LayoutPass(Transform[Module, Module]) {
+obj LayoutPass(Transform) {
     has ir_in: Module,
         prog: any,
         cancel_token: any = None,

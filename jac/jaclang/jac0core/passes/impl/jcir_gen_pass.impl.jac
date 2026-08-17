@@ -964,20 +964,10 @@ impl JcirGenPass.exit_py_inline_code(nd: PyInlineCode) -> None {
 }
 
 impl JcirGenPass.exit_import(nd: Import) -> None {
-    import from jaclang.jac0core.compiler {
-        import_binds_client_native,
-        native_only_import_target
-    }
-    drop_native_target = False;
-    native_target = native_only_import_target(nd, self.prog);
-    if native_target is not None {
-        import os as _os;
-        drop_native_target = (_os.sep + "jaclang" + _os.sep)
-            not in _os.path.abspath(native_target);
-    }
+    import from jaclang.jac0core.compiler { import_binds_client_native }
     if (
         import_binds_client_native(nd, self.ir_in.gen.interop_manifest)
-        or drop_native_target
+        or nd.native_only_drop
     ) {
         self.set_out(nd, []);
         return;
