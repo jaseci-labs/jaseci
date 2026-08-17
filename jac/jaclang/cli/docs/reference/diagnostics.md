@@ -290,9 +290,13 @@ A component receives JSX children only if it declares a parameter literally name
 |------|---------|
 | `W1053` | Component '{component}' declares no 'children' parameter, so the children passed here are discarded |
 | `E1108` | Client entry '{name}' declares no 'children' parameter, so this project's `pages/` routes are all discarded |
+| `E1109` | Component '{name}' declares a 'props' bundle alongside other parameters; the bundle must be the only parameter |
 
 !!! tip "Fixing `W1053` and `E1108`"
     Declare `children: any = None` on the component and render it (`<>{children}</>`, or nest it inside a wrapper element). `W1053` is reported at the call site that passes the children; `E1108` is reported on the declaration, because the children there come from the generated `pages/` entry (`createElement(app, null, <routes/>)`) rather than from any Jac call site the checker can see. If a component is not meant to take children, remove them from the call site instead.
+
+!!! tip "Fixing `E1109`"
+    A parameter named `props` means the component is handed the whole call-site object, so it cannot coexist with another parameter. Written positionally the codegen emits `const {props, tone} = props`, which is not valid JavaScript and fails the bundle; written keyword-only it emits a positional signature the renderer never calls that way, so every other parameter silently keeps its default. Pick one convention: name the props you take (`def Card(title: str, tone: str)`), or take the bundle alone (`def Card(props: CardProps)`) and read the rest off it. Because `props` is now exclusive, a component that declares it always receives children as `props.children`, which is why `W1053` never fires on one.
 
 ### Ownership / Borrow Errors
 

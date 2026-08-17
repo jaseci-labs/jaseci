@@ -101,6 +101,7 @@ import from jaclang.jac0core.diagnostics {
     E1106,
     E1107,
     E1108,
+    E1109,
     E1112,
     E1113,
     E1116,
@@ -181,6 +182,14 @@ class TypeCheckPass(UniPass) {
     ) -> None;
 
     def _enclosing_walker_report_elem_type(self: TypeCheckPass, nd: UniNode) -> object;
+    def _jsx_component_params(
+        self: TypeCheckPass, nd: Ability
+    ) -> (list[ParamVar] | None);
+
+    def _check_props_bundle_is_exclusive(
+        self: TypeCheckPass, nd: Ability, comp_params: list[ParamVar]
+    ) -> None;
+
     def _check_pages_entry_renders_children(self: TypeCheckPass, nd: Ability) -> None;
     def _check_event_trigger_archetype(self: TypeCheckPass, nd: Ability) -> None;
     def _check_unresolved_lambda_params(self: TypeCheckPass) -> None;

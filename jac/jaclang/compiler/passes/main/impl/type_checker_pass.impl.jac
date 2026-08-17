@@ -743,16 +743,9 @@ impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: Ability) -> None {
         self._check_event_trigger_archetype(nd);
     }
 
-    if (
-        isinstance(nd.signature, FuncSignature)
-        and nd.signature.return_type is not None
-        and nd.find_parent_of_type(ImplDef) is None
-    ) {
-        comp_params = [
-            p
-            for p in nd.signature.get_parameters()
-            if isinstance(p.name, Name) and p.name.value not in ("self", "cls")
-        ];
+    comp_params = self._jsx_component_params(nd);
+    if comp_params is not None {
+        self._check_props_bundle_is_exclusive(nd, comp_params);
         if (
             len(comp_params) == 1
             and isinstance(comp_params[0].name, Name)
@@ -772,16 +765,7 @@ impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: Ability) -> None {
                     and props_param.type.shared == any_cls.shared
                 )
             );
-            jsx_cls = self.evaluator.prefetch.jsx_element_class
-                if self.evaluator.prefetch
-                else None;
-            ret_type = self.evaluator.get_type_of_expression(nd.signature.return_type);
-            is_jsx_component = (
-                jsx_cls is not None
-                and isinstance(ret_type, ClassType)
-                and ret_type.shared == jsx_cls.shared
-            );
-            if is_untyped_bag and is_jsx_component {
+            if is_untyped_bag {
                 self.emit(
                     W1052, node_override=props_param, component=nd.name_spec.sym_name
                 );
@@ -792,32 +776,65 @@ impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: Ability) -> None {
     self._check_pages_entry_renders_children(nd);
 }
 
-impl TypeCheckPass._check_pages_entry_renders_children(
+impl TypeCheckPass._jsx_component_params(
     self: TypeCheckPass, nd: Ability
-) -> None {
+) -> (list[ParamVar] | None) {
     if (
-        nd.name_spec.sym_name != "app"
-        or not isinstance(nd.signature, FuncSignature)
+        not isinstance(nd.signature, FuncSignature)
         or nd.signature.return_type is None
         or nd.find_parent_of_type(ImplDef) is not None
-        or nd.method_owner is not None
     ) {
-        return;
+        return None;
     }
     jsx_cls = self.evaluator.prefetch.jsx_element_class
         if self.evaluator.prefetch
         else None;
     if jsx_cls is None {
-        return;
+        return None;
     }
     ret_type = self.evaluator.get_type_of_expression(nd.signature.return_type);
     if not isinstance(ret_type, ClassType) or ret_type.shared != jsx_cls.shared {
+        return None;
+    }
+    return [
+        p
+        for p in nd.signature.get_parameters()
+        if isinstance(p.name, Name) and p.name.value not in ("self", "cls")
+    ];
+}
+
+impl TypeCheckPass._check_props_bundle_is_exclusive(
+    self: TypeCheckPass, nd: Ability, comp_params: list[ParamVar]
+) -> None {
+    if len(comp_params) < 2 {
         return;
     }
+    component = nd.name_spec.sym_name;
 
+    if component.startswith("__jac") {
+        return;
+    }
+    for p in comp_params {
+        if isinstance(p.name, Name) and p.name.value == "props" {
+            self.emit(E1109, node_override=p, name=component);
+            return;
+        }
+    }
+}
+
+impl TypeCheckPass._check_pages_entry_renders_children(
+    self: TypeCheckPass, nd: Ability
+) -> None {
+    if nd.name_spec.sym_name != "app" or nd.method_owner is not None {
+        return;
+    }
+    comp_params = self._jsx_component_params(nd);
+    if comp_params is None {
+        return;
+    }
     param_names = [
         p.name.value
-        for p in nd.signature.get_parameters()
+        for p in comp_params
         if isinstance(p.name, Name)
     ];
     if "children" in param_names {

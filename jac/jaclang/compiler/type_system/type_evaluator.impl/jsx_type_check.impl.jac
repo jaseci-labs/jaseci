@@ -270,7 +270,7 @@ impl TypeEvaluator._validate_jsx_children(
         return has_children;
     }
 
-    if len(param_map) == 1 and "props" in param_map {
+    if "props" in param_map {
         return has_children;
     }
     self.emit_diag(W1053, expr.name or expr, component=component_name);

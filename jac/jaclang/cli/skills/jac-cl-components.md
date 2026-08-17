@@ -70,7 +70,7 @@ def:pub Card(title: str, children: any = None) -> JsxElement {
 }
 ```
 
-**Props bundle (`props: dict`):** a single parameter literally named `props` receives the whole call-site object un-destructured - for HOCs/wrappers that just `<Inner {**props} />`. The cost: per-attribute call-site validation is impossible, so the compiler emits **W5015** on the definition; suppress with `# jac:ignore[W5015]` only when forwarding is intentional. Default to named params.
+**Props bundle (`props: dict`):** a single parameter literally named `props` receives the whole call-site object un-destructured - for HOCs/wrappers that just `<Inner {**props} />`. It must be the **only** parameter: `props` alongside anything else is `E1109`, because no lowering satisfies both. The cost: per-attribute call-site validation is impossible, so the compiler emits **W5015** on the definition; suppress with `# jac:ignore[W5015]` only when forwarding is intentional. Default to named params.
 
 **`children` parameter:** always declare it `children: any = None` with `= None` default. Omitting the default makes `children` a required prop - every call site that passes no nested content fails with `error[E1102]`. Use `{children}` in the JSX body to render it. Omitting the parameter entirely earns `W1053` at every call site that nests content in the component.
 

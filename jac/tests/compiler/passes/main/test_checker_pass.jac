@@ -4858,6 +4858,40 @@ test "jsx_children_must_be_declared_by_the_component" {
     ].pretty_print()}";
 }
 
+test "jsx_props_bundle_must_be_the_only_parameter" {
+    # A lone `props` parameter is passed the whole call-site object; combined
+    # with any other parameter the codegen has no coherent lowering and emits
+    # either invalid JavaScript (`const {props, tone} = props`) or a positional
+    # signature React never calls that way, silently pinning every other
+    # parameter to its default. Both passed `jac check` before E1109.
+    path = os.path.join(CHECKER_FIXTURES, "checker_jsx_props_bundle_exclusive.jac");
+    program = JacProgram();
+    mod = program.compile(path, options=NO_TC);
+    run_pass(TypeCheckPass, mod, program);
+
+    e1109 = [
+        e
+        for e in program.errors_had
+        if e.code and e.code.code == "E1109"
+    ];
+    msgs = sorted(e.msg for e in e1109);
+    assert len(e1109) == 2 , f"Expected exactly 2 E1109, got {len(e1109)}:\n"
+        + "\n---\n".join(
+            f"{err.code.code if err.code else '?'}: {err.pretty_print()}"
+            for err in program.errors_had
+        );
+    # `Mixed` and `MixedKw` only: a lone bundle, plain named parameters, and a
+    # non-JSX function that happens to take a `props` argument are all fine.
+    for name in ["Mixed", "MixedKw"] {
+        assert any(f"'{name}'" in m for m in msgs) , f"Expected E1109 for '{name}':\n"
+            + "\n".join(msgs);
+    }
+    for name in ["Bag", "Named", "NotAComponent"] {
+        assert not any(f"'{name}'" in m for m in msgs) , f"'{name}' must not be flagged:\n"
+            + "\n".join(msgs);
+    }
+}
+
 glob PAGES_ROUTING_FIXTURES = os.path.join(
          os.path.dirname(__file__), "fixtures", "pages_routing"
      );

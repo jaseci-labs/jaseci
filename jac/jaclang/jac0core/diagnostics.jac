@@ -611,6 +611,23 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " remove the `pages/` directory.",
          blocks_codegen=True
      ),
+     E1109 = _err(
+         "E1109",
+         Category.TYPE,
+         "Component '{name}' declares a 'props' bundle alongside other"
+         " parameters; the bundle must be the only parameter",
+         help="A parameter named 'props' means the component is handed the"
+         " whole call-site object, so there is nothing left for another"
+         " parameter to bind to and no lowering that satisfies both. Written"
+         " positionally the emitted destructure redeclares 'props' and the"
+         " bundle does not parse; written keyword-only the component is"
+         " emitted with a positional signature the renderer never calls that"
+         " way, so every other parameter silently keeps its default. Pick one"
+         " convention: name the props you take"
+         " ('def {name}(title: str, tone: str)'), or take the bundle alone"
+         " ('def {name}(props: MyProps)') and read the rest off it.",
+         blocks_codegen=True
+     ),
      E1110 = _err(
          "E1110",
          Category.TYPE,
