@@ -798,7 +798,9 @@ test "byllm config uses full_target_path to find jac.toml regardless of cwd" {
 # so that is the correct unit to test.
 glob _TestPerson = dataclasses.make_dataclass(
          "Person", [("name", str), ("age", int)]
-     );
+     ),
+     _TestUnionField = dataclasses.make_dataclass("UnionField", [("value", str | int)]),
+     _TestFieldless = dataclasses.make_dataclass("Fieldless", []);
 
 test "output conversion error on plain text" {
     # LLM returns a narrative string instead of JSON
@@ -1205,6 +1207,11 @@ test "response format requests always carry the json word" {
     for (label, resp_type, tools, want_rf) in [
         ("typed no tools", _TestPerson, [], True),
         ("scalar no tools", int, [], True),
+        # A union field compiles to anyOf with no top-level type, and a fieldless
+        # obj to empty properties: both yield no schema hint lines, so the lead
+        # sentence must not depend on those lines existing.
+        ("union field", _TestUnionField, [], True),
+        ("fieldless obj", _TestFieldless, [], True),
         ("plain str", str, [], False),
         ("typed with tools", _TestPerson, [Tool.make_finish_tool(_TestPerson)], False)
     ] {
