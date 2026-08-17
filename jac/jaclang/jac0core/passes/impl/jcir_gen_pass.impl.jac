@@ -4082,7 +4082,7 @@ impl JcirGenPass.exit_null(nd: Null) -> None {
 }
 
 impl JcirGenPass.exit_ellipsis(nd: Ellipsis) -> None {
-    self.set_out(nd, [self.const_of(...)]);
+    self.set_out(nd, [self.const_of(CgEllipsis())]);
 }
 
 impl JcirGenPass.exit_jsx_element(nd: JsxElement) -> None {

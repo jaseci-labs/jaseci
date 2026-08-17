@@ -258,10 +258,27 @@ obj CgSplice(CgItem) {
         bound_names: list[str] = [];
 }
 
+"""A recipe's stand-in for the `...` singleton.
+
+The value domain a recipe carries is written by `write_ir_value`, and the
+one thing it must never carry is the `Ellipsis` object itself. `unitree`
+exports an `Ellipsis` node class, so inside a pass that imports the
+unitree vocabulary the bare name is that class, not the builtin, and an
+identity test against it silently never matches. The native lane has its
+own reason: the singleton has no native value at all, so a producer that
+constructs one demotes the method that does.
+
+A marker object answers both. It is an ordinary class the writer
+recognizes by type, the producer builds it without naming the builtin,
+and `emit_ellipsis` puts the opcode in the container where the shim
+turns it back into `...`.
+"""
+obj CgEllipsis(CgItem) { }
+
 def write_ir_value(w: CodegenIrWriter, v: object) {
     if v is None {
         w.emit_none();
-    } elif v is Ellipsis {
+    } elif isinstance(v, CgEllipsis) {
         w.emit_ellipsis();
     } elif isinstance(v, CgNode) {
         for item in v.vals {
@@ -292,7 +309,8 @@ def write_ir_value(w: CodegenIrWriter, v: object) {
         w.emit_list(len(v));
     } else {
         raise ValueError(
-            "JCIR emitter produced a value outside the v1 constant domain"
+            f"JCIR emitter produced a {type(v).__name__} value, which is "
+            f"outside the v1 constant domain: {v!r}"
         );
     }
 }
