@@ -2,10 +2,14 @@ import from jaclang.scale.runtime.routing {
     guard_route_name,
     is_reserved,
     resolve_routes,
+    is_learnable_prefix,
     GATEWAY_API_SEGMENTS,
     GATEWAY_WELLKNOWN_SEGMENTS,
     GATEWAY_CLIENT_SEGMENT,
-    GATEWAY_BUILTIN_PREFIXES
+    GATEWAY_BUILTIN_PREFIXES,
+    GATEWAY_DISCOVERY_SEGMENTS,
+    GATEWAY_REPLICATED_SEGMENTS,
+    GATEWAY_SERVICE_OWNED_SEGMENTS
 }
 import from jaclang.scale.runtime.gateway.dispatch { is_gateway_owned }
 
@@ -117,4 +121,43 @@ test "the dispatch tables derive from the same source the guard reads" {
     assert is_gateway_owned("/healthz/ready");
     assert is_gateway_owned("/openapi.json");
     assert is_gateway_owned("/user/login");
+}
+
+
+test "builtin families partition the API segments the guard reserves" {
+    discovery = set(GATEWAY_DISCOVERY_SEGMENTS);
+    replicated = set(GATEWAY_REPLICATED_SEGMENTS);
+    owned = set(GATEWAY_SERVICE_OWNED_SEGMENTS);
+    assert not (discovery & replicated);
+    assert not (owned & (discovery | replicated));
+    assert owned | replicated | (discovery - {GATEWAY_CLIENT_SEGMENT})
+        == set(GATEWAY_API_SEGMENTS);
+    assert GATEWAY_CLIENT_SEGMENT in discovery;
+    for seg in ["walker", "function", "webhook"] {
+        assert seg in owned;
+    }
+}
+
+
+test "only concrete members of service-owned families are learnable" {
+    assert is_learnable_prefix("/walker/create_user");
+    assert is_learnable_prefix("/api/orders");
+    for prefix in [
+        "/walker",
+        "/function",
+        "/webhook",
+        "/cl",
+        "/cl/dashboard",
+        "/user/login",
+        "/sso/firebase/token",
+        "/api-key/create",
+        "/jobs",
+        "/graph/data",
+        "/healthz/live",
+        "/admin/users"
+    ] {
+        assert not is_learnable_prefix(prefix) , (
+            f"{prefix} must never be handed to a single service"
+        );
+    }
 }

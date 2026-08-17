@@ -56,7 +56,7 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
         _metrics: any = None,
         base_path: str = ".",
         route_table: ServiceRouteTable = ServiceRouteTable(),
-        _routes_refreshed_at: float = 0.0;
+        _spec_crawl: any = None;
 
     def setup -> ServingApp;
     def resolve_target_url(service_entry: ServiceEntry, path: str, query: str) -> str;
@@ -68,9 +68,15 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
         request: Request, path: str
     ) -> Response | None;
 
+    def eligible_services -> list[tuple[str, ServiceEntry]];
     async def resolve_learned_owner(path: str) -> ServiceEntry | None;
-    async def fanout_discovery(
-        request: Request, path: str, allow_probe: bool
+    async def forward_root_path(
+        request: Request, service_entry: ServiceEntry, path: str
+    ) -> Response | None;
+
+    async def deliver_once(request: Request, path: str) -> Response | None;
+    async def probe_services(
+        request: Request, path: str, candidates: list[tuple[str, ServiceEntry]]
     ) -> Response;
 
     def handle_admin(path: str) -> Response | None;

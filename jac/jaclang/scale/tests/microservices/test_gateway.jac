@@ -1527,10 +1527,38 @@ def _http_response(status: int, body: str) -> bytes {
 }
 
 
-def _start_backend(hits: dict, routes: dict) -> tuple {
+def _read_request(conn: any) -> bytes {
+    raw = b"";
+    while b"\r\n\r\n" not in raw {
+        chunk = conn.recv(65536);
+        if not chunk {
+            return raw;
+        }
+        raw += chunk;
+    }
+    (head, _sep, body) = raw.partition(b"\r\n\r\n");
+    length = 0;
+    for line in head.split(b"\r\n")[1:] {
+        (name, _colon, value) = line.partition(b":");
+        if name.strip().lower() == b"content-length" {
+            length = int(value.strip() or b"0");
+        }
+    }
+    while len(body) < length {
+        chunk = conn.recv(65536);
+        if not chunk {
+            break;
+        }
+        body += chunk;
+    }
+    return raw;
+}
+
+
+def _start_backend(hits: dict, routes: dict, port: int = 0) -> tuple {
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
     srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
-    srv.bind(("127.0.0.1", 0));
+    srv.bind(("127.0.0.1", port));
     srv.listen(8);
     port = srv.getsockname()[1];
 
@@ -1542,7 +1570,7 @@ def _start_backend(hits: dict, routes: dict) -> tuple {
                 return;
             }
             try {
-                raw = conn.recv(65536);
+                raw = _read_request(conn);
                 line = raw.split(b"\r\n")[0].decode("latin-1");
                 parts = line.split(" ");
                 method = parts[0] if parts else "";
@@ -1572,6 +1600,22 @@ def _stop_backend(srv: any) {
 }
 
 
+def _free_port -> int {
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
+    probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1);
+    probe.bind(("127.0.0.1", 0));
+    port = probe.getsockname()[1];
+    probe.close();
+    return port;
+}
+
+
+def _spec(paths: list[str]) -> tuple {
+    import json;
+    return (200, json.dumps({"paths": {p: {"post": {}} for p in paths}}));
+}
+
+
 def _entry(name: str, prefix: str, port: int) -> ServiceEntry {
     return ServiceEntry(
         name=name,
@@ -1584,6 +1628,18 @@ def _entry(name: str, prefix: str, port: int) -> ServiceEntry {
 }
 
 
+def _gateway(entries: list) -> tuple {
+    reg = ServiceRegistry();
+    for e in entries {
+        reg.register(e);
+    }
+    gw = MicroserviceGateway(registry=reg);
+    gw.setup();
+    import from jaclang.runtimelib.serving.testing { ServingTestClient as TestClient }
+    return (gw, TestClient(gw.app));
+}
+
+
 test "walker POST with a learned owner is forwarded only to the owner" {
     hits_a: dict = {};
     hits_b: dict = {};
@@ -1592,17 +1648,11 @@ test "walker POST with a learned owner is forwarded only to the owner" {
         hits_b, {"POST /walker/create_user": (200, '{"ok": true}')}
     );
     try {
-        reg = ServiceRegistry();
-        reg.register(_entry("svc_a", "/api/a", port_a));
-        reg.register(_entry("svc_b", "/api/b", port_b));
-        gw = MicroserviceGateway(registry=reg);
-        gw.setup();
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
         gw.route_table.learn("svc_b", ["/walker/create_user"]);
 
-        import from jaclang.runtimelib.serving.testing {
-            ServingTestClient as TestClient
-        }
-        client = TestClient(gw.app);
         resp = client.post("/walker/create_user", json={"name": "x"});
 
         assert resp.status_code == 200;
@@ -1620,28 +1670,18 @@ test "walker POST with a learned owner is forwarded only to the owner" {
 test "cold gateway learns walker ownership from openapi before forwarding" {
     hits_a: dict = {};
     hits_b: dict = {};
-    (srv_a, port_a) = _start_backend(hits_a, {});
+    (srv_a, port_a) = _start_backend(hits_a, {"GET /openapi.json": _spec([])});
     (srv_b, port_b) = _start_backend(
         hits_b,
         {
-            "GET /openapi.json": (
-                200,
-                '{"paths": {"/walker/create_user": {"post": {}}}}'
-            ),
+            "GET /openapi.json": _spec(["/walker/create_user"]),
             "POST /walker/create_user": (200, '{"ok": true}')
         }
     );
     try {
-        reg = ServiceRegistry();
-        reg.register(_entry("svc_a", "/api/a", port_a));
-        reg.register(_entry("svc_b", "/api/b", port_b));
-        gw = MicroserviceGateway(registry=reg);
-        gw.setup();
-
-        import from jaclang.runtimelib.serving.testing {
-            ServingTestClient as TestClient
-        }
-        client = TestClient(gw.app);
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
         resp = client.post("/walker/create_user", json={"name": "x"});
 
         assert resp.status_code == 200;
@@ -1656,33 +1696,79 @@ test "cold gateway learns walker ownership from openapi before forwarding" {
 }
 
 
-test "unsafe request with unresolvable ownership is delivered at most once" {
+test "a walker no learned service declares is 404'd without delivering the body" {
     hits_a: dict = {};
     hits_b: dict = {};
-    (srv_a, port_a) = _start_backend(hits_a, {});
-    (srv_b, port_b) = _start_backend(hits_b, {});
+    (srv_a, port_a) = _start_backend(hits_a, {"GET /openapi.json": _spec([])});
+    (srv_b, port_b) = _start_backend(
+        hits_b, {"GET /openapi.json": _spec(["/walker/other"])}
+    );
     try {
-        reg = ServiceRegistry();
-        reg.register(_entry("svc_a", "/api/a", port_a));
-        reg.register(_entry("svc_b", "/api/b", port_b));
-        gw = MicroserviceGateway(registry=reg);
-        gw.setup();
-
-        import from jaclang.runtimelib.serving.testing {
-            ServingTestClient as TestClient
-        }
-        client = TestClient(gw.app);
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
         resp = client.post("/webhook/incoming", json={"payload": 1});
 
         assert resp.status_code == 404;
-        total = (
+        assert resp.json()["error"]["code"] == "NOT_FOUND";
+        delivered = (
             hits_a.get("POST /webhook/incoming", 0)
             + hits_b.get("POST /webhook/incoming", 0)
         );
-        assert total == 1 , (
-            f"unsafe body must reach at most one service, reached {total}"
+        assert delivered == 0 , (
+            f"every service published its routes and none declares the path, "
+            f"so the body must reach nobody; reached {delivered}"
         );
-        assert hits_a.get("POST /webhook/incoming", 0) == 1;
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "an unsafe miss probes only the services whose routes are unknown" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {"GET /openapi.json": _spec([])});
+    (srv_b, port_b) = _start_backend(hits_b, {});
+    try {
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
+        resp = client.post("/webhook/incoming", json={"payload": 1});
+
+        assert resp.status_code == 404;
+        assert hits_a.get("POST /webhook/incoming", 0) == 0 , (
+            "svc_a's spec is authoritative and does not declare the path"
+        );
+        assert hits_b.get("POST /webhook/incoming", 0) == 1 , (
+            "svc_b publishes no spec, so it is the only service that might own it"
+        );
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "a fleet that publishes no specs keeps walker discovery by probing" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {});
+    (srv_b, port_b) = _start_backend(
+        hits_b, {"POST /walker/create_user": (200, '{"ok": true}')}
+    );
+    try {
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
+        resp = client.post("/walker/create_user", json={"name": "x"});
+
+        assert resp.status_code == 200 , (
+            "with docs disabled everywhere, ownership is unknowable and the "
+            "walker must still be reachable through the gateway"
+        );
+        assert hits_b.get("POST /walker/create_user", 0) == 1;
     } finally {
         _stop_backend(srv_a);
         _stop_backend(srv_b);
@@ -1696,16 +1782,9 @@ test "identity fallthrough POST is delivered at most once" {
     (srv_a, port_a) = _start_backend(hits_a, {});
     (srv_b, port_b) = _start_backend(hits_b, {});
     try {
-        reg = ServiceRegistry();
-        reg.register(_entry("svc_a", "/api/a", port_a));
-        reg.register(_entry("svc_b", "/api/b", port_b));
-        gw = MicroserviceGateway(registry=reg);
-        gw.setup();
-
-        import from jaclang.runtimelib.serving.testing {
-            ServingTestClient as TestClient
-        }
-        client = TestClient(gw.app);
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
         resp = client.post(
             "/user/verify-identity", json={"token": "secret", "identity": "x"}
         );
@@ -1724,22 +1803,46 @@ test "identity fallthrough POST is delivered at most once" {
 }
 
 
+test "replicated auth families are delivered once and never learned" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    spec = _spec(["/api-key/create", "/sso/firebase/token", "/graph/data"]);
+    (srv_a, port_a) = _start_backend(hits_a, {"GET /openapi.json": spec});
+    (srv_b, port_b) = _start_backend(hits_b, {"GET /openapi.json": spec});
+    try {
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
+        assert client.post("/walker/anything", json={}).status_code == 404;
+        for prefix in ["/api-key/create", "/sso/firebase/token", "/graph/data"] {
+            assert gw.route_table.owner(prefix) == "" , (
+                f"{prefix} is served identically by every service; ownership "
+                f"is meaningless and must not be learned"
+            );
+        }
+
+        resp = client.post("/api-key/create", json={"name": "k"});
+        total = (
+            hits_a.get("POST /api-key/create", 0)
+            + hits_b.get("POST /api-key/create", 0)
+        );
+        assert total == 1 , f"replicated handler must run once, ran {total}";
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
 test "POST /jobs cross-service discovery is preserved" {
     hits_a: dict = {};
     hits_b: dict = {};
     (srv_a, port_a) = _start_backend(hits_a, {});
     (srv_b, port_b) = _start_backend(hits_b, {"POST /jobs": (200, '{"job_id": "j1"}')});
     try {
-        reg = ServiceRegistry();
-        reg.register(_entry("svc_a", "/api/a", port_a));
-        reg.register(_entry("svc_b", "/api/b", port_b));
-        gw = MicroserviceGateway(registry=reg);
-        gw.setup();
-
-        import from jaclang.runtimelib.serving.testing {
-            ServingTestClient as TestClient
-        }
-        client = TestClient(gw.app);
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
         resp = client.post("/jobs", json={"name": "nightly"});
 
         assert resp.status_code == 200;
@@ -1760,16 +1863,9 @@ test "GET /cl page discovery across services is preserved" {
         hits_b, {"GET /cl/dashboard": (200, '{"page": "dashboard"}')}
     );
     try {
-        reg = ServiceRegistry();
-        reg.register(_entry("svc_a", "/api/a", port_a));
-        reg.register(_entry("svc_b", "/api/b", port_b));
-        gw = MicroserviceGateway(registry=reg);
-        gw.setup();
-
-        import from jaclang.runtimelib.serving.testing {
-            ServingTestClient as TestClient
-        }
-        client = TestClient(gw.app);
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
         resp = client.get("/cl/dashboard");
 
         assert resp.status_code == 200;
@@ -1782,20 +1878,40 @@ test "GET /cl page discovery across services is preserved" {
 }
 
 
-test "stale learned owner is forgotten and falls back single-shot" {
+test "a GET walker with a learned owner goes straight to the owner" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {});
+    (srv_b, port_b) = _start_backend(
+        hits_b, {"GET /walker/list_items": (200, '{"items": []}')}
+    );
+    try {
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
+        gw.route_table.learn("svc_b", ["/walker/list_items"]);
+
+        resp = client.get("/walker/list_items");
+
+        assert resp.status_code == 200;
+        assert hits_a.get("GET /walker/list_items", 0) == 0 , (
+            f"a safe method with a known owner must not pay the probe; got {hits_a}"
+        );
+        assert hits_b.get("GET /walker/list_items", 0) == 1;
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "stale learned owner is forgotten and the path is re-resolved" {
     hits_a: dict = {};
     (srv_a, port_a) = _start_backend(hits_a, {});
     try {
-        reg = ServiceRegistry();
-        reg.register(_entry("svc_a", "/api/a", port_a));
-        gw = MicroserviceGateway(registry=reg);
-        gw.setup();
+        (gw, client) = _gateway([_entry("svc_a", "/api/a", port_a)]);
         gw.route_table.learn("ghost", ["/walker/vanished"]);
 
-        import from jaclang.runtimelib.serving.testing {
-            ServingTestClient as TestClient
-        }
-        client = TestClient(gw.app);
         resp = client.post("/walker/vanished", json={});
 
         assert resp.status_code == 404;
@@ -1803,6 +1919,106 @@ test "stale learned owner is forgotten and falls back single-shot" {
         assert "/walker/vanished" not in gw.route_table.prefixes();
     } finally {
         _stop_backend(srv_a);
+    }
+}
+
+
+test "a service registered after the first crawl is learned on the next miss" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {"GET /openapi.json": _spec([])});
+    (srv_b, port_b) = _start_backend(
+        hits_b,
+        {
+            "GET /openapi.json": _spec(["/walker/late"]),
+            "POST /walker/late": (200, '{"ok": true}')
+        }
+    );
+    try {
+        (gw, client) = _gateway([_entry("svc_a", "/api/a", port_a)]);
+        assert client.post("/walker/late", json={}).status_code == 404;
+        assert hits_a.get("GET /openapi.json", 0) == 1;
+
+        gw.registry.register(_entry("svc_b", "/api/b", port_b));
+        resp = client.post("/walker/late", json={});
+
+        assert resp.status_code == 200 , (
+            "a service the gateway has never asked must be asked on the very "
+            "next miss, not after the refresh window"
+        );
+        assert hits_b.get("POST /walker/late", 0) == 1;
+        assert hits_a.get("POST /walker/late", 0) == 0;
+        assert hits_a.get("GET /openapi.json", 0) == 1 , (
+            "an already-learned service is not re-asked inside the window"
+        );
+    } finally {
+        _stop_backend(srv_a);
+        _stop_backend(srv_b);
+    }
+}
+
+
+test "a service that was unreachable at the first crawl is learned once it answers" {
+    hits_a: dict = {};
+    hits_b: dict = {};
+    (srv_a, port_a) = _start_backend(hits_a, {"GET /openapi.json": _spec([])});
+    port_b = _free_port();
+    srv_b = None;
+    try {
+        (gw, client) = _gateway(
+            [_entry("svc_a", "/api/a", port_a), _entry("svc_b", "/api/b", port_b)]
+        );
+        first = client.post("/walker/late", json={});
+        assert first.status_code in (502, 503) , (
+            f"svc_b's routes are unknown, so it is probed while it is down; "
+            f"got {first.status_code}"
+        );
+
+        (srv_b, _p) = _start_backend(
+            hits_b,
+            {
+                "GET /openapi.json": _spec(["/walker/late"]),
+                "POST /walker/late": (200, '{"ok": true}')
+            },
+            port=port_b
+        );
+        resp = client.post("/walker/late", json={});
+
+        assert resp.status_code == 200 , (
+            "an unanswered spec fetch is not knowledge; the service must be "
+            "asked again on the next miss instead of waiting out the window"
+        );
+        assert hits_b.get("POST /walker/late", 0) == 1;
+        assert hits_a.get("POST /walker/late", 0) == 0;
+    } finally {
+        _stop_backend(srv_a);
+        if srv_b is not None {
+            _stop_backend(srv_b);
+        }
+    }
+}
+
+
+test "a walker added to an already-learned service waits for the refresh window" {
+    hits_b: dict = {};
+    routes_b: dict = {"GET /openapi.json": _spec(["/walker/old"])};
+    (srv_b, port_b) = _start_backend(hits_b, routes_b);
+    try {
+        (gw, client) = _gateway([_entry("svc_b", "/api/b", port_b)]);
+        assert client.post("/walker/nope", json={}).status_code == 404;
+
+        routes_b["GET /openapi.json"] = _spec(["/walker/old", "/walker/new"]);
+        routes_b["POST /walker/new"] = (200, '{"ok": true}');
+        resp = client.post("/walker/new", json={});
+
+        assert resp.status_code == 404;
+        assert hits_b.get("POST /walker/new", 0) == 0 , (
+            "svc_b's last spec is authoritative until route_refresh_seconds "
+            "elapses; the body must not be delivered on a guess"
+        );
+        assert hits_b.get("GET /openapi.json", 0) == 1;
+    } finally {
+        _stop_backend(srv_b);
     }
 }
 
@@ -1816,6 +2032,19 @@ test "learn skips bare builtin API roots so one service cannot capture them" {
 def gw_route_table_for_poison_test -> any {
     import from jaclang.scale.runtime.gateway.route_table { ServiceRouteTable }
     table = ServiceRouteTable();
-    table.learn("core_app", ["/walker/{name}", "/function/{name}", "/webhook/{n}"]);
+    table.learn(
+        "core_app",
+        [
+            "/walker/{name}",
+            "/function/{name}",
+            "/webhook/{n}",
+            "/cl/{page}",
+            "/user/login",
+            "/sso/{platform}/callback",
+            "/api-key/create",
+            "/jobs",
+            "/graph/data"
+        ]
+    );
     return table;
 }
