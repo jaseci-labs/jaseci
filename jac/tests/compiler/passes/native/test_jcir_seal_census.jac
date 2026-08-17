@@ -192,8 +192,7 @@ test "the jcir root's native closure is exactly the measured set" {
     );
     seen = tuple(
         sorted(
-            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
-            for p in census
+            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in census
         )
     );
     assert seen == JCIR_CLOSURE , (
@@ -222,8 +221,8 @@ test "no un-waived seam in the jcir closure" {
         if k not in allowed
     );
     assert not unexpected , (
-        f"{len(unexpected)} un-waived seam(s) in {JCIR_ROOT}'s sealed "
-        "closure:\n" + "\n".join(f"  {k}: {seams[k]}" for k in unexpected)
+        f"{len(unexpected)} un-waived seam(s) in {JCIR_ROOT}'s sealed " "closure:\n"
+        + "\n".join(f"  {k}: {seams[k]}" for k in unexpected)
     );
 }
 
@@ -275,6 +274,7 @@ test "no waived dependency function is advertised as an export" {
         "and absent and the artifact will not dlopen. `codegen_ir`'s "
         "`decode_ops` was exactly that and cost a three-minute link to "
         "find; move such a name out of the sealed closure or make it "
-        "lower:\n" + "\n".join(f"  {q}" for q in offenders)
+        "lower:\n"
+        + "\n".join(f"  {q}" for q in offenders)
     );
 }

@@ -300,11 +300,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "compiler/native_materialize.jac",
 
      ),
-     # A root the seal has refused, mapped to the blocker that refused it.
-     # An entry here is a debt with a name, not a silent omission: the
-     # demotion audit walks these alongside `NATIVE_SEAL_ROOTS` so a refused
-     # root still has to account for every waiver it carries.
-     NATIVE_SEAL_REFUSED_ROOTS: dict[str, str] = { },
+     NATIVE_SEAL_REFUSED_ROOTS: dict[str, str] = {},
      NATIVE_SEAL_CLOSURE: tuple = (
          "jac0core/codegen_ir.jac",
          "jac0core/constant.jac",
@@ -495,15 +491,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          )
      };
 
-"""Every waiver family, with the mechanism that clears it.
-
-`seal_demotion_report` proves a waived name still names a real seam and
-`test_sealed_seam_reachability.jac` proves it ships dead. This table
-carries the third obligation: that the waiver is a recorded debt with a
-way out, not a permanent exemption.
-`test_sealed_demotion_audit.jac` fails when a waiver has no family here
-or a family covers nothing, so the table cannot drift from the tuples.
-"""
 glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
          (
              "unitree Python-only surface",
@@ -649,7 +636,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "a method, so nested-function lowering is the first place to "
              "look. Clears when that emitter fault is fixed."
          )
-
      );
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
@@ -1357,16 +1343,6 @@ def _jcir_code_field_diffs(a: any, b: any, at: str, out: list[str]) -> list[str]
     return out;
 }
 
-"""Refuse a sealed JCIR producer whose container is unstable or lossy.
-
-The sealed emitter's whole contract is the container it writes: emit the
-same module twice and the bytes must match, and a transcription of those
-bytes must rebuild the same Python AST -- and the same code object,
-field by field -- that the in-process emission produced. A seal that
-shipped a producer failing either half would hand every downstream
-compile a silent divergence, so this runs on the artifact itself before
-it is recorded.
-"""
 def seal_jcir_container_canary(lib_path: str) -> str {
     import ast as pyast;
     import traceback;
@@ -1451,7 +1427,8 @@ def seal_jcir_container_canary(lib_path: str) -> str {
     if code_diffs {
         return (
             f"{len(code_diffs)} code object field(s) diverged across the "
-            f"crossing:{nl}" + nl.join(f"    {d}" for d in code_diffs[:10])
+            f"crossing:{nl}"
+            + nl.join(f"    {d}" for d in code_diffs[:10])
         );
     }
     return "";

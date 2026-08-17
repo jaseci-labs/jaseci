@@ -66,8 +66,7 @@ def micro_suite_combined_test(rel_path: str) -> None {
             );
         }
         assert i.lineno >= 1 , (
-            f"{filename}: {type(i).__name__} has lineno {i.lineno}: "
-            f"{ast3.dump(i)}"
+            f"{filename}: {type(i).__name__} has lineno {i.lineno}: " f"{ast3.dump(i)}"
         );
     }
     assert parent_scrub(code_gen) , f"Parent scrub failed for {filename}";

@@ -91,9 +91,8 @@ test "the baked test-path predicate agrees with ext_registry" {
 
 
 test "the baked CPython target is the interpreter running this build" {
-    assert (JCIR_PYTHON_MAJOR, JCIR_PYTHON_MINOR) == (
-        sys.version_info.major, sys.version_info.minor
-    ) , (
+    assert (JCIR_PYTHON_MAJOR, JCIR_PYTHON_MINOR)
+        == (sys.version_info.major, sys.version_info.minor) , (
         f"jcir_facts bakes Python {JCIR_PYTHON_MAJOR}.{JCIR_PYTHON_MINOR} but "
         f"this interpreter is {sys.version_info.major}."
         f"{sys.version_info.minor}. Every JCIR container this build writes "
@@ -107,9 +106,8 @@ test "the container version stamp is the baked target" {
         "codegen_ir.cir_python_version drifted from the baked fact; the "
         "container stamp and the reader's refusal must come from one source"
     );
-    assert cir_python_version() == (
-        (sys.version_info.major << 8) | sys.version_info.minor
-    ) , (
+    assert cir_python_version()
+        == ((sys.version_info.major << 8) | sys.version_info.minor) , (
         "the container version stamp does not encode this interpreter's "
         "major/minor in the documented (major << 8) | minor form"
     );

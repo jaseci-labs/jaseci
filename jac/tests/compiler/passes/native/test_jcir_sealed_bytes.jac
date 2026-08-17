@@ -285,6 +285,7 @@ test "sealed-native container bytes equal Python-lane container bytes" {
         f"{len(failures)} corpus module(s) produced different JCIR bytes "
         "under the sealed emitter than under the source lane. The container "
         "is what crosses the boundary, so the two lanes have to agree on it "
-        "exactly:\n  " + "\n  ".join(failures)
+        "exactly:\n  "
+        + "\n  ".join(failures)
     );
 }

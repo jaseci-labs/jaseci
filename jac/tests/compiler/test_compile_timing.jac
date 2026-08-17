@@ -136,7 +136,7 @@ invisible -- and a report nobody can read is not a report. The file under the
 jac cache root is the copy that survives; `jac -m pytest <file> -s` is the way
 to watch it live.
 """
-def publish(name: str, text: str) -> None {
+def publish(name: str, text: str) {
     print(text);
     out_dir = get_jir_cache_dir().parent / "timing";
     out_dir.mkdir(parents=True, exist_ok=True);
@@ -458,4 +458,3 @@ test "the chess AOT binary stays inside its recorded run envelope" {
         );
     }
 }
-

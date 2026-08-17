@@ -163,13 +163,7 @@ impl JcirGenPass.nod(
 }
 
 impl JcirGenPass.nod_loc(
-    cls_name: str,
-    keys: list[str],
-    vals: list,
-    l1: int,
-    c1: int,
-    l2: int,
-    c2: int
+    cls_name: str, keys: list[str], vals: list, l1: int, c1: int, l2: int, c2: int
 ) -> CgNode {
     return CgNode(cls=cls_name, keys=keys, vals=vals, l1=l1, c1=c1, l2=l2, c2=c2);
 }
@@ -2360,9 +2354,7 @@ impl JcirGenPass.exit_assignment(nd: Assignment) -> None {
             'Call', ['func', 'args', 'keywords'], [self.name_load('auto'), [], []]
         );
     } elif not nd.type_tag {
-        raise self.ice(
-            'assignment has no value, no enum default and no type tag'
-        );
+        raise self.ice('assignment has no value, no enum default and no type tag');
     }
     targets_ast = [self.val(t) for t in nd.target];
     if nd.type_tag {

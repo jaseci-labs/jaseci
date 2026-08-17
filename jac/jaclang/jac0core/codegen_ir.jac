@@ -544,4 +544,3 @@ def read_container(data: bytes) -> CirContainer {
         diags=diags
     );
 }
-

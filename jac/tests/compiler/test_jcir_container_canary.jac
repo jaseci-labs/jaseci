@@ -98,9 +98,7 @@ def code_field_diffs(a: any, b: any, path: str, out: list[str]) -> list[str] {
         }
     }
     if len(a.co_consts) != len(b.co_consts) {
-        out.append(
-            f"{path}.co_consts length {len(a.co_consts)} vs {len(b.co_consts)}"
-        );
+        out.append(f"{path}.co_consts length {len(a.co_consts)} vs {len(b.co_consts)}");
         return out;
     }
     for (i, (x, y)) in enumerate(zip(a.co_consts, b.co_consts)) {
@@ -275,11 +273,7 @@ test "the container carries its module path and string table" {
 
 
 test "diagnostics cross the container with text severity and span" {
-    import from jaclang.jac0core.codegen_ir {
-        CirDiag,
-        CodegenIrWriter,
-        DIAG_WARNING
-    }
+    import from jaclang.jac0core.codegen_ir { CirDiag, CodegenIrWriter, DIAG_WARNING }
 
     w = CodegenIrWriter();
     w.begin_module("diag_probe.jac");

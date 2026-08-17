@@ -624,12 +624,6 @@ def native_pipeline_available -> tuple[bool, str] {
     return verdict;
 }
 
-"""The Python codegen tail: JCIR out, code objects back.
-
-`JcirGenPass` writes the compact codegen IR container and
-`JcirBytecodeGenPass` transcribes it into CPython code objects. This is
-the whole tail -- there is no second emitter to choose between.
-"""
 def _py_codegen_tail -> list[type[Transform[uni.Module, uni.Module]]] {
     return [JcirGenPass, JcirBytecodeGenPass];
 }

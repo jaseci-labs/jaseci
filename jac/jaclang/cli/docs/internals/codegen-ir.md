@@ -410,6 +410,16 @@ assumed away.
   resolved, see section 5.1.
 - **Producer-side constant predicate** for has-var lowering (fidelity
   note 2): resolved, the recipe tree preserves the predicate directly.
+- **`Ellipsis` cannot be the recipe's own value.** `unitree` exports an
+  `Ellipsis` node class, so inside any pass that imports the unitree
+  vocabulary the bare name is that class rather than the builtin, and an
+  identity test against it silently never matches. The producer therefore
+  puts a marker object (`CgEllipsis`) in the recipe where the singleton
+  would go, and `write_ir_value` recognizes it by type and emits
+  `OP_ELLIPSIS`. The native lane wants the same shape for its own reason:
+  the singleton has no native value, so a method that constructs one
+  demotes. Anything else that has to travel as an opcode rather than a
+  constant belongs in the same pattern.
 - **Marshal bytes are not a stable parity token.** Found while building
   the differential suite: `marshal.dumps` sets a per-object `FLAG_REF`
   bit based on the object's transient refcount at serialization time, so

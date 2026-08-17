@@ -83,7 +83,7 @@ def _root_module_name(rel: str) -> str {
 }
 
 """Skip when this runtime is itself sealed; the census would measure it."""
-def _require_source_lane -> None {
+def _require_source_lane {
     if _jaclang_image() is not None {
         pytest.skip(
             "this runtime is a sealed jaclang image; a source census here "
@@ -260,7 +260,8 @@ test "every waiver names the mechanism that clears it" {
         f"{len(orphans)} waiver(s) belong to no family in "
         "NATIVE_SEAL_WAIVER_FAMILIES, so nothing records how they clear. A "
         "waiver with no way out is a permanent exemption; give it a family "
-        "or drop it:\n" + "\n".join(f"  {n}" for n in orphans)
+        "or drop it:\n"
+        + "\n".join(f"  {n}" for n in orphans)
     );
 }
 
@@ -304,7 +305,8 @@ test "no waived dependency function is advertised as an export" {
         "function of a demoted dependency gets no stub, so it is advertised "
         "and absent and the artifact will not dlopen. Move it out of the "
         "sealed closure or make it lower; waiving it produces an artifact "
-        "that cannot load at all:\n" + "\n".join(f"  {o}" for o in offenders)
+        "that cannot load at all:\n"
+        + "\n".join(f"  {o}" for o in offenders)
     );
 }
 
@@ -324,9 +326,7 @@ test "the audit reports the whole waived surface" {
         f"  roots measured: {len(live)} of {len(AUDITED_ROOTS)}"
     ];
     if generated {
-        lines.append(
-            f"  generated, measured inside the seal: {', '.join(generated)}"
-        );
+        lines.append(f"  generated, measured inside the seal: {', '.join(generated)}");
     }
     total = 0;
     for rel in live {

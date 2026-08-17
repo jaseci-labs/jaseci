@@ -815,7 +815,7 @@ test "jcir: no waived seam is native-reachable from the live surface" {
         f"{JCIR_ROOT}: {len(hit)} waived seam(s) are reachable through "
         "native calls from the root's live entry surface, so the sealed "
         "artifact can abort at runtime -- remove the waiver and fix the "
-        "seam:\n" + "\n".join(f"  {name}" for name in hit)
+        "seam:\n"
+        + "\n".join(f"  {name}" for name in hit)
     );
 }
-

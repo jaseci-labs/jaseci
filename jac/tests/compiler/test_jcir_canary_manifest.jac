@@ -78,7 +78,8 @@ test "every canary suite named in the manifest is still in the tree" {
         "are gone from the tree. A renamed or deleted canary stops covering "
         "the codegen lane without saying so -- repoint the manifest at the "
         "suite's new home, or argue in the doc why the coverage is no longer "
-        "needed:\n" + "\n".join(f"  {rel}" for rel in missing)
+        "needed:\n"
+        + "\n".join(f"  {rel}" for rel in missing)
     );
 }
 
