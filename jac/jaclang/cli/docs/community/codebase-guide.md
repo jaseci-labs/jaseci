@@ -205,15 +205,18 @@ tests/
 **Running tests:**
 
 ```bash
-# All tests (parallel)
-pytest jac -n auto
+# All tests (parallel; worker count is sized from available memory)
+jac test jac/tests
 
 # Specific area
-pytest jac/tests/compiler -n auto
-pytest jac/tests/language -n auto
+jac test jac/tests/compiler
+jac test jac/tests/language
 
 # Single test file
-pytest jac/tests/compiler/passes/test_type_checker.py -v
+jac test jac/tests/compiler/test_compilation.jac -v
+
+# Pin the worker count (0 or 1 runs everything in one process)
+JAC_TEST_JOBS=8 jac test jac/tests
 ```
 
 Many language tests use **fixture files** -- small `.jac` programs in `fixtures/` directories that exercise specific features. The `fixtures_list.jac` file registers them. When you add a new language feature or fix a bug, adding a fixture test is usually the right move.

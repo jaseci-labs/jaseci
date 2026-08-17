@@ -26,7 +26,6 @@ same seam the tripwire reads in production; the per-class memo is cleared
 around each patch so every test states its own precondition.
 """
 
-import pytest;
 import jaclang.jac0core.sealed as sealed;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
@@ -58,7 +57,7 @@ def _run_annex -> object {
 
 def _skip_if_sealed {
     if sealed.native_artifact_for(ANNEX_MODULE) is not None {
-        pytest.skip(
+        testskip(
             "this runtime seals the pass roots for real: the tripwire and "
             "binder are exercised by every pass construction in this suite, "
             "and patching fake artifacts here would corrupt the live "
@@ -86,15 +85,15 @@ test "a natively sealed pass refuses its bytecode body" {
     _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
     sealed.native_artifact_for = _fake_artifact;
     try {
-        with pytest.raises(RuntimeError, match=ANNEX_MODULE) {
+        with testraises(RuntimeError, `match=ANNEX_MODULE) {
             _run_annex();
         }
         _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
-        with pytest.raises(RuntimeError, match="bytecode body") {
+        with testraises(RuntimeError, `match="bytecode body") {
             _run_annex();
         }
         _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
-        with pytest.raises(RuntimeError, match="rebuild the payload") {
+        with testraises(RuntimeError, `match="rebuild the payload") {
             _run_annex();
         }
     } finally {
@@ -110,7 +109,7 @@ test "the memoized verdict still refuses on the next construction" {
     _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
     sealed.native_artifact_for = _fake_artifact;
     try {
-        with pytest.raises(RuntimeError) {
+        with testraises(RuntimeError) {
             _run_annex();
         }
         assert _NATIVE_PASS_TIER_MEMO.get(JacAnnexPass) == ANNEX_MODULE;
@@ -118,7 +117,7 @@ test "the memoized verdict still refuses on the next construction" {
         sealed.native_artifact_for = real;
     }
     try {
-        with pytest.raises(RuntimeError) {
+        with testraises(RuntimeError) {
             _run_annex();
         }
     } finally {
@@ -133,7 +132,7 @@ test "registering the served pass lifts the refusal without cache games" {
     _NATIVE_PASS_TIER_MEMO.pop(JacAnnexPass, None);
     sealed.native_artifact_for = _fake_artifact;
     try {
-        with pytest.raises(RuntimeError) {
+        with testraises(RuntimeError) {
             _run_annex();
         }
         _NATIVE_SERVED_PASSES.add(ANNEX_MODULE);
