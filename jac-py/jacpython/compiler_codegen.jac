@@ -13,7 +13,7 @@
 # Product module: imports compiler_ir + opcode_meta + ast_nodes only. No host
 # tokenize/ast/compile/marshal.
 
-import from objects { PyObj, PyInt, py_none, PySlice, PyCode }
+import from objects { PyObj, PyInt, py_none, PySlice, PyCode, PyTuple }
 import from opcode_meta {
     OP_RESUME,
     OP_RETURN_VALUE,
@@ -365,10 +365,62 @@ def emit_function_prologue(g: cfg_builder, sym_fn: sym_block, firstlineno: int) 
     g.emit_op(OP_RESUME, 0, ploc);
 }
 
-# Nested code on stack; closure tuple + SET_FUNCTION_ATTRIBUTE when inner has freevars.
+# Fold default expressions when every value is a Constant (CPython LOAD_CONST tuple).
+def fold_default_values(defaults: list[expr]) -> list[PyObj] | None {
+    items: list[PyObj] = [];
+    di = 0;
+    while di < len(defaults) {
+        d = defaults[di];
+        if not isinstance(d, Constant) {
+            return None;
+        }
+        items.append((d as Constant).value);
+        di = di + 1;
+    }
+    return items;
+}
+
+# Compile default expressions in the enclosing scope; leaves defaults tuple on stack.
+def emit_function_defaults(
+    g: cfg_builder, defaults: list[expr], tloc: cloc
+) -> bool {
+    if len(defaults) == 0 {
+        return True;
+    }
+    folded = fold_default_values(defaults);
+    if folded is not None {
+        tup = PyTuple(t="tuple", items=folded);
+        idx = g.u.add_const(tup);
+        g.emit_op(OP_LOAD_CONST, idx, tloc);
+        return True;
+    }
+    di = 0;
+    while di < len(defaults) {
+        visit_expr(g, defaults[di]);
+        if codegen_busy(g) {
+            return False;
+        }
+        di = di + 1;
+    }
+    g.emit_op(OP_BUILD_TUPLE, len(defaults), tloc);
+    return True;
+}
+
+# Nested code on stack; defaults + closure tuple + SET_FUNCTION_ATTRIBUTE when needed.
 def emit_make_function_with_closure(
-    g: cfg_builder, sym_fn: sym_block, co: PyCode, tloc: cloc
+    g: cfg_builder,
+    sym_fn: sym_block,
+    co: PyCode,
+    tloc: cloc,
+    args: arguments | None = None
 ) {
+    has_defaults = args is not None and len(args.defaults) > 0;
+    cidx = g.u.add_const(co);
+    if has_defaults {
+        if not emit_function_defaults(g, args.defaults, tloc) {
+            return;
+        }
+    }
     child_free = freevars_from_sym(sym_fn);
     if len(child_free) > 0 {
         fi = 0;
@@ -379,11 +431,13 @@ def emit_make_function_with_closure(
         }
         g.emit_op(OP_BUILD_TUPLE, len(child_free), tloc);
     }
-    cidx = g.u.add_const(co);
     g.emit_op(OP_LOAD_CONST, cidx, tloc);
     g.emit_op(OP_MAKE_FUNCTION, 0, tloc);
     if len(child_free) > 0 {
         g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 8, tloc);
+    }
+    if has_defaults {
+        g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 1, tloc);
     }
 }
 
@@ -1158,13 +1212,17 @@ def visit_expr(
             emit_folded_int(g, (folded as PyInt).val, bl);
             return None;
         }
-        visit_expr(g, b.left);
-        visit_expr(g, b.right);
         opid = binop_id(b.op);
         if opid < 0 {
             codegen_fail(g, "NotImplementedError", "unsupported binary operator");
             return None;
         }
+        if try_emit_fast_local_pair_load(g, b.left, b.right, bl) {
+            g.emit_op(OP_BINARY_OP, opid, bl);
+            return None;
+        }
+        visit_expr(g, b.left);
+        visit_expr(g, b.right);
         g.emit_op(OP_BINARY_OP, opid, bl);
         return None;
     }
@@ -1474,6 +1532,23 @@ def fast_local_index(g: cfg_builder, name: str) -> int {
         vi = vi + 1;
     }
     return -1;
+}
+
+# CPython 3.14 fuses two fast-local loads for binops (e.g. `return x + y`).
+def try_emit_fast_local_pair_load(
+    g: cfg_builder, left: expr, right: expr, tloc: cloc
+) -> bool {
+    if not isinstance(left, Name) or not isinstance(right, Name) {
+        return False;
+    }
+    lfi = fast_local_index(g, (left as Name).id);
+    rfi = fast_local_index(g, (right as Name).id);
+    if lfi < 0 or rfi < 0 {
+        return False;
+    }
+    pair_arg = lfi * 16 + rfi;
+    g.emit_op(OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW, pair_arg, tloc);
+    return True;
 }
 
 def comp_name_bound(name: str, bound_names: list[str]) -> bool {
@@ -2883,7 +2958,11 @@ def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
         codegen_fail(g, "SystemError", "missing symtable for function " + fd.name);
         return stmt_cont(loc=floc);
     }
-    if len(fd.decorator_list) > 0 {
+    decorators = fd.decorator_list;
+    if decorators is None {
+        decorators = [];
+    }
+    if len(decorators) > 0 {
         codegen_fail(
             g, "NotImplementedError", "function decorators not yet supported"
         );
@@ -2901,7 +2980,7 @@ def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
     }
     co = assemble(cfg_fn);
     g.u.nested_code_emitted = True;
-    emit_make_function_with_closure(g, sym_fn, co, floc);
+    emit_make_function_with_closure(g, sym_fn, co, floc, fd.args);
     if g.sym_top is not None and g.sym_top.block_type == "function" {
         fi = fast_local_index(g, fd.name);
         if fi < 0 {
@@ -2944,7 +3023,7 @@ def visit_lambda(g: cfg_builder, lam: Lambda) {
     }
     co = assemble(cfg_fn);
     g.u.nested_code_emitted = True;
-    emit_make_function_with_closure(g, sym_fn, co, lloc);
+    emit_make_function_with_closure(g, sym_fn, co, lloc, lam.args);
 }
 
 # Build unverified_cfg for a lambda body (expression + RETURN_VALUE).

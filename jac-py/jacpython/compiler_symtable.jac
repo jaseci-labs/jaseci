@@ -503,6 +503,9 @@ def sym_visit_load_expr(b: sym_builder, e: expr) -> bool {
     }
     if isinstance(e, Lambda) {
         lam = e as Lambda;
+        if not sym_visit_arg_defaults(b, lam.args) {
+            return False;
+        }
         nested = sym_compute_nested(b);
         in_class = b.cur.block_type == "class" or b.cur.can_see_class_scope;
         if not b.push_block(
@@ -615,6 +618,28 @@ def sym_visit_delete_target(b: sym_builder, t: expr) -> bool {
             return False;
         }
         return sym_visit_load_expr(b, s.slice);
+    }
+    return True;
+}
+
+# Default expressions are evaluated in the enclosing scope at definition time.
+def sym_visit_arg_defaults(b: sym_builder, args: arguments) -> bool {
+    di = 0;
+    while di < len(args.defaults) {
+        if not sym_visit_load_expr(b, args.defaults[di]) {
+            return False;
+        }
+        di = di + 1;
+    }
+    ki = 0;
+    while ki < len(args.kw_defaults) {
+        kd = args.kw_defaults[ki];
+        if kd is not None {
+            if not sym_visit_load_expr(b, kd) {
+                return False;
+            }
+        }
+        ki = ki + 1;
     }
     return True;
 }
@@ -868,6 +893,9 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
         if not b.add_def(fd.name, DEF_LOCAL, fd.lineno, fd.col_offset) {
             return False;
         }
+        if not sym_visit_arg_defaults(b, fd.args) {
+            return False;
+        }
         nested = sym_compute_nested(b);
         in_class = b.cur.block_type == "class" or b.cur.can_see_class_scope;
         if not b.push_block("function", fd.name, fd.lineno, nested, in_class) {
@@ -888,6 +916,9 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
     if isinstance(s, AsyncFunctionDef) {
         afd = s as AsyncFunctionDef;
         if not b.add_def(afd.name, DEF_LOCAL, afd.lineno, afd.col_offset) {
+            return False;
+        }
+        if not sym_visit_arg_defaults(b, afd.args) {
             return False;
         }
         nested = sym_compute_nested(b);

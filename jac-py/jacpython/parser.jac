@@ -5816,12 +5816,6 @@ def rule_function_def_raw(p: peg_parser) -> stmt | None {
         start_lineno = t0.lineno;
         start_col_offset = t0.col_offset;
     }
-    invalid_def_raw = rule_invalid_def_raw(p);
-    if invalid_def_raw is not None {
-        res = invalid_def_raw;
-        return res;
-    }
-    peg_reset(p, mark);
     kw = peg_expect_token(p, 574);
     if kw is not None {
         n = pa_name_from_token(peg_expect_token(p, NAME));
@@ -5879,6 +5873,12 @@ def rule_function_def_raw(p: peg_parser) -> stmt | None {
                 }
             }
         }
+    }
+    peg_reset(p, mark);
+    invalid_def_raw = rule_invalid_def_raw(p);
+    if invalid_def_raw is not None {
+        res = invalid_def_raw;
+        return res;
     }
     peg_reset(p, mark);
     return None;
@@ -9134,6 +9134,15 @@ def rule_lambda_param(p: peg_parser) -> arg | None {
 
 def rule_lambda_param_maybe_default(p: peg_parser) -> pa_name_default_pair | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_lambda_param(p);
     if a is not None {
         c = rule_default(p);
@@ -9180,6 +9189,15 @@ def rule_lambda_param_no_default(p: peg_parser) -> arg | None {
 
 def rule_lambda_param_with_default(p: peg_parser) -> pa_name_default_pair | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_lambda_param(p);
     if a is not None {
         c = rule_default(p);
@@ -9208,6 +9226,15 @@ def rule_lambda_param_with_default(p: peg_parser) -> pa_name_default_pair | None
 
 def rule_lambda_parameters(p: peg_parser) -> arguments | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_lambda_slash_no_default(p);
     if a is not None {
         b = rule__loop0_67(p);
@@ -9338,6 +9365,15 @@ def rule_lambda_slash_with_default(p: peg_parser) -> object | None {
 
 def rule_lambda_star_etc(p: peg_parser) -> object | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     invalid_lambda_star_etc = rule_invalid_lambda_star_etc(p);
     if invalid_lambda_star_etc is not None {
         res = invalid_lambda_star_etc;
@@ -9958,6 +9994,15 @@ def rule_param(p: peg_parser) -> arg | None {
 
 def rule_param_maybe_default(p: peg_parser) -> pa_name_default_pair | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_param(p);
     if a is not None {
         c = rule_default(p);
@@ -10058,6 +10103,15 @@ def rule_param_star_annotation(p: peg_parser) -> arg | None {
 
 def rule_param_with_default(p: peg_parser) -> pa_name_default_pair | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_param(p);
     if a is not None {
         c = rule_default(p);
@@ -10088,6 +10142,15 @@ def rule_param_with_default(p: peg_parser) -> pa_name_default_pair | None {
 
 def rule_parameters(p: peg_parser) -> arguments | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_slash_no_default(p);
     if a is not None {
         b = rule__loop0_78(p);
@@ -11162,6 +11225,15 @@ def rule_star_atom(p: peg_parser) -> expr | None {
 
 def rule_star_etc(p: peg_parser) -> object | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     invalid_star_etc = rule_invalid_star_etc(p);
     if invalid_star_etc is not None {
         res = invalid_star_etc;

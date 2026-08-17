@@ -79,6 +79,19 @@ def compile_handbuilt_exec(body: list[stmt], filename: str = "<f>") -> PyCode {
     return assemble(verify_cfg(u));
 }
 
+def first_nested_code(co: PyCode) -> PyCode {
+    ci = 0;
+    while ci < len(co.consts) {
+        c = co.consts[ci];
+        if isinstance(c, PyCode) {
+            return c as PyCode;
+        }
+        ci = ci + 1;
+    }
+    assert False;
+    return co;
+}
+
 def ast_chained_assign -> list[stmt] {
     x = Name(
         id="x", ctx=Store(), lineno=1, col_offset=0, end_lineno=1, end_col_offset=1
@@ -890,4 +903,62 @@ test "compiler_slice: band4 lambda closure parsed executes in ceval" {
     out = exec_code(co, [], ns);
     assert not is_error(out);
     assert expect_int(ns["result"]) == 7;
+}
+
+# ---------------- Band 4: default arguments slice ----------------
+
+test "compiler_slice: parse default args ast" {
+    src0 = "def f(x):\n    return x + 1\n\nresult = f(2)\n";
+    m0 = parse_file(src0, "<f>");
+    assert m0 is not None;
+    assert len((m0 as Module).body) == 2;
+    src1 = "def f(x, y=10):\n    return x + y\n\nresult = f(2)\n";
+    m1 = parse_file(src1, "<f>");
+    assert m1 is not None;
+    assert len((m1 as Module).body) == 2;
+    fd = (m1 as Module).body[0] as FunctionDef;
+    assert len(fd.args.defaults) == 1;
+    assert len(fd.args.args) == 2;
+}
+
+test "compiler_slice: band4 default args parsed matches oracle nested f co_code" {
+    src = "def f(x, y=10):\n    return x + y\n\nresult = f(2)\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    fn = first_nested_code(actual);
+    exp_fn = first_nested_code(exp);
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 2;
+    assert fn.varnames == ["x", "y"];
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band4 default args parsed executes in ceval" {
+    src = "def f(x, y=10):\n    return x + y\n\nresult = f(2)\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 12;
+}
+
+test "compiler_slice: band4 default args explicit call executes in ceval" {
+    src = "def f(x, y=10):\n    return x + y\n\nresult = f(2, 3)\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 5;
+}
+
+test "compiler_slice: band4 lambda default args parsed executes in ceval" {
+    src = "g = lambda x, y=1: x + y\nresult = g(2)\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
 }

@@ -892,7 +892,11 @@ def pa_make_arguments(
     slash_with_default: object,
     plain_names: object,
     names_with_default: object,
-    star_etc: object
+    star_etc: object,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
 ) -> arguments {
     posonlyargs = pa_args_from_list(slash_no_default);
     args = pa_args_from_list(plain_names);
@@ -1136,7 +1140,12 @@ def pa_key_pattern_pair(
 }
 
 def pa_name_default_pair(
-    arg: arg, `default: expr | None
+    arg: arg,
+    `default: expr | None,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int,
+    end_col_offset: int
 ) -> name_default_pair {
     return name_default_pair(arg=arg, default=`default);
 }

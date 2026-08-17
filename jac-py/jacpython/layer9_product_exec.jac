@@ -33,6 +33,19 @@ def product_exec(source: str, filename: str = "<f>") -> PyObj {
     return compile_source(source, filename, "exec", 0);
 }
 
+def first_nested_code(co: PyCode) -> PyCode {
+    ci = 0;
+    while ci < len(co.consts) {
+        c = co.consts[ci];
+        if isinstance(c, PyCode) {
+            return c as PyCode;
+        }
+        ci = ci + 1;
+    }
+    assert False;
+    return co;
+}
+
 def consts_equal(a: list[PyObj], b: list[PyObj]) -> bool {
     if len(a) != len(b) {
         return False;
@@ -369,6 +382,52 @@ test "layer9: lambda closure executes in ceval" {
     out = exec_code(co as PyCode, [], ns);
     assert not is_error(out);
     assert expect_int(ns["result"]) == 7;
+}
+
+# ---------------- Band 4: default arguments slice ----------------
+
+test "layer9: default args matches oracle" {
+    src = "def f(x, y=10):\n    return x + y\n\nresult = f(2)\n";
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    fn = first_nested_code(act);
+    exp_fn = first_nested_code(exp);
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 2;
+    assert fn.varnames == ["x", "y"];
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: default args executes in ceval" {
+    src = "def f(x, y=10):\n    return x + y\n\nresult = f(2)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 12;
+}
+
+test "layer9: default args explicit call executes in ceval" {
+    src = "def f(x, y=10):\n    return x + y\n\nresult = f(2, 3)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 5;
+}
+
+test "layer9: lambda default args executes in ceval" {
+    src = "g = lambda x, y=1: x + y\nresult = g(2)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
 }
 
 # ---------------- VM execution ----------------

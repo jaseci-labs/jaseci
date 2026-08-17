@@ -211,6 +211,15 @@ test "vm: SET_FUNCTION_ATTRIBUTE attaches closure to function" {
     );
 }
 
+test "vm: SET_FUNCTION_ATTRIBUTE attaches defaults to function" {
+    assert_vm_value_matches_host(
+        "",
+        "def f(x, y=10):\n    return x + y\nresult = f(2)\n",
+        "exec",
+        "result",
+    );
+}
+
 # vm-opcode: OP_COMPARE_OP
 test "vm: COMPARE_OP orders values" {
     assert_vm_value_matches_host("", "result = 1 < 2\n", "exec", "result");

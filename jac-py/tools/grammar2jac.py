@@ -608,10 +608,32 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
             self.print("return None;")
         self.print("}")
 
+    def _alt_starts_with_rule(self, alt: Alt, rule_name: str) -> bool:
+        if not alt.items:
+            return False
+        item = alt.items[0].item
+        if isinstance(item, Rule):
+            return item.name == rule_name
+        if isinstance(item, NameLeaf):
+            return item.value == rule_name
+        return False
+
+    def _function_def_raw_rhs(self, rhs: Rhs) -> Rhs:
+        invalid: list[Alt] = []
+        rest: list[Alt] = []
+        for alt in rhs.alts:
+            if self._alt_starts_with_rule(alt, "invalid_def_raw"):
+                invalid.append(alt)
+            else:
+                rest.append(alt)
+        return Rhs(alts=rest + invalid)
+
     def visit_Rule(self, node: Rule) -> None:
         is_loop = node.is_loop()
         is_gather = node.is_gather()
         rhs = node.flatten()
+        if node.name == "function_def_raw":
+            rhs = self._function_def_raw_rhs(rhs)
         ret = jac_return_type(node.type, is_seq=is_loop or is_gather)
         rule_id = self.rule_ids[node.name]
         if node.left_recursive and node.leader:
@@ -715,8 +737,16 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         self.print("")
 
     def _uses_extra(self, rhs: Rhs) -> bool:
+        loc_actions = (
+            "_PyPegen_name_default_pair",
+            "_PyPegen_make_arguments",
+            "_PyPegen_star_etc",
+        )
         for alt in rhs.alts:
-            if alt.action and "EXTRA" in alt.action:
+            if alt.action and (
+                "EXTRA" in alt.action
+                or any(marker in alt.action for marker in loc_actions)
+            ):
                 return True
         return False
 
