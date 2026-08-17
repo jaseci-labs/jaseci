@@ -58,7 +58,6 @@ impl add_argument(parser: argparse.ArgumentParser, arg: ArgMeta) -> None {
                 else argparse.BooleanOptionalAction
         );
         kwargs["default"] = arg.default;
-        kwargs["dest"] = kwargs.get("dest") or arg.name.replace("-", "_");
         if arg.short {
             parser.add_argument(f"-{arg.short}", f"--{arg.name}", **kwargs);
         } else {

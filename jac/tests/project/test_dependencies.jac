@@ -1145,8 +1145,6 @@ test "install npm-only project dispatches the npm provider" {
 }
 
 test "install --no-npm skips the npm provider on a full install" {
-    # Regression for #7464: npm=False (--no-npm) must gate the provider loop;
-    # npm=None (flag not given) must not.
     reset_config();
     reset_provider_registry();
     import from jaclang.cli.commands { project as proj_cmds }
