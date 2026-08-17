@@ -1,11 +1,14 @@
 import base64;
+import os;
 import secrets as _pysecrets;
 import from typing { Any }
 import from jaclang.scale.deploy.target.deployment_target { DeploymentTarget }
 import from jaclang.scale.config.config_loader { get_scale_config }
 
 glob PG_PORT = 5432,
-     PG_IMAGE = 'postgres:18';
+     PG_IMAGE = 'postgres:18',
+     POD_NAMESPACE_FILE = '/var/run/secrets/kubernetes.io/serviceaccount/namespace',
+     CLUSTER_DNS_SUFFIX = 'svc.cluster.local';
 
 
 obj KubernetesPostgresProvider {
@@ -19,15 +22,110 @@ obj KubernetesPostgresProvider {
     }
 
     def _db_cfg -> dict {
-        return get_scale_config().get_database_config();
+        return get_scale_config().get_deploy_database_config();
+    }
+
+    def _requested_mode -> str {
+        import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
+            resolve_database_mode
+        }
+        return resolve_database_mode(self.config);
+    }
+
+    def _configured_url -> str {
+        explicit = str(self.config.get('database_url') or '').strip();
+        if explicit {
+            return explicit;
+        }
+        return str(self._db_cfg().get('url') or '').strip();
+    }
+
+    def _source_namespace -> str {
+        explicit = str(self.config.get('database_namespace') or '').strip();
+        if explicit {
+            return explicit;
+        }
+        from_env = str(os.environ.get('POD_NAMESPACE') or '').strip();
+        if from_env {
+            return from_env;
+        }
+        try {
+            with open(POD_NAMESPACE_FILE) as handle {
+                return handle.read().strip();
+            }
+        } except OSError {
+            return '';
+        }
+    }
+
+    def _qualify_external_url(url: str) -> str {
+        import from urllib.parse { urlsplit, urlunsplit }
+        parts = urlsplit(url);
+        host = str(parts.hostname or '');
+        if not host or '.' in host or ':' in host or host == 'localhost' {
+            return url;
+        }
+        target_ns = str(self.config.get('namespace') or '').strip();
+        source_ns = self._source_namespace();
+        if not source_ns {
+            raise ValueError(
+                f"External database host '{host}' is a bare Kubernetes service "
+                "name, which only resolves inside the namespace that owns it, "
+                f"and this deploy targets namespace '{target_ns or 'default'}'. "
+                "The deployed pod would fail DNS resolution on startup. Either "
+                "write the fully qualified host (for example "
+                f"'{host}.<namespace>.{CLUSTER_DNS_SUFFIX}'), or set "
+                "[scale.kubernetes] database_namespace to the namespace that "
+                f"runs '{host}'."
+            );
+        }
+        if not target_ns or source_ns == target_ns {
+            return url;
+        }
+        userinfo = '';
+        if parts.username {
+            userinfo = str(parts.username);
+            if parts.password {
+                userinfo = f"{userinfo}:{parts.password}";
+            }
+            userinfo = f"{userinfo}@";
+        }
+        port = f":{parts.port}" if parts.port else '';
+        netloc = f"{userinfo}{host}.{source_ns}.{CLUSTER_DNS_SUFFIX}{port}";
+        return urlunsplit(
+            (parts.scheme, netloc, parts.path, parts.query, parts.fragment)
+        );
+    }
+
+    def _intent -> dict[str, str] {
+        requested = self._requested_mode();
+        if requested == 'none' {
+            return {'mode': 'none', 'url': ''};
+        }
+        deploy_mode = str(self._db_cfg().get('deploy_mode') or 'image').strip().lower();
+        url = self._configured_url();
+        wants_external = requested == 'external'
+            or (requested == 'auto' and (bool(url) or deploy_mode == 'external'));
+        if wants_external {
+            if not url {
+                raise ValueError(
+                    "An external database was requested for this deploy but no "
+                    "url was given. Set [scale.kubernetes] database_url, or "
+                    "[scale.database] url, or use database_mode = \"provision\" "
+                    "to get a per-app Postgres. The deploying process's "
+                    "JAC_DB_URL is deliberately not consulted here."
+                );
+            }
+            return {'mode': 'external', 'url': self._qualify_external_url(url)};
+        }
+        if deploy_mode not in ('image', 'embedded') {
+            deploy_mode = 'image';
+        }
+        return {'mode': deploy_mode, 'url': ''};
     }
 
     def _mode -> str {
-        cfg = self._db_cfg();
-        if cfg.get('url') or cfg.get('postgres_url') {
-            return 'external';
-        }
-        return str(cfg.get('deploy_mode') or 'image');
+        return self._intent()['mode'];
     }
 
     def _names -> dict[str, str] {
@@ -42,10 +140,9 @@ obj KubernetesPostgresProvider {
     }
 
     def get_connection_string -> str {
-        cfg = self._db_cfg();
-        ext = cfg.get('url') or cfg.get('postgres_url');
-        if ext {
-            return str(ext);
+        intent = self._intent();
+        if intent['mode'] == 'external' {
+            return intent['url'];
         }
         n = self._names();
         return f"postgresql://jac@{n['service']}:{PG_PORT}/jac";
@@ -57,11 +154,12 @@ obj KubernetesPostgresProvider {
 
     def deploy(config: dict[str, any] = {}) -> dict[str, any] {
         n = self._names();
-        mode = self._mode();
-        if mode == 'external' {
+        intent = self._intent();
+        mode = intent['mode'];
+        if mode in ('external', 'none') {
             return {
                 'mode': mode,
-                'connection_string': self.get_connection_string(),
+                'connection_string': intent['url'],
                 'secret': None,
                 'statefulset': None,
                 'service': None,
@@ -221,7 +319,7 @@ obj KubernetesPostgresProvider {
     def get_init_container(
         app_name: str, wait_image: str
     ) -> (dict[(str, Any)] | None) {
-        if self._mode() == 'external' {
+        if self._mode() in ('external', 'none') {
             return None;
         }
         n = self._names();

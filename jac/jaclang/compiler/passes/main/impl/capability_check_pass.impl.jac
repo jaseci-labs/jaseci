@@ -96,6 +96,7 @@ glob JS_GLOBALS: dict[str, str] = {
 
 
 impl classify_native_import(item: UniNode) -> tuple {
+    import from jaclang.jac0core.codeinfo { native_comptime_import_names }
     mod_name: (str | None) = None;
     if isinstance(item, ModulePath) and item.path {
         parts = [];
@@ -103,11 +104,27 @@ impl classify_native_import(item: UniNode) -> tuple {
             parts.append(pseg.value if isinstance(pseg, Name) else str(pseg));
         }
         mod_name = ".".join(parts);
+    } elif isinstance(item, ModuleItem) {
+        _owner = item.parent;
+        _from_loc = _owner.from_loc if isinstance(_owner, Import) else None;
+        if _from_loc is not None {
+            mod_name = _from_loc.dot_path_str;
+            if isinstance(item.name, Name)
+                and native_comptime_import_names(mod_name, [item.name.value]) {
+                return (mod_name, True);
+            }
+        }
     }
     return (mod_name, mod_name is not None and mod_name in NATIVE_SUPPORTED_STDLIB);
 }
 
 impl import_bound_name(item: UniNode) -> (str | None) {
+    if isinstance(item, ModuleItem) {
+        if item.alias is not None and isinstance(item.alias, Name) {
+            return item.alias.value;
+        }
+        return item.name.value if isinstance(item.name, Name) else None;
+    }
     if not isinstance(item, ModulePath) {
         return None;
     }
@@ -121,18 +138,63 @@ impl import_bound_name(item: UniNode) -> (str | None) {
     return None;
 }
 
+impl from_import_jac_source(imp: Import) -> (str | None) {
+    import os;
+    if imp.from_loc is None {
+        return None;
+    }
+    _path: (str | None) = None;
+    try {
+        _resolved = imp.from_loc.resolve_relative_path();
+        _path = _resolved if isinstance(_resolved, str) else None;
+    } except Exception {
+        _path = None;
+    }
+    if _path is not None and _path.endswith('.jac') and os.path.exists(_path) {
+        return _path;
+    }
+    return None;
+}
+
+impl node_within(name_nd: UniNode, top: (UniNode | None)) -> bool {
+    if top is None {
+        return False;
+    }
+    cur: (UniNode | None) = name_nd;
+    while cur is not None {
+        if cur is top {
+            return True;
+        }
+        cur = cur.parent;
+    }
+    return False;
+}
+
+impl base_expr_is_erased(base: UniNode) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
+    _tail: UniNode = base.right if isinstance(base, AtomTrailer) else base;
+    return isinstance(_tail, Name) and _tail.value in NATIVE_COMPTIME_BASES;
+}
+
 impl name_in_type_position(name_nd: UniNode) -> bool {
     if name_nd.find_parent_of_type(SubTag) is not None {
         return True;
     }
     sig = name_nd.find_parent_of_type(FuncSignature);
-    if sig is not None and sig.return_type is not None {
-        cur = name_nd;
-        while cur is not None {
-            if cur is sig.return_type {
+    if sig is not None and node_within(name_nd, sig.return_type) {
+        return True;
+    }
+    for _decl in [
+        name_nd.find_parent_of_type(Archetype),
+        name_nd.find_parent_of_type(Enum)
+    ] {
+        if _decl is None {
+            continue;
+        }
+        for _base in (_decl.base_classes or []) {
+            if node_within(name_nd, _base) and base_expr_is_erased(_base) {
                 return True;
             }
-            cur = cur.parent;
         }
     }
     return False;
@@ -224,6 +286,8 @@ impl native_capability_violations(mod: Module) -> list {
         if stmt.clib_decls or not stmt.items {
             continue;
         }
+        _from_jac: (str | None) = None;
+        _from_jac_known: bool = False;
         for item in stmt.items {
             (mod_name, _ok) = classify_native_import(item);
             if mod_name is not None and not _ok {
@@ -243,6 +307,15 @@ impl native_capability_violations(mod: Module) -> list {
                 if (stmt.is_absorb or _plain_bare)
                     and resolve_native_module(mod_name, _base_dir)[1] is not None {
                     continue;
+                }
+                if isinstance(item, ModuleItem) {
+                    if not _from_jac_known {
+                        _from_jac = from_import_jac_source(stmt);
+                        _from_jac_known = True;
+                    }
+                    if _from_jac is not None {
+                        continue;
+                    }
                 }
 
                 _bound = import_bound_name(item);
@@ -575,11 +648,10 @@ impl native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None) {
         if isinstance(_sig, EventSignature) {
             return _owner;
         }
-        if not isinstance(_sig, FuncSignature) {
-            return None;
+        if _owner.accessor_kind {
+            return _owner;
         }
-        _mname = _owner.name_ref.sym_name if _owner.name_ref else "";
-        if _mname in ("init", "__init__", "postinit", "__post_init__") {
+        if not isinstance(_sig, FuncSignature) {
             return None;
         }
         return _owner;

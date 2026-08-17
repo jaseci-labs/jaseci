@@ -9,7 +9,6 @@ in default CI.
 
 import os;
 import from pathlib { Path }
-import pytest;
 
 # Client target modules ship with core under jaclang/runtimelib/client/.
 glob _client_dir = (
@@ -1253,14 +1252,14 @@ test "dual-target gate can run e2e builds when explicitly enabled" {
     }
 
     if os.environ.get("JAC_PHASE3_DUAL_TARGET_GATE", "0") != "1" {
-        pytest.skip(
+        testskip(
             "Set JAC_PHASE3_DUAL_TARGET_GATE=1 to run emulator-grade dual-target gate."
         );
     }
 
     fixture_src = Path(__file__).parent / "fixtures" / "react_native_multiscreen";
     if not fixture_src.exists() {
-        pytest.skip("react_native_multiscreen fixture not found");
+        testskip("react_native_multiscreen fixture not found");
     }
 
     with tempfile.TemporaryDirectory() as tmp {
@@ -1733,7 +1732,7 @@ test "e2e: react-native android build produces APK" {
     }
 
     if os.environ.get("JAC_RN_E2E", "0") != "1" {
-        pytest.skip(
+        testskip(
             "Set JAC_RN_E2E=1 to run the full React Native Android build "
             "(requires Android SDK + JDK)."
         );
@@ -1741,7 +1740,7 @@ test "e2e: react-native android build produces APK" {
 
     fixture_src = Path(__file__).parent / "fixtures" / "react_native_multiscreen";
     if not fixture_src.exists() {
-        pytest.skip("react_native_multiscreen fixture not found");
+        testskip("react_native_multiscreen fixture not found");
     }
 
     with tempfile.TemporaryDirectory() as tmp {

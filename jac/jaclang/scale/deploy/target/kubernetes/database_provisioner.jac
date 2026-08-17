@@ -15,10 +15,10 @@ obj DatabaseProvisioner {
         self.k8s_target.env_list = [];
 
         cfg = self.k8s_target.k8s_config;
-        if not cfg.postgres_enabled {
+        if not cfg.database_enabled() {
             if self.logger {
                 self.logger.info(
-                    "Database provisioning skipped (postgres_enabled=false)",
+                    "Database wiring skipped (database_mode=none)",
                     {"app_name": app_name}
                 );
             }

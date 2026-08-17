@@ -248,7 +248,10 @@ def precommit(
             short="t"
         ),
         Arg.create(
-            "filter", default="", help="Filter test files (Unix patterns)", short="f"
+            "filter",
+            default="",
+            help="Select tests by name expression (and/or/not, parens)",
+            short="f"
         ),
         Arg.create(
             "xit", typ=bool, default=False, help="Stop on first failure", short="x"
@@ -265,11 +268,7 @@ def precommit(
             short="v",
             config_key="test.verbose"
         ),
-        Arg.create(
-            "ignore",
-            default="",
-            help="Path to skip during collection (pytest --ignore)"
-        ),
+        Arg.create("ignore", default="", help="Path to skip during collection"),
         Arg.create(
             "profile",
             default="",

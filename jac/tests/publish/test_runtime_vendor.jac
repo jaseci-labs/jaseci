@@ -9,7 +9,6 @@ persists natively through Session/PgStore.
 """
 
 import tempfile;
-import pytest;
 import from pathlib { Path }
 import from jaclang.publish.runtime_vendor { build_runtime_closure }
 import from jaclang.cli.commands.eject_targets.backend { emit_backend }
@@ -18,7 +17,7 @@ import from jaclang.cli.commands.eject_targets.backend { emit_backend }
 test "unresolvable extra seed fails loudly" {
     # This exact module was deleted by #7947; the vendorer used to skip the
     # seed silently and exit 0, leaving a backend that dies on first import.
-    with pytest.raises(ValueError) as exc {
+    with testraises(ValueError) as exc {
         build_runtime_closure(
             [], extra_seeds=["jaclang.runtimelib.storage.sqlalchemy_memory"]
         );
@@ -30,7 +29,7 @@ test "unresolvable extra seed fails loudly" {
 test "denied extra seed fails loudly" {
     # The compiler tree resolves on disk but is deny-listed; an explicit
     # request for it is a configuration error, not something to skip.
-    with pytest.raises(ValueError) as exc {
+    with testraises(ValueError) as exc {
         build_runtime_closure([], extra_seeds=["jaclang.compiler"]);
     }
     assert "jaclang.compiler" in str(exc.value);

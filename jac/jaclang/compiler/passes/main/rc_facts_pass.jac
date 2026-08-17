@@ -112,7 +112,7 @@ def loop_body_locals(body: (Sequence[UniNode] | None)) -> list[str] {
     return out;
 }
 
-obj RcFactsPass(Transform[Module, Module]) {
+obj RcFactsPass(Transform) {
     has ir_in: Module,
         prog: any,
         cancel_token: any = None,

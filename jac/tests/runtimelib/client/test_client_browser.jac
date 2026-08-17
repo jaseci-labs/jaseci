@@ -14,7 +14,6 @@ headless Chromium. Skips cleanly when Playwright/Chromium is unavailable.
 """
 
 import time;
-import pytest;
 import from subprocess { Popen }
 import from tempfile { TemporaryDirectory }
 
@@ -30,7 +29,7 @@ def _require_playwright -> any {
     try {
         import from playwright.sync_api { sync_playwright }
     } except ImportError {
-        pytest.skip("playwright not installed");
+        testskip("playwright not installed");
     }
     return sync_playwright;
 }

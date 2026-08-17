@@ -120,6 +120,16 @@ test "a TypeAlias glob lowers as a compile-time declaration" {
 }
 
 
+test "a type-parameter glob lowers as a compile-time declaration" {
+    (prog, ir) = compile_native("type_param_glob.jac");
+    assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";
+    assert ir is not None and ir.gen.llvm_ir , "no native IR for the type-param module";
+    assert '@"T"' not in str(ir.gen.llvm_ir) , (
+        "the type variable was given storage instead of being erased"
+    );
+}
+
+
 test "a widened tuple glob lowers from its constant" {
     (prog, ir) = compile_native("tuple_glob_meta.jac");
     assert not prog.errors_had , f"{[str(e) for e in prog.errors_had]}";

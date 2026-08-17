@@ -1488,7 +1488,10 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
         }
 
         self.builder.position_at_end(rhs_bb);
+        _bool_peer_saved = self._peer_container_ty;
+        self._peer_container_ty = self._opt_ptr_payload_of(result.type);
         rhs_val = self._str_norm(self._codegen_expr(nd.values[i]));
+        self._peer_container_ty = _bool_peer_saved;
         if rhs_val is None {
             return None;
         }
@@ -1546,7 +1549,10 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
     then_open = not self.builder.block.is_terminated;
 
     self.builder.position_at_end(else_bb);
+    _peer_saved = self._peer_container_ty;
+    self._peer_container_ty = then_val.type if then_val is not None else None;
     else_val = self._codegen_expr(nd.else_value);
+    self._peer_container_ty = _peer_saved;
     else_end_bb = self.builder.block;
     else_open = not self.builder.block.is_terminated;
 
@@ -1771,6 +1777,17 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             }
 
             if (
+                target_name == "os"
+                and self?._native_stdlib_modules
+                and "os" in self._native_stdlib_modules
+            ) {
+                _oc = self._emit_os_const(right_name);
+                if _oc is not None {
+                    return _oc;
+                }
+            }
+
+            if (
                 self?._native_module_imports
                 and target_name in self._native_module_imports
                 and target_name not in self.local_vars
@@ -1858,7 +1875,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                 }
                 obj_val = self._codegen_expr(nd.target);
                 if obj_val is not None {
-                    return self._codegen_field_access(obj_val, right_name, type_name);
+                    return self._read_field_or_refuse(
+                        nd, obj_val, right_name, type_name
+                    );
                 }
             }
         }
@@ -1871,7 +1890,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                     type_name = self._infer_type_name(obj_val);
                 }
                 if type_name is not None {
-                    return self._codegen_field_access(obj_val, right_name, type_name);
+                    return self._read_field_or_refuse(
+                        nd, obj_val, right_name, type_name
+                    );
                 }
             }
         }
@@ -1904,7 +1925,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             _slice_list_spec = self._list_spec_of(nd.target);
             if _slice_list_spec is not None {
                 target_val = self._codegen_expr(nd.target);
-                target_val = self._str_norm(target_val);
+                target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
                 if target_val is not None {
                     _shape = self._infer_list_elem_type(target_val);
                     elem_type_name = _shape if _shape is not None else _slice_list_spec;
@@ -1960,7 +1981,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             else None;
         if _idx_list_spec is not None {
             target_val = self._codegen_expr(nd.target);
-            target_val = self._str_norm(target_val);
+            target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
             if target_val is not None {
                 _shape = self._infer_list_elem_type(target_val);
                 elem_type_name = _shape if _shape is not None else _idx_list_spec;
@@ -2020,7 +2041,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                     }
                 }
             }
-            target_val = self._str_norm(target_val);
+            target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
             if target_val is not None {
                 if self?.jacval_type and target_val.type == self.jacval_type {
                     _any_slices = nd.right.slices or [];

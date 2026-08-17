@@ -32,6 +32,7 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures"
@@ -47,7 +48,7 @@ def compile_and_check(fixture_name: str) -> JacProgram {
         os.path.join(CHECKER_FIXTURES, fixture_name),
         options=CompileOptions(type_check=False, default_codespace='server')
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     return program;
 }
 
@@ -333,7 +334,7 @@ test "gap 46 impl file standalone scope resolution" {
             resolve_annex_parent=True, type_check=False, default_codespace='server'
         )
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # Expected: exactly 3 real type errors in the impl file:
     #   1. return 42 in bad_return -> str (int not assignable to str)
@@ -400,9 +401,14 @@ test "gap 47 undeclared attr assignment on archetypes" {
 # cascading into "Type is Unknown" for every downstream access.
 #
 # This is likely caused by a combination of:
-#   - Generic type params on BaseTransform[T_in, T_out] not substituted
 #   - TYPE_CHECKING-guarded JacProgram import not resolved
 #   - Dynamic attrs from cross-module impl files not in MRO
+#
+# The unsubstituted generic type params on BaseTransform[T_in, T_out] were
+# the third suspect and have been eliminated: #8288 M1 rung 1 removed them,
+# and the checker's diagnostics over fourteen pass sources -- this file's
+# thirty included -- came back byte-identical. The parameters were neither
+# helping nor hurting the checker.
 #
 # Impact: The type checker cannot type-check itself or most of the
 #         compiler codebase, which is why ~70% of .jacignore entries
@@ -414,7 +420,7 @@ test "gap 48 type checker self check" {
         JAC_ROOT, "jaclang", "compiler", "passes", "main", "type_checker_pass.jac"
     );
     mod = program.compile(tc_path);
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     # The type checker checking itself. The primary issue was that self.prog,
     # self.ir_in, self.evaluator (set in BaseTransform.__init__ via impl files)
