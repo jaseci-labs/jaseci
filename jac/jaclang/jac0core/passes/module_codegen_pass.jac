@@ -23,8 +23,7 @@ import from jaclang.jac0core.constant {
 import from jaclang.jac0core.passes.transform { Transform }
 
 obj ModuleCodegenPass(Transform) {
-    has ir_in: Module,
-        ir_out: Module postinit;
+    has ir_in: Module;
 
     static def unwrap_body(nd: Archetype | Enum | Ability) -> (Sequence | None) {
         body = nd.body;
