@@ -170,7 +170,7 @@ def _arg_fields(arg: Arg) -> list[str] {
         fields.append(f"typ={_q(typ_name)}");
     }
     if arg.`default is not None {
-        fields.append(f"default={_value_literal(arg.`default)}");
+        fields.append(f"`default={_value_literal(arg.`default)}");
     }
     if arg.help {
         fields.append(f"help={_q(arg.help)}");
