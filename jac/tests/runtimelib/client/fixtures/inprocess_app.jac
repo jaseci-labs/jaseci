@@ -67,9 +67,9 @@ walker:pub read_notes {
 # read_notes proves all notes committed exactly once.
 def:pub stream_notes(texts: list[str]) -> any {
     for t in texts {
-        fresh = root.shared +>: HasNote() :+> Note(text=t);
+        fresh = root.shared +>:HasNote():+> Note(text=t);
         if fresh {
-            grant(fresh, level=ReadPerm);
+            grant(fresh, level=AccessLevel.READ);
         }
         yield {"saved": t};
     }

@@ -117,7 +117,11 @@ the sidecar is disabled:
 import from "@jac/runtime" { jacUploadFile }
 
 # save_upload is a walker with e.g. `has file: bytes; has label: str;`
-result = await jacUploadFile("save_upload", {"label": "avatar"}, {"file": theFile});
+async def upload_avatar(the_file: bytes) -> any {
+    return await jacUploadFile(
+        "save_upload", {"label": "avatar"}, {"file": the_file}
+    );
+}
 ```
 
 ## Output layout
