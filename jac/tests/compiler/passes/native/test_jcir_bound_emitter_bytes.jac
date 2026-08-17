@@ -1,20 +1,38 @@
-"""Sealed-native JCIR bytes equal Python-lane JCIR bytes (epic #8201 phase C2).
+"""Binding the JCIR artifact does not change the bytes the emitter emits.
 
-`test_jcir_container_canary.jac` proves the container is byte stable and
-the crossing lossless, but both lanes there are the same Python-lane
-emitter. This closes that honest limit: it builds the real
-`jcir_gen_pass` artifact with the real seal, presents it to the runtime
-the way a sealed image does, and compares the bytes the **sealed
-emitter** produces against the bytes the **source lane** produces for
-the same modules.
+Read the name carefully, because an earlier one promised more than the
+file can deliver. This was `test_jcir_sealed_bytes.jac`, and it claimed
+to compare **sealed-emitter** bytes against **source-lane** bytes. It
+does not, and it cannot yet.
 
-No bespoke ctypes entry is needed. The pass-serving binder is already
-the crossing: once `native_artifact_for` reports an artifact for
-`jaclang.jac0core.passes.jcir_gen_pass`, constructing `JcirGenPass`
-binds it and its methods run inside the artifact, so `ir_bytes()` is the
-entry surface. That is the same production path
-`test_sealed_pass_serving.jac` exercises for the annex pass, which is
-why this file borrows its harness rather than inventing one.
+The #8288 M1 crossing census measured why. `pass_serve._bind_one`
+resolves the artifact, `dlopen`s it, calls `__jac_shared_init`, checks
+that every advertised export resolves by `dlsym`, and probes
+`jac_str_new` for liveness -- and then retains the engine and **no
+function pointer**. `_require_native_pass_tier` runs from
+`BaseTransform.postinit`, raises when the image claims a module the
+binder could not bind, and on the success path falls straight through
+to the pass's bytecode body. So `JcirGenPass(...).ir_bytes()` executes
+Python on both sides of the comparison below.
+
+What the file therefore proves, and what is worth proving:
+
+  - the real artifact **builds** from the real seal, with the real
+    closure, and binds and verifies cleanly;
+  - the binder **registers** the emitter, so the serving path is
+    genuinely entered rather than skipped;
+  - and the container bytes are **identical either way**, which rules
+    out the binder perturbing the emitter it attests -- a real
+    invariant, and not the one the old name promised.
+
+The limit is not left as prose. The last test pins it as a mechanism:
+it observes that an internal visitor of the Python body still runs
+during the bound emission. When the artifact genuinely serves the pass,
+that observation fails, and this file has to be rewritten to make the
+stronger claim. That is #8288 M1 rung 3's acceptance -- the fused root
+with `transform.jac` in its closure -- and it cannot happen before rung
+1 (the pass base chain stops being generic) and rung 2 land, because a
+natively constructed pass has no way to exist until then.
 
 The comparison is on the container bytes, which is the artifact the
 cutover ships on. Where a mismatch is found the code objects are also
@@ -208,7 +226,7 @@ def code_field_diffs(a: any, b: any, at: str, out: list[str]) -> list[str] {
 }
 
 
-test "the sealed emitter is actually bound and serving" {
+test "the emitter's artifact builds, binds and registers" {
     (tmp, arts) = _built();
     real_for = sealed.native_artifact_for;
     real_names = sealed.native_artifact_names;
@@ -218,9 +236,9 @@ test "the sealed emitter is actually bound and serving" {
     try {
         _emit("with entry { probe = 1; }", "bind_probe.jac");
         assert JCIR_MODULE in _NATIVE_SERVED_PASSES , (
-            "the emitter ran without the binder registering it, so a byte "
-            "comparison below would be source lane against source lane and "
-            "would pass for the wrong reason"
+            "the emitter ran without the binder registering it, so the "
+            "byte comparison below would never have entered the serving "
+            "path at all"
         );
     } finally {
         sealed.native_artifact_for = real_for;
@@ -230,7 +248,7 @@ test "the sealed emitter is actually bound and serving" {
 }
 
 
-test "sealed-native container bytes equal Python-lane container bytes" {
+test "container bytes are the same with the artifact bound and without" {
     (tmp, arts) = _built();
     source_side: dict[(str, tuple)] = {};
     for (label, src, path) in CORPUS {
@@ -283,9 +301,48 @@ test "sealed-native container bytes equal Python-lane container bytes" {
     }
     assert not failures , (
         f"{len(failures)} corpus module(s) produced different JCIR bytes "
-        "under the sealed emitter than under the source lane. The container "
-        "is what crosses the boundary, so the two lanes have to agree on it "
-        "exactly:\n  "
+        "with the artifact bound than without it. Binding attests an "
+        "artifact; it must not perturb the emitter it attests:\n  "
         + "\n  ".join(failures)
+    );
+}
+
+
+test "the bound emission still runs the Python body, and says so" {
+    # The self-clearing half of this file's honesty. The binder retains an
+    # engine and no function pointer, so `_require_native_pass_tier` falls
+    # through to the bytecode body and an internal visitor of that body is
+    # observable from here. On the day the artifact genuinely serves the
+    # pass, this observation stops holding -- and the two tests above have
+    # to be rewritten to claim the sealed-versus-source comparison they
+    # were once named for. That day is #8288 M1 rung 3.
+    (tmp, arts) = _built();
+    real_for = sealed.native_artifact_for;
+    real_names = sealed.native_artifact_names;
+    real_exit = JcirGenPass.exit_module;
+    seen: list = [];
+    def _counting_exit(self: any, nd: any) -> any {
+        seen.append(1);
+        return real_exit(self, nd);
+    }
+    _reset_serving_state();
+    sealed.native_artifact_for = _artifact_resolver(tmp, arts);
+    sealed.native_artifact_names = lambda { list(arts.keys()); };
+    JcirGenPass.exit_module = _counting_exit;
+    try {
+        _emit("with entry { probe = 1; }", "body_probe.jac");
+    } finally {
+        JcirGenPass.exit_module = real_exit;
+        sealed.native_artifact_for = real_for;
+        sealed.native_artifact_names = real_names;
+        _reset_serving_state();
+    }
+    assert seen , (
+        "the emitter's Python `exit_module` did not run while its artifact "
+        "was bound, which means the artifact is now serving the pass. That "
+        "is the goal, and it retires this file's limitation: rename the two "
+        "tests above back to the sealed-versus-source claim, emit one side "
+        "with the artifact served and the other without, and delete this "
+        "test"
     );
 }

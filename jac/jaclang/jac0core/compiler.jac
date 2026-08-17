@@ -1293,6 +1293,7 @@ obj JacCompiler {
     def stamp_boundary_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_client_kind_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def stamp_access_check_facts(mod: uni.Module) -> None;
+    def stamp_native_import_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def compile(
         file_path: str,
         target_program: JacProgram,

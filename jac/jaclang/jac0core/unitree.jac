@@ -480,7 +480,8 @@ obj Import(ContextAwareNode, ElementStmt, CodeBlockStmt) {
         hint: (SubTag[Token] | None) postinit,
         absorbed_mod: (Module | None) postinit,
         jac_detected: (bool | None) postinit,
-        boundary_facts: (ImportBoundaryFacts | None) postinit;
+        boundary_facts: (ImportBoundaryFacts | None) postinit,
+        native_only_drop: bool postinit;
 
     def postinit -> None;
 
