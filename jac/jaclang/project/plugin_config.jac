@@ -13,6 +13,9 @@ obj PluginConfigBase {
     def postinit -> None;
     def get_plugin_name -> str abst;
     def get_default_config -> dict[str, any] abst;
+    def get_config_schema -> dict[str, any];
+    def get_config_strict_env -> str;
+    def _validate_declared_keys(raw: dict[str, any]) -> None;
     def load -> dict[str, any];
     def get_jac_config -> JacConfig;
     def get_section(

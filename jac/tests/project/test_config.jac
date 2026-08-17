@@ -1906,3 +1906,43 @@ test "discover flags configs found in an ancestor directory" {
         );
     }
 }
+
+# ===========================================================================
+# TestLegacyPluginsTable
+# ===========================================================================
+test "legacy plugins table warns on load" {
+    config_mod._config = None;
+    import io;
+    import from contextlib { redirect_stderr }
+    with TemporaryDirectory() as tmpdir {
+        temp_project = make_temp_project(Path(tmpdir));
+        (temp_project / "jac.toml").write_text(
+            "[project]\nname = \"demo\"\n\n"
+            "[plugins.scale.websocket]\nmax_message_bytes = 1\n"
+        );
+        buf = io.StringIO();
+        with redirect_stderr(buf) {
+            cfg = JacConfig.load(temp_project / "jac.toml");
+        }
+        err = buf.getvalue();
+        assert "[plugins]" in err , f"expected legacy-plugins warning, got: {err!r}";
+        assert "scale" in err , err;
+        assert cfg.get_plugin_config("scale") == {} , (
+            "legacy [plugins.scale] must not be treated as [scale]"
+        );
+    }
+}
+
+test "no legacy warning without a plugins table" {
+    config_mod._config = None;
+    import io;
+    import from contextlib { redirect_stderr }
+    with TemporaryDirectory() as tmpdir {
+        temp_project = make_temp_project(Path(tmpdir));
+        buf = io.StringIO();
+        with redirect_stderr(buf) {
+            JacConfig.load(temp_project / "jac.toml");
+        }
+        assert "[plugins]" not in buf.getvalue() , buf.getvalue();
+    }
+}

@@ -239,6 +239,8 @@ def discover_config_files(
 
 def _parse_toml_data(data: dict[str, any], toml_path: Path | None = None) -> JacConfig;
 
+def _warn_legacy_plugins_table(data: dict[str, any]) -> None;
+
 def _parse_persons(raw: list[any]) -> list[PersonConfig];
 
 def _parse_include(raw: dict[str, any]) -> PackageIncludeConfig;
@@ -258,3 +260,5 @@ def set_config(config: JacConfig) -> None;
 def get_explicit_config -> JacConfig | None;
 
 def get_config_for_path(start_path: Path) -> JacConfig | None;
+
+def get_config_for_dir(start_dir: str) -> JacConfig | None;

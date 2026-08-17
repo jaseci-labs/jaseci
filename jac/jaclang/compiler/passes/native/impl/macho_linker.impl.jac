@@ -74,11 +74,14 @@ glob X86_64_RELOC_UNSIGNED = 0,
 
 glob BIND_OPCODE_DONE = 0x00,
      BIND_OPCODE_SET_DYLIB_ORDINAL_IMM = 0x10,
+     BIND_OPCODE_SET_DYLIB_SPECIAL_IMM = 0x30,
      BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM = 0x40,
      BIND_OPCODE_SET_TYPE_IMM = 0x50,
      BIND_OPCODE_SET_SEGMENT_AND_OFFSET_ULEB = 0x70,
      BIND_OPCODE_DO_BIND = 0x90,
-     BIND_TYPE_POINTER = 1;
+     BIND_TYPE_POINTER = 1,
+     BIND_SPECIAL_FLAT_LOOKUP_IMM = 0x0E,
+     PROCESS_LOOKUP_LIB = "@process";
 
 glob REBASE_OPCODE_DONE = 0x00,
      REBASE_OPCODE_SET_TYPE_IMM = 0x10,
@@ -1087,10 +1090,15 @@ impl MachOLinker.build_executable -> bytes {
 
         _lookup = sym_name[1:] if sym_name.startswith("_") else sym_name;
         _lib = self.symbol_lib_map.get(_lookup);
-        ordinal = lib_ordinals.get(_lib, 1) if _lib is not None else 1;
-
-        bind_data.append(0x20);
-        bind_data.extend(_encode_uleb128(ordinal));
+        if _lib == PROCESS_LOOKUP_LIB {
+            bind_data.append(
+                BIND_OPCODE_SET_DYLIB_SPECIAL_IMM | BIND_SPECIAL_FLAT_LOOKUP_IMM
+            );
+        } else {
+            ordinal = lib_ordinals.get(_lib, 1) if _lib is not None else 1;
+            bind_data.append(0x20);
+            bind_data.extend(_encode_uleb128(ordinal));
+        }
 
         bind_data.append(BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM);
         bind_data.extend(sym_name.encode("utf-8") + b"\x00");
@@ -1982,9 +1990,15 @@ impl MachOLinker.build_shared_object -> bytes {
         got_offset = i * 8;
         _lookup = sym_name[1:] if sym_name.startswith("_") else sym_name;
         _lib = self.symbol_lib_map.get(_lookup);
-        ordinal = lib_ordinals.get(_lib, 1) if _lib is not None else 1;
-        bind_data.append(0x20);
-        bind_data.extend(_encode_uleb128(ordinal));
+        if _lib == PROCESS_LOOKUP_LIB or _lib is None {
+            bind_data.append(
+                BIND_OPCODE_SET_DYLIB_SPECIAL_IMM | BIND_SPECIAL_FLAT_LOOKUP_IMM
+            );
+        } else {
+            ordinal = lib_ordinals.get(_lib, 1);
+            bind_data.append(0x20);
+            bind_data.extend(_encode_uleb128(ordinal));
+        }
         bind_data.append(BIND_OPCODE_SET_SYMBOL_TRAILING_FLAGS_IMM);
         bind_data.extend(sym_name.encode("utf-8") + b"\x00");
         bind_data.append(BIND_OPCODE_SET_TYPE_IMM | BIND_TYPE_POINTER);

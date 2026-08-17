@@ -3,7 +3,7 @@ import os;
 import sys;
 import types;
 import from pathlib { Path }
-import from jaclang.cli.console { console }
+import from jaclang.cli.console { console, use_line_buffered_output }
 import from jaclang.cli.commands.cli_helpers { proc_file as _proc_file }
 import from jaclang.project.kinds { RunPlan }
 
@@ -274,6 +274,7 @@ impl run(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.project.config { get_config }
 
+    use_line_buffered_output();
     if debug_mode {
         if not filename {
             console.error("jac run --debug needs a file.");
@@ -407,7 +408,7 @@ impl run(
                     console.error(error.pretty_print());
                 }
             } else {
-                import from jaclang.jac0core.helpers { dump_traceback }
+                import from jaclang.jac0core.traceback_render { dump_traceback }
                 console.error(dump_traceback(e));
             }
         }
@@ -445,6 +446,7 @@ impl enter(
     import from jaclang.jac0core.runtime { JacRuntime as Jac }
     import from jaclang.jac0core.constructs { WalkerArchetype }
 
+    use_line_buffered_output();
     if len(sys.argv) > 1 and sys.argv[1] == "enter" {
         console.print(
             "note: 'jac enter' is deprecated; use jac run <file> --entry <name>",
@@ -536,6 +538,7 @@ impl start(
     import from pathlib { Path }
     import from jaclang.jac0core.codeinfo { set_effective_default_codespace }
 
+    use_line_buffered_output();
     set_effective_default_codespace('server');
 
     import from jaclang.runtimelib.client.cli { run_client_start }
@@ -601,7 +604,7 @@ impl start(
                 console.error(error.pretty_print());
             }
         } else {
-            import from jaclang.jac0core.helpers { dump_traceback }
+            import from jaclang.jac0core.traceback_render { dump_traceback }
             console.error(f"Error loading {filename}: {e}");
             console.error(dump_traceback(e));
         }
@@ -627,7 +630,7 @@ impl start(
         try {
             server.print_endpoint_docs();
         } except Exception as e {
-            import from jaclang.jac0core.helpers { dump_traceback }
+            import from jaclang.jac0core.traceback_render { dump_traceback }
             console.error(f"Error generating endpoint documentation: {e}");
             console.error(dump_traceback(e));
             mach.close();
@@ -737,7 +740,7 @@ impl start(
         mach.close();
         return 0;
     } except Exception as e {
-        import from jaclang.jac0core.helpers { dump_traceback }
+        import from jaclang.jac0core.traceback_render { dump_traceback }
         console.error(f"Server error: {e}");
         console.error(dump_traceback(e));
         if hot_reloader {
@@ -940,7 +943,7 @@ def _start_vite_dev_server(base_path: str, vite_port: int, api_port: int) -> any
 
 impl debug(filename: str, main: bool = True, cache: bool = False) -> int {
     import from jaclang.jac0core.program { JacProgram }
-    import from jaclang.jac0core.helpers { debugger as db }
+    import from jaclang.jac0core.debugger { debugger as db }
     if len(sys.argv) > 1 and sys.argv[1] == "debug" {
         console.print(
             "note: 'jac debug' is deprecated; use jac run <file> --debug", style="muted"

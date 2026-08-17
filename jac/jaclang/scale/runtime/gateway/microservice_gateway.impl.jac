@@ -654,12 +654,11 @@ impl MicroserviceGateway.setup -> ServingApp {
         reset_current_trace,
         ensure_trace_id
     }
-    import from jaclang.scale.runtime.context.log_emit { install_structured_logging }
-    install_structured_logging();
-
     import from jaclang.scale.runtime.middleware.metrics { build_gateway_metrics }
     import from jaclang.scale.config.config_loader { get_scale_config }
     mon_cfg = get_scale_config().get_monitoring_config();
+    import from jaclang.scale.runtime.context.log_emit { install_structured_logging }
+    install_structured_logging();
     (self._metrics_registry, self._metrics_requests, self._metrics_duration) = (
         build_gateway_metrics(
             namespace=mon_cfg.get("namespace", "jaclang_scale"),

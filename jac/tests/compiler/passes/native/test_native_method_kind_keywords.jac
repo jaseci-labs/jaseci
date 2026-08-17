@@ -7,10 +7,18 @@ Jac has first-class syntax for all three method kinds -- `abst`, `class def`,
 
 The native capability authority inspects `nd.decorators`, a list of `Expr`
 nodes. A keyword populates no such list, so the keyword forms cross the
-native boundary while the hand-written decorators are rejected with E5090.
-The compiler's own front-end sources used the decorator spellings in places
-(`passes/transform.jac`, `runtime.jac`, `compiler.jac`); this test pins both
-halves of the contract so that regression is visible.
+native boundary while the hand-written decorators demote their method to a
+Python-only seam (granular demotion, epic #8201) -- the method leaves the
+native layout rather than running undecorated. The compiler's own front-end
+sources used the decorator spellings in places (`passes/transform.jac`,
+`runtime.jac`, `compiler.jac`); this test pins both halves of the contract
+so that regression is visible.
+
+`@abstractmethod` is the one spelling that cannot be written without also
+importing it, and a module-scope Python import has no owning callable to
+absorb it, so that snippet refuses the whole module rather than seaming one
+method. `@classmethod` is a builtin and needs no import, which is where the
+granular half of the decorator contract is pinned.
 
 Tracks the front-end native idiom work in #8039.
 """
@@ -103,6 +111,13 @@ test "static def: a staticmethod lowers and returns its value" {
     assert f(41) == 42;
 }
 
+test "class def: a classmethod lowers receiver-less and carries its arguments" {
+    (eng, _) = compile_native("method_kind_keywords.jac");
+    f = get_func(eng, "call_classmethod", ctypes.c_int64, ctypes.c_int64);
+    assert f(5) == 17;
+    assert f(0) == 7;
+}
+
 test "the keyword fixture compiles with no native diagnostics at all" {
     prog = JacProgram();
     prog.compile(
@@ -113,13 +128,14 @@ test "the keyword fixture compiles with no native diagnostics at all" {
 }
 
 # ─────────────────────────────────────────────────────────────────────
-# The decorator spellings stay rejected -- this is why the sources moved
+# The decorator spellings demote off native -- this is why the sources moved
 # ─────────────────────────────────────────────────────────────────────
 
-test "guardrail: @abstractmethod is rejected where abst is accepted" {
-    dec = check_na_inline(
-        "abstractmethod",
-        "import from abc { abstractmethod }\n"
+test "guardrail: @abstractmethod refuses where abst is accepted" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "_mkind_abstractmethod.jac"),
+        use_str="import from abc { abstractmethod }\n"
         "obj Base {\n"
         "    @abstractmethod\n"
         "    def go(x: int) -> int;\n"
@@ -127,9 +143,22 @@ test "guardrail: @abstractmethod is rejected where abst is accepted" {
         "obj Impl(Base) {\n"
         "    def go(x: int) -> int { return x + 1; }\n"
         "}\n"
-        "with entry { print(Impl().go(1)); }\n"
+        "with entry { print(Impl().go(1)); }\n",
+        options=native_force_opts()
     );
-    assert has_error_code(dec, "E5090") , f"expected E5090, got {fmt_errors(dec)}";
+    errs = fmt_errors(prog);
+    assert "decorator 'on go'" in errs , (
+        f"the capability gate must still name the decorator spelling: {errs}"
+    );
+    assert "Python module import 'abc'" in errs , (
+        "the decorator cannot be written without importing it, and a "
+        "module-scope Python import has no owning callable to absorb it as "
+        "a seam. `import abc;` has always refused the whole module here; "
+        f"the `from` spelling is classified on the same terms: {errs}"
+    );
+    assert ir.gen.llvm_ir is None , (
+        "a module-fatal violation must withhold the LLVM IR"
+    );
     kw = check_na_inline(
         "abst",
         "obj Base {\n"
@@ -143,52 +172,27 @@ test "guardrail: @abstractmethod is rejected where abst is accepted" {
     assert not kw.errors_had , fmt_errors(kw);
 }
 
-test "guardrail: @classmethod is rejected at the capability gate" {
-    dec = check_na_inline(
-        "classmethod",
-        "obj Holder {\n"
+test "guardrail: @classmethod demotes at the capability gate" {
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=os.path.join(FIXTURES, "_mkind_classmethod.jac"),
+        use_str="obj Holder {\n"
         "    @classmethod\n"
         "    def make(cls: any) -> int { return 7; }\n"
-        "}\n"
-        "with entry { print(Holder.make()); }\n"
-    );
-    assert has_error_code(dec, "E5090") , f"expected E5090, got {fmt_errors(dec)}";
-}
-
-# `class def` clears the capability gate -- it sets `is_classmethod` rather than
-# populating `decorators` -- but codegen has no lowering for a classmethod call,
-# so calling one from a native function is a structured E5092 rather than a
-# silently wrong body. That is the honest state: the keyword is the right
-# spelling, and classmethod lowering is a separate, unbuilt native feature.
-#
-# No front-end module in the #8039 native closure needs it. `runtime.jac`
-# (JacRuntime.get_compiler / get_program) is not imported by the front end at
-# all, and `compiler.jac`'s single site memoized a constant path, which now
-# mirrors the plain-instance-method `_SetupProgress` twin in the same file.
-#
-# When classmethod lowering lands, delete this guardrail and add a behavioral
-# test to the block above.
-test "guardrail: class def clears the gate but codegen cannot lower the call" {
-    kw = check_na_inline(
-        "class_def_gate",
-        "obj Holder {\n"
-        "    class def make -> int { return 7; }\n"
-        "}\n"
-        "def use -> int { return Holder.make(); }\n"
-    );
-    assert not has_error_code(kw, "E5090") , (
-        f"class def should not hit the decorator gate: {fmt_errors(kw)}"
-    );
-    cg = JacProgram();
-    cg.compile(
-        file_path=os.path.join(FIXTURES, "_mkind_class_def_cgen.jac"),
-        use_str="obj Holder {\n"
-        "    class def make -> int { return 7; }\n"
-        "}\n"
-        "def use -> int { return Holder.make(); }\n",
+        "}\n",
         options=native_force_opts()
     );
-    assert has_error_code(cg, "E5092") , (
-        f"expected E5092 from codegen, got {fmt_errors(cg)}"
+    assert not has_error_code(prog, "E5090") , (
+        f"a @classmethod method must demote, not fail the module: {fmt_errors(prog)}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "Holder.make" not in layout.methods , (
+        "the @classmethod method must be demoted out of the native layout"
     );
 }
+
+# `class def` sets `is_classmethod` rather than populating `decorators`, so
+# it clears the capability gate, and codegen lowers it receiver-less like a
+# static (a body that reads `cls` demotes through normal name resolution).
+# The behavioral pin lives in the block above (`call_classmethod`).

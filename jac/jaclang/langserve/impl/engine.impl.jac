@@ -1,3 +1,5 @@
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
+
 impl Task.postinit -> None {
     self.task_id = Task._task_id;
     self.cancel_token = threading.Event();
@@ -596,7 +598,7 @@ impl JacLangServer.get_node_info(sym_node: uni.AstSymbolNode) -> Optional[str] {
             node_info += f"\n{doc}";
         }
         if isinstance(sym_node, uni.Ability) and sym_node.signature {
-            node_info += f"\n{sym_node.signature.unparse()}";
+            node_info += f"\n{unparse_node(sym_node.signature)}";
         }
         try {
             top: (uni.UniNode | None) = sym_node;
@@ -719,7 +721,7 @@ impl JacLangServer.get_completion_items_of(
         items.append(
             lspt.CompletionItem(
                 label=item.label,
-                kind=item.kind,
+                kind=lspt.CompletionItemKind(item.kind.value),
                 label_details=detail,
                 documentation=documentation,
             )

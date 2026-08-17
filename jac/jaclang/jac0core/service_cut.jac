@@ -24,12 +24,7 @@ def _load_cut(root_dir: str) -> set[str] {
     } except Exception {
         return set();
     }
-    routes = (
-        doc.get("scale", {}).get("microservices", {}).get("routes", {})
-        or doc.get("plugins", {}).get("scale", {}).get("microservices", {}).get(
-            "routes", {}
-        )
-    );
+    routes = doc.get("scale", {}).get("microservices", {}).get("routes", {});
     cut: set[str] = {str(k) for k in routes} if isinstance(routes, dict) else set();
     _cut_cache[root_dir] = (mtime, cut);
     return cut;

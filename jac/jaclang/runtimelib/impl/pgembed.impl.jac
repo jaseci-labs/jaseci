@@ -22,6 +22,63 @@ impl dist_cache_dir -> str {
 }
 
 
+def _effective_uid -> int {
+    getter = os?.geteuid;
+    return int(getter()) if getter is not None else -1;
+}
+
+
+impl pg_run_candidates -> list[PgRunAs] {
+    try {
+        import pwd;
+    } except ImportError {
+        return [];
+    }
+    names: list[str] = [];
+    for raw in [os.environ.get('JAC_PG_USER', ''), os.environ.get('SUDO_USER', '')]
+        + PG_RUN_USERS {
+        who = raw.strip();
+        if who and who not in names {
+            names.append(who);
+        }
+    }
+    out: list[PgRunAs] = [];
+    for who in names {
+        try {
+            ent = pwd.getpwnam(who);
+        } except KeyError {
+            continue;
+        }
+        if int(ent.pw_uid) == 0 {
+            continue;
+        }
+        out.append(PgRunAs(name=who, uid=int(ent.pw_uid), gid=int(ent.pw_gid)));
+    }
+    return out;
+}
+
+
+impl pg_priv_plan(euid: int, candidates: list[PgRunAs]) -> PgPrivPlan {
+    if euid != 0 {
+        return PgPrivPlan(mode=PgPrivMode.AS_IS);
+    }
+    for cand in candidates {
+        if cand.uid != 0 and cand.name {
+            return PgPrivPlan(mode=PgPrivMode.DROP, run_as=cand);
+        }
+    }
+    return PgPrivPlan(
+        mode=PgPrivMode.BLOCKED,
+        reason=(
+            'the embedded postgres server cannot run as root (initdb refuses '
+            'uid 0) and no unprivileged account was found to drop to. Either '
+            'run jac as a normal user, create an account and point '
+            'JAC_PG_USER at it, or set JAC_DB_URL to an external Postgres.'
+        )
+    );
+}
+
+
 def _platform_slug -> (str | None) {
     sys_name = platform.system();
     mach = platform.machine().lower();
@@ -83,8 +140,80 @@ impl PgRuntime.postinit -> None {
     self._bin_dir = None;
     self._proc = None;
     self._lock = threading.RLock();
+    self._priv = None;
     if self.port == 0 {
         self.port = SOCK_PORT;
+    }
+}
+
+
+impl PgRuntime._priv_plan -> PgPrivPlan {
+    plan = self._priv;
+    if plan is None {
+        plan = pg_priv_plan(_effective_uid(), pg_run_candidates());
+        self._priv = plan;
+    }
+    return plan;
+}
+
+
+impl PgRuntime._run_as -> (PgRunAs | None) {
+    plan = self._priv_plan();
+    assert plan.mode is not PgPrivMode.BLOCKED , plan.reason;
+    return plan.run_as;
+}
+
+
+impl PgRuntime._as_user -> dict {
+    target = self._run_as();
+    if target is None {
+        return {};
+    }
+    return {'user': target.uid, 'group': target.gid};
+}
+
+
+impl PgRuntime._grant_dir(path: str) -> None {
+    target = self._run_as();
+    if target is None {
+        return;
+    }
+    try {
+        if os.stat(path).st_uid != target.uid {
+            os.chown(path, target.uid, target.gid);
+            for (parent, dirnames, filenames) in os.walk(path) {
+                for entry in dirnames + filenames {
+                    os.chown(os.path.join(parent, entry), target.uid, target.gid);
+                }
+            }
+        }
+    } except OSError as e {
+        logger.warning(f"could not hand {path} to {target.name}: {e}");
+        return;
+    }
+    me = _effective_uid();
+    cur = os.path.dirname(os.path.abspath(path));
+    while cur != os.path.dirname(cur) {
+        try {
+            info = os.stat(cur);
+        } except OSError {
+            return;
+        }
+        if info.st_uid != me {
+            return;
+        }
+        if not (info.st_mode & 0o011) {
+            try {
+                os.chmod(cur, info.st_mode | 0o011);
+            } except OSError {
+                return;
+            }
+            logger.info(
+                f"granted search access on {cur} so postgres can run as "
+                f"{target.name}"
+            );
+        }
+        cur = os.path.dirname(cur);
     }
 }
 
@@ -132,17 +261,22 @@ impl PgRuntime.ensure -> ConnInfo {
         os.makedirs(os.path.dirname(self.data_dir) or '.', exist_ok=True);
         lock_f = open(self.data_dir + '.lock', 'w');
         fcntl.flock(lock_f.fileno(), fcntl.LOCK_EX);
+        started = False;
         try {
             if not self.is_running() {
                 bin_dir = self._resolve_binaries();
                 self._initdb_if_needed(bin_dir);
                 self._start(bin_dir);
+                started = True;
             }
         } finally {
             fcntl.flock(lock_f.fileno(), fcntl.LOCK_UN);
             lock_f.close();
         }
         self._wait_ready();
+        if started {
+            self._sweep_on_start();
+        }
         self._ensure_database();
         return self.conninfo();
     }
@@ -185,9 +319,22 @@ impl PgRuntime.stop -> None {
             ],
             capture_output=True,
             text=True,
-            timeout=60
+            timeout=60,
+            **self._as_user()
         );
     }
+}
+
+
+impl PgRuntime.fetch_dist -> str {
+    found = self._resolve_from_env() or self._resolve_from_zonky();
+    assert found is not None , (
+        'could not fetch the embedded postgres distribution: set JAC_PG_DIST '
+        'to an existing distribution, or allow network access to Maven '
+        'Central so it can be downloaded'
+    );
+    self._bin_dir = found;
+    return found;
 }
 
 
@@ -419,10 +566,12 @@ impl PgRuntime._fetch_dist(
 
 impl PgRuntime._initdb_if_needed(bin_dir: str) -> None {
     if os.path.isfile(os.path.join(self.data_dir, 'PG_VERSION')) {
+        self._grant_dir(self.data_dir);
         return;
     }
     os.makedirs(self.data_dir, exist_ok=True);
     os.chmod(self.data_dir, 0o700);
+    self._grant_dir(self.data_dir);
     res = subprocess.run(
         [
             os.path.join(bin_dir, 'initdb'),
@@ -438,27 +587,36 @@ impl PgRuntime._initdb_if_needed(bin_dir: str) -> None {
         ],
         capture_output=True,
         text=True,
-        timeout=120
+        timeout=120,
+        **self._as_user()
     );
     assert res.returncode == 0 , f"initdb failed: {res.stderr.strip()}";
 }
 
 
+impl pg_tuning_settings -> dict[str, str] {
+    return {
+        'max_connections': str(PG_MAX_CONNECTIONS),
+        'max_pred_locks_per_transaction': str(PG_MAX_PRED_LOCKS_PER_TXN),
+        'idle_in_transaction_session_timeout': str(PG_IDLE_IN_TXN_TIMEOUT_MS)
+    };
+}
+
+
 impl PgRuntime._server_opts -> str {
     listen = "-c listen_addresses=127.0.0.1" if self.tcp else "-c listen_addresses=''";
+    tuning = ' '.join(f"-c {k}={v}" for (k, v) in pg_tuning_settings().items());
     return (
         f"-p {self.port} {listen} "
         f"-c unix_socket_directories='{self._sock_dir()}' "
-        "-c dynamic_shared_memory_type=posix "
-        f"-c max_connections={PG_MAX_CONNECTIONS} "
-        "-c max_pred_locks_per_transaction=1024 "
-        "-c idle_in_transaction_session_timeout=300000"
+        f"-c dynamic_shared_memory_type=posix {tuning}"
     );
 }
 
 
 impl PgRuntime._start(bin_dir: str) -> None {
     os.makedirs(self._sock_dir(), exist_ok=True);
+    self._grant_dir(self._sock_dir());
     opts = self._server_opts();
     log_path = os.path.join(self.data_dir, 'server.log');
     res = subprocess.run(
@@ -477,7 +635,8 @@ impl PgRuntime._start(bin_dir: str) -> None {
         ],
         capture_output=True,
         text=True,
-        timeout=90
+        timeout=90,
+        **self._as_user()
     );
     if res.returncode != 0 {
         tail = '';
@@ -517,22 +676,124 @@ impl PgRuntime._wait_ready(timeout: float = 60.0) -> None {
 
 
 impl PgRuntime._ensure_database -> None {
-    import from jaclang.vendor.pgload { connect }
-    info = self.conninfo();
-    conn: Any = connect(
-        info.user,
-        host=info.host,
-        port=info.port,
-        unix_socket_dir=info.unix_socket_dir,
-        database='postgres'
-    );
+    import from jaclang.runtimelib.dbcatalog {
+        connect_admin,
+        record_database,
+        start_heartbeat
+    }
+    conn: Any = connect_admin(self.conninfo());
     try {
         rows = conn.run(
             "SELECT 1 FROM pg_database WHERE datname = :n", n=self.database
         );
-        if not rows {
+        created = not rows;
+        if created {
             conn.run(f'CREATE DATABASE "{self.database}"');
         }
+        record_database(conn, self.database, self.kind, self.owner_path);
+        if self.kind == DbKind.SCRATCH {
+            start_heartbeat(self.conninfo(), self.database);
+        }
+        if created and self.kind == DbKind.SCRATCH {
+            self._reap_scratch(conn);
+        }
+    } finally {
+        conn.close();
+    }
+}
+
+
+impl PgRuntime._reap_scratch(conn: Any) -> int {
+    import from jaclang.runtimelib.dbcatalog {
+        condemn_stale_scratch,
+        dead_scratch_databases,
+        drop_if_still_dead,
+        list_databases
+    }
+    reaped = 0;
+    try {
+        records = list_databases(conn);
+        if (marked := condemn_stale_scratch(conn, records)) {
+            logger.info(
+                f"{len(marked)} scratch database(s) have stopped heartbeating; "
+                'they will be reclaimed by a later start if they are still '
+                'silent and unused by then'
+            );
+        }
+        for name in dead_scratch_databases(records) {
+            if name != self.database and drop_if_still_dead(conn, name) {
+                reaped += 1;
+            }
+        }
+    } except Exception as e {
+        logger.debug(f"scratch reap failed: {e}");
+        return reaped;
+    }
+    if reaped {
+        logger.info(
+            f"reclaimed {reaped} scratch database(s) left by processes that "
+            'are no longer running'
+        );
+    }
+    return reaped;
+}
+
+
+impl PgRuntime.drop_database(database: str, force: bool = False) -> bool {
+    import from jaclang.runtimelib.dbcatalog {
+        connect_admin,
+        drop_database as catalog_drop
+    }
+    conn: Any = connect_admin(self.conninfo());
+    try {
+        return catalog_drop(conn, database, force=force);
+    } finally {
+        conn.close();
+    }
+}
+
+
+impl PgRuntime.databases -> list {
+    import from jaclang.runtimelib.dbcatalog { connect_admin, list_databases }
+    conn: Any = connect_admin(self.conninfo());
+    try {
+        return list_databases(conn);
+    } finally {
+        conn.close();
+    }
+}
+
+
+impl PgRuntime._sweep_on_start -> None {
+    import from jaclang.runtimelib.dbcatalog {
+        connect_admin,
+        drop_database,
+        expired_databases
+    }
+    try {
+        conn: Any = connect_admin(self.conninfo());
+    } except Exception as e {
+        logger.debug(f"cluster sweep skipped, no admin connection: {e}");
+        return;
+    }
+    try {
+        self._reap_scratch(conn);
+        if self.retention_days > 0 {
+            swept = 0;
+            for name in expired_databases(conn, self.retention_days, self.database) {
+                if drop_database(conn, name) {
+                    swept += 1;
+                }
+            }
+            if swept {
+                logger.info(
+                    f"retention swept {swept} database(s) unused for more than "
+                    f"{self.retention_days} day(s)"
+                );
+            }
+        }
+    } except Exception as e {
+        logger.debug(f"cluster sweep failed: {e}");
     } finally {
         conn.close();
     }
@@ -543,6 +804,7 @@ impl PgRuntime.serve -> int {
     bin_dir = self._resolve_binaries();
     self._initdb_if_needed(bin_dir);
     os.makedirs(self._sock_dir(), exist_ok=True);
+    self._grant_dir(self._sock_dir());
     argv = [
         os.path.join(bin_dir, 'postgres'),
         '-D',
@@ -556,7 +818,7 @@ impl PgRuntime.serve -> int {
         '-c',
         'dynamic_shared_memory_type=posix'
     ];
-    proc = subprocess.Popen(argv);
+    proc = subprocess.Popen(argv, **self._as_user());
     self._proc = proc;
 
     def _forward(signum: int, frame: Any) {

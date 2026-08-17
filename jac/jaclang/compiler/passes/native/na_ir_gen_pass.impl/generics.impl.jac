@@ -44,6 +44,18 @@ impl NaIRGenPass._solve_generic_call(
             }
             return;
         }
+        if (
+            isinstance(decl, _CT)
+            and decl._shared is not None
+            and decl.shared.class_name == "type"
+            and (decl.private.type_args or [])
+            and isinstance(actual, _CT)
+            and actual.is_instantiable()
+            and not actual.is_instance()
+        ) {
+            unify(decl.private.type_args[0], actual.clone_as_instance());
+            return;
+        }
         if isinstance(decl, _CT) and isinstance(actual, _CT) {
             d_args = decl.private.type_args or [];
             a_args = actual.private.type_args or [];
@@ -319,7 +331,10 @@ impl NaIRGenPass._stamp_mono_method(
     full_name = f"{arch_name}.{method_name}";
     struct_type = self.struct_types.get(arch_name);
     sig = ability.signature;
-    if struct_type is None or sig is None or ability.is_static {
+    if struct_type is None
+        or sig is None
+        or ability.is_static
+        or ability.is_classmethod {
         self.emit(E5092, node_override=ability, kind="method", name=full_name);
         return None;
     }
@@ -354,6 +369,8 @@ impl NaIRGenPass._stamp_mono_method(
         self._gen_ctx = saved_gen_ctx;
     }
     if full_name in self._native_skipped_methods {
+        self._mono_fns.pop(memo_key, None);
+        self.llvm_module.globals.pop(fn.name, None);
         return None;
     }
     return fn;

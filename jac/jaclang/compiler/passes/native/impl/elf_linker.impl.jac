@@ -37,7 +37,8 @@ glob PT_NULL = 0,
      PT_LOAD = 1,
      PT_DYNAMIC = 2,
      PT_INTERP = 3,
-     PT_PHDR = 6;
+     PT_PHDR = 6,
+     PT_GNU_STACK = 0x6474e551;
 
 glob PF_X = 0x1,
      PF_W = 0x2,
@@ -88,7 +89,12 @@ glob R_X86_64_64 = 1,
      R_X86_64_REX_GOTPCRELX = 42;
 
 glob R_AARCH64_PREL32 = 261,
+     R_AARCH64_LD_PREL_LO19 = 273,
+     R_AARCH64_ADR_PREL_LO21 = 274,
      R_AARCH64_ADR_PREL_PG_HI21 = 275,
+     R_AARCH64_ADR_PREL_PG_HI21_NC = 276,
+     R_AARCH64_TSTBR14 = 279,
+     R_AARCH64_CONDBR19 = 280,
      R_AARCH64_ADD_ABS_LO12_NC = 277,
      R_AARCH64_JUMP26 = 282,
      R_AARCH64_CALL26 = 283,
@@ -393,6 +399,22 @@ def _aarch64_build_plt_entry(
 }
 
 
+def _aarch64_pcrel(
+    rtype: int, sym_addr: int, addend: int, patch_vaddr: int, bits: int
+) -> int {
+    val = sym_addr + addend - patch_vaddr;
+    limit = 1 << (bits - 1);
+    if val < -limit or val >= limit {
+        raise ValueError(
+            f"ELF linker: aarch64 relocation type {rtype} needs a {val}-byte "
+            f"displacement, past the +/-{limit} bytes its field encodes. "
+            "Refusing to emit a truncated branch."
+        );
+    }
+    return val;
+}
+
+
 def _aarch64_apply_reloc(
     rtype: int,
     patch_buf: bytearray,
@@ -407,7 +429,29 @@ def _aarch64_apply_reloc(
         insn = (insn & 0xFC000000) | offset;
         struct.pack_into("<I", patch_buf, patch_off, insn);
         return True;
-    } elif rtype == R_AARCH64_ADR_PREL_PG_HI21 or rtype == R_AARCH64_ADR_GOT_PAGE {
+    } elif rtype == R_AARCH64_CONDBR19 or rtype == R_AARCH64_LD_PREL_LO19 {
+        val = (_aarch64_pcrel(rtype, sym_addr, addend, patch_vaddr, 21) >> 2) & 0x7FFFF;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0xFF00001F) | (val << 5);
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_TSTBR14 {
+        val = (_aarch64_pcrel(rtype, sym_addr, addend, patch_vaddr, 16) >> 2) & 0x3FFF;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0xFFF8001F) | (val << 5);
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_ADR_PREL_LO21 {
+        val = _aarch64_pcrel(rtype, sym_addr, addend, patch_vaddr, 21);
+        immlo = (val & 0x3) << 29;
+        immhi = ((val >> 2) & 0x7FFFF) << 5;
+        insn = struct.unpack_from("<I", patch_buf, patch_off)[0];
+        insn = (insn & 0x9F00001F) | immlo | immhi;
+        struct.pack_into("<I", patch_buf, patch_off, insn);
+        return True;
+    } elif rtype == R_AARCH64_ADR_PREL_PG_HI21
+        or rtype == R_AARCH64_ADR_PREL_PG_HI21_NC
+        or rtype == R_AARCH64_ADR_GOT_PAGE {
         page_s = (sym_addr + addend) & ~0xFFF;
         page_p = patch_vaddr & ~0xFFF;
         page_off = (page_s - page_p) >> 12;
@@ -1740,7 +1784,7 @@ impl ElfLinker.build_shared_object -> bytes {
     num_dynsyms = len(dynsym_names);
 
     ehdr_size = 64;
-    num_phdrs = 4;
+    num_phdrs = 5;
     phdr_size = num_phdrs * 56;
     cur_offset = ehdr_size + phdr_size;
     cur_offset = _align(cur_offset, 8);
@@ -2363,6 +2407,11 @@ impl ElfLinker.build_shared_object -> bytes {
         dynamic_size,
         dynamic_size,
         8
+    );
+    phdr_off += 56;
+
+    struct.pack_into(
+        "<IIQQQQQQ", output, phdr_off, PT_GNU_STACK, PF_R | PF_W, 0, 0, 0, 0, 0, 16
     );
 
     output[hash_foff:hash_foff + len(hash_data)] = hash_data;

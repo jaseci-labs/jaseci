@@ -2,6 +2,7 @@
 
 import from jaclang.jac0core.parser.frontend { parse, parse_diags }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
 import from jaclang.jac0 { ct_expand_source }
 
 glob CT_SRC: str = """
@@ -78,7 +79,7 @@ test "formatter path keeps templates unexpanded" {
         if isinstance(nd, CtFor)
     ];
     assert kept , "formatter tree should retain comptime templates";
-    out = main_mod.unparse(requires_format=True);
+    out = unparse_module(main_mod, requires_format=True);
     assert "comptime for K in NAMES" in out , out[:200];
     assert "${" in out , "splices should survive the formatter tree";
 }
@@ -89,8 +90,18 @@ test "expansion errors surface as diagnostics with locations" {
     prog = JacProgram();
     (mod, err) = parse(src, "ct_err.jac", prog=prog);
     assert err , "expected expansion failure";
-    assert prog.errors_had , "expected an E0108 diagnostic";
+    assert prog.errors_had , "expected an E0109 diagnostic";
     assert "comptime" in prog.errors_had[0].msg;
+    codes = {
+        str(e.code.code)
+        for e in prog.errors_had
+        if e.code is not None
+    };
+    assert "E0109" in codes , (
+        "a comptime expansion failure has to carry its own code. It read "
+        f"{sorted(codes)}: E0108 here means the duplicate definition is back, "
+        "and the escape-sequence diagnostic is shadowing this one again."
+    );
 }
 
 
@@ -113,12 +124,16 @@ test "comptime if selects by target context" {
 
 test "reflect deps are visible to cache invalidation" {
     import os;
-    import jaclang;
     import from jaclang.jac0 { ct_reflect_source_deps }
-    arena_path = os.path.join(
-        os.path.dirname(jaclang.__file__), "jac0core", "arena.jac"
+    src = (
+        "comptime def _m -> any {\n"
+        "    return reflect.module(\"jaclang.jac0core.unitree\");\n"
+        "}\n"
+        "comptime def _c -> any {\n"
+        "    return reflect.module(\"jaclang.jac0core.constant\");\n"
+        "}\n"
     );
-    deps = ct_reflect_source_deps(open(arena_path, encoding="utf-8").read());
+    deps = ct_reflect_source_deps(src);
     names = {os.path.basename(d) for d in deps};
     assert "unitree.jac" in names and "constant.jac" in names , names;
     assert ct_reflect_source_deps("with entry { print(1); }") == [];
@@ -135,21 +150,32 @@ test "jac0 bootstrap expander agrees on the same dialect" {
 }
 
 
-test "arena derivation self-hosts through the full compiler" {
-    import os;
-    import jaclang;
-    import from jaclang.jac0core.arena { Kind, SPECS, SyntaxArena }
-    arena_path = os.path.join(
-        os.path.dirname(jaclang.__file__), "jac0core", "arena.jac"
+test "semantic reflection over unitree drives expansion" {
+    import from jaclang.jac0core.unitree { Ability }
+    src = (
+        "comptime def _schema -> list {\n"
+        "    mod = reflect.module(\"jaclang.jac0core.unitree\");\n"
+        "    out = [];\n"
+        "    for nm in sorted(mod.subtypes_of(\"MatchPattern\")) {\n"
+        "        out.append(ct.snake(nm));\n"
+        "    }\n"
+        "    return out;\n"
+        "}\n"
+        "comptime for K in _schema() {\n"
+        "    def probe_${K} -> str {\n"
+        "        return \"${K}\";\n"
+        "    }\n"
+        "}\n"
     );
-    src = open(arena_path, encoding="utf-8").read();
     prog = JacProgram();
-    (mod, err) = parse(src, arena_path, prog=prog);
+    (mod, err) = parse(src, "ct_reflect_unitree.jac", prog=prog);
     assert not err , [a.msg for a in prog.errors_had[:2]];
-    a = SyntaxArena();
-    got = a.mk_ct_for(target=1, iter=2, body=[3], kid=[1, 2, 3]);
-    assert a.kind_of(got) == Kind.CT_FOR;
-    assert SPECS[Kind.CT_FOR][0] == "CtFor";
+    names = [
+        nd.name_ref.value
+        for nd in mod._in_mod_nodes
+        if isinstance(nd, Ability) and nd.name_ref is not None
+    ];
+    assert "probe_match_or" in names and "probe_match_value" in names , names;
 }
 
 glob ENUM_CT_SRC: str = """
@@ -207,10 +233,22 @@ test "jac0 bootstrap expands enum-body comptime" {
 }
 
 
-test "the arena kind surface is a generated enum" {
-    import from jaclang.jac0core.arena { Kind, SyntaxArena }
-    a = SyntaxArena();
-    got = a.mk_ct_for(target=1, iter=2, body=[3], kid=[1, 2, 3]);
-    assert a.kind_of(got) == Kind.CT_FOR;
-    assert Kind.MODULE.name == "MODULE";
+test "comptime-only defs are stripped from the expanded module" {
+    import from jaclang.jac0core.unitree { Ability }
+    src = (
+        "comptime def gen_names -> list {\n"
+        "    return [\"one\", \"two\"];\n"
+        "}\n"
+        "comptime for K in gen_names() {\n"
+        "    glob ${ct.name(\"N_\" + K.upper())}: str = \"${K}\";\n"
+        "}\n"
+    );
+    (mod, err) = parse(src, "ct_strip.jac");
+    assert not err;
+    survivors = [
+        nd
+        for nd in mod._in_mod_nodes
+        if isinstance(nd, Ability)
+    ];
+    assert not survivors , "comptime-only def leaked into the expanded module";
 }
