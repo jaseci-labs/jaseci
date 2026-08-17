@@ -42,9 +42,9 @@ seal-affecting changes additionally pass the pooled seal battery.
 
 - [x] Rung 0: fused-crossing parity canary (vertical slice green, byte-identical on 4 modules)
 - [x] Rung 1: base chain loses genericity (#8306) + emitter `prog` retirement (#8305)
-- [ ] Rung 2 — **in flight** (`zbl/rung2-transform`): `prog` off `BaseTransform`; tripwire to the rim; `transform.jac` census → 0; fused-pipeline.md §11.1 corrected
-- [ ] Rung 3: fused root sealed with two passes executing natively — **first trend-line drop**
-- [ ] Rung 4: rim switches on a *written* fusible predicate; real modules route through the crossing; scope becomes a reported percentage
+- [x] Rung 2 (`6752937b3`): `prog` is driver-stamped via the new `PassRim` construction seat (91 reads measured, all in 8 unsealed passes; 11 redeclarations deleted); the tripwire moved to the unbypassable metaclass seat; `transform.jac` 2 fatals → 0, seams 4 → 3 honest; §11.1's genericity misdiagnosis corrected on the doc branch; BONUS: the `testskip` builtin-registry hole (cutover-era, the aarch64 noise source) fixed and triple-pinned
+- [ ] Rung 3+4 — **in flight as the MATERIALIZE-POINT SLIDE** (`zbl/materialize-slide`): the leading contiguous sealed-pass prefix runs natively on the native tree before materialization (the mat_merge_probe pattern extended); schedule audit first, parity canary red-first, loud named fallback
+- [ ] Rung 4 (folded into the slide): the rim's path selection recorded per module; scope becomes a reported percentage
 - [ ] Rung 5: JCFX compile-facts container; annex/absorb rewritten as source-crossings
 - [ ] Rung 6: fusible predicate → everything (needs M2 complete)
 - [ ] Rung 7: deletion accounting; per-node dispatch machinery removed — M4's trigger
@@ -60,22 +60,22 @@ seal-affecting changes additionally pass the pooled seal battery.
 - [ ] type_evaluator + type_checker seal (or honest refusal, mechanisms named)
 
 ### cfg (`zbl/cfg-seal`) — **in flight**
-- [ ] any-elem truthiness emitter bug fixed (invalid `icmp ne i8*` IR → truth protocol)
-- [ ] `expr_keys.jac` hoist verified in cfg's paths
-- [ ] cfg_build census + seal attempt (seal or honest refusal)
+- [x] The RECORDED bug didn't exist — the real family: bare `i8*` assumed to be a string at TWO sites (subscript on erased inner dicts = silent char-load miscompile; `in`/`not in` fell back to `strstr` over arbitrary pointers). Both fixed red-first; the salvage's guard REJECTED by measurement (would demote `w in s` on str params)
+- [x] `expr_keys.jac` hoist verified (8 import sites, zero symbol_utils refs) and pinned by test
+- [x] **cfg_build SEALED — the fifteenth root** (7.85MB, 117 exports, seam==waiver; `expr_keys.jac` joins the closure at zero seams; 4 own seams waived, 3 of them jac-dot-only). Seal peak 2.48 GiB/root (~55% over the old law) — CI budget recheck queued
 
 ### Analysis cluster (`zbl/analysis-cluster`) — **in flight**
-- [ ] rc_facts: 14 id()-keyed stamp seams lowered/re-keyed/stamped
-- [ ] static_analysis: live couplings → stamp-and-consume
-- [ ] ownership: redesign map (60 seams → families × mechanisms)
+- [x] **rc_facts SEALED — the sixteenth root** (10 own seams → 0; five mechanisms: .gen stamps → Module slots, `is_builtin_region_name` hoisted to `expr_keys`, erased containers typed, `.items()` destructure typed, bound-method-across-module solved via `solve_backward_gen_kill`)
+- [ ] static_analysis: 8 → 6 (undeclared `_checked_scopes` stash declared); three mechanisms remain (`expr_primitive_name`'s evaluator fallback, ~200 lines of symbol_utils reporters, a `prog.type_evaluator` read)
+- [x] ownership map DONE: #8271's 60 seams measure **26**, six families; `emit related=` (11 seams) is ONE backend gap (`list[tuple[str, UniNode]]` mixed-element storage) — priced as the cheapest next buy and assigned to the burn-down mission; refusal pinned at measured counts both ways
 - [ ] ownership: first separable family landed
-- [ ] dataflow rides as closure member of its consumers (doctrine)
+- [x] dataflow lowers at ZERO seams (lattice typed `set[SymId]` + for-over-set lowering) — #8271's 'Python-only by construction' verdict REFUTED; rides in the rc_facts closure
 
 ### Gate 2 (`gate2-capability-seal`) — **in flight**
-- [ ] Pre-scan refusal of `import from typing { Any }` root-caused and fixed
-- [ ] capability_check: checker escalations + bare-tuple returns cleared; seal attempt
-- [ ] layout_pass: 11 blockers + 23 seams burned down by family
-- [ ] mtir_gen: closure reached; first census
+- [ ] Pre-scan refusal of `import from typing { Any }`: ROOT-CAUSED, 3-item clearing list pinned (`BaseTransform.prog` — now GONE via rung 2 — and 2 × `CLIENT_RUNTIME_SOURCE_PATHS` shapes); fix deliberately deferred (widening `prog` would silently strip `self.prog.*` checks from non-shadowing passes) — re-attempt is cheap post-rung-2
+- [x] capability_check: 7 blockers → 0, **first native IR**, 7 → 5 seams = 3 named mechanisms (honest refusal). BONUS: **module_codegen 6 → 0 seams** — its recorded isinstance-waiver rationale was WRONG (the erasure was the bug); waiver table entry deleted
+- [ ] layout_pass: 11 → 2 blockers, produces IR (wave 5 had measured none), seams 23 → 22; acyclicity handoff resolved (premise refuted — `is_acyclic` was never stuck; the real defect was the undeclared `type` stash, now declared); family burn-down continues
+- [ ] mtir_gen: 37 → 32 blockers; closure still unreached (wave 5's census confirmed accurate)
 - [ ] boundary_analysis: ~23 driver seams → stamp-and-consume (capacity permitting)
 
 ## M3 — Native transcription (codegen bucket → 0)
@@ -104,11 +104,13 @@ seal-affecting changes additionally pass the pooled seal battery.
 - [x] littleX baseline
 - [ ] unitree-as-input baseline (heavy; quiet-window run)
 - [ ] Trend log updated at every merge (table below)
+- [ ] METHODOLOGY UPGRADE QUEUED: warm-census (compiler cached, chess-compile-only counts, ±12-frame determinism per the cfg mission's A/B) becomes the comparable gate metric; cold stays for headline absolutes. Warm references to be recorded
 
 ## When GitHub returns
 
-- [ ] Verify pushed states vs local (outage half-writes)
-- [ ] Push `zb-local`; open as the #8288 mega branch/PR; draft #8240 shadow retired
+- [x] Verified: upstream main NEVER MOVED during the outage (still `2e8a18b29` = our base); origin branches intact
+- [x] `zb-local` pushed; shadow #8240 re-armed at the arc tip (full matrix running)
+- [ ] PR `zb-local` → upstream main ("land all finished work" — maintainer-directed 2026-08-17); merge on local gate + shadow both green
 - [ ] CI re-proves the arc (full matrix + pooled seal)
 - [ ] #8313 macOS leg resumed (crash-report capture step)
 - [ ] **The mega merge — maintainer's click**
@@ -117,6 +119,8 @@ seal-affecting changes additionally pass the pooled seal battery.
 
 - #8313: macos-aarch64 SIGABRT in `access_check` dylib init (fails loudly + legibly now)
 - #8308/#8309/#8310: filed, scheduled inside M3/M2 rungs
+- TO FILE: cfg's untyped-loop-var membership residual (`w in v` over erased dict values still reaches strstr and answers wrong; refusing strictly would demote str-param membership — needs type stamping through the loop bind or a runtime storage-tag read)
+- CENSUS VARIANCE NOTE: the Gate-2 mission's claimed −3.0% trend drop is NOT reflected in the merged-tree measurement (arithmetic across all five merges bounds the others' contributions near zero) — treated as a measurement-environment artifact; the warm-census methodology upgrade is the fix
 
 ---
 
@@ -126,3 +130,4 @@ seal-affecting changes additionally pass the pooled seal battery.
 |---|---|---|---|---|
 | 2026-08-17 | baseline (`cf477bf5e`) | 87,364,761 | 75,992,624 | — |
 | 2026-08-17 | evaluator census (`4067df084`) | 87,456,371 | 76,083,257 | meter v2 rebaseline; trend-neutral by construction (checker rebilled within trend); ±0.1% noise band measured |
+| 2026-08-17 | generation 1 complete (`6752937b3`): gate2 + cfg + analysis + rung2; roots 14→16 | 87,623,659 | 76,239,883 | +0.19%/+0.21% = cold-run noise edge; gate2's −3% claim unconfirmed (see Parked); correctness gates all green (tier 8, wave3 7, wave7 6, reachability-16 14, chess identical) |
