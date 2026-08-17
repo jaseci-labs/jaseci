@@ -2,9 +2,9 @@ import from .breaker {
     breaker_admit,
     breaker_release_probe,
     breaker_should_skip,
+    breaker_still_admitted,
     breaker_record_success,
     breaker_record_failure,
-    _BREAKER_COOLDOWN_SECONDS,
     _BREAKER_PROBE_GRACE_SECONDS
 }
 
@@ -13,8 +13,7 @@ glob _RPC_MAX_ATTEMPTS: int = 3,
 
 def _breaker_shed_error(label: str) -> RuntimeError {
     return RuntimeError(
-        f"sv-to-sv {label} blocked by open circuit breaker "
-            + f"(cooldown {int(_BREAKER_COOLDOWN_SECONDS)}s)"
+        f"sv-to-sv {label} blocked by open circuit breaker shedding load"
     );
 }
 
@@ -40,7 +39,7 @@ def _rpc_with_retries(
     backoff: float = _RPC_INITIAL_BACKOFF_SECONDS;
     last_err: Exception | None = None;
     attempts: int = 0;
-    tripped: bool = False;
+    shed: bool = False;
 
     try {
         for attempt in range(_RPC_MAX_ATTEMPTS) {
@@ -53,8 +52,8 @@ def _rpc_with_retries(
                 err_ref: any = e;
                 last_err = err_ref;
                 breaker_record_failure(module_name, probe);
-                if breaker_should_skip(module_name) {
-                    tripped = True;
+                if not breaker_still_admitted(module_name, probe) {
+                    shed = True;
                     break;
                 }
                 if attempt < _RPC_MAX_ATTEMPTS - 1 {
@@ -67,7 +66,7 @@ def _rpc_with_retries(
         breaker_release_probe(module_name, probe);
     }
 
-    stopped_by = " (stopped by open circuit breaker)" if tripped else "";
+    stopped_by = " (stopped by open circuit breaker)" if shed else "";
     raise RuntimeError(
         f"sv-to-sv {label} failed after {attempts} attempts{stopped_by}: {last_err}"
     );

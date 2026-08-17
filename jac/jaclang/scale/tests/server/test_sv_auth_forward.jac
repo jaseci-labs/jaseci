@@ -306,6 +306,7 @@ import from jaclang.scale.runtime.rpc.breaker {
     _breaker_force_cooldown_elapsed,
     _breaker_force_probe_expired,
     breaker_admit,
+    breaker_still_admitted,
     breaker_record_success,
     breaker_record_failure,
     breaker_should_skip,
@@ -520,6 +521,84 @@ test "a breaker that trips mid-call abandons the remaining retries" {
         sv_client.unregister(mod);
         _breaker_reset(mod);
     }
+}
+
+test "a caller admitted before the trip stops instead of retrying into recovery" {
+    import from jaclang.runtimelib.serving.client { ClientConnectionError }
+
+    mod = "breaker_straggler_retry_test";
+    _breaker_reset(mod);
+
+    round_trips: dict = {"n": 0};
+    original_post = sv_http.post_stream_aware_sync;
+
+    def fake(*args: any, **kwargs: any) -> tuple[str, any] {
+        round_trips["n"] = round_trips["n"] + 1;
+        if round_trips["n"] == 1 {
+            _trip_breaker(mod);
+            _breaker_force_cooldown_elapsed(mod);
+        }
+        raise ClientConnectionError(detail="connection refused");
+    }
+    sv_http.post_stream_aware_sync = fake;
+
+    try {
+        sv_client.register(mod, "http://demo.invalid");
+        raised_msg = "";
+        try {
+            JacScalePlugin.sv_service_call(mod, "ping", {});
+        } except RuntimeError as e {
+            raised_msg = str(e);
+        }
+
+        assert round_trips["n"] == 1 , (
+            f"a caller holding no lease spent {round_trips['n']} round trips, "
+            + "expected 1: its retries race the recovery probe and its verdicts "
+            + "no longer count"
+        );
+        assert "1 attempts (stopped by open circuit breaker)" in raised_msg , (
+            f"short attempt count needs a reason, got: {raised_msg}"
+        );
+    } finally {
+        sv_http.post_stream_aware_sync = original_post;
+        sv_client.unregister(mod);
+        _breaker_reset(mod);
+    }
+}
+
+test "admission survives only in CLOSED or while holding the live probe" {
+    mod = "breaker_admission_states_test";
+    _breaker_reset(mod);
+
+    assert breaker_still_admitted(mod, 0) , "an unknown provider sheds nobody";
+
+    _trip_breaker(mod);
+    assert not breaker_still_admitted(mod, 0);
+
+    _breaker_force_cooldown_elapsed(mod);
+    assert not breaker_still_admitted(mod, 0) , (
+        "the cooldown elapsing hands the next arrival a probe, so a caller from "
+        + "the previous generation must not retry alongside it"
+    );
+
+    probe = _take_probe(mod);
+    assert breaker_still_admitted(mod, probe);
+    assert not breaker_still_admitted(mod, 0);
+
+    _breaker_force_probe_expired(mod);
+    assert breaker_still_admitted(mod, probe) , (
+        "an expired lease stays the probe of record until it is reclaimed, so "
+        + "its holder keeps the admission its verdicts still carry"
+    );
+    assert not breaker_still_admitted(mod, 0);
+
+    breaker_record_success(mod, probe);
+    assert breaker_still_admitted(mod, 0);
+    assert breaker_still_admitted(mod, probe) , (
+        "a CLOSED breaker sheds nobody, including a retired probe holder"
+    );
+
+    _breaker_reset(mod);
 }
 
 test "only one caller is admitted while a HALF_OPEN probe is in flight" {

@@ -87,6 +87,16 @@ def breaker_admit(provider: str, probe_ttl: float) -> tuple[bool, int] {
     }
 }
 
+def breaker_still_admitted(provider: str, probe: int) -> bool {
+    with _breaker_lock {
+        st = _breaker_state.get(provider);
+        if st is None or st.get("state") == "CLOSED" {
+            return True;
+        }
+        return _breaker_holds_probe(st, probe);
+    }
+}
+
 def breaker_release_probe(provider: str, probe: int) {
     import time;
     if probe == _BREAKER_NO_PROBE {
