@@ -57,7 +57,7 @@ enum CallKind {
 }
 
 def comptime_import_binds(nd: UniNode, name: str) -> bool {
-    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_STDLIB }
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_IMPORTS }
     mod = nd.find_parent_of_type(Module);
     if mod is None {
         return False;
@@ -66,7 +66,7 @@ def comptime_import_binds(nd: UniNode, name: str) -> bool {
         if imp.from_loc is None or imp.is_absorb {
             continue;
         }
-        allowed = NATIVE_COMPTIME_STDLIB.get(imp.from_loc.dot_path_str.lstrip('.'));
+        allowed = NATIVE_COMPTIME_IMPORTS.get(imp.from_loc.dot_path_str.lstrip('.'));
         if allowed is None or name not in allowed {
             continue;
         }

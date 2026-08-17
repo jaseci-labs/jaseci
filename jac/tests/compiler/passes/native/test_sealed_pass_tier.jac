@@ -5,8 +5,17 @@ sealed image's manifest now claims their method bodies exist natively.
 The parser already had the runtime half of that claim
 (`_require_bootstrap_tier`: reaching the bytecode parser inside a sealed
 image raises); these tests pin the pass equivalent,
-`_require_native_pass_tier`, seated in `BaseTransform.postinit`, the one
-facade every pass invocation passes through.
+`require_native_pass_tier`.
+
+Its seat is `_PassConstruction.__call__`, the metaclass the pass base
+inherits from `pass_rim` -- the rim, not the unit. It used to sit in
+`BaseTransform.postinit`, which made the constructor of every compiler
+pass reach the sealed-image registry and demote; #8288 M1 rung 2 moved
+it out so `transform.jac` could seal. What did not move is which
+constructions it guards: the metaclass runs on *every* pass
+construction, `run_pass` and direct alike, so the tests below construct
+directly and still trip it. A guard the sealer's own
+`JcirGenPass(...)` could walk around would not be one.
 
 The contract:
 
@@ -26,14 +35,18 @@ same seam the tripwire reads in production; the per-class memo is cleared
 around each patch so every test states its own precondition.
 """
 
+import dataclasses;
+import jaclang;
 import jaclang.jac0core.sealed as sealed;
 import jaclang.jac0core.unitree as uni;
+import from pathlib { Path }
 import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
-import from jaclang.jac0core.passes.transform {
+import from jaclang.jac0core.passes.pass_rim {
     _NATIVE_PASS_TIER_MEMO,
     _NATIVE_SERVED_PASSES,
-    Transform
+    PassRim
 }
+import from jaclang.jac0core.passes.transform { BaseTransform, Transform }
 import from jaclang.jac0core.program { JacProgram }
 
 glob ANNEX_MODULE: str = "jaclang.jac0core.passes.annex_pass";
@@ -53,6 +66,13 @@ def _fake_artifact(fullname: str) -> (tuple | None) {
 
 def _run_annex -> object {
     return JacAnnexPass(ir_in=uni.Module.make_stub(), prog=JacProgram());
+}
+
+"""The sealable unit's source, read from the installed tree it compiles from."""
+def _unit_source -> str {
+    return (
+        Path(jaclang.__file__).parent / "jac0core" / "passes" / "transform.jac"
+    ).read_text(encoding="utf-8");
 }
 
 def _skip_if_sealed {
@@ -161,5 +181,60 @@ test "unsealed and non-jaclang passes never trip while another is sealed" {
     } finally {
         sealed.native_artifact_for = real;
         _NATIVE_PASS_TIER_MEMO.pop(LocalPass, None);
+    }
+}
+
+
+test "the guard's seat is the rim, and the sealable unit names none of it" {
+    assert issubclass(BaseTransform, PassRim) , (
+        "the pass base stopped inheriting the rim, so nothing intercepts "
+        "construction and the tripwire has no seat at all"
+    );
+    assert isinstance(BaseTransform, type(PassRim)) , (
+        "the rim's metaclass is not on the pass base -- the construction "
+        "seam is bypassed and passes construct unguarded"
+    );
+    text = _unit_source();
+    for name in (
+        "_NATIVE_PASS_TIER_MEMO",
+        "_NATIVE_SERVED_PASSES",
+        "_require_native_pass_tier",
+        "jac0core.sealed",
+        "pass_serve"
+    ) {
+        assert name not in text , (
+            f"transform.jac names `{name}` again. The tier check consults "
+            "the sealed-image registry and triggers the serving binder, "
+            "host-side machinery no native unit can host; naming it from "
+            "the unit demotes whichever callable does, and the constructor "
+            "is the one that used to"
+        );
+    }
+}
+
+
+test "the program handle is stamped by the rim, not declared by the unit" {
+    fields = {f.name for f in dataclasses.fields(BaseTransform)};
+    assert "prog" not in fields , (
+        "`prog` is a declared field again. A `JacProgram`-typed slot has "
+        "no native layout, and it is the module-fatal gap that kept "
+        "transform.jac out of every sealed closure"
+    );
+    assert "prog" not in _unit_source() , (
+        "transform.jac names `prog` again -- the handle belongs to the "
+        "driver rim, which stamps it at construction"
+    );
+    prog = JacProgram();
+    inst = LocalPass(ir_in=uni.Module.make_stub(), prog=prog);
+    assert inst.prog is prog , (
+        "the rim did not stamp the program handle; every unsealed pass "
+        "body reads `self.prog`"
+    );
+}
+
+
+test "a pass constructed without a program handle refuses" {
+    with testraises(TypeError, `match="constructing a pass requires") {
+        LocalPass(ir_in=uni.Module.make_stub());
     }
 }

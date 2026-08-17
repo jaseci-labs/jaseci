@@ -189,15 +189,24 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
      ),
      _closure_cap_ctx: ContextVar[int] = ContextVar("jac_native_closure_cap");
 
-glob NATIVE_COMPTIME_BASES: frozenset = frozenset({"ABC"});
+glob NATIVE_COMPTIME_ABC_BASES: frozenset = frozenset({"ABC"});
+
+glob NATIVE_COMPTIME_RIM_BASES: frozenset = frozenset({"PassRim"});
+
+glob NATIVE_COMPTIME_BASES: frozenset = (
+         NATIVE_COMPTIME_ABC_BASES | NATIVE_COMPTIME_RIM_BASES
+     );
 
 glob NATIVE_COMPTIME_IDENTITY_CALLS: frozenset = frozenset({"cast"});
 
 glob NATIVE_COMPTIME_FIELD_MARKERS: frozenset = frozenset({"field"});
 
-glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
-         "abc": NATIVE_COMPTIME_BASES,
+glob PASS_RIM_MODULE: str = "jaclang.jac0core.passes.pass_rim";
+
+glob NATIVE_COMPTIME_IMPORTS: dict[str, frozenset] = {
+         "abc": NATIVE_COMPTIME_ABC_BASES,
          "dataclasses": NATIVE_COMPTIME_FIELD_MARKERS,
+         PASS_RIM_MODULE: NATIVE_COMPTIME_RIM_BASES,
          "typing": TYPE_PARAM_CONSTRUCTORS
              | NATIVE_COMPTIME_IDENTITY_CALLS
              | NATIVE_COMPTIME_TYPE_MARKERS
@@ -205,7 +214,7 @@ glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
      };
 
 def native_comptime_import_names(module_name: str, names: list[str]) -> bool {
-    allowed = NATIVE_COMPTIME_STDLIB.get(module_name.lstrip('.'));
+    allowed = NATIVE_COMPTIME_IMPORTS.get(module_name.lstrip('.'));
     if allowed is None or not names {
         return False;
     }

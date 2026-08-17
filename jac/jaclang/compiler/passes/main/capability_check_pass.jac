@@ -77,7 +77,6 @@ def partition_native_capability_violations(
 
 obj PortabilityWarnPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None;
 
     static has PROVIDES: tuple = ('portability', );
@@ -94,7 +93,6 @@ obj PortabilityWarnPass(Transform) {
 obj NativeCapabilityCheckPass(Transform) {
     static has PROVIDES: tuple = ('capability', );
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None;
 
     def postinit -> None;
@@ -104,7 +102,6 @@ obj NativeCapabilityCheckPass(Transform) {
 obj ClientCapabilityCheckPass(Transform) {
     static has PROVIDES: tuple = ('client_capability', );
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None;
 
     def postinit -> None;

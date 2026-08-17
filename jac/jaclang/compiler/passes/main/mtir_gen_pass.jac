@@ -68,7 +68,6 @@ glob PRIMITIVE_TYPES: list[str] = [
 
 obj MTIRGenPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None,
         _class_info_cache: dict[int, ClassInfo] = {};
 
