@@ -13,7 +13,7 @@ describe the old emitter in the present tense as it stood when they were
 written; sections 9 onward describe the tree as it is.
 
 This was the first lane 2 deliverable of the zero-bytecode endgame (epic
-#8201): it fixes the Step 4 shim's contract and is the proof that the
+# 8201): it fixes the Step 4 shim's contract and is the proof that the
 intermediate annotated-state materializer is skippable at all. What
 remains ahead of it is the mega-arc's own work -- per-node dispatch, and
 retiring the Python shim seat for a generated native transcriber, which
