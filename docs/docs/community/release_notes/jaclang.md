@@ -2,7 +2,14 @@
 
 This document provides a summary of new features, improvements, and bug fixes in each version of **Jaclang**. For details on changes that might require updates to your existing code, please refer to the [Breaking Changes](../breaking-changes.md) page.
 
-## jaclang 0.34.14 (Latest Release)
+## jaclang 0.34.15 (Latest Release)
+
+### Bug Fixes
+
+- **Fix: `AuthGuard` renders its children instead of blanking the page**: on the React and react-native backends `AuthGuard` accepted only `redirect` and returned `<Outlet />` for every authenticated visitor. `Outlet` renders the *matched child route*, so the documented wrapper form `<Route path="/dashboard" element={<AuthGuard redirect="/login"><Dashboard /></AuthGuard>} />` had nothing to resolve -- a blank protected page with no compile error, console error or warning. Solid already read `children`, so one `@jac/runtime` export had two contracts. Both React runtimes now take `children` and keep `<Outlet />` as the fallback, which leaves every existing call site unchanged: the `(auth)/` codegen and `<Route element={<AuthGuard />}>` pass no children and still resolve their child routes. The generated entry also builds the guard with props (`React.createElement(AuthGuard, { redirect })`) rather than a positional string, which destructured to the `/login` default and discarded `[client.routing] auth_redirect` for every user.
+- **Fix: shadcn skill guide listed icon names `@hugeicons` does not export**: the `jac-shadcn-components` icon table now gives the zero-padded `Calendar01Icon` and `Clock01Icon`.
+
+## jaclang 0.34.14
 
 ### New Features
 
