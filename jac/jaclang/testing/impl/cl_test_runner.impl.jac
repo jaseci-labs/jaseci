@@ -452,15 +452,18 @@ impl _run_harness(
             module_js = module_js.replace("'@jac/runtime'", "'./jac_runtime.js'");
 
             core_specifier = "./jaclang/runtimelib/client_runtime_core.js";
-            core_js = None;
             if core_specifier in runtime_js {
-                core_js = _compile_runtime_core_js();
                 runtime_js = runtime_js.replace(
                     core_match.group(1), "./client_runtime_core.js"
                 );
-
-                core_js = core_js.replace('"@jac/runtime"', '"./jac_runtime.js"');
-                core_js = core_js.replace("'@jac/runtime'", "'./jac_runtime.js'");
+                # The compiler injects `import {...} from "@jac/runtime"` into
+                # any cl module using runtime globals (esast_gen_pass), and
+                # client_runtime_core.jac is compiled like any other module --
+                # so its staged js must point at the staged runtime like the
+                # entry and deps do, or bun cannot resolve @jac/runtime.
+                staged["client_runtime_core.js"] = _point_at_staged_runtime(
+                    _compile_runtime_core_js()
+                );
             }
             staged["jac_runtime.js"] = runtime_js;
         }
