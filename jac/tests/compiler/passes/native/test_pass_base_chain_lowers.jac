@@ -20,9 +20,11 @@ the seat every `UniPass` descends from. That is what keeps the checker
 whole: its diagnostics over the pass sources are unchanged, which is the
 measurement the base classes' typing was there to protect.
 
-Pinned here: the chain carries no type parameters, the constructor
-lowers, and the seams that remain are named ones that belong to other
-rungs.
+Pinned here: the chain carries no type parameters, and the constructor
+lowers. The seams that remain on the unit are inventoried once, in
+`test_transform_diagnostics_census.jac`, which pins them two-way with
+the mechanism that clears each -- so a constructor that demoted again
+would fail there as an un-waived seam and fail here by name.
 """
 
 import os;
@@ -116,34 +118,5 @@ test "the pass constructor lowers natively" {
         + seams.get("Transform.__post_init__", "")
         + ". Until it lowers, a natively constructed pass is a hollow "
         "object whose transform never ran, which is the whole of M1 rung 1"
-    );
-}
-
-
-test "the seams left on the base chain are the ones other rungs own" {
-    seams = _transform_seams();
-    expected = {
-        "Alert.pretty_print",
-        "BaseTransform.is_canceled",
-        "Transform.ice",
-        "_require_native_pass_tier"
-    };
-    unexpected = sorted(
-        k
-        for k in seams
-        if k not in expected
-    );
-    assert not unexpected , (
-        f"{len(unexpected)} new seam(s) on the pass base chain:\n"
-        + "\n".join(f"  {k}: {seams[k]}" for k in unexpected)
-    );
-    stale = sorted(
-        k
-        for k in expected
-        if k not in seams
-    );
-    assert not stale , (
-        "base-chain seams that no longer demote -- drop them from the "
-        f"expected set: {stale}"
     );
 }
