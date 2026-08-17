@@ -38,7 +38,6 @@ this file is that measurement, and it fails the day the closure changes.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -61,14 +60,14 @@ glob PASSES_DIR = Path(jaclang.__file__).parent / "jac0core" / "passes",
 """Seams the native census recorded inside transform.jac, keyed by method."""
 def _transform_seams -> dict[(str, str)] {
     if _jaclang_image() is not None {
-        pytest.skip(
+        testskip(
             "this runtime is a sealed jaclang image, so the census would "
             "read the image's trust boundary rather than this unit's own "
             "coupling"
         );
     }
     if native_artifact_for(TRANSFORM_UNIT) is not None {
-        pytest.skip("transform is served from this runtime's native seal");
+        testskip("transform is served from this runtime's native seal");
     }
     if _MEMO {
         return _MEMO[0];
@@ -148,7 +147,7 @@ test "the pass constructor lowers natively" {
 """Compile the constructor probe as a native root; (seams, closure)."""
 def _ctor_probe -> tuple {
     if _jaclang_image() is not None {
-        pytest.skip("a sealed image measures its trust boundary, not this");
+        testskip("a sealed image measures its trust boundary, not this");
     }
     if _PROBE_MEMO {
         return _PROBE_MEMO[0];

@@ -60,7 +60,6 @@ own census.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -91,16 +90,11 @@ glob CAPABILITY_CLOSURE: tuple = (
 
 """capability's own five, each mapped to the mechanism that clears it."""
 glob CAPABILITY_SEAMS: dict[(str, str)] = {
-         "classify_native_import":
-             "codeinfo not in closure: reads native_comptime_import_names",
-         "base_expr_is_erased":
-             "codeinfo not in closure: reads NATIVE_COMPTIME_BASES",
-         "name_in_type_position":
-             "cascade of base_expr_is_erased",
-         "native_capability_violations":
-             "pass-tier crossing: calls ModuleCodegenPass.iter_context_stmts",
-         "ClientCapabilityCheckPass.transform":
-             "pass-tier crossing: calls client_capability_violations"
+         "classify_native_import": "codeinfo not in closure: reads native_comptime_import_names",
+         "base_expr_is_erased": "codeinfo not in closure: reads NATIVE_COMPTIME_BASES",
+         "name_in_type_position": "cascade of base_expr_is_erased",
+         "native_capability_violations": "pass-tier crossing: calls ModuleCodegenPass.iter_context_stmts",
+         "ClientCapabilityCheckPass.transform": "pass-tier crossing: calls client_capability_violations"
      };
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
@@ -113,13 +107,13 @@ def _root_module_name(rel: str) -> str {
 """Compile one root the way seal_native_artifacts does, up to the census."""
 def _root_census(rel: str) -> tuple {
     if _jaclang_image() is not None {
-        pytest.skip(
+        testskip(
             "this runtime is a sealed jaclang image; a source census here "
             "measures the image's trust boundary, not the unit's own seams"
         );
     }
     if native_artifact_for(_root_module_name(rel)) is not None {
-        pytest.skip(
+        testskip(
             f"{rel} is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );
@@ -192,8 +186,7 @@ test "capability_check_pass's native closure is exactly the measured set" {
     (census, _has_ir, _errors) = _root_census(CAPABILITY);
     seen = tuple(
         sorted(
-            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix()
-            for p in census
+            Path(p).resolve().relative_to(PKG_PATH.resolve()).as_posix() for p in census
         )
     );
     assert seen == CAPABILITY_CLOSURE , (
