@@ -31,16 +31,18 @@ those too. Silently running a bytecode pass body that the image claims to
 serve natively is the #8178/#8139 failure mode; a guard with a way around it
 is not a guard.
 
-The rim is deliberately *field-free and postinit-free*, so that as a base it
+The rim is deliberately *slot-free and postinit-free*, so that as a base it
 is shaped exactly like the `ABC` it replaces -- section 11.1 of
 `fused-pipeline.md` measured an `ABC` base as costing the native lane
 nothing. A base carrying a slot would not be free: a native class over a
 Python-side base keeps that base's slots on a Python shadow, which is the
-hazard E5088 exists to refuse.
+hazard E5088 exists to refuse. The `prog` declaration below is an annotation
+and not a slot, and the erasure described in the next paragraph keeps even
+that out of the native lane's sight.
 
 The module is rim machinery and never a sealable unit. It is written with
 `class`, not `obj`, so no dataclass shape is imposed on a base that must stay
-field-free; it names `jac0core.sealed` and `pass_serve`, the host-side
+slot-free; it names `jac0core.sealed` and `pass_serve`, the host-side
 lookups no native unit can host; and both of those are imported lazily, at
 the call, so the patched-`native_artifact_for` seam the tier tests use stays
 the seam production reads. What keeps it out of a native closure is
@@ -51,6 +53,7 @@ while this file was plain Python.
 """
 
 import from abc { ABC, ABCMeta }
+import type from jaclang.jac0core.program { JacProgram }
 
 glob _NATIVE_PASS_TIER_MEMO: dict[type, str] = {},
      _NATIVE_SERVED_PASSES: set[str] = set();
@@ -95,7 +98,17 @@ def require_native_pass_tier(pass_type: type) {
 
 """The construction seam every pass instance passes through."""
 class _PassConstruction(ABCMeta) {
-    """Check the tier, stamp the program handle, then initialize."""
+    """Check the tier, stamp the program handle, then initialize.
+
+    `allocate` is aliased through `any` because the type system has no way to
+    spell what a metaclass does here. On a value of type `type`, `__new__`
+    resolves to `type.__new__`, whose overloads *create a class* (`(o)` and
+    `(name, bases, ns)`); the one-argument allocation of an instance of `cls`
+    is `object.__new__`, which is only reachable once `cls` is known
+    concretely -- and a metaclass is precisely the place where it is not.
+    Aliasing narrows the escape to this single expression instead of untyping
+    the whole body.
+    """
     def __call__(cls: type, *args: any, **kwargs: any) -> any {
         require_native_pass_tier(cls);
         try {
@@ -104,11 +117,12 @@ class _PassConstruction(ABCMeta) {
             raise TypeError(
                 f"{cls.__name__}: constructing a pass requires `prog`. The "
                 "driver stamps the program handle on the instance -- the "
-                "pass base declares no field for it, because a "
+                "pass base annotates it but declares no field, because a "
                 "`JacProgram`-typed slot has no native layout."
             ) from None;
         }
-        inst = cls.__new__(cls);
+        allocate: any = cls.__new__;
+        inst = allocate(cls);
         inst.prog = prog;
         inst.__init__(*args, **kwargs);
         return inst;
@@ -120,5 +134,18 @@ class _PassConstruction(ABCMeta) {
 `BaseTransform` inherits this instead of `ABC`. It contributes no field
 and no initializer, so the native lane sees the same opaque Python base it
 already saw; what it contributes is the metaclass, and therefore the seam.
+
+`prog` is declared here so the *checker* can see what the metaclass stamps.
+In a `class` archetype a `has` lowers to a bare annotation -- no dataclass
+decoration, so no field, no generated `__init__` parameter and no class
+attribute -- which is exactly the shape this needs. What the checker reads
+off it is the contract the metaclass already enforces: `self.prog` types on
+every pass, and `prog` is a required construction keyword, the same thing
+`__call__` raises `TypeError` about when it is missing. That restores the
+view the checker had while `BaseTransform` declared the field, without
+putting a `JacProgram`-typed slot back on the sealable unit -- the
+module-fatal gap rung 2 removed.
 """
-class PassRim(ABC, metaclass=_PassConstruction) {}
+class PassRim(ABC, metaclass=_PassConstruction) {
+    has prog: JacProgram;
+}
