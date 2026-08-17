@@ -596,13 +596,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                         os.remove(stale);
                     }
                 }
-                # Publish both halves atomically. `open(path, "w")` truncates in
-                # place, so a concurrent reader of this content-keyed cache --
-                # another compile of the same dependency in a sibling process,
-                # which the parallel seal now runs by the handful -- could read a
-                # half-written .ir_cache and link a truncated module. Write to a
-                # pid-scoped temp and rename: a reader either sees the previous
-                # complete pair or the new one, never a torn file.
+
                 _meta_obj = meta.to_meta();
                 _tmp_ir = f"{_cache_ir_path}.{os.getpid()}.tmp";
                 _tmp_meta = f"{_cache_meta_path}.{os.getpid()}.tmp";
