@@ -312,7 +312,7 @@ impl default_jobs -> int {
     }
     cap = cpus;
     if avail {
-        cap = max(1, int((avail * 0.7) // _WORKER_MEM_BYTES));
+        cap = max(1, int((avail * _MEM_HEADROOM) // _WORKER_MEM_BYTES));
     }
     return max(1, min(cpus, cap, _MAX_AUTO_JOBS));
 }
@@ -947,9 +947,18 @@ impl ForkPool.run -> None {
     for slot in range(self.jobs) {
         self.kids.append(self._spawn(slot));
     }
-    for kid in list(self.kids) {
-        self._dispatch(kid);
+    try {
+        for kid in list(self.kids) {
+            self._dispatch(kid);
+        }
+        self._pump();
+    } finally {
+        self._shutdown();
     }
+}
+
+impl ForkPool._pump -> None {
+    import select;
     while True {
         live = [
             k
@@ -997,34 +1006,59 @@ impl ForkPool.run -> None {
             kid["buf"] = buf;
         }
     }
-    self._shutdown();
 }
 
 impl ForkPool._shutdown -> None {
+    import signal;
+    import time;
     for kid in self.kids {
         if not kid["alive"] {
             continue;
         }
-        kid["alive"] = False;
         try {
             os.write(kid["dispatch_fd"], b"q\n");
         } except OSError {
             ;
         }
-        try {
-            os.close(kid["dispatch_fd"]);
-        } except OSError {
-            ;
+    }
+    for kid in self.kids {
+        if not kid["alive"] {
+            continue;
         }
-        try {
-            os.close(kid["result_fd"]);
-        } except OSError {
-            ;
+        kid["alive"] = False;
+        for fd_key in ("dispatch_fd", "result_fd") {
+            try {
+                os.close(kid[fd_key]);
+            } except OSError {
+                ;
+            }
         }
-        try {
-            os.waitpid(kid["pid"], 0);
-        } except OSError {
-            ;
+        reaped = False;
+        deadline = time.monotonic() + 2.0;
+        while time.monotonic() < deadline {
+            done = 0;
+            try {
+                (done, _) = os.waitpid(kid["pid"], os.WNOHANG);
+            } except OSError {
+                reaped = True;
+            }
+            if reaped or done {
+                reaped = True;
+                break;
+            }
+            time.sleep(0.02);
+        }
+        if not reaped {
+            try {
+                os.kill(int(kid["pid"]), int(signal.SIGKILL));
+            } except OSError {
+                ;
+            }
+            try {
+                os.waitpid(kid["pid"], 0);
+            } except OSError {
+                ;
+            }
         }
     }
 }

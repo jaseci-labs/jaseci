@@ -580,25 +580,26 @@ test "run test native broken import surfaces error" {
     assert "passed" not in out;
 }
 
-test "run test with directory filter" {
-    # Directory discovery + glob filter over fixture files is native-runner
-    # behavior (the collector skips fixtures/ and non-test_ names).
-    fixtures_dir = fixture_path("");
-    env = dict(os.environ);
-    env["JAC_TEST_NATIVE"] = "1";
-    process = subprocess.Popen(
-        ["jac", "test", "-d", fixtures_dir, "-f", "circle*", "-x"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        env=env
-    );
-    (stdout, stderr) = process.communicate();
-    combined = stdout + stderr;
-    assert "circle" in combined;
-    assert "circle_purfe.test" not in combined;
-    assert "circle_pure.impl" not in combined;
+test "directory discovery skips impl annexes and dedupes test annexes" {
+    # Collection rules, asserted against the runner's discovery directly:
+    # an `.impl.jac` annex is never a suite, and a `foo.test.jac` annex
+    # resolves to its base module so the pair is collected once, not twice.
+    # The end-to-end CLI path for these rules lives in
+    # tests/cli/test_test_discovery.jac.
+    import from jaclang.runtimelib.test_runner { discover }
+    plan = discover(directory=fixture_path(""));
+    names = [os.path.basename(f) for f in plan.files];
+    assert "circle_pure.impl.jac" not in names;
+    assert "circle_clean.impl.jac" not in names;
+    # The annex and its base resolve to one suite, reported under the base.
+    assert "circle_pure.test.jac" not in names;
+    assert "circle_pure.jac" in names;
+    # A plain module under a declared [test] root is still a suite (#7151).
+    assert "circle_clean_tests.jac" in names;
+    # fixtures/ nested below the root stays excluded.
+    for f in plan.files {
+        assert (os.sep + "fixtures" + os.sep) not in os.path.dirname(f) + os.sep;
+    }
 }
 
 test "discovery prunes hidden and pycache dirs" {
@@ -618,12 +619,13 @@ test "discovery prunes hidden and pycache dirs" {
         Path(os.path.join(tmp_dir, "__pycache__", "skip_test.jac")).write_text(
             'test "pruned_pyc" {\n    assert False;\n}\n'
         );
-        # Directory discovery + pruning of hidden/cache dirs is native-runner
-        # behavior (the collector only takes test_ names, not good_test.jac).
+        # A declared `-d` root collects every .jac beneath it regardless of
+        # naming (#7151), so good_test.jac is a suite even without a test_
+        # prefix.
         env = dict(os.environ);
-        env["JAC_TEST_NATIVE"] = "1";
+        env["JAC_TEST_JOBS"] = "0";
         process = subprocess.Popen(
-            ["jac", "test", "-d", tmp_dir],
+            ["jac", "test", "-d", tmp_dir, "-v"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -634,7 +636,7 @@ test "discovery prunes hidden and pycache dirs" {
         combined = stdout + stderr;
         # Top-level test is discovered and runs to a pass.
         assert "good_test.jac" in combined;
-        assert "Passed successfully." in combined;
+        assert "1 passed" in combined;
         # Hidden / pycache dirs are pruned: their failing tests never run.
         assert "skip_test.jac" not in combined;
         assert "FAILED" not in combined;
@@ -644,12 +646,21 @@ test "discovery prunes hidden and pycache dirs" {
     }
 }
 
-test "run test with filter maxfail" {
-    # Glob filter over a discovered directory is native-runner behavior.
+test "maxfail spans several files" {
+    # --maxfail counts across the whole run, not per file. Serial so the
+    # cap trips deterministically rather than racing parallel workers.
     env = dict(os.environ);
-    env["JAC_TEST_NATIVE"] = "1";
+    env["JAC_TEST_JOBS"] = "0";
     process = subprocess.Popen(
-        ["jac", "test", "-f", "*run_test.jac", "-m", "4"],
+        [
+            "jac",
+            "test",
+            "maxfail_run_test.jac",
+            "run_test.jac",
+            "native_run_test.jac",
+            "-m",
+            "4"
+        ],
         cwd=fixture_path(""),
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
@@ -659,46 +670,30 @@ test "run test with filter maxfail" {
     );
     (stdout, stderr) = process.communicate();
     combined = stdout + stderr;
-    # Three files match since the .na.jac marker retired: native_run_test
-    # (.F) now joins maxfail_run_test (F.F) and run_test (...F); -m 4 lets
-    # all of them run before the failure cap trips.
-    assert "...F" in combined;
-    assert "F.F" in combined;
-    assert ".F" in combined;
+    # -m 4 lets all three files run before the failure cap trips.
+    assert "4 failed" in combined;
+    assert process.returncode != 0;
 }
 
 test "run specific test only" {
-    # Asserting on a passing test's own printed output needs the native runner
-    # (the runner captures/suppresses stdout of passing tests).
-    old_native = os.environ.get("JAC_TEST_NATIVE");
-    os.environ["JAC_TEST_NATIVE"] = "1";
-
-    captured_stderr = io.StringIO();
-    old_stderr = sys.stderr;
-    sys.stderr = captured_stderr;
-
     captured = io.StringIO();
     old_stdout = sys.stdout;
     sys.stdout = captured;
     try {
-        analysis.test(fixture_path("jactest_main.jac"), test_name="from 2 to 10");
-        stdout = captured.getvalue();
-        stderr = captured_stderr.getvalue();
+        analysis.test(
+            fixture_path("jactest_main.jac"), test_name="from 2 to 10", verbose=True
+        );
+        out = captured.getvalue();
     } finally {
         sys.stdout = old_stdout;
-        sys.stderr = old_stderr;
-        if old_native is None {
-            del os.environ["JAC_TEST_NATIVE"];
-        } else {
-            os.environ["JAC_TEST_NATIVE"] = old_native;
-        }
     }
 
-    assert "Ran 1 test" in stderr;
-    assert "Testing fibonacci numbers from 2 to 10." in stdout;
-    assert "Testing first 2 fibonacci numbers." not in stdout;
-    assert "This test should not run after import." not in stdout;
+    # --test_name joins its words with `and`, so only the matching block runs.
+    assert "1 passed" in out;
+    assert "from 2 to 10" in out;
+    assert "first two" not in out;
 }
+
 
 test "graph coverage" {
     graph_params = set(inspect.signature(tools.dot).parameters.keys());

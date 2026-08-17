@@ -29,8 +29,9 @@ glob _WARNING_IGNORES: list[tuple[str, str, str]] = [
          ("", "DeprecationWarning", "jaclang.vendor.cattrs")
      ];
 
-glob _WORKER_MEM_BYTES: int = 900 * 1024 * 1024,
-     _MAX_AUTO_JOBS: int = 16,
+glob _WORKER_MEM_BYTES: int = 2 * 1024 * 1024 * 1024,
+     _MEM_HEADROOM: float = 0.6,
+     _MAX_AUTO_JOBS: int = 12,
      _PROGRESS_WIDTH: int = 72;
 
 glob _TEST_BASES: list[str] = [],
@@ -95,6 +96,7 @@ obj ForkPool {
 
     def postinit -> None;
     def run -> None;
+    def _pump -> None;
     def _spawn(slot: int) -> dict[(str, any)];
     def _worker_loop(dispatch_fd: int, result_fd: int) -> None;
     def _dispatch(kid: dict[(str, any)]) -> bool;
