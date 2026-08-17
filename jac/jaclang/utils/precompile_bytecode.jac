@@ -2117,9 +2117,6 @@ glob NATIVE_SEAL_JOBS_ENV: str = "JAC_SEAL_JOBS",
 
 glob NATIVE_SEAL_ROOT_BUDGET_GIB: float = 4.5;
 
-# Darwin has no MemAvailable and no SC_AVPHYS_PAGES, so the probe below reads
-# total physical memory there and holds this much back for the OS, the parent
-# seal driver, and the page cache the workers keep warm.
 glob NATIVE_SEAL_DARWIN_RESERVE_GIB: float = 2.0;
 
 def seal_mem_available_gib -> float {
@@ -2135,12 +2132,6 @@ def seal_mem_available_gib -> float {
             / 1073741824.0;
     } except Exception { }
     if sys.platform == "darwin" {
-        # Neither probe above exists on macOS: /proc is not mounted and Darwin's
-        # unistd.h never defined _SC_AVPHYS_PAGES, so both arms raise and the
-        # auto-size used to read every Mac as a machine with no memory at all.
-        # SC_PHYS_PAGES *is* defined there; total-minus-a-reserve is the honest
-        # stand-in, since Darwin reports almost nothing as free (it spends the
-        # rest on cache and compressed pages it will surrender on demand).
         try {
             total = float(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE"))
                 / 1073741824.0;
@@ -2520,17 +2511,6 @@ def seal_native_artifacts(
     roots = [str(r) for r in (NATIVE_SEAL_ROOTS if modules is None else modules)];
     pooled = modules is None or jobs is not None;
     resolved = seal_jobs(jobs) if pooled else 1;
-    # One job is not one meaning. Asking for it -- JAC_SEAL_JOBS=1, or an
-    # explicit jobs=1 -- is the documented escape back to the in-process
-    # sequential seal. Auto-SIZING to it is the opposite request: it is what a
-    # host too small to hold two workers looks like, and the sequential seal is
-    # the one path whose peak is the SUM over all roots rather than a single
-    # root's high-water mark (every crossing strands its native tree, #8139).
-    # Handing the smallest host the hungriest strategy is backwards, and it is
-    # how the macOS release legs died -- silently, three roots in, with no
-    # diagnostic, because Darwin has no MemAvailable and the auto-size read
-    # every Mac as a machine with no memory. A pool of one still forks a worker
-    # per root, so the stranded trees die with each worker.
     asked_for_one = jobs is not None or seal_jobs_override() is not None;
     if not roots or not pooled or (resolved <= 1 and asked_for_one) {
         return seal_native_roots(

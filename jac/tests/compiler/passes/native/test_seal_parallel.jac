@@ -26,6 +26,17 @@ So these tests pin that it does not:
 4. **The job count is decided, not guessed.** `JAC_SEAL_JOBS` is the documented
    override in both directions, and `JAC_SEAL_JOBS=1` is the escape back to the
    original single-process seal.
+5. **One job is not one meaning.** Asking for one job is that escape; being
+   auto-sized down to one is the opposite request -- it is what a host too small
+   to hold two workers looks like, and the single-process seal is the one path
+   whose peak is the SUM over every root rather than one root's high-water mark.
+   Routing the smallest host to the hungriest strategy is how the macOS release
+   legs died: silently, three roots in, with no diagnostic at all. The probe
+   underneath is why they were sized that way -- it read `/proc/meminfo` and
+   `SC_AVPHYS_PAGES`, neither of which exists on Darwin, so every Mac measured
+   as a machine with no memory. Both halves are pinned below, the probe with a
+   faked platform, since neither can be reproduced on the Linux host that runs
+   this file.
 
 The byte-identity case builds a purpose-built two-root package rather than real
 seal roots. A real root costs minutes of LLVM and gigabytes of resident memory
