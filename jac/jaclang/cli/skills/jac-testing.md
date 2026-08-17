@@ -74,15 +74,54 @@ The spawn expression returns the walker instance; every `report` it made is in `
 
 ## Expecting an exception
 
-No `pytest.raises` - use try/except with a guard assert:
+`testraises` is ambient - no import:
 
 ```jac
 test "divide by zero raises" {
-    try {
+    with testraises(ZeroDivisionError) {
         divide(10, 0);
-        assert False, "should have raised";
-    } except ZeroDivisionError {
-        assert True;
+    }
+}
+```
+
+Bind it to inspect the exception, or pass `` `match `` to require a message
+pattern (`match` is a Jac keyword, hence the backtick):
+
+```jac
+test "reports the offending name" {
+    with testraises(ValueError) as ei {
+        parse("bad input");
+    }
+    assert "bad input" in str(ei.value);
+}
+
+test "rejects an unknown target" {
+    with testraises(RuntimeError, `match="no native parser") {
+        compile_native(src);
+    }
+}
+```
+
+An exception of an unlisted type propagates rather than being swallowed, and a
+block that raises nothing fails with `DID NOT RAISE`.
+
+## Skipping and failing outright
+
+`testskip` and `testfail` are ambient too. `skip` alone is a Jac keyword (the
+walker skip statement), hence the `testskip` spelling:
+
+```jac
+test "needs a C toolchain" {
+    import shutil;
+    if not shutil.which("gcc") {
+        testskip("gcc not installed");
+    }
+    build_shared_lib();
+}
+
+test "unreachable branch" {
+    if unexpected_state() {
+        testfail("parser produced a node with no location");
     }
 }
 ```
@@ -107,21 +146,28 @@ Each case runs and reports independently (`square_0`, `square_1`, ...); pass `id
 
 ## In-process endpoint tests: JacTestClient
 
-For testing served endpoints (`walker:pub` / `def:pub`) without starting a real server, use the Python-side client from pytest:
+For testing served endpoints (`walker:pub` / `def:pub`) without starting a real server, use `JacTestClient`:
 
-```python
-from jaclang.runtimelib.testing import JacTestClient
+```jac
+import tempfile;
+import from jaclang.runtimelib.testing { JacTestClient }
 
-def test_task_crud(tmp_path):
-    client = JacTestClient.from_file("app.jac", base_path=str(tmp_path))
-    client.register_user("testuser", "password123")            # auth in one line
-    resp = client.post("/walker/CreateTask", json={"title": "My Task"})
-    assert resp.ok and resp.status_code == 200
-    assert len(client.post("/walker/GetTasks").json()["reports"]) == 1
-    client.close()
+test "task crud" {
+    client = JacTestClient.from_file(
+        "app.jac", base_path=tempfile.mkdtemp()
+    );
+    try {
+        client.register_user("testuser", "password123");
+        resp = client.post("/walker/CreateTask", json={"title": "My Task"});
+        assert resp.ok and resp.status_code == 200;
+        assert len(client.post("/walker/GetTasks").json()["reports"]) == 1;
+    } finally {
+        client.close();
+    }
+}
 ```
 
-`base_path=tmp_path` keeps each test's persisted graph isolated. Also available: `get/put/request`, `login`, `set_auth_token`, `resp.data` (unwrapped envelope), `client.reload()` (HMR).
+Give each test its own `base_path` to keep persisted graphs isolated. Also available: `get/put/request`, `login`, `set_auth_token`, `resp.data` (unwrapped envelope), `client.reload()` (HMR).
 
 ## Pitfalls
 

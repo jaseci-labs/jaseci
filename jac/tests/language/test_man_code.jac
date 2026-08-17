@@ -26,7 +26,7 @@ test "circle jac" {
 test "circle jac test" {
     captured_output = io.StringIO();
     sys.stdout = captured_output;
-    # jac test routes through pytest, which reports the run on stdout. Force
+    # jac test reports the run on stdout. Force
     # serial collection (JAC_TEST_JOBS=0): when this test itself runs under
     # `-n auto`, an inherited `auto` would make the in-process run spawn its own
     # xdist pool and print "[3 items]" instead of the serial "collected 3 items".

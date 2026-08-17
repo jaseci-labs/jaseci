@@ -25,7 +25,7 @@ The tests below pin both halves:
 
 The end-to-end tests seal tiny purpose-built packages written into a temp dir
 rather than the shared fixtures, because they mutate their sources between runs
-and the fixture tree is shared with the rest of this directory under xdist.
+and the fixture tree is shared with the rest of this directory across workers.
 """
 
 import contextlib;

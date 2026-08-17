@@ -14,7 +14,6 @@ on whether the server keeps trying, read from its own log.
 """
 
 import os;
-import pytest;
 import requests;
 import shutil;
 import subprocess;
@@ -38,7 +37,7 @@ glob _BROKEN_APP: str = 'import from "@jac/runtime" { renderJsxTree, }\n'
 test, gated the way the other client tests in this repo are."""
 def _require_client_integration {
     if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
+        testskip(
             "client bundle build requires the Vite/Bun toolchain; "
             "set JAC_CLIENT_INTEGRATION=1 to run"
         );

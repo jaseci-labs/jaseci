@@ -57,7 +57,6 @@ self-clearing condition are pinned in `test_sealed_seam_reachability.jac`.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -149,7 +148,7 @@ def _root_module_name(rel: str) -> str {
 """Compile one root the way seal_native_artifacts does, up to the census."""
 def _root_census(rel: str) -> tuple {
     if native_artifact_for(_root_module_name(rel)) is not None {
-        pytest.skip(
+        testskip(
             f"{rel} is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );

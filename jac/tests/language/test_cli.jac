@@ -436,7 +436,7 @@ test "jac test err" {
     sys.stdout = sys.__stdout__;
     sys.stderr = sys.__stderr__;
     stdout_value = captured_output.getvalue();
-    # pytest points the failure at <file>:<line> -- the deliberate error is on
+    # the runner points the failure at <file>:<line> -- the deliberate error is on
     # line 2 of the base module's test annex.
     assert "baddy.test.jac:2" in stdout_value;
 }
@@ -524,7 +524,7 @@ test "run test" {
         sys.stdout = old_stdout;
     }
 
-    # jac test routes through pytest, reporting on stdout; --maxfail 2 stops the
+    # jac test reports on stdout; --maxfail 2 stops the
     # run after the 2nd failure.
     assert "2 failed" in out;
     assert "run_test.jac" in out;
@@ -532,7 +532,7 @@ test "run test" {
 
 test "run test native codespace file" {
     # A compound-codespace test file (`foo.jac`) must collect and run its
-    # `test` blocks. Regression for issue #7150: the pytest collector derived
+    # `test` blocks. Regression for issue #7150: the collector derived
     # the module name with `Path(...).stem`, leaving the `.na` suffix so the
     # import resolved as a package path, failed, and was silently swallowed --
     # 0 items collected, exit 0, CI green while running nothing.
@@ -582,7 +582,7 @@ test "run test native broken import surfaces error" {
 
 test "run test with directory filter" {
     # Directory discovery + glob filter over fixture files is native-runner
-    # behavior (the pytest collector skips fixtures/ and non-test_ names).
+    # behavior (the collector skips fixtures/ and non-test_ names).
     fixtures_dir = fixture_path("");
     env = dict(os.environ);
     env["JAC_TEST_NATIVE"] = "1";
@@ -619,7 +619,7 @@ test "discovery prunes hidden and pycache dirs" {
             'test "pruned_pyc" {\n    assert False;\n}\n'
         );
         # Directory discovery + pruning of hidden/cache dirs is native-runner
-        # behavior (the pytest collector only takes test_ names, not good_test.jac).
+        # behavior (the collector only takes test_ names, not good_test.jac).
         env = dict(os.environ);
         env["JAC_TEST_NATIVE"] = "1";
         process = subprocess.Popen(
@@ -669,7 +669,7 @@ test "run test with filter maxfail" {
 
 test "run specific test only" {
     # Asserting on a passing test's own printed output needs the native runner
-    # (pytest captures/suppresses stdout of passing tests).
+    # (the runner captures/suppresses stdout of passing tests).
     old_native = os.environ.get("JAC_TEST_NATIVE");
     os.environ["JAC_TEST_NATIVE"] = "1";
 
@@ -854,7 +854,7 @@ test "param arg" {
 test "caching issue" {
     test_cases = [(10, True), (11, False)];
     # Write the generated test into an isolated temp dir so it never pollutes
-    # the source tree and parallel runs (pytest -n auto) cannot collide.
+    # the source tree and parallel worker runs cannot collide.
     with tempfile.TemporaryDirectory() as tmpdir {
         test_file = os.path.join(tmpdir, "test_caching_issue.jac");
         for (x, is_passed) in test_cases {
@@ -869,7 +869,7 @@ test "caching issue" {
             );
             (stdout, stderr) = process.communicate();
             combined = stdout + stderr;
-            # jac test routes through pytest; the rebuilt file must re-run (not
+            # the rebuilt file must re-run (not
             # serve a stale cached result), so pass/fail flips with the assertion.
             if is_passed {
                 assert "1 passed" in combined;
@@ -1093,7 +1093,7 @@ test "format -s preserves bracketed Jac syntax through Rich console" {
     # `todos + [t]` verbatim; it looks like terminal markup but the console
     # never interprets markup/highlight in caller data. This test invokes the
     # `jac` binary via subprocess so the full CLI console + stdout path is
-    # exercised end-to-end (calling `analysis.format` from inside pytest covers
+    # exercised end-to-end (calling `analysis.format` from inside the suite covers
     # the same console but not the real CLI stdout path).
     with tempfile.TemporaryDirectory() as tmpdir {
         src_path = os.path.join(tmpdir, "brackets.jac");

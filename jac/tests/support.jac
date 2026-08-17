@@ -6,9 +6,8 @@ sealed runtime cache, not beside the tests. This module resolves the repo root
 from its OWN location inside `tests/`, so every test imports one stable anchor
 instead of re-deriving it with a `Path(__file__).resolve().parents` walk.
 
-Imported as `from tests.support`, which resolves identically under the binary's
-bundled pytest and an editable `pytest` run (same mechanism as
-`tests.fixtures_list`).
+Imported as `from tests.support`, which resolves identically under the single
+`jac` binary and a source checkout (same mechanism as `tests.fixtures_list`).
 """
 
 import ctypes;

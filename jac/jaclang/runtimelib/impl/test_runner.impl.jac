@@ -527,13 +527,18 @@ impl run_file(
     import from jaclang.jac0core.ext_registry { base_stem }
     abs_path = os.path.abspath(filepath);
     outcomes: list[TestOutcome] = [];
-    _fresh_jac_state();
-    JacTestCheck.reset();
     is_client = False;
+    setup_capture = _capture_begin();
     try {
-        is_client = bool(module_is_client(abs_path));
-    } except Exception {
-        is_client = False;
+        _fresh_jac_state();
+        JacTestCheck.reset();
+        try {
+            is_client = bool(module_is_client(abs_path));
+        } except Exception {
+            is_client = False;
+        }
+    } finally {
+        _capture_end(setup_capture);
     }
     if is_client {
         try {
@@ -602,11 +607,11 @@ impl run_file(
                 if (selector is not None) and not selector.matches(label) {
                     continue;
                 }
-                _fresh_jac_state(clear_modules=False);
                 result = JacTestResult();
                 started = time.perf_counter();
                 capture = _capture_begin();
                 try {
+                    _fresh_jac_state(clear_modules=False);
                     info.test_case.run(result);
                 } finally {
                     captured = _capture_end(capture);

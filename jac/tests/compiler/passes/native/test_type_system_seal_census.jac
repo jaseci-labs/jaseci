@@ -43,7 +43,6 @@ them here.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -281,7 +280,7 @@ def _census_of(src: Path) -> tuple[(dict, bool, list)] {
     # so the compile would be answered by the sealed artifact and every
     # assertion below would read an empty closure and pass vacuously.
     if native_artifact_for("jaclang.jac0core.unitree") is not None {
-        pytest.skip(
+        testskip(
             "unitree is served from this runtime's native seal, so the "
             "type-system closure cannot be measured from source here"
         );

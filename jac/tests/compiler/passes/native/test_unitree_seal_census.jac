@@ -67,7 +67,6 @@ a renamed symbol instead of demoting.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -289,7 +288,7 @@ def _unitree_census -> tuple[(dict, bool)] {
     # census at seal time (seal_demotion_report refuses un-waived seams),
     # which is the invariant this file pins for source lanes.
     if native_artifact_for("jaclang.jac0core.unitree") is not None {
-        pytest.skip(
+        testskip(
             "unitree is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );
