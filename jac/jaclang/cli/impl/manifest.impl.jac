@@ -1165,8 +1165,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='npm',
                     typ='bool',
-                    default=False,
-                    help="Install npm package(s); with no names, install all npm deps from jac.toml. With --global, install standalone npm CLI tools runnable via 'jac x --global'",
+                    help="Install npm package(s); with no names, install all npm deps from jac.toml. With --global, install standalone npm CLI tools runnable via 'jac x --global'. As --no-npm, skip npm dependencies during a full install",
                     short='n'
                 ),
                 ArgMeta(

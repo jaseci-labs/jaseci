@@ -554,7 +554,7 @@ impl install(
     extras: list = [],
     no_save: bool = False,
     git: str = "",
-    npm: bool = False,
+    npm: bool | None = None,
     shadcn: bool = False,
     verbose: bool = False,
     force_reinstall: bool = False,
@@ -899,6 +899,10 @@ impl install(
     plugin_failed = False;
     for provider in get_provider_registry().all() {
         if provider.name == "python" {
+            continue;
+        }
+        if provider.name == "npm" and npm is False {
+            console.print("\n  Skipping npm dependencies (--no-npm)", style="muted");
             continue;
         }
         provider_deps = plan.for_ecosystem(provider.name);
