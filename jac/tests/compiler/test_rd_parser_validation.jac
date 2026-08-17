@@ -8,6 +8,7 @@ import from jaclang.runtimelib.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
 import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob GAP_DIR = os.path.join(
          JAC_ROOT, "tests", "compiler", "fixtures", "rd_parser_gaps"
@@ -228,7 +229,7 @@ def parse_and_validate(source: str, file_path: str) -> bool {
             return True;
         }
         prog = JacProgram();
-        validation = ASTValidationPass(ir_in=module, prog=prog);
+        validation = run_pass(ASTValidationPass, module, prog);
         return len(prog.errors_had) > 0;
     } except Exception {
         return True;

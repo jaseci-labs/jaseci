@@ -381,6 +381,14 @@ impl NaIRGenPass._typed_elem_llvm_of(
     member type per narrowed class, and a union carries no `private` of its
     own. Members that agree on the container shape agree on its element type
     too, so the first matching member answers for all of them.
+
+    An optional container (`list[T] | None`, the shape every `has` slot that
+    defaults to `None` carries) is the same question asked of one member.
+    Its mangle is the union's, so the prefix test has to be retried against
+    the sole non-`None` member or the element type erases -- a comprehension
+    or for-loop over `x.parts or []` would then walk elements it has no
+    layout for. `_opt_sole_member` is the same unwrap `_list_spec_of` uses
+    to recognise the container itself, so the two answers stay congruent.
     """;
     _ty = self._flow_narrowed_type_of(expr);
     if _ty is None {
@@ -388,7 +396,12 @@ impl NaIRGenPass._typed_elem_llvm_of(
     }
     _mg = self._mangled_of(_ty);
     if _mg is None or not _mg.startswith(prefix) {
-        return None;
+        _sole = self._opt_sole_member(_ty);
+        _sole_mg = self._mangled_of(_sole) if _sole is not None else None;
+        if _sole_mg is None or not _sole_mg.startswith(prefix) {
+            return None;
+        }
+        _ty = _sole;
     }
     for _cand in (_ty?.types or [_ty]) {
         _priv = _cand?.private;
@@ -661,6 +674,10 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
         if not type_args {
             return None;
         }
+        _var_seq = self._variadic_tuple_seq_type(type_args);
+        if _var_seq is not None {
+            return _var_seq;
+        }
         elem_types: list[ir.Type] = [];
         for a in type_args {
             _et = self._lower_type(a);
@@ -672,12 +689,7 @@ impl NaIRGenPass._lower_class_type(t: any) -> (ir.Type | None) {
             }
             elem_types.append(_et);
         }
-        n = len(elem_types);
-        tuple_key = f"Tuple.{n}." + ".".join([str(x) for x in elem_types]);
-        if tuple_key not in self.tuple_types {
-            self.tuple_types[tuple_key] = ir.LiteralStructType(elem_types);
-        }
-        return self.tuple_types[tuple_key].as_pointer();
+        return self._tuple_struct_of(elem_types).as_pointer();
     }
     return None;
 }
@@ -766,17 +778,22 @@ impl NaIRGenPass._resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type {
         if self._foreign_optional_field(_ptb) {
             return ir.IntType(8).as_pointer();
         }
+        if self._typevar_optional_field(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
+        _sig_seq = self._erased_seq_type(_ptb);
+        if _sig_seq is not None {
+            return _sig_seq;
+        }
         if not self._type_base_is_unknown(_ptb) {
             _sig_shared = _ptb?.shared;
             _sig_cn = _sig_shared.class_name if _sig_shared is not None else None;
             if _sig_cn in ("tuple", "list", "dict", "set", "type") {
-                _sig_mark = len(self.prog.errors_had);
                 _sig_lmark = len(self.errors_had);
                 _sig_res = self._resolve_jac_type(type_expr);
-                if len(self.prog.errors_had) == _sig_mark {
+                if len(self.errors_had) == _sig_lmark {
                     return _sig_res;
                 }
-                del self.prog.errors_had[_sig_mark:];
                 del self.errors_had[_sig_lmark:];
             }
             return ir.IntType(8).as_pointer();
@@ -823,6 +840,56 @@ impl NaIRGenPass._resolve_jac_type(type_expr: (uni.UniNode | None)) -> ir.Type {
     return ir.IntType(64);
 }
 
+impl NaIRGenPass._resolve_decl_type(
+    type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+) -> ir.Type {
+    if self._quiet_glob_type(type_expr) is None {
+        widened = self._widened_tuple_decl_type(type_expr, value);
+        if widened is not None {
+            return widened;
+        }
+    }
+    return self._resolve_jac_type(type_expr);
+}
+
+impl NaIRGenPass._widened_tuple_decl_type(
+    type_expr: (uni.UniNode | None), value: (uni.UniNode | None)
+) -> (ir.Type | None) {
+    if value is None or type_expr is None {
+        return None;
+    }
+    nd = type_expr;
+    if isinstance(nd, uni.SubTag) {
+        nd = nd.tag;
+    }
+    _tb = nd?.type;
+    if _tb is None {
+        return None;
+    }
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _WdClassType }
+    } except ImportError {
+        return None;
+    }
+    if not isinstance(_tb, _WdClassType)
+        or _tb.shared.class_name != "tuple"
+        or (_tb.private.type_args or []) {
+        return None;
+    }
+    if isinstance(value, uni.TupleVal) and not value.values {
+        return self._tuple_struct_of([]).as_pointer();
+    }
+    return self._infer_global_init_type(value);
+}
+
+impl NaIRGenPass._tuple_struct_of(elem_types: list) -> ir.Type {
+    tuple_key = f"Tuple.{len(elem_types)}." + ".".join([str(x) for x in elem_types]);
+    if tuple_key not in self.tuple_types {
+        self.tuple_types[tuple_key] = ir.LiteralStructType(elem_types);
+    }
+    return self.tuple_types[tuple_key];
+}
+
 impl NaIRGenPass._resolve_field_type(var: uni.UniNode) -> ir.Type {
     _ptb = var?.type;
     if _ptb is not None {
@@ -842,6 +909,9 @@ impl NaIRGenPass._resolve_field_type(var: uni.UniNode) -> ir.Type {
             return lowered;
         }
         if self._foreign_optional_field(_ptb) {
+            return ir.IntType(8).as_pointer();
+        }
+        if self._typevar_optional_field(_ptb) {
             return ir.IntType(8).as_pointer();
         }
         try {
@@ -896,8 +966,8 @@ impl NaIRGenPass._foreign_optional_field(tb: any) -> bool {
         if isinstance(m, _FofUnknownType) {
             continue;
         }
-        if isinstance(m, _FofTypeVarType) and self._lower_type(m) is None {
-            continue;
+        if isinstance(m, _FofTypeVarType) {
+            return False;
         }
         if isinstance(m, _FofClassType) and self._lower_type(m) is None {
             continue;
@@ -905,6 +975,91 @@ impl NaIRGenPass._foreign_optional_field(tb: any) -> bool {
         return False;
     }
     return True;
+}
+
+impl NaIRGenPass._erased_typevar_names(tb: any) -> list[str] {
+    try {
+        import from jaclang.compiler.type_system.types {
+            TypeVarType as _EtvTypeVarType
+        }
+    } except ImportError {
+        return [];
+    }
+    if isinstance(tb, _EtvTypeVarType) and self._lower_type(tb) is None {
+        return [tb.name];
+    }
+    if not self._typevar_optional_field(tb) {
+        return [];
+    }
+    out: list[str] = [];
+    for m in (tb.types or []) {
+        if isinstance(m, _EtvTypeVarType) and m.name not in out {
+            out.append(m.name);
+        }
+    }
+    return out;
+}
+
+impl NaIRGenPass._typevar_optional_field(tb: any) -> bool {
+    try {
+        import from jaclang.compiler.type_system.types {
+            ClassType as _TvoClassType,
+            UnionType as _TvoUnionType,
+            TypeVarType as _TvoTypeVarType
+        }
+    } except ImportError {
+        return False;
+    }
+    if not isinstance(tb, _TvoUnionType) {
+        return False;
+    }
+    _members = tb.types or [];
+    _non_none = [
+        m
+        for m in _members
+        if not (
+            isinstance(m, _TvoClassType)
+            and m._shared is not None
+            and m.shared.class_name in ("NoneType", "None")
+        )
+    ];
+    if len(_non_none) == len(_members) or not _non_none {
+        return False;
+    }
+    for m in _non_none {
+        if not isinstance(m, _TvoTypeVarType) or self._lower_type(m) is not None {
+            return False;
+        }
+    }
+    return True;
+}
+
+impl NaIRGenPass._erased_seq_type(tb: any) -> (ir.Type | None) {
+    """The pointer-element native list a `list[T]` signature slot erases to.
+
+    A generic archetype is laid out once and its `T` slots are raw pointers,
+    so a sequence *of* `T` is the pointer-flavoured list -- the same storage
+    every erased reference already uses. Answering `None` here leaves the
+    slot to the ordinary refusal path, which is what a sequence of anything
+    else that fails to lower deserves.
+    """;
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _EsqClassType }
+    } except ImportError {
+        return None;
+    }
+    if not isinstance(tb, _EsqClassType) or tb._shared is None {
+        return None;
+    }
+    if tb.shared.class_name not in ("list", "Sequence") {
+        return None;
+    }
+    _args = tb.private.type_args or [];
+    if len(_args) != 1 or not self._erased_typevar_names(_args[0]) {
+        return None;
+    }
+    self._emit_list_helpers("ptr", ir.IntType(8).as_pointer());
+    return self.list_types["ptr"].as_pointer();
 }
 
 impl NaIRGenPass._type_base_is_unknown(tb: any) -> bool {
@@ -924,7 +1079,9 @@ impl NaIRGenPass._emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.T
         _tag = type_expr?.type_tag;
         _label = self._get_name(_tag?.tag) or str(tb);
     }
-    self.emit(E5092, node_override=type_expr, kind="type", name=_label);
+    self.emit(
+        E5092, node_override=type_expr, kind=self._sig_decl_kind or "type", name=_label
+    );
 
     import logging as _logging;
     _logging.getLogger("jaclang.native").debug(
@@ -1142,13 +1299,29 @@ impl NaIRGenPass._to_bool(val: ir.Value) -> ir.Value {
         }
         if _is_container {
             _i32 = ir.IntType(32);
+            _tc_null = self.builder.icmp_unsigned(
+                "==", val, ir.Constant(val.type, None), name="tobool.cont.null"
+            );
+            _tc_func = self.builder.basic_block.function;
+            _tc_entry = self.builder.basic_block;
+            _tc_len_bb = _tc_func.append_basic_block(name="tobool.cont.len");
+            _tc_end_bb = _tc_func.append_basic_block(name="tobool.cont.end");
+            self.builder.cbranch(_tc_null, _tc_end_bb, _tc_len_bb);
+            self.builder.position_at_start(_tc_len_bb);
             _len_ptr = self.builder.gep(
                 val, [ir.Constant(_i32, 0), ir.Constant(_i32, 0)], name="tobool.len.ptr"
             );
             _len = self.builder.load(_len_ptr, name="tobool.len");
-            return self.builder.icmp_unsigned(
-                "!=", _len, ir.Constant(ir.IntType(64), 0), name="tobool"
+            _tc_nonempty = self.builder.icmp_unsigned(
+                "!=", _len, ir.Constant(ir.IntType(64), 0), name="tobool.cont.nonempty"
             );
+            _tc_len_end = self.builder.basic_block;
+            self.builder.branch(_tc_end_bb);
+            self.builder.position_at_start(_tc_end_bb);
+            _tc_phi = self.builder.phi(ir.IntType(1), name="tobool");
+            _tc_phi.add_incoming(ir.Constant(ir.IntType(1), 0), _tc_entry);
+            _tc_phi.add_incoming(_tc_nonempty, _tc_len_end);
+            return _tc_phi;
         }
 
         if self._is_bytes_value(val) {
@@ -1545,6 +1718,11 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
         }
     }
 
+    _tseq = self._tuple_seq_coerce(val, target_type);
+    if _tseq is not None {
+        return _tseq;
+    }
+
     _sd = self._str_desc_ty;
     if _sd is not None {
         _i8p_sd = ir.IntType(8).as_pointer();
@@ -1779,6 +1957,10 @@ impl NaIRGenPass._coerce_type_inner(val: ir.Value, target_type: ir.Type) -> ir.V
             and _lc_src != _lc_dst
             and (_lc_src == "jacval") != (_lc_dst == "jacval")
         ) {
+            _lc_re = self._reflavor_list(val, _lc_src, _lc_dst);
+            if _lc_re is not None {
+                return _lc_re;
+            }
             self.emit(
                 E5092,
                 node_override=self.ir_in,

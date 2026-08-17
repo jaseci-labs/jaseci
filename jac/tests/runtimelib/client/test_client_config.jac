@@ -16,7 +16,6 @@ import json;
 import os;
 import re;
 import time;
-import pytest;
 import from subprocess { Popen, TimeoutExpired, run }
 import from tempfile { TemporaryDirectory }
 

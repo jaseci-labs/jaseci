@@ -287,10 +287,21 @@ obj _MatGen {
         return "_py_none()";
     }
 
-    def emit_list(v: str, expr: str, elem: str, out: list, ind: str, uid: str) {
+    def elem_materializable(elem: str) -> bool {
+        elem = _norm(elem);
+        eb = _base_of(elem);
+        return elem in _SCALARS or eb in self.ns or eb == "SubTag";
+    }
+
+    def emit_list(v: str, expr: str, elem: str, out: list, ind: str, uid: str) -> bool {
         elem = _norm(elem);
         eb = _base_of(elem);
         u = uid + "l";
+        if not self.elem_materializable(elem) {
+            self.warn(f"unhandled list element {repr(elem)} -> field erased to None");
+            out.append(ind + f"{v} = _py_none();");
+            return False;
+        }
         out.append(ind + f"{v} = PyList_New(len({expr}));");
         out.append(ind + f"li_{u} = 0;");
         out.append(ind + f"for it_{u} in {expr} {{");
@@ -304,6 +315,7 @@ obj _MatGen {
         out.append(ind + f"    PyList_SetItem({v}, li_{u}, e_{u});");
         out.append(ind + f"    li_{u} += 1;");
         out.append(ind + "}");
+        return True;
     }
 
     def key_expr(expr: str, kt: str) -> (str | None) {
@@ -394,7 +406,7 @@ obj _MatGen {
             if a in _SCALARS {
                 buf.append(pre + f"{v} = " + self.scalar_expr(expr, a) + ";");
             } elif ab == "list" {
-                self.emit_list(v, expr, _inner(a), buf, pre, uid);
+                emitted = self.emit_list(v, expr, _inner(a), buf, pre, uid);
             } elif ab == "dict" {
                 emitted = self.emit_dict(v, expr, _inner(a), buf, pre, uid);
             } elif ab == "set" {
@@ -419,6 +431,7 @@ obj _MatGen {
                 a
                 for a in arms
                 if _norm(a).startswith("list[")
+                    and self.elem_materializable(_inner(_norm(a)))
             ];
             cls_arms: list[str] = [];
             for a in arms {
@@ -493,9 +506,14 @@ glob _HEADER_LINES: tuple = (
          'CPython objects through libpython externs resolved from the host process',
          '(ELF lazy PLT / Mach-O flat lookup). Bound with the GIL HELD (PYFUNCTYPE);',
          'see jac0core/parser/materialize.jac. Erased native slots stay None here',
-         'and are reconstructed by materialize_fixups.',
+         'and are reconstructed by materialize_fixups. mat_merge_probe runs the',
+         'sealed annex merge (annex_weave.merge_annex_into, the implementation',
+         'JacAnnexPass._merge_annex wraps) natively over two native parses and',
+         'materializes the woven module: the native-execution canary the',
+         'pass-serving binder verifies at bind time.',
          '\'\'\'',
          '@ENTRY_IMPORT@',
+         'import from jaclang.jac0core.passes.annex_weave { merge_annex_into }',
          '@UNI_IMPORT@',
          '@CONST_IMPORT@',
          '@SRC_IMPORT@',
@@ -617,6 +635,22 @@ glob _HEADER_LINES: tuple = (
          '    PyList_SetItem(out, 1, PyLong_FromLongLong(lex_errs));',
          '    PyList_SetItem(out, 2, _emit_diag_list(p_diags));',
          '    PyList_SetItem(out, 3, _emit_diag_list(lex_diags));',
+         '    _mat_flush();',
+         '    return out;',
+         '}',
+         '',
+         'def mat_merge_probe(',
+         '    src: str, path: str, annex_src: str, annex_path: str',
+         ') -> int {',
+         '    (mod, p_errs, _pd, _cm, _ld, lex_errs) = @ENTRY@(src, path);',
+         '    (amod, a_errs, _apd, _acm, _ald, a_lex_errs) = @ENTRY@(',
+         '        annex_src, annex_path',
+         '    );',
+         '    merge_annex_into(mod, amod);',
+         '    out = PyList_New(3);',
+         '    PyList_SetItem(out, 0, mat_materialize(mod));',
+         '    PyList_SetItem(out, 1, PyLong_FromLongLong(p_errs + lex_errs));',
+         '    PyList_SetItem(out, 2, PyLong_FromLongLong(a_errs + a_lex_errs));',
          '    _mat_flush();',
          '    return out;',
          '}',

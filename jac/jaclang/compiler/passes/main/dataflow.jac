@@ -1,11 +1,11 @@
 import from collections.abc { Callable }
 import from typing { TypeAlias }
-import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.unitree { UniCFGNode }
 
-glob DataflowTransfer: TypeAlias = Callable[[uni.UniCFGNode, set], set];
+glob DataflowTransfer: TypeAlias = Callable[[UniCFGNode, set], set];
 
 def solve_forward(
-    cfg_nodes: list[uni.UniCFGNode], transfer: DataflowTransfer
+    cfg_nodes: list[UniCFGNode], transfer: DataflowTransfer
 ) -> dict[int, set] {
     state: dict[int, set] = {};
     for n in cfg_nodes {
@@ -31,7 +31,7 @@ def solve_forward(
 }
 
 def solve_backward(
-    cfg_nodes: list[uni.UniCFGNode], transfer: DataflowTransfer
+    cfg_nodes: list[UniCFGNode], transfer: DataflowTransfer
 ) -> dict[int, set] {
     state: dict[int, set] = {};
     for n in cfg_nodes {

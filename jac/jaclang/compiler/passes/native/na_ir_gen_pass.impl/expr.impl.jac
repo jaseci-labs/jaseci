@@ -1488,7 +1488,10 @@ impl NaIRGenPass._codegen_bool_expr(nd: uni.BoolExpr) -> (ir.Value | None) {
         }
 
         self.builder.position_at_end(rhs_bb);
+        _bool_peer_saved = self._peer_container_ty;
+        self._peer_container_ty = self._opt_ptr_payload_of(result.type);
         rhs_val = self._str_norm(self._codegen_expr(nd.values[i]));
+        self._peer_container_ty = _bool_peer_saved;
         if rhs_val is None {
             return None;
         }
@@ -1546,7 +1549,10 @@ impl NaIRGenPass._codegen_if_else_expr(nd: uni.IfElseExpr) -> (ir.Value | None) 
     then_open = not self.builder.block.is_terminated;
 
     self.builder.position_at_end(else_bb);
+    _peer_saved = self._peer_container_ty;
+    self._peer_container_ty = then_val.type if then_val is not None else None;
     else_val = self._codegen_expr(nd.else_value);
+    self._peer_container_ty = _peer_saved;
     else_end_bb = self.builder.block;
     else_open = not self.builder.block.is_terminated;
 
@@ -1771,6 +1777,17 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             }
 
             if (
+                target_name == "os"
+                and self?._native_stdlib_modules
+                and "os" in self._native_stdlib_modules
+            ) {
+                _oc = self._emit_os_const(right_name);
+                if _oc is not None {
+                    return _oc;
+                }
+            }
+
+            if (
                 self?._native_module_imports
                 and target_name in self._native_module_imports
                 and target_name not in self.local_vars
@@ -1842,9 +1859,25 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             _fa_type_name = self._struct_name_of(nd.target);
             if _fa_type_name is not None {
                 type_name = _fa_type_name;
+                _fa_idx = self.struct_field_indices.get(type_name);
+                _fa_get = self._accessor_slot_of(type_name, right_name, "property");
+                if (
+                    _fa_get is None
+                    and (_fa_idx is None or right_name not in _fa_idx)
+                    and self._pyb_base_of(type_name) is not None
+                ) {
+                    obj_val = self._codegen_expr(nd.target);
+                    if obj_val is not None {
+                        return self._codegen_pyb_field_load(
+                            nd, self._opt_unwrap_attr(obj_val), right_name
+                        );
+                    }
+                }
                 obj_val = self._codegen_expr(nd.target);
                 if obj_val is not None {
-                    return self._codegen_field_access(obj_val, right_name, type_name);
+                    return self._read_field_or_refuse(
+                        nd, obj_val, right_name, type_name
+                    );
                 }
             }
         }
@@ -1857,7 +1890,9 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                     type_name = self._infer_type_name(obj_val);
                 }
                 if type_name is not None {
-                    return self._codegen_field_access(obj_val, right_name, type_name);
+                    return self._read_field_or_refuse(
+                        nd, obj_val, right_name, type_name
+                    );
                 }
             }
         }
@@ -1890,7 +1925,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             _slice_list_spec = self._list_spec_of(nd.target);
             if _slice_list_spec is not None {
                 target_val = self._codegen_expr(nd.target);
-                target_val = self._str_norm(target_val);
+                target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
                 if target_val is not None {
                     _shape = self._infer_list_elem_type(target_val);
                     elem_type_name = _shape if _shape is not None else _slice_list_spec;
@@ -1946,7 +1981,7 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
             else None;
         if _idx_list_spec is not None {
             target_val = self._codegen_expr(nd.target);
-            target_val = self._str_norm(target_val);
+            target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
             if target_val is not None {
                 _shape = self._infer_list_elem_type(target_val);
                 elem_type_name = _shape if _shape is not None else _idx_list_spec;
@@ -1995,11 +2030,18 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                             0 if self._nogc_headerless() else 1,
                             name="chr.data"
                         );
-                        return self._codegen_string_index(_ddata, _didx_val);
+                        _dlen = self.builder.extract_value(
+                            target_val,
+                            1 if self._nogc_headerless() else 2,
+                            name="chr.len"
+                        );
+                        return self._codegen_string_index(
+                            _ddata, _didx_val, len_val=_dlen
+                        );
                     }
                 }
             }
-            target_val = self._str_norm(target_val);
+            target_val = self._opt_unwrap_subscript(self._str_norm(target_val));
             if target_val is not None {
                 if self?.jacval_type and target_val.type == self.jacval_type {
                     _any_slices = nd.right.slices or [];
@@ -2046,7 +2088,13 @@ impl NaIRGenPass._codegen_atom_trailer(nd: uni.AtomTrailer) -> (ir.Value | None)
                                 idx_val = self._codegen_expr(idx_node.start);
                             }
                             if idx_val is not None {
-                                return self._codegen_string_index(target_val, idx_val);
+                                return self._codegen_string_index(
+                                    target_val,
+                                    idx_val,
+                                    len_val=self._call_str_len(
+                                        self.builder, target_val, name="chr.len"
+                                    )
+                                );
                             }
                         }
                     }

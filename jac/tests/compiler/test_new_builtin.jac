@@ -17,6 +17,7 @@ import jaclang;
 import from jaclang.jac0core.parser.frontend { parse }
 import from jaclang.jac0core.passes.ast_validation_pass { ASTValidationPass }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob _test_tmp_dir: str = tempfile.mkdtemp(prefix="jac_test_new_builtin_"),
      _client_tmp_dir: str = os.path.join(_test_tmp_dir, "client");
@@ -54,7 +55,7 @@ def parse_and_validate(source: str) -> JacProgram {
     prog = JacProgram();
     (module, _) = parse(source, "/tmp/test_new_builtin.jac", prog=prog);
     if module is not None {
-        ASTValidationPass(ir_in=module, prog=prog);
+        run_pass(ASTValidationPass, module, prog);
     }
     return prog;
 }

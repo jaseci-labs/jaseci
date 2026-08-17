@@ -3020,7 +3020,9 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     }
 
     coll_name = self._get_name(nd.collection);
-    _coll_memo: (ir.Value | None) = self._str_norm(self._codegen_expr(nd.collection));
+    _coll_memo: (ir.Value | None) = self._opt_unwrap_iterable(
+        self._str_norm(self._codegen_expr(nd.collection))
+    );
 
     dict_type_key: (str | None) = self._dict_key_of(nd.collection);
     if _coll_memo is not None {

@@ -76,16 +76,43 @@ class ExecutionEngine(ffi.ObjectRef) {
     def init(self: ExecutionEngine, ptr: Any, module: Any) -> object {
         self._modules = `set([module]);
         self._td = None;
+        self.static_init_symbols = [];
+        self.static_init_chained = `set();
         module._owned = True;
         ffi.ObjectRef.init(self, ptr);
+    }
+
+    """
+        Run the pending static initializers, at most once per engine.
+
+        *static_init_symbols* names the module-level initializers of the unit
+        this engine holds, in the order they must run; the list is consumed so
+        a second call is a no-op.
+        """
+    def run_static_init(self: ExecutionEngine) -> object {
+        symbols = self.static_init_symbols;
+        self.static_init_symbols = [];
+        for symbol in symbols {
+            addr = ffi.lib.LLVMPY_GetFunctionAddress(self, symbol.encode("ascii"));
+            if addr {
+                CFUNCTYPE(None)(addr)();
+            }
+        }
     }
 
     """
         Return the address of the function named *name* as an integer.
 
         It's a fatal error in LLVM if the symbol of *name* doesn't exist.
+
+        Handing out an address makes the unit's code reachable, so any pending
+        static initializers run first -- unless *name* is listed in
+        *static_init_chained*, meaning that function runs them itself.
         """
     def get_function_address(self: ExecutionEngine, name: Any) -> object {
+        if self.static_init_symbols and (name not in self.static_init_chained) {
+            self.run_static_init();
+        }
         return ffi.lib.LLVMPY_GetFunctionAddress(self, name.encode("ascii"));
     }
 

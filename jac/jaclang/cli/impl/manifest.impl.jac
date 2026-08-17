@@ -2007,7 +2007,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='filter',
                     default='',
-                    help='Filter test files (Unix patterns)',
+                    help='Select tests by name expression (and/or/not, parens)',
                     short='f'
                 ),
                 ArgMeta(
@@ -2032,7 +2032,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='ignore',
                     default='',
-                    help='Path to skip during collection (pytest --ignore)',
+                    help='Path to skip during collection',
                     short='i'
                 ),
                 ArgMeta(
