@@ -339,8 +339,7 @@ impl ensure_pvc_exists(
             raise;
         }
     }
-    import from typing { Any }
-    pvc_body: dict[(str, Any)] = {
+    pvc_body: dict[(str, any)] = {
         'apiVersion': 'v1',
         'kind': 'PersistentVolumeClaim',
         'metadata': {'name': pvc_name, 'labels': {'managed': 'jac-scale'}},

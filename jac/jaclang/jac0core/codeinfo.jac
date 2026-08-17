@@ -2,7 +2,6 @@ import hashlib;
 import from collections.abc { Sequence }
 import from contextvars { ContextVar }
 import from dataclasses { field }
-import from typing { Any }
 import from jaclang.jac0core.constant {
     NATIVE_COMPTIME_ANNOTATIONS,
     NATIVE_COMPTIME_TYPE_MARKERS,
@@ -24,7 +23,7 @@ obj ClientManifest {
     has exports: list = [],
         globals: list = [],
         params: dict[(str, list)] = field(default_factory=`dict),
-        globals_values: dict[(str, Any)] = field(default_factory=`dict),
+        globals_values: dict[(str, any)] = field(default_factory=`dict),
         has_client: bool = False,
         imports: dict[(str, str)] = field(default_factory=`dict),
         endpoint_effects: dict[(str, dict)] = field(default_factory=`dict),
@@ -299,18 +298,17 @@ def is_native_by_location(file_path: str) -> bool {
     return ap.startswith(os.path.join(pkg, "runtimelib", "na_stdlib") + os.sep);
 }
 
-glob CLIENT_RUNTIME_SOURCE_PATHS: tuple = (
-         ("runtimelib", "client_runtime.jac"),
-         ("runtimelib", "client_runtime_core.jac"),
-         ("runtimelib", "solid_runtime.jac"),
-         ("runtimelib", "pwa_runtime.jac"),
-         ("runtimelib", "wasm_host.jac"),
-         ("runtimelib", "client", "client_mobui.jac"),
-         ("runtimelib", "client", "client_runtime_core.jac"),
-         ("runtimelib", "client", "client_runtime_native.jac"),
-         ("runtimelib", "client", "targets", "desktop", "plugin", "desktop_api.jac"),
-
-     );
+glob CLIENT_RUNTIME_SOURCE_PATHS: list[str] = [
+         "runtimelib/client_runtime.jac",
+         "runtimelib/client_runtime_core.jac",
+         "runtimelib/solid_runtime.jac",
+         "runtimelib/pwa_runtime.jac",
+         "runtimelib/wasm_host.jac",
+         "runtimelib/client/client_mobui.jac",
+         "runtimelib/client/client_runtime_core.jac",
+         "runtimelib/client/client_runtime_native.jac",
+         "runtimelib/client/targets/desktop/plugin/desktop_api.jac"
+     ];
 
 
 def is_client_by_location(file_path: str) -> bool {
@@ -321,8 +319,8 @@ def is_client_by_location(file_path: str) -> bool {
     }
     ap = os.path.abspath(file_path);
     pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
-    for parts in CLIENT_RUNTIME_SOURCE_PATHS {
-        if ap == os.path.join(pkg, *parts) {
+    for rel in CLIENT_RUNTIME_SOURCE_PATHS {
+        if ap == os.path.join(pkg, rel.replace("/", os.sep)) {
             return True;
         }
     }
@@ -531,8 +529,8 @@ obj BoundaryTypeInfo {
     has name: str,
         kind: str,
         fields: list[tuple[(str, str)]] = field(default_factory=`list),
-        field_defaults: dict[(str, Any)] = field(default_factory=`dict),
-        enum_members: list[tuple[(str, Any)]] = field(default_factory=`list),
+        field_defaults: dict[(str, any)] = field(default_factory=`dict),
+        enum_members: list[tuple[(str, any)]] = field(default_factory=`list),
         nested_types: list[str] = field(default_factory=`list);
 }
 
@@ -591,7 +589,7 @@ obj CodeGenTarget {
         native_engine: (ExecutionEngine | None) = None,
         native_bitcode: (bytes | None) = None,
         _interop_manifest: (InteropManifest | None) = None,
-        interop_py_funcs: dict[(str, Any)] = field(default_factory=`dict),
+        interop_py_funcs: dict[(str, any)] = field(default_factory=`dict),
         _interop_callbacks: list[any] = field(default_factory=`list),
         native_layout: (NativeModuleLayout | None) = None,
         osp_model: (OspModel | None) = None,

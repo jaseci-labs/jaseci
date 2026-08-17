@@ -10,6 +10,7 @@ impl StaticAnalysisPass.transform(ir_in: Module) -> Module {
     self._check_undefined_names(self.ir_in);
     self._check_unreachable_code(self.ir_in);
     self._check_semantic_patterns(self.ir_in);
+    self._check_typing_any_import(self.ir_in);
     self._check_redundant_imports(self.ir_in);
     self._check_client_imports(self.ir_in);
     self._check_placement_warnings(self.ir_in);
@@ -476,6 +477,25 @@ impl StaticAnalysisPass._check_client_imports(mod: Module) -> None {
     }
 }
 
+impl StaticAnalysisPass._check_typing_any_import(mod: Module) -> None {
+    for nd in mod.get_all_sub_nodes(typ=Import) {
+        if nd.from_loc is None or nd.from_loc.dot_path_str != "typing" {
+            continue;
+        }
+        for item in nd.items {
+            if not isinstance(item, ModuleItem) {
+                continue;
+            }
+            if not isinstance(item.name, Name) {
+                continue;
+            }
+            if item.name.value == "Any" {
+                self.emit(E1122, node_override=item.name);
+            }
+        }
+    }
+}
+
 impl StaticAnalysisPass._check_redundant_imports(mod: Module) -> None {
     if not self.prog.type_evaluator {
         return;
@@ -490,8 +510,7 @@ impl StaticAnalysisPass._check_redundant_imports(mod: Module) -> None {
         }
         from_mod_name = nd.from_loc.dot_path_str;
         ambient = registry.get(from_mod_name);
-        is_typing = from_mod_name == "typing";
-        if ambient is None and not is_typing {
+        if ambient is None {
             continue;
         }
         for item in nd.items {
@@ -505,9 +524,7 @@ impl StaticAnalysisPass._check_redundant_imports(mod: Module) -> None {
                 continue;
             }
             nm = item.name.value;
-            if is_typing and nm == "Any" {
-                self.emit(W1104, node_override=item.name);
-            } elif ambient is not None and nm in ambient {
+            if nm in ambient {
                 self.emit(
                     W1103, node_override=item.name, name=nm, module=from_mod_name
                 );

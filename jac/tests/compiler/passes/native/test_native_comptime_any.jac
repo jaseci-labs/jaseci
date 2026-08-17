@@ -1,68 +1,63 @@
-"""Why `Any` is still not in the compile-time import vocabulary, measured.
+"""Why `Any` will never be in the compile-time import vocabulary, and codeinfo's clearing.
 
-`scan_native_blockers` decides whether a module can be *inferred* native, and
-it clears an import only when every name it binds is one the native lane
-erases -- `NATIVE_COMPTIME_STDLIB` is that vocabulary. `typing` lists
-`TypeVar`, `ParamSpec`, `TypeVarTuple`, `cast`, `TypeAlias` and `ClassVar`,
-but not `Any`, so `import from typing { Any }` answers
-`unresolved import 'typing'` and the module falls out of native inference.
+This file used to pin a refusal and a three-item clearing list: `typing`'s
+compile-time vocabulary admitted `TypeVar`, `cast`, `TypeAlias` and
+`ClassVar` but not `Any`, so `import from typing { Any }` answered
+`unresolved import 'typing'` and `jac0core/codeinfo.jac` -- whose only typing
+import that was -- fell out of native inference. Three seams in
+`capability_check_pass` were that one fact, and the list said what admitting
+`Any` would cost.
 
-`jac0core/codeinfo.jac` is the module that costs. Its only typing import is
-`Any`, in four has-field annotations, and it compiles natively as a forced
-root with zero errors -- so the backend reaches it fine. What it cannot do is
-join another module's closure, and three seams in `capability_check_pass`
-(`classify_native_import`, `base_expr_is_erased`, and `name_in_type_position`
-behind it) are exactly that: they read codeinfo's compile-time import table
-and its erased-base table, and neither name resolves from a closure codeinfo
-is not in.
+The question is closed now, and not by admitting the name. `Any` is not
+importable from `typing` at all: E1122 refuses every shape that binds it,
+because jac has its own `any` and will not carry an aliased twin. A name the
+language rejects can never reach the pre-scan, so there is nothing for the
+vocabulary to decide. The first test below pins that -- the vocabulary must
+keep refusing `Any`, now for a reason that cannot change back.
 
-`test_codeinfo_census.jac` recorded that forcing this gate open is a
-regression rather than progress. That still holds on this base, and the
-measurement is now specific rather than diffuse. Admitting `Any`:
+`codeinfo` spells its four annotations `any` and imports nothing from
+`typing`, so the import-shaped blocker is gone. Inference is still held for
+it, deliberately now rather than by accident: `PLACEMENT_INFERENCE_HELD`
+names the module and the reason, and `test_codeinfo_census.jac` carries the
+measurement -- letting it through takes `unitree`'s closure from 11 members
+to 19 and picks up `UniPass.transform`, `UniPass.traverse` and
+`UniPass.get_all_sub_nodes`, pass machinery a parse reaches, inside a root
+that is actually sealed.
 
-  - `unitree`'s closure goes 11 -> 20 members and it stops producing IR, with
-    41 module-level errors. `unitree` is a member of every sealed closure
-    there is, so this is the loudest possible failure.
-  - The 41 are two distinct causes, repeated. Removing both leaves exactly
-    one error, which is the third.
+The clearing list, and where each item stands:
 
-The clearing list, all three measured on this base:
+  1. `BaseTransform.prog: JacProgram`. The field had no native layout, so it
+     was module-fatal for every closure member behind it. #8288's pass rim
+     stamps `prog` on the instance at construction and the declaration is
+     gone -- not widened to `any`, which would have been wrong twice over
+     (only eleven passes shadowed it, so the rest would have silently lost
+     every `self.prog.*` check). `jac0core/passes/transform.jac` is a member
+     of codeinfo's closure now, which is the measurement that says so.
 
-  1. `jac0core/passes/transform.jac`, the `BaseTransform.prog: JacProgram`
-     has-field. Admitting `Any` makes `codeinfo` inferrable, which makes
-     `transform.jac` inferrable (it imports `CodeLocInfo` from codeinfo), and
-     `transform.jac` then joins closures carrying a field whose type is the
-     driver object. `JacProgram` has no native layout, so the declaration is
-     module-fatal for every closure member that follows it. This is the
-     `Transform.prog` wall #8274 names, and #8288's M2 clears it by stamping
-     driver facts on `Module` -- not by widening the field to `any`. Widening
-     is measurably wrong here for a second reason: only eleven passes shadow
-     `prog` with `any`, so the rest inherit the typed one and would silently
-     lose every `self.prog.*` check.
+  2 and 3. `codeinfo`'s `CLIENT_RUNTIME_SOURCE_PATHS` glob, which was a bare
+     `tuple` whose element type did not lower, and would not lower annotated
+     either: its rows were ragged -- two, three and six strings -- so a
+     nested tuple annotation became one heterogeneous literal struct and
+     storing it into a `%List.ptr` was a type mismatch. The shape had to
+     change, and it did: a flat `list[str]` of "/"-joined relative paths,
+     rejoined with `os.sep` at its one use site.
 
-  2. `jac0core/codeinfo.jac`, the `CLIENT_RUNTIME_SOURCE_PATHS: tuple` glob.
-     A bare `tuple` element type does not lower.
+So the list is spent as a list: nothing on it blocks anything any more. What
+replaces it is a single named hold with a measured reason, and the work it
+names is `codeinfo`'s own 13 seams plus the closure they travel in. When that
+clears, four of `capability_check_pass`'s five seams clear with it -- three
+because it reads `codeinfo`'s tables, and `ClientCapabilityCheckPass.transform`
+because `module_codegen_pass` joins alongside. That was measured on this base
+too, and it is what the hold is holding back.
 
-  3. The same glob again, once it is annotated. Its rows are ragged -- two,
-     three and six strings -- so a nested tuple annotation lowers as one
-     heterogeneous literal struct, and storing that into a `%List.ptr` is a
-     type mismatch the emitter reports as a failed native module compile. The
-     shape has to change, not just the annotation.
-
-This test pins the refusal so it clears itself: the first assertion fails the
-moment `Any` is admitted, which is the point at which items 1 through 3 have
-to be answered and this file rewritten into the fix's coverage. The fixture
-beside it is the module that becomes admissible then.
-
-The place `Any` belongs when that day comes is `NATIVE_COMPTIME_ANNOTATIONS`,
-beside `ClassVar`, and not `NATIVE_COMPTIME_TYPE_MARKERS` beside `TypeAlias`.
-That split is load-bearing and is why the two frozensets exist:
-`ModuleCodegenPass.is_type_alias_decl` reads the *marker* set to decide which
-globs are compile-time declarations the backend must skip. A
-`TypeAlias`-annotated glob is one; an `Any`-annotated glob is an ordinary
-global whose value has to reach the binary. The last test below pins that
-distinction against the fixture's own `Any`-annotated glob, so it holds
-whichever set `Any` eventually lands in.
+The last test keeps the half of the old reasoning that outlived the rest.
+`ModuleCodegenPass.is_comptime_type_decl` reads the *marker* set
+(`NATIVE_COMPTIME_TYPE_MARKERS`, `TypeAlias`) to decide which globs are
+compile-time declarations the backend skips. An `any`-annotated glob is not
+one: it is an ordinary global whose value has to reach the binary, and
+classifying it as a declaration would drop it silently. That is the trap
+`ClassVar` was lifted out of in #8278, and it holds for the lowercase
+keyword exactly as it would have for the name.
 """
 
 import os;
@@ -92,31 +87,44 @@ def _parse(fixture: str) -> object {
 }
 
 
-test "the typing vocabulary still refuses Any, and the pre-scan with it" {
+test "the typing vocabulary refuses Any, and no module can ask it to" {
     assert not native_comptime_import_names("typing", ["Any"]) , (
-        "'Any' is in the compile-time import vocabulary now -- then "
-        "codeinfo is inferrable, transform.jac joins every closure carrying "
-        "BaseTransform.prog: JacProgram, and CLIENT_RUNTIME_SOURCE_PATHS "
-        "needs a lowerable shape. Answer those three and rewrite this file "
-        "as the fix's coverage; see the module docstring for the measurement"
+        "'Any' is in the compile-time import vocabulary. It must not be: "
+        "E1122 refuses every import that binds the name, so admitting it "
+        "here would describe a module the language cannot accept"
     );
     assert native_comptime_import_names("typing", ["ClassVar", "cast"]) , (
         "the names that were already admitted must stay admitted"
     );
+}
+
+
+test "a module annotated with the any keyword needs no import to infer native" {
     (reason, _deps) = scan_native_blockers(_parse(FIXTURE), FIXTURES, allow_pub=True);
-    assert reason == "unresolved import 'typing'" , (
-        f"the pre-scan's verdict on an Any-only module changed to {reason!r}; "
-        "the refusal above and this one are the same fact and move together"
+    assert reason == "" , (
+        f"the pre-scan refused an any-annotated module with {reason!r}. The "
+        "lowercase keyword is a builtin: it binds no import, so there is "
+        "nothing here for the scan to resolve"
     );
 }
 
 
-test "an Any-annotated glob is not a compile-time declaration" {
-    # The half of the eventual fix that is already decided. `TypeAlias` marks
-    # a glob the backend skips; `Any` must not, because TAGGED holds a real
-    # value that has to reach the binary. Putting `Any` in the marker set
-    # would drop every such glob silently -- the trap `ClassVar` was lifted
-    # out of in #8278.
+test "codeinfo's hold is deliberate and names its reason" {
+    import from jaclang.jac0core.placement { PLACEMENT_INFERENCE_HELD }
+    held = PLACEMENT_INFERENCE_HELD.get("jac0core/codeinfo.jac");
+    assert held , (
+        "codeinfo is no longer held out of native inference. If that is "
+        "intended, the closure it joins has to be answered first: see "
+        "test_codeinfo_census.jac for the 21-seam measurement, and expect "
+        "test_unitree_seal_census.jac to fail loudly until it is"
+    );
+    assert "uni_pass" in held , (
+        f"the hold must name what it is holding back, got {held!r}"
+    );
+}
+
+
+test "an any-annotated glob is not a compile-time declaration" {
     mod = _parse(FIXTURE);
     found = False;
     for stmt in mod.body {
@@ -129,7 +137,7 @@ test "an Any-annotated glob is not a compile-time declaration" {
             }
             found = True;
             assert not ModuleCodegenPass.is_comptime_type_decl(assign) , (
-                "the Any-annotated glob was classified as a compile-time "
+                "the any-annotated glob was classified as a compile-time "
                 "declaration, so its value would never be emitted"
             );
         }

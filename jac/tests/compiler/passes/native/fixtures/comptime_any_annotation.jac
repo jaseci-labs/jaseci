@@ -1,28 +1,25 @@
-"""`Any` is an annotation the native lane erases, like `ClassVar` beside it.
+"""An `any`-annotated glob is an ordinary global, not a declaration to skip.
 
-Nothing here needs `typing` at run time: `Any` appears only where a type is
-written, and the native lane already lowers such a module when it is forced.
-What it could not do is *infer* one native, because the pre-scan's
-compile-time import vocabulary did not admit the name.
+Nothing here needs `typing` at run time: `any` is a builtin keyword and
+appears only where a type is written, so the pre-scan has no import to
+refuse and the module infers native on its own.
 
 The glob is here on purpose. A `TypeAlias`-annotated glob is a declaration
-the backend must skip; an `Any`-annotated one is an ordinary global that has
-to survive, which is why `Any` belongs beside `ClassVar` rather than beside
-`TypeAlias`.
+the backend must skip; an `any`-annotated one is an ordinary global whose
+value has to reach the binary. Classifying the second as the first would drop
+it silently -- the trap `ClassVar` was lifted out of in #8278.
 """
 
-import from typing { Any }
-
-glob TAGGED: Any = 7;
+glob TAGGED: any = 7;
 
 
 obj Holder {
-    has payload: Any = 0,
+    has payload: any = 0,
         count: int = 0;
 }
 
 
-def stash(h: Holder, v: Any) -> int {
+def stash(h: Holder, v: any) -> int {
     h.payload = v;
     h.count += 1;
     return h.count;
