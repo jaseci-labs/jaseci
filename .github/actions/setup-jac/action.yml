@@ -279,16 +279,20 @@ runs:
       run: zig build -Dno-ninja fetch-typeshed --summary all
 
     # Same capacity floor build-binaries.yml gained in #8279, for the workflows
-    # that build the binary through this action. The seal that closes
-    # `zig build` compiles every NATIVE_SEAL_ROOTS entry in ONE process and each
-    # materializer crossing strands that crossing's native tree, so the peak
-    # grows with the root count: 19.3 GiB at eleven roots, 22.4 GiB at thirteen
-    # (both /usr/bin/time -v, one process). A 16 GiB runner with a 4 GiB stock
-    # swapfile dies in between -- which is exactly how the thirteen-root seal
-    # first showed up here, as "the runner lost communication" 30 minutes into
-    # this step with no diagnostic. The stranded pages are cold (written once,
-    # never read again), so swap holds them for the price of disk. Retire this
-    # step when the crossing reclaims its tree (#8139).
+    # that build the binary through this action -- now a backstop rather than
+    # the fix. Each materializer crossing strands that crossing's native tree,
+    # and while the seal compiled every NATIVE_SEAL_ROOTS entry in ONE process
+    # the peak grew with the root count: 19.3 GiB at eleven roots, 22.4 GiB at
+    # thirteen (both /usr/bin/time -v, one process). A 16 GiB runner with a
+    # 4 GiB stock swapfile dies in between -- which is exactly how the
+    # thirteen-root seal first showed up here, as "the runner lost
+    # communication" 30 minutes into this step with no diagnostic. The seal now
+    # runs a worker process per root, so each worker's stranded trees die with
+    # it and the peak is JAC_SEAL_JOBS times one root's high-water mark. The
+    # headroom stays for the JAC_SEAL_JOBS=1 fallback and because the stranded
+    # pages are cold (written once, never read again), so swap holds them for
+    # the price of disk. Retire this step when the crossing reclaims its tree
+    # in process (#8139).
     - name: Swap headroom for the sealed precompile (Linux)
       if: steps.cache.outputs.cache-hit != 'true' && runner.os == 'Linux'
       shell: bash
@@ -331,6 +335,11 @@ runs:
       if: steps.cache.outputs.cache-hit != 'true'
       shell: bash
       working-directory: jac
+      env:
+        # Size the seal's worker pool for a hosted runner; see the same env on
+        # build-binaries.yml's build step. Empty selects the auto-size, which is
+        # what the macOS legs want.
+        JAC_SEAL_JOBS: ${{ runner.os == 'Linux' && '3' || '' }}
       # On a shim-cache hit, stage the restored shim OUTSIDE its in-tree place
       # path before passing it via -Dshim-bin: the build's place step copies
       # -Dshim-bin back to that path, and a self-copy would read the file it is

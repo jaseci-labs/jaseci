@@ -1368,12 +1368,24 @@ def prune_native_outputs(precompiled_dir: Path, triple: str, keep: set[str]) -> 
     return removed;
 }
 
-def seal_native_artifacts(
+"""Seal the given roots in THIS process, one after another.
+
+The sealer's original shape, and still the whole of it: everything the parallel
+driver below does is arrange for several of these to run at once, one root per
+process. `unitree_layout` pre-seeds the one ordering edge (the materializer root
+is generated from unitree's layout) for a worker that seals the materializer
+without having sealed unitree itself. `index_out`, when given, hands the caller
+the artifact records instead of writing SEAL_INDEX.json and pruning the output
+tree -- a worker holds one root's records and must not speak for the rest.
+"""
+def seal_native_roots(
     pkg_path: Path,
     precompiled_dir: Path,
     modules: (tuple | None) = None,
     waivers: (dict | None) = None,
-    canary_reused: bool = True
+    canary_reused: bool = True,
+    unitree_layout: (dict | None) = None,
+    index_out: (dict | None) = None
 ) -> (dict[str, dict] | None) {
     artifacts: dict[str, dict] = {};
     if sys.platform.startswith("win") {
@@ -1400,6 +1412,9 @@ def seal_native_artifacts(
     fresh_index: dict[str, dict] = dict(index);
     kept: dict[str, dict] = {};
     _seal_layouts: dict[str, dict] = {};
+    if unitree_layout is not None {
+        _seal_layouts["jac0core/unitree.jac"] = unitree_layout;
+    }
     _mat_manifest: (dict[str, any] | None) = None;
     _gen_root_src: (Path | None) = None;
     for rel in (NATIVE_SEAL_ROOTS if modules is None else modules) {
@@ -1714,7 +1729,9 @@ def seal_native_artifacts(
         } else {
             fresh_index.pop(rel, None);
         }
-        write_seal_index(precompiled_dir, triple, fresh_index);
+        if index_out is None {
+            write_seal_index(precompiled_dir, triple, fresh_index);
+        }
         if _gen_root_src is not None and rel == "compiler/native_materialize.jac" {
             _gen_root_src.unlink(missing_ok=True);
             _gen_root_src = None;
@@ -1724,6 +1741,10 @@ def seal_native_artifacts(
             f"({lib_path.stat().st_size:,} bytes, {len(exports)} exports)"
         );
     }
+    if index_out is not None {
+        index_out.update(kept);
+        return artifacts;
+    }
     write_seal_index(precompiled_dir, triple, kept);
     live: set[str] = set();
     for rec in kept.values() {
@@ -1732,6 +1753,538 @@ def seal_native_artifacts(
     }
     prune_native_outputs(precompiled_dir, triple, live);
     return artifacts;
+}
+
+glob NATIVE_SEAL_JOBS_ENV: str = "JAC_SEAL_JOBS",
+     NATIVE_SEAL_WORKER_ENV: str = "JAC_SEAL_WORKER_REQUEST",
+     NATIVE_SEAL_WORKER_PATH_ENV: str = "JAC_SEAL_WORKER_SYS_PATH",
+     NATIVE_SEAL_UNITREE_ROOT: str = "jac0core/unitree.jac",
+     NATIVE_SEAL_MATERIALIZE_ROOT: str = "compiler/native_materialize.jac";
+
+"""Memory a single sealing worker needs, in GiB, to finish without paging.
+
+Measured per root with `/usr/bin/time -v` over one process per root: the biggest
+root peaks near 3 GiB resident and the median well under 2, so a worker slot is
+budgeted at the high end rather than the median -- overcommitting the seal is how
+a 15 GiB runner starts swapping, which is the failure this whole mechanism
+exists to remove.
+"""
+glob NATIVE_SEAL_ROOT_BUDGET_GIB: float = 3.0;
+
+def seal_mem_available_gib -> float {
+    try {
+        for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines() {
+            if line.startswith("MemAvailable:") {
+                return float(line.split()[1]) / 1048576.0;
+            }
+        }
+    } except Exception { }
+    try {
+        return float(
+            os.sysconf("SC_AVPHYS_PAGES") * os.sysconf("SC_PAGE_SIZE")
+        ) / 1073741824.0;
+    } except Exception { }
+    return 0.0;
+}
+
+"""How many roots to seal at once, and why.
+
+An explicit `requested` wins (the caller is code that knows its own workload);
+then `JAC_SEAL_JOBS`, the build's and the operator's override -- `JAC_SEAL_JOBS=1`
+is the documented escape back to the single-process sequential seal. With
+neither, size from what the machine can actually hold: free memory divided by a
+worker's budget, capped by the core count. Memory is the binding constraint, not
+CPU -- a seal that oversubscribes RAM pages itself to a standstill long before it
+runs out of cores.
+"""
+def seal_jobs(requested: (int | None) = None) -> int {
+    if requested is not None {
+        return max(1, int(requested));
+    }
+    raw = os.environ.get(NATIVE_SEAL_JOBS_ENV, "").strip();
+    if raw {
+        try {
+            return max(1, int(raw));
+        } except ValueError { }
+    }
+    avail = seal_mem_available_gib();
+    if avail <= 0.0 {
+        return 1;
+    }
+    return max(1, min(os.cpu_count() or 1, int(avail / NATIVE_SEAL_ROOT_BUDGET_GIB)));
+}
+
+"""Boot line for a worker process: same interpreter, same tree, same tier.
+
+The worker must select the identical compiler the parent is running -- a worker
+that picked up a sealed pass tier the parent is not running would seal artifacts
+against a different compiler entirely. It is handed the parent's `sys.path`
+verbatim and re-installs the .jac finder, and the request carries the parent's
+compiler identity for the worker to check before it compiles anything.
+"""
+glob _SEAL_WORKER_BOOT: str = "\n".join(
+         (
+             "import json, os, sys",
+             "for _p in reversed(json.loads(os.environ['JAC_SEAL_WORKER_SYS_PATH'])):",
+             "    if _p not in sys.path:",
+             "        sys.path.insert(0, _p)",
+             "try:",
+             "    import _jac_finder",
+             "    _jac_finder.install()",
+             "except Exception:",
+             "    pass",
+             "import jaclang.utils.precompile_bytecode as _pb",
+             "sys.argv = ['precompile_bytecode']",
+             "_pb.main()"
+         )
+     );
+
+def _seal_worker_job(
+    work_dir: str,
+    rel: str,
+    pkg_path: Path,
+    precompiled_dir: Path,
+    waivers: (dict | None),
+    canary_reused: bool,
+    identity: str,
+    unitree_layout: (str | None)
+) -> dict {
+    slug = rel.replace("/", "__").replace(".", "_");
+    request = os.path.join(work_dir, f"{slug}.request.json");
+    result = os.path.join(work_dir, f"{slug}.result.json");
+    Path(request).write_text(
+        json.dumps(
+            {
+                "rel": rel,
+                "pkg_path": str(pkg_path),
+                "precompiled_dir": str(precompiled_dir),
+                "canary_reused": bool(canary_reused),
+                "waivers": (
+                    None
+                        if waivers is None
+                        else {k: list(v) for (k, v) in waivers.items()}
+                ),
+                "unitree_layout": unitree_layout,
+                "compiler": identity,
+                "result": result
+            }
+        ),
+        encoding="utf-8"
+    );
+    return {"rel": rel, "request": request, "result": result};
+}
+
+def _seal_worker_exec(job: dict) -> dict {
+    import subprocess;
+    import time;
+
+    rel = str(job["rel"]);
+    env = dict(os.environ);
+    env[NATIVE_SEAL_WORKER_ENV] = str(job["request"]);
+    env[NATIVE_SEAL_WORKER_PATH_ENV] = json.dumps([p for p in sys.path if p]);
+    # A worker seals exactly one root; it must never fan out again.
+    env[NATIVE_SEAL_JOBS_ENV] = "1";
+    argv = [sys.executable];
+    if sys.flags.no_site {
+        argv.append("-S");
+    }
+    argv += ["-c", _SEAL_WORKER_BOOT];
+    started = time.monotonic();
+    proc = subprocess.run(
+        argv, env=env, capture_output=True, text=True, errors="replace"
+    );
+    out: dict[str, any] = {
+        "rel": rel,
+        "ok": False,
+        "skipped": False,
+        "artifacts": {},
+        "records": {},
+        "error": "",
+        "stdout": proc.stdout or "",
+        "stderr": proc.stderr or "",
+        "seconds": time.monotonic() - started
+    };
+    landed: (dict | None) = None;
+    try {
+        landed = json.loads(
+            Path(str(job["result"])).read_text(encoding="utf-8")
+        );
+    } except Exception { }
+    if isinstance(landed, dict) {
+        out["ok"] = bool(landed.get("ok"));
+        out["artifacts"] = landed.get("artifacts") or {};
+        out["records"] = landed.get("records") or {};
+        out["error"] = str(landed.get("error") or "");
+    }
+    if not out["ok"] and not out["error"] {
+        out["error"] = (
+            f"NATIVE SEAL: the worker sealing {rel} exited "
+            f"{proc.returncode} without writing a result."
+        );
+    }
+    return out;
+}
+
+"""One supervised worker: hold a slot, run the child, release the slot.
+
+The thread does nothing but block on the child, so the GIL is irrelevant here --
+the parallelism is entirely in the child processes, and so is the reclaim: every
+tree the child stranded dies when it exits. `gate` bounds how many children are
+alive at once; `state` drains the pool after the first refusal, so a failing seal
+stops dispatching new roots instead of burning the whole fan-out.
+"""
+def _seal_worker_run(job: dict, gate: any, state: dict) -> dict {
+    gate.acquire();
+    try {
+        if state.get("failed") {
+            return {
+                "rel": str(job["rel"]),
+                "ok": False,
+                "skipped": True,
+                "artifacts": {},
+                "records": {},
+                "error": "",
+                "stdout": "",
+                "stderr": "",
+                "seconds": 0.0
+            };
+        }
+        result = _seal_worker_exec(job);
+    } except Exception as exc {
+        result = {
+            "rel": str(job["rel"]),
+            "ok": False,
+            "skipped": False,
+            "artifacts": {},
+            "records": {},
+            "error": (
+                f"NATIVE SEAL: the worker sealing {job['rel']} could not be "
+                f"supervised: {type(exc).__name__}: {exc}"
+            ),
+            "stdout": "",
+            "stderr": "",
+            "seconds": 0.0
+        };
+    } finally {
+        gate.release();
+    }
+    if not result["ok"] {
+        state["failed"] = True;
+    }
+    return result;
+}
+
+"""Hand one job to the pool.
+
+`flow` lowers to a lambda submitted to the runtime's thread pool, and a lambda
+captures the *variable*, not its value -- dispatching straight from a loop would
+hand every worker whichever job the loop had reached. Taking the job as a
+parameter gives each dispatch its own binding.
+"""
+def _seal_dispatch(job: dict, gate: any, state: dict) -> any {
+    return flow _seal_worker_run(job, gate, state);
+}
+
+def _seal_replay(result: dict) -> None {
+    if result.get("stdout") {
+        sys.stdout.write(str(result["stdout"]));
+        sys.stdout.flush();
+    }
+    if result.get("stderr") {
+        sys.stderr.write(str(result["stderr"]));
+        sys.stderr.flush();
+    }
+}
+
+"""Seal the roots across a pool of worker processes, one root per process.
+
+Two phases, for one reason each. Phase A seals unitree alone: the materializer
+root is *generated* from unitree's layout, so nothing that needs the materializer
+can start until unitree has landed, and unitree is also the largest root, so
+running it by itself keeps the fan-out's peak from stacking on top of the peak.
+Phase B fans the rest out at `jobs` at a time.
+
+The parent never compiles. It writes request files, supervises children, replays
+each child's output in NATIVE_SEAL_ROOTS order (so a parallel seal reads exactly
+like a sequential one), and owns SEAL_INDEX.json -- a worker speaks only for its
+own root. Failure semantics are the sequential ones: the first refusal drains the
+pool and the seal returns None with the worker's diagnostic printed verbatim,
+because those refusals are the product.
+"""
+def seal_native_pool(
+    pkg_path: Path,
+    precompiled_dir: Path,
+    roots: list[str],
+    waivers: (dict | None),
+    canary_reused: bool,
+    jobs: int
+) -> (dict[str, dict] | None) {
+    import tempfile;
+    import threading;
+    import from jaclang.jac0core.jir { cache_mode }
+    import jaclang.compiler.passes.native.llvm.binding as llvm;
+
+    triple = llvm.get_default_triple();
+    identity = compiler_identity();
+    (forced_rebuild, _no_precompile) = cache_mode();
+    fresh_index: dict[str, dict] = (
+        {} if forced_rebuild else dict(read_seal_index(precompiled_dir, triple))
+    );
+    work_dir = tempfile.mkdtemp(prefix="jac-seal-pool-");
+    gate = threading.Semaphore(max(1, jobs));
+    state: dict[str, bool] = {"failed": False};
+    results: dict[str, dict] = {};
+    try {
+        phase_a = [r for r in roots if r == NATIVE_SEAL_UNITREE_ROOT];
+        phase_b = [r for r in roots if r != NATIVE_SEAL_UNITREE_ROOT];
+        for rel in phase_a {
+            console.print(
+                f"  Seal phase 1/2: {rel} (the layout the materializer is "
+                "generated from)"
+            );
+            results[rel] = _seal_worker_run(
+                _seal_worker_job(
+                    work_dir,
+                    rel,
+                    pkg_path,
+                    precompiled_dir,
+                    waivers,
+                    canary_reused,
+                    identity,
+                    None
+                ),
+                gate,
+                state
+            );
+            landed = results[rel];
+            _seal_replay(landed);
+            fresh_index.update(landed.get("records") or {});
+            write_seal_index(precompiled_dir, triple, fresh_index);
+            if landed["ok"] {
+                took = float(landed["seconds"]);
+                console.print(f"  Sealed {rel} in {took:.1f}s");
+            }
+        }
+        unitree_record = fresh_index.get(NATIVE_SEAL_UNITREE_ROOT);
+        unitree_layout: (str | None) = None;
+        if unitree_record is not None and unitree_record.get("layout") {
+            candidate = precompiled_dir / str(unitree_record["layout"]);
+            if candidate.is_file() {
+                unitree_layout = str(candidate);
+            }
+        }
+        if phase_b and not state["failed"] {
+            console.print(
+                f"  Seal phase 2/2: {len(phase_b)} root(s), {jobs} worker "
+                "process(es) in flight"
+            );
+            handles: list = [];
+            for rel in phase_b {
+                handles.append(
+                    _seal_dispatch(
+                        _seal_worker_job(
+                            work_dir,
+                            rel,
+                            pkg_path,
+                            precompiled_dir,
+                            waivers,
+                            canary_reused,
+                            identity,
+                            unitree_layout
+                                if rel == NATIVE_SEAL_MATERIALIZE_ROOT
+                                else None
+                        ),
+                        gate,
+                        state
+                    )
+                );
+            }
+            for (rel, handle) in zip(phase_b, handles) {
+                landed = (wait handle);
+                results[rel] = landed;
+                _seal_replay(landed);
+                if landed.get("records") {
+                    fresh_index.update(landed["records"]);
+                    write_seal_index(precompiled_dir, triple, fresh_index);
+                }
+                if landed["ok"] {
+                    took = float(landed["seconds"]);
+                    console.print(f"  Sealed {rel} in {took:.1f}s");
+                }
+            }
+        }
+    } finally {
+        shutil.rmtree(work_dir, ignore_errors=True);
+    }
+
+    artifacts: dict[str, dict] = {};
+    kept: dict[str, dict] = {};
+    refused: list[str] = [];
+    drained: list[str] = [];
+    for rel in roots {
+        landed = results.get(rel);
+        if landed is None or landed.get("skipped") {
+            drained.append(rel);
+            continue;
+        }
+        if not landed["ok"] {
+            refused.append(rel);
+            continue;
+        }
+        artifacts.update(landed["artifacts"]);
+        kept.update(landed["records"]);
+    }
+    if refused or drained {
+        for rel in refused {
+            if results[rel].get("error") {
+                console.error(str(results[rel]["error"]));
+            }
+        }
+        if drained {
+            console.error(
+                f"NATIVE SEAL: {len(drained)} root(s) went unsealed because the "
+                f"worker pool drained after the refusal above: "
+                    + ", ".join(drained)
+            );
+        }
+        return None;
+    }
+    write_seal_index(precompiled_dir, triple, kept);
+    live: set[str] = set();
+    for rec in kept.values() {
+        live.add(str(rec["lib"]));
+        live.add(str(rec["layout"]));
+    }
+    prune_native_outputs(precompiled_dir, triple, live);
+    return artifacts;
+}
+
+"""Seal the native roots -- across worker processes when there is anything to gain.
+
+The sealer's cost has two halves and this addresses both with one mechanism. The
+roots are independent (one ordering edge, unitree before the materializer), so
+sealing them one at a time left the machine idle; and each root strands the
+native trees its crossings built, which in a single process accumulated across
+all thirteen roots into a peak no ordinary runner can hold. A worker process per
+root fixes both: the roots run concurrently, and each worker's stranded trees die
+with it, so the peak is one root's high-water mark times the number in flight
+instead of the sum over all of them. Reclaiming those trees *in* process needs
+region/ownership-based collection in the sealing compiler, which is only possible
+once that compiler itself runs native; that remains ahead of us.
+
+The pool is the full seal's path. A `modules=`-scoped call -- the tests, the
+census work -- stays in-process unless it asks for a pool by passing `jobs`,
+because a subprocess per root costs a fresh interpreter and compiler import that
+a one-root seal would never earn back.
+"""
+def seal_native_artifacts(
+    pkg_path: Path,
+    precompiled_dir: Path,
+    modules: (tuple | None) = None,
+    waivers: (dict | None) = None,
+    canary_reused: bool = True,
+    jobs: (int | None) = None
+) -> (dict[str, dict] | None) {
+    if sys.platform.startswith("win") {
+        return seal_native_roots(
+            pkg_path, precompiled_dir, modules, waivers, canary_reused
+        );
+    }
+    roots = [str(r) for r in (NATIVE_SEAL_ROOTS if modules is None else modules)];
+    pooled = modules is None or jobs is not None;
+    resolved = seal_jobs(jobs) if pooled else 1;
+    if resolved <= 1 or len(roots) < 2 {
+        return seal_native_roots(
+            pkg_path, precompiled_dir, modules, waivers, canary_reused
+        );
+    }
+    console.print(
+        f"  Native seal: {len(roots)} root(s) over up to {resolved} worker "
+        f"process(es) (set {NATIVE_SEAL_JOBS_ENV}=1 for the sequential seal)"
+    );
+    return seal_native_pool(
+        pkg_path, precompiled_dir, roots, waivers, canary_reused, resolved
+    );
+}
+
+"""Seal one root in this process and hand the result back as JSON.
+
+The worker half of the pool above, reached only through the request file the
+parent writes; it is an implementation detail of the sealer and has no CLI of its
+own. It refuses outright if it is not running the compiler that dispatched it.
+"""
+def seal_worker_main -> int {
+    request_path = os.environ.get(NATIVE_SEAL_WORKER_ENV, "");
+    # Consume the marker so nothing this worker spawns inherits worker mode.
+    os.environ.pop(NATIVE_SEAL_WORKER_ENV, None);
+    request = json.loads(Path(request_path).read_text(encoding="utf-8"));
+    rel = str(request["rel"]);
+    payload: dict[str, any] = {
+        "rel": rel,
+        "ok": False,
+        "artifacts": {},
+        "records": {},
+        "error": ""
+    };
+    try {
+        wanted = str(request.get("compiler") or "");
+        running = compiler_identity();
+        if wanted and wanted != running {
+            raise RuntimeError(
+                f"the seal worker for {rel} is running compiler {running}, not "
+                f"the {wanted} that dispatched it -- the worker resolved a "
+                "different jaclang tree or compiler tier than its parent."
+            );
+        }
+        raw_waivers = request.get("waivers");
+        table = (
+            None
+                if raw_waivers is None
+                else {k: tuple(v) for (k, v) in raw_waivers.items()}
+        );
+        layout: (dict | None) = None;
+        if request.get("unitree_layout") {
+            layout = json.loads(
+                Path(str(request["unitree_layout"])).read_text(encoding="utf-8")
+            );
+        }
+        records: dict[str, dict] = {};
+        arts = seal_native_roots(
+            Path(str(request["pkg_path"])),
+            Path(str(request["precompiled_dir"])),
+            modules=(rel, ),
+            waivers=table,
+            canary_reused=bool(request.get("canary_reused", True)),
+            unitree_layout=layout,
+            index_out=records
+        );
+        if arts is None {
+            payload["error"] = (
+                f"NATIVE SEAL: the worker sealing {rel} refused it; its "
+                "diagnostic is printed above."
+            );
+        } else {
+            payload["ok"] = True;
+            payload["artifacts"] = arts;
+            payload["records"] = records;
+        }
+    } except Exception as exc {
+        import traceback;
+        console.error(
+            f"NATIVE SEAL: the worker sealing {rel} raised "
+            f"{type(exc).__name__}: {exc}\n{traceback.format_exc()}"
+        );
+        payload["error"] = (
+            f"NATIVE SEAL: the worker sealing {rel} raised "
+            f"{type(exc).__name__}: {exc}"
+        );
+    }
+    Path(str(request["result"])).write_text(
+        json.dumps(payload) + "\n", encoding="utf-8"
+    );
+    sys.stdout.flush();
+    sys.stderr.flush();
+    return 0 if payload["ok"] else 1;
 }
 
 def jir_to_module(pkg_name: str, rel_jir: str) -> tuple[str, str, bool] {
@@ -2034,6 +2587,12 @@ def write_manifest(
 }
 
 def main {
+    # Sealing-worker mode: the request file is the whole interface, and only the
+    # pool in seal_native_pool ever sets it. Checked before argv so a worker
+    # needs no command line of its own.
+    if os.environ.get(NATIVE_SEAL_WORKER_ENV) {
+        sys.exit(seal_worker_main());
+    }
     args = sys.argv[1:];
     seal = "--seal" in args;
     seal_compile = "--seal-compile" in args;
