@@ -347,7 +347,16 @@ impl resolve_jobs(requested: (str | int | None) = None) -> int {
 impl _cleanup_test_bases -> None {
     import shutil;
     while _TEST_BASES {
-        shutil.rmtree(_TEST_BASES.pop(), ignore_errors=True);
+        path = _TEST_BASES.pop();
+        if os.path.isdir(path) {
+            shutil.rmtree(path, ignore_errors=True);
+        } else {
+            try {
+                os.unlink(path);
+            } except OSError {
+                ;
+            }
+        }
     }
 }
 
