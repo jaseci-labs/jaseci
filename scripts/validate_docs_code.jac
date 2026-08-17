@@ -157,9 +157,7 @@ with entry {
     parser.add_argument(
         "--docs-dir",
         type=Path,
-        default=(
-            Path(__file__).parent.parent / "jac" / "jaclang" / "cli" / "docs"
-        ),
+        default=(Path(__file__).parent.parent / "jac" / "jaclang" / "cli" / "docs"),
         help="Path to the docs corpus (default: jac/jaclang/cli/docs)",
     );
     parser.add_argument(
@@ -188,14 +186,11 @@ with entry {
         markdown_files = [
             f
             for f in all_files
-            if f.name not in SKIP_FILES
-                and not any(d in f.parts for d in SKIP_DIRS)
+            if f.name not in SKIP_FILES and not any(d in f.parts for d in SKIP_DIRS)
         ];
         skipped = len(all_files) - len(markdown_files);
         if skipped > 0 {
-            print(
-                f"Skipping {skipped} file(s): {SKIP_FILES} and dirs {SKIP_DIRS}"
-            );
+            print(f"Skipping {skipped} file(s): {SKIP_FILES} and dirs {SKIP_DIRS}");
         }
     }
 
