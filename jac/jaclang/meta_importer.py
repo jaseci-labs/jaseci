@@ -334,6 +334,23 @@ def install_graphmend_loader_hook() -> None:
     if not _graphmend_hook_state.get("atexit"):
         atexit.register(uninstall_graphmend_loader_hook)
         _graphmend_hook_state["atexit"] = True
+    if not _graphmend_hook_state.get("finalizer"):
+        # The claims the hook answers live on the installing program, so the
+        # patch's lifetime follows that program: when it is collected, the
+        # stdlib class gets its method back. A later program that claims again
+        # reinstalls through the same entry points. atexit stays as the
+        # backstop for interpreters that exit before collection runs.
+        try:
+            import weakref
+
+            from jaclang.jac0core.runtime import JacRuntime as Jac
+
+            weakref.finalize(
+                Jac.get_program(), uninstall_graphmend_loader_hook
+            )
+            _graphmend_hook_state["finalizer"] = True
+        except Exception:
+            pass
     _graphmend_hook_state["wrapper"] = get_code
     loader.get_code = get_code  # type: ignore[method-assign]
     loader._jac_graphmend_hooked = True  # type: ignore[attr-defined]
