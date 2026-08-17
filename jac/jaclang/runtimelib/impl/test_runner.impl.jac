@@ -398,14 +398,18 @@ impl _capture_begin -> dict[(str, any)] {
     };
     os.dup2(sink.fileno(), 1);
     os.dup2(sink.fileno(), 2);
-    sys.stdout = os.fdopen(os.dup(1), "w", encoding="utf-8", errors="replace");
-    sys.stderr = os.fdopen(os.dup(2), "w", encoding="utf-8", errors="replace");
+    made_out = os.fdopen(os.dup(1), "w", encoding="utf-8", errors="replace");
+    made_err = os.fdopen(os.dup(2), "w", encoding="utf-8", errors="replace");
+    state["made_out"] = made_out;
+    state["made_err"] = made_err;
+    sys.stdout = made_out;
+    sys.stderr = made_err;
     return state;
 }
 
 impl _capture_end(state: dict[(str, any)]) -> str {
     import sys;
-    for stream in (sys.stdout, sys.stderr) {
+    for stream in (state["made_out"], state["made_err"]) {
         try {
             stream.flush();
             stream.close();
