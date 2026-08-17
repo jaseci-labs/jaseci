@@ -59,7 +59,7 @@ def _dispatch_request(request: dict) -> dict {
     }
     # starlette/fastapi route handling calls the deprecated
     # `asyncio.iscoroutinefunction` on Python 3.14 (removed in 3.16); the repo's
-    # `pytest.ini` escalates warnings to errors, which would turn an `sv` function
+    # The runner escalates warnings to errors, which would turn an `sv` function
     # call into a 500 here. It is a transitional third-party deprecation,
     # unrelated to the in-process transport under test (the real host, which does
     # not escalate warnings, returns the result fine), so suppress just that

@@ -24,7 +24,6 @@ collision is the thing that has to be undone and neither half of it is
 recoverable from the code alone.
 """
 
-import pytest;
 import jaclang.jac0core.diagnostics as diagmod;
 import from jaclang.jac0core.diagnostics { Category, DIAGNOSTICS, Severity }
 
@@ -46,7 +45,7 @@ test "the registry holds one entry per code, bound under its own name" {
 
 test "a second claimant for a live code fails the registry build, naming both" {
     prior = DIAGNOSTICS["E0001"];
-    with pytest.raises(ValueError) as excinfo {
+    with testraises(ValueError) as excinfo {
         diagmod._reg(
             "E0001",
             Severity.ERROR,

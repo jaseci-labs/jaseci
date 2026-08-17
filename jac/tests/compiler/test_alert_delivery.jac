@@ -35,7 +35,7 @@ glob PROBE_ERR = DiagnosticInfo(
      );
 
 """A pass that emits and observes the program ledger mid-run."""
-obj ProbeEmitPass(Transform[uni.Module, uni.Module]) {
+obj ProbeEmitPass(Transform) {
     has mid_run_prog_errors: int = -1,
         mid_run_prog_warnings: int = -1,
         mid_run_local_errors: int = -1,
@@ -53,7 +53,7 @@ obj ProbeEmitPass(Transform[uni.Module, uni.Module]) {
 }
 
 """A pass that dies through `Transform.ice` after recording one alert."""
-obj ProbeIcePass(Transform[uni.Module, uni.Module]) {
+obj ProbeIcePass(Transform) {
     def transform(ir_in: uni.Module) -> uni.Module {
         raise self.ice("probe detonation");
     }

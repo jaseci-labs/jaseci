@@ -697,16 +697,15 @@ test "restspec without method registers a live POST route (#8000 f3)" {
 
 
 test "restspec decoration-time validation rejects bad specs (#8000 f3)" {
-    import pytest;
     import from jaclang.runtimelib.builtin { APIProtocol }
     import jaclang.runtimelib.builtin as blt;
 
-    with pytest.raises(ValueError) as exc {
+    with testraises(ValueError) as exc {
         blt.restspec(method="HEAD")(lambda { 1; });
     }
     assert "not routable" in str(exc.value);
 
-    with pytest.raises(ValueError) as exc2 {
+    with testraises(ValueError) as exc2 {
         blt.restspec(protocol="carrier-pigeon")(lambda { 1; });
     }
     assert "not recognized" in str(exc2.value);
@@ -714,12 +713,12 @@ test "restspec decoration-time validation rejects bad specs (#8000 f3)" {
     def some_fn -> int {
         return 1;
     }
-    with pytest.raises(ValueError) as exc3 {
+    with testraises(ValueError) as exc3 {
         blt.restspec(protocol=APIProtocol.WEBHOOK)(some_fn);
     }
     assert "walker-only" in str(exc3.value);
 
-    with pytest.raises(ValueError) as exc4 {
+    with testraises(ValueError) as exc4 {
         blt.restspec(broadcast=True)(some_fn);
     }
     assert "WEBSOCKET" in str(exc4.value);

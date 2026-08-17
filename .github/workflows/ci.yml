@@ -860,8 +860,8 @@ jobs:
       run: echo "TEST_ENV=true" >> $GITHUB_ENV
 
     - name: Run all client tests
-      # Serial: xdist workers intermittently disagree on collection of
-      # test_react_native_target.jac ("Different tests were collected").
+      # Serial: parallel workers intermittently disagreed on collection of
+      # test_react_native_target.jac under the old pytest-xdist runner.
       env:
         JAC_TEST_JOBS: "0"
       run: jac test jac/tests/runtimelib/client --ignore jac/tests/runtimelib/client/test_inprocess_dispatch.jac
@@ -973,8 +973,9 @@ jobs:
         # The seal's parse parity canary is red on macos-aarch64 for a
         # divergence in exactly this family; nothing before this pin ran the
         # string surface on darwin on a PR.
-        PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword or str or bytes"
-      run: jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
+      run: >-
+        jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
+        -f "shutil or path or textwrap or keyword or str or bytes"
 
     # macOS JIR seeder (jac-check seeds the Linux tier).
     - name: Save JIR compile caches
@@ -1024,11 +1025,12 @@ jobs:
     - name: Run aarch64 cross tests under qemu
       env:
         JAC_TEST_JOBS: "0"
-        PYTEST_ADDOPTS: -k aarch64
         # The sealed CI binary's pkg_root only bundles host-arch musl; point
         # the static-link search at the repo-vendored cross runtime.
         JAC_NATIVE_MUSL_DIR: ${{ github.workspace }}/jac/.pbs-build/linux-aarch64/musl/lib
-      run: jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+      run: >-
+        jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+        -f aarch64
 
   # Launcher unit tests: trailer codec + `.jab`-overlay round-trip
   # (append / detect / materialize-steps-over-overlay / graft). runtime.zig is

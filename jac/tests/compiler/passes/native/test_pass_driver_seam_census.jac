@@ -25,7 +25,6 @@ own coupling; `_pass_census` skips there.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -69,7 +68,7 @@ glob _CENSUS_MEMO: dict[(str, tuple)] = {};
 def _pass_census(pass_file: str) -> tuple {
     unit = f"jaclang.jac0core.passes.{pass_file[:-4]}";
     if _jaclang_image() is not None {
-        pytest.skip(
+        testskip(
             "this runtime is a sealed jaclang image, so na_ir_gen_pass "
             "untrusts every method of an imported jaclang-internal archetype "
             "that the image's layout does not carry; a source census here "
@@ -79,7 +78,7 @@ def _pass_census(pass_file: str) -> tuple {
         );
     }
     if native_artifact_for(unit) is not None {
-        pytest.skip(
+        testskip(
             f"{pass_file} is served from this runtime's native seal; the "
             "census gated the build via seal_demotion_report"
         );

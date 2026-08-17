@@ -1464,7 +1464,7 @@ impl JacCompiler._compile_once(
         and not had_blocking_errors
         and is_explicit_native
     ) {
-        _parity_passes: list[type[Transform[uni.Module, uni.Module]]] = [];
+        _parity_passes: list[type[Transform]] = [];
         if run_inference {
             try {
                 import from jaclang.compiler.passes.native { NaIRGenPass }
@@ -1605,7 +1605,7 @@ impl JacCompiler.build(
 impl JacCompiler.run_schedule(
     mod: uni.Module,
     target_program: JacProgram,
-    passes: list[type[Transform[uni.Module, uni.Module]]],
+    passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
     provided = target_program._analyses_run.get(id(mod));

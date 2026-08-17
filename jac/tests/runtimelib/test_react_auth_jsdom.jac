@@ -20,7 +20,6 @@ are covered ungated elsewhere.
 """
 
 import os;
-import pytest;
 import from pathlib { Path }
 import from tempfile { TemporaryDirectory }
 
@@ -151,7 +150,7 @@ test "react AuthGuard renders children, child routes, and nothing -- in jsdom" {
     require_client_integration("React AuthGuard");
     bun = get_bun();
     if bun is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
 
     backend = ReactBackend();

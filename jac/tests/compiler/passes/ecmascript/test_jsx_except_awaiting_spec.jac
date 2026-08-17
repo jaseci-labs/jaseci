@@ -13,7 +13,6 @@ This file locks in the fixed shape so that gap cannot reopen.
 """
 
 import os;
-import pytest;
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.ecmascript { EsastGenPass }
