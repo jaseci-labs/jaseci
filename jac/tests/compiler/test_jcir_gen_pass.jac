@@ -1,12 +1,24 @@
-"""Differential harness for the JCIR emitter (epic #8201 lane 2, phase 1).
+"""Construct-by-construct harness for the JCIR emitter (epic #8201).
 
-Every fixture is compiled BOTH ways: through the standard pipeline
-(PyastGenPass building CPython ast) and through JcirGenPass emitting JCIR
-bytes that the reference shim (codegen_shim) transcribes back into ast.
-The harness asserts exact `ast.dump(include_attributes=True)` equality
-between the two trees, and behavioral equality (exec both code objects,
-compare selected globals) on executable fixtures. Any mismatch is a bug
-in the emitter, the shim, or the design doc, never in the fixture.
+Every fixture is emitted twice over the same module. The first emission
+is the pipeline's own: `JcirGenPass` writes the container and
+`JcirBytecodeGenPass` transcribes it, leaving the tree on
+`mod.gen.py_ast`. The second is a fresh `JcirGenPass` run over the
+already-compiled module, transcribed through `codegen_shim`.
+
+Two things are asserted of every fixture. Exact
+`ast.dump(include_attributes=True)` equality between the two trees says
+the emitter is deterministic and carries no state across a module that
+has already been through the whole pipeline, native lane included --
+the leak class this pass is most exposed to. Executing both code objects
+and comparing selected globals says the lowering is not merely stable
+but correct. Any mismatch is a bug in the emitter, the shim, or the
+design doc, never in the fixture.
+
+Cross-lane parity against the retired Python-AST emitter is not measured
+here: that lane is gone. Its evidence is the corpus comparison recorded
+in the cutover, plus `test_jcir_sealed_bytes.jac`, which pins the sealed
+producer's code objects field by field through the serving binder.
 """
 
 import ast as pyast;
@@ -17,11 +29,13 @@ import from builtins { compile as pycompile, exec as pyexec }
 import from tests.support { JAC_ROOT }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.passes { PyastGenPass }
 import from jaclang.jac0core.compile_options { CompileOptions }
+import from jaclang.jac0core.compiler { get_py_code_gen }
+import from jaclang.jac0core.passes { JcirBytecodeGenPass }
 import from jaclang.jac0core.passes.jcir_gen_pass { JcirGenPass }
 import from jaclang.jac0core.codegen_shim { compile_ir, transcribe }
 
+"""Compile a source string, then re-emit it: (pipeline tree, fresh tree, bytes)."""
 def dual_compile(src: str, path: str) -> tuple {
     prog = JacProgram();
     mod = prog.compile(
@@ -45,6 +59,7 @@ def dual_compile(src: str, path: str) -> tuple {
     return (ref_tree, mods[0][1], blob);
 }
 
+"""The same double emission, for a fixture that must be compiled from disk."""
 def dual_compile_file(path: str) -> tuple {
     prog = JacProgram();
     mod = prog.compile(path, options=CompileOptions(no_ir_cache=True));
@@ -167,7 +182,7 @@ with entry {
 }
 """;
 
-test "round trip fixture matches pyast lane exactly" {
+test "the round trip fixture re-emits identically" {
     (ref_tree, got_tree, blob) = dual_compile(ROUND_TRIP_FIXTURE, "rt_fixture.jac");
     assert_dump_equal(ref_tree, got_tree);
     result = compile_ir(blob);
@@ -843,9 +858,12 @@ test "real repo walker file social_graph lowers identically" {
     );
 }
 
-test "jcir pipeline flag swaps the codegen tail" {
+test "the pipeline's codegen tail is jcir, with nothing to select" {
+    # The container is not an option the pipeline can be talked out of:
+    # a plain compile leaves JCIR bytes on the module, and the bytecode
+    # the driver hands the runtime is the one the container produced.
     src = """
-\"\"\"Flag fixture.\"\"\"
+\"\"\"Tail fixture.\"\"\"
 def double(x: int) -> int {
     return x * 2;
 }
@@ -854,30 +872,31 @@ with entry {
     r = double(21);
 }
 """;
-    (ref_tree, _, _) = dual_compile(src, "flag_fixture.jac");
-    os.environ["JAC_CODEGEN"] = "jcir";
-    try {
-        prog = JacProgram();
-        mod = prog.compile(
-            use_str=src,
-            file_path="flag_fixture.jac",
-            options=CompileOptions(
-                force_codespace="server",
-                skip_native_engine=True,
-                suppress_codes=["E5092"]
-            )
+    prog = JacProgram();
+    mod = prog.compile(
+        use_str=src,
+        file_path="tail_fixture.jac",
+        options=CompileOptions(
+            force_codespace="server",
+            skip_native_engine=True,
+            suppress_codes=["E5092"]
+        )
+    );
+    assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
+    assert mod.gen.jcir , "a compiled module must carry its codegen container";
+    assert mod.gen.py_bytecode;
+    sched = get_py_code_gen(native=False);
+    assert JcirGenPass in sched , f"jcir is not in the codegen schedule: {sched}";
+    assert JcirBytecodeGenPass in sched;
+    for entry in sched {
+        assert "Pyast" not in entry.__name__ and "PyBytecode" not in entry.__name__ , (
+            f"a legacy emitter is back in the codegen schedule: {entry.__name__}"
         );
-        assert len(prog.errors_had) == 0 , str([str(e) for e in prog.errors_had]);
-        assert mod.gen.jcir;
-        assert mod.gen.py_bytecode;
-        assert_dump_equal(ref_tree, mod.gen.py_ast[0]);
-        ref_code = pycompile(ref_tree, "flag_fixture.jac", "exec");
-        piped_code = marshal.loads(mod.gen.py_bytecode);
-        diffs = code_diffs(ref_code, piped_code, "module", []);
-        assert diffs == [] , "\n".join(diffs);
-    } finally {
-        del os.environ["JAC_CODEGEN"];
     }
+    piped_code = marshal.loads(mod.gen.py_bytecode);
+    round_tripped = pycompile(mod.gen.py_ast[0], "tail_fixture.jac", "exec");
+    diffs = code_diffs(round_tripped, piped_code, "module", []);
+    assert diffs == [] , "\n".join(diffs);
 }
 
 test "server-side jsx lowers to jaclib jsx calls" {
@@ -915,7 +934,7 @@ with entry {
     assert_bytecode_equal(ref_tree, comp_path, result.modules[0].bytecode);
 }
 
-test "genai calls refuse deliberately in both lanes" {
+test "a genai call refuses deliberately rather than lowering wrong" {
     src = """
 def g -> int {
     return 1;
@@ -930,20 +949,15 @@ def f -> int {
     calls = mod.get_all_sub_nodes(uni.FuncCall);
     assert calls;
     calls[0].genai_call = calls[0].target;
-    caught_py = "";
-    try {
-        PyastGenPass(ir_in=mod, prog=prog);
-    } except Exception as e {
-        caught_py = str(e);
-    }
     caught_jcir = "";
     try {
         JcirGenPass(ir_in=mod, prog=prog);
     } except NotImplementedError as e {
         caught_jcir = str(e);
     }
-    assert "temporarily disabled" in caught_py;
-    assert "genai call expression" in caught_jcir;
+    assert "genai call expression" in caught_jcir , (
+        "a genai call must refuse by name, not lower to something else"
+    );
 }
 
 test "concurrency flow and wait lower identically" {

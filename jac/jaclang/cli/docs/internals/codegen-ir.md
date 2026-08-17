@@ -1,22 +1,23 @@
 # Compact Codegen IR (JCIR)
 
-Status: design plus reference implementation, plus the complete producer
-(phases 1 through 4). This is the first lane 2 deliverable of the zero-bytecode
-endgame (epic #8201): it fixes the Step 4 shim's contract and is the
-proof that the intermediate annotated-state materializer is skippable at
-all. The format module, the Python reference shim, and the round-trip
-suite landed together with this document; the emitter pass
-(`jac0core/passes/jcir_gen_pass.jac`) now produces this format for the
-core language (phase 1), object-spatial codegen, match, and async
-(phase 2), interop stubs, native test shims, sem decorators, llm bodies,
-and concurrency (phase 3), plus jsx lowering (phase 4) directly from the
-annotated unitree, with genai call expressions the single remaining
-refusal (deliberately refused in both lanes), verified against
-`pyast_gen` by the differential suite
-(`tests/compiler/test_jcir_gen_pass.jac`). An opt-in pipeline flag
-(section 11.1) runs the whole codegen tail through this lane. The sealed
-native producer and the generated native transcriber come later and must
-conform to the bytes specified here.
+Status: shipped. This format is the compiler's only Python codegen. The
+emitter (`jac0core/passes/jcir_gen_pass.jac`) produces it from the
+annotated unitree for the whole language, the shim seat
+(`jac0core/passes/jcir_bc_gen_pass.jac`) turns the bytes back into
+CPython code objects, and the seal ships the emitter as a native
+artifact. The Python-AST emitter it was measured against
+(`pyast_gen_pass`), its bytecode pass, and the `JAC_CODEGEN` flag that
+chose between them were deleted at the cutover, which is where the
+two-codegen era ends. Sections 1 through 8 are the design record and
+describe the old emitter in the present tense as it stood when they were
+written; sections 9 onward describe the tree as it is.
+
+This was the first lane 2 deliverable of the zero-bytecode endgame (epic
+#8201): it fixes the Step 4 shim's contract and is the proof that the
+intermediate annotated-state materializer is skippable at all. What
+remains ahead of it is the mega-arc's own work -- per-node dispatch, and
+retiring the Python shim seat for a generated native transcriber, which
+must conform to the bytes specified here.
 
 Note on location: the task brief suggested `docs/community/internals/`; the
 corpus's actual home for internal design docs is `docs/internals/` (beside
@@ -302,10 +303,11 @@ production:
   annotated unitree it rebuilds stay for LSP, `jac tool`, and tests.
 - **`gen.py` unparse output**: `exit_module` runs `ast3.unparse` for the
   Python-source view of a module. Tooling lane only.
-- **`jac_link` back-references**: `sync()` attaches `jac_link` (ast node
-  to jac node) for in-process consumers. The ast tree dies inside the
-  crossing after `compile()`, so production never sees them; the Python
-  pyast_gen path keeps producing them for tooling.
+- **`jac_link` back-references**: the retired Python-AST emitter's
+  `sync()` attached `jac_link` (ast node to jac node) for in-process
+  consumers. The ast tree dies inside the crossing after `compile()`, so
+  production never saw them and nothing outside the emitter read them;
+  the cutover retired the attribute with the emitter (section 11.1).
 - **`debuginfo` / `jac_mods`**: pass-internal bookkeeping.
 - **`py_ast` caches on unitree nodes**: `nd.gen.py_ast` is scaffolding of
   the current pass structure, not part of the crossing contract.
@@ -363,13 +365,13 @@ assumed away.
    a construction invariant in `jcir_gen_pass` (no fill pass exists), and
    verified by the differential suite's nested-lambda fixture (lambdas in
    default arguments included).
-4. **Jsx lowering.** `PyJsxProcessor` makes real decisions (element
-   lowering, attribute handling, text/expression children) but its output
-   is ordinary `ast3` nodes built through `pass_ref.sync`, so the
-   vocabulary covers it. The processor has not been audited method by
-   method in this pass; it is on the emitter port checklist. The
-   `EsJsxProcessor` targets the ECMAScript lane, which does not cross this
-   boundary at all.
+4. **Jsx lowering.** The old `PyJsxProcessor` made real decisions
+   (element lowering, attribute handling, text/expression children) and
+   its output was ordinary `ast3` nodes, so the vocabulary covered it.
+   The emitter ported those decisions into its own `exit_jsx_*` methods
+   and the processor retired with the emitter. The `EsJsxProcessor` that
+   shared its file targets the ECMAScript lane, which does not cross this
+   boundary at all, and stays.
 5. **`__jac_dirty_fields__`-adjacent emissions.** Verified: `pyast_gen`
    emits nothing dirty-field-related; that tracking lives at runtime in
    `Archetype.__setattr__`. The adjacent codegen behaviors are the
@@ -381,12 +383,13 @@ assumed away.
 7. **`TYPE_CHECKING` blocks.** Producer wraps typed-import statements in
    `If(Name("TYPE_CHECKING"))` and adds the typing import to the preamble.
    Encodable; no shim involvement.
-8. **Generated-source stubs and `jac_link` hygiene.** Today the stub
-   generators walk their parsed output setting `jac_link = []` so
-   downstream tooling does not confuse them with jac-linked nodes. The
-   shim's splice sets no `jac_link` at all, which is the production-correct
-   behavior (nothing downstream of the crossing reads it); the tooling
-   lane keeps the old path.
+8. **Generated-source stubs and `jac_link` hygiene.** The old stub
+   generators walked their parsed output setting `jac_link = []` so
+   downstream tooling would not confuse them with jac-linked nodes. The
+   shim's splice sets no `jac_link` at all, which is the
+   production-correct behavior (nothing downstream of the crossing reads
+   it), and with the cutover it is the only behavior: the attribute is
+   gone from the tree.
 9. **Shared ast subtrees.** `resolve_switch_stmt` reuses one
    `executed_assign` node across case bodies. JCIR duplicates the
    construction; `compile()` treats a shared node and an equal copy
@@ -416,9 +419,13 @@ assumed away.
   through `co_consts`) or normalize before comparing, never raw
   `marshal.dumps` output from different call sites. The differential
   suite's `code_diffs` helper is the reference comparison.
-- **`gen.py` consumers audit.** Believed tooling-only; the cutover PR must
-  verify nothing in the production serve path reads `mod.gen.py` or
-  `mod.gen.py_ast` after the crossing lands.
+- **`gen.py` consumers audit.** Done at the cutover. Every reader of
+  `mod.gen.py` is tooling (`jac tool ir py`, the transform and eject
+  commands, the publish vendor and builder, the mcp compiler bridge) and
+  every reader of `mod.gen.py_ast` takes the module root, which the shim
+  seat supplies. The one interior-node reader was unitree's
+  `DeleteStmt.py_ast_targets`, whose only caller was the retired emitter;
+  it went with it, and took a seal waiver with it.
 - **Structured diagnostics.** `CirDiag` carries flat strings; the
   diagnostics registry objects (severity policies, fix-its) stay
   Python-side. If the sealed pipeline ever needs to emit a diagnostic kind
@@ -587,41 +594,49 @@ assumed away.
   equality under `exec`, including one real compiler source file
   (`jac0core/srcloc.jac`) end to end.
 
-### 11.1 The JAC_CODEGEN=jcir pipeline flag
+### 11.1 The codegen tail, after the cutover
 
-Setting the environment variable `JAC_CODEGEN=jcir` makes
-`get_py_code_gen` (jac0core/compiler.jac) swap the Python codegen tail:
+`get_py_code_gen` (jac0core/compiler.jac) returns one Python codegen
+tail and there is nothing to select between:
 
-- default tail: `PyastGenPass`, `PyJacAstLinkPass`, `PyBytecodeGenPass`
-- jcir tail: `JcirGenPass`, `JcirBytecodeGenPass`
+- `JcirGenPass`, `JcirBytecodeGenPass`
 
-Under the flag, codegen decisions run through the emitter, the container
-crosses as bytes on `gen.jcir`, and the shim-seat pass rebuilds
-`gen.py_ast` and `gen.py_bytecode` from those bytes, so every downstream
-consumer of the standard artifacts keeps working. Two deliberate
-differences from the default tail:
+Codegen decisions run through the emitter, the container crosses as bytes
+on `gen.jcir`, and the shim-seat pass rebuilds `gen.py_ast`, `gen.py` and
+`gen.py_bytecode` from those bytes, so every downstream consumer of the
+standard artifacts keeps working.
 
-- `PyJacAstLinkPass` is absent: `jac_link` back-references are a tooling
-  concern that never crosses the production boundary (section 7), and the
-  shim-built tree correctly has none. This is the one standard artifact
-  the flag lane does not provide; suites that assert `jac_link` on every
-  node (the micro suite) fail under the flag by this design.
+The `JAC_CODEGEN` environment variable that selected this lane while it
+was being built is gone, along with the Python-AST emitter, its bytecode
+pass, and `PyJacAstLinkPass`. Two consequences are worth stating plainly
+rather than discovering:
+
+- `jac_link` back-references no longer exist anywhere. They were a
+  tooling-only handle from a CPython ast node back to the jac node that
+  produced it (section 7), attached by the old emitter's `sync()`. The
+  tree the shim seat builds dies inside the crossing after `compile()`,
+  so nothing downstream held one in production; the micro suite's
+  per-node assertion is now the loc-fill invariant of section 5.1
+  instead, which is the property `sync()` was actually enforcing.
 - Constructs the emitter refuses (section 11) fail the compile loudly
-  instead of lowering; the flag is for the cross-lane parity canary and
-  development, not yet a supported default.
+  rather than lowering. There is no second lane to fall through to, which
+  is the point: a refusal is a named gap with a test, not a silent
+  divergence between two emitters.
 
-The differential suite's pipeline test compiles the same source with and
-without the flag and asserts tree and code-object equality between the
-two lanes.
+### 11.2 The payload-lane canary manifest
 
-### 11.2 Flag-lane validation manifest
+The nineteen suites below were validated end to end on this lane while it
+still lived behind a flag, including a full from-clean-cache build of the
+dev CLI toolchain itself. They now need no flag and no special job: they
+are the default lane, and CI's ordinary chunks collect all nineteen --
+`tests/compiler/test_*.jac` and the `tests/compiler/passes` trees in the
+compiler lane, `tests/` minus `tests/compiler` in the runtime lane.
 
-The named suites below have been validated end to end under
-`JAC_CODEGEN=jcir` (each run as
-`JAC_CODEGEN=jcir JAC_TEST_JOBS=0 jac test -x <file>`, one file at a
-time), including a full from-clean-cache build of the dev CLI toolchain
-itself on the jcir lane. This list is the manifest for the standing
-cross-lane canary; the cutover CI job can lift it verbatim.
+`tests/compiler/test_jcir_canary_manifest.jac` holds the list and pins
+what prose cannot: that every named suite still exists, that every one
+still falls inside a CI collection glob, and that the lane they measure
+is the container. A canary that is renamed out of the matrix fails there
+rather than going quiet.
 
 - tests/compiler/test_compilation.jac
 - tests/compiler/test_codegen_ir.jac
@@ -643,11 +658,10 @@ cross-lane canary; the cutover CI job can lift it verbatim.
 - tests/language/test_language.jac
 - tests/language/test_bugs.jac
 
-Known exclusion: tests/compiler/test_micro_suite.jac asserts `jac_link`
-on every generated node, the tooling-only back-reference the jcir tail
-omits by design (this section, first bullet). It stays on the pyast
-lane until the cutover decides whether that assertion becomes
-lane-conditional.
+The one standing exclusion is gone with the flag: `test_micro_suite.jac`
+was held back because it asserted `jac_link` on every generated node.
+That assertion is now the section 5.1 position check, and the suite runs
+on this lane like every other.
 
 ## 12. Cutover fit
 

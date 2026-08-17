@@ -949,8 +949,6 @@ obj DeleteStmt(CodeBlockStmt) {
     has target: Expr;
 
     def postinit -> None;
-
-    has py_ast_targets: list { getter; }
 }
 
 obj ReportStmt(CodeBlockStmt) {

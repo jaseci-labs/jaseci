@@ -37,8 +37,6 @@ import from jaclang.jac0core.passes {
     JcirBytecodeGenPass,
     JcirGenPass,
     PlacementApplyPass,
-    PyastGenPass,
-    PyBytecodeGenPass,
     SemanticAnalysisPass,
     SymTabBuildPass,
     Transform
@@ -626,16 +624,14 @@ def native_pipeline_available -> tuple[bool, str] {
     return verdict;
 }
 
-def jcir_codegen_enabled -> bool {
-    import os;
-    return os.environ.get('JAC_CODEGEN', '') == 'jcir';
-}
+"""The Python codegen tail: JCIR out, code objects back.
 
+`JcirGenPass` writes the compact codegen IR container and
+`JcirBytecodeGenPass` transcribes it into CPython code objects. This is
+the whole tail -- there is no second emitter to choose between.
+"""
 def _py_codegen_tail -> list[type[Transform[uni.Module, uni.Module]]] {
-    if jcir_codegen_enabled() {
-        return [JcirGenPass, JcirBytecodeGenPass];
-    }
-    return [PyastGenPass, PyBytecodeGenPass];
+    return [JcirGenPass, JcirBytecodeGenPass];
 }
 
 def get_py_code_gen(
@@ -647,9 +643,6 @@ def get_py_code_gen(
     _tok = _codegen_sched_loading.set(True);
     try {
         import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-        import from jaclang.compiler.passes.main.pyjac_ast_link_pass {
-            PyJacAstLinkPass
-        }
 
         passes: list[type[Transform[uni.Module, uni.Module]]] = [EsastGenPass];
         if native {
@@ -683,11 +676,7 @@ def get_py_code_gen(
             );
             _note_native_schedule_failure(None);
         }
-        if jcir_codegen_enabled() {
-            passes.extend([JcirGenPass, JcirBytecodeGenPass]);
-        } else {
-            passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
-        }
+        passes.extend(_py_codegen_tail());
         return passes;
     } except ImportError as e {
         fail_loud_on_compiler_source(e);

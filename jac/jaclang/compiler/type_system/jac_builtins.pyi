@@ -6,11 +6,11 @@
 # every user module.
 #
 # Only USER-FACING names belong in __all__. Internal codegen helpers (connect,
-# visit, refs, build_edge, etc.) are injected by PyastGenPass and should
-# NOT be declared here — they would conflict with the type checker's own
-# handling of the syntax they desugar from (++>, -->, visit [], etc.).
+# visit, refs, build_edge, etc.) are injected by the codegen emitter and
+# should NOT be declared here — they would conflict with the type checker's
+# own handling of the syntax they desugar from (++>, -->, visit [], etc.).
 #
-# Codegen (PyastGenPass) independently controls which `import` lines
+# Codegen (JcirGenPass) independently controls which `import` lines
 # appear in the generated Python — it reads jaclib.__all__ and
 # builtin.__all__ for that purpose. This file is NOT used by codegen.
 
