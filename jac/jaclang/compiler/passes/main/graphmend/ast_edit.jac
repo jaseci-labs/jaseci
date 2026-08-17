@@ -43,6 +43,20 @@ def gen_string(at: uni.UniNode, value: str) -> uni.String {
     );
 }
 
+def gen_bool(at: uni.UniNode, value: bool) -> uni.Bool {
+    return uni.Bool(
+        orig_src=at.loc.orig_src,
+        name='BOOL',
+        value='True' if value else 'False',
+        line=at.loc.first_line,
+        end_line=at.loc.last_line,
+        col_start=at.loc.col_start,
+        col_end=at.loc.col_end,
+        pos_start=at.loc.pos_start,
+        pos_end=at.loc.pos_end
+    );
+}
+
 def need_helper(at: uni.UniNode, helper: GraphMendHelper) {
     facts_for(at).helpers.add(helper);
 }

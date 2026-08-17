@@ -1,6 +1,7 @@
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.constant { GraphMendHelper }
 import from jaclang.compiler.passes.main.graphmend.ast_edit {
+    gen_bool,
     gen_name,
     insert_after,
     need_helper,
@@ -146,7 +147,7 @@ impl DeferSideEffectPass._hook_register_stmt(
     );
     hook = gen_name(at, '__jac_log_flush_hook__', False);
     kw_key = gen_name(at, 'always_call', False);
-    kw_val = gen_name(at, 'True', False);
+    kw_val = gen_bool(at, True);
     always = uni.KWPair(key=kw_key, value=kw_val, kid=[kw_key, kw_val]);
     params: list = [hook, always];
     call = uni.FuncCall(
