@@ -72,7 +72,9 @@ def _run_annex -> object {
 def _unit_source -> str {
     return (
         Path(jaclang.__file__).parent / "jac0core" / "passes" / "transform.jac"
-    ).read_text(encoding="utf-8");
+    ).read_text(
+        encoding="utf-8"
+    );
 }
 
 def _skip_if_sealed {

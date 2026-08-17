@@ -442,66 +442,85 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
          "builtin call 'isinstance'": ("TypeEvaluator._union_narrowed_types", ),
          "expression 'comprehension over an element-erased collection'": (
              "TypeEvaluator._ts_synth_class_types",
+
          ),
          "function 'build_type_var_solution'": (
              "TypeEvaluator.specialize_member_type",
+
          ),
          "builtin call 'id'": ("TypeEvaluator._type_var_bound_in_scope", ),
          "function 'compute_mro_linearization'": ("TypeEvaluator.is_sub_class", ),
          "function 'find_jac_project_root'": (
              "TypeEvaluator._untyped_external_is_error",
+
          ),
          "function 'has_client_npm_package'": ("TypeEvaluator._client_npm_base", ),
          "function 'int_subscript_suffix'": (
              "TypeEvaluator.create_key_for_reference",
+
          ),
          "function 'is_untyped_third_party_module'": (
              "TypeEvaluator._resolve_submodule_attr",
+
          ),
          "function 'open'": ("TypeEvaluator._load_ts_declarations", ),
          "function 'resolve_client_npm_package'": (
              "TypeEvaluator._resolve_client_npm_module",
+
          ),
          "function 'resolve_importer_path_from_node'": (
              "TypeEvaluator._resolve_importer_path",
+
          ),
          "function 'sibling_declaration_file'": (
              "TypeEvaluator._get_ts_declared_item_type",
+
          ),
          "method 'TypeEvaluator._build_field_params'": (
              "TypeEvaluator._create_dataclass_init_method",
+
          ),
          "method 'TypeEvaluator._collect_return_types'": (
              "TypeEvaluator._collect_if_else_returns",
+
          ),
          "method 'TypeEvaluator._create_dataclass_init_method'": (
              "TypeEvaluator._find_matching_raw_constructor",
+
          ),
          "method 'TypeEvaluator._get_signature_type_params'": (
              "TypeEvaluator._get_function_type_params",
+
          ),
          "method 'TypeEvaluator._get_type_from_flow_node'": (
              "TypeEvaluator._if_exit_type",
+
          ),
          "method 'TypeEvaluator._in_native_context'": ("TypeEvaluator.assign_type", ),
          "method 'TypeEvaluator.match_args_to_params'": (
              "TypeEvaluator._validate_constructor_method",
+
          ),
          "type 'JacProgram'": ("TypeEvaluator.program", ),
          "unsupported attribute access '_sym_category'": (
              "TypeEvaluator.get_type_of_module",
+
          ),
          "unsupported attribute access 'cur_node'": (
              "TypeEvaluator._in_native_context",
+
          ),
          "unsupported attribute access 'emit'": (
              "TypeEvaluator.match_args_to_params",
+
          ),
          "unsupported attribute access 'name'": (
              "TypeEvaluator._collect_type_var_bindings",
+
          ),
          "unsupported attribute access 'prog'": (
              "TypeEvaluator._resolve_type_alias_rhs",
+
          ),
          "unsupported call argument unpacking '**'": ("TypeEvaluator.emit_diag", )
      };
@@ -626,9 +645,11 @@ glob CHECKER_SEAM_WAIVERS: dict[(str, tuple)] = {
          "inherited field read 'prog'": ("TypeCheckPass.before_pass", ),
          "unsupported attribute access 'get'": (
              "TypeCheckPass._check_intrinsic_call",
+
          ),
          "unsupported attribute access 'is_intrinsic'": (
              "TypeCheckPass._check_intrinsic_collision",
+
          ),
          "unsupported attribute access 'type'": ("TypeCheckPass.exit_sub_tag", )
      };
@@ -996,8 +1017,7 @@ test "an un-lowerable declaration is a seam on its field, not on its module" {
 test "the checker lowers, and does not reach the evaluator" {
     (census, has_ir, fatal) = _census_of(CHECKER_SRC);
     assert has_ir , (
-        "no LLVM IR for type_checker_pass.jac:\n"
-        + "\n".join(f"  {f}" for f in fatal)
+        "no LLVM IR for type_checker_pass.jac:\n" + "\n".join(f"  {f}" for f in fatal)
     );
     seen = tuple(sorted({os.path.basename(p) for p in census}));
     assert seen == CHECKER_CLOSURE , (
