@@ -1,13 +1,17 @@
-"""Membership over a container the emitter only sees as a bare pointer.
+"""Reading through a container the emitter only sees as a bare pointer.
 
 `CoalesceBBPass.enter_node` searches `bbs['bb_stmts']` -- a `list[UniCFGNode]`
 reached through a `dict[int, dict[str, list[...]]]`, whose inner value arrives
-as an untyped `i8*` even though its declared type names the element exactly.
-The membership emitter used to accept any two pointers and hand them to
-`strstr`: a `str` needle then read the list header's bytes as a NUL-terminated
-string (silently wrong), and an object needle raised a raw llvmlite TypeError
-that demoted the whole method. The declared type is enough to recover the list
-layout, so both shapes lower here.
+as an untyped `i8*` because the outer dict stores pointer-valued entries with
+no layout attached. Both reads used to compile to something else entirely:
+`bucket['items']` became a character load off the inner dict's header, and
+`nd in bucket['items']` handed `strstr` a list (or, for an object needle, a
+`%Tag*` that llvmlite rejected outright).
+
+The layout is not recoverable here, so these methods now demote and Python
+answers them -- which is what this fixture pins: the same values out of every
+lane. `require=["na"]` is deliberately absent; the day the erasure itself is
+fixed, turning it on is the test that the shape really lowers.
 """
 
 obj Tag {

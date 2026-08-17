@@ -245,11 +245,7 @@ test "dict struct-pointer value families" {
 
 test "membership over an element-erased container" {
     run_with_both(
-        "prim_in_erased.jac",
-        "in_erased_py",
-        "in_erased_cl",
-        "in_erased_na",
-        require=["na"]
+        "prim_in_erased.jac", "in_erased_py", "in_erased_cl", "in_erased_na"
     );
 }
 
