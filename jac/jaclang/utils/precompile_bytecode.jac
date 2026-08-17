@@ -1752,7 +1752,7 @@ glob NATIVE_SEAL_JOBS_ENV: str = "JAC_SEAL_JOBS",
      NATIVE_SEAL_WORKER_ENV: str = "JAC_SEAL_WORKER_REQUEST",
      NATIVE_SEAL_WORKER_PATH_ENV: str = "JAC_SEAL_WORKER_SYS_PATH";
 
-glob NATIVE_SEAL_ROOT_BUDGET_GIB: float = 3.0;
+glob NATIVE_SEAL_ROOT_BUDGET_GIB: float = 4.5;
 
 def seal_mem_available_gib -> float {
     try {
