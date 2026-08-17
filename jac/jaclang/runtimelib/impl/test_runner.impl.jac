@@ -605,8 +605,18 @@ impl run_file(
     qualified = f"{pkg_name}.{mod_name}";
     real_dir = os.path.realpath(base_dir);
     basedir = _package_basedir(real_dir);
+    roots: list[str] = [];
+    try {
+        import from jaclang.project.config { get_config }
+        cfg = get_config();
+        if cfg and cfg.project_root {
+            roots.append(os.path.realpath(str(cfg.project_root)));
+        }
+    } except Exception {
+        ;
+    }
     injected: list[str] = [];
-    for entry in (basedir, real_dir) {
+    for entry in (roots + [basedir, real_dir]) {
         if entry not in sys.path {
             sys.path.insert(0, entry);
             injected.append(entry);

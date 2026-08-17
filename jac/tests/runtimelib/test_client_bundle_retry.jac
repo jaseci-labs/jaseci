@@ -14,7 +14,6 @@ on whether the server keeps trying, read from its own log.
 """
 
 import os;
-import requests;
 import shutil;
 import subprocess;
 import time;
@@ -64,6 +63,22 @@ def _build_attempts(log: Path) -> int {
 }
 
 
+"""GET *url* and return the HTTP status. urllib raises on 4xx/5xx, so an error
+response is reported as its status rather than as an exception. Uses the
+stdlib rather than `requests`: this test is swept by the runtime CI job, which
+installs no third-party HTTP client."""
+def _get_status(url: str, timeout: float) -> int {
+    import from urllib.request { urlopen }
+    import from urllib.error { HTTPError }
+    try {
+        with urlopen(url, timeout=timeout) as resp {
+            return resp.status;
+        }
+    } except HTTPError as exc {
+        return exc.code;
+    }
+}
+
 test "a failed bundle build is retried on a later request, not cached until restart" {
     _require_client_integration();
     proj = _broken_project();
@@ -94,7 +109,7 @@ test "a failed bundle build is retried on a later request, not cached until rest
                 );
             }
             try {
-                if requests.get(f"{base}/healthz", timeout=2).status_code == 200 {
+                if _get_status(f"{base}/healthz", 2) == 200 {
                     ready = True;
                     break;
                 }
@@ -109,16 +124,16 @@ test "a failed bundle build is retried on a later request, not cached until rest
             "the boot build never ran, so this test is not exercising a failed build"
         );
 
-        first = requests.get(f"{base}{_PAGE}", timeout=300);
+        first_status = _get_status(f"{base}{_PAGE}", 300);
         after_first = _build_attempts(log_path);
         assert after_first > after_boot , (
             f"the failed build was replayed from cache instead of retried "
             f"(build attempts stayed at {after_boot} across a request that "
-            f"returned {first.status_code}); a boot-time failure must not "
+            f"returned {first_status}); a boot-time failure must not "
             "disable client pages until restart"
         );
 
-        requests.get(f"{base}{_PAGE}", timeout=300);
+        _get_status(f"{base}{_PAGE}", 300);
         assert _build_attempts(log_path) > after_first , (
             "the second request did not retry either; the failure is still sticky"
         );
