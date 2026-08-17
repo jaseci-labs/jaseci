@@ -88,13 +88,18 @@ jobs:
 
       # Explicit: a binary-cache hit skips zig build, so these gitignored
       # trees must be materialized either way. -Dno-ninja skips the editor
-      # closure nothing here needs.
+      # closure nothing here needs. The wasm floor is in this list for the
+      # same reason as the rest: a full build writes it as a side effect, a
+      # cache hit does not, so leaving it implicit made the kit's contents a
+      # function of cache state -- present on a miss, missing on a hit, with
+      # if-no-files-found blind to it because the other paths matched.
       - name: Materialize typeshed + vendored runtimes
         working-directory: jac
         run: |
           zig build -Dno-ninja fetch-typeshed --summary all
           zig build -Dno-ninja vendor-musl --summary all
           zig build -Dno-ninja vendor-musl-linux-aarch64 --summary all
+          zig build -Dno-ninja vendor-wasm-libc --summary all
 
       - name: Hermeticity + smoke (no system Python)
         working-directory: jac
@@ -140,6 +145,19 @@ jobs:
           JAC
           env -i HOME="$WORK" PATH=/usr/bin:/bin JAC_TEST_JOBS=0 JAC_NO_DEV_SOURCE=1 "$BIN" test "$WORK/test_smoke.jac"
 
+      # if-no-files-found only fires when NO path matches, so a single missing
+      # tree ships a quietly incomplete kit to every consumer. Assert each one.
+      - name: Verify the kit is complete
+        working-directory: jac
+        run: |
+          set -euo pipefail
+          for p in zig-out/bin/jac jaclang/vendor/typeshed/stdlib \
+                   .pbs-build/linux-x86_64/musl/lib \
+                   .pbs-build/linux-aarch64/musl/lib \
+                   .pbs-build/wasm32/libc; do
+            [ -e "$p" ] || { echo "::error::kit is missing $p"; exit 1; }
+          done
+
       - name: Upload the kit
         uses: actions/upload-artifact@v4
         with:
@@ -175,6 +193,15 @@ jobs:
         run: |
           zig build -Dno-ninja fetch-typeshed --summary all
           zig build -Dno-ninja vendor-wasm-libc --summary all
+
+      - name: Verify the kit is complete
+        working-directory: jac
+        run: |
+          set -euo pipefail
+          for p in zig-out/bin/jac jaclang/vendor/typeshed/stdlib \
+                   .pbs-build/wasm32/libc; do
+            [ -e "$p" ] || { echo "::error::kit is missing $p"; exit 1; }
+          done
 
       - name: Upload the kit
         uses: actions/upload-artifact@v4
@@ -823,6 +850,55 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
       - uses: ./.github/actions/jac-kit
+
+      # The same capacity floor build-binaries.yml gained in #8279 and
+      # .github/actions/setup-jac carries for the jobs that build through it.
+      # This job does not build the binary -- it takes build-kit's -- but the
+      # step below runs the precompiler, and the inline seal that closes it is
+      # the same one-process compile of every NATIVE_SEAL_ROOTS entry, with the
+      # same stranded materializer trees: 19.3 GiB at eleven roots, 22.4 GiB at
+      # thirteen, against a 16 GiB runner with a 4 GiB stock swapfile. It died
+      # here exactly as it died there, as "the runner lost communication" with
+      # no diagnostic. Third copy of this block (#8279, setup-jac, here);
+      # folding the three into one composite action is a clean follow-up.
+      # Retire it outright when the crossing reclaims its tree (#8139).
+      - name: Swap headroom for the sealed precompile (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "--- before"
+          free -h
+          swapon --show || true
+          df -h
+          WORK_DEV="$(df -P "$RUNNER_TEMP" | awk 'NR==2 {print $1}')"
+          MNT_DEV="$(df -P /mnt 2>/dev/null | awk 'NR==2 {print $1}' || true)"
+          if [ -n "$MNT_DEV" ] && [ "$MNT_DEV" != "$WORK_DEV" ]; then
+            SWAP_DIR=/mnt
+            RESERVE_GB=2
+          else
+            SWAP_DIR="$RUNNER_TEMP"
+            RESERVE_GB=25
+          fi
+          AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
+          SIZE_GB=$(( AVAIL_GB - RESERVE_GB ))
+          if [ "$SIZE_GB" -gt 24 ]; then
+            SIZE_GB=24
+          fi
+          if [ "$SIZE_GB" -lt 4 ]; then
+            echo "::error::$SWAP_DIR has ${AVAIL_GB}G free, too little to spare;" \
+                 "the seal needs swap headroom at this root count and would exhaust the runner"
+            exit 1
+          fi
+          SWAP_FILE="$SWAP_DIR/jac-seal-swap"
+          sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
+            || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
+          sudo chmod 600 "$SWAP_FILE"
+          sudo mkswap "$SWAP_FILE"
+          sudo swapon "$SWAP_FILE"
+          echo "--- after"
+          free -h
+          swapon --show
 
       - name: Precompile all packages
         run: jac run jac/jaclang/utils/precompile_bytecode.jac ./jac
