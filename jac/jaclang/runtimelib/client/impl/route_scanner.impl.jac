@@ -50,7 +50,9 @@ impl RouteScanner._scan_directory(
                 routes.extend(child_routes);
             } else {
                 child_prefix = f"{url_prefix}/{self._file_to_route_path(dir_name)}";
-                child_routes = self._scan_directory(`entry, child_prefix, auth_required);
+                child_routes = self._scan_directory(
+                    `entry, child_prefix, auth_required
+                );
                 routes.extend(child_routes);
             }
         } elif `entry.is_file() and `entry.suffix == '.jac' {

@@ -732,7 +732,7 @@ def _resolve_ca_bundle(pkg_root: str) -> (str | None) {
         return cand;
     }
 
-    import `glob;
+    import glob;
     hits = sorted(
         `glob.`glob(
             os.path.join(

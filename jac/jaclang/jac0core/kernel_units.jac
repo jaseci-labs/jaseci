@@ -94,7 +94,7 @@ def load_unit_artifact(unit_path: str, kind: str, fingerprint: str) -> (str | No
 }
 
 def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) {
-    import `glob as _g;
+    import glob as _g;
     path = unit_artifact_path(unit_path, kind, fingerprint);
     stem = os.path.splitext(os.path.basename(unit_path))[0];
     for stale in _g.`glob(os.path.join(_units_dir(), f"{stem}.*.{kind}")) {
@@ -119,7 +119,7 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
 }
 
 def es_pass_fingerprint -> str {
-    import `glob as _g;
+    import glob as _g;
     import hashlib;
     es_dir = os.path.join(
         os.path.dirname(_jac0core_dir()), "compiler", "passes", "ecmascript"

@@ -33,11 +33,11 @@ obj TestResponse {
     }
 }
 
-impl TestResponse.text.`getter -> str {
+impl TestResponse.text.getter -> str {
     return self.content.decode('utf-8', errors='replace');
 }
 
-impl TestResponse.ok.`getter -> bool {
+impl TestResponse.ok.getter -> bool {
     return 200 <= self.status_code < 300;
 }
 

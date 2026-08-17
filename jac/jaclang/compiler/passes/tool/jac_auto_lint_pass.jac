@@ -3,6 +3,7 @@ import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.passes { UniPass }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.jac0core.constant { TOKEN_MAP }
+import from jaclang.jac0core.parser.tokens { KEYWORDS }
 import from jaclang.jac0core.diagnostics {
     W3001,
     W3002,

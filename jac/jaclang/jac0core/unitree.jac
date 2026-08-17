@@ -1,6 +1,6 @@
 import os;
 import type from collections.abc { Sequence }
-import from `enum { IntEnum }
+import from enum { IntEnum }
 import type from jaclang.jac0core.passes.uni_pass { UniPass }
 import type from jaclang.jac0core.codeinfo { CodeGenTarget }
 import from jaclang.jac0core.srcloc { CodeLocInfo }

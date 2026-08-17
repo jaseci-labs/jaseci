@@ -6,7 +6,7 @@ fixtures/identity_api/test_emailer_fake.jac).
 
 import contextlib;
 import gc;
-import `glob;
+import glob;
 import shutil;
 import socket;
 import subprocess;

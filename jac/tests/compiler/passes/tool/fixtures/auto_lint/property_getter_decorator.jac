@@ -14,19 +14,19 @@ obj Container {
         return self._val;
     }
 
-    @val.`getter
+    @val.getter
     def val -> int {
         return self._val + 1;
     }
 
-    @val.`setter
+    @val.setter
     def val(new_val: int) {
         self._val = new_val;
     }
 }
 
 obj Extender(Container) {
-    @Container.val.`setter
+    @Container.val.setter
     def val(new_val: int) {
         self._val = new_val * 2;
     }

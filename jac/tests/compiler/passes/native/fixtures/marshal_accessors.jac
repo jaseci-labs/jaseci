@@ -31,27 +31,27 @@ obj Part {
     has tail: int = 11;
 }
 
-impl Part.doubled.`getter -> int {
+impl Part.doubled.getter -> int {
     return self.head * 2;
 }
 
-impl Part.width.`getter -> int {
+impl Part.width.getter -> int {
     return self._width;
 }
 
-impl Part.width.`setter(value: int) {
+impl Part.width.setter(value: int) {
     self._width = value * 10;
 }
 
-impl Part.title.`getter -> str {
+impl Part.title.getter -> str {
     return "part:" + self.name;
 }
 
-impl Part.nick.`getter -> (str | None) {
+impl Part.nick.getter -> (str | None) {
     return self.name if self.head > 0 else None;
 }
 
-impl Part.origin.`getter -> Anchor {
+impl Part.origin.getter -> Anchor {
     return self._anchor;
 }
 
@@ -64,11 +64,11 @@ obj Renamed(Tagged) {
     has label: int { getter; }
 }
 
-impl Tagged.label.`getter -> int {
+impl Tagged.label.getter -> int {
     return self.base + 1;
 }
 
-impl Renamed.label.`getter -> int {
+impl Renamed.label.getter -> int {
     return self.base + 2;
 }
 

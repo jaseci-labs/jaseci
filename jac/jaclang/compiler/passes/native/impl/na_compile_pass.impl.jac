@@ -1,5 +1,5 @@
 impl native_compiler_fingerprint(options: any) -> str {
-    import `glob as _cgl;
+    import glob as _cgl;
     import hashlib as _cfh_hash;
     import os as _cfp_os;
     import jaclang as _jlm;
@@ -581,7 +581,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             try {
                 os.makedirs(_ir_cache_dir, exist_ok=True);
 
-                import `glob as _glob;
+                import glob as _glob;
                 for stale in _glob.`glob(
                     os.path.join(_ir_cache_dir, f"{_src_stem}.*.ir_cache")
                 ) {

@@ -26,7 +26,9 @@ def _build_shadcn_template_info -> dict[str, any] | None;
         Arg.create(
             "baseColor", typ=str, `default=None, help="Base neutral palette", short=""
         ),
-        Arg.create("theme", typ=str, `default=None, help="Accent color theme", short=""),
+        Arg.create(
+            "theme", typ=str, `default=None, help="Accent color theme", short=""
+        ),
         Arg.create("font", typ=str, `default=None, help="Font family", short=""),
         Arg.create(
             "radius", typ=str, `default=None, help="Border radius preset", short=""

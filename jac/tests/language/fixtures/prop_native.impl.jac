@@ -5,17 +5,17 @@ Demonstrates that property accessors can be implemented in a sibling
 Storage is accessed via the explicit backing field `self._radius` —
 there is no `field` keyword.
 """
-impl Circle.radius.`getter -> float {
+impl Circle.radius.getter -> float {
     return self._radius;
 }
 
-impl Circle.radius.`setter(value: float) {
+impl Circle.radius.setter(value: float) {
     if value < 0.0 {
         raise ValueError("radius must be non-negative");
     }
     self._radius = value;
 }
 
-impl Circle.radius.`deleter {
+impl Circle.radius.deleter {
     self._radius = 0.0;
 }

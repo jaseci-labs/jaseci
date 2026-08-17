@@ -1,5 +1,5 @@
 """Test that static methods on enum classes resolve correctly."""
-import from `enum { Enum, IntEnum }
+import from enum { Enum, IntEnum }
 
 class Color(Enum) {
     with entry {

@@ -28,7 +28,7 @@ def collect_fragments(package_dir: Path) -> dict[(str, list[str])] {
         "refactor": [],
         "docs": []
     };
-    for fragment in sorted(package_dir.glob("*.md")) {
+    for fragment in sorted(package_dir.`glob("*.md")) {
         if (fragment.name == "README.md") {
             continue;
         }
@@ -102,7 +102,7 @@ def inject_section(
 """Delete all fragment files (but keep README.md)."""
 def delete_fragments(package_dir: Path) -> list[str] {
     deleted = [];
-    for fragment in package_dir.glob("*.md") {
+    for fragment in package_dir.`glob("*.md") {
         if (fragment.name == "README.md") {
             continue;
         }

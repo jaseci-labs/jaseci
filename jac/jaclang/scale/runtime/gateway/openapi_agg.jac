@@ -53,7 +53,8 @@ async def aggregate_openapi(registry: ServiceRegistry) -> dict {
     candidates: list = [
         (name, `entry)
         for (name, `entry) in registry.entries.items()
-        if `entry.status in (ServiceStatus.HEALTHY, ServiceStatus.STARTING) and `entry.url
+        if `entry.status in (ServiceStatus.HEALTHY, ServiceStatus.STARTING)
+            and `entry.url
     ];
     docs = await asyncio.gather(
         *[fetch_service_spec(`entry) for (_, `entry) in candidates],

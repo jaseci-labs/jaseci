@@ -5,7 +5,7 @@ import os;
 import from contextlib { suppress }
 
 glob logger: logging.Logger = logging.getLogger(__name__);
-import from `enum { StrEnum }
+import from enum { StrEnum }
 import from io { BytesIO }
 import from typing { Callable, TypeAlias, get_type_hints }
 

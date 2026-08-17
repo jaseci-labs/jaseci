@@ -1,5 +1,5 @@
 import logging;
-import from `enum { StrEnum }
+import from enum { StrEnum }
 import from typing { Any }
 
 import from jaclang.runtimelib.store { ConnInfo, SCHEMA_STAMP_KEY }

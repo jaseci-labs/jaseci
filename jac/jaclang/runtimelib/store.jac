@@ -2,7 +2,7 @@ import json;
 import logging;
 import os;
 import threading;
-import from `enum { StrEnum }
+import from enum { StrEnum }
 import from typing { Any }
 import from uuid { UUID }
 

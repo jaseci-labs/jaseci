@@ -17,7 +17,7 @@ obj Box {
 }
 
 
-impl Box.tagged.`getter -> int {
+impl Box.tagged.getter -> int {
     import from collections { OrderedDict }
     return self.head + len(OrderedDict());
 }

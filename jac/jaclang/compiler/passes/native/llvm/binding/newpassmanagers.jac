@@ -1,6 +1,6 @@
 import from ctypes { c_bool, c_int, c_size_t, POINTER, Structure, byref, c_char_p }
 import from collections { namedtuple }
-import from `enum { IntFlag }
+import from enum { IntFlag }
 import from jaclang.compiler.passes.native.llvm.binding { ffi }
 def create_new_module_pass_manager -> object {
     return ModulePassManager();

@@ -8,7 +8,7 @@ natively, and the enum members must keep their sv value semantics (a StrEnum
 member IS its string).
 """
 
-import from `enum { StrEnum }
+import from enum { StrEnum }
 
 class Kind(StrEnum) {
     with entry {

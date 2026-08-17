@@ -19,7 +19,7 @@ import from jaclang.jac0core.constant { CodeContext }
 import from jaclang.jac0core.parser { parse as rd_parse }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.helpers { read_file_with_encoding }
-import from jaclang.runtimelib.`test { parametrize }
+import from jaclang.runtimelib.test { parametrize }
 import from tests.fixtures_list { MICRO_JAC_FILES }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "compiler", "fixtures"),

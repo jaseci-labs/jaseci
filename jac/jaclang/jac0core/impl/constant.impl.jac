@@ -10,14 +10,14 @@ impl JacSemTokenModifier.as_str_list -> list[str] {
     ];
 }
 
-impl CodeContext.is_server.`getter -> bool {
+impl CodeContext.is_server.getter -> bool {
     return (self == CodeContext.SERVER);
 }
 
-impl CodeContext.is_client.`getter -> bool {
+impl CodeContext.is_client.getter -> bool {
     return (self == CodeContext.CLIENT);
 }
 
-impl CodeContext.is_native.`getter -> bool {
+impl CodeContext.is_native.getter -> bool {
     return (self == CodeContext.NATIVE);
 }

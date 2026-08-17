@@ -1030,7 +1030,7 @@ impl JacLangServer._clear_alerts_for_file(file_path: str) -> None {
     }
 }
 
-impl JacLangServer.diagnostics.`getter -> dict[str, list] {
+impl JacLangServer.diagnostics.getter -> dict[str, list] {
     with self._state_lock.read_lock() {
         all_errors = list(self.errors_had);
         all_warnings = list(self.warnings_had);

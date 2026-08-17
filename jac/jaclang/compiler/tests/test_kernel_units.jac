@@ -12,7 +12,7 @@ store of the bytes already at a key leaves the file alone rather than
 rewriting it under whatever other process is watching.
 """
 
-import `glob;
+import glob;
 import os;
 import jaclang.compiler.passes.ecmascript.jac_runtime_js as _rtjs;
 import jaclang.compiler.passes.native.na_compile_pass as _nacp;

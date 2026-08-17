@@ -30,7 +30,7 @@ is a tuple of one member from each enum.
 Refs #8039, #8052
 """
 
-import from `enum { IntFlag }
+import from enum { IntFlag }
 
 enum TokKind: int { NAMESPACE = 0, CLASS = 1 << 1, ENUM = (1 << 1) | 1, PARAM = 7 }
 

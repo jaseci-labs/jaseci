@@ -502,7 +502,7 @@ a missing name_spec wiring are all unparse-invisible while being fatal to
 codegen). This walker compares every scalar, enum, list length, dict key
 set, and class name across both trees."""
 def _assert_field_parity(a: any, b: any, path: str = "mod") {
-    import `enum as _py_enum;
+    import enum as _py_enum;
     stack = [(a, b, path, )];
     seen: set = set();
     diffs: list = [];

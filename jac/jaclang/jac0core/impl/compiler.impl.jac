@@ -42,11 +42,11 @@ impl _SetupProgress.on_internal_compile(file_path: str) -> None {
     sys.stderr.flush();
 }
 
-impl _SetupProgress.is_active.`getter -> bool {
+impl _SetupProgress.is_active.getter -> bool {
     return self._banner_shown;
 }
 
-impl JacCompiler.internal_program.`getter -> JacProgram {
+impl JacCompiler.internal_program.getter -> JacProgram {
     if (self._internal_program is None) {
         import from jaclang.jac0core.program { JacProgram }
         prog = JacProgram();

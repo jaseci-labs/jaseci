@@ -19,19 +19,19 @@ obj Boxes {
     has c: int { getter; }
 }
 
-impl Boxes.a.`getter -> int {
+impl Boxes.a.getter -> int {
     return self._a;
 }
 
-impl Boxes.a.`setter(value: int) {
+impl Boxes.a.setter(value: int) {
     self._a = value;
 }
 
-impl Boxes.b.`getter -> int {
+impl Boxes.b.getter -> int {
     return self._b;
 }
 
-impl Boxes.c.`getter -> int {
+impl Boxes.c.getter -> int {
     return self._c;
 }
 

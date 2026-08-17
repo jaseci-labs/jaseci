@@ -1,5 +1,5 @@
 """Tests for class-based enum type checking (StrEnum, IntEnum)."""
-import from `enum { StrEnum, IntEnum, auto }
+import from enum { StrEnum, IntEnum, auto }
 
 class BaseClass(StrEnum) {}
 class BaseClass2(IntEnum) {}

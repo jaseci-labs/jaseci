@@ -407,6 +407,7 @@ obj Parser {
     def check_name -> bool;
     def is_keyword_token -> bool;
     def is_name_usable_token -> bool;
+    def expect_path_segment -> LexToken;
     def is_builtin_type_token -> bool;
     def match_tok(kind: TokenKind) -> LexToken | None;
     def match_any(*kinds: TokenKind) -> LexToken | None;

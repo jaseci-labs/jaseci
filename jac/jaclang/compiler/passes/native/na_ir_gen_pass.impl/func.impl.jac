@@ -1,7 +1,7 @@
 import from jaclang.compiler.targets.abi { classify_foreign_fn }
 import from jaclang.jac0core.constant { OwnershipKind }
 
-impl NaIRGenPass.builder.`getter -> ir.IRBuilder {
+impl NaIRGenPass.builder.getter -> ir.IRBuilder {
     if self._builder is None {
         raise RuntimeError(
             "NaIRGenPass.builder read with no active IRBuilder "

@@ -722,7 +722,7 @@ impl JacModule.jac_import(
 }
 
 impl JacTest.jac_test(description: str = "") -> Callable {
-    import from jaclang.runtimelib.`test { JacTestCheck }
+    import from jaclang.runtimelib.test { JacTestCheck }
     def decorator(test_fun: Callable) -> Callable {
         file_path = getfile(test_fun);
         func_name = test_fun.__name__;
@@ -757,7 +757,7 @@ impl JacTest.run_test(
     directory: (str | None) = None,
     verbose: bool = False
 ) -> int {
-    import from jaclang.runtimelib.`test { JacTestCheck }
+    import from jaclang.runtimelib.test { JacTestCheck }
     import from jaclang.runtimelib.cl_test_runner {
         is_cl_test_file,
         is_cl_test_file_for_discovery,

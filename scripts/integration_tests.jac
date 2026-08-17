@@ -343,10 +343,10 @@ def run_admin_prebuild_tests(runner: IntegrationTestRunner) {
         if server_proc is not None and server_proc.poll() is None {
             server_proc.terminate();
             try {
-                server_proc.wait(timeout=5);
+                server_proc.`wait(timeout=5);
             } except subprocess.TimeoutExpired {
                 server_proc.kill();
-                server_proc.wait();
+                server_proc.`wait();
             }
         }
         # Cleanup temp files
@@ -361,7 +361,7 @@ with entry {
     print("=" * 60);
 
     if not check_environment() {
-        sys.exit(1);
+        sys.`exit(1);
     }
 }
 
@@ -371,5 +371,5 @@ with entry {
     run_pth_tests(runner);
     run_cli_tests(runner);
     run_admin_prebuild_tests(runner);
-    sys.exit(runner.summary());
+    sys.`exit(runner.summary());
 }

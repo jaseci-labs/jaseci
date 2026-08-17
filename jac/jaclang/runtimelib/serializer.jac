@@ -5,7 +5,7 @@ import threading;
 import from time { monotonic }
 import from dataclasses { fields, is_dataclass, MISSING }
 import from datetime { date, datetime, time }
-import from `enum { Enum }
+import from enum { Enum }
 import from hashlib { sha256 }
 import from json { dumps as _json_dumps }
 import from typing { cast, get_args, get_origin }

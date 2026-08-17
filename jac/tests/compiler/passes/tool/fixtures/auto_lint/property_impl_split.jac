@@ -10,6 +10,6 @@ obj Temperature {
     @property
     def celsius -> float;
 
-    @celsius.`setter
+    @celsius.setter
     def celsius(value: float);
 }

@@ -1,9 +1,9 @@
 import json;
 import from abc { abstractmethod }
 import from collections.abc { Callable }
-import from `enum { StrEnum }
+import from enum { StrEnum }
 import from typing { ClassVar, `override }
-import type from `enum { IntEnum }
+import type from enum { IntEnum }
 import type from jaclang.jac0core.constructs { AccessLevel, NodeArchetype }
 import type from jaclang.jac0core.runtime { LLMModel }
 import type from jaclang { JacRuntimeInterface }

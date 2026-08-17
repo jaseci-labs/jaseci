@@ -618,7 +618,7 @@ impl JacAutoLintPass.enter_name(nd: uni.Name) -> None {
     if not nd.is_kwesc or isinstance(nd, uni.SpecialVarRef) {
         return;
     }
-    jac_keywords = set(TOKEN_MAP.values());
+    jac_keywords = set(KEYWORDS.keys());
     python_keywords = set(keyword.kwlist);
     reserved = jac_keywords | python_keywords;
     raw_value = nd.value[1:] if nd.value.startswith("`") else nd.value;

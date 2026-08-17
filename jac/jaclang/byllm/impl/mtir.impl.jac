@@ -343,6 +343,6 @@ impl MTRuntime.get_typed_output_schema -> dict | None {
     return type_to_schema(resp_type=self.resp_type, info=return_type_info);
 }
 
-impl MTIR.runtime.`getter -> MTRuntime {
+impl MTIR.runtime.getter -> MTRuntime {
     return MTRuntime.factory(self);
 }

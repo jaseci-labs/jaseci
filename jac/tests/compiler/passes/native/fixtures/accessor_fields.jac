@@ -34,23 +34,23 @@ obj Renamed(Tagged) {
     has label: int { getter; }
 }
 
-impl Box.doubled.`getter -> int {
+impl Box.doubled.getter -> int {
     return self.head * 2;
 }
 
-impl Box.width.`getter -> int {
+impl Box.width.getter -> int {
     return self._width;
 }
 
-impl Box.width.`setter(value: int) {
+impl Box.width.setter(value: int) {
     self._width = value * 10;
 }
 
-impl Tagged.label.`getter -> int {
+impl Tagged.label.getter -> int {
     return self.base + 1;
 }
 
-impl Renamed.label.`getter -> int {
+impl Renamed.label.getter -> int {
     return self.base + 2;
 }
 

@@ -432,7 +432,7 @@ def get_native_cache_dir(source_path: str) -> Path {
 }
 
 def scrub_cache_dirs(root_dir: str) -> int {
-    import `glob as _glob;
+    import glob as _glob;
     import shutil as _shutil;
     patterns = [
         os.path.join(root_dir, "**", ".jac", "cache"),

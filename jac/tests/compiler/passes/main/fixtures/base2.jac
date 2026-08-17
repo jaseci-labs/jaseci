@@ -1,6 +1,6 @@
 """Test for base classes."""
 
-import from `impl.imps { test_glob as mine }
+import from impl.imps { test_glob as mine }
 
 obj Test {
     def init;

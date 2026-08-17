@@ -10,7 +10,7 @@ E1032 / W1051 diagnostics.
 
 Expected: 0 errors. Every iteration variable below is an enum instance.
 """
-import from `enum { Enum, IntEnum, IntFlag, StrEnum }
+import from enum { Enum, IntEnum, IntFlag, StrEnum }
 
 class JacSemTokenType(IntEnum) {
     with entry {

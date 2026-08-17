@@ -106,7 +106,7 @@ obj:pub Path {
     }
 }
 
-impl Path.name.`getter -> str {
+impl Path.name.getter -> str {
     parts: list[str] = _parts_of(self._p);
     if not parts {
         return "";
@@ -114,7 +114,7 @@ impl Path.name.`getter -> str {
     return parts[len(parts) - 1];
 }
 
-impl Path.stem.`getter -> str {
+impl Path.stem.getter -> str {
     nm: str = self.name;
     cut: int = nm.rfind(".");
     if cut <= 0 {
@@ -130,7 +130,7 @@ impl Path.stem.`getter -> str {
     return nm;
 }
 
-impl Path.parent.`getter -> Path {
+impl Path.parent.getter -> Path {
     parts: list[str] = _parts_of(self._p);
     if not parts {
         return self;

@@ -1,7 +1,7 @@
 import os;
 import sys;
 import shutil;
-import `glob;
+import glob;
 import tempfile;
 import from pathlib { Path }
 import from jaclang { JacRuntime as Jac }

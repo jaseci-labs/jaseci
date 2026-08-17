@@ -7,7 +7,7 @@ stamped options fingerprint disagrees with the current build is a hard E5027,
 never a silent mixed-options link.
 """
 
-import `glob;
+import glob;
 import json;
 import os;
 import shutil;

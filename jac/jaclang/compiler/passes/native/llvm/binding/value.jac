@@ -11,7 +11,7 @@ import from ctypes {
     c_bool,
     c_void_p
 }
-import `enum;
+import enum;
 import from jaclang.compiler.passes.native.llvm.binding { ffi }
 import from jaclang.compiler.passes.native.llvm.binding.common {
     _decode_string,

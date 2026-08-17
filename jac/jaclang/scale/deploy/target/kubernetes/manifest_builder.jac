@@ -490,7 +490,7 @@ obj ManifestBuilder {
             return False;
         }
         import os;
-        import `glob;
+        import glob;
         if not os.path.isdir(root_dir) {
             return False;
         }

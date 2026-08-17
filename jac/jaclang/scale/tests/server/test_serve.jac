@@ -1,7 +1,7 @@
 import asyncio;
 import contextlib;
 import gc;
-import `glob;
+import glob;
 import json;
 import re;
 import select;

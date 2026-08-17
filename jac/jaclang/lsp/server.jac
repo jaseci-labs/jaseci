@@ -1,5 +1,5 @@
 import asyncio;
-import `enum;
+import enum;
 import io;
 import json;
 import logging;

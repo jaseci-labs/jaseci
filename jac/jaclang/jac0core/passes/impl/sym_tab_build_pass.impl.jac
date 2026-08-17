@@ -16,7 +16,7 @@ impl SymTabBuildPass.pop_scope(self: SymTabBuildPass) -> UniScopeNode {
     return self.cur_sym_tab.pop();
 }
 
-impl SymTabBuildPass.cur_scope.`getter(self: SymTabBuildPass) -> UniScopeNode {
+impl SymTabBuildPass.cur_scope.getter(self: SymTabBuildPass) -> UniScopeNode {
     return self.cur_sym_tab[-1];
 }
 

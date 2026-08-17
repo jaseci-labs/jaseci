@@ -784,7 +784,7 @@ def seal_abort_stubs(llvm_ir_text: str) -> list[str] {
 }
 
 def purge_native_ir_cache(root_src: str, deps: (list[str] | None) = None) -> int {
-    import `glob as _glob;
+    import glob as _glob;
     import from jaclang.jac0core.jir { get_native_cache_dir }
     base = os.path.dirname(os.path.abspath(root_src));
     dirs: list[str] = [];

@@ -28,17 +28,17 @@ impl ExecutionContext.postinit -> None {
 }
 
 
-impl ExecutionContext.system_root.`getter -> NodeAnchor {
+impl ExecutionContext.system_root.getter -> NodeAnchor {
     self._resolve_roots();
     return cast(NodeAnchor, self._system_root);
 }
 
-impl ExecutionContext.user_root.`getter -> NodeAnchor {
+impl ExecutionContext.user_root.getter -> NodeAnchor {
     self._resolve_roots();
     return cast(NodeAnchor, self._user_root);
 }
 
-impl ExecutionContext.entry_node.`getter -> NodeAnchor {
+impl ExecutionContext.entry_node.getter -> NodeAnchor {
     self._resolve_roots();
     return cast(NodeAnchor, self._entry_node);
 }

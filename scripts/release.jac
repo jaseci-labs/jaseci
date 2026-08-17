@@ -49,7 +49,7 @@ def parse_args -> argparse.Namespace {
         parser.add_argument(
             f"--{pkg_name}",
             choices=bump_choices,
-            default="skip",
+            `default="skip",
             help=f"Version bump type for {pkg_name} (default: skip)"
         );
     }

@@ -1,5 +1,5 @@
 import from dataclasses { is_dataclass }
-import from `enum { Enum }
+import from enum { Enum }
 import from types { FunctionType, MethodType, UnionType }
 import from typing { Callable, Union, get_args, get_origin, get_type_hints }
 import from jaclang.byllm._optdeps.pydantic { TypeAdapter }

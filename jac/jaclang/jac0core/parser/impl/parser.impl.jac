@@ -141,6 +141,13 @@ impl Parser.is_name_usable_token -> bool {
     return is_special_var_kind(self.current().kind) or self.is_builtin_type_token();
 }
 
+impl Parser.expect_path_segment -> LexToken {
+    if self.check_name() or self.is_keyword_token() {
+        return self.advance();
+    }
+    return self.expect_path_segment();
+}
+
 impl Parser.is_keyword_token -> bool {
     return self.check_any(
         TokenKind.KW_ABSTRACT,
@@ -1306,6 +1313,10 @@ impl Parser.parse_atomic_chain -> Expr {
             } elif is_special_var_kind(self.current().kind) {
                 name_tok = self.advance();
                 attr = self._make_attr_from_keyword(name_tok);
+            } elif self.check_any(
+                TokenKind.KW_GETTER, TokenKind.KW_SETTER, TokenKind.KW_DELETER
+            ) {
+                attr = self.make_special_name(self.advance());
             } elif self.is_keyword_token() {
                 name_tok = self.expect_name("attribute");
                 attr = self.make_name(name_tok);
@@ -3687,7 +3698,6 @@ impl Parser.parse_statement -> CodeBlockStmt | None {
         and not self.is_name_usable_token()
         and self.check_peek_any(
             TokenKind.EQ,
-            TokenKind.COLON,
             TokenKind.ADD_EQ,
             TokenKind.SUB_EQ,
             TokenKind.MUL_EQ,
@@ -5020,13 +5030,13 @@ impl Parser.parse_import_stmt -> Import {
                 path_names.append(str_node);
                 path_kid.append(str_node);
             } elif self.check_name() or self.is_keyword_token() {
-                name_tok = self.expect_name("module path");
+                name_tok = self.expect_path_segment();
                 nm = self.make_name(name_tok);
                 path_names.append(nm);
                 path_kid.append(nm);
                 while self.match_tok(TokenKind.DOT) {
                     path_kid.append(self.make_uni_token(self.previous()));
-                    name_tok = self.expect_name("module path");
+                    name_tok = self.expect_path_segment();
                     nm = self.make_name(name_tok);
                     path_names.append(nm);
                     path_kid.append(nm);
@@ -5094,13 +5104,13 @@ impl Parser.parse_from_path -> tuple[(ModulePath | None, bool)] {
         path_kid.append(str_node);
         is_clib_import = True;
     } elif self.check_name() or self.is_keyword_token() {
-        name_tok = self.expect_name("module path");
+        name_tok = self.expect_path_segment();
         nm = self.make_name(name_tok);
         path_names.append(nm);
         path_kid.append(nm);
         while self.match_tok(TokenKind.DOT) {
             path_kid.append(self.make_uni_token(self.previous()));
-            name_tok = self.expect_name("module path");
+            name_tok = self.expect_path_segment();
             nm = self.make_name(name_tok);
             path_names.append(nm);
             path_kid.append(nm);
@@ -6785,10 +6795,22 @@ impl Parser.parse_impl_target_name -> NameAtom {
         name_tok = self.expect_any(TokenKind.KW_INIT, TokenKind.KW_POST_INIT);
         return SpecialVarRef(var=self.make_special_name(name_tok), is_enum_stmt=False);
     } elif self.check_any(
-        TokenKind.KW_ENTRY, TokenKind.KW_EXIT, TokenKind.KW_DEFAULT
+        TokenKind.KW_ENTRY,
+        TokenKind.KW_EXIT,
+        TokenKind.KW_DEFAULT,
+        TokenKind.KW_GETTER,
+        TokenKind.KW_SETTER,
+        TokenKind.KW_DELETER,
+        TokenKind.KW_RETURN
     ) {
         name_tok = self.expect_any(
-            TokenKind.KW_ENTRY, TokenKind.KW_EXIT, TokenKind.KW_DEFAULT
+            TokenKind.KW_ENTRY,
+            TokenKind.KW_EXIT,
+            TokenKind.KW_DEFAULT,
+            TokenKind.KW_GETTER,
+            TokenKind.KW_SETTER,
+            TokenKind.KW_DELETER,
+            TokenKind.KW_RETURN
         );
         return self.make_special_name(name_tok);
     } else {

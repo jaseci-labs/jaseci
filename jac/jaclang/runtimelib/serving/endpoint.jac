@@ -1,4 +1,4 @@
-import from `enum { StrEnum }
+import from enum { StrEnum }
 
 
 class HTTPMethod(StrEnum) {

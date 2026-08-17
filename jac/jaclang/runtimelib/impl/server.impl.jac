@@ -2325,7 +2325,7 @@ impl JacAPIServer.load_module(force_reload: bool = False) -> None {
     self.introspector.load(force_reload);
 }
 
-impl JacAPIServer.module.`getter -> object {
+impl JacAPIServer.module.getter -> object {
     return self.introspector._module;
 }
 
@@ -2410,7 +2410,8 @@ impl JacAPIServer.start(
                     dist_dir = Path(self.base_path) / '.jac' / 'client' / 'dist';
                 }
 
-                bundle_exists = dist_dir.exists() and any(dist_dir.`glob('client.*.js'));
+                bundle_exists = dist_dir.exists()
+                    and any(dist_dir.`glob('client.*.js'));
                 if bundle_exists {
                     console.print(
                         "  ✔ Client bundle found (rebuilt on first request if stale)",

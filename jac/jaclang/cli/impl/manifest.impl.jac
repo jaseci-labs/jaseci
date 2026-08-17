@@ -2008,7 +2008,9 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='maxfail', typ='int', help='Stop after N failures', short='m'
                 ),
-                ArgMeta(name='directory', `default='', help='Test directory', short='d'),
+                ArgMeta(
+                    name='directory', `default='', help='Test directory', short='d'
+                ),
                 ArgMeta(
                     name='verbose',
                     typ='bool',

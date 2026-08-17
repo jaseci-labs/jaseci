@@ -310,7 +310,7 @@ impl _unwrap_annotated(tp: any) -> any {
 
 impl _is_enum(tp: any) -> bool {
     try {
-        import `enum;
+        import enum;
         return isinstance(tp, type) and issubclass(tp, enum.Enum);
     } except Exception {
         return False;

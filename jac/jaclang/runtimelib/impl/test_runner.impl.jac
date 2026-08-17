@@ -579,7 +579,7 @@ impl run_file(
     import importlib;
     import sys;
     import time;
-    import from jaclang.runtimelib.`test { JacTestCheck }
+    import from jaclang.runtimelib.test { JacTestCheck }
     import from jaclang.runtimelib.cl_test_runner { module_is_client, run_cl_test_file }
     import from jaclang.jac0core.ext_registry { base_stem }
     abs_path = os.path.abspath(filepath);

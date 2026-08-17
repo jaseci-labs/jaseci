@@ -30,9 +30,15 @@ def tool(tool: str, args: list = []) -> int;
         Arg.create("filename", kind=ArgKind.POSITIONAL, help="Path to .jac file"),
         Arg.create("session", `default="", help="Session identifier", short="s"),
         Arg.create("initial", `default="", help="Initial node ID", short="i"),
-        Arg.create("depth", typ=int, `default=-1, help="Max traversal depth", short="d"),
         Arg.create(
-            "traverse", typ=bool, `default=False, help="Enable traversal mode", short="t"
+            "depth", typ=int, `default=-1, help="Max traversal depth", short="d"
+        ),
+        Arg.create(
+            "traverse",
+            typ=bool,
+            `default=False,
+            help="Enable traversal mode",
+            short="t"
         ),
         Arg.create(
             "connection",

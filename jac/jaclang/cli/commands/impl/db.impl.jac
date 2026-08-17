@@ -1,5 +1,5 @@
 import os;
-import from `enum { StrEnum }
+import from enum { StrEnum }
 import from pathlib { Path }
 import from typing { Any }
 import from jaclang.cli.console { console }

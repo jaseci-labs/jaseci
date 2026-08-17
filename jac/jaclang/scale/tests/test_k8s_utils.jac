@@ -4,7 +4,7 @@ import from types { SimpleNamespace }
 import unittest.mock;
 import from kubernetes.client.exceptions { ApiException }
 import from requests.exceptions { SSLError }
-import from jaclang.runtimelib.`test { parametrize }
+import from jaclang.runtimelib.test { parametrize }
 import from jaclang.scale.deploy.target.kubernetes.utils { kubernetes_utils as utils }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     check_pods_restarted,

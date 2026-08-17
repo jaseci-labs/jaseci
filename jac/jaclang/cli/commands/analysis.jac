@@ -186,7 +186,10 @@ def format(
             help="Paths to .jac files or directories (default: project root)"
         ),
         Arg.create(
-            "staged", typ=bool, `default=False, help="Only process git-staged .jac files"
+            "staged",
+            typ=bool,
+            `default=False,
+            help="Only process git-staged .jac files"
         ),
         Arg.create(
             "verify",

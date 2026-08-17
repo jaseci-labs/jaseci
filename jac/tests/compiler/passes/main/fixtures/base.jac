@@ -1,6 +1,6 @@
 """Test for base classes."""
 
-include `impl.imps;
+include impl.imps;
 # import impl.imps;
 obj Test {
     def init;

@@ -1,6 +1,6 @@
 """Closes the import cycle by pulling `Tok` back from the entry module."""
 
-import from `entry { Tok }
+import from entry { Tok }
 
 obj Info {
     has first_tok: Tok,

@@ -603,7 +603,7 @@ impl is_cl_test_file_for_discovery(filepath: str) -> bool {
 }
 
 impl register_results_into_jactestcheck(filepath: str, results: list) -> None {
-    import from jaclang.runtimelib.`test { JacTestCheck }
+    import from jaclang.runtimelib.test { JacTestCheck }
 
     for res in results {
         def make_case(r: ClTestResult) -> Callable {

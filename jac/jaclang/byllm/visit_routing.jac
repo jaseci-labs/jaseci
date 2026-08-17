@@ -1,4 +1,4 @@
-import `enum;
+import enum;
 import re;
 import from dataclasses { fields, is_dataclass }
 import from jaclang.byllm._optdeps.loguru { logger }
