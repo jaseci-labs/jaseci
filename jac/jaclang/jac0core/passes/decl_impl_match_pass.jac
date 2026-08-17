@@ -32,7 +32,7 @@ import from jaclang.jac0core.diagnostics {
     W2080
 }
 
-class DeclImplMatchPass(Transform[Module, Module]) {
+class DeclImplMatchPass(Transform) {
     has _e2026_reported: set[int];
 
     def transform(self: DeclImplMatchPass, ir_in: Module) -> Module;

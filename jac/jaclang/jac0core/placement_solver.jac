@@ -935,7 +935,7 @@ def demote_client_pulled_elements(
     return True;
 }
 
-obj PlacementApplyPass(Transform[uni.Module, uni.Module]) {
+obj PlacementApplyPass(Transform) {
     has ir_in: uni.Module,
         prog: any,
         cancel_token: any = None;
