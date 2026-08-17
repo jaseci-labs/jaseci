@@ -788,6 +788,52 @@ impl TypeCheckPass.exit_ability(self: TypeCheckPass, nd: Ability) -> None {
             }
         }
     }
+
+    self._check_pages_entry_renders_children(nd);
+}
+
+impl TypeCheckPass._check_pages_entry_renders_children(
+    self: TypeCheckPass, nd: Ability
+) -> None {
+    if (
+        nd.name_spec.sym_name != "app"
+        or not isinstance(nd.signature, FuncSignature)
+        or nd.signature.return_type is None
+        or nd.find_parent_of_type(ImplDef) is not None
+        or nd.method_owner is not None
+    ) {
+        return;
+    }
+    jsx_cls = self.evaluator.prefetch.jsx_element_class
+        if self.evaluator.prefetch
+        else None;
+    if jsx_cls is None {
+        return;
+    }
+    ret_type = self.evaluator.get_type_of_expression(nd.signature.return_type);
+    if not isinstance(ret_type, ClassType) or ret_type.shared != jsx_cls.shared {
+        return;
+    }
+
+    param_names = [
+        p.name.value
+        for p in nd.signature.get_parameters()
+        if isinstance(p.name, Name)
+    ];
+    if "children" in param_names {
+        return;
+    }
+
+    if param_names == ["props"] {
+        return;
+    }
+
+    import from jaclang.project.pages_routing { is_pages_routing_entry }
+    mod_path = nd.loc.mod_path if nd.loc else "";
+    if not is_pages_routing_entry(mod_path) {
+        return;
+    }
+    self.emit(E1108, node_override=nd.name_spec, name=nd.name_spec.sym_name);
 }
 
 impl TypeCheckPass._check_event_trigger_archetype(

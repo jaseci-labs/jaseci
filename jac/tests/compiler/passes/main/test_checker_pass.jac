@@ -4801,6 +4801,115 @@ test "jsx_props_bag_untyped_and_typed" {
     ].pretty_print()}";
 }
 
+test "jsx_children_must_be_declared_by_the_component" {
+    # Children are part of the component contract: the codegen destructures
+    # declared parameter names out of `props` with no rest element, so a
+    # component that never declares `children` silently drops them. W1053 is
+    # the call-site diagnostic; the same mistake spelled `children="x"` as an
+    # attribute has always been an error.
+    path = os.path.join(CHECKER_FIXTURES, "checker_jsx_children_contract.jac");
+    program = JacProgram();
+    mod = program.compile(path, options=NO_TC);
+    run_pass(TypeCheckPass, mod, program);
+
+    w1053 = [
+        w
+        for w in program.warnings_had
+        if w.code and w.code.code == "W1053"
+    ];
+    # Three call sites drop children: two on `Titled`, one on `ZeroParam`.
+    # `WithChildren` declares them, `TypedBag` receives the whole props object,
+    # and comment/whitespace-only bodies are not children.
+    assert len(w1053) == 3 , f"Expected exactly 3 W1053, got {len(w1053)}:\n"
+        + "\n---\n".join(w.pretty_print() for w in program.warnings_had);
+    flagged = sorted(w.msg for w in w1053);
+    named = [
+        name
+        for name in ["Titled", "WithChildren", "ZeroParam", "TypedBag"]
+        if any(f"Component '{name}'" in m for m in flagged)
+    ];
+    assert named == ["Titled", "ZeroParam"] , f"Expected W1053 only on 'Titled' and 'ZeroParam', got {named}:\n"
+        + "\n".join(flagged);
+    assert len(
+        [
+            m
+            for m in flagged
+            if "Component 'Titled'" in m
+        ]
+    )
+        == 2 , f"Expected 2 W1053 on 'Titled':\n" + "\n".join(flagged);
+
+    # Dropping the zero-parameter bail means a zero-parameter component is
+    # validated like every other one: `bogus` is not a prop on `ZeroParam`.
+    e1101 = [
+        e
+        for e in program.errors_had
+        if e.code and e.code.code == "E1101"
+    ];
+    assert len(e1101) == 1 , f"Expected exactly 1 E1101 (ZeroParam 'bogus'), got {len(
+        e1101
+    )}:\n"
+        + "\n---\n".join(
+            f"{err.code.code if err.code else '?'}: {err.pretty_print()}"
+            for err in program.errors_had
+        );
+    assert "bogus" in e1101[0].pretty_print() , f"Expected E1101 for 'bogus', got: {e1101[
+        0
+    ].pretty_print()}";
+}
+
+glob PAGES_ROUTING_FIXTURES = os.path.join(
+         os.path.dirname(__file__), "fixtures", "pages_routing"
+     );
+
+"""E1108 count for the `main.jac` of one `fixtures/pages_routing/` project."""
+def _pages_entry_errors(project: str) -> list {
+    path = os.path.join(PAGES_ROUTING_FIXTURES, project, "main.jac");
+    program = JacProgram();
+    program.compile(path, type_check=True);
+    return [
+        e
+        for e in program.errors_had
+        if e.code and e.code.code == "E1108"
+    ];
+}
+
+test "pages_project_app_must_accept_children" {
+    # The generated `pages/` entry renders the exported `app` with the whole
+    # route tree as its children -- children the Jac checker never sees,
+    # because they come from generated JavaScript. An `app` that declares no
+    # `children` parameter drops every route, with a clean `jac check`, a
+    # successful build and no console error. This was documented as a footgun
+    # (`jac-cl-routing.md`) rather than checked.
+    e1108 = _pages_entry_errors("drops_children");
+    assert len(e1108) == 1 , f"Expected 1 E1108 for a pages/ app dropping children, got {len(
+        e1108
+    )}:\n"
+        + "\n---\n".join(e.pretty_print() for e in e1108);
+    assert "children" in e1108[0].msg , f"Expected E1108 to name 'children', got: {e1108[
+        0
+    ].msg}";
+}
+
+test "pages_project_app_declaring_children_is_accepted" {
+    # Same project shape, one declared parameter: nothing to report.
+    e1108 = _pages_entry_errors("renders_children");
+    assert len(e1108) == 0 , f"Expected no E1108 when `app` declares children, got {len(
+        e1108
+    )}:\n"
+        + "\n---\n".join(e.pretty_print() for e in e1108);
+}
+
+test "manual_routing_app_without_children_is_accepted" {
+    # No `pages/` directory: the entry renders `app` directly, so the
+    # no-argument form is the correct one and must stay unflagged.
+    e1108 = _pages_entry_errors("no_pages");
+    assert len(e1108) == 0 , f"Expected no E1108 without a pages/ directory, got {len(
+        e1108
+    )}:\n"
+        + "\n---\n".join(e.pretty_print() for e in e1108);
+}
+
 test "jsx_intrinsic_tag_names_do_not_emit_w1051" {
     # Regression: Name nodes under a JsxElementName are resolved against the
     # _JsxIntrinsicElements registry by the JsxElement handler, not against

@@ -1,5 +1,6 @@
 import re;
 import from pathlib { Path }
+import from jaclang.project.pages_routing { PAGES_DIR_NAME as _PAGES_DIR_NAME }
 
 glob _ROUTE_ROLE_SUFFIXES: list = ['.impl.', '.test.'],
      _JSX_ELEMENT_EXPORT_RE: str = (
@@ -61,7 +62,7 @@ obj RouteEntry {
 
 obj RouteScanner {
     with entry {
-        PAGES_DIR_NAME = 'pages';
+        PAGES_DIR_NAME = _PAGES_DIR_NAME;
         INDEX_FILENAME = 'index';
         AUTH_GROUP_NAME = 'auth';
         COMPONENT_PREFIX = 'Pages';

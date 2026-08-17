@@ -282,6 +282,18 @@ Emitted by `JsxIntrinsicGuardPass` when a `mobui` project (see [React Native tar
 !!! tip "Fixing `E1105`"
     `E1105` fires only in `mobui` projects (`[project] client_kind = "mobui"` in `jac.toml`). Replace the HTML tag with the suggested `@jac/mobui` primitive: `div`/`section`/`main` -> `View`, `span`/`p`/`h1`-`h6` -> `Text`, `button` -> `Pressable`, `input`/`textarea` -> `TextInput`, `img` -> `Image`, `ul`/`ol` -> `ScrollView`. If the lowercase name is meant to be a component, import it so it resolves in scope. Web projects (`client_kind` unset) are unaffected -- HTML tags remain valid there.
 
+### JSX Children
+
+A component receives JSX children only if it declares a parameter literally named `children`. The codegen destructures a component's declared parameter names out of `props` with no rest element, so children handed to a component that never declares them are discarded with no runtime signal -- the failure mode is a blank render with a clean `jac check`. A component whose single parameter is named `props` receives the object whole, so children arrive as `props.children` and are never dropped.
+
+| Code | Message |
+|------|---------|
+| `W1053` | Component '{component}' declares no 'children' parameter, so the children passed here are discarded |
+| `E1108` | Client entry '{name}' declares no 'children' parameter, so this project's `pages/` routes are all discarded |
+
+!!! tip "Fixing `W1053` and `E1108`"
+    Declare `children: any = None` on the component and render it (`<>{children}</>`, or nest it inside a wrapper element). `W1053` is reported at the call site that passes the children; `E1108` is reported on the declaration, because the children there come from the generated `pages/` entry (`createElement(app, null, <routes/>)`) rather than from any Jac call site the checker can see. If a component is not meant to take children, remove them from the call site instead.
+
 ### Ownership / Borrow Errors
 
 Emitted by `OwnershipCheckPass` for `own`/`imm`/`borrow`/`&`/`&mut` bindings and `in <handle> { }` region opens. See [Ownership & Borrowing](language/ownership-borrowing.md). On the native pathway the checker is one of the required analyses: it always runs there, and error-severity findings block native codegen -- a clean check is what makes the annotations trustworthy facts for lowering (see the [Ownership Fact Schema](../internals/ownership-checker-spec.md)). Whether diagnostics are *displayed* never changes generated code; builds with and without display are bit-identical.
@@ -323,6 +335,7 @@ Emitted by `OwnershipCheckPass` only in **nogc-enforced** native modules (`jac n
 | `W1050` | Unknown intrinsic JSX element '<{tag}>' |
 | `W1051` | Expression type could not be resolved (Unknown) |
 | `W1052` | JSX component '{component}' uses an untyped props bag (`props: any`); its JSX props cannot be type-checked |
+| `W1053` | Component '{component}' declares no 'children' parameter, so the children passed here are discarded |
 | `W1310` | Region open on '{name}' has an empty body |
 | `W1312` | Owned value '{name}' silently seals into managed storage |
 
