@@ -588,15 +588,22 @@ assumed away.
   the accounting. `NATIVE_SEAL_REFUSED_ROOTS` is empty again, and the
   mechanism stays for the next root that needs it.
 
-  The sealed-versus-source byte comparison C2 could not run now runs.
-  No generated ctypes entry was needed: the pass-serving binder is the
-  crossing, so once `native_artifact_for` reports the emitter's
-  artifact, `JcirGenPass.ir_bytes()` executes inside it.
-  `test_jcir_sealed_bytes.jac` builds the real artifact, computes the
-  source-lane container bytes, serves the artifact, computes them again,
-  and asserts equality across the corpus; it also pins that the binder
-  registered the module, so a green run cannot mean source lane against
-  source lane.
+  The sealed-versus-source byte comparison C2 could not run still
+  cannot. This paragraph once said the pass-serving binder is the
+  crossing, so that `JcirGenPass.ir_bytes()` executes inside the
+  artifact once `native_artifact_for` reports it. The #8288 M1 crossing
+  census measured otherwise: `_bind_one` opens, verifies and probes the
+  artifact and then retains the engine and **no function pointer**, and
+  `_require_native_pass_tier` falls through to the pass's bytecode body.
+  Both sides of that comparison are the source lane.
+  `test_jcir_bound_emitter_bytes.jac` (renamed from
+  `test_jcir_sealed_bytes.jac`, which promised what it could not check)
+  therefore claims exactly three things: the real artifact builds and
+  binds, the binder registers the module, and the container bytes do not
+  change when it is bound -- binding attests an artifact and must not
+  perturb it. Its last test pins the limitation as a mechanism rather
+  than as prose, by observing that the Python body still runs; it fails
+  the day the artifact serves the pass, which is M1 rung 3's acceptance.
 - `jac0core/passes/jcir_bc_gen_pass.jac` (+impl): the shim-seat pipeline
   pass. Reads `gen.jcir`, transcribes through the reference shim into
   `gen.py_ast`, unparses the tree into `gen.py` (so tooling consumers of
