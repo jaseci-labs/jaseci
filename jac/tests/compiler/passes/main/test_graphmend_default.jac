@@ -302,8 +302,10 @@ test "flipping the graphmend configuration misses the cached variant" {
                 "a default run must not reuse the graphmend-off artifact"
             );
             assert _mentions_symbol(code_on, "_assert_async");
+            cfg_dis = JacConfig.load(Path(tmpdir) / "jac.toml");
+            cfg_dis.run.graphmend_disable = "trap";
+            config_mod._config = cfg_dis;
             prog_dis = JacProgram();
-            prog_dis.graphmend_disable = ["trap"];
             code_dis = prog_dis.get_bytecode(main_path);
             assert prog_dis.mod.hub , (
                 "a disable-list flip must invalidate the cached variant"
