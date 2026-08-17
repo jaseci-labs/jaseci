@@ -125,18 +125,16 @@ test "generated values count from the largest already assigned" {
     assert cat is not None and cat.all_values_known , (
         "the all-auto enum's table is still unencodable"
     );
-    assert [(m.name, m.int_value) for m in cat.members] == [
-        ("Positional", 1), ("ArgsList", 2), ("KwargsDict", 3)
-    ] , f"Cat generated {[(m.name, m.int_value) for m in cat.members]}";
+    cat_values = [(m.name, m.int_value) for m in cat.members];
+    assert cat_values == [("Positional", 1), ("ArgsList", 2), ("KwargsDict", 3)] , f"Cat generated {cat_values}";
     mixed = reg.get_enum_layout("Mixed");
     assert mixed is not None and mixed.all_values_known , (
         "the mixed enum's table is still unencodable"
     );
-    assert [(m.name, m.int_value) for m in mixed.members] == [
-        ("High", 10), ("Low", 3), ("Next", 11), ("After", 12)
-    ] , (
-        f"Mixed generated {[(m.name, m.int_value) for m in mixed.members]}; "
-        f"counting from the last member rather than the largest would read 4"
+    mixed_values = [(m.name, m.int_value) for m in mixed.members];
+    assert mixed_values == [("High", 10), ("Low", 3), ("Next", 11), ("After", 12)] , (
+        f"Mixed generated {mixed_values}; counting from the last member "
+        f"rather than the largest would read 4"
     );
 }
 
@@ -146,9 +144,8 @@ test "the declared-enum spelling generates the same way" {
     reg = get_layout_registry(ir, prog);
     step = reg.get_enum_layout("Step");
     assert step is not None , "the declared enum lost its layout";
-    assert [(m.name, m.int_value) for m in step.members] == [
-        ("First", 1), ("Second", 2), ("Third", 9)
-    ] , f"Step generated {[(m.name, m.int_value) for m in step.members]}";
+    step_values = [(m.name, m.int_value) for m in step.members];
+    assert step_values == [("First", 1), ("Second", 2), ("Third", 9)] , f"Step generated {step_values}";
 }
 
 

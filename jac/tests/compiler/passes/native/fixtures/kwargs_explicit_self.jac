@@ -12,11 +12,8 @@ the fault stayed invisible -- that list never held the receiver, so its
 slots were already right.
 """
 
-
 class Spelled {
-    def note(
-        self: Spelled, base: int, scale: int = 1, **kw: int
-    ) -> int {
+    def note(self: Spelled, base: int, scale: int = 1, **kw: int) -> int {
         out = (base * scale) + (len(kw) * 100);
         if "p" in kw {
             out += 1000;

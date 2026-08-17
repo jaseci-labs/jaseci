@@ -123,7 +123,10 @@ test "every caller of the explicit-self method reaches native code" {
     (_prog, ir) = compile_native(FIXTURE);
     fns = ir.gen.native_layout.functions;
     for name in (
-        "spelled_literal", "spelled_defaulted", "spelled_scaled", "spelled_forwarded"
+        "spelled_literal",
+        "spelled_defaulted",
+        "spelled_scaled",
+        "spelled_forwarded"
     ) {
         assert name in fns , (
             f"'{name}' demoted; a call into the explicit-self variadic still "
