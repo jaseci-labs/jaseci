@@ -173,6 +173,8 @@ def _fresh_jac_state(clear_modules: bool = True) -> None;
 
 def _package_basedir(start_dir: str) -> str;
 
+def _project_root_for(start_dir: str) -> str;
+
 def _ensure_test_package(base_dir: str) -> str;
 
 def _capture_begin -> dict[(str, any)];

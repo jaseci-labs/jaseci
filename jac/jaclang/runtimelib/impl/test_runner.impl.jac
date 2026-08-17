@@ -450,6 +450,20 @@ impl _capture_end(state: dict[(str, any)]) -> str {
     return text;
 }
 
+impl _project_root_for(start_dir: str) -> str {
+    current = os.path.realpath(start_dir);
+    while True {
+        if os.path.exists(os.path.join(current, "jac.toml")) {
+            return current;
+        }
+        parent = os.path.dirname(current);
+        if parent == current {
+            return "";
+        }
+        current = parent;
+    }
+}
+
 impl _package_basedir(start_dir: str) -> str {
     current = os.path.realpath(start_dir);
     while True {
@@ -611,14 +625,9 @@ impl run_file(
     real_dir = os.path.realpath(base_dir);
     basedir = _package_basedir(real_dir);
     roots: list[str] = [];
-    try {
-        import from jaclang.project.config { get_config }
-        cfg = get_config();
-        if cfg and cfg.project_root {
-            roots.append(os.path.realpath(str(cfg.project_root)));
-        }
-    } except Exception {
-        ;
+    project_root = _project_root_for(real_dir);
+    if project_root {
+        roots.append(project_root);
     }
     injected: list[str] = [];
     for entry in (roots + [basedir, real_dir]) {
