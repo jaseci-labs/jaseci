@@ -2117,6 +2117,8 @@ glob NATIVE_SEAL_JOBS_ENV: str = "JAC_SEAL_JOBS",
 
 glob NATIVE_SEAL_ROOT_BUDGET_GIB: float = 4.5;
 
+glob NATIVE_SEAL_DARWIN_RESERVE_GIB: float = 2.0;
+
 def seal_mem_available_gib -> float {
     try {
         for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines() {
@@ -2129,18 +2131,33 @@ def seal_mem_available_gib -> float {
         return float(os.sysconf("SC_AVPHYS_PAGES") * os.sysconf("SC_PAGE_SIZE"))
             / 1073741824.0;
     } except Exception { }
+    if sys.platform == "darwin" {
+        try {
+            total = float(os.sysconf("SC_PHYS_PAGES") * os.sysconf("SC_PAGE_SIZE"))
+                / 1073741824.0;
+            return max(0.0, total - NATIVE_SEAL_DARWIN_RESERVE_GIB);
+        } except Exception { }
+    }
     return 0.0;
+}
+
+def seal_jobs_override -> (int | None) {
+    raw = os.environ.get(NATIVE_SEAL_JOBS_ENV, "").strip();
+    if raw {
+        try {
+            return max(1, int(raw));
+        } except ValueError { }
+    }
+    return None;
 }
 
 def seal_jobs(requested: (int | None) = None) -> int {
     if requested is not None {
         return max(1, int(requested));
     }
-    raw = os.environ.get(NATIVE_SEAL_JOBS_ENV, "").strip();
-    if raw {
-        try {
-            return max(1, int(raw));
-        } except ValueError { }
+    override = seal_jobs_override();
+    if override is not None {
+        return override;
     }
     avail = seal_mem_available_gib();
     if avail <= 0.0 {
@@ -2494,7 +2511,8 @@ def seal_native_artifacts(
     roots = [str(r) for r in (NATIVE_SEAL_ROOTS if modules is None else modules)];
     pooled = modules is None or jobs is not None;
     resolved = seal_jobs(jobs) if pooled else 1;
-    if resolved <= 1 or not roots {
+    asked_for_one = jobs is not None or seal_jobs_override() is not None;
+    if not roots or not pooled or (resolved <= 1 and asked_for_one) {
         return seal_native_roots(
             pkg_path, precompiled_dir, modules, waivers, canary_reused
         );

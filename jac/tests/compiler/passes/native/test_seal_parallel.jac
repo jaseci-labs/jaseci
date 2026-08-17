@@ -26,6 +26,17 @@ So these tests pin that it does not:
 4. **The job count is decided, not guessed.** `JAC_SEAL_JOBS` is the documented
    override in both directions, and `JAC_SEAL_JOBS=1` is the escape back to the
    original single-process seal.
+5. **One job is not one meaning.** Asking for one job is that escape; being
+   auto-sized down to one is the opposite request -- it is what a host too small
+   to hold two workers looks like, and the single-process seal is the one path
+   whose peak is the SUM over every root rather than one root's high-water mark.
+   Routing the smallest host to the hungriest strategy is how the macOS release
+   legs died: silently, three roots in, with no diagnostic at all. The probe
+   underneath is why they were sized that way -- it read `/proc/meminfo` and
+   `SC_AVPHYS_PAGES`, neither of which exists on Darwin, so every Mac measured
+   as a machine with no memory. Both halves are pinned below, the probe with a
+   faked platform, since neither can be reproduced on the Linux host that runs
+   this file.
 
 The byte-identity case builds a purpose-built two-root package rather than real
 seal roots. A real root costs minutes of LLVM and gigabytes of resident memory
@@ -325,4 +336,120 @@ test "the auto-size is bounded by memory and cores, never zero" {
     assert pb.seal_mem_available_gib() >= 0.0 , (
         "the memory probe must answer a number even where it cannot read one"
     );
+}
+
+"""A `sysconf` that answers the way Darwin's does: no SC_AVPHYS_PAGES at all."""
+def _darwin_sysconf(name: str) -> int {
+    if name == "SC_PHYS_PAGES" {
+        return 4194304;
+    }
+    if name == "SC_PAGE_SIZE" {
+        return 4096;
+    }
+    raise ValueError(f"unrecognized configuration name: {name}");
+}
+
+"""A `Path` whose `read_text` always fails, the way /proc/meminfo does off Linux."""
+obj _NoProcPath {
+    has target: str;
+
+    def read_text(encoding: str = "utf-8") -> str {
+        raise FileNotFoundError(self.target);
+    }
+}
+
+test "the memory probe answers on a host with no /proc and no SC_AVPHYS_PAGES" {
+    import from unittest.mock { patch }
+
+    # Darwin is that host: /proc is not mounted and its unistd.h never defined
+    # _SC_AVPHYS_PAGES, so both of the probe's Linux arms raise and it used to
+    # answer 0.0 -- reading every Mac as a machine with no memory at all.
+    with patch.object(pb, "Path", _NoProcPath) {
+        with patch.object(pb.os, "sysconf", _darwin_sysconf) {
+            with patch.object(pb.sys, "platform", "darwin") {
+                got = pb.seal_mem_available_gib();
+            }
+        }
+    }
+    want = 16.0 - pb.NATIVE_SEAL_DARWIN_RESERVE_GIB;
+    assert got == want , (
+        f"a 16 GiB Darwin host probed as {got} GiB, want {want}: the seal's "
+        "auto-size cannot see the memory it is sizing against"
+    );
+}
+
+test "an auto-sized single job still pools, and only an asked-for 1 is sequential" {
+    import from unittest.mock { MagicMock, patch }
+
+    if sys.platform.startswith("win") {
+        return;
+    }
+    prior = os.environ.get(pb.NATIVE_SEAL_JOBS_ENV);
+    os.environ.pop(pb.NATIVE_SEAL_JOBS_ENV, None);
+    out = Path(tempfile.mkdtemp(prefix="jac-seal-route-"));
+    try {
+        # A host whose memory the probe cannot read auto-sizes to one job. That
+        # must still be a pool of one worker process: the sequential seal is the
+        # single path whose peak is the SUM over all thirteen roots rather than
+        # one root's high-water mark, so handing it to the smallest host is
+        # exactly backwards -- and is how the macOS release legs died.
+        with patch.object(pb, "seal_mem_available_gib", return_value=0.0) {
+            with patch.object(
+                pb, "seal_native_pool", MagicMock(return_value={})
+            ) as pool {
+                with patch.object(
+                    pb, "seal_native_roots", MagicMock(return_value={})
+                ) as seq {
+                    pb.seal_native_artifacts(PKG_PATH, out);
+                    assert pool.call_count == 1 , (
+                        "an auto-sized single job took the in-process seal, whose "
+                        "peak is the sum over every root"
+                    );
+                    assert seq.call_count == 0 , (
+                        "the in-process sequential seal ran without being asked for"
+                    );
+                    assert pool.call_args[0][5] == 1 , (
+                        f"the pool was sized {pool.call_args[0][5]}, want one worker"
+                    );
+                }
+            }
+        }
+
+        # Asking for one is the other request, and still means what it says.
+        os.environ[pb.NATIVE_SEAL_JOBS_ENV] = "1";
+        with patch.object(
+            pb, "seal_native_pool", MagicMock(return_value={})
+        ) as pool2 {
+            with patch.object(
+                pb, "seal_native_roots", MagicMock(return_value={})
+            ) as seq2 {
+                pb.seal_native_artifacts(PKG_PATH, out);
+                assert seq2.call_count == 1 , (
+                    "JAC_SEAL_JOBS=1 no longer selects the sequential seal it "
+                    "documents"
+                );
+                assert pool2.call_count == 0 , (
+                    "JAC_SEAL_JOBS=1 started a worker pool anyway"
+                );
+            }
+        }
+        assert pb.seal_jobs_override() == 1 , (
+            "JAC_SEAL_JOBS=1 must read back as an override, not as an auto-size"
+        );
+        os.environ.pop(pb.NATIVE_SEAL_JOBS_ENV, None);
+        assert pb.seal_jobs_override() is None , (
+            "an unset JAC_SEAL_JOBS must read back as no override at all"
+        );
+        os.environ[pb.NATIVE_SEAL_JOBS_ENV] = "not-a-number";
+        assert pb.seal_jobs_override() is None , (
+            "an unparsable JAC_SEAL_JOBS is not an override; it must auto-size"
+        );
+    } finally {
+        shutil.rmtree(str(out), ignore_errors=True);
+        if prior is None {
+            os.environ.pop(pb.NATIVE_SEAL_JOBS_ENV, None);
+        } else {
+            os.environ[pb.NATIVE_SEAL_JOBS_ENV] = prior;
+        }
+    }
 }
