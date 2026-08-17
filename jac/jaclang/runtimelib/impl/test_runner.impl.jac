@@ -393,7 +393,12 @@ impl _capture_begin -> dict[(str, any)] {
             ;
         }
     }
-    sink = tempfile.TemporaryFile();
+    sink: any = None;
+    if _CRASH_LOG[0] {
+        sink = open(_CRASH_LOG[0], "w+b");
+    } else {
+        sink = tempfile.TemporaryFile();
+    }
     state: dict[(str, any)] = {
         "sink": sink,
         "out": os.dup(1),
@@ -845,6 +850,10 @@ impl ForkPool._spawn(slot: int) -> dict[(str, any)] {
     }
     os.close(dispatch_r);
     os.close(result_w);
+    import tempfile;
+    (log_fd, log_path) = tempfile.mkstemp(prefix="jac-test-crash-");
+    os.close(log_fd);
+    _TEST_BASES.append(log_path);
     return {
         "pid": pid,
         "slot": slot,
@@ -852,7 +861,8 @@ impl ForkPool._spawn(slot: int) -> dict[(str, any)] {
         "result_fd": result_r,
         "buf": b"",
         "inflight": None,
-        "alive": True
+        "alive": True,
+        "crashlog": log_path
     };
 }
 
@@ -874,6 +884,7 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
         } except Exception {
             break;
         }
+        _CRASH_LOG[0] = str(request.get("crashlog", ""));
         outcomes: list[TestOutcome] = [];
         try {
             outcomes = run_file(
@@ -925,7 +936,8 @@ impl ForkPool._dispatch(kid: dict[(str, any)]) -> bool {
             "idx": idx,
             "path": path,
             "explicit": path in self.plan.explicit,
-            "seen": self.reporter.failure_count()
+            "seen": self.reporter.failure_count(),
+            "crashlog": kid["crashlog"]
         }
     );
     try {
@@ -979,10 +991,19 @@ impl ForkPool._reap(kid: dict[(str, any)]) -> None {
     idx = kid["inflight"];
     if idx is not None {
         kid["inflight"] = None;
-        self.reporter.file_crashed(
-            self.plan.files[idx],
-            f"worker exited while running this file (wait status {status})"
-        );
+        detail = f"worker exited while running this file (wait status {status})";
+        spilled = "";
+        try {
+            with open(kid["crashlog"], "rb") as f {
+                spilled = f.read().decode("utf-8", "replace").strip();
+            }
+        } except Exception {
+            spilled = "";
+        }
+        if spilled {
+            detail += "\n--- output captured before the worker died ---\n" + spilled;
+        }
+        self.reporter.file_crashed(self.plan.files[idx], detail);
     }
     if not self._should_stop() and (self.cursor < len(self.plan.files)) {
         replacement = self._spawn(kid["slot"]);

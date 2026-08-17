@@ -34,7 +34,8 @@ glob _WORKER_MEM_BYTES: int = 2 * 1024 * 1024 * 1024,
      _MAX_AUTO_JOBS: int = 12,
      _PROGRESS_WIDTH: int = 72;
 
-glob _TEST_BASES: list[str] = [],
+glob _CRASH_LOG: list[str] = [""],
+     _TEST_BASES: list[str] = [],
      _TEST_PACKAGES: dict[(str, str)] = {},
      _TEST_PKG_COUNTER: list[int] = [0];
 
