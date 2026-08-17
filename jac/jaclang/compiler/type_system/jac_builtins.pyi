@@ -15,7 +15,7 @@
 # builtin.__all__ for that purpose. This file is NOT used by codegen.
 
 from collections.abc import Callable
-from typing import Any, Protocol, TypeVar
+from typing import Any, NoReturn, Protocol, TypeVar
 
 _NewT = TypeVar("_NewT")
 
@@ -71,6 +71,11 @@ __all__ = [
     "restspec",
     "schedule",
     "unsafe_html",
+    # Test builtins (usable inside any `test` block, no import)
+    "skip_test",
+    "fail",
+    "raises",
+    "RaisesContext",
     # Ambient values and constants
     "llm",
     # Builtin enums
@@ -207,6 +212,24 @@ def managed(x: _ManagedT) -> _ManagedT: ...
 # (`dangerouslySetInnerHTML` on jac-client, `innerHTML` on bare-serve).
 # Use only with content you trust -- the name is the security review hint.
 def unsafe_html(html: object) -> object: ...
+
+# ── Test builtins ──────────────────────────────────────────────────
+# Ambient inside `test` blocks (and anywhere else) so a suite needs no
+# import to skip, fail, or assert that a block raises.
+
+class RaisesContext:
+    excs: tuple[type[BaseException], ...]
+    pattern: str | None
+    value: BaseException | None
+    def __enter__(self) -> RaisesContext: ...
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool: ...
+    def match(self, regexp: str) -> bool: ...
+
+def skip_test(reason: str = "") -> NoReturn: ...
+def fail(reason: str = "") -> NoReturn: ...
+def raises(
+    *excs: type[BaseException], match: str | None = None
+) -> RaisesContext: ...
 
 # ── User-facing builtin functions (from jaclang.jac0core.jaclib) ────
 # These jaclib functions are directly callable by users in Jac code.

@@ -214,6 +214,51 @@ impl managed(x: any) -> any {
     return x;
 }
 
+impl skip_test(reason: str = "") -> None {
+    import from unittest { SkipTest }
+    raise SkipTest(reason or "skipped");
+}
+
+impl fail(reason: str = "") -> None {
+    raise AssertionError(reason or "explicit failure");
+}
+
+impl raises(*excs: type, `match: (str | None) = None) -> RaisesContext {
+    if not excs {
+        raise TypeError("raises() requires at least one exception type");
+    }
+    for exc in excs {
+        if not (isinstance(exc, type) and issubclass(exc, BaseException)) {
+            raise TypeError(f"raises() expects exception types, got {exc!r}");
+        }
+    }
+    return RaisesContext(excs=excs, pattern=`match);
+}
+
+impl RaisesContext.__enter__ -> RaisesContext {
+    return self;
+}
+
+impl RaisesContext.__exit__(exc_type: any, exc: any, tb: any) -> bool {
+    names = ", ".join([e.__name__ for e in self.excs]);
+    if exc_type is None {
+        raise AssertionError(f"DID NOT RAISE {names}");
+    }
+    if not issubclass(exc_type, self.excs) {
+        return False;
+    }
+    self.value = exc;
+    if (self.pattern is not None) and not self.`match(self.pattern) {
+        raise AssertionError(f"pattern {self.pattern!r} does not match {str(exc)!r}");
+    }
+    return True;
+}
+
+impl RaisesContext.`match(regexp: str) -> bool {
+    import re;
+    return re.search(regexp, str(self.value)) is not None;
+}
+
 impl restspec(**specs: any) -> Callable {
     import logging;
     import from jaclang { JacRuntimeInterface as Jac }

@@ -74,6 +74,22 @@ def unsafe_html(html: any) -> dict;
 
 def managed(x: any) -> any;
 
+def skip_test(reason: str = "") -> None;
+
+def fail(reason: str = "") -> None;
+
+def raises(*excs: type, `match: (str | None) = None) -> RaisesContext;
+
+obj RaisesContext {
+    has excs: tuple,
+        pattern: (str | None) = None,
+        value: (BaseException | None) = None;
+
+    def __enter__ -> RaisesContext;
+    def __exit__(exc_type: any, exc: any, tb: any) -> bool;
+    def `match(regexp: str) -> bool;
+}
+
 obj JacListView {
     has backing: any = None,
         start: int = 0,
@@ -114,6 +130,10 @@ glob __all__ = [
          'schema_upgrade',
          'unsafe_html',
          'managed',
+         'skip_test',
+         'fail',
+         'raises',
+         'RaisesContext',
          'JacListView',
          '_jac_chunks',
          'Region',
