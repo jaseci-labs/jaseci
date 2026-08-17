@@ -357,7 +357,7 @@ def check_guide_block(code: str) -> tuple[int, str] {
     old_err = sys.stderr;
     sys.stdout = out;
     sys.stderr = err;
-    # xdist workers can inherit an explicit `select = ["all"]` config from
+    # workers can inherit an explicit `select = ["all"]` config from
     # compiler lint tests; `get_config_for_path` returns that for /tmp guide
     # snippets and enables no-print. Reset to default lint for this check only.
     prev_explicit = get_explicit_config();

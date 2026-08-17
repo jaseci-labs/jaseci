@@ -225,7 +225,7 @@ glob BUILTIN_NAMES: set[str] = {
          'zip'
      };
 
-obj StaticAnalysisPass(Transform[Module, Module]) {
+obj StaticAnalysisPass(Transform) {
     has ir_in: Module,
         prog: any,
         cancel_token: any = None;

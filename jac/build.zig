@@ -56,8 +56,8 @@ pub fn build(b: *std.Build) void {
     // built once then run on other runners via the setup-jac output cache. A
     // native-CPU build emits instructions (e.g. AVX-512) a different CPU may not
     // have, crashing the launcher with SIGILL ("Illegal instruction at address
-    // ..."); that in turn hangs `jac test`, whose xdist workers re-exec this
-    // binary and die mid-run. The launcher is a thin shim, so baseline costs
+    // ..."); that in turn takes down `jac test`, whose worker processes are
+    // forked from this binary. The launcher is a thin shim, so baseline costs
     // nothing. If an explicit `-Dtarget=` is passed we honor it as-is; otherwise
     // we pin the host arch/os to a baseline CPU.
     const target = if (b.user_input_options.contains("target"))

@@ -595,11 +595,13 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "The native-export and sv-to-sv stub surface reads "
              "`gen.interop_manifest` and the `InteropBinding` / "
              "`BoundaryTypeInfo` codeinfo objects, which are Python "
-             "codegen state, and `exit_import` asks the driver for "
-             "`native_only_import_target`. Clears when the driver stamps "
-             "import decisions onto the node as data and the manifest "
-             "crosses as a native-clean record instead of a Python "
-             "object."
+             "codegen state. The driver read that used to sit beside "
+             "them is gone: `exit_import` consumes "
+             "`Import.native_only_drop` instead of asking the driver for "
+             "`native_only_import_target`, so this root names no driver "
+             "entry point at all. Clears the rest of the way when the "
+             "manifest crosses as a native-clean record instead of a "
+             "Python object."
          ),
          (
              "jcir named backend gaps",
@@ -2289,10 +2291,25 @@ def _seal_worker_exec(job: dict) -> dict {
     if not out["ok"] and not out["error"] {
         out["error"] = (
             f"NATIVE SEAL: the worker sealing {rel} exited "
-            f"{proc.returncode} without writing a result."
+            f"{_seal_exit_reason(proc.returncode)} without writing a result. "
+            "The result file is written after every caught failure, so the "
+            "worker died in native code -- inside __jac_shared_init or the "
+            "load canary, not in the seal's Python."
         );
     }
     return out;
+}
+
+def _seal_exit_reason(code: int) -> str {
+    if code >= 0 {
+        return f"with status {code}";
+    }
+    import signal;
+    try {
+        return f"on {signal.Signals(-code).name}";
+    } except Exception {
+        return f"on signal {-code}";
+    }
 }
 
 def _seal_worker_run(job: dict, gate: any, state: dict) -> dict {
