@@ -2,6 +2,7 @@ import ast;
 import marshal;
 import struct;
 import sys;
+import types;
 
 import from jaclang.jac0core.codegen_ir {
     CirContainer,
@@ -208,11 +209,17 @@ def _parse_splice(src: str, line_offset: int) -> CirSplice {
     tree = ast.parse(src);
     if line_offset {
         for w in ast.walk(tree) {
-            if hasattr(w, "lineno") {
-                w.lineno += line_offset;
+            # `ast.AST` declares no position fields; only the statement and
+            # expression subclasses carry them, and the walk sees the base
+            # type. Read and write through the reflective pair rather than
+            # asserting an attribute the declared type does not have.
+            first = getattr(w, "lineno", None);
+            if first is not None {
+                setattr(w, "lineno", first + line_offset);
             }
-            if w?.end_lineno is not None {
-                w.end_lineno += line_offset;
+            last = getattr(w, "end_lineno", None);
+            if last is not None {
+                setattr(w, "end_lineno", last + line_offset);
             }
         }
     }
@@ -330,15 +337,15 @@ def transcribe_module(
                     f"{len(stack)}; exactly one root is required"
                 );
             }
-            root = stack[0];
-            if not isinstance(root, ast.Module) {
+            built_root = stack[0];
+            if not isinstance(built_root, ast.Module) {
                 raise CodegenIrFormatError(
                     f"module stream for {mod.mod_path} left a "
-                    f"{type(root).__name__} on the stack; the root must be "
-                    "ast.Module"
+                    f"{type(built_root).__name__} on the stack; the root must "
+                    "be ast.Module"
                 );
             }
-            return root;
+            return built_root;
         } else {
             raise CodegenIrFormatError(
                 f"decoder produced an op this shim does not interpret: {kind}"
@@ -366,9 +373,9 @@ def compile_ir(ir_bytes: bytes) -> CirResult {
     diags = list(container.diags);
     modules: list = [];
     for m in container.modules {
-        root = transcribe_module(m, classes, keys, container);
+        built_root: ast.Module = transcribe_module(m, classes, keys, container);
         try {
-            code_obj = compile(root, m.mod_path, "exec");
+            code_obj: types.CodeType = compile(built_root, m.mod_path, "exec");
         } except (ValueError, SyntaxError, TypeError) as e {
             diags.append(
                 CirDiag(

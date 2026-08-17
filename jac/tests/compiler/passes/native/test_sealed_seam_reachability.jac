@@ -75,6 +75,7 @@ import from jaclang.compiler.passes.main.layout_pass {
 import from jaclang.jac0core.sealed { native_artifact_for }
 import from jaclang.utils.precompile_bytecode {
     _CLOSURE_SEAM_WAIVERS,
+    NATIVE_SEAL_ROOTS,
     seal_waiver_names
 }
 

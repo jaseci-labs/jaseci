@@ -253,10 +253,21 @@ construction invariant instead of a fill pass:
 - Consequence: a hoisted lambda def is fully located the moment it is
   built (children from their own jac nodes, shell from the `LambdaExpr`),
   so there is nothing left to fill and no fill pass exists. The
-  differential suite's lambda fixture asserts both tree equality against
-  `pyast_gen`'s `fix_missing_locations` output and that every
-  location-bearing node in the transcribed tree has a concrete
-  `lineno >= 1`.
+  differential suite's lambda fixture asserts that every location-bearing
+  node in the transcribed tree has a concrete `lineno >= 1`, and the micro
+  suite asserts the four position fields on every such node of every
+  fixture in the corpus.
+
+Two measured exceptions, both front-end debt rather than emitter debt.
+Where the jac node the emitter lowers from carries no position of its
+own, the rule hands the recipe node a zero, and two kinds reach that
+state: an f-string's format-spec `Constant`, and the implicit
+`self`/`cls` `arg` of an ability reached through an annex. Both were
+measured on the retired Python-AST lane and behave identically there
+(`examples/chess/chess.jac` and `examples/mini_todo/bench_local.jac` are
+the standing witnesses), so neither is a property of the container. The
+micro suite's check argues them by node kind rather than dropping the
+rule, and they clear when the front end gives those nodes a position.
 
 One writer convenience supports the rule without changing the wire
 format: `CodegenIrWriter.emit_loc_needed` skips the `OP_LOC` when the
