@@ -8,7 +8,7 @@ callable made the module fatally un-lowerable: no IR at all, so nothing that
 reads a `CodeGenTarget` field could ever lower either.
 
 `field` is now a compile-time declaration-site marker, the same shape `cast`
-and `TypeAlias` already had: admitted per name in `NATIVE_COMPTIME_STDLIB`
+and `TypeAlias` already had: admitted per name in `NATIVE_COMPTIME_IMPORTS`
 and erased where it is written, at the has-field default. Four other
 module-fatal constructs had to clear with it, since a fatal one hides the
 rest: two `object`-typed parameters whose attributes the checker refused, a
