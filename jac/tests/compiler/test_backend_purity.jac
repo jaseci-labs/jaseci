@@ -120,7 +120,7 @@ glob FORBIDDEN: dict[str, str] = {
              "so the declared annotations are the only TypeVar surface"
          ),
          ("native/na_ir_gen_pass.impl/calls.impl.jac", "symbol_utils"): (
-             2,
+             3,
              "is_builtin_region_name as the shadowing-aware test for the "
              "builtin Region constructor (#7491) - consuming the central "
              "classification instead of re-implementing name resolution; and "
@@ -129,7 +129,13 @@ glob FORBIDDEN: dict[str, str] = {
              "central classification instead of re-implementing name "
              "resolution. The former classify_call fallback is deleted "
              "(#7418): call_kind is stamped authoritatively by the required "
-             "inference schedule"
+             "inference schedule. Plus comptime_identity_call_arg (#8223) "
+             "and the is_comptime_field_marker pair (#8201), declaration-"
+             "surface reads on the same terms: whether `cast` or `field` "
+             "here is the erasable `typing.cast` / `dataclasses.field` is "
+             "answered by the module's own import list and by the call's "
+             "own position in a `has` declaration, facts that are "
+             "themselves the declaration and live on no analysis product"
          ),
          ("native/na_ir_gen_pass.impl/objects.impl.jac", "symbol_utils"): (
              1,

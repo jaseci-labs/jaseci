@@ -121,7 +121,7 @@ class JacScalePluginConfig {
                         "url": {
                             "type": "string",
                             "default": None,
-                            "description": "Postgres connection URL (postgresql://user:pass@host:port/db). Also honored via the JAC_DB_URL env var. When set, in-cluster provisioning is skipped (external mode)."
+                            "description": "Postgres connection URL (postgresql://user:pass@host:port/db) for this process, also honored via the JAC_DB_URL env var, which wins at runtime. Setting it here (not via the env var) also makes a deploy of this app point at that database instead of provisioning one; [scale.kubernetes] database_mode overrides that."
                         },
                         "deploy_mode": {
                             "type": "string",
@@ -160,10 +160,25 @@ class JacScalePluginConfig {
                             "default": 8000,
                             "description": "Container port for the application"
                         },
+                        "database_mode": {
+                            "type": "string",
+                            "default": "auto",
+                            "description": "What database the DEPLOYED app gets: 'provision' (a per-app Postgres owned by jac), 'external' (point it at database_url, or [scale.database] url), 'none' (wire no database at all), or 'auto' (external when a url is configured, otherwise provision). The deploying process's own JAC_DB_URL is never consulted."
+                        },
+                        "database_url": {
+                            "type": "string",
+                            "default": "",
+                            "description": "Connection URL handed to the deployed app in external mode. Highest precedence, above [scale.database] url. A bare Kubernetes service name is namespace-relative: set database_namespace, or write the fully qualified <service>.<namespace>.svc.cluster.local host."
+                        },
+                        "database_namespace": {
+                            "type": "string",
+                            "default": "",
+                            "description": "Namespace that runs the external database service, used to qualify a bare service name in the url when the app deploys into a different namespace. Defaults to the deploying pod's own namespace when it can be detected."
+                        },
                         "postgres_enabled": {
                             "type": "bool",
                             "default": True,
-                            "description": "Provision Postgres in Kubernetes (disable when using an external database url)"
+                            "description": "Deprecated, use database_mode. false maps to database_mode = 'none'; true is ignored because it cannot distinguish provisioning from pointing at an external database."
                         },
                         "autoscaler_engine": {
                             "type": "string",
@@ -502,17 +517,17 @@ class JacScalePluginConfig {
                         "boot_health_timeout": {
                             "type": "float",
                             "default": None,
-                            "description": "Seconds to wait for a service's health endpoint during boot; absent uses the process manager default"
+                            "description": "How long a service process may take to answer /healthz before it is given up on (seconds); absent uses the process manager default (60). Applies both when the orchestrator starts the declared services at boot and when an inter-service import spawns a peer lazily. For the lazy spawn this is a stall budget rather than a wall-clock cap: a child that is still writing to its log keeps the clock resetting, so a slow cold compile is not cut off, while a child that dies is reported immediately. Raise it for services with an expensive import graph."
                         },
                         "boot_max_wait": {
                             "type": "int",
                             "default": 90,
-                            "description": "Maximum seconds to wait for all services to boot"
+                            "description": "Overall window (seconds) the orchestrator waits for the whole service set to report healthy at boot before it proceeds anyway. Distinct from `boot_health_timeout`, which is per service."
                         },
                         "health_monitor_interval": {
                             "type": "float",
                             "default": None,
-                            "description": "Seconds between health-monitor polls of running services; absent uses the process manager default"
+                            "description": "Cadence (seconds) of the background health check that restarts services which died after boot; absent uses the process manager default (10)."
                         },
                         "ingress": {
                             "type": "dict",

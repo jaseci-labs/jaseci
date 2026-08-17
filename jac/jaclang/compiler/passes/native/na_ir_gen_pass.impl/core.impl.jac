@@ -712,12 +712,27 @@ impl NaIRGenPass._register_imported_struct_types -> None {
         self._register_imported_hierarchy(imported_mod);
     }
 
+    import from jaclang.compiler.passes.main.layout_pass { adopt_imported_bases }
+    adopt_imported_bases(self.ir_in);
+
     for (_, imported_mod) in imported_mods {
         self._walk_imported_module_types(imported_mod);
     }
 
-    for (_, imported_mod) in imported_mods {
-        self._walk_imported_module_abilities(imported_mod);
+    _self_real = os.path.realpath(self.ir_in.loc.mod_path)
+        if (self.ir_in?.loc)
+        else None;
+    if _self_real is not None {
+        self.prog._na_dep_inflight.add(_self_real);
+    }
+    try {
+        for (_, imported_mod) in imported_mods {
+            self._walk_imported_module_abilities(imported_mod);
+        }
+    } finally {
+        if _self_real is not None {
+            self.prog._na_dep_inflight.discard(_self_real);
+        }
     }
 }
 
@@ -835,7 +850,9 @@ impl NaIRGenPass._walk_imported_module_types(imported_mod: uni.Module) -> None {
     }
 }
 
-impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> None {
+impl NaIRGenPass._walk_imported_module_abilities(
+    imported_mod: uni.Module, with_fn_verdicts: bool = True
+) -> None {
     _imp_layout = imported_mod.gen.native_layout;
     if _imp_layout is None and imported_mod?.loc and imported_mod.loc.mod_path {
         import os as _wl_os;
@@ -878,6 +895,10 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
                 _wl_internal = False;
             }
         }
+    }
+    _imp_fn_unavail: (set | None) = None;
+    if with_fn_verdicts and _imp_layout is None and not _wl_internal {
+        _imp_fn_unavail = self._imported_function_demotions(imported_mod);
     }
     for _imp_arch in ModuleCodegenPass.iter_context_stmts(imported_mod) {
         if not isinstance(_imp_arch, uni.Archetype)
@@ -928,7 +949,7 @@ impl NaIRGenPass._walk_imported_module_abilities(imported_mod: uni.Module) -> No
             continue;
         }
         if isinstance(stmt, uni.Ability) {
-            self._forward_declare_imported_ability(stmt);
+            self._forward_declare_imported_ability(stmt, _imp_fn_unavail, _imp_layout);
         }
     }
 }
@@ -960,12 +981,14 @@ impl NaIRGenPass._register_imported_hierarchy(imported_mod: uni.Module) -> None 
     _imp_reg = get_layout_registry(imported_mod, self.prog);
     _cons_reg = get_layout_registry(self.ir_in, self.prog);
     for (_name, _parents) in _imp_reg.class_parents.items() {
-        if _name not in _cons_reg.class_parents {
+        if _name not in _cons_reg.class_parents
+            or (_name in _imp_reg.layouts and _name not in _cons_reg.layouts) {
             _cons_reg.class_parents[_name] = _parents;
         }
     }
     for (_name, _mro) in _imp_reg.mro_order.items() {
-        if _name not in _cons_reg.mro_order {
+        if _name not in _cons_reg.mro_order
+            or (_name in _imp_reg.layouts and _name not in _cons_reg.layouts) {
             _cons_reg.mro_order[_name] = _mro;
         }
     }
@@ -1077,7 +1100,9 @@ impl NaIRGenPass._register_imported_globals(
     }
 }
 
-impl NaIRGenPass._forward_declare_imported_ability(nd: uni.Ability) -> None {
+impl NaIRGenPass._forward_declare_imported_ability(
+    nd: uni.Ability, unavailable: (set | None) = None, imp_layout: any = None
+) -> None {
     name = nd.name_ref.sym_name if nd.name_ref else None;
     if name is None or name in self.func_symtab {
         return;
@@ -1086,7 +1111,105 @@ impl NaIRGenPass._forward_declare_imported_ability(nd: uni.Ability) -> None {
     if nd.body is None {
         return;
     }
+    if not nd.type_params {
+        _fd_demoted = (unavailable is not None and name in unavailable)
+            or (
+                imp_layout is not None
+                and not name.startswith("__")
+                and name not in imp_layout.functions
+            );
+        if _fd_demoted {
+            self._native_skipped_methods.add(name);
+            return;
+        }
+    }
     self._maybe_declare_ability(nd);
+}
+
+impl NaIRGenPass._imported_function_demotions(
+    imported_mod: uni.Module
+) -> (set | None) {
+    import os as _fd_os;
+    if not (imported_mod?.loc and imported_mod.loc.mod_path) {
+        return None;
+    }
+    mod_path = imported_mod.loc.mod_path;
+    real_path = _fd_os.path.realpath(mod_path);
+    units = self.prog._na_dep_units;
+    entry: any = None;
+    if real_path in units {
+        entry = units[real_path];
+    } elif imported_mod.gen.llvm_ir is not None {
+        entry = imported_mod;
+    } else {
+        import from jaclang.jac0core.compile_options { CompileOptions as _FdOpts }
+        _opts_src = self.prog?._compile_options or _FdOpts();
+        if not bool(getattr(_opts_src, "no_ir_cache", False)) {
+            try {
+                import from jaclang.compiler.passes.native.na_compile_pass {
+                    native_dep_cache_paths
+                }
+                (_fd_ir_p, _fd_meta_p) = native_dep_cache_paths(real_path, _opts_src);
+                if _fd_os.path.exists(_fd_ir_p) and _fd_os.path.exists(_fd_meta_p) {
+                    import json as _fd_json;
+                    with open(_fd_meta_p, "r") as _fd_mf {
+                        _fd_meta = _fd_json.loads(_fd_mf.read());
+                    }
+                    if _fd_meta.get("options_fingerprint")
+                        == _opts_src.codegen_fingerprint() {
+                        return set(_fd_meta.get("demoted_symbols") or []);
+                    }
+                    return None;
+                }
+            } except Exception { }
+        }
+        if not bool(_opts_src.aot_mode)
+            or real_path in self.prog._na_dep_inflight
+            or not _fd_os.path.isfile(real_path) {
+            return None;
+        }
+        try {
+            entry = self.prog.compile(
+                file_path=mod_path, options=_opts_src.clone_for_native_import()
+            );
+        } except Exception as _fd_exc {
+            entry = f"{type(_fd_exc).__name__}: {_fd_exc}";
+        }
+        units[real_path] = entry;
+    }
+
+    if entry is None or isinstance(entry, str) or entry.gen.llvm_ir is None {
+        _fd_all: set = set();
+        for _fd_stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+            if (
+                isinstance(_fd_stmt, uni.Ability)
+                and _fd_stmt.name_ref
+                and not _fd_stmt.type_params
+                and isinstance(_fd_stmt.signature, uni.FuncSignature)
+            ) {
+                _fd_all.add(_fd_stmt.name_ref.sym_name);
+            }
+        }
+        return _fd_all;
+    }
+    demoted: set = set();
+    _fd_mod = entry.gen.llvm_ir;
+    _fd_names: list = [];
+    try {
+        _fd_names = list(_fd_mod.globals);
+    } except Exception {
+        try {
+            for _fd_fn in _fd_mod.functions {
+                _fd_names.append(_fd_fn.name);
+            }
+        } except Exception { }
+    }
+    for _fd_gname in _fd_names {
+        if _fd_gname.endswith(".__jac_demoted") {
+            demoted.add(_fd_gname[:-len(".__jac_demoted")]);
+        }
+    }
+    return demoted;
 }
 
 impl NaIRGenPass._process_clib_imports(module: uni.Module) -> None {
@@ -1339,7 +1462,28 @@ impl NaIRGenPass._dispatch_primitive_method(
     _ctx = self._native_emit_ctx_class(
         pass_ref=self, type_key=type_key, call_kwargs=(kwargs or {})
     );
-    return _emit_fn(_ctx, target, args);
+    try {
+        return _emit_fn(_ctx, target, args);
+    } except Exception as _pm_exc {
+        if self._na_debug_on() {
+            import sys as _pm_sys;
+            import traceback as _pm_tb;
+            _pm_sys.stderr.write(f"NA_DEBUG primitive {type_name}.{method_name}\n");
+            _pm_tb.print_exc(file=_pm_sys.stderr);
+        }
+        self.emit(
+            E5092,
+            node_override=kw_node,
+            kind="primitive method",
+            name=f"{type_name}.{method_name}",
+            help_text=f"The emitter for this builtin method raised "
+            f"{type(_pm_exc).__name__} on the operands it was given, which "
+            "means an argument did not reach the shape it expects -- most "
+            "often a container or tuple where a scalar or string is "
+            f"required. Original error: {_pm_exc}"
+        );
+        return None;
+    }
 }
 
 impl NaIRGenPass._dispatch_builtin(

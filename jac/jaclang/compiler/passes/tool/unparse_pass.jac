@@ -162,11 +162,12 @@ def unparse_module(mod: uni.Module, requires_format: bool = True) -> str {
         mod.set_kids(nodes=head_kid or [uni.EmptyToken()]);
     }
     try {
-        NormalizePass(ir_in=mod, prog=JacProgram());
+        import from jaclang.jac0core.compiler { run_pass }
+        run_pass(NormalizePass, mod, JacProgram());
         if requires_format {
             return format_module(mod);
         }
-        UnparsePass(ir_in=mod, prog=JacProgram());
+        run_pass(UnparsePass, mod, JacProgram());
         return mod.gen.jac;
     } finally {
         if filtered {

@@ -24,7 +24,7 @@ def load_eject_project_metadata(src: Path) -> dict {
     if not toml_path.exists() {
         raise FileNotFoundError(f"No jac.toml found in {src}");
     }
-    import from jaclang.jac0core.helpers { read_toml_with_encoding }
+    import from jaclang.jac0core.tomlio { read_toml_with_encoding }
     toml_data = read_toml_with_encoding(str(toml_path));
     project_section = toml_data.get("project", {});
     raw_name = project_section.get("name", "") or "";

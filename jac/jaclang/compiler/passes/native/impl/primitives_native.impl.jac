@@ -3338,6 +3338,7 @@ impl NativeDictEmitter.emit_keys(
     key_type = helpers["key_type"];
     if isinstance(key_type, ir.PointerType) {
         kt_name = "ptr";
+        key_type = ir.IntType(8).as_pointer();
     } elif isinstance(key_type, ir.DoubleType) {
         kt_name = "f64";
     } else {
@@ -3366,6 +3367,7 @@ impl NativeDictEmitter.emit_keys(
     b.cbranch(at_end, done_bb, body_bb);
     b.position_at_start(body_bb);
     key = b.call(helpers["get_key"], [target, idx], name="dkeys.key");
+    key = p._cast_to_list_elem(b, key, lhelpers["elem_type"], "dkeys.key");
     b.call(lhelpers["append"], [new_list, key]);
     next_idx = b.add(idx, ir.Constant(i64, 1), name="dkeys.next");
     idx.add_incoming(next_idx, body_bb);
@@ -3389,6 +3391,7 @@ impl NativeDictEmitter.emit_values(
     val_type = helpers["val_type"];
     if isinstance(val_type, ir.PointerType) {
         vt_name = "ptr";
+        val_type = ir.IntType(8).as_pointer();
     } elif isinstance(val_type, ir.DoubleType) {
         vt_name = "f64";
     } else {
@@ -3418,6 +3421,7 @@ impl NativeDictEmitter.emit_values(
     b.position_at_start(body_bb);
     key = b.call(helpers["get_key"], [target, idx], name="dvals.key");
     val = b.call(helpers["get"], [target, key], name="dvals.val");
+    val = p._cast_to_list_elem(b, val, lhelpers["elem_type"], "dvals.val");
     b.call(lhelpers["append"], [new_list, val]);
     next_idx = b.add(idx, ir.Constant(i64, 1), name="dvals.next");
     idx.add_incoming(next_idx, body_bb);
@@ -4844,9 +4848,13 @@ impl NativeBuiltinEmitter.emit_any(
     b.cbranch(at_end, done_bb, body_bb);
     b.position_at_start(body_bb);
     elem = b.call(helpers["get"], [list_val, idx], name="any.elem");
-    is_true = b.icmp_signed("!=", elem, ir.Constant(i64, 0), name="any.true");
+    is_true = p._to_bool(elem);
+    if not (isinstance(is_true.type, ir.IntType) and is_true.type.width == 1) {
+        return None;
+    }
+    body_end = b.basic_block;
     next_idx = b.add(idx, ir.Constant(i64, 1), name="any.next");
-    idx.add_incoming(next_idx, body_bb);
+    idx.add_incoming(next_idx, body_end);
     b.cbranch(is_true, found_bb, loop_bb);
     b.position_at_start(found_bb);
     b.branch(done_bb);
@@ -4892,10 +4900,14 @@ impl NativeBuiltinEmitter.emit_all(
     b.cbranch(at_end, done_bb, body_bb);
     b.position_at_start(body_bb);
     elem = b.call(helpers["get"], [list_val, idx], name="all.elem");
-    is_false = b.icmp_signed("==", elem, ir.Constant(i64, 0), name="all.false");
+    is_true = p._to_bool(elem);
+    if not (isinstance(is_true.type, ir.IntType) and is_true.type.width == 1) {
+        return None;
+    }
+    body_end = b.basic_block;
     next_idx = b.add(idx, ir.Constant(i64, 1), name="all.next");
-    idx.add_incoming(next_idx, body_bb);
-    b.cbranch(is_false, false_bb, loop_bb);
+    idx.add_incoming(next_idx, body_end);
+    b.cbranch(is_true, loop_bb, false_bb);
     b.position_at_start(false_bb);
     b.branch(done_bb);
     b.position_at_start(done_bb);

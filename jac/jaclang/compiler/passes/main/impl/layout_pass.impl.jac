@@ -1,4 +1,4 @@
-import from jaclang.jac0core.passes { UniPass }
+import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
@@ -29,6 +29,7 @@ impl LayoutPass.transform(ir_in: Module) -> Module {
         if name in arch_map {
             layout = self._build_layout(arch_map[name]);
             self.registry.layouts[name] = layout;
+            self.registry.local_names.append(name);
         }
     }
 
@@ -114,9 +115,10 @@ impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
                 } elif isinstance(base_expr, AstSymbolNode) {
                     pname = base_expr.sym_name;
                 }
-                if pname is not None {
-                    parents.append(pname);
+                if pname is None or is_comptime_base_name(pname, archetypes) {
+                    continue;
                 }
+                parents.append(pname);
             }
             if parents {
                 reg.class_parents[aname] = parents;
@@ -405,7 +407,10 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             );
         }
         self.registry.enums[ename] = EnumLayout(
-            name=ename, is_string_enum=is_string_enum, members=members
+            name=ename,
+            is_string_enum=is_string_enum,
+            all_values_known=all(mval is not None for mval in member_values),
+            members=members
         );
     }
     for nd in class_form_enum_decls(module) {
@@ -415,10 +420,21 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
         }
         _scalar = class_form_enum_scalar(nd.name.type);
         _cf_members: list[EnumMemberLayout] = [];
+        _cf_declared = 0;
+        _cf_typed = True;
         for mname in nd.names_in_scope {
+            _msym = nd.names_in_scope.get(mname);
+            _mdecl = _msym.decl if _msym is not None else None;
+            _masn = _mdecl.parent if _mdecl is not None else None;
+            if isinstance(_masn, Assignment) and _masn.value is not None {
+                _cf_declared += 1;
+            }
             _lit = class_form_enum_literal(nd.name.type, mname);
             if _lit is None {
                 continue;
+            }
+            if (_scalar == "str") != isinstance(_lit, str) {
+                _cf_typed = False;
             }
             _cf_members.append(
                 EnumMemberLayout(
@@ -434,6 +450,7 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             underlying=("str" if _scalar == "str" else "i64"),
             is_string_enum=(_scalar == "str"),
             is_class_form=True,
+            all_values_known=(_cf_declared == len(_cf_members) and _cf_typed),
             members=_cf_members
         );
     }

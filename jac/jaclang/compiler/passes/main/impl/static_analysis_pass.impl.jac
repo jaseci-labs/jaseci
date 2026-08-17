@@ -97,8 +97,7 @@ impl StaticAnalysisPass._check_undefined_names(mod: Module) -> None {
             continue;
         }
 
-        import builtins;
-        if name_nd.value in dir(builtins) or name_nd.value in ("self", "super") {
+        if name_nd.value in BUILTIN_NAMES or name_nd.value in ("self", "super") {
             continue;
         }
 

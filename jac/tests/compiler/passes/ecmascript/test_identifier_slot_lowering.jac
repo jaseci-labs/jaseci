@@ -32,6 +32,7 @@ import from jaclang.compiler.passes.ecmascript.backends.react { ReactBackend }
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
 import jaclang.jac0core.unitree as uni;
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
@@ -44,7 +45,7 @@ def compile_fixture(fixture_name: str) -> tuple[EsastGenPass, JacProgram, str] {
     assert not prog.errors_had , (
         f"Compilation errors in {fixture_name}: {[str(e) for e in prog.errors_had]}"
     );
-    es_pass = EsastGenPass(ir_in=ir, prog=prog, backend=ReactBackend());
+    es_pass = run_pass(EsastGenPass, ir, prog, backend=ReactBackend());
     assert not prog.errors_had , (
         f"ES codegen errors in {fixture_name}: {[str(e) for e in prog.errors_had]}"
     );
@@ -119,7 +120,7 @@ test "an unrecognized kwarg key shape is a hard error, not a silent spread" {
     ];
     assert calls , "fixture must contain a call to `label`";
 
-    prog.errors_had.clear();
+    es_pass.errors_had.clear();
     bogus = es.Property(
         key=es.MemberExpression(
             object=es.Identifier(name="__jacS_theme"),
@@ -138,12 +139,12 @@ test "an unrecognized kwarg key shape is a hard error, not a silent spread" {
 
     codes = [
         alrt.code.code
-        for alrt in prog.errors_had
+        for alrt in es_pass.errors_had
         if alrt.code is not None
     ];
     assert "E5099" in codes , (
         "an unrecognized kwarg key must raise E5099, got "
-        + str([str(e) for e in prog.errors_had])
+        + str([str(e) for e in es_pass.errors_had])
     );
     assert not any(isinstance(slot.value, es.SpreadElement) for slot in slots) , (
         "the failing kwarg must not be laundered into a spread argument"

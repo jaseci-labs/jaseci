@@ -128,7 +128,19 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
 
 glob _client_kind_probe: dict = {"active": False};
 
+def is_compiler_source_path(source_path: str) -> bool {
+    try {
+        resolved = str(Path(source_path).resolve());
+    } except OSError {
+        return False;
+    }
+    return resolved.startswith(_jaclang_pkg_dir + os.sep);
+}
+
 def _module_codespace_mode(source_path: str) -> str {
+    if is_compiler_source_path(source_path) {
+        return "internal";
+    }
     try {
         import from jaclang.jac0core.codeinfo { effective_default_codespace }
         return effective_default_codespace();

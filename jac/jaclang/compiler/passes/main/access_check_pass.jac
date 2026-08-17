@@ -10,9 +10,7 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.constant { SymbolAccess }
-import from jaclang.jac0core.modresolver { find_jac_project_root }
 import from jaclang.jac0core.diagnostics {
-    DiagnosticInfo,
     E2034,
     W2034,
     E2035,
@@ -23,7 +21,7 @@ import from jaclang.jac0core.diagnostics {
     W2038
 }
 
-obj AccessCheckPass(Transform[Module, Module]) {
+obj AccessCheckPass(Transform) {
     has ir_in: Module,
         prog: any,
         cancel_token: any = None,
@@ -33,13 +31,8 @@ obj AccessCheckPass(Transform[Module, Module]) {
 
     def postinit -> None;
     def transform(ir_in: Module) -> Module;
-    def _read_enforce -> bool;
     def _check_use(use_node: AstSymbolNode, sym: Symbol) -> None;
     def _check_member(use_node: AstSymbolNode, sym: Symbol, owner: Archetype) -> None;
-    def _emit_pair(
-        warn: DiagnosticInfo, err: DiagnosticInfo, at_node: UniNode, **kwargs: any
-    ) -> None;
-
     def _declaring_archetype(sym: Symbol) -> (Archetype | None);
     def _base_archetype(expr: UniNode) -> (Archetype | None);
     def _is_subclass_of(child: Archetype, ancestor: Archetype) -> bool;
