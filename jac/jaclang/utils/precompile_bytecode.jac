@@ -306,6 +306,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
      NATIVE_SEAL_CLOSURE: tuple = (
          "jac0core/codegen_ir.jac",
          "jac0core/constant.jac",
+         "jac0core/diagnostic_utils.jac",
          "jac0core/diagnostics.jac",
          "jac0core/helpers.jac",
          "jac0core/jcir_facts.jac",
@@ -321,6 +322,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/semantic_analysis_pass.jac",
          "jac0core/passes/sym_tab_build_pass.jac",
+         "jac0core/passes/transform.jac",
          "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
@@ -341,6 +343,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "runtimelib/na_stdlib/fnmatch.jac",
          "runtimelib/na_stdlib/hashlib.jac",
          "runtimelib/na_stdlib/keyword.jac",
+         "runtimelib/na_stdlib/logging.jac",
          "runtimelib/na_stdlib/pathlib.jac",
          "runtimelib/na_stdlib/textwrap.jac",
 
@@ -392,28 +395,89 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/helpers.jac::evaluate_version_condition",
 
      ),
-     _CLOSURE_SEAM_WAIVERS: tuple = (
+     _TRANSFORM_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/transform.jac::Alert.pretty_print",
+         "jac0core/passes/transform.jac::BaseTransform.is_canceled",
+         "jac0core/passes/transform.jac::Transform.ice",
+
+     ),
+     _UNI_PASS_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
+         "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
+         "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
+         "jac0core/passes/uni_pass.jac::UniPass.transform",
+         "jac0core/passes/uni_pass.jac::UniPass.traverse",
+
+     ),
+     _MODULE_CODEGEN_SEAM_WAIVERS: tuple = (
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.iter_context_stmts"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.has_native_context_stmts"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.iter_module_imports"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.iter_nested_imports"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.shared_archetypes_for_context"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
+             "client_capability_violations"
+         ),
+
+     ),
+     _LEAF_SEAM_WAIVERS: tuple = (
          _UNITREE_SEAM_WAIVERS
          + _TYPES_SEAM_WAIVERS
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
      ),
-     _UNI_PASS_SEAM_WAIVERS: tuple = (
+     _BASE_CHAIN_SEAM_WAIVERS: tuple = (
+         _TRANSFORM_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
+     ),
+     _CLOSURE_SEAM_WAIVERS: tuple = (
+         _LEAF_SEAM_WAIVERS + _BASE_CHAIN_SEAM_WAIVERS
+     ),
+     _MODULE_CODEGEN_ROOT_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/transform.jac::BaseTransform.is_canceled",
+         "jac0core/passes/transform.jac::Transform.ice",
+         "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
          "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
          "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
 
+     ),
+     _UNI_PASS_ROOT_SEAM_WAIVERS: tuple = (
+         (
+             "jac0core/passes/transform.jac::BaseTransform.is_canceled",
+             "jac0core/passes/transform.jac::Transform.ice",
+             "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
+             "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
+             "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
+             "jac0core/passes/uni_pass.jac::UniPass.transform",
+             "jac0core/passes/uni_pass.jac::UniPass.traverse"
+         )
+         + _MODULE_CODEGEN_SEAM_WAIVERS
      ),
      _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_ability",
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
 
      ),
-     _SEMANTIC_ANALYSIS_SEAM_WAIVERS: tuple = (
-         "jac0core/passes/semantic_analysis_pass.jac::SemanticAnalysisPass.enter_has_var",
-
-     ),
-     _SYM_TAB_BUILD_SEAM_WAIVERS: tuple = (
-         "jac0core/passes/sym_tab_build_pass.jac::SymTabBuildPass.exit_global_vars",
+     _JSX_GUARD_SEAM_WAIVERS: tuple = (
+         (
+             "compiler/passes/main/jsx_intrinsic_guard_pass.jac::"
+             "JsxIntrinsicGuardPass.before_pass"
+         ),
 
      ),
      _CFG_BUILD_SEAM_WAIVERS: tuple = (
@@ -467,24 +531,25 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/uni_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
+         "jac0core/passes/module_codegen_pass.jac": (
+             _LEAF_SEAM_WAIVERS + _MODULE_CODEGEN_ROOT_SEAM_WAIVERS
          ),
+         "jac0core/passes/uni_pass.jac": (
+             _LEAF_SEAM_WAIVERS + _UNI_PASS_ROOT_SEAM_WAIVERS
+         ),
+         "jac0core/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/endpoint_effect_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
          ),
          "jac0core/passes/ast_validation_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/semantic_analysis_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _SEMANTIC_ANALYSIS_SEAM_WAIVERS
-         ),
-         "jac0core/passes/sym_tab_build_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _SYM_TAB_BUILD_SEAM_WAIVERS
-         ),
+         "jac0core/passes/semantic_analysis_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "jac0core/passes/sym_tab_build_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": (
+             _CLOSURE_SEAM_WAIVERS + _JSX_GUARD_SEAM_WAIVERS
+         ),
          "compiler/passes/main/cfg_build_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
          ),
@@ -553,14 +618,64 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "mechanism and it needs the cycle broken first."
          ),
          (
-             "uni_pass TypeVar-generic statics",
+             "pass base chain rim surface",
+             _TRANSFORM_SEAM_WAIVERS,
+             "The base chain joined every pass root's closure when "
+             "`transform.jac` stopped reaching `codeinfo.jac` for a symbol "
+             "`srcloc.jac` declares, so these three are waived here for the "
+             "first time rather than newly demoted. All three are rim work "
+             "by design: `Alert.pretty_print` renders source spans through "
+             "`helpers.pretty_print_source_location`, already waived above; "
+             "`BaseTransform.is_canceled` reads a `threading.Event` the "
+             "driver owns; `Transform.ice` raises E9001 through Python "
+             "diagnostics machinery. They clear as diagnostics cross as "
+             "data and cancellation crosses as a scalar the crossing reads, "
+             "which is the same mechanism the emit-as-data path names."
+         ),
+         (
+             "module_codegen isinstance against an unreachable layout",
+             _MODULE_CODEGEN_SEAM_WAIVERS,
+             "One cause and five cascades, and they demote in exactly one "
+             "root -- `uni_pass.jac`, the only root that links "
+             "`module_codegen_pass` without also linking the unitree layout "
+             "that would make the test resolvable. `iter_context_stmts` "
+             "tests `isinstance` against `ElementStmt`, a unitree class "
+             "whose layout is not reachable there, which is the same named "
+             "backend gap `type_utils`'s `class_implements_protocol` and "
+             "`doc_of_sym` are waived for above. The other five all call it. "
+             "They clear together the day `isinstance` against an "
+             "unreachable layout lowers -- one mechanism, six waivers, and "
+             "no separate work of their own."
+         ),
+         (
+             "uni_pass generic statics and inherited field stores",
              _UNI_PASS_SEAM_WAIVERS,
-             "`get_all_sub_nodes` and `find_parent_of_type` are "
-             "`type[T]`-generic statics that only forward to the "
+             "Two families. `get_all_sub_nodes` and `find_parent_of_type` "
+             "are `type[T]`-generic statics that only forward to the "
              "same-named `UniNode` methods, and the backend cannot lower "
-             "a TypeVar-bound signature. They clear when generic statics "
+             "a TypeVar-bound signature; they clear when generic statics "
              "lower, or when the forwarding shims are retired for the "
-             "`UniNode` methods they wrap."
+             "`UniNode` methods they wrap. The other three are what the "
+             "base chain's arrival exposed and are the load-bearing ones: "
+             "`transform` and `traverse` refuse on a field assignment to "
+             "`ir_out` and `cur_node`, slots inherited from `BaseTransform` "
+             "rather than declared locally, and `__post_init__` refuses on "
+             "its `super.__post_init__` call. Constructing a pass inside a "
+             "native root lowers now; running one still does not, and this "
+             "is exactly where. They clear when a store to an inherited "
+             "slot of a linked base lowers."
+         ),
+         (
+             "jsx guard inherited field read",
+             _JSX_GUARD_SEAM_WAIVERS,
+             "`before_pass` reads `self.ir_in`, a slot inherited from "
+             "`BaseTransform`. It is the read half of the family above -- "
+             "`uni_pass`'s `transform` and `traverse` refuse on the write "
+             "half of the same slots -- and it appeared for the same reason, "
+             "the base chain entering the closure. Three passes now refuse "
+             "on inherited-slot access and no pass refuses on anything else "
+             "about the chain, which is what makes this one mechanism rather "
+             "than three defects. It clears with them."
          ),
          (
              "endpoint effects written as codegen state",
@@ -570,22 +685,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "same family as unitree's waived `UniNode.gen.__get__`. They "
              "clear when endpoint effects are emitted as data the driver "
              "collects, the diagnostics-as-data pattern."
-         ),
-         (
-             "semantic_analysis ice construction",
-             _SEMANTIC_ANALYSIS_SEAM_WAIVERS,
-             "`Transform.ice` raises through Python diagnostics "
-             "machinery. Clears when ice construction lowers, or when the "
-             "internal-error guard moves behind the emit-as-data path."
-         ),
-         (
-             "sym_tab_build ice construction",
-             _SYM_TAB_BUILD_SEAM_WAIVERS,
-             "`exit_global_vars` calls the inherited `Transform.ice`, which "
-             "raises through Python diagnostics machinery. It is the exact "
-             "twin of the `semantic_analysis` waiver and clears the same "
-             "way: when ice construction lowers, or when the internal-error "
-             "guard moves behind the emit-as-data path."
          ),
          (
              "cfg_build graph tooling and erased basic-block storage",
