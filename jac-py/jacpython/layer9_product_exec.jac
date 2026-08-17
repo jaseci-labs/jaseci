@@ -14,7 +14,7 @@
 #
 # Test harness only: host_oracle is used solely to produce the expected PyCode.
 
-import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, is_error, PyError }
+import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error, PyError }
 import from product_compile { compile_source }
 import from host_oracle { host_compile_marshal }
 import from pyc_first { unmarshal, exec_code }
@@ -39,6 +39,22 @@ def first_nested_code(co: PyCode) -> PyCode {
         c = co.consts[ci];
         if isinstance(c, PyCode) {
             return c as PyCode;
+        }
+        ci = ci + 1;
+    }
+    assert False;
+    return co;
+}
+
+def nested_code_by_name(co: PyCode, name: str) -> PyCode {
+    ci = 0;
+    while ci < len(co.consts) {
+        c = co.consts[ci];
+        if isinstance(c, PyCode) {
+            nested = c as PyCode;
+            if nested.name == name {
+                return nested;
+            }
         }
         ci = ci + 1;
     }
@@ -499,6 +515,96 @@ test "layer9: varargs kwonly default executes in ceval" {
     out = exec_code(co as PyCode, [], ns);
     assert not is_error(out);
     assert expect_int(ns["result"]) == 4;
+}
+
+# ---------------- Band 4: decorators slice ----------------
+
+test "layer9: decorator matches oracle" {
+    src = (
+        "def deco(fn):\n"
+            + "    return fn\n\n"
+            + "@deco\n"
+            + "def f(x):\n"
+            + "    return x + 1\n\n"
+            + "result = f(2)\n"
+    );
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.stacksize == exp.stacksize;
+    fn = nested_code_by_name(act, "f");
+    exp_fn = nested_code_by_name(exp, "f");
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 1;
+    assert fn.varnames == ["x"];
+}
+
+test "layer9: decorator executes in ceval" {
+    src = (
+        "def deco(fn):\n"
+            + "    return fn\n\n"
+            + "@deco\n"
+            + "def f(x):\n"
+            + "    return x + 1\n\n"
+            + "result = f(2)\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "layer9: multiple decorators executes in ceval" {
+    src = (
+        "def d1(fn):\n"
+            + "    return fn\n\n"
+            + "def d2(fn):\n"
+            + "    return fn\n\n"
+            + "@d1\n"
+            + "@d2\n"
+            + "def f(x):\n"
+            + "    return x + 1\n\n"
+            + "result = f(2)\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+# ---------------- Band 5: empty class slice ----------------
+
+test "layer9: empty class matches oracle" {
+    src = "class C:\n    pass\n\nresult = C.__name__\n";
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.stacksize == exp.stacksize;
+    nested = nested_code_by_name(act, "C");
+    exp_nested = nested_code_by_name(exp, "C");
+    assert nested.co_code == exp_nested.co_code;
+    assert nested.stacksize == exp_nested.stacksize;
+    assert nested.argcount == 0;
+}
+
+test "layer9: empty class executes in ceval" {
+    src = "class C:\n    pass\n\nresult = C.__name__\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_str(ns["result"]) == "C";
 }
 
 # ---------------- VM execution ----------------

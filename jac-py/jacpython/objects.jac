@@ -721,6 +721,27 @@ obj PyCode(PyObj) {
         firstlineno: int,
         linetable: list[int],
         exceptiontable: list[int];
+
+    # Each nested PyCode in a const table must stay distinct (deco vs f). The
+    # default PyObj hashkey is "" and would incorrectly dedupe all code objects.
+    def tp_hashkey -> str {
+        result = (
+            "code:"
+                + self.name
+                + ":"
+                + self.qualname
+                + ":"
+                + str(self.firstlineno)
+                + ":"
+                + str(len(self.co_code))
+        );
+        ci = 0;
+        while ci < len(self.co_code) {
+            result = result + ":" + str(self.co_code[ci]);
+            ci = ci + 1;
+        }
+        return result;
+    }
 }
 
 obj PyCell(PyObj) {

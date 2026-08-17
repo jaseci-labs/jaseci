@@ -21,6 +21,7 @@ import from opcode_meta {
     OP_LOAD_SMALL_INT,
     OP_LOAD_NAME,
     OP_LOAD_GLOBAL,
+    OP_LOAD_BUILD_CLASS,
     OP_MAKE_FUNCTION,
     OP_MAKE_CELL,
     OP_COPY_FREE_VARS,
@@ -31,6 +32,7 @@ import from opcode_meta {
     OP_BINARY_OP,
     CO_OPTIMIZED,
     CO_NEWLOCALS,
+    CO_NESTED,
     CO_VARARGS,
     CO_VARKEYWORDS,
     OP_UNARY_NEGATIVE,
@@ -490,6 +492,18 @@ def emit_make_function_with_closure(
     if has_defaults {
         g.emit_op(OP_SET_FUNCTION_ATTRIBUTE, 1, tloc);
     }
+}
+
+def sym_class_child(parent: sym_block, class_name: str) -> sym_block | None {
+    ci = 0;
+    while ci < len(parent.children) {
+        ch = parent.children[ci];
+        if ch.block_type == "class" and ch.name == class_name {
+            return ch;
+        }
+        ci = ci + 1;
+    }
+    return None;
 }
 
 def sym_function_child(parent: sym_block, fn_name: str) -> sym_block | None {
@@ -2978,6 +2992,9 @@ def visit_stmt(
     if isinstance(s, FunctionDef) {
         return visit_function_def(g, s as FunctionDef);
     }
+    if isinstance(s, ClassDef) {
+        return visit_class_def(g, s as ClassDef);
+    }
     codegen_fail(
         g,
         "NotImplementedError",
@@ -2999,6 +3016,120 @@ def visit_return_stmt(g: cfg_builder, r: Return) {
     g.emit_op(OP_RETURN_VALUE, 0, rloc);
 }
 
+# Class body boilerplate through __firstlineno__ (CPython compile_class).
+def emit_class_body_prologue(g: cfg_builder, cd: ClassDef) {
+    cloc = nloc(cd.lineno, cd.end_lineno, cd.col_offset, cd.end_col_offset);
+    g.emit_op(OP_RESUME, 0, loc(0, cd.lineno, 0, 0));
+    nidx = g.u.add_name("__name__");
+    g.emit_op(OP_LOAD_NAME, nidx, cloc);
+    midx = g.u.add_name("__module__");
+    g.emit_op(OP_STORE_NAME, midx, cloc);
+    qidx = g.u.add_const(PyStr(t="str", val=cd.name));
+    g.emit_op(OP_LOAD_CONST, qidx, cloc);
+    qnidx = g.u.add_name("__qualname__");
+    g.emit_op(OP_STORE_NAME, qnidx, cloc);
+    emit_folded_int(g, cd.lineno, cloc);
+    flidx = g.u.add_name("__firstlineno__");
+    g.emit_op(OP_STORE_NAME, flidx, cloc);
+}
+
+# __static_attributes__ and implicit RETURN_VALUE None epilogue.
+def emit_class_body_epilogue(g: cfg_builder, last: cloc) {
+    tup = PyTuple(t="tuple", items=[]);
+    tidx = g.u.add_const(tup);
+    g.emit_op(OP_LOAD_CONST, tidx, last);
+    saidx = g.u.add_name("__static_attributes__");
+    g.emit_op(OP_STORE_NAME, saidx, last);
+    none_idx = g.u.add_const(py_none());
+    g.emit_op(OP_LOAD_CONST, none_idx, last);
+    g.emit_op(OP_RETURN_VALUE, 0, last);
+}
+
+# Lower `class name: ...` at module/class scope into nested PyCode + LOAD_BUILD_CLASS.
+def visit_class_def(g: cfg_builder, cd: ClassDef) -> stmt_cont {
+    cloc = nloc(cd.lineno, cd.end_lineno, cd.col_offset, cd.end_col_offset);
+    if g.sym_top is None {
+        codegen_fail(g, "SystemError", "class definition without symtable");
+        return stmt_cont(loc=cloc);
+    }
+    sym_cls = sym_class_child(g.sym_top, cd.name);
+    if sym_cls is None {
+        codegen_fail(g, "SystemError", "missing symtable for class " + cd.name);
+        return stmt_cont(loc=cloc);
+    }
+    u_cls = compile_class_cfg(cd, g.u.filename, sym_cls);
+    if u_cls.diag is not None {
+        g.u.diag = u_cls.diag;
+        return stmt_cont(loc=cloc);
+    }
+    cfg_cls = verify_cfg(u_cls);
+    if cfg_cls.diag is not None {
+        g.u.diag = cfg_cls.diag;
+        return stmt_cont(loc=cloc);
+    }
+    co = assemble(cfg_cls);
+    g.u.nested_code_emitted = True;
+    g.emit_op(OP_LOAD_BUILD_CLASS, 0, cloc);
+    g.emit_op(OP_PUSH_NULL, 0, cloc);
+    cidx = g.u.add_const(co);
+    g.emit_op(OP_LOAD_CONST, cidx, cloc);
+    g.emit_op(OP_MAKE_FUNCTION, 0, cloc);
+    name_idx = g.u.add_const(PyStr(t="str", val=cd.name));
+    g.emit_op(OP_LOAD_CONST, name_idx, cloc);
+    g.emit_op(OP_CALL, 2, cloc);
+    if g.sym_top is not None and g.sym_top.block_type == "function" {
+        fi = fast_local_index(g, cd.name);
+        if fi < 0 {
+            codegen_fail(
+                g, "SystemError", "missing fast local for nested class " + cd.name
+            );
+            return stmt_cont(loc=cloc);
+        }
+        g.emit_op(OP_STORE_FAST, fi, cloc);
+    } else {
+        nidx = g.u.add_name(cd.name);
+        g.emit_op(OP_STORE_NAME, nidx, cloc);
+    }
+    return stmt_cont(loc=cloc);
+}
+
+# Build unverified_cfg for a class body (nested code object before assembly).
+def compile_class_cfg(
+    cd: ClassDef, filename: str, sym_cls: sym_block
+) -> unverified_cfg {
+    u = unverified_cfg(
+        filename=filename,
+        name=cd.name,
+        qualname=cd.name,
+        firstlineno=cd.lineno
+    );
+    if sym_cls.nested {
+        u.flags = CO_NESTED;
+    }
+    entry = u.add_block();
+    g = new_cfg_builder(u, entry, sym_cls);
+    emit_class_body_prologue(g, cd);
+    last = loc(0, cd.lineno, 0, 0);
+    bi = 0;
+    while bi < len(cd.body) {
+        s = cd.body[bi];
+        cont = visit_stmt(
+            g, s, exec_tail_emits_code(cd.body, bi + 1), cd.body, bi + 1
+        );
+        last = cont.loc;
+        if codegen_busy(g) {
+            return u;
+        }
+        if cont.next_si >= 0 {
+            bi = cont.next_si;
+        } else {
+            bi = bi + 1;
+        }
+    }
+    emit_class_body_epilogue(g, last);
+    return u;
+}
+
 # Lower `def name(...): ...` at module/class scope into nested PyCode + MAKE_FUNCTION.
 def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
     floc = nloc(fd.lineno, fd.end_lineno, fd.col_offset, fd.end_col_offset);
@@ -3015,12 +3146,6 @@ def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
     if decorators is None {
         decorators = [];
     }
-    if len(decorators) > 0 {
-        codegen_fail(
-            g, "NotImplementedError", "function decorators not yet supported"
-        );
-        return stmt_cont(loc=floc);
-    }
     u_fn = compile_function_cfg(fd, g.u.filename, sym_fn);
     if u_fn.diag is not None {
         g.u.diag = u_fn.diag;
@@ -3033,7 +3158,18 @@ def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
     }
     co = assemble(cfg_fn);
     g.u.nested_code_emitted = True;
+    di = 0;
+    while di < len(decorators) {
+        visit_expr(g, decorators[di]);
+        di = di + 1;
+    }
     emit_make_function_with_closure(g, sym_fn, co, floc, fd.args);
+    ri = len(decorators) - 1;
+    while ri >= 0 {
+        dec = decorators[ri];
+        g.emit_op(OP_CALL, 0, expr_loc(dec));
+        ri = ri - 1;
+    }
     if g.sym_top is not None and g.sym_top.block_type == "function" {
         fi = fast_local_index(g, fd.name);
         if fi < 0 {

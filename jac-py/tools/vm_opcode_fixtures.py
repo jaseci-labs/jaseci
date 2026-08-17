@@ -57,6 +57,7 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "PUSH_NULL",
     "CALL",
     "MAKE_FUNCTION",
+    "LOAD_BUILD_CLASS",
     "MAKE_CELL",
     "COPY_FREE_VARS",
     "LOAD_DEREF",
@@ -131,6 +132,7 @@ FIXTURES: tuple[VmFixture, ...] = (
     VmFixture("PUSH_NULL", "result = len([1])\n"),
     VmFixture("CALL", "result = len([1, 2, 3])\n"),
     VmFixture("MAKE_FUNCTION", "def f():\n    return 1\nresult = f()\n"),
+    VmFixture("LOAD_BUILD_CLASS", "class C:\n    pass\nresult = C.__name__\n"),
     VmFixture(
         "MAKE_CELL",
         "def outer(x):\n    def inner():\n        return x\n    return inner()\nresult = outer(42)\n",

@@ -73,6 +73,8 @@ import from ast_nodes {
     keyword,
     Break,
     Continue,
+    FunctionDef,
+    AsyncFunctionDef,
     pattern,
     arguments,
     alias,
@@ -101,9 +103,9 @@ obj pa_key_pattern_pair {
         pattern: pattern;
 }
 
-obj pa_keyword_or_starred {
-    has arg: str | None,
-        value: expr;
+obj keyword_or_starred_node {
+    has element: object,
+        is_keyword: bool;
 }
 
 obj name_default_pair {
@@ -389,28 +391,23 @@ def pa_get_exprs(pairs: list[pa_cmpop_expr_pair]) -> list[expr] {
 
 def pa_collect_call_seqs(
     args: list[expr],
-    kwargs: expr | None,
+    kwargs: object | None,
     lineno: int,
     col_offset: int,
     end_lineno: int,
     end_col_offset: int
 ) -> Call {
+    dummy = Name(
+        id="",
+        ctx=Load(),
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
     if kwargs is None {
         return pa_ast_call(
-            Name(
-                id="",
-                ctx=Load(),
-                lineno=lineno,
-                col_offset=col_offset,
-                end_lineno=end_lineno,
-                end_col_offset=end_col_offset
-            ),
-            args,
-            [],
-            lineno,
-            col_offset,
-            end_lineno,
-            end_col_offset
+            dummy, args, [], lineno, col_offset, end_lineno, end_col_offset
         );
     }
     if isinstance(kwargs, Call) {
@@ -419,21 +416,17 @@ def pa_collect_call_seqs(
             c.func, args, c.keywords, lineno, col_offset, end_lineno, end_col_offset
         );
     }
+    kw_list = kwargs as list[object];
+    starred = pa_seq_extract_starred_exprs(kw_list);
+    keywords = pa_seq_delete_starred_exprs(kw_list);
+    merged: list[expr] = args;
+    si = 0;
+    while si < len(starred) {
+        merged.append(starred[si]);
+        si = si + 1;
+    }
     return pa_ast_call(
-        Name(
-            id="",
-            ctx=Load(),
-            lineno=lineno,
-            col_offset=col_offset,
-            end_lineno=end_lineno,
-            end_col_offset=end_col_offset
-        ),
-        args,
-        [],
-        lineno,
-        col_offset,
-        end_lineno,
-        end_col_offset
+        dummy, merged, keywords, lineno, col_offset, end_lineno, end_col_offset
     );
 }
 
@@ -1099,11 +1092,51 @@ def pa_alias_for_star(`node: object) -> alias | None {
 def pa_add_type_comment_to_arg(arg: arg, comment: object) -> arg {
     return arg;
 }
-def pa_seq_delete_starred_exprs(seq: list[object]) -> list[object] {
-    return seq;
+def pa_seq_number_of_starred_exprs(seq: list[object]) -> int {
+    n = 0;
+    i = 0;
+    while i < len(seq) {
+        k = seq[i] as keyword_or_starred_node;
+        if not k.is_keyword {
+            n = n + 1;
+        }
+        i = i + 1;
+    }
+    return n;
 }
-def pa_seq_extract_starred_exprs(seq: list[object]) -> list[object] {
-    return seq;
+
+def pa_seq_delete_starred_exprs(seq: list[object]) -> list[keyword] {
+    new_len = len(seq) - pa_seq_number_of_starred_exprs(seq);
+    if new_len == 0 {
+        return [];
+    }
+    out: list[keyword] = [];
+    i = 0;
+    while i < len(seq) {
+        k = seq[i] as keyword_or_starred_node;
+        if k.is_keyword {
+            out.append(k.element as keyword);
+        }
+        i = i + 1;
+    }
+    return out;
+}
+
+def pa_seq_extract_starred_exprs(seq: list[object]) -> list[expr] {
+    new_len = pa_seq_number_of_starred_exprs(seq);
+    if new_len == 0 {
+        return [];
+    }
+    out: list[expr] = [];
+    i = 0;
+    while i < len(seq) {
+        k = seq[i] as keyword_or_starred_node;
+        if not k.is_keyword {
+            out.append(k.element as expr);
+        }
+        i = i + 1;
+    }
+    return out;
 }
 def pa_setup_full_format_spec(`node: object) -> object {
     return `node;
@@ -1112,6 +1145,38 @@ def pa_check_fstring_conversion(a: object, b: object) -> object {
     return a;
 }
 def pa_function_def_decorators(decs: list[expr], stmt: stmt) -> stmt {
+    if isinstance(stmt, FunctionDef) {
+        fd = stmt as FunctionDef;
+        return FunctionDef(
+            name=fd.name,
+            args=fd.args,
+            body=fd.body,
+            decorator_list=decs,
+            returns=fd.returns,
+            type_comment=fd.type_comment,
+            type_params=fd.type_params,
+            lineno=fd.lineno,
+            col_offset=fd.col_offset,
+            end_lineno=fd.end_lineno,
+            end_col_offset=fd.end_col_offset
+        );
+    }
+    if isinstance(stmt, AsyncFunctionDef) {
+        afd = stmt as AsyncFunctionDef;
+        return AsyncFunctionDef(
+            name=afd.name,
+            args=afd.args,
+            body=afd.body,
+            decorator_list=decs,
+            returns=afd.returns,
+            type_comment=afd.type_comment,
+            type_params=afd.type_params,
+            lineno=afd.lineno,
+            col_offset=afd.col_offset,
+            end_lineno=afd.end_lineno,
+            end_col_offset=afd.end_col_offset
+        );
+    }
     return stmt;
 }
 def pa_class_def_decorators(decs: list[expr], stmt: stmt) -> stmt {
@@ -1151,14 +1216,14 @@ def pa_name_default_pair(
 }
 
 def pa_keyword_or_starred(
-    arg: str | None,
-    value: expr,
+    element: object,
+    is_keyword: int,
     lineno: int,
     col_offset: int,
     end_lineno: int,
     end_col_offset: int
-) -> pa_keyword_or_starred {
-    return pa_keyword_or_starred(arg=arg, value=value);
+) -> keyword_or_starred_node {
+    return keyword_or_starred_node(element=element, is_keyword=is_keyword != 0);
 }
 
 def pa_star_etc(

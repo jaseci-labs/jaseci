@@ -151,6 +151,16 @@ test "vm: MAKE_FUNCTION builds function object" {
     assert_vm_value_matches_host("", "def f():\n    return 1\nresult = f()\n", "exec", "result");
 }
 
+# vm-opcode: OP_LOAD_BUILD_CLASS
+test "vm: LOAD_BUILD_CLASS builds class object" {
+    assert_vm_value_matches_host(
+        "",
+        "class C:\n    pass\nresult = C.__name__\n",
+        "exec",
+        "result",
+    );
+}
+
 # vm-opcode: OP_MAKE_CELL
 test "vm: MAKE_CELL allocates closure cell" {
     assert_vm_value_matches_host(

@@ -20,6 +20,7 @@ import from peg_runtime {
 }
 import from parser_actions {
     pa_cmpop_expr_pair, pa_key_value_pair, pa_key_pattern_pair, pa_keyword_or_starred,
+    keyword_or_starred_node,
     pa_name_default_pair, pa_make_cmpop_pair, pa_name_from_token, pa_name_id, pa_number_from_token,
     pa_ast_expression, pa_ast_binop, pa_ast_unaryop, pa_ast_boolop, pa_ast_compare, pa_ast_call,
     pa_ast_ifexp, pa_constant_bool, pa_constant_none, pa_constant_from_expr, pa_singleton_seq, pa_stmt_list_or_empty,
@@ -840,12 +841,14 @@ def rule__loop0_1(p: peg_parser) -> object | None {
     mark = peg_mark(p);
     children: list[object] = [];
     while True {
+        comma_mark = peg_mark(p);
         lit = peg_expect_token(p, 12);
         if lit is None {
             break;
         }
         elem = rule__tmp_140(p);
         if elem is None {
+            peg_reset(p, comma_mark);
             break;
         }
         children.append(elem);
@@ -8952,7 +8955,7 @@ def rule_kvpair(p: peg_parser) -> pa_key_value_pair | None {
     return None;
 }
 
-def rule_kwarg_or_double_starred(p: peg_parser) -> pa_keyword_or_starred | None {
+def rule_kwarg_or_double_starred(p: peg_parser) -> keyword_or_starred_node | None {
     mark = peg_mark(p);
     start_lineno = 1;
     start_col_offset = 0;
@@ -8999,7 +9002,7 @@ def rule_kwarg_or_double_starred(p: peg_parser) -> pa_keyword_or_starred | None 
     return None;
 }
 
-def rule_kwarg_or_starred(p: peg_parser) -> pa_keyword_or_starred | None {
+def rule_kwarg_or_starred(p: peg_parser) -> keyword_or_starred_node | None {
     mark = peg_mark(p);
     start_lineno = 1;
     start_col_offset = 0;

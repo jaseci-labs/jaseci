@@ -893,6 +893,17 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
         if not b.add_def(fd.name, DEF_LOCAL, fd.lineno, fd.col_offset) {
             return False;
         }
+        decs = fd.decorator_list;
+        if decs is None {
+            decs = [];
+        }
+        di = 0;
+        while di < len(decs) {
+            if not sym_visit_load_expr(b, decs[di]) {
+                return False;
+            }
+            di = di + 1;
+        }
         if not sym_visit_arg_defaults(b, fd.args) {
             return False;
         }
@@ -917,6 +928,17 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
         afd = s as AsyncFunctionDef;
         if not b.add_def(afd.name, DEF_LOCAL, afd.lineno, afd.col_offset) {
             return False;
+        }
+        decs = afd.decorator_list;
+        if decs is None {
+            decs = [];
+        }
+        di = 0;
+        while di < len(decs) {
+            if not sym_visit_load_expr(b, decs[di]) {
+                return False;
+            }
+            di = di + 1;
         }
         if not sym_visit_arg_defaults(b, afd.args) {
             return False;
@@ -1800,6 +1822,24 @@ test "compiler_symtable: closure capture parsed matches oracle" {
             + "        return x\n"
             + "    return inner()\n\n"
             + "result = outer(42)\n"
+    );
+    m = parse_file(src, "<t>");
+    assert m is not None;
+    sr = build_module_symtable((m as Module).body);
+    assert sr.diag is None;
+    native = sym_normalize(sr.top);
+    expected = host_sym_normalize(src, "exec");
+    assert _sym_oracle_equal_py(native, expected);
+}
+
+test "compiler_symtable: decorator parsed matches oracle" {
+    src = (
+        "def deco(fn):\n"
+            + "    return fn\n\n"
+            + "@deco\n"
+            + "def f(x):\n"
+            + "    return x + 1\n\n"
+            + "result = f(2)\n"
     );
     m = parse_file(src, "<t>");
     assert m is not None;

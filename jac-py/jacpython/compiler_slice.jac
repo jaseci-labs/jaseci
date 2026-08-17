@@ -5,7 +5,7 @@
 #
 # Test harness only: may import host_oracle for expected PyCode bytes.
 
-import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, is_error }
+import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error }
 import from ast_nodes {
     expr,
     stmt,
@@ -85,6 +85,22 @@ def first_nested_code(co: PyCode) -> PyCode {
         c = co.consts[ci];
         if isinstance(c, PyCode) {
             return c as PyCode;
+        }
+        ci = ci + 1;
+    }
+    assert False;
+    return co;
+}
+
+def nested_code_by_name(co: PyCode, name: str) -> PyCode {
+    ci = 0;
+    while ci < len(co.consts) {
+        c = co.consts[ci];
+        if isinstance(c, PyCode) {
+            nested = c as PyCode;
+            if nested.name == name {
+                return nested;
+            }
         }
         ci = ci + 1;
     }
@@ -1040,4 +1056,107 @@ test "compiler_slice: band4 varargs kwonly default parsed executes in ceval" {
     out = exec_code(co, [], ns);
     assert not is_error(out);
     assert expect_int(ns["result"]) == 4;
+}
+
+# ---------------- Band 4: decorators slice ----------------
+
+test "compiler_slice: band4 decorator parse attaches decorator_list" {
+    src = (
+        "def deco(fn):\n"
+            + "    return fn\n\n"
+            + "@deco\n"
+            + "def f(x):\n"
+            + "    return x + 1\n\n"
+            + "result = f(2)\n"
+    );
+    m = parse_file(src, "<f>");
+    assert m is not None;
+    fd = (m as Module).body[1] as FunctionDef;
+    assert len(fd.decorator_list) == 1;
+    dec = fd.decorator_list[0] as Name;
+    assert dec.id == "deco";
+}
+
+test "compiler_slice: band4 decorator parsed matches oracle co_code" {
+    src = (
+        "def deco(fn):\n"
+            + "    return fn\n\n"
+            + "@deco\n"
+            + "def f(x):\n"
+            + "    return x + 1\n\n"
+            + "result = f(2)\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.stacksize == exp.stacksize;
+    fn = nested_code_by_name(actual, "f");
+    exp_fn = nested_code_by_name(exp, "f");
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 1;
+    assert fn.varnames == ["x"];
+}
+
+test "compiler_slice: band4 decorator parsed executes in ceval" {
+    src = (
+        "def deco(fn):\n"
+            + "    return fn\n\n"
+            + "@deco\n"
+            + "def f(x):\n"
+            + "    return x + 1\n\n"
+            + "result = f(2)\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+test "compiler_slice: band4 multiple decorators parsed executes in ceval" {
+    src = (
+        "def d1(fn):\n"
+            + "    return fn\n\n"
+            + "def d2(fn):\n"
+            + "    return fn\n\n"
+            + "@d1\n"
+            + "@d2\n"
+            + "def f(x):\n"
+            + "    return x + 1\n\n"
+            + "result = f(2)\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+# ---------------- Band 5: empty class slice ----------------
+
+test "compiler_slice: band5 empty class parsed matches oracle co_code" {
+    src = "class C:\n    pass\n\nresult = C.__name__\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.stacksize == exp.stacksize;
+    nested = nested_code_by_name(actual, "C");
+    exp_nested = nested_code_by_name(exp, "C");
+    assert nested.co_code == exp_nested.co_code;
+    assert nested.stacksize == exp_nested.stacksize;
+    assert nested.argcount == 0;
+}
+
+test "compiler_slice: band5 empty class parsed executes in ceval" {
+    src = "class C:\n    pass\n\nresult = C.__name__\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_str(ns["result"]) == "C";
 }
