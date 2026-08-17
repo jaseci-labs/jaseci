@@ -297,6 +297,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "compiler/passes/main/access_check_pass.jac",
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
          "compiler/passes/main/cfg_build_pass.jac",
+         "compiler/passes/main/rc_facts_pass.jac",
          "jac0core/passes/jcir_gen_pass.jac",
          "compiler/native_materialize.jac",
 
@@ -327,7 +328,9 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "compiler/native_materialize.jac",
          "compiler/passes/main/access_check_pass.jac",
          "compiler/passes/main/cfg_build_pass.jac",
+         "compiler/passes/main/dataflow.jac",
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
+         "compiler/passes/main/rc_facts_pass.jac",
          "compiler/passes/main/sem_def_match_pass.jac",
          "compiler/type_registry.jac",
          "compiler/type_system/type_utils.jac",
@@ -486,6 +489,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "compiler/passes/main/cfg_build_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
          ),
+         "compiler/passes/main/rc_facts_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/jcir_gen_pass.jac": (
              _CLOSURE_SEAM_WAIVERS
              + _JCIR_INTEROP_SEAM_WAIVERS

@@ -56,18 +56,6 @@ enum CallKind {
     INTRINSIC = "intrinsic"
 }
 
-def is_builtin_region_name(nm: object) -> bool {
-    if not isinstance(nm, Name) or nm.sym_name != "Region" {
-        return False;
-    }
-    if nm.sym is None or nm.sym.decl is None {
-        return True;
-    }
-    _loc = nm.sym.decl.loc;
-    _mp = _loc.mod_path if _loc is not None else "";
-    return isinstance(_mp, str) and _mp.endswith(".pyi");
-}
-
 def comptime_import_binds(nd: UniNode, name: str) -> bool {
     import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_STDLIB }
     mod = nd.find_parent_of_type(Module);

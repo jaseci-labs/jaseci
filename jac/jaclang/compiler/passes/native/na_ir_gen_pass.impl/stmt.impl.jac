@@ -1,6 +1,6 @@
 impl NaIRGenPass._codegen_body(stmts: (list | tuple)) -> None {
-    _ar_open = self.ir_in.gen?.anon_region_open or {};
-    _ar_close = self.ir_in.gen?.anon_region_close or {};
+    _ar_open = self.ir_in.anon_region_open;
+    _ar_close = self.ir_in.anon_region_close;
     for stmt in stmts {
         if self.builder.block.is_terminated {
             break;
@@ -56,7 +56,7 @@ impl NaIRGenPass._codegen_body(stmts: (list | tuple)) -> None {
 }
 
 impl NaIRGenPass._emit_last_use_releases(stmt: uni.UniNode) -> None {
-    _map = self.ir_in.gen.rc_last_use;
+    _map = self.ir_in.rc_last_use;
     if not _map {
         return;
     }
@@ -585,7 +585,7 @@ impl NaIRGenPass._codegen_open_stmt(nd: uni.OpenStmt) -> None {
 
     self._emit_arena_helpers();
     _i8p = ir.IntType(8).as_pointer();
-    import from jaclang.compiler.symbol_utils { is_builtin_region_name }
+    import from jaclang.compiler.expr_keys { is_builtin_region_name }
     _anon_region = (
         isinstance(nd.target, uni.FuncCall) and is_builtin_region_name(nd.target.target)
     );
