@@ -1222,12 +1222,10 @@ impl `test(
     ignore: str = ""
 ) -> int {
     import os;
-    import from jaclang.jac0core.runtime { JacRuntime as Jac }
-
+    import from jaclang.runtimelib.test_runner { run_tests }
     if isinstance(paths, str) {
         paths = [paths];
     }
-
     if (not paths and not directory) {
         import from jaclang.project.config { get_config }
         cfg = get_config();
@@ -1245,7 +1243,6 @@ impl `test(
             }
         }
     }
-
     if (test_name and not paths) {
         console.error(
             "Error: --test_name requires a filepath. "
@@ -1254,95 +1251,41 @@ impl `test(
         );
         return 1;
     }
-
     for fp in paths {
         if not Path(fp).exists() {
             console.error(
                 f"Error: File not found: '{fp}'\n"
-                "Make sure you are in the correct directory or provide the full path.\n"
-                f"Usage: jac test /full/path/to/{fp}"
+                "Make sure you are in the correct directory or provide the "
+                f"full path.\nUsage: jac test /full/path/to/{fp}"
             );
             return 1;
         }
     }
-
-    run_pytest = not os.environ.get('JAC_TEST_NATIVE', '');
-    if run_pytest {
-        try {
-            import pytest;
-        } except ImportError {
-            run_pytest = False;
-        }
-        if run_pytest {
-            pargs: list[str] = [];
-
-            targets = paths or ([directory] if directory else []);
-            for target in targets {
-                pargs.append(target);
-            }
-
-            if directory and not paths {
-                pargs.append('--jac-test-dir');
-                pargs.append(str(Path(directory).resolve()));
-            }
-
-            if ignore {
-                pargs.append('--ignore=' + ignore);
-            }
-
-            jobs = os.environ.get('JAC_TEST_JOBS', '');
-            if not jobs {
-                import from jaclang.project.config { get_config }
-                jobs_cfg = get_config();
-                jobs = jobs_cfg.dev.test_jobs if jobs_cfg else 'auto';
-            }
-
-            if jobs and jobs != '0' and not test_name {
-                pargs.append('-n');
-                pargs.append(jobs);
-            }
-            if xit {
-                pargs.append('-x');
-            }
-            if maxfail {
-                pargs.append('--maxfail');
-                pargs.append(str(maxfail));
-            }
-            if test_name {
-                pargs.append('-k');
-                pargs.append(' and '.join(test_name.split()) or test_name);
-            } elif filter {
-                pargs.append('-k');
-                pargs.append(filter);
-            }
-            if verbose {
-                pargs.append('-vv');
-            }
-            return int(pytest.main(pargs));
-        }
+    jobs = os.environ.get('JAC_TEST_JOBS', '');
+    if not jobs {
+        import from jaclang.project.config { get_config }
+        jobs_cfg = get_config();
+        jobs = jobs_cfg.dev.test_jobs if jobs_cfg else '';
     }
-    normalized_name = test_name.strip().replace(' ', '_') if test_name else '';
-    func_name = ('test_' + normalized_name) if normalized_name else None;
-
-    run_targets = paths or [""];
-    failcount = 0;
-    for fp in run_targets {
-        failcount += Jac.run_test(
-            filepath=fp,
-            func_name=func_name,
+    failures = 0;
+    try {
+        failures = run_tests(
+            paths=paths,
+            directory=directory,
+            test_name=test_name,
             filter=filter,
             xit=xit,
             maxfail=maxfail,
-            directory=directory,
-            verbose=verbose
+            verbose=verbose,
+            ignore=([ignore] if ignore else []),
+            jobs=jobs
         );
-
-        if xit and failcount > 0 {
-            break;
-        }
+    } except (ValueError, FileNotFoundError) as exc {
+        console.error(f"Error: {exc}");
+        return 1;
     }
-    if failcount {
-        console.error(f"Tests failed: {failcount}");
+    if failures {
+        console.error(f"Tests failed: {failures}");
         return 1;
     }
     return 0;

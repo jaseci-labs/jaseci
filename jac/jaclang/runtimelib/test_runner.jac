@@ -111,7 +111,12 @@ def discover(
 ) -> TestPlan;
 
 def run_file(
-    filepath: str, selector: (NameFilter | None) = None, explicit: bool = False
+    filepath: str,
+    selector: (NameFilter | None) = None,
+    explicit: bool = False,
+    xit: bool = False,
+    maxfail: (int | None) = None,
+    seen_failures: int = 0
 ) -> list[TestOutcome];
 
 def run_tests(
@@ -159,6 +164,10 @@ def _suite_source(filepath: str) -> str;
 def _fresh_jac_state(clear_modules: bool = True) -> None;
 
 def _ensure_test_package(base_dir: str) -> str;
+
+def _capture_begin -> dict[(str, any)];
+
+def _capture_end(state: dict[(str, any)]) -> str;
 
 def _cleanup_test_bases -> None;
 

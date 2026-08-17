@@ -378,6 +378,64 @@ impl _fresh_jac_state(clear_modules: bool = True) -> None {
     );
 }
 
+impl _capture_begin -> dict[(str, any)] {
+    import sys;
+    import tempfile;
+    for stream in (sys.stdout, sys.stderr) {
+        try {
+            stream.flush();
+        } except Exception {
+            ;
+        }
+    }
+    sink = tempfile.TemporaryFile();
+    state: dict[(str, any)] = {
+        "sink": sink,
+        "out": os.dup(1),
+        "err": os.dup(2),
+        "sys_out": sys.stdout,
+        "sys_err": sys.stderr
+    };
+    os.dup2(sink.fileno(), 1);
+    os.dup2(sink.fileno(), 2);
+    sys.stdout = os.fdopen(os.dup(1), "w", encoding="utf-8", errors="replace");
+    sys.stderr = os.fdopen(os.dup(2), "w", encoding="utf-8", errors="replace");
+    return state;
+}
+
+impl _capture_end(state: dict[(str, any)]) -> str {
+    import sys;
+    for stream in (sys.stdout, sys.stderr) {
+        try {
+            stream.flush();
+            stream.close();
+        } except Exception {
+            ;
+        }
+    }
+    sys.stdout = state["sys_out"];
+    sys.stderr = state["sys_err"];
+    os.dup2(state["out"], 1);
+    os.dup2(state["err"], 2);
+    os.close(state["out"]);
+    os.close(state["err"]);
+    sink = state["sink"];
+    text = "";
+    try {
+        sink.flush();
+        sink.seek(0);
+        text = sink.read().decode("utf-8", "replace");
+    } except Exception {
+        text = "";
+    }
+    try {
+        sink.close();
+    } except Exception {
+        ;
+    }
+    return text;
+}
+
 impl _ensure_test_package(base_dir: str) -> str {
     import sys;
     import types;
@@ -454,7 +512,12 @@ impl JacTestResult._exc_info_to_string(err: any, `test: any) -> str {
 }
 
 impl run_file(
-    filepath: str, selector: (NameFilter | None) = None, explicit: bool = False
+    filepath: str,
+    selector: (NameFilter | None) = None,
+    explicit: bool = False,
+    xit: bool = False,
+    maxfail: (int | None) = None,
+    seen_failures: int = 0
 ) -> list[TestOutcome] {
     import importlib;
     import sys;
@@ -512,18 +575,18 @@ impl run_file(
         sys.path.insert(0, real_dir);
     }
     import_error = "";
-    old_stdout = sys.stdout;
-    sys.stdout = open(os.devnull, "w");
+    capture = _capture_begin();
     try {
         importlib.import_module(qualified);
     } except BaseException as exc {
         import_error = f"{type(exc).__name__}: {exc}";
-    } finally {
-        sys.stdout.close();
-        sys.stdout = old_stdout;
     }
+    import_output = _capture_end(capture);
     try {
         if import_error {
+            if import_output.strip() {
+                import_error += "\n--- captured output ---\n" + import_output.rstrip();
+            }
             return [
                 TestOutcome(
                     file=abs_path,
@@ -542,7 +605,12 @@ impl run_file(
                 _fresh_jac_state(clear_modules=False);
                 result = JacTestResult();
                 started = time.perf_counter();
-                info.test_case.run(result);
+                capture = _capture_begin();
+                try {
+                    info.test_case.run(result);
+                } finally {
+                    captured = _capture_end(capture);
+                }
                 elapsed = time.perf_counter() - started;
                 status = PASSED;
                 message = "";
@@ -556,6 +624,9 @@ impl run_file(
                     status = ERROR;
                     message = str(result.errors[0][1]);
                 }
+                if (status in (FAILED, ERROR)) and captured.strip() {
+                    message += "\n--- captured output ---\n" + captured.rstrip();
+                }
                 outcomes.append(
                     TestOutcome(
                         file=abs_path,
@@ -565,6 +636,20 @@ impl run_file(
                         duration=elapsed
                     )
                 );
+                failed = seen_failures
+                    + len(
+                        [
+                            o
+                            for o in outcomes
+                            if o.is_failure()
+                        ]
+                    );
+                if xit and (failed > 0) {
+                    return outcomes;
+                }
+                if maxfail and (failed >= maxfail) {
+                    return outcomes;
+                }
             }
         }
     } finally {
@@ -735,7 +820,12 @@ impl ForkPool._worker_loop(dispatch_fd: int, result_fd: int) -> None {
         outcomes: list[TestOutcome] = [];
         try {
             outcomes = run_file(
-                request["path"], self.selector, bool(request.get("explicit"))
+                request["path"],
+                self.selector,
+                bool(request.get("explicit")),
+                xit=self.xit,
+                maxfail=self.maxfail,
+                seen_failures=int(request.get("seen", 0))
             );
         } except BaseException as exc {
             outcomes = [
@@ -773,7 +863,12 @@ impl ForkPool._dispatch(kid: dict[(str, any)]) -> bool {
     path = self.plan.files[idx];
     kid["inflight"] = idx;
     payload = json.dumps(
-        {"idx": idx, "path": path, "explicit": path in self.plan.explicit}
+        {
+            "idx": idx,
+            "path": path,
+            "explicit": path in self.plan.explicit,
+            "seen": self.reporter.failure_count()
+        }
     );
     try {
         os.write(kid["dispatch_fd"], (payload + "\n").encode("utf-8"));
@@ -936,7 +1031,14 @@ impl _run_serial(
     for path in plan.files {
         outcomes: list[TestOutcome] = [];
         try {
-            outcomes = run_file(path, selector, path in plan.explicit);
+            outcomes = run_file(
+                path,
+                selector,
+                path in plan.explicit,
+                xit=xit,
+                maxfail=maxfail,
+                seen_failures=reporter.failure_count()
+            );
         } except BaseException as exc {
             outcomes = [
                 TestOutcome(
