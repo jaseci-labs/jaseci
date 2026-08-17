@@ -17,11 +17,11 @@ edge MyEdge {
 walker MyWalker {
     can does with MyNode entry {
         if here.val == 20 {
-            `visit : 0 : [-->];
+            visit : 0 : [-->];
         } elif here.val == 30 {
-            `visit : -1 : [-->];
+            visit : -1 : [-->];
         } elif here.val == 40 {
-            `visit : -8 : [-->];  # test out of index
+            visit : -8 : [-->];  # test out of index
 
         } else {
             visit [-->];

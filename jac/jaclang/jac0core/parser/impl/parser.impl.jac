@@ -138,14 +138,10 @@ impl Parser.check_name -> bool {
 }
 
 impl Parser.is_name_usable_token -> bool {
-    return is_special_var_kind(self.current().kind) or self.is_builtin_type_token();
-}
-
-impl Parser.expect_path_segment -> LexToken {
-    if self.check_name() or self.is_keyword_token() {
-        return self.advance();
+    if self.check_any(TokenKind.KW_ROOT, TokenKind.KW_SUPER) {
+        return False;
     }
-    return self.expect_path_segment();
+    return is_special_var_kind(self.current().kind) or self.is_builtin_type_token();
 }
 
 impl Parser.is_keyword_token -> bool {
@@ -5030,13 +5026,21 @@ impl Parser.parse_import_stmt -> Import {
                 path_names.append(str_node);
                 path_kid.append(str_node);
             } elif self.check_name() or self.is_keyword_token() {
-                name_tok = self.expect_path_segment();
+                if self.check_name() or self.is_keyword_token() {
+                    name_tok = self.advance();
+                } else {
+                    name_tok = self.expect_name("module path");
+                }
                 nm = self.make_name(name_tok);
                 path_names.append(nm);
                 path_kid.append(nm);
                 while self.match_tok(TokenKind.DOT) {
                     path_kid.append(self.make_uni_token(self.previous()));
-                    name_tok = self.expect_path_segment();
+                    if self.check_name() or self.is_keyword_token() {
+                        name_tok = self.advance();
+                    } else {
+                        name_tok = self.expect_name("module path");
+                    }
                     nm = self.make_name(name_tok);
                     path_names.append(nm);
                     path_kid.append(nm);
@@ -5104,13 +5108,21 @@ impl Parser.parse_from_path -> tuple[(ModulePath | None, bool)] {
         path_kid.append(str_node);
         is_clib_import = True;
     } elif self.check_name() or self.is_keyword_token() {
-        name_tok = self.expect_path_segment();
+        if self.check_name() or self.is_keyword_token() {
+            name_tok = self.advance();
+        } else {
+            name_tok = self.expect_name("module path");
+        }
         nm = self.make_name(name_tok);
         path_names.append(nm);
         path_kid.append(nm);
         while self.match_tok(TokenKind.DOT) {
             path_kid.append(self.make_uni_token(self.previous()));
-            name_tok = self.expect_path_segment();
+            if self.check_name() or self.is_keyword_token() {
+                name_tok = self.advance();
+            } else {
+                name_tok = self.expect_name("module path");
+            }
             nm = self.make_name(name_tok);
             path_names.append(nm);
             path_kid.append(nm);

@@ -359,7 +359,7 @@ def native_schedule_failure -> str {
 }
 
 def compiler_source_failure_origin(err: BaseException) -> (str | None) {
-    root = _compiler_source_root() + os.sep;
+    `root = _compiler_source_root() + os.sep;
     cursor: any = err;
     for _ in range(8) {
         if cursor is None {
@@ -368,7 +368,7 @@ def compiler_source_failure_origin(err: BaseException) -> (str | None) {
         for cand in (cursor?.jac_source_path, cursor?.path) {
             if isinstance(cand, str) and cand {
                 real = os.path.realpath(cand);
-                if real.startswith(root) {
+                if real.startswith(`root) {
                     return real;
                 }
             }
