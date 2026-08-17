@@ -52,6 +52,7 @@ seal-affecting changes additionally pass the pooled seal battery.
 ## M2 — The type system and analysis cluster seal (typesys bucket → 0)
 
 ### Evaluator + type_checker (`zbl/evaluator-seal`) — **in flight**
+
 - [x] `[MultiString]` field refusal measured HONEST: `JacProgram` needs a native layout (label unquoted and truthful; the salvage's per-field seam mechanism audited and landed)
 - [x] `dict[tuple, TypeBase | NoneType]` CLEARED by real lowering — cache split into `tuple[int,int]`/`tuple[int,str]` dicts (110→109 seams; the id()-inside-tuple-constructor gotcha retired en route)
 - [x] First true census of `type_evaluator.jac`: has_ir=True, 0 fatal, closure 20, **109 seams across 50 causes** (90 cascades; `ArgsList` placement strands 21 methods; `**kwargs` 6; CPython `ast` ×4 = permanent floor)
@@ -60,11 +61,13 @@ seal-affecting changes additionally pass the pooled seal battery.
 - [ ] type_evaluator + type_checker seal (or honest refusal, mechanisms named)
 
 ### cfg (`zbl/cfg-seal`) — **in flight**
+
 - [ ] any-elem truthiness emitter bug fixed (invalid `icmp ne i8*` IR → truth protocol)
 - [ ] `expr_keys.jac` hoist verified in cfg's paths
 - [ ] cfg_build census + seal attempt (seal or honest refusal)
 
 ### Analysis cluster (`zbl/analysis-cluster`) — **in flight**
+
 - [ ] rc_facts: 14 id()-keyed stamp seams lowered/re-keyed/stamped
 - [ ] static_analysis: live couplings → stamp-and-consume
 - [ ] ownership: redesign map (60 seams → families × mechanisms)
@@ -72,6 +75,7 @@ seal-affecting changes additionally pass the pooled seal battery.
 - [ ] dataflow rides as closure member of its consumers (doctrine)
 
 ### Gate 2 (`gate2-capability-seal`) — **in flight**
+
 - [ ] Pre-scan refusal of `import from typing { Any }` root-caused and fixed
 - [ ] capability_check: checker escalations + bare-tuple returns cleared; seal attempt
 - [ ] layout_pass: 11 blockers + 23 seams burned down by family
