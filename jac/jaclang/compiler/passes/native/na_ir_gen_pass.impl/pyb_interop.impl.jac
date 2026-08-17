@@ -110,7 +110,9 @@ impl NaIRGenPass._pyb_shadow_postinit_owner(arch_name: str) -> (str | None) {
         }
         sym = base_expr?.sym;
         decl = sym.decl if sym is not None else None;
-        base_arch = decl.find_parent_of_type(uni.Archetype) if decl is not None else None;
+        base_arch = decl.find_parent_of_type(uni.Archetype)
+            if decl is not None
+            else None;
         if base_arch is None {
             continue;
         }

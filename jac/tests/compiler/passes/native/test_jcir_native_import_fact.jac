@@ -80,7 +80,9 @@ test "the stamped verdict is the computation it replaced" {
 test "the emitter unit no longer names the driver" {
     text = (
         PKG_PATH / "jac0core" / "passes" / "impl" / "jcir_gen_pass.impl.jac"
-    ).read_text(encoding="utf-8");
+    ).read_text(
+        encoding="utf-8"
+    );
     assert "self.prog" not in text , (
         "the JCIR emitter reaches for the compile driver again; a sealed "
         "pass cannot, and the driver-seam census forbids the name"

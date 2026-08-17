@@ -65,10 +65,7 @@ def _seams(fixture: str) -> list[str] {
         census = na_census_end();
     }
     rec = census.get(os.path.realpath(os.path.join(FIXTURES, fixture)));
-    return [
-        str(s)
-        for s in ((rec.get("seams") or []) if rec is not None else [])
-    ];
+    return [str(s) for s in ((rec.get("seams") or []) if rec is not None else [])];
 }
 
 
@@ -101,9 +98,7 @@ def _sv_read_back(fixture: str) -> int {
 test "the generic pass-shaped chain refuses instead of answering wrongly" {
     assert _sv_read_back(GEN) == 103 , "the sv lane runs the override";
     hits = _refusals(GEN);
-    assert hits , (
-        f"the hollow construction lowered without a word: {_seams(GEN)}"
-    );
+    assert hits , (f"the hollow construction lowered without a word: {_seams(GEN)}");
     assert "HollowKid" in hits[0] , f"the refusal does not name the class: {hits[0]}";
     assert "HollowGenBase.postinit" in hits[0] , (
         f"the refusal does not name the ancestor whose initializer would "
