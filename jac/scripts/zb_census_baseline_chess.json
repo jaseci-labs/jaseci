@@ -1,65 +1,65 @@
 {
  "buckets": {
-  "codegen": 36016421,
-  "other": 19294623,
-  "parser": 130801485,
-  "passes": 50849442,
-  "rim": 15014676,
-  "typesys": 498898
+  "codegen": 36054932,
+  "other": 19314188,
+  "parser": 130932310,
+  "passes": 50898464,
+  "rim": 15030257,
+  "typesys": 502975
  },
  "errors": 0,
  "modules": {
   "codegen": {
-   "jac0core/codegen_ir.jac": 22455725,
-   "jac0core/codegen_shim.jac": 2714744,
+   "jac0core/codegen_ir.jac": 22479658,
+   "jac0core/codegen_shim.jac": 2717610,
    "jac0core/jcir_facts.jac": 147,
    "jac0core/passes/jcir_bc_gen_pass.jac": 147,
-   "jac0core/passes/jcir_gen_pass.jac": 10845658
+   "jac0core/passes/jcir_gen_pass.jac": 10857370
   },
   "other": {
-   "compiler/expr_keys.jac": 199433,
-   "compiler/symbol_utils.jac": 4202,
-   "jac0core/archetype.jac": 2110703,
-   "jac0core/codeinfo.jac": 35781,
+   "compiler/expr_keys.jac": 199604,
+   "compiler/symbol_utils.jac": 4205,
+   "jac0core/archetype.jac": 2112701,
+   "jac0core/codeinfo.jac": 35812,
    "jac0core/helpers.jac": 86624,
-   "jac0core/modresolver.jac": 74285,
-   "jac0core/passes/boundary_analysis_pass.jac": 76002,
-   "jac0core/placement.jac": 303315,
-   "jac0core/placement_pins.jac": 13666,
-   "jac0core/runtime.jac": 4570,
-   "jac0core/service_cut.jac": 10068,
-   "jac0core/srcloc.jac": 16366202
+   "jac0core/modresolver.jac": 74366,
+   "jac0core/passes/boundary_analysis_pass.jac": 76051,
+   "jac0core/placement.jac": 303564,
+   "jac0core/placement_pins.jac": 13681,
+   "jac0core/runtime.jac": 4578,
+   "jac0core/service_cut.jac": 10086,
+   "jac0core/srcloc.jac": 16383140
   },
   "parser": {
    "jac0core/parser/frontend.jac": 423,
-   "jac0core/parser/lexer.jac": 50170220,
-   "jac0core/parser/parser.jac": 43714474,
-   "jac0core/parser/tokens.jac": 293374,
-   "jac0core/unitree.jac": 36622994
+   "jac0core/parser/lexer.jac": 50224071,
+   "jac0core/parser/parser.jac": 43756251,
+   "jac0core/parser/tokens.jac": 293667,
+   "jac0core/unitree.jac": 36657898
   },
   "passes": {
-   "compiler/passes/main/cfg_build_pass.jac": 70676,
-   "compiler/passes/main/impl/cfg_build_pass.impl.jac": 1420420,
+   "compiler/passes/main/cfg_build_pass.jac": 70730,
+   "compiler/passes/main/impl/cfg_build_pass.impl.jac": 1421942,
    "compiler/passes/main/impl/pyast_load_pass.impl.jac": 104911,
    "compiler/passes/native/llvm/ir/_utils.jac": 164710,
    "compiler/passes/native/llvm/ir/builder.jac": 50718,
    "compiler/passes/native/llvm/ir/instructions.jac": 50481,
    "compiler/passes/native/llvm/ir/types.jac": 89483,
    "compiler/passes/native/llvm/ir/values.jac": 134851,
-   "jac0core/passes/ast_validation_pass.jac": 369157,
-   "jac0core/passes/semantic_analysis_pass.jac": 62042,
-   "jac0core/passes/sym_tab_build_pass.jac": 299649,
-   "jac0core/passes/uni_pass.jac": 47861551
+   "jac0core/passes/ast_validation_pass.jac": 369433,
+   "jac0core/passes/semantic_analysis_pass.jac": 62088,
+   "jac0core/passes/sym_tab_build_pass.jac": 299949,
+   "jac0core/passes/uni_pass.jac": 47911395
   },
   "rim": {
    "jac0core/compile_options.jac": 939,
-   "jac0core/compiler.jac": 14408,
+   "jac0core/compiler.jac": 14424,
    "jac0core/jir.jac": 1797,
-   "jac0core/passes/transform.jac": 14997230,
+   "jac0core/passes/transform.jac": 15012795,
    "jac0core/program.jac": 302
   },
   "typesys": {
-   "compiler/type_system/impl/enum_utils.impl.jac": 36,
+   "compiler/passes/main/impl/type_checker_pass.impl.jac": 3859,
    "compiler/type_system/impl/type_utils.impl.jac": 40287,
    "compiler/type_system/impl/types.impl.jac": 310302,
    "compiler/type_system/operations.jac": 461,
@@ -68,12 +68,12 @@
    "compiler/type_system/type_evaluator.impl/imported.impl.jac": 4362,
    "compiler/type_system/type_evaluator.impl/parameter_type_check.impl.jac": 2099,
    "compiler/type_system/type_evaluator.impl/type_evaluator.impl.jac": 80312,
-   "compiler/type_system/type_evaluator.jac": 7893,
+   "compiler/type_system/type_evaluator.jac": 7894,
    "compiler/type_system/type_utils.jac": 29157,
    "compiler/type_system/types.jac": 3255
   }
  },
  "target": "jac/examples/chess/chess.jac",
- "total": 252475545,
- "trend_line": 87364761
+ "total": 252733126,
+ "trend_line": 87456371
 }

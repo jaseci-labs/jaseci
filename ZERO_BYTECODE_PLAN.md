@@ -15,12 +15,13 @@ at completion (rim entries then deleted by M4).
 
 | Corpus entry | Trend baseline | Run baseline |
 |---|---|---|
-| `jac/examples/chess/chess.jac` | 87,364,761 | `zb_chess_run_baseline.txt` (exit 0, Draws: 1) |
-| `jac/examples/littleX/social_graph.jac` | 75,992,624 | compile-only |
+| `jac/examples/chess/chess.jac` | 87,456,371 (meter v2) | `zb_chess_run_baseline.txt` (exit 0, Draws: 1) |
+| `jac/examples/littleX/social_graph.jac` | 76,083,257 (meter v2) | compile-only |
 | `jac/jaclang/jac0core/unitree.jac` (as input) | *pending* | compile-only |
 
 **Per-merge gate:** targeted suites green (`JAC_TEST_JOBS=8`, named files) ·
-corpus compiles clean and chess runs identically · trend non-increasing ·
+corpus compiles clean and chess runs identically · trend non-increasing (±0.2%
+run noise band, established at meter v2) ·
 seal-affecting changes additionally pass the pooled seal battery.
 
 ---
@@ -51,11 +52,11 @@ seal-affecting changes additionally pass the pooled seal battery.
 ## M2 — The type system and analysis cluster seal (typesys bucket → 0)
 
 ### Evaluator + type_checker (`zbl/evaluator-seal`) — **in flight**
-- [ ] `[MultiString]` field-declaration refusal cleared (mechanism named)
-- [ ] `dict[tuple, TypeBase | NoneType]` field-declaration refusal cleared
-- [ ] First true census of `type_evaluator.jac` (measurable since #8299)
-- [ ] Census meter typesys bucket mapping verified/corrected
-- [ ] Handshake mechanism decided on evidence (one closure vs stamped boundary)
+- [x] `[MultiString]` field refusal measured HONEST: `JacProgram` needs a native layout (label unquoted and truthful; the salvage's per-field seam mechanism audited and landed)
+- [x] `dict[tuple, TypeBase | NoneType]` CLEARED by real lowering — cache split into `tuple[int,int]`/`tuple[int,str]` dicts (110→109 seams; the id()-inside-tuple-constructor gotcha retired en route)
+- [x] First true census of `type_evaluator.jac`: has_ir=True, 0 fatal, closure 20, **109 seams across 50 causes** (90 cascades; `ArgsList` placement strands 21 methods; `**kwargs` 6; CPython `ast` ×4 = permanent floor)
+- [x] Census meter typesys mapping FIXED (checker was billed to the pass tier by prefix ordering; +4,076 frames rebilled; baselines regenerated as meter v2)
+- [x] Handshake DECIDED on measurement: **one closure** — 34/46 checker seams are the undeclared `self.evaluator` field crossing the object bridge; implementation gated on optional-field declaration (retypes 34 method bodies), guard test pins the evaluator out of the checker's closure until done
 - [ ] type_evaluator + type_checker seal (or honest refusal, mechanisms named)
 
 ### cfg (`zbl/cfg-seal`) — **in flight**
@@ -124,3 +125,4 @@ seal-affecting changes additionally pass the pooled seal battery.
 | Date | Merge | chess trend | littleX trend | Δ |
 |---|---|---|---|---|
 | 2026-08-17 | baseline (`cf477bf5e`) | 87,364,761 | 75,992,624 | — |
+| 2026-08-17 | evaluator census (`4067df084`) | 87,456,371 | 76,083,257 | meter v2 rebaseline; trend-neutral by construction (checker rebilled within trend); ±0.1% noise band measured |
