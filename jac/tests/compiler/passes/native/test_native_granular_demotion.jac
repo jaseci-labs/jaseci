@@ -356,3 +356,123 @@ test "a demoted constructor is waiver-eligible like any other seam" {
     );
     assert not stale2 , f"the waiver must not read as stale: {stale2}";
 }
+
+# An argument the emitter drops is the silent-miscompile class, not a seam
+# reason, unless the emitter says so out loud. `_emit_open` reads `open`
+# positionally and ignores everything past the mode, so `encoding=` has to
+# refuse. It also has to be reachable: with `encoding` absent from the text
+# overload the call was a type error instead, and a type error in a native
+# module refuses the module rather than the function that wrote it.
+test "an open() keyword argument demotes its function instead of miscompiling" {
+    (prog, ir, census) = _compile_with_census("granular_open_kwarg.jac");
+    assert not prog.errors_had , (
+        f"`open(path, 'r', encoding=...)` type-checks -- `encoding` is on the "
+        f"text overload in `na_builtins.pyi` -- so the emitter's refusal has "
+        f"to demote its owning function, not refuse the module: {[
+            str(e) for e in prog.errors_had
+        ]}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "reads_plain" in layout.functions , (
+        f"the sibling that opens the same file positionally must still lower: "
+        f"{sorted(layout.functions)}"
+    );
+    assert "reads_with_encoding" not in layout.functions , (
+        "silently dropping `encoding=` would emit a `fopen` that ignores what "
+        "the source asked for; the function must leave the native layout"
+    );
+    seams = [
+        s
+        for s in _seams_of(census, "granular_open_kwarg.jac")
+        if s.startswith("reads_with_encoding: ")
+    ];
+    assert len(seams) == 1 , (
+        f"expected exactly one census seam for reads_with_encoding, got: "
+        f"{_seams_of(census, 'granular_open_kwarg.jac')}"
+    );
+    assert "open" in seams[0] , (
+        f"the seam reason must name the construct it refused: {seams[0]}"
+    );
+}
+
+# A signature is resolved when the ability is declared, before any body opens a
+# demotion window, so an annotation the backend cannot lower had no owner and
+# cost the whole module its IR -- and every importer with it (#8285). The
+# owning callable is known at declaration time, so it demotes there.
+test "an unresolvable signature annotation demotes its callable" {
+    (prog, ir, census) = _compile_with_census("sig_unknown_seam.jac");
+    errors = [str(e) for e in prog.errors_had];
+    assert not prog.errors_had , (
+        f"a signature the backend cannot resolve must demote its own callable, "
+        f"not fail the module: {errors}"
+    );
+    assert ir.gen.llvm_ir is not None , (
+        "the module must keep its LLVM IR when only the annotated callables demote"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "clean" in layout.functions , (
+        f"clean sibling function was lost: {sorted(layout.functions)}"
+    );
+    assert "Holder.also_clean" in layout.methods , (
+        f"clean sibling method was lost: {sorted(layout.methods)}"
+    );
+    assert "takes_peer" not in layout.functions , (
+        "the function whose parameter type never resolved must leave the "
+        "native layout"
+    );
+    seams = _seams_of(census, "sig_unknown_seam.jac");
+    owned = [
+        s
+        for s in seams
+        if s.startswith("takes_peer: ")
+    ];
+    assert len(owned) == 1 , (
+        f"expected exactly one census seam for takes_peer, got: {seams}"
+    );
+    assert "E5092" in owned[0] and "Peer" in owned[0] , (
+        f"the seam reason must name the annotation it could not resolve: " f"{owned[0]}"
+    );
+    assert "signature type" in owned[0] , (
+        f"the seam reason must say the refusal came from a signature, not a "
+        f"body: {owned[0]}"
+    );
+}
+
+
+# The contrast to the case above: a method signature erases a known-but-
+# unlowerable type to an opaque pointer (#8206), so it never opened a refusal
+# in the first place. Only the free-function declaration path resolved without
+# erasing, which is why that one was the module-fatal hole.
+test "a method signature keeps erasing the same annotation" {
+    (_prog, ir, census) = _compile_with_census("sig_unknown_seam.jac");
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "Holder.holds_peer" in layout.methods , (
+        f"a method carrying the annotation the free function refused must "
+        f"still erase it and lower: {sorted(layout.methods)}"
+    );
+    assert not [
+        s
+        for s in _seams_of(census, "sig_unknown_seam.jac")
+        if s.startswith("Holder.holds_peer: ")
+    ] , "an erased method signature must not also record a seam";
+}
+
+test "a signature seam is waiver-eligible like any other seam" {
+    import from jaclang.utils.precompile_bytecode { seal_demotion_report }
+    (_prog, _ir, census) = _compile_with_census("sig_unknown_seam.jac");
+    rel = "sig_unknown_seam.jac";
+    (err, _waived, _stale) = seal_demotion_report(rel, census);
+    assert "sig_unknown_seam.jac::takes_peer" in err , (
+        f"an un-waived signature seam must refuse to seal: {err}"
+    );
+    waivers = {rel: ("sig_unknown_seam.jac::takes_peer", )};
+    (err2, waived2, stale2) = seal_demotion_report(rel, census, waivers=waivers);
+    assert err2 == "" , f"a waived signature seam must seal: {err2}";
+    assert "sig_unknown_seam.jac::takes_peer" in waived2 , (
+        f"the waiver must be reported as consumed: {waived2}"
+    );
+    assert not stale2 , f"the waiver must not read as stale: {stale2}";
+}

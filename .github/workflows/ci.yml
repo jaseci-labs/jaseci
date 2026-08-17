@@ -696,10 +696,19 @@ jobs:
         chmod +x "$PWD/jac/zig-out/bin/jac"
         echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
 
-    - name: Run Solid jsdom runtime test
+    - name: Run jsdom runtime tests
+      # Every suite here skips itself unless JAC_CLIENT_INTEGRATION is set, so
+      # this step is the ONLY place they actually execute -- the ungated
+      # `jac test tests/` lane collects them and skips. A jsdom suite not named
+      # here is a suite that never runs.
       env:
         JAC_CLIENT_INTEGRATION: "1"
-      run: jac test jac/tests/runtimelib/test_solid_jsdom.jac -x
+      run: |
+        jac test \
+          jac/tests/runtimelib/test_solid_jsdom.jac \
+          jac/tests/runtimelib/test_react_state_semantics.jac \
+          jac/tests/runtimelib/test_react_auth_jsdom.jac \
+          -x
 
     - name: Run dependency-free desktop tests
       run: jac test jac/tests/runtimelib/client/test_desktop_binding.jac
@@ -743,8 +752,8 @@ jobs:
       run: echo "TEST_ENV=true" >> $GITHUB_ENV
 
     - name: Run all client tests
-      # Serial: xdist workers intermittently disagree on collection of
-      # test_react_native_target.jac ("Different tests were collected").
+      # Serial: parallel workers intermittently disagreed on collection of
+      # test_react_native_target.jac under the old pytest-xdist runner.
       env:
         JAC_TEST_JOBS: "0"
       run: jac test jac/tests/runtimelib/client --ignore jac/tests/runtimelib/client/test_inprocess_dispatch.jac
@@ -856,8 +865,9 @@ jobs:
         # The seal's parse parity canary is red on macos-aarch64 for a
         # divergence in exactly this family; nothing before this pin ran the
         # string surface on darwin on a PR.
-        PYTEST_ADDOPTS: -k "shutil or path or textwrap or keyword or str or bytes"
-      run: jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
+      run: >-
+        jac test jac/jaclang/compiler/tests/test_prim_equivalence.jac
+        -f "shutil or path or textwrap or keyword or str or bytes"
 
     # macOS JIR seeder (jac-check seeds the Linux tier).
     - name: Save JIR compile caches
@@ -907,11 +917,12 @@ jobs:
     - name: Run aarch64 cross tests under qemu
       env:
         JAC_TEST_JOBS: "0"
-        PYTEST_ADDOPTS: -k aarch64
         # The sealed CI binary's pkg_root only bundles host-arch musl; point
         # the static-link search at the repo-vendored cross runtime.
         JAC_NATIVE_MUSL_DIR: ${{ github.workspace }}/jac/.pbs-build/linux-aarch64/musl/lib
-      run: jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+      run: >-
+        jac test jac/tests/compiler/passes/native/test_native_gen_pass.jac
+        -f aarch64
 
   # Launcher unit tests: trailer codec + `.jab`-overlay round-trip
   # (append / detect / materialize-steps-over-overlay / graft). runtime.zig is
@@ -1177,6 +1188,51 @@ jobs:
       run: |
         chmod +x "$PWD/jac/zig-out/bin/jac"
         echo "$PWD/jac/zig-out/bin" >> "$GITHUB_PATH"
+
+    # The same capacity floor build-binaries.yml gained in #8279 and
+    # .github/actions/setup-jac carries for the workflows that build through
+    # it. This job does not build the binary -- it downloads build-jac's -- but
+    # the step below runs the precompiler, and the inline seal that closes it
+    # is the same one-process compile of every NATIVE_SEAL_ROOTS entry, with
+    # the same stranded materializer trees. It died here exactly as it died
+    # there: "the runner lost communication" and no diagnostic.
+    - name: Swap headroom for the sealed precompile (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        set -euo pipefail
+        echo "--- before"
+        free -h
+        swapon --show || true
+        df -h
+        WORK_DEV="$(df -P "$RUNNER_TEMP" | awk 'NR==2 {print $1}')"
+        MNT_DEV="$(df -P /mnt 2>/dev/null | awk 'NR==2 {print $1}' || true)"
+        if [ -n "$MNT_DEV" ] && [ "$MNT_DEV" != "$WORK_DEV" ]; then
+          SWAP_DIR=/mnt
+          RESERVE_GB=2
+        else
+          SWAP_DIR="$RUNNER_TEMP"
+          RESERVE_GB=25
+        fi
+        AVAIL_GB=$(( $(df -Pk "$SWAP_DIR" | awk 'NR==2 {print $4}') / 1048576 ))
+        SIZE_GB=$(( AVAIL_GB - RESERVE_GB ))
+        if [ "$SIZE_GB" -gt 24 ]; then
+          SIZE_GB=24
+        fi
+        if [ "$SIZE_GB" -lt 4 ]; then
+          echo "::error::$SWAP_DIR has ${AVAIL_GB}G free, too little to spare;" \
+               "the seal needs swap headroom at this root count and would exhaust the runner"
+          exit 1
+        fi
+        SWAP_FILE="$SWAP_DIR/jac-seal-swap"
+        sudo fallocate -l "${SIZE_GB}G" "$SWAP_FILE" \
+          || sudo dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$(( SIZE_GB * 1024 ))
+        sudo chmod 600 "$SWAP_FILE"
+        sudo mkswap "$SWAP_FILE"
+        sudo swapon "$SWAP_FILE"
+        echo "--- after"
+        free -h
+        swapon --show
 
     - name: Precompile all packages
       run: |

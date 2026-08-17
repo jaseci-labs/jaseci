@@ -781,6 +781,10 @@ impl NaIRGenPass._resolve_sig_type(type_expr: (uni.UniNode | None)) -> ir.Type {
         if self._typevar_optional_field(_ptb) {
             return ir.IntType(8).as_pointer();
         }
+        _sig_seq = self._erased_seq_type(_ptb);
+        if _sig_seq is not None {
+            return _sig_seq;
+        }
         if not self._type_base_is_unknown(_ptb) {
             _sig_shared = _ptb?.shared;
             _sig_cn = _sig_shared.class_name if _sig_shared is not None else None;
@@ -1030,6 +1034,34 @@ impl NaIRGenPass._typevar_optional_field(tb: any) -> bool {
     return True;
 }
 
+impl NaIRGenPass._erased_seq_type(tb: any) -> (ir.Type | None) {
+    """The pointer-element native list a `list[T]` signature slot erases to.
+
+    A generic archetype is laid out once and its `T` slots are raw pointers,
+    so a sequence *of* `T` is the pointer-flavoured list -- the same storage
+    every erased reference already uses. Answering `None` here leaves the
+    slot to the ordinary refusal path, which is what a sequence of anything
+    else that fails to lower deserves.
+    """;
+    try {
+        import from jaclang.compiler.type_system.types { ClassType as _EsqClassType }
+    } except ImportError {
+        return None;
+    }
+    if not isinstance(tb, _EsqClassType) or tb._shared is None {
+        return None;
+    }
+    if tb.shared.class_name not in ("list", "Sequence") {
+        return None;
+    }
+    _args = tb.private.type_args or [];
+    if len(_args) != 1 or not self._erased_typevar_names(_args[0]) {
+        return None;
+    }
+    self._emit_list_helpers("ptr", ir.IntType(8).as_pointer());
+    return self.list_types["ptr"].as_pointer();
+}
+
 impl NaIRGenPass._type_base_is_unknown(tb: any) -> bool {
     try {
         import from jaclang.compiler.type_system.types { UnknownType as _UnknownType }
@@ -1047,7 +1079,9 @@ impl NaIRGenPass._emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.T
         _tag = type_expr?.type_tag;
         _label = self._get_name(_tag?.tag) or str(tb);
     }
-    self.emit(E5092, node_override=type_expr, kind="type", name=_label);
+    self.emit(
+        E5092, node_override=type_expr, kind=self._sig_decl_kind or "type", name=_label
+    );
 
     import logging as _logging;
     _logging.getLogger("jaclang.native").debug(

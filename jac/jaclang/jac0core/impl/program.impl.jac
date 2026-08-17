@@ -11,6 +11,10 @@ impl JacProgram.init(
     self._compile_options: CompileOptions = CompileOptions();
     self._native_cache: dict = {};
 
+    self._na_dep_units: dict = {};
+
+    self._na_dep_inflight: set = set();
+
     self._hub_cache_times: dict[str, float] = {};
 
     self._dependents: dict[str, set[str]] = {};
@@ -411,7 +415,7 @@ impl JacProgram.build(
 impl JacProgram.run_schedule(
     self: JacProgram,
     mod: uni.Module,
-    passes: list[type[Transform[uni.Module, uni.Module]]],
+    passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
     self._get_compiler().run_schedule(mod, self, passes, cancel_token);

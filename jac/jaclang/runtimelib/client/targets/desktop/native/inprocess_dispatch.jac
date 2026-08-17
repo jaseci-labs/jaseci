@@ -20,8 +20,6 @@ import from jaclang.runtimelib.invocation {
 }
 
 
-# str-based so a tagged mode compares equal to its wire string ("sse",
-# "json", "error") for the broker and tests, while staying one named type.
 enum DispatchMode: str { SSE = "sse", JSON = "json", ERROR = "error" }
 
 

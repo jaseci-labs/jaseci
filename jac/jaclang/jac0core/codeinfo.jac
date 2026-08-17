@@ -3,6 +3,11 @@ import from collections.abc { Sequence }
 import from contextvars { ContextVar }
 import from dataclasses { field }
 import from typing { Any }
+import from jaclang.jac0core.constant {
+    NATIVE_COMPTIME_ANNOTATIONS,
+    NATIVE_COMPTIME_TYPE_MARKERS,
+    TYPE_PARAM_CONSTRUCTORS
+}
 import from jaclang.jac0core.srcloc { CodeLocInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { IndexInfo, SliceInfo }
 import type from jaclang.compiler.passes.ecmascript.estree { Node as EsNode }
@@ -140,9 +145,12 @@ def native_safe_sym(src: str) -> str {
     return f"{safe}_{hashlib.sha1(src.encode()).hexdigest()[:8]}";
 }
 
-def native_glob_init_symbols(manifest: object) -> list[str] {
+def native_glob_init_symbols(manifest: (InteropManifest | None)) -> list[str] {
     syms: list[str] = [];
-    sources = (manifest.native_transitive_sources if manifest else []) or [];
+    sources: list[str] = [];
+    if manifest is not None {
+        sources = manifest.native_transitive_sources;
+    }
     for src in sources {
         if not src {
             continue;
@@ -156,7 +164,9 @@ def native_glob_init_symbols(manifest: object) -> list[str] {
     return syms;
 }
 
-def install_native_static_init(engine: object, manifest: object) -> None {
+def install_native_static_init(
+    engine: any, manifest: (InteropManifest | None)
+) -> None {
     if engine is None {
         return;
     }
@@ -175,27 +185,23 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
          "collections.abc"
      },
      _effective_codespace_ctx: ContextVar[str] = ContextVar(
-         "jac_effective_default_codespace", default=""
+         "jac_effective_default_codespace"
      ),
-     _closure_cap_ctx: ContextVar[int] = ContextVar(
-         "jac_native_closure_cap", default=0
-     );
-
-glob TYPE_PARAM_CONSTRUCTORS: frozenset = frozenset(
-         {"TypeVar", "ParamSpec", "TypeVarTuple"}
-     );
+     _closure_cap_ctx: ContextVar[int] = ContextVar("jac_native_closure_cap");
 
 glob NATIVE_COMPTIME_BASES: frozenset = frozenset({"ABC"});
 
 glob NATIVE_COMPTIME_IDENTITY_CALLS: frozenset = frozenset({"cast"});
 
-glob NATIVE_COMPTIME_TYPE_MARKERS: frozenset = frozenset({"TypeAlias"});
+glob NATIVE_COMPTIME_FIELD_MARKERS: frozenset = frozenset({"field"});
 
 glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
          "abc": NATIVE_COMPTIME_BASES,
+         "dataclasses": NATIVE_COMPTIME_FIELD_MARKERS,
          "typing": TYPE_PARAM_CONSTRUCTORS
              | NATIVE_COMPTIME_IDENTITY_CALLS
              | NATIVE_COMPTIME_TYPE_MARKERS
+             | NATIVE_COMPTIME_ANNOTATIONS
      };
 
 def native_comptime_import_names(module_name: str, names: list[str]) -> bool {
@@ -216,11 +222,11 @@ def set_effective_default_codespace(value: str) {
 }
 
 def get_effective_default_codespace_override -> str {
-    return _effective_codespace_ctx.get();
+    return _effective_codespace_ctx.get('');
 }
 
 def effective_default_codespace -> str {
-    cur = _effective_codespace_ctx.get();
+    cur = _effective_codespace_ctx.get('');
     if cur {
         return cur;
     }
@@ -241,11 +247,11 @@ def set_native_closure_cap(value: int) {
 }
 
 def get_native_closure_cap_override -> int {
-    return _closure_cap_ctx.get();
+    return _closure_cap_ctx.get(0);
 }
 
 def effective_native_closure_cap -> int {
-    cur = _closure_cap_ctx.get();
+    cur = _closure_cap_ctx.get(0);
     if cur > 0 {
         return cur;
     }
@@ -389,7 +395,7 @@ def resolve_native_module(
                     _native_variant_path(os.path.join(search, path_name))
                 );
                 if cand is not None {
-                    rel = os.path.relpath(cand, os.path.abspath(base_dir));
+                    rel = str(os.path.relpath(cand, os.path.abspath(base_dir)));
                     return (rel, cand);
                 }
                 parent = os.path.dirname(search);
@@ -570,6 +576,7 @@ obj CodeGenTarget {
         _client_manifest: (ClientManifest | None) = None,
         py_ast: list = field(default_factory=`list),
         py_bytecode: (bytes | None) = None,
+        jcir: (bytes | None) = None,
         es_ast: EsNode | Sequence[EsNode] | SliceInfo | IndexInfo | None = None,
         llvm_ir: (ModuleRef | None) = None,
         native_engine: (ExecutionEngine | None) = None,

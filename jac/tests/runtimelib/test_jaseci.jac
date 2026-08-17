@@ -9,7 +9,7 @@ import from tempfile { mkdtemp }
 import jaclang;
 import from jaclang { JacRuntime as Jac }
 import from jaclang.cli.commands { execution }
-import from tests.conftest { get_object }
+import from tests.support { get_object }
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "runtimelib", "fixtures");
 

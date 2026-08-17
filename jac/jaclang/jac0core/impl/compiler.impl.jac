@@ -840,8 +840,18 @@ impl JacCompiler.load_annex_modules(
 impl JacCompiler.resolve_absorb_imports(
     mod: uni.Module, target_program: JacProgram
 ) -> None {
-    import from jaclang.jac0core.passes.sym_tab_build_pass { find_python_scope_node_of }
+    import from jaclang.jac0core.unitree { find_python_scope_node_of }
     for imp in mod.get_all_sub_nodes(uni.Import) {
+        if imp.from_loc is not None {
+            for item in imp.items {
+                if (
+                    isinstance(item, uni.ModulePath) and item.path and not item.alias
+                ) {
+                    imp.jac_detected = imp.is_jac;
+                    break;
+                }
+            }
+        }
         if not imp.is_absorb {
             continue;
         }
@@ -866,6 +876,206 @@ impl JacCompiler.resolve_absorb_imports(
             }
         }
         imp.absorbed_mod = module;
+    }
+}
+
+impl JacCompiler.stamp_access_check_facts(mod: uni.Module) -> None {
+    import from jaclang.jac0core.modresolver { find_jac_project_root }
+    mod.jac_project_root = find_jac_project_root(mod.loc.mod_path) if mod.loc else None;
+    enforce = False;
+    try {
+        import from jaclang.project.config { get_config }
+        config = get_config();
+        if (config and config.check) {
+            enforce = config.check.enforce_access;
+        }
+    } except Exception {
+        enforce = False;
+    }
+    mod.access_enforced = enforce;
+}
+
+impl JacCompiler.stamp_native_import_facts(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    """Stamp each import with the emitter's native-only verdict.
+
+    Whether an import resolves to a module the native lane owns, and
+    whether that module lives inside jaclang's own tree, are both
+    import-resolution questions: they need the hub, the placement pins
+    and the filesystem, which is the driver's ground and not a pass's.
+    The emitter used to ask for them through `self.prog`, the one
+    driver read left in a sealed pass. It now consumes a bool.
+    """;
+    import os;
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        target = native_only_import_target(imp, target_program);
+        imp.native_only_drop = target is not None
+            and (os.sep + 'jaclang' + os.sep) not in os.path.abspath(target);
+    }
+}
+
+impl JacCompiler.stamp_client_kind_facts(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    import from jaclang.project.client_kind { resolve_client_kind_context }
+    opts = target_program._compile_options;
+    mod_path = mod.loc.mod_path if mod.loc else '';
+    (kind, proj_root) = resolve_client_kind_context(
+        mod_path, opts.project_kind, opts.project_root
+    );
+    mod.mobui_enforced_root = proj_root if kind == 'mobui' else None;
+}
+
+impl JacCompiler.stamp_boundary_facts(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    import from jaclang.jac0core.codeinfo {
+        is_bundled_native_module,
+        resolve_native_module
+    }
+    import from jaclang.jac0core.placement_pins { config_module_pin }
+
+    base_dir = '.';
+    if mod.loc {
+        base_dir = os.path.dirname(mod.loc.mod_path);
+    }
+    in_native_mod = mod.loc is not None and mod.decided_codespace == 'native';
+
+    def resolve_native(module_name: str, inferred_ok: bool) -> (str | None) {
+        (src_mod_str, _full_path) = resolve_native_module(
+            module_name, base_dir, allow_inferred=inferred_ok
+        );
+        return src_mod_str;
+    }
+
+    def parse_only_module(file_path: str) -> (uni.Module | None) {
+        try {
+            src_text = read_file_with_encoding(file_path);
+            return JacCompiler().parse_str(
+                source_str=src_text, file_path=file_path, target_program=JacProgram()
+            );
+        } except Exception {
+            return None;
+        }
+    }
+
+    for nd in mod.get_all_sub_nodes(uni.Import) {
+        facts = uni.ImportBoundaryFacts();
+        nd.boundary_facts = facts;
+        native_ctx = nd.codespace() == CodeContext.NATIVE;
+
+        if (nd.from_loc and isinstance(nd.from_loc, uni.ModulePath)) {
+            module_name = nd.from_loc.dot_path_str;
+            if (not module_name and nd.from_loc.path) {
+                module_name = '.'.join(p.value for p in nd.from_loc.path);
+            }
+            if module_name {
+                cl_na_edge = is_client_native_edge_import(nd, target_program);
+                facts.client_native_edge = cl_na_edge;
+                na_intent = (
+                    native_ctx
+                    or in_native_mod
+                    or import_declares_native_target(nd)
+                    or cl_na_edge
+                );
+                facts.native_from_path = resolve_native(module_name, na_intent);
+                try {
+                    facts.from_loc_resolved = nd.from_loc.resolve_relative_path();
+                } except Exception {
+                    facts.from_loc_resolved = None;
+                }
+                facts.is_service = nd.is_service_import;
+                if (nd.items and not facts.is_service and nd.in_client_context()) {
+                    resolved = facts.from_loc_resolved;
+                    if (resolved is not None and resolved.endswith('.jac')) {
+                        try {
+                            facts.pinned_server = (
+                                config_module_pin(resolved) == 'server'
+                            );
+                        } except Exception {
+                            facts.pinned_server = False;
+                        }
+                    }
+                }
+                if (
+                    (facts.is_service and not facts.native_from_path)
+                    or (nd.items and not facts.is_service and facts.pinned_server)
+                ) {
+                    source_mod: (uni.Module | None) = None;
+                    resolved_path = facts.from_loc_resolved;
+                    if resolved_path is not None {
+                        if (target_program.mod and target_program.mod.hub) {
+                            source_mod = target_program.mod.hub.get(resolved_path);
+                        }
+                        if (source_mod is None and os.path.isfile(resolved_path)) {
+                            source_mod = parse_only_module(resolved_path);
+                        }
+                    }
+                    facts.sv_source_mod = source_mod;
+                }
+                if (
+                    nd.items
+                    and not facts.is_service
+                    and not facts.pinned_server
+                    and not cl_na_edge
+                    and is_client_boundary_import(nd)
+                ) {
+                    linked_mod = symbol_linked_source_module(nd);
+                    if linked_mod is not None {
+                        for item in nd.items {
+                            if not isinstance(item, uni.ModuleItem) {
+                                continue;
+                            }
+                            verdict = classify_client_import_item(linked_mod, item);
+                            if verdict != ClientImportVerdict.BRIDGED {
+                                continue;
+                            }
+                            sym_name = item.name.value;
+                            decl = ability_of_symbol(linked_mod.lookup(sym_name));
+                            if decl is not None {
+                                facts.bridged_decls[sym_name] = decl;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if ((not nd.from_loc) and nd.is_absorb and nd.items and (not nd.clib_decls)) {
+            item = nd.items[0];
+            if (isinstance(item, uni.ModulePath) and item.path) {
+                module_name = '.'.join(p.value for p in item.path);
+                if module_name {
+                    na_intent = (
+                        native_ctx or in_native_mod or import_declares_native_target(nd)
+                    );
+                    facts.native_absorb_path = resolve_native(module_name, na_intent);
+                }
+            }
+            continue;
+        }
+
+        if ((not nd.from_loc) and nd.items and (not nd.clib_decls)) {
+            for item in nd.items {
+                if (isinstance(item, uni.ModulePath) and item.path) {
+                    whole_name = '.'.join(p.value for p in item.path);
+                    eligible = is_bundled_native_module(whole_name)
+                        or (item.alias is None and len(item.path) == 1);
+                    if (whole_name and eligible) {
+                        na_intent = (
+                            native_ctx
+                            or in_native_mod
+                            or import_declares_native_target(nd)
+                        );
+                        item_path = resolve_native(whole_name, na_intent);
+                        if item_path {
+                            facts.native_item_paths[whole_name] = item_path;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -908,6 +1118,19 @@ impl JacCompiler.compile(
             );
         } except Exception as _e {
             _crash = _e;
+        }
+        if _crash is not None {
+            _re_entered = import_error_re_enters(_crash, file_path);
+            if _re_entered is not None {
+                raise CompilerSourceError(
+                    f"compiling {file_path} re-entered it: a pass imported "
+                    f"'{_re_entered}' while Python was still executing that "
+                    "module, so the name is not bound yet. A pass's run-time "
+                    "imports must be pre-imported while the schedule loads "
+                    "(see get_ir_gen_sched / get_symtab_ir_sched), never "
+                    "reached for the first time during a compile."
+                ) from _crash;
+            }
         }
         _resolved = os.path.realpath(file_path);
         _probe = _mod if _mod is not None else _wrap_prog.mod.hub.get(_resolved);
@@ -1150,7 +1373,7 @@ impl JacCompiler._compile_once(
         and not had_blocking_errors
         and is_explicit_native
     ) {
-        _parity_passes: list[type[Transform[uni.Module, uni.Module]]] = [];
+        _parity_passes: list[type[Transform]] = [];
         if run_inference {
             try {
                 import from jaclang.compiler.passes.native { NaIRGenPass }
@@ -1263,7 +1486,12 @@ impl JacCompiler._compile_once(
             cancel_token=options.cancel_token
         );
         if mod_targ.decided_codespace == 'native' {
-            JacCompiler._scrub_native_artifacts_on_error(actual_program, mod_targ);
+            _scrubbed = JacCompiler._scrub_native_artifacts_on_error(
+                actual_program, mod_targ
+            );
+            if options.aot_mode and not _scrubbed {
+                JacCompiler._report_missing_native_ir(actual_program, mod_targ);
+            }
         }
     }
     return mod_targ;
@@ -1285,7 +1513,7 @@ impl JacCompiler.build(
 impl JacCompiler.run_schedule(
     mod: uni.Module,
     target_program: JacProgram,
-    passes: list[type[Transform[uni.Module, uni.Module]]],
+    passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
     provided = target_program._analyses_run.get(id(mod));
@@ -1299,12 +1527,23 @@ impl JacCompiler.run_schedule(
         origin=(f"schedule for module {mod.loc.mod_path if mod.loc else mod.name}")
     );
     _policy = build_diagnostic_policy(target_program);
+    self.stamp_access_check_facts(mod);
+    jsx_guard_pass = _jsx_intrinsic_guard_pass_type();
     for current_pass in passes {
         if (cancel_token and cancel_token.is_set()) {
             break;
         }
         if current_pass is SymTabBuildPass {
             self.resolve_absorb_imports(mod, target_program);
+        }
+        if current_pass is BoundaryAnalysisPass {
+            self.stamp_boundary_facts(mod, target_program);
+        }
+        if current_pass is JcirGenPass {
+            self.stamp_native_import_facts(mod, target_program);
+        }
+        if jsx_guard_pass is not None and current_pass is jsx_guard_pass {
+            self.stamp_client_kind_facts(mod, target_program);
         }
         run_pass(
             current_pass, mod, target_program, cancel_token=cancel_token, policy=_policy
@@ -1392,6 +1631,60 @@ impl JacCompiler._scrub_native_artifacts_on_error(
     gen.native_bitcode = None;
     gen.native_layout = None;
     return True;
+}
+
+impl JacCompiler._report_missing_native_ir(
+    target_program: JacProgram, mod: uni.Module
+) -> None {
+    if mod?.gen is None or mod.gen.llvm_ir is not None {
+        return;
+    }
+    mod_path = mod.loc.mod_path if mod?.loc else '';
+    if not mod_path or JacCompiler._count_module_errors(target_program, mod_path) > 0 {
+        return;
+    }
+    import from jaclang.jac0core.diagnostics { E5092 }
+    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
+    import from jaclang.jac0core.passes.transform { Alert }
+    reason = native_schedule_failure();
+    if not reason {
+        (_avail, _why) = native_pipeline_available();
+        if not _avail {
+            reason = _why;
+        }
+    }
+    if reason {
+        detail = f"the native codegen schedule could not be built ({reason})";
+    } elif not ModuleCodegenPass.has_native_context_stmts(mod) {
+        detail = "the module declares no native code for the backend to lower";
+    } else {
+        detail = (
+            "the native codegen passes ran but emitted neither IR nor a "
+            "diagnostic; this is a compiler bug -- please report it"
+        );
+    }
+    from_pass: any = JcirGenPass;
+    try {
+        import from jaclang.compiler.passes.native { NaIRGenPass }
+        from_pass = NaIRGenPass;
+    } except Exception {
+        ;
+    }
+    deliver_alerts(
+        [
+            Alert(
+                msg=E5092.format_message(
+                    kind='module', name=os.path.basename(mod_path)
+                ),
+                loc=mod.loc.snapshot(),
+                from_pass=from_pass,
+                code=E5092,
+                help_text=detail
+            )
+        ],
+        [],
+        target_program
+    );
 }
 
 impl JacCompiler._prepare_tool_program(

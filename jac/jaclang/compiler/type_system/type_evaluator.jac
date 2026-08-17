@@ -728,6 +728,7 @@ obj TypeEvaluator {
     def _is_type_alias_annotation(annotation_type: TypeBase, tag_expr: Expr) -> bool;
     def _resolve_type_alias_rhs(value: Expr) -> TypeBase;
     def _brand_distinct_alias(node_: TypeAlias, resolved: TypeBase) -> TypeBase;
+    def _distinct_brand_mismatch(src_type: TypeBase, dest_type: TypeBase) -> bool;
     def _resolve_string_type_expr(
         type_str: str, scope: UniScopeNode
     ) -> TypeBase | None;

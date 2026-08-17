@@ -188,8 +188,7 @@ def _req(
 
 test "multipart upload reaches the shared dispatcher through the sidecar" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("sidecar backend unavailable: " + _BUILD_FAILED);
+        testskip("sidecar backend unavailable: " + _BUILD_FAILED);
     }
     payload = b"hello upload bytes";
     (body, ctype) = _build_multipart({"label": "avatar"}, {"file": ("a.bin", payload)});
@@ -212,8 +211,7 @@ test "multipart upload reaches the shared dispatcher through the sidecar" {
 
 test "sidecar token gate rejects missing and wrong tokens (401)" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("sidecar backend unavailable: " + _BUILD_FAILED);
+        testskip("sidecar backend unavailable: " + _BUILD_FAILED);
     }
     (body, ctype) = _build_multipart({"label": "x"}, {"file": ("a.bin", b"z")});
     # No gate token -> 401.
@@ -232,8 +230,7 @@ test "sidecar token gate rejects missing and wrong tokens (401)" {
 
 test "webhook route funnels a JSON body into a walker" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("sidecar backend unavailable: " + _BUILD_FAILED);
+        testskip("sidecar backend unavailable: " + _BUILD_FAILED);
     }
     (status, text) = _req(
         "/webhook/greet",
@@ -248,8 +245,7 @@ test "webhook route funnels a JSON body into a walker" {
 
 test "openapi capability exposes /openapi.json" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("sidecar backend unavailable: " + _BUILD_FAILED);
+        testskip("sidecar backend unavailable: " + _BUILD_FAILED);
     }
     (status, text) = _req("/openapi.json", method="GET");
     assert status == 200 , text;
@@ -274,8 +270,7 @@ test "websocket route invokes a walker per message through the sidecar" {
         import uvicorn;
         import websockets;
     } except Exception as e {
-        import pytest;
-        pytest.skip("fastapi/uvicorn/websockets unavailable: " + str(e));
+        testskip("fastapi/uvicorn/websockets unavailable: " + str(e));
     }
     import asyncio;
     import from jaclang.runtimelib.invocation { prepare_invocation_runtime }
@@ -310,8 +305,7 @@ test "websocket route invokes a walker per message through the sidecar" {
 
 test "sidecar stops cleanly on close" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("sidecar backend unavailable: " + _BUILD_FAILED);
+        testskip("sidecar backend unavailable: " + _BUILD_FAILED);
     }
     port = _HANDLE.port;
     _HANDLE.stop();

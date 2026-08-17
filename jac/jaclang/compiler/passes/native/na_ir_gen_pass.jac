@@ -6,6 +6,7 @@ import from jaclang.jac0core.diagnostics {
     E2018,
     E5026,
     E5060,
+    E5088,
     E5090,
     E5091,
     E5092,
@@ -178,6 +179,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _native_skipped_methods: set[str] = set(),
         _capability_demotions: dict[int, list] = {},
         _claimed_capability_demotions: set[int] = set(),
+        _sig_decl_kind: (str | None) = None,
         _class_name_consts: dict[str, ir.Value] = {},
         _isa_fn: (ir.Function | None) = None,
         _isa_seq_fn: (ir.Function | None) = None,
@@ -557,6 +559,8 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _foreign_optional_field(tb: any) -> bool;
     def _typevar_optional_field(tb: any) -> bool;
     def _erased_typevar_names(tb: any) -> list[str];
+    def _erased_seq_type(tb: any) -> (ir.Type | None);
+    def _erased_sig_typevars(nd: uni.Archetype) -> dict;
     def _reject_scalar_type_args(nd: uni.UniNode, type_name: str) -> bool;
     def _emit_scalar_type_arg_refusal(
         nd: uni.UniNode, type_name: str, fname: str, tv_name: str, arg: any
@@ -610,6 +614,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         nd: uni.FuncCall, func: ir.Function, self_offset: int = 0
     ) -> list;
 
+    def _emit_pack_slot_refusal(nd: uni.FuncCall, star: str) -> None;
     def _codegen_varargs_list(
         nd: uni.FuncCall, extras: list, expected: (ir.Type | None)
     ) -> (ir.Value | None);
@@ -641,6 +646,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> dict;
 
     def _default_arg_fallback(t: ir.Type) -> ir.Value;
+    def _empty_container_for_field(
+        ftype: (ir.Type | None), label: str
+    ) -> (ir.Value | None);
+
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;
     def _jacval_truthy(jv: ir.Value) -> ir.Value;
@@ -714,6 +723,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None;
     def _codegen_enum_layout(enum_name: str, owner: (uni.Module | None)) -> None;
+    def _enum_ctor_layout(enum_name: str) -> (any | None);
+    def _enum_ctor_target(nd: uni.FuncCall) -> (str | None);
+    def _emit_enum_ctor_refusal(nd: uni.FuncCall, enum_name: str, why: str) -> None;
+    def _codegen_enum_ctor(nd: uni.FuncCall, enum_name: str) -> (ir.Value | None);
     def _build_enum_string_table(
         enum_name: str, entries: list, with_values: bool = True
     ) -> None;
@@ -825,12 +838,19 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _extract_import_module_name(imp: uni.Import) -> (str | None);
     def _walk_imported_module_types(imported_mod: uni.Module) -> None;
     def _walk_imported_module_type_names(imported_mod: uni.Module) -> None;
-    def _walk_imported_module_abilities(imported_mod: uni.Module) -> None;
+    def _walk_imported_module_abilities(
+        imported_mod: uni.Module, with_fn_verdicts: bool = True
+    ) -> None;
+
     def _register_imported_hierarchy(imported_mod: uni.Module) -> None;
     def _register_imported_archetype(arch: uni.Archetype) -> None;
     def _forward_declare_archetype_methods(arch: uni.Archetype) -> None;
     def _register_imported_globals(nd: uni.GlobalVars, source_path: str = "") -> None;
-    def _forward_declare_imported_ability(nd: uni.Ability) -> None;
+    def _forward_declare_imported_ability(
+        nd: uni.Ability, unavailable: (set | None) = None, imp_layout: any = None
+    ) -> None;
+
+    def _imported_function_demotions(imported_mod: uni.Module) -> (set | None);
     def _register_archetypes(module: uni.Module) -> None;
     def _compute_osp_model(archetypes: list[uni.Archetype]) -> None;
     def _osp_active -> bool;
@@ -856,12 +876,29 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _osp_isa_bases(arch_name: str) -> list[int];
     def _codegen_archetype(nd: uni.Archetype) -> None;
     def _register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None;
+    def _register_class_consts(
+        nd: uni.Archetype, arch_name: str, block: uni.ModuleCode
+    ) -> None;
+
+    def _register_one_class_const(
+        arch_name: str,
+        fname: str,
+        target: uni.UniNode,
+        assign: uni.Assignment,
+        owns: bool
+    ) -> None;
+
+    def _class_const_enum_init(
+        value: uni.UniNode, ftype: ir.Type
+    ) -> (ir.Constant | None);
+
     def _forward_declare_method(
         arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None
     ) -> None;
 
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
     def _pyb_base_of(arch_name: str) -> (tuple | None);
+    def _pyb_shadow_postinit_owner(arch_name: str) -> (str | None);
     def _pyb_helper(name: str) -> ir.Function;
     def _pyb_emit_conv1(
         name: str,
@@ -921,6 +958,17 @@ obj NaIRGenPass(ModuleCodegenPass) {
         obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
     ) -> (ir.Value | None);
 
+    def _narrow_receiver_ptr(obj_val: ir.Value, type_name: str) -> (ir.Value | None);
+    def _class_const_global(
+        arch_name: str, field_name: str
+    ) -> (ir.GlobalVariable | None);
+
+    def _class_const_variants(arch_name: str, field_name: str) -> tuple;
+    def _codegen_class_const_read(
+        obj_val: ir.Value, type_name: str, field_name: str
+    ) -> (ir.Value | None);
+
+    def _class_const_declarer(arch_name: str, field_name: str) -> (str | None);
     def _emit_class_routed_call(
         nd: uni.FuncCall,
         _sfull: str,
@@ -1204,6 +1252,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _emit_isinstance_runtime(
         nd: uni.FuncCall, operand: ir.Value, type_arg: uni.UniNode
     ) -> (ir.Value | None);
+
+    def _read_field_or_refuse(
+        nd: uni.UniNode, obj_val: ir.Value, field_name: str, arch_name: str
+    ) -> (ir.Value | None);
+
+    def _unadopted_field_owner(arch_name: str, field_name: str) -> (str | None);
+    def _emit_field_access_refusal(
+        nd: uni.UniNode, arch_name: str, field_name: str
+    ) -> None;
 
     def _mro_of(arch_name: str) -> list[str];
     def _arch_layout(arch_name: str) -> (ArchetypeLayout | None);

@@ -2092,8 +2092,6 @@ impl JacAPIServer.build_app -> ServingApp {
             )
         );
         if result.is_stream and result.stream is not None {
-            # A generator-returning `def:pub` streams: frame each item as SSE on
-            # the serving loop (the context-bound source commits at drain).
             import from jaclang.runtimelib.serving.datatypes { StreamingResponse }
             import from jaclang.runtimelib.serving.sse { sse_frame_stream }
             return StreamingResponse(
@@ -2132,7 +2130,6 @@ impl JacAPIServer.build_app -> ServingApp {
             )
         );
         if result.is_stream and result.stream is not None {
-            # Generator reports stream as SSE, same as function results above.
             import from jaclang.runtimelib.serving.datatypes { StreamingResponse }
             import from jaclang.runtimelib.serving.sse { sse_frame_stream }
             return StreamingResponse(

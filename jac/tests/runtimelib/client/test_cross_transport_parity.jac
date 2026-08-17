@@ -217,8 +217,7 @@ def _norm_scale(resp: any) -> dict {
 
 test "default walker + function envelopes match across transports" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("transport stacks unavailable: " + _BUILD_FAILED);
+        testskip("transport stacks unavailable: " + _BUILD_FAILED);
     }
     # Default POST /walker/{name}
     a = _norm_scale(_CLIENT.post("/walker/greet", json={"name": "Ada"}));
@@ -240,8 +239,7 @@ test "default walker + function envelopes match across transports" {
 
 test "restspec custom path + verb resolves identically across transports" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("transport stacks unavailable: " + _BUILD_FAILED);
+        testskip("transport stacks unavailable: " + _BUILD_FAILED);
     }
     # GET /custom/ping -- custom verb + custom path (default /walker/{name}
     # parsing would never reach this on either transport).
@@ -263,8 +261,7 @@ test "restspec custom path + verb resolves identically across transports" {
 
 test "GET query binding + int coercion match across transports" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("transport stacks unavailable: " + _BUILD_FAILED);
+        testskip("transport stacks unavailable: " + _BUILD_FAILED);
     }
     # age arrives as the string "30"; both transports must coerce it to int and
     # drop the undeclared cache-buster `v` (never forwarded to the walker).
@@ -288,8 +285,7 @@ test "GET query binding + int coercion match across transports" {
 
 test "unknown route is a matching 404 on both transports" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("transport stacks unavailable: " + _BUILD_FAILED);
+        testskip("transport stacks unavailable: " + _BUILD_FAILED);
     }
     a = _norm_scale(_CLIENT.post("/walker/__no_such_walker__", json={}));
     b = _desktop("POST", "/walker/__no_such_walker__", {});
@@ -302,8 +298,7 @@ test "unknown route is a matching 404 on both transports" {
 
 test "streaming responses frame identically as SSE across transports" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("transport stacks unavailable: " + _BUILD_FAILED);
+        testskip("transport stacks unavailable: " + _BUILD_FAILED);
     }
     # Step 6: a streaming function now drains as SSE on BOTH transports (the sv
     # bridge used to 500). Scale answers via StreamingResponse(sse_frame_stream);
@@ -330,8 +325,7 @@ test "streaming responses frame identically as SSE across transports" {
 
 test "wrong-verb rejection: both reject, documented 405 vs 404 divergence" {
     if not _ensure() {
-        import pytest;
-        pytest.skip("transport stacks unavailable: " + _BUILD_FAILED);
+        testskip("transport stacks unavailable: " + _BUILD_FAILED);
     }
     # `greet` is a default POST /walker/greet; hitting it with GET is not a valid
     # route on either transport. Shared invariant: rejected as a non-executed 4xx.

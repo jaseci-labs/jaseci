@@ -110,7 +110,7 @@ impl ASTValidationPass.enter_iter_for_stmt(
 }
 
 impl ASTValidationPass.enter_enum(self: ASTValidationPass, nd: Enum) -> None {
-    if nd.body is not None and len(nd.body) == 0 {
+    if isinstance(nd.body, list) and len(nd.body) == 0 {
         self.emit(E0043, node_override=nd);
     }
 }
@@ -180,10 +180,10 @@ impl ASTValidationPass._check_render_phase_state_write(
 }
 
 impl ASTValidationPass._scope_declares_state(
-    self: ASTValidationPass, scope: UniNode, name: str
+    self: ASTValidationPass, scope: (Ability | ImplDef), name: str
 ) -> bool {
-    body = scope?.body;
-    if not isinstance(body, (list, tuple)) {
+    body = scope.body;
+    if not isinstance(body, list) {
         return False;
     }
     for stmt in body {
@@ -198,21 +198,28 @@ impl ASTValidationPass._scope_declares_state(
     return False;
 }
 
-impl ASTValidationPass._returns_jsx(self: ASTValidationPass, scope: UniNode) -> bool {
-    sig = scope?.signature;
-    ret = sig?.return_type;
+impl ASTValidationPass._returns_jsx(
+    self: ASTValidationPass, scope: (Ability | ImplDef)
+) -> bool {
+    sig: (FuncSignature | None) = None;
+    if isinstance(scope, Ability) and isinstance(scope.signature, FuncSignature) {
+        sig = scope.signature;
+    } elif isinstance(scope, ImplDef) and isinstance(scope.spec, FuncSignature) {
+        sig = scope.spec;
+    }
+    ret = sig.return_type if sig is not None else None;
     if ret is None {
         return False;
     }
-    stack: list = [ret];
+    stack: list[UniNode] = [ret];
     while stack {
         probe = stack.pop();
         if isinstance(probe, Name)
             and probe.sym_name in ("JsxElement", "JsxPage", "JsxLayout") {
             return True;
         }
-        kids = probe?.kid;
-        if isinstance(kids, (list, tuple)) {
+        kids = probe.kid;
+        if isinstance(kids, list) {
             stack.extend(kids);
         }
     }
@@ -347,11 +354,15 @@ impl ASTValidationPass.enter_archetype(self: ASTValidationPass, nd: Archetype) -
         }
     }
 
-    body: list = [];
-    if isinstance(nd.body, (list, tuple)) {
-        body = list(nd.body);
-    } elif isinstance(nd.body, ImplDef) and isinstance(nd.body.body, (list, tuple)) {
-        body = list(nd.body.body);
+    body: list[UniNode] = [];
+    if isinstance(nd.body, list) {
+        for direct_item in nd.body {
+            body.append(direct_item);
+        }
+    } elif isinstance(nd.body, ImplDef) and isinstance(nd.body.body, list) {
+        for impl_item in nd.body.body {
+            body.append(impl_item);
+        }
     }
 
     properties_seen: set[str] = set();
@@ -363,7 +374,10 @@ impl ASTValidationPass.enter_archetype(self: ASTValidationPass, nd: Archetype) -
         ) {
             for dec in item.decorators {
                 if isinstance(dec, Name) and dec.value == "property" {
-                    properties_seen.add(item.name_ref.value);
+                    pref = item.name_ref;
+                    if isinstance(pref, (Name, CtName)) {
+                        properties_seen.add(pref.value);
+                    }
                     break;
                 }
             }
@@ -398,9 +412,15 @@ impl ASTValidationPass.enter_archetype(self: ASTValidationPass, nd: Archetype) -
         if has_overload {
             continue;
         }
-        mname = item.name_ref.value;
+        nref = item.name_ref;
+        if not isinstance(nref, (Name, CtName)) {
+            continue;
+        }
+        mname = nref.value;
 
-        dedup_name = '__init__' if item.name_ref.name == Tok.KW_INIT else mname;
+        dedup_name = '__init__'
+            if (isinstance(nref, Name) and nref.name == Tok.KW_INIT)
+            else mname;
 
         if (
             accessor_kind is not None
@@ -444,7 +464,7 @@ impl ASTValidationPass.enter_expr_stmt(self: ASTValidationPass, nd: ExprStmt) ->
 }
 
 impl ASTValidationPass._check_slot_body(
-    self: ASTValidationPass, stmts: list, in_loop: bool, loop_kw: str
+    self: ASTValidationPass, stmts: list[UniNode], in_loop: bool, loop_kw: str
 ) -> None {
     for s in stmts {
         if isinstance(s, ReturnStmt) {
@@ -532,7 +552,7 @@ impl ASTValidationPass._check_slot_else(
 }
 
 impl ASTValidationPass._slot_emits_keyless_jsx(
-    self: ASTValidationPass, stmts: list
+    self: ASTValidationPass, stmts: list[UniNode]
 ) -> bool {
     for s in stmts {
         if isinstance(s, ExprStmt) and isinstance(s.expr, JsxElement) {

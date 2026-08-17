@@ -11,10 +11,19 @@ whose construction sites then refuse), while shapes with no demotable
 owner at all stay structured errors (unannotated variadics).
 
 Expected values are pinned against CPython (see each fixture wrapper).
+
+The generic cases at the bottom (#8247) run through a subprocess instead of
+the JIT: a pack of a generic archetype's erased type parameter used to lower
+without diagnostic and then read the pack pointer as a `str`, so the failure
+mode is a segfault, which has to fail the test rather than take the runner
+down with it.
 """
 
 import ctypes;
 import os;
+import subprocess;
+import sys;
+import tempfile;
 import from tests.support { TESTS_DIR, native_force_opts }
 import jaclang;
 import jaclang.jac0core.unitree as uni;
@@ -61,6 +70,70 @@ def compile_na_inline_ir(label: str, code: str) -> tuple {
     prog = JacProgram();
     ir = prog.compile(file_path=path, use_str=code, options=native_force_opts());
     return (prog, ir, );
+}
+
+"""Run a fixture on the server pathway, where CPython is the oracle."""
+def sv_run(fixture: str) -> str {
+    proc = subprocess.run(
+        [sys.executable, "-m", "jaclang", "run", os.path.join(FIXTURES, fixture)],
+        capture_output=True,
+        text=True,
+        timeout=900
+    );
+    assert proc.returncode == 0 , f"sv run failed: {proc.stderr[-800:]
+        if proc.stderr
+        else '(empty)'}";
+    return proc.stdout;
+}
+
+"""Build a fixture into a binary and run it, so a crash is a test failure."""
+def na_run(fixture: str) -> str {
+    out_bin = os.path.join(tempfile.mkdtemp(), "probe.bin");
+    comp = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "jaclang",
+            "nacompile",
+            os.path.join(FIXTURES, fixture),
+            "-o",
+            out_bin
+        ],
+        capture_output=True,
+        text=True,
+        timeout=900
+    );
+    assert comp.returncode == 0 , f"nacompile failed: {comp.stderr[-800:]
+        if comp.stderr
+        else '(empty)'}";
+    proc = subprocess.run([out_bin], capture_output=True, text=True, timeout=120);
+    assert proc.returncode == 0 , (
+        f"native binary exited {proc.returncode} "
+        f"(a negative code is a signal, i.e. a crash): {proc.stderr[-400:]
+            if proc.stderr
+            else '(empty)'}"
+    );
+    return proc.stdout;
+}
+
+def same_lines(sv_text: str, na_text: str, what: str) {
+    sv = [
+        _l
+        for _l in sv_text.split("\n")
+        if _l.strip()
+    ];
+    na = [
+        _l
+        for _l in na_text.split("\n")
+        if _l.strip()
+    ];
+    assert sv , f"{what}: sv pathway produced no output";
+    assert len(sv) == len(na) , f"{what} line count: sv {len(sv)} vs na {len(na)}";
+    for idx in range(len(sv)) {
+        assert sv[idx] == na[idx] , f"{what} line {idx}: sv {sv[idx]!r} vs na {na[
+            idx
+        ]!r}";
+    }
 }
 
 """Return True if the program emitted at least one alert with the given code."""
@@ -263,5 +336,79 @@ test "variadic init demotes the constructor and refuses its callers" {
     assert "mk" not in layout.functions , (
         "constructing through a demoted initializer must refuse, not build a "
         "half-initialized object"
+    );
+}
+
+test "a pack of a generic archetype's erased T answers what CPython answers" {
+    same_lines(
+        sv_run("varargs_generic.jac"), na_run("varargs_generic.jac"), "erased pack"
+    );
+}
+
+test "a generic pack slot is a native list, not the bare erased pointer" {
+    (eng, ir) = compile_native("varargs_generic.jac");
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "Cell.get" in layout.methods , (
+        f"the variadic method must reach the native image: {sorted(layout.methods)}"
+    );
+    assert "Cell.count" in layout.methods , (
+        f"the variadic method must reach the native image: {sorted(layout.methods)}"
+    );
+    assert "Cell.pick" in layout.methods , (
+        f"a pack after a fixed parameter must lower too: {sorted(layout.methods)}"
+    );
+    text = str(ir.gen.llvm_ir);
+    assert 'define i8* @"Cell.get"(%"Cell"* %"self", %"List.ptr"* %"fallback")'
+        in text , (
+        "the pack slot must lay out as the pointer-flavoured native list; a bare "
+        "i8* there is the erased element leaking into the pack's own slot"
+    );
+}
+
+test "a generic pack at a by-value type argument is refused, not lowered" {
+    out_bin = os.path.join(tempfile.mkdtemp(), "nope.bin");
+    comp = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "jaclang",
+            "nacompile",
+            os.path.join(FIXTURES, "varargs_generic_scalar.jac"),
+            "-o",
+            out_bin
+        ],
+        capture_output=True,
+        text=True,
+        timeout=900
+    );
+    combined = (comp.stdout or "") + (comp.stderr or "");
+    assert comp.returncode != 0 , (
+        f"an int in a pointer-element pack compiled silently: {combined[-600:]}"
+    );
+    assert "Cell[int]" in combined , (
+        f"diagnostic does not name the instantiation: {combined[-600:]}"
+    );
+}
+
+test "a callee whose pack slot did not lay out refuses its caller" {
+    (prog, ir) = compile_na_inline_ir(
+        "packslot",
+        "obj Cell[T] { has n: int = 0; def take(*xs: dict[T, T]) -> int { return 0; } }\n"
+        "def use() -> int { c = Cell[Cell[int]](); return c.take(); }\n"
+        "def pure(x: int) -> int { return x + 1; }\n"
+    );
+    assert not prog.errors_had , (
+        f"the caller owns the refusal, so the module must still compile: "
+        f"{[str(e) for e in prog.errors_had]}"
+    );
+    layout = ir.gen.native_layout;
+    assert layout is not None , "whole-module native compile aborted";
+    assert "pure" in layout.functions , (
+        f"clean sibling function was lost: {list(layout.functions)}"
+    );
+    assert "use" not in layout.functions , (
+        "binding the extras into a slot that is not a pack is a silent misread; "
+        "the caller must demote instead"
     );
 }

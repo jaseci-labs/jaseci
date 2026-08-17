@@ -64,7 +64,19 @@ def _dispatch_request(request: dict) -> dict {
         boot(_FIXTURE, os.path.join(graph_root, "graph"));
         _BOOTED = True;
     }
-    raw = dispatch(json.dumps(request));
+    # starlette/fastapi route handling calls the deprecated
+    # `asyncio.iscoroutinefunction` on Python 3.14 (removed in 3.16); the repo's
+    # The runner escalates warnings to errors, which would turn an `sv` function
+    # call into a 500 here. It is a transitional third-party deprecation,
+    # unrelated to the in-process transport under test (the real host, which does
+    # not escalate warnings, returns the result fine), so suppress just that
+    # warning around the dispatch.
+    with warnings.catch_warnings() {
+        warnings.filterwarnings(
+            "ignore", message=r".*iscoroutinefunction.*", category=DeprecationWarning
+        );
+        raw = dispatch(json.dumps(request));
+    }
     return json.loads(raw);
 }
 

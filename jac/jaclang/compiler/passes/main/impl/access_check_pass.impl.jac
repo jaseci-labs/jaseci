@@ -3,7 +3,7 @@ impl AccessCheckPass.postinit -> None {
 }
 
 impl AccessCheckPass.transform(ir_in: Module) -> Module {
-    self._enforce = self._read_enforce();
+    self._enforce = ir_in.access_enforced;
 
     checked: set[int] = set();
     for tr in ir_in.get_all_sub_nodes(typ=AtomTrailer) {
@@ -20,19 +20,6 @@ impl AccessCheckPass.transform(ir_in: Module) -> Module {
         self._check_use(nm, nm.sym);
     }
     return ir_in;
-}
-
-impl AccessCheckPass._read_enforce -> bool {
-    try {
-        import from jaclang.project.config { get_config }
-        config = get_config();
-        if (config and config.check) {
-            return config.check.enforce_access;
-        }
-    } except Exception {
-        return False;
-    }
-    return False;
 }
 
 impl AccessCheckPass._check_use(use_node: AstSymbolNode, sym: Symbol) -> None {
@@ -52,7 +39,8 @@ impl AccessCheckPass._check_use(use_node: AstSymbolNode, sym: Symbol) -> None {
         return;
     }
 
-    if not isinstance(sym.parent_tab, Module) {
+    def_tab = sym.parent_tab;
+    if not isinstance(def_tab, Module) {
         return;
     }
     use_mod = use_node.loc.mod_path;
@@ -60,16 +48,22 @@ impl AccessCheckPass._check_use(use_node: AstSymbolNode, sym: Symbol) -> None {
         return;
     }
     if (sym.access == SymbolAccess.PRIVATE) {
-        self._emit_pair(
-            W2037, E2037, use_node, name=sym.sym_name, module=os.path.basename(def_mod)
+        self.emit(
+            E2037 if self._enforce else W2037,
+            node_override=use_node,
+            name=sym.sym_name,
+            module=os.path.basename(def_mod)
         );
     } else {
-        def_proj = find_jac_project_root(def_mod);
-        use_proj = find_jac_project_root(use_mod);
+        def_proj = def_tab.jac_project_root;
+        use_proj = self.ir_in.jac_project_root;
         if (def_proj != use_proj) {
             project_name = os.path.basename(def_proj) if def_proj else "?";
-            self._emit_pair(
-                W2038, E2038, use_node, name=sym.sym_name, project=project_name
+            self.emit(
+                E2038 if self._enforce else W2038,
+                node_override=use_node,
+                name=sym.sym_name,
+                project=project_name
             );
         }
     }
@@ -81,25 +75,25 @@ impl AccessCheckPass._check_member(
     user = use_node.find_parent_of_type(Archetype);
     if (sym.access == SymbolAccess.PRIVATE) {
         if (user is not owner) {
-            self._emit_pair(
-                W2034, E2034, use_node, name=sym.sym_name, owner=owner.name.value
+            self.emit(
+                E2034 if self._enforce else W2034,
+                node_override=use_node,
+                name=sym.sym_name,
+                owner=owner.name.value
             );
         }
     } else {
         ok = (user is not None)
             and ((user is owner) or self._is_subclass_of(user, owner));
         if not ok {
-            self._emit_pair(
-                W2035, E2035, use_node, name=sym.sym_name, owner=owner.name.value
+            self.emit(
+                E2035 if self._enforce else W2035,
+                node_override=use_node,
+                name=sym.sym_name,
+                owner=owner.name.value
             );
         }
     }
-}
-
-impl AccessCheckPass._emit_pair(
-    warn: DiagnosticInfo, err: DiagnosticInfo, at_node: UniNode, **kwargs: any
-) -> None {
-    self.emit(err if self._enforce else warn, node_override=at_node, **kwargs);
 }
 
 impl AccessCheckPass._declaring_archetype(sym: Symbol) -> (Archetype | None) {

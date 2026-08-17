@@ -469,7 +469,7 @@ test "host bootstrap modules import + run from the fused runtime" {
     # The bootstrap inserts the runtime plugin dir on sys.path and imports the
     # plugins as TOP-LEVEL modules (manifest, registry, built_in.*). Snapshot +
     # restore import state so it can't shadow other suites' staged plugin copies
-    # in a shared xdist worker (the integration suite stages its own to a tmp dir).
+    # in a shared worker (the integration suite stages its own to a tmp dir).
     import sys;
     _saved_path = list(sys.path);
     _saved_mods = set(sys.modules.keys());

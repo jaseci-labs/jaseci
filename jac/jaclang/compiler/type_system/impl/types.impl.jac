@@ -3,7 +3,7 @@ impl UnionType.postinit -> None {
     flattened_types: list[TypeBase] = [];
     for ty in member_types {
         if isinstance(ty, UnionType) {
-            flattened_types.extend(ty.types);
+            flattened_types.extend(ty.types or []);
         } else {
             flattened_types.append(ty);
         }
@@ -242,7 +242,8 @@ impl ClassType.lookup_member_symbol(
         Archetype,
         Assignment,
         AtomTrailer,
-        FuncSignature
+        FuncSignature,
+        ParamVar
     }
     import from jaclang.compiler.type_system.type_utils { collect_member_syms }
     for cls in self.shared.mro {
@@ -274,6 +275,9 @@ impl ClassType.lookup_member_symbol(
                 and method_ability.signature.params
             ) {
                 for param in method_ability.signature.params {
+                    if not isinstance(param, ParamVar) {
+                        continue;
+                    }
                     if param.name.value == member and param.name.value != 'self' {
                         arch.def_insert(param.name, access_spec=arch);
                         return arch.lookup(member, deep=False);
@@ -307,8 +311,13 @@ impl ClassType.lookup_member_symbol(
     return None;
 }
 
-impl ClassType.get_class_symbol -> Symbol {
-    return self.shared.symbol_table.name.sym;
+impl ClassType.get_class_symbol -> (Symbol | None) {
+    import from jaclang.jac0core.unitree { Archetype }
+    symbol_table = self.shared.symbol_table;
+    if not isinstance(symbol_table, Archetype) {
+        return None;
+    }
+    return symbol_table.name.sym;
 }
 
 impl ClassType.specialize_generics(type_args: list[TypeBase]) -> ClassType {
@@ -544,12 +553,18 @@ impl TypeBase.is_any_type -> bool {
 }
 
 impl EnumMemberType.__str__ -> str {
-    return f"<{self.enum_class.shared.class_name}.{self.member_info.member_name}>";
+    enum_class = self.enum_class;
+    member_info = self.member_info;
+    class_name = enum_class.shared.class_name if enum_class is not None else "Unknown";
+    member_name = member_info.member_name if member_info is not None else "Unknown";
+    return f"<{class_name}.{member_name}>";
 }
 
 impl EnumMemberType.get_value_type -> TypeBase {
-    return self.member_info.value_type
-        or self.enum_class.shared.enum_value_type
+    enum_class = self.enum_class;
+    member_info = self.member_info;
+    return (member_info.value_type if member_info is not None else None)
+        or (enum_class.shared.enum_value_type if enum_class is not None else None)
         or UnknownType();
 }
 

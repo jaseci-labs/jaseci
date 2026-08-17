@@ -50,6 +50,19 @@ def _reg(
     help_text: str | None = None,
     blocks_codegen: bool = False
 ) -> DiagnosticInfo {
+    sitting = DIAGNOSTICS.get(code);
+    if sitting is not None {
+        raise ValueError(
+            f"diagnostic code {code} is claimed twice. It is already "
+            f"registered as {sitting.severity.value}/{sitting.category.value} "
+            f"'{sitting.message_template}' and is registered again as "
+            f"{severity.value}/{category.value} '{template}'. A code names "
+            "exactly one diagnostic: the second registration would shadow "
+            "the first everywhere it is referenced, and the native link "
+            "refuses this module on the duplicate symbol. Give the later "
+            "claimant a code of its own and move its pins."
+        );
+    }
     info = DiagnosticInfo(
         code=code,
         severity=severity,
@@ -170,12 +183,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "E0034",
          Category.SYNTAX,
          "Expected 'with' after 'can' ability name (use 'def' for function-style declarations)"
-     ),
-     E0108 = _err(
-         "E0108",
-         Category.SYNTAX,
-         "Comptime expansion failed -- {details}",
-         help="The compile-time evaluator rejected this construct. Comptime code is a deterministic, fuel-bounded subset of Jac: pure values and control flow, reflect.* facts, and ct.name/ct.typ/ct.expr fragments; no I/O, no runtime APIs, and results must lower to literals."
      ),
      E0040 = _err(
          "E0040",
@@ -299,6 +306,18 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
      E0106 = _err("E0106", Category.SYNTAX, "Unexpected character in JSX tag: '{ch}'"),
      E0107 = _err(
          "E0107", Category.SYNTAX, "Lexer stuck at EOF in mode {mode} (pos={pos})"
+     ),
+     E0110 = _err(
+         "E0110",
+         Category.SYNTAX,
+         "Unsupported escape sequence '\\N{{...}}'",
+         help="Resolving a Unicode character name needs the name database, which the compiler does not carry. Write the code point as \\uXXXX or \\UXXXXXXXX, or prefix the string with r to keep the backslash."
+     ),
+     E0109 = _err(
+         "E0109",
+         Category.SYNTAX,
+         "Comptime expansion failed -- {details}",
+         help="The compile-time evaluator rejected this construct. Comptime code is a deterministic, fuel-bounded subset of Jac: pure values and control flow, reflect.* facts, and ct.name/ct.typ/ct.expr fragments; no I/O, no runtime APIs, and results must lower to literals."
      ),
      W0100 = _warn(
          "W0100",
@@ -1611,6 +1630,12 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "Project kind '{kind}' has no server, but '{name}' needs one ({reason})",
          help="A '{kind}' project builds a client-only artifact: there is no server codespace to place this in, and no endpoint route to bridge to, so a server placement here could only fail at runtime. Drop the server dependency, or declare a `[project] kind` that has a server.",
          blocks_codegen=True
+     ),
+     E5088 = _err(
+         "E5088",
+         Category.CODEGEN,
+         "Constructing '{cls}' would run '{owner}.postinit' on a Python shadow the native object cannot see",
+         help="A native class over a Python-side base owns two halves: its own slots live in the native struct, the base's live on a Python shadow instance the bridge keeps beside it. Construction runs the base's `__post_init__` on that shadow, where the subclass's native slots do not exist and its method overrides are not on the shadow's class -- so a store the base initializer makes is invisible natively, and a call it dispatches reaches the base's body rather than the override. The object comes out with its declared defaults and nothing says so. Give '{cls}' a `postinit` of its own -- it suppresses the base's and can chain into it with `super.postinit()`, which does bridge -- or bring the base into the native unit so the whole chain lowers."
      ),
      W6001 = _warn(
          "W6001",

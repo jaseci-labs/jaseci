@@ -7,6 +7,7 @@ import types;
 import from threading { Event }
 import from contextvars { ContextVar }
 import jaclang.jac0core.unitree as uni;
+import from jaclang.jac0core.unitree { ability_of_symbol }
 import from jaclang.jac0core.jir {
     SEC_BYTECODE,
     SEC_MTIR,
@@ -33,9 +34,9 @@ import from jaclang.jac0core.passes {
     DeclImplMatchPass,
     EndpointEffectPass,
     JacAnnexPass,
+    JcirBytecodeGenPass,
+    JcirGenPass,
     PlacementApplyPass,
-    PyastGenPass,
-    PyBytecodeGenPass,
     SemanticAnalysisPass,
     SymTabBuildPass,
     Transform
@@ -148,7 +149,17 @@ def run_pass(
     return inst;
 }
 
-def get_symtab_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+def get_symtab_ir_sched -> list[type[Transform]] {
+    if not _ir_sched_loading.get() {
+        _tok = _ir_sched_loading.set(True);
+        try {
+            import jaclang.compiler.symbol_utils;
+        } except ImportError as e {
+            fail_loud_on_compiler_source(e);
+        } finally {
+            _ir_sched_loading.reset(_tok);
+        }
+    }
     return validate_schedule(
         [ASTValidationPass, SymTabBuildPass, DeclImplMatchPass, PlacementApplyPass],
         origin='symtab-ir schedule'
@@ -161,18 +172,16 @@ glob _ir_sched_loading = ContextVar('jac_ir_sched_loading', default=False),
          'jac_typecheck_sched_loading', default=False
      );
 
-def pass_requires(p: type[Transform[uni.Module, uni.Module]]) -> tuple {
+def pass_requires(p: type[Transform]) -> tuple {
     return getattr(p, 'REQUIRES', ()) or ();
 }
 
-def pass_provides(p: type[Transform[uni.Module, uni.Module]]) -> tuple {
+def pass_provides(p: type[Transform]) -> tuple {
     return getattr(p, 'PROVIDES', ()) or ();
 }
 
-def providers_for(
-    passes: list[type[Transform[uni.Module, uni.Module]]]
-) -> dict[str, type[Transform[uni.Module, uni.Module]]] {
-    out: dict[str, type[Transform[uni.Module, uni.Module]]] = {};
+def providers_for(passes: list[type[Transform]]) -> dict[str, type[Transform]] {
+    out: dict[str, type[Transform]] = {};
     for p in passes {
         for tag in pass_provides(p) {
             out[tag] = p;
@@ -182,10 +191,10 @@ def providers_for(
 }
 
 def validate_schedule(
-    passes: list[type[Transform[uni.Module, uni.Module]]],
+    passes: list[type[Transform]],
     preprovided: (set[str] | None) = None,
     origin: str = 'schedule'
-) -> list[type[Transform[uni.Module, uni.Module]]] {
+) -> list[type[Transform]] {
     provided: set[str] = set(preprovided) if preprovided is not None else set();
     for p in passes {
         for tag in pass_requires(p) {
@@ -206,11 +215,11 @@ def validate_schedule(
 }
 
 def _schedule_into(
-    p: type[Transform[uni.Module, uni.Module]],
-    provider_map: dict[str, type[Transform[uni.Module, uni.Module]]],
-    acc_out: list[type[Transform[uni.Module, uni.Module]]],
+    p: type[Transform],
+    provider_map: dict[str, type[Transform]],
+    acc_out: list[type[Transform]],
     acc_provided: set[str],
-    chain: list[type[Transform[uni.Module, uni.Module]]]
+    chain: list[type[Transform]]
 ) -> (str | None) {
     if p in acc_out or p in chain {
         return None;
@@ -238,15 +247,15 @@ def _schedule_into(
 }
 
 def resolve_schedule(
-    goals: list[type[Transform[uni.Module, uni.Module]]],
-    providers: (dict[str, type[Transform[uni.Module, uni.Module]]] | None) = None,
+    goals: list[type[Transform]],
+    providers: (dict[str, type[Transform]] | None) = None,
     preprovided: (set[str] | None) = None,
     drop_unsatisfiable: bool = False,
     origin: str = 'schedule'
-) -> list[type[Transform[uni.Module, uni.Module]]] {
+) -> list[type[Transform]] {
     provider_map = dict(providers) if providers is not None else {};
     provided: set[str] = set(preprovided) if preprovided is not None else set();
-    out: list[type[Transform[uni.Module, uni.Module]]] = [];
+    out: list[type[Transform]] = [];
     for g in goals {
         trial_out = list(out);
         trial_provided = set(provided);
@@ -335,13 +344,86 @@ def fail_loud_on_compiler_source(err: ImportError) -> None {
     ) from err;
 }
 
-def get_boundary_analysis_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+glob _native_sched_failure: dict[str, str] = {};
+
+def _note_native_schedule_failure(err: (BaseException | None)) {
+    if err is None {
+        _native_sched_failure.pop('reason', None);
+    } else {
+        _native_sched_failure['reason'] = f"{type(err).__name__}: {err}";
+    }
+}
+
+def native_schedule_failure -> str {
+    return _native_sched_failure.get('reason', '');
+}
+
+def compiler_source_failure_origin(err: BaseException) -> (str | None) {
+    root = _compiler_source_root() + os.sep;
+    cursor: any = err;
+    for _ in range(8) {
+        if cursor is None {
+            break;
+        }
+        for cand in (cursor?.jac_source_path, cursor?.path) {
+            if isinstance(cand, str) and cand {
+                real = os.path.realpath(cand);
+                if real.startswith(root) {
+                    return real;
+                }
+            }
+        }
+        name = cursor?.name;
+        if isinstance(name, str)
+            and (name == 'jaclang' or name.startswith('jaclang.')) {
+            return name;
+        }
+        cursor = cursor?.__cause__ or cursor?.__context__;
+    }
+    return None;
+}
+
+def module_import_in_flight(file_path: str) -> bool {
+    for mod in list(sys.modules.values()) {
+        spec = mod?.__spec__;
+        if spec is None {
+            continue;
+        }
+        if spec?.origin == file_path and bool(spec?._initializing) {
+            return True;
+        }
+    }
+    return False;
+}
+
+def import_error_re_enters(err: BaseException, file_path: str) -> (str | None) {
+    if not isinstance(err, ImportError) or not module_import_in_flight(file_path) {
+        return None;
+    }
+    cursor: any = err;
+    for _ in range(8) {
+        if cursor is None {
+            break;
+        }
+        name = cursor?.name;
+        if isinstance(name, str) and name {
+            spec = sys.modules.get(name)?.__spec__;
+            if spec is not None and spec?.origin == file_path {
+                return name;
+            }
+        }
+        cursor = cursor?.__cause__ or cursor?.__context__;
+    }
+    return None;
+}
+
+def get_boundary_analysis_sched -> list[type[Transform]] {
     return validate_schedule(
         [BoundaryAnalysisPass, EndpointEffectPass], origin='boundary-analysis schedule'
     );
 }
 
-def get_bootstrap_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+def get_bootstrap_ir_sched -> list[type[Transform]] {
     return validate_schedule(
         [ASTValidationPass, SymTabBuildPass, DeclImplMatchPass, SemanticAnalysisPass],
         origin='bootstrap-ir schedule'
@@ -350,7 +432,7 @@ def get_bootstrap_ir_sched -> list[type[Transform[uni.Module, uni.Module]]] {
 
 def get_ir_gen_sched(
     is_internal: bool = False, gen_mtir: bool = True
-) -> list[type[Transform[uni.Module, uni.Module]]] {
+) -> list[type[Transform]] {
     if _ir_sched_loading.get() {
         return get_bootstrap_ir_sched();
     }
@@ -363,11 +445,13 @@ def get_ir_gen_sched(
         }
 
         import jaclang.compiler.symbol_utils;
+        import jaclang.compiler.expr_keys;
         import jaclang.compiler.passes.main.layout_pass;
         import jaclang.compiler.type_registry;
         import jaclang.compiler.intrinsic_registry;
+        import jaclang.project.client_kind;
 
-        passes: list[type[Transform[uni.Module, uni.Module]]] = [
+        passes: list[type[Transform]] = [
             ASTValidationPass,
             SymTabBuildPass,
             DeclImplMatchPass,
@@ -393,7 +477,7 @@ def get_ir_gen_sched(
     }
 }
 
-def get_cfg_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+def get_cfg_sched -> list[type[Transform]] {
     if _ir_sched_loading.get() {
         return [];
     }
@@ -409,14 +493,12 @@ def get_cfg_sched -> list[type[Transform[uni.Module, uni.Module]]] {
     }
 }
 
-def get_type_check_sched(
-    provided: (set[str] | None) = None
-) -> list[type[Transform[uni.Module, uni.Module]]] {
+def get_type_check_sched(provided: (set[str] | None) = None) -> list[type[Transform]] {
     if _typecheck_sched_loading.get() {
         return [];
     }
     _tok = _typecheck_sched_loading.set(True);
-    goals: list[type[Transform[uni.Module, uni.Module]]] = [];
+    goals: list[type[Transform]] = [];
     try {
         import from jaclang.compiler.passes.main.static_analysis_pass {
             StaticAnalysisPass
@@ -455,7 +537,20 @@ def get_type_check_sched(
     );
 }
 
-def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+def typeshed_stubs_available -> bool {
+    return os.path.exists(
+        os.path.join(
+            os.path.dirname(__file__),
+            '..',
+            'vendor',
+            'typeshed',
+            'stdlib',
+            'builtins.pyi'
+        )
+    );
+}
+
+def get_inference_sched -> list[type[Transform]] {
     if _typecheck_sched_loading.get() {
         return [];
     }
@@ -465,15 +560,7 @@ def get_inference_sched -> list[type[Transform[uni.Module, uni.Module]]] {
 
         import from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 
-        stub_path = os.path.join(
-            os.path.dirname(__file__),
-            '..',
-            'vendor',
-            'typeshed',
-            'stdlib',
-            'builtins.pyi'
-        );
-        if not os.path.exists(stub_path) {
+        if not typeshed_stubs_available() {
             return [];
         }
         return validate_schedule([TypeInferencePass], origin='inference schedule');
@@ -500,7 +587,7 @@ def native_pipeline_available -> tuple[bool, str] {
         return (True, '');
     }
     reason = '';
-    if not get_inference_sched() {
+    if not typeshed_stubs_available() {
         reason = (
             'native pipeline unavailable: type inference '
             + '(vendor/typeshed stubs) is not available in this environment'
@@ -510,6 +597,17 @@ def native_pipeline_available -> tuple[bool, str] {
         try {
             import from jaclang.compiler.passes.native.llvm.binding.ffi { _find_shim }
             _find_shim();
+        } except ModuleNotFoundError {
+            reason = (
+                'native pipeline unavailable: LLVM shim (libjacllvm) '
+                + 'not found in this environment'
+            );
+        } except ImportError as e {
+            fail_loud_on_compiler_source(e);
+            return (
+                False,
+                'native pipeline undecided: the compiler is still initializing'
+            );
         } except Exception {
             reason = (
                 'native pipeline unavailable: LLVM shim (libjacllvm) '
@@ -522,30 +620,28 @@ def native_pipeline_available -> tuple[bool, str] {
     return verdict;
 }
 
+def _py_codegen_tail -> list[type[Transform]] {
+    return [JcirGenPass, JcirBytecodeGenPass];
+}
+
 def get_py_code_gen(
     native: bool = True, provided: (set[str] | None) = None
-) -> list[type[Transform[uni.Module, uni.Module]]] {
+) -> list[type[Transform]] {
     if _codegen_sched_loading.get() or _ir_sched_loading.get() {
-        return [PyastGenPass, PyBytecodeGenPass];
+        return _py_codegen_tail();
     }
     _tok = _codegen_sched_loading.set(True);
     try {
         import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-        import from jaclang.compiler.passes.main.pyjac_ast_link_pass {
-            PyJacAstLinkPass
-        }
 
-        passes: list[type[Transform[uni.Module, uni.Module]]] = [EsastGenPass];
+        passes: list[type[Transform]] = [EsastGenPass];
         if native {
             import from jaclang.compiler.passes.main.rc_facts_pass { RcFactsPass }
             import from jaclang.compiler.passes.native {
                 NaIRGenPass,
                 NativeCompilePass
             }
-            native_goals: list[type[Transform[uni.Module, uni.Module]]] = [
-                NaIRGenPass,
-                NativeCompilePass
-            ];
+            native_goals: list[type[Transform]] = [NaIRGenPass, NativeCompilePass];
             native_providers = providers_for([RcFactsPass]);
             cross: set[str] = set(provided) if provided is not None else set();
             if provided is None {
@@ -565,20 +661,22 @@ def get_py_code_gen(
                     origin='native codegen schedule'
                 )
             );
+            _note_native_schedule_failure(None);
         }
-        passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
+        passes.extend(_py_codegen_tail());
         return passes;
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
-        return [PyastGenPass, PyBytecodeGenPass];
+        if native {
+            _note_native_schedule_failure(e);
+        }
+        return _py_codegen_tail();
     } finally {
         _codegen_sched_loading.reset(_tok);
     }
 }
 
-def get_format_sched(
-    auto_lint: bool = False
-) -> list[type[Transform[uni.Module, uni.Module]]] {
+def get_format_sched(auto_lint: bool = False) -> list[type[Transform]] {
     import from jaclang.compiler.passes.tool.comment_attach_pass { CommentAttachPass }
     import from jaclang.compiler.passes.tool.doc_ir_gen_pass { DocIRGenPass }
     import from jaclang.compiler.passes.tool.jac_auto_lint_pass { JacAutoLintPass }
@@ -594,7 +692,7 @@ def get_format_sched(
     );
 }
 
-def get_lint_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+def get_lint_sched -> list[type[Transform]] {
     import from jaclang.compiler.passes.tool.jac_auto_lint_pass { JacLintCheckPass }
     return validate_schedule([JacLintCheckPass], origin='lint schedule');
 }
@@ -631,6 +729,17 @@ obj _SetupProgress {
 }
 
 glob setup_progress = _SetupProgress();
+
+def _jsx_intrinsic_guard_pass_type -> (type | None) {
+    try {
+        import from jaclang.compiler.passes.main.jsx_intrinsic_guard_pass {
+            JsxIntrinsicGuardPass
+        }
+        return JsxIntrinsicGuardPass;
+    } except ImportError {
+        return None;
+    }
+}
 
 def _coerce_module(module: uni.Module, context: CodeContext) {
     module.decided_codespace = context.value;
@@ -860,34 +969,6 @@ def is_client_native_edge_import(nd: uni.Import, prog: object) -> bool {
         return False;
     }
     return plain_native_import_target(nd, prog) is not None;
-}
-
-def _ability_of_defn(defn_node: uni.UniNode) -> (uni.Ability | None) {
-    if isinstance(defn_node, uni.Ability) {
-        return defn_node;
-    }
-    if isinstance(defn_node.parent, uni.Ability) {
-        return defn_node.parent;
-    }
-    return None;
-}
-
-def ability_of_symbol(sym: (uni.Symbol | None)) -> (uni.Ability | None) {
-    if sym is None or not sym.defn {
-        return None;
-    }
-    decl = _ability_of_defn(sym.defn[0]);
-
-    if decl is not None and str(decl.loc.mod_path).endswith(".pyi") {
-        for alt in sym.defn {
-            alt_decl = _ability_of_defn(alt);
-            if alt_decl is not None
-                and not str(alt_decl.loc.mod_path).endswith(".pyi") {
-                return alt_decl;
-            }
-        }
-    }
-    return decl;
 }
 
 enum ClientImportVerdict {
@@ -1200,6 +1281,10 @@ obj JacCompiler {
     ) -> list[uni.Module];
 
     def resolve_absorb_imports(mod: uni.Module, target_program: JacProgram) -> None;
+    def stamp_boundary_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    def stamp_client_kind_facts(mod: uni.Module, target_program: JacProgram) -> None;
+    def stamp_access_check_facts(mod: uni.Module) -> None;
+    def stamp_native_import_facts(mod: uni.Module, target_program: JacProgram) -> None;
     def compile(
         file_path: str,
         target_program: JacProgram,
@@ -1224,7 +1309,7 @@ obj JacCompiler {
     def run_schedule(
         mod: uni.Module,
         target_program: JacProgram,
-        passes: list[type[Transform[uni.Module, uni.Module]]],
+        passes: list[type[Transform]],
         cancel_token: (Event | None) = None
     ) -> None;
 
@@ -1240,6 +1325,10 @@ obj JacCompiler {
     static def _scrub_native_artifacts_on_error(
         target_program: JacProgram, mod: uni.Module
     ) -> bool;
+
+    static def _report_missing_native_ir(
+        target_program: JacProgram, mod: uni.Module
+    ) -> None;
 
     static def _prepare_tool_program(
         source_str: str, file_path: str, expand: bool = False

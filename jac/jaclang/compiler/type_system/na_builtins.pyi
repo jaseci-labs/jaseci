@@ -87,6 +87,13 @@ class BinaryFile:
 # A binary mode literal (containing "b") selects BinaryFile; any other mode is
 # a text File. The codegen reads the same literal to pick the struct, so the
 # static type and emitted object always agree (#6404).
+#
+# `encoding` is declared on the text overload because CPython accepts it there
+# and the emitter has to answer for it. It does not lower: `_emit_open` refuses
+# any keyword argument, which demotes the calling function to a Python-only
+# seam. Leaving the parameter off made the same call a type error instead, and
+# a type error in a native module refuses the whole module rather than the one
+# function that wrote it.
 @overload
 def open(
     path: str,
@@ -110,4 +117,4 @@ def open(
     ],
 ) -> BinaryFile: ...
 @overload
-def open(path: str, mode: str = "r") -> File: ...
+def open(path: str, mode: str = "r", encoding: str | None = None) -> File: ...

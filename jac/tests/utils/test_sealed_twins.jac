@@ -101,7 +101,6 @@ test "register_image hash-verifies its JIRs (fail-closed)" {
     import json;
     import shutil;
     import tempfile;
-    import pytest;
     import from pathlib { Path }
 
     tmp = Path(tempfile.mkdtemp(prefix="sealed-twin-"));
@@ -136,7 +135,7 @@ test "register_image hash-verifies its JIRs (fail-closed)" {
         sealed._images.remove(img);
 
         (jdir / "mod.jir").write_bytes(data + b"tampered");
-        with pytest.raises(RuntimeError) {
+        with testraises(RuntimeError) {
             sealed.register_image(pre);
         }
     } finally {

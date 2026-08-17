@@ -12,7 +12,6 @@ import time;
 import uuid;
 import shutil;
 import requests;
-import pytest;
 import from jaclang.runtimelib.serving.authcrypt {
     jwt_decode as _jwt_decode,
     jwt_encode as _jwt_encode

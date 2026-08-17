@@ -276,8 +276,7 @@ def _route_exists(method: str, path: str) -> bool {
 
 test "default walker + function routes still work through inprocess_forward" {
     if not _ensure_runtime() {
-        import pytest;
-        pytest.skip("in-process backend unavailable: " + _BUILD_FAILED);
+        testskip("in-process backend unavailable: " + _BUILD_FAILED);
     }
     (status, text, ctype) = _forward("POST", "/walker/greet", {"name": "Ada"});
     assert status == 200 , text;
@@ -295,8 +294,7 @@ test "default walker + function routes still work through inprocess_forward" {
 
 test "a restspec custom path + verb routes correctly over the bridge" {
     if not _ensure_runtime() {
-        import pytest;
-        pytest.skip("in-process backend unavailable: " + _BUILD_FAILED);
+        testskip("in-process backend unavailable: " + _BUILD_FAILED);
     }
     # GET /custom/ping (custom verb + custom path) -- default POST /walker/{name}
     # parsing would never have reached this.
@@ -324,8 +322,7 @@ test "a restspec custom path + verb routes correctly over the bridge" {
 
 test "GET with query params binds and coerces types over the bridge" {
     if not _ensure_runtime() {
-        import pytest;
-        pytest.skip("in-process backend unavailable: " + _BUILD_FAILED);
+        testskip("in-process backend unavailable: " + _BUILD_FAILED);
     }
     # age arrives as the string "30" in the query -- it must coerce to int, and the
     # undeclared cache-buster `v` must be dropped, not forwarded to the walker.
@@ -345,8 +342,7 @@ test "GET with query params binds and coerces types over the bridge" {
 
 test "unknown path returns a 404-shaped error over the bridge" {
     if not _ensure_runtime() {
-        import pytest;
-        pytest.skip("in-process backend unavailable: " + _BUILD_FAILED);
+        testskip("in-process backend unavailable: " + _BUILD_FAILED);
     }
     (status, text, _c) = _forward("POST", "/walker/__no_such_walker__", {});
     assert status == 404 , text;
@@ -364,8 +360,7 @@ test "unknown path returns a 404-shaped error over the bridge" {
 
 test "streaming responses drain as SSE frames through forward()" {
     if not _ensure_runtime() {
-        import pytest;
-        pytest.skip("in-process backend unavailable: " + _BUILD_FAILED);
+        testskip("in-process backend unavailable: " + _BUILD_FAILED);
     }
     # Step 6: the sv bridge no longer 500s on a streaming result. A direct
     # forward() caller materializes the shared runtimelib/streaming SSE frames
@@ -382,8 +377,7 @@ test "streaming responses drain as SSE frames through forward()" {
 
 test "forward_outcome tags a streaming result for the broker to drain" {
     if not _ensure_runtime() {
-        import pytest;
-        pytest.skip("in-process backend unavailable: " + _BUILD_FAILED);
+        testskip("in-process backend unavailable: " + _BUILD_FAILED);
     }
     # The broker-facing bridge hands back a live generator tagged mode "sse" so
     # the broker can drain it incrementally instead of buffering the whole body.
