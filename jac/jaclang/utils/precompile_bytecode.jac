@@ -473,14 +473,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
 
      ),
-     _SEMANTIC_ANALYSIS_SEAM_WAIVERS: tuple = (
-         "jac0core/passes/semantic_analysis_pass.jac::SemanticAnalysisPass.enter_has_var",
-
-     ),
-     _SYM_TAB_BUILD_SEAM_WAIVERS: tuple = (
-         "jac0core/passes/sym_tab_build_pass.jac::SymTabBuildPass.exit_global_vars",
-
-     ),
      _CFG_BUILD_SEAM_WAIVERS: tuple = (
          "compiler/passes/main/cfg_build_pass.jac::cfg_dot_from_file",
          "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass.enter_node",
@@ -543,12 +535,8 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
              _CLOSURE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
          ),
          "jac0core/passes/ast_validation_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/semantic_analysis_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _SEMANTIC_ANALYSIS_SEAM_WAIVERS
-         ),
-         "jac0core/passes/sym_tab_build_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _SYM_TAB_BUILD_SEAM_WAIVERS
-         ),
+         "jac0core/passes/semantic_analysis_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "jac0core/passes/sym_tab_build_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
@@ -676,22 +664,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "same family as unitree's waived `UniNode.gen.__get__`. They "
              "clear when endpoint effects are emitted as data the driver "
              "collects, the diagnostics-as-data pattern."
-         ),
-         (
-             "semantic_analysis ice construction",
-             _SEMANTIC_ANALYSIS_SEAM_WAIVERS,
-             "`Transform.ice` raises through Python diagnostics "
-             "machinery. Clears when ice construction lowers, or when the "
-             "internal-error guard moves behind the emit-as-data path."
-         ),
-         (
-             "sym_tab_build ice construction",
-             _SYM_TAB_BUILD_SEAM_WAIVERS,
-             "`exit_global_vars` calls the inherited `Transform.ice`, which "
-             "raises through Python diagnostics machinery. It is the exact "
-             "twin of the `semantic_analysis` waiver and clears the same "
-             "way: when ice construction lowers, or when the internal-error "
-             "guard moves behind the emit-as-data path."
          ),
          (
              "cfg_build graph tooling and erased basic-block storage",
