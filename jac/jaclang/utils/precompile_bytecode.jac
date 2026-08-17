@@ -296,13 +296,17 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "compiler/passes/main/sem_def_match_pass.jac",
          "compiler/passes/main/access_check_pass.jac",
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
+         "jac0core/passes/jcir_gen_pass.jac",
          "compiler/native_materialize.jac",
 
      ),
+     NATIVE_SEAL_REFUSED_ROOTS: dict[str, str] = {},
      NATIVE_SEAL_CLOSURE: tuple = (
+         "jac0core/codegen_ir.jac",
          "jac0core/constant.jac",
          "jac0core/diagnostics.jac",
          "jac0core/helpers.jac",
+         "jac0core/jcir_facts.jac",
          "jac0core/parser/lexer.jac",
          "jac0core/parser/parser.jac",
          "jac0core/parser/tokens.jac",
@@ -311,6 +315,7 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/passes/ast_validation_pass.jac",
          "jac0core/passes/decl_impl_match_pass.jac",
          "jac0core/passes/endpoint_effect_pass.jac",
+         "jac0core/passes/jcir_gen_pass.jac",
          "jac0core/passes/module_codegen_pass.jac",
          "jac0core/passes/semantic_analysis_pass.jac",
          "jac0core/passes/sym_tab_build_pass.jac",
@@ -331,11 +336,13 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "runtimelib/na_stdlib/hashlib.jac",
          "runtimelib/na_stdlib/keyword.jac",
          "runtimelib/na_stdlib/pathlib.jac",
+         "runtimelib/na_stdlib/textwrap.jac",
 
      );
 
 glob NATIVE_SEAL_UNITREE_ROOT: str = "jac0core/unitree.jac",
-     NATIVE_SEAL_MATERIALIZE_ROOT: str = "compiler/native_materialize.jac";
+     NATIVE_SEAL_MATERIALIZE_ROOT: str = "compiler/native_materialize.jac",
+     NATIVE_SEAL_JCIR_ROOT: str = "jac0core/passes/jcir_gen_pass.jac";
 
 glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::ModulePath.resolve_relative_path",
@@ -344,7 +351,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/unitree.jac::Module.annexable_by.__get__",
          "jac0core/unitree.jac::Import.__jac_detected.__get__",
          "jac0core/unitree.jac::Import.is_service_import.__get__",
-         "jac0core/unitree.jac::DeleteStmt.py_ast_targets.__get__",
          "jac0core/unitree.jac::BuiltinType.lit_value.__get__",
          "jac0core/unitree.jac::Ellipsis.lit_value.__get__",
 
@@ -414,6 +420,43 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/sym_tab_build_pass.jac::SymTabBuildPass.exit_global_vars",
 
      ),
+     _JCIR_INTEROP_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._gen_native_interop_stubs",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._generate_sv_to_sv_stubs",
+         (
+             "jac0core/passes/jcir_gen_pass.jac::"
+             "JcirGenPass._native_import_registration_map"
+         ),
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._native_test_shim_stmts",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._gen_py_sv_func_stub",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._gen_py_sv_walker_stub",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._gen_py_boundary_stub_class",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_test",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_import",
+
+     ),
+     _JCIR_LOWERING_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._get_sem_decorator",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_ability",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_archetype",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_enum",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_ctrl_stmt",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_module",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_multi_string",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_element",
+
+     ),
+     _JCIR_ENTITY_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_normal_attribute",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_jsx_text",
+
+     ),
+     _JCIR_EMITTER_ICE_SEAM_WAIVERS: tuple = (
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._query_filter_kws",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_atom_trailer",
+         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_edge_ref_trailer",
+
+     ),
      NATIVE_SEAL_DEMOTION_WAIVERS: dict[str, tuple] = {
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
@@ -437,8 +480,164 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "jac0core/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "jac0core/passes/jcir_gen_pass.jac": (
+             _CLOSURE_SEAM_WAIVERS
+             + _JCIR_INTEROP_SEAM_WAIVERS
+             + _JCIR_LOWERING_SEAM_WAIVERS
+             + _JCIR_ENTITY_SEAM_WAIVERS
+             + _JCIR_EMITTER_ICE_SEAM_WAIVERS
+         )
      };
+
+glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
+         (
+             "unitree Python-only surface",
+             _UNITREE_SEAM_WAIVERS,
+             "Import resolution, filesystem and jac.toml reads, the "
+             "CPython ast bridge, the `type`-object literal map and the `...` "
+             "value, plus the lazy `CodeGenTarget` construction behind "
+             "`UniNode.gen`. Each is infrastructure no native unit can host. "
+             "They clear as the driver hands the tree data instead of "
+             "handles: import detection stamped onto the node (the #8242 "
+             "`absorbed_mod` pattern), codegen state crossing as records, "
+             "and a native value for `Ellipsis`."
+         ),
+         (
+             "type system cross-module cascades",
+             _TYPES_SEAM_WAIVERS,
+             "`lookup_member_symbol` and `specialize` are cascades of the "
+             "`type_utils` waivers below -- `collect_member_syms` and "
+             "`build_type_var_solution` -- and clear with their callees. "
+             "`create_callable_type` reads `ParameterCategory.Positional`, an "
+             "`IntEnum` member accessed off the class rather than through an "
+             "instance, whose `auto()` values no constant fold reaches; it "
+             "clears when class-level enum member reads lower."
+         ),
+         (
+             "type utils erased operands and unreachable layouts",
+             _TYPE_UTILS_SEAM_WAIVERS,
+             "Three named backend gaps and their cascades: `isinstance` "
+             "against a layout not reachable from the root "
+             "(`class_implements_protocol`, `doc_of_sym`), `enumerate(...)` "
+             "as a for-loop iterable (`build_type_var_solution`, "
+             "`build_solution_from_specialized_class`), and comprehensions or "
+             "matches over element-erased collections "
+             "(`shadowed_type_var_names`, `completion_kind_from_sym`). "
+             "`expr_primitive_name` is the one Python-only member: it reaches "
+             "`get_type_evaluator`, and `type_evaluator.jac` cannot join this "
+             "closure. Each clears with the named gap; "
+             "`expr_primitive_name` clears when the evaluator query crosses "
+             "as data."
+         ),
+         (
+             "helpers rendering, file reads and the unitree cycle",
+             _HELPERS_SEAM_WAIVERS,
+             "Three groups. `pretty_print_source_location` asks for `MOD` on "
+             "mismatched integer widths and `format_related_spans` cascades "
+             "on it. `read_file_with_encoding` passes an encoding keyword to "
+             "`open()`, which the native lane refuses out loud since #8255; "
+             "`normalize_exclude_patterns` and `read_jacignore_patterns` are "
+             "string methods on element-erased list members. The "
+             "`sys.version_info` family reads unitree through a "
+             "function-local import that keeps `helpers` out of a "
+             "module-level cycle with `unitree`; hoisting it is the clearing "
+             "mechanism and it needs the cycle broken first."
+         ),
+         (
+             "module_codegen erased-operand isinstance",
+             _MODULE_CODEGEN_SEAM_WAIVERS,
+             "One backend gap and five call-cascades of it: "
+             "`iter_context_stmts` runs `isinstance` over an "
+             "element-erased sequence element, because `module.body` "
+             "reaches it as a bare `Sequence`. All six clear together "
+             "when the backend lowers `isinstance` over erased operands, "
+             "the unlanded remainder of the #8214 family."
+         ),
+         (
+             "uni_pass TypeVar-generic statics",
+             _UNI_PASS_SEAM_WAIVERS,
+             "`get_all_sub_nodes` and `find_parent_of_type` are "
+             "`type[T]`-generic statics that only forward to the "
+             "same-named `UniNode` methods, and the backend cannot lower "
+             "a TypeVar-bound signature. They clear when generic statics "
+             "lower, or when the forwarding shims are retired for the "
+             "`UniNode` methods they wrap."
+         ),
+         (
+             "endpoint effects written as codegen state",
+             _ENDPOINT_EFFECT_SEAM_WAIVERS,
+             "Both write endpoint classifications through `UniNode.gen` "
+             "into the `InteropManifest`, Python-only codegen state, the "
+             "same family as unitree's waived `UniNode.gen.__get__`. They "
+             "clear when endpoint effects are emitted as data the driver "
+             "collects, the diagnostics-as-data pattern."
+         ),
+         (
+             "semantic_analysis ice construction",
+             _SEMANTIC_ANALYSIS_SEAM_WAIVERS,
+             "`Transform.ice` raises through Python diagnostics "
+             "machinery. Clears when ice construction lowers, or when the "
+             "internal-error guard moves behind the emit-as-data path."
+         ),
+         (
+             "sym_tab_build ice construction",
+             _SYM_TAB_BUILD_SEAM_WAIVERS,
+             "`exit_global_vars` calls the inherited `Transform.ice`, which "
+             "raises through Python diagnostics machinery. It is the exact "
+             "twin of the `semantic_analysis` waiver and clears the same "
+             "way: when ice construction lowers, or when the internal-error "
+             "guard moves behind the emit-as-data path."
+         ),
+         (
+             "jcir interop manifest and driver reads",
+             _JCIR_INTEROP_SEAM_WAIVERS,
+             "The native-export and sv-to-sv stub surface reads "
+             "`gen.interop_manifest` and the `InteropBinding` / "
+             "`BoundaryTypeInfo` codeinfo objects, which are Python "
+             "codegen state, and `exit_import` asks the driver for "
+             "`native_only_import_target`. Clears when the driver stamps "
+             "import decisions onto the node as data and the manifest "
+             "crosses as a native-clean record instead of a Python "
+             "object."
+         ),
+         (
+             "jcir named backend gaps",
+             _JCIR_LOWERING_SEAM_WAIVERS,
+             "Named constructs the backend does not yet lower: reads and "
+             "assignments of element-erased list elements, comprehensions "
+             "over element-erased collections, and `_merge_module_bodies` "
+             "on the generic base pass. `exit_archetype`, `exit_enum` and "
+             "`exit_ability` are cascades of `_get_sem_decorator`. Each "
+             "clears when the named construct lowers; the generic-base one "
+             "also clears by the monomorphic-override route that already "
+             "cleared `_flatten_ast_list` on this pass."
+         ),
+         (
+             "jcir html entity decoding",
+             _JCIR_ENTITY_SEAM_WAIVERS,
+             "Jsx text and string attributes decode html entities through "
+             "the Python `html` module. Clears with an na_stdlib `html` "
+             "shim carrying the full html5 entity table, pinned against "
+             "`html.unescape` the way `test_jcir_facts_sync.jac` pins the "
+             "other baked facts. A reduced table is not acceptable: the "
+             "two lanes must agree byte for byte, so a missing entity is "
+             "a silent divergence rather than a missing feature."
+         ),
+         (
+             "jcir emitter-internal refusal",
+             _JCIR_EMITTER_ICE_SEAM_WAIVERS,
+             "`_query_filter_kws` refuses with an emitter-internal error "
+             "rather than a named gap, and takes its two callers with it. "
+             "Restructuring away union locals, `any` locals, conditional "
+             "expressions and continue-guards does not move it, which "
+             "places the fault in the native emitter rather than in the "
+             "shape of the source. Its sibling `exit_delete_stmt` was in "
+             "the same state and cleared when its nested function became "
+             "a method, so nested-function lowering is the first place to "
+             "look. Clears when that emitter fault is fixed."
+         )
+     );
 
 def _seal_module_label(path: str, pkg_path: (Path | None)) -> str {
     if pkg_path is not None {
@@ -1088,6 +1287,154 @@ def _merge_probe_parity(np: any) -> str {
     return "";
 }
 
+glob _JCIR_PROBE_LINES: tuple = (
+         "\"\"\"Container probe.\"\"\"",
+         "# a comment the crossing must not move",
+         "glob seeded: int = 1;",
+         "",
+         "def widen(n: int) -> int {",
+         "    total = n + seeded;  # a trailing comment",
+         "    return total;",
+         "}",
+         "",
+         "test \"a string named probe\" { assert widen(1) == 2; }",
+         "",
+         "with entry { widened = widen(2); }",
+
+     );
+
+def _jcir_code_field_diffs(a: any, b: any, at: str, out: list[str]) -> list[str] {
+    import types;
+    for attr in (
+        "co_name",
+        "co_qualname",
+        "co_filename",
+        "co_firstlineno",
+        "co_argcount",
+        "co_posonlyargcount",
+        "co_kwonlyargcount",
+        "co_nlocals",
+        "co_stacksize",
+        "co_flags",
+        "co_code",
+        "co_names",
+        "co_varnames",
+        "co_freevars",
+        "co_cellvars",
+        "co_linetable",
+        "co_exceptiontable"
+    ) {
+        av = getattr(a, attr, None);
+        bv = getattr(b, attr, None);
+        if av != bv {
+            out.append(f"{at}.{attr}: reference {av!r} vs crossing {bv!r}");
+        }
+    }
+    if len(a.co_consts) != len(b.co_consts) {
+        out.append(f"{at}.co_consts length {len(a.co_consts)} vs {len(b.co_consts)}");
+        return out;
+    }
+    for (i, (x, y)) in enumerate(zip(a.co_consts, b.co_consts)) {
+        if (isinstance(x, types.CodeType) and isinstance(y, types.CodeType)) {
+            _jcir_code_field_diffs(x, y, f"{at}.consts[{i}]", out);
+        } elif (x != y or type(x) is not type(y)) {
+            out.append(f"{at}.consts[{i}]: reference {x!r} vs crossing {y!r}");
+        }
+    }
+    return out;
+}
+
+def seal_jcir_container_canary(lib_path: str) -> str {
+    import ast as pyast;
+    import traceback;
+    import from jaclang.jac0core.codegen_shim { transcribe }
+    import from jaclang.jac0core.compile_options { CompileOptions, env_na_debug }
+    import from jaclang.jac0core.passes.jcir_gen_pass { JcirGenPass }
+    import from jaclang.jac0core.program { JacProgram }
+
+    nl = chr(10);
+    probe_path = "__seal_jcir_probe__.jac";
+    probe_src = nl.join(list(_JCIR_PROBE_LINES));
+    sys.stderr.write(
+        f"    canary: jcir container crossing in {os.path.basename(lib_path)}{nl}"
+    );
+    sys.stderr.flush();
+    blobs: list[bytes] = [];
+    trees: list[any] = [];
+    for _round in (0, 1) {
+        prog = JacProgram();
+        try {
+            mod = prog.compile(
+                use_str=probe_src,
+                file_path=probe_path,
+                options=CompileOptions(
+                    force_codespace="server",
+                    skip_native_engine=True,
+                    no_ir_cache=True,
+                    suppress_codes=["E5092"]
+                )
+            );
+        } except Exception as probe_exc {
+            if env_na_debug() {
+                traceback.print_exc(file=sys.stderr);
+            }
+            return (
+                f"the probe did not compile: "
+                f"{type(probe_exc).__name__}: {probe_exc}"
+            );
+        }
+        if prog.errors_had {
+            return (
+                f"the probe did not compile cleanly: "
+                f"{[str(e) for e in prog.errors_had][:3]}"
+            );
+        }
+        blobs.append(JcirGenPass(ir_in=mod, prog=prog).ir_bytes());
+        trees.append(mod.gen.py_ast[0]);
+    }
+    if blobs[0] != blobs[1] {
+        return (
+            f"the container is not byte stable: two emissions of the probe "
+            f"produced {len(blobs[0])} and {len(blobs[1])} bytes that differ. "
+            "The container is what crosses the boundary and what a cache keys "
+            "on, so an unstable encoding cannot ship."
+        );
+    }
+    (mods, diags) = transcribe(blobs[0]);
+    if diags {
+        return f"the probe container carried unexpected diagnostics: {diags}";
+    }
+    if len(mods) != 1 or mods[0][0] != probe_path {
+        return f"the probe container carried {len(mods)} module(s), not the probe";
+    }
+    want = pyast.dump(trees[0], include_attributes=True);
+    got = pyast.dump(mods[0][1], include_attributes=True);
+    if want != got {
+        i = 0;
+        n = min(len(want), len(got));
+        while (i < n and want[i] == got[i]) {
+            i += 1;
+        }
+        lo = max(0, i - 120);
+        return (
+            f"the crossing lost fidelity at offset {i}{nl}"
+            f"want: ...{want[lo:i + 200]}{nl}"
+            f"got:  ...{got[lo:i + 200]}"
+        );
+    }
+    ref_code = compile(trees[0], probe_path, "exec");
+    got_code = compile(mods[0][1], probe_path, "exec");
+    code_diffs = _jcir_code_field_diffs(ref_code, got_code, "<module>", []);
+    if code_diffs {
+        return (
+            f"{len(code_diffs)} code object field(s) diverged across the "
+            f"crossing:{nl}"
+            + nl.join(f"    {d}" for d in code_diffs[:10])
+        );
+    }
+    return "";
+}
+
 def _sym_name_fingerprint(mod: any) -> list[str] {
     import jaclang.jac0core.unitree as uni;
     out: list[str] = [];
@@ -1683,6 +2030,22 @@ def seal_native_roots(
         layout_path.write_text(
             json.dumps(layout_dict, sort_keys=True) + "\n", encoding="utf-8"
         );
+        if rel == NATIVE_SEAL_JCIR_ROOT {
+            crossing = seal_jcir_container_canary(str(lib_path));
+            if crossing {
+                console.error(
+                    f"NATIVE SEAL: {rel}: the emitted artifact "
+                    f"{lib_path.name} failed its container crossing canary. "
+                    "The seal refuses a JCIR producer whose container is not "
+                    "byte stable or whose crossing is lossy; set "
+                    f"JAC_NA_DEBUG=1 for the traceback.{chr(10)}{crossing}"
+                );
+                lib_path.unlink(missing_ok=True);
+                layout_path.unlink(missing_ok=True);
+                purge_native_ir_cache(str(src), closure_deps);
+                return None;
+            }
+        }
         if rel == NATIVE_SEAL_MATERIALIZE_ROOT {
             parity = seal_parse_parity_canary(str(lib_path), layout_dict);
             if parity {

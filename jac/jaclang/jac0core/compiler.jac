@@ -34,9 +34,9 @@ import from jaclang.jac0core.passes {
     DeclImplMatchPass,
     EndpointEffectPass,
     JacAnnexPass,
+    JcirBytecodeGenPass,
+    JcirGenPass,
     PlacementApplyPass,
-    PyastGenPass,
-    PyBytecodeGenPass,
     SemanticAnalysisPass,
     SymTabBuildPass,
     Transform
@@ -624,18 +624,19 @@ def native_pipeline_available -> tuple[bool, str] {
     return verdict;
 }
 
+def _py_codegen_tail -> list[type[Transform[uni.Module, uni.Module]]] {
+    return [JcirGenPass, JcirBytecodeGenPass];
+}
+
 def get_py_code_gen(
     native: bool = True, provided: (set[str] | None) = None
 ) -> list[type[Transform[uni.Module, uni.Module]]] {
     if _codegen_sched_loading.get() or _ir_sched_loading.get() {
-        return [PyastGenPass, PyBytecodeGenPass];
+        return _py_codegen_tail();
     }
     _tok = _codegen_sched_loading.set(True);
     try {
         import from jaclang.compiler.passes.ecmascript { EsastGenPass }
-        import from jaclang.compiler.passes.main.pyjac_ast_link_pass {
-            PyJacAstLinkPass
-        }
 
         passes: list[type[Transform[uni.Module, uni.Module]]] = [EsastGenPass];
         if native {
@@ -669,14 +670,14 @@ def get_py_code_gen(
             );
             _note_native_schedule_failure(None);
         }
-        passes.extend([PyastGenPass, PyJacAstLinkPass, PyBytecodeGenPass]);
+        passes.extend(_py_codegen_tail());
         return passes;
     } except ImportError as e {
         fail_loud_on_compiler_source(e);
         if native {
             _note_native_schedule_failure(e);
         }
-        return [PyastGenPass, PyBytecodeGenPass];
+        return _py_codegen_tail();
     } finally {
         _codegen_sched_loading.reset(_tok);
     }
