@@ -3796,13 +3796,17 @@ impl TypeEvaluator._get_type_from_flow_node(
     import from jaclang.compiler.type_system.type_evaluator { NarrowingTarget }
     key = target.key;
 
-    cache_key = (id(flow_node), id(target.symbol))
-        if target.symbol is not None
-        else (id(flow_node), key);
-    if cache_key in self._flow_node_type_cache {
-        return self._flow_node_type_cache[cache_key];
-    }
     flow_node_id = id(flow_node);
+    sym = target.symbol;
+    sym_key: tuple[int, int] = (flow_node_id, id(sym) if sym is not None else 0);
+    txt_key: tuple[int, str] = (flow_node_id, key);
+    if sym is not None {
+        if sym_key in self._flow_node_type_cache {
+            return self._flow_node_type_cache[sym_key];
+        }
+    } elif txt_key in self._flow_key_type_cache {
+        return self._flow_key_type_cache[txt_key];
+    }
     if flow_node_id in visited {
         return None;
     }
@@ -3812,7 +3816,11 @@ impl TypeEvaluator._get_type_from_flow_node(
     }
     visited.add(flow_node_id);
     if not flow_node.bb_in {
-        self._flow_node_type_cache[cache_key] = None;
+        if sym is not None {
+            self._flow_node_type_cache[sym_key] = None;
+        } else {
+            self._flow_key_type_cache[txt_key] = None;
+        }
         visited.discard(flow_node_id);
         return None;
     }
@@ -4070,7 +4078,11 @@ impl TypeEvaluator._get_type_from_flow_node(
         result = self._union_narrowed_types(incoming_types);
     }
     if not (isinstance(result, UnknownType) and result.is_incomplete) {
-        self._flow_node_type_cache[cache_key] = result;
+        if sym is not None {
+            self._flow_node_type_cache[sym_key] = result;
+        } else {
+            self._flow_key_type_cache[txt_key] = result;
+        }
     }
     visited.discard(flow_node_id);
     return result;

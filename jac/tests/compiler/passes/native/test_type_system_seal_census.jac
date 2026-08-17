@@ -26,7 +26,9 @@ questions:
   un-lowerable declaration cost the module its IR and all two hundred of its
   abilities their measurement. The declaration owns its refusal now, the module
   keeps its IR, and the seam map below is the stage's upper half measured
-  rather than refused.
+  rather than refused. Being measured is what retired one of the two
+  declarations: the refusal named a whole `dict` type, and measuring it said
+  the bare `tuple` key was the only un-lowerable half.
 * `type_checker_pass.jac` -- the evaluator's only consumer, and the other half
   of the pair M2 has to seal. It reaches codegen already; what it does not
   reach is the evaluator, and the census says so in one number.
@@ -43,7 +45,7 @@ waiver that stops matching a real seam fails too, and a seam that starts
 demoting for a different reason than the one recorded fails as well, which
 keeps the baseline current as the backend grows. The two big tables are keyed
 cause-first -- one cause, the members that demote on it -- because that is the
-shape the measurement actually has: 110 evaluator seams across 51 causes, 46
+shape the measurement actually has: 109 evaluator seams across 50 causes, 46
 checker seams across 9, and in both the largest single cause is worth more than
 a third of the file. Every member is still named individually, so nothing here
 is a count.
@@ -242,9 +244,9 @@ glob EVALUATOR_CLOSURE: tuple = (
          "unitree.jac"
      );
 
-"""The evaluator's first true census: 110 seams, keyed by the cause they share.
+"""The evaluator's first true census: 109 seams, keyed by the cause they share.
 
-Keyed cause-first because the measurement has that shape. Ninety of the 110
+Keyed cause-first because the measurement has that shape. Ninety of the 109
 are cascades -- a method whose only refusal is that it calls a sibling the
 backend already demoted -- so a flat table would print the same sentence
 ninety times and hide the fact that the file's fate rests on a handful of
@@ -266,33 +268,49 @@ The roots, which is what M2 has to spend its work on:
 * `Python module import 'ast'` -- four methods that read CPython's parser for
   `__all__`, ambient imports and string annotations. No native unit can host
   these; they are the stage's honest Python floor.
-* `builtin call 'id'` -- identity as a dict key, in the flow cache and the
-  type-var scope check.
+* `builtin call 'id'` -- identity as a dict key. `id(x)` assigned to a local
+  lowers; `id(x)` inside a tuple constructor does not, which is why this
+  cause has one member left rather than two.
 * `function '...'` entries naming a callee outside this unit --
   `int_subscript_suffix` lives in `compiler/symbol_utils.jac`, which the
   closure above does not contain, so the call cannot resolve natively; the
   `client_*` and project-root helpers are filesystem probes.
-* `type '...'` entries -- the two field declarations, below.
+* `type 'JacProgram'` -- the one field declaration left, below.
 * `erased field 'TypeEvaluator.program'` -- the four methods that touch the
   erased slot, refusing inside themselves rather than at the declaration.
 
-The two declaration seams are the reason this table exists at all. A `has`
-type is resolved while the archetype's struct is laid out, outside every
-ability body, so an `E5092` raised there had no demotion window: it survived to
-the end of the run, where a non-empty `errors_had` withholds the module's IR,
-and every importer that compiled the evaluator as a dependency inherited the
-refusal. The seven CPython `ast` handles that used to head that list moved into
+The declaration seam is the reason this table exists at all. A `has` type is
+resolved while the archetype's struct is laid out, outside every ability body,
+so an `E5092` raised there had no demotion window: it survived to the end of
+the run, where a non-empty `errors_had` withholds the module's IR, and every
+importer that compiled the evaluator as a dependency inherited the refusal. The
+seven CPython `ast` handles that used to head that list moved into
 `_read_dunder_all` and `_read_ambient_imports_by_module` (#8237); the three
 that `postinit` used to strand became owned seams with #8234; three more named
 `enum_utils` and `operations` and became signature seams with #8285. Field
 declarations were the last kind left. They are seams on the field now: the slot
 erases to an opaque pointer, joins the foreign set, and every read, write and
 constructor argument that touches it refuses inside the callable performing it.
-`TypeEvaluator.program` clears when `JacProgram` acquires a native layout;
-`_flow_node_type_cache` clears when a bare `tuple` key does. Neither erasure
-cost a callable its native body -- all four methods that report the erased slot
-were already seams, and what changed is that they name the declaration behind
-the failure instead of the call that tripped over it downstream.
+The erasure cost no callable its native body -- all four methods that report
+the erased slot were already seams, and what changed is that they name the
+declaration behind the failure instead of the call that tripped over it
+downstream.
+
+`TypeEvaluator.program` clears when `JacProgram` acquires a native layout, and
+nothing smaller will do it: the annotation reaches the backend through an
+`import type`, which is what keeps `program.jac` out of the closure above, and
+the erasure is what keeps it out now that the annotation is unquoted.
+
+It had a second entry, and that one is gone rather than reworded.
+`_flow_node_type_cache` was typed `dict[tuple, TypeBase | None]` and the
+refusal named the whole dict, which read as though neither half had a layout.
+Measured, the optional `TypeBase` value lowers and the bare `tuple` key does
+not: annotating the key concretely lowers the field. The cache held two key
+shapes in one dict -- `(id(flow_node), id(symbol))` when the narrowing target
+has a symbol and `(id(flow_node), key)` when it has only a name -- so the fix
+was to stop conflating them. Two dicts, `tuple[int, int]` and
+`tuple[int, str]`, disjoint by the same condition that used to choose the key,
+and the declaration lowers with no cache semantics changed.
 """
 glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
          "method 'TypeEvaluator.get_type_of_expression'": (
@@ -380,9 +398,9 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator._get_method_with_overloads",
              "TypeEvaluator.get_type_of_member"
          ),
-         "builtin call 'id'": (
+         "function 'collect_assignment_target_keys'": (
              "TypeEvaluator._get_type_from_flow_node",
-             "TypeEvaluator._type_var_bound_in_scope"
+             "TypeEvaluator._loop_body_writes_target"
          ),
          "for-loop iterable 'FuncCall'": (
              "TypeEvaluator._build_field_params",
@@ -428,9 +446,7 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
          "function 'build_type_var_solution'": (
              "TypeEvaluator.specialize_member_type",
          ),
-         "function 'collect_assignment_target_keys'": (
-             "TypeEvaluator._loop_body_writes_target",
-         ),
+         "builtin call 'id'": ("TypeEvaluator._type_var_bound_in_scope", ),
          "function 'compute_mro_linearization'": ("TypeEvaluator.is_sub_class", ),
          "function 'find_jac_project_root'": (
              "TypeEvaluator._untyped_external_is_error",
@@ -472,9 +488,6 @@ glob EVALUATOR_SEAM_WAIVERS: dict[(str, tuple)] = {
              "TypeEvaluator._validate_constructor_method",
          ),
          "type 'JacProgram'": ("TypeEvaluator.program", ),
-         "type 'dict[tuple, TypeBase | NoneType]'": (
-             "TypeEvaluator._flow_node_type_cache",
-         ),
          "unsupported attribute access '_sym_category'": (
              "TypeEvaluator.get_type_of_module",
          ),
@@ -955,13 +968,12 @@ test "an un-lowerable declaration is a seam on its field, not on its module" {
         for k in found
         if _seam_cause(found[k]).startswith("type '")
     );
-    assert decls == [
-        "type_evaluator.jac::TypeEvaluator._flow_node_type_cache",
-        "type_evaluator.jac::TypeEvaluator.program"
-    ] , (
-        "the declaration seams are not the two fields this file names. A "
+    assert decls == ["type_evaluator.jac::TypeEvaluator.program"] , (
+        "the declaration seams are not the one field this file names. A "
         "declaration refusal has to key on the field that carries it, because "
-        "keying it anywhere else is what used to cost the module its IR:\n"
+        "keying it anywhere else is what used to cost the module its IR, and "
+        "the only field left that the backend cannot lay out is the one typed "
+        "`JacProgram`:\n"
         + "\n".join(f"  {k}: {_seam_cause(found[k])}" for k in decls)
     );
     assert has_ir , (
