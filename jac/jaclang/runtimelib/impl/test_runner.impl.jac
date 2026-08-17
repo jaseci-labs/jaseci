@@ -445,6 +445,26 @@ impl _capture_end(state: dict[(str, any)]) -> str {
     return text;
 }
 
+impl _package_basedir(start_dir: str) -> str {
+    current = os.path.realpath(start_dir);
+    while True {
+        packaged = False;
+        for marker in ("__init__.py", "__init__.jac") {
+            if os.path.exists(os.path.join(current, marker)) {
+                packaged = True;
+            }
+        }
+        if not packaged {
+            return current;
+        }
+        parent = os.path.dirname(current);
+        if parent == current {
+            return current;
+        }
+        current = parent;
+    }
+}
+
 impl _ensure_test_package(base_dir: str) -> str {
     import sys;
     import types;
@@ -584,9 +604,13 @@ impl run_file(
     pkg_name = _ensure_test_package(base_dir);
     qualified = f"{pkg_name}.{mod_name}";
     real_dir = os.path.realpath(base_dir);
-    added = real_dir not in sys.path;
-    if added {
-        sys.path.insert(0, real_dir);
+    basedir = _package_basedir(real_dir);
+    injected: list[str] = [];
+    for entry in (basedir, real_dir) {
+        if entry not in sys.path {
+            sys.path.insert(0, entry);
+            injected.append(entry);
+        }
     }
     import_error = "";
     capture = _capture_begin();
@@ -672,9 +696,9 @@ impl run_file(
             }
         }
     } finally {
-        if added {
+        for entry in injected {
             try {
-                sys.path.remove(real_dir);
+                sys.path.remove(entry);
             } except ValueError {
                 ;
             }

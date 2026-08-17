@@ -155,3 +155,44 @@ test "project-root-absolute import through a namespace package is collected" {
     assert rc == 0 , "suite importing engine.math.vec3 through a namespace "
     f"package must be collected and pass (exit 0); got exit {rc}";
 }
+
+
+"""Create a temp project whose suite lives inside a Python package tree and
+reaches a sibling module by its package-absolute name. Returns the root."""
+def make_packaged_project -> str {
+    proj = tempfile.mkdtemp(prefix="jacpkg-");
+    (Path(proj) / "jac.toml").write_text(
+        '[project]\nname = "r"\n\n[test]\ndirectory = "mypkg"\n'
+    );
+    pkg = Path(proj) / "mypkg";
+    (pkg / "sub").mkdir(parents=True);
+    (pkg / "__init__.py").write_text("");
+    (pkg / "sub" / "__init__.py").write_text("");
+    (pkg / "support.jac").write_text("glob VALUE: int = 42;\n");
+    (pkg / "sub" / "phase1_tests.jac").write_text(
+        "import from mypkg.support { VALUE }\n\n"
+        'test "packaged" {\n    assert VALUE == 42;\n}\n'
+    );
+    return proj;
+}
+
+
+test "a suite inside a package resolves package-absolute imports" {
+    # The runner puts the package *basedir* on sys.path -- the first ancestor
+    # without an `__init__`, matching pytest's prepend import mode -- so
+    # `import from mypkg.support` resolves from a suite nested at
+    # mypkg/sub/. This used to work only by accident: pytest imported
+    # `jac/tests/conftest.py` as the `tests.conftest` module, which is what put
+    # `jac/` on sys.path and made every `import from tests.support` in this
+    # repo's suite resolve. With the conftest gone the runner has to establish
+    # that itself, and a project with no conftest at all now works too.
+    proj = make_packaged_project();
+    try {
+        rc = run_in(proj, []);
+    } finally {
+        shutil.rmtree(proj, ignore_errors=True);
+    }
+    assert rc == 0 , (
+        f"packaged suite must import mypkg.support and pass; got exit {rc}"
+    );
+}
