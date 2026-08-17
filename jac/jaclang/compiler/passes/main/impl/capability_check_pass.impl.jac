@@ -259,7 +259,6 @@ impl call_has_kwargs_sink(call: FuncCall) -> bool {
 impl native_capability_violations(
     mod: Module
 ) -> list[tuple[(UniNode, str, str, (str | None))]] {
-    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
     import from jaclang.jac0core.constant { CodeContext, ExprCtx, Tokens as Tok }
     out: list[tuple[(UniNode, str, str, (str | None))]] = [];
     _stdlib_help: (str | None) = None;
@@ -715,17 +714,25 @@ impl NativeCapabilityCheckPass.transform(ir_in: Module) -> Module {
         native_capability_violations(ir_in)
     );
     if _fatal_viols {
-        _report = list(_fatal_viols);
+        _report: list[tuple[(UniNode, str, str, (str | None))]] = list(_fatal_viols);
         for _unit_viols in _demotable.values() {
             _report.extend(_unit_viols);
         }
         for (_vnode, _vkind, _vname, _vhelp) in _report {
-            self.emit(
-                E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
-            );
+            if _vhelp is None {
+                self.emit(E5090, node_override=_vnode, kind=_vkind, name=_vname);
+            } else {
+                self.emit(
+                    E5090,
+                    node_override=_vnode,
+                    kind=_vkind,
+                    name=_vname,
+                    help_text=_vhelp
+                );
+            }
         }
     }
-    ir_in.gen.native_viols_reported = True;
+    ir_in.native_viols_reported = True;
     return ir_in;
 }
 
@@ -734,14 +741,11 @@ impl ClientCapabilityCheckPass.postinit -> None {
 }
 
 impl ClientCapabilityCheckPass.transform(ir_in: Module) -> Module {
-    import from jaclang.jac0core.passes.module_codegen_pass {
-        client_capability_violations
-    }
-    if not ir_in.gen.client_viols_reported {
+    if not ir_in.client_viols_reported {
         for (_vnode, _vkind) in client_capability_violations(ir_in) {
             self.emit(E5096, node_override=_vnode, kind=_vkind);
         }
-        ir_in.gen.client_viols_reported = True;
+        ir_in.client_viols_reported = True;
     }
     return ir_in;
 }

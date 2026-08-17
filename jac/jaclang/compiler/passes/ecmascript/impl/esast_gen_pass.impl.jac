@@ -7953,11 +7953,11 @@ impl EsastGenPass.before_pass -> None {
         client_capability_violations
     }
     import from jaclang.jac0core.diagnostics { E5096 }
-    if not self.ir_in.gen.client_viols_reported {
+    if not self.ir_in.client_viols_reported {
         for (_vnode, _vkind) in client_capability_violations(self.ir_in) {
             self.emit(E5096, node_override=_vnode, kind=_vkind);
         }
-        self.ir_in.gen.client_viols_reported = True;
+        self.ir_in.client_viols_reported = True;
     }
     self.child_passes = self._init_child_passes(EsastGenPass);
     self.client_manifest = ClientManifest();
