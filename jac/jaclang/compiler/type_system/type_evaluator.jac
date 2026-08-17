@@ -266,12 +266,6 @@ obj PrefetchedTypes {
         set_class: ClassType | None = None;
 }
 
-obj SymbolResolutionStackEntry {
-    has symbol: uni.Symbol,
-        is_result_valid: bool = True,
-        partial_type: TypeBase | None = None;
-}
-
 obj MatchArgsToParamsResult {
     has arg_params: dict[(Expr | KWPair, Parameter | None)],
         overload: FunctionType | None = None,
