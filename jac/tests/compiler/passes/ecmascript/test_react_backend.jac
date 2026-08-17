@@ -23,8 +23,7 @@ test "react file-based-routing entry mounts via react-dom + react-router" {
     assert 'solid-js' not in script;
     assert '@solidjs/router' not in script;
     assert 'import { routes, layouts } from "./_routes.js";' in script;
-    assert 'React.createElement(Route, { key: "__auth", element: authGuardElement },'
-        in script;
+    assert 'React.createElement(Route, { key: "__auth", element: authGuardElement },' in script;
     assert 'const RootLayout = layouts["/"] || null;' in script;
     assert 'getElementById("root")' in script;
     assert 'app as AppWrapper' not in script;
@@ -32,8 +31,7 @@ test "react file-based-routing entry mounts via react-dom + react-router" {
 
 test "react entry passes auth_redirect to AuthGuard as a prop, not positionally" {
     script = build_pages_react_entry_script("main", "/signin", False);
-    assert 'const authGuardElement = React.createElement(AuthGuard, { redirect: "/signin" });'
-        in script;
+    assert 'const authGuardElement = React.createElement(AuthGuard, { redirect: "/signin" });' in script;
     assert 'AuthGuard("' not in script;
     assert '_AuthGuardRoute' not in script;
 }
@@ -41,8 +39,7 @@ test "react entry passes auth_redirect to AuthGuard as a prop, not positionally"
 test "react file-based-routing entry honors the app wrapper" {
     script = build_pages_react_entry_script("main", "/login", True);
     assert 'import { app as AppWrapper } from "./main.js";' in script;
-    assert 'React.createElement(AppWrapper, null, React.createElement(App, null));'
-        in script;
+    assert 'React.createElement(AppWrapper, null, React.createElement(App, null));' in script;
 }
 
 test "react simple entry mounts the module app under the error boundary" {

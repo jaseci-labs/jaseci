@@ -90,9 +90,7 @@ const assertExpectation = (expect, html) => {
     `got: ${window.location.pathname}`);
 };
 """,
-     _MANUAL_HARNESS: str = "const mountId = \"__jac_root\";\n"
-         + _JSDOM_BOOT
-         + """
+     _MANUAL_HARNESS: str = "const mountId = \"__jac_root\";\n" + _JSDOM_BOOT + """
 const EXPECT = {
   // The documented wrapper form. Logged in, the wrapped page must render; a
   // guard that ignores its children renders an empty `<Outlet/>` here instead.

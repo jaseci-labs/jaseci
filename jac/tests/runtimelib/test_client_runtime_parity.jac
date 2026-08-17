@@ -162,8 +162,7 @@ def _assert_parity(runtimes: dict[str, Path], label: str) -> set {
                 for t in tables.values()
                 if name in t
             ]
-        )
-            > 1 {
+        ) > 1 {
             shared.add(name);
         }
     }
@@ -185,8 +184,9 @@ def _assert_parity(runtimes: dict[str, Path], label: str) -> set {
     assert not mismatches , (
         f"{label}: {len(mismatches)} symbol(s) declared with different "
         f"signatures across targets. `@jac/runtime` is one public API; a name "
-        f"that takes different parameters per target is a portability bug.\n\n"
-        + "\n\n".join(mismatches)
+        f"that takes different parameters per target is a portability bug.\n\n" + "\n\n".join(
+            mismatches
+        )
     );
     return shared;
 }

@@ -29,29 +29,31 @@ def:pub NestedPage -> JsxElement {
 }
 
 def:pub AuthShell -> JsxElement {
-    return <AuthGuard redirect="/login">
-        <Outlet/>
-    </AuthGuard>;
+    return
+        <AuthGuard redirect="/login">
+            <Outlet/>
+        </AuthGuard>;
 }
 
 def:pub app -> JsxElement {
-    return <Router>
-        <div data-testid="chrome">chrome</div>
-        <Routes>
-            <Route path="/login" element={<LoginPage/>}/>
-            <Route
-                path="/wrapped"
-                element={<AuthGuard redirect="/login">
-                    <Dashboard/>
-                </AuthGuard>}
-            />
-            <Route element={<AuthGuard redirect="/login"/>}>
-                <Route path="/nested" element={<NestedPage/>}/>
-            </Route>
-            <Route element={<AuthShell/>}>
-                <Route path="/layout-guarded" element={<Dashboard/>}/>
-            </Route>
-            <Route path="/bare" element={<AuthGuard redirect="/login"/>}/>
-        </Routes>
-    </Router>;
+    return
+        <Router>
+            <div data-testid="chrome">chrome</div>
+            <Routes>
+                <Route path="/login" element={<LoginPage/>}/>
+                <Route
+                    path="/wrapped"
+                    element={<AuthGuard redirect="/login">
+                        <Dashboard/>
+                    </AuthGuard>}
+                />
+                <Route element={<AuthGuard redirect="/login"/>}>
+                    <Route path="/nested" element={<NestedPage/>}/>
+                </Route>
+                <Route element={<AuthShell/>}>
+                    <Route path="/layout-guarded" element={<Dashboard/>}/>
+                </Route>
+                <Route path="/bare" element={<AuthGuard redirect="/login"/>}/>
+            </Routes>
+        </Router>;
 }
