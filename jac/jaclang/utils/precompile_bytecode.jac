@@ -2131,7 +2131,7 @@ def seal_native_artifacts(
     roots = [str(r) for r in (NATIVE_SEAL_ROOTS if modules is None else modules)];
     pooled = modules is None or jobs is not None;
     resolved = seal_jobs(jobs) if pooled else 1;
-    if resolved <= 1 or len(roots) < 2 {
+    if resolved <= 1 or not roots {
         return seal_native_roots(
             pkg_path, precompiled_dir, modules, waivers, canary_reused
         );

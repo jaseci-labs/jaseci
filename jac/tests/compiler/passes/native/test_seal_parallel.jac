@@ -27,9 +27,12 @@ So these tests pin that it does not:
    override in both directions, and `JAC_SEAL_JOBS=1` is the escape back to the
    original single-process seal.
 
-The seals below use the two cheapest real roots; the rest of the file's cases
-refuse before any compiler runs, so the file's cost is two artifacts twice over
-and change.
+The byte-identity case builds a purpose-built two-root package rather than real
+seal roots. A real root costs minutes of LLVM and gigabytes of resident memory
+apiece, and this file proves the pool's mechanism, not the compiler's output; an
+earlier draft that sealed real roots here took a CI runner down with it, which is
+the same failure the pool exists to remove. Everything else below refuses or
+exits before a compiler runs.
 """
 
 import contextlib;
@@ -45,13 +48,37 @@ import from pathlib { Path }
 import jaclang.utils.precompile_bytecode as pb;
 
 glob PKG_PATH = Path(jaclang.__file__).parent,
-     SMALL_ROOTS: tuple = (
-         "jac0core/passes/annex_pass.jac",
-         "jac0core/passes/endpoint_effect_pass.jac"
-     ),
+     POOL_ROOTS: tuple = ("pool_alpha.jac", "pool_beta.jac"),
      ABSENT_ROOTS: tuple = (
          "compiler/native_materialize.jac",
          "jac0core/passes/no_such_seal_root.jac"
+     ),
+     _ALPHA_SRC: str = "\n".join(
+         [
+             "import from pool_shared { shared_step }",
+             "",
+             "def alpha_total(n: int) -> int {",
+             "    acc = 0;",
+             "    i = 0;",
+             "    while i < n {",
+             "        acc += shared_step(i);",
+             "        i += 1;",
+             "    }",
+             "    return acc;",
+             "}"
+         ]
+     ),
+     _BETA_SRC: str = "\n".join(
+         [
+             "import from pool_shared { shared_step }",
+             "",
+             "def beta_total(n: int) -> int {",
+             "    return shared_step(n) + n;",
+             "}"
+         ]
+     ),
+     _SHARED_SRC: str = "\n".join(
+         ["def shared_step(x: int) -> int {", "    return x * 3;", "}"]
      );
 
 def _triple -> str {
@@ -59,21 +86,42 @@ def _triple -> str {
     return llvm.get_default_triple();
 }
 
-"""Seal `modules` into a fresh tree at `jobs`, returning (artifacts, out, stderr)."""
-def _seal(modules: tuple, jobs: int) -> tuple {
-    out = tempfile.mkdtemp(prefix=f"jac_seal_pool_{jobs}_");
+"""Two roots over one shared dependency, in a named temp package.
+
+Purpose-built rather than real seal roots: this file proves the pool's
+mechanism, and a real root costs minutes of LLVM and gigabytes of resident
+memory apiece. Two roots is the smallest package that puts two workers in flight
+at once over a closure they both pull in. The directory is named, not
+randomized, because the seal derives each artifact's module name from it.
+"""
+def _pool_pkg -> Path {
+    pkg = Path(tempfile.mkdtemp(prefix="jac_seal_pool_pkg_")) / "poolpkg";
+    pkg.mkdir(parents=True);
+    (pkg / "pool_alpha.jac").write_text(_ALPHA_SRC, encoding="utf-8");
+    (pkg / "pool_beta.jac").write_text(_BETA_SRC, encoding="utf-8");
+    (pkg / "pool_shared.jac").write_text(_SHARED_SRC, encoding="utf-8");
+    return pkg;
+}
+
+"""Seal `modules` out of `pkg` into a fresh tree at `jobs`."""
+def _seal_pkg(pkg: Path, modules: tuple, jobs: int) -> tuple {
+    out = tempfile.mkdtemp(prefix=f"jac_seal_pool_out{jobs}_");
     buf = io.StringIO();
     with contextlib.redirect_stderr(buf) {
-        arts = pb.seal_native_artifacts(
-            PKG_PATH, Path(out), modules=modules, jobs=jobs
-        );
+        arts = pb.seal_native_artifacts(pkg, Path(out), modules=modules, jobs=jobs);
     }
     return (arts, out, buf.getvalue(), );
 }
 
+"""Seal `modules` out of the real jaclang package at `jobs`."""
+def _seal(modules: tuple, jobs: int) -> tuple {
+    return _seal_pkg(PKG_PATH, modules, jobs);
+}
+
 test "a pooled seal and a sequential seal agree byte for byte" {
-    (seq, seq_out, _seq_err) = _seal(SMALL_ROOTS, 1);
-    (par, par_out, _par_err) = _seal(SMALL_ROOTS, 2);
+    pkg = _pool_pkg();
+    (seq, seq_out, _seq_err) = _seal_pkg(pkg, POOL_ROOTS, 1);
+    (par, par_out, _par_err) = _seal_pkg(pkg, POOL_ROOTS, 2);
     try {
         assert seq is not None , "the sequential seal refused; nothing to compare";
         assert par is not None , "the pooled seal refused where the sequential one did not";
@@ -98,6 +146,7 @@ test "a pooled seal and a sequential seal agree byte for byte" {
     } finally {
         shutil.rmtree(seq_out, ignore_errors=True);
         shutil.rmtree(par_out, ignore_errors=True);
+        shutil.rmtree(pkg.parent, ignore_errors=True);
     }
 }
 
