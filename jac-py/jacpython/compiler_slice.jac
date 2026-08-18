@@ -1721,3 +1721,19 @@ test "compiler_slice: band7 yield from parsed executes in ceval" {
     assert expect_int(py_subscript(lst, PyInt(t="int", val=0))) == 1;
     assert expect_int(py_subscript(lst, PyInt(t="int", val=1))) == 2;
 }
+
+# ---------------- Band 7 slice 3: async def ----------------
+
+test "compiler_slice: band7 async def parsed matches oracle nested co_code" {
+    src = "async def f():\n  return 1\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    f_fn = nested_code_by_name(actual, "f");
+    exp_f = nested_code_by_name(exp, "f");
+    assert f_fn.co_code == exp_f.co_code;
+    assert f_fn.exceptiontable == exp_f.exceptiontable;
+    assert f_fn.stacksize == exp_f.stacksize;
+    assert f_fn.flags == exp_f.flags;
+}

@@ -1088,6 +1088,13 @@ test "layer9: band7 yield from executes in ceval" {
     assert expect_int(py_subscript(lst, PyInt(t="int", val=1))) == 2;
 }
 
+# ---------------- Band 7 slice 3: async def ----------------
+
+test "layer9: band7 async def matches oracle" {
+    src = "async def f():\n  return 1\n";
+    assert_matches_oracle(src);
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {
