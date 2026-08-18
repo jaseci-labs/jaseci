@@ -1780,14 +1780,12 @@ impl JacCompiler._report_missing_native_ir(
 }
 
 impl JacCompiler._prepare_tool_program(
-    source_str: str, file_path: str, expand: bool = False
+    source_str: str, file_path: str
 ) -> tuple[JacProgram, (uni.Module | None)] {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.parser { parse as rd_parse }
     prog = JacProgram();
-    (current_mod, had_error) = rd_parse(
-        source_str, file_path, prog=prog, expand=expand
-    );
+    (current_mod, had_error) = rd_parse(source_str, file_path, prog=prog);
     if had_error {
         prog.mod = uni.ProgramModule(main_mod=current_mod);
         return (prog, None);
@@ -1827,9 +1825,7 @@ impl JacCompiler.jac_str_formatter(
 
 impl JacCompiler.jac_file_linter(file_path: str) -> JacProgram {
     source_str = read_file_with_encoding(file_path);
-    (prog, current_mod) = JacCompiler._prepare_tool_program(
-        source_str, file_path, expand=True
-    );
+    (prog, current_mod) = JacCompiler._prepare_tool_program(source_str, file_path);
     if current_mod is None {
         return prog;
     }

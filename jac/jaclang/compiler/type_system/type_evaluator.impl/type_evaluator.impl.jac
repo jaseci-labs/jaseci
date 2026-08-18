@@ -5053,6 +5053,7 @@ impl TypeEvaluator._isinstance_tuple_alternatives(
 ) -> list[TypeBase] | None {
     if (
         not isinstance(arg_type, ClassType)
+        or not arg_type.is_instance()
         or not self.prefetch
         or self.prefetch.tuple_class is None
         or arg_type.shared != self.prefetch.tuple_class.shared

@@ -39,7 +39,7 @@ getter is a standing seam, so every read behind it was one too.
 
 Three are one fact: `jac0core/codeinfo.jac` is not in the closure.
 `scan_native_blockers` refuses it for `import from typing { Any }`, and
-`test_native_comptime_any.jac` carries that measurement and its three-item
+`test_native_erased_any.jac` carries that measurement and its three-item
 clearing list. `classify_native_import` reads codeinfo's compile-time import
 table, `base_expr_is_erased` reads its erased-base table, and
 `name_in_type_position` is a pure cascade of the second.
@@ -90,8 +90,8 @@ glob CAPABILITY_CLOSURE: tuple = (
 
 """capability's own five, each mapped to the mechanism that clears it."""
 glob CAPABILITY_SEAMS: dict[(str, str)] = {
-         "classify_native_import": "codeinfo not in closure: reads native_comptime_import_names",
-         "base_expr_is_erased": "codeinfo not in closure: reads NATIVE_COMPTIME_BASES",
+         "classify_native_import": "codeinfo not in closure: reads native_erased_import_names",
+         "base_expr_is_erased": "codeinfo not in closure: reads NATIVE_ERASED_BASES",
          "name_in_type_position": "cascade of base_expr_is_erased",
          "native_capability_violations": "pass-tier crossing: calls ModuleCodegenPass.iter_context_stmts",
          "ClientCapabilityCheckPass.transform": "pass-tier crossing: calls client_capability_violations"

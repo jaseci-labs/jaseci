@@ -604,8 +604,6 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         if style is not None {
             related.append(style);
         }
-        reflect_deps = _ct_reflect_deps(source_path);
-        related.extend(reflect_deps);
         fresh = cache_mtime > os.path.getmtime(source_path);
         if fresh {
             for f in related {
@@ -622,9 +620,6 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         }
         if fresh {
             return True;
-        }
-        if reflect_deps {
-            return False;
         }
 
         return jir_matches_source(data, source_path);
@@ -696,18 +691,6 @@ def read_source_shared(file_path: str) -> (str | None) {
     }
     _SRC_SHARED[file_path] = (st.st_mtime_ns, st.st_size, src);
     return src;
-}
-
-def _ct_reflect_deps(source_path: str) -> list[str] {
-    src = read_source_shared(source_path);
-    if src is None {
-        return [];
-    }
-    if "comptime" not in src or "reflect" not in src {
-        return [];
-    }
-    import from jaclang.jac0 { ct_reflect_source_deps }
-    return ct_reflect_source_deps(src);
 }
 
 def write_module_cache(

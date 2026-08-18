@@ -316,9 +316,9 @@ def adopt_ancestor_methods(lay: ArchetypeLayout, ancestors: list[ArchetypeLayout
     lay.method_index = method_index;
 }
 
-def is_comptime_base_name(name: str, archetypes: dict[str, Archetype]) -> bool {
-    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
-    return name in NATIVE_COMPTIME_BASES and name not in archetypes;
+def is_erased_base_name(name: str, archetypes: dict[str, Archetype]) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES }
+    return name in NATIVE_ERASED_BASES and name not in archetypes;
 }
 
 def is_enum_class_type(t: any) -> bool {

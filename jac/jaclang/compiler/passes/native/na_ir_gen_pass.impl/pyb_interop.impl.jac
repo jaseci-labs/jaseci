@@ -17,8 +17,8 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
     when it spelled `Transform[Module, Module]`; the chain is
     monomorphic now, and user code still writes it.
 
-    A base the native lane erases at comptime is never Python-side, even
-    when its declaration is reachable: `NATIVE_COMPTIME_BASES` names the
+    A base the native lane erases at compile time is never Python-side, even
+    when its declaration is reachable: `NATIVE_ERASED_BASES` names the
     bases lowering drops outright, so they contribute no shadow and no
     slots. The distinction only became observable once `PassRim` moved
     from a `.py` to a `.jac`, which made its declaration resolvable while
@@ -26,7 +26,7 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
     stayed the same. Resolving one is not the same as inheriting one.
     """;
     import os;
-    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES }
     if arch_name in self._pyb_base_memo {
         cached = self._pyb_base_memo[arch_name];
         return cached;
@@ -60,7 +60,7 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
             }
             continue;
         }
-        if bname in NATIVE_COMPTIME_BASES {
+        if bname in NATIVE_ERASED_BASES {
             continue;
         }
         sym = base_expr?.sym;

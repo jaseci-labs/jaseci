@@ -17,7 +17,7 @@ import from jaclang.jac0core.unitree {
 }
 import from jaclang.jac0core.constant {
     CodeContext,
-    NATIVE_COMPTIME_TYPE_MARKERS,
+    NATIVE_ERASED_TYPE_MARKERS,
     TYPE_PARAM_CONSTRUCTORS
 }
 import from jaclang.jac0core.passes.transform { Transform }
@@ -118,7 +118,7 @@ obj ModuleCodegenPass(Transform) {
         if isinstance(tag, AtomTrailer) {
             tag = tag.right;
         }
-        return isinstance(tag, Name) and tag.value in NATIVE_COMPTIME_TYPE_MARKERS;
+        return isinstance(tag, Name) and tag.value in NATIVE_ERASED_TYPE_MARKERS;
     }
 
     static def is_type_param_decl(assign: Assignment) -> bool {
@@ -132,7 +132,7 @@ obj ModuleCodegenPass(Transform) {
         return isinstance(callee, Name) and callee.value in TYPE_PARAM_CONSTRUCTORS;
     }
 
-    static def is_comptime_type_decl(assign: Assignment) -> bool {
+    static def is_erased_type_decl(assign: Assignment) -> bool {
         return ModuleCodegenPass.is_type_alias_decl(assign)
             or ModuleCodegenPass.is_type_param_decl(assign);
     }
