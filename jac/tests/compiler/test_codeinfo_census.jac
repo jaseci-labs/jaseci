@@ -64,20 +64,34 @@ import from jaclang.jac0core.sealed { native_artifact_for }
 glob PKG_PATH = Path(jaclang.__file__).parent,
      CODEINFO: str = "jac0core/codeinfo.jac";
 
-"""codeinfo's exact native closure, as package-relative paths."""
+"""codeinfo's exact native closure, as package-relative paths.
+
+The pass base chain (`transform`, `uni_pass`, `module_codegen_pass`) and
+the diagnostics cluster it carries joined when `transform.jac` started
+importing `CodeLocInfo` from its declaring module (#8320's re-land) --
+the same arrival every pass root's census recorded. codeinfo's own seam
+set below did not move with it: the thirteen are filesystem, config and
+Python-codegen machinery, none of which the base chain touches.
+"""
 glob CODEINFO_CLOSURE: tuple = (
          "compiler/type_registry.jac",
          "compiler/type_system/type_utils.jac",
          "compiler/type_system/types.jac",
          "jac0core/codeinfo.jac",
          "jac0core/constant.jac",
+         "jac0core/diagnostic_utils.jac",
+         "jac0core/diagnostics.jac",
          "jac0core/helpers.jac",
+         "jac0core/passes/module_codegen_pass.jac",
+         "jac0core/passes/transform.jac",
+         "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
          "runtimelib/na_stdlib/contextvars.jac",
          "runtimelib/na_stdlib/fnmatch.jac",
          "runtimelib/na_stdlib/hashlib.jac",
+         "runtimelib/na_stdlib/logging.jac",
          "runtimelib/na_stdlib/pathlib.jac"
      );
 
