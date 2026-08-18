@@ -631,6 +631,27 @@ test "vm: IMPORT_FROM loads module attribute" {
     );
 }
 
+# vm-opcode: OP_RETURN_GENERATOR
+test "vm: RETURN_GENERATOR starts generator body" {
+    setup = "";
+    body = "def gen():\n    yield 1\n    yield 2\ng = gen()\nresult = next(g) + next(g)\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_YIELD_VALUE
+test "vm: YIELD_VALUE suspends generator" {
+    setup = "";
+    body = "def gen():\n    yield 1\n    yield 2\ng = gen()\nresult = next(g) + next(g)\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_CALL_INTRINSIC_1
+test "vm: CALL_INTRINSIC_1 in generator StopIteration handler" {
+    setup = "";
+    body = "def gen():\n    yield 1\n    yield 2\ng = gen()\nresult = next(g) + next(g)\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
 # ---------------- semantic categories ----------------
 
 test "vm: namespace mutation matches host for multi-assign" {

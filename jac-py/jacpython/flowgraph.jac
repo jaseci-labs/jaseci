@@ -250,6 +250,44 @@ def stackdepth_push(
     return True;
 }
 
+# Walk one block's instructions for max stack depth (exception-handler paths).
+def walk_block_maxdepth(
+    b: basicblock, start_depth: int, maxdepth: int
+) -> tuple[int, compiler_diagnostic | None] {
+    depth = start_depth;
+    maxd = maxdepth;
+    ii = 0;
+    while ii < len(b.instrs) {
+        ins = b.instrs[ii];
+        eff = stack_effect(ins.opcode, ins.oparg, 0);
+        if eff is None {
+            return (
+                0,
+                stackdepth_diag(
+                    "SystemError",
+                    "Invalid stack effect for opcode="
+                        + str(ins.opcode)
+                        + ", arg="
+                        + str(ins.oparg)
+                )
+            );
+        }
+        new_depth = depth + eff;
+        if new_depth < 0 {
+            return (0, stackdepth_diag("ValueError", "Invalid CFG, stack underflow"));
+        }
+        if new_depth > maxd {
+            maxd = new_depth;
+        }
+        depth = new_depth;
+        if is_scope_exit_opcode(ins.opcode) or is_unconditional_jump_opcode(ins.opcode) {
+            break;
+        }
+        ii = ii + 1;
+    }
+    return (maxd, None);
+}
+
 # CPython flowgraph.c calculate_stackdepth: worklist over block edges with
 # generated stack_effect metadata (INTEGRATION_PLAN Phase 3).
 def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | None] {
@@ -397,6 +435,24 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
                 );
             }
         }
+    }
+    ri = 0;
+    while ri < len(u.except_regions) {
+        reg = u.except_regions[ri];
+        if reg.handler_block < 0 {
+            ri = ri + 1;
+            continue;
+        }
+        hb = find_block(u, reg.handler_block);
+        if hb is None {
+            ri = ri + 1;
+            continue;
+        }
+        (maxdepth, ed) = walk_block_maxdepth(hb, reg.stack_depth, maxdepth);
+        if ed is not None {
+            return (0, ed);
+        }
+        ri = ri + 1;
     }
     return (maxdepth, None);
 }

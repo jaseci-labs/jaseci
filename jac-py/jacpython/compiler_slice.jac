@@ -1637,3 +1637,40 @@ test "compiler_slice: band6 assert failure parsed raises AssertionError in ceval
     assert err.exception.type_name == "AssertionError";
     assert err.exception.message == "fail";
 }
+
+# ---------------- Band 7 slice 1: generator yield ----------------
+
+test "compiler_slice: band7 generator yield parsed matches oracle nested gen co_code" {
+    src = (
+        "def gen():\n"
+            + "    yield 1\n"
+            + "    yield 2\n"
+            + "g = gen()\n"
+            + "result = next(g) + next(g)\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    gen_fn = nested_code_by_name(actual, "gen");
+    exp_gen = nested_code_by_name(exp, "gen");
+    assert gen_fn.co_code == exp_gen.co_code;
+    assert gen_fn.exceptiontable == exp_gen.exceptiontable;
+    assert gen_fn.stacksize == exp_gen.stacksize;
+    assert gen_fn.flags == exp_gen.flags;
+}
+
+test "compiler_slice: band7 generator yield parsed executes in ceval" {
+    src = (
+        "def gen():\n"
+            + "    yield 1\n"
+            + "    yield 2\n"
+            + "g = gen()\n"
+            + "result = next(g) + next(g)\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}

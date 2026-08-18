@@ -16,7 +16,10 @@
 import from objects { PyObj, PyInt, PyStr, py_none, PySlice, PyCode, PyTuple }
 import from opcode_meta {
     OP_RESUME,
+    OP_RETURN_GENERATOR,
     OP_RETURN_VALUE,
+    OP_YIELD_VALUE,
+    OP_CALL_INTRINSIC_1,
     OP_LOAD_CONST,
     OP_LOAD_SMALL_INT,
     OP_LOAD_NAME,
@@ -33,6 +36,8 @@ import from opcode_meta {
     CO_OPTIMIZED,
     CO_NEWLOCALS,
     CO_NESTED,
+    CO_GENERATOR,
+    CO_COROUTINE,
     CO_VARARGS,
     CO_VARKEYWORDS,
     OP_UNARY_NEGATIVE,
@@ -372,8 +377,11 @@ def localsplus_index(g: cfg_builder, name: str) -> int {
     return localsplus_index_u(g.u, name);
 }
 
-# CPython emits MAKE_CELL(s), optional COPY_FREE_VARS, then RESUME.
-def emit_function_prologue(g: cfg_builder, sym_fn: sym_block, firstlineno: int) {
+# CPython emits MAKE_CELL(s), optional COPY_FREE_VARS, then RESUME. Generators
+# prepend RETURN_GENERATOR; POP_TOP before RESUME (protect region starts here).
+def emit_function_prologue(
+    g: cfg_builder, sym_fn: sym_block, firstlineno: int, is_generator: bool = False
+) -> int {
     u = g.u;
     u.cellvars = cellvars_from_sym(sym_fn);
     u.freevars = freevars_from_sym(sym_fn);
@@ -387,7 +395,37 @@ def emit_function_prologue(g: cfg_builder, sym_fn: sym_block, firstlineno: int) 
     if len(u.freevars) > 0 {
         g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), ploc);
     }
+    protect_start = -1;
+    if is_generator {
+        g.emit_op(OP_RETURN_GENERATOR, 0, ploc);
+        g.emit_op(OP_POP_TOP, 0, ploc);
+        resume_blk = g.new_block();
+        g.use(resume_blk);
+        protect_start = resume_blk.id;
+    }
     g.emit_op(OP_RESUME, 0, ploc);
+    return protect_start;
+}
+
+# Generator functions: PEP 479 StopIteration handler at end of co_code.
+def emit_generator_except_handler(g: cfg_builder, protect_start: int) {
+    if protect_start < 0 {
+        return;
+    }
+    handler = g.new_block();
+    noloc = no_loc();
+    g.use(handler);
+    g.emit_op(OP_CALL_INTRINSIC_1, 3, noloc);
+    g.emit_op(OP_RERAISE, 1, noloc);
+    g.u.except_regions.append(
+        except_region(
+            start_block=protect_start,
+            end_block=handler.id,
+            handler_block=handler.id,
+            stack_depth=2,
+            preserve_lasti=True
+        )
+    );
 }
 
 # Fold default expressions when every value is a Constant (CPython LOAD_CONST tuple).
@@ -1461,6 +1499,27 @@ def visit_expr(
     }
     if isinstance(e, Lambda) {
         visit_lambda(g, e as Lambda);
+        return None;
+    }
+    if isinstance(e, Yield) {
+        y = e as Yield;
+        yloc = nloc(y.lineno, y.end_lineno, y.col_offset, y.end_col_offset);
+        if y.value is not None {
+            visit_expr(g, y.value);
+        } else {
+            none_idx = g.u.add_const(py_none());
+            g.emit_op(OP_LOAD_CONST, none_idx, yloc);
+        }
+        g.emit_op(OP_YIELD_VALUE, 0, yloc);
+        g.emit_op(OP_RESUME, 5, yloc);
+        return None;
+    }
+    if isinstance(e, YieldFrom) {
+        codegen_fail(g, "NotImplementedError", "yield from not supported");
+        return None;
+    }
+    if isinstance(e, Await) {
+        codegen_fail(g, "NotImplementedError", "await not supported");
         return None;
     }
     codegen_fail(
@@ -4073,11 +4132,18 @@ def compile_function_cfg(
     u.argcount = argcount;
     u.posonlyargcount = posonly;
     u.kwonlyargcount = kwonly;
+    is_gen = sym_fn.generator;
     u.flags = function_code_flags(fd.args);
+    if is_gen {
+        u.flags = u.flags | CO_GENERATOR;
+    }
+    if sym_fn.coroutine {
+        u.flags = u.flags | CO_COROUTINE;
+    }
     u.varnames = fast_varnames_from_sym(sym_fn);
     entry = u.add_block();
     g = new_cfg_builder(u, entry, sym_fn, private);
-    emit_function_prologue(g, sym_fn, fd.lineno);
+    protect_start = emit_function_prologue(g, sym_fn, fd.lineno, is_gen);
     last = loc(0, fd.lineno, 0, 0);
     terminated = False;
     bi = 0;
@@ -4103,6 +4169,9 @@ def compile_function_cfg(
         none_idx = u.add_const(py_none());
         g.emit_op(OP_LOAD_CONST, none_idx, last);
         g.emit_op(OP_RETURN_VALUE, 0, last);
+    }
+    if is_gen {
+        emit_generator_except_handler(g, protect_start);
     }
     return u;
 }

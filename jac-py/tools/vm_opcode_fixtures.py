@@ -119,6 +119,9 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "FOR_ITER",
     "END_FOR",
     "JUMP_BACKWARD",
+    "RETURN_GENERATOR",
+    "YIELD_VALUE",
+    "CALL_INTRINSIC_1",
 )
 
 # CPython 3.14 may not emit JUMP_FORWARD in normal compilation; jacpython's
@@ -358,6 +361,30 @@ FIXTURES: tuple[VmFixture, ...] = (
     VmFixture("LOAD_COMMON_CONSTANT", "x = 0\nassert x == 1, 'fail'\nresult = x\n"),
     VmFixture("IMPORT_NAME", "import os\nresult = os.name\n"),
     VmFixture("IMPORT_FROM", "from os import path\nresult = path.sep\n"),
+    VmFixture(
+        "RETURN_GENERATOR",
+        "def gen():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "g = gen()\n"
+        "result = next(g) + next(g)\n",
+    ),
+    VmFixture(
+        "YIELD_VALUE",
+        "def gen():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "g = gen()\n"
+        "result = next(g) + next(g)\n",
+    ),
+    VmFixture(
+        "CALL_INTRINSIC_1",
+        "def gen():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "g = gen()\n"
+        "result = next(g) + next(g)\n",
+    ),
 )
 
 # Native-codegen fixtures (not expected in CPython disassembly).

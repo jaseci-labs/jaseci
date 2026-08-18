@@ -1028,6 +1028,34 @@ test "layer9: band6 assert failure raises AssertionError in ceval" {
     assert err.exception.message == "fail";
 }
 
+# ---------------- Band 7 slice 1: generator yield ----------------
+
+test "layer9: band7 generator yield matches oracle" {
+    src = (
+        "def gen():\n"
+            + "    yield 1\n"
+            + "    yield 2\n"
+            + "g = gen()\n"
+            + "result = next(g) + next(g)\n"
+    );
+    assert_matches_oracle(src);
+}
+
+test "layer9: band7 generator yield executes in ceval" {
+    src = (
+        "def gen():\n"
+            + "    yield 1\n"
+            + "    yield 2\n"
+            + "g = gen()\n"
+            + "result = next(g) + next(g)\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {
