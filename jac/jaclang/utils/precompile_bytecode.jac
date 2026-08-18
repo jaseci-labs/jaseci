@@ -2373,12 +2373,15 @@ def _seal_dispatch(job: dict, gate: any, state: dict) -> any {
 }
 
 def _seal_replay(result: dict) {
-    if result.get("stdout") {
-        sys.stdout.write(str(result["stdout"]));
-        sys.stdout.flush();
+    out = str(result.get("stdout") or "");
+    err = str(result.get("stderr") or "");
+    sink = sys.stdout if result.get("ok") else sys.stderr;
+    if out {
+        sink.write(out);
+        sink.flush();
     }
-    if result.get("stderr") {
-        sys.stderr.write(str(result["stderr"]));
+    if err {
+        sys.stderr.write(err);
         sys.stderr.flush();
     }
 }

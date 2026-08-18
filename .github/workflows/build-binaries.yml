@@ -457,8 +457,11 @@ jobs:
 
           # python-build-standalone's interpreter is the one the seal worker
           # runs, so the replay loads each artifact into the same process image
-          # the abort happened in.
-          PY="$(find "$PWD/.pbs-build" -type f -name python3 -path '*/install/bin/*' 2>/dev/null | head -1)"
+          # the abort happened in. Not -type f: pbs ships bin/python3 as a
+          # symlink, and /usr/bin/python3 is SIP-protected -- lldb cannot debug
+          # it, so falling back to it silently turns the replay into a no-op.
+          PY="$(ls "$PWD"/.pbs-build/*/python/install/bin/python3.* 2>/dev/null | head -1)"
+          [ -n "$PY" ] || PY="$(ls "$PWD"/.pbs-build/*/python/install/bin/python3 2>/dev/null | head -1)"
           [ -n "$PY" ] || PY=/usr/bin/python3
           echo "replay interpreter: $PY"
 
@@ -495,6 +498,13 @@ jobs:
           while IFS= read -r dl; do
             [ -n "$dl" ] || continue
             echo "===== $dl ($(wc -c < "$dl") bytes)"
+            # Plain run first: the artifact's own diagnostics (an uncaught
+            # native exception prints its message before aborting) reach this
+            # step's stdout directly, which the build tool's captured-stdio
+            # view of the seal never shows.
+            perl -e 'alarm 240; exec @ARGV' \
+              "$PY" "$RUNNER_TEMP/jac-load-probe.py" "$dl" 2>&1 | tail -40
+            echo "----- exit: ${PIPESTATUS[0]:-?}"
             perl -e 'alarm 240; exec @ARGV' \
               lldb --batch -o run -k "thread backtrace all" -k "image list -o -f" \
                    -k quit -- "$PY" "$RUNNER_TEMP/jac-load-probe.py" "$dl" 2>&1 | tail -80
