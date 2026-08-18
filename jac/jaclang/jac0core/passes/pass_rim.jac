@@ -46,8 +46,8 @@ slot-free; it names `jac0core.sealed` and `pass_serve`, the host-side
 lookups no native unit can host; and both of those are imported lazily, at
 the call, so the patched-`native_artifact_for` seam the tier tests use stays
 the seam production reads. What keeps it out of a native closure is
-`placement._comptime_only_import`: `transform.jac` imports exactly the one
-name `PassRim`, which `codeinfo.NATIVE_COMPTIME_RIM_BASES` allows, so the
+`placement._erased_only_import`: `transform.jac` imports exactly the one
+name `PassRim`, which `codeinfo.NATIVE_ERASED_RIM_BASES` allows, so the
 edge is erased before dependency resolution -- the same erasure that held
 while this file was plain Python.
 """

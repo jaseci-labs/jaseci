@@ -1210,19 +1210,19 @@ impl NaIRGenPass._emit_intrinsic_bits_float(
 impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     import from jaclang.compiler.intrinsic_registry { INTRINSIC_REGISTRY }
     import from jaclang.compiler.symbol_utils {
-        comptime_field_marker_default,
-        comptime_identity_call_arg,
-        is_comptime_field_marker,
+        erased_field_marker_default,
+        erased_identity_call_arg,
+        is_erased_field_marker,
         qualified_builtin_name
     }
 
-    _identity_arg = comptime_identity_call_arg(nd);
+    _identity_arg = erased_identity_call_arg(nd);
     if _identity_arg is not None {
         return self._codegen_expr(_identity_arg);
     }
 
-    if is_comptime_field_marker(nd) {
-        _marker_default = comptime_field_marker_default(nd);
+    if is_erased_field_marker(nd) {
+        _marker_default = erased_field_marker_default(nd);
         return (
             self._codegen_expr(_marker_default) if _marker_default is not None else None
         );

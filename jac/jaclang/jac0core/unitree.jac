@@ -602,7 +602,7 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name_ref: (NameAtom | CtName | None),
+    has name_ref: (NameAtom | None),
         is_override: bool,
         is_static: bool,
         is_classmethod: bool,
@@ -611,8 +611,7 @@ obj Ability(ContextAwareNode, AstAccessNode, ElementStmt, AstAsyncNode, ArchBloc
         decorators: (Sequence[Expr] | None) = None,
         type_params: (Sequence[TypeParam] | None) = None,
         accessor_kind: str = "",
-        event_triggers: (list[TypeBase] | None) = None,
-        is_ct_only: bool = False;
+        event_triggers: (list[TypeBase] | None) = None;
 
     def postinit -> None;
 
@@ -630,10 +629,10 @@ obj FuncSignature(UniNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has posonly_params: Sequence[(ParamVar | CtFor | CtIf)],
-        params: (Sequence[(ParamVar | CtFor | CtIf)] | None),
+    has posonly_params: Sequence[ParamVar],
+        params: (Sequence[ParamVar] | None),
         varargs: (ParamVar | None),
-        kwonlyargs: Sequence[(ParamVar | CtFor | CtIf)],
+        kwonlyargs: Sequence[ParamVar],
         kwargs: (ParamVar | None),
         return_type: (Expr | None);
 
@@ -658,7 +657,7 @@ obj ParamVar(AstSymbolNode, AstTypedVarNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (Name | CtName),
+    has name: Name,
         unpack: (Token | None),
         value: (Expr | None),
         param_kind: ParamKind postinit;
@@ -684,7 +683,7 @@ obj HasVar(AstSymbolNode, AstTypedVarNode) {
     def accept_exit(v: UniPass) -> None;
     def accept_enter(v: UniPass) -> None;
 
-    has name: (Name | CtName),
+    has name: Name,
         value: (Expr | None),
         defer: bool,
         accessors: (Sequence[Ability] | None) = None;
@@ -734,78 +733,6 @@ obj ElseStmt(UniScopeNode) {
     has body: Sequence[CodeBlockStmt];
 
     def postinit -> None;
-}
-
-obj CtBlock(Expr) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has expr: Expr;
-
-    def postinit -> None;
-}
-
-obj CtIf(ElementStmt, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has condition: Expr,
-        body: Sequence[UniNode],
-        else_body: (UniNode | None) = None;
-
-    def postinit -> None;
-}
-
-obj CtElse(ElementStmt, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has body: Sequence[UniNode];
-
-    def postinit -> None;
-}
-
-obj CtFor(ElementStmt, CodeBlockStmt) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has target: Name,
-        iter: Expr,
-        body: Sequence[UniNode];
-
-    def postinit -> None;
-}
-
-obj CtSplice(Expr, AstSymbolStubNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has expr: Expr;
-    has value: str { getter; }
-    has sym: (Symbol | None) { getter; }
-    has sym_name: str { getter; }
-
-    def postinit -> None;
-    def create_symbol(
-        access: SymbolAccess,
-        parent_tab: (UniScopeNode | None) = None,
-        imported: bool = False
-    ) -> Symbol;
-}
-
-obj CtName(Expr, AstSymbolStubNode) {
-    def accept_exit(v: UniPass) -> None;
-    def accept_enter(v: UniPass) -> None;
-
-    has parts: Sequence[UniNode];
-    has value: str { getter; }
-
-    def postinit -> None;
-    def create_symbol(
-        access: SymbolAccess,
-        parent_tab: (UniScopeNode | None) = None,
-        imported: bool = False
-    ) -> Symbol;
 }
 
 obj ExprStmt(CodeBlockStmt) {
