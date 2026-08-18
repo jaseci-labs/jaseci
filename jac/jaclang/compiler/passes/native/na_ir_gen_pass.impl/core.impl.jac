@@ -897,8 +897,63 @@ impl NaIRGenPass._walk_imported_module_abilities(
         }
     }
     _imp_fn_unavail: (set | None) = None;
-    if with_fn_verdicts and _imp_layout is None and not _wl_internal {
+    _imp_verdicts_wanted = (
+        with_fn_verdicts and _imp_layout is None and not _wl_internal
+    );
+    if _imp_verdicts_wanted {
         _imp_fn_unavail = self._imported_function_demotions(imported_mod);
+    }
+    if (
+        _imp_verdicts_wanted
+        and _imp_fn_unavail is None
+        and self.ir_in?.loc
+        and self.ir_in.loc.mod_path
+        and imported_mod?.loc
+        and imported_mod.loc.mod_path
+    ) {
+        # Verdict-before-emission (intra-unit): this module is about to emit
+        # against an imported module whose demotion verdicts are not knowable
+        # yet -- typically because that module is still inflight above us in
+        # an import cycle. Everything declared live here is provisional, so
+        # record the names; the link phase re-validates them against the
+        # callee's final verdict and re-emits this module if any turned out
+        # demoted. Assuming "live" silently is what left a popped demoted
+        # symbol as a bare declaration in a sealed artifact (dlopen:
+        # undefined symbol).
+        import os as _uv_os;
+        _uv_self = _uv_os.path.realpath(self.ir_in.loc.mod_path);
+        _uv_callee = _uv_os.path.realpath(imported_mod.loc.mod_path);
+        _uv_names: set = set();
+        for _uv_stmt in ModuleCodegenPass.iter_context_stmts(imported_mod) {
+            if (
+                isinstance(_uv_stmt, uni.Ability)
+                and _uv_stmt.name_ref
+                and _uv_stmt.body is not None
+                and not _uv_stmt.type_params
+                and isinstance(_uv_stmt.signature, uni.FuncSignature)
+            ) {
+                _uv_names.add(_uv_stmt.name_ref.sym_name);
+            } elif isinstance(_uv_stmt, uni.Archetype)
+                and _uv_stmt.body is not None
+                and _uv_stmt.name is not None {
+                for _uv_meth in _uv_stmt.body {
+                    if (
+                        isinstance(_uv_meth, uni.Ability)
+                        and _uv_meth.name_ref
+                        and _uv_meth.body is not None
+                        and isinstance(_uv_meth.signature, uni.FuncSignature)
+                    ) {
+                        _uv_names.add(
+                            f"{_uv_stmt.name.value}.{_uv_meth.name_ref.sym_name}"
+                        );
+                    }
+                }
+            }
+        }
+        if _uv_names {
+            _uv_rec = self.prog._na_unverified_live.setdefault(_uv_self, {});
+            _uv_rec[_uv_callee] = set(_uv_rec.get(_uv_callee) or set()) | _uv_names;
+        }
     }
     for _imp_arch in ModuleCodegenPass.iter_context_stmts(imported_mod) {
         if not isinstance(_imp_arch, uni.Archetype)

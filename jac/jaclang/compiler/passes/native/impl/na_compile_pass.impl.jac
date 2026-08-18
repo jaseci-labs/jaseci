@@ -48,7 +48,8 @@ impl DepClibMeta.to_meta -> dict {
         "owned_symbols": self.owned_symbols,
         "demoted_symbols": self.demoted_symbols,
         "transitive_deps": self.transitive_deps,
-        "options_fingerprint": self.options_fingerprint
+        "options_fingerprint": self.options_fingerprint,
+        "unverified_live_calls": self.unverified_live_calls
     };
 }
 
@@ -61,8 +62,86 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
         owned_symbols=meta.get("owned_symbols", []),
         demoted_symbols=meta.get("demoted_symbols", []),
         transitive_deps=meta.get("transitive_deps", []),
-        options_fingerprint=meta.get("options_fingerprint", "")
+        options_fingerprint=meta.get("options_fingerprint", ""),
+        unverified_live_calls=meta.get("unverified_live_calls", {})
     );
+}
+
+impl native_unit_demotions(prog: any, real_path: str, options: any) -> set[str] {
+    """The callee module's final demotion verdict, resolved at link time.
+
+    The link phase runs at the top frame -- nothing is inflight -- so a
+    verdict that was unknowable during an import cycle is resolvable here:
+    from the dep-unit memo, from an already-compiled tree in the hub, or by
+    compiling the callee now (memoized, so its own link slot reuses it). A
+    module that fails to compile natively counts as all-demoted, matching
+    `_imported_function_demotions`.
+    """;
+    import os as _ud_os;
+    entry: any = prog._na_dep_units.get(real_path);
+    if entry is None {
+        for _ud_key in (real_path, _ud_os.path.abspath(real_path)) {
+            _ud_mod = prog.mod.hub.get(_ud_key);
+            if _ud_mod is not None and _ud_mod.gen.llvm_ir is not None {
+                entry = _ud_mod;
+                break;
+            }
+        }
+    }
+    if entry is None and _ud_os.path.isfile(real_path) {
+        try {
+            entry = prog.compile(
+                file_path=real_path, options=options.clone_for_native_import()
+            );
+        } except Exception as _ud_exc {
+            entry = f"{type(_ud_exc).__name__}: {_ud_exc}";
+        }
+        prog._na_dep_units[real_path] = entry;
+    }
+    if entry is None or isinstance(entry, str) or entry.gen.llvm_ir is None {
+        _ud_all: set = set();
+        _ud_tree = entry
+            if (entry is not None and not isinstance(entry, str))
+            else prog.mod.hub.get(real_path);
+        if _ud_tree is not None {
+            import jaclang.jac0core.unitree as _ud_uni;
+            import from jaclang.jac0core.passes.module_codegen_pass {
+                ModuleCodegenPass as _UdWalk
+            }
+            for _ud_stmt in _UdWalk.iter_context_stmts(_ud_tree) {
+                if isinstance(_ud_stmt, _ud_uni.Ability) and _ud_stmt.name_ref {
+                    _ud_all.add(_ud_stmt.name_ref.sym_name);
+                } elif isinstance(_ud_stmt, _ud_uni.Archetype)
+                    and _ud_stmt.body is not None
+                    and _ud_stmt.name is not None {
+                    for _ud_meth in _ud_stmt.body {
+                        if isinstance(_ud_meth, _ud_uni.Ability)
+                            and _ud_meth.name_ref {
+                            _ud_all.add(
+                                f"{_ud_stmt.name.value}.{_ud_meth.name_ref.sym_name}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        return _ud_all;
+    }
+    return set(native_demoted_ir_symbols(str(entry.gen.llvm_ir)));
+}
+
+impl native_live_call_conflicts(
+    prog: any, pending: dict, options: any
+) -> dict[str, set[str]] {
+    conflicts: dict[str, set[str]] = {};
+    for (_cc_callee, _cc_names) in (pending or {}).items() {
+        _cc_demoted = native_unit_demotions(prog, _cc_callee, options);
+        _cc_hit = set(_cc_names) & _cc_demoted;
+        if _cc_hit {
+            conflicts[_cc_callee] = _cc_hit;
+        }
+    }
+    return conflicts;
 }
 
 impl native_demoted_ir_symbols(llvm_ir_text: str) -> list[str] {
@@ -504,6 +583,28 @@ impl NativeCompilePass._compile_and_link_native_imports(
             continue;
         }
 
+        if _cache_hit and meta.unverified_live_calls {
+            # This cached IR was emitted while some callee module's demotion
+            # verdict was unknowable (an import cycle had it inflight). The
+            # names it declared live are recorded in its meta; check them
+            # against the callees' verdicts as they stand now, and refuse to
+            # serve the entry if any turned out demoted -- a served one would
+            # carry a bare declaration of a popped symbol into the link.
+            _uv_cached_conflicts = native_live_call_conflicts(
+                self.prog, meta.unverified_live_calls, _link_opts
+            );
+            if _uv_cached_conflicts {
+                _cache_hit = False;
+                imported_llvm_str_raw = "";
+                meta = DepClibMeta();
+                for _uv_stale in (_cache_ir_path, _cache_meta_path) {
+                    try {
+                        os.remove(_uv_stale);
+                    } except OSError { }
+                }
+            }
+        }
+
         if _cache_hit {
             dep_base = os.path.dirname(full_path);
             for dep_mod_path in meta.transitive_deps {
@@ -511,6 +612,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
         } else {
             imported_ir = None;
+            import_options = _link_opts.clone_for_native_import();
             _na_units = self.prog._na_dep_units;
             if real_path in _na_units {
                 _memo_entry = _na_units.pop(real_path);
@@ -520,7 +622,6 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 }
                 imported_ir = _memo_entry;
             } else {
-                import_options = _link_opts.clone_for_native_import();
                 try {
                     imported_ir = self.prog.compile(
                         file_path=full_path, options=import_options
@@ -533,6 +634,82 @@ impl NativeCompilePass._compile_and_link_native_imports(
             if imported_ir is None or imported_ir.gen.llvm_ir is None {
                 self.emit(E5024, path=full_path, error="No LLVM IR generated");
                 continue;
+            }
+
+            # Verdict-before-emission, enforced at the point of consumption.
+            # If this module's emission declared callables live while their
+            # defining module was inflight (import cycle), the recorded names
+            # are provisional. The link runs at the top frame where every
+            # verdict is resolvable, so re-validate them and re-emit the
+            # module -- loudly -- when a landed verdict demotes one. Without
+            # this, the demoted symbol's rename-and-pop leaves the caller's
+            # bare declaration dangling and the sealed artifact dies at
+            # dlopen with an undefined symbol.
+            _uv_pending = dict(self.prog._na_unverified_live.get(real_path) or {});
+            _uv_attempts = 0;
+            _uv_failed = "";
+            while _uv_pending and _uv_attempts < 3 {
+                _uv_conflicts = native_live_call_conflicts(
+                    self.prog, _uv_pending, _link_opts
+                );
+                if not _uv_conflicts {
+                    break;
+                }
+                _uv_attempts += 1;
+                import sys as _uv_sys;
+                _uv_what = "; ".join(
+                    f"{os.path.basename(_uv_c)} demotes "
+                        + ", ".join(sorted(_uv_n))
+                    for (_uv_c, _uv_n) in sorted(_uv_conflicts.items())
+                );
+                _uv_sys.stderr.write(
+                    f"warning: native seam -- re-emitting "
+                    f"{os.path.basename(real_path)}: it declared callables "
+                    f"live while their module's verdict was pending, and the "
+                    f"landed verdict disagrees ({_uv_what})\n"
+                );
+                self.prog._na_unverified_live.pop(real_path, None);
+                self.prog._na_dep_units.pop(real_path, None);
+                try {
+                    self.prog.invalidate_module(real_path);
+                } except Exception { }
+                try {
+                    imported_ir = self.prog.compile(
+                        file_path=full_path, options=import_options
+                    );
+                } except Exception as _uv_exc {
+                    _uv_failed = str(_uv_exc);
+                    break;
+                }
+                if imported_ir is None or imported_ir.gen.llvm_ir is None {
+                    _uv_failed = "No LLVM IR generated on re-emission";
+                    break;
+                }
+                _uv_pending = dict(
+                    self.prog._na_unverified_live.get(real_path) or {}
+                );
+            }
+            if _uv_failed {
+                self.emit(E5024, path=full_path, error=_uv_failed);
+                continue;
+            }
+            if _uv_pending and _uv_attempts >= 3 {
+                _uv_conflicts = native_live_call_conflicts(
+                    self.prog, _uv_pending, _link_opts
+                );
+                if _uv_conflicts {
+                    self.emit(
+                        E5028,
+                        path=full_path,
+                        names=", ".join(sorted(
+                            _uv_n
+                            for _uv_ns in _uv_conflicts.values()
+                            for _uv_n in _uv_ns
+                        )),
+                        attempts=_uv_attempts
+                    );
+                    continue;
+                }
             }
             _owned_seen: set[str] = set();
             for _ab in imported_ir.get_all_sub_nodes(uni.Ability) {
@@ -578,6 +755,10 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 }
             }
             meta.options_fingerprint = _link_fp;
+            meta.unverified_live_calls = {
+                _uv_c: sorted(_uv_n)
+                for (_uv_c, _uv_n) in _uv_pending.items()
+            };
             try {
                 os.makedirs(_ir_cache_dir, exist_ok=True);
 

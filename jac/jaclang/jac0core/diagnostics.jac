@@ -1503,6 +1503,14 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "refusing a mixed-options link.",
          help="Every module in a native link must carry the same codegen options fingerprint (gc mode, nogc enforcement, target triple, opt level, debug gates). Rebuild the module under the current options, or scrub the stale native cache with `jac nacompile --scrub`."
      ),
+     E5028 = _err(
+         "E5028",
+         Category.CODEGEN,
+         "Native module '{path}' still calls {names} as live after {attempts} "
+         "re-emissions, but the defining module's verdict demotes them; the "
+         "demotion/emission order did not converge.",
+         help="Within one native unit a caller's emitted IR must observe the callee module's final demotion verdicts (verdict-before-emission). A caller emitted under an import cycle is re-emitted once its callees' verdicts land; failing to converge means a verdict keeps flipping between emissions, which is a compiler defect worth reporting with JAC_NA_DEBUG=1 output."
+     ),
      E5030 = _err(
          "E5030",
          Category.CODEGEN,
