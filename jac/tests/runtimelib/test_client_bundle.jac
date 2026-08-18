@@ -198,15 +198,14 @@ test "vite builds run under bun with no node on PATH" {
     import subprocess;
     import sys;
     import tempfile;
-    import pytest;
     import from jaclang.runtimelib.client { get_bun }
     import from jaclang.runtimelib.client.vite_bundler { _build_vite_command }
 
     if sys.platform == "win32" {
-        pytest.skip("shebang dispatch is POSIX-only");
+        testskip("shebang dispatch is POSIX-only");
     }
     if get_bun() is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
     with tempfile.TemporaryDirectory() as tmp {
         build_dir = Path(tmp) / "client";
@@ -234,7 +233,6 @@ test "vite builds run under bun with no node on PATH" {
 
 test "vite commands address vite's js entry, not the bunx shim" {
     import tempfile;
-    import pytest;
     import from jaclang.runtimelib.client { get_bun }
     import from jaclang.runtimelib.client.vite_bundler {
         _build_vite_command,
@@ -242,7 +240,7 @@ test "vite commands address vite's js entry, not the bunx shim" {
     }
 
     if get_bun() is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
     with tempfile.TemporaryDirectory() as tmp {
         build_dir = Path(tmp) / "client";
@@ -265,13 +263,12 @@ test "vite commands address vite's js entry, not the bunx shim" {
 
 test "a missing vite install is an error, not a silent bunx fallback" {
     import tempfile;
-    import pytest;
     import from jaclang.runtimelib.client { get_bun }
     import from jaclang.runtimelib.client_bundle { ClientBundleError }
     import from jaclang.runtimelib.client.vite_bundler { _build_vite_command }
 
     if get_bun() is None {
-        pytest.skip("bun is required but could not be located/installed");
+        testskip("bun is required but could not be located/installed");
     }
     # install_packages runs before every build, so an unresolvable vite means
     # that install failed. Falling back to `bun x vite` would paper over it by

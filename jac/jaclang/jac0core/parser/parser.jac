@@ -24,12 +24,6 @@ import from jaclang.jac0core.unitree {
     ConcurrentExpr,
     ConnectOp,
     ContextAwareNode,
-    CtBlock,
-    CtElse,
-    CtFor,
-    CtIf,
-    CtName,
-    CtSplice,
     CtrlStmt,
     DeleteStmt,
     DictCompr,
@@ -350,6 +344,31 @@ def _string_lit_text(raw: str) -> str {
     return v;
 }
 
+def _test_ident_from_desc(desc_text: str) -> str {
+    ident_chars: list[str] = [];
+    prev_sep = False;
+    for ch in desc_text {
+        is_word = ("a" <= ch and ch <= "z")
+            or ("A" <= ch and ch <= "Z")
+            or ("0" <= ch and ch <= "9");
+        if is_word {
+            ident_chars.append(ch);
+            prev_sep = False;
+        } elif not prev_sep {
+            ident_chars.append("_");
+            prev_sep = True;
+        }
+    }
+    ident: str = str("".join(ident_chars));
+    if ident.startswith("_") {
+        ident = ident[1:];
+    }
+    if ident.endswith("_") {
+        ident = ident[:-1];
+    }
+    return ident.lower();
+}
+
 obj Parser {
     has tokens: list[LexToken],
         pos: int = 0,
@@ -360,8 +379,7 @@ obj Parser {
         source: Source postinit,
         diags: list[SrcDiag] = [],
         _view_body_depth: int = 0,
-        _gen_test_idx: int = 0,
-        _impl_enum_comma_unis: list[Token] = [];
+        _gen_test_idx: int = 0;
 
     def postinit;
     def current -> LexToken;
@@ -488,17 +506,6 @@ obj Parser {
     def _apply_implicit_return(body: list[CodeBlockStmt]) -> list[CodeBlockStmt];
     def parse_ctrl_stmt -> CtrlStmt | DisengageStmt | None;
     def parse_statement -> CodeBlockStmt | None;
-    def parse_ct_element(mode: int) -> CtFor | CtIf | Ability | None;
-    def parse_ct_for(mode: int, ct_uni: Token) -> CtFor | None;
-    def parse_ct_if(mode: int, ct_uni: Token) -> CtIf | None;
-    def parse_ct_elif(mode: int) -> CtIf | None;
-    def parse_ct_else(mode: int) -> CtElse | None;
-    def parse_ct_body(mode: int, kid: list[UniNode]) -> list[UniNode];
-    def parse_ct_block -> Expr | None;
-    def parse_ct_splice -> Expr | None;
-    def parse_ct_name(as_name: bool = True) -> Expr | None;
-    def _ct_name_follows -> bool;
-    def _ct_body_recover -> None;
     def _lookahead_advance -> None;
     def parse_if_stmt -> IfStmt;
     def parse_elif_stmt -> ElseIf;
@@ -563,7 +570,7 @@ obj Parser {
     ) -> tuple[(bool, (LexToken | None), bool, (LexToken | None))];
 
     def parse_func_signature -> FuncSignature;
-    def parse_func_params(kid: list[UniNode]) -> list[ParamVar | CtFor | CtIf];
+    def parse_func_params(kid: list[UniNode]) -> list[ParamVar];
     def parse_param_var -> ParamVar | None;
     def parse_enum -> Enum;
     def parse_enum_member -> Assignment;
@@ -573,7 +580,7 @@ obj Parser {
     def parse_impl_def -> ImplDef;
     def _is_impl_enum_body -> bool;
     def parse_impl_target_name -> NameAtom;
-    def parse_impl_enum_body -> list[Assignment];
+    def parse_impl_enum_body -> tuple[(list[Assignment], list[Token])];
     def parse_sem_def -> SemDef;
     def parse_type_alias -> TypeAlias;
     def parse_type_params -> tuple[(list, list)];

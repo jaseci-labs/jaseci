@@ -28,7 +28,7 @@ with entry {
     systems, ``False`` otherwise).
     """
 def create_mcjit_compiler(
-    module: Any, target_machine: Any, use_lmm: Any = None
+    module: any, target_machine: any, use_lmm: any = None
 ) -> object {
     if (use_lmm is None) {
         use_lmm = platform.machine() in ('arm64', 'aarch64');
@@ -73,19 +73,46 @@ class ExecutionEngine(ffi.ObjectRef) {
     """
         Module ownership is transferred to the EE
         """
-    def init(self: ExecutionEngine, ptr: Any, module: Any) -> object {
+    def init(self: ExecutionEngine, ptr: any, module: any) -> object {
         self._modules = `set([module]);
         self._td = None;
+        self.static_init_symbols = [];
+        self.static_init_chained = `set();
         module._owned = True;
         ffi.ObjectRef.init(self, ptr);
+    }
+
+    """
+        Run the pending static initializers, at most once per engine.
+
+        *static_init_symbols* names the module-level initializers of the unit
+        this engine holds, in the order they must run; the list is consumed so
+        a second call is a no-op.
+        """
+    def run_static_init(self: ExecutionEngine) -> object {
+        symbols = self.static_init_symbols;
+        self.static_init_symbols = [];
+        for symbol in symbols {
+            addr = ffi.lib.LLVMPY_GetFunctionAddress(self, symbol.encode("ascii"));
+            if addr {
+                CFUNCTYPE(None)(addr)();
+            }
+        }
     }
 
     """
         Return the address of the function named *name* as an integer.
 
         It's a fatal error in LLVM if the symbol of *name* doesn't exist.
+
+        Handing out an address makes the unit's code reachable, so any pending
+        static initializers run first -- unless *name* is listed in
+        *static_init_chained*, meaning that function runs them itself.
         """
-    def get_function_address(self: ExecutionEngine, name: Any) -> object {
+    def get_function_address(self: ExecutionEngine, name: any) -> object {
+        if self.static_init_symbols and (name not in self.static_init_chained) {
+            self.run_static_init();
+        }
         return ffi.lib.LLVMPY_GetFunctionAddress(self, name.encode("ascii"));
     }
 
@@ -94,18 +121,18 @@ class ExecutionEngine(ffi.ObjectRef) {
 
         It's a fatal error in LLVM if the symbol of *name* doesn't exist.
         """
-    def get_global_value_address(self: ExecutionEngine, name: Any) -> object {
+    def get_global_value_address(self: ExecutionEngine, name: any) -> object {
         return ffi.lib.LLVMPY_GetGlobalValueAddress(self, name.encode("ascii"));
     }
 
-    def add_global_mapping(self: ExecutionEngine, gv: Any, addr: Any) -> object {
+    def add_global_mapping(self: ExecutionEngine, gv: any, addr: any) -> object {
         ffi.lib.LLVMPY_AddGlobalMapping(self, gv, addr);
     }
 
     """
         Ownership of module is transferred to the execution engine
         """
-    def add_module(self: ExecutionEngine, module: Any) -> object {
+    def add_module(self: ExecutionEngine, module: any) -> object {
         if (module in self._modules) {
             raise KeyError("module already added to this engine");
         }
@@ -140,7 +167,7 @@ class ExecutionEngine(ffi.ObjectRef) {
     """
         Ownership of module is returned
         """
-    def remove_module(self: ExecutionEngine, module: Any) -> object {
+    def remove_module(self: ExecutionEngine, module: any) -> object {
         with ffi.OutputString() as outerr {
             if ffi.lib.LLVMPY_RemoveModule(self, module, outerr) {
                 raise RuntimeError(str(outerr));
@@ -177,7 +204,7 @@ class ExecutionEngine(ffi.ObjectRef) {
     """
         Find the ModuleRef corresponding to the given pointer.
         """
-    def _find_module_ptr(self: ExecutionEngine, module_ptr: Any) -> object {
+    def _find_module_ptr(self: ExecutionEngine, module_ptr: any) -> object {
         ptr = cast(module_ptr, c_void_p).value;
         for module in self._modules {
             if (cast(module._ptr, c_void_p).value == ptr) {
@@ -191,7 +218,7 @@ class ExecutionEngine(ffi.ObjectRef) {
         Add object file to the jit. object_file can be instance of
         :class:ObjectFile or a string representing file system path
         """
-    def add_object_file(self: ExecutionEngine, obj_file: Any) -> object {
+    def add_object_file(self: ExecutionEngine, obj_file: any) -> object {
         if isinstance(obj_file, str) {
             obj_file = object_file.ObjectFileRef.from_path(obj_file);
         }
@@ -203,7 +230,7 @@ class ExecutionEngine(ffi.ObjectRef) {
         callbacks to the given Python functions.
         """
     def set_object_cache(
-        self: ExecutionEngine, notify_func: Any = None, getbuffer_func: Any = None
+        self: ExecutionEngine, notify_func: any = None, getbuffer_func: any = None
     ) -> object {
         self._object_cache_notify = notify_func;
         self._object_cache_getbuffer = getbuffer_func;
@@ -214,7 +241,7 @@ class ExecutionEngine(ffi.ObjectRef) {
     """
         Low-level notify hook.
         """
-    def _raw_object_cache_notify(self: ExecutionEngine, data: Any) -> object {
+    def _raw_object_cache_notify(self: ExecutionEngine, data: any) -> object {
         if (self._object_cache_notify is None) {
             return;
         }
@@ -237,7 +264,7 @@ class ExecutionEngine(ffi.ObjectRef) {
     """
         Low-level getbuffer hook.
         """
-    def _raw_object_cache_getbuffer(self: ExecutionEngine, data: Any) -> object {
+    def _raw_object_cache_getbuffer(self: ExecutionEngine, data: any) -> object {
         if (self._object_cache_getbuffer is None) {
             return;
         }
@@ -275,7 +302,7 @@ class ExecutionEngine(ffi.ObjectRef) {
     Internal: an ObjectCache instance for use within an ExecutionEngine.
     """
 class _ObjectCacheRef(ffi.ObjectRef) {
-    def init(self: _ObjectCacheRef, `obj: Any) -> object {
+    def init(self: _ObjectCacheRef, `obj: any) -> object {
         ptr = ffi.lib.LLVMPY_CreateObjectCache(_notify_c_hook, _getbuffer_c_hook, `obj);
         ffi.ObjectRef.init(self, ptr);
     }

@@ -401,14 +401,14 @@ def fail_stdlib_method_on_assigned(svc: ServiceClass) -> Future {
 # ============================================================================
 
 def fail_any_in_union_blocks_attr(
-    `edge: (Any | EdgeAnchor | GenericEdge)
+    `edge: (any | EdgeAnchor | GenericEdge)
 ) -> str {
     # Any should allow any attribute access, so union with Any should too
     return `edge.__jac__;            # E1099: missing from Any
 }
 
 def fail_any_in_union_method(
-    val: (Any | str)
+    val: (any | str)
 ) -> int {
     # Any | str — should allow .upper() (from str) or any attr (from Any)
     return len(val.upper());

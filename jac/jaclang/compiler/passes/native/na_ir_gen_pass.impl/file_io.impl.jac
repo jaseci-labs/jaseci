@@ -289,8 +289,13 @@ impl NaIRGenPass._emit_open(nd: uni.FuncCall) -> (ir.Value | None) {
     i64 = ir.IntType(64);
     i1 = ir.IntType(1);
     params = nd.params or [];
-    if not params {
+    if not params or len(params) > 2 {
         return None;
+    }
+    for _p in params {
+        if isinstance(_p, uni.KWPair) {
+            return None;
+        }
     }
     path_val = self._str_norm(self._codegen_expr(params[0]));
     if path_val is None {

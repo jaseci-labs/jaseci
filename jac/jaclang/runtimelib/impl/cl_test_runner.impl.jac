@@ -53,10 +53,17 @@ impl _compile_runtime_core_js -> str {
     return js;
 }
 
-impl _stub_npm_imports(js_sources: list[str]) -> tuple[list, str, bool] {
+impl _point_at_staged_runtime(js: str) -> str {
+    return js.replace('"@jac/runtime"', '"./jac_runtime.js"').replace(
+        "'@jac/runtime'", "'./jac_runtime.js'"
+    );
+}
+
+impl _stub_npm_imports(
+    entry_js: str, staged: dict[str, str]
+) -> tuple[str, dict[str, str], str, bool] {
     named: set = set();
     state = {"needs_default": False, "changed": False};
-    rewritten = [];
 
     def is_npm(spec: str) -> bool {
         return (not spec.startswith(".")) and (spec != "@jac/runtime");
@@ -85,8 +92,10 @@ impl _stub_npm_imports(js_sources: list[str]) -> tuple[list, str, bool] {
         return 'import ' + clause + ' from "./' + _NPM_STUB_FILE + '";';
     }
 
-    for src in js_sources {
-        rewritten.append(_IMPORT_FROM.sub(repl, src));
+    rewritten_entry = _IMPORT_FROM.sub(repl, entry_js);
+    rewritten_staged: dict[str, str] = {};
+    for (staged_name, staged_js) in staged.items() {
+        rewritten_staged[staged_name] = _IMPORT_FROM.sub(repl, staged_js);
     }
 
     lines = ["const __jacNpmStub = new Proxy(function () {}, {"];
@@ -99,7 +108,7 @@ impl _stub_npm_imports(js_sources: list[str]) -> tuple[list, str, bool] {
         lines.append(f"export const {name} = __jacNpmStub;");
     }
     stub_js = "\n".join(lines) + "\n";
-    return (rewritten, stub_js, state["changed"]);
+    return (rewritten_entry, rewritten_staged, stub_js, state["changed"]);
 }
 
 impl _build_harness(
@@ -445,67 +454,44 @@ impl _run_harness(
                 module_js, str(entry.parent), str(entry)
             );
         }
+
+        staged: dict[str, str] = {};
+
         if ("@jac/runtime" in imports) or ("@jac/runtime" in dep_imports) {
             import from jaclang.runtimelib.client_surface {
                 prepend_active_runtime_globals
             }
-            runtime_js = _compile_runtime_js();
-
-            module_js = prepend_active_runtime_globals(module_js);
-
-            module_js = module_js.replace('"@jac/runtime"', '"./jac_runtime.js"');
-            module_js = module_js.replace("'@jac/runtime'", "'./jac_runtime.js'");
+            module_js = _point_at_staged_runtime(
+                prepend_active_runtime_globals(module_js)
+            );
             for dep_name in list(dep_files.keys()) {
-                dep_files[dep_name] = dep_files[dep_name].replace(
-                    '"@jac/runtime"', '"./jac_runtime.js"'
-                ).replace(
-                    "'@jac/runtime'", "'./jac_runtime.js'"
-                );
+                dep_files[dep_name] = _point_at_staged_runtime(dep_files[dep_name]);
             }
 
-            import re;
-            core_js = None;
+            runtime_js = _compile_runtime_js();
             core_match = re.search(
                 r'from\s+[\'\"]([^\'\"]*client_runtime_core\.js)[\'\"]', runtime_js
             );
             if core_match {
-                core_js = _compile_runtime_core_js();
                 runtime_js = runtime_js.replace(
                     core_match.group(1), "./client_runtime_core.js"
                 );
+                staged["client_runtime_core.js"] = _compile_runtime_core_js();
             }
-
-            dep_names = sorted(dep_files.keys());
-            sources = [module_js, runtime_js];
-            if core_js is not None {
-                sources.append(core_js);
-            }
-            for dep_name in dep_names {
-                sources.append(dep_files[dep_name]);
-            }
-            (rewritten, stub_js, changed) = _stub_npm_imports(sources);
-            module_js = rewritten[0];
-            runtime_js = rewritten[1];
-            fixed_count = 2;
-            if core_js is not None {
-                core_js = rewritten[2];
-                fixed_count = 3;
-            }
-            for (i, dep_name) in enumerate(dep_names) {
-                dep_files[dep_name] = rewritten[fixed_count + i];
-            }
-            if changed {
-                (work_dir / _NPM_STUB_FILE).write_text(stub_js, encoding="utf-8");
-            }
-            (work_dir / "jac_runtime.js").write_text(runtime_js, encoding="utf-8");
-            if core_js is not None {
-                (work_dir / "client_runtime_core.js").write_text(
-                    core_js, encoding="utf-8"
-                );
-            }
+            staged["jac_runtime.js"] = runtime_js;
         }
+
         for (dep_name, dep_js) in dep_files.items() {
-            (work_dir / dep_name).write_text(dep_js, encoding="utf-8");
+            staged[dep_name] = dep_js;
+        }
+
+        (module_js, staged, stub_js, changed) = _stub_npm_imports(module_js, staged);
+        if changed {
+            staged[_NPM_STUB_FILE] = stub_js;
+        }
+
+        for (staged_name, staged_js) in staged.items() {
+            (work_dir / staged_name).write_text(staged_js, encoding="utf-8");
         }
 
         harness = _build_harness(
@@ -572,7 +558,32 @@ impl module_is_client(filepath: str) -> bool {
         );
         result = mod is not None
             and mod.declares_codespace(CodeContext.CLIENT, path_hint=path);
-    } except Exception {
+    } except Exception as probe_exc {
+        import from jaclang.jac0core.compiler {
+            CompilerSourceError,
+            compiler_source_failure_origin
+        }
+        origin = compiler_source_failure_origin(probe_exc);
+        if origin is not None {
+            raise CompilerSourceError(
+                f"the client-codespace probe for {path} failed inside the "
+                f"compiler's own source ({origin}), so the module's codespace "
+                f"is unknown; refusing to degrade it to the server codespace: "
+                f"{type(probe_exc).__name__}: {probe_exc}"
+            ) from probe_exc;
+        }
+        try {
+            os.write(
+                2,
+                (
+                    f"jac: client-codespace probe failed for {path}; "
+                    f"treating as server: {type(probe_exc).__name__}: "
+                    f"{probe_exc}\n"
+                ).encode(
+                    "utf-8", "replace"
+                )
+            );
+        } except OSError { }
         result = False;
     }
     _COLOR_CACHE[path] = result;

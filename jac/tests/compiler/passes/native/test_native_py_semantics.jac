@@ -312,3 +312,46 @@ test "subscript aug: index expression evaluated exactly once" {
     # m[bump_idx(1)] += 7 -> m[1]==27 with one bump
     assert result == 271 , f"Expected 271, got {result}";
 }
+
+# --- str() identity ownership and negative string indexing ---
+test "str() of an owned temp keeps the value alive" {
+    (eng, _) = compile_native("py_str_identity_index.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "str_of_owned_temp", ctypes.c_int64);
+    result = fn();
+    assert result == 2 , f"Expected 2, got {result}";
+}
+
+test "test-slug shape: str of joined chars survives the arg release" {
+    (eng, _) = compile_native("py_str_identity_index.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "slug_of_desc", ctypes.c_int64);
+    result = fn();
+    # ok=1 (slug == "canary_t"), len=8
+    assert result == 18 , f"Expected 18, got {result}";
+}
+
+test "string subscript wraps negative indices" {
+    (eng, _) = compile_native("py_str_identity_index.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "neg_index_reads", ctypes.c_int64);
+    result = fn();
+    # v[-1]==v[0], v[-1]=='"', v[-2]=='t', "abc"[-3]=='a'
+    assert result == 1111 , f"Expected 1111, got {result}";
+}
+
+test "string subscript raises IndexError below range" {
+    (eng, _) = compile_native("py_str_identity_index.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "neg_index_oob", ctypes.c_int64);
+    result = fn();
+    assert result == 1 , f"Expected 1, got {result}";
+}
+
+test "string subscript raises IndexError above range" {
+    (eng, _) = compile_native("py_str_identity_index.jac");
+    get_func(eng, "jac_entry", None)();
+    fn = get_func(eng, "pos_index_oob", ctypes.c_int64);
+    result = fn();
+    assert result == 1 , f"Expected 1, got {result}";
+}

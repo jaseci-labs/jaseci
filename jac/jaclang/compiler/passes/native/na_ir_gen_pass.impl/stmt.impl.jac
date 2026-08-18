@@ -1,6 +1,6 @@
 impl NaIRGenPass._codegen_body(stmts: (list | tuple)) -> None {
-    _ar_open = self.ir_in.gen?.anon_region_open or {};
-    _ar_close = self.ir_in.gen?.anon_region_close or {};
+    _ar_open = self.ir_in.anon_region_open;
+    _ar_close = self.ir_in.anon_region_close;
     for stmt in stmts {
         if self.builder.block.is_terminated {
             break;
@@ -56,7 +56,7 @@ impl NaIRGenPass._codegen_body(stmts: (list | tuple)) -> None {
 }
 
 impl NaIRGenPass._emit_last_use_releases(stmt: uni.UniNode) -> None {
-    _map = self.ir_in.gen.rc_last_use;
+    _map = self.ir_in.rc_last_use;
     if not _map {
         return;
     }
@@ -585,7 +585,7 @@ impl NaIRGenPass._codegen_open_stmt(nd: uni.OpenStmt) -> None {
 
     self._emit_arena_helpers();
     _i8p = ir.IntType(8).as_pointer();
-    import from jaclang.compiler.symbol_utils { is_builtin_region_name }
+    import from jaclang.compiler.expr_keys { is_builtin_region_name }
     _anon_region = (
         isinstance(nd.target, uni.FuncCall) and is_builtin_region_name(nd.target.target)
     );
@@ -1218,7 +1218,7 @@ impl NaIRGenPass._match_arch_cond(
         self.builder.position_at_end(fld_bb);
     }
     for (fname, sub_pat) in fields {
-        fv = self._codegen_field_access(subj, fname, arch_name);
+        fv = self._codegen_field_access(subj, fname, arch_name, pat);
         if fv is None {
             self.emit(
                 E5092,
@@ -1507,7 +1507,7 @@ impl NaIRGenPass._bind_match_arch(
         return;
     }
     for (fname, sub_pat) in fields {
-        fv = self._codegen_field_access(subj, fname, arch_name);
+        fv = self._codegen_field_access(subj, fname, arch_name, pat);
         if fv is not None {
             self._bind_match_pattern(sub_pat, fv, None);
         }
@@ -3020,7 +3020,9 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
     }
 
     coll_name = self._get_name(nd.collection);
-    _coll_memo: (ir.Value | None) = self._str_norm(self._codegen_expr(nd.collection));
+    _coll_memo: (ir.Value | None) = self._opt_unwrap_iterable(
+        self._str_norm(self._codegen_expr(nd.collection))
+    );
 
     dict_type_key: (str | None) = self._dict_key_of(nd.collection);
     if _coll_memo is not None {
@@ -3097,6 +3099,36 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
         return;
     }
 
+    if self._tuple_iter_shape(nd.collection, _coll_memo) {
+        _tup_seq = self._tuple_iter_seq(nd.collection, _coll_memo);
+        if _tup_seq is None {
+            if len(self.errors_had) == _for_errs0 {
+                self.emit(
+                    E5092,
+                    node_override=nd.collection or nd,
+                    kind="for-loop iterable",
+                    name="tuple with mixed element storage",
+                    help_text="Every element of an iterated tuple must share one storage width, because the loop variable is a single slot and the checker types it from the tuple's FIRST element -- boxing the elements instead would answer `isinstance` in the body against the wrong member. Use a list literal, whose element type widens to a union, or bind the elements individually."
+                );
+            }
+            return;
+        }
+        (_ts_val, _ts_spec, _ts_elem, _ts_cast) = _tup_seq;
+        self._codegen_for_indexed(
+            nd,
+            kind="list",
+            collection_val=_ts_val,
+            helpers=self.list_helpers[_ts_spec],
+            var_names=[loop_var_name],
+            var_types=[_ts_elem],
+            rc_vars=True,
+            coll_release_op="fort_coll",
+            elem_cast=_ts_cast,
+            unpack_target=_unpack_target
+        );
+        return;
+    }
+
     if _coll_memo is None {
         if len(self.errors_had) == _for_errs0 {
             self.emit(
@@ -3106,6 +3138,33 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
                 name=type(nd.collection).__name__ if nd.collection else "<expr>"
             );
         }
+        return;
+    }
+
+    _set_src = self._container_src_info(_coll_memo);
+    if _set_src is not None and _set_src["kind"] == "set" {
+        _set_helpers = _set_src["helpers"];
+        _set_elem = _set_helpers["elem_type"];
+        _set_cast: (ir.Type | None) = None;
+        if _set_src["spec"] == "ptr" {
+            _set_static = self._static_elem_llvm_of(nd.collection);
+            if _set_static is not None and isinstance(_set_static, ir.PointerType) {
+                _set_elem = _set_static;
+                _set_cast = _set_static;
+            }
+        }
+        self._codegen_for_indexed(
+            nd,
+            kind="set",
+            collection_val=_coll_memo,
+            helpers=_set_helpers,
+            var_names=[loop_var_name],
+            var_types=[_set_elem],
+            rc_vars=True,
+            coll_release_op="forset_coll",
+            elem_cast=_set_cast,
+            unpack_target=_unpack_target
+        );
         return;
     }
 
@@ -3881,6 +3940,14 @@ impl NaIRGenPass._codegen_for_indexed(
         self.builder.store(collection_val, _gen_coll_slot);
     }
 
+    _coll_slot_var: (str | None) = None;
+    if _gen_coll_slot is None
+        and coll_release_op
+        and kind != "range"
+        and self._is_owned(collection_val) {
+        _coll_slot_var = self._bind_loop_coll_slot(collection_val);
+    }
+
     if kind == "range" {
         len_val = collection_val;
         idx_alloca = self._entry_alloca(i64, var_names[0]);
@@ -4032,8 +4099,8 @@ impl NaIRGenPass._codegen_for_indexed(
             self.builder.store(
                 self.builder.zext(_by, i64, name="for.by.val"), allocas[0]
             );
-        } elif kind in ("list", "dict") {
-            fetch_fn = helpers["get"] if kind == "list" else helpers["get_key"];
+        } elif kind in ("list", "dict", "set") {
+            fetch_fn = helpers["get_key"] if kind == "dict" else helpers["get"];
             elem_val = self.builder.call(
                 fetch_fn, [collection_val, body_idx], name="for.elem"
             );
@@ -4110,6 +4177,8 @@ impl NaIRGenPass._codegen_for_indexed(
             _coll_end, op=coll_release_op or "for_coll", loc=_for_loc
         );
         self.builder.store(ir.Constant(_coll_end.type, None), _gen_coll_slot);
+    } elif _coll_slot_var is not None {
+        self._release_loop_coll_slot(_coll_slot_var, op=coll_release_op, loc=_for_loc);
     } elif coll_release_op
         and isinstance(collection_val.type, ir.PointerType)
         and self._is_owned(collection_val) {

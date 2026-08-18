@@ -1,10 +1,10 @@
 import atexit;
-def _encode_string(s: Any) -> object {
+def _encode_string(s: any) -> object {
     encoded = s.encode('utf-8');
     return encoded;
 }
 
-def _decode_string(b: Any) -> object {
+def _decode_string(b: any) -> object {
     return b.decode('utf-8');
 }
 
@@ -29,6 +29,6 @@ with entry {
     to early bind this function rather than look it up when calling it,
     since at shutdown module globals may be cleared.
     """
-def _is_shutting_down(_shutting_down: Any = _shutting_down) -> object {
+def _is_shutting_down(_shutting_down: any = _shutting_down) -> object {
     return _shutting_down[0];
 }
