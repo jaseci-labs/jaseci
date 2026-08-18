@@ -281,7 +281,6 @@ jobs:
 
       - name: Read version (from jac.toml)
         id: ver
-        working-directory: jac
         run: echo "version=$(grep -m1 '^version' jac.toml | sed -E 's/.*"([^"]+)".*/\1/')" >> "$GITHUB_OUTPUT"
 
       # The native backend statically links a pinned LLVM; fetch it per target
@@ -590,7 +589,6 @@ jobs:
 
       - name: Read version (from jac.toml)
         id: ver
-        working-directory: jac
         run: echo "version=$(grep -m1 '^version' jac.toml | sed -E 's/.*"([^"]+)".*/\1/')" >> "$GITHUB_OUTPUT"
 
       # Dev-channel legs keep no workflow artifact; that path pulls the
@@ -667,7 +665,6 @@ jobs:
 
       - name: Read version (from jac.toml)
         id: ver
-        working-directory: jac
         run: echo "version=$(grep -m1 '^version' jac.toml | sed -E 's/.*"([^"]+)".*/\1/')" >> "$GITHUB_OUTPUT"
 
       # Dev-channel legs keep no workflow artifact; that path pulls the
