@@ -614,6 +614,11 @@ impl normalize_microservices_config(
             'base_route': client_config.get('base_route', '/'),
             'static_mounts': list(client_config.get('static_mounts', []) or [])
         },
+        'identity': {
+            'gateway_owned': bool(
+                dict(ms_config.get('identity', {})).get('gateway_owned', True)
+            )
+        },
         'ingress': dict(ms_config.get('ingress', {})),
         'shared_volumes': list(ms_config.get('shared_volumes', [])),
         'logs': dict(ms_config.get('logs', {})),

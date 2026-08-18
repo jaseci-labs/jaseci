@@ -529,6 +529,18 @@ class JacScalePluginConfig {
                             "default": None,
                             "description": "Cadence (seconds) of the background health check that restarts services which died after boot; absent uses the process manager default (10)."
                         },
+                        "identity": {
+                            "type": "dict",
+                            "default": {},
+                            "description": "Who owns user records in a fleet. The gateway serves /user/register and /user/login, so a session token it mints names a user that only the gateway's store knows; a service receiving that token has no local record for the subject.",
+                            "nested": {
+                                "gateway_owned": {
+                                    "type": "bool",
+                                    "default": True,
+                                    "description": "A fleet service that receives a signature-valid, unexpired token for a user it does not know provisions that user's root once, instead of rejecting the request. Set false when a deployment manages identity itself and a service should reject unknown subjects."
+                                }
+                            }
+                        },
                         "ingress": {
                             "type": "dict",
                             "default": {},
