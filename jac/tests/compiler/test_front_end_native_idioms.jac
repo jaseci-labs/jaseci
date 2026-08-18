@@ -75,8 +75,8 @@ test "pascal_to_snake converts the shapes the compiler actually feeds it" {
 # dispatch (`getattr(self, f"enter_{pascal_to_snake(type(nd).__name__)}")`).
 # `gen_uni_dispatch` (#6942 A.1) replaced that with static accept_enter /
 # accept_exit, so the hot loop the cache existed for is gone: what remains
-# are comptime (`ct.snake`), the generators, and the `jac tool` surface, all
-# of which call it a bounded number of times. The cache was dropped rather
+# are the generators and the `jac tool` surface, both of which call it a
+# bounded number of times. The cache was dropped rather
 # than re-spelled -- a dict memo is three lines if measurement ever asks.
 test "pascal_to_snake is deterministic across repeat calls without a cache" {
     probe = "AVeryDistinctArchetypeName";

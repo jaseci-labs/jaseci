@@ -96,7 +96,7 @@ glob JS_GLOBALS: dict[str, str] = {
 
 
 impl classify_native_import(item: UniNode) -> tuple[((str | None), bool)] {
-    import from jaclang.jac0core.codeinfo { native_comptime_import_names }
+    import from jaclang.jac0core.codeinfo { native_erased_import_names }
     mod_name: (str | None) = None;
     if isinstance(item, ModulePath) and item.path {
         parts = [];
@@ -110,7 +110,7 @@ impl classify_native_import(item: UniNode) -> tuple[((str | None), bool)] {
         if _from_loc is not None {
             mod_name = _from_loc.dot_path_str;
             if isinstance(item.name, Name)
-                and native_comptime_import_names(mod_name, [item.name.value]) {
+                and native_erased_import_names(mod_name, [item.name.value]) {
                 return (mod_name, True);
             }
         }
@@ -171,9 +171,9 @@ impl node_within(name_nd: UniNode, top: (UniNode | None)) -> bool {
 }
 
 impl base_expr_is_erased(base: UniNode) -> bool {
-    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES }
     _tail: UniNode = base.right if isinstance(base, AtomTrailer) else base;
-    return isinstance(_tail, Name) and _tail.value in NATIVE_COMPTIME_BASES;
+    return isinstance(_tail, Name) and _tail.value in NATIVE_ERASED_BASES;
 }
 
 impl name_in_type_position(name_nd: UniNode) -> bool {
