@@ -5,13 +5,11 @@ glob PROJECT_ENV_FILE: str = ".env",
      PROJECT_ENV_CAPABILITY: str = "env";
 
 
-"""Path of the project's env file, whether or not it exists."""
 def project_env_path(code_folder: str) -> str {
     return os.path.join(code_folder or '.', PROJECT_ENV_FILE);
 }
 
 
-"""Load the project's .env into this process, returning whether a file was read."""
 def load_project_env(code_folder: str) -> bool {
     require_optional("dotenv", PROJECT_ENV_CAPABILITY);
     import from dotenv { load_dotenv }
@@ -19,7 +17,6 @@ def load_project_env(code_folder: str) -> bool {
 }
 
 
-"""Read the project's .env without mutating this process's environment."""
 def read_project_env(code_folder: str) -> dict[str, str | None] {
     env_file = project_env_path(code_folder);
     if not os.path.exists(env_file) {
