@@ -445,22 +445,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
          _LEAF_SEAM_WAIVERS + _BASE_CHAIN_SEAM_WAIVERS
      ),
-     _MODULE_CODEGEN_ROOT_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/transform.jac::BaseTransform.is_canceled",
-         "jac0core/passes/transform.jac::Transform.ice",
-         "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
-         "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
-
-     ),
-     _UNI_PASS_ROOT_SEAM_WAIVERS: tuple[str, ...] = (
-         (
-             "jac0core/passes/transform.jac::BaseTransform.is_canceled",
-             "jac0core/passes/transform.jac::Transform.ice",
-             "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
-             "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type"
-         )
-         + _MODULE_CODEGEN_SEAM_WAIVERS
-     ),
      _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_ability",
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
@@ -525,11 +509,15 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/module_codegen_pass.jac": (
-             _LEAF_SEAM_WAIVERS + _MODULE_CODEGEN_ROOT_SEAM_WAIVERS
-         ),
+         # The two roots below used to carry reduced per-root transform
+         # tuples: the demotion/emission ordering depended on each root's
+         # import-walk shape, so `Alert.pretty_print` demoted in some units
+         # and stayed (wrongly) live in others. Verdict-before-emission made
+         # the cascade order-independent, and with it every root sees the
+         # same transform seams -- the closure set, uniformly.
+         "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": (
-             _LEAF_SEAM_WAIVERS + _UNI_PASS_ROOT_SEAM_WAIVERS
+             _CLOSURE_SEAM_WAIVERS + _MODULE_CODEGEN_SEAM_WAIVERS
          ),
          "jac0core/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/endpoint_effect_pass.jac": (
