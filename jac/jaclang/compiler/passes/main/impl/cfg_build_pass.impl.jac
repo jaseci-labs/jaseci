@@ -1,4 +1,3 @@
-import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 impl cfg_dot_from_file(file_name: str) -> str {
     import from jaclang.jac0core.compiler { run_pass }
     import from jaclang.jac0core.program { JacProgram }
@@ -94,6 +93,7 @@ impl CoalesceBBPass._has_bool_sc(condition: Expr) -> bool {
 
 impl CoalesceBBPass._node_label(nd: UniNode) -> str {
     import from jaclang.jac0core.constant { Tokens as Tok }
+    import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
     if isinstance(nd, ElseIf) {
         return 'elif'
