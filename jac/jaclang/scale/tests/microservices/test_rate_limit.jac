@@ -387,5 +387,6 @@ test "dropped X-Forwarded-For without trusted_proxies warns exactly once" {
         assert len(warned) == 1;
     } finally {
         _rl_logger.removeHandler(handler);
+        _untrusted_xff_warned.clear();
     }
 }
