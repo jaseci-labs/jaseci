@@ -21,7 +21,15 @@ glob DEFAULT_TIMEOUT: float = 30.0,
      IDLE_TIMEOUT: float = 60.0;
 
 glob _POOLS: any = weakref.WeakKeyDictionary(),
-     _TLS_CONTEXT: dict[str, any] = {};
+     _TLS_CONTEXT: dict[str, any] = {},
+     _IDEMPOTENT_METHODS: set[str] = {
+         'DELETE',
+         'GET',
+         'HEAD',
+         'OPTIONS',
+         'PUT',
+         'TRACE'
+     };
 
 
 obj ClientConnectionError(Exception) {
@@ -46,9 +54,21 @@ def _close_writer(writer: any) {
     }
 }
 
-def _is_stale(reader: any, writer: any) -> bool {
+def _has_buffered_bytes(reader: any) -> bool {
     try {
-        return bool(writer.is_closing()) or bool(reader.at_eof());
+        return len(getattr(reader, '_buffer', b'')) > 0;
+    } except Exception {
+        return False;
+    }
+}
+
+def _is_unusable(reader: any, writer: any) -> bool {
+    try {
+        return (
+            bool(writer.is_closing())
+            or bool(reader.at_eof())
+            or _has_buffered_bytes(reader)
+        );
     } except Exception {
         return True;
     }
@@ -68,7 +88,7 @@ obj ConnectionPool {
         bucket = self._idle.get(origin) or [];
         while bucket {
             (reader, writer, expires_at) = bucket.pop();
-            if time.monotonic() >= expires_at or _is_stale(reader, writer) {
+            if time.monotonic() >= expires_at or _is_unusable(reader, writer) {
                 _close_writer(writer);
                 continue;
             }
@@ -79,7 +99,7 @@ obj ConnectionPool {
 
     def release(origin: str, reader: any, writer: any) {
         bucket = self._idle.setdefault(origin, []);
-        if _is_stale(reader, writer)
+        if _is_unusable(reader, writer)
             or len(bucket) >= self.max_idle_per_host
             or self.idle_count() >= self.max_idle_total {
             _close_writer(writer);
@@ -465,6 +485,7 @@ async def arequest(
     origin = f"{scheme}://{host}:{port}";
     pool = connection_pool();
     retried = False;
+    replayable = method.upper() in _IDEMPOTENT_METHODS;
     while True {
         pooled = pool.acquire(origin);
         (reader, writer) = pooled
@@ -484,7 +505,7 @@ async def arequest(
             ClientConnectionError
         ) as e {
             _close_writer(writer);
-            if pooled is None or retried {
+            if pooled is None or retried or not replayable {
                 raise ClientConnectionError(detail=str(e));
             }
             retried = True;

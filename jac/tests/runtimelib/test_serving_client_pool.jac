@@ -5,6 +5,7 @@ fresh socket per request puts a TCP (and TLS) handshake in front of every hop.""
 
 import asyncio;
 import from jaclang.runtimelib.serving.client {
+    ClientConnectionError,
     arequest,
     close_connection_pool,
     connection_pool
@@ -16,7 +17,8 @@ glob _RESPONSES: dict[str, bytes] = {
          "/close": b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nclose",
          "/chunked": b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
          b"5\r\nalpha\r\n4\r\nbeta\r\n0\r\n\r\n",
-         "/nocontent": b"HTTP/1.1 204 No Content\r\n\r\n"
+         "/nocontent": b"HTTP/1.1 204 No Content\r\n\r\n",
+         "/overlong": b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\n\r\nhelloEXTRA"
      };
 
 
@@ -48,6 +50,7 @@ async def _read_request(reader: any) -> (str | None) {
 obj _ProbeUpstream {
     has connections: int = 0,
         port: int = 0,
+        drop_next: bool = False,
         _server: any = None,
         _writers: list[any] = [];
 
@@ -88,6 +91,11 @@ obj _ProbeUpstream {
             while True {
                 path = await _read_request(reader);
                 if path is None {
+                    break;
+                }
+                if self.drop_next {
+                    self.drop_next = False;
+                    writer.transport.abort();
                     break;
                 }
                 writer.write(_RESPONSES.get(path, _RESPONSES["/hello"]));
@@ -235,4 +243,52 @@ test "the pool bounds how many idle connections it keeps per host" {
         return pool.idle_count();
     }
     assert _with_upstream(work) == 1;
+}
+
+
+test "a response longer than its content length is not pooled" {
+    async def work(upstream: any) -> dict {
+        first = await arequest("GET", f"{upstream.base()}/overlong");
+        second = await arequest("GET", f"{upstream.base()}/hello");
+        return {
+            "first": first.text(),
+            "second": second.text(),
+            "connections": upstream.connections
+        };
+    }
+    result = _with_upstream(work);
+    assert result["first"] == "hello";
+    assert result["second"] == "hello";
+    assert result["connections"] == 2;
+}
+
+
+test "an idempotent request is retried when its pooled connection dies" {
+    async def work(upstream: any) -> dict {
+        await arequest("GET", f"{upstream.base()}/hello");
+        upstream.drop_next = True;
+        retried = await arequest("GET", f"{upstream.base()}/hello");
+        return {"retried": retried.text(), "connections": upstream.connections};
+    }
+    result = _with_upstream(work);
+    assert result["retried"] == "hello";
+    assert result["connections"] == 2;
+}
+
+
+test "a post is not replayed when its pooled connection dies" {
+    async def work(upstream: any) -> dict {
+        await arequest("GET", f"{upstream.base()}/hello");
+        upstream.drop_next = True;
+        failed = False;
+        try {
+            await arequest("POST", f"{upstream.base()}/hello", json_body={"n": 1});
+        } except ClientConnectionError {
+            failed = True;
+        }
+        return {"failed": failed, "connections": upstream.connections};
+    }
+    result = _with_upstream(work);
+    assert result["failed"];
+    assert result["connections"] == 1;
 }
