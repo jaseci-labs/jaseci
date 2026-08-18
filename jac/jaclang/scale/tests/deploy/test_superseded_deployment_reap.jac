@@ -368,3 +368,63 @@ test "a complete release resolves every member's own revision" {
     assert out["ok"];
     assert out["targets"] == {"orders-app-deployment": 4, "gateway-deployment": 2} , "each service reverts to the revision that carried this release, not to 4";
 }
+
+
+# A release is code AND config. A config-only deploy (#8115) leaves the bundle
+# digest unchanged and stamps a new jac-scale.config-revision, so grouping by
+# digest alone folds it into the release it shares a bundle with and the earlier
+# config becomes unreachable.
+test "a config-only redeploy is its own rollback target" {
+    releases = releases_from_revisions(
+        [
+            {
+                "deployment": "orders-app-deployment",
+                "revision": 1,
+                "bundle_digest": "aaa",
+                "config_revision": "100",
+                "created": "t1"
+            },
+            {
+                "deployment": "orders-app-deployment",
+                "revision": 2,
+                "bundle_digest": "aaa",
+                "config_revision": "101",
+                "created": "t2"
+            }
+        ]
+    );
+
+    assert len(releases) == 2 , (
+        f"same bundle, different config, so two releases; got {len(releases)}"
+    );
+    assert [r["revision"] for r in releases] == [2, 1];
+    assert releases[1]["deployments"] == {"orders-app-deployment": 1} , (
+        "the earlier config must stay selectable, or a config rollback is " "impossible"
+    );
+}
+
+
+test "the same code and config stays one release across services" {
+    releases = releases_from_revisions(
+        [
+            {
+                "deployment": "orders-app-deployment",
+                "revision": 4,
+                "bundle_digest": "aaa",
+                "config_revision": "100",
+                "created": "t"
+            },
+            {
+                "deployment": "gateway-deployment",
+                "revision": 2,
+                "bundle_digest": "aaa",
+                "config_revision": "100",
+                "created": "t"
+            }
+        ]
+    );
+
+    assert len(releases) == 1;
+    assert releases[0]["deployments"]
+        == {"orders-app-deployment": 4, "gateway-deployment": 2};
+}

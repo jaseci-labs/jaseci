@@ -19,6 +19,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     with_config_revision,
+    CONFIG_REVISION_ANNOTATION,
     ManifestBuilder,
     GATEWAY_NAME,
     k8s_safe_name
@@ -84,17 +85,20 @@ def releases_from_revisions(entries: list[dict[str, any]]) -> list[dict[str, any
         if not digest {
             continue;
         }
+        config = str(item.get("config_revision", "") or "");
+        key = f"{digest}@{config}";
         name = str(item.get("deployment", "") or "");
         revision = int(item.get("revision", 0) or 0);
-        if digest not in by_digest {
-            by_digest[digest] = {
+        if key not in by_digest {
+            by_digest[key] = {
                 "bundle_digest": digest,
+                "config_revision": config,
                 "revision": revision,
                 "created": str(item.get("created", "") or ""),
                 "deployments": {}
             };
         }
-        release = by_digest[digest];
+        release = by_digest[key];
         release["deployments"][name] = revision;
         if revision > int(release["revision"]) {
             release["revision"] = revision;
@@ -1360,6 +1364,22 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         "bundle_digest": app_bundle_digest(
                             bundle_keys_from_pod_spec(dict(pod_spec))
                         ),
+                        "config_revision": str(
+                            dict(
+                                dict(
+                                    serializer.sanitize_for_serialization(
+                                        rs.spec.template
+                                    )
+                                ).get(
+                                    "metadata", {}
+                                )
+                            ).get(
+                                "annotations", {}
+                            ).get(
+                                CONFIG_REVISION_ANNOTATION, ""
+                            )
+                                or ""
+                        ),
                         "created": created.isoformat() if created else "",
                         "replicas": int(rs.spec.replicas or 0)
                     }
@@ -1442,7 +1462,11 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
 
         reverted: list[str] = [];
-        for (name, rs) in targets.items() {
+        for name in expected {
+            if name not in targets {
+                continue;
+            }
+            rs = targets[name];
             template = strip_pod_template_hash(
                 dict(serializer.sanitize_for_serialization(rs.spec.template))
             );
@@ -1462,6 +1486,29 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 );
             }
             reverted.append(name);
+        }
+
+        wait_bundle: dict[str, any] = {"deployments": {}};
+        for name in reverted {
+            selector = name[:-len("-deployment")]
+                if name.endswith("-deployment")
+                else name;
+            wait_bundle["deployments"][name] = {
+                "metadata": {"name": name},
+                "spec": {"selector": {"matchLabels": {"app": selector}}}
+            };
+        }
+        try {
+            self._wait_for_fleet_rollout(wait_bundle);
+        } except Exception as e {
+            return DeploymentResult(
+                success=False,
+                message=(
+                    f"Reverted {len(reverted)} deployment(s) to revision "
+                    f"{revision}, but the fleet did not come back: {e}"
+                ),
+                details={"reverted": reverted, "revision": revision}
+            );
         }
         return DeploymentResult(
             success=True,
