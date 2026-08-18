@@ -15,6 +15,8 @@ impl JacProgram.init(
 
     self._na_dep_inflight: set = set();
 
+    self._na_verdict_resolving: set = set();
+
     self._na_unverified_live: dict = {};
 
     self._na_verdict_misses: int = 0;

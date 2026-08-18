@@ -206,3 +206,63 @@ test "an oversized composition trips the blast-radius guard fast and loud" {
         "tolerance is for the taint lever only"
     );
 }
+
+"""The verdict apparatus is an aot-lane contract, and its resolver is bounded.
+
+Two pins from the pack-smoke stall hunt. First, the lane: in the JIT /
+bytecode-precompile lane, `_imported_function_demotions` answers None from
+its not-aot arm -- that None means "this lane does not do cross-module
+verdicts", not "verdict pending" -- so the emission-side recorder must stay
+silent there, or every import edge becomes taint whose link-time
+re-validation compiles callees (installed runtime sources included) as a
+silent avalanche. Second, the resolver: `native_unit_demotions`' compile
+arm must refuse a callee that is inflight, mid-compile (hub tree with no
+IR yet), or already being resolved -- answering fail-closed (None, read
+as conflict-on-every-tainted-name) at worst costing one E5028-bounded
+re-emission -- because compiling such a callee re-enters its own schedule
+and the recursion has no other floor.
+"""
+test "the non-aot lane records no verdict taint" {
+    if _jaclang_image() is not None {
+        testskip("a sealed image measures its trust boundary, not this");
+    }
+    path = os.path.join(FIXTURES, "demote_cycle_root.jac");
+    prog = JacProgram();
+    ir = prog.compile(
+        file_path=path,
+        options=CompileOptions(
+            force_codespace='native', force_target_program=True, no_ir_cache=True
+        )
+    );
+    assert ir is not None , "the JIT-lane compile produced no module";
+    assert not prog._na_unverified_live , (
+        f"a non-aot compile recorded verdict taint for "
+        f"{len(prog._na_unverified_live)} module(s). The not-aot None from "
+        "_imported_function_demotions is a lane statement, not a pending "
+        "verdict; recording it makes link-time re-validation compile "
+        "callees in a lane that never asked for verdicts"
+    );
+}
+
+
+test "the verdict resolver refuses an inflight or mid-compile callee" {
+    if _jaclang_image() is not None {
+        testskip("a sealed image measures its trust boundary, not this");
+    }
+    import from jaclang.compiler.passes.native.na_compile_pass { native_unit_demotions }
+    import from jaclang.jac0core.compile_options { CompileOptions as _Opts }
+    helpers_path = os.path.realpath(os.path.join(FIXTURES, "demote_cycle_helpers.jac"));
+    prog = JacProgram();
+    prog._na_dep_inflight.add(helpers_path);
+    demoted = native_unit_demotions(prog, helpers_path, _Opts(aot_mode=True));
+    assert helpers_path not in prog._na_dep_units , (
+        "the resolver compiled an inflight callee -- that compile re-enters "
+        "the callee's own schedule and the recursion has no floor"
+    );
+    assert demoted is None , (
+        "an unresolvable callee must answer None -- the fail-closed signal "
+        "the conflict check reads as conflict-on-every-tainted-name -- "
+        f"not {demoted!r}"
+    );
+    prog._na_dep_inflight.discard(helpers_path);
+}

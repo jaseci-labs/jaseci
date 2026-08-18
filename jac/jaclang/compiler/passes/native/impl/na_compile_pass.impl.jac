@@ -96,52 +96,69 @@ impl native_verdict_blast_guard(
     );
 }
 
-impl native_unit_demotions(prog: any, real_path: str, options: any) -> set[str] {
+impl native_unit_demotions(
+    prog: any, real_path: str, options: any
+) -> (set[str] | None) {
     import os as _ud_os;
     entry: any = prog._na_dep_units.get(real_path);
+    _ud_mid_compile = False;
     if entry is None {
         for _ud_key in (real_path, _ud_os.path.abspath(real_path)) {
             _ud_mod = prog.mod.hub.get(_ud_key);
-            if _ud_mod is not None and _ud_mod.gen.llvm_ir is not None {
-                entry = _ud_mod;
-                break;
+            if _ud_mod is None {
+                continue;
             }
+            if _ud_mod.gen.llvm_ir is not None {
+                entry = _ud_mod;
+            } else {
+                _ud_mid_compile = True;
+            }
+            break;
         }
     }
-    if entry is None and _ud_os.path.isfile(real_path) {
+    if (
+        entry is None
+        and not _ud_mid_compile
+        and real_path not in prog._na_dep_inflight
+        and real_path not in prog._na_verdict_resolving
+        and _ud_os.path.isfile(real_path)
+    ) {
+        prog._na_verdict_resolving.add(real_path);
         try {
             entry = prog.compile(
                 file_path=real_path, options=options.clone_for_native_import()
             );
         } except Exception as _ud_exc {
             entry = f"{type(_ud_exc).__name__}: {_ud_exc}";
+        } finally {
+            prog._na_verdict_resolving.discard(real_path);
         }
         prog._na_dep_units[real_path] = entry;
     }
     if entry is None or isinstance(entry, str) or entry.gen.llvm_ir is None {
         prog._na_verdict_misses += 1;
-        _ud_all: set = set();
         _ud_tree = entry
             if (entry is not None and not isinstance(entry, str))
             else prog.mod.hub.get(real_path);
-        if _ud_tree is not None {
-            import jaclang.jac0core.unitree as _ud_uni;
-            import from jaclang.jac0core.passes.module_codegen_pass {
-                ModuleCodegenPass as _UdWalk
-            }
-            for _ud_stmt in _UdWalk.iter_context_stmts(_ud_tree) {
-                if isinstance(_ud_stmt, _ud_uni.Ability) and _ud_stmt.name_ref {
-                    _ud_all.add(_ud_stmt.name_ref.sym_name);
-                } elif isinstance(_ud_stmt, _ud_uni.Archetype)
-                    and _ud_stmt.body is not None
-                    and _ud_stmt.name is not None {
-                    for _ud_meth in _ud_stmt.body {
-                        if isinstance(_ud_meth, _ud_uni.Ability)
-                            and _ud_meth.name_ref {
-                            _ud_all.add(
-                                f"{_ud_stmt.name.value}.{_ud_meth.name_ref.sym_name}"
-                            );
-                        }
+        if _ud_tree is None {
+            return None;
+        }
+        _ud_all: set = set();
+        import jaclang.jac0core.unitree as _ud_uni;
+        import from jaclang.jac0core.passes.module_codegen_pass {
+            ModuleCodegenPass as _UdWalk
+        }
+        for _ud_stmt in _UdWalk.iter_context_stmts(_ud_tree) {
+            if isinstance(_ud_stmt, _ud_uni.Ability) and _ud_stmt.name_ref {
+                _ud_all.add(_ud_stmt.name_ref.sym_name);
+            } elif isinstance(_ud_stmt, _ud_uni.Archetype)
+                and _ud_stmt.body is not None
+                and _ud_stmt.name is not None {
+                for _ud_meth in _ud_stmt.body {
+                    if isinstance(_ud_meth, _ud_uni.Ability) and _ud_meth.name_ref {
+                        _ud_all.add(
+                            f"{_ud_stmt.name.value}.{_ud_meth.name_ref.sym_name}"
+                        );
                     }
                 }
             }
@@ -157,7 +174,9 @@ impl native_live_call_conflicts(
     conflicts: dict[str, set[str]] = {};
     for (_cc_callee, _cc_names) in (pending or {}).items() {
         _cc_demoted = native_unit_demotions(prog, _cc_callee, options);
-        _cc_hit = set(_cc_names) & _cc_demoted;
+        _cc_hit = (
+            set(_cc_names) if _cc_demoted is None else (set(_cc_names) & _cc_demoted)
+        );
         if _cc_hit {
             conflicts[_cc_callee] = _cc_hit;
         }

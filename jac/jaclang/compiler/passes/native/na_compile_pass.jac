@@ -34,7 +34,10 @@ obj DepClibMeta {
 def native_compiler_fingerprint(options: any) -> str;
 def native_dep_cache_paths(real_path: str, options: any) -> tuple;
 def native_demoted_ir_symbols(llvm_ir_text: str) -> list[str];
-def native_unit_demotions(prog: any, real_path: str, options: any) -> set[str];
+def native_unit_demotions(
+    prog: any, real_path: str, options: any
+) -> (set[str] | None);
+
 def native_live_call_conflicts(
     prog: any, pending: dict, options: any
 ) -> dict[str, set[str]];

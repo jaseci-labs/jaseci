@@ -906,6 +906,7 @@ impl NaIRGenPass._walk_imported_module_abilities(
     if (
         _imp_verdicts_wanted
         and _imp_fn_unavail is None
+        and bool(self.prog._compile_options and self.prog._compile_options.aot_mode)
         and self.ir_in?.loc
         and self.ir_in.loc.mod_path
         and imported_mod?.loc
