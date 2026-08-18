@@ -17,8 +17,11 @@ design doc, never in the fixture.
 
 Cross-lane parity against the retired Python-AST emitter is not measured
 here: that lane is gone. Its evidence is the corpus comparison recorded
-in the cutover, plus `test_jcir_sealed_bytes.jac`, which pins the sealed
-producer's code objects field by field through the serving binder.
+in the cutover, plus `test_jcir_bound_emitter_bytes.jac`, which pins
+that binding the emitter's artifact does not change the bytes it emits.
+That file used to be named for a sealed-versus-source comparison it
+cannot make: the binder retains no function pointer, so both sides of it
+are the source lane until #8288 M1 rung 3.
 """
 
 import ast as pyast;

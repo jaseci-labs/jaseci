@@ -60,7 +60,6 @@ nothing outside the table is ever excused.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import jaclang.jac0core.unitree as uni;
@@ -157,7 +156,7 @@ it, so a root's own entry surface can be told apart from the closure's.
 """
 def _program_tables(rel: str) -> tuple {
     if native_artifact_for("jaclang.jac0core.unitree") is not None {
-        pytest.skip(
+        testskip(
             "the sealed closure is served from this runtime's native seal; "
             "reachability is measured in source lanes and at seal time"
         );

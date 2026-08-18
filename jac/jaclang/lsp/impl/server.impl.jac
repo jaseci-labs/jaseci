@@ -91,8 +91,8 @@ impl from_dict(data: any, cls: any) -> any {
         }
         return data;
     }
-    if origin is list or origin is List {
-        (item_cls, ) = get_args(cls) if get_args(cls) else (Any, );
+    if origin is list {
+        (item_cls, ) = get_args(cls) if get_args(cls) else (any, );
         return [from_dict(item, item_cls) for item in data];
     }
     if not isinstance(data, dict) {

@@ -31,10 +31,12 @@ clears it:
 
   - `_JCIR_INTEROP_SEAM_WAIVERS`: the native-export and sv-to-sv stub
     surface reads `gen.interop_manifest` and the `InteropBinding` /
-    `BoundaryTypeInfo` codeinfo objects, which are Python codegen state,
-    and `exit_import` asks the driver for `native_only_import_target`.
-    Clears when the driver stamps import decisions onto the node as data
-    (the #8242 `absorbed_mod` pattern) and the manifest crosses as a
+    `BoundaryTypeInfo` codeinfo objects, which are Python codegen state.
+    The driver half of this family is retired: `exit_import` consumed
+    `self.prog` -- the only such read in any sealed pass -- and now
+    consumes `Import.native_only_drop`, stamped by
+    `JacCompiler.stamp_native_import_facts` in the #8242 `absorbed_mod`
+    pattern. What is left clears when the manifest crosses as a
     native-clean record instead of a Python object.
   - `_JCIR_LOWERING_SEAM_WAIVERS`: named backend gaps -- an `Ellipsis`
     constant, element-erased list reads, `_merge_module_bodies` on the
@@ -61,7 +63,6 @@ coupling, so `_root_census` skips there (both gates below).
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -127,13 +128,13 @@ def _root_module_name(rel: str) -> str {
 """Compile the root the way seal_native_artifacts does, up to the census."""
 def _root_census(rel: str) -> tuple {
     if _jaclang_image() is not None {
-        pytest.skip(
+        testskip(
             "this runtime is a sealed jaclang image; a source census here "
             "measures the image's trust boundary, not the unit's own seams"
         );
     }
     if native_artifact_for(_root_module_name(rel)) is not None {
-        pytest.skip(
+        testskip(
             f"{rel} is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );

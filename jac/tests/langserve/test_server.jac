@@ -40,7 +40,7 @@ def _clear_jac_modules {
 """Set up test environment.
 
 Note: _fresh_jac_state() runs automatically before each Jac test via the
-pytest plugin, which resets JacRuntime. We only need to handle server-
+test runner, which resets JacRuntime. We only need to handle server-
 specific setup here.
 """
 def setup_test {

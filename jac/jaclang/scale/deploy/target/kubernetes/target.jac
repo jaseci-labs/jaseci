@@ -714,7 +714,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def _build_observability_config -> KubernetesConfig {
-        overrides: dict[str, Any] = dict(self.k8s_config.to_dict());
+        overrides: dict[str, any] = dict(self.k8s_config.to_dict());
         overrides["monitoring_enabled"] = True;
 
         overrides["loki_enabled"] = self._read_microservices_logs_config().get(
@@ -726,7 +726,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return KubernetesConfig.from_dict(KubernetesConfig, overrides);
     }
 
-    def _read_microservices_logs_config -> dict[str, Any] {
+    def _read_microservices_logs_config -> dict[str, any] {
         try {
             ms_cfg = self._ms_cfg();
             return dict(ms_cfg.get("logs", {}));
@@ -741,7 +741,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _read_microservices_tracing_config -> dict[str, Any] {
+    def _read_microservices_tracing_config -> dict[str, any] {
         try {
             ms_cfg = self._ms_cfg();
             return dict(ms_cfg.get("tracing", {}));

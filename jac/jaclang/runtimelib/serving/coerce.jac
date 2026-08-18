@@ -1,8 +1,9 @@
 import inspect;
+import typing;
 import from dataclasses { is_dataclass }
 import from enum { EnumMeta }
 import from types { UnionType }
-import from typing { Any, Union, get_args, get_origin, get_type_hints }
+import from typing { Union, get_args, get_origin, get_type_hints }
 import from jaclang.runtimelib.serving.datatypes { Request, UploadFile }
 import from jaclang.runtimelib.serving.endpoint {
     APIParameter,
@@ -97,7 +98,7 @@ def coerce_value(value: any, target: any = None) -> any {
     if isinstance(value, UploadFile) {
         return value;
     }
-    if target is None or target is Any or target is inspect.Parameter.empty {
+    if target is None or target is typing.Any or target is inspect.Parameter.empty {
         return value;
     }
     if isinstance(target, str) {
@@ -214,7 +215,7 @@ def _header_lookup(request: Request, name: str) -> (str | None) {
 
 def _extract_raw(
     param: APIParameter, request: Request, body_json: any
-) -> tuple[bool, Any] {
+) -> tuple[bool, any] {
     if param.kind == ParameterType.PATH {
         if param.name in request.path_params {
             return (True, request.path_params[param.name]);
@@ -281,8 +282,8 @@ def _fresh_default(value: any) -> any {
     return value;
 }
 
-def bind_parameters(ep: JEndPoint, request: Request, body_json: any) -> dict[str, Any] {
-    kwargs: dict[str, Any] = {};
+def bind_parameters(ep: JEndPoint, request: Request, body_json: any) -> dict[str, any] {
+    kwargs: dict[str, any] = {};
     errors: list[dict] = [];
     declared: set[str] = set();
     for param in (ep.parameters or []) {
@@ -385,8 +386,8 @@ def body_param_name(spec: CallbackSpec, bound: dict[str, any]) -> (str | None) {
 }
 
 def filter_kwargs_for_callback(
-    spec: CallbackSpec, kwargs: dict[str, Any], request: Request
-) -> dict[str, Any] {
+    spec: CallbackSpec, kwargs: dict[str, any], request: Request
+) -> dict[str, any] {
     if not spec.introspectable {
         return kwargs;
     }

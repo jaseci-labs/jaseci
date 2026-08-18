@@ -73,30 +73,6 @@ impl UniPass.enter_connect_op(nd: ConnectOp) -> None {
     self.default_enter(nd);
 }
 
-impl UniPass.enter_ct_block(nd: CtBlock) -> None {
-    self.default_enter(nd);
-}
-
-impl UniPass.enter_ct_else(nd: CtElse) -> None {
-    self.default_enter(nd);
-}
-
-impl UniPass.enter_ct_for(nd: CtFor) -> None {
-    self.default_enter(nd);
-}
-
-impl UniPass.enter_ct_if(nd: CtIf) -> None {
-    self.default_enter(nd);
-}
-
-impl UniPass.enter_ct_name(nd: CtName) -> None {
-    self.default_enter(nd);
-}
-
-impl UniPass.enter_ct_splice(nd: CtSplice) -> None {
-    self.default_enter(nd);
-}
-
 impl UniPass.enter_ctrl_stmt(nd: CtrlStmt) -> None {
     self.default_enter(nd);
 }
@@ -546,30 +522,6 @@ impl UniPass.exit_concurrent_expr(nd: ConcurrentExpr) -> None {
 }
 
 impl UniPass.exit_connect_op(nd: ConnectOp) -> None {
-    self.default_exit(nd);
-}
-
-impl UniPass.exit_ct_block(nd: CtBlock) -> None {
-    self.default_exit(nd);
-}
-
-impl UniPass.exit_ct_else(nd: CtElse) -> None {
-    self.default_exit(nd);
-}
-
-impl UniPass.exit_ct_for(nd: CtFor) -> None {
-    self.default_exit(nd);
-}
-
-impl UniPass.exit_ct_if(nd: CtIf) -> None {
-    self.default_exit(nd);
-}
-
-impl UniPass.exit_ct_name(nd: CtName) -> None {
-    self.default_exit(nd);
-}
-
-impl UniPass.exit_ct_splice(nd: CtSplice) -> None {
     self.default_exit(nd);
 }
 

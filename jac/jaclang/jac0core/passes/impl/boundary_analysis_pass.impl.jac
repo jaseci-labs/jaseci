@@ -25,16 +25,13 @@ impl BoundaryAnalysisPass._signature_of_decl(
     param_names: list[str] = [];
     if decl is not None and isinstance(decl.signature, FuncSignature) {
         sig = decl.signature;
-        all_params: list[(ParamVar | CtFor | CtIf)] = [];
+        all_params: list[ParamVar] = [];
         all_params.extend(sig.posonly_params);
         if sig.params {
             all_params.extend(sig.params);
         }
         all_params.extend(sig.kwonlyargs);
         for p in all_params {
-            if not isinstance(p, ParamVar) {
-                continue;
-            }
             param_names.append(p.sym_name);
             if p.type_tag {
                 param_types.append(self._extract_type_name(p.type_tag.tag));
@@ -826,7 +823,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
             kind = _ak;
         }
         fields: list[tuple[(str, str)]] = [];
-        fdefaults: dict[(str, Any)] = {};
+        fdefaults: dict[(str, any)] = {};
         nested: list[str] = [];
 
         if arch_node.body {
@@ -883,7 +880,7 @@ impl BoundaryAnalysisPass._collect_boundary_type(
     }
 
     if isinstance(arch_node, Enum) {
-        members: list[tuple[(str, Any)]] = [];
+        members: list[tuple[(str, any)]] = [];
         next_auto = 1;
         if arch_node.body {
             body_items = arch_node.body

@@ -1125,7 +1125,7 @@ impl NaIRGenPass._close_anon_region(gidx: int) -> None {
     if self.builder.block.is_terminated {
         return;
     }
-    _names = list(self.ir_in.gen.anon_region_locals.get(gidx, []));
+    _names = list(self.ir_in.anon_region_locals.get(gidx, []));
     self._emit_loop_iter_cleanup(_names, loc=f"anon.region.{gidx}");
     self._emit_region_handle_drop(self.local_vars[_synth], _synth);
 }

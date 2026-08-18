@@ -357,7 +357,7 @@ impl OwnershipCheckPass._param_is_region_borrow(param: ParamVar) -> bool {
     while isinstance(_expr, AtomTrailer) {
         _expr = _expr.target;
     }
-    import from jaclang.compiler.symbol_utils { is_builtin_region_name }
+    import from jaclang.compiler.expr_keys { is_builtin_region_name }
     return is_builtin_region_name(_expr);
 }
 
