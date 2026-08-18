@@ -884,6 +884,62 @@ test "layer9: band6 try except as executes in ceval" {
     assert expect_str(ns["result"]) == "integer division or modulo by zero";
 }
 
+# ---------------- Band 6 slice 4: try/finally ----------------
+
+test "layer9: band6 try finally matches oracle" {
+    src = (
+        "count = 0\n"
+            + "try:\n"
+            + "    count = 1\n"
+            + "finally:\n"
+            + "    count = count + 10\n"
+            + "result = count\n"
+    );
+    actual = product_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert isinstance(actual, PyCode);
+    act = actual as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.exceptiontable == exp.exceptiontable;
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: band6 try finally executes in ceval" {
+    src = (
+        "count = 0\n"
+            + "try:\n"
+            + "    count = 1\n"
+            + "finally:\n"
+            + "    count = count + 10\n"
+            + "result = count\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 11;
+}
+
+test "layer9: band6 try finally runs on exception path in ceval" {
+    src = (
+        "count = 0\n"
+            + "try:\n"
+            + "    try:\n"
+            + "        1 // 0\n"
+            + "    finally:\n"
+            + "        count = count + 10\n"
+            + "except ZeroDivisionError:\n"
+            + "    result = count\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 10;
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {

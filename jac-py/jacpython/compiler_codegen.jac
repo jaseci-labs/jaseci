@@ -2559,7 +2559,83 @@ def visit_raise_stmt(g: cfg_builder, r: Raise) -> stmt_cont {
     return stmt_cont(loc=rloc, terminated=True);
 }
 
-# Lower try/except (typed handlers only; no else/finally/as/bare except).
+# Lower try/finally without except/else.
+def visit_try_finally(
+    g: cfg_builder,
+    t: Try,
+    more_code_follows: bool,
+    tail: list[stmt] | None = None,
+    tail_idx: int = 0,
+    tail_join: basicblock | None = None
+) -> stmt_cont {
+    tloc = stmt_loc(t);
+    protect_end = g.new_block();
+    finally_except = g.new_block();
+    unwind = g.new_block();
+    g.emit_op(OP_NOP, 0, tloc);
+    protect_start = g.cur.id;
+    try_follows = more_code_follows;
+    if not try_follows and tail is not None and tail_idx < len(tail) {
+        try_follows = True;
+    }
+    body_cont = visit_stmts(g, t.body, True);
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+    g.use(protect_end);
+    finally_cont = visit_stmts(g, t.finalbody);
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+    if try_follows {
+        tail_more = False;
+        if tail is not None and tail_idx + 1 < len(tail) {
+            tail_more = exec_tail_emits_code(tail, tail_idx + 1);
+        }
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        if codegen_busy(g) {
+            return stmt_cont(loc=finally_cont.loc);
+        }
+        if not tail_cont.terminated {
+            emit_module_return(g, tail_cont.loc);
+        }
+    } else {
+        emit_module_return(g, finally_cont.loc);
+    }
+    noloc = no_loc();
+    g.use(finally_except);
+    g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
+    finally_except_cont = visit_stmts(g, t.finalbody);
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+    g.emit_op(OP_RERAISE, 0, finally_except_cont.loc);
+    finally_except_end = g.new_block();
+    g.u.except_regions.append(
+        except_region(
+            start_block=protect_start,
+            end_block=protect_end.id,
+            handler_block=finally_except.id,
+            stack_depth=1
+        )
+    );
+    g.u.except_regions.append(
+        except_region(
+            start_block=finally_except.id,
+            end_block=finally_except_end.id,
+            handler_block=unwind.id,
+            stack_depth=2,
+            preserve_lasti=True
+        )
+    );
+    g.use(unwind);
+    g.emit_op(OP_COPY, 3, noloc);
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    g.emit_op(OP_RERAISE, 1, noloc);
+    return stmt_cont(loc=tloc, terminated=True);
+}
+
+# Lower try/except (typed handlers; optional finally deferred).
 def visit_try(
     g: cfg_builder,
     t: Try,
@@ -2569,13 +2645,20 @@ def visit_try(
     tail_join: basicblock | None = None
 ) -> stmt_cont {
     tloc = stmt_loc(t);
-    if len(t.finalbody) > 0 {
-        codegen_fail(g, "NotImplementedError", "try/finally not supported");
-        return stmt_cont(loc=tloc);
-    }
     if len(t.orelse) > 0 {
         codegen_fail(g, "NotImplementedError", "try/else not supported");
         return stmt_cont(loc=tloc);
+    }
+    if len(t.finalbody) > 0 {
+        if len(t.handlers) > 0 {
+            codegen_fail(
+                g, "NotImplementedError", "try/except/finally not supported"
+            );
+            return stmt_cont(loc=tloc);
+        }
+        return visit_try_finally(
+            g, t, more_code_follows, tail, tail_idx, tail_join
+        );
     }
     if len(t.handlers) == 0 {
         codegen_fail(g, "NotImplementedError", "try without except");
