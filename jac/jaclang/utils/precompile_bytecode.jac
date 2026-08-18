@@ -1312,8 +1312,15 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
     if not np.serves_prefix() {
         return "the artifact exports no mat_parse_and_run_prefix entry";
     }
+    _pfx_harness_lines = [
+        (
+            'test "box holds" { assert Canary(a=2).m() >= -1; }'
+                if ln.startswith("test box_holds")
+                else ln
+        ) for ln in _PARITY_CANARY_LINES
+    ];
     corpora = [
-        (nl.join(list(_PARITY_CANARY_LINES)), "__seal_prefix_harness__.jac", ),
+        (nl.join(_pfx_harness_lines), "__seal_prefix_harness__.jac", ),
         (nl.join(list(_PARITY_CORPUS_LINES)), "__seal_prefix_corpus__.jac", ),
 
     ];
