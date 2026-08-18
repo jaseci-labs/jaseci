@@ -429,13 +429,13 @@ impl ASTValidationPass.enter_archetype(self: ASTValidationPass, nd: Archetype) -
         ) {
             key = (mname, accessor_kind);
             if key in seen_accessors {
-                self.emit(E0076, node_override=item.name_ref, name=mname);
+                self.emit(E0076, node_override=nref, name=mname);
             }
             seen_accessors.add(key);
             continue;
         }
         if dedup_name in seen_methods {
-            self.emit(E0076, node_override=item.name_ref, name=mname);
+            self.emit(E0076, node_override=nref, name=mname);
         }
         seen_methods.add(dedup_name);
     }
