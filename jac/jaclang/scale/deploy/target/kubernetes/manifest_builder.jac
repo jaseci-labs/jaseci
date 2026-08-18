@@ -1,3 +1,4 @@
+import from jaclang.runtimelib { sv_client }
 import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.config.config_loader {
     get_scale_config,
@@ -14,6 +15,7 @@ import from jaclang.scale.deploy.autoscale.autoscaler {
 
 
 glob GATEWAY_NAME: str = "__gateway__",
+     CONFIG_REVISION_ANNOTATION: str = "jac-scale.config-revision",
      _UVICORN_EXIT_CUSHION_S: int = 5,
      _RFC1123_MAX_LEN: int = 253,
      _CLIENT_BUILD_ATTEMPTS: int = 3,
@@ -77,6 +79,19 @@ def k8s_safe_name(svc_name: str) -> str {
 }
 
 
+def pdb_spec(
+    replica_floor: int, max_unavailable: int, min_available: (int | None) = None
+) -> dict[str, any] | None {
+    if min_available is not None {
+        return {"minAvailable": min_available};
+    }
+    if max_unavailable >= replica_floor {
+        return None;
+    }
+    return {"maxUnavailable": max_unavailable};
+}
+
+
 def _is_named_list(items: list) -> bool {
     if not items {
         return False;
@@ -126,6 +141,27 @@ def merge_manifest_overlay(base: any, overlay: any) -> any {
         return merged_list;
     }
     return overlay;
+}
+
+
+def with_config_revision(manifest: dict[str, any], revision: str) -> dict[str, any] {
+    if not revision {
+        return manifest;
+    }
+    return dict(
+        merge_manifest_overlay(
+            manifest,
+            {
+                "spec": {
+                    "template": {
+                        "metadata": {
+                            "annotations": {CONFIG_REVISION_ANNOTATION: str(revision)}
+                        }
+                    }
+                }
+            }
+        )
+    );
 }
 
 
@@ -734,7 +770,7 @@ obj ManifestBuilder {
             if peer_name == GATEWAY_NAME {
                 continue;
             }
-            key = f"JAC_SV_{peer_name.upper()}_URL";
+            key = sv_client.peer_url_env_key(peer_name);
             if key in seen_peer_keys {
                 continue;
             }
@@ -1058,13 +1094,42 @@ obj ManifestBuilder {
         };
     }
 
+    def _replica_floor(svc_name: str) -> int {
+        svc_cfg = self._service_config(svc_name);
+        hpa: dict[str, any] = dict(svc_cfg.get("hpa", {}));
+        if hpa.get("enabled", True) {
+            return int(hpa.get("min", 1));
+        }
+        return int(svc_cfg.get("replicas", 1));
+    }
+
     def _build_pdb_manifest(svc_name: str) -> dict[str, any] | None {
         cfg: dict[str, any] = self._service_config(svc_name).get("pdb", {});
         if not cfg.get("enabled", True) {
             return None;
         }
+        floor = self._replica_floor(svc_name);
+        raw_min = cfg.get("min_available", None);
+        spec = pdb_spec(
+            floor,
+            int(cfg.get("max_unavailable", 1)),
+            None if raw_min is None else int(raw_min)
+        );
+        if spec is None {
+            if self.logger and cfg {
+                self.logger.warn(
+                    f"No PodDisruptionBudget emitted for '{svc_name}': "
+                    f"max_unavailable={int(cfg.get('max_unavailable', 1))} at a "
+                    f"replica floor of {floor} would permit evicting every "
+                    f"replica, so the budget would protect nothing. Raise "
+                    f"hpa.min, or set pdb.min_available to refuse voluntary "
+                    f"disruption instead."
+                );
+            }
+            return None;
+        }
         k8s_name = k8s_safe_name(svc_name);
-        max_u: int = int(cfg.get("max_unavailable", 1));
+        spec["selector"] = {"matchLabels": {"app": k8s_name}};
         return {
             "apiVersion": "policy/v1",
             "kind": "PodDisruptionBudget",
@@ -1073,10 +1138,7 @@ obj ManifestBuilder {
                 "namespace": self.k8s_config.namespace,
                 "labels": {"app": k8s_name, "managed": "jac-scale"}
             },
-            "spec": {
-                "maxUnavailable": max_u,
-                "selector": {"matchLabels": {"app": k8s_name}}
-            }
+            "spec": spec
         };
     }
 

@@ -3,10 +3,9 @@ glob DISPATCH_PASSES: list = [
          ("jaclang.jac0core.passes.boundary_analysis_pass", "BoundaryAnalysisPass"),
          ("jaclang.jac0core.passes.semantic_analysis_pass", "SemanticAnalysisPass"),
          ("jaclang.jac0core.passes.sym_tab_build_pass", "SymTabBuildPass"),
-         ("jaclang.jac0core.passes.pyast_gen_pass", "PyastGenPass"),
+         ("jaclang.jac0core.passes.jcir_gen_pass", "JcirGenPass"),
          ("jaclang.compiler.passes.main.cfg_build_pass", "CFGBuildPass"),
          ("jaclang.compiler.passes.main.type_checker_pass", "TypeCheckPass"),
-         ("jaclang.compiler.passes.main.pyjac_ast_link_pass", "PyJacAstLinkPass"),
          ("jaclang.compiler.passes.ecmascript.esast_gen_pass", "EsastGenPass"),
          ("jaclang.compiler.passes.tool.doc_ir_gen_pass", "DocIRGenPass"),
          ("jaclang.compiler.passes.tool.jac_auto_lint_pass", "JacAutoLintPass"),
@@ -92,7 +91,7 @@ def surface_annex_src(
         (verb, kinds) = entry;
         for node in kinds {
             blocks.append(
-                f'impl UniPass.{verb}_{n2s[node]}(nd: uni.{node}) -> None {{\n'
+                f'impl UniPass.{verb}_{n2s[node]}(nd: {node}) -> None {{\n'
                     + f'    self.default_{verb}(nd);\n'
                     + '}'
             );
@@ -109,7 +108,7 @@ def surface_decls_block(
     for entry in [("enter", enter), ("exit", exits)] {
         (verb, kinds) = entry;
         for node in kinds {
-            lines.append(f'    def {verb}_{n2s[node]}(nd: uni.{node}) -> None;');
+            lines.append(f'    def {verb}_{n2s[node]}(nd: {node}) -> None;');
         }
     }
     lines.append(SURFACE_END);

@@ -12,6 +12,7 @@ import os;
 import re;
 import shutil;
 import subprocess;
+import sys;
 import sysconfig;
 import tempfile;
 import from pathlib { Path }
@@ -74,7 +75,8 @@ def _compile_cef_host(host_src: str) -> tuple {
 
 """The embedded-CPython CEF host (cef runtime model) links both libs."""
 test "cef embedded-python host compiles and links libcef_dispatch and libpython" {
-    soname = sysconfig.get_config_var("INSTSONAME") or "libpython3.12.so.1.0";
+    soname = sysconfig.get_config_var("INSTSONAME")
+        or f"libpython{sys.version_info.major}.{sys.version_info.minor}.so.1.0";
     stem = soname.split(".so")[0].encode();
     src = (
         "import sys;\n"

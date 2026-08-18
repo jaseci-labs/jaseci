@@ -98,7 +98,6 @@ test "a sealed artifact resolves the cross-module vtable symbol" {
     # dlopens the emitted library and calls into it, which is what proves the
     # reference resolved rather than merely assembling.
     tmp = tempfile.mkdtemp(prefix="jac_xmod_isinstance_seal_");
-    saved_skip = os.environ.pop("JAC_SEAL_NO_NATIVE", None);
     buf = io.StringIO();
     try {
         with contextlib.redirect_stderr(buf) {
@@ -114,9 +113,6 @@ test "a sealed artifact resolves the cross-module vtable symbol" {
             f"the seal accepted an artifact without running the canary:\n{buf.getvalue()}"
         );
     } finally {
-        if saved_skip is not None {
-            os.environ["JAC_SEAL_NO_NATIVE"] = saved_skip;
-        }
         shutil.rmtree(tmp, ignore_errors=True);
     }
 }

@@ -98,37 +98,81 @@ def config_module_pin(source_path: str) -> str {
 }
 
 
-glob _kind_cache: dict[str, tuple[float, str]] = {},
+glob _kind_cache: dict[str, tuple[tuple, str]] = {},
+     _kind_chain_cache: dict[str, list[str]] = {},
      _kind_probe: dict = {"active": False};
 
 
-def _load_project_kind(root_dir: str) -> str {
-    toml_path = os.path.join(root_dir, "jac.toml");
-    try {
-        mtime = os.path.getmtime(toml_path);
-    } except OSError {
+def _enclosing_project_root(root_dir: str) -> str {
+    parent = os.path.dirname(os.path.realpath(root_dir));
+    if not parent or parent == os.path.realpath(root_dir) {
         return '';
     }
-    cached = _kind_cache.get(root_dir);
-    if cached is not None and cached[0] == mtime {
-        return cached[1];
+    outer = find_jac_project_root(parent);
+    if not outer or os.path.realpath(outer) == os.path.realpath(root_dir) {
+        return '';
     }
+    return outer;
+}
+
+
+def _declared_project_kind(root_dir: str) -> str {
     import tomllib;
-    kind = '';
     try {
-        with open(toml_path, "rb") as f {
+        with open(os.path.join(root_dir, "jac.toml"), "rb") as f {
             doc = tomllib.load(f);
         }
-        kind = str(doc.get("project", {}).get("kind", "") or "");
+        return str(doc.get("project", {}).get("kind", "") or "");
     } except Exception {
-        kind = '';
+        return '';
     }
-    _kind_cache[root_dir] = (mtime, kind);
+}
+
+
+def _project_kind_chain(root_dir: str) -> list[str] {
+    cached = _kind_chain_cache.get(root_dir);
+    if cached is not None {
+        return cached;
+    }
+    chain: list[str] = [];
+    cur = root_dir;
+    while cur {
+        chain.append(cur);
+        cur = _enclosing_project_root(cur);
+    }
+    _kind_chain_cache[root_dir] = chain;
+    return chain;
+}
+
+
+def _load_project_kind(root_dir: str) -> str {
+    chain = _project_kind_chain(root_dir);
+    stamps: list[float] = [];
+    for d in chain {
+        try {
+            stamps.append(os.path.getmtime(os.path.join(d, "jac.toml")));
+        } except OSError {
+            return '';
+        }
+    }
+    stamp = tuple(stamps);
+    cached = _kind_cache.get(root_dir);
+    if cached is not None and cached[0] == stamp {
+        return cached[1];
+    }
+    kind = '';
+    for d in chain {
+        kind = _declared_project_kind(d);
+        if kind {
+            break;
+        }
+    }
+    _kind_cache[root_dir] = (stamp, kind);
     return kind;
 }
 
 
-def config_kind_space(source_path: str) -> str {
+def config_project_kind(source_path: str) -> str {
     if not source_path {
         return '';
     }
@@ -136,7 +180,12 @@ def config_kind_space(source_path: str) -> str {
     if not root_dir {
         return '';
     }
-    kind = _load_project_kind(root_dir);
+    return _load_project_kind(root_dir);
+}
+
+
+def config_kind_space(source_path: str) -> str {
+    kind = config_project_kind(source_path);
     if not kind or _kind_probe["active"] {
         return '';
     }

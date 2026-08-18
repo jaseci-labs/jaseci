@@ -6,7 +6,10 @@ LLVM IR) persist beside them as content-keyed artifacts. These tests pin the
 properties the tempfile copy-and-compile scheme could not provide: one stable
 identity per variant (no fresh path per process), byte-identical rebuilds,
 and a warm second build that reads the artifact instead of recompiling
-(observed as the artifact file not being rewritten).
+(observed as the artifact file not being rewritten). That observation is only
+truthful because the store is idempotent: the key fixes the content, so a
+store of the bytes already at a key leaves the file alone rather than
+rewriting it under whatever other process is watching.
 """
 
 import glob;
@@ -16,6 +19,8 @@ import jaclang.compiler.passes.native.na_compile_pass as _nacp;
 import from jaclang.jac0core.kernel_units {
     OSP_CORE_PARTS,
     osp_core_unit_path,
+    store_unit_artifact,
+    unit_artifact_path,
     unit_source
 }
 
@@ -34,6 +39,29 @@ test "unit path is stable and carries the exact concatenated sources" {
     with open(p1, "r") as f {
         assert f.read() == unit_source(OSP_CORE_PARTS);
     }
+}
+
+test "storing bytes already at an artifact key leaves the file untouched" {
+    unit = osp_core_unit_path('cl');
+    fp = "storecanary";
+    text = "; artifact store canary\n";
+    store_unit_artifact(unit, "canary", fp, text);
+    path = unit_artifact_path(unit, "canary", fp);
+    back = os.path.getmtime(path) - 5.0;
+    os.utime(path, (back, back));
+    stamp = os.path.getmtime(path);
+    store_unit_artifact(unit, "canary", fp, text);
+    assert os.path.getmtime(path) == stamp , (
+        "a store of the bytes already at this key rewrote the artifact"
+    );
+    store_unit_artifact(unit, "canary", fp, f"{text}; drifted\n");
+    assert os.path.getmtime(path) != stamp , (
+        "a store of different bytes at this key must still land"
+    );
+    with open(path, "r") as f {
+        assert f.read() == f"{text}; drifted\n";
+    }
+    os.remove(path);
 }
 
 test "client kernel JS is deterministic and the rebuild is a warm artifact read" {

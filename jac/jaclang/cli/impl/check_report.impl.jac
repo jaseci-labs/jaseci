@@ -102,6 +102,21 @@ impl print_native_census(census: dict) -> None {
             console.print(f"  {p}");
         }
     }
+    seamed = sorted(
+        (_census_relpath(p), rec)
+        for (p, rec) in census.items()
+        if rec['outcome'] == 'native' and rec.get('seams')
+    );
+    if seamed {
+        console.print("");
+        console.print("native seams (callables demoted to Python-only):");
+        for (p, rec) in seamed {
+            console.print(f"  {p}  ({len(rec['seams'])})");
+            for s in rec['seams'] {
+                console.print(f"    {s}");
+            }
+        }
+    }
     demoted = [
         (p, rec)
         for (p, rec) in census.items()

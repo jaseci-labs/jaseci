@@ -40,7 +40,7 @@ def _clear_jac_modules {
 """Set up test environment.
 
 Note: _fresh_jac_state() runs automatically before each Jac test via the
-pytest plugin, which resets JacRuntime. We only need to handle server-
+test runner, which resets JacRuntime. We only need to handle server-
 specific setup here.
 """
 def setup_test {
@@ -268,7 +268,7 @@ test "test_go_to_definition_md_path" {
             (20, 34, "jaclang/jac0core/unitree.jac:0:0-0:0"),
             (22, 22, "tests/langserve/fixtures/circle.jac:7:5-7:8"),
             (23, 28, "jaclang/lsp/uris.jac:0:0-0:0"),
-            (24, 40, "jaclang/lsp/server.jac:92:4-92:18"),
+            (24, 40, "jaclang/lsp/server.jac:93:4-93:18"),
             (26, 31, "jaclang/lsp/types.jac:0:0-0:0"),
 
         ];
@@ -1249,17 +1249,16 @@ test "test_jir_cache_invalidated_on_version_mismatch" {
 
     setup_test();
     try {
-        lsp = create_server();
-        # Type-check the caller to force JIR cache creation for the dependency.
-        caller_file = uris.from_fs_path(fixture_path("cross_module_func_caller.jac"));
-        lsp.type_check_file(caller_file);
-
-        # Locate the JIR cache for the dependency module.
+        # A full compile writes the bytecode module cache; dependency loads
+        # derive trees per process and persist nothing (#8190).
+        import from jaclang.jac0core.compiler { JacCompiler }
+        import from jaclang.jac0core.program { JacProgram }
         dep_src = fixture_path("cross_module_func.jac");
+        JacCompiler().get_bytecode(dep_src, JacProgram());
         cache_path = get_module_cache_path(dep_src);
 
         # Sanity: cache should exist and be valid right now.
-        assert cache_path.exists() , "JIR cache was not written";
+        assert cache_path.exists() , "module cache was not written";
         assert is_module_cache_valid(dep_src, cache_path) , "Fresh cache should be valid";
 
         # Tamper: overwrite jaclang_version_hash with a fake value.

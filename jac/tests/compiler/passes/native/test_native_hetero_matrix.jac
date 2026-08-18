@@ -299,13 +299,15 @@ test "hetero nogc fixture passes under headerless --gc none --enforce-nogc (AOT)
 
 test "mixed dict keys and mixed set elements are stable diagnostics" {
     import tempfile as _tf;
-    for (src_text, label) in [
+    for (src_text, fn_name, label) in [
         (
             "def bad_keys -> int { d: dict = {1: \"a\", \"b\": 2}; return len(d); }",
+            "bad_keys",
             "dict-mixed-keys"
         ),
         (
             "def bad_set -> int { s: set = {1, \"a\"}; return len(s); }",
+            "bad_set",
             "set-mixed-elems"
         )
     ] {
@@ -315,10 +317,18 @@ test "mixed dict keys and mixed set elements are stable diagnostics" {
         }
         try {
             prog = JacProgram();
-            prog.compile(file_path=path, options=native_force_opts());
-            msgs = " ".join([str(e) for e in prog.errors_had]);
-            assert prog.errors_had , f"{label}: expected a diagnostic, compiled silently";
-            assert "E5092" in msgs or "mixed" in msgs , f"{label}: unexpected diagnostics: {msgs}";
+            ir = prog.compile(file_path=path, options=native_force_opts());
+            assert not prog.errors_had , (
+                f"{label}: the refusal is owned by {fn_name}(), which must "
+                f"demote to a seam, got: {[str(e) for e in prog.errors_had]}"
+            );
+            assert ir.gen.native_layout is not None , (
+                f"{label}: whole-module native compile aborted"
+            );
+            assert fn_name not in ir.gen.native_layout.functions , (
+                f"{label}: the refused container must demote its function "
+                f"out of the native layout, never lower silently"
+            );
         } finally {
             os.unlink(path);
         }
