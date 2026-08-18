@@ -15,7 +15,8 @@ obj PrefixAlertRow {
         first_line: int = 0,
         col_start: int = 0,
         pos_start: int = 0,
-        pos_end: int = 0;
+        pos_end: int = 0,
+        pass_idx: int = 0;
 }
 
 obj PrefixRunResult {
@@ -25,7 +26,7 @@ obj PrefixRunResult {
         rows: list[PrefixAlertRow] = [];
 }
 
-def _row_of(alert: Alert, severity: int) -> PrefixAlertRow {
+def _row_of(alert: Alert, severity: int, pass_idx: int) -> PrefixAlertRow {
     code = alert.code.code if alert.code is not None else "";
     help_text = alert.help_text if alert.help_text is not None else "";
     return PrefixAlertRow(
@@ -36,16 +37,22 @@ def _row_of(alert: Alert, severity: int) -> PrefixAlertRow {
         first_line=alert.loc.first_line,
         col_start=alert.loc.col_start,
         pos_start=alert.loc.pos_start,
-        pos_end=alert.loc.pos_end
+        pos_end=alert.loc.pos_end,
+        pass_idx=pass_idx
     );
 }
 
-def _harvest(rows: list[PrefixAlertRow], errors: list[Alert], warnings: list[Alert]) {
+def _harvest(
+    rows: list[PrefixAlertRow],
+    errors: list[Alert],
+    warnings: list[Alert],
+    pass_idx: int
+) {
     for e in errors {
-        rows.append(_row_of(e, 1));
+        rows.append(_row_of(e, 1, pass_idx));
     }
     for w in warnings {
-        rows.append(_row_of(w, 0));
+        rows.append(_row_of(w, 0, pass_idx));
     }
 }
 
@@ -60,32 +67,32 @@ def run_prefix_passes(mod: Module, claimed_n: int) -> PrefixRunResult {
     }
     if claimed_n >= 1 {
         p1 = ASTValidationPass(ir_in=mod);
-        _harvest(out.rows, p1.errors_had, p1.warnings_had);
+        _harvest(out.rows, p1.errors_had, p1.warnings_had, 0);
         out.executed = 1;
     }
     if claimed_n >= 2 {
         p2 = SymTabBuildPass(ir_in=mod);
-        _harvest(out.rows, p2.errors_had, p2.warnings_had);
+        _harvest(out.rows, p2.errors_had, p2.warnings_had, 1);
         out.executed = 2;
     }
     if claimed_n >= 3 {
         p3 = DeclImplMatchPass(ir_in=mod);
-        _harvest(out.rows, p3.errors_had, p3.warnings_had);
+        _harvest(out.rows, p3.errors_had, p3.warnings_had, 2);
         out.executed = 3;
     }
     if claimed_n >= 4 {
         p4 = SemanticAnalysisPass(ir_in=mod);
-        _harvest(out.rows, p4.errors_had, p4.warnings_had);
+        _harvest(out.rows, p4.errors_had, p4.warnings_had, 3);
         out.executed = 4;
     }
     if claimed_n >= 5 {
         p5 = SemDefMatchPass(ir_in=mod);
-        _harvest(out.rows, p5.errors_had, p5.warnings_had);
+        _harvest(out.rows, p5.errors_had, p5.warnings_had, 4);
         out.executed = 5;
     }
     if claimed_n >= 6 {
         p6 = CFGBuildPass(ir_in=mod);
-        _harvest(out.rows, p6.errors_had, p6.warnings_had);
+        _harvest(out.rows, p6.errors_had, p6.warnings_had, 5);
         out.executed = 6;
     }
     if claimed_n >= 7 and out.executed == 6 {

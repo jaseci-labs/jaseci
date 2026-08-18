@@ -1340,7 +1340,21 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
         );
         (executed, clause, detail, rows) = (r[6], r[7], r[8], r[9], );
         if n_errs or n_lex {
-            return f"{canary_path}: the seal corpus did not parse ({n_errs}/{n_lex})";
+            _pd_head: list[str] = [];
+            try {
+                for _pd_row in (list(_pd) + list(_ld))[:3] {
+                    _pd_head.append(
+                        f"{_pd_row.loc.line}:{_pd_row.loc.col_start} "
+                        f"{str(_pd_row.message)[:90]}"
+                    );
+                }
+            } except Exception as _pd_exc {
+                _pd_head.append(f"<diag rows unreadable: {_pd_exc}>");
+            }
+            return (
+                f"{canary_path}: the seal corpus did not parse "
+                f"({n_errs}/{n_lex}): {'; '.join(_pd_head)}"
+            );
         }
         if executed != 6 or clause {
             return (
@@ -1356,13 +1370,16 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
         }
         prog = JacProgram();
         staged_rows: list[tuple] = [];
-        for cls in (
-            ASTValidationPass,
-            SymTabBuildPass,
-            DeclImplMatchPass,
-            SemanticAnalysisPass,
-            SemDefMatchPass,
-            CFGBuildPass
+        for (pass_ord, cls) in enumerate(
+            (
+                ASTValidationPass,
+                SymTabBuildPass,
+                DeclImplMatchPass,
+                SemanticAnalysisPass,
+                SemDefMatchPass,
+                CFGBuildPass,
+
+            )
         ) {
             inst = cls(ir_in=py_mod, prog=prog);
             for e in inst.errors_had {
@@ -1375,6 +1392,7 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
                         e.loc.col_start,
                         e.loc.pos_start,
                         e.loc.pos_end,
+                        pass_ord,
 
                     )
                 );
@@ -1389,13 +1407,14 @@ def seal_prefix_parity_canary(lib_path: str, layout_dict: dict[str, any]) -> str
                         w.loc.col_start,
                         w.loc.pos_start,
                         w.loc.pos_end,
+                        pass_ord,
 
                     )
                 );
             }
         }
         native_rows = [
-            (rr[0], rr[1], rr[2], rr[4], rr[5], rr[6], rr[7], ) for rr in rows
+            (rr[0], rr[1], rr[2], rr[4], rr[5], rr[6], rr[7], rr[8], ) for rr in rows
         ];
         if native_rows != staged_rows {
             return (
