@@ -83,20 +83,19 @@ glob EMISSION_PATH: tuple = (
          "Alert.postinit"
      );
 
-"""Waived per-callable seams: real Python machinery off the emission path."""
+"""Waived per-callable seams: real Python machinery off the emission path.
+
+Two entries this table used to carry cleared for the fused prefix:
+`BaseTransform.is_canceled` reads the `cancel_requested` scalar now (the
+event poll moved to the driver and the Python loader), and `Transform.ice`
+became the message-builder its callers raise
+(`raise RuntimeError(self.ice(...))`), which the native raise path lowers.
+"""
 glob TRANSFORM_SEAM_WAIVERS: dict[(str, str)] = {
          "Alert.pretty_print": (
              "console rendering: calls `pretty_print_source_location` and "
              "`format_related_spans` from `helpers`; presentation stays "
              "Python-side."
-         ),
-         "BaseTransform.is_canceled": (
-             "backend gap: dynamic `is_set()` on the threading.Event handle "
-             "in `cancel_token`."
-         ),
-         "Transform.ice": (
-             "backend gap: constructs the `RuntimeError` it returns for the "
-             "caller to raise."
          )
      };
 
