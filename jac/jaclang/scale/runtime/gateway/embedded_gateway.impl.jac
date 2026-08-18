@@ -73,7 +73,7 @@ impl EmbeddedGateway._serve_static(path: str, accept: str) -> Response {
     hit = resolve_asset(table, path);
     if hit is not None {
         (target, _) = hit;
-        return asset_response(target, {});
+        return asset_response(target);
     }
 
     dist = Path(self.client_dist_dir);

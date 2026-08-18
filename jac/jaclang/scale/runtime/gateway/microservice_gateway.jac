@@ -1,5 +1,4 @@
 import logging;
-import mimetypes;
 import uvicorn;
 import from pathlib { Path }
 import from fastapi { FastAPI, Request }
@@ -79,9 +78,6 @@ obj MicroserviceGateway(JacAPIServerAdmin, JacAPIServerAuth, JacAPIServerWorkloa
     async def handle_openapi -> Response;
     def handle_docs -> Response;
     def build_forward_headers(request: Request) -> dict[str, str];
-    def serve_static(file_path: str) -> Response | None;
-    def serve_extra_static(local_dir: str, file_path: str) -> Response | None;
-    def serve_project_static(rest: str) -> Response | None;
     def serve_spa_fallback -> Response | None;
     def bootstrap_admin_ui -> None;
     def _install_admin_api -> None;

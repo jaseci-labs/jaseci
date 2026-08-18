@@ -69,104 +69,6 @@ impl MicroserviceGateway.resolve_target_url(
     return target;
 }
 
-impl MicroserviceGateway.serve_static(file_path: str) -> Response | None {
-    dist = Path(self.client_dist_dir);
-    target = dist / file_path;
-
-    try {
-        resolved = target.resolve();
-        dist_resolved = dist.resolve();
-
-        if not resolved.is_relative_to(dist_resolved) {
-            return None;
-        }
-    } except OSError {
-        return None;
-    }
-
-    if not target.is_file() {
-        return None;
-    }
-
-    (content_type, _) = mimetypes.guess_type(str(target));
-    if content_type is None {
-        content_type = "application/octet-stream";
-    }
-
-    if content_type.startswith("text/")
-    or content_type in ("application/javascript", "application/json") {
-        return Response(
-            content=target.read_text(encoding="utf-8"), media_type=content_type
-        );
-    }
-    return Response(content=target.read_bytes(), media_type=content_type);
-}
-
-impl MicroserviceGateway.serve_project_static(rest: str) -> Response | None {
-    if not rest {
-        return None;
-    }
-    project_root = Path(self.base_path);
-    file_name: str = Path(rest).name;
-    candidate_dirs: list[str] = [
-        "assets",
-        "dist",
-        "public",
-        ".jac/client/dist",
-        ".jac/client/compiled",
-        ".jac/client/compiled/assets"
-    ];
-    for d in candidate_dirs {
-        local_dir: str = str(project_root / d);
-
-        for candidate in (rest, file_name) {
-            resp = self.serve_extra_static(local_dir, candidate);
-            if resp {
-                return resp;
-            }
-        }
-    }
-    return None;
-}
-
-impl MicroserviceGateway.serve_extra_static(
-    local_dir: str, file_path: str
-) -> Response | None {
-    if not local_dir {
-        return None;
-    }
-    base = Path(local_dir);
-    target = base / file_path;
-
-    try {
-        resolved = target.resolve();
-        base_resolved = base.resolve();
-        if not resolved.is_relative_to(base_resolved) {
-            return None;
-        }
-    } except OSError {
-        return None;
-    }
-
-    if not target.is_file() {
-        return None;
-    }
-
-    (content_type, _) = mimetypes.guess_type(str(target));
-    if content_type is None {
-        content_type = "application/octet-stream";
-    }
-
-    if content_type.startswith("text/")
-    or content_type in ("application/javascript", "application/json") {
-        return Response(
-            content=target.read_text(encoding="utf-8"), media_type=content_type
-        );
-    }
-    return Response(content=target.read_bytes(), media_type=content_type);
-}
-
-
 impl MicroserviceGateway.serve_spa_fallback -> Response | None {
     index = Path(self.client_dist_dir) / "index.html";
     if index.is_file() {
@@ -212,12 +114,12 @@ impl MicroserviceGateway.serve_admin_asset(asset_path: str) -> Response | None {
     if not target.is_file() {
         index = admin_dist / "index.html";
         if index.is_file() {
-            return asset_response(index, {});
+            return asset_response(index);
         }
         return None;
     }
 
-    return asset_response(target, {});
+    return asset_response(target);
 }
 
 glob _BUILTIN_PREFIXES: tuple = (
@@ -555,7 +457,7 @@ impl MicroserviceGateway.handle_static(request: Request, path: str) -> Response 
         return None;
     }
     (target, _) = hit;
-    return asset_response(target, dict(request.headers.items()));
+    return asset_response(target);
 }
 
 impl MicroserviceGateway.handle_spa_fallback(

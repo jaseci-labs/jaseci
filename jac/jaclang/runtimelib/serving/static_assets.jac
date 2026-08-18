@@ -91,7 +91,10 @@ def resolve_asset(
 }
 
 
-def asset_response(target: Path, req_headers: dict[str, str]) -> Response {
-    headers = {"Cache-Control": "public, max-age=3600, must-revalidate"};
+def asset_response(target: Path) -> Response {
+    policy = "no-cache"
+        if target.suffix in (".html", "")
+        else "public, max-age=3600, must-revalidate";
+    headers = {"Cache-Control": policy};
     return FileResponse(path=str(target), headers=headers);
 }
