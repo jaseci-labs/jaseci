@@ -187,11 +187,11 @@ impl PgWireConnection.postinit -> None {
 
 impl PgWireConnection._connect_socket -> None {
     if self.unix_sock {
-        s: Any = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM);
+        s: any = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM);
         s.settimeout(self.timeout);
         s.connect(self.unix_sock);
     } else {
-        s: Any = socket.create_connection(
+        s: any = socket.create_connection(
             (self.host or '127.0.0.1', self.port), timeout=self.timeout
         );
         s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1);
@@ -212,7 +212,7 @@ impl PgWireConnection._startup -> None {
         body += k.encode('utf-8') + b'\x00' + str(v).encode('utf-8') + b'\x00';
     }
     body += b'\x00';
-    sock: Any = self._sock;
+    sock: any = self._sock;
     sock.sendall(struct.pack(_INT32, len(body) + 4) + body);
     while True {
         (mtype, payload) = self._read_message();
@@ -312,14 +312,14 @@ def _frame(msg_type: str, payload: bytes) -> bytes {
 
 
 impl PgWireConnection._send(msg_type: str, payload: bytes) -> None {
-    sock: Any = self._sock;
+    sock: any = self._sock;
     sock.sendall(_frame(msg_type, payload));
 }
 
 
 impl PgWireConnection._read_exact(n: int) -> bytes {
     buf = b'';
-    sock: Any = self._sock;
+    sock: any = self._sock;
     while len(buf) < n {
         chunk = sock.recv(n - len(buf));
         if not chunk {
@@ -379,7 +379,7 @@ impl PgWireConnection.run(sql: str, **params: any) -> list {
         }
     }
     bind += struct.pack(_INT16, 0);
-    sock: Any = self._sock;
+    sock: any = self._sock;
     sock.sendall(
         _frame(
             'P', b'\x00' + pos_sql.encode('utf-8') + b'\x00' + struct.pack(_INT16, 0)
@@ -455,7 +455,7 @@ impl PgWireConnection.close -> None {
         self._send('X', b'');
     } except Exception { }
     try {
-        sock: Any = self._sock;
+        sock: any = self._sock;
         sock.close();
     } except Exception { }
 }

@@ -40,14 +40,19 @@ layout dependency on a module the unit was not allowed to contain. With the
 keystone linkable the unit grows by the type system's lower half plus the
 pure-leaf modules those two drag in.
 
-Thirty-two seams, and most of them are one of three causes rather than
-thirty-two separate ones: an enum member read off the class has no instance
-layout (`ParameterCategory.Positional`); an imported archetype's layout is not
-reachable for `isinstance` even when its module is in the unit; and a
-function-local `import jaclang.jac0core.unitree`
+Thirty seams, and most of them are one of two causes rather than thirty
+separate ones: an imported archetype's layout is not reachable for
+`isinstance` even when its module is in the unit; and a function-local
+`import jaclang.jac0core.unitree`
 in `helpers.jac` -- the one thing keeping `helpers` out of a module-level
 cycle -- is a Python module import the native lane refuses. The rest are
 cascades on those, each naming its callee.
+
+A third cause used to head that list and is gone. `create_callable_type`
+reads `ParameterCategory.Positional`, an `IntEnum` member off the class, and
+the members are spelled `auto()` -- a value no constant fold reached, so the
+layout had no table to read. Generated enum values resolve beside the
+layout now, so the read lowers and the waiver went with it.
 
 Growing the closure was a net subtraction of four waivers.
 `Ability.event_trigger_type_names` was waived for calling `TypeBase.mangle`
@@ -173,12 +178,6 @@ glob UNITREE_CLOSURE: tuple = (
              "dependency's demotion set before it emits, so the caller "
              "demotes here instead of linking against the name the demotion "
              "renamed away. Clears with its callee."
-         ),
-         "types.jac::create_callable_type": (
-             "Backend gap -- class-level slot: reads "
-             "`ParameterCategory.Positional`, an `IntEnum` member read off the "
-             "class rather than through an instance, which is not what #8256's "
-             "per-class constant covers."
          ),
          "type_utils.jac::expr_primitive_name": (
              "Python-only: narrows its `prog` to `JacProgram` and reaches "

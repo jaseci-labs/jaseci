@@ -42,7 +42,7 @@ import from jaclang.jac0core.parser.lexer { tokenize_full }
 import from jaclang.jac0core.parser.parser { Parser }
 import from jaclang.jac0core.passes.annex_pass { JacAnnexPass }
 import from jaclang.jac0core.passes.pass_serve { _BIND_KEEP }
-import from jaclang.jac0core.passes.transform {
+import from jaclang.jac0core.passes.pass_rim {
     _NATIVE_PASS_TIER_MEMO,
     _NATIVE_SERVED_PASSES
 }

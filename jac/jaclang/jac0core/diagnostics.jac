@@ -672,6 +672,19 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " `if x is not None { ... }`. Equality (`==`, `!=`) and `is None`"
          " checks operate on the optional directly and need no narrowing."
      ),
+     E1122 = _err(
+         "E1122",
+         Category.IMPORT,
+         "'Any' cannot be imported from 'typing' -- use jac's builtin `any`",
+         help="Jac has its own `any` and will not carry an aliased twin: the two"
+         " spell the same type, so a second name for it is redundant. Drop 'Any'"
+         " from the import list (remove the import when it was the only name) and"
+         " write the lowercase keyword instead -- `x: any`, `dict[str, any]`."
+         " If you need the runtime `typing.Any` object itself (reflection over"
+         " annotations, not an annotation), reach it in module form: `import"
+         " typing;` then `typing.Any`.",
+         blocks_codegen=True
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,
@@ -891,11 +904,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "W1103",
          Category.IMPORT,
          "'{name}' is ambient and does not need to be imported from '{module}'"
-     ),
-     W1104 = _warn(
-         "W1104",
-         Category.IMPORT,
-         "Use the lowercase 'any' keyword instead of importing 'Any' from typing"
      ),
      W1105 = _warn(
          "W1105",

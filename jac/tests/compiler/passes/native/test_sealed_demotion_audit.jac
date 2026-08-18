@@ -45,8 +45,9 @@ tolerates ships dead.
 
 Running the audit prints the report to stderr, grouped by root and
 family, so a reviewer can read the whole debt in one place. Under
-`jac test` a passing test's output is hidden; run it through pytest with
-`-s` to see the report.
+`jac test` a passing test's output is hidden, and since the runner came
+in-house (#8287) there is no capture-off switch to turn it back on, so
+the report is readable from a failing run.
 
 The measurement is a source-lane one: under a sealed jaclang image the
 census reads the image's trust boundary instead of each unit's own
@@ -55,7 +56,6 @@ coupling, so the audit skips there.
 
 import os;
 import sys;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -92,7 +92,7 @@ def _root_module_name(rel: str) -> str {
 """Skip when this runtime is itself sealed; the census would measure it."""
 def _require_source_lane {
     if _jaclang_image() is not None {
-        pytest.`skip(
+        testskip(
             "this runtime is a sealed jaclang image; a source census here "
             "measures the image's trust boundary, not each unit's own seams"
         );

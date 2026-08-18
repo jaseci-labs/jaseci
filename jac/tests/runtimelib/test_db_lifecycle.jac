@@ -16,8 +16,6 @@ import subprocess;
 import sys;
 import tempfile;
 import from pathlib { Path }
-import from typing { Any }
-
 import from jaclang.runtimelib.pgembed { PgRuntime }
 
 glob APP = "node Item {\n"
@@ -39,7 +37,7 @@ obj Cluster {
     has cache_home: str,
         data_dir: str,
         workspace: str,
-        rt: Any,
+        rt: any,
         bin_dir: str;
 }
 
@@ -82,7 +80,7 @@ def _stop_cluster(cluster: Cluster) {
 }
 
 
-def _admin(cluster: Cluster) -> Any {
+def _admin(cluster: Cluster) -> any {
     import from jaclang.vendor.pgload { connect }
     info = cluster.rt.conninfo();
     return connect(
@@ -96,7 +94,7 @@ def _admin(cluster: Cluster) -> Any {
 
 
 def _query(cluster: Cluster, sql: str) -> list {
-    conn: Any = _admin(cluster);
+    conn: any = _admin(cluster);
     try {
         return conn.run(sql);
     } finally {
@@ -106,7 +104,7 @@ def _query(cluster: Cluster, sql: str) -> list {
 
 
 def _exec(cluster: Cluster, sql: str) {
-    conn: Any = _admin(cluster);
+    conn: any = _admin(cluster);
     try {
         conn.run(sql);
     } finally {
@@ -118,7 +116,7 @@ def _exec(cluster: Cluster, sql: str) {
 def _exec_in(cluster: Cluster, database: str, sql: str) {
     import from jaclang.vendor.pgload { connect }
     info = cluster.rt.conninfo();
-    conn: Any = connect(
+    conn: any = connect(
         info.user,
         host=info.host,
         port=info.port,
@@ -208,7 +206,7 @@ def _project_database(cluster: Cluster, name: str, app: str = "") -> tuple[str, 
 }
 
 
-def _capture(body: Any) -> tuple[int, str] {
+def _capture(body: any) -> tuple[int, str] {
     captured = io.StringIO();
     saved = sys.stdout;
     sys.stdout = captured;
@@ -601,7 +599,7 @@ def _scratch_record(
     heartbeat_age: int,
     has_sessions: bool = False,
     condemned_age: int = -1
-) -> Any {
+) -> any {
     import from jaclang.runtimelib.dbcatalog { DbKind, DbRecord }
     return DbRecord(
         database="jac_scratch_4242_abc",
@@ -871,7 +869,7 @@ test "an owner that reconnects before the drop keeps its database" {
         # still says. A forced drop would terminate this connection and delete
         # the run's state underneath it.
         info = cluster.rt.conninfo();
-        owner: Any = connect(
+        owner: any = connect(
             info.user,
             host=info.host,
             port=info.port,

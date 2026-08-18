@@ -106,7 +106,7 @@ impl NaIRGenPass.transform(ir_in: uni.Module) -> uni.Module {
     if _viols {
         (_fatal_viols, _demotable) = partition_native_capability_violations(_viols);
         if _fatal_viols {
-            if not self.ir_in.gen.native_viols_reported {
+            if not self.ir_in.native_viols_reported {
                 _report = list(_fatal_viols);
                 for _unit_viols in _demotable.values() {
                     _report.extend(_unit_viols);

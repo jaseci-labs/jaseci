@@ -243,6 +243,10 @@ test "dict struct-pointer value families" {
     );
 }
 
+test "membership over an element-erased container" {
+    run_with_both("prim_in_erased.jac", "in_erased_py", "in_erased_cl", "in_erased_na");
+}
+
 test "set" {
     run_with_both("prim_set.jac", "set_py", "set_cl", "set_na");
 }

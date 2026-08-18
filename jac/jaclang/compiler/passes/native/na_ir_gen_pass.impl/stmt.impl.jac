@@ -1,6 +1,6 @@
 impl NaIRGenPass._codegen_body(stmts: (list | tuple)) -> None {
-    _ar_open = self.ir_in.gen?.anon_region_open or {};
-    _ar_close = self.ir_in.gen?.anon_region_close or {};
+    _ar_open = self.ir_in.anon_region_open;
+    _ar_close = self.ir_in.anon_region_close;
     for stmt in stmts {
         if self.builder.block.is_terminated {
             break;
@@ -56,7 +56,7 @@ impl NaIRGenPass._codegen_body(stmts: (list | tuple)) -> None {
 }
 
 impl NaIRGenPass._emit_last_use_releases(stmt: uni.UniNode) -> None {
-    _map = self.ir_in.gen.rc_last_use;
+    _map = self.ir_in.rc_last_use;
     if not _map {
         return;
     }
@@ -585,7 +585,7 @@ impl NaIRGenPass._codegen_open_stmt(nd: uni.OpenStmt) -> None {
 
     self._emit_arena_helpers();
     _i8p = ir.IntType(8).as_pointer();
-    import from jaclang.compiler.symbol_utils { is_builtin_region_name }
+    import from jaclang.compiler.expr_keys { is_builtin_region_name }
     _anon_region = (
         isinstance(nd.target, uni.FuncCall) and is_builtin_region_name(nd.target.target)
     );
@@ -1218,7 +1218,7 @@ impl NaIRGenPass._match_arch_cond(
         self.builder.position_at_end(fld_bb);
     }
     for (fname, sub_pat) in fields {
-        fv = self._codegen_field_access(subj, fname, arch_name);
+        fv = self._codegen_field_access(subj, fname, arch_name, pat);
         if fv is None {
             self.emit(
                 E5092,
@@ -1507,7 +1507,7 @@ impl NaIRGenPass._bind_match_arch(
         return;
     }
     for (fname, sub_pat) in fields {
-        fv = self._codegen_field_access(subj, fname, arch_name);
+        fv = self._codegen_field_access(subj, fname, arch_name, pat);
         if fv is not None {
             self._bind_match_pattern(sub_pat, fv, None);
         }
@@ -3141,6 +3141,33 @@ impl NaIRGenPass._codegen_for(nd: uni.InForStmt) -> None {
         return;
     }
 
+    _set_src = self._container_src_info(_coll_memo);
+    if _set_src is not None and _set_src["kind"] == "set" {
+        _set_helpers = _set_src["helpers"];
+        _set_elem = _set_helpers["elem_type"];
+        _set_cast: (ir.Type | None) = None;
+        if _set_src["spec"] == "ptr" {
+            _set_static = self._static_elem_llvm_of(nd.collection);
+            if _set_static is not None and isinstance(_set_static, ir.PointerType) {
+                _set_elem = _set_static;
+                _set_cast = _set_static;
+            }
+        }
+        self._codegen_for_indexed(
+            nd,
+            kind="set",
+            collection_val=_coll_memo,
+            helpers=_set_helpers,
+            var_names=[loop_var_name],
+            var_types=[_set_elem],
+            rc_vars=True,
+            coll_release_op="forset_coll",
+            elem_cast=_set_cast,
+            unpack_target=_unpack_target
+        );
+        return;
+    }
+
     elem_type_name: (str | None) = self._infer_list_elem_type(_coll_memo);
     if elem_type_name is None {
         elem_type_name = self._elem_spec_of(nd.collection);
@@ -4072,8 +4099,8 @@ impl NaIRGenPass._codegen_for_indexed(
             self.builder.store(
                 self.builder.zext(_by, i64, name="for.by.val"), allocas[0]
             );
-        } elif kind in ("list", "dict") {
-            fetch_fn = helpers["get"] if kind == "list" else helpers["get_key"];
+        } elif kind in ("list", "dict", "set") {
+            fetch_fn = helpers["get_key"] if kind == "dict" else helpers["get"];
             elem_val = self.builder.call(
                 fetch_fn, [collection_val, body_idx], name="for.elem"
             );

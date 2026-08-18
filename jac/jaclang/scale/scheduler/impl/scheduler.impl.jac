@@ -23,7 +23,7 @@ impl TriggerSpec.validate(
         if not cron {
             raise ValueError("cron expression required for trigger='cron'");
         }
-        _ct: Any = CronTrigger;
+        _ct: any = CronTrigger;
         if _ct is None {
             raise ValueError(
                 "cron triggers require APScheduler — enable the 'scheduler' capability and run 'jac install'."
@@ -78,7 +78,7 @@ impl TriggerSpec.apscheduler_kwargs -> dict {
     return {'run_date': self.date};
 }
 
-def _doc_row(raw: Any) -> dict {
+def _doc_row(raw: any) -> dict {
     return raw if isinstance(raw, dict) else json.loads(str(raw));
 }
 
@@ -123,7 +123,7 @@ impl PgJobStore.find_active(
     created_by: str | None = None
 ) -> tuple[list[dict], int] {
     conds: list[str] = ["collection = :c", "doc->>'status' = 'active'"];
-    params: dict[str, Any] = {'c': self._collection};
+    params: dict[str, any] = {'c': self._collection};
     if trigger {
         conds.append("doc->>'trigger' = :t");
         params['t'] = trigger;
@@ -159,7 +159,7 @@ impl PgJobStore.find_active_one(job_id: str) -> dict | None {
 }
 
 impl PgJobStore.update(job_id: str, updates: dict, where: dict | None = None) -> bool {
-    params: dict[str, Any] = {
+    params: dict[str, any] = {
         'c': self._collection,
         'i': job_id,
         'u': json.dumps(dict(updates), `default=str)
@@ -174,7 +174,7 @@ impl PgJobStore.update(job_id: str, updates: dict, where: dict | None = None) ->
 }
 
 impl PgJobStore.delete(job_id: str, where: dict | None = None) -> bool {
-    params: dict[str, Any] = {'c': self._collection, 'i': job_id};
+    params: dict[str, any] = {'c': self._collection, 'i': job_id};
     cond = _where_sql(where, params);
     rows = self.store.rows(
         f"DELETE FROM jac_docs WHERE collection = :c AND id = :i{cond} RETURNING id",
@@ -327,18 +327,18 @@ impl JacScaleScheduler.instance -> JacScaleScheduler {
     return _jaclang_scale_scheduler;
 }
 
-impl JacScaleScheduler.setup(system_user_id: str, server: Any | None = None) -> None {
+impl JacScaleScheduler.setup(system_user_id: str, server: any | None = None) -> None {
     self._system_user_id = system_user_id;
     self._server = server;
 
-    def _dynamic_handler(task: Any) {
+    def _dynamic_handler(task: any) {
         self._execute_task(task.name, self._system_user_id, task.is_walker);
     }
     Scheduler.instance().dynamic_handler = _dynamic_handler;
 
     scheduler_cfg = get_scale_config().get_scheduler_config();
     collection = scheduler_cfg.get('collection', 'scheduled_jobs');
-    store: Any = None;
+    store: any = None;
     try {
         store = open_docs_store();
     } except Exception as e {
@@ -414,12 +414,12 @@ impl JacScaleScheduler.stop(drain: bool = False) -> None {
 }
 
 impl JacScaleScheduler.register_static_tasks(
-    walkers: dict, functions: dict, server: Any
+    walkers: dict, functions: dict, server: any
 ) -> None {
     self._server = server;
     base_scheduler = Scheduler.instance();
 
-    def _make_target(_name: str, _is_walker: bool) -> Any {
+    def _make_target(_name: str, _is_walker: bool) -> any {
         def target {
             self._execute_task(_name, self._system_user_id, _is_walker);
         }
@@ -598,7 +598,7 @@ impl JacScaleScheduler.update_job(
     name = existing.get('name', '');
     user_id = existing.get('created_by', self._system_user_id);
     is_walker = existing.get('is_walker', True);
-    updates: dict[str, Any] = {'updated_at': _utc_now_iso()};
+    updates: dict[str, any] = {'updated_at': _utc_now_iso()};
     updates.update(spec.to_dict());
 
     where = {'created_by': acting_as} if acting_as is not None else None;
@@ -652,7 +652,7 @@ impl JacScaleScheduler._execute_task(
             return;
         }
         introspector = self._server.introspector;
-        registry: dict[str, Any] = (
+        registry: dict[str, any] = (
             introspector._walkers if is_walker else introspector._functions
         )
             or {};

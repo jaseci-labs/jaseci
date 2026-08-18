@@ -3,7 +3,7 @@ import shutil;
 import socket;
 import subprocess;
 import from pathlib { Path }
-import from typing { Any, Optional, cast }
+import from typing { Optional, cast }
 import from jaclang.cli.console { console }
 import from jaclang.runtimelib.client.targets.build_common { SUBPROCESS_TIMEOUT_SHORT }
 import from jaclang.runtimelib.sv_client { headless_start_args }
@@ -174,7 +174,7 @@ obj _ClientHmrHandler {
             }
             invalidate_runtime_module_cache([pth, str(self.entry_file)]);
             compile_out = cast(
-                Any, self.compiler.jac_compiler.compile_module(self.entry_file)
+                any, self.compiler.jac_compiler.compile_module(self.entry_file)
             );
             mod2 = compile_out[1];
             if not mod2 {

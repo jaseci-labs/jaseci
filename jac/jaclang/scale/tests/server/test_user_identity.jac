@@ -13,7 +13,6 @@ import subprocess;
 import time;
 import requests;
 import from pathlib { Path }
-import from typing { Any }
 import from jaclang.scale.tests.auth_test_helpers {
     data as _data,
     register_and_login as _register_and_login
