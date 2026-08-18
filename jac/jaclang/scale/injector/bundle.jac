@@ -24,6 +24,8 @@ glob APP_VOLUME_NAME: str = "jac-app",
 
 glob _stage_roots: list[str] = [];
 
+glob _reported_prunes: set[str] = set();
+
 glob _EXCLUDE_DIRS: set[str] = {
          ".jac",
          "__pycache__",
@@ -156,13 +158,63 @@ def assert_entry_module_ships(base: Path, excluded: BundleSourceFilter) {
 }
 
 
-def bundle_source_files(base: Path) -> list[Path] {
+def _exclude_dir_root(rel: Path) -> (str | None) {
+    parts = rel.parts;
+    depth = 0;
+    for part in parts {
+        depth += 1;
+        if part in _EXCLUDE_DIRS {
+            return "/".join(parts[:depth]);
+        }
+    }
+    return None;
+}
+
+
+def partition_bundle_sources(base: Path) -> tuple[list[Path], list[str]] {
     excluded = source_filter_for(base);
-    return [
-        path
-        for path in sorted(base.rglob("*"))
-        if path.is_file() and not excluded.excludes(path.relative_to(base))
-    ];
+    kept: list[Path] = [];
+    pruned: set[str] = set();
+    for path in sorted(base.rglob("*")) {
+        rel = path.relative_to(base);
+        if not excluded.excludes(rel) {
+            if path.is_file() {
+                kept.append(path);
+            }
+            continue;
+        }
+        pruned_tree = _exclude_dir_root(rel);
+        if pruned_tree is not None {
+            pruned.add(pruned_tree);
+        }
+    }
+    shipped: set[str] = set();
+    for path in kept {
+        parent = path.relative_to(base).parent;
+        while parent.as_posix() not in (".", "") {
+            shipped.add(parent.as_posix());
+            parent = parent.parent;
+        }
+    }
+    return (kept, sorted([tree for tree in pruned if tree not in shipped]));
+}
+
+
+def bundle_source_files(base: Path) -> list[Path] {
+    (kept, pruned) = partition_bundle_sources(base);
+    for pruned_tree in pruned {
+        key = f"{base}::{pruned_tree}";
+        if key in _reported_prunes {
+            continue;
+        }
+        _reported_prunes.add(key);
+        logger.info(
+            f"Bundle: nothing under '{pruned_tree}/' ships, because a path segment "
+            f"names a build output directory. Rename it if it holds source "
+            f"the pods need."
+        );
+    }
+    return kept;
 }
 
 
