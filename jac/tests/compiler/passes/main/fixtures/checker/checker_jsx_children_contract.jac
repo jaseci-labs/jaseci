@@ -1,22 +1,13 @@
-"""JSX children are part of the component contract.
+"""Children are part of the component contract -- W1053.
 
-The codegen destructures a component's declared parameter names out of `props`
-with no rest element, so every child the call site passes to a component that
-declares no `children` parameter is discarded -- silently, with a blank render
-and no console error. W1053 makes that a diagnostic at the call site.
+The codegen destructures declared parameter names out of `props` with no rest
+element, so children handed to a component that declares none are dropped.
+Zero-parameter components and `JsxPage`/`JsxLayout` ones are checked too.
 
-Zero-parameter components are checked too. They used to skip prop validation
-entirely, so an undeclared attribute on one was accepted without a word.
-
-`JsxPage` and `JsxLayout` components are checked too. They are what every
-`pages/` route and layout module returns -- the files this contract exists
-for -- and the codegen lowers them through the very same props protocol.
-
-A component element with children parses into three `JsxElement` nodes: the
-opening tag, the closing tag, and the complete element that owns both. Only
-the complete one is a call site. The two tag nodes carry no attributes, so
-validating them reports every required prop as missing -- which is why
-`Required` below, whose prop has no default, must draw no `E1102`."""
+A component element with children parses into three `JsxElement` nodes --
+opening tag, closing tag, complete element -- and only the last is a call site;
+validating a tag node would report every required prop as missing, which is what
+`Required` guards."""
 
 obj TypedProps {
     has title: str;
@@ -47,31 +38,27 @@ def TypedBag(props: TypedProps) -> JsxElement {
 }
 
 glob
-     # W1053: `Titled` declares no `children`, so `hello` is dropped.
+     # W1053: `Titled` declares no `children`.
      a = <Titled title="ok">hello</Titled>,
      # W1053: an element child is dropped just the same.
      b = <Titled title="ok">
          <ZeroParam/>
      </Titled>,
-     # OK: `WithChildren` declares `children`.
+     # OK: `WithChildren` declares them.
      c = <WithChildren title="ok">hello</WithChildren>,
-     # OK: no children passed at all.
+     # OK: no children passed.
      d = <Titled title="ok"/>,
-     # W1053: a zero-parameter component drops children too -- it is compiled
-     # as `function ZeroParam()` and never reads its props.
+     # W1053: a zero-parameter component never reads its props.
      e = <ZeroParam>hello</ZeroParam>,
-     # E1101: zero-parameter components are no longer exempt from prop checks.
+     # E1101: zero-parameter components are not exempt from prop checks.
      f = <ZeroParam bogus="x"/>,
-     # OK: a single `props` parameter is passed through whole, so children
-     # arrive in `props.children` rather than being dropped.
+     # OK: a lone `props` receives children as `props.children`.
      g = <TypedBag title="ok">hello</TypedBag>,
      # OK: whitespace and comments are not children.
      h = <Titled title="ok">
          {#* not a child *#}
      </Titled>,
-     # W1053: a route module's `-> JsxPage` component drops children just as
-     # an element-returning one does.
+     # W1053: a `-> JsxPage` route component drops them too.
      i = <TitledPage title="ok">hello</TitledPage>,
-     # W1053, and no E1102: `title` has no default, so the closing tag would
-     # report it missing if tag nodes were validated as call sites.
+     # W1053, and no E1102 for the `title` this plainly passes.
      j = <Required title="ok">hello</Required>;

@@ -1221,13 +1221,9 @@ test "solid P2 jsdom matrix: dynamic prop, ref e2e, and callback prop" {
     }
 }
 
-"""Manual-routing auth harness: build a jsdom DOM at a given start URL, seed
-`jac_token` for the logged-in scenarios, mount the compiled manual-routing app
-(not the generated `pages/` entry -- that one hands `props.children` to the guard
-explicitly, which is exactly why an `element=` parent route dropping them went
-unnoticed), then assert one expectation row. `argv[2]` is the start path,
-`argv[3]` is `loggedIn`/`loggedOut`. A plain (non-f) string so JS `${}`/`{}` need
-no escaping; the leading `_BABEL_BUILD` compiles every emitted `*.src.jsx`."""
+"""Manual-routing auth harness: mount the compiled app in jsdom at `argv[2]`
+with auth state `argv[3]`, then assert one expectation row. Plain (non-f) string
+so JS `${}` needs no escaping."""
 glob _MANUAL_AUTH_HARNESS: str = _BABEL_BUILD
          + """
 import { JSDOM } from "jsdom";
@@ -1332,14 +1328,8 @@ finish();
 """;
 
 test "solid AuthGuard renders children on every manual-routing shape in jsdom" {
-    # Issue #8260 task 3: `Route` wrapped an `element=` route in a zero-argument,
-    # props-ignoring lambda, so a parent route's matched child -- which
-    # `@solidjs/router` delivers as that component's `props.children` -- was
-    # dropped, and Solid's `AuthGuard` had no `<Outlet/>` fallback to recover it.
-    # `<Route element={<AuthGuard/>}>` with nested routes therefore rendered
-    # nothing. The generated `pages/` entry passes `props.children` into the
-    # guard explicitly and the `component=` form is unaffected, which is why the
-    # existing routing test stayed green.
+    # Issue #8260 task 3: `Route` wrapped an `element=` route in a props-ignoring
+    # lambda, so a parent route's matched child never reached the guard.
     _require_client_integration();
     bun = get_bun();
     if bun is None {
@@ -1381,8 +1371,7 @@ test "solid AuthGuard renders children on every manual-routing shape in jsdom" {
             f"{install.stdout}\n{install.stderr}"
         );
         node_bin = shutil.which("node");
-        # One fresh process per scenario, so each starts at its own URL and auth
-        # state with a clean module graph.
+        # One fresh process per scenario: own URL, auth state, module graph.
         for sc in [
             ["/wrapped", "loggedIn"],
             ["/wrapped", "loggedOut"],

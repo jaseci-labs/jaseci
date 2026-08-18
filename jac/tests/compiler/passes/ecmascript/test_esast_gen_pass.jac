@@ -700,14 +700,9 @@ test "stale has read emits W3041" {
 test "routing return annotations lower through the props protocol" {
     js = es_to_js(compile_to_esast(fixture_path("component_routing_return_types.jac")));
 
-    # `JsxPage`, `JsxLayout` and a union are components to the emitter exactly
-    # as `JsxElement` is: each is emitted taking one `props` object and
-    # destructuring its declared names out of it, with no rest element.
-    # `TypeCheckPass` decides component-hood from the same predicate
-    # (`jaclang.compiler.jsx_component`), so a contract diagnostic that missed
-    # one of these shapes would be missing a shape the emitter lowers anyway --
-    # which is exactly how `-> JsxPage` declarations reached the emitter
-    # unchecked, in the `pages/` files the contract exists for.
+    # `JsxPage`, `JsxLayout` and unions lower through the props protocol just
+    # as `JsxElement` does, and `TypeCheckPass` reads component-hood off the
+    # same predicate (`jaclang.compiler.jsx_component`).
     for name in ["PageComp", "LayoutComp", "UnionComp", "ElementComp"] {
         assert f"function {name}(props)" in js , (
             f"{name} should be emitted with the props-protocol signature:\n{js}"

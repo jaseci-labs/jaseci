@@ -1,22 +1,13 @@
-"""Manual-routing `AuthGuard` fixture for the Solid jsdom auth test.
+"""Solid mirror of `fixtures/react_auth/manual_routing_app.jac`: the `AuthGuard`
+shapes the generated `pages/` entry never exercises.
 
-The Solid mirror of `fixtures/react_auth/manual_routing_app.jac`, covering the
-shapes the generated `pages/` entry never exercises -- that entry passes
-`props.children` into the guard explicitly, which is why no test caught an
-`element=` parent route dropping them.
+  /wrapped         guard as a route `element`, children baked in
+  /nested          guard as a pathless parent route, child from the router
+  /layout-guarded  a layout wrapping `<Outlet/>` in the guard
+  /bare            neither children nor child routes
 
-  /wrapped         `<AuthGuard>...</AuthGuard>` as a route `element` -- the
-                   children are baked into the element, so they must render.
-  /nested          `<AuthGuard/>` as a pathless PARENT route -- the matched
-                   child arrives from the router, not from the call site.
-  /layout-guarded  a layout wrapping `<Outlet/>` in the guard -- the
-                   `(auth)/layout.jac` shape, written manually.
-  /bare            neither children nor child routes -- renders nothing, no
-                   crash.
-
-`chrome` renders from the router's `root` shell, outside every route, so "the
-guard rendered nothing" is distinguishable from "the app never mounted".
-"""
+`chrome` renders outside every route, so "guard rendered nothing" is
+distinguishable from "app never mounted"."""
 
 import from "@jac/runtime" { Router, Routes, Route, AuthGuard, Outlet }
 

@@ -1,17 +1,9 @@
 """Every `JAC_CLIENT_INTEGRATION`-gated suite must be named by a CI step.
 
-A suite behind that flag skips itself everywhere else, so the ungated
-`jac test tests/` lane collects it and reports a pass without executing a line.
-A gated suite that no workflow names is therefore a suite that has never run --
-which is exactly how `test_react_state_semantics.jac` went unexecuted from the
-day it was written until #8134 noticed, and how the `AuthGuard` and
-`auth_redirect` defects in #8023 shipped.
-
-The comment above the jsdom step in `ci.yml` already says as much. A comment
-cannot fail, so this does: adding a gated suite without wiring it into a
-workflow breaks this test, and the fix is to name it in `ci.yml` (or to
-quarantine it below, in writing, with the defect that blocks it).
-"""
+A gated suite skips itself everywhere else, so one no workflow names never runs
+while still reporting a pass -- how `test_react_state_semantics.jac` went
+unexecuted until #8134, and how the #8023 defects shipped. `ci.yml` says so in a
+comment; a comment cannot fail, so this does."""
 
 import from pathlib { Path }
 
@@ -22,11 +14,8 @@ glob REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent,
 
 """Gated suites that no workflow runs, each with the defect that blocks it.
 
-These are red on a clean checkout for reasons of their own, so naming them in
-CI would only turn the lane red. They are listed here rather than forgotten,
-and this test still enforces that the list does not grow silently: a new gated
-suite has to be wired into CI or added here on purpose.
-"""
+Red on a clean checkout for their own reasons, so naming them in CI would only
+turn the lane red. Listed here so the set cannot grow silently."""
 glob QUARANTINED: dict[str, str] = {
          "runtimelib/test_client_bundle_retry.jac": "the server under test exits 1"
          " instead of surviving the deliberately broken bundle, so the retry"
@@ -41,10 +30,8 @@ glob QUARANTINED: dict[str, str] = {
 
 """Repo-relative posix paths of every `.jac` test file gated on the flag.
 
-A suite is gated if it names the flag and skips on it -- either directly or
-through a shared helper such as `react_jsdom_harness.require_client_integration`.
-This file names the flag to look for it, and is not itself gated, so it is
-excluded rather than reporting itself."""
+Gated means it names the flag and skips on it, directly or through a helper.
+This file names the flag to look for it, so it excludes itself."""
 def _gated_suites -> list[str] {
     self_path = Path(__file__).resolve();
     gated: list[str] = [];
@@ -103,8 +90,7 @@ test "every JAC_CLIENT_INTEGRATION-gated suite is named by a CI step" {
 }
 
 test "the quarantine list stays honest" {
-    # A quarantined suite that has since been wired in, or deleted, is stale
-    # bookkeeping -- and a stale entry is how a suite gets forgotten twice.
+    # A stale entry is how a suite gets forgotten twice.
     gated = _gated_suites();
     workflows = _workflow_text();
 
@@ -132,9 +118,7 @@ test "the quarantine list stays honest" {
 }
 
 test "the jsdom CI step names every jsdom suite" {
-    # The jsdom suites are the ones this repo actually runs behind the flag, and
-    # they all share one step. Pin that they are in it, so a new jsdom suite
-    # landing in its own step (or nowhere) is visible.
+    # They all share one step; pin that, so a suite landing elsewhere shows up.
     ci = (WORKFLOWS_DIR / "ci.yml").read_text(encoding="utf-8");
     step = ci.split("Run jsdom runtime tests");
     assert len(step) == 2 , "ci.yml no longer has a 'Run jsdom runtime tests' step";

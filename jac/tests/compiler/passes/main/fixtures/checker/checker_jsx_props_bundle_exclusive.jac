@@ -1,23 +1,10 @@
-"""The props bundle is all-or-nothing.
+"""A `props` bundle must be the only parameter -- E1109.
 
-A component whose single parameter is named `props` receives the whole
-call-site object. Combined with any other parameter there is no coherent
-lowering, and the codegen produces one of two broken outputs:
-
-    def Mixed(props: any, tone: str)      -> const {props, tone} = props;
-                                             SyntaxError, the bundle never parses
-    def MixedKw(props: any, *, tone: str) -> function Mixed(props, tone = "flat")
-                                             React passes one object, so `tone`
-                                             is always its default and every
-                                             `tone=` at a call site is discarded
-
-Both used to pass `jac check`. E1109 rejects the shape at the declaration.
-
-Which declarations the rule reaches is decided by the shared predicate in
-`jaclang.compiler.jsx_component`, the same one `EsastGenPass` uses to pick the
-call ABI -- so `JsxPage`, `JsxLayout` and unions are components here exactly
-because they are components there. `__jac`-prefixed runtime helpers are not:
-the codegen calls them directly with their declared arguments."""
+Positionally the codegen emits `const {props, tone} = props` (a SyntaxError);
+keyword-only it emits a positional signature the renderer never calls that way,
+so every other parameter keeps its default. Component-hood comes from
+`jaclang.compiler.jsx_component`, so `JsxPage`, `JsxLayout` and unions are in
+scope and `__jac` runtime helpers are not."""
 
 def Bag(props: any) -> JsxElement {
     return <div>{props.children}</div>;

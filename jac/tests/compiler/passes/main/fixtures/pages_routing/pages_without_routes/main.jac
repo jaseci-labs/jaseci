@@ -1,4 +1,4 @@
-"""A manual-routing project: no `pages/`, so the no-argument `app` is right."""
+"""A `pages/` directory that declares no route, so routing stays manual."""
 
 def:pub AppShell -> JsxElement {
     return <div>shell</div>;

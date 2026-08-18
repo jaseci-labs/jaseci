@@ -4812,11 +4812,8 @@ test "jsx_props_bag_untyped_and_typed" {
 }
 
 test "jsx_children_must_be_declared_by_the_component" {
-    # Children are part of the component contract: the codegen destructures
-    # declared parameter names out of `props` with no rest element, so a
-    # component that never declares `children` silently drops them. W1053 is
-    # the call-site diagnostic; the same mistake spelled `children="x"` as an
-    # attribute has always been an error.
+    # The codegen destructures declared parameter names out of `props` with no
+    # rest element, so a component declaring no `children` drops them silently.
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_children_contract.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
@@ -4827,10 +4824,7 @@ test "jsx_children_must_be_declared_by_the_component" {
         for w in program.warnings_had
         if w.code and w.code.code == "W1053"
     ];
-    # Five call sites drop children: two on `Titled`, one on `ZeroParam`, one
-    # on the `-> JsxPage` route component, one on `Required`. `WithChildren`
-    # declares them, `TypedBag` receives the whole props object, and
-    # comment/whitespace-only bodies are not children.
+    # Two on `Titled`, one each on `ZeroParam`, `TitledPage` and `Required`.
     assert len(w1053) == 5 , f"Expected exactly 5 W1053, got {len(w1053)}:\n"
         + "\n---\n".join(w.pretty_print() for w in program.warnings_had);
     flagged = sorted(w.msg for w in w1053);
@@ -4849,11 +4843,8 @@ test "jsx_children_must_be_declared_by_the_component" {
     assert named == ["Titled", "TitledPage", "Required", "ZeroParam"] , f"Expected W1053 only on 'Titled', 'TitledPage', 'Required' and 'ZeroParam', got {named}:\n"
         + "\n".join(flagged);
 
-    # A component element with children parses into three JsxElement nodes --
-    # opening tag, closing tag, complete element -- and only the last is a call
-    # site. Validating a tag node reports every required prop as missing, so
-    # `<Required title="ok">hello</Required>` would draw a blocking E1102 for
-    # the `title` it plainly passes.
+    # Only the complete element is a call site; validating the opening or
+    # closing tag node would report `Required`'s `title` as missing.
     e1102 = [
         e
         for e in program.errors_had
@@ -4870,8 +4861,7 @@ test "jsx_children_must_be_declared_by_the_component" {
     )
         == 2 , f"Expected 2 W1053 on 'Titled':\n" + "\n".join(flagged);
 
-    # Dropping the zero-parameter bail means a zero-parameter component is
-    # validated like every other one: `bogus` is not a prop on `ZeroParam`.
+    # Zero-parameter components are validated like any other.
     e1101 = [
         e
         for e in program.errors_had
@@ -4890,11 +4880,9 @@ test "jsx_children_must_be_declared_by_the_component" {
 }
 
 test "jsx_props_bundle_must_be_the_only_parameter" {
-    # A lone `props` parameter is passed the whole call-site object; combined
-    # with any other parameter the codegen has no coherent lowering and emits
-    # either invalid JavaScript (`const {props, tone} = props`) or a positional
-    # signature React never calls that way, silently pinning every other
-    # parameter to its default. Both passed `jac check` before E1109.
+    # A `props` bundle beside another parameter emits either invalid JavaScript
+    # (`const {props, tone} = props`) or a positional signature React never
+    # calls that way, pinning every other parameter to its default.
     path = os.path.join(CHECKER_FIXTURES, "checker_jsx_props_bundle_exclusive.jac");
     program = JacProgram();
     mod = program.compile(path, options=NO_TC);
@@ -4911,19 +4899,14 @@ test "jsx_props_bundle_must_be_the_only_parameter" {
             f"{err.code.code if err.code else '?'}: {err.pretty_print()}"
             for err in program.errors_had
         );
-    # The rule reaches every return annotation the codegen lowers through the
-    # props protocol, not just the exact `JsxElement` one: `JsxPage` and
-    # `JsxLayout` are what every `pages/` route module returns, and a union is
-    # a component if either arm is. Keying this on `JsxElement` alone let the
-    # broken declarations through in precisely the files the diagnostic is for.
+    # Every annotation the codegen lowers through the props protocol, not just
+    # `JsxElement`: `pages/` modules return `JsxPage`/`JsxLayout`.
     for name in ["Mixed", "MixedKw", "MixedPage", "MixedLayout", "MixedUnion"] {
         assert any(f"'{name}'" in m for m in msgs) , f"Expected E1109 for '{name}':\n"
             + "\n".join(msgs);
     }
-    # A lone bundle (whatever it returns), plain named parameters, a non-JSX
-    # function that happens to take a `props` argument, and the runtime's own
-    # `__jac`-prefixed helpers -- which the codegen calls directly rather than
-    # through the props protocol -- are all fine.
+    # A lone bundle, named parameters, non-JSX functions and `__jac` runtime
+    # helpers (called directly, not through the props protocol) are all fine.
     for name in ["Bag", "BagPage", "Named", "NotAComponent", "__jacMixedHelper"] {
         assert not any(f"'{name}'" in m for m in msgs) , f"'{name}' must not be flagged:\n"
             + "\n".join(msgs);
@@ -4947,12 +4930,8 @@ def _pages_entry_errors(project: str) -> list {
 }
 
 test "pages_project_app_must_accept_children" {
-    # The generated `pages/` entry renders the exported `app` with the whole
-    # route tree as its children -- children the Jac checker never sees,
-    # because they come from generated JavaScript. An `app` that declares no
-    # `children` parameter drops every route, with a clean `jac check`, a
-    # successful build and no console error. This was documented as a footgun
-    # (`jac-cl-routing.md`) rather than checked.
+    # The generated entry renders `app` with the route tree as its children,
+    # from JavaScript the checker never sees -- so W1053 cannot catch this.
     e1108 = _pages_entry_errors("drops_children");
     assert len(e1108) == 1 , f"Expected 1 E1108 for a pages/ app dropping children, got {len(
         e1108
@@ -4967,6 +4946,18 @@ test "pages_project_app_declaring_children_is_accepted" {
     # Same project shape, one declared parameter: nothing to report.
     e1108 = _pages_entry_errors("renders_children");
     assert len(e1108) == 0 , f"Expected no E1108 when `app` declares children, got {len(
+        e1108
+    )}:\n"
+        + "\n---\n".join(e.pretty_print() for e in e1108);
+}
+
+test "pages_dir_without_routes_is_accepted" {
+    # The directory alone is not the routing switch: `_scan_and_compile_pages`
+    # also needs a route or a layout, and renders `app` directly without one.
+    # The fixture's three modules are the ones a text scan gets wrong -- a
+    # `JsxElement` return, `-> JsxPage` in a docstring, and a `JsxPage` method.
+    e1108 = _pages_entry_errors("pages_without_routes");
+    assert len(e1108) == 0 , f"Expected no E1108 when pages/ declares no route, got {len(
         e1108
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in e1108);

@@ -189,14 +189,11 @@ glob PAGES_FIXTURES = str(Path(__file__).parent / "fixtures" / "react_pages_auth
          + _JSDOM_BOOT
          + """
 const EXPECT = {
-  // The `app` wrapper must render the route tree it is handed. A wrapper that
-  // ignores `children` renders `shell` and nothing else, on every route.
+  // A wrapper that ignores `children` renders `shell` and nothing else.
   "/|loggedOut": { present: ["shell", "home"], absent: ["dashboard", "signin"], path: "/" },
   "/|loggedIn": { present: ["shell", "home"], absent: ["dashboard", "signin"], path: "/" },
-  // The guard's redirect comes from `[client.routing] auth_redirect`, which is
-  // "/signin" here. A guard handed a positional string instead of props falls
-  // back to the "/login" default -- not a route in this project, so nothing
-  // renders and the URL is wrong.
+  // `auth_redirect` is "/signin" here; a guard that drops it falls back to
+  // "/login", which is not a route in this project, so nothing renders.
   "/dashboard|loggedOut": { present: ["shell", "signin"], absent: ["dashboard"], path: "/signin" },
   "/dashboard|loggedIn": { present: ["shell", "dashboard"], absent: ["signin"], path: "/dashboard" },
 };
@@ -223,20 +220,9 @@ finish();
 """;
 
 test "react pages/ entry renders the route tree through `app` and honors auth_redirect" {
-    # The end-to-end scenario #8134 left as a follow-up. It drives the REAL
-    # generated `pages/` entry, so it covers two things no source-level
-    # assertion can:
-    #
-    #   1. `auth_redirect`. The entry once emitted
-    #      `function _AuthGuardRoute() { return AuthGuard("/signin"); }` -- a
-    #      positional string into a props-destructuring component, so the
-    #      configured value destructured to the "/login" default and every user
-    #      landed there. The redirect target here is deliberately NOT the
-    #      default, and it is a real route, so a guard that drops it lands
-    #      somewhere that renders nothing.
-    #   2. The `app` wrapper actually rendering its children (#8260 task 2).
-    #      The entry hands `app` the whole route tree from generated
-    #      JavaScript; a wrapper that ignores `children` drops every route.
+    # Drives the REAL generated `pages/` entry, covering two things no
+    # source-level assertion can: `auth_redirect` reaching the guard as props
+    # rather than positionally, and `app` rendering the children it is handed.
     require_client_integration("React pages/ routing");
     bun = get_bun();
     if bun is None {
@@ -249,9 +235,8 @@ test "react pages/ entry renders the route tree through `app` and honors auth_re
     signin_js = compile_page(os.path.join(PAGES_FIXTURES, "signin_page.jac"), backend);
     dash_js = compile_page(os.path.join(PAGES_FIXTURES, "dashboard_page.jac"), backend);
 
-    # Built exactly as `ViteCompiler._create_pages_entry_content` builds it, with
-    # a non-default `auth_redirect` and an `app` wrapper present; only the
-    # `@jac/runtime` specifier is rewired to the flat sibling the harness writes.
+    # Built as `ViteCompiler._create_pages_entry_content` builds it; only the
+    # `@jac/runtime` specifier is rewired to the harness's flat sibling.
     entry_js = wire_jac_runtime(
         build_pages_react_entry_script("main", "/signin", True)
     );
