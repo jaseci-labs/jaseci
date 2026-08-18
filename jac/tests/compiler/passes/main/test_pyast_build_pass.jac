@@ -362,12 +362,11 @@ test "py2jac null constant" {
 
 """Complex py2jac output must lower to native without E1055 overload errors."""
 test "py2jac complex literals native lowering" {
-    import pytest;
     import from jaclang.jac0core.compile_options { CompileOptions }
     import from jaclang.jac0core.compiler { native_pipeline_available }
     (pipeline_ok, pipeline_reason) = native_pipeline_available();
     if not pipeline_ok {
-        pytest.skip(pipeline_reason);
+        testskip(pipeline_reason);
     }
     file_source = read_fixture("py2jac_complex.py");
     code = unparse_module(
