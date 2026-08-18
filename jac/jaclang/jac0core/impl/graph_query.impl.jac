@@ -113,10 +113,13 @@ impl QHop.repr -> str {
     dir_mark = {1: '<--', 2: '-->', 3: '<->'}.get(self.dir, '?');
     et: str = self.`edge.__name__ if self.`edge is not None else '*';
     nt: str;
-    if isinstance(self.nd, tuple) {
-        nt = '&'.join(t.__name__ for t in self.nd);
+    nd = self.nd;
+    if isinstance(nd, tuple) {
+        nt = '&'.join(t.__name__ for t in nd);
+    } elif isinstance(nd, type) {
+        nt = nd.__name__;
     } else {
-        nt = self.nd.__name__ if self.nd is not None else '*';
+        nt = '*';
     }
     parts: list[str] = [f"{dir_mark}:{et}:{nt}"];
     if self.epreds {
