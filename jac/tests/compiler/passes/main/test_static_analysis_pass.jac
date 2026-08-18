@@ -280,6 +280,77 @@ test "module-form typing.Any stays legal as the reflection escape hatch" {
     ]}";
 }
 
+test "every import shape binding a deprecated typing alias is refused with E1123" {
+    file_path = os.path.join(FIXTURES, "typing_alias_refused.jac");
+    prog = JacProgram();
+    prog.compile(file_path, type_check=True);
+
+    e1123 = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == "E1123"
+    ];
+
+    # Six deprecated names across five statements: a lone `{ List }`, `Dict`
+    # inside a multi-name list, the `as` alias, `Set`+`FrozenSet` from one
+    # statement, and `Type`. Each is one refusal, pointed at the name itself.
+    assert len(e1123) == 6 , f"Expected 6 E1123 errors (List, Dict, Tuple-as-alias, Set, FrozenSet, Type), got: {[
+        str(e) for e in e1123
+    ]}";
+
+    # The remedy has to be in the message the author reads, not just the help.
+    refused = {};
+    for e in e1123 {
+        for (alias, builtin) in [
+            ("List", "list"),
+            ("Dict", "dict"),
+            ("Tuple", "tuple"),
+            ("Set", "set"),
+            ("FrozenSet", "frozenset"),
+            ("Type", "type")
+        ] {
+            if f"'{alias}'" in e.msg {
+                refused[alias] = e.msg;
+                assert f"`{builtin}`" in e.msg , f"E1123 for '{alias}' must name the builtin `{builtin}`, got: {e.msg}";
+            }
+        }
+    }
+    assert len(refused) == 6 , f"Every deprecated alias must be named in its own message, got: {sorted(
+        refused.keys()
+    )}";
+
+    # `FrozenSet` must not be mistaken for `Set`: the longer name owns its own
+    # remedy, and a substring match would hand it `set` instead of `frozenset`.
+    assert "`frozenset`" in refused["FrozenSet"] , f"FrozenSet must map to `frozenset`, got: {refused[
+        'FrozenSet'
+    ]}";
+
+    # Only the deprecated aliases are refused -- the rest of typing stays importable.
+    other_refusals = [
+        e
+        for e in e1123
+        if "Optional" in str(e) or "Callable" in str(e) or "cast" in str(e)
+    ];
+    assert len(other_refusals) == 0 , f"Only deprecated aliases may be refused, got: {[
+        str(e) for e in other_refusals
+    ]}";
+}
+
+test "module-form typing.List stays legal as the runtime-object escape hatch" {
+    file_path = os.path.join(FIXTURES, "typing_alias_module_form.jac");
+    prog = JacProgram();
+    prog.compile(file_path, type_check=True);
+
+    e1123 = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == "E1123"
+    ];
+    assert len(e1123) == 0 , f"`import typing;` + `typing.List` binds no bare alias and must not be refused, got: {[
+        str(e) for e in e1123
+    ]}";
+}
+
 test "lowercase boolean and null literals carry a did-you-mean hint" {
     # Issue #6357: `true`/`false`/`null`/`none` parse as undefined names. The
     # W2001 warning must point the author at the right Python-style literal
