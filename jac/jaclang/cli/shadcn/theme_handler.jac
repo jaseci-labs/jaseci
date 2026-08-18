@@ -8,6 +8,103 @@ import from jaclang.cli.shadcn.shadcn_handler {
     resolve_single_component
 }
 
+glob _SHADCN_TAILWIND_CSS: str = """/* Vendored from shadcn v3.8.5 dist/tailwind.css (no npm dep needed) */
+@theme inline {
+  @keyframes accordion-down {
+    from {
+      height: 0;
+    }
+    to {
+      height: var(
+        --radix-accordion-content-height,
+        var(--accordion-panel-height, auto)
+      );
+    }
+  }
+
+  @keyframes accordion-up {
+    from {
+      height: var(
+        --radix-accordion-content-height,
+        var(--accordion-panel-height, auto)
+      );
+    }
+    to {
+      height: 0;
+    }
+  }
+}
+
+/* Custom variants */
+@custom-variant data-open {
+  &:where([data-state="open"]),
+  &:where([data-open]:not([data-open="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-closed {
+  &:where([data-state="closed"]),
+  &:where([data-closed]:not([data-closed="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-checked {
+  &:where([data-state="checked"]),
+  &:where([data-checked]:not([data-checked="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-unchecked {
+  &:where([data-state="unchecked"]),
+  &:where([data-unchecked]:not([data-unchecked="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-selected {
+  &:where([data-selected="true"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-disabled {
+  &:where([data-disabled="true"]),
+  &:where([data-disabled]:not([data-disabled="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-active {
+  &:where([data-state="active"]),
+  &:where([data-active]:not([data-active="false"])) {
+    @slot;
+  }
+}
+
+@custom-variant data-horizontal {
+  &:where([data-orientation="horizontal"]) {
+    @slot;
+  }
+}
+
+@custom-variant data-vertical {
+  &:where([data-orientation="vertical"]) {
+    @slot;
+  }
+}
+
+@utility no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}""";
+
 glob _DEFAULTS: dict = {
          "style": "nova",
          "baseColor": "neutral",
@@ -210,10 +307,11 @@ def generate_global_css(font_value: str, css_vars: dict) -> str {
     lines: list = [
         '@import "tailwindcss";',
         '@import "tw-animate-css";',
-        '@import "shadcn/tailwind.css";',
         '@import "' + font_npm + '";',
         "",
         "@custom-variant dark (&:is(.dark *));",
+        "",
+        _SHADCN_TAILWIND_CSS,
         ""
     ];
 
@@ -351,7 +449,8 @@ def _ensure_vite_tailwind(toml_path: any) -> None {
     if "[client.vite]" in content {
         return;
     }
-    block = '[client.vite]\nplugins = ["tailwindcss()"]\n' + 'lib_imports = ["import tailwindcss from \'@tailwindcss/vite\'"]\n';
+    block = '[client.vite]\nplugins = ["tailwindcss()"]\n'
+        + 'lib_imports = ["import tailwindcss from \'@tailwindcss/vite\'"]\n';
     path.write_text(content.rstrip() + "\n\n" + block);
 }
 
@@ -382,8 +481,7 @@ def materialize_themed_starter(
         "@tailwindcss/vite": "^4.1.17",
         "clsx": "^2.1.1",
         "tailwind-merge": "^3.5.0",
-        "tw-animate-css": "^1.4.0",
-        "shadcn": "^3.8.5"
+        "tw-animate-css": "^1.4.0"
     };
     npm_deps[FONT_DATA.get(font, FONT_DATA["figtree"])["npm"]] = "*";
 
@@ -416,9 +514,13 @@ def materialize_themed_starter(
 
     console.print("");
     console.print(
-        "  Themed starter ready (style: " + style + ", theme: " + shadcn_config.get(
-            "theme", "neutral"
-        ) + ", font: " + font + ")",
+        "  Themed starter ready (style: "
+            + style
+            + ", theme: "
+            + shadcn_config.get("theme", "neutral")
+            + ", font: "
+            + font
+            + ")",
         style="bold green"
     );
     console.print(
@@ -465,16 +567,19 @@ def retheme_project(config: any, overrides: dict) -> bool {
         {
             FONT_DATA.get(merged.get("font", "figtree"), FONT_DATA["figtree"])["npm"]: "*",
             "tailwindcss": "^4.1.17",
-            "@tailwindcss/vite": "^4.1.17",
-            "shadcn": "^3.8.5"
+            "@tailwindcss/vite": "^4.1.17"
         }
     );
     _ensure_vite_tailwind(toml_path);
 
     console.print(
-        "  Retheme (base: " + merged.get("baseColor", "neutral") + ", theme: " + merged.get(
-            "theme", "neutral"
-        ) + ", font: " + merged.get("font", "figtree") + ")",
+        "  Retheme (base: "
+            + merged.get("baseColor", "neutral")
+            + ", theme: "
+            + merged.get("theme", "neutral")
+            + ", font: "
+            + merged.get("font", "figtree")
+            + ")",
         style="bold cyan"
     );
     console.print("  + styles/global.css", style="green");
@@ -486,9 +591,7 @@ def retheme_project(config: any, overrides: dict) -> bool {
         stem_to_key: dict = {};
         for key in components_meta {
             reg_file = str(components_meta[key].get("file", str(key) + ".jac"));
-            reg_stem = reg_file.replace(".cl.jac", "").replace(".jac", "").replace(
-                "-", "_"
-            );
+            reg_stem = reg_file.replace(".jac", "").replace("-", "_");
             stem_to_key[reg_stem] = key;
         }
         if ui_dir.exists() {
@@ -496,7 +599,7 @@ def retheme_project(config: any, overrides: dict) -> bool {
                 if not f.name.endswith(".jac") {
                     continue;
                 }
-                stem = f.name.replace(".cl.jac", "").replace(".jac", "");
+                stem = f.name.replace(".jac", "");
                 comp = resolve_single_component(stem_to_key.get(stem, stem), new_style);
                 if not comp or "error" in comp {
                     continue;

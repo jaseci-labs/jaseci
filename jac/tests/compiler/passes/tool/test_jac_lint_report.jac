@@ -15,6 +15,7 @@ import from jaclang.compiler.passes.tool.jac_auto_lint_pass {
     JacLintCheckPass
 }
 import from jaclang.project.config { JacConfig, CheckConfig, LintConfig, set_config }
+import from jaclang.jac0core.compiler { run_pass }
 
 def _diag_keys(prog: JacProgram) -> list[str] {
     keys: list[str] = [];
@@ -32,7 +33,7 @@ def _full_pass_diags(source: str, path: str) -> list[str] {
     if m is None {
         return [];
     }
-    JacAutoLintPass(ir_in=m, prog=p).ir_out;
+    run_pass(JacAutoLintPass, m, p).ir_out;
     return _diag_keys(p);
 }
 

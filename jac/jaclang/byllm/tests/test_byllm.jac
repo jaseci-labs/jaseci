@@ -7,7 +7,6 @@ import sys;
 import warnings;
 import unittest.mock;
 
-import pytest;
 import yaml;
 import from fixtures { python_lib_mode }
 
@@ -91,7 +90,6 @@ test "params format" {
         "messages",
         "tools",
         "response_format",
-        "temperature",
         "max_tokens",
 
     ];
@@ -99,18 +97,39 @@ test "params format" {
         assert key in extracted_dict , f"Missing key: {key}";
     }
 
+    # Temperature is omitted entirely when the caller never sets one, so the
+    # provider (or an aggregator like OpenRouter) applies its own default
+    # instead of byLLM forcing an unsupported value. See issue #7687.
+    assert "temperature" not in extracted_dict , "temperature must be omitted when unset";
+
     add_message = extracted_dict["messages"];
     assert add_message[0]["role"] == "system" , "First message should be of role 'system'";
     assert add_message[1]["role"] == "user" , "Second message should be of role 'user'";
     assert add_message[3]["role"] == "tool" , "Fourth message should be of role 'tool'";
     assert (
-        add_message[3]["content"] == "The current wind speed in Puttalam is about 18-22 km/h."
+        add_message[3]["content"]
+        == "The current wind speed in Puttalam is about 18-22 km/h."
     ) , "Content mismatch";
 
     add_tool = extracted_dict["tools"][0];
     assert add_tool["type"] == "function" , "First tool should be of type 'function'";
     assert add_tool["function"]["name"] == "get_live_wind_speed" , "First tool function should be 'get_live_wind_speed'";
     assert "city" in add_tool["function"]["parameters"]["properties"] , "get_live_wind_speed function should have 'city' parameter";
+}
+
+test "temperature passed through when set" {
+    captured_output = io.StringIO();
+    sys.stdout = captured_output;
+    jac_import("llm_params_temp", base_path=FIXTURE_DIR + "/");
+    sys.stdout = sys.__stdout__;
+    stdout_value = captured_output.getvalue();
+    dict_str = stdout_value[stdout_value.find("{"):stdout_value.rfind("}") + 1];
+    extracted_dict = yaml.safe_load(dict_str);
+
+    assert "temperature" in extracted_dict , "temperature must be present when the caller sets it";
+    assert extracted_dict["temperature"] == 0.3 , f"expected temperature 0.3, got {extracted_dict.get(
+        'temperature'
+    )}";
 }
 
 test "image input" {
@@ -138,7 +157,8 @@ test "streaming output" {
     sys.stdout = sys.__stdout__;
     stdout_value = captured_output.getvalue();
     assert (
-        "The orca whale, or killer whale, is one of the most intelligent and adaptable marine predators" in stdout_value
+        "The orca whale, or killer whale, is one of the most intelligent and adaptable marine predators"
+        in stdout_value
     );
 }
 
@@ -293,7 +313,8 @@ test "with llm type" {
     assert "14/03/1879" in stdout_value;
     assert (
         'University (University) (obj) = type(__module__="with_llm_type", __doc__=None, '
-        "_jac_entry_funcs_`=[`], _jac_exit_funcs_=[], __init__=function(__wrapped__=function()))" not in stdout_value
+        "_jac_entry_funcs_`=[`], _jac_exit_funcs_=[], __init__=function(__wrapped__=function()))"
+        not in stdout_value
     );
     desired_output_count = stdout_value.count(
         "Person(name='Jason Mars', dob='1994-01-01', age=30)"
@@ -302,7 +323,11 @@ test "with llm type" {
 }
 
 test "with llm image" {
-    pytest.importorskip("PIL", reason="This test requires Pillow to be installed");
+    try {
+        import PIL;
+    } except ImportError {
+        testskip("This test requires Pillow to be installed");
+    }
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     jac_import("with_llm_image", base_path=FIXTURE_DIR + "/");
@@ -324,7 +349,11 @@ test "webp image support" {
 }
 
 test "with llm video" {
-    pytest.importorskip("cv2", reason="This test requires OpenCV to be installed");
+    try {
+        import cv2;
+    } except ImportError {
+        testskip("This test requires OpenCV to be installed");
+    }
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     jac_import("with_llm_video", base_path=FIXTURE_DIR + "/");
@@ -477,7 +506,8 @@ test "max react iterations" {
     assert "WIND_TOOL_CALLS: 1" in stdout_value;
     assert "UNIT_TOOL_CALLS: 1" in stdout_value;
     assert (
-        "Based on the tool calls and their results above, provide only your final answer." in stdout_value
+        "Based on the tool calls and their results above, provide only your final answer."
+        in stdout_value
     );
 }
 
@@ -627,6 +657,69 @@ test "api key masking formats" {
 
     assert len("x") <= 1;
 }
+
+test "resolved api_base reaches the litellm call" {
+    # `make_model_params` resolves api_base, then dispatch pops it off `params`
+    # into `self.api_base`, an attribute only the proxy and http_client
+    # branches read. On the default litellm path a configured base_url was
+    # therefore dropped and requests went to the provider's own endpoint
+    # (api.openai.com for gpt-*) instead of the configured gateway.
+    if not hasattr(_byllm_llm_mod.litellm, "completion") {
+        testskip("litellm is not installed");
+    }
+    seen: dict[str, object] = {};
+
+    def _fake_completion(**kwargs: object) -> dict[str, object] {
+        seen.clear();
+        seen.update(kwargs);
+        return {
+            "model": "gpt-4o-mini",
+            "choices": [
+                {
+                    "message": {"role": "assistant", "content": "ok"},
+                    "finish_reason": "stop"
+                }
+            ],
+            "usage": {}
+        };
+    }
+    def _dispatched_api_base(model: Model) -> object {
+        with unittest.mock.patch.object(
+            _byllm_llm_mod.litellm, "completion", _fake_completion
+        ) {
+            model.dispatch_no_streaming(
+                MTRuntime(
+                    messages=[
+                        Message(role=MessageRole.SYSTEM, content="s"),
+                        Message(role=MessageRole.USER, content="u")
+                    ],
+                    resp_type=str,
+                    stream=False,
+                    tools=[],
+                    call_params={},
+                    mtir=None
+                )
+            );
+        }
+        return seen.get("api_base");
+    }
+    configured = Model(
+        model_name="gpt-4o-mini",
+        api_key="sk-test",
+        config={"base_url": "https://gateway.example.com/v1"}
+    );
+    assert _dispatched_api_base(configured) == "https://gateway.example.com/v1" , "a configured base_url must reach litellm";
+
+    # With nothing configured the loader's empty-string default must normalise
+    # to None so litellm keeps the provider's endpoint, never DEFAULT_BASE_URL.
+    with unittest.mock.patch.dict(
+        _byllm_llm_mod._model_config, {"base_url": ""}, clear=True
+    ) {
+        bare = Model(model_name="gpt-4o-mini", api_key="sk-test");
+        assert _dispatched_api_base(bare) is None , "api_base must stay unset when nothing configures one";
+    }
+}
+
 
 test "api key not in verbose output" {
     import from loguru { logger }
@@ -1368,9 +1461,8 @@ test "prompt caching marks system, last non-system message, and last tool for an
     assert "cache_control" not in messages[1];
     assert "cache_control" not in messages[2];
     assert "cache_control" not in messages[3].get("content")[0];
-    assert messages[3].get("content")[-1].get(
-        "cache_control"
-    ) == _CACHE_CONTROL_EPHEMERAL;
+    assert messages[3].get("content")[-1].get("cache_control")
+        == _CACHE_CONTROL_EPHEMERAL;
     # Only last tool marked
     assert "cache_control" not in tools[0];
     assert tools[-1].get("cache_control") == _CACHE_CONTROL_EPHEMERAL;
@@ -1382,9 +1474,8 @@ test "prompt caching disabled via config" {
         'get_prompt_caching_config',
         return_value={'enabled': False}
     ) {
-        assert _is_prompt_caching_eligible(
-            "anthropic/claude-sonnet-4-20250514"
-        ) == False;
+        assert _is_prompt_caching_eligible("anthropic/claude-sonnet-4-20250514")
+            == False;
     }
 }
 
@@ -1861,7 +1952,7 @@ test "a tool call cut off mid-arguments is reported to the model (issue #7657)" 
     # arguments are replaced with "{}" and the tool is then invoked bare.
     cut_off = types.SimpleNamespace(
         name="write_code",
-        arguments='{"file_path": "/app/Landing.cl.jac", "content": "node Landing { has t'
+        arguments='{"file_path": "/app/Landing.jac", "content": "node Landing { has t'
     );
     message = {
         "tool_calls": [

@@ -74,11 +74,21 @@ def _compile_runtime_js -> str;
 
 def _compile_runtime_core_js -> str;
 
-def _stub_npm_imports(js_sources: list[str]) -> tuple[list, str, bool];
+def _point_at_staged_runtime(js: str) -> str;
+
+def _stub_npm_imports(
+    entry_js: str, staged: dict[str, str]
+) -> tuple[str, dict[str, str], str, bool];
 
 def _build_harness(
     module_js: str, tests: list, api_base_url: str = "", storage: (dict | None) = None
 ) -> str;
+
+def _collect_local_imports(
+    module_js: str, source_dir: str, entry_path: str
+) -> tuple[dict, dict];
+
+def _exported_names(js: str) -> set;
 
 def find_server_entry(
     test_filepath: str, server_imports: (list[str] | None) = None
@@ -102,7 +112,8 @@ def _run_harness(
     imports: dict,
     api_base_url: str,
     storage: (dict | None),
-    timeout: float
+    timeout: float,
+    source_path: (str | None) = None
 ) -> list[ClTestResult];
 
 def _parse_results(stdout: str, tests: list) -> (list[ClTestResult] | None);

@@ -36,7 +36,7 @@ def tool(tool: str, args: list = []) -> int;
         ),
         Arg.create(
             "connection",
-            kind=ArgKind.MULTI,
+            kind=ArgKind.MULTI_OPTION,
             default=[],
             help="Connection filters",
             short="c"
@@ -129,29 +129,6 @@ def ninja -> int;
 def completions(shell: str = "bash", install: bool = False) -> int;
 
 @registry.command(
-    name="gen-jir-registry",
-    hidden=True,
-    help="Regenerate jir_registry.jac from unitree node classes",
-    args=[
-        Arg.create(
-            "verify",
-            typ=bool,
-            default=False,
-            help="Check that jir_registry.jac is up to date; exit 1 if not",
-            short="v"
-        ),
-
-    ],
-    examples=[
-        ("jac gen-jir-registry", "Regenerate jir_registry.jac"),
-        ("jac gen-jir-registry --verify", "Check registry is up to date (for CI)"),
-
-    ],
-    group="tools"
-)
-def gen_jir_registry(verify: bool = False) -> int;
-
-@registry.command(
     name="gen-uni-dispatch",
     hidden=True,
     help="Regenerate static enter_node/exit_node dispatch for UniPass subclasses",
@@ -173,3 +150,26 @@ def gen_jir_registry(verify: bool = False) -> int;
     group="tools"
 )
 def gen_uni_dispatch(verify: bool = False) -> int;
+
+@registry.command(
+    name="gen-cli-manifest",
+    hidden=True,
+    help="Regenerate the CLI manifest route table from the command registry",
+    args=[
+        Arg.create(
+            "verify",
+            typ=bool,
+            default=False,
+            help="Check that manifest.impl.jac route table is up to date; exit 1 if not",
+            short="v"
+        ),
+
+    ],
+    examples=[
+        ("jac gen-cli-manifest", "Regenerate the manifest route table"),
+        ("jac gen-cli-manifest --verify", "Check the manifest is up to date (for CI)"),
+
+    ],
+    group="tools"
+)
+def gen_cli_manifest(verify: bool = False) -> int;
