@@ -169,6 +169,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
         self._emit("rollout", "ok", "Fleet is ready");
 
+        service_url = self.get_service_url(app_name) if bundle.get("ingress") else None;
+        access_hint = None if service_url else self.port_forward_hint();
+
         svc_count = len(bundle["pod_specs"]) - 1;
         success_msg = (
             f"Applied {svc_count} service Deployment+Service pair(s) "
@@ -184,7 +187,13 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 f"once the underlying issue is fixed."
             );
         }
-        return DeploymentResult(success=True, message=success_msg, details=bundle);
+        return DeploymentResult(
+            success=True,
+            service_url=service_url,
+            access_hint=access_hint,
+            message=success_msg,
+            details=bundle
+        );
     }
 
     def _scan_for_crash_loop(
