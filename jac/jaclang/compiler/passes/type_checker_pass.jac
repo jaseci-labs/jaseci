@@ -56,7 +56,7 @@ import from jaclang.compiler.frontend.unitree {
     YieldExpr
 }
 import from jaclang.compiler.passes.uni_pass { UniPass }
-import from jaclang.compiler.frontend.constant { Tokens as Tok }
+import from jaclang.compiler.frontend.constant { ExprCtx, SymbolType, Tokens as Tok }
 import from jaclang.compiler.types.types {
     AnyType,
     ClassType,
