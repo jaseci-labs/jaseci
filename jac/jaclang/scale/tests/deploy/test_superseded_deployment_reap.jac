@@ -7,7 +7,7 @@ import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBu
 import from jaclang.scale.deploy.target.kubernetes.target {
     KubernetesTarget,
     replica_sets_at_revision,
-    strip_pod_template_hash,
+    restorable_pod_template,
     app_deployment_names,
     app_bundle_digest,
     releases_from_revisions,
@@ -240,7 +240,7 @@ test "a revision with no retained ReplicaSet selects nothing" {
 # template that still carries it pins the new ReplicaSet to the old hash, so
 # the controller cannot own the pods it creates.
 test "reverting a template drops pod-template-hash and keeps the rest" {
-    cleaned = strip_pod_template_hash(
+    cleaned = restorable_pod_template(
         {
             "metadata": {
                 "labels": {
@@ -486,6 +486,42 @@ test "a rollout is complete once every replica runs the new template" {
 # bundle digest alone puts every revision of a deployment that shipped that
 # bundle into one release, so taking the last one seen would let the API report
 # release revision 2 while rolling that service back to revision 1.
+# A revert replaces /spec/template wholesale, so the retained template brings
+# its own jac-scale.config-revision back with it. The pods come up reading the
+# CURRENT Secret, which is the stated intent, so a marker naming an older config
+# generation is simply false, and the next deploy reads it as a config change
+# and rolls the whole fleet for nothing. Same shape as the controller's own
+# pod-template-hash: a field the restored template must not carry back.
+test "a restored template drops the config marker it was stamped with" {
+    cleaned = restorable_pod_template(
+        {
+            "metadata": {
+                "labels": {"app": "orders", "pod-template-hash": "abc123"},
+                "annotations": {"jac-scale.config-revision": "1001", "team": "ops"}
+            }
+        }
+    );
+
+    assert "pod-template-hash" not in cleaned["metadata"]["labels"];
+    assert "jac-scale.config-revision" not in cleaned["metadata"]["annotations"] , (
+        "the restored template claims a config generation its pods are not "
+        "running, and the next deploy rolls the fleet over the difference"
+    );
+    assert cleaned["metadata"]["annotations"]["team"] == "ops" , (
+        "unrelated annotations belong to the release and must survive"
+    );
+}
+
+
+test "a restored template with only the config marker keeps no empty annotations" {
+    cleaned = restorable_pod_template(
+        {"metadata": {"annotations": {"jac-scale.config-revision": "1001"}}}
+    );
+
+    assert "annotations" not in cleaned["metadata"];
+}
+
+
 test "a release holds the newest revision of each service, whatever the order" {
     entries = [
         {
@@ -567,4 +603,30 @@ test "a compensation that also fails names what is left split" {
     assert stranded == ["orders-app-deployment"] , (
         "an operator has to be told which services are still on the old release"
     );
+}
+
+
+# The revision API is scoped by the target's own config, not by the argument,
+# so passing another app's name used to return THIS app's revisions with no
+# complaint, and rollback_to would revert this app while reporting the other.
+test "the revision API refuses an app it was not built for" {
+    target = _target(app="orders", namespace="shared");
+    raised = False;
+
+    try {
+        target.list_revisions("billing");
+    } except ValueError as e {
+        raised = True;
+        assert "orders" in str(e) and "billing" in str(e);
+    }
+
+    assert raised , "another app's name must be refused, not silently ignored";
+}
+
+
+test "the revision API accepts its own app and an unnamed caller" {
+    target = _target(app="orders", namespace="shared");
+
+    target._assert_own_app("orders");
+    target._assert_own_app("");
 }

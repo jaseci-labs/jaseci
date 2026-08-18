@@ -19,6 +19,7 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     with_config_revision,
+    CONFIG_REVISION_ANNOTATION,
     ManifestBuilder,
     GATEWAY_NAME,
     k8s_safe_name
@@ -153,6 +154,9 @@ def replica_sets_at_revision(sets: list[any], revision: int) -> dict[str, any] {
 def deployment_rollout_complete(dep: any) -> bool {
     try {
         status = dep.status;
+        if status is None {
+            return False;
+        }
         if int(status.observed_generation or 0) < int(dep.metadata.generation or 0) {
             return False;
         }
@@ -168,12 +172,19 @@ def deployment_rollout_complete(dep: any) -> bool {
 }
 
 
-def strip_pod_template_hash(template: dict[str, any]) -> dict[str, any] {
+def restorable_pod_template(template: dict[str, any]) -> dict[str, any] {
     cleaned = dict(template);
     metadata = dict(cleaned.get("metadata") or {});
     labels = dict(metadata.get("labels") or {});
     labels.pop("pod-template-hash", None);
+    annotations = dict(metadata.get("annotations") or {});
+    annotations.pop(CONFIG_REVISION_ANNOTATION, None);
     metadata["labels"] = labels;
+    if annotations {
+        metadata["annotations"] = annotations;
+    } else {
+        metadata.pop("annotations", None);
+    }
     cleaned["metadata"] = metadata;
     return cleaned;
 }
@@ -501,7 +512,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return True;
     }
 
-    def _wait_for_fleet_rollout(bundle: dict[str, any], timeout: int = 1200) -> None {
+    def _wait_for_fleet_rollout(
+        bundle: dict[str, any], timeout: int = 1200, require_full: bool = False
+    ) -> None {
         import time;
         import sys;
         import from kubernetes { client }
@@ -565,7 +578,10 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 for name in names {
                     try {
                         d = apps_v1.read_namespaced_deployment(name=name, namespace=ns);
-                        if deployment_rollout_complete(d) {
+                        complete = deployment_rollout_complete(d)
+                            if require_full
+                            else (d.status.ready_replicas or 0) >= 1;
+                        if complete {
                             ready += 1;
                         }
                     } except Exception {
@@ -1391,11 +1407,24 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return revisions;
     }
 
+    def _assert_own_app(app_name: str) {
+        mine = str(self.k8s_config.app_name or "");
+        if app_name and mine and str(app_name) != mine {
+            detail = f"configured for '{mine}', asked about '{app_name}'";
+            raise ValueError(
+                "This target cannot report or revert another app's revisions "
+                    + f"({detail}). Build a target for that app."
+            );
+        }
+    }
+
     def list_revisions(app_name: str) -> list[dict[str, any]] {
+        self._assert_own_app(app_name);
         return releases_from_revisions(self._revision_entries());
     }
 
     def referenced_bundle_keys(app_name: str) -> set[str] {
+        self._assert_own_app(app_name);
         keys: set[str] = set();
         for item in self._revision_entries() {
             for key in item.get("bundle_keys", []) {
@@ -1430,6 +1459,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
     }
 
     def rollback_to(app_name: str, revision: int) -> DeploymentResult {
+        self._assert_own_app(app_name);
         self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         namespace: str = self.k8s_config.namespace;
@@ -1487,20 +1517,24 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
         reverted: list[str] = [];
         undo: dict[str, any] = {};
+        selectors: dict[str, any] = {};
         for name in expected {
             if name not in targets {
                 continue;
             }
             rs = targets[name];
-            template = strip_pod_template_hash(
+            template = restorable_pod_template(
                 dict(serializer.sanitize_for_serialization(rs.spec.template))
             );
             try {
                 live = apps_v1.read_namespaced_deployment(
                     name=name, namespace=namespace
                 );
-                undo[name] = strip_pod_template_hash(
+                undo[name] = restorable_pod_template(
                     dict(serializer.sanitize_for_serialization(live.spec.template))
+                );
+                selectors[name] = dict(
+                    serializer.sanitize_for_serialization(live.spec.selector)
                 );
                 apps_v1.patch_namespaced_deployment(
                     name=name,
@@ -1532,16 +1566,13 @@ obj KubernetesTarget(KubernetesTargetBase) {
 
         wait_bundle: dict[str, any] = {"deployments": {}};
         for name in reverted {
-            selector = name[:-len("-deployment")]
-                if name.endswith("-deployment")
-                else name;
             wait_bundle["deployments"][name] = {
                 "metadata": {"name": name},
-                "spec": {"selector": {"matchLabels": {"app": selector}}}
+                "spec": {"selector": selectors.get(name, {})}
             };
         }
         try {
-            self._wait_for_fleet_rollout(wait_bundle);
+            self._wait_for_fleet_rollout(wait_bundle, require_full=True);
         } except Exception as e {
             return DeploymentResult(
                 success=False,
