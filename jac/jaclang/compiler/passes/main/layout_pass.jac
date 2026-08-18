@@ -75,6 +75,7 @@ obj ArchetypeLayout {
         methods: list[MethodSlot] = [],
         method_index: dict[str, int] = {},
         has_vtable: bool = False,
+        vtable_by_dispatch: bool = False,
         parent_field_start: dict[str, int] = {},
         is_osp: bool = False,
         is_acyclic: bool = False,
@@ -159,6 +160,43 @@ def headers_agree(child: ArchetypeLayout, base: ArchetypeLayout) -> bool {
         and child.reports_slot == base.reports_slot;
 }
 
+def relax_vtable_header(
+    lay: ArchetypeLayout, ancestors: list[ArchetypeLayout]
+) -> bool {
+    """Drop a vtable header a class carries only for having had a base.
+
+    `needs_vtable` is decided per module, where a base's subclasses in other
+    modules are not visible. A base that is nobody's parent in its own
+    registry comes out flat; its subclass, merely for having a base, comes
+    out with a vtable pointer in header slot 0 -- so every field the base
+    declared sits one slot further along in the child, `headers_agree`
+    refuses the pair, and the inherited access stays demoted.
+
+    Here both layouts are in hand, so the question can be asked properly: is
+    anything actually dispatched through this class? `vtable_by_dispatch`
+    records the answer the defining module gave -- it is someone's parent, an
+    isinstance target, or an OSP archetype. When nothing is, and no ancestor
+    carries a header either, the child's vtable slot is a habit rather than a
+    requirement and dropping it makes the two units agree.
+
+    Every ancestor is checked, not just the primary: relaxing a child whose
+    grandparent carries a header would trade one disagreement for another.
+    A class that IS dispatched through keeps its header and its refusal --
+    that pair genuinely has no assignment satisfying both.
+    """;
+    if lay.is_osp or lay.vtable_by_dispatch or not lay.has_vtable {
+        return False;
+    }
+    for anc_lay in ancestors {
+        if anc_lay.has_vtable {
+            return False;
+        }
+    }
+    lay.has_vtable = False;
+    lay.vtable_ptr_slot = None;
+    return headers_agree(lay, ancestors[0]);
+}
+
 def adopt_imported_bases(module: Module) -> list[str] {
     """Flatten ancestors that only reached the registry after the pass ran.
 
@@ -214,7 +252,11 @@ def adopt_imported_bases(module: Module) -> list[str] {
                 }
             }
         }
-        if not absent or not headers_agree(lay, ancestors[0]) {
+        if not absent {
+            continue;
+        }
+        if not headers_agree(lay, ancestors[0])
+            and not relax_vtable_header(lay, ancestors) {
             continue;
         }
         adopt_ancestor_slots(lay, ancestors);
