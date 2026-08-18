@@ -20,12 +20,6 @@ import from jaclang.jac0core.unitree {
     CompareExpr,
     ConcurrentExpr,
     ConnectOp,
-    CtBlock,
-    CtElse,
-    CtFor,
-    CtIf,
-    CtName,
-    CtSplice,
     CtrlStmt,
     DeleteStmt,
     DictCompr,
@@ -175,12 +169,6 @@ obj UniPass(ModuleCodegenPass) {
     def enter_compare_expr(nd: CompareExpr) -> None;
     def enter_concurrent_expr(nd: ConcurrentExpr) -> None;
     def enter_connect_op(nd: ConnectOp) -> None;
-    def enter_ct_block(nd: CtBlock) -> None;
-    def enter_ct_else(nd: CtElse) -> None;
-    def enter_ct_for(nd: CtFor) -> None;
-    def enter_ct_if(nd: CtIf) -> None;
-    def enter_ct_name(nd: CtName) -> None;
-    def enter_ct_splice(nd: CtSplice) -> None;
     def enter_ctrl_stmt(nd: CtrlStmt) -> None;
     def enter_delete_stmt(nd: DeleteStmt) -> None;
     def enter_dict_compr(nd: DictCompr) -> None;
@@ -294,12 +282,6 @@ obj UniPass(ModuleCodegenPass) {
     def exit_compare_expr(nd: CompareExpr) -> None;
     def exit_concurrent_expr(nd: ConcurrentExpr) -> None;
     def exit_connect_op(nd: ConnectOp) -> None;
-    def exit_ct_block(nd: CtBlock) -> None;
-    def exit_ct_else(nd: CtElse) -> None;
-    def exit_ct_for(nd: CtFor) -> None;
-    def exit_ct_if(nd: CtIf) -> None;
-    def exit_ct_name(nd: CtName) -> None;
-    def exit_ct_splice(nd: CtSplice) -> None;
     def exit_ctrl_stmt(nd: CtrlStmt) -> None;
     def exit_delete_stmt(nd: DeleteStmt) -> None;
     def exit_dict_compr(nd: DictCompr) -> None;
