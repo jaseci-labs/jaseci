@@ -152,7 +152,19 @@ impl NaIRGenPass._isinstance_unprovable_class(
         _missing = {};
         for cand in reg.mro_order {
             recorded = self._mro_of(cand);
+            _cand_lay = reg.layouts.get(cand);
+            _parents = list(_cand_lay.parents or []) if _cand_lay is not None else [];
+            _pmods = list(_cand_lay.parent_mods or []) if _cand_lay is not None else [];
             for step in recorded {
+                if step != cand and step in _parents {
+                    _pi = _parents.index(step);
+                    _want = _pmods[_pi] if _pi < len(_pmods) else "";
+                    _step_lay = reg.layouts.get(step);
+                    _decl = _step_lay.decl_mod if _step_lay is not None else "";
+                    if _want != _decl {
+                        continue;
+                    }
+                }
                 for anc in self._mro_of(step) {
                     if anc in recorded {
                         continue;
