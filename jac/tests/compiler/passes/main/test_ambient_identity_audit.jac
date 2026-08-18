@@ -65,11 +65,7 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.compiler { run_pass }
-import from jaclang.compiler.type_system.types {
-    ClassType,
-    FunctionType,
-    UnionType
-}
+import from jaclang.compiler.type_system.types { ClassType, FunctionType, UnionType }
 
 glob NO_TC = CompileOptions(type_check=False, default_codespace='server');
 
@@ -90,9 +86,7 @@ def fingerprint(t: object, base_dir: str, depth: int = 0) -> str {
         args = t.private.type_args;
         args_s = "";
         if args {
-            args_s = ",".join(
-                [fingerprint(a, base_dir, depth + 1) for a in args]
-            );
+            args_s = ",".join([fingerprint(a, base_dir, depth + 1) for a in args]);
         }
         return "C(" + loc + ")i=" + str(t.is_instance()) + "[" + args_s + "]";
     }
@@ -146,9 +140,7 @@ def run_probe(header: str, body: str, probe_syms: list[str]) -> ProbeResult {
         if sym is None {
             result.fps[name] = "<no-symbol>";
         } else {
-            result.fps[name] = fingerprint(
-                evaluator.get_type_of_symbol(sym), tmpdir
-            );
+            result.fps[name] = fingerprint(evaluator.get_type_of_symbol(sym), tmpdir);
         }
     }
     rp = os.path.realpath(tmpdir);
@@ -158,9 +150,7 @@ def run_probe(header: str, body: str, probe_syms: list[str]) -> ProbeResult {
             continue;
         }
         msg = alert.msg.replace(rp, "<T>").replace(tmpdir, "<T>");
-        result.diags.append(
-            code + "@" + str(alert.loc.first_line) + ":" + msg
-        );
+        result.diags.append(code + "@" + str(alert.loc.first_line) + ":" + msg);
     }
     result.diags.sort();
     return result;
@@ -171,16 +161,17 @@ def compare(a: ProbeResult, b: ProbeResult) -> list[str] {
     for key in a.fps.keys() {
         if a.fps.get(key) != b.fps.get(key) {
             deltas.append(
-                "fp[" + key + "]: " + str(a.fps.get(key)) + "  !=  " + str(
-                    b.fps.get(key)
-                )
+                "fp["
+                    + key
+                    + "]: "
+                    + str(a.fps.get(key))
+                    + "  !=  "
+                    + str(b.fps.get(key))
             );
         }
     }
     if a.diags != b.diags {
-        deltas.append(
-            "diags: " + str(a.diags) + "  !=  " + str(b.diags)
-        );
+        deltas.append("diags: " + str(a.diags) + "  !=  " + str(b.diags));
     }
     return deltas;
 }
@@ -193,16 +184,14 @@ def audit_name(
     ambient = run_probe("# ambient spelling probe", body, probe_syms);
     all_deltas: list[str] = [];
     REPORT.append("== " + name + " ==");
-    REPORT.append("  ambient: " + str(ambient.fps) + " diags=" + str(
-        ambient.diags
-    ));
+    REPORT.append("  ambient: " + str(ambient.fps) + " diags=" + str(ambient.diags));
     for mod_name in source_mods {
         header = "import from " + mod_name + " { " + name + " }";
         imported = run_probe(header, body, probe_syms);
         deltas = compare(ambient, imported);
-        REPORT.append("  " + mod_name + ": " + str(imported.fps) + " diags=" + str(
-            imported.diags
-        ));
+        REPORT.append(
+            "  " + mod_name + ": " + str(imported.fps) + " diags=" + str(imported.diags)
+        );
         if deltas {
             REPORT.append("  DIVERGES(" + mod_name + "):");
             for d in deltas {
@@ -225,9 +214,7 @@ def audit_pep604(
     deltas = compare(native, imported);
     REPORT.append("== " + name + " (PEP 604) ==");
     REPORT.append("  native: " + str(native.fps) + " diags=" + str(native.diags));
-    REPORT.append("  typing: " + str(imported.fps) + " diags=" + str(
-        imported.diags
-    ));
+    REPORT.append("  typing: " + str(imported.fps) + " diags=" + str(imported.diags));
     if deltas {
         REPORT.append("  DIVERGES:");
         for d in deltas {
@@ -623,11 +610,7 @@ test "typing_import_flips_native_placement" {
         print("skipping placement audit: " + env_reason);
         return;
     }
-    body = (
-        "obj Point {\n"
-        + "    has x: int = 0;\n"
-        + "}\n"
-    );
+    body = "obj Point {\n" + "    has x: int = 0;\n" + "}\n";
     cases = [
         ("# ambient", True),
         ("import from collections.abc { Sequence }", True),
@@ -651,8 +634,13 @@ test "typing_import_flips_native_placement" {
             "placement: " + header + " -> ok=" + str(na_ok) + " why=" + na_why
         );
         assert na_ok == expect_native , (
-            "placement verdict changed for '" + header + "': ok=" + str(na_ok)
-            + " why=" + na_why + " -- the ambient-import escalation rests on"
+            "placement verdict changed for '"
+            + header
+            + "': ok="
+            + str(na_ok)
+            + " why="
+            + na_why
+            + " -- the ambient-import escalation rests on"
             + " this map; re-measure the migration blast radius"
         );
     }
@@ -691,9 +679,9 @@ test "optional_layout_signal" {
         mod = program.compile(path);
         registry = get_layout_registry(mod, program);
         lay = registry.get_layout("Wrap");
-        field_tags = [
-            (fi.name, fi.type_tag) for fi in lay.fields
-        ] if lay is not None else [];
+        field_tags = [(fi.name, fi.type_tag) for fi in lay.fields]
+            if lay is not None
+            else [];
         stamped = "<no-var>";
         for arch in mod.get_all_sub_nodes(typ=uni.Archetype) {
             if arch.name and arch.name.value == "Wrap" {
@@ -702,17 +690,15 @@ test "optional_layout_signal" {
                     on_demand = "<no-sym>";
                     if var.sym is not None {
                         on_demand = fingerprint(
-                            program.get_type_evaluator().get_type_of_symbol(
-                                var.sym
-                            ),
+                            program.get_type_evaluator().get_type_of_symbol(var.sym),
                             tmpdir
                         );
                     }
                     stamped = (
                         "var.type="
-                        + fingerprint(getattr(var, "type", None), tmpdir)
+                        + fingerprint(var?.type, tmpdir)
                         + " ann.type="
-                        + fingerprint(getattr(ann, "type", None), tmpdir)
+                        + fingerprint(ann?.type, tmpdir)
                         + " ann.kind="
                         + type(ann).__name__
                         + " sym="
@@ -733,9 +719,7 @@ test "optional_layout_signal" {
         );
         results[tag] = (field_tags, codes);
         REPORT.append(
-            "layout[" + tag + "]: fields=" + str(field_tags) + " codes=" + str(
-                codes
-            )
+            "layout[" + tag + "]: fields=" + str(field_tags) + " codes=" + str(codes)
         );
     }
     flush_report();
@@ -744,8 +728,10 @@ test "optional_layout_signal" {
     assert ("inner", "Point | None") in native_fields;
     assert ("inner", "Optional [ Point ]") in typed_fields;
     assert native_codes == typed_codes , (
-        "layout diagnostic streams diverge: native=" + str(native_codes)
-        + " typing=" + str(typed_codes)
+        "layout diagnostic streams diverge: native="
+        + str(native_codes)
+        + " typing="
+        + str(typed_codes)
     );
 }
 
