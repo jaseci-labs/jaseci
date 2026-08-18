@@ -52,14 +52,21 @@ def _gated_suites -> list[str] {
     return gated;
 }
 
-"""Concatenated text of every workflow, which is where suite paths are named."""
+"""Text of every workflow step that sets the gate -- the only steps that run a
+gated suite. A step naming one without setting the gate collects and skips it,
+which is the same as never running it."""
 def _workflow_text -> str {
     chunks: list[str] = [];
     for wf in sorted(WORKFLOWS_DIR.glob("*.yml")) {
         try {
-            chunks.append(wf.read_text(encoding="utf-8"));
+            text = wf.read_text(encoding="utf-8");
         } except OSError {
             continue;
+        }
+        for step in text.split("- name:") {
+            if _GATE in step {
+                chunks.append(step);
+            }
         }
     }
     return "\n".join(chunks);
@@ -115,21 +122,4 @@ test "the quarantine list stays honest" {
         " remove them from QUARANTINED:\n  "
         + "\n  ".join(wired)
     );
-}
-
-test "the jsdom CI step names every jsdom suite" {
-    # They all share one step; pin that, so a suite landing elsewhere shows up.
-    ci = (WORKFLOWS_DIR / "ci.yml").read_text(encoding="utf-8");
-    step = ci.split("Run jsdom runtime tests");
-    assert len(step) == 2 , "ci.yml no longer has a 'Run jsdom runtime tests' step";
-    body = step[1].split("- name:")[0];
-    for suite in [
-        "test_solid_jsdom.jac",
-        "test_react_state_semantics.jac",
-        "test_react_auth_jsdom.jac"
-    ] {
-        assert suite in body , (
-            f"{suite} is not named in the jsdom CI step, so it never executes"
-        );
-    }
 }
