@@ -14,15 +14,7 @@ import from dataclasses { dataclass, field }
 import from inspect { getfile }
 import from logging { getLogger }
 import from pathlib { Path }
-import from typing {
-    TYPE_CHECKING,
-    Any,
-    Literal,
-    ParamSpec,
-    Protocol,
-    TypeAlias,
-    TypeVar
-}
+import from typing { TYPE_CHECKING, Literal, ParamSpec, Protocol, TypeAlias, TypeVar }
 import from uuid { UUID }
 import from jaclang.jac0core.archetype {
     GenericEdge,
@@ -405,9 +397,9 @@ class JacServe {
     static def render_page(
         introspector: ModuleIntrospector,
         function_name: str,
-        args: dict[(str, Any)],
+        args: dict[(str, any)],
         username: str
-    ) -> dict[(str, Any)];
+    ) -> dict[(str, any)];
 
     static def get_client_js(introspector: ModuleIntrospector) -> str;
 }
@@ -465,8 +457,8 @@ class JacCmd {
 }
 
 class JacConfig {
-    static def on_config_loaded(config: dict[(str, Any)]) -> None;
-    static def validate_config(config: dict[(str, Any)]) -> list[str];
+    static def on_config_loaded(config: dict[(str, any)]) -> None;
+    static def validate_config(config: dict[(str, any)]) -> list[str];
 }
 
 class JacRuntimeInterface(JacClassReferences, JacContext, JacPersistence, JacAccessValidation, JacGraph, JacWalker, JacArchetype, JacModule, JacIntrospection, JacLLM, JacServe, JacTest, JacBuiltin, JacCmd, JacConfig) {}

@@ -1332,7 +1332,7 @@ impl NaIRGenPass._emit_osp_predicate_filter(
     _elem = self.builder.call(_h["get"], [src, _i], name="pred.elem");
     _keepc: ir.Value = ir.Constant(i1, 1);
     for (_ci, cmp) in enumerate(compares) {
-        _fval = self._codegen_field_access(_elem, cmp.left.value, arch_name);
+        _fval = self._codegen_field_access(_elem, cmp.left.value, arch_name, cmp.left);
         if _fval is None {
             self._builder = ir.IRBuilder(_done);
             self.emit(E5092, node_override=cmp, kind="expression", name="FilterCompr");

@@ -937,7 +937,6 @@ def demote_client_pulled_elements(
 
 obj PlacementApplyPass(Transform) {
     has ir_in: uni.Module,
-        prog: any,
         cancel_token: any = None;
 
     static has PROVIDES: tuple = ('codespace-pull', );

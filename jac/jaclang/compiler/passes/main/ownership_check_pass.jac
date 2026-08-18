@@ -85,7 +85,6 @@ obj BorrowMeta {
 
 obj OwnershipCheckPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None,
         owned_decl: dict[SymId, Name] = {},
         consumed_syms: set[SymId] = set(),
