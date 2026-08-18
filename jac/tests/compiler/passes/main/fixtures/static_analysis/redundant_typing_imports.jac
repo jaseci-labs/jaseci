@@ -5,15 +5,17 @@ Expected warnings:
   - W1103 for 'Callable' and 'Mapping' from typing
   - W1103 for 'Iterable' from collections.abc (also ambient, real source
     module -- proves the per-module registry isn't string-coincidence)
-  - W1104 for 'Any' (use lowercase 'any' BuiltinType keyword)
 
 Must NOT warn:
   - 'cast' -- runtime helper, not in the ambient set
   - 'TYPE_CHECKING' -- runtime constant, not in the ambient set
   - aliased 'Callable as Cb' -- alias is intentional user choice
+
+'Any' is not exercised here: importing it from typing is a hard error
+(E1122), covered by typing_any_refused.jac.
 """
 
-import from typing { Callable, Mapping, Any, cast, TYPE_CHECKING }
+import from typing { Callable, Mapping, cast, TYPE_CHECKING }
 import from typing { Callable as Cb }
 import from collections.abc { Iterable }
 
@@ -29,8 +31,8 @@ def alias_cb(cb: Cb) {
     cb();
 }
 
-def coerce(x: object) -> Any {
-    return cast(Any, x);
+def coerce(x: object) -> any {
+    return cast(int, x);
 }
 
 def sum_iter(items: Iterable[int]) -> int {

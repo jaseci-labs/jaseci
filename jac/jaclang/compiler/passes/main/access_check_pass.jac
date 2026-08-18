@@ -23,7 +23,6 @@ import from jaclang.jac0core.diagnostics {
 
 obj AccessCheckPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None,
         _enforce: bool = False;
 

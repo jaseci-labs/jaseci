@@ -16,16 +16,36 @@ the emission path stays seam-free: none of its callables demote, and none of
 the module's residual native errors touch them. Callables off the emission
 path that reach real Python machinery (console rendering, the cancel-token
 handle, `RuntimeError` construction in `ice`) remain legal per-callable
-seams and are waived one at a time. What is left module-fatal is the foreign
-class-typed field on the pass declaration, pinned here so the sealing lane
-sees exactly what remains.
+seams and are waived one at a time.
 
-`Transform.__post_init__` was on that waived list, for "postinit's generic
-field load and its `super` dispatch". The generic field load is gone: the
-pass base chain stopped being generic (#8288 M1 rung 1), so a slot that
+**The unit is now module-fatally clean**, which is #8288 M1 rung 2, and the
+inventory is pinned empty rather than deleted so that a regression has
+somewhere to fail. Two entries cleared, each by a mechanism rather than a
+loosening:
+
+  - `prog: JacProgram` -- a field typed by a class the native lane has no
+    layout for, reported twice once the constructor lowered far enough to
+    type its parameter as well as its slot. The handle is a driver-stamped
+    fact now: `pass_rim` sets it on the instance at construction, so the
+    unsealed passes read `self.prog` unchanged and the sealable unit
+    declares nothing.
+  - `_require_native_pass_tier` was on the waived seam list, for consulting
+    the sealed-image registry and triggering the serving binder. It moved to
+    the same rim, and `test_sealed_pass_tier.jac` pins that the refusal it
+    raises is unchanged in every situation that used to raise it.
+
+`Transform.__post_init__` was on that waived list too, for "postinit's
+generic field load and its `super` dispatch". The generic field load went
+with rung 1: the pass base chain stopped being generic, so a slot that
 lowered to a bare erased pointer is a `UniNode` now, and the constructor
-lowers. The waiver is dropped rather than reworded, which is the point of
-pinning it two ways.
+lowers. Each waiver is dropped rather than reworded, which is the point of
+pinning them two ways.
+
+What rung 2 does **not** deliver is closure membership, and that is measured
+below rather than assumed: no sealed root's native closure reaches
+`transform.jac` even now, because the pass artifacts still carry the
+passes' own method bodies and not their base chain. The unit is ready to be
+linked; linking it is the fused root of rung 3.
 
 The measurement is a source-lane one. Under a sealed jaclang image every
 method of an imported jaclang-internal archetype is untrusted by design, so
@@ -72,21 +92,13 @@ glob TRANSFORM_SEAM_WAIVERS: dict[(str, str)] = {
          "Transform.ice": (
              "backend gap: constructs the `RuntimeError` it returns for the "
              "caller to raise."
-         ),
-         "_require_native_pass_tier": (
-             "Python-only by definition: the pass-tier tripwire consults the "
-             "sealed image registry (jac0core.sealed) and triggers the "
-             "serving binder, host-side machinery no native unit can host. "
-             "It guards construction, which the Python driver performs, so "
-             "it is off the emission path; if transform ever seals, the "
-             "guard's seat moves into the serving layer itself."
          )
      };
 
-"""Module-fatal backend gaps (not demotable, not emission): the foreign
-`JacProgram`-typed field on the pass declaration. Keyed by the construct the
-diagnostic names."""
-glob KNOWN_CONSTRUCTOR_GAPS: tuple = ("'JacProgram'", );
+"""Module-fatal backend gaps: none. Kept as an empty inventory rather than
+deleted, so a construct that goes module-fatal again has a named place to
+fail. Entries would be keyed by the construct the diagnostic names."""
+glob KNOWN_CONSTRUCTOR_GAPS: tuple = ();
 
 glob _CENSUS_MEMO: list = [];
 
@@ -237,9 +249,9 @@ test "residual native errors are exactly the known constructor gaps" {
     );
     # Deduplicated, because the count that matters is how many distinct
     # gaps are left, not how many times the emitter reaches one of them.
-    # `prog: JacProgram` is reported twice now that the constructor lowers
-    # far enough to type its parameter as well as its field -- one gap,
-    # two sites, and it clears in one move when `prog` leaves the base.
+    # The inventory is empty as of rung 2: `prog: JacProgram` was the last
+    # entry and was reported twice, one gap at two sites, and it cleared in
+    # one move when the handle left the base for the rim.
     distinct = sorted(set(errs));
     assert len(distinct) == len(KNOWN_CONSTRUCTOR_GAPS) , (
         f"constructor-gap inventory drifted (expected "
@@ -247,5 +259,35 @@ test "residual native errors are exactly the known constructor gaps" {
         "update KNOWN_CONSTRUCTOR_GAPS so the sealing lane sees what is "
         "left:\n"
         + "\n".join(f"  {e}" for e in distinct)
+    );
+}
+
+
+test "the unit is clean enough to link, and no sealed root links it yet" {
+    (census, _ir, _prog) = _census();
+    linked = sorted(
+        os.path.relpath(p, os.path.dirname(os.path.realpath(jaclang.__file__)))
+        for p in census
+        if os.path.realpath(p) != os.path.realpath(TRANSFORM_JAC)
+    );
+    # The other half of the rung-2 claim, and the half a clean seam census
+    # cannot make on its own. `transform.jac` compiles as a root here with
+    # no module-fatal error, and its own closure is the ordinary unitree
+    # family every root carries -- so nothing about the unit blocks a root
+    # from linking it. What still holds is the other direction, measured in
+    # the wave censuses: no sealed root's closure *reaches* transform.jac,
+    # because a pass artifact carries the pass's own method bodies and not
+    # its base chain. Rung 3's fused root is what changes that, and when it
+    # does, `NATIVE_SEAL_CLOSURE` gains this unit and
+    # `NATIVE_SEAL_DEMOTION_WAIVERS` gains the three seams above -- neither
+    # is owed while no root links it, which is what the audit means by a
+    # waiver naming work that is not happening here.
+    assert linked , (
+        "transform.jac's own closure is empty, so the compile was never "
+        "reached and the seam census above is vacuous"
+    );
+    assert "jac0core/unitree.jac" in linked , (
+        f"transform.jac stopped linking unitree ({linked}); the measurement "
+        "moved rather than the unit getting cleaner"
     );
 }

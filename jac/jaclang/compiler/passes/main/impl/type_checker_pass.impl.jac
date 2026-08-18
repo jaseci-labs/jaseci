@@ -1044,6 +1044,7 @@ impl TypeCheckPass.before_pass(self: TypeCheckPass) -> None {
         }
 
         self.evaluator._flow_node_type_cache.clear();
+        self.evaluator._flow_key_type_cache.clear();
         self.evaluator._and_narrowing_overrides.clear();
     }
 }

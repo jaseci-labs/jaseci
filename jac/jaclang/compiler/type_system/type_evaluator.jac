@@ -313,7 +313,7 @@ obj ConditionInfo {
 glob _stub_module_memo: dict[str, tuple[float, Module]] = {};
 
 obj TypeEvaluator {
-    has program: "JacProgram",
+    has program: JacProgram,
         _BUILTINS_STUB_FILE_PATH: str postinit,
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
@@ -329,7 +329,8 @@ obj TypeEvaluator {
         prefetch: PrefetchedTypes postinit,
         _pass: object | None = None,
         builtins_module: Module | None = None,
-        _flow_node_type_cache: dict[tuple, TypeBase | None] = {},
+        _flow_node_type_cache: dict[tuple[int, int], TypeBase | None] = {},
+        _flow_key_type_cache: dict[tuple[int, str], TypeBase | None] = {},
         _flow_pending_symbols: set[int] postinit,
         _flow_pending_keys: set[str] postinit,
         _module_type_cache: dict[str, ModuleType] = {},
@@ -711,6 +712,7 @@ obj TypeEvaluator {
     def _get_type_from_match_pattern(pattern: MatchPattern) -> TypeBase | None;
     def _union_contains_none(union_type: TypeBase) -> bool;
     def _extract_isinstance_info(condition: Expr) -> tuple[str, TypeBase] | None;
+    def _isinstance_tuple_alternatives(arg_type: TypeBase) -> list[TypeBase] | None;
     def _extract_type_guard_info(condition: Expr) -> tuple[str, TypeBase, bool] | None;
     def _create_type_guard_type(name: str, guarded: TypeBase | None) -> TypeBase;
     def _type_guard_form_of(ty: TypeBase) -> str | None;
