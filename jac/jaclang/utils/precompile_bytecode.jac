@@ -431,10 +431,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
              "jac0core/passes/module_codegen_pass.jac::"
              "ModuleCodegenPass.shared_archetypes_for_context"
          ),
-         (
-             "jac0core/passes/module_codegen_pass.jac::"
-             "client_capability_violations"
-         ),
+         ("jac0core/passes/module_codegen_pass.jac::" "client_capability_violations"),
 
      ),
      _LEAF_SEAM_WAIVERS: tuple[str, ...] = (
@@ -513,12 +510,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         # The two roots below used to carry reduced per-root transform
-         # tuples: the demotion/emission ordering depended on each root's
-         # import-walk shape, so `Alert.pretty_print` demoted in some units
-         # and stayed (wrongly) live in others. Verdict-before-emission made
-         # the cascade order-independent, and with it every root sees the
-         # same transform seams -- the closure set, uniformly.
          "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _MODULE_CODEGEN_SEAM_WAIVERS

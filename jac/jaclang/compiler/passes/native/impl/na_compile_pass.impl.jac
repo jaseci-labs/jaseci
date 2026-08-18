@@ -68,15 +68,6 @@ impl DepClibMeta.from_meta(meta: dict) -> DepClibMeta {
 }
 
 impl native_unit_demotions(prog: any, real_path: str, options: any) -> set[str] {
-    """The callee module's final demotion verdict, resolved at link time.
-
-    The link phase runs at the top frame -- nothing is inflight -- so a
-    verdict that was unknowable during an import cycle is resolvable here:
-    from the dep-unit memo, from an already-compiled tree in the hub, or by
-    compiling the callee now (memoized, so its own link slot reuses it). A
-    module that fails to compile natively counts as all-demoted, matching
-    `_imported_function_demotions`.
-    """;
     import os as _ud_os;
     entry: any = prog._na_dep_units.get(real_path);
     if entry is None {
@@ -584,12 +575,6 @@ impl NativeCompilePass._compile_and_link_native_imports(
         }
 
         if _cache_hit and meta.unverified_live_calls {
-            # This cached IR was emitted while some callee module's demotion
-            # verdict was unknowable (an import cycle had it inflight). The
-            # names it declared live are recorded in its meta; check them
-            # against the callees' verdicts as they stand now, and refuse to
-            # serve the entry if any turned out demoted -- a served one would
-            # carry a bare declaration of a popped symbol into the link.
             _uv_cached_conflicts = native_live_call_conflicts(
                 self.prog, meta.unverified_live_calls, _link_opts
             );
@@ -635,16 +620,6 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 self.emit(E5024, path=full_path, error="No LLVM IR generated");
                 continue;
             }
-
-            # Verdict-before-emission, enforced at the point of consumption.
-            # If this module's emission declared callables live while their
-            # defining module was inflight (import cycle), the recorded names
-            # are provisional. The link runs at the top frame where every
-            # verdict is resolvable, so re-validate them and re-emit the
-            # module -- loudly -- when a landed verdict demotes one. Without
-            # this, the demoted symbol's rename-and-pop leaves the caller's
-            # bare declaration dangling and the sealed artifact dies at
-            # dlopen with an undefined symbol.
             _uv_pending = dict(self.prog._na_unverified_live.get(real_path) or {});
             _uv_attempts = 0;
             _uv_failed = "";
@@ -658,8 +633,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 _uv_attempts += 1;
                 import sys as _uv_sys;
                 _uv_what = "; ".join(
-                    f"{os.path.basename(_uv_c)} demotes "
-                        + ", ".join(sorted(_uv_n))
+                    f"{os.path.basename(_uv_c)} demotes " + ", ".join(sorted(_uv_n))
                     for (_uv_c, _uv_n) in sorted(_uv_conflicts.items())
                 );
                 _uv_sys.stderr.write(
@@ -685,9 +659,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     _uv_failed = "No LLVM IR generated on re-emission";
                     break;
                 }
-                _uv_pending = dict(
-                    self.prog._na_unverified_live.get(real_path) or {}
-                );
+                _uv_pending = dict(self.prog._na_unverified_live.get(real_path) or {});
             }
             if _uv_failed {
                 self.emit(E5024, path=full_path, error=_uv_failed);
@@ -701,11 +673,12 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     self.emit(
                         E5028,
                         path=full_path,
-                        names=", ".join(sorted(
-                            _uv_n
-                            for _uv_ns in _uv_conflicts.values()
-                            for _uv_n in _uv_ns
-                        )),
+                        names=", ".join(
+                            sorted(
+                                _uv_n for _uv_ns in _uv_conflicts.values()
+                                for _uv_n in _uv_ns
+                            )
+                        ),
                         attempts=_uv_attempts
                     );
                     continue;
@@ -756,8 +729,7 @@ impl NativeCompilePass._compile_and_link_native_imports(
             }
             meta.options_fingerprint = _link_fp;
             meta.unverified_live_calls = {
-                _uv_c: sorted(_uv_n)
-                for (_uv_c, _uv_n) in _uv_pending.items()
+                _uv_c: sorted(_uv_n) for (_uv_c, _uv_n) in _uv_pending.items()
             };
             try {
                 os.makedirs(_ir_cache_dir, exist_ok=True);

@@ -77,8 +77,7 @@ def _seams(rel: str) -> dict[(str, str)] {
     }
     rec = census.get(os.path.realpath(path));
     assert rec is not None and rec["outcome"] == "native" , (
-        f"{rel} never compiled as a native root, so nothing below measures "
-        "anything"
+        f"{rel} never compiled as a native root, so nothing below measures " "anything"
     );
     found: dict[(str, str)] = {};
     for seam in (rec["seams"] or []) {
@@ -93,10 +92,7 @@ def _seams(rel: str) -> dict[(str, str)] {
 """Two module boundaries from the slot, which is where the truncation bit."""
 test "a leaf reaches a slot its grandparent declares, across two modules" {
     seams = _seams("deep_chain_leaf.jac");
-    for meth in (
-        "DeepLeaf.store_grandparent_slot",
-        "DeepLeaf.read_grandparent_slot"
-    ) {
+    for meth in ("DeepLeaf.store_grandparent_slot", "DeepLeaf.read_grandparent_slot") {
         assert meth not in seams , (
             f"{meth} refused again: {seams.get(meth, '')}. `DeepMid`'s "
             "recorded linearization stopped at itself, so `slot_a` was "

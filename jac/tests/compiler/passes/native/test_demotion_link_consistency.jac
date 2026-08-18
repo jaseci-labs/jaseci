@@ -103,8 +103,7 @@ test "the fixture's callee still demotes, so the cycle measures something" {
         os.path.realpath(os.path.join(FIXTURES, "demote_cycle_helpers.jac"))
     );
     seams = {
-        str(s).partition(": ")[0]
-        for s in ((helpers_rec or {}).get("seams") or [])
+        str(s).partition(": ")[0] for s in ((helpers_rec or {}).get("seams") or [])
     };
     assert "cycle_bad_fmt" in seams , (
         "cycle_bad_fmt no longer demotes -- `str % int` learned to lower. "
@@ -137,8 +136,7 @@ test "the betrayed caller re-emits and cascades honestly" {
         os.path.realpath(os.path.join(FIXTURES, "demote_cycle_caller.jac"))
     );
     seams = {
-        str(s).partition(": ")[0]
-        for s in ((caller_rec or {}).get("seams") or [])
+        str(s).partition(": ")[0] for s in ((caller_rec or {}).get("seams") or [])
     };
     assert "CycleReporter.describe" in seams , (
         "CycleReporter.describe kept a live body against a demoted callee "

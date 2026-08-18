@@ -13,7 +13,7 @@ import from .deep_chain_mid { DeepMid }
 obj DeepLeaf(DeepMid) {
     has slot_c: int = 0;
 
-    def store_grandparent_slot(v: int) -> None {
+    def store_grandparent_slot(v: int) {
         self.slot_a = v;
     }
 

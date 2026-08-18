@@ -911,15 +911,6 @@ impl NaIRGenPass._walk_imported_module_abilities(
         and imported_mod?.loc
         and imported_mod.loc.mod_path
     ) {
-        # Verdict-before-emission (intra-unit): this module is about to emit
-        # against an imported module whose demotion verdicts are not knowable
-        # yet -- typically because that module is still inflight above us in
-        # an import cycle. Everything declared live here is provisional, so
-        # record the names; the link phase re-validates them against the
-        # callee's final verdict and re-emits this module if any turned out
-        # demoted. Assuming "live" silently is what left a popped demoted
-        # symbol as a bare declaration in a sealed artifact (dlopen:
-        # undefined symbol).
         import os as _uv_os;
         _uv_self = _uv_os.path.realpath(self.ir_in.loc.mod_path);
         _uv_callee = _uv_os.path.realpath(imported_mod.loc.mod_path);
