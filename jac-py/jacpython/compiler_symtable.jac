@@ -47,6 +47,7 @@ import from ast_nodes {
     comprehension,
     Yield,
     YieldFrom,
+    Await,
     Import,
     ImportFrom,
     alias,
@@ -535,6 +536,9 @@ def sym_visit_load_expr(b: sym_builder, e: expr) -> bool {
     if isinstance(e, YieldFrom) {
         b.cur.generator = True;
         return sym_visit_load_expr(b, (e as YieldFrom).value);
+    }
+    if isinstance(e, Await) {
+        return sym_visit_load_expr(b, (e as Await).value);
     }
     return True;
 }

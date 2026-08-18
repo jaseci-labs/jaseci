@@ -5,7 +5,7 @@
 #
 # Test harness only: may import host_oracle for expected PyCode bytes.
 
-import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error, PyError }
+import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error, PyError, py_none }
 import from ast_nodes {
     expr,
     stmt,
@@ -40,7 +40,9 @@ import from compiler_validate { validate_module_body }
 import from compiler_symtable { build_module_symtable }
 import from compiler_diagnostics { compiler_diag_kind, compiler_diag_message }
 import from host_oracle { host_compile_marshal }
-import from pyc_first { unmarshal, exec_code, py_subscript }
+import from pyc_first {
+    unmarshal, exec_code, gen_send, py_subscript, PyGenerator
+}
 
 def oracle_eval(source: str, filename: str) -> PyObj {
     return unmarshal(host_compile_marshal(source, filename, "eval", 0));
@@ -1736,4 +1738,52 @@ test "compiler_slice: band7 async def parsed matches oracle nested co_code" {
     assert f_fn.exceptiontable == exp_f.exceptiontable;
     assert f_fn.stacksize == exp_f.stacksize;
     assert f_fn.flags == exp_f.flags;
+}
+
+# ---------------- Band 7 slice 4: await ----------------
+
+test "compiler_slice: band7 await parsed matches oracle nested co_code" {
+    src = (
+        "async def f():\n"
+            + "    return await g()\n"
+            + "async def g():\n"
+            + "    return 1\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    f_fn = nested_code_by_name(actual, "f");
+    exp_f = nested_code_by_name(exp, "f");
+    g_fn = nested_code_by_name(actual, "g");
+    exp_g = nested_code_by_name(exp, "g");
+    assert f_fn.co_code == exp_f.co_code;
+    assert f_fn.exceptiontable == exp_f.exceptiontable;
+    assert f_fn.stacksize == exp_f.stacksize;
+    assert f_fn.flags == exp_f.flags;
+    assert g_fn.co_code == exp_g.co_code;
+    assert g_fn.exceptiontable == exp_g.exceptiontable;
+    assert g_fn.stacksize == exp_g.stacksize;
+    assert g_fn.flags == exp_g.flags;
+}
+
+test "compiler_slice: band7 await parsed executes in ceval" {
+    src = (
+        "async def f():\n"
+            + "    return await g()\n"
+            + "async def g():\n"
+            + "    return 1\n"
+            + "c = f()\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    coro = ns["c"];
+    assert coro.t == "coroutine";
+    done = gen_send(coro as PyGenerator, py_none());
+    assert is_error(done);
+    finished = (done as PyError).exception;
+    assert finished.type_name == "StopIteration";
+    assert expect_int(finished.value as PyObj) == 1;
 }

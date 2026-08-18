@@ -687,6 +687,13 @@ test "vm: JUMP_BACKWARD_NO_INTERRUPT in yield-from SEND loop" {
     assert_vm_value_matches_host(setup, body, "exec", "result");
 }
 
+# vm-opcode: OP_GET_AWAITABLE
+test "vm: GET_AWAITABLE drives await on native coroutine" {
+    setup = "";
+    body = "async def f():\n    return await g()\nasync def g():\n    return 1\nc = f()\nresult = 0\ntry:\n    c.send(None)\nexcept StopIteration as e:\n    result = e.value\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
 # ---------------- semantic categories ----------------
 
 test "vm: namespace mutation matches host for multi-assign" {

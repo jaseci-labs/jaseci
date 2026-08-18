@@ -127,6 +127,7 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "END_SEND",
     "CLEANUP_THROW",
     "JUMP_BACKWARD_NO_INTERRUPT",
+    "GET_AWAITABLE",
 )
 
 # CPython 3.14 may not emit JUMP_FORWARD in normal compilation; jacpython's
@@ -434,6 +435,19 @@ FIXTURES: tuple[VmFixture, ...] = (
         "    yield 1\n"
         "    yield 2\n"
         "result = list(outer())\n",
+    ),
+    VmFixture(
+        "GET_AWAITABLE",
+        "async def f():\n"
+        "    return await g()\n"
+        "async def g():\n"
+        "    return 1\n"
+        "c = f()\n"
+        "result = 0\n"
+        "try:\n"
+        "    c.send(None)\n"
+        "except StopIteration as e:\n"
+        "    result = e.value\n",
     ),
 )
 

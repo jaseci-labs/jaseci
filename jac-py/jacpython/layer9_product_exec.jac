@@ -14,10 +14,14 @@
 #
 # Test harness only: host_oracle is used solely to produce the expected PyCode.
 
-import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error, PyError }
+import from objects {
+    PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error, PyError, py_none
+}
 import from product_compile { compile_source }
 import from host_oracle { host_compile_marshal }
-import from pyc_first { unmarshal, exec_code, py_subscript }
+import from pyc_first {
+    unmarshal, exec_code, gen_send, py_subscript, PyGenerator
+}
 
 def oracle_eval(source: str, filename: str) -> PyObj {
     return unmarshal(host_compile_marshal(source, filename, "eval", 0));
@@ -1093,6 +1097,39 @@ test "layer9: band7 yield from executes in ceval" {
 test "layer9: band7 async def matches oracle" {
     src = "async def f():\n  return 1\n";
     assert_matches_oracle(src);
+}
+
+# ---------------- Band 7 slice 4: await ----------------
+
+test "layer9: band7 await matches oracle" {
+    src = (
+        "async def f():\n"
+            + "    return await g()\n"
+            + "async def g():\n"
+            + "    return 1\n"
+    );
+    assert_matches_oracle(src);
+}
+
+test "layer9: band7 await executes in ceval" {
+    src = (
+        "async def f():\n"
+            + "    return await g()\n"
+            + "async def g():\n"
+            + "    return 1\n"
+            + "c = f()\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    coro = ns["c"];
+    assert coro.t == "coroutine";
+    done = gen_send(coro as PyGenerator, py_none());
+    assert is_error(done);
+    finished = (done as PyError).exception;
+    assert finished.type_name == "StopIteration";
+    assert expect_int(finished.value as PyObj) == 1;
 }
 
 # ---------------- VM execution ----------------
