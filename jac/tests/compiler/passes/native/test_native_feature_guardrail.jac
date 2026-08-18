@@ -406,6 +406,123 @@ test "guardrail: membership with a non-string needle names its seam" {
 }
 
 
+# A demotion is telemetry, not an answer: the author gets a silently-slower
+# function and no instruction. Where the operand genuinely has no static type,
+# the checker now refuses it at check time (#8323, decision 3) and says what to
+# write. The emitter guard above stays as defense in depth for whatever reaches
+# it by another route rather than as the only thing standing between an erased
+# container and `strstr`.
+#
+# The two erased shapes the checker can see, and both are annotation bugs the
+# author can act on: an operand typed `any`, and a builtin container spelled
+# without its element types.
+test "checker: membership over an operand with no static type is refused (E1124)" {
+    prog = check_na_inline(
+        "erased_membership_any",
+        "def run(t: any, x: int) -> int {\n"
+        "    if x in t { return 1; }\n"
+        "    return 0;\n"
+        "}\n"
+    );
+    assert has_error_code(prog, "E1124") , (
+        f"an `any`-typed membership operand must be refused at check time, got: {fmt_errors(
+            prog
+        )}"
+    );
+    # The refusal must name the remedy the author can act on, not just the fact.
+    e1124 = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == "E1124"
+    ];
+    for e in e1124 {
+        assert "annotate" in (e.code.help_text or "") , (
+            f"E1124 must demand an annotation, got: {e}"
+        );
+    }
+}
+
+
+test "checker: membership over a bare container annotation is refused (E1124)" {
+    prog = check_na_inline(
+        "erased_membership_bare",
+        "def lst(t: list, x: int) -> int { if x in t { return 1; } return 0; }\n"
+        "def dct(t: dict, x: str) -> int { if x not in t { return 1; } return 0; }\n"
+        "def st(t: set, x: int) -> int { if x in t { return 1; } return 0; }\n"
+    );
+    e1124 = [
+        e
+        for e in prog.errors_had
+        if e.code is not None and e.code.code == "E1124"
+    ];
+    # One per membership test: `in` and `not in` are the same test with the
+    # same erasure, and an unparameterized container has nothing to compare
+    # against whichever way it is spelled.
+    assert len(e1124) == 3 , (
+        f"each bare-container membership operand must be refused, got: {fmt_errors(
+            prog
+        )}"
+    );
+}
+
+
+# The residual this arm does NOT close, recorded rather than papered over.
+#
+# `v` here is `list[Tag]` by the checker's own reckoning -- fully typed, nothing
+# for the author to annotate -- yet the emitter still refuses it as
+# element-erased and demotes `run`. The erasure is introduced by the lowering of
+# `t.values()`, which does not carry the value type's layout through to the
+# comparison; it is not a missing annotation. Demanding one here would be the
+# checker telling the author to fix something already correct, so E1124
+# deliberately stays silent and the demotion above remains the honest answer
+# until the `dict.values()` lowering carries its element layout.
+test "checker: a correctly-typed operand the emitter still erases is not refused" {
+    prog = check_na_inline(
+        "erased_membership_emitter_side",
+        "obj Tag { has n: int = 0; }\n"
+        "def run(t: dict[str, list[Tag]], x: Tag) -> int {\n"
+        "    for v in t.values() {\n"
+        "        if x in v { return 1; }\n"
+        "    }\n"
+        "    return 0;\n"
+        "}\n"
+    );
+    assert not has_error_code(prog, "E1124") , (
+        "`v` is list[Tag]: the erasure is the emitter's, and demanding an "
+        f"annotation for an annotated operand would be a false accusation, got: {fmt_errors(
+            prog
+        )}"
+    );
+}
+
+
+# The negative control for the checker arm: an operand that carries its element
+# type answers `in` from its own layout and must never be refused. This is the
+# shape rider 1 of #8323 makes the norm, so a false positive here would refuse
+# most correctly-typed native code.
+test "checker: typed containers and strings are never refused" {
+    prog = check_na_inline(
+        "membership_typed_ok",
+        "def sub(s: str, w: str) -> int { if w in s { return 1; } return 0; }\n"
+        "def lst(w: str, l: list[str]) -> int { if w in l { return 1; } return 0; }\n"
+        "def dct(k: str, d: dict[str, int]) -> int {\n"
+        "    if k in d { return 1; }\n"
+        "    return 0;\n"
+        "}\n"
+        "def st(w: str, s: set[str]) -> int { if w not in s { return 1; } return 0; }\n"
+        "def tup(w: str, t: tuple[str, str]) -> int {\n"
+        "    if w in t { return 1; }\n"
+        "    return 0;\n"
+        "}\n"
+    );
+    assert not has_error_code(prog, "E1124") , (
+        f"typed containers must answer membership without a refusal, got: {fmt_errors(
+            prog
+        )}"
+    );
+}
+
+
 # ─────────────────────────────────────────────────────────────────────
 # Negative controls — supported features must NOT trigger E5090
 # ─────────────────────────────────────────────────────────────────────
