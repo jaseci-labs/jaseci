@@ -756,6 +756,40 @@ test "layer9: band5 nested class executes in ceval" {
     assert expect_int(ns["result"]) == 1;
 }
 
+# ---------------- Band 6 slice 1: try/except typed handler ----------------
+
+test "layer9: band6 try except typed matches oracle" {
+    src = (
+        "try:\n"
+            + "    1 // 0\n"
+            + "except ZeroDivisionError:\n"
+            + "    result = 99\n"
+    );
+    actual = product_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert isinstance(actual, PyCode);
+    act = actual as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.exceptiontable == exp.exceptiontable;
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: band6 try except typed executes in ceval" {
+    src = (
+        "try:\n"
+            + "    1 // 0\n"
+            + "except ZeroDivisionError:\n"
+            + "    result = 99\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 99;
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {

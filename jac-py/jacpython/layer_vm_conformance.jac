@@ -540,6 +540,36 @@ test "vm: RERAISE propagates comprehension cleanup failures" {
     );
 }
 
+# vm-opcode: OP_PUSH_EXC_INFO
+test "vm: PUSH_EXC_INFO enters typed except handler" {
+    assert_vm_value_matches_host(
+        "",
+        "try:\n    1 // 0\nexcept ZeroDivisionError:\n    result = 99\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_CHECK_EXC_MATCH
+test "vm: CHECK_EXC_MATCH filters exception type" {
+    assert_vm_value_matches_host(
+        "",
+        "try:\n    1 // 0\nexcept ZeroDivisionError:\n    result = 99\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_POP_EXCEPT
+test "vm: POP_EXCEPT exits except handler" {
+    assert_vm_value_matches_host(
+        "",
+        "try:\n    1 // 0\nexcept ZeroDivisionError:\n    result = 99\n",
+        "exec",
+        "result",
+    );
+}
+
 # vm-opcode: OP_IMPORT_NAME
 test "vm: IMPORT_NAME loads module" {
     assert_vm_value_matches_host("", "import os\nresult = os.name\n", "exec", "result");

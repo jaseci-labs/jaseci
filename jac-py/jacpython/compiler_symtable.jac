@@ -851,6 +851,23 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
             tr = s as Try;
             body = tr.body;
             orelse = tr.orelse;
+            hi = 0;
+            while hi < len(tr.handlers) {
+                h = tr.handlers[hi];
+                if h.type is not None {
+                    if not sym_visit_load_expr(b, h.type) {
+                        return False;
+                    }
+                }
+                bi = 0;
+                while bi < len(h.body) {
+                    if not sym_visit_stmt(b, h.body[bi]) {
+                        return False;
+                    }
+                    bi = bi + 1;
+                }
+                hi = hi + 1;
+            }
             fi = 0;
             while fi < len(tr.finalbody) {
                 if not sym_visit_stmt(b, tr.finalbody[fi]) {

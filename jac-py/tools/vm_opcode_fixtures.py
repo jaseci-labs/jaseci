@@ -97,6 +97,9 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "STORE_FAST",
     "STORE_FAST_LOAD_FAST",
     "RERAISE",
+    "PUSH_EXC_INFO",
+    "CHECK_EXC_MATCH",
+    "POP_EXCEPT",
     "IMPORT_NAME",
     "IMPORT_FROM",
     # Band 4 closures: cell/free var emission.
@@ -304,6 +307,18 @@ FIXTURES: tuple[VmFixture, ...] = (
         "RERAISE",
         "result = [x for x in y]\n",
         setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "PUSH_EXC_INFO",
+        "try:\n    1 // 0\nexcept ZeroDivisionError:\n    result = 99\n",
+    ),
+    VmFixture(
+        "CHECK_EXC_MATCH",
+        "try:\n    1 // 0\nexcept ZeroDivisionError:\n    result = 99\n",
+    ),
+    VmFixture(
+        "POP_EXCEPT",
+        "try:\n    1 // 0\nexcept ZeroDivisionError:\n    result = 99\n",
     ),
     VmFixture("IMPORT_NAME", "import os\nresult = os.name\n"),
     VmFixture("IMPORT_FROM", "from os import path\nresult = path.sep\n"),

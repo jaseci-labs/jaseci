@@ -79,6 +79,9 @@ import from opcode_meta {
     OP_STORE_FAST_STORE_FAST,
     OP_STORE_FAST_LOAD_FAST,
     OP_UNPACK_SEQUENCE,
+    OP_PUSH_EXC_INFO,
+    OP_POP_EXCEPT,
+    OP_CHECK_EXC_MATCH,
     OP_RERAISE,
     NB_ADD,
     NB_SUBTRACT,
@@ -200,6 +203,7 @@ import from ast_nodes {
     Raise,
     Try,
     TryStar,
+    ExceptHandler,
     Assert,
     Import,
     ImportFrom,
@@ -1622,6 +1626,10 @@ def stmt_loc(s: stmt) -> cloc {
         c = s as Continue;
         return nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
     }
+    if isinstance(s, Try) {
+        tr = s as Try;
+        return nloc(tr.lineno, tr.end_lineno, tr.col_offset, tr.end_col_offset);
+    }
     return loc(1, 1, 0, 0);
 }
 
@@ -2489,6 +2497,154 @@ def emit_module_return(g: cfg_builder, lc: cloc) {
     g.emit_op(OP_RETURN_VALUE, 0, lc);
 }
 
+def try_handler_span(h: ExceptHandler) -> cloc {
+    el = h.end_lineno;
+    if el is None {
+        el = h.lineno;
+    }
+    ec = h.end_col_offset;
+    if ec is None {
+        ec = h.col_offset;
+    }
+    return nloc(h.lineno, el, h.col_offset, ec);
+}
+
+# Lower try/except (typed handlers only; no else/finally/as/bare except).
+def visit_try(
+    g: cfg_builder,
+    t: Try,
+    more_code_follows: bool,
+    tail: list[stmt] | None = None,
+    tail_idx: int = 0,
+    tail_join: basicblock | None = None
+) -> stmt_cont {
+    tloc = stmt_loc(t);
+    if len(t.finalbody) > 0 {
+        codegen_fail(g, "NotImplementedError", "try/finally not supported");
+        return stmt_cont(loc=tloc);
+    }
+    if len(t.orelse) > 0 {
+        codegen_fail(g, "NotImplementedError", "try/else not supported");
+        return stmt_cont(loc=tloc);
+    }
+    if len(t.handlers) == 0 {
+        codegen_fail(g, "NotImplementedError", "try without except");
+        return stmt_cont(loc=tloc);
+    }
+    hi = 0;
+    while hi < len(t.handlers) {
+        h = t.handlers[hi];
+        if h.name is not None {
+            codegen_fail(g, "NotImplementedError", "except as not supported");
+            return stmt_cont(loc=tloc);
+        }
+        if h.type is None {
+            codegen_fail(g, "NotImplementedError", "bare except not supported");
+            return stmt_cont(loc=tloc);
+        }
+        hi = hi + 1;
+    }
+    protect_end = g.new_block();
+    handler_entry = g.new_block();
+    unwind = g.new_block();
+    reraise_blk = g.new_block();
+    g.emit_op(OP_NOP, 0, tloc);
+    protect_start = g.cur.id;
+    try_follows = more_code_follows;
+    if not try_follows and tail is not None and tail_idx < len(tail) {
+        try_follows = True;
+    }
+    body_cont = visit_stmts(g, t.body, try_follows, tail, tail_idx, tail_join);
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+    g.use(protect_end);
+    g.u.except_regions.append(
+        except_region(
+            start_block=protect_start,
+            end_block=protect_end.id,
+            handler_block=handler_entry.id,
+            stack_depth=1
+        )
+    );
+    after_try = g.new_block();
+    g.use(after_try);
+    if try_follows {
+        tail_more = False;
+        if tail is not None and tail_idx + 1 < len(tail) {
+            tail_more = exec_tail_emits_code(tail, tail_idx + 1);
+        }
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        if codegen_busy(g) {
+            return stmt_cont(loc=body_cont.loc);
+        }
+        if not tail_cont.terminated {
+            emit_module_return(g, tail_cont.loc);
+        }
+    } else {
+        emit_module_return(g, body_cont.loc);
+    }
+    noloc = no_loc();
+    g.use(handler_entry);
+    handler_region_start = handler_entry.id;
+    g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
+    hloc = try_handler_span(t.handlers[0]);
+    hi = 0;
+    while hi < len(t.handlers) {
+        h = t.handlers[hi];
+        hloc = try_handler_span(h);
+        visit_expr(g, h.type);
+        if codegen_busy(g) {
+            return stmt_cont(loc=tloc);
+        }
+        g.emit_op(OP_CHECK_EXC_MATCH, 0, hloc);
+        no_match = reraise_blk;
+        if hi < len(t.handlers) - 1 {
+            no_match = g.new_block();
+        }
+        g.emit_jump(OP_POP_JUMP_IF_FALSE, no_match.id, hloc);
+        g.emit_op(OP_POP_TOP, 0, hloc);
+        hbody = visit_stmts(g, h.body);
+        if codegen_busy(g) {
+            return stmt_cont(loc=tloc);
+        }
+        g.emit_op(OP_POP_EXCEPT, 0, hbody.loc);
+        emit_module_return(g, hbody.loc);
+        handler_region_end = g.new_block();
+        g.u.except_regions.append(
+            except_region(
+                start_block=handler_region_start,
+                end_block=handler_region_end.id,
+                handler_block=unwind.id,
+                stack_depth=2,
+                preserve_lasti=True
+            )
+        );
+        if hi < len(t.handlers) - 1 {
+            g.use(no_match);
+            handler_region_start = no_match.id;
+        }
+        hi = hi + 1;
+    }
+    g.use(reraise_blk);
+    g.emit_op(OP_RERAISE, 0, hloc);
+    reraise_end = g.new_block();
+    g.u.except_regions.append(
+        except_region(
+            start_block=reraise_blk.id,
+            end_block=reraise_end.id,
+            handler_block=unwind.id,
+            stack_depth=2,
+            preserve_lasti=True
+        )
+    );
+    g.use(unwind);
+    g.emit_op(OP_COPY, 3, noloc);
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    g.emit_op(OP_RERAISE, 1, noloc);
+    return stmt_cont(loc=tloc, terminated=True);
+}
+
 # Lower statements [from_idx..] in order. When tail/tail_idx are set, the suffix
 # starting at tail_idx is the enclosing construct's continuation. tail_join is an
 # optional shared join block for nested if/loop tails owned by an outer visitor.
@@ -3210,6 +3366,13 @@ def visit_stmt(
     }
     if isinstance(s, ImportFrom) {
         return visit_import_from(g, s as ImportFrom);
+    }
+    if isinstance(s, Try) {
+        t = tail;
+        if t is None {
+            t = [];
+        }
+        return visit_try(g, s as Try, more_code_follows, t, tail_idx, tail_join);
     }
     codegen_fail(
         g,
