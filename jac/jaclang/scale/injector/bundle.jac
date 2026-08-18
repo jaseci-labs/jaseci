@@ -196,7 +196,16 @@ def partition_bundle_sources(base: Path) -> tuple[list[Path], list[str]] {
             parent = parent.parent;
         }
     }
-    return (kept, sorted([tree for tree in pruned if tree not in shipped]));
+    return (
+        kept,
+        sorted(
+            [
+                tree
+                for tree in pruned
+                if tree not in shipped
+            ]
+        )
+    );
 }
 
 

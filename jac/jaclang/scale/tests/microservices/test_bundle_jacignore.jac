@@ -207,5 +207,7 @@ test "the reported set does not change which files ship" {
     (kept, _pruned) = partition_bundle_sources(base);
 
     assert sorted([p.relative_to(base).as_posix() for p in kept])
-        == sorted([p.relative_to(base).as_posix() for p in bundle_source_files(base)]) , "reporting is observation only";
+        == sorted(
+            [p.relative_to(base).as_posix() for p in bundle_source_files(base)]
+        ) , "reporting is observation only";
 }
