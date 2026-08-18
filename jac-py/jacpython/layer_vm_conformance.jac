@@ -570,6 +570,20 @@ test "vm: POP_EXCEPT exits except handler" {
     );
 }
 
+# vm-opcode: OP_RAISE_VARARGS
+test "vm: RAISE_VARARGS raises with message" {
+    setup = "";
+    body = "raise ValueError('bad')\n";
+    host_exc = host_raises(setup, body);
+    assert host_exc is not None;
+    ns: dict[str, PyObj] = {};
+    out = jac_run_oracle(setup, body, "exec", ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "ValueError";
+    assert err.exception.message == (host_exc[1] as str);
+}
+
 # vm-opcode: OP_IMPORT_NAME
 test "vm: IMPORT_NAME loads module" {
     assert_vm_value_matches_host("", "import os\nresult = os.name\n", "exec", "result");

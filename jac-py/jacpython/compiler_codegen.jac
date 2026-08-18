@@ -83,6 +83,7 @@ import from opcode_meta {
     OP_POP_EXCEPT,
     OP_CHECK_EXC_MATCH,
     OP_RERAISE,
+    OP_RAISE_VARARGS,
     NB_ADD,
     NB_SUBTRACT,
     NB_MULTIPLY,
@@ -2509,6 +2510,25 @@ def try_handler_span(h: ExceptHandler) -> cloc {
     return nloc(h.lineno, el, h.col_offset, ec);
 }
 
+# Lower raise (exc/cause forms; bare re-raise in handler context).
+def visit_raise_stmt(g: cfg_builder, r: Raise) -> stmt_cont {
+    rloc = nloc(r.lineno, r.end_lineno, r.col_offset, r.end_col_offset);
+    if r.cause is not None {
+        codegen_fail(g, "NotImplementedError", "raise from cause not supported");
+        return stmt_cont(loc=rloc);
+    }
+    if r.exc is not None {
+        visit_expr(g, r.exc);
+        if codegen_busy(g) {
+            return stmt_cont(loc=rloc);
+        }
+        g.emit_op(OP_RAISE_VARARGS, 1, rloc);
+        return stmt_cont(loc=rloc, terminated=True);
+    }
+    g.emit_op(OP_RAISE_VARARGS, 0, rloc);
+    return stmt_cont(loc=rloc, terminated=True);
+}
+
 # Lower try/except (typed handlers only; no else/finally/as/bare except).
 def visit_try(
     g: cfg_builder,
@@ -2608,8 +2628,10 @@ def visit_try(
         if codegen_busy(g) {
             return stmt_cont(loc=tloc);
         }
-        g.emit_op(OP_POP_EXCEPT, 0, hbody.loc);
-        emit_module_return(g, hbody.loc);
+        if not hbody.terminated {
+            g.emit_op(OP_POP_EXCEPT, 0, hbody.loc);
+            emit_module_return(g, hbody.loc);
+        }
         handler_region_end = g.new_block();
         g.u.except_regions.append(
             except_region(
@@ -3373,6 +3395,9 @@ def visit_stmt(
             t = [];
         }
         return visit_try(g, s as Try, more_code_follows, t, tail_idx, tail_join);
+    }
+    if isinstance(s, Raise) {
+        return visit_raise_stmt(g, s as Raise);
     }
     codegen_fail(
         g,

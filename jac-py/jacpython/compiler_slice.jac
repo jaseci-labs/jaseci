@@ -5,7 +5,7 @@
 #
 # Test harness only: may import host_oracle for expected PyCode bytes.
 
-import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error }
+import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error, PyError }
 import from ast_nodes {
     expr,
     stmt,
@@ -1412,4 +1412,60 @@ test "compiler_slice: band6 try except typed parsed executes in ceval" {
     out = exec_code(co, [], ns);
     assert not is_error(out);
     assert expect_int(ns["result"]) == 99;
+}
+
+# ---------------- Band 6 slice 2: raise ----------------
+
+test "compiler_slice: band6 raise parsed matches oracle co_code" {
+    src = "raise ValueError('bad')\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 raise parsed raises ValueError in ceval" {
+    src = "raise ValueError('bad')\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "ValueError";
+    assert err.exception.message == "bad";
+}
+
+test "compiler_slice: band6 try except re-raise parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+            + "    raise ValueError('x')\n"
+            + "except ValueError:\n"
+            + "    raise\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 try except re-raise parsed propagates in ceval" {
+    src = (
+        "try:\n"
+            + "    raise ValueError('x')\n"
+            + "except ValueError:\n"
+            + "    raise\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "ValueError";
+    assert err.exception.message == "x";
 }

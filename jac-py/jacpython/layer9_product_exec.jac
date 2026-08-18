@@ -790,6 +790,66 @@ test "layer9: band6 try except typed executes in ceval" {
     assert expect_int(ns["result"]) == 99;
 }
 
+# ---------------- Band 6 slice 2: raise ----------------
+
+test "layer9: band6 raise matches oracle" {
+    src = "raise ValueError('bad')\n";
+    actual = product_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert isinstance(actual, PyCode);
+    act = actual as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.exceptiontable == exp.exceptiontable;
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: band6 raise raises ValueError in ceval" {
+    src = "raise ValueError('bad')\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "ValueError";
+    assert err.exception.message == "bad";
+}
+
+test "layer9: band6 try except re-raise matches oracle" {
+    src = (
+        "try:\n"
+            + "    raise ValueError('x')\n"
+            + "except ValueError:\n"
+            + "    raise\n"
+    );
+    actual = product_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert isinstance(actual, PyCode);
+    act = actual as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.exceptiontable == exp.exceptiontable;
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: band6 try except re-raise propagates in ceval" {
+    src = (
+        "try:\n"
+            + "    raise ValueError('x')\n"
+            + "except ValueError:\n"
+            + "    raise\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "ValueError";
+    assert err.exception.message == "x";
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {
