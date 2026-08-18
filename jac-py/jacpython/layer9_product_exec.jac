@@ -17,7 +17,7 @@
 import from objects { PyObj, PyCode, PyInt, PyBool, expect_int, expect_str, is_error, PyError }
 import from product_compile { compile_source }
 import from host_oracle { host_compile_marshal }
-import from pyc_first { unmarshal, exec_code }
+import from pyc_first { unmarshal, exec_code, py_subscript }
 
 def oracle_eval(source: str, filename: str) -> PyObj {
     return unmarshal(host_compile_marshal(source, filename, "eval", 0));
@@ -1054,6 +1054,38 @@ test "layer9: band7 generator yield executes in ceval" {
     out = exec_code(co as PyCode, [], ns);
     assert not is_error(out);
     assert expect_int(ns["result"]) == 3;
+}
+
+# ---------------- Band 7 slice 2: yield from ----------------
+
+test "layer9: band7 yield from matches oracle" {
+    src = (
+        "def outer():\n"
+            + "    yield from inner()\n"
+            + "def inner():\n"
+            + "    yield 1\n"
+            + "    yield 2\n"
+            + "result = list(outer())\n"
+    );
+    assert_matches_oracle(src);
+}
+
+test "layer9: band7 yield from executes in ceval" {
+    src = (
+        "def outer():\n"
+            + "    yield from inner()\n"
+            + "def inner():\n"
+            + "    yield 1\n"
+            + "    yield 2\n"
+            + "result = list(outer())\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    lst = ns["result"];
+    assert expect_int(py_subscript(lst, PyInt(t="int", val=0))) == 1;
+    assert expect_int(py_subscript(lst, PyInt(t="int", val=1))) == 2;
 }
 
 # ---------------- VM execution ----------------

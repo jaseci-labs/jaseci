@@ -448,6 +448,9 @@ def calculate_stackdepth(u: unverified_cfg) -> tuple[int, compiler_diagnostic | 
             ri = ri + 1;
             continue;
         }
+        if reg.stack_depth > maxdepth {
+            maxdepth = reg.stack_depth;
+        }
         (maxdepth, ed) = walk_block_maxdepth(hb, reg.stack_depth, maxdepth);
         if ed is not None {
             return (0, ed);

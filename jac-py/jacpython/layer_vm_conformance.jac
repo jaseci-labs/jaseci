@@ -652,6 +652,41 @@ test "vm: CALL_INTRINSIC_1 in generator StopIteration handler" {
     assert_vm_value_matches_host(setup, body, "exec", "result");
 }
 
+# vm-opcode: OP_GET_YIELD_FROM_ITER
+test "vm: GET_YIELD_FROM_ITER delegates sub-generator" {
+    setup = "";
+    body = "def outer():\n    yield from inner()\ndef inner():\n    yield 1\n    yield 2\nresult = list(outer())\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_SEND
+test "vm: SEND drives yield-from delegation" {
+    setup = "";
+    body = "def outer():\n    yield from inner()\ndef inner():\n    yield 1\n    yield 2\nresult = list(outer())\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_END_SEND
+test "vm: END_SEND completes yield-from delegation" {
+    setup = "";
+    body = "def outer():\n    yield from inner()\ndef inner():\n    yield 1\n    yield 2\nresult = list(outer())\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_CLEANUP_THROW
+test "vm: CLEANUP_THROW in yield-from exception table" {
+    setup = "";
+    body = "def outer():\n    yield from inner()\ndef inner():\n    yield 1\n    yield 2\nresult = list(outer())\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_JUMP_BACKWARD_NO_INTERRUPT
+test "vm: JUMP_BACKWARD_NO_INTERRUPT in yield-from SEND loop" {
+    setup = "";
+    body = "def outer():\n    yield from inner()\ndef inner():\n    yield 1\n    yield 2\nresult = list(outer())\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
 # ---------------- semantic categories ----------------
 
 test "vm: namespace mutation matches host for multi-assign" {

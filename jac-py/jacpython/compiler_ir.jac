@@ -87,7 +87,9 @@ obj cfg_builder {
         cur: basicblock,
         sym_top: sym_block | None = None,
         private: str | None = None,
-        loop_stack: list[loop_frame] = [];
+        loop_stack: list[loop_frame] = [],
+        # Suspendable function (generator/coroutine) PEP 479 protect start block id.
+        generator_protect_start: int = -1;
 
     def emit(ins: cinstr) {
         self.cur.instrs.append(ins);
@@ -206,7 +208,9 @@ obj unverified_cfg {
         # CPython keeps one dead small-int const (first 0..255 literal seen).
         dead_small_int_const: bool = False,
         # Set after MAKE_FUNCTION; suppresses dead small-int consts on call args.
-        nested_code_emitted: bool = False;
+        nested_code_emitted: bool = False,
+        # except_region indices whose handler_block is the PEP 479 handler (filled at end).
+        pending_pep479_regions: list[int] = [];
 
     def add_block -> basicblock {
         b = basicblock(id=self.next_block_id, instrs=[]);

@@ -40,7 +40,7 @@ import from compiler_validate { validate_module_body }
 import from compiler_symtable { build_module_symtable }
 import from compiler_diagnostics { compiler_diag_kind, compiler_diag_message }
 import from host_oracle { host_compile_marshal }
-import from pyc_first { unmarshal, exec_code }
+import from pyc_first { unmarshal, exec_code, py_subscript }
 
 def oracle_eval(source: str, filename: str) -> PyObj {
     return unmarshal(host_compile_marshal(source, filename, "eval", 0));
@@ -1673,4 +1673,51 @@ test "compiler_slice: band7 generator yield parsed executes in ceval" {
     out = exec_code(co, [], ns);
     assert not is_error(out);
     assert expect_int(ns["result"]) == 3;
+}
+
+# ---------------- Band 7 slice 2: yield from ----------------
+
+test "compiler_slice: band7 yield from parsed matches oracle nested co_code" {
+    src = (
+        "def outer():\n"
+            + "    yield from inner()\n"
+            + "def inner():\n"
+            + "    yield 1\n"
+            + "    yield 2\n"
+            + "result = list(outer())\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    outer_fn = nested_code_by_name(actual, "outer");
+    exp_outer = nested_code_by_name(exp, "outer");
+    inner_fn = nested_code_by_name(actual, "inner");
+    exp_inner = nested_code_by_name(exp, "inner");
+    assert outer_fn.co_code == exp_outer.co_code;
+    assert outer_fn.exceptiontable == exp_outer.exceptiontable;
+    assert outer_fn.stacksize == exp_outer.stacksize;
+    assert outer_fn.flags == exp_outer.flags;
+    assert inner_fn.co_code == exp_inner.co_code;
+    assert inner_fn.exceptiontable == exp_inner.exceptiontable;
+    assert inner_fn.stacksize == exp_inner.stacksize;
+    assert inner_fn.flags == exp_inner.flags;
+}
+
+test "compiler_slice: band7 yield from parsed executes in ceval" {
+    src = (
+        "def outer():\n"
+            + "    yield from inner()\n"
+            + "def inner():\n"
+            + "    yield 1\n"
+            + "    yield 2\n"
+            + "result = list(outer())\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    lst = ns["result"];
+    assert expect_int(py_subscript(lst, PyInt(t="int", val=0))) == 1;
+    assert expect_int(py_subscript(lst, PyInt(t="int", val=1))) == 2;
 }

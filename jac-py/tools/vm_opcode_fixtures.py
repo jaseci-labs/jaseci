@@ -122,6 +122,11 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "RETURN_GENERATOR",
     "YIELD_VALUE",
     "CALL_INTRINSIC_1",
+    "GET_YIELD_FROM_ITER",
+    "SEND",
+    "END_SEND",
+    "CLEANUP_THROW",
+    "JUMP_BACKWARD_NO_INTERRUPT",
 )
 
 # CPython 3.14 may not emit JUMP_FORWARD in normal compilation; jacpython's
@@ -384,6 +389,51 @@ FIXTURES: tuple[VmFixture, ...] = (
         "    yield 2\n"
         "g = gen()\n"
         "result = next(g) + next(g)\n",
+    ),
+    VmFixture(
+        "GET_YIELD_FROM_ITER",
+        "def outer():\n"
+        "    yield from inner()\n"
+        "def inner():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "result = list(outer())\n",
+    ),
+    VmFixture(
+        "SEND",
+        "def outer():\n"
+        "    yield from inner()\n"
+        "def inner():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "result = list(outer())\n",
+    ),
+    VmFixture(
+        "END_SEND",
+        "def outer():\n"
+        "    yield from inner()\n"
+        "def inner():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "result = list(outer())\n",
+    ),
+    VmFixture(
+        "CLEANUP_THROW",
+        "def outer():\n"
+        "    yield from inner()\n"
+        "def inner():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "result = list(outer())\n",
+    ),
+    VmFixture(
+        "JUMP_BACKWARD_NO_INTERRUPT",
+        "def outer():\n"
+        "    yield from inner()\n"
+        "def inner():\n"
+        "    yield 1\n"
+        "    yield 2\n"
+        "result = list(outer())\n",
     ),
 )
 

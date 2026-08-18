@@ -19,6 +19,12 @@ import from opcode_meta {
     OP_RETURN_GENERATOR,
     OP_RETURN_VALUE,
     OP_YIELD_VALUE,
+    OP_GET_YIELD_FROM_ITER,
+    OP_GET_AWAITABLE,
+    OP_SEND,
+    OP_END_SEND,
+    OP_CLEANUP_THROW,
+    OP_JUMP_BACKWARD_NO_INTERRUPT,
     OP_CALL_INTRINSIC_1,
     OP_LOAD_CONST,
     OP_LOAD_SMALL_INT,
@@ -378,9 +384,10 @@ def localsplus_index(g: cfg_builder, name: str) -> int {
 }
 
 # CPython emits MAKE_CELL(s), optional COPY_FREE_VARS, then RESUME. Generators
-# prepend RETURN_GENERATOR; POP_TOP before RESUME (protect region starts here).
+# and coroutines prepend RETURN_GENERATOR; POP_TOP before RESUME (protect region
+# starts at the following block).
 def emit_function_prologue(
-    g: cfg_builder, sym_fn: sym_block, firstlineno: int, is_generator: bool = False
+    g: cfg_builder, sym_fn: sym_block, firstlineno: int, is_suspendable: bool = False
 ) -> int {
     u = g.u;
     u.cellvars = cellvars_from_sym(sym_fn);
@@ -396,36 +403,111 @@ def emit_function_prologue(
         g.emit_op(OP_COPY_FREE_VARS, len(u.freevars), ploc);
     }
     protect_start = -1;
-    if is_generator {
+    g.generator_protect_start = -1;
+    if is_suspendable {
         g.emit_op(OP_RETURN_GENERATOR, 0, ploc);
         g.emit_op(OP_POP_TOP, 0, ploc);
         resume_blk = g.new_block();
         g.use(resume_blk);
         protect_start = resume_blk.id;
+        g.generator_protect_start = protect_start;
     }
     g.emit_op(OP_RESUME, 0, ploc);
     return protect_start;
 }
 
-# Generator functions: PEP 479 StopIteration handler at end of co_code.
+# Suspendable functions: PEP 479 StopIteration handler at end of co_code.
 def emit_generator_except_handler(g: cfg_builder, protect_start: int) {
     if protect_start < 0 {
         return;
     }
-    handler = g.new_block();
     noloc = no_loc();
+    handler = g.new_block();
     g.use(handler);
     g.emit_op(OP_CALL_INTRINSIC_1, 3, noloc);
     g.emit_op(OP_RERAISE, 1, noloc);
-    g.u.except_regions.append(
-        except_region(
-            start_block=protect_start,
-            end_block=handler.id,
-            handler_block=handler.id,
-            stack_depth=2,
-            preserve_lasti=True
-        )
-    );
+    if len(g.u.pending_pep479_regions) == 0 {
+        g.u.except_regions.append(
+            except_region(
+                start_block=protect_start,
+                end_block=handler.id,
+                handler_block=handler.id,
+                stack_depth=2,
+                preserve_lasti=True
+            )
+        );
+    }
+    pi = 0;
+    while pi < len(g.u.pending_pep479_regions) {
+        ri = g.u.pending_pep479_regions[pi];
+        g.u.except_regions[ri].handler_block = handler.id;
+        pi = pi + 1;
+    }
+}
+
+# GET_YIELD_FROM_ITER / GET_AWAITABLE + SEND loop shared by yield-from and await.
+def emit_send_delegation_loop(
+    g: cfg_builder,
+    get_iter_op: int,
+    get_iter_arg: int,
+    resume_after_yield_arg: int,
+    yloc: cloc
+) {
+    g.emit_op(get_iter_op, get_iter_arg, yloc);
+    none_idx = g.u.add_const(py_none());
+    g.emit_op(OP_LOAD_CONST, none_idx, yloc);
+    send_blk = g.new_block();
+    yield_blk = g.new_block();
+    after_resume_blk = g.new_block();
+    end_send_blk = g.new_block();
+    cleanup_throw_blk = g.new_block();
+    cleanup_jump_blk = g.new_block();
+    g.use(send_blk);
+    g.emit_jump(OP_SEND, end_send_blk.id, yloc);
+    g.use(yield_blk);
+    g.emit_op(OP_YIELD_VALUE, 1, yloc);
+    g.use(after_resume_blk);
+    g.emit_op(OP_RESUME, resume_after_yield_arg, yloc);
+    g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, send_blk.id, yloc);
+    g.use(end_send_blk);
+    g.emit_op(OP_END_SEND, 0, yloc);
+    g.use(cleanup_throw_blk);
+    g.emit_op(OP_CLEANUP_THROW, 0, yloc);
+    g.use(cleanup_jump_blk);
+    g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, end_send_blk.id, yloc);
+    g.use(end_send_blk);
+    protect = g.generator_protect_start;
+    if protect >= 0 {
+        g.u.except_regions.append(
+            except_region(
+                start_block=protect,
+                end_block=yield_blk.id,
+                handler_block=-1,
+                stack_depth=2,
+                preserve_lasti=True
+            )
+        );
+        g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
+        g.u.except_regions.append(
+            except_region(
+                start_block=yield_blk.id,
+                end_block=after_resume_blk.id,
+                handler_block=cleanup_throw_blk.id,
+                stack_depth=3,
+                preserve_lasti=False
+            )
+        );
+        g.u.except_regions.append(
+            except_region(
+                start_block=after_resume_blk.id,
+                end_block=cleanup_jump_blk.id,
+                handler_block=-1,
+                stack_depth=2,
+                preserve_lasti=True
+            )
+        );
+        g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
+    }
 }
 
 # Fold default expressions when every value is a Constant (CPython LOAD_CONST tuple).
@@ -918,6 +1000,19 @@ def function_def_loc(fd: FunctionDef) -> cloc {
         end_col = last.end_col_offset;
     }
     return nloc(fd.lineno, end_ln, fd.col_offset, end_col);
+}
+
+def async_function_def_loc(afd: AsyncFunctionDef) -> cloc {
+    last = afd.body[len(afd.body) - 1];
+    end_ln = last.lineno;
+    end_col = last.col_offset;
+    if last.end_lineno is not None {
+        end_ln = last.end_lineno;
+    }
+    if last.end_col_offset is not None {
+        end_col = last.end_col_offset;
+    }
+    return nloc(afd.lineno, end_ln, afd.col_offset, end_col);
 }
 
 # Operator AST node -> NB_* binary-op id (opcode.h).
@@ -1515,11 +1610,25 @@ def visit_expr(
         return None;
     }
     if isinstance(e, YieldFrom) {
-        codegen_fail(g, "NotImplementedError", "yield from not supported");
+        yf = e as YieldFrom;
+        yloc = nloc(yf.lineno, yf.end_lineno, yf.col_offset, yf.end_col_offset);
+        visit_expr(g, yf.value);
+        if codegen_busy(g) {
+            return None;
+        }
+        emit_send_delegation_loop(
+            g, OP_GET_YIELD_FROM_ITER, 0, 2, yloc
+        );
         return None;
     }
     if isinstance(e, Await) {
-        codegen_fail(g, "NotImplementedError", "await not supported");
+        a = e as Await;
+        aloc = nloc(a.lineno, a.end_lineno, a.col_offset, a.end_col_offset);
+        visit_expr(g, a.value);
+        if codegen_busy(g) {
+            return None;
+        }
+        emit_send_delegation_loop(g, OP_GET_AWAITABLE, 0, 3, aloc);
         return None;
     }
     codegen_fail(
@@ -3731,6 +3840,9 @@ def visit_stmt(
     if isinstance(s, FunctionDef) {
         return visit_function_def(g, s as FunctionDef);
     }
+    if isinstance(s, AsyncFunctionDef) {
+        return visit_async_function_def(g, s as AsyncFunctionDef);
+    }
     if isinstance(s, ClassDef) {
         return visit_class_def(g, s as ClassDef);
     }
@@ -4021,7 +4133,9 @@ def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
     if decorators is None {
         decorators = [];
     }
-    u_fn = compile_function_cfg(fd, g.u.filename, sym_fn, g.private);
+    u_fn = compile_fn_cfg(
+        fd.name, fd.args, fd.body, fd.lineno, g.u.filename, sym_fn, g.private
+    );
     if u_fn.diag is not None {
         g.u.diag = u_fn.diag;
         return stmt_cont(loc=floc);
@@ -4056,6 +4170,64 @@ def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
         g.emit_op(OP_STORE_FAST, fi, floc);
     } else {
         nidx = g.u.add_name(fd.name);
+        g.emit_op(OP_STORE_NAME, nidx, floc);
+    }
+    return stmt_cont(loc=floc);
+}
+
+# Lower `async def name(...): ...` at module/class scope into nested PyCode + MAKE_FUNCTION.
+def visit_async_function_def(g: cfg_builder, afd: AsyncFunctionDef) -> stmt_cont {
+    floc = async_function_def_loc(afd);
+    if g.sym_top is None {
+        codegen_fail(g, "SystemError", "function definition without symtable");
+        return stmt_cont(loc=floc);
+    }
+    sym_fn = sym_function_child(g.sym_top, afd.name);
+    if sym_fn is None {
+        codegen_fail(g, "SystemError", "missing symtable for function " + afd.name);
+        return stmt_cont(loc=floc);
+    }
+    decorators = afd.decorator_list;
+    if decorators is None {
+        decorators = [];
+    }
+    u_fn = compile_fn_cfg(
+        afd.name, afd.args, afd.body, afd.lineno, g.u.filename, sym_fn, g.private
+    );
+    if u_fn.diag is not None {
+        g.u.diag = u_fn.diag;
+        return stmt_cont(loc=floc);
+    }
+    cfg_fn = verify_cfg(u_fn);
+    if cfg_fn.diag is not None {
+        g.u.diag = cfg_fn.diag;
+        return stmt_cont(loc=floc);
+    }
+    co = assemble(cfg_fn);
+    g.u.nested_code_emitted = True;
+    di = 0;
+    while di < len(decorators) {
+        visit_expr(g, decorators[di]);
+        di = di + 1;
+    }
+    emit_make_function_with_closure(g, sym_fn, co, floc, afd.args);
+    ri = len(decorators) - 1;
+    while ri >= 0 {
+        dec = decorators[ri];
+        g.emit_op(OP_CALL, 0, expr_loc(dec));
+        ri = ri - 1;
+    }
+    if g.sym_top is not None and g.sym_top.block_type == "function" {
+        fi = fast_local_index(g, afd.name);
+        if fi < 0 {
+            codegen_fail(
+                g, "SystemError", "missing fast local for nested function " + afd.name
+            );
+            return stmt_cont(loc=floc);
+        }
+        g.emit_op(OP_STORE_FAST, fi, floc);
+    } else {
+        nidx = g.u.add_name(afd.name);
         g.emit_op(OP_STORE_NAME, nidx, floc);
     }
     return stmt_cont(loc=floc);
@@ -4118,23 +4290,29 @@ def compile_lambda_cfg(
     return u;
 }
 
-# Build unverified_cfg for a function body (nested code object before assembly).
-def compile_function_cfg(
-    fd: FunctionDef, filename: str, sym_fn: sym_block, private: str | None = None
+# Build unverified_cfg for a function/async body (nested code object before assembly).
+def compile_fn_cfg(
+    name: str,
+    args: arguments,
+    body: list[stmt],
+    lineno: int,
+    filename: str,
+    sym_fn: sym_block,
+    private: str | None = None
 ) -> unverified_cfg {
-    (argcount, posonly, kwonly) = function_argcounts(fd.args);
+    (argcount, posonly, kwonly) = function_argcounts(args);
     u = unverified_cfg(
         filename=filename,
-        name=fd.name,
-        qualname=fd.name,
-        firstlineno=fd.lineno
+        name=name,
+        qualname=name,
+        firstlineno=lineno
     );
     u.argcount = argcount;
     u.posonlyargcount = posonly;
     u.kwonlyargcount = kwonly;
-    is_gen = sym_fn.generator;
-    u.flags = function_code_flags(fd.args);
-    if is_gen {
+    is_suspendable = sym_fn.generator or sym_fn.coroutine;
+    u.flags = function_code_flags(args);
+    if sym_fn.generator {
         u.flags = u.flags | CO_GENERATOR;
     }
     if sym_fn.coroutine {
@@ -4143,14 +4321,14 @@ def compile_function_cfg(
     u.varnames = fast_varnames_from_sym(sym_fn);
     entry = u.add_block();
     g = new_cfg_builder(u, entry, sym_fn, private);
-    protect_start = emit_function_prologue(g, sym_fn, fd.lineno, is_gen);
-    last = loc(0, fd.lineno, 0, 0);
+    protect_start = emit_function_prologue(g, sym_fn, lineno, is_suspendable);
+    last = loc(0, lineno, 0, 0);
     terminated = False;
     bi = 0;
-    while bi < len(fd.body) {
-        s = fd.body[bi];
+    while bi < len(body) {
+        s = body[bi];
         cont = visit_stmt(
-            g, s, exec_tail_emits_code(fd.body, bi + 1), fd.body, bi + 1
+            g, s, exec_tail_emits_code(body, bi + 1), body, bi + 1
         );
         last = cont.loc;
         if cont.terminated {
@@ -4170,10 +4348,19 @@ def compile_function_cfg(
         g.emit_op(OP_LOAD_CONST, none_idx, last);
         g.emit_op(OP_RETURN_VALUE, 0, last);
     }
-    if is_gen {
+    if is_suspendable {
         emit_generator_except_handler(g, protect_start);
     }
     return u;
+}
+
+# Build unverified_cfg for a `def` body (nested code object before assembly).
+def compile_function_cfg(
+    fd: FunctionDef, filename: str, sym_fn: sym_block, private: str | None = None
+) -> unverified_cfg {
+    return compile_fn_cfg(
+        fd.name, fd.args, fd.body, fd.lineno, filename, sym_fn, private
+    );
 }
 
 # Build a unverified_cfg for an exec-mode module body. Emits RESUME (module scope:
