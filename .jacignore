@@ -463,12 +463,8 @@ project.impl.jac
 pyb_interop.impl.jac
 project.jac
 prometheus_metrics.jac
-pyast_gen_pass.impl.jac
-pyast_gen_pass.jac
 pyast_load_pass.impl.jac
 pyast_load_pass.jac
-pyjac_ast_link_pass.impl.jac
-pyjac_ast_link_pass.jac
 refcount.impl.jac
 registry.impl.jac
 registry.jac

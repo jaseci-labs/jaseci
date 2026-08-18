@@ -1,4 +1,3 @@
-import from typing { Any }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { GATEWAY_NAME }
 import from jaclang.scale.runtime.cli._narrow {
     bget,
@@ -18,7 +17,7 @@ obj Diagnostic {
 }
 
 
-def _cpu_to_millicores(val: Any) -> int | None {
+def _cpu_to_millicores(val: any) -> int | None {
     if val is None {
         return None;
     }
@@ -37,7 +36,7 @@ def _cpu_to_millicores(val: Any) -> int | None {
 }
 
 
-def _mem_to_bytes(val: Any) -> int | None {
+def _mem_to_bytes(val: any) -> int | None {
     if val is None {
         return None;
     }
@@ -73,9 +72,9 @@ def _mem_to_bytes(val: Any) -> int | None {
 
 
 obj PlanValidator {
-    has bundle: Any,
-        ms_cfg: Any,
-        svc_configs: Any;
+    has bundle: any,
+        ms_cfg: any,
+        svc_configs: any;
 
     def run -> list[Diagnostic] {
         out: list[Diagnostic] = [];
@@ -171,7 +170,7 @@ obj PlanValidator {
     }
 
     def _check_hpa(
-        svc_name: str, svc_cfg: Any, deployment: Any, out: list[Diagnostic]
+        svc_name: str, svc_cfg: any, deployment: any, out: list[Diagnostic]
     ) {
         hpa = dget(svc_cfg, "hpa");
         if not bget(hpa, "enabled", True) {
@@ -246,7 +245,7 @@ obj PlanValidator {
     }
 
     def _check_pdb(
-        svc_name: str, svc_cfg: Any, deployment: Any, out: list[Diagnostic]
+        svc_name: str, svc_cfg: any, deployment: any, out: list[Diagnostic]
     ) {
         pdb_cfg = dget(svc_cfg, "pdb");
         if not bget(pdb_cfg, "enabled", True) {
@@ -255,6 +254,24 @@ obj PlanValidator {
 
         max_un = iget(pdb_cfg, "max_unavailable", 1);
         replicas = iget(dget(deployment, "spec"), "replicas", 1);
+        hpa_cfg = dget(svc_cfg, "hpa");
+        floor = iget(hpa_cfg, "min", 1) if bget(hpa_cfg, "enabled", True) else replicas;
+        has_min = iget(pdb_cfg, "min_available", 0) > 0;
+        if pdb_cfg and (not has_min) and max_un >= floor {
+            out.append(
+                Diagnostic(
+                    severity="warn",
+                    service=svc_name,
+                    message=(
+                        f"pdb.max_unavailable={max_un} at a replica floor of "
+                        f"{floor} permits evicting every replica, so no "
+                        "PodDisruptionBudget is emitted and a node drain takes "
+                        "this service fully down. Raise hpa.min, or set "
+                        "pdb.min_available."
+                    )
+                )
+            );
+        }
         if max_un < 1 and replicas <= 1 {
             out.append(
                 Diagnostic(
@@ -270,7 +287,7 @@ obj PlanValidator {
         }
     }
 
-    def _check_resources(svc_name: str, deployment: Any, out: list[Diagnostic]) {
+    def _check_resources(svc_name: str, deployment: any, out: list[Diagnostic]) {
         (cpu_req, cpu_lim, mem_req, mem_lim) = effective_resources(deployment);
         cpu_req_m = _cpu_to_millicores(cpu_req);
         cpu_lim_m = _cpu_to_millicores(cpu_lim);
@@ -356,7 +373,7 @@ obj PlanValidator {
         }
     }
 
-    def _check_image(svc_name: str, deployment: Any, out: list[Diagnostic]) {
+    def _check_image(svc_name: str, deployment: any, out: list[Diagnostic]) {
         for c in lget(pod_spec(deployment), "containers") {
             if isinstance(c, dict) and c.get("image") {
                 return;

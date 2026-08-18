@@ -83,6 +83,139 @@ impl NaIRGenPass._vtable_candidates(names: list[str]) -> list[ir.GlobalVariable]
     return out;
 }
 
+impl NaIRGenPass._isinstance_needs_class_name(names: list[str]) -> bool {
+    """Is some class that answers `True` for these names missing a vtable?
+
+    The vtable-pointer compare can only see classes whose layout carries a
+    vtable slot, and a class earns that slot from facts its OWN module can see:
+    it has a base, something there subclasses it, or something there names it in
+    an `isinstance`. A flat archetype an importer is the first to test satisfies
+    none of those, so it carries no slot -- and then the pointer compare has
+    nothing to compare against (the site demotes) or, once a consumer-side
+    subclass puts a vtable-carrying class in the candidate set, reads the
+    instance's first field as if it were a vtable pointer and answers from
+    garbage. Either way the answer has to come from the class-name identity
+    every instance carries instead.
+    """;
+    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+
+    _reach = self._vtable_less_reach;
+    if _reach is None {
+        reg = get_layout_registry(self.ir_in, self.prog);
+        _reach = set();
+        for cand in reg.mro_order {
+            if self._arch_has_vtable(cand) {
+                continue;
+            }
+            for step in self._mro_of(cand) {
+                _reach.add(step);
+            }
+        }
+        self._vtable_less_reach = _reach;
+    }
+    for name in names {
+        if name in _reach {
+            return True;
+        }
+    }
+    return False;
+}
+
+impl NaIRGenPass._isinstance_unprovable_class(
+    names: list[str], operand_arch: (str | None)
+) -> (str | None) {
+    """A class this operand could be whose MRO is too short to decide these names.
+
+    A class that subclasses an imported one is linearized by its own module,
+    which reaches the base's name but not the base's own bases -- those live in
+    a registry that is only merged in later. The recorded MRO then stops one
+    link short, and every ancestor past that link silently drops out of the
+    hierarchy. Answering from those facts is how `isinstance` came to report
+    `False` for a base a class genuinely derives from, so a site whose targets
+    fall in the missing span refuses instead.
+
+    A short chain elsewhere in the program is only this site's problem if the
+    operand could actually hold one: a statically typed operand narrows the
+    candidates to itself and its subclasses, and only an erased one has to
+    answer for every class. That narrowing walks the candidate's chain link by
+    link rather than reading its recorded MRO, because the recorded MRO is the
+    very thing that is short -- reading it would drop a candidate precisely
+    when the ancestor it omits is the operand's declared type, which is the
+    case that most needs the refusal. Returns the class whose MRO is short, or
+    `None` when every chain this operand could take is whole.
+    """;
+    import from jaclang.compiler.passes.main.layout_pass { get_layout_registry }
+
+    _missing = self._short_mro_reach;
+    if _missing is None {
+        reg = get_layout_registry(self.ir_in, self.prog);
+        _missing = {};
+        for cand in reg.mro_order {
+            recorded = self._mro_of(cand);
+            for step in recorded {
+                for anc in self._mro_of(step) {
+                    if anc in recorded {
+                        continue;
+                    }
+                    _short_of = _missing.get(anc);
+                    if _short_of is None {
+                        _missing[anc] = [cand];
+                    } elif cand not in _short_of {
+                        _short_of.append(cand);
+                    }
+                }
+            }
+        }
+        self._short_mro_reach = _missing;
+    }
+    for name in names {
+        for cand in (_missing.get(name) or []) {
+            if operand_arch is None {
+                return cand;
+            }
+            for step in self._mro_of(cand) {
+                if operand_arch in self._mro_of(step) {
+                    return cand;
+                }
+            }
+        }
+    }
+    return None;
+}
+
+impl NaIRGenPass._isinstance_class_name_hit(
+    obj_ptr: ir.Value, names: list[str]
+) -> (ir.Value | None) {
+    """Does the object's runtime class name answer for any of these names?
+
+    Every archetype instantiation stamps its class name into the allocation
+    header, so this identity survives the module boundary the vtable does not:
+    the name is the same string whichever unit allocated the object. `__jac_isa`
+    matches it against the program-wide `(class, ancestor)` table, whose rows
+    come from the same merged `mro_order` that
+    `_register_imported_hierarchy` fills, so an imported base matches through an
+    imported MRO without a second identity scheme. `None` when no header is
+    around to read -- a headerless build keeps the site loud rather than
+    guessing.
+    """;
+    if self._emit_runtime_class_name_fn() is None {
+        return None;
+    }
+    cls_id = self._codegen_runtime_class_name(obj_ptr);
+    if cls_id is None {
+        return None;
+    }
+    isa_fn = self._emit_isa_fn();
+    hit: (ir.Value | None) = None;
+    for name in names {
+        one = self.builder.call(
+            isa_fn, [cls_id, self._emit_class_name_const(name)], name="isinst.nm.res"
+        );
+        hit = one if hit is None else self.builder.or_(hit, one, name="isinst.nm.or");
+    }
+    return hit;
+}
+
 impl NaIRGenPass._codegen_virtual_call(
     obj_val: ir.Value, method_name: str, args: list[ir.Value], obj_type_name: str
 ) -> (ir.Value | None) {

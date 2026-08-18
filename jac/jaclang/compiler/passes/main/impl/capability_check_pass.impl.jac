@@ -95,8 +95,8 @@ glob JS_GLOBALS: dict[str, str] = {
      );
 
 
-impl classify_native_import(item: UniNode) -> tuple {
-    import from jaclang.jac0core.codeinfo { native_comptime_import_names }
+impl classify_native_import(item: UniNode) -> tuple[((str | None), bool)] {
+    import from jaclang.jac0core.codeinfo { native_erased_import_names }
     mod_name: (str | None) = None;
     if isinstance(item, ModulePath) and item.path {
         parts = [];
@@ -110,7 +110,7 @@ impl classify_native_import(item: UniNode) -> tuple {
         if _from_loc is not None {
             mod_name = _from_loc.dot_path_str;
             if isinstance(item.name, Name)
-                and native_comptime_import_names(mod_name, [item.name.value]) {
+                and native_erased_import_names(mod_name, [item.name.value]) {
                 return (mod_name, True);
             }
         }
@@ -171,9 +171,9 @@ impl node_within(name_nd: UniNode, top: (UniNode | None)) -> bool {
 }
 
 impl base_expr_is_erased(base: UniNode) -> bool {
-    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES }
     _tail: UniNode = base.right if isinstance(base, AtomTrailer) else base;
-    return isinstance(_tail, Name) and _tail.value in NATIVE_COMPTIME_BASES;
+    return isinstance(_tail, Name) and _tail.value in NATIVE_ERASED_BASES;
 }
 
 impl name_in_type_position(name_nd: UniNode) -> bool {
@@ -202,7 +202,8 @@ impl name_in_type_position(name_nd: UniNode) -> bool {
 
 impl static_fstring_spec_text(spec: UniNode) -> (str | None) {
     if isinstance(spec, String) {
-        return spec.lit_value;
+        _lit = spec.lit_value;
+        return _lit if isinstance(_lit, str) else None;
     }
     if isinstance(spec, MultiString) {
         parts: list[str] = [];
@@ -210,7 +211,11 @@ impl static_fstring_spec_text(spec: UniNode) -> (str | None) {
             if not isinstance(s, String) {
                 return None;
             }
-            parts.append(s.lit_value);
+            _slit = s.lit_value;
+            if not isinstance(_slit, str) {
+                return None;
+            }
+            parts.append(_slit);
         }
         return "".join(parts);
     }
@@ -220,7 +225,11 @@ impl static_fstring_spec_text(spec: UniNode) -> (str | None) {
             if not isinstance(p, String) {
                 return None;
             }
-            parts2.append(p.lit_value);
+            _plit = p.lit_value;
+            if not isinstance(_plit, str) {
+                return None;
+            }
+            parts2.append(_plit);
         }
         return "".join(parts2);
     }
@@ -247,14 +256,15 @@ impl call_has_kwargs_sink(call: FuncCall) -> bool {
 }
 
 
-impl native_capability_violations(mod: Module) -> list {
-    import from jaclang.jac0core.passes.module_codegen_pass { ModuleCodegenPass }
+impl native_capability_violations(
+    mod: Module
+) -> list[tuple[(UniNode, str, str, (str | None))]] {
     import from jaclang.jac0core.constant { CodeContext, ExprCtx, Tokens as Tok }
-    out: list = [];
+    out: list[tuple[(UniNode, str, str, (str | None))]] = [];
     _stdlib_help: (str | None) = None;
 
-    _native_stmts: list = list(
-        ModuleCodegenPass.iter_context_stmts(mod, CodeContext.NATIVE)
+    _native_stmts: list[ElementStmt] = ModuleCodegenPass.iter_context_stmts(
+        mod, CodeContext.NATIVE
     );
     _runtime_used: set = set();
     _type_used: set = set();
@@ -302,6 +312,7 @@ impl native_capability_violations(mod: Module) -> list {
                     not stmt.is_absorb
                     and isinstance(item, ModulePath)
                     and item.alias is None
+                    and item.path is not None
                     and len(item.path) == 1
                 );
                 if (stmt.is_absorb or _plain_bare)
@@ -349,7 +360,7 @@ impl native_capability_violations(mod: Module) -> list {
             continue;
         }
 
-        work: list = [stmt];
+        work: list[UniNode] = [stmt];
         while work {
             nd = work.pop();
             if isinstance(nd, Import) {
@@ -654,10 +665,6 @@ impl native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None) {
         if not isinstance(_sig, FuncSignature) {
             return None;
         }
-        _mname = _owner.name_ref.sym_name if _owner.name_ref else "";
-        if _mname in ("init", "__init__", "postinit", "__post_init__") {
-            return None;
-        }
         return _owner;
     }
     if isinstance(_sig, FuncSignature) and isinstance(_owner.parent, Module) {
@@ -666,9 +673,16 @@ impl native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None) {
     return None;
 }
 
-impl partition_native_capability_violations(viols: list) -> tuple {
-    _fatal: list = [];
-    _demotable: dict[int, list] = {};
+impl partition_native_capability_violations(
+    viols: list[tuple[(UniNode, str, str, (str | None))]]
+) -> tuple[
+    (
+        list[tuple[(UniNode, str, str, (str | None))]],
+        dict[int, list[tuple[(UniNode, str, str, (str | None))]]]
+    )
+] {
+    _fatal: list[tuple[(UniNode, str, str, (str | None))]] = [];
+    _demotable: dict[int, list[tuple[(UniNode, str, str, (str | None))]]] = {};
     for _v in viols {
         _owner = native_capability_demotion_owner(_v[0]);
         if _owner is None {
@@ -700,17 +714,25 @@ impl NativeCapabilityCheckPass.transform(ir_in: Module) -> Module {
         native_capability_violations(ir_in)
     );
     if _fatal_viols {
-        _report = list(_fatal_viols);
+        _report: list[tuple[(UniNode, str, str, (str | None))]] = list(_fatal_viols);
         for _unit_viols in _demotable.values() {
             _report.extend(_unit_viols);
         }
         for (_vnode, _vkind, _vname, _vhelp) in _report {
-            self.emit(
-                E5090, node_override=_vnode, kind=_vkind, name=_vname, help_text=_vhelp
-            );
+            if _vhelp is None {
+                self.emit(E5090, node_override=_vnode, kind=_vkind, name=_vname);
+            } else {
+                self.emit(
+                    E5090,
+                    node_override=_vnode,
+                    kind=_vkind,
+                    name=_vname,
+                    help_text=_vhelp
+                );
+            }
         }
     }
-    ir_in.gen.native_viols_reported = True;
+    ir_in.native_viols_reported = True;
     return ir_in;
 }
 
@@ -719,14 +741,11 @@ impl ClientCapabilityCheckPass.postinit -> None {
 }
 
 impl ClientCapabilityCheckPass.transform(ir_in: Module) -> Module {
-    import from jaclang.jac0core.passes.module_codegen_pass {
-        client_capability_violations
-    }
-    if not ir_in.gen.client_viols_reported {
+    if not ir_in.client_viols_reported {
         for (_vnode, _vkind) in client_capability_violations(ir_in) {
             self.emit(E5096, node_override=_vnode, kind=_vkind);
         }
-        ir_in.gen.client_viols_reported = True;
+        ir_in.client_viols_reported = True;
     }
     return ir_in;
 }
@@ -786,8 +805,7 @@ impl PortabilityWarnPass._check_js_methods(mod: Module) -> None {
         }
 
         parent = trailer.parent;
-        is_method_call = isinstance(parent, FuncCall) and parent.target is trailer;
-        if not is_method_call {
+        if not isinstance(parent, FuncCall) or parent.target is not trailer {
             continue;
         }
 

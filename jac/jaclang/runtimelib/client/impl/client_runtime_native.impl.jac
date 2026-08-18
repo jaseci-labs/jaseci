@@ -764,7 +764,7 @@ impl __ensureNativeTokenPrimed -> any {
     return globalThis.__jacNativeTokenPrimePromise__;
 }
 
-impl AuthGuard(redirect: str = "/login") -> JsxElement {
+impl AuthGuard(redirect: str = "/login", children: any = None) -> JsxElement {
     [ready, setReady] = useState(globalThis.__jacNativeTokenPrimed__ == True);
     React.useEffect(
         lambda {
@@ -782,10 +782,13 @@ impl AuthGuard(redirect: str = "/login") -> JsxElement {
     if not ready {
         return None;
     }
-    if jacIsLoggedIn() {
-        return React.createElement(__nativeOutlet, None);
+    if not jacIsLoggedIn() {
+        return React.createElement(__nativeNavigate, {"to": redirect, "replace": True});
     }
-    return React.createElement(__nativeNavigate, {"to": redirect, "replace": True});
+    if children is not None {
+        return React.createElement(React.Fragment, None, children);
+    }
+    return React.createElement(__nativeOutlet, None);
 }
 
 impl ErrorFallback(error: any, resetErrorBoundary: any) -> JsxElement {

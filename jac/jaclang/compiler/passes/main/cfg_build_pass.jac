@@ -50,7 +50,7 @@ import from jaclang.jac0core.unitree {
     WhileStmt,
     WithStmt
 }
-import from jaclang.jac0core.passes { UniPass }
+import from jaclang.jac0core.passes.uni_pass { UniPass }
 import type from jaclang.jac0core.program { JacProgram }
 
 obj CFGBuildPass(UniPass) {

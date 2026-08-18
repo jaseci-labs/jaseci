@@ -27,6 +27,15 @@ and pins the parts of the surface that are congruent: the default WARNING
 threshold suppressing `.debug`/`.info`, `basicConfig` lowering it, the
 `%(levelname)s`/`%(name)s`/`%(message)s` format fields, and `getLogger()`
 answering to the name `root`.
+
+`contextvars_probe.jac` runs one `ContextVar[Req]` through the whole
+precedence ladder `get` implements -- a set value, then the call's own
+default, then the constructor default, then `LookupError` -- so the sv run
+answers out of CPython's own `contextvars` and the na run out of the bundled
+shim. The type argument is an archetype because a generic archetype is
+type-erased natively: `ContextVar[int]` is refused rather than lowered
+(#8229), and the last test pins that refusal, since it is the shim's scope
+line rather than a defect.
 """
 
 import os;
@@ -118,4 +127,24 @@ test "native logging writes what CPython's logging writes" {
     (_sv_out, sv_err) = _sv_run("logging_probe.jac");
     (_na_out, na_err) = _na_run("logging_probe.jac");
     _same_lines(_log_lines(sv_err), _log_lines(na_err), "logging");
+}
+
+test "native contextvars answers what CPython's contextvars answers" {
+    (sv_out, _sv_err) = _sv_run("contextvars_probe.jac");
+    (na_out, _na_err) = _na_run("contextvars_probe.jac");
+    _same_lines(sv_out, na_out, "contextvars");
+}
+
+test "a ContextVar at a scalar type argument is refused, not lowered" {
+    src = os.path.join(FIXTURES, "contextvars_unsupported.jac");
+    out_bin = os.path.join(tempfile.mkdtemp(), "nope.bin");
+    comp = subprocess.run(
+        [sys.executable, "-m", "jaclang", "nacompile", src, "-o", out_bin],
+        capture_output=True,
+        text=True,
+        timeout=900
+    );
+    combined = (comp.stdout or "") + (comp.stderr or "");
+    assert comp.returncode != 0 , f"an erased scalar slot compiled silently: {combined[-600:]}";
+    assert "ContextVar[int]" in combined , f"diagnostic does not name the instantiation: {combined[-600:]}";
 }

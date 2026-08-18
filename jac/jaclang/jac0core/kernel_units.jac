@@ -106,6 +106,15 @@ def store_unit_artifact(unit_path: str, kind: str, fingerprint: str, text: str) 
             }
         }
     }
+    try {
+        with open(path, "r") as f {
+            if f.read() == text {
+                return;
+            }
+        }
+    } except Exception {
+        ;
+    }
     _atomic_write(path, text);
 }
 

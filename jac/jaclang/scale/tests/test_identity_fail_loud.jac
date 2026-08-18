@@ -4,7 +4,6 @@ a second credential store with divergent semantics (the old sqlite fallback).
 """
 
 import unittest.mock;
-import pytest;
 import from jaclang.scale.identity.user_manager { JacScaleUserManager }
 
 
@@ -12,7 +11,7 @@ test "user manager refuses to start without a reachable database" {
     with unittest.mock.patch(
         "jaclang.scale.persistence.pg.shared_store", return_value=None
     ) {
-        with pytest.raises(RuntimeError) as exc {
+        with testraises(RuntimeError) as exc {
             JacScaleUserManager(base_path=".");
         }
         assert "Postgres" in str(exc.value);

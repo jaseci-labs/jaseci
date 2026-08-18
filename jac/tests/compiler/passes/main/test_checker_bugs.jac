@@ -105,6 +105,11 @@ Bug index:
               most specific positive conjunct, but `not (A and B)` says
               nothing about A on its own; the else branch of
               `if isinstance(x, Foo) and x.bar` wrongly excluded Foo (#8201)
+  #TVARMETH-1 - a generic archetype's type parameters were not in scope over
+                its own methods: an enclosing function short-circuited the
+                scope check, and an impl block was not recognized as a scope
+                at all, so `impl C.m(v: T)` and every class parameter used in
+                a method body reported E1065 (#8230)
 """
 
 import os;
@@ -114,7 +119,13 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.passes.transform { Alert }
 import from jaclang.compiler.type_system.type_utils { compute_mro_linearization }
-import from jaclang.compiler.type_system.types { ClassType, TypeFlags, UnknownType }
+import from jaclang.compiler.type_system.types {
+    ClassDetailsShared,
+    ClassType,
+    TypeFlags,
+    UnknownType
+}
+import from jaclang.jac0core.compiler { run_pass }
 
 glob CHECKER_FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "main", "fixtures", "checker"
@@ -128,7 +139,7 @@ def compile_and_check(fixture_name: str) -> JacProgram {
         os.path.join(CHECKER_FIXTURES, fixture_name),
         options=CompileOptions(type_check=False, default_codespace='server')
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
     return program;
 }
 
@@ -183,25 +194,25 @@ test "bug_3_list_element_type_first_only" {
 # =========================================================================
 test "bug_6_mro_not_c3_diamond" {
     # Build a diamond hierarchy manually to check MRO order
-    a_shared = ClassType.ClassDetailsShared(
+    a_shared = ClassDetailsShared(
         class_name="A", symbol_table=None, mro=[], base_classes=[]
     );
     a_type = ClassType(_shared=a_shared, flags=TypeFlags.Instantiable);
     a_type.shared.mro = [a_type];
 
-    b_shared = ClassType.ClassDetailsShared(
+    b_shared = ClassDetailsShared(
         class_name="B", symbol_table=None, mro=[], base_classes=[a_type]
     );
     b_type = ClassType(_shared=b_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(b_type);
 
-    c_shared = ClassType.ClassDetailsShared(
+    c_shared = ClassDetailsShared(
         class_name="C", symbol_table=None, mro=[], base_classes=[a_type]
     );
     c_type = ClassType(_shared=c_shared, flags=TypeFlags.Instantiable);
     compute_mro_linearization(c_type);
 
-    d_shared = ClassType.ClassDetailsShared(
+    d_shared = ClassDetailsShared(
         class_name="D", symbol_table=None, mro=[], base_classes=[b_type, c_type]
     );
     d_type = ClassType(_shared=d_shared, flags=TypeFlags.Instantiable);
@@ -228,7 +239,7 @@ test "bug_6_mro_not_c3_diamond" {
 # =========================================================================
 test "cyclic_heritage_mro_does_not_recurse" {
     # Self-referential: A lists itself as a base.
-    a_shared = ClassType.ClassDetailsShared(
+    a_shared = ClassDetailsShared(
         class_name="A", symbol_table=None, mro=[], base_classes=[]
     );
     a_type = ClassType(_shared=a_shared, flags=TypeFlags.Instantiable);
@@ -237,11 +248,11 @@ test "cyclic_heritage_mro_does_not_recurse" {
     assert a_type.shared.mro and a_type.shared.mro[0] is a_type;
 
     # Mutual cycle: B -> C -> B.
-    b_shared = ClassType.ClassDetailsShared(
+    b_shared = ClassDetailsShared(
         class_name="B", symbol_table=None, mro=[], base_classes=[]
     );
     b_type = ClassType(_shared=b_shared, flags=TypeFlags.Instantiable);
-    c_shared = ClassType.ClassDetailsShared(
+    c_shared = ClassDetailsShared(
         class_name="C", symbol_table=None, mro=[], base_classes=[]
     );
     c_type = ClassType(_shared=c_shared, flags=TypeFlags.Instantiable);
@@ -1267,7 +1278,7 @@ test "bug_cyctaint1_settling_cycle_checks_clean_and_resolves" {
         os.path.join(CHECKER_FIXTURES, "checker_cycle_taint_main.jac"),
         options=CompileOptions(type_check=False, default_codespace='server')
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     assert program.errors_had == [] , (
         "Bug #CYCLE-TAINT-1: a symbol-resolution cycle whose types settle "
@@ -1318,7 +1329,7 @@ test "bug_cycprec1_genuine_error_in_cycle_window_still_fires" {
         os.path.join(CHECKER_FIXTURES, "checker_cycle_precision_main.jac"),
         options=CompileOptions(type_check=False, default_codespace='server')
     );
-    TypeCheckPass(ir_in=mod, prog=program);
+    run_pass(TypeCheckPass, mod, program);
 
     oops_errors = [
         e
@@ -1873,6 +1884,105 @@ test "bug_andpol1_licensed_edges_still_narrow" {
     assert len(program.errors_had) == 0 , (
         "Bug #ANDPOL-1: edge polarity may only remove the narrowing the "
         "condition never licensed. "
+        f"Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARMETH-1 / #8230: a generic archetype's type parameters were not in
+# scope over its own methods. `validate_typevar_scope` picked the innermost
+# Ability and the innermost Archetype and then consulted only one of them:
+# an enclosing function short-circuited the whole check, so a class
+# parameter used in a method body reported E1065 and never reached the
+# class that binds it.
+#
+# The walk also did not know `ImplDef`. An `impl C.m(v: T)` block sits at
+# module level with a FuncSignature hanging off an ImplDef rather than an
+# Ability, so neither scope was found at all and every use fell through to
+# the unconditional E1065 at the bottom -- which is what blocked the
+# contextvars shim (#8220).
+#
+# Scope resolution is now one lexical walk outward: each enclosing Ability
+# contributes its own type parameters, each enclosing Archetype contributes
+# the class's, and an ImplDef contributes its own signature and then hands
+# the walk to the declaration it implements, so the walk carries on from
+# inside the declaring class. The walk ends at the first archetype it
+# reaches, which is PEP 484's rule that a nested class does not inherit the
+# outer class's type variables.
+# =========================================================================
+test "bug_tvarmeth1_class_typevar_in_scope_over_methods" {
+    program = compile_and_check("checker_bug_class_typevar_method_scope.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TVARMETH-1: a class type parameter must be in scope over its "
+        "methods' signatures and bodies, in the class body and in an impl "
+        f"block alike. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARMETH-1, negative: the walk must still stop where the language
+# stops it. A TypeVar no enclosing scope binds has no meaning, whether it is
+# used in a non-generic archetype's method body, in that archetype's field,
+# or at module level -- and a generic sibling binding the same name
+# elsewhere in the file does not put it in scope here.
+#
+# The walk also ends at the first enclosing archetype rather than climbing
+# into the one around it: PEP 484 states outright that a nested class does
+# not inherit the outer class's type variables, and both of `Nested`'s uses
+# of `Holder`'s `P` are reported for that reason.
+# =========================================================================
+test "bug_tvarmeth1_unbound_typevar_still_has_no_meaning" {
+    program = compile_and_check("checker_bug_class_typevar_method_scope_negative.jac");
+
+    error_lines = [
+        e.loc.first_line
+        for e in program.errors_had
+        if e.loc
+    ];
+    assert len(program.errors_had) == 5 , (
+        "Bug #TVARMETH-1: a TypeVar no enclosing scope binds must still be "
+        f"reported. Got errors: {[str(e) for e in program.errors_had]}"
+    );
+    for line in [18, 24, 31, 34, 40] {
+        assert line in error_lines , (
+            "Bug #TVARMETH-1: the unbound uses are the reported ones. "
+            f"Got lines: {error_lines}"
+        );
+    }
+}
+
+# =========================================================================
+# Bug #TVARMETH-1, negative: putting the class parameter in scope must not
+# leave it unsolved. `Ctx[Leaf]` still pins `T` to `Leaf` at the call site,
+# so a `str` argument is rejected and the returned element is a `Leaf`.
+# =========================================================================
+test "bug_tvarmeth1_class_typevar_still_solves_at_call_site" {
+    program = compile_and_check("checker_bug_class_typevar_still_solved.jac");
+
+    error_text = "\n".join([str(e) for e in program.errors_had]);
+    assert len(program.errors_had) == 2 , (
+        "Bug #TVARMETH-1: a method's use of the class parameter must still "
+        f"solve from the instantiation. Got errors: {error_text}"
+    );
+    assert "Leaf" in error_text , (
+        "Bug #TVARMETH-1: the solved parameter type must read Leaf, not the "
+        f"free type variable. Got: {error_text}"
+    );
+}
+
+# =========================================================================
+# Bug #TVARMETH-1, negative: PEP 695 shadowing. A method that declares its
+# own parameter of the same name binds it for itself, so `echo` answers the
+# argument type rather than the class's `Leaf`, and the class parameter is
+# untouched outside it.
+# =========================================================================
+test "bug_tvarmeth1_method_type_param_shadows_class_param" {
+    program = compile_and_check("checker_bug_method_typevar_shadows_class.jac");
+
+    assert len(program.errors_had) == 0 , (
+        "Bug #TVARMETH-1: a method's own type parameter shadows the class "
+        "parameter of the same name. "
         f"Got errors: {[str(e) for e in program.errors_had]}"
     );
 }

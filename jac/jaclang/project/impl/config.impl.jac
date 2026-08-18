@@ -1379,6 +1379,10 @@ impl get_explicit_config -> JacConfig | None {
     return _config if _config_explicit else None;
 }
 
+impl get_config_for_dir(start_dir: str) -> JacConfig | None {
+    return get_config_for_path(Path(start_dir));
+}
+
 impl get_config_for_path(start_path: Path) -> JacConfig | None {
     explicit = get_explicit_config();
     if explicit is not None {

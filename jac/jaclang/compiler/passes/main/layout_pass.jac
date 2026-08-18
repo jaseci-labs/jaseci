@@ -11,13 +11,15 @@ import from jaclang.jac0core.unitree {
     FuncCall,
     FuncSignature,
     HasVar,
+    IndexSlice,
     Module,
+    ModuleItem,
     Name,
     TupleVal,
     UnaryExpr,
     UniNode
 }
-import from jaclang.jac0core.passes { UniPass }
+import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.const_fold { fold_const }
 import from jaclang.jac0core.constant { OwnershipKind, Tokens as Tok }
@@ -93,6 +95,7 @@ obj EnumLayout {
         underlying: str = "i64",
         is_string_enum: bool = False,
         is_class_form: bool = False,
+        all_values_known: bool = True,
         members: list[EnumMemberLayout] = [];
 }
 
@@ -130,13 +133,192 @@ def get_layout_registry(module: Module, prog: any = None) -> LayoutRegistry {
         return reg;
     }
 
-    pass_inst = LayoutPass(ir_in=module, prog=prog);
+    import from jaclang.jac0core.compiler { run_pass }
+    run_pass(LayoutPass, module, prog);
     return module.gen.layout_registry or LayoutRegistry();
 }
 
-def is_comptime_base_name(name: str, archetypes: dict[str, Archetype]) -> bool {
-    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
-    return name in NATIVE_COMPTIME_BASES and name not in archetypes;
+def layout_slot_count(lay: ArchetypeLayout) -> int {
+    top = 0;
+    for slot in [lay.vtable_ptr_slot, lay.type_tag_slot, lay.reports_slot] {
+        if slot is not None and (slot + 1) > top {
+            top = slot + 1;
+        }
+    }
+    for finfo in lay.fields {
+        if (finfo.index + 1) > top {
+            top = finfo.index + 1;
+        }
+    }
+    return top;
+}
+
+def headers_agree(child: ArchetypeLayout, base: ArchetypeLayout) -> bool {
+    return child.vtable_ptr_slot == base.vtable_ptr_slot
+        and child.type_tag_slot == base.type_tag_slot
+        and child.reports_slot == base.reports_slot;
+}
+
+def adopt_imported_bases(module: Module) -> list[str] {
+    """Flatten ancestors that only reached the registry after the pass ran.
+
+    A consumer that subclasses an imported archetype linearizes it from a
+    base whose declaration lives in another module, so `_collect_archetypes`
+    never sees it and `_build_layout` skips the ancestor whose layout is
+    absent. The importing codegen merges the defining module's layouts in
+    afterwards, which is late for a registry nothing revisits -- so revisit
+    it here, once, with the ancestors in hand.
+
+    A subclass adopts its primary ancestor's slot assignment verbatim, which
+    is what makes the two units agree: the ancestor's own methods, and the
+    consumer's when it passes the object back, read the object through the
+    offsets the defining module assigned. Where the header slots disagree --
+    a flat ancestor with no vtable under a subclass that needs one -- no
+    assignment satisfies both, so the layout is left as it was and the field
+    access stays refused.
+
+    Only layouts this module built are eligible: the merge shares the very
+    objects the defining module's registry holds, and reassigning slots in
+    one of those would move a field under the unit that owns it.
+    """;
+    reg = module.gen.layout_registry;
+    if reg is None {
+        return [];
+    }
+    adopted: list[str] = [];
+    for name in reg.local_names {
+        lay = reg.layouts.get(name);
+        if lay is None {
+            continue;
+        }
+        ancestors: list[ArchetypeLayout] = [];
+        for anc in (lay.mro or [])[1:] {
+            anc_lay = reg.layouts.get(anc);
+            if anc_lay is not None {
+                ancestors.append(anc_lay);
+            }
+        }
+        if not ancestors {
+            continue;
+        }
+        absent = False;
+        for anc_lay in ancestors {
+            for finfo in anc_lay.fields {
+                if finfo.name not in lay.field_index {
+                    absent = True;
+                }
+            }
+            for mslot in anc_lay.methods {
+                if mslot.name not in lay.method_index {
+                    absent = True;
+                }
+            }
+        }
+        if not absent or not headers_agree(lay, ancestors[0]) {
+            continue;
+        }
+        adopt_ancestor_slots(lay, ancestors);
+        adopted.append(name);
+    }
+    return adopted;
+}
+
+def adopt_ancestor_slots(lay: ArchetypeLayout, ancestors: list[ArchetypeLayout]) {
+    primary = ancestors[0];
+    fields: list[FieldInfo] = [];
+    field_index: dict[str, int] = {};
+    parent_field_start: dict[str, int] = {};
+    seen: set[str] = set();
+    if lay.reports_slot is not None {
+        field_index["reports"] = lay.reports_slot;
+        seen.add("reports");
+    }
+    for finfo in primary.fields {
+        if finfo.name in seen {
+            continue;
+        }
+        seen.add(finfo.name);
+        fields.append(clone_field(finfo, finfo.index));
+        field_index[finfo.name] = finfo.index;
+    }
+    parent_field_start[primary.name] = layout_slot_count(primary) - len(primary.fields);
+    next_idx = layout_slot_count(primary);
+    for anc_lay in ancestors[1:] {
+        parent_field_start[anc_lay.name] = next_idx;
+        for finfo in anc_lay.fields {
+            if finfo.name in seen {
+                continue;
+            }
+            seen.add(finfo.name);
+            fields.append(clone_field(finfo, next_idx));
+            field_index[finfo.name] = next_idx;
+            next_idx += 1;
+        }
+    }
+    for finfo in lay.fields {
+        if finfo.name in seen {
+            continue;
+        }
+        seen.add(finfo.name);
+        fields.append(clone_field(finfo, next_idx));
+        field_index[finfo.name] = next_idx;
+        next_idx += 1;
+    }
+    lay.fields = sorted(fields, key=lambda (f) { f.index; });
+    lay.field_index = field_index;
+    lay.parent_field_start = parent_field_start;
+    adopt_ancestor_methods(lay, ancestors);
+    for anc_lay in ancestors {
+        lay.is_acyclic = lay.is_acyclic and anc_lay.is_acyclic;
+    }
+}
+
+def clone_field(finfo: FieldInfo, index: int) -> FieldInfo {
+    return FieldInfo(
+        name=finfo.name,
+        index=index,
+        type_tag=finfo.type_tag,
+        type_node=finfo.type_node,
+        default_expr=finfo.default_expr,
+        owner=finfo.owner,
+        is_func_ptr=finfo.is_func_ptr,
+        decl_node=finfo.decl_node
+    );
+}
+
+def adopt_ancestor_methods(lay: ArchetypeLayout, ancestors: list[ArchetypeLayout]) {
+    order: list[str] = [];
+    source: dict[str, MethodSlot] = {};
+    for anc_lay in ancestors {
+        for mslot in anc_lay.methods {
+            if mslot.name not in source {
+                source[mslot.name] = mslot;
+                order.append(mslot.name);
+            }
+        }
+    }
+    for mslot in lay.methods {
+        if mslot.name not in source {
+            order.append(mslot.name);
+        }
+        source[mslot.name] = mslot;
+    }
+    methods: list[MethodSlot] = [];
+    method_index: dict[str, int] = {};
+    for (i, mname) in enumerate(order) {
+        held = source[mname];
+        methods.append(
+            MethodSlot(name=mname, index=i, owner=held.owner, signature=held.signature)
+        );
+        method_index[mname] = i;
+    }
+    lay.methods = methods;
+    lay.method_index = method_index;
+}
+
+def is_erased_base_name(name: str, archetypes: dict[str, Archetype]) -> bool {
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES }
+    return name in NATIVE_ERASED_BASES and name not in archetypes;
 }
 
 def is_enum_class_type(t: any) -> bool {
@@ -201,18 +383,97 @@ def enum_member_literal(value_expr: (UniNode | None)) -> (str | int | None) {
     return val;
 }
 
-def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
-    _scope = t.shared.symbol_table;
-    _sym = _scope.names_in_scope.get(member) if (_scope?.names_in_scope) else None;
-    _decl = _sym.decl if _sym is not None else None;
-    _asn = _decl.parent if (_decl is not None) else None;
-    if not isinstance(_asn, Assignment) or _asn.value is None {
-        return None;
+def is_enum_auto(value_expr: (UniNode | None)) -> bool {
+    if not isinstance(value_expr, FuncCall) or value_expr.params {
+        return False;
     }
-    return enum_member_literal(_asn.value);
+    _target = value_expr.target;
+    if not isinstance(_target, Name) {
+        return False;
+    }
+    _sym = _target.sym;
+    _decl = _sym.decl if _sym is not None else None;
+    if _decl is None {
+        return False;
+    }
+    _item = _decl.find_parent_of_type(ModuleItem);
+    if _item is not None and _item.name is not None {
+        _from = _item.from_parent.from_loc;
+        return (
+            _from is not None
+            and _from.dot_path_str == "enum"
+            and _item.name.value == "auto"
+        );
+    }
+    _mod = _decl.find_parent_of_type(Module);
+    return _mod is not None and _mod.name == "enum" and _sym.sym_name == "auto";
 }
 
-def class_form_enum_member(t: any) -> (tuple | None) {
+def resolve_enum_member_values(
+    raw_members: list[tuple[(str, (UniNode | None))]]
+) -> list[(str | int | None)] {
+    out: list[(str | int | None)] = [];
+    _max: (int | None) = None;
+    _blocked = False;
+    for member in raw_members {
+        _vnode = member[1];
+        if is_enum_auto(_vnode) {
+            if _blocked {
+                out.append(None);
+                continue;
+            }
+            _next = 1 if _max is None else _max + 1;
+            _max = _next;
+            out.append(_next);
+            continue;
+        }
+        _lit = enum_member_literal(_vnode);
+        if isinstance(_lit, int) {
+            _max = _lit if (_max is None or _lit > _max) else _max;
+        } else {
+            _blocked = True;
+        }
+        out.append(_lit);
+    }
+    return out;
+}
+
+def class_form_enum_members(scope: any) -> list[tuple[(str, (UniNode | None))]] {
+    out: list[tuple[(str, (UniNode | None))]] = [];
+    if scope is None or not (scope?.names_in_scope) {
+        return out;
+    }
+    _placed: list[tuple[(int, int, str)]] = [];
+    _values: dict[str, UniNode] = {};
+    for mname in scope.names_in_scope {
+        _sym = scope.names_in_scope.get(mname);
+        _decl = _sym.decl if _sym is not None else None;
+        _asn = _decl.parent if (_decl is not None) else None;
+        if not isinstance(_asn, Assignment) or _asn.value is None {
+            continue;
+        }
+        _placed.append((_asn.loc.first_line, _asn.loc.col_start, mname));
+        _values[mname] = _asn.value;
+    }
+    _placed.sort();
+    for entry in _placed {
+        out.append((entry[2], _values[entry[2]]));
+    }
+    return out;
+}
+
+def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
+    _members = class_form_enum_members(t.shared.symbol_table);
+    _values = resolve_enum_member_values(_members);
+    for (_idx, _member) in enumerate(_members) {
+        if _member[0] == member {
+            return _values[_idx];
+        }
+    }
+    return None;
+}
+
+def class_form_enum_member(t: any) -> (tuple[(str, (str | int), str)] | None) {
     try {
         import from jaclang.compiler.type_system.types {
             EnumMemberType as _EnumMemberType
@@ -243,6 +504,7 @@ obj LayoutRegistry {
         class_parents: dict[str, list[str]] = {},
         mro_order: dict[str, list[str]] = {},
         topo_order: list[str] = [],
+        local_names: list[str] = [],
         enums: dict[str, EnumLayout] = {};
 
     def get_layout(name: str) -> (ArchetypeLayout | None);
@@ -253,9 +515,8 @@ obj LayoutRegistry {
     def is_primary_ancestor(child: str, ancestor: str) -> bool;
 }
 
-obj LayoutPass(Transform[Module, Module]) {
+obj LayoutPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None,
         registry: LayoutRegistry postinit,
         isinstance_targets: set[str] postinit;

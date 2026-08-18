@@ -128,7 +128,19 @@ def _related_files(source_path: str) -> list[tuple[str, str]] {
 
 glob _client_kind_probe: dict = {"active": False};
 
+def is_compiler_source_path(source_path: str) -> bool {
+    try {
+        resolved = str(Path(source_path).resolve());
+    } except OSError {
+        return False;
+    }
+    return resolved.startswith(_jaclang_pkg_dir + os.sep);
+}
+
 def _module_codespace_mode(source_path: str) -> str {
+    if is_compiler_source_path(source_path) {
+        return "internal";
+    }
     try {
         import from jaclang.jac0core.codeinfo { effective_default_codespace }
         return effective_default_codespace();
@@ -566,8 +578,6 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         if style is not None {
             related.append(style);
         }
-        reflect_deps = _ct_reflect_deps(source_path);
-        related.extend(reflect_deps);
         fresh = cache_mtime > os.path.getmtime(source_path);
         if fresh {
             for f in related {
@@ -585,9 +595,6 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
         if fresh {
             return True;
         }
-        if reflect_deps {
-            return False;
-        }
 
         return jir_matches_source(data, source_path);
     } except OSError {
@@ -595,19 +602,6 @@ def is_module_cache_valid(source_path: str, cache_path: Path) -> bool {
     }
 }
 
-
-def _ct_reflect_deps(source_path: str) -> list[str] {
-    try {
-        src = open(source_path, encoding="utf-8").read();
-    } except OSError {
-        return [];
-    }
-    if "comptime" not in src or "reflect" not in src {
-        return [];
-    }
-    import from jaclang.jac0 { ct_reflect_source_deps }
-    return ct_reflect_source_deps(src);
-}
 
 def write_module_cache(
     source_path: str, bytecode: bytes, extra_sections: (dict[int, bytes] | None) = None

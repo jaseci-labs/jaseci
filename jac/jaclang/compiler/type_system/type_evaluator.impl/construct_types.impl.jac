@@ -523,7 +523,7 @@ impl TypeEvaluator.get_type_of_class(node_: Archetype) -> ClassType {
         enum_members = build_enum_members(node_, self, enum_value_type);
     }
     cls_type = ClassType(
-        _shared=ClassType.ClassDetailsShared(
+        _shared=ClassDetailsShared(
             class_name=node_.name_spec.sym_name,
             symbol_table=node_,
             type_params=type_params,
@@ -580,7 +580,7 @@ impl TypeEvaluator.get_type_of_enum(node_: Enum) -> ClassType {
         parent_module.loc.mod_path if parent_module and parent_module.loc else ""
     );
     cls_type = ClassType(
-        _shared=ClassType.ClassDetailsShared(
+        _shared=ClassDetailsShared(
             class_name=node_.name_spec.sym_name,
             symbol_table=node_,
             type_params=None,

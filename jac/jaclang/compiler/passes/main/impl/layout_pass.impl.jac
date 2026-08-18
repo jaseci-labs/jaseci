@@ -1,4 +1,4 @@
-import from jaclang.jac0core.passes { UniPass }
+import from jaclang.jac0core.passes.uni_pass { UniPass }
 import from jaclang.jac0core.constant { Tokens as Tok }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_node }
 
@@ -29,6 +29,7 @@ impl LayoutPass.transform(ir_in: Module) -> Module {
         if name in arch_map {
             layout = self._build_layout(arch_map[name]);
             self.registry.layouts[name] = layout;
+            self.registry.local_names.append(name);
         }
     }
 
@@ -114,7 +115,7 @@ impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
                 } elif isinstance(base_expr, AstSymbolNode) {
                     pname = base_expr.sym_name;
                 }
-                if pname is None or is_comptime_base_name(pname, archetypes) {
+                if pname is None or is_erased_base_name(pname, archetypes) {
                     continue;
                 }
                 parents.append(pname);
@@ -362,7 +363,7 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
         if ename is None or ename in self.registry.enums or nd.body is None {
             continue;
         }
-        raw_members: list = [];
+        raw_members: list[tuple[(str, (UniNode | None))]] = [];
         for stmt in nd.body {
             if isinstance(stmt, Assignment) {
                 targets = stmt.target
@@ -376,9 +377,9 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             }
         }
 
-        member_values: list = [
-            enum_member_literal(vnode) for (_, vnode) in raw_members
-        ];
+        member_values: list[(str | int | None)] = resolve_enum_member_values(
+            raw_members
+        );
         is_string_enum = False;
         for mval in member_values {
             if isinstance(mval, str) {
@@ -387,7 +388,8 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             }
         }
         members: list[EnumMemberLayout] = [];
-        for (ordinal, (mname, vnode)) in enumerate(raw_members) {
+        for (ordinal, member) in enumerate(raw_members) {
+            mname: str = member[0];
             str_value: (str | None) = None;
             int_value = 0;
             mval = member_values[ordinal];
@@ -406,7 +408,10 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             );
         }
         self.registry.enums[ename] = EnumLayout(
-            name=ename, is_string_enum=is_string_enum, members=members
+            name=ename,
+            is_string_enum=is_string_enum,
+            all_values_known=all(mval is not None for mval in member_values),
+            members=members
         );
     }
     for nd in class_form_enum_decls(module) {
@@ -415,15 +420,22 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             continue;
         }
         _scalar = class_form_enum_scalar(nd.name.type);
+        _cf_raw = class_form_enum_members(nd);
+        _cf_values = resolve_enum_member_values(_cf_raw);
         _cf_members: list[EnumMemberLayout] = [];
-        for mname in nd.names_in_scope {
-            _lit = class_form_enum_literal(nd.name.type, mname);
+        _cf_declared = len(_cf_raw);
+        _cf_typed = True;
+        for (_cf_idx, _cf_member) in enumerate(_cf_raw) {
+            _lit = _cf_values[_cf_idx];
             if _lit is None {
                 continue;
             }
+            if (_scalar == "str") != isinstance(_lit, str) {
+                _cf_typed = False;
+            }
             _cf_members.append(
                 EnumMemberLayout(
-                    name=mname,
+                    name=_cf_member[0],
                     ordinal=len(_cf_members),
                     int_value=(_lit if isinstance(_lit, int) else 0),
                     str_value=(_lit if isinstance(_lit, str) else None)
@@ -435,6 +447,7 @@ impl LayoutPass._build_enum_layouts(module: Module) -> None {
             underlying=("str" if _scalar == "str" else "i64"),
             is_string_enum=(_scalar == "str"),
             is_class_form=True,
+            all_values_known=(_cf_declared == len(_cf_members) and _cf_typed),
             members=_cf_members
         );
     }
@@ -537,9 +550,12 @@ impl LayoutPass._compute_acyclicity -> None {
 }
 
 impl LayoutPass._acyclic_walk(name: str, state: dict[str, int]) -> int {
-    cur = state.get(name);
-    if cur is not None {
-        return 2 if cur == 0 else cur;
+    if name in state {
+        cur = state[name];
+        if cur == 0 {
+            return 2;
+        }
+        return cur;
     }
     lay = self.registry.layouts.get(name);
     if lay is None or lay.has_vtable or lay.is_osp {
@@ -550,7 +566,7 @@ impl LayoutPass._acyclic_walk(name: str, state: dict[str, int]) -> int {
     result = 1;
     for finfo in lay.fields {
         var = finfo.decl_node;
-        tb = var?.type if var is not None else None;
+        tb = var.type if isinstance(var, HasVar) else None;
         if tb is None {
             result = 2;
             break;
@@ -791,9 +807,10 @@ impl LayoutPass._is_layout_compatible_type(
             return True;
         }
         if target_name in {"list", "dict", "set", "frozenset", "tuple"} {
-            if type_node?.right and type_node.right?.slices {
-                for sl in type_node.right.slices {
-                    elem = sl.start if sl?.start else sl;
+            index = type_node.right;
+            if isinstance(index, IndexSlice) {
+                for sl in index.slices {
+                    elem: UniNode = sl.start if sl.start is not None else sl;
                     if isinstance(elem, TupleVal) and elem.values {
                         for tv in elem.values {
                             if not self._is_layout_compatible_type(tv, arch_map) {
@@ -811,7 +828,7 @@ impl LayoutPass._is_layout_compatible_type(
         }
     }
 
-    if type_node?.value and isinstance(type_node?.value, str) {
+    if isinstance(type_node, Name) {
         tname = type_node.value;
         if tname in LAYOUT_COMPATIBLE_SCALARS {
             return True;

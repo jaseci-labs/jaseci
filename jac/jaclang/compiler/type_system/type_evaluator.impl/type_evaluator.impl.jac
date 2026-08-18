@@ -2487,8 +2487,7 @@ impl TypeEvaluator._assign_class(
     src_type = unwrapped_src;
     dest_type = unwrapped_dest;
 
-    dest_brand = dest_type.private.distinct_key;
-    if dest_brand is not None and src_type.private.distinct_key != dest_brand {
+    if self._distinct_brand_mismatch(src_type, dest_type) {
         return False;
     }
     if src_type.shared.same_class(dest_type.shared) {
@@ -3006,7 +3005,8 @@ impl TypeEvaluator.assign_type(
 
         if isinstance(dest_type, ClassType)
             and dest_type.is_builtin("int")
-            and self._in_native_context() {
+            and self._in_native_context()
+            and not self._distinct_brand_mismatch(src_type, dest_type) {
             return True;
         }
     }
@@ -3015,7 +3015,8 @@ impl TypeEvaluator.assign_type(
         and isinstance(dest_type, ClassType)
         and src_type.is_class_instance()
         and dest_type.is_class_instance()
-        and self._in_native_context() {
+        and self._in_native_context()
+        and not self._distinct_brand_mismatch(src_type, dest_type) {
         src_is_ptr = (
             src_type.is_builtin("int")
             or src_type.is_builtin("str")
@@ -3533,16 +3534,65 @@ impl TypeEvaluator._load_stub_module(path: str) -> Module {
     return mod;
 }
 
-impl TypeEvaluator.postinit -> None {
+impl TypeEvaluator._read_dunder_all(path: str) -> (set[str] | None) {
     import from ast {
         Assign as PyAssign,
         Constant as PyConstant,
-        ImportFrom as PyImportFrom,
         List as PyList,
         Name as PyName,
         Tuple as PyTuple,
         parse as py_parse
     }
+    try {
+        py_tree = py_parse(read_file_with_encoding(path));
+        for node in py_tree.body {
+            if (
+                isinstance(node, PyAssign)
+                and len(node.targets) == 1
+                and isinstance(node.targets[0], PyName)
+                and node.targets[0].id == "__all__"
+                and isinstance(node.value, (PyList, PyTuple))
+            ) {
+                result: set[str] = set();
+                for elt in node.value.elts {
+                    if (isinstance(elt, PyConstant) and isinstance(elt.value, str)) {
+                        result.add(elt.value);
+                    }
+                }
+                return result;
+            }
+        }
+    } except Exception {
+        return None;
+    }
+    return None;
+}
+
+impl TypeEvaluator._read_ambient_imports_by_module(path: str) -> dict[str, set[str]] {
+    import from ast { ImportFrom as PyImportFrom, parse as py_parse }
+    out: dict[str, set[str]] = {};
+    try {
+        allowed = self._read_dunder_all(path);
+        if allowed is None {
+            return out;
+        }
+        py_tree = py_parse(read_file_with_encoding(path));
+        for node in py_tree.body {
+            if (isinstance(node, PyImportFrom) and node.module is not None) {
+                public = {(alias.asname or alias.name) for alias in node.names}
+                    & allowed;
+                if public {
+                    out[node.module] = out.get(node.module, set()) | public;
+                }
+            }
+        }
+    } except Exception {
+        return {};
+    }
+    return out;
+}
+
+impl TypeEvaluator.postinit -> None {
     self._BUILTINS_STUB_FILE_PATH = os.path.join(
         os.path.dirname(__file__), "../../vendor/typeshed/stdlib/builtins.pyi"
     );
@@ -3602,34 +3652,7 @@ impl TypeEvaluator.postinit -> None {
 
     self.js_globals_module = self._load_stub_module(self._JS_GLOBALS_STUB_FILE_PATH);
 
-    def read_dunder_all(path: str) -> (set[str] | None) {
-        try {
-            py_tree = py_parse(read_file_with_encoding(path));
-            for node in py_tree.body {
-                if (
-                    isinstance(node, PyAssign)
-                    and len(node.targets) == 1
-                    and isinstance(node.targets[0], PyName)
-                    and node.targets[0].id == "__all__"
-                    and isinstance(node.value, (PyList, PyTuple))
-                ) {
-                    result: set[str] = set();
-                    for elt in node.value.elts {
-                        if (
-                            isinstance(elt, PyConstant) and isinstance(elt.value, str)
-                        ) {
-                            result.add(elt.value);
-                        }
-                    }
-                    return result;
-                }
-            }
-        } except Exception {
-            return None;
-        }
-        return None;
-    }
-    jac_allowed = read_dunder_all(self._JAC_BUILTINS_STUB_FILE_PATH);
+    jac_allowed = self._read_dunder_all(self._JAC_BUILTINS_STUB_FILE_PATH);
 
     for (name, sym) in self.jac_builtins_module.names_in_scope.items() {
         if jac_allowed is not None and name not in jac_allowed {
@@ -3644,7 +3667,7 @@ impl TypeEvaluator.postinit -> None {
     builtin_overrides_module = self._load_stub_module(
         self._BUILTIN_OVERRIDES_STUB_FILE_PATH
     );
-    overrides_allowed = read_dunder_all(self._BUILTIN_OVERRIDES_STUB_FILE_PATH);
+    overrides_allowed = self._read_dunder_all(self._BUILTIN_OVERRIDES_STUB_FILE_PATH);
     for (name, sym) in builtin_overrides_module.names_in_scope.items() {
         if overrides_allowed is not None and name not in overrides_allowed {
             continue;
@@ -3659,29 +3682,9 @@ impl TypeEvaluator.postinit -> None {
         }
     }
 
-    def read_ambient_imports_by_module(path: str) -> dict[str, set[str]] {
-        out: dict[str, set[str]] = {};
-        try {
-            allowed = read_dunder_all(path);
-            if allowed is None {
-                return out;
-            }
-            py_tree = py_parse(read_file_with_encoding(path));
-            for node in py_tree.body {
-                if (isinstance(node, PyImportFrom) and node.module is not None) {
-                    public = {(alias.asname or alias.name) for alias in node.names}
-                        & allowed;
-                    if public {
-                        out[node.module] = out.get(node.module, set()) | public;
-                    }
-                }
-            }
-        } except Exception {
-            return {};
-        }
-        return out;
-    }
-    raw_groups = read_ambient_imports_by_module(self._TYPING_AMBIENT_STUB_FILE_PATH);
+    raw_groups = self._read_ambient_imports_by_module(
+        self._TYPING_AMBIENT_STUB_FILE_PATH
+    );
     typing_ambient_flat: set[str] = set();
     for names in raw_groups.values() {
         typing_ambient_flat = typing_ambient_flat | names;
@@ -3793,13 +3796,17 @@ impl TypeEvaluator._get_type_from_flow_node(
     import from jaclang.compiler.type_system.type_evaluator { NarrowingTarget }
     key = target.key;
 
-    cache_key = (id(flow_node), id(target.symbol))
-        if target.symbol is not None
-        else (id(flow_node), key);
-    if cache_key in self._flow_node_type_cache {
-        return self._flow_node_type_cache[cache_key];
-    }
     flow_node_id = id(flow_node);
+    sym = target.symbol;
+    sym_key: tuple[int, int] = (flow_node_id, id(sym) if sym is not None else 0);
+    txt_key: tuple[int, str] = (flow_node_id, key);
+    if sym is not None {
+        if sym_key in self._flow_node_type_cache {
+            return self._flow_node_type_cache[sym_key];
+        }
+    } elif txt_key in self._flow_key_type_cache {
+        return self._flow_key_type_cache[txt_key];
+    }
     if flow_node_id in visited {
         return None;
     }
@@ -3809,7 +3816,11 @@ impl TypeEvaluator._get_type_from_flow_node(
     }
     visited.add(flow_node_id);
     if not flow_node.bb_in {
-        self._flow_node_type_cache[cache_key] = None;
+        if sym is not None {
+            self._flow_node_type_cache[sym_key] = None;
+        } else {
+            self._flow_key_type_cache[txt_key] = None;
+        }
         visited.discard(flow_node_id);
         return None;
     }
@@ -4067,7 +4078,11 @@ impl TypeEvaluator._get_type_from_flow_node(
         result = self._union_narrowed_types(incoming_types);
     }
     if not (isinstance(result, UnknownType) and result.is_incomplete) {
-        self._flow_node_type_cache[cache_key] = result;
+        if sym is not None {
+            self._flow_node_type_cache[sym_key] = result;
+        } else {
+            self._flow_key_type_cache[txt_key] = result;
+        }
     }
     visited.discard(flow_node_id);
     return result;
@@ -5018,10 +5033,53 @@ impl TypeEvaluator._extract_isinstance_info(
         return (narrowing_key, narrowed);
     }
 
-    return (
-        narrowing_key,
-        self._convert_to_instance(self.get_type_of_expression(type_arg))
-    );
+    arg_type = self.get_type_of_expression(type_arg);
+    named_alts = self._isinstance_tuple_alternatives(arg_type);
+    if named_alts is not None {
+        if not named_alts {
+            return None;
+        }
+        return (
+            narrowing_key,
+            named_alts[0] if len(named_alts) == 1 else UnionType(types=named_alts)
+        );
+    }
+
+    return (narrowing_key, self._convert_to_instance(arg_type));
+}
+
+impl TypeEvaluator._isinstance_tuple_alternatives(
+    arg_type: TypeBase
+) -> list[TypeBase] | None {
+    if (
+        not isinstance(arg_type, ClassType)
+        or not arg_type.is_instance()
+        or not self.prefetch
+        or self.prefetch.tuple_class is None
+        or arg_type.shared != self.prefetch.tuple_class.shared
+    ) {
+        return None;
+    }
+    alts: list[TypeBase] = [];
+    for elem in (arg_type.private.type_args or []) {
+        if not isinstance(elem, ClassType) {
+            return [];
+        }
+        if elem.is_instantiable_class() {
+            alts.append(self._convert_to_instance(elem));
+            continue;
+        }
+        if (
+            self.prefetch.type_class is not None
+            and elem.shared == self.prefetch.type_class.shared
+            and elem.private.type_args
+        ) {
+            alts.append(self._convert_to_instance(elem.private.type_args[0]));
+            continue;
+        }
+        return [];
+    }
+    return alts;
 }
 
 impl TypeEvaluator._create_type_guard_type(
@@ -5039,7 +5097,7 @@ impl TypeEvaluator._create_type_guard_type(
         return UnknownType();
     }
     base = self._create_special_builtin_type(name, self.prefetch.bool_class);
-    private = ClassType.ClassDetailsPrivate(
+    private = ClassDetailsPrivate(
         type_args=([guarded] if guarded is not None else []), alias_name=name
     );
     return ClassType(_shared=base.shared, private=private, flags=base.flags);
@@ -5248,7 +5306,7 @@ impl TypeEvaluator._brand_distinct_alias(
         return resolved;
     }
     key = f"{node_.loc.mod_path}::{node_.name.value}";
-    private = ClassType.ClassDetailsPrivate(
+    private = ClassDetailsPrivate(
         type_args=(
             resolved.private.type_args[:] if resolved.private.type_args else None
         ),
@@ -5257,6 +5315,22 @@ impl TypeEvaluator._brand_distinct_alias(
         distinct_key=key
     );
     return ClassType(_shared=resolved.shared, private=private, flags=resolved.flags);
+}
+
+impl TypeEvaluator._distinct_brand_mismatch(
+    src_type: TypeBase, dest_type: TypeBase
+) -> bool {
+    if not isinstance(dest_type, ClassType) {
+        return False;
+    }
+    dest_brand = dest_type.private.distinct_key;
+    if dest_brand is None {
+        return False;
+    }
+    src_brand = (
+        src_type.private.distinct_key if isinstance(src_type, ClassType) else None
+    );
+    return src_brand != dest_brand;
 }
 
 impl TypeEvaluator._resolve_type_alias_rhs(value: Expr) -> TypeBase {
