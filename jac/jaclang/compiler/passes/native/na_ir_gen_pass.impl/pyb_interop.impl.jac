@@ -9,13 +9,24 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
     native (same unit or linked import) recurse so a native class over a
     Python-based native class classifies the same way.
 
-    A subscripted generic base (`Transform[Module, Module]`) is unwrapped
-    to its target before resolution: the subscript is type-position
-    information the bridge does not need, and leaving it wrapped made the
-    base invisible, so stores to inherited fields demoted instead of
-    bridging.
+    A subscripted generic base (`PyGenBase[int]`) is unwrapped to its
+    target before resolution: the subscript is type-position information
+    the bridge does not need, and leaving it wrapped made the base
+    invisible, so stores to inherited fields demoted instead of
+    bridging. The shape was found on the compiler's own pass chain, back
+    when it spelled `Transform[Module, Module]`; the chain is
+    monomorphic now, and user code still writes it.
+
+    A base the native lane erases at compile time is never Python-side, even
+    when its declaration is reachable: `NATIVE_ERASED_BASES` names the
+    bases lowering drops outright, so they contribute no shadow and no
+    slots. The distinction only became observable once `PassRim` moved
+    from a `.py` to a `.jac`, which made its declaration resolvable while
+    the base claim -- an admission about the *base*, not about the unit --
+    stayed the same. Resolving one is not the same as inheriting one.
     """;
     import os;
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_BASES }
     if arch_name in self._pyb_base_memo {
         cached = self._pyb_base_memo[arch_name];
         return cached;
@@ -47,6 +58,9 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
                 self._pyb_base_memo[arch_name] = sub;
                 return sub;
             }
+            continue;
+        }
+        if bname in NATIVE_ERASED_BASES {
             continue;
         }
         sym = base_expr?.sym;

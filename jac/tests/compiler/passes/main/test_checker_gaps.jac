@@ -401,9 +401,14 @@ test "gap 47 undeclared attr assignment on archetypes" {
 # cascading into "Type is Unknown" for every downstream access.
 #
 # This is likely caused by a combination of:
-#   - Generic type params on BaseTransform[T_in, T_out] not substituted
 #   - TYPE_CHECKING-guarded JacProgram import not resolved
 #   - Dynamic attrs from cross-module impl files not in MRO
+#
+# The unsubstituted generic type params on BaseTransform[T_in, T_out] were
+# the third suspect and have been eliminated: #8288 M1 rung 1 removed them,
+# and the checker's diagnostics over fourteen pass sources -- this file's
+# thirty included -- came back byte-identical. The parameters were neither
+# helping nor hurting the checker.
 #
 # Impact: The type checker cannot type-check itself or most of the
 #         compiler codebase, which is why ~70% of .jacignore entries

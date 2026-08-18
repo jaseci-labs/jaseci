@@ -11,7 +11,6 @@ remains a visible tracker.
 """
 
 import os;
-import pytest;
 import from tests.support { JAC_ROOT }
 import jaclang;
 import from jaclang.compiler.passes.ecmascript { EsastGenPass }

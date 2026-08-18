@@ -10,11 +10,11 @@ def create_new_function_pass_manager -> object {
     return FunctionPassManager();
 }
 
-def create_pass_builder(tm: Any, pto: Any) -> object {
+def create_pass_builder(tm: any, pto: any) -> object {
     return PassBuilder(tm, pto);
 }
 
-def create_pipeline_tuning_options(speed_level: Any = 2) -> object {
+def create_pipeline_tuning_options(speed_level: any = 2) -> object {
     return PipelineTuningOptions(speed_level);
 }
 
@@ -25,7 +25,7 @@ with entry {
 """ Holds statistics from reference count pruning.
     """
 class PruneStats(_prunestats) {
-    def __add__(self: PruneStats, other: Any) -> object {
+    def __add__(self: PruneStats, other: any) -> object {
         if not isinstance(other, PruneStats) {
             msg = 'PruneStats can only be added to another PruneStats, got {}.';
             raise TypeError(msg.format(`type(other)));
@@ -38,7 +38,7 @@ class PruneStats(_prunestats) {
         );
     }
 
-    def __sub__(self: PruneStats, other: Any) -> object {
+    def __sub__(self: PruneStats, other: any) -> object {
         if not isinstance(other, PruneStats) {
             msg = 'PruneStats can only be subtracted from another PruneStats, '
             'got {}.';
@@ -68,7 +68,7 @@ class _c_PruneStats(Structure) {
     statistics. If kwarg `printout` is True the stats are printed to stderr,
     default is False.
     """
-def dump_refprune_stats(printout: Any = False) -> object {
+def dump_refprune_stats(printout: any = False) -> object {
     stats = _c_PruneStats(0, 0, 0, 0);
     do_print = c_bool(printout);
     ffi.lib.LLVMPY_DumpRefPruneStats(byref(stats), do_print);
@@ -85,7 +85,7 @@ def dump_refprune_stats(printout: Any = False) -> object {
         Set to True to enable the pass timers.
         Set to False to disable the pass timers.
     """
-def set_time_passes(enable: Any) -> object {
+def set_time_passes(enable: any) -> object {
     ffi.lib.LLVMPY_SetTimePasses(c_bool(enable));
 }
 
@@ -123,7 +123,7 @@ class NewPassManager {
         }
     }
 
-    def run(self: NewPassManager, IR: Any, pb: Any) -> object {
+    def run(self: NewPassManager, IR: any, pb: any) -> object {
         if isinstance(self, ModulePassManager) {
             ffi.lib.LLVMPY_RunNewModulePassManager(self, IR, pb);
         } else {
@@ -163,7 +163,7 @@ class NewPassManager {
         }
     }
 
-    def add_jump_threading_pass(self: NewPassManager, threshold: Any = -1) -> object {
+    def add_jump_threading_pass(self: NewPassManager, threshold: any = -1) -> object {
         if isinstance(self, ModulePassManager) {
             ffi.lib.LLVMPY_AddJumpThreadingPass_module(self, threshold);
         } else {
@@ -453,7 +453,7 @@ class NewPassManager {
 }
 
 class ModulePassManager(ffi.ObjectRef, NewPassManager) {
-    def init(self: ModulePassManager, ptr: Any = None) -> object {
+    def init(self: ModulePassManager, ptr: any = None) -> object {
         if (ptr is None) {
             ptr = ffi.lib.LLVMPY_CreateNewModulePassManager();
         }
@@ -558,8 +558,8 @@ class ModulePassManager(ffi.ObjectRef, NewPassManager) {
         """
     def add_refprune_pass(
         self: ModulePassManager,
-        subpasses_flags: Any = RefPruneSubpasses.ALL,
-        subgraph_limit: Any = 1000
+        subpasses_flags: any = RefPruneSubpasses.ALL,
+        subgraph_limit: any = 1000
     ) -> object {
         iflags = RefPruneSubpasses(subpasses_flags);
         ffi.lib.LLVMPY_AddRefPrunePass_module(self, iflags, subgraph_limit);
@@ -567,7 +567,7 @@ class ModulePassManager(ffi.ObjectRef, NewPassManager) {
 }
 
 class FunctionPassManager(ffi.ObjectRef, NewPassManager) {
-    def init(self: FunctionPassManager, ptr: Any = None) -> object {
+    def init(self: FunctionPassManager, ptr: any = None) -> object {
         if (ptr is None) {
             ptr = ffi.lib.LLVMPY_CreateNewFunctionPassManager();
         }
@@ -588,8 +588,8 @@ class FunctionPassManager(ffi.ObjectRef, NewPassManager) {
         """
     def add_refprune_pass(
         self: FunctionPassManager,
-        subpasses_flags: Any = RefPruneSubpasses.ALL,
-        subgraph_limit: Any = 1000
+        subpasses_flags: any = RefPruneSubpasses.ALL,
+        subgraph_limit: any = 1000
     ) -> object {
         iflags = RefPruneSubpasses(subpasses_flags);
         ffi.lib.LLVMPY_AddRefPrunePass_function(self, iflags, subgraph_limit);
@@ -597,7 +597,7 @@ class FunctionPassManager(ffi.ObjectRef, NewPassManager) {
 }
 
 class PipelineTuningOptions(ffi.ObjectRef) {
-    def init(self: PipelineTuningOptions, speed_level: Any = 2) -> object {
+    def init(self: PipelineTuningOptions, speed_level: any = 2) -> object {
         self._speed_level = speed_level;
         self.speed_level = speed_level;
         super.init(ffi.lib.LLVMPY_CreatePipelineTuningOptions());
@@ -609,7 +609,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
     }
 
     @speed_level.setter
-    def speed_level(self: PipelineTuningOptions, value: Any) -> object {
+    def speed_level(self: PipelineTuningOptions, value: any) -> object {
         if not (0 <= value <= 3) {
             raise ValueError("Optimization level for speed should be 0, 1, 2, or 3");
         }
@@ -622,7 +622,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
     }
 
     @loop_interleaving.setter
-    def loop_interleaving(self: PipelineTuningOptions, value: Any) -> object {
+    def loop_interleaving(self: PipelineTuningOptions, value: any) -> object {
         ffi.lib.LLVMPY_PTOSetLoopInterleaving(self, value);
     }
 
@@ -632,7 +632,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
     }
 
     @loop_vectorization.setter
-    def loop_vectorization(self: PipelineTuningOptions, value: Any) -> object {
+    def loop_vectorization(self: PipelineTuningOptions, value: any) -> object {
         ffi.lib.LLVMPY_PTOSetLoopVectorization(self, value);
     }
 
@@ -642,7 +642,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
     }
 
     @slp_vectorization.setter
-    def slp_vectorization(self: PipelineTuningOptions, value: Any) -> object {
+    def slp_vectorization(self: PipelineTuningOptions, value: any) -> object {
         ffi.lib.LLVMPY_PTOSetSLPVectorization(self, value);
     }
 
@@ -652,7 +652,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
     }
 
     @loop_unrolling.setter
-    def loop_unrolling(self: PipelineTuningOptions, value: Any) -> object {
+    def loop_unrolling(self: PipelineTuningOptions, value: any) -> object {
         ffi.lib.LLVMPY_PTOSetLoopUnrolling(self, value);
     }
 
@@ -662,7 +662,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
     }
 
     @inlining_threshold.setter
-    def inlining_threshold(self: PipelineTuningOptions, value: Any) -> object {
+    def inlining_threshold(self: PipelineTuningOptions, value: any) -> object {
         ffi.lib.LLVMPY_PTOSetInlinerThreshold(self, value);
     }
 
@@ -682,7 +682,7 @@ class TimePassesHandler(ffi.ObjectRef) {
 }
 
 class PassBuilder(ffi.ObjectRef) {
-    def init(self: PassBuilder, tm: Any, pto: Any) -> object {
+    def init(self: PassBuilder, tm: any, pto: any) -> object {
         super.init(ffi.lib.LLVMPY_CreatePassBuilder(tm, pto));
         self._pto = pto;
         self._tm = tm;

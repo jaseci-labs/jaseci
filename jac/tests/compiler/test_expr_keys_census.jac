@@ -23,13 +23,12 @@ so the backend has no static offset), and `CoalesceBBPass.enter_node`,
 tooling family, reachable only from `jac tool` through `lang_tools`.
 
 One census, one test, deliberately. Each native root compile holds the
-whole closure's IR, and `jac test` spreads tests across xdist workers with
+whole closure's IR, and `jac test` spreads tests across worker processes with
 no shared memo, so a file of N tests over one root is N full compiles in up
 to N workers. The compiler suite runs on a 16GB runner that already loses
 communication when this accumulates.
 """
 
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -45,7 +44,7 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 """Compile one root the way seal_native_artifacts does, up to the census."""
 def _root_census(rel: str) -> tuple {
     if native_artifact_for("jaclang." + rel[:-4].replace("/", ".")) is not None {
-        pytest.skip(
+        testskip(
             f"{rel} is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );

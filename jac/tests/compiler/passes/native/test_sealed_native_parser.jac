@@ -16,7 +16,6 @@ which is the only tier a sealed build has (#8139).
 import gc;
 import json;
 import os;
-import pytest;
 import resource;
 import sys;
 import tempfile;
@@ -62,7 +61,7 @@ obj _ServeLocalArtifact {
 def _build_binding -> tuple {
     if "/.cache/jac/rt/"
         in str(Path(jaclang.__file__).resolve()).replace(os.sep, "/") {
-        pytest.skip(
+        testskip(
             "sealed-payload runtime: the parser seal is gated in source "
             "environments (dev lanes, macOS, build time), not from inside "
             "an installed payload"
@@ -254,12 +253,6 @@ glob _BODY_CARRIERS: tuple = ("Archetype", "Ability", "Enum", ),
          "    def m(p: int) -> int;",
          "    def n(p: int) -> int { return p + self.x; }",
          "    obj Inner { has y: int = 1; }",
-         "    comptime if 1 > 0 {",
-         "        has z: int = 2;",
-         "    }",
-         "    comptime for K in ['a'] {",
-         "        def m_${K} -> int { return 3; }",
-         "    }",
          "    impl m(p: int) -> int { return p; }",
          "}",
          "obj Decl;",
@@ -275,12 +268,8 @@ glob _BODY_CARRIERS: tuple = ("Archetype", "Ability", "Enum", ),
          "enum Hue: int {",
          "    RED = 1,",
          "    GREEN = 2,",
-         "    comptime for N in ['BLUE'] {",
-         "        ${ct.name(N)} = 3,",
-         "    }",
-         "    comptime if 1 > 0 {",
-         "        VIOLET = 4,",
-         "    }",
+         "    BLUE = 3,",
+         "    VIOLET = 4,",
          "    with entry { x = 1; }",
          "}",
          "enum Shade;",
@@ -772,10 +761,10 @@ test "the tripwire: bytecode branch refuses inside a native-sealed image" {
     frontend._NATIVE_PARSE_MEMO.append(None);
     sealed.native_tier_required = _tier_required_stub;
     try {
-        with pytest.raises(RuntimeError, match="bytecode parser was reached") {
+        with testraises(RuntimeError, `match="bytecode parser was reached") {
             frontend.parse_diags("with entry { x = 1; }", "__tripwire__.jac");
         }
-        with pytest.raises(RuntimeError, match="bytecode parser was reached") {
+        with testraises(RuntimeError, `match="bytecode parser was reached") {
             frontend.parse("with entry { x = 1; }", "__tripwire__.jac");
         }
     } finally {

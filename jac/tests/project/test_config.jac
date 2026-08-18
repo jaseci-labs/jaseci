@@ -457,7 +457,8 @@ test "dev section parsing" {
     assert cfg.dev.jaclang_source == "jac";
     assert cfg.dev.test_jobs == "4";
 
-    # A bare integer test_jobs is coerced to str so it flows into pytest's `-n`.
+    # A bare integer test_jobs is coerced to str so it flows into the runner's
+    # worker count.
     config_mod._config = None;
     as_int = JacConfig.from_toml_str("\n[dev]\ntest_jobs = 0\n");
     assert as_int.dev.test_jobs == "0";

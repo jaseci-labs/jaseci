@@ -84,9 +84,7 @@ def _absent_backend -> types.ModuleType {
 }
 
 """Run `get_py_code_gen` with `stub` standing in for the ES backend."""
-def _codegen_with(
-    stub: types.ModuleType
-) -> list[type[Transform[uni.Module, uni.Module]]] {
+def _codegen_with(stub: types.ModuleType) -> list[type[Transform]] {
     had = ES_BACKEND in sys.modules;
     saved: types.ModuleType = sys.modules[ES_BACKEND] if had else stub;
     sys.modules[ES_BACKEND] = stub;

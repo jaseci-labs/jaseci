@@ -2915,8 +2915,7 @@ test "builtin functions lower to runtime helpers without type-check (#7480)" {
 
     import shutil;
     if not shutil.which("node") {
-        import pytest;
-        pytest.skip("node not on PATH");
+        testskip("node not on PATH");
     }
     wrapper = (
         js_code

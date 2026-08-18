@@ -21,9 +21,8 @@ import from jaclang.jac0core.diagnostics {
     W2038
 }
 
-obj AccessCheckPass(Transform[Module, Module]) {
+obj AccessCheckPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None,
         _enforce: bool = False;
 

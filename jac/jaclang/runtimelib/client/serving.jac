@@ -3,7 +3,6 @@ import html;
 import json;
 import re;
 import from pathlib { Path }
-import from typing { Any }
 import from jaclang.jac0core.runtime { JacRuntime as Jac }
 import from jaclang.runtimelib.server { ModuleIntrospector }
 
@@ -39,7 +38,7 @@ class JacClient {
     static def render_page(
         introspector: ModuleIntrospector,
         function_name: str,
-        args: dict[(str, Any)],
+        args: dict[(str, any)],
         username: str
     ) -> dict[str, any];
 

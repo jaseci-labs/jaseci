@@ -7,7 +7,7 @@ import from ctypes { c_char_p }
     For example set_option("test", "-debug-pass=Structure") would display
     all optimization passes when generating code.
     """
-def set_option(name: Any, option: Any) -> object {
+def set_option(name: any, option: any) -> object {
     ffi.lib.LLVMPY_SetCommandLine(_encode_string(name), _encode_string(option));
 }
 

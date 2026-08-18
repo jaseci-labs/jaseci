@@ -109,3 +109,36 @@ test "equal floats share an id and unequal floats do not" {
     assert call("id_float_stable") == 1 , "equal floats gave different ids";
     assert call("id_float_differs") == 0 , "unequal floats collided";
 }
+
+
+test "an optional-typed argument keys by the pointer inside it" {
+    # `Symbol | None` is the type every `NameAtom.sym` read carries, and it
+    # reaches the emitter wearing the `{i8 tag, T*}` optional jacket rather
+    # than as a bare pointer. Refusing that jacket is why the analysis
+    # cluster's id()-keyed stamps demoted; the identity has to be the
+    # payload's address, so an alias through two optionals compares equal
+    # and two distinct nodes do not.
+    assert call("id_optional_attr") == 1 , "aliased optionals gave different ids";
+    assert call("id_optional_attr_distinct") == 0 , "distinct optionals collided";
+}
+
+
+test "a None optional keys as the null address" {
+    # None is one object, so its id is one value, and the payload of a None
+    # optional is the null pointer. This is only sound because the unwrap is
+    # gated on a POINTER payload: widening it to any payload would make
+    # id(None) collide with id(0) for an `int | None`.
+    assert call("id_optional_none_is_zero") == 0 , "id(None) was not the null address";
+}
+
+
+test "an optional the narrower cannot stabilise still keys" {
+    # A member read under a rebinding outer loop is exactly the shape flow
+    # narrowing declines to unwrap -- a callee could rebind the attribute --
+    # so the value arrives at id() still jacketed. The two links must still
+    # come out as two identities.
+    assert call("id_optional_loop_carried") == 2 , (
+        "loop-carried optional ids collapsed to "
+        f"{call('id_optional_loop_carried')}, expected 2"
+    );
+}
