@@ -15,6 +15,7 @@ import from jaclang.scale.config.app_config { AppConfig }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     create_k8s_secret
 }
+import from kubernetes.client.exceptions { ApiException }
 import from types { SimpleNamespace }
 import from jaclang.scale.deploy.target.kubernetes.runtime_resolver {
     build_k8s_registry,
@@ -508,6 +509,39 @@ test "an unusable revision is reported rather than silently skipped" {
     assert create_k8s_secret(api, "ns", "app-secrets", {"MARKER": "v1"}) == "";
     assert with_config_revision(_deployment({"MARKER": "v1"}), "")
         == _deployment({"MARKER": "v1"}) , "an empty revision stamps nothing, so the caller has to fail loudly";
+}
+
+
+# The redeploy is where #8115 actually lives: the Secret already exists, the
+# create 409s, and the revision has to come off the replace response instead.
+# _FakeSecrets only implements create, so a regression in that second capture
+# would leave the suite green while every real redeploy failed on the missing
+# revision.
+obj _FakeSecretsExisting(_FakeSecrets) {
+    has replaced: list = [];
+
+    def create_namespaced_secret(namespace: str, body: any) -> any {
+        raise ApiException(status=409);
+    }
+
+    def replace_namespaced_secret(name: str, namespace: str, body: any) -> any {
+        self.replaced.append(name);
+        return SimpleNamespace(metadata=SimpleNamespace(resource_version=self.version));
+    }
+}
+
+
+test "a redeploy takes its revision from the replace, not the create" {
+    api = _FakeSecretsExisting(version="88");
+
+    revision = create_k8s_secret(api, "ns", "app-secrets", {"MARKER": "v2"});
+
+    assert revision == "88" , (
+        "the 409 path has to return the replace response's revision, or a "
+        "redeploy stamps nothing and the config never reaches running pods"
+    );
+    assert api.replaced == ["app-secrets"];
+    assert api.created == [];
 }
 
 
