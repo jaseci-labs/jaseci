@@ -65,9 +65,6 @@ def _wire_externals(js: str, runtime_pkg: str) -> tuple[str, list[str]] {
 
 impl npm_js_path(rel_path: str) -> str {
     p = rel_path.replace("\\", "/");
-    if p.endswith(".cl.jac") {
-        return p[:-7] + ".js";
-    }
     if p.endswith(".jac") {
         return p[:-4] + ".js";
     }
@@ -124,17 +121,22 @@ def _crosses_server_boundary(mod: any) -> bool {
 }
 
 def _compile_module(program: any, path: Path) -> any {
+    import from jaclang.jac0core.compile_options { CompileOptions }
     source_key = str(path);
     prev = len(program.errors_had);
-    mod = program.compile(source_key);
+
+    mod = program.compile(
+        source_key, options=CompileOptions(force_codespace='client', type_check=False)
+    );
     new_errors = program.errors_had[prev:];
     if new_errors {
         formatted = "\n".join(str(err) for err in new_errors);
         raise ValueError(f"Failed to compile '{path}' for npm bundle:\n{formatted}");
     }
     import from jaclang.compiler.passes.ecmascript.esast_gen_pass { EsastGenPass }
+    import from jaclang.jac0core.compiler { run_pass }
     if mod and mod.gen and not mod.gen.js {
-        EsastGenPass(ir_in=mod, prog=program);
+        run_pass(EsastGenPass, mod, program);
     }
     return mod;
 }
@@ -142,7 +144,6 @@ def _compile_module(program: any, path: Path) -> any {
 impl collect_npm_sources(
     config: JacConfig, project_root: Path | None = None,
 ) -> list[NpmSourceFile] {
-    import from jaclang.jac0core.ext_registry { codespace_of }
     proj_root = project_root or config.project_root;
     if proj_root is None {
         raise ValueError(
@@ -169,9 +170,6 @@ impl collect_npm_sources(
                 continue;
             }
 
-            if codespace_of(src.name) in ('server', 'native') {
-                continue;
-            }
             rel = str(src.relative_to(proj_root)).replace("\\", "/");
             npm_path = npm_js_path(rel);
             if npm_path in seen {
@@ -187,7 +185,7 @@ impl collect_npm_sources(
                 raise NpmBoundaryError(
                     f"'{rel}' crosses a server boundary and cannot be published as a "
                     "standalone npm package. npm packages must be pure client code "
-                    "(no `sv` imports/calls)."
+                    "(no server-bound imports/calls)."
                 );
             }
             blocks = jsdoc_for_module(mod);

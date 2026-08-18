@@ -10,17 +10,20 @@ import os;
 import tempfile;
 import from tests.support { JAC_ROOT }
 import from jaclang.jac0core.program { JacProgram }
-import from jaclang.jac0core.compiler { JacCompiler, get_lint_sched }
+import from jaclang.jac0core.compiler { JacCompiler, get_lint_sched, run_pass }
 import from jaclang.compiler.passes.tool.jac_auto_lint_pass {
     JacAutoLintPass,
     JacLintCheckPass
 }
+import from jaclang.project.config { JacConfig, CheckConfig, LintConfig, set_config }
 
 # SECOND_ORDER_FIXTURES are fixtures where the report path is a *strict subset*
 # of the mutation pass. The mutation pass surfaces some warnings only *after* it
 # has rewritten the tree, i.e. follow-on autofixes on nodes it synthesized:
 #   - combine-glob on `glob`s extracted from `with entry` assignments
-#     (`class_entry`, `extractable`),
+#     (`class_entry`, `extractable`, `non_extractable` — upstream now extracts
+#     every assignment out of unnamed `with entry` blocks, even calls and
+#     attribute access, so that fixture's name is historical),
 #   - simplify-ternary that only appears once `hasattr(...)` conditions are
 #     rewritten to null-safe access (`hasattr_conversion`),
 #   - combine-has on `has` declarations synthesized from `useState` hooks
@@ -37,24 +40,28 @@ glob AUTO_LINT_FIXTURES = os.path.join(
          "class_entry.jac",
          "extractable.jac",
          "hasattr_conversion.jac",
+         "non_extractable.jac",
          "usestate_to_has.jac"
      };
 
-def _warn_keys(prog: JacProgram) -> list[str] {
+def _diag_keys(prog: JacProgram) -> list[str] {
     keys: list[str] = [];
+    for e in (prog.errors_had or []) {
+        keys.append(str(e));
+    }
     for w in (prog.warnings_had or []) {
         keys.append(str(w));
     }
     return sorted(keys);
 }
 
-def _full_pass_warnings(source: str, path: str) -> list[str] {
+def _full_pass_diags(source: str, path: str) -> list[str] {
     (p, m) = JacCompiler._prepare_tool_program(source, path);
     if m is None {
         return [];
     }
-    JacAutoLintPass(ir_in=m, prog=p).ir_out;
-    return _warn_keys(p);
+    run_pass(JacAutoLintPass, m, p).ir_out;
+    return _diag_keys(p);
 }
 
 def _write_tmp(src: str) -> str {
@@ -76,15 +83,15 @@ def _report_and_full(
         }
     }
     prog = JacProgram.jac_file_linter(path);
-    rep_keys = _warn_keys(prog);
-    full_keys = _full_pass_warnings(src, path);
+    rep_keys = _diag_keys(prog);
+    full_keys = _full_pass_diags(src, path);
     return (rep_keys, full_keys);
 }
 
 def _assert_report_matches_full(path: str, source: str | None = None) {
     (rep_keys, full_keys) = _report_and_full(path, source);
     assert rep_keys == full_keys , (
-        f"warning set diverged for {path}: " f"report={rep_keys} full={full_keys}"
+        f"diagnostic set diverged for {path}: " f"report={rep_keys} full={full_keys}"
     );
 }
 
@@ -93,7 +100,7 @@ def _assert_report_subset_of_full(path: str, source: str | None = None) {
     extra = sorted(set(rep_keys) - set(full_keys));
     assert not extra , (
         f"report path over-reported for {path}: "
-        f"warnings not emitted by the full pass: {extra}"
+        f"diagnostics not emitted by the full pass: {extra}"
     );
 }
 
@@ -103,7 +110,7 @@ test "lint report scheduler uses JacLintCheckPass" {
     assert sched[0] is JacLintCheckPass;
 }
 
-test "lint report path preserves every warning the mutation pass emits" {
+test "lint report path preserves every diagnostic the mutation pass emits" {
     sources = [
         # W3020 unnecessary pass in non-empty body
         "obj Foo {\n    has x: int = 5;\n    pass;\n}\n",
@@ -115,15 +122,53 @@ test "lint report path preserves every warning the mutation pass emits" {
         "with entry {\n    x = 5;\n    if x is 5 {\n        print(\"five\");\n    }\n}\n",
         # W3024 repeated condition in if/elif chain
         "with entry {\n    x = 5;\n    if x > 0 {\n        print(\"p\");\n    } elif x > 0 {\n        print(\"q\");\n    }\n}\n",
+        # W3005 empty parens on zero-arg function
+        "def no_params() {\n    return;\n}\n",
+        # W3006 unnecessary keyword escape on a non-reserved name
+        "with entry {\n    `myvar = 5;\n}\n",
+        # W3007 hasattr in boolean expression can become null-safe access
+        "obj Instance {\n    has value: int = 1;\n}\n"
+        "with entry {\n    instance = Instance();\n"
+        "    ok = hasattr(instance, \"value\") and instance.value > 0;\n}\n",
+        # E3012 bare print() (opt-in rule; enabled via select = ["all"] below)
+        "def greet(name: str) -> None {\n    print(\"hi \" + name);\n}\n",
+        # W3039 getattr(..., None) → null-safe access
+        "obj Box {\n    has value: int = 0;\n}\n"
+        "with entry {\n    b = Box();\n"
+        "    x = getattr(b, \"value\", None);\n}\n",
+        # W3042 map(lambda → JSX) → list comprehension
+        "def render(items: list) -> JsxElement {\n"
+        "    rows = items.map(\n"
+        "        lambda (item: any) -> any {\n"
+        "            return <li>{item}</li>;\n"
+        "        }\n"
+        "    );\n"
+        "    return <ul>{rows}</ul>;\n"
+        "}\n",
+        # W3043 @property → native has-accessor
+        "obj Counter {\n"
+        "    @property\n"
+        "    def val -> int {\n"
+        "        return 1;\n"
+        "    }\n"
+        "}\n",
 
     ];
-    for src in sources {
-        path = _write_tmp(src);
-        try {
-            _assert_report_matches_full(path, src);
-        } finally {
-            os.remove(path);
+
+    config = JacConfig();
+    config.check = CheckConfig(lint=LintConfig(select=["all"]));
+    set_config(config);
+    try {
+        for src in sources {
+            path = _write_tmp(src);
+            try {
+                _assert_report_matches_full(path, src);
+            } finally {
+                os.remove(path);
+            }
         }
+    } finally {
+        set_config(None);
     }
 }
 

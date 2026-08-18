@@ -49,6 +49,7 @@ obj JSCodeGenerator {
     def gen_call_expression(nd: es.CallExpression) -> str;
     def gen_new_expression(nd: es.NewExpression) -> str;
     def gen_await_expression(nd: es.AwaitExpression) -> str;
+    def gen_yield_expression(nd: es.YieldExpression) -> str;
     def gen_template_literal(nd: es.TemplateLiteral) -> str;
     def gen_template_element(nd: es.TemplateElement) -> str;
     def gen_spread_element(nd: es.SpreadElement) -> str;
@@ -79,3 +80,5 @@ def es_to_js(nd: (es.Node | None), indent: str = '  ') -> str;
 def es_to_js_with_map(
     nd: (es.Node | None), indent: str = '  '
 ) -> tuple[str, list[tuple[int, int, int]]];
+
+def template_element_raw(text: str) -> str;

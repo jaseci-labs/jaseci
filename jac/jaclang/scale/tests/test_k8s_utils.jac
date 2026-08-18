@@ -3,6 +3,7 @@ import from tempfile { mkdtemp }
 import from types { SimpleNamespace }
 import unittest.mock;
 import from kubernetes.client.exceptions { ApiException }
+import from requests.exceptions { SSLError }
 import from jaclang.runtimelib.test { parametrize }
 import from jaclang.scale.deploy.target.kubernetes.utils { kubernetes_utils as utils }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
@@ -182,12 +183,9 @@ test "check pods restarted selector and return values" {
     current_hash = "abc123";
     expected_labels = [
         app_name,
-        f"{app_name}-redis",
-        f"{app_name}-mongodb",
+        f"{app_name}-postgres",
         f"{app_name}-grafana",
-        f"{app_name}-prometheus",
-        f"{app_name}-mongo-express",
-        f"{app_name}-redis-insight"
+        f"{app_name}-prometheus"
     ];
 
     fake_rs = unittest.mock.MagicMock();
@@ -388,13 +386,13 @@ test "check pods restarted still detects a crash-looping StatefulSet pod with no
     crash_container.state.terminated = None;
     crash_container.restart_count = 12;
 
-    pod_mongodb = unittest.mock.MagicMock();
-    pod_mongodb.metadata.labels = {"controller-revision-hash": "mongodb-abc123"};
-    pod_mongodb.status.container_statuses = [crash_container];
-    pod_mongodb.status.init_container_statuses = None;
+    pod_postgres = unittest.mock.MagicMock();
+    pod_postgres.metadata.labels = {"controller-revision-hash": "postgres-abc123"};
+    pod_postgres.status.container_statuses = [crash_container];
+    pod_postgres.status.init_container_statuses = None;
 
     resp = unittest.mock.MagicMock();
-    resp.items = [pod_deployment, pod_mongodb];
+    resp.items = [pod_deployment, pod_postgres];
 
     fake_v1 = unittest.mock.MagicMock();
     fake_v1.list_namespaced_pod.return_value = resp;
@@ -570,4 +568,56 @@ with entry {
         ["", "abc", "Gi", "10X", "10gi", "10GI"],
         _test_parse_storage_invalid
     );
+}
+
+test "deploy status probe retries unverified on ssl redirect" {
+    # A TLS-enabled ingress redirects the HTTP probe to https on the NLB
+    # hostname, whose cert is issued for the app's domain; verification
+    # can never pass there. The probe must fall back to an unverified
+    # retry instead of burning every attempt on SSLError.
+    calls: list = [];
+
+    def _fake_get(url: str, timeout: int = 10, verify: object = True) -> object {
+        calls.append(verify);
+        if verify is not False {
+            raise SSLError("certificate verify failed: hostname mismatch");
+        }
+        resp = unittest.mock.MagicMock();
+        resp.status_code = 200;
+        return resp;
+    }
+
+    with unittest.mock.patch.object(
+        utils, "requests", SimpleNamespace(get=_fake_get)
+    ) {
+        with unittest.mock.patch.object(utils, "config", unittest.mock.MagicMock()) {
+            with unittest.mock.patch.object(
+                utils, "client", unittest.mock.MagicMock()
+            ) {
+                with unittest.mock.patch.object(
+                    utils,
+                    "_resolve_current_rs_hashes",
+                    unittest.mock.MagicMock(return_value=set())
+                ) {
+                    with unittest.mock.patch.object(
+                        utils,
+                        "check_pods_restarted",
+                        unittest.mock.MagicMock(return_value=False)
+                    ) {
+                        (ok, detail) = utils.check_deployment_status(
+                            0,
+                            "/",
+                            interval=0,
+                            max_retries=2,
+                            nlb_url="http://nlb.example"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    assert ok is True , f"probe should succeed via unverified retry, got ({ok}, {detail!r})";
+    assert detail == "Successful";
+    assert calls == [True, False] , f"expected one verified attempt then one unverified retry, got {calls}";
 }

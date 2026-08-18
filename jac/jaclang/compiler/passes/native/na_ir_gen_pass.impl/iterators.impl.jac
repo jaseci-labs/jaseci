@@ -17,8 +17,12 @@ impl NaIRGenPass._ensure_iter_types -> None {
         "RangeIterState", ["cur", "stop", "step"], [i64, i64, i64]
     );
 
-    self._register_iter_struct("MapIterState", ["upstream"], [i8p]);
-    self._register_iter_struct("FilterIterState", ["upstream"], [i8p]);
+    self._register_iter_struct(
+        "MapIterState", ["upstream", "fn", "env"], [i8p, i64, i8p]
+    );
+    self._register_iter_struct(
+        "FilterIterState", ["upstream", "fn", "env"], [i8p, i64, i8p]
+    );
     self._register_iter_struct("EnumerateIterState", ["upstream", "idx"], [i8p, i64]);
     self._register_iter_struct("ZipIterState", ["up_a", "up_b"], [i8p, i8p]);
 
@@ -62,7 +66,7 @@ impl NaIRGenPass._alloc_iter_struct(name: str) -> ir.Value {
     if dtor is not None {
         raw_i8 = self.builder.bitcast(it_obj, i8p, name="it.raw.i8");
         dtor_slot = self.builder.gep(
-            raw_i8, [ir.Constant(i64, -8)], name="it.dtor.slot"
+            raw_i8, [ir.Constant(i64, HDR_DTOR_OFF)], name="it.dtor.slot"
         );
         dtor_slot_p = self.builder.bitcast(dtor_slot, i64p, name="it.dtor.p");
         dtor_i64 = self.builder.ptrtoint(dtor, i64, name="it.dtor.i64");
@@ -187,6 +191,25 @@ impl NaIRGenPass._make_list_iter(
     return self._make_jac_iter(next_fn, state);
 }
 
+impl NaIRGenPass._get_char_cache_gv -> ir.Value {
+    sym = "__jac_chars";
+    if sym in self.llvm_module.globals {
+        return self.llvm_module.globals[sym];
+    }
+    char_struct_type = None;
+    entries: list = [];
+    for _bi in range(256) {
+        (char_struct_type, _entry) = self._static_str_struct_const(bytes([_bi, 0]));
+        entries.append(_entry);
+    }
+    arr256_type = ir.ArrayType(char_struct_type, 256);
+    cache_gv = ir.GlobalVariable(self.llvm_module, arr256_type, name=sym);
+    cache_gv.linkage = "private";
+    cache_gv.global_constant = True;
+    cache_gv.initializer = ir.Constant(arr256_type, entries);
+    return cache_gv;
+}
+
 impl NaIRGenPass._str_iter_next_fn -> ir.Function {
     key = "str";
     if key in self._iter_next_fns {
@@ -197,7 +220,9 @@ impl NaIRGenPass._str_iter_next_fn -> ir.Function {
     i64 = ir.IntType(64);
     i1 = ir.IntType(1);
     state_ptr_type = self.struct_types["StrIterState"].as_pointer();
-    strlen_fn = self._get_or_declare_extern("strlen", i64, [i8p]);
+    if self.str_len_fn is None {
+        self._emit_str_len_helpers();
+    }
     nfty = ir.FunctionType(i1, [i8p, i8p]);
     fn = ir.Function(self.llvm_module, nfty, name="__iter_next_str");
     fn.linkage = "private";
@@ -217,17 +242,20 @@ impl NaIRGenPass._str_iter_next_fn -> ir.Function {
         state, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="sit.idx.slot"
     );
     idx = b.load(idx_slot, name="sit.idx");
-    n = b.call(strlen_fn, [s_ptr], name="sit.len");
+    n = b.call(self.str_len_fn, [s_ptr], name="sit.len");
     ok = b.icmp_signed("<", idx, n, name="sit.ok");
     b.cbranch(ok, cont, stop);
     b.position_at_end(cont);
 
-    i8 = ir.IntType(8);
     char_ptr = b.gep(s_ptr, [idx], name="sit.char.ptr");
     char_val = b.load(char_ptr, name="sit.char");
-    ch = b.call(self.rc_alloc_fn, [ir.Constant(i64, 2)], name="sit.char.str");
-    b.store(char_val, ch);
-    b.store(ir.Constant(i8, 0), b.gep(ch, [ir.Constant(i64, 1)], name="sit.null.ptr"));
+    byte_idx = b.zext(char_val, i64, name="sit.char.idx");
+    cache_gv = self._get_char_cache_gv();
+    ch = b.gep(
+        cache_gv,
+        [ir.Constant(i32, 0), byte_idx, ir.Constant(i32, 2), ir.Constant(i32, 0)],
+        name="sit.char.cached"
+    );
     out_t = b.bitcast(fn.args[1], i8p.as_pointer(), name="sit.out");
     b.store(ch, out_t);
     b.store(b.add(idx, ir.Constant(i64, 1), name="sit.idx.next"), idx_slot);
@@ -414,6 +442,7 @@ impl NaIRGenPass._set_iter_next_fn(
     entry_bb = fn.append_basic_block("entry");
     cont = fn.append_basic_block("cont");
     stop = fn.append_basic_block("stop");
+    helpers = self.set_helpers[elem_type_name];
     b = ir.IRBuilder(entry_bb);
     state = b.bitcast(fn.args[0], state_ptr_type, name="set.state");
     coll_slot = b.gep(
@@ -426,18 +455,11 @@ impl NaIRGenPass._set_iter_next_fn(
     );
     idx = b.load(idx_slot, name="set.idx");
 
-    n = b.load(
-        b.gep(set_ptr, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="set.len.p"),
-        name="set.len"
-    );
+    n = b.call(helpers["len"], [set_ptr], name="set.len");
     ok = b.icmp_signed("<", idx, n, name="set.ok");
     b.cbranch(ok, cont, stop);
     b.position_at_end(cont);
-    data = b.load(
-        b.gep(set_ptr, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="set.data.p"),
-        name="set.data"
-    );
-    v = b.load(b.gep(data, [idx], name="set.elem.p"), name="set.elem");
+    v = b.call(helpers["get"], [set_ptr, idx], name="set.elem");
     out_t = b.bitcast(fn.args[1], elem_type.as_pointer(), name="set.out");
     b.store(v, out_t);
     b.store(b.add(idx, ir.Constant(i64, 1), name="set.idx.next"), idx_slot);
@@ -619,7 +641,7 @@ impl NaIRGenPass._make_iter_from_value(
         return (self._make_str_iter(val), "str", i8p);
     }
     if self._jac_iter_type is not None
-    and val.type == self._jac_iter_type.as_pointer() {
+        and val.type == self._jac_iter_type.as_pointer() {
         if not self._is_owned(val) {
             self._emit_rc_retain(val, op="iter_alias");
             self._mark_owned(val);
@@ -635,10 +657,40 @@ impl NaIRGenPass._make_iter_from_value(
     return None;
 }
 
-impl NaIRGenPass._adapter_callee_fn(fn_expr: uni.UniNode) -> (ir.Function | None) {
-    named = self.func_symtab.get(self._get_name(fn_expr));
+impl NaIRGenPass._adapter_clos_parts(clos: ir.Value) -> (tuple | None) {
+    sn = self._closure_struct_of(clos.type);
+    if sn is None {
+        return None;
+    }
+    (_st, fnty_env) = self.closure_sig_registry[sn];
+    i32 = ir.IntType(32);
+    fn_slot = self.builder.gep(
+        clos, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="acb.fn.slot"
+    );
+    fn_i64 = self.builder.load(fn_slot, name="acb.fn");
+    env_slot = self.builder.gep(
+        clos, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="acb.env.slot"
+    );
+    env = self.builder.load(env_slot, name="acb.env");
+    self._emit_rc_retain(env, op="adapter_env", loc="");
+    if self._is_owned(clos) {
+        self._emit_rc_release_simple(clos, op="adapter_clos", loc="");
+    }
+    return ("clos", fn_i64, env, fnty_env);
+}
+
+impl NaIRGenPass._adapter_callee(fn_expr: uni.UniNode) -> (tuple | None) {
+    fname = self._get_name(fn_expr);
+    if fname is not None and fname in self.nested_captures {
+        clos = self._emit_closure_value(fname, fn_expr);
+        if clos is not None {
+            return self._adapter_clos_parts(clos);
+        }
+        return None;
+    }
+    named = self.func_symtab.get(fname) if fname is not None else None;
     if named is not None and isinstance(named, ir.Function) {
-        return named;
+        return ("bare", named, None, None);
     }
     if isinstance(fn_expr, uni.LambdaExpr) {
         lv = self._codegen_lambda(fn_expr);
@@ -649,13 +701,21 @@ impl NaIRGenPass._adapter_callee_fn(fn_expr: uni.UniNode) -> (ir.Function | None
                 node_override=fn_expr,
                 kind="expression",
                 name="capturing lambda as a map/filter callback",
-                help_text="A lambda passed to map/filter must not capture enclosing locals; bind the value through the element or use a named function."
+                help_text="This lambda's captures could not be promoted to shared heap cells in this frame (the capture is borrowed from an outer function, or this is a generator frame); bind the value through the element or use a named function."
             );
             return None;
         }
         if isinstance(lv, ir.Function) {
-            return lv;
+            return ("bare", lv, None, None);
         }
+        if lv is not None and self._closure_struct_of(lv.type) is not None {
+            return self._adapter_clos_parts(lv);
+        }
+        return None;
+    }
+    v = self._codegen_expr(fn_expr);
+    if v is not None and self._closure_struct_of(v.type) is not None {
+        return self._adapter_clos_parts(v);
     }
     return None;
 }
@@ -667,11 +727,11 @@ impl NaIRGenPass._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
         params = expr.params or [];
 
         if cname in ("map", "filter", "enumerate", "zip", "iter")
-        and expr.call_kind != "builtin" {
+            and expr.call_kind != "builtin" {
             cname = None;
         }
         if cname == "map" and len(params) == 2 {
-            fn = self._adapter_callee_fn(params[0]);
+            fn = self._adapter_callee(params[0]);
             up = self._build_iter_from_expr(params[1]);
             if fn is None or up is None {
                 return None;
@@ -679,7 +739,7 @@ impl NaIRGenPass._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
             return self._make_map_iter(up, fn);
         }
         if cname == "filter" and len(params) == 2 {
-            pred = self._adapter_callee_fn(params[0]);
+            pred = self._adapter_callee(params[0]);
             up = self._build_iter_from_expr(params[1]);
             if pred is None or up is None {
                 return None;
@@ -705,19 +765,29 @@ impl NaIRGenPass._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
             return self._build_iter_from_expr(params[0]);
         }
     }
-    val = self._codegen_expr(expr);
+    val = self._str_norm(self._codegen_expr(expr));
     if val is None {
         return None;
     }
-    return self._make_iter_from_value(val, expr);
+    _built = self._make_iter_from_value(val, expr);
+    if _built is not None
+        and self._iter_owned_srcs is not None
+        and _built[0] is not val
+        and self._is_owned(val) {
+        self._iter_owned_srcs.append(val);
+    }
+    return _built;
 }
 
-impl NaIRGenPass._make_map_iter(up: tuple, fn: ir.Function) -> (tuple | None) {
+impl NaIRGenPass._make_map_iter(up: tuple, callee: tuple) -> (tuple | None) {
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     i1 = ir.IntType(1);
     (up_val, up_name, up_type) = up;
-    out_type = fn.function_type.return_type;
+    (ckind, cfn, cenv, fnty_env) = callee;
+    out_type = cfn.function_type.return_type
+        if ckind == "bare"
+        else fnty_env.return_type;
     uid = self._iter_uid;
     self._iter_uid = uid + 1;
     state_ptr_type = self.struct_types["MapIterState"].as_pointer();
@@ -740,7 +810,20 @@ impl NaIRGenPass._make_map_iter(up: tuple, fn: ir.Function) -> (tuple | None) {
     b.cbranch(got, apply, stop);
     b.position_at_end(apply);
     tval = b.load(tmp, name="map.tval");
-    uval = b.call(fn, [tval], name="map.uval");
+    if ckind == "bare" {
+        uval = b.call(cfn, [tval], name="map.uval");
+    } else {
+        fn_slot = b.gep(
+            state, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="map.fn.slot"
+        );
+        fn_i64 = b.load(fn_slot, name="map.fn");
+        fnp = b.inttoptr(fn_i64, fnty_env.as_pointer(), name="map.fnp");
+        env_slot = b.gep(
+            state, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="map.env.slot"
+        );
+        env = b.load(env_slot, name="map.env");
+        uval = b.call(fnp, [tval, env], name="map.uval");
+    }
     out_t = b.bitcast(nfn.args[1], out_type.as_pointer(), name="map.out");
     b.store(uval, out_t);
     b.ret(ir.Constant(i1, 1));
@@ -752,14 +835,28 @@ impl NaIRGenPass._make_map_iter(up: tuple, fn: ir.Function) -> (tuple | None) {
         st, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="map.up.field"
     );
     self.builder.store(up_i8, st_slot);
+    fn_field = self.builder.gep(
+        st, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="map.fn.field"
+    );
+    env_field = self.builder.gep(
+        st, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="map.env.field"
+    );
+    if ckind == "clos" {
+        self.builder.store(cfn, fn_field);
+        self.builder.store(cenv, env_field);
+    } else {
+        self.builder.store(ir.Constant(ir.IntType(64), 0), fn_field);
+        self.builder.store(ir.Constant(i8p, None), env_field);
+    }
     return (self._make_jac_iter(nfn, st), "adapter", out_type);
 }
 
-impl NaIRGenPass._make_filter_iter(up: tuple, pred: ir.Function) -> (tuple | None) {
+impl NaIRGenPass._make_filter_iter(up: tuple, callee: tuple) -> (tuple | None) {
     i8p = ir.IntType(8).as_pointer();
     i32 = ir.IntType(32);
     i1 = ir.IntType(1);
     (up_val, up_name, up_type) = up;
+    (ckind, cfn, cenv, fnty_env) = callee;
     uid = self._iter_uid;
     self._iter_uid = uid + 1;
     state_ptr_type = self.struct_types["FilterIterState"].as_pointer();
@@ -787,7 +884,20 @@ impl NaIRGenPass._make_filter_iter(up: tuple, pred: ir.Function) -> (tuple | Non
     b.cbranch(got, test_bb, stop);
     b.position_at_end(test_bb);
     tval = b.load(tmp, name="flt.tval");
-    keep = b.call(pred, [tval], name="flt.keep");
+    if ckind == "bare" {
+        keep = b.call(cfn, [tval], name="flt.keep");
+    } else {
+        fn_slot = b.gep(
+            state, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="flt.fn.slot"
+        );
+        fn_i64 = b.load(fn_slot, name="flt.fn");
+        fnp = b.inttoptr(fn_i64, fnty_env.as_pointer(), name="flt.fnp");
+        env_slot = b.gep(
+            state, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="flt.env.slot"
+        );
+        env = b.load(env_slot, name="flt.env");
+        keep = b.call(fnp, [tval, env], name="flt.keep");
+    }
     keepb = b.icmp_unsigned("!=", keep, ir.Constant(keep.type, 0), name="flt.keepb");
     b.cbranch(keepb, emit, loop_bb);
     b.position_at_end(emit);
@@ -802,6 +912,19 @@ impl NaIRGenPass._make_filter_iter(up: tuple, pred: ir.Function) -> (tuple | Non
         st, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="flt.up.field"
     );
     self.builder.store(up_i8, st_slot);
+    fn_field = self.builder.gep(
+        st, [ir.Constant(i32, 0), ir.Constant(i32, 1)], name="flt.fn.field"
+    );
+    env_field = self.builder.gep(
+        st, [ir.Constant(i32, 0), ir.Constant(i32, 2)], name="flt.env.field"
+    );
+    if ckind == "clos" {
+        self.builder.store(cfn, fn_field);
+        self.builder.store(cenv, env_field);
+    } else {
+        self.builder.store(ir.Constant(ir.IntType(64), 0), fn_field);
+        self.builder.store(ir.Constant(i8p, None), env_field);
+    }
     return (self._make_jac_iter(nfn, st), up_name, up_type);
 }
 
@@ -972,7 +1095,7 @@ impl NaIRGenPass._resolve_method(
 
 impl NaIRGenPass._arch_implements_iter(arch_name: str) -> bool {
     return self._resolve_method(arch_name, "__next__") is not None
-    or self._resolve_method(arch_name, "__iter__") is not None;
+        or self._resolve_method(arch_name, "__iter__") is not None;
 }
 
 impl NaIRGenPass._user_iter_next_fn(
@@ -1127,14 +1250,21 @@ impl NaIRGenPass._codegen_next(nd: uni.FuncCall) -> (ir.Value | None) {
     self._ensure_iter_types();
     i1 = ir.IntType(1);
     i8p = ir.IntType(8).as_pointer();
-    out_slot = self._entry_alloca(elem_type, "next.out");
+
+    _out_is_desc = self._str_desc_ty is not None and elem_type == self._str_desc_ty;
+    _slot_ty = ir.IntType(8).as_pointer() if _out_is_desc else elem_type;
+    out_slot = self._entry_alloca(_slot_ty, "next.out");
     out_i8 = self.builder.bitcast(out_slot, i8p, name="next.out.i8");
     got = self._emit_iter_advance(self.builder, iter_val, out_i8);
     is_stop = self.builder.icmp_unsigned(
         "==", got, ir.Constant(i1, 0), name="next.stop"
     );
     self._emit_runtime_raise(is_stop, "StopIteration", "");
-    return self.builder.load(out_slot, name="next.val");
+    _next_val = self.builder.load(out_slot, name="next.val");
+    if _out_is_desc {
+        _next_val = self._coerce_type(_next_val, elem_type);
+    }
+    return _next_val;
 }
 
 impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
@@ -1151,8 +1281,12 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     is_user_iterable = _ustruct is not None and self._arch_implements_iter(_ustruct);
     built: (tuple | None) = None;
     owns_iter = False;
+    _saved_srcs = self._iter_owned_srcs;
+    _iter_srcs: list = [];
     if is_adapter_call or is_user_iterable {
+        self._iter_owned_srcs = _iter_srcs;
         built = self._build_iter_from_expr(coll);
+        self._iter_owned_srcs = _saved_srcs;
         owns_iter = True;
     } else {
         elem_t = self._iter_elem_llvm_of(coll);
@@ -1175,9 +1309,21 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
 
     _gen_it_spill: (ir.Value | None) = None;
     if self._gen_ctx is not None
-    and self.builder.function is self._gen_ctx["resume_fn"] {
+        and self.builder.function is self._gen_ctx["resume_fn"] {
         _gen_it_spill = self._entry_alloca(iter_val.type, "iterf.itslot");
         self.builder.store(iter_val, _gen_it_spill);
+    }
+
+    _it_slot_var: (str | None) = None;
+    if _gen_it_spill is None and owns_iter {
+        _it_slot_var = self._bind_loop_coll_slot(iter_val);
+    }
+    _src_slot_vars: list[str] = [];
+    for _src in _iter_srcs {
+        _src_nm = self._bind_loop_coll_slot(_src);
+        if _src_nm is not None {
+            _src_slot_vars.append(_src_nm);
+        }
     }
 
     elem_slot = self._entry_alloca(elem_type, "iter.elem");
@@ -1243,8 +1389,13 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     if _gen_it_spill is not None {
         iter_val = self.builder.load(_gen_it_spill, name="iterf.it.end");
     }
-    if owns_iter {
+    if _it_slot_var is not None {
+        self._release_loop_coll_slot(_it_slot_var, op="iter_end", loc=_loc);
+    } elif owns_iter {
         self._emit_rc_release_simple(iter_val, op="iter_end", loc=_loc);
+    }
+    for _src_nm in _src_slot_vars {
+        self._release_loop_coll_slot(_src_nm, op="iter_src_end", loc=_loc);
     }
     return True;
 }

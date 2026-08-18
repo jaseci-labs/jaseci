@@ -136,7 +136,7 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
     port = self._assign_port(entry);
 
     import from jaclang.scale.runtime.context.util { jac_executable }
-    import from jaclang.runtimelib.sv_client { headless_start_args }
+    import from jaclang.runtimelib.sv_client { headless_start_args, peer_url_env_key }
     jac_bin: str = jac_executable();
 
     cmd = [jac_bin] + headless_start_args(entry.file, port);
@@ -152,7 +152,7 @@ impl ServiceProcessManager.start_service(name: str) -> bool {
         for (peer_name, peer_entry) in self.registry.entries.items() {
             if peer_name != name and peer_entry.port > 0 {
                 peer_url: str = peer_entry.url or self._url_for(peer_entry);
-                child_env[f"JAC_SV_{peer_name.upper()}_URL"] = peer_url;
+                child_env[peer_url_env_key(peer_name)] = peer_url;
             }
         }
 

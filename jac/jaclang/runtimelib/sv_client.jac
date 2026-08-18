@@ -43,16 +43,25 @@ def clear_consumer_providers {
     _consumer_providers.clear();
 }
 
+def peer_url_env_key(module_name: str) -> str {
+    return f"JAC_SV_{module_name.upper()}_URL";
+}
+
+def peer_url_from_env(module_name: str) -> str {
+    return os.environ.get(peer_url_env_key(module_name), "").strip();
+}
+
 def resolve_url(module_name: str) -> str {
     if module_name in _registry {
         return _registry[module_name];
     }
-    env_var = f"JAC_SV_{module_name.upper()}_URL";
-    if env_var in os.environ {
-        return os.environ[env_var];
+    env_url = peer_url_from_env(module_name);
+    if env_url {
+        return env_url;
     }
     raise RuntimeError(
-        f"sv-to-sv service '{module_name}' not registered. " + f"Set {env_var} or call sv_client.register()."
+        f"sv-to-sv service '{module_name}' not registered. "
+            + f"Set {peer_url_env_key(module_name)} or call sv_client.register()."
     );
 }
 
@@ -63,9 +72,9 @@ def _ensure_available(module_name: str) -> None {
     if module_name in _registry {
         return;
     }
-    env_var = f"JAC_SV_{module_name.upper()}_URL";
-    if env_var in os.environ {
-        register(module_name, os.environ[env_var]);
+    env_url = peer_url_from_env(module_name);
+    if env_url {
+        register(module_name, env_url);
         return;
     }
     import jaclang;

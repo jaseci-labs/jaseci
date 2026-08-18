@@ -1,3 +1,4 @@
+import sys;
 import types;
 import from threading { Event }
 import jaclang.jac0core.unitree as uni;
@@ -7,6 +8,12 @@ import from jaclang.jac0core.passes { Alert }
 import type from jaclang.compiler.type_system.type_evaluator { TypeEvaluator }
 import type from jaclang.jac0core.compiler { JacCompiler }
 import type from jaclang.jac0core.passes { Transform }
+
+with entry {
+    if sys.getrecursionlimit() < 12000 {
+        sys.setrecursionlimit(12000);
+    }
+}
 
 class JacProgram {
     has mod: uni.ProgramModule,
@@ -18,11 +25,15 @@ class JacProgram {
         _compiler: JacCompiler | None,
         _compile_options: CompileOptions,
         _native_cache: dict[(str, any)],
+        _na_dep_units: dict[(str, any)],
+        _na_dep_inflight: set,
         _hub_cache_times: dict[str, float],
         _dependents: dict[str, set[str]],
         _track_dependencies: bool,
         _inferred_mods: set,
-        _analyses_run: dict;
+        _analyses_run: dict,
+        _placement_summaries: dict,
+        _placement_state: dict;
 
     def init(self: JacProgram, main_mod: (uni.ProgramModule | None) = None) -> None;
     def _get_compiler(self: JacProgram) -> JacCompiler;
@@ -38,6 +49,16 @@ class JacProgram {
     def record_module_dependencies(self: JacProgram, mod: uni.Module) -> None;
     def transitive_dependents(self: JacProgram, target_path: str) -> set[str];
     def invalidate_module(self: JacProgram, resolved_path: str) -> None;
+    def load_dependency_module(
+        self: JacProgram,
+        source_path: str,
+        importer_path: (str | None) = None,
+        use_str: (str | None) = None
+    ) -> uni.Module;
+
+    def drop_module_alerts(self: JacProgram, resolved_path: str) -> None;
+    static def hub_key(path: str) -> str;
+    def has_failed_parse(self: JacProgram, path: str) -> bool;
     def _search_hubs(self: JacProgram) -> list[dict[(str, uni.Module)]];
     def find_module(self: JacProgram, path: str) -> (uni.Module | None);
     def get_bytecode(self: JacProgram, full_target: str) -> (types.CodeType | None);
@@ -69,7 +90,7 @@ class JacProgram {
     def run_schedule(
         self: JacProgram,
         mod: uni.Module,
-        passes: list[type[Transform[uni.Module, uni.Module]]],
+        passes: list[type[Transform]],
         cancel_token: (Event | None) = None
     ) -> None;
 

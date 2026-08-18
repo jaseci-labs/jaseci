@@ -7,9 +7,9 @@ glob _SEEDS: list[str] = [
          "jaclang.jac0core.runtime",
          "jaclang.jac0core.archetype",
          "jaclang.runtimelib.server",
-         "jaclang.runtimelib.memory",
+         "jaclang.runtimelib.session",
+         "jaclang.runtimelib.store",
          "jaclang.runtimelib.serializer",
-         "jaclang.runtimelib.changeset",
          "jaclang.runtimelib.builtin"
      ],
      _BYLLM_SEEDS: list[str] = [
@@ -33,9 +33,7 @@ glob _SEEDS: list[str] = [
          "jaclang.jac0core.unitree",
          "jaclang.jac0core.bccache",
          "jaclang.jac0core.jir",
-         "jaclang.jac0core.native_marshal",
          "jaclang.jac0core.interop_bridge",
-         "jaclang.jac0core.gen_jir_registry",
          "jaclang.jac0core.gen_uni_dispatch",
          "jaclang.jac0core.cli_boot",
          "jaclang.runtimelib.client",
@@ -49,7 +47,7 @@ glob _SEEDS: list[str] = [
      _ALLOW_EXACT: list[str] = [
          "jaclang.cli.console",
          "jaclang.cli.banners",
-         "jaclang.scale.jserver.jserver"
+         "jaclang.runtimelib.serving.endpoint"
      ],
      _VENDORED_INIT: str = '''"""Vendored jaclang runtime.
 
@@ -128,7 +126,7 @@ def scan_jaclang_imports(py_src: str) -> set[str] {
         for child in py_ast.iter_child_nodes(nd) {
             tc = in_tc;
             if isinstance(child, py_ast.If)
-            and ("TYPE_CHECKING" in py_ast.unparse(child.test)) {
+                and ("TYPE_CHECKING" in py_ast.unparse(child.test)) {
                 tc = True;
             }
             if (not tc) and isinstance(child, py_ast.Import) {
@@ -228,10 +226,25 @@ def build_runtime_closure(
             return True;
         }
         if (not include_byllm)
-        and ((mod == "jaclang.byllm") or mod.startswith("jaclang.byllm.")) {
+            and ((mod == "jaclang.byllm") or mod.startswith("jaclang.byllm.")) {
             return True;
         }
         return False;
+    }
+    bad_seeds: list[str] = [];
+    for s in (extra_seeds or []) {
+        seed = str(s);
+        if _deny(seed) or (_module_to_file(pkg_root, seed) is None) {
+            bad_seeds.append(seed);
+        }
+    }
+    if bad_seeds {
+        raise ValueError(
+            "runtime vendor: requested seed module(s) do not resolve to a "
+            "vendorable module: "
+                + ", ".join(sorted(bad_seeds))
+                + "."
+        );
     }
     for code in user_codes {
         for imp in scan_jaclang_imports(str(code)) {
