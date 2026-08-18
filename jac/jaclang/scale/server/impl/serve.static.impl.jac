@@ -32,7 +32,7 @@ impl JacAPIServerStatic.serve_static_file(file_path: str) -> Response {
             );
         }
         (target, _) = hit;
-        return asset_response(target, {});
+        return asset_response(target);
     } except Exception as exc {
         return Response(status_code=500);
     }
@@ -213,7 +213,7 @@ impl JacAPIServerStatic.serve_root_asset(file_path: str) -> Response {
     hit = resolve_asset(table, '/' + file_path);
     if hit is not None {
         (target, _) = hit;
-        return asset_response(target, {});
+        return asset_response(target);
     }
 
     file_ext = Path(file_path).suffix.lower();
