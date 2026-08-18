@@ -155,6 +155,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         struct_field_types: dict[str, dict] = {},
         struct_field_defaults: dict[str, object] = {},
         struct_field_foreign: dict[str, set] = {},
+        struct_field_opaque: dict[str, dict] = {},
         struct_field_erased_tv: dict[str, dict] = {},
         arch_type_params: dict[str, list] = {},
         struct_field_inline: dict[str, set] = {},
@@ -985,6 +986,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
         full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
     ) -> bool;
 
+    def _seam_warnings_on -> bool;
+    def _opaque_field_if_unlowerable(
+        arch_name: str, fname: str, local_mark: int
+    ) -> (ir.Type | None);
+
+    def _refuse_opaque_field(
+        nd: (uni.UniNode | None), type_name: (str | None), fname: str
+    ) -> bool;
+
     def _predemote_capability_unit(
         full_name: str, func: ir.Function, viols: list, keep_func: bool = False
     ) -> bool;
@@ -1080,7 +1090,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _repr_call_elem_fn(elem_fn: ir.Function, elem: ir.Value) -> ir.Value;
     def _codegen_field_access(
-        obj_val: ir.Value, field_name: str, type_name: str
+        obj_val: ir.Value,
+        field_name: str,
+        type_name: str,
+        nd: (uni.UniNode | None) = None
     ) -> (ir.Value | None);
 
     def _codegen_field_aug_assign(

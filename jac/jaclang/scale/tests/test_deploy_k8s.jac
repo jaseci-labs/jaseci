@@ -2,8 +2,7 @@ import os;
 import time;
 import importlib.resources;
 import from pathlib { Path }
-import from typing { Any, cast }
-
+import from typing { cast }
 import from kubernetes { client, config }
 import from kubernetes.client.exceptions { ApiException }
 
@@ -357,7 +356,7 @@ test "get service url switches between http and https based on tls state" {
     target_config["namespace"] = "default";
     target_config["domain"] = "app.example.com";
     logger = UtilityFactory.create_logger("standard");
-    deployment_target: Any = DeploymentTargetFactory.create(
+    deployment_target: any = DeploymentTargetFactory.create(
         "kubernetes", target_config, logger
     );
 
@@ -402,7 +401,7 @@ test "enable tls raises when no domain configured" {
     target_config["namespace"] = "default";
     target_config["domain"] = "";
     logger = UtilityFactory.create_logger("standard");
-    deployment_target: Any = DeploymentTargetFactory.create(
+    deployment_target: any = DeploymentTargetFactory.create(
         "kubernetes", target_config, logger
     );
 
@@ -490,7 +489,7 @@ test "shared ingress skips deploying dedicated nginx controller" {
         ingress_deployer.start_controller(
             app_name="myapp",
             namespace="default",
-            provider=cast(Any, unittest.mock.MagicMock()),
+            provider=cast(any, unittest.mock.MagicMock()),
             apps_v1=unittest.mock.MagicMock(),
             core_v1=unittest.mock.MagicMock(),
             rbac_v1=unittest.mock.MagicMock(),
@@ -546,7 +545,7 @@ test "shared ingress destroy skips controller resource teardown" {
     with unittest.mock.patch(
         "jaclang.scale.deploy.target.kubernetes.ingress.client"
     ) as raw_mock_client {
-        mock_client: Any = raw_mock_client;
+        mock_client: any = raw_mock_client;
         mock_client.CustomObjectsApi.return_value = mock_custom_api;
         ingress_deployer.destroy(
             app_name="myapp",

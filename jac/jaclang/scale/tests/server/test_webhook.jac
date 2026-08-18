@@ -9,8 +9,7 @@ import time;
 import uuid;
 import from logging.handlers { MemoryHandler }
 import from pathlib { Path }
-import from typing { Any, cast }
-
+import from typing { cast }
 import from jaclang.scale.tests.scale_test_client {
     ScaleTestClient,
     make_client,
