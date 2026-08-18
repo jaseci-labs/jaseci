@@ -346,6 +346,7 @@ obj ManifestBuilder {
 
     def generate_manifests(app_config: AppConfig, image: str) -> dict[str, any] {
         self.project_dir = self.project_dir or app_config.code_folder;
+        self._bundle_services();
         injector = self._prepare_injector(app_config);
         self._bundle_object_key = injector._object_key;
 
@@ -505,24 +506,15 @@ obj ManifestBuilder {
     }
 
     def _bundle_services -> dict[str, str] {
-        if self._bundle_services_cache is not None {
-            return self._bundle_services_cache;
+        if self._bundle_services_cache is None {
+            import from jaclang.scale.injector.bundle { resolved_bundle_services }
+            self._bundle_services_cache = (
+                resolved_bundle_services(self.project_dir, self._ms_cfg())
+                    if self.project_dir
+                    else {}
+            );
         }
-        resolved: dict[str, str] = {};
-        if self.project_dir {
-            try {
-                import from jaclang.scale.injector.bundle { resolved_bundle_services }
-                resolved = resolved_bundle_services(self.project_dir);
-            } except Exception as exc {
-                if self.logger {
-                    self.logger.warning(
-                        f"Could not resolve service files from the bundle: {exc}"
-                    );
-                }
-            }
-        }
-        self._bundle_services_cache = resolved;
-        return resolved;
+        return self._bundle_services_cache;
     }
 
     def _client_entry -> str {

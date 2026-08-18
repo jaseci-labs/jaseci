@@ -1036,6 +1036,7 @@ Each microservice entry takes optional per-service overrides under `[scale.micro
 | Field | Type | Description |
 |-------|------|-------------|
 | `replicas` | int | Initial replica count (default 1; HPA can scale higher). |
+| `file` | str | Module the service pod boots. Without it the deploy resolves root `<name>.jac`, else the single shipped module with that basename anywhere in the tree; zero or several candidates fail the deploy. The implicit `main` service boots the `[project] entry-point` module. |
 | `rpc_timeout` | float (seconds) | Per-service sv-to-sv RPC timeout. Default 10s, fine for CRUD; bump to 120-300s for LLM workers. |
 | `http_forward_timeout` | float (seconds) | Gateway-to-service HTTP forward timeout. |
 | `env` | dict | Extra env vars merged into the pod spec. `JAC_SV_NAME`, `JAC_SV_FILE`, and `JAC_SV_*_URL` are protected (cannot be overridden). |

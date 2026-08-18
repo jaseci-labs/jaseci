@@ -254,21 +254,80 @@ test "no client entry means no client build in the gateway entrypoint" {
 }
 
 
-test "a service pod boots the resolved module, not a find guess" {
-    # #8105: the bundle declares its members and services, the deploy
-    # resolves every service file against that declaration, and the pod
-    # stops guessing with find over the extracted tree.
+def _entrypoint_run(project: str, env: dict[str, str]) -> tuple[int, str, str] {
+    import subprocess;
+    import from jaclang.scale.injector.bundle { APP_MOUNT_PATH }
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = ManifestBuilder(k8s_config=cfg);
-    args: str = builder._pod_entrypoint()["args"][0];
-    assert "find " not in args , args;
-    assert 'exec jac start "$SV_FILE"' in args , args;
+    script: str = ManifestBuilder(k8s_config=cfg)._pod_entrypoint()["args"][0];
+    mount = f"cd {APP_MOUNT_PATH}; ";
+    assert mount in script , script;
+    script = script.replace(mount, f"cd {project}; ", 1);
+    bin_dir = Path(project) / ".stub-bin";
+    bin_dir.mkdir();
+    record = Path(project) / ".jac-argv";
+    stub = bin_dir / "jac";
+    stub.write_text(f"#!/bin/sh\nprintf '%s\\n' \"$@\" > \"{record}\"\n");
+    stub.chmod(0o755);
+    run_env = dict(os.environ);
+    run_env["PATH"] = f"{bin_dir}{os.pathsep}{run_env.get('PATH', '')}";
+    run_env.pop("JAC_SV_FILE", None);
+    run_env.update(env);
+    proc = subprocess.run(
+        ["bash", "-c", script], env=run_env, capture_output=True, text=True
+    );
+    argv = record.read_text() if record.is_file() else "";
+    return (proc.returncode, argv, proc.stderr);
+}
+
+
+test "a service pod boots exactly the module the deploy resolved" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "svc.jac").write_text("");
+        (Path(project) / "lib").mkdir();
+        (Path(project) / "lib" / "svc.jac").write_text("");
+        (rc, argv, err) = _entrypoint_run(
+            project, {"JAC_SV_NAME": "svc", "JAC_SV_FILE": "svc.jac"}
+        );
+        assert rc == 0 , err;
+        assert argv.split() == ["start", "svc.jac"] , argv;
+    }
+}
+
+
+test "a service pod refuses a file the bundle does not ship" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "svc.jac").write_text("");
+        (rc, argv, err) = _entrypoint_run(
+            project, {"JAC_SV_NAME": "svc", "JAC_SV_FILE": "lib/svc.jac"}
+        );
+        assert rc == 1 , (rc, err);
+        assert argv == "" , argv;
+        assert "does not contain" in err , err;
+    }
+}
+
+
+test "a service pod with no resolved file refuses to guess" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as project {
+        (Path(project) / "svc.jac").write_text("");
+        (rc, argv, err) = _entrypoint_run(project, {"JAC_SV_NAME": "svc"});
+        assert rc == 1 , (rc, err);
+        assert argv == "" , argv;
+        assert "no service file was resolved" in err , err;
+    }
 }
 
 
 test "every service pod env carries its bundle-resolved file" {
     cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = ManifestBuilder(k8s_config=cfg, project_dir=str(_K8S_E2E_FIXTURE));
+    builder = ManifestBuilder(
+        k8s_config=cfg,
+        project_dir=str(_K8S_E2E_FIXTURE),
+        microservices_config={"routes": dict(_DISCOVERED_ROUTES)}
+    );
     orders = {e["name"]: e["value"] for e in builder._build_env("orders_app", {})};
     assert orders["JAC_SV_FILE"] == "orders_app.jac" , orders;
     main_env = {e["name"]: e["value"] for e in builder._build_env("main", {})};
@@ -276,12 +335,61 @@ test "every service pod env carries its bundle-resolved file" {
 }
 
 
-test "the entrypoint refuses a service file the bundle does not ship" {
-    cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
-    builder = ManifestBuilder(k8s_config=cfg);
-    args: str = builder._pod_entrypoint()["args"][0];
-    assert '[ ! -f "$SV_FILE" ]' in args , args;
-    assert "exit 1" in args , args;
+def _routed_project(tmp: str, files: list[str]) -> str {
+    for rel in files {
+        p = Path(tmp) / rel;
+        p.parent.mkdir(parents=True, exist_ok=True);
+        p.write_text("def:pub ping -> str { return \"pong\"; }\n");
+    }
+    (Path(tmp) / "jac.toml").write_text("[project]\nname = \"mini\"\n");
+    return tmp;
+}
+
+
+test "the pod env resolves the routes the deploy emits pods for" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as tmp {
+        project = _routed_project(tmp, ["svc.jac", "lib/svc.jac", "main.jac"]);
+        cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+        builder = ManifestBuilder(
+            k8s_config=cfg,
+            project_dir=project,
+            microservices_config={"routes": {"svc": "/svc"}},
+            dry_run=True
+        );
+        app_cfg = AppConfig(code_folder=project, app_name="jac-shop");
+        specs = builder.generate_service_pod_specs(app_cfg, "img");
+        env = {e["name"]: e["value"] for e in specs["svc"]["containers"][0]["env"]};
+        assert env["JAC_SV_FILE"] == "svc.jac" , env;
+        main_env = {
+            e["name"]: e["value"] for e in specs["main"]["containers"][0]["env"]
+        };
+        assert main_env["JAC_SV_FILE"] == "main.jac" , main_env;
+    }
+}
+
+
+test "a routed service with no module fails manifest generation, dry run included" {
+    import tempfile;
+    with tempfile.TemporaryDirectory() as tmp {
+        project = _routed_project(tmp, ["main.jac"]);
+        cfg = KubernetesConfig(app_name="jac-shop", namespace="ns");
+        builder = ManifestBuilder(
+            k8s_config=cfg,
+            project_dir=project,
+            microservices_config={"routes": {"ghost": "/ghost"}},
+            dry_run=True
+        );
+        app_cfg = AppConfig(code_folder=project, app_name="jac-shop");
+        caught = "";
+        try {
+            builder.generate_manifests(app_cfg, "img");
+        } except ValueError as e {
+            caught = str(e);
+        }
+        assert "'ghost'" in caught , caught;
+        assert "ghost.jac" in caught , caught;
+    }
 }
 
 

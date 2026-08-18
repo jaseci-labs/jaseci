@@ -15,7 +15,6 @@ glob logger = logging.getLogger(__name__);
 
 glob APP_VOLUME_NAME: str = "jac-app",
      APP_MOUNT_PATH: str = "/app",
-     BUNDLE_MANIFEST_NAME: str = "manifest.json",
      JAC_HOME: str = "/app/.jachome",
      TOOLCHAIN_SUBDIR: str = ".jactoolchain",
      DEFAULT_SEAL_TIMEOUT_S: int = 1800,
@@ -202,19 +201,6 @@ def bundle_source_files(base: Path) -> list[Path] {
 }
 
 
-def assert_manifest_name_free(base: Path, excluded: BundleSourceFilter) {
-    rel = Path(BUNDLE_MANIFEST_NAME);
-    if not (base / rel).is_file() or excluded.excludes(rel) {
-        return;
-    }
-    raise ValueError(
-        f"The project has a top-level {BUNDLE_MANIFEST_NAME}, but the bundle "
-        "reserves that name at its root for the generated member list. Rename "
-        "or move the file, or park it in .jacignore if it should not ship."
-    );
-}
-
-
 def _declared_ms_section(project_dir: str) -> dict[str, any] {
     import from jaclang.project.config { get_config_for_path }
 
@@ -236,56 +222,45 @@ def _declared_ms_section(project_dir: str) -> dict[str, any] {
 }
 
 
-def declared_service_files(project_dir: str) -> dict[str, str] {
-    ms = _declared_ms_section(project_dir);
-    routes = ms.get("routes");
-    if not isinstance(routes, dict) {
-        return {};
-    }
-    services = ms.get("services");
-    services = services if isinstance(services, dict) else {};
-    out: dict[str, str] = {};
-    for name in routes {
-        svc = services.get(str(name)) or {};
-        svc = svc if isinstance(svc, dict) else {};
-        out[str(name)] = str(svc.get("file") or "");
-    }
-    return out;
+def _declared_file(services: dict[str, any], name: str) -> str {
+    svc = services.get(name);
+    return str(svc.get("file") or "") if isinstance(svc, dict) else "";
 }
 
 
-def _implicit_main_wanted(base: Path, declared: dict[str, str]) -> str {
-    if not declared or "main" in declared {
-        return "";
-    }
-    routes = _declared_ms_section(str(base)).get("routes");
-    routes = routes if isinstance(routes, dict) else {};
-    for val in routes.values() {
-        sval = str(val or "").strip();
-        if sval and ("/" + sval.strip("/")) in ("/", "/__main__") {
-            return "";
-        }
-    }
-    rel = entry_module_rel(str(base));
-    return rel.name if rel is not None else "main.jac";
-}
-
-
-def resolved_bundle_services(project_dir: str) -> dict[str, str] {
+def resolved_bundle_services(
+    project_dir: str, ms_config: (dict[str, any] | None) = None
+) -> dict[str, str] {
     base = Path(project_dir).resolve();
     excluded = source_filter_for(base);
     members = [path.relative_to(base).as_posix() for path in bundle_source_files(base)];
-    return resolve_service_members(base, members, excluded);
+    return resolve_service_members(base, members, excluded, ms_config);
 }
 
 
 def resolve_service_members(
-    base: Path, members: list[str], excluded: BundleSourceFilter
+    base: Path,
+    members: list[str],
+    excluded: BundleSourceFilter,
+    ms_config: (dict[str, any] | None) = None
 ) -> dict[str, str] {
+    import from jaclang.scale.runtime.routing { needs_main_service, resolve_routes }
+
+    ms = ms_config if ms_config is not None else _declared_ms_section(str(base));
+    routes = resolve_routes(ms);
+    if not routes {
+        return {};
+    }
+    services = ms.get("services");
+    services = services if isinstance(services, dict) else {};
+    implicit_main = needs_main_service(routes) or routes.get("main") == "/__main__";
     member_set: set[str] = set(members);
     resolved: dict[str, str] = {};
-    declared = declared_service_files(str(base));
-    for (name, explicit) in declared.items() {
+    for name in routes {
+        if name == "main" and implicit_main {
+            continue;
+        }
+        explicit = _declared_file(services, name);
         if explicit {
             resolved[name] = _explicit_service_member(
                 base, name, explicit, member_set, excluded
@@ -296,13 +271,44 @@ def resolve_service_members(
             );
         }
     }
-    main_wanted = _implicit_main_wanted(base, declared);
-    if main_wanted {
-        resolved["main"] = _default_service_member(
-            base, "main", main_wanted, members, member_set, excluded
-        );
+    if implicit_main {
+        explicit = _declared_file(services, "main");
+        if explicit {
+            resolved["main"] = _explicit_service_member(
+                base, "main", explicit, member_set, excluded
+            );
+        } else {
+            resolved["main"] = _implicit_main_member(base, member_set, excluded);
+        }
     }
     return resolved;
+}
+
+
+def _implicit_main_member(
+    base: Path, member_set: set[str], excluded: BundleSourceFilter
+) -> str {
+    rel = entry_module_rel(str(base));
+    wanted = rel.as_posix() if rel is not None else "main.jac";
+    if wanted in member_set {
+        return wanted;
+    }
+    if not (base / wanted).is_file() {
+        raise ValueError(
+            f"The routed fleet also deploys an implicit 'main' service for the "
+            f"project entry module, but '{wanted}' does not exist, so every "
+            "'main' pod would crash-loop on boot. Add the module, point "
+            "[project] entry-point at the module to boot, or set "
+            "[scale.microservices.services.main] file."
+        );
+    }
+    raise ValueError(
+        f"The routed fleet also deploys an implicit 'main' service for the "
+        f"project entry module '{wanted}', but the bundle does not ship it "
+        f"({excluded.exclusion_reason(Path(wanted))}), so every 'main' pod "
+        "would crash-loop on boot. Ship the module, or point [project] "
+        "entry-point at one the bundle ships."
+    );
 }
 
 
@@ -380,22 +386,6 @@ def _default_service_member(
         f"such module, so every '{name}' pod would crash-loop on boot. Add "
         f"the module, or set [scale.microservices.services.{name}] file."
     );
-}
-
-
-def _bundle_manifest_bytes(
-    base: Path, members: set[str], services: dict[str, str]
-) -> bytes {
-    import json;
-
-    entry_rel = entry_module_rel(str(base));
-    manifest = {
-        "format": 1,
-        "entry": entry_rel.as_posix() if entry_rel is not None else "",
-        "services": services,
-        "members": sorted(members)
-    };
-    return (json.dumps(manifest, indent=2, sort_keys=True) + "\n").encode("utf-8");
 }
 
 
@@ -803,11 +793,11 @@ def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes 
         );
     }
     excluded = source_filter_for(base);
-    assert_manifest_name_free(base, excluded);
     assert_entry_module_ships(base, excluded);
     sources = bundle_source_files(base);
-    member_rels = [path.relative_to(base).as_posix() for path in sources];
-    services = resolve_service_members(base, member_rels, excluded);
+    resolve_service_members(
+        base, [path.relative_to(base).as_posix() for path in sources], excluded
+    );
     if excluded.ignore_patterns {
         logger.info(
             f"Honoring {len(excluded.ignore_patterns)} .jacignore pattern(s) "
@@ -877,22 +867,12 @@ def pack_jab(project_dir: str, seal_binary: bytes, pod_arch: str = "") -> bytes 
                     info.size = len(data);
                     tar.addfile(info, io.BytesIO(data));
                 }
-                nested = nested_sanitized_tomls(base);
-                for (toml_rel, toml_text) in nested.items() {
+                for (toml_rel, toml_text) in nested_sanitized_tomls(base).items() {
                     data = toml_text.encode("utf-8");
                     info = tarfile.TarInfo(name=toml_rel);
                     info.size = len(data);
                     tar.addfile(info, io.BytesIO(data));
                 }
-                manifest_members: set[str] = set(member_rels);
-                if sanitized is not None {
-                    manifest_members.add("jac.toml");
-                }
-                manifest_members.update(nested.keys());
-                data = _bundle_manifest_bytes(base, manifest_members, services);
-                info = tarfile.TarInfo(name=BUNDLE_MANIFEST_NAME);
-                info.size = len(data);
-                tar.addfile(info, io.BytesIO(data));
             }
         } finally {
             gz.close();
