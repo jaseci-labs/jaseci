@@ -47,6 +47,9 @@ import from ast_nodes {
     comprehension,
     Yield,
     YieldFrom,
+    Import,
+    ImportFrom,
+    alias,
     Load,
     Store,
     Del,
@@ -701,6 +704,14 @@ def sym_compute_nested(b: sym_builder) -> bool {
     return False;
 }
 
+def sym_import_bind_name(a: alias) -> str {
+    if a.asname is not None {
+        return a.asname;
+    }
+    parts = a.name.split(".");
+    return parts[0];
+}
+
 def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
     if b.diag is not None {
         return False;
@@ -982,6 +993,30 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
         }
         b.private = saved_private;
         return b.pop_block();
+    }
+    if isinstance(s, Import) {
+        imp = s as Import;
+        ni = 0;
+        while ni < len(imp.names) {
+            bind = sym_import_bind_name(imp.names[ni]);
+            if not b.add_def(bind, DEF_LOCAL, imp.lineno, imp.col_offset) {
+                return False;
+            }
+            ni = ni + 1;
+        }
+        return True;
+    }
+    if isinstance(s, ImportFrom) {
+        imp = s as ImportFrom;
+        ni = 0;
+        while ni < len(imp.names) {
+            bind = sym_import_bind_name(imp.names[ni]);
+            if not b.add_def(bind, DEF_LOCAL, imp.lineno, imp.col_offset) {
+                return False;
+            }
+            ni = ni + 1;
+        }
+        return True;
     }
     return True;
 }

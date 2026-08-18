@@ -578,6 +578,184 @@ test "layer9: multiple decorators executes in ceval" {
     assert not is_error(out);
     assert expect_int(ns["result"]) == 3;
 }
+
+# ---------------- Band 5: imports slice ----------------
+
+test "layer9: import math matches oracle" {
+    assert_matches_oracle("import math\n");
+}
+
+test "layer9: from operator import add matches oracle" {
+    assert_matches_oracle("from operator import add\n");
+}
+
+test "layer9: from operator import add as plus matches oracle" {
+    assert_matches_oracle("from operator import add as plus\n");
+}
+
+test "layer9: import math executes in ceval" {
+    src = "import math\nresult = math.pi > 3\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert isinstance(ns["result"], PyBool);
+    assert (ns["result"] as PyBool).val;
+}
+
+test "layer9: from operator import add executes in ceval" {
+    src = "from operator import add\nresult = add(1, 2)\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
+}
+
+# ---------------- Band 5 slice 1: basic class body ----------------
+
+test "layer9: band5 empty class matches oracle" {
+    src = "class C:\n    pass\n\nresult = C.__name__\n";
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.stacksize == exp.stacksize;
+    nested = nested_code_by_name(act, "C");
+    exp_nested = nested_code_by_name(exp, "C");
+    assert nested.co_code == exp_nested.co_code;
+    assert nested.stacksize == exp_nested.stacksize;
+    assert nested.argcount == 0;
+}
+
+test "layer9: band5 empty class executes in ceval" {
+    src = "class C:\n    pass\n\nresult = C.__name__\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_str(ns["result"]) == "C";
+}
+
+# CPython 3.14.6 co_code for `class C: def m(self): return 1` body (with __classdict__).
+glob BAND5_CLASS_C_CO_CODE: list[int] = [
+    97, 0, 128, 0, 93, 0, 116, 1, 82, 0, 116, 2, 94, 1, 116, 3, 22, 0, 111, 0,
+    82, 1, 23, 0, 116, 4, 82, 2, 116, 5, 86, 0, 116, 6, 82, 3, 35, 0,
+];
+
+test "layer9: band5 class method matches oracle" {
+    src = (
+        "class C:\n"
+            + "    def m(self):\n"
+            + "        return 1\n\n"
+            + "result = C().m()\n"
+    );
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.stacksize == exp.stacksize;
+    nested = nested_code_by_name(act, "C");
+    exp_nested = nested_code_by_name(exp, "C");
+    assert nested.co_code == BAND5_CLASS_C_CO_CODE;
+    assert nested.stacksize == exp_nested.stacksize;
+    assert nested.cellvars == ["__classdict__"];
+}
+
+test "layer9: band5 class method executes in ceval" {
+    src = (
+        "class C:\n"
+            + "    def m(self):\n"
+            + "        return 1\n\n"
+            + "result = C().m()\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1;
+}
+
+test "layer9: band5 class inheritance matches oracle" {
+    src = (
+        "class Base:\n"
+            + "    x = 1\n"
+            + "class C(Base):\n"
+            + "    pass\n"
+            + "result = C().x\n"
+    );
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.stacksize == exp.stacksize;
+    c_cls = nested_code_by_name(act, "C");
+    exp_c = nested_code_by_name(exp, "C");
+    assert c_cls.co_code == exp_c.co_code;
+}
+
+test "layer9: band5 class inheritance executes in ceval" {
+    src = (
+        "class Base:\n"
+            + "    x = 1\n"
+            + "class C(Base):\n"
+            + "    pass\n"
+            + "result = C().x\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1;
+}
+
+test "layer9: band5 nested class matches oracle" {
+    src = (
+        "class Outer:\n"
+            + "    class Inner:\n"
+            + "        x = 1\n"
+            + "result = Outer.Inner.x\n"
+    );
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.stacksize == exp.stacksize;
+    outer = nested_code_by_name(act, "Outer");
+    exp_outer = nested_code_by_name(exp, "Outer");
+    assert outer.co_code == exp_outer.co_code;
+    inner = nested_code_by_name(outer, "Inner");
+    exp_inner = nested_code_by_name(exp_outer, "Inner");
+    assert inner.co_code == exp_inner.co_code;
+    assert inner.qualname == "Outer.Inner";
+}
+
+test "layer9: band5 nested class executes in ceval" {
+    src = (
+        "class Outer:\n"
+            + "    class Inner:\n"
+            + "        x = 1\n"
+            + "result = Outer.Inner.x\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1;
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {
@@ -667,4 +845,47 @@ test "layer9: eval mode still byte-exact (regression)" {
     co = compile_source("1+1", "<f>", "eval", 0);
     assert not is_error(co);
     assert isinstance(co, PyCode);
+}
+
+# ---------------- Band 5 slice 3: name mangling (__private) ----------------
+
+test "layer9: class private attr product PyCode matches oracle" {
+    src = (
+        "class C:\n"
+            + "    __x = 1\n"
+            + "    def m(self):\n"
+            + "        return self.__x\n"
+            + "result = C().m()\n"
+    );
+    actual = product_exec(src);
+    assert not is_error(actual);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    act = actual as PyCode;
+    exp = expected as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.stacksize == exp.stacksize;
+    cls = nested_code_by_name(act, "C");
+    exp_cls = nested_code_by_name(exp, "C");
+    assert cls.co_code == exp_cls.co_code;
+    assert cls.stacksize == exp_cls.stacksize;
+    m = nested_code_by_name(cls, "m");
+    exp_m = nested_code_by_name(exp_cls, "m");
+    assert m.co_code == exp_m.co_code;
+    assert m.stacksize == exp_m.stacksize;
+}
+
+test "layer9: class private attr executes in ceval" {
+    src = (
+        "class C:\n"
+            + "    __x = 1\n"
+            + "    def m(self):\n"
+            + "        return self.__x\n"
+            + "result = C().m()\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1;
 }

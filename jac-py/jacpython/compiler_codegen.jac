@@ -44,6 +44,8 @@ import from opcode_meta {
     OP_LOAD_LOCALS,
     OP_COMPARE_OP,
     OP_POP_TOP,
+    OP_IMPORT_NAME,
+    OP_IMPORT_FROM,
     OP_STORE_NAME,
     OP_STORE_ATTR,
     OP_STORE_SUBSCR,
@@ -201,6 +203,7 @@ import from ast_nodes {
     Assert,
     Import,
     ImportFrom,
+    alias,
     Global,
     Nonlocal,
     Break,
@@ -228,6 +231,7 @@ import from compiler_symtable {
     sym_flag_set,
     sym_scope_of,
     sym_sorted_names,
+    mangle_name,
     DEF_COMP_ITER,
     SCOPE_GLOBAL_EXPLICIT,
     SCOPE_GLOBAL_IMPLICIT,
@@ -250,6 +254,11 @@ def codegen_fail(g: cfg_builder, kind: str, message: str) {
 
 def codegen_busy(g: cfg_builder) -> bool {
     return g.u.diag is not None;
+}
+
+# Class-body private name mangling (__x -> _C__x) for bytecode name tables.
+def codegen_mangle(g: cfg_builder, name: str) -> str {
+    return mangle_name(g.private, name);
 }
 
 # Fast locals for a compile unit. Module scope: comprehension iteration variables
@@ -567,6 +576,7 @@ def emit_name_load(
 ) -> bool {
     # Returns True when a separate PUSH_NULL is required before CALL (LOAD_NAME
     # and fast locals). LOAD_GLOBAL folds NULL into the oparg low bit (CPython 3.14).
+    name = codegen_mangle(g, name);
     fi = fast_local_index(g, name);
     if fi >= 0 {
         g.emit_op(OP_LOAD_FAST_BORROW, fi, tloc);
@@ -592,6 +602,7 @@ def emit_name_load(
 }
 
 def emit_name_store(g: cfg_builder, name: str, tloc: cloc) {
+    name = codegen_mangle(g, name);
     fi = fast_local_index(g, name);
     if fi >= 0 {
         g.emit_op(OP_STORE_FAST, fi, tloc);
@@ -613,6 +624,7 @@ def emit_name_store(g: cfg_builder, name: str, tloc: cloc) {
 # Name load opcode from symtable facts. Module scope uses LOAD_NAME for globals
 # and LOAD_FAST when the name is a comprehension / local slot in varnames.
 def name_load_opcode(g: cfg_builder, name: str) -> int {
+    name = codegen_mangle(g, name);
     if fast_local_index(g, name) >= 0 {
         return OP_LOAD_FAST;
     }
@@ -1258,7 +1270,9 @@ def visit_expr(
         cloc = nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
         if isinstance(c.value, PyInt) {
             v = (c.value as PyInt).val;
+            in_class_body = g.sym_top is not None and g.sym_top.block_type == "class";
             if register_int_const
+                and not in_class_body
                 and v >= 0
                 and v <= 255
                 and not g.u.dead_small_int_const {
@@ -1348,7 +1362,7 @@ def visit_expr(
             attr = ca.func as Attribute;
             aloc = expr_loc(attr);
             visit_expr(g, attr.value);
-            idx = g.u.add_name(attr.attr);
+            idx = g.u.add_name(codegen_mangle(g, attr.attr));
             g.emit_op(OP_LOAD_ATTR, (idx << 1) | 1, aloc);
         } else {
             visit_expr(g, ca.func);
@@ -1383,7 +1397,7 @@ def visit_expr(
         a = e as Attribute;
         aloc = expr_loc(a);
         visit_expr(g, a.value);
-        idx = g.u.add_name(a.attr);
+        idx = g.u.add_name(codegen_mangle(g, a.attr));
         g.emit_op(OP_LOAD_ATTR, idx * 2, aloc);
         return None;
     }
@@ -1627,7 +1641,7 @@ def visit_store_target_tos(g: cfg_builder, t: expr) -> stmt_cont {
     if isinstance(t, Attribute) {
         a = t as Attribute;
         visit_expr(g, a.value);
-        idx = g.u.add_name(a.attr);
+        idx = g.u.add_name(codegen_mangle(g, a.attr));
         tloc = expr_loc(a);
         g.emit_op(OP_STORE_ATTR, idx, tloc);
         return stmt_cont(loc=tloc);
@@ -1661,7 +1675,7 @@ def visit_delete_target(g: cfg_builder, t: expr) -> stmt_cont {
     }
     if isinstance(t, Name) {
         n = t as Name;
-        idx = g.u.add_name(n.id);
+        idx = g.u.add_name(codegen_mangle(g, n.id));
         tloc = expr_loc(n);
         g.emit_op(OP_DELETE_NAME, idx, tloc);
         return stmt_cont(loc=tloc);
@@ -1669,7 +1683,7 @@ def visit_delete_target(g: cfg_builder, t: expr) -> stmt_cont {
     if isinstance(t, Attribute) {
         a = t as Attribute;
         visit_expr(g, a.value);
-        idx = g.u.add_name(a.attr);
+        idx = g.u.add_name(codegen_mangle(g, a.attr));
         tloc = expr_loc(a);
         g.emit_op(OP_DELETE_ATTR, idx, tloc);
         return stmt_cont(loc=tloc);
@@ -2888,6 +2902,83 @@ def visit_for(
     return stmt_cont(loc=floc, terminated=True);
 }
 
+# Module-local name bound by `import` / `from ... import`.
+def import_bind_name(a: alias) -> str {
+    if a.asname is not None {
+        return a.asname;
+    }
+    parts = a.name.split(".");
+    return parts[0];
+}
+
+# CPython's import prefix keeps int 0 in co_consts even though level uses
+# LOAD_SMALL_INT (same dead-small-int slot as literal folding).
+def ensure_import_prefix_consts(g: cfg_builder) {
+    if not g.u.dead_small_int_const {
+        g.u.add_const(PyInt(t="int", val=0));
+        g.u.dead_small_int_const = True;
+    }
+}
+
+# LOAD_SMALL_INT level, LOAD_CONST fromlist, IMPORT_NAME modname (CPython import).
+def emit_import_name_call(
+    g: cfg_builder, modname: str, level: int, fromlist: PyObj | None, iloc: cloc
+) {
+    ensure_import_prefix_consts(g);
+    emit_folded_int(g, level, iloc);
+    if fromlist is None {
+        none_idx = g.u.add_const(py_none());
+        g.emit_op(OP_LOAD_CONST, none_idx, iloc);
+    } else {
+        fl_idx = g.u.add_const(fromlist);
+        g.emit_op(OP_LOAD_CONST, fl_idx, iloc);
+    }
+    midx = g.u.add_name(modname);
+    g.emit_op(OP_IMPORT_NAME, midx, iloc);
+}
+
+def visit_import(g: cfg_builder, imp: Import) -> stmt_cont {
+    iloc = nloc(imp.lineno, imp.end_lineno, imp.col_offset, imp.end_col_offset);
+    ni = 0;
+    while ni < len(imp.names) {
+        a = imp.names[ni];
+        emit_import_name_call(g, a.name, 0, None, iloc);
+        emit_name_store(g, import_bind_name(a), iloc);
+        ni = ni + 1;
+    }
+    return stmt_cont(loc=iloc);
+}
+
+def visit_import_from(g: cfg_builder, imp: ImportFrom) -> stmt_cont {
+    iloc = nloc(imp.lineno, imp.end_lineno, imp.col_offset, imp.end_col_offset);
+    level = 0;
+    if imp.level is not None {
+        level = imp.level;
+    }
+    modname = "";
+    if imp.module is not None {
+        modname = imp.module;
+    }
+    names: list[PyObj] = [];
+    ni = 0;
+    while ni < len(imp.names) {
+        names.append(PyStr(t="str", val=imp.names[ni].name));
+        ni = ni + 1;
+    }
+    fromlist = PyTuple(t="tuple", items=names);
+    emit_import_name_call(g, modname, level, fromlist, iloc);
+    ni = 0;
+    while ni < len(imp.names) {
+        a = imp.names[ni];
+        fidx = g.u.add_name(a.name);
+        g.emit_op(OP_IMPORT_FROM, fidx, iloc);
+        emit_name_store(g, import_bind_name(a), iloc);
+        ni = ni + 1;
+    }
+    g.emit_op(OP_POP_TOP, 0, iloc);
+    return stmt_cont(loc=iloc);
+}
+
 # Lower one statement into the builder's current block.
 def visit_stmt(
     g: cfg_builder,
@@ -2977,7 +3068,7 @@ def visit_stmt(
             tloc = expr_loc(attr);
             visit_expr(g, attr.value);
             g.emit_op(OP_COPY, 1, tloc);
-            idx = g.u.add_name(attr.attr);
+            idx = g.u.add_name(codegen_mangle(g, attr.attr));
             g.emit_op(OP_LOAD_ATTR, idx * 2, tloc);
             visit_expr(g, aa.value);
             g.emit_op(OP_BINARY_OP, opid, aloc);
@@ -3114,6 +3205,12 @@ def visit_stmt(
     if isinstance(s, ClassDef) {
         return visit_class_def(g, s as ClassDef);
     }
+    if isinstance(s, Import) {
+        return visit_import(g, s as Import);
+    }
+    if isinstance(s, ImportFrom) {
+        return visit_import_from(g, s as ImportFrom);
+    }
     codegen_fail(
         g,
         "NotImplementedError",
@@ -3135,6 +3232,74 @@ def visit_return_stmt(g: cfg_builder, r: Return) {
     g.emit_op(OP_RETURN_VALUE, 0, rloc);
 }
 
+def class_effective_bases(cd: ClassDef) -> list[expr] {
+    bases = cd.bases;
+    if bases is None {
+        bases = [];
+    }
+    return bases;
+}
+
+def class_effective_keywords(cd: ClassDef) -> list[keyword] {
+    kws = cd.keywords;
+    if kws is None {
+        kws = [];
+    }
+    return kws;
+}
+
+def sym_class_qualname(
+    cd: ClassDef, sym_cls: sym_block, enclosing_private: str | None
+) -> str {
+    if sym_cls.nested and enclosing_private is not None {
+        return enclosing_private + "." + cd.name;
+    }
+    return cd.name;
+}
+
+# LOAD_BUILD_CLASS call: name const is already on stack; push bases and keywords.
+def emit_class_build_call(g: cfg_builder, cd: ClassDef, cloc: cloc) {
+    bases = class_effective_bases(cd);
+    kws = class_effective_keywords(cd);
+    bi = 0;
+    while bi < len(bases) {
+        visit_expr(g, bases[bi], False, False);
+        if codegen_busy(g) {
+            return;
+        }
+        bi = bi + 1;
+    }
+    if len(kws) == 0 {
+        g.emit_op(OP_CALL, 2 + len(bases), cloc);
+        return;
+    }
+    ki = 0;
+    while ki < len(kws) {
+        kw = kws[ki];
+        if kw.arg is None {
+            codegen_fail(
+                g, "NotImplementedError", "keyword argument unpacking not supported"
+            );
+            return;
+        }
+        visit_expr(g, kw.value, False, False);
+        if codegen_busy(g) {
+            return;
+        }
+        ki = ki + 1;
+    }
+    names: list[PyObj] = [];
+    ki = 0;
+    while ki < len(kws) {
+        names.append(PyStr(t="str", val=kws[ki].arg));
+        ki = ki + 1;
+    }
+    tup = PyTuple(t="tuple", items=names);
+    tidx = g.u.add_const(tup);
+    g.emit_op(OP_LOAD_CONST, tidx, cloc);
+    g.emit_op(OP_CALL_KW, 2 + len(bases) + len(kws), cloc);
+}
+
 # Class body boilerplate through __firstlineno__ (CPython compile_class).
 def class_body_has_function(cd: ClassDef) -> bool {
     bi = 0;
@@ -3148,7 +3313,7 @@ def class_body_has_function(cd: ClassDef) -> bool {
     return False;
 }
 
-def emit_class_body_prologue(g: cfg_builder, cd: ClassDef) {
+def emit_class_body_prologue(g: cfg_builder, cd: ClassDef, class_qname: str) {
     cloc = nloc(cd.lineno, cd.end_lineno, cd.col_offset, cd.end_col_offset);
     ploc = loc(0, cd.lineno, 0, 0);
     if len(g.u.cellvars) > 0 {
@@ -3164,7 +3329,7 @@ def emit_class_body_prologue(g: cfg_builder, cd: ClassDef) {
     g.emit_op(OP_LOAD_NAME, nidx, cloc);
     midx = g.u.add_name("__module__");
     g.emit_op(OP_STORE_NAME, midx, cloc);
-    qidx = g.u.add_const(PyStr(t="str", val=cd.name));
+    qidx = g.u.add_const(PyStr(t="str", val=class_qname));
     g.emit_op(OP_LOAD_CONST, qidx, cloc);
     qnidx = g.u.add_name("__qualname__");
     g.emit_op(OP_STORE_NAME, qnidx, cloc);
@@ -3208,7 +3373,7 @@ def visit_class_def(g: cfg_builder, cd: ClassDef) -> stmt_cont {
         codegen_fail(g, "SystemError", "missing symtable for class " + cd.name);
         return stmt_cont(loc=cloc);
     }
-    u_cls = compile_class_cfg(cd, g.u.filename, sym_cls);
+    u_cls = compile_class_cfg(cd, g.u.filename, sym_cls, g.private);
     if u_cls.diag is not None {
         g.u.diag = u_cls.diag;
         return stmt_cont(loc=cloc);
@@ -3227,7 +3392,10 @@ def visit_class_def(g: cfg_builder, cd: ClassDef) -> stmt_cont {
     g.emit_op(OP_MAKE_FUNCTION, 0, cloc);
     name_idx = g.u.add_const(PyStr(t="str", val=cd.name));
     g.emit_op(OP_LOAD_CONST, name_idx, cloc);
-    g.emit_op(OP_CALL, 2, cloc);
+    emit_class_build_call(g, cd, cloc);
+    if codegen_busy(g) {
+        return stmt_cont(loc=cloc);
+    }
     if g.sym_top is not None and g.sym_top.block_type == "function" {
         fi = fast_local_index(g, cd.name);
         if fi < 0 {
@@ -3246,12 +3414,16 @@ def visit_class_def(g: cfg_builder, cd: ClassDef) -> stmt_cont {
 
 # Build unverified_cfg for a class body (nested code object before assembly).
 def compile_class_cfg(
-    cd: ClassDef, filename: str, sym_cls: sym_block
+    cd: ClassDef,
+    filename: str,
+    sym_cls: sym_block,
+    enclosing_private: str | None = None
 ) -> unverified_cfg {
+    class_qname = sym_class_qualname(cd, sym_cls, enclosing_private);
     u = unverified_cfg(
         filename=filename,
         name=cd.name,
-        qualname=cd.name,
+        qualname=class_qname,
         firstlineno=cd.lineno
     );
     if sym_cls.nested {
@@ -3261,8 +3433,8 @@ def compile_class_cfg(
         u.cellvars = ["__classdict__"];
     }
     entry = u.add_block();
-    g = new_cfg_builder(u, entry, sym_cls);
-    emit_class_body_prologue(g, cd);
+    g = new_cfg_builder(u, entry, sym_cls, cd.name);
+    emit_class_body_prologue(g, cd, class_qname);
     last = loc(0, cd.lineno, 0, 0);
     bi = 0;
     while bi < len(cd.body) {
@@ -3300,7 +3472,7 @@ def visit_function_def(g: cfg_builder, fd: FunctionDef) -> stmt_cont {
     if decorators is None {
         decorators = [];
     }
-    u_fn = compile_function_cfg(fd, g.u.filename, sym_fn);
+    u_fn = compile_function_cfg(fd, g.u.filename, sym_fn, g.private);
     if u_fn.diag is not None {
         g.u.diag = u_fn.diag;
         return stmt_cont(loc=floc);
@@ -3354,7 +3526,7 @@ def visit_lambda(g: cfg_builder, lam: Lambda) {
         codegen_fail(g, "SystemError", "missing symtable for lambda");
         return;
     }
-    u_fn = compile_lambda_cfg(lam, g.u.filename, sym_fn);
+    u_fn = compile_lambda_cfg(lam, g.u.filename, sym_fn, g.private);
     if u_fn.diag is not None {
         g.u.diag = u_fn.diag;
         return;
@@ -3371,7 +3543,7 @@ def visit_lambda(g: cfg_builder, lam: Lambda) {
 
 # Build unverified_cfg for a lambda body (expression + RETURN_VALUE).
 def compile_lambda_cfg(
-    lam: Lambda, filename: str, sym_fn: sym_block
+    lam: Lambda, filename: str, sym_fn: sym_block, private: str | None = None
 ) -> unverified_cfg {
     (argcount, posonly, kwonly) = function_argcounts(lam.args);
     u = unverified_cfg(
@@ -3386,7 +3558,7 @@ def compile_lambda_cfg(
     u.flags = function_code_flags(lam.args);
     u.varnames = fast_varnames_from_sym(sym_fn);
     entry = u.add_block();
-    g = new_cfg_builder(u, entry, sym_fn);
+    g = new_cfg_builder(u, entry, sym_fn, private);
     emit_function_prologue(g, sym_fn, lam.lineno);
     bloc = expr_loc(lam.body);
     visit_expr(g, lam.body);
@@ -3399,7 +3571,7 @@ def compile_lambda_cfg(
 
 # Build unverified_cfg for a function body (nested code object before assembly).
 def compile_function_cfg(
-    fd: FunctionDef, filename: str, sym_fn: sym_block
+    fd: FunctionDef, filename: str, sym_fn: sym_block, private: str | None = None
 ) -> unverified_cfg {
     (argcount, posonly, kwonly) = function_argcounts(fd.args);
     u = unverified_cfg(
@@ -3414,7 +3586,7 @@ def compile_function_cfg(
     u.flags = function_code_flags(fd.args);
     u.varnames = fast_varnames_from_sym(sym_fn);
     entry = u.add_block();
-    g = new_cfg_builder(u, entry, sym_fn);
+    g = new_cfg_builder(u, entry, sym_fn, private);
     emit_function_prologue(g, sym_fn, fd.lineno);
     last = loc(0, fd.lineno, 0, 0);
     terminated = False;

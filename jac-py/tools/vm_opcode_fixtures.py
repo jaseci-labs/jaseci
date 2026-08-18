@@ -49,6 +49,7 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "LOAD_CONST",
     "LOAD_SMALL_INT",
     "LOAD_NAME",
+    "LOAD_LOCALS",
     "LOAD_GLOBAL",
     "BINARY_OP",
     "UNARY_NEGATIVE",
@@ -56,6 +57,7 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "UNARY_NOT",
     "PUSH_NULL",
     "CALL",
+    "CALL_KW",
     "MAKE_FUNCTION",
     "LOAD_BUILD_CLASS",
     "MAKE_CELL",
@@ -95,6 +97,8 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "STORE_FAST",
     "STORE_FAST_LOAD_FAST",
     "RERAISE",
+    "IMPORT_NAME",
+    "IMPORT_FROM",
     # Band 4 closures: cell/free var emission.
     "MAKE_CELL",
     "COPY_FREE_VARS",
@@ -111,7 +115,9 @@ EMISSION_OPCODES: tuple[str, ...] = (
 
 # CPython 3.14 may not emit JUMP_FORWARD in normal compilation; jacpython's
 # codegen still emits it. VM coverage for that opcode uses native PyCode.
-COMPILER_ONLY_OPCODES: frozenset[str] = frozenset({"JUMP_FORWARD"})
+# LOAD_LOCALS is emitted for closure class bodies; Jac VM class-body execution
+# is not yet host-parity for that bytecode shape.
+COMPILER_ONLY_OPCODES: frozenset[str] = frozenset({"JUMP_FORWARD", "LOAD_LOCALS"})
 
 # Minimal sources; disassembly (module + nested code) must contain the tagged opcode.
 FIXTURES: tuple[VmFixture, ...] = (
@@ -131,6 +137,11 @@ FIXTURES: tuple[VmFixture, ...] = (
     VmFixture("UNARY_NOT", "result = not x\n", setup="x = 0\n"),
     VmFixture("PUSH_NULL", "result = len([1])\n"),
     VmFixture("CALL", "result = len([1, 2, 3])\n"),
+    VmFixture(
+        "CALL_KW",
+        "result = f(1, b=2)\n",
+        setup="def f(a, b=0):\n    return a + b\n",
+    ),
     VmFixture("MAKE_FUNCTION", "def f():\n    return 1\nresult = f()\n"),
     VmFixture("LOAD_BUILD_CLASS", "class C:\n    pass\nresult = C.__name__\n"),
     VmFixture(
@@ -294,6 +305,8 @@ FIXTURES: tuple[VmFixture, ...] = (
         "result = [x for x in y]\n",
         setup="y = [1, 2, 3]\n",
     ),
+    VmFixture("IMPORT_NAME", "import os\nresult = os.name\n"),
+    VmFixture("IMPORT_FROM", "from os import path\nresult = path.sep\n"),
 )
 
 # Native-codegen fixtures (not expected in CPython disassembly).
@@ -301,6 +314,10 @@ COMPILER_FIXTURES: tuple[VmFixture, ...] = (
     # JUMP_FORWARD is emitted only when a chained comparison assign is followed
     # by more module code (visit_stmt more_code_follows).
     VmFixture("JUMP_FORWARD", "a = x < y < z\nresult = 0\n"),
+    VmFixture(
+        "LOAD_LOCALS",
+        "class C:\n    def m(self):\n        return 1\n\nresult = C().m()\n",
+    ),
 )
 
 FIXTURE_BY_OPCODE = {fixture.opcode: fixture for fixture in FIXTURES}

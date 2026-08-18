@@ -11,6 +11,7 @@ import from objects { PyObj, PyCode, PyInt, PyError, is_error, }
 import from host_oracle { host_compile_marshal }
 import from product_compile { compile_source }
 import from pyc_first { unmarshal, exec_code, to_host }
+import from opcode_meta { OP_LOAD_LOCALS }
 
 ::py::
 def _vm_host_exec(setup_src, body_src, mode="exec"):
@@ -71,6 +72,25 @@ def jac_run_oracle(setup: str, body: str, mode: str, ns: dict[str, PyObj]) -> Py
     return exec_code(body_co, [], ns);
 }
 
+def code_has_opcode(co: PyCode, target: int) -> bool {
+    code = co.co_code;
+    i = 0;
+    while i < len(code) {
+        if code[i] == target {
+            return True;
+        }
+        i = i + 1;
+    }
+    for const in co.consts {
+        if isinstance(const, PyCode) {
+            if code_has_opcode(const as PyCode, target) {
+                return True;
+            }
+        }
+    }
+    return False;
+}
+
 def assert_vm_value_matches_host(setup: str, body: str, mode: str, key: str) {
     ns: dict[str, PyObj] = {};
     out = jac_run_oracle(setup, body, mode, ns);
@@ -105,6 +125,15 @@ test "vm: LOAD_SMALL_INT loads tiny literal" {
 # vm-opcode: OP_LOAD_NAME
 test "vm: LOAD_NAME reads local binding" {
     assert_vm_value_matches_host("x = 9\n", "result = x\n", "exec", "result");
+}
+
+# vm-opcode-compiler: OP_LOAD_LOCALS
+test "vm: LOAD_LOCALS emitted in native class body with method" {
+    body = "class C:\n    def m(self):\n        return 1\n\nresult = C().m()\n";
+    co = compile_source(body, "<ll>", "exec", 0);
+    assert not is_error(co);
+    assert isinstance(co, PyCode);
+    assert code_has_opcode(co as PyCode, OP_LOAD_LOCALS);
 }
 
 # vm-opcode: OP_LOAD_GLOBAL
@@ -144,6 +173,16 @@ test "vm: PUSH_NULL precedes call" {
 # vm-opcode: OP_CALL
 test "vm: CALL invokes callable" {
     assert_vm_value_matches_host("", "result = len([1, 2, 3])\n", "exec", "result");
+}
+
+# vm-opcode: OP_CALL_KW
+test "vm: CALL_KW invokes callable with keywords" {
+    assert_vm_value_matches_host(
+        "def f(a, b=0):\n    return a + b\n",
+        "result = f(1, b=2)\n",
+        "exec",
+        "result",
+    );
 }
 
 # vm-opcode: OP_MAKE_FUNCTION
@@ -498,6 +537,18 @@ test "vm: STORE_FAST_LOAD_FAST binds comprehension iteration variable" {
 test "vm: RERAISE propagates comprehension cleanup failures" {
     assert_vm_value_matches_host(
         "y = [1, 2, 3]\n", "result = [x for x in y]\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_IMPORT_NAME
+test "vm: IMPORT_NAME loads module" {
+    assert_vm_value_matches_host("", "import os\nresult = os.name\n", "exec", "result");
+}
+
+# vm-opcode: OP_IMPORT_FROM
+test "vm: IMPORT_FROM loads module attribute" {
+    assert_vm_value_matches_host(
+        "", "from os import path\nresult = path.sep\n", "exec", "result",
     );
 }
 

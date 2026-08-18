@@ -86,6 +86,7 @@ obj cfg_builder {
     has u: unverified_cfg,
         cur: basicblock,
         sym_top: sym_block | None = None,
+        private: str | None = None,
         loop_stack: list[loop_frame] = [];
 
     def emit(ins: cinstr) {
@@ -135,9 +136,12 @@ obj cfg_builder {
 }
 
 def new_cfg_builder(
-    u: unverified_cfg, start_blk: basicblock, sym_top: sym_block | None = None
+    u: unverified_cfg,
+    start_blk: basicblock,
+    sym_top: sym_block | None = None,
+    private: str | None = None
 ) -> cfg_builder {
-    return cfg_builder(u=u, cur=start_blk, sym_top=sym_top);
+    return cfg_builder(u=u, cur=start_blk, sym_top=sym_top, private=private);
 }
 
 # Statement lowering result: continuation location and whether the CFG path
