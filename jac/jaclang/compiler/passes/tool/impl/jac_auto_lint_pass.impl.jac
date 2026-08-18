@@ -53,9 +53,9 @@ impl JacAutoLintPass.exit_ability(ability_node: uni.Ability) -> None {
     name = ability_node.name_spec.sym_name if ability_node.name_spec else "<anonymous>";
 
     if self.report_only
-    and isinstance(ability_node.name_ref, uni.Name)
-    and ability_node.name_ref.value == "__init__"
-    and not self._is_suppressed(W3004) {
+        and isinstance(ability_node.name_ref, uni.Name)
+        and ability_node.name_ref.value == "__init__"
+        and not self._is_suppressed(W3004) {
         name = "init";
     }
     self._check_unnecessary_none_return(
