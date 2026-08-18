@@ -940,6 +940,46 @@ test "layer9: band6 try finally runs on exception path in ceval" {
     assert expect_int(ns["result"]) == 10;
 }
 
+# ---------------- Band 6 slice 5: with ----------------
+
+test "layer9: band6 with matches oracle" {
+    src = (
+        "class CM:\n"
+            + "    def __enter__(self):\n"
+            + "        return 42\n"
+            + "    def __exit__(self, *a):\n"
+            + "        pass\n"
+            + "with CM() as x:\n"
+            + "    result = x\n"
+    );
+    actual = product_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert isinstance(actual, PyCode);
+    act = actual as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.exceptiontable == exp.exceptiontable;
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: band6 with executes in ceval" {
+    src = (
+        "class CM:\n"
+            + "    def __enter__(self):\n"
+            + "        return 42\n"
+            + "    def __exit__(self, *a):\n"
+            + "        pass\n"
+            + "with CM() as x:\n"
+            + "    result = x\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 42;
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {

@@ -102,6 +102,8 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "CHECK_EXC_MATCH",
     "POP_EXCEPT",
     "RAISE_VARARGS",
+    "LOAD_SPECIAL",
+    "WITH_EXCEPT_START",
     "IMPORT_NAME",
     "IMPORT_FROM",
     # Band 4 closures: cell/free var emission.
@@ -332,6 +334,26 @@ FIXTURES: tuple[VmFixture, ...] = (
         "try:\n    1 // 0\nexcept ZeroDivisionError:\n    result = 99\n",
     ),
     VmFixture("RAISE_VARARGS", "raise ValueError('bad')\n"),
+    VmFixture(
+        "LOAD_SPECIAL",
+        "class CM:\n"
+        "    def __enter__(self):\n"
+        "        return 42\n"
+        "    def __exit__(self, *a):\n"
+        "        pass\n"
+        "with CM() as x:\n"
+        "    result = x\n",
+    ),
+    VmFixture(
+        "WITH_EXCEPT_START",
+        "class CM:\n"
+        "    def __enter__(self):\n"
+        "        return 42\n"
+        "    def __exit__(self, *a):\n"
+        "        pass\n"
+        "with CM() as x:\n"
+        "    result = x\n",
+    ),
     VmFixture("IMPORT_NAME", "import os\nresult = os.name\n"),
     VmFixture("IMPORT_FROM", "from os import path\nresult = path.sep\n"),
 )

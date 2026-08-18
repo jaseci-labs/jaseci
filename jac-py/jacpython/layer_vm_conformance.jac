@@ -591,6 +591,20 @@ test "vm: RAISE_VARARGS raises with message" {
     assert err.exception.message == (host_exc[1] as str);
 }
 
+# vm-opcode: OP_LOAD_SPECIAL
+test "vm: LOAD_SPECIAL enters context manager" {
+    setup = "";
+    body = "class CM:\n    def __enter__(self):\n        return 42\n    def __exit__(self, *a):\n        pass\nwith CM() as x:\n    result = x\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_WITH_EXCEPT_START
+test "vm: WITH_EXCEPT_START handles context manager exit" {
+    setup = "";
+    body = "class CM:\n    def __enter__(self):\n        return 42\n    def __exit__(self, *a):\n        pass\nwith CM() as x:\n    result = x\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
 # vm-opcode: OP_IMPORT_NAME
 test "vm: IMPORT_NAME loads module" {
     assert_vm_value_matches_host("", "import os\nresult = os.name\n", "exec", "result");

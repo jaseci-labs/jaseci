@@ -85,6 +85,8 @@ import from opcode_meta {
     OP_CHECK_EXC_MATCH,
     OP_RERAISE,
     OP_RAISE_VARARGS,
+    OP_LOAD_SPECIAL,
+    OP_WITH_EXCEPT_START,
     NB_ADD,
     NB_SUBTRACT,
     NB_MULTIPLY,
@@ -2820,6 +2822,119 @@ def visit_try(
     return stmt_cont(loc=tloc, terminated=True);
 }
 
+# Lower with (single item, optional_vars required).
+def visit_with(
+    g: cfg_builder,
+    w: With,
+    more_code_follows: bool,
+    tail: list[stmt] | None = None,
+    tail_idx: int = 0,
+    tail_join: basicblock | None = None
+) -> stmt_cont {
+    wloc = stmt_loc(w);
+    if len(w.items) != 1 {
+        codegen_fail(g, "NotImplementedError", "multiple with items not supported");
+        return stmt_cont(loc=wloc);
+    }
+    item = w.items[0];
+    if item.optional_vars is None {
+        codegen_fail(g, "NotImplementedError", "with without as not supported");
+        return stmt_cont(loc=wloc);
+    }
+    cloc = expr_loc(item.context_expr);
+    visit_expr(g, item.context_expr);
+    if codegen_busy(g) {
+        return stmt_cont(loc=wloc);
+    }
+    g.emit_op(OP_COPY, 1, cloc);
+    g.emit_op(OP_LOAD_SPECIAL, 1, cloc);
+    g.emit_op(OP_SWAP, 2, cloc);
+    g.emit_op(OP_SWAP, 3, cloc);
+    g.emit_op(OP_LOAD_SPECIAL, 0, cloc);
+    g.emit_op(OP_CALL, 0, cloc);
+    if codegen_busy(g) {
+        return stmt_cont(loc=wloc);
+    }
+    bind = visit_store_target_tos(g, item.optional_vars);
+    if codegen_busy(g) {
+        return stmt_cont(loc=wloc);
+    }
+    protect_start = g.cur.id;
+    with_follows = more_code_follows;
+    if not with_follows and tail is not None and tail_idx < len(tail) {
+        with_follows = True;
+    }
+    body_cont = visit_stmts(g, w.body, with_follows, tail, tail_idx, tail_join);
+    if codegen_busy(g) {
+        return stmt_cont(loc=wloc);
+    }
+    protect_end = g.new_block();
+    g.use(protect_end);
+    none_idx = g.u.add_const(py_none());
+    g.emit_op(OP_LOAD_CONST, none_idx, wloc);
+    g.emit_op(OP_LOAD_CONST, none_idx, wloc);
+    g.emit_op(OP_LOAD_CONST, none_idx, wloc);
+    g.emit_op(OP_CALL, 3, wloc);
+    g.emit_op(OP_POP_TOP, 0, wloc);
+    if with_follows {
+        tail_more = False;
+        if tail is not None and tail_idx + 1 < len(tail) {
+            tail_more = exec_tail_emits_code(tail, tail_idx + 1);
+        }
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        if codegen_busy(g) {
+            return stmt_cont(loc=body_cont.loc);
+        }
+        if not tail_cont.terminated {
+            emit_module_return(g, tail_cont.loc);
+        }
+    } else {
+        emit_module_return(g, body_cont.loc);
+    }
+    with_except = g.new_block();
+    unwind = g.new_block();
+    noloc = no_loc();
+    g.use(with_except);
+    g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
+    g.emit_op(OP_WITH_EXCEPT_START, 0, noloc);
+    g.emit_op(OP_TO_BOOL, 0, noloc);
+    suppressed = g.new_block();
+    g.emit_jump(OP_POP_JUMP_IF_TRUE, suppressed.id, noloc);
+    g.emit_op(OP_RERAISE, 2, noloc);
+    reraise_stub = g.new_block();
+    g.use(suppressed);
+    g.emit_op(OP_POP_TOP, 0, noloc);
+    cleanup_end = g.new_block();
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    g.emit_op(OP_POP_TOP, 0, noloc);
+    g.emit_op(OP_POP_TOP, 0, noloc);
+    g.emit_op(OP_POP_TOP, 0, noloc);
+    emit_module_return(g, wloc);
+    g.u.except_regions.append(
+        except_region(
+            start_block=protect_start,
+            end_block=protect_end.id,
+            handler_block=with_except.id,
+            stack_depth=2,
+            preserve_lasti=True
+        )
+    );
+    g.u.except_regions.append(
+        except_region(
+            start_block=with_except.id,
+            end_block=cleanup_end.id,
+            handler_block=unwind.id,
+            stack_depth=4,
+            preserve_lasti=True
+        )
+    );
+    g.use(unwind);
+    g.emit_op(OP_COPY, 3, noloc);
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    g.emit_op(OP_RERAISE, 1, noloc);
+    return stmt_cont(loc=wloc, terminated=True);
+}
+
 # Lower statements [from_idx..] in order. When tail/tail_idx are set, the suffix
 # starting at tail_idx is the enclosing construct's continuation. tail_join is an
 # optional shared join block for nested if/loop tails owned by an outer visitor.
@@ -3551,6 +3666,13 @@ def visit_stmt(
     }
     if isinstance(s, Raise) {
         return visit_raise_stmt(g, s as Raise);
+    }
+    if isinstance(s, With) {
+        t = tail;
+        if t is None {
+            t = [];
+        }
+        return visit_with(g, s as With, more_code_follows, t, tail_idx, tail_join);
     }
     codegen_fail(
         g,
