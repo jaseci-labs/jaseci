@@ -670,7 +670,9 @@ class ActionTranslator:
             "_PyPegen_interactive_exit": lambda self, args: "pa_interactive_exit(p)",
             "_PyPegen_make_module": unary("pa_make_module"),
             "_PyPegen_register_stmts": lambda self, args: self._emit(args[0]),
-            "_PyPegen_checked_future_import": ternary("pa_checked_future_import"),
+            "_PyPegen_checked_future_import": lambda self, args: (
+                f"pa_checked_future_import({self._emit(args[0])}, {self._emit(args[1])}, {self._emit(args[2])}, {loc})"
+            ),
             "_PyPegen_nonparen_genexp_in_call": binary("pa_nonparen_genexp_in_call"),
             "_PyPegen_arguments_parsing_error": unary("pa_arguments_parsing_error"),
             "_PyPegen_check_legacy_stmt": lambda self, args: (

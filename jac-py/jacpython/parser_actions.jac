@@ -85,6 +85,7 @@ import from ast_nodes {
     type_param,
     withitem,
     MatchOr,
+    ImportFrom,
 }
 import from peg_runtime { peg_parser, peg_token, peg_has_error, peg_raise_syntax_error }
 
@@ -1041,8 +1042,36 @@ def pa_check_legacy_stmt_or_raise(p: peg_parser, a: object, b: object) -> None {
     return None;
 }
 
-def pa_checked_future_import(module: object, names: object, level: object) -> object {
-    return None;
+def pa_checked_future_import(
+    module: object,
+    names: object,
+    level: object,
+    lineno: int,
+    col_offset: int,
+    end_lineno: int | None,
+    end_col_offset: int | None
+) -> ImportFrom {
+    mod: str | None = None;
+    if isinstance(module, str) {
+        mod = module as str;
+    }
+    lvl: int | None = None;
+    if isinstance(level, int) {
+        lvl = level as int;
+    }
+    alist: list[alias] = [];
+    if isinstance(names, list) {
+        alist = names as list[alias];
+    }
+    return ImportFrom(
+        module=mod,
+        names=alist,
+        level=lvl,
+        lineno=lineno,
+        col_offset=col_offset,
+        end_lineno=end_lineno,
+        end_col_offset=end_col_offset
+    );
 }
 def pa_nonparen_genexp_in_call(a: object, b: object) -> object {
     return None;

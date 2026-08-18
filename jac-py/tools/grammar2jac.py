@@ -737,10 +737,34 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         self.print("")
 
     def _uses_extra(self, rhs: Rhs) -> bool:
+        # Actions that emit start_lineno/col_offset/end_* via action_translate LOC.
         loc_actions = (
+            "_PyPegen_dummy_name",
+            "_PyPegen_collect_call_seqs",
+            "_PyPegen_key_value_pair",
+            "_PyPegen_key_pattern_pair",
             "_PyPegen_name_default_pair",
+            "_PyPegen_keyword_or_starred",
             "_PyPegen_make_arguments",
             "_PyPegen_star_etc",
+            "_PyPegen_slash_with_default",
+            "_PyPegen_joined_str",
+            "_PyPegen_template_str",
+            "_PyPegen_formatted_value",
+            "_PyPegen_interpolation",
+            "_PyAST_Call",
+            "_PyAST_Constant",
+            "_PyAST_AnnAssign",
+            "_PyAST_Pass",
+            "_PyAST_Break",
+            "_PyAST_Continue",
+            "_PyAST_Return",
+            "_PyAST_Tuple",
+            "_PyAST_Attribute",
+            "_PyAST_Subscript",
+            "_PyAST_Slice",
+            "_PyAST_AugAssign",
+            "_PyAST_Delete",
         )
         for alt in rhs.alts:
             if alt.action and (
@@ -938,7 +962,26 @@ def generate_text() -> str:
     gen = JacParserGenerator(grammar, tokens, buf, allowed_rules=None)
     gen.set_exact_tokens(exact)
     gen.generate(OUT_PATH)
-    return buf.getvalue()
+    return _patch_store_target_rules(buf.getvalue())
+
+
+def _patch_store_target_rules(source: str) -> str:
+    """Store targets use atom, not t_primary: t_primary consumes .attr for loads."""
+    rules = (
+        "def rule_target_with_star_atom",
+        "def rule_single_subscript_attribute_target",
+    )
+    out: list[str] = []
+    in_rule = False
+    for line in source.splitlines(keepends=True):
+        if any(line.startswith(f"{r}(p:") for r in rules):
+            in_rule = True
+        elif in_rule and line.startswith("def rule_"):
+            in_rule = False
+        if in_rule and "a = rule_t_primary(p)" in line:
+            line = line.replace("a = rule_t_primary(p)", "a = rule_atom(p)")
+        out.append(line)
+    return "".join(out)
 
 
 def main(argv: list[str]) -> int:

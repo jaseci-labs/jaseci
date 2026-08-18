@@ -4939,6 +4939,15 @@ def rule_double_star_pattern(p: peg_parser) -> expr | None {
 
 def rule_double_starred_kvpair(p: peg_parser) -> pa_key_value_pair | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     lit = peg_expect_token(p, 35);
     if lit is not None {
         a = rule_bitwise_or(p);
@@ -5694,6 +5703,15 @@ def rule_for_stmt(p: peg_parser) -> stmt | None {
 
 def rule_fstring(p: peg_parser) -> expr | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = peg_expect_token(p, FSTRING_START);
     if a is not None {
         b = rule__loop0_29(p);
@@ -6216,7 +6234,7 @@ def rule_import_from(p: peg_parser) -> stmt | None {
                         end_tok = p.tokens[p.mark - 1];
                         end_lineno = end_tok.end_lineno;
                         end_col_offset = end_tok.end_col_offset;
-                        res = pa_checked_future_import(pa_name_id(b), c, pa_seq_count_dots(a));
+                        res = pa_checked_future_import(pa_name_id(b), c, pa_seq_count_dots(a), start_lineno, start_col_offset, end_lineno, end_col_offset);
                         return res;
                     }
                 }
@@ -8983,6 +9001,15 @@ def rule_items_pattern(p: peg_parser) -> list[object] | None {
 
 def rule_key_value_pattern(p: peg_parser) -> pa_key_pattern_pair | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     key = rule__tmp_98(p);
     if key is not None {
         lit = peg_expect_token(p, 11);
@@ -9000,6 +9027,15 @@ def rule_key_value_pattern(p: peg_parser) -> pa_key_pattern_pair | None {
 
 def rule_keyword_pattern(p: peg_parser) -> pa_key_pattern_pair | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     arg = pa_name_from_token(peg_expect_token(p, NAME));
     if arg is not None {
         lit = peg_expect_token(p, 22);
@@ -9028,6 +9064,15 @@ def rule_keyword_patterns(p: peg_parser) -> list[object] | None {
 
 def rule_kvpair(p: peg_parser) -> pa_key_value_pair | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule_expression(p);
     if a is not None {
         lit = peg_expect_token(p, 11);
@@ -9422,6 +9467,15 @@ def rule_lambda_slash_no_default(p: peg_parser) -> list[arg] | None {
 
 def rule_lambda_slash_with_default(p: peg_parser) -> object | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule__loop0_67(p);
     if a is not None {
         b = rule__loop1_72(p);
@@ -11047,7 +11101,7 @@ def rule_single_subscript_attribute_target(p: peg_parser) -> expr | None {
         start_lineno = t0.lineno;
         start_col_offset = t0.col_offset;
     }
-    a = rule_t_primary(p);
+    a = rule_atom(p);
     if a is not None {
         lit = peg_expect_token(p, 23);
         if lit is not None {
@@ -11064,7 +11118,7 @@ def rule_single_subscript_attribute_target(p: peg_parser) -> expr | None {
         }
     }
     peg_reset(p, mark);
-    a = rule_t_primary(p);
+    a = rule_atom(p);
     if a is not None {
         lit = peg_expect_token(p, 9);
         if lit is not None {
@@ -11146,6 +11200,15 @@ def rule_slash_no_default(p: peg_parser) -> list[arg] | None {
 
 def rule_slash_with_default(p: peg_parser) -> object | None {
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = rule__loop0_78(p);
     if a is not None {
         b = rule__loop1_82(p);
@@ -12079,7 +12142,7 @@ def rule_target_with_star_atom(p: peg_parser) -> expr | None {
         start_lineno = t0.lineno;
         start_col_offset = t0.col_offset;
     }
-    a = rule_t_primary(p);
+    a = rule_atom(p);
     if a is not None {
         lit = peg_expect_token(p, 23);
         if lit is not None {
@@ -12097,7 +12160,7 @@ def rule_target_with_star_atom(p: peg_parser) -> expr | None {
         }
     }
     peg_reset(p, mark);
-    a = rule_t_primary(p);
+    a = rule_atom(p);
     if a is not None {
         lit = peg_expect_token(p, 9);
         if lit is not None {
@@ -12333,6 +12396,15 @@ def rule_tstring(p: peg_parser) -> expr | None {
         return hit.result as expr;
     }
     mark = peg_mark(p);
+    start_lineno = 1;
+    start_col_offset = 0;
+    end_lineno = 1;
+    end_col_offset = 0;
+    if peg_fill_token(p) {
+        t0 = p.tokens[p.mark];
+        start_lineno = t0.lineno;
+        start_col_offset = t0.col_offset;
+    }
     a = peg_expect_token(p, TSTRING_START);
     if a is not None {
         b = rule__loop0_130(p);
