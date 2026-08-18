@@ -315,6 +315,20 @@ def _arm64_apply_reloc(
 }
 
 
+def _macho_reloc_refusal(rel: MachOReloc, sym_name: str, why: str) -> str {
+    who = f" for symbol {sym_name}" if sym_name else "";
+    return (
+        f"Mach-O link refused: relocation type {rel.rtype} "
+        f"(extern={rel.extern}, length={rel.length}, pcrel={rel.pcrel}) at "
+        f"{rel.target_sec}+0x{rel.address:x}{who} was not applied -- {why}. "
+        "A relocation this linker drops leaves the instruction pointing at "
+        "whatever else landed nearby, which is not a link error at build time "
+        "and is a wrong artifact at run time (#8313). Teach the linker this "
+        "relocation rather than emitting the artifact without it."
+    );
+}
+
+
 def _unsigned_inline_addend(
     rel: MachOReloc, patch_buf: bytearray, patch_off: int, sections: list[MachOSection]
 ) -> int {
@@ -848,12 +862,14 @@ impl MachOLinker.build_executable -> bytes {
     data_sections: dict[str, tuple[int, int]] = {};
 
     sec_placement: dict[int, tuple[str, int]] = {};
+    dropped_secs: set[str] = set();
 
     for (sec_idx, sec) in enumerate(self.sections) {
         if sec.name.startswith("__debug")
             or sec.name.startswith("__apple")
             or sec.name == "__compact_unwind"
             or sec.name == "__eh_frame" {
+            dropped_secs.add(f"{sec.segname}:{sec.name}");
             continue;
         }
         is_text = sec.segname == "__TEXT"
@@ -874,6 +890,8 @@ impl MachOLinker.build_executable -> bytes {
             off = _append_to_blob(data_data, sec.data, sec.align, sec.size);
             data_sections[sec_key] = (off, sec.size);
             sec_placement[sec_idx] = ("data", off);
+        } else {
+            dropped_secs.add(sec_key);
         }
     }
 
@@ -1353,7 +1371,16 @@ impl MachOLinker.build_executable -> bytes {
             data_sec_vaddr
         );
         if site is None {
-            continue;
+            if rel.target_sec in dropped_secs {
+                continue;
+            }
+            raise ValueError(
+                _macho_reloc_refusal(
+                    rel,
+                    sym_name,
+                    "its patch site is in a section this link never placed"
+                )
+            );
         }
         (patch_buf, patch_off, patch_vaddr) = site;
 
@@ -1365,12 +1392,19 @@ impl MachOLinker.build_executable -> bytes {
             );
         }
         if is_arm64 {
-            _arm64_apply_reloc(
+            applied = _arm64_apply_reloc(
                 rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
             );
         } else {
-            _x86_64_apply_reloc(
+            applied = _x86_64_apply_reloc(
                 rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
+            );
+        }
+        if not applied {
+            raise ValueError(
+                _macho_reloc_refusal(
+                    rel, sym_name, "this linker does not implement its type"
+                )
             );
         }
     }
@@ -1744,11 +1778,13 @@ impl MachOLinker.build_shared_object -> bytes {
     rodata_sections: dict[str, tuple[int, int]] = {};
     data_sections: dict[str, tuple[int, int]] = {};
     sec_placement: dict[int, tuple[str, int]] = {};
+    dropped_secs: set[str] = set();
     for (sec_idx, sec) in enumerate(self.sections) {
         if sec.name.startswith("__debug")
             or sec.name.startswith("__apple")
             or sec.name == "__compact_unwind"
             or sec.name == "__eh_frame" {
+            dropped_secs.add(f"{sec.segname}:{sec.name}");
             continue;
         }
         is_text = sec.segname == "__TEXT"
@@ -1768,6 +1804,8 @@ impl MachOLinker.build_shared_object -> bytes {
             off = _append_to_blob(data_data, sec.data, sec.align, sec.size);
             data_sections[sec_key] = (off, sec.size);
             sec_placement[sec_idx] = ("data", off);
+        } else {
+            dropped_secs.add(sec_key);
         }
     }
 
@@ -2245,7 +2283,16 @@ impl MachOLinker.build_shared_object -> bytes {
             data_sec_vaddr
         );
         if site is None {
-            continue;
+            if rel.target_sec in dropped_secs {
+                continue;
+            }
+            raise ValueError(
+                _macho_reloc_refusal(
+                    rel,
+                    sym_name,
+                    "its patch site is in a section this link never placed"
+                )
+            );
         }
         (patch_buf, patch_off, patch_vaddr) = site;
         eff_addend = rel.addend;
@@ -2256,12 +2303,19 @@ impl MachOLinker.build_shared_object -> bytes {
             );
         }
         if is_arm64 {
-            _arm64_apply_reloc(
+            applied = _arm64_apply_reloc(
                 rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
             );
         } else {
-            _x86_64_apply_reloc(
+            applied = _x86_64_apply_reloc(
                 rel.rtype, patch_buf, patch_off, sym_addr, eff_addend, patch_vaddr
+            );
+        }
+        if not applied {
+            raise ValueError(
+                _macho_reloc_refusal(
+                    rel, sym_name, "this linker does not implement its type"
+                )
             );
         }
     }
