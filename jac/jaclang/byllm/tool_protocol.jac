@@ -65,8 +65,9 @@ def format_tools_for_prompt(tools: list) -> str {
         + "- \"arguments\" must be a JSON object whose keys match the tool's "
         + "parameters.\n"
         + "- Emit nothing outside the <tool_call> tags when calling a tool.\n"
-        + "- After a tool result is returned, call the next tool, or call "
-        + "finish_tool with your final answer to end."
+        + "- After a tool result is returned, call the next tool, or end by "
+        + "calling finish_tool with your final answer as its 'final_output' "
+        + "argument."
     );
 }
 
