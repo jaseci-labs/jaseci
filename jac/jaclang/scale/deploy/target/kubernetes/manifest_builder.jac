@@ -135,17 +135,20 @@ def with_config_revision(manifest: dict[str, any], revision: str) -> dict[str, a
     if not revision {
         return manifest;
     }
-    out = dict(manifest);
-    spec = dict(out.get("spec") or {});
-    template = dict(spec.get("template") or {});
-    metadata = dict(template.get("metadata") or {});
-    annotations = dict(metadata.get("annotations") or {});
-    annotations[CONFIG_REVISION_ANNOTATION] = str(revision);
-    metadata["annotations"] = annotations;
-    template["metadata"] = metadata;
-    spec["template"] = template;
-    out["spec"] = spec;
-    return out;
+    return dict(
+        merge_manifest_overlay(
+            manifest,
+            {
+                "spec": {
+                    "template": {
+                        "metadata": {
+                            "annotations": {CONFIG_REVISION_ANNOTATION: str(revision)}
+                        }
+                    }
+                }
+            }
+        )
+    );
 }
 
 
