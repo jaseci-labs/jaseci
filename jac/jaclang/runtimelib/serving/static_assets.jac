@@ -1,11 +1,28 @@
+import logging;
 import from pathlib { Path }
 import from jaclang.runtimelib.serving.datatypes { Response, FileResponse }
+
+glob _logger = logging.getLogger(__name__);
 
 
 obj AssetRoot {
     has url_prefix: str,
         local_dir: str,
-        source: str;
+        source: str,
+        resolved_dir: Path;
+}
+
+
+def _resolve_root(local_dir: str) -> Path {
+    p = Path(local_dir);
+    try {
+        return p.resolve();
+    } except OSError {
+        _logger.warning(
+            f"could not resolve asset root {local_dir!r}, using unresolved path"
+        );
+        return p;
+    }
 }
 
 
@@ -18,21 +35,65 @@ def asset_root_table(
         prefix = str(m.get("url_prefix", "")).strip("/");
         local = str(m.get("local_path", ""));
         if prefix and local {
-            table.append(AssetRoot(url_prefix=prefix, local_dir=local, source="mount"));
+            table.append(
+                AssetRoot(
+                    url_prefix=prefix,
+                    local_dir=local,
+                    source="mount",
+                    resolved_dir=_resolve_root(local),
+                )
+            );
+        } else {
+            _logger.warning(
+                f"static mount missing url_prefix/local_path, dropped: {m}"
+            );
         }
     }
 
     dist = str(client_dist);
     assets = str(project_root / "assets");
     public = str(project_root / "public");
+    dist_resolved = _resolve_root(dist);
+    assets_resolved = _resolve_root(assets);
+    public_resolved = _resolve_root(public);
 
-    table.append(AssetRoot(url_prefix="static", local_dir=dist, source="dist"));
     table.append(
-        AssetRoot(url_prefix="static/assets", local_dir=assets, source="assets")
+        AssetRoot(
+            url_prefix="static",
+            local_dir=dist,
+            source="dist",
+            resolved_dir=dist_resolved
+        )
     );
-    table.append(AssetRoot(url_prefix="", local_dir=dist, source="dist"));
-    table.append(AssetRoot(url_prefix="", local_dir=public, source="public"));
-    table.append(AssetRoot(url_prefix="", local_dir=assets, source="assets"));
+    table.append(
+        AssetRoot(
+            url_prefix="static/assets",
+            local_dir=assets,
+            source="assets",
+            resolved_dir=assets_resolved,
+        )
+    );
+    table.append(
+        AssetRoot(
+            url_prefix="", local_dir=dist, source="dist", resolved_dir=dist_resolved
+        )
+    );
+    table.append(
+        AssetRoot(
+            url_prefix="",
+            local_dir=public,
+            source="public",
+            resolved_dir=public_resolved
+        )
+    );
+    table.append(
+        AssetRoot(
+            url_prefix="",
+            local_dir=assets,
+            source="assets",
+            resolved_dir=assets_resolved
+        )
+    );
 
     return table;
 }
@@ -73,11 +134,11 @@ def resolve_asset(
         if r.source == "mount" {
             mount_claimed = True;
         }
-        base = Path(r.local_dir);
+        base = r.resolved_dir;
         target = base / rel;
         try {
             resolved = target.resolve();
-            if not resolved.is_relative_to(base.resolve()) {
+            if not resolved.is_relative_to(base) {
                 continue;
             }
         } except OSError {
