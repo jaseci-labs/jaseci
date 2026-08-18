@@ -11,7 +11,8 @@ import from jaclang.scale.deploy.target.kubernetes.target {
     app_deployment_names,
     app_bundle_digest,
     releases_from_revisions,
-    fleet_targets_for_release
+    fleet_targets_for_release,
+    deployment_rollout_complete
 }
 
 # A Deployment as a pre-0.34.9 toolchain wrote it: bare app name, no role label,
@@ -427,4 +428,62 @@ test "the same code and config stays one release across services" {
     assert len(releases) == 1;
     assert releases[0]["deployments"]
         == {"orders-app-deployment": 4, "gateway-deployment": 2};
+}
+
+
+def _rollout(
+    generation: int,
+    observed: int,
+    replicas: int,
+    updated: int,
+    available: int,
+    desired: int = 1
+) -> any {
+    return SimpleNamespace(
+        metadata=SimpleNamespace(generation=generation),
+        spec=SimpleNamespace(replicas=desired),
+        status=SimpleNamespace(
+            observed_generation=observed,
+            replicas=replicas,
+            updated_replicas=updated,
+            available_replicas=available
+        )
+    );
+}
+
+
+# The rollout waiter used to accept "at least one ready replica". Immediately
+# after a pod template is patched the OLD pods are still ready, so it returned
+# success before the reverted template had rolled out at all, and a revert that
+# never started -- or crash-looped once it did -- still reported success.
+test "a rollout is not complete while the old pods are the ready ones" {
+    assert not deployment_rollout_complete(
+        _rollout(generation=2, observed=1, replicas=1, updated=0, available=1)
+    ) , "the controller has not observed the patch yet";
+    assert not deployment_rollout_complete(
+        _rollout(generation=2, observed=2, replicas=1, updated=0, available=1)
+    ) , "no replica runs the reverted template yet";
+    assert not deployment_rollout_complete(
+        _rollout(generation=2, observed=2, replicas=2, updated=1, available=1)
+    ) , "an old replica is still serving beside the reverted one";
+    assert not deployment_rollout_complete(
+        _rollout(generation=2, observed=2, replicas=1, updated=1, available=0)
+    ) , "the reverted pod exists but has not become available";
+}
+
+
+test "a rollout is complete once every replica runs the new template" {
+    assert deployment_rollout_complete(
+        _rollout(generation=2, observed=2, replicas=1, updated=1, available=1)
+    );
+    assert deployment_rollout_complete(
+        _rollout(
+            generation=3, observed=3, replicas=3, updated=3, available=3, desired=3
+        )
+    );
+    assert not deployment_rollout_complete(
+        _rollout(
+            generation=3, observed=3, replicas=2, updated=2, available=2, desired=3
+        )
+    ) , "a three replica service is not rolled out on two";
 }

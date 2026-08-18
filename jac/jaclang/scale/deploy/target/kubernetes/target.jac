@@ -152,6 +152,24 @@ def replica_sets_at_revision(sets: list[any], revision: int) -> dict[str, any] {
 }
 
 
+def deployment_rollout_complete(dep: any) -> bool {
+    try {
+        status = dep.status;
+        if int(status.observed_generation or 0) < int(dep.metadata.generation or 0) {
+            return False;
+        }
+        desired = dep.spec.replicas;
+        wanted = int(desired) if desired is not None else 1;
+        updated = int(status.updated_replicas or 0);
+        current = int(status.replicas or 0);
+        available = int(status.available_replicas or 0);
+    } except Exception {
+        return False;
+    }
+    return updated >= wanted and current <= updated and available >= updated;
+}
+
+
 def strip_pod_template_hash(template: dict[str, any]) -> dict[str, any] {
     cleaned = dict(template);
     metadata = dict(cleaned.get("metadata") or {});
@@ -549,7 +567,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 for name in names {
                     try {
                         d = apps_v1.read_namespaced_deployment(name=name, namespace=ns);
-                        if (d.status.ready_replicas or 0) >= 1 {
+                        if deployment_rollout_complete(d) {
                             ready += 1;
                         }
                     } except Exception {
