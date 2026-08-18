@@ -333,14 +333,6 @@ impl TypeCheckPass._diag_erased_membership(
             op=op_text,
             type=str(hay_t) if hay_t is not None else "<unknown>"
         );
-        return;
-    }
-
-    if isinstance(hay_t, ClassType)
-        and hay_t.is_builtin()
-        and hay_t.shared.class_name in ("list", "tuple", "set", "frozenset", "dict")
-        and not hay_t.private.type_args {
-        self.emit(E1124, node_override=hay, op=op_text, type=str(hay_t));
     }
 }
 

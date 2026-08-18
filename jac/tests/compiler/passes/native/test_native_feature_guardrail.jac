@@ -443,25 +443,28 @@ test "checker: membership over an operand with no static type is refused (E1124)
 }
 
 
-test "checker: membership over a bare container annotation is refused (E1124)" {
+# A bare `list`/`dict`/`set` operand is erased too, but it is NOT this arm's
+# job. It HAS a static type -- the container is merely unparameterized -- and
+# the fix belongs at the annotation, where one refusal covers every use, rather
+# than at each membership test, where the author would collect N copies of the
+# same instruction. Decision 3's first half refuses the annotation itself; this
+# arm stays out of its way.
+#
+# The distinction was not free to learn. An earlier cut of this check also
+# refused unparameterized containers, and the seal caught it: NON_ESCAPED_KEYWORDS
+# in jac0core/constant.jac and _proto_checks_in_progress in
+# type_system/impl/type_utils.impl.jac are both bare `set`, so the compiler
+# refused to compile itself.
+test "checker: a bare container operand is left to the annotation refusal" {
     prog = check_na_inline(
         "erased_membership_bare",
         "def lst(t: list, x: int) -> int { if x in t { return 1; } return 0; }\n"
         "def dct(t: dict, x: str) -> int { if x not in t { return 1; } return 0; }\n"
         "def st(t: set, x: int) -> int { if x in t { return 1; } return 0; }\n"
     );
-    e1124 = [
-        e
-        for e in prog.errors_had
-        if e.code is not None and e.code.code == "E1124"
-    ];
-    # One per membership test: `in` and `not in` are the same test with the
-    # same erasure, and an unparameterized container has nothing to compare
-    # against whichever way it is spelled.
-    assert len(e1124) == 3 , (
-        f"each bare-container membership operand must be refused, got: {fmt_errors(
-            prog
-        )}"
+    assert not has_error_code(prog, "E1124") , (
+        "an unparameterized container has a static type; refusing it here would "
+        f"duplicate the annotation refusal at every use site, got: {fmt_errors(prog)}"
     );
 }
 
