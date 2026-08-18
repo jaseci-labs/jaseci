@@ -7,7 +7,6 @@ import from jaclang.jac0core.unitree {
     AtomTrailer,
     BinaryExpr,
     ContextAwareNode,
-    CtName,
     CtrlStmt,
     DeleteStmt,
     ElseStmt,

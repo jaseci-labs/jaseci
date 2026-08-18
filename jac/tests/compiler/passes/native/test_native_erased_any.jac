@@ -51,8 +51,8 @@ because `module_codegen_pass` joins alongside. That was measured on this base
 too, and it is what the hold is holding back.
 
 The last test keeps the half of the old reasoning that outlived the rest.
-`ModuleCodegenPass.is_comptime_type_decl` reads the *marker* set
-(`NATIVE_COMPTIME_TYPE_MARKERS`, `TypeAlias`) to decide which globs are
+`ModuleCodegenPass.is_erased_type_decl` reads the *marker* set
+(`NATIVE_ERASED_TYPE_MARKERS`, `TypeAlias`) to decide which globs are
 compile-time declarations the backend skips. An `any`-annotated glob is not
 one: it is an ordinary global whose value has to reach the binary, and
 classifying it as a declaration would drop it silently. That is the trap
@@ -61,7 +61,7 @@ keyword exactly as it would have for the name.
 """
 
 import os;
-import from jaclang.jac0core.codeinfo { native_comptime_import_names }
+import from jaclang.jac0core.codeinfo { native_erased_import_names }
 import from jaclang.jac0core.parser { parse as rd_parse }
 import from jaclang.jac0core.placement { scan_native_blockers }
 import from jaclang.jac0core.program { JacProgram }
@@ -72,7 +72,7 @@ import from tests.support { TESTS_DIR }
 glob FIXTURES = os.path.join(
          TESTS_DIR, "compiler", "passes", "native", "fixtures"
      ),
-     FIXTURE: str = "comptime_any_annotation.jac";
+     FIXTURE: str = "erased_any_annotation.jac";
 
 
 """Parse a fixture and return its module."""
@@ -88,12 +88,12 @@ def _parse(fixture: str) -> object {
 
 
 test "the typing vocabulary refuses Any, and no module can ask it to" {
-    assert not native_comptime_import_names("typing", ["Any"]) , (
+    assert not native_erased_import_names("typing", ["Any"]) , (
         "'Any' is in the compile-time import vocabulary. It must not be: "
         "E1122 refuses every import that binds the name, so admitting it "
         "here would describe a module the language cannot accept"
     );
-    assert native_comptime_import_names("typing", ["ClassVar", "cast"]) , (
+    assert native_erased_import_names("typing", ["ClassVar", "cast"]) , (
         "the names that were already admitted must stay admitted"
     );
 }
@@ -136,7 +136,7 @@ test "an any-annotated glob is not a compile-time declaration" {
                 continue;
             }
             found = True;
-            assert not ModuleCodegenPass.is_comptime_type_decl(assign) , (
+            assert not ModuleCodegenPass.is_erased_type_decl(assign) , (
                 "the any-annotated glob was classified as a compile-time "
                 "declaration, so its value would never be emitted"
             );

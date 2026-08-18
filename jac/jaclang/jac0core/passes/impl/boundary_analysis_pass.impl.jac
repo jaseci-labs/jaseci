@@ -25,16 +25,13 @@ impl BoundaryAnalysisPass._signature_of_decl(
     param_names: list[str] = [];
     if decl is not None and isinstance(decl.signature, FuncSignature) {
         sig = decl.signature;
-        all_params: list[(ParamVar | CtFor | CtIf)] = [];
+        all_params: list[ParamVar] = [];
         all_params.extend(sig.posonly_params);
         if sig.params {
             all_params.extend(sig.params);
         }
         all_params.extend(sig.kwonlyargs);
         for p in all_params {
-            if not isinstance(p, ParamVar) {
-                continue;
-            }
             param_names.append(p.sym_name);
             if p.type_tag {
                 param_types.append(self._extract_type_name(p.type_tag.tag));
