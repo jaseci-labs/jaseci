@@ -850,6 +850,40 @@ test "layer9: band6 try except re-raise propagates in ceval" {
     assert err.exception.message == "x";
 }
 
+# ---------------- Band 6 slice 3: except as ----------------
+
+test "layer9: band6 try except as matches oracle" {
+    src = (
+        "try:\n"
+            + "    1 // 0\n"
+            + "except ZeroDivisionError as e:\n"
+            + "    result = str(e)\n"
+    );
+    actual = product_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert isinstance(actual, PyCode);
+    act = actual as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.exceptiontable == exp.exceptiontable;
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: band6 try except as executes in ceval" {
+    src = (
+        "try:\n"
+            + "    1 // 0\n"
+            + "except ZeroDivisionError as e:\n"
+            + "    result = str(e)\n"
+    );
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_str(ns["result"]) == "integer division or modulo by zero";
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {

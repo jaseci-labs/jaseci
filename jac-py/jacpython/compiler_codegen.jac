@@ -76,6 +76,7 @@ import from opcode_meta {
     OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW,
     OP_LOAD_FAST_AND_CLEAR,
     OP_STORE_FAST,
+    OP_DELETE_FAST,
     OP_STORE_FAST_STORE_FAST,
     OP_STORE_FAST_LOAD_FAST,
     OP_UNPACK_SEQUENCE,
@@ -624,6 +625,35 @@ def emit_name_store(g: cfg_builder, name: str, tloc: cloc) {
     }
     idx = g.u.add_name(name);
     g.emit_op(OP_STORE_NAME, idx, tloc);
+}
+
+def emit_name_delete(g: cfg_builder, name: str, tloc: cloc) {
+    name = codegen_mangle(g, name);
+    fi = fast_local_index(g, name);
+    if fi >= 0 {
+        g.emit_op(OP_DELETE_FAST, fi, tloc);
+        return;
+    }
+    if g.sym_top is not None and g.sym_top.block_type != "module" {
+        flags = sym_dict_get(g.sym_top.symbols, name, 0);
+        scope = sym_scope_of(flags);
+        if scope == SCOPE_FREE or scope == SCOPE_CELL {
+            codegen_fail(
+                g, "NotImplementedError", "delete of cell/free var not supported"
+            );
+            return;
+        }
+    }
+    idx = g.u.add_name(name);
+    g.emit_op(OP_DELETE_NAME, idx, tloc);
+}
+
+# Clear an except-as binding (STORE None + DELETE) before handler exit.
+def emit_except_as_cleanup(g: cfg_builder, bind_name: str, cloc: cloc) {
+    none_idx = g.u.add_const(py_none());
+    g.emit_op(OP_LOAD_CONST, none_idx, cloc);
+    emit_name_store(g, bind_name, cloc);
+    emit_name_delete(g, bind_name, cloc);
 }
 
 # Name load opcode from symtable facts. Module scope uses LOAD_NAME for globals
@@ -2554,10 +2584,6 @@ def visit_try(
     hi = 0;
     while hi < len(t.handlers) {
         h = t.handlers[hi];
-        if h.name is not None {
-            codegen_fail(g, "NotImplementedError", "except as not supported");
-            return stmt_cont(loc=tloc);
-        }
         if h.type is None {
             codegen_fail(g, "NotImplementedError", "bare except not supported");
             return stmt_cont(loc=tloc);
@@ -2623,25 +2649,69 @@ def visit_try(
             no_match = g.new_block();
         }
         g.emit_jump(OP_POP_JUMP_IF_FALSE, no_match.id, hloc);
-        g.emit_op(OP_POP_TOP, 0, hloc);
+        bind_name = h.name;
+        if bind_name is not None {
+            emit_name_store(g, bind_name, hloc);
+        } else {
+            g.emit_op(OP_POP_TOP, 0, hloc);
+        }
+        handler_body_start = g.cur.id;
         hbody = visit_stmts(g, h.body);
         if codegen_busy(g) {
             return stmt_cont(loc=tloc);
         }
         if not hbody.terminated {
             g.emit_op(OP_POP_EXCEPT, 0, hbody.loc);
+            if bind_name is not None {
+                emit_except_as_cleanup(g, bind_name, hbody.loc);
+            }
             emit_module_return(g, hbody.loc);
         }
         handler_region_end = g.new_block();
-        g.u.except_regions.append(
-            except_region(
-                start_block=handler_region_start,
-                end_block=handler_region_end.id,
-                handler_block=unwind.id,
-                stack_depth=2,
-                preserve_lasti=True
-            )
-        );
+        if bind_name is not None {
+            g.u.except_regions.append(
+                except_region(
+                    start_block=handler_region_start,
+                    end_block=handler_body_start,
+                    handler_block=unwind.id,
+                    stack_depth=2,
+                    preserve_lasti=True
+                )
+            );
+            as_unwind = g.new_block();
+            g.use(as_unwind);
+            emit_except_as_cleanup(g, bind_name, hbody.loc);
+            g.emit_op(OP_RERAISE, 1, hbody.loc);
+            as_unwind_end = g.new_block();
+            g.u.except_regions.append(
+                except_region(
+                    start_block=handler_body_start,
+                    end_block=handler_region_end.id,
+                    handler_block=as_unwind.id,
+                    stack_depth=2,
+                    preserve_lasti=True
+                )
+            );
+            g.u.except_regions.append(
+                except_region(
+                    start_block=as_unwind.id,
+                    end_block=as_unwind_end.id,
+                    handler_block=unwind.id,
+                    stack_depth=2,
+                    preserve_lasti=True
+                )
+            );
+        } else {
+            g.u.except_regions.append(
+                except_region(
+                    start_block=handler_region_start,
+                    end_block=handler_region_end.id,
+                    handler_block=unwind.id,
+                    stack_depth=2,
+                    preserve_lasti=True
+                )
+            );
+        }
         if hi < len(t.handlers) - 1 {
             g.use(no_match);
             handler_region_start = no_match.id;

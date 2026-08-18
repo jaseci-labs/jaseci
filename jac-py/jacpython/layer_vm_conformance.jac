@@ -312,6 +312,13 @@ test "vm: DELETE_NAME removes binding" {
     assert_vm_value_matches_host(setup, body, "exec", "result");
 }
 
+# vm-opcode: OP_DELETE_FAST
+test "vm: DELETE_FAST clears except-as binding in function" {
+    setup = "";
+    body = "def f():\n    try:\n        1 // 0\n    except ZeroDivisionError as e:\n        return str(e)\nresult = f()\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
 # vm-opcode: OP_DELETE_ATTR
 test "vm: DELETE_ATTR removes attribute" {
     setup = "class Box:\n    pass\nbox = Box()\nbox.x = 1\n";

@@ -73,6 +73,7 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "STORE_SUBSCR",
     "LOAD_ATTR",
     "DELETE_NAME",
+    "DELETE_FAST",
     "DELETE_ATTR",
     "DELETE_SUBSCR",
     "POP_JUMP_IF_FALSE",
@@ -191,6 +192,15 @@ FIXTURES: tuple[VmFixture, ...] = (
         setup="class Box:\n    pass\nbox = Box()\nbox.x = 4\n",
     ),
     VmFixture("DELETE_NAME", "x = 1\ndel x\nresult = 0\n", setup="x = 0\n"),
+    VmFixture(
+        "DELETE_FAST",
+        "def f():\n"
+        "    try:\n"
+        "        1 // 0\n"
+        "    except ZeroDivisionError as e:\n"
+        "        return str(e)\n"
+        "result = f()\n",
+    ),
     VmFixture(
         "DELETE_ATTR",
         "del box.x\nresult = 0\n",

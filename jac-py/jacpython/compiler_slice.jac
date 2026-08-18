@@ -1469,3 +1469,35 @@ test "compiler_slice: band6 try except re-raise parsed propagates in ceval" {
     assert err.exception.type_name == "ValueError";
     assert err.exception.message == "x";
 }
+
+# ---------------- Band 6 slice 3: except as ----------------
+
+test "compiler_slice: band6 try except as parsed matches oracle co_code" {
+    src = (
+        "try:\n"
+            + "    1 // 0\n"
+            + "except ZeroDivisionError as e:\n"
+            + "    result = str(e)\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 try except as parsed executes in ceval" {
+    src = (
+        "try:\n"
+            + "    1 // 0\n"
+            + "except ZeroDivisionError as e:\n"
+            + "    result = str(e)\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_str(ns["result"]) == "integer division or modulo by zero";
+}

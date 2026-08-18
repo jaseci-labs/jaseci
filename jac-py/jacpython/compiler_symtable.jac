@@ -859,6 +859,11 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
                         return False;
                     }
                 }
+                if h.name is not None {
+                    if not b.add_def(h.name, DEF_LOCAL, h.lineno, h.col_offset) {
+                        return False;
+                    }
+                }
                 bi = 0;
                 while bi < len(h.body) {
                     if not sym_visit_stmt(b, h.body[bi]) {
