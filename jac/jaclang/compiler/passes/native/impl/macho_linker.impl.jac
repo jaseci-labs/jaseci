@@ -906,6 +906,7 @@ impl MachOLinker.build_executable -> bytes {
     };
     local_sym_map: dict[str, tuple[str, int]] = {};
     sym_idx_map: dict[int, tuple[str, int]] = {};
+    extern_defined_names: set[str] = set();
 
     for (sym_idx, sym) in enumerate(self.symbols) {
         sym_type_field = sym.n_type & N_TYPE_MASK;
@@ -1333,17 +1334,26 @@ impl MachOLinker.build_executable -> bytes {
                 if got_addr is not None {
                     sym_addr = got_addr;
                 }
-            } elif sym_name in extern_stub_addr {
-                sym_addr = extern_stub_addr[sym_name];
             } else {
-                place = local_sym_map.get(sym_name);
-                if place is not None {
-                    (seg, seg_off) = place;
-                    sym_addr = _resolve_seg_vaddr(
-                        seg, seg_off, text_sec_vaddr, const_sec_vaddr, data_sec_vaddr
-                    );
-                } elif sym_name in got_addr_map {
-                    sym_addr = got_addr_map[sym_name];
+                place = sym_idx_map.get(rel.symbolnum);
+                if place is None and sym_name in extern_stub_addr {
+                    sym_addr = extern_stub_addr[sym_name];
+                } else {
+                    if place is None {
+                        place = local_sym_map.get(sym_name);
+                    }
+                    if place is not None {
+                        (seg, seg_off) = place;
+                        sym_addr = _resolve_seg_vaddr(
+                            seg,
+                            seg_off,
+                            text_sec_vaddr,
+                            const_sec_vaddr,
+                            data_sec_vaddr
+                        );
+                    } elif sym_name in got_addr_map {
+                        sym_addr = got_addr_map[sym_name];
+                    }
                 }
             }
         } elif rel.extern == 0 {
@@ -1820,6 +1830,7 @@ impl MachOLinker.build_shared_object -> bytes {
     };
     local_sym_map: dict[str, tuple[str, int]] = {};
     sym_idx_map: dict[int, tuple[str, int]] = {};
+    extern_defined_names: set[str] = set();
     for (sym_idx, sym) in enumerate(self.symbols) {
         sym_type_field = sym.n_type & N_TYPE_MASK;
         is_extern = (sym.n_type & N_EXT) != 0;
@@ -1839,7 +1850,13 @@ impl MachOLinker.build_shared_object -> bytes {
             if placement is not None {
                 _seg_off = placement[1] + sym.n_value - self.sections[sec_index].addr;
                 if sym.name {
-                    local_sym_map[sym.name] = (placement[0], _seg_off);
+                    if is_extern {
+                        local_sym_map[sym.name] = (placement[0], _seg_off);
+                        extern_defined_names.add(sym.name);
+                    } elif sym.name not in extern_defined_names
+                        and sym.name not in local_sym_map {
+                        local_sym_map[sym.name] = (placement[0], _seg_off);
+                    }
                 }
                 sym_idx_map[sym_idx] = (placement[0], _seg_off);
             }
@@ -2246,17 +2263,26 @@ impl MachOLinker.build_shared_object -> bytes {
                 if got_addr is not None {
                     sym_addr = got_addr;
                 }
-            } elif sym_name in extern_stub_addr {
-                sym_addr = extern_stub_addr[sym_name];
             } else {
-                place = local_sym_map.get(sym_name);
-                if place is not None {
-                    (seg, seg_off) = place;
-                    sym_addr = _resolve_seg_vaddr(
-                        seg, seg_off, text_sec_vaddr, const_sec_vaddr, data_sec_vaddr
-                    );
-                } elif sym_name in got_addr_map {
-                    sym_addr = got_addr_map[sym_name];
+                place = sym_idx_map.get(rel.symbolnum);
+                if place is None and sym_name in extern_stub_addr {
+                    sym_addr = extern_stub_addr[sym_name];
+                } else {
+                    if place is None {
+                        place = local_sym_map.get(sym_name);
+                    }
+                    if place is not None {
+                        (seg, seg_off) = place;
+                        sym_addr = _resolve_seg_vaddr(
+                            seg,
+                            seg_off,
+                            text_sec_vaddr,
+                            const_sec_vaddr,
+                            data_sec_vaddr
+                        );
+                    } elif sym_name in got_addr_map {
+                        sym_addr = got_addr_map[sym_name];
+                    }
                 }
             }
         } elif rel.extern == 0 {
