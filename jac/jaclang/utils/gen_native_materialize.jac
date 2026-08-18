@@ -515,13 +515,13 @@ glob _HEADER_LINES: tuple[str, ...] = (
          'materializes the woven module: the native-execution canary the',
          'pass-serving binder verifies at bind time.',
          '\'\'\'',
-         '@ENTRY_IMPORT@',
-         'import from jaclang.jac0core.passes.annex_weave { merge_annex_into }',
+         '@UNI_IMPORT@',
          (
              'import from jaclang.jac0core.passes.prefix_drive {'
              ' PrefixAlertRow, run_prefix_passes }'
          ),
-         '@UNI_IMPORT@',
+         '@ENTRY_IMPORT@',
+         'import from jaclang.jac0core.passes.annex_weave { merge_annex_into }',
          '@CONST_IMPORT@',
          '@SRC_IMPORT@',
          '@ENV_IMPORT@',
