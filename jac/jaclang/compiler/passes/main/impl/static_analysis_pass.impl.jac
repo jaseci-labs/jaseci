@@ -10,7 +10,7 @@ impl StaticAnalysisPass.transform(ir_in: Module) -> Module {
     self._check_undefined_names(self.ir_in);
     self._check_unreachable_code(self.ir_in);
     self._check_semantic_patterns(self.ir_in);
-    self._check_typing_any_import(self.ir_in);
+    self._check_typing_import_refusals(self.ir_in);
     self._check_redundant_imports(self.ir_in);
     self._check_client_imports(self.ir_in);
     self._check_placement_warnings(self.ir_in);
@@ -477,7 +477,7 @@ impl StaticAnalysisPass._check_client_imports(mod: Module) -> None {
     }
 }
 
-impl StaticAnalysisPass._check_typing_any_import(mod: Module) -> None {
+impl StaticAnalysisPass._check_typing_import_refusals(mod: Module) -> None {
     for nd in mod.get_all_sub_nodes(typ=Import) {
         if nd.from_loc is None or nd.from_loc.dot_path_str != "typing" {
             continue;
@@ -489,8 +489,14 @@ impl StaticAnalysisPass._check_typing_any_import(mod: Module) -> None {
             if not isinstance(item.name, Name) {
                 continue;
             }
-            if item.name.value == "Any" {
+            nm = item.name.value;
+            if nm == "Any" {
                 self.emit(E1122, node_override=item.name);
+                continue;
+            }
+            remedy = DEPRECATED_TYPING_ALIASES.get(nm);
+            if remedy is not None {
+                self.emit(E1123, node_override=item.name, name=nm, remedy=remedy);
             }
         }
     }
