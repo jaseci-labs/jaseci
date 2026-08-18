@@ -89,3 +89,18 @@ test "preact backend inherits the store cell lowering" {
     js = compile_with_backend("state_semantics_component.jac", PreactBackend());
     assert_store_contract(js, "preact");
 }
+
+test "react-family state keeps the public setter binding" {
+    for (backend_name, backend) in [
+        ("react", ReactBackend()),
+        ("preact", PreactBackend())
+    ] {
+        js = compile_with_backend("state_setter_binding.jac", backend);
+        assert re.search(r"setTheme\s*=\s*__jacS_theme\.set", js) , (
+            f"[{backend_name}] has theme must bind setTheme to its store setter:\n{js}"
+        );
+        assert "setTheme: setTheme" in js , (
+            f"[{backend_name}] consumers must receive the bound setter:\n{js}"
+        );
+    }
+}

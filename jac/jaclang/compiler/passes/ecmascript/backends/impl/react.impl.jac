@@ -138,7 +138,13 @@ impl ReactBackend.lower_state_field(s: StateField) -> list[es.Statement] {
     declarator = es.VariableDeclarator(
         id=es.Identifier(name=self._state_cell_name(s.name)), init=hook_call
     );
-    decl_stmt = es.VariableDeclaration(declarations=[declarator], kind='const');
+    setter_declarator = es.VariableDeclarator(
+        id=es.Identifier(name=self._get_setter_name(s.name)),
+        init=self._state_cell_member(s.name, 'set')
+    );
+    decl_stmt = es.VariableDeclaration(
+        declarations=[declarator, setter_declarator], kind='const'
+    );
     return [decl_stmt];
 }
 
