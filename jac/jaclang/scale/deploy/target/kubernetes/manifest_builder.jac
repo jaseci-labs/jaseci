@@ -34,6 +34,12 @@ glob GATEWAY_NAME: str = "__gateway__",
          "i/o timeout",
          "network request failed",
 
+     ),
+     _VITE_BUILD_ENV_FILES: tuple = (
+         ".env",
+         ".env.local",
+         ".env.production",
+         ".env.production.local"
      );
 
 
@@ -61,7 +67,7 @@ def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
     lines: list[str] = [];
     seen: set[str] = set();
     for token in re.findall(r"[\w.\\/-]+", output) {
-        cand = token.replace("\\", "/").rstrip(".,;:");
+        cand = token.replace("\\", "/").rstrip(".");
         if cand.startswith(base_prefix) {
             cand = cand[len(base_prefix):];
         }
@@ -94,12 +100,44 @@ def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
     }
     return (
         "\nThe client build ran on the bundle's staged sources, and these "
-        "files it references never ship:\n"
+        "files named in its output never ship:\n"
         + "\n".join(lines)
-        + "\nDrop the exclusion or remove the reference; build-time "
-        "values belong in [scale.secrets] or pod env, not in files the "
-        "bundle strips."
+        + "\nDrop the exclusion or remove the reference. Values the client "
+        "needs at build time belong under [client.vite.define] in jac.toml; "
+        "secrets stay server-side in [scale.secrets] or pod env and never "
+        "reach the client."
     );
+}
+
+
+def _vite_env_keys(base: any) -> dict[str, list[str]] {
+    found: dict[str, list[str]] = {};
+    for name in _VITE_BUILD_ENV_FILES {
+        env_file = base / name;
+        if not env_file.is_file() {
+            continue;
+        }
+        keys: list[str] = [];
+        for raw in env_file.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines() {
+            line = raw.strip();
+            if line.startswith("export ") {
+                line = line[len("export "):].lstrip();
+            }
+            if not line or line.startswith("#") or "=" not in line {
+                continue;
+            }
+            key = line.split("=", 1)[0].strip();
+            if key.startswith("VITE_") and key not in keys {
+                keys.append(key);
+            }
+        }
+        if keys {
+            found[name] = keys;
+        }
+    }
+    return found;
 }
 
 
@@ -328,6 +366,20 @@ obj ManifestBuilder {
             );
         }
         if not (base / entry_rel).is_file() {
+            if self._declared_client_entry() {
+                raise ValueError(
+                    f"The client entry '{client_entry}' set in "
+                    f"[scale.microservices.client] does not exist under "
+                    f"{base}, so the deploy would ship a gateway with no client "
+                    f"to serve. Fix the entry path, or set entry = false to "
+                    f"deploy without a client."
+                );
+            }
+            console.print(
+                f"No client entry is declared and '{client_entry}' does not "
+                f"exist; skipping the client build. Set "
+                f"[scale.microservices.client] entry to build one."
+            );
             return;
         }
         excluded = source_filter_for(base);
@@ -339,6 +391,16 @@ obj ManifestBuilder {
                 f"this file. Drop the exclusion, or point "
                 f"[scale.microservices.client] entry at a module the bundle "
                 f"ships."
+            );
+        }
+        for (env_name, keys) in _vite_env_keys(base).items() {
+            console.warning(
+                f"'{env_name}' declares {', '.join(keys)}, and the client build "
+                f"runs on the bundle's staged sources, which never include "
+                f".env files, so those compile to undefined in the served JS. "
+                f"Values the client needs at build time belong under "
+                f"[client.vite.define] in jac.toml; secrets stay server-side "
+                f"and never reach the client."
             );
         }
         if self.dry_run {
@@ -609,6 +671,21 @@ obj ManifestBuilder {
             return dict(ms_cfg.get("services", {}).get(svc_name, {}));
         } except Exception {
             return {};
+        }
+    }
+
+    def _declared_client_entry -> str {
+        try {
+            if self.microservices_config is not None {
+                raw = self.microservices_config;
+            } else {
+                import from jaclang.scale.config.config_loader { get_scale_config }
+                raw = get_scale_config().load().get("microservices", {}) or {};
+            }
+            entry = dict(raw.get("client", {}) or {}).get("entry", None);
+            return entry.strip() if isinstance(entry, str) else "";
+        } except Exception {
+            return "";
         }
     }
 

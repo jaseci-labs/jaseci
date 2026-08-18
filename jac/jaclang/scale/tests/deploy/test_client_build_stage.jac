@@ -7,24 +7,30 @@ outside membership fails loud on the host, naming the file and the exclusion.
 These drive the real ManifestBuilder; the recording builds use the codebase's
 own JAC_EXECUTABLE substitution seam, not a mock."""
 
+import io;
 import os;
 import shutil;
 import subprocess;
 import tempfile;
+import from contextlib { redirect_stderr }
 import from pathlib { Path }
 import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { ManifestBuilder }
 import from jaclang.scale.injector.bundle { bundle_source_files }
+import from jaclang.scale.runtime.context.util { jac_executable }
 
-glob _PARKED: str = "# parked for the deploy\ndocsite/\nevaluation/\n";
+glob _PARKED: str = "# parked for the deploy\ndocsite/\nevaluation/\n",
+     _SECRET: str = "sk-live-8104";
 
 
-def _builder(project_dir: str) -> ManifestBuilder {
+def _builder(project_dir: str, client: (dict | None) = None) -> ManifestBuilder {
     mb = ManifestBuilder(
         k8s_config=KubernetesConfig(app_name="shop", namespace="jb-shop"),
-        microservices_config={"client": {"entry": "main.jac"}}
+        microservices_config={
+            "client": {"entry": "main.jac"} if client is None else client
+        }
     );
     mb.project_dir = project_dir;
     return mb;
@@ -47,7 +53,7 @@ def _app(jacignore: (str | None) = None) -> str {
             "with entry {}\n"
         ),
         "svc.jac": "def:pub ping -> str { return \"pong\"; }\n",
-        ".env": "VITE_API_KEY=sk-live-8104\n"
+        ".env": f"VITE_API_KEY={_SECRET}\n"
     };
     for (name, source) in files.items() {
         with open(os.path.join(d, name), "w", encoding="utf-8") as f {
@@ -101,6 +107,27 @@ def _recording_jac(tmp: str, record_dir: str, build_exit: int = 0) -> str {
 }
 
 
+"""Runs the builder with stderr captured, so the deploy's own warnings can be
+asserted on; they land in `stderr` under `record_dir`."""
+def _run_build(
+    builder: ManifestBuilder, project_dir: str, record_dir: str
+) -> (Exception | None) {
+    raised = None;
+    err = io.StringIO();
+    try {
+        with redirect_stderr(err) {
+            builder._build_client_bundle(project_dir);
+        }
+    } except Exception as e {
+        raised = e;
+    }
+    with open(os.path.join(record_dir, "stderr"), "w", encoding="utf-8") as f {
+        f.write(err.getvalue());
+    }
+    return raised;
+}
+
+
 def _with_recording_build(
     project_dir: str, build_exit: int = 0
 ) -> tuple[(Exception | None), str] {
@@ -108,11 +135,8 @@ def _with_recording_build(
     script = _recording_jac(tmp, tmp, build_exit);
     saved = os.environ.get("JAC_EXECUTABLE");
     os.environ["JAC_EXECUTABLE"] = script;
-    raised = None;
     try {
-        _builder(project_dir)._build_client_bundle(project_dir);
-    } except Exception as e {
-        raised = e;
+        raised = _run_build(_builder(project_dir), project_dir, tmp);
     } finally {
         if saved is None {
             os.environ.pop("JAC_EXECUTABLE", None);
@@ -121,6 +145,23 @@ def _with_recording_build(
         }
     }
     return (raised, tmp);
+}
+
+
+def _read(path: str) -> str {
+    with open(path, encoding="utf-8") as f {
+        return f.read();
+    }
+}
+
+
+def _dist_mentions(project_dir: str, needle: str) -> list[str] {
+    dist = Path(project_dir) / ".jac" / "client" / "dist";
+    return [
+        p.relative_to(dist).as_posix()
+        for p in sorted(dist.rglob("*"))
+        if p.is_file() and needle in p.read_bytes().decode("utf-8", errors="ignore")
+    ];
 }
 
 
@@ -252,5 +293,167 @@ test "the same reference fails silently nowhere: unparked, it just builds" {
     } finally {
         shutil.rmtree(project_dir, ignore_errors=True);
         shutil.rmtree(rec, ignore_errors=True);
+    }
+}
+
+
+test "a .env with VITE_ keys is called out before the build, naming the keys" {
+    project_dir = _app(_PARKED);
+    (raised, rec) = _with_recording_build(project_dir);
+    try {
+        assert raised is None , f"the staged build must succeed: {raised}";
+        err = _read(os.path.join(rec, "stderr"));
+        assert "'.env'" in err , (
+            f"the deploy must say which env file it is ignoring: {err}"
+        );
+        assert "VITE_API_KEY" in err , (
+            f"the deploy must name the keys that compile to undefined: {err}"
+        );
+        assert "[client.vite.define]" in err , (
+            f"the warning must point at where build-time values belong: {err}"
+        );
+        assert _SECRET not in err , "the warning names keys, never values";
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+        shutil.rmtree(rec, ignore_errors=True);
+    }
+}
+
+
+test "a tree without VITE_ env values gets no env warning" {
+    project_dir = _app(_PARKED);
+    with open(os.path.join(project_dir, ".env"), "w", encoding="utf-8") as f {
+        f.write("# server-side only\nOPENAI_API_KEY=sk-server\nexport DB_URL=x\n");
+    }
+    (raised, rec) = _with_recording_build(project_dir);
+    try {
+        assert raised is None , f"the staged build must succeed: {raised}";
+        err = _read(os.path.join(rec, "stderr"));
+        assert "compile to undefined" not in err , (
+            f"non-VITE_ values never reached the client, so no warning: {err}"
+        );
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+        shutil.rmtree(rec, ignore_errors=True);
+    }
+}
+
+
+"""The motivating case, end to end with the real toolchain: a client that reads
+`import.meta.env.VITE_API_KEY` used to get the .env value inlined into the
+served JS. The control build on the raw tree shows Vite still does that; the
+deploy build, on the staged sources, ships a dist that never contains it."""
+test "a VITE_ value in .env never reaches the shipped dist" {
+    project_dir = _app(_PARKED);
+    with open(os.path.join(project_dir, "main.jac"), "w", encoding="utf-8") as f {
+        f.write(
+            "def:pub app() -> JsxElement {\n"
+            "    return <div>{import.meta.env.VITE_API_KEY or \"unset\"}</div>;\n"
+            "}\n\n"
+            "with entry {}\n"
+        );
+    }
+    control = tempfile.mkdtemp(prefix="client-stage-control-");
+    shutil.copytree(project_dir, control, dirs_exist_ok=True);
+    rec = tempfile.mkdtemp(prefix="client-stage-rec-");
+    try {
+        raw = subprocess.run(
+            [jac_executable(), "build", "main.jac", "--client", "web"],
+            cwd=control,
+            capture_output=True,
+            text=True,
+            timeout=900
+        );
+        assert raw.returncode == 0 , (
+            f"the raw-tree control build failed:\n{raw.stdout}\n{raw.stderr}"
+        );
+        assert _dist_mentions(control, _SECRET) , (
+            "control: a raw-tree build inlines the .env value, so the "
+            "deploy assertion below is not vacuous"
+        );
+
+        raised = _run_build(_builder(project_dir), project_dir, rec);
+        assert raised is None , f"the staged deploy build must succeed: {raised}";
+        leaked = _dist_mentions(project_dir, _SECRET);
+        assert not leaked , (
+            f"the .env value reached the shipped client dist via: {leaked}"
+        );
+        assert "VITE_API_KEY" in _read(os.path.join(rec, "stderr")) , (
+            "the deploy must warn that the key compiles to undefined"
+        );
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+        shutil.rmtree(control, ignore_errors=True);
+        shutil.rmtree(rec, ignore_errors=True);
+    }
+}
+
+
+test "a declared client entry that does not exist fails the deploy, not silently" {
+    project_dir = _app(_PARKED);
+    raised = None;
+    try {
+        _builder(project_dir, client={"entry": "man.jac"})._build_client_bundle(
+            project_dir
+        );
+    } except ValueError as e {
+        raised = e;
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+
+    assert raised is not None , (
+        "a typo in [scale.microservices.client] entry must fail the deploy, "
+        "not ship a gateway with nothing to serve"
+    );
+    message = str(raised);
+    assert "man.jac" in message , message;
+    assert "[scale.microservices.client]" in message , message;
+    assert "entry = false" in message , (
+        f"the error must say how to deploy without a client: {message}"
+    );
+}
+
+
+test "an undeclared entry that does not exist skips the build and says so" {
+    project_dir = _app(_PARKED);
+    os.remove(os.path.join(project_dir, "main.jac"));
+    mb = _builder(project_dir, client={});
+    assert mb._declared_client_entry() == "" , "nothing was declared";
+    assert mb._client_entry() , "the default entry still resolves";
+    out = io.StringIO();
+    raised = None;
+    try {
+        import from contextlib { redirect_stdout }
+        with redirect_stdout(out) {
+            mb._build_client_bundle(project_dir);
+        }
+    } except Exception as e {
+        raised = e;
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
+    }
+
+    assert raised is None , (
+        f"a guessed default that is absent is not the user's error: {raised}"
+    );
+    assert "skipping the client build" in out.getvalue() , (
+        f"the skip must be said out loud: {out.getvalue()!r}"
+    );
+    assert "[scale.microservices.client]" in out.getvalue() , out.getvalue();
+}
+
+
+test "entry = false is not a declared entry" {
+    project_dir = _app(_PARKED);
+    try {
+        assert _builder(project_dir, client={"entry": False})._declared_client_entry()
+            == "";
+        assert _builder(
+            project_dir, client={"entry": " app.jac "}
+        )._declared_client_entry()
+            == "app.jac";
+    } finally {
+        shutil.rmtree(project_dir, ignore_errors=True);
     }
 }
