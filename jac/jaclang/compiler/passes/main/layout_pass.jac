@@ -11,7 +11,9 @@ import from jaclang.jac0core.unitree {
     FuncCall,
     FuncSignature,
     HasVar,
+    IndexSlice,
     Module,
+    ModuleItem,
     Name,
     TupleVal,
     UnaryExpr,
@@ -381,18 +383,97 @@ def enum_member_literal(value_expr: (UniNode | None)) -> (str | int | None) {
     return val;
 }
 
-def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
-    _scope = t.shared.symbol_table;
-    _sym = _scope.names_in_scope.get(member) if (_scope?.names_in_scope) else None;
-    _decl = _sym.decl if _sym is not None else None;
-    _asn = _decl.parent if (_decl is not None) else None;
-    if not isinstance(_asn, Assignment) or _asn.value is None {
-        return None;
+def is_enum_auto(value_expr: (UniNode | None)) -> bool {
+    if not isinstance(value_expr, FuncCall) or value_expr.params {
+        return False;
     }
-    return enum_member_literal(_asn.value);
+    _target = value_expr.target;
+    if not isinstance(_target, Name) {
+        return False;
+    }
+    _sym = _target.sym;
+    _decl = _sym.decl if _sym is not None else None;
+    if _decl is None {
+        return False;
+    }
+    _item = _decl.find_parent_of_type(ModuleItem);
+    if _item is not None and _item.name is not None {
+        _from = _item.from_parent.from_loc;
+        return (
+            _from is not None
+            and _from.dot_path_str == "enum"
+            and _item.name.value == "auto"
+        );
+    }
+    _mod = _decl.find_parent_of_type(Module);
+    return _mod is not None and _mod.name == "enum" and _sym.sym_name == "auto";
 }
 
-def class_form_enum_member(t: any) -> (tuple | None) {
+def resolve_enum_member_values(
+    raw_members: list[tuple[(str, (UniNode | None))]]
+) -> list[(str | int | None)] {
+    out: list[(str | int | None)] = [];
+    _max: (int | None) = None;
+    _blocked = False;
+    for member in raw_members {
+        _vnode = member[1];
+        if is_enum_auto(_vnode) {
+            if _blocked {
+                out.append(None);
+                continue;
+            }
+            _next = 1 if _max is None else _max + 1;
+            _max = _next;
+            out.append(_next);
+            continue;
+        }
+        _lit = enum_member_literal(_vnode);
+        if isinstance(_lit, int) {
+            _max = _lit if (_max is None or _lit > _max) else _max;
+        } else {
+            _blocked = True;
+        }
+        out.append(_lit);
+    }
+    return out;
+}
+
+def class_form_enum_members(scope: any) -> list[tuple[(str, (UniNode | None))]] {
+    out: list[tuple[(str, (UniNode | None))]] = [];
+    if scope is None or not (scope?.names_in_scope) {
+        return out;
+    }
+    _placed: list[tuple[(int, int, str)]] = [];
+    _values: dict[str, UniNode] = {};
+    for mname in scope.names_in_scope {
+        _sym = scope.names_in_scope.get(mname);
+        _decl = _sym.decl if _sym is not None else None;
+        _asn = _decl.parent if (_decl is not None) else None;
+        if not isinstance(_asn, Assignment) or _asn.value is None {
+            continue;
+        }
+        _placed.append((_asn.loc.first_line, _asn.loc.col_start, mname));
+        _values[mname] = _asn.value;
+    }
+    _placed.sort();
+    for entry in _placed {
+        out.append((entry[2], _values[entry[2]]));
+    }
+    return out;
+}
+
+def class_form_enum_literal(t: any, member: str) -> (str | int | None) {
+    _members = class_form_enum_members(t.shared.symbol_table);
+    _values = resolve_enum_member_values(_members);
+    for (_idx, _member) in enumerate(_members) {
+        if _member[0] == member {
+            return _values[_idx];
+        }
+    }
+    return None;
+}
+
+def class_form_enum_member(t: any) -> (tuple[(str, (str | int), str)] | None) {
     try {
         import from jaclang.compiler.type_system.types {
             EnumMemberType as _EnumMemberType
@@ -436,7 +517,6 @@ obj LayoutRegistry {
 
 obj LayoutPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None,
         registry: LayoutRegistry postinit,
         isinstance_targets: set[str] postinit;

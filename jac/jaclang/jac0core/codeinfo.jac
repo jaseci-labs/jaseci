@@ -2,7 +2,6 @@ import hashlib;
 import from collections.abc { Sequence }
 import from contextvars { ContextVar }
 import from dataclasses { field }
-import from typing { Any }
 import from jaclang.jac0core.constant {
     NATIVE_COMPTIME_ANNOTATIONS,
     NATIVE_COMPTIME_TYPE_MARKERS,
@@ -24,7 +23,7 @@ obj ClientManifest {
     has exports: list = [],
         globals: list = [],
         params: dict[(str, list)] = field(default_factory=`dict),
-        globals_values: dict[(str, Any)] = field(default_factory=`dict),
+        globals_values: dict[(str, any)] = field(default_factory=`dict),
         has_client: bool = False,
         imports: dict[(str, str)] = field(default_factory=`dict),
         endpoint_effects: dict[(str, dict)] = field(default_factory=`dict),
@@ -190,15 +189,24 @@ glob NATIVE_SUPPORTED_STDLIB: set[str] = {
      ),
      _closure_cap_ctx: ContextVar[int] = ContextVar("jac_native_closure_cap");
 
-glob NATIVE_COMPTIME_BASES: frozenset = frozenset({"ABC"});
+glob NATIVE_COMPTIME_ABC_BASES: frozenset = frozenset({"ABC"});
+
+glob NATIVE_COMPTIME_RIM_BASES: frozenset = frozenset({"PassRim"});
+
+glob NATIVE_COMPTIME_BASES: frozenset = (
+         NATIVE_COMPTIME_ABC_BASES | NATIVE_COMPTIME_RIM_BASES
+     );
 
 glob NATIVE_COMPTIME_IDENTITY_CALLS: frozenset = frozenset({"cast"});
 
 glob NATIVE_COMPTIME_FIELD_MARKERS: frozenset = frozenset({"field"});
 
-glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
-         "abc": NATIVE_COMPTIME_BASES,
+glob PASS_RIM_MODULE: str = "jaclang.jac0core.passes.pass_rim";
+
+glob NATIVE_COMPTIME_IMPORTS: dict[str, frozenset] = {
+         "abc": NATIVE_COMPTIME_ABC_BASES,
          "dataclasses": NATIVE_COMPTIME_FIELD_MARKERS,
+         PASS_RIM_MODULE: NATIVE_COMPTIME_RIM_BASES,
          "typing": TYPE_PARAM_CONSTRUCTORS
              | NATIVE_COMPTIME_IDENTITY_CALLS
              | NATIVE_COMPTIME_TYPE_MARKERS
@@ -206,7 +214,7 @@ glob NATIVE_COMPTIME_STDLIB: dict[str, frozenset] = {
      };
 
 def native_comptime_import_names(module_name: str, names: list[str]) -> bool {
-    allowed = NATIVE_COMPTIME_STDLIB.get(module_name.lstrip('.'));
+    allowed = NATIVE_COMPTIME_IMPORTS.get(module_name.lstrip('.'));
     if allowed is None or not names {
         return False;
     }
@@ -291,18 +299,17 @@ def is_native_by_location(file_path: str) -> bool {
     return ap.startswith(os.path.join(pkg, "runtimelib", "na_stdlib") + os.sep);
 }
 
-glob CLIENT_RUNTIME_SOURCE_PATHS: tuple = (
-         ("runtimelib", "client_runtime.jac"),
-         ("runtimelib", "client_runtime_core.jac"),
-         ("runtimelib", "solid_runtime.jac"),
-         ("runtimelib", "pwa_runtime.jac"),
-         ("runtimelib", "wasm_host.jac"),
-         ("runtimelib", "client", "client_mobui.jac"),
-         ("runtimelib", "client", "client_runtime_core.jac"),
-         ("runtimelib", "client", "client_runtime_native.jac"),
-         ("runtimelib", "client", "targets", "desktop", "plugin", "desktop_api.jac"),
-
-     );
+glob CLIENT_RUNTIME_SOURCE_PATHS: list[str] = [
+         "runtimelib/client_runtime.jac",
+         "runtimelib/client_runtime_core.jac",
+         "runtimelib/solid_runtime.jac",
+         "runtimelib/pwa_runtime.jac",
+         "runtimelib/wasm_host.jac",
+         "runtimelib/client/client_mobui.jac",
+         "runtimelib/client/client_runtime_core.jac",
+         "runtimelib/client/client_runtime_native.jac",
+         "runtimelib/client/targets/desktop/plugin/desktop_api.jac"
+     ];
 
 
 def is_client_by_location(file_path: str) -> bool {
@@ -313,8 +320,8 @@ def is_client_by_location(file_path: str) -> bool {
     }
     ap = os.path.abspath(file_path);
     pkg = os.path.dirname(os.path.abspath(str(jaclang.__file__)));
-    for parts in CLIENT_RUNTIME_SOURCE_PATHS {
-        if ap == os.path.join(pkg, *parts) {
+    for rel in CLIENT_RUNTIME_SOURCE_PATHS {
+        if ap == os.path.join(pkg, rel.replace("/", os.sep)) {
             return True;
         }
     }
@@ -523,8 +530,8 @@ obj BoundaryTypeInfo {
     has name: str,
         kind: str,
         fields: list[tuple[(str, str)]] = field(default_factory=`list),
-        field_defaults: dict[(str, Any)] = field(default_factory=`dict),
-        enum_members: list[tuple[(str, Any)]] = field(default_factory=`list),
+        field_defaults: dict[(str, any)] = field(default_factory=`dict),
+        enum_members: list[tuple[(str, any)]] = field(default_factory=`list),
         nested_types: list[str] = field(default_factory=`list);
 }
 
@@ -583,20 +590,13 @@ obj CodeGenTarget {
         native_engine: (ExecutionEngine | None) = None,
         native_bitcode: (bytes | None) = None,
         _interop_manifest: (InteropManifest | None) = None,
-        interop_py_funcs: dict[(str, Any)] = field(default_factory=`dict),
+        interop_py_funcs: dict[(str, any)] = field(default_factory=`dict),
         _interop_callbacks: list[any] = field(default_factory=`list),
         native_layout: (NativeModuleLayout | None) = None,
         osp_model: (OspModel | None) = None,
-        native_viols_reported: bool = False,
-        client_viols_reported: bool = False,
         has_root_access: (bool | None) = None,
         nogc_enforced: bool = False,
         nogc_provenance: str = '',
-        rc_last_use: dict[int, list[str]] = field(default_factory=`dict),
-        rc_move_in: set[int] = field(default_factory=`set),
-        anon_region_open: dict[int, int] = field(default_factory=`dict),
-        anon_region_close: dict[int, int] = field(default_factory=`dict),
-        anon_region_locals: dict[int, list[str]] = field(default_factory=`dict),
         layout_registry: any = None,
         _clib_paths: list[str] = field(default_factory=`list),
         _clib_symbol_lib: dict[(str, str)] = field(default_factory=`dict),

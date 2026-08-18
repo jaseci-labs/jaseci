@@ -16,8 +16,17 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
     bridging. The shape was found on the compiler's own pass chain, back
     when it spelled `Transform[Module, Module]`; the chain is
     monomorphic now, and user code still writes it.
+
+    A base the native lane erases at comptime is never Python-side, even
+    when its declaration is reachable: `NATIVE_COMPTIME_BASES` names the
+    bases lowering drops outright, so they contribute no shadow and no
+    slots. The distinction only became observable once `PassRim` moved
+    from a `.py` to a `.jac`, which made its declaration resolvable while
+    the base claim -- an admission about the *base*, not about the unit --
+    stayed the same. Resolving one is not the same as inheriting one.
     """;
     import os;
+    import from jaclang.jac0core.codeinfo { NATIVE_COMPTIME_BASES }
     if arch_name in self._pyb_base_memo {
         cached = self._pyb_base_memo[arch_name];
         return cached;
@@ -49,6 +58,9 @@ impl NaIRGenPass._pyb_base_of(arch_name: str) -> (tuple | None) {
                 self._pyb_base_memo[arch_name] = sub;
                 return sub;
             }
+            continue;
+        }
+        if bname in NATIVE_COMPTIME_BASES {
             continue;
         }
         sym = base_expr?.sym;

@@ -99,13 +99,6 @@ glob FORBIDDEN: dict[str, str] = {
              "Callable-over-RPC guard on endpoint params - the declared "
              "annotation is the consumed fact, not a resolved type"
          ),
-         ("native/na_ir_gen_pass.impl/stmt.impl.jac", "symbol_utils"): (
-             1,
-             "is_builtin_region_name as the shadowing-aware test for the "
-             "anonymous `in Region() {}` open (#7491) - consuming the "
-             "central classification instead of re-implementing name "
-             "resolution"
-         ),
          ("native/na_ir_gen_pass.impl/generics.impl.jac", "type_tag.tag"): (
              3,
              "generic-template declared-annotation reads where the "
@@ -120,10 +113,7 @@ glob FORBIDDEN: dict[str, str] = {
              "so the declared annotations are the only TypeVar surface"
          ),
          ("native/na_ir_gen_pass.impl/calls.impl.jac", "symbol_utils"): (
-             3,
-             "is_builtin_region_name as the shadowing-aware test for the "
-             "builtin Region constructor (#7491) - consuming the central "
-             "classification instead of re-implementing name resolution; and "
+             2,
              "classify_call as the shadowing-aware builtin test for the "
              "`type(None)` isinstance argument form (#6957) - consuming the "
              "central classification instead of re-implementing name "
@@ -140,11 +130,20 @@ glob FORBIDDEN: dict[str, str] = {
              "here is the erasable `typing.cast` / `dataclasses.field` is "
              "answered by the module's own import list and by the call's "
              "own position in a `has` declaration, facts that are "
-             "themselves the declaration and live on no analysis product"
+             "themselves the declaration and live on no analysis product. "
+             "The is_builtin_region_name read (#7491) is gone from here and "
+             "from stmt.impl.jac, whose entry left this table entirely: the "
+             "predicate is pure unitree syntax that was marooned in "
+             "symbol_utils, whose own imports reach jac0core/compiler.jac, so "
+             "sealing wave 3 hoisted it to the leaf expr_keys.jac. The "
+             "backend stopped reaching into the analysis module for it rather "
+             "than merely renaming the reach"
          ),
          ("native/na_ir_gen_pass.impl/objects.impl.jac", "symbol_utils"): (
              1,
-             "classify_call fallback for synthesized constructor calls"
+             "collect_method_names as the central ancestor-method walk over "
+             "an already-resolved archetype symbol - a symbol-FACT reader, "
+             "not a re-run of member resolution"
          ),
          ("native/na_ir_gen_pass.impl/core.impl.jac", "type_tag.tag"): (
              3,

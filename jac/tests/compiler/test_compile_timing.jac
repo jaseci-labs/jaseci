@@ -35,9 +35,9 @@ lower time bound would only catch a binary that exits early, and the printed
 result tally catches that directly and without a threshold to argue about.
 
 Every report is written to `<jac cache root>/timing/*.txt` as well as printed,
-because `jac test` captures a test's output at fd level and replays it only on
-failure -- and a report that only survives a failure is not much of a report.
-The file under the cache root is the copy that always survives.
+because `jac test` offers no way to turn its capture off and a report that
+only survives a failure is not much of a report. Since the runner came in-house
+(#8287) that file is the only durable copy, so read the tables there.
 """
 
 import json;
@@ -129,9 +129,10 @@ def head_cache -> str {
 
 """Print a report and leave a copy on disk, because `jac test` swallows stdout.
 
-`jac test` exposes no way to turn capture off, so a passing report would
-otherwise be invisible -- and a report nobody can read is not a report. The file
-under the jac cache root is the copy that survives either way.
+`jac test` exposes no `--capture=no`, so a passing report would otherwise be
+invisible -- and a report nobody can read is not a report. The file under the
+jac cache root is the copy that survives, and since the runner came in-house
+(#8287) it is the only one.
 """
 def publish(name: str, text: str) {
     print(text);

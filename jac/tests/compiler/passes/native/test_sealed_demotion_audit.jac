@@ -44,10 +44,10 @@ called from a root's live entry surface, so every stub this audit
 tolerates ships dead.
 
 Running the audit prints the report to stderr, grouped by root and
-family, so a reviewer can read the whole debt in one place. `jac test`
-captures a test's output at fd level and replays it only on failure, so
-a passing run keeps the report hidden; break an assertion (or read the
-waiver table directly) to see it.
+family, so a reviewer can read the whole debt in one place. Under
+`jac test` a passing test's output is hidden, and since the runner came
+in-house (#8287) there is no capture-off switch to turn it back on, so
+the report is readable from a failing run.
 
 The measurement is a source-lane one: under a sealed jaclang image the
 census reads the image's trust boundary instead of each unit's own

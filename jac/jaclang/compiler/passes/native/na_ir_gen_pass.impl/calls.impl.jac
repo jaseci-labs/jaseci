@@ -371,6 +371,10 @@ impl NaIRGenPass._codegen_bound_args(
     } else {
         _fixed = list(callee_sig.posonly_params or []) + list(callee_sig.params or []);
         _n_posonly = len(callee_sig.posonly_params or []);
+        if _self_skip and _fixed {
+            _fixed = _fixed[1:];
+            _n_posonly = _n_posonly - 1 if _n_posonly > 0 else 0;
+        }
         _bind_records: list = [];
         for (pix, sp) in enumerate(_fixed) {
             slot = self_offset + pix;
@@ -1313,7 +1317,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         }
 
         if func_name == "Region" {
-            import from jaclang.compiler.symbol_utils { is_builtin_region_name }
+            import from jaclang.compiler.expr_keys { is_builtin_region_name }
             if is_builtin_region_name(nd.target) {
                 self._emit_arena_helpers();
                 return self.builder.call(self.region_new_fn, [], name="region.new");
