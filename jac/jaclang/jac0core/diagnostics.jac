@@ -679,6 +679,21 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " not `{name}[int]`.",
          blocks_codegen=True
      ),
+     E1124 = _err(
+         "E1124",
+         Category.TYPE,
+         "Membership test \"{op}\" over an operand with no static type"
+         " (\"{type}\"); native code cannot answer it",
+         help="Every container answers `in` from its own layout, so the operand"
+         " has to carry one by the time the comparison is reached. This one"
+         " has no static type at all -- typed `any`, or left unannotated and"
+         " never inferred -- so there is no layout to reach and no"
+         " dynamic-dispatch tier to fall back on. Annotate the operand with the"
+         " container it actually holds (`list[Tag]`, `dict[str, int]`,"
+         " `set[str]`), or bind it to a directly-typed local first, so its"
+         " layout reaches the comparison.",
+         blocks_codegen=True
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,
