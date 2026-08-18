@@ -961,7 +961,11 @@ impl NaIRGenPass._walk_imported_module_abilities(
                 and isinstance(_imp_stmt.signature, uni.FuncSignature)
             ) {
                 _im_full = f"{_ia_name}.{_imp_stmt.name_ref.sym_name}";
-                if (_imp_layout is not None and _im_full not in _imp_layout.methods)
+                if (
+                    _imp_layout is not None
+                    and _im_full not in _imp_layout.methods
+                    and not _imp_stmt.type_params
+                )
                     or (_imp_layout is None and _wl_internal) {
                     self._native_skipped_methods.add(_im_full);
                 }
