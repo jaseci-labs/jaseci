@@ -86,8 +86,7 @@ def erased_import_binds(nd: UniNode, name: str) -> bool {
 def erased_identity_call_arg(nd: FuncCall) -> (Expr | None) {
     import from jaclang.jac0core.codeinfo { NATIVE_ERASED_IDENTITY_CALLS }
     tgt = nd.target;
-    if not isinstance(tgt, Name)
-        or tgt.sym_name not in NATIVE_ERASED_IDENTITY_CALLS {
+    if not isinstance(tgt, Name) or tgt.sym_name not in NATIVE_ERASED_IDENTITY_CALLS {
         return None;
     }
     params = nd.params or [];

@@ -2688,4 +2688,3 @@ impl DocIRGenPass._wrap_doc_comments(nd: uni.UniNode) -> None {
     }
     nd.gen.doc_ir = base;
 }
-

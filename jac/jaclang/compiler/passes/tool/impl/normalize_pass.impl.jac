@@ -1655,5 +1655,3 @@ impl NormalizePass.enter_token(nd: uni.Token) -> None { }
 impl NormalizePass.enter_string(nd: uni.String) -> None {
     nd.value = f"{nd.value}";
 }
-
-

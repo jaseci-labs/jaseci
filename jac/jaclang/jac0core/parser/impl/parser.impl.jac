@@ -7004,4 +7004,3 @@ impl Parser.parse_report_stmt -> ReportStmt {
 impl Parser._lookahead_advance -> None {
     self.advance();
 }
-

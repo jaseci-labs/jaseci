@@ -87,9 +87,7 @@ def parse_diags(source: str, file_path: str = "<input>") -> tuple[(bool, list, l
 
 
 def parse(
-    source: str,
-    file_path: str = "<input>",
-    prog: (JacProgram | None) = None
+    source: str, file_path: str = "<input>", prog: (JacProgram | None) = None
 ) -> tuple[Module, bool] {
     _np = _native_parse();
     if _np is not None {
