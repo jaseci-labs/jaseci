@@ -95,7 +95,9 @@ def releases_from_revisions(entries: list[dict[str, any]]) -> list[dict[str, any
             };
         }
         release = by_digest[digest];
-        release["deployments"][name] = revision;
+        if revision > int(release["deployments"].get(name, 0) or 0) {
+            release["deployments"][name] = revision;
+        }
         if revision > int(release["revision"]) {
             release["revision"] = revision;
             release["created"] = str(item.get("created", "") or "");
@@ -1403,6 +1405,30 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return keys;
     }
 
+    def _restore_templates(
+        apps_v1: any, namespace: str, names: list[str], undo: dict[str, any]
+    ) -> list[str] {
+        stranded: list[str] = [];
+        for name in reversed(names) {
+            template = undo.get(name);
+            if template is None {
+                continue;
+            }
+            try {
+                apps_v1.patch_namespaced_deployment(
+                    name=name,
+                    namespace=namespace,
+                    body=[
+                        {"op": "replace", "path": "/spec/template", "value": template}
+                    ]
+                );
+            } except Exception {
+                stranded.append(name);
+            }
+        }
+        return stranded;
+    }
+
     def rollback_to(app_name: str, revision: int) -> DeploymentResult {
         self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
@@ -1460,6 +1486,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
 
         reverted: list[str] = [];
+        undo: dict[str, any] = {};
         for name in expected {
             if name not in targets {
                 continue;
@@ -1469,6 +1496,12 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 dict(serializer.sanitize_for_serialization(rs.spec.template))
             );
             try {
+                live = apps_v1.read_namespaced_deployment(
+                    name=name, namespace=namespace
+                );
+                undo[name] = strip_pod_template_hash(
+                    dict(serializer.sanitize_for_serialization(live.spec.template))
+                );
                 apps_v1.patch_namespaced_deployment(
                     name=name,
                     namespace=namespace,
@@ -1477,10 +1510,21 @@ obj KubernetesTarget(KubernetesTargetBase) {
                     ]
                 );
             } except Exception as e {
+                stranded = self._restore_templates(apps_v1, namespace, reverted, undo);
+                detail = (
+                    f" {len(stranded)} deployment(s) are still on revision "
+                    f"{revision} and the app is serving two versions: "
+                    f"{', '.join(stranded)}."
+                        if stranded
+                        else " The already reverted deployments were put back."
+                );
                 return DeploymentResult(
                     success=False,
-                    message=f"Reverting '{name}' to revision {revision} failed: {e}",
-                    details={"reverted": reverted}
+                    message=(
+                        f"Reverting '{name}' to revision {revision} failed: {e}."
+                        f"{detail}"
+                    ),
+                    details={"reverted": reverted, "stranded": stranded}
                 );
             }
             reverted.append(name);

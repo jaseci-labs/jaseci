@@ -480,3 +480,91 @@ test "a rollout is complete once every replica runs the new template" {
         )
     ) , "a three replica service is not rolled out on two";
 }
+
+
+# ReplicaSet list order is not guaranteed by the API. Keying a release on the
+# bundle digest alone puts every revision of a deployment that shipped that
+# bundle into one release, so taking the last one seen would let the API report
+# release revision 2 while rolling that service back to revision 1.
+test "a release holds the newest revision of each service, whatever the order" {
+    entries = [
+        {
+            "deployment": "orders-app-deployment",
+            "revision": 1,
+            "bundle_digest": "aaa",
+            "created": "t1"
+        },
+        {
+            "deployment": "orders-app-deployment",
+            "revision": 2,
+            "bundle_digest": "aaa",
+            "created": "t2"
+        }
+    ];
+
+    for ordered in [entries, list(reversed(entries))] {
+        release = releases_from_revisions(ordered)[0];
+        assert release["deployments"] == {"orders-app-deployment": 2} , (
+            "the release restores the newest revision that carried its bundle, "
+            "not whichever the API happened to list last"
+        );
+        assert release["revision"] == 2;
+    }
+}
+
+
+obj _HalfPatchApps {
+    has fail_on: str,
+        patched: list = [];
+
+    def read_namespaced_deployment(name: str, namespace: str) -> any {
+        return SimpleNamespace(
+            spec=SimpleNamespace(
+                template={"metadata": {"labels": {}}, "spec": {"live": name}}
+            )
+        );
+    }
+
+    def patch_namespaced_deployment(name: str, namespace: str, body: any) -> any {
+        value = body[0]["value"];
+        if name == self.fail_on and "live" not in dict(value.get("spec") or {}) {
+            raise RuntimeError("apiserver rejected the patch");
+        }
+        self.patched.append((name, dict(value.get("spec") or {}).get("live", "old")));
+        return None;
+    }
+}
+
+
+# Resolving every target up front stops a rollback that could never complete,
+# but the patches still land one at a time. A failure halfway used to leave the
+# already reverted services on the old release while the rest served the new
+# one: the split this feature exists to prevent.
+test "a rollback that fails halfway puts the reverted services back" {
+    target = _target(app="orders", namespace="orders");
+    api = _HalfPatchApps(fail_on="gateway-deployment");
+
+    stranded = target._restore_templates(
+        api,
+        "orders",
+        ["orders-app-deployment"],
+        {"orders-app-deployment": {"spec": {"live": "orders-app-deployment"}}}
+    );
+
+    assert stranded == [] , "the reverted deployment must be put back";
+    assert api.patched == [("orders-app-deployment", "orders-app-deployment")];
+}
+
+
+test "a compensation that also fails names what is left split" {
+    target = _target(app="orders", namespace="orders");
+    api = _HalfPatchApps(fail_on="orders-app-deployment");
+
+    stranded = target._restore_templates(
+        api, "orders", ["orders-app-deployment"], {"orders-app-deployment": {}}
+    );
+
+    assert stranded == ["orders-app-deployment"] , (
+        "an operator has to be told which services are still on the old release"
+    );
+}
