@@ -115,7 +115,7 @@ impl LayoutPass._build_hierarchy(archetypes: dict[str, Archetype]) -> None {
                 } elif isinstance(base_expr, AstSymbolNode) {
                     pname = base_expr.sym_name;
                 }
-                if pname is None or is_comptime_base_name(pname, archetypes) {
+                if pname is None or is_erased_base_name(pname, archetypes) {
                     continue;
                 }
                 parents.append(pname);
