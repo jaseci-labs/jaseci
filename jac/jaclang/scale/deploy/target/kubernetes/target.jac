@@ -450,6 +450,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
         creating_streak: dict[str, int] = {};
         inherited_stalls: dict[str, str] = {};
         healed_apps: dict[str, int] = {};
+        last_read_error = "";
         last_sig = "";
         last_heartbeat = -90;
 
@@ -483,8 +484,8 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         if stall {
                             stalls[name] = stall;
                         }
-                    } except Exception {
-                        _ = 0;
+                    } except Exception as exc {
+                        last_read_error = f"{name}: {exc}";
                     }
                 }
                 if ready == total {
@@ -598,8 +599,12 @@ obj KubernetesTarget(KubernetesTargetBase) {
                 elapsed += 10;
             }
         }
+        read_note = f" Last deployment read failed: {last_read_error}."
+            if last_read_error
+            else "";
         raise Exception(
             f"timed out after {timeout}s ({ready}/{total} deployments {gate})."
+            f"{read_note}"
             f"{self._fleet_pod_details(core_v1, ns, pod_selector)}"
         );
     }

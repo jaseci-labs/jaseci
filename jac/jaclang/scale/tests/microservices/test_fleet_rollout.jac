@@ -598,3 +598,21 @@ test "a stall that clears on the next poll does not fail the deploy" {
         f"makes progress; one poll of it is not a stalled rollout: {err}"
     );
 }
+
+test "a deployment the API server refuses to serve is named in the timeout" {
+    target = _fleet_target();
+    (apps, core) = _rollout_apis(_rolled_out(1));
+    apps.read_namespaced_deployment.side_effect = Exception(
+        "(403) Reason: Forbidden: deployments.apps is forbidden"
+    );
+
+    err = _run(target, _bundle("gateway-deployment", "gateway"), apps, core, 30);
+
+    assert err is not None and "timed out" in str(err) , (
+        f"an unreadable deployment can never satisfy the gate: {err}"
+    );
+    assert "gateway-deployment" in str(err) and "Forbidden" in str(err) , (
+        "an unreachable API server, an RBAC refusal and an un-ready fleet must "
+        f"not all read as the same bare timeout: {err}"
+    );
+}
