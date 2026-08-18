@@ -7,7 +7,7 @@ name: Build jac native binaries
 #     GITHUB_TOKEN-created release emits no release.published event); the
 #     release event is the safety net for releases published by a real user.
 #   - channel=dev: cache-accelerated host-native builds re-published under the
-#     rolling `dev` prerelease. Called by release-dev.yml on pushes to main.
+#     rolling `dev` prerelease. Called by release-dev.yml on its nightly cron.
 
 on:
   workflow_call:
