@@ -1,0 +1,44 @@
+name: macOS seal probe (one leg, no publish)
+
+# The macos-aarch64 leg of the release build, and nothing else.
+#
+# The seal runs the compiler it just built: it emits a native artifact per
+# root, dlopens it and calls into it. When that call dies in native code the
+# only lab is a macOS runner, and running the whole release matrix to look at
+# one platform costs three other runners per attempt. This workflow calls
+# build-binaries.yml with `only: macos-aarch64` and an empty tag, so it builds
+# and smoke-tests exactly that leg and publishes nothing -- no release upload,
+# no docker image, no admin dist (all of those are gated on a non-empty tag).
+#
+# Two ways in:
+#   - `gh workflow run macos-seal-probe.yml --ref <branch>` once this file is on
+#     the default branch (workflow_dispatch resolves workflows from there);
+#   - a push to `macos-probe/**`, which is how a branch iterates BEFORE the file
+#     exists on main.
+#
+# It rides the dev channel on purpose: host-native, cache-accelerated, ~12
+# minutes, and identical to what release-dev.yml runs on every push to main --
+# so a green probe here is the same evidence the rolling build produces.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["macos-probe/**"]
+
+permissions:
+  contents: read
+
+# One probe per branch; a newer push supersedes the in-flight one.
+concurrency:
+  group: macos-seal-probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/build-binaries.yml
+    with:
+      tag: ""
+      channel: dev
+      only: macos-aarch64

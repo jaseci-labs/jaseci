@@ -3,7 +3,6 @@ import os;
 import from collections.abc { Iterable }
 import from pathlib { Path }
 import from types { ModuleType }
-import from typing { Any }
 import type from jaclang.jac0core.codeinfo { ClientManifest }
 import type from jaclang.jac0core.unitree { Module }
 

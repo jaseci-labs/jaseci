@@ -46,7 +46,9 @@ impl JacScaleConfig.get_default_config(self: JacScaleConfig) -> dict[str, any] {
         'kubernetes': {
             'namespace': 'default',
             'container_port': 8000,
-            'postgres_enabled': True,
+            'database_mode': 'auto',
+            'database_url': '',
+            'database_namespace': '',
             'ingress_node_port': 30080,
             'ingress_limit_rps': 20,
             'ingress_limit_burst_multiplier': 5,
@@ -191,15 +193,21 @@ impl JacScaleConfig.get_sso_config(self: JacScaleConfig) -> dict[str, any] {
     };
 }
 
-impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] {
+impl JacScaleConfig.get_deploy_database_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     db_config = config.get('database', {});
     return {
-        'url': os.environ.get('JAC_DB_URL') or db_config.get('url'),
+        'url': db_config.get('url'),
         'deploy_mode': db_config.get('deploy_mode', 'image'),
         'postgres_image': db_config.get('postgres_image', 'postgres:18'),
         'postgres_storage': db_config.get('postgres_storage', '2Gi')
     };
+}
+
+impl JacScaleConfig.get_database_config(self: JacScaleConfig) -> dict[str, any] {
+    resolved = self.get_deploy_database_config();
+    resolved['url'] = os.environ.get('JAC_DB_URL') or resolved['url'];
+    return resolved;
 }
 
 impl JacScaleConfig.get_kubernetes_config(self: JacScaleConfig) -> dict[str, any] {
@@ -462,7 +470,7 @@ impl JacScaleConfig.get_scheduler_config(self: JacScaleConfig) -> dict[str, any]
     };
 }
 
-impl JacScaleConfig.get_emailer_config(self: JacScaleConfig) -> dict[str, Any] {
+impl JacScaleConfig.get_emailer_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     emailer_config = config.get('emailer', {}) or {};
     smtp_config = dict(emailer_config.get('smtp', {}) or {});
@@ -485,7 +493,7 @@ impl JacScaleConfig.get_emailer_config(self: JacScaleConfig) -> dict[str, Any] {
     };
 }
 
-impl JacScaleConfig.get_auth_config(self: JacScaleConfig) -> dict[str, Any] {
+impl JacScaleConfig.get_auth_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     auth_config = config.get('auth', {}) or {};
     return {
@@ -605,6 +613,11 @@ impl normalize_microservices_config(
             'dist_dir': client_config.get('dist_dir', '.jac/client/dist'),
             'base_route': client_config.get('base_route', '/'),
             'static_mounts': list(client_config.get('static_mounts', []) or [])
+        },
+        'identity': {
+            'gateway_owned': bool(
+                dict(ms_config.get('identity', {})).get('gateway_owned', True)
+            )
         },
         'ingress': dict(ms_config.get('ingress', {})),
         'shared_volumes': list(ms_config.get('shared_volumes', [])),

@@ -138,6 +138,8 @@ obj KubernetesRealizer {
             console.print(
                 f"Deployment complete! Service available at: {result.service_url}"
             );
+        } elif result.access_hint {
+            console.print(f"Deployment complete! {result.access_hint}");
         }
         return 0;
     }

@@ -323,8 +323,10 @@ test "native partial class: demotion warns on the terminal by default (#6934)" {
 
 test "native partial class: native caller of a demoted method errors, not silent" {
     # A method demoted to Python-only is not callable from native code: the
-    # native pathway cannot fall back to Python mid-stream. A native call site
-    # must surface E5090 (loud) instead of silently dropping to a null result.
+    # native pathway cannot fall back to Python mid-stream. The free function
+    # that calls it cascades into a seam of its own (granular demotion), and
+    # the module entry that calls THAT function stays a loud E5092 naming its
+    # call site instead of silently dropping to a null result.
     prog = JacProgram();
     prog.compile(
         file_path=str(os.path.join(FIXTURES, "partial_native_native_caller.jac")),
@@ -336,12 +338,13 @@ test "native partial class: native caller of a demoted method errors, not silent
         if e.code
     ];
     assert "E5092" in codes , (
-        f"expected E5092 for native call to a demoted method, got {codes}"
+        f"expected E5092 for the native call chain into a demoted method, "
+        f"got {codes}"
     );
-    # The diagnostic names the call site (the method), not the discarded
-    # eval body that was demoted away.
+    # The diagnostic names the demoted callable at the surviving call site,
+    # not the discarded eval body that was demoted away.
     msgs = " ".join(str(e) for e in (prog.errors_had or []));
-    assert "Box.evaluate" in msgs , f"E5092 should name Box.evaluate, got: {msgs}";
+    assert "call_evaluate" in msgs , (f"E5092 should name call_evaluate, got: {msgs}");
 }
 
 test "native partial class: un-lowerable virtual method demotes to a stub slot" {
@@ -2872,13 +2875,11 @@ test "jac run loads a transitive imported-module clib (issue #6687)" {
     import shutil;
     import tempfile;
     if "x86_64" not in platform.machine() and "AMD64" not in platform.machine() {
-        import pytest;
-        pytest.skip("x86_64-only shared-library build");
+        testskip("x86_64-only shared-library build");
     }
     cc = shutil.which("cc") or shutil.which("gcc");
     if not cc {
-        import pytest;
-        pytest.skip("no C compiler available to build the test shared library");
+        testskip("no C compiler available to build the test shared library");
     }
     with tempfile.TemporaryDirectory() as tmpdir {
         os.makedirs(os.path.join(tmpdir, "libs"));
@@ -3674,8 +3675,7 @@ test "aarch64 standalone binary runs (issue #6366)" {
     ld_prefix = "/usr/aarch64-linux-gnu";
     loader = os.path.join(ld_prefix, "lib", "ld-linux-aarch64.so.1");
     if not qemu or not os.path.exists(loader) {
-        import pytest;
-        pytest.skip("aarch64 qemu-user + cross libc not installed");
+        testskip("aarch64 qemu-user + cross libc not installed");
     }
     fixture = str(os.path.join(FIXTURES, "aarch64_global_roundtrip.jac"));
     with tempfile.TemporaryDirectory() as tmpdir {
@@ -3734,8 +3734,7 @@ test "aarch64 static-musl binary runs (cross vendor-musl, #7626 C1)" {
             "libc.a"
         );
     if not qemu or not os.path.exists(musl_a64) {
-        import pytest;
-        pytest.skip(
+        testskip(
             "aarch64 qemu-user or cross vendored musl not present "
             "(run `zig build vendor-musl-linux-aarch64`, or set "
             "JAC_NATIVE_MUSL_DIR)"
@@ -4331,8 +4330,7 @@ test "clib vtable structs allocate flat without RC header (issue #6571)" {
 test "clib vtable: C invokes Jac callback through trampoline (issue #6570)" {
     import shutil;
     if not shutil.which("gcc") {
-        import pytest;
-        pytest.skip("gcc not installed");
+        testskip("gcc not installed");
     }
     td = tempfile.mkdtemp();
     c_src_path = os.path.join(td, "cbtest.c");
@@ -5572,11 +5570,10 @@ test "a failing native test must not abort the host process" {
 
 test "jac test runs .jac test blocks end to end" {
     fixture = os.path.join(FIXTURES, "test_blocks.jac");
-    # Pure .jac (native) test blocks are run by the native runner; the pytest
-    # collector handles .jac (incl. inline na) but not standalone .jac yet, so
-    # force the native runner here. 3 tests, exactly 1 deliberate failure.
+    # The fixture holds 3 native `test` blocks, exactly 1 of them a deliberate
+    # failure. Serial so the summary is not interleaved by worker output.
     env = dict(os.environ);
-    env["JAC_TEST_NATIVE"] = "1";
+    env["JAC_TEST_JOBS"] = "0";
     result = subprocess.run(
         [sys.executable, "-m", "jaclang", "test", fixture],
         capture_output=True,
@@ -5585,12 +5582,9 @@ test "jac test runs .jac test blocks end to end" {
         env=env
     );
     output = result.stdout + result.stderr;
-    assert "Ran 3 tests" in output , (
-        f"expected 3 tests to run.\nstdout: {result.stdout[-800:]}\n"
+    assert "2 passed, 1 failed" in output , (
+        f"expected 3 tests to run with 1 failure.\nstdout: {result.stdout[-800:]}\n"
         f"stderr: {result.stderr[-800:]}"
-    );
-    assert "FAILED (failures=1)" in output , (
-        f"expected exactly the deliberate failure.\noutput tail: {output[-800:]}"
     );
     assert "test_blocks.jac:23" in output , (
         f"failure report must point at the failing assert.\noutput tail: {output[-800:]}"
@@ -5608,7 +5602,7 @@ test "jac test runs test blocks inside inline na blocks (no false green)" {
     );
     output = result.stdout + result.stderr;
     assert "no tests ran" not in output , "inline na-block tests were silently dropped";
-    # jac test routes through pytest: 2 tests, exactly 1 deliberate failure.
+    # jac test reports 2 tests, exactly 1 deliberate failure.
     assert "1 passed" in output and "1 failed" in output , (
         f"expected 2 tests to run with 1 failure.\nstdout: {result.stdout[-800:]}\n"
         f"stderr: {result.stderr[-800:]}"

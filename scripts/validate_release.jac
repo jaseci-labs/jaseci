@@ -4,7 +4,7 @@ Runs during the create-release-pr workflow BEFORE bumping versions.
 Computes and prints what the new versions would be so an invalid bump
 fails fast before any files are mutated.
 """
-import from __future__ { annotations }
+
 import argparse;
 import sys;
 import from pathlib { Path }

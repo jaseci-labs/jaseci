@@ -1066,9 +1066,15 @@ fn mkPayload(
     // is seeded from it before the precompile and the refreshed tree is copied
     // back after -- the precompiler validates every seeded .jir by its
     // content-addressed module key and recompiles only stale ones, so the
-    // multi-minute full precompile shrinks to just the changed modules. A
-    // stale or partial dir is harmless (it only misses reuse), which is why
-    // CI can restore it with prefix-fallback keys unlike the binary cache.
+    // multi-minute full precompile shrinks to just the changed modules. That
+    // key names the compiler that wrote the .jir (a digest over jac0core +
+    // compiler sources, #8178), so a seed from a different compiler misses
+    // per module and the seal refuses any survivor -- before #8178 the key
+    // carried only the VERSION, and a same-version compiler change silently
+    // inherited its predecessor's bytecode (#8140 shipped 201/639 such
+    // modules). A stale or partial dir therefore costs reuse, never
+    // correctness, which is why CI can restore it with prefix-fallback keys
+    // unlike the binary cache -- scoped to one compiler tree.
     precompiled_cache: ?[]const u8,
     // Persistent compressed-frame cache for the payload's deps layer (the
     // CPython tree, pip helpers, editor closure, native shims -- everything
@@ -1142,10 +1148,13 @@ fn mkPayload(
     }
 
     // Minimal dist-info so importlib.metadata sees jaclang -- the version keys
-    // JIR (pkg_version) and the entry points back the pytest11 plugin (`jac
-    // test`) and the built-in `jac.modules` (desktop). Version comes from
-    // jac.toml; the build never reads pyproject.toml.
-    const toml = try Dir.cwd().readFileAlloc(io, try std.fmt.allocPrint(a, "{s}/jac.toml", .{repo_root}), a, .unlimited);
+    // JIR (pkg_version) and the entry points back the built-in `jac.modules`
+    // (desktop). Version comes from jac.toml; the build never reads
+    // pyproject.toml. The manifest lives at the REPO root (the parent of the
+    // zig build root), with a same-dir fallback for trees that keep it beside
+    // build.zig.
+    const toml = Dir.cwd().readFileAlloc(io, try std.fmt.allocPrint(a, "{s}/../jac.toml", .{repo_root}), a, .unlimited) catch
+        try Dir.cwd().readFileAlloc(io, try std.fmt.allocPrint(a, "{s}/jac.toml", .{repo_root}), a, .unlimited);
     const ver = tomlString(toml, "version") orelse die("mkpayload: no version in jac.toml", .{});
     const di = try std.fmt.allocPrint(a, "{s}/jaclang-{s}.dist-info", .{ site, ver });
     try Dir.cwd().createDirPath(io, di);
@@ -1156,9 +1165,6 @@ fn mkPayload(
     try Dir.cwd().writeFile(io, .{
         .sub_path = try std.fmt.allocPrint(a, "{s}/entry_points.txt", .{di}),
         .data =
-        \\[pytest11]
-        \\jaclang = jaclang.pytest_plugin
-        \\
         \\[jac.modules]
         \\desktop = jaclang.runtimelib.client.desktop_plugin_config:desktop_sdk_path
         \\
@@ -1223,6 +1229,19 @@ fn mkPayload(
         }
     }
 
+    // The same C-floor archives the shipped payload gets, staged into the build
+    // work dir where the seal will look for them. The native seal links a floor
+    // archive whenever a sealed closure reaches a clib shim: with the type
+    // system in the closure, `type_registry`'s digest pulls the hashlib shim in
+    // and the artifact carries `EVP_*` references. `resolve_floor_dir` resolves
+    // them against the package's parent, which is `<work>` while precompiling
+    // and `<stage>` once staged, so an archive that only exists under `<stage>`
+    // is not there yet -- the seal emitted an artifact with an undefined
+    // `EVP_md5` and its own load canary refused it. A dev tree reads the same
+    // archives straight from `.pbs-build`, which is why only the payload build
+    // ever saw this.
+    try stageFloor(io, gpa, a, pbs_py_dir, work);
+
     // Linked-source mode implies skip-precompile: the compiler lives in the
     // linked tree and the dev override sets JAC_NO_PRECOMPILE, so a bundled JIR
     // cache would never be consulted anyway.
@@ -1247,13 +1266,14 @@ fn mkPayload(
         }
     }
 
-    // Bundle runtime helpers (pytest/-xdist -> `jac test`, watchdog -> `jac start
-    // --dev`, tomlkit -> project tooling). Installed AFTER precompile so the
-    // precompiler's package walk only sees jaclang. Drop stray bytecode first so
-    // pip doesn't refuse the populated --target dir.
-    log("==> bundling pytest + pytest-xdist (jac test) + watchdog (jac start --dev)", .{});
+    // Bundle runtime helpers (watchdog -> `jac start --dev`, tomlkit -> project
+    // tooling). `jac test` needs nothing here: the runner is in-tree Jac.
+    // Installed AFTER precompile so the precompiler's package walk only sees
+    // jaclang. Drop stray bytecode first so pip doesn't refuse the populated
+    // --target dir.
+    log("==> bundling watchdog (jac start --dev) + tomlkit", .{});
     Dir.cwd().deleteTree(io, try std.fmt.allocPrint(a, "{s}/__pycache__", .{site})) catch {};
-    _ = runChild(io, &.{ py, "-m", "pip", "install", "--quiet", "pytest", "pytest-xdist", "watchdog>=3.0.0", "tomlkit", "--target", site }, null, false);
+    _ = runChild(io, &.{ py, "-m", "pip", "install", "--quiet", "watchdog>=3.0.0", "tomlkit", "--target", site }, null, false);
 
     try stageTree(io, gpa, a, pbs_py_dir, site, stage, musl_dir, wasm_libc_dir);
 
@@ -1309,11 +1329,24 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
     // is compile-only (--seal-compile excludes jac0core and does NOT finalize),
     // so a mid-loop crash on an un-precompilable native module leaves the
     // generated JIRs intact for the crash-isolated --seal-finalize pass below.
+    //
+    // The shim's first act removes any MANIFEST.json under the staged site's
+    // _precompiled dir (argv[2] is the site path): the seed from a prior
+    // build's cache carries one, --seal-finalize regenerates it last, and the
+    // staged jaclang must run UNSEALED while rebuilding its own image. With
+    // the stale manifest gone that happens by construction -- no manifest IS
+    // the build tier -- which is what let JAC_NO_SEAL be deleted outright
+    // (#8139 Step 1: a sealed image either loads or raises; no env escape).
     const boot = try std.fmt.allocPrint(a, "{s}/precompile_boot.py", .{site});
     try Dir.cwd().writeFile(io, .{
         .sub_path = boot,
         .data =
-        \\import sys
+        \\import os, sys
+        \\if len(sys.argv) > 2:
+        \\    try:
+        \\        os.unlink(os.path.join(sys.argv[2], 'jaclang', '_precompiled', 'MANIFEST.json'))
+        \\    except OSError:
+        \\        pass
         \\import _jac_finder; _jac_finder.install()
         \\sys.argv = ['jac', 'run'] + sys.argv[1:]
         \\from jaclang.jac0core.cli_boot import start_cli
@@ -1368,10 +1401,10 @@ fn precompile(io: Io, gpa: Allocator, a: Allocator, parent_env: *std.process.Env
     // bundle fail validation at runtime and every module recompiles on first run.
     // JAC_NO_DEV_SOURCE keeps pkg_version reading the staged dist-info we ship.
     try env.put("JAC_NO_DEV_SOURCE", "1");
-    // The staged jaclang imports itself to run the precompiler; it must run
-    // UNSEALED (from source), never sealed-load the manifest it is regenerating
-    // (which may still be a seeded, older-format image). #7135.
-    try env.put("JAC_NO_SEAL", "1");
+    // The staged jaclang imports itself to run the precompiler and must run
+    // UNSEALED (from source). The boot shim above removes any seeded manifest
+    // before jaclang can probe for it, so the staged tree is the build tier
+    // by construction; no JAC_NO_SEAL-style env escape exists anymore (#8139).
 
     _ = runChild(io, argv_buf[0..argc], &env, true); // non-zero exit is by design
 
@@ -1494,6 +1527,8 @@ fn stageTree(io: Io, gpa: Allocator, a: Allocator, pbs_py_dir: []const u8, site:
 
     // Static C-floor archives + CA bundle so an installed binary can static-link
     // a bundled C floor at `nacompile` time, not just dev builds (#6978 0.2).
+    // mkPayload stages the same set into the build work dir before precompile,
+    // because the seal links them there; this is the shipped copy.
     try stageFloor(io, gpa, a, pbs_py_dir, stage);
 
     // Vendored static-musl runtime, so an installed binary can fully static-link
@@ -2356,7 +2391,7 @@ test "layered payload: frame reuse is verified, corruption falls back" {
     // Deps side: python tree, a pip helper, and the two dependency-pinned
     // artifacts that live under jaclang/'s path on purpose.
     try wf(io, a, stage, "python/lib/marker.txt", "pybytecode-marker\n");
-    try wf(io, a, stage, "site/pytest/helper.py", "helper = 1\n");
+    try wf(io, a, stage, "site/watchdog/helper.py", "helper = 1\n");
     try wf(io, a, stage, "site/jaclang/compiler/passes/native/llvm/libjacllvm.so", "fake-shim-bytes");
     try wf(io, a, stage, "site/jaclang/runtimelib/client/_bun/bun", "fake-bun-bytes");
     // Volatile side: the compiler tree + site shims.
@@ -2431,7 +2466,7 @@ test "layered payload: frame reuse is verified, corruption falls back" {
     try testing.expectEqualSlices(u8, p2, p4);
 
     // (4) Deps-side edit: new key, and the old entry is pruned away.
-    try wf(io, a, stage, "site/pytest/helper.py", "helper = 2\n");
+    try wf(io, a, stage, "site/watchdog/helper.py", "helper = 2\n");
     const out5 = try std.fmt.allocPrint(a, "{s}/p5.tar.zst", .{base});
     try tarZstDir(io, gpa, a, stage, out5, cache);
     const entry2 = try soleCacheEntry(io, a, cache);
@@ -2439,6 +2474,6 @@ test "layered payload: frame reuse is verified, corruption falls back" {
     {
         var d5 = try extractForTest(io, gpa, out5, try std.fmt.allocPrint(a, "{s}/x5", .{base}));
         defer d5.close(io);
-        try testing.expectEqualStrings("helper = 2\n", try d5.readFileAlloc(io, "site/pytest/helper.py", a, .unlimited));
+        try testing.expectEqualStrings("helper = 2\n", try d5.readFileAlloc(io, "site/watchdog/helper.py", a, .unlimited));
     }
 }

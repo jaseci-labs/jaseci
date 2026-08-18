@@ -164,6 +164,155 @@ impl NaIRGenPass._reject_ptr_into_raw_slot(
     return True;
 }
 
+impl NaIRGenPass._spread_operand(nd: (uni.UniNode | None)) -> (uni.Expr | None) {
+    if isinstance(nd, uni.UnaryExpr)
+        and isinstance(nd.op, uni.Token)
+        and nd.op.name == Tok.STAR_MUL {
+        return nd.operand;
+    }
+    return None;
+}
+
+impl NaIRGenPass._container_src_info(val: (ir.Value | None)) -> (dict | None) {
+    if val is None or not isinstance(val.type, ir.PointerType) {
+        return None;
+    }
+    for (_lspec, _ltype) in self.list_types.items() {
+        if _ltype.as_pointer() == val.type {
+            _lhelpers = self.list_helpers.get(_lspec);
+            if _lhelpers is not None {
+                return {
+                    "kind": "list",
+                    "spec": _lspec,
+                    "helpers": _lhelpers,
+                    "value": val
+                };
+            }
+        }
+    }
+    for (_sspec, _stype) in self.set_types.items() {
+        if _stype.as_pointer() == val.type {
+            _shelpers = self.set_helpers.get(_sspec);
+            if _shelpers is not None {
+                return {
+                    "kind": "set",
+                    "spec": _sspec,
+                    "helpers": _shelpers,
+                    "value": val
+                };
+            }
+        }
+    }
+    return None;
+}
+
+impl NaIRGenPass._spread_elem_storage(
+    src_info: dict, operand: (uni.Expr | None)
+) -> (ir.Type | None) {
+    _erased = src_info["helpers"]["elem_type"];
+    if src_info["kind"] != "list" or src_info["spec"] != "ptr" {
+        return _erased;
+    }
+    _static = self._static_elem_llvm_of(operand);
+    if _static is None {
+        return None;
+    }
+    if isinstance(_static, ir.PointerType)
+        and isinstance(_static.pointee, ir.LiteralStructType) {
+        return _static;
+    }
+    return _erased;
+}
+
+impl NaIRGenPass._reject_spread_slot_mismatch(
+    nd: (uni.UniNode | None), src_elem: ir.Type, dest_elem: ir.Type, what: str
+) -> bool {
+    if src_elem == dest_elem {
+        return False;
+    }
+    if isinstance(src_elem, ir.PointerType)
+        and self._reject_ptr_into_raw_slot(
+            nd, ir.Constant(src_elem, None), dest_elem, what
+        ) {
+        return True;
+    }
+    if self?.jacval_type
+        and (src_elem == self.jacval_type or dest_elem == self.jacval_type) {
+        return False;
+    }
+    _numeric = (ir.IntType, ir.DoubleType, ir.FloatType);
+    if isinstance(src_elem, _numeric) and isinstance(dest_elem, _numeric) {
+        return False;
+    }
+    if isinstance(src_elem, ir.PointerType) and isinstance(dest_elem, ir.PointerType) {
+        return False;
+    }
+    self.emit(
+        E5092,
+        node_override=nd,
+        kind="expression",
+        name=what,
+        help_text="A spread copies the source's elements into the display's own storage, so the two element types have to share a representation. Give the spread source the display's element type, or write the elements out."
+    );
+    return True;
+}
+
+impl NaIRGenPass._emit_spread_copy(
+    src: ir.Value,
+    src_helpers: dict,
+    dest: ir.Value,
+    dest_helpers: dict,
+    dest_kind: str,
+    loc: str
+) -> None {
+    i64 = ir.IntType(64);
+    i8p = ir.IntType(8).as_pointer();
+    _fn = self.builder.function;
+    _loop_bb = _fn.append_basic_block("spread.loop");
+    _body_bb = _fn.append_basic_block("spread.body");
+    _done_bb = _fn.append_basic_block("spread.done");
+    _len = self.builder.call(src_helpers["len"], [src], name="spread.len");
+    _pre_bb = self.builder.block;
+    self.builder.branch(_loop_bb);
+
+    self._builder = ir.IRBuilder(_loop_bb);
+    _idx = self.builder.phi(i64, name="spread.i");
+    _idx.add_incoming(ir.Constant(i64, 0), _pre_bb);
+    self.builder.cbranch(
+        self.builder.icmp_unsigned(">=", _idx, _len, name="spread.atend"),
+        _done_bb,
+        _body_bb
+    );
+
+    self._builder = ir.IRBuilder(_body_bb);
+    _elem = self.builder.call(src_helpers["get"], [src, _idx], name="spread.elem");
+    _dest_elem = dest_helpers["elem_type"];
+    if isinstance(_elem.type, ir.PointerType) and _dest_elem == i8p {
+        _elem = self.builder.bitcast(_elem, i8p, name="spread.elem.cast");
+    } else {
+        _elem = self._coerce_type(_elem, _dest_elem);
+    }
+    if dest_kind == "set" {
+        self._rc_call_with_ctx(
+            dest_helpers["add"], [dest, _elem], op="set_init", loc=loc
+        );
+    } else {
+        self._rc_call_with_ctx(
+            dest_helpers["append"], [dest, _elem], op="list_init", loc=loc
+        );
+    }
+    _next = self.builder.add(_idx, ir.Constant(i64, 1), name="spread.i1");
+    _idx.add_incoming(_next, self.builder.block);
+    self.builder.branch(_loop_bb);
+
+    self._builder = ir.IRBuilder(_done_bb);
+    if isinstance(src.type, ir.PointerType)
+        and self._is_owned(src)
+        and self._gc_mode() != "none" {
+        self._emit_rc_release_simple(src, op="spread", loc=loc);
+    }
+}
+
 impl NaIRGenPass._container_managed_fields(layout: dict) -> list {
     _kinds = layout["elem_kinds"];
     return [

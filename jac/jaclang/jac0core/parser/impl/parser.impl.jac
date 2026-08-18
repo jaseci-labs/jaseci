@@ -1283,9 +1283,7 @@ impl Parser.parse_atomic_chain -> Expr {
             }
 
             attr: UniNode | None = None;
-            if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
-                attr = self.parse_ct_name();
-            } elif self.check_name() {
+            if self.check_name() {
                 name_tok = self.expect_name();
                 attr = self.make_name(name_tok);
             } elif self.is_keyword_token() {
@@ -1914,14 +1912,6 @@ impl Parser.parse_special_ref -> Expr | None {
 }
 
 impl Parser.parse_atom -> Expr {
-    if self.check(TokenKind.KW_COMPTIME) and self.check_peek(TokenKind.LBRACE) {
-        ctb = self.parse_ct_block();
-        return ctb if ctb is not None else self.make_name(self.current());
-    }
-    if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
-        ctn = self.parse_ct_name(as_name=False);
-        return ctn if ctn is not None else self.make_name(self.current());
-    }
     if self.check_any(
         TokenKind.INT,
         TokenKind.HEX,
@@ -2778,7 +2768,7 @@ impl Parser.parse_lambda_expr -> Expr {
     lambda_tok = self.consume_uni(TokenKind.KW_LAMBDA);
 
     sig_kid: list[UniNode] = [];
-    params: list[ParamVar | CtFor | CtIf] = [];
+    params: list[ParamVar] = [];
     if self.match_tok(TokenKind.LPAREN) {
         sig_kid.append(self.make_uni_token(self.previous()));
         params = self.parse_func_params(sig_kid);
@@ -3308,10 +3298,6 @@ impl Parser.parse_element_stmt -> ElementStmt | EmptyToken | None {
         return self.parse_sem_def();
     }
 
-    if self.check(TokenKind.KW_COMPTIME) {
-        return self.parse_ct_element(0);
-    }
-
     if self.check(TokenKind.PYNLINE) {
         py_tok = self.expect(TokenKind.PYNLINE);
         py_code = self.make_uni_token(py_tok);
@@ -3585,10 +3571,6 @@ impl Parser.parse_ctrl_stmt -> CtrlStmt | DisengageStmt | None {
 }
 
 impl Parser.parse_statement -> CodeBlockStmt | None {
-    if self.check(TokenKind.KW_COMPTIME)
-        and self.check_peek_any(TokenKind.KW_FOR, TokenKind.KW_IF) {
-        return self.parse_ct_element(1);
-    }
     if self.match_tok(TokenKind.SEMI) {
         return self.make_semi();
     }
@@ -5112,7 +5094,7 @@ impl Parser.parse_import_items(
                 clib_decls.append(stmt);
                 kid.append(stmt);
                 if isinstance(stmt, ContextAwareNode) {
-                    stmt.set_code_context(CodeContext.NATIVE);
+                    stmt.code_context = CodeContext.NATIVE;
                 }
             }
         }
@@ -5382,15 +5364,6 @@ impl Parser.parse_archetype_member -> UniNode | None {
             _ = self._attach_doc(has_stmt, doc);
         }
         return has_stmt;
-    }
-
-    if self.check(TokenKind.KW_COMPTIME)
-        and self.check_peek_any(TokenKind.KW_FOR, TokenKind.KW_IF) {
-        member = self.parse_ct_element(3);
-        if doc and isinstance(member, AstDocNode) {
-            _ = self._attach_doc(member, doc);
-        }
-        return member;
     }
 
     if self.check(TokenKind.KW_ASYNC) {
@@ -5767,12 +5740,9 @@ impl Parser.parse_ability -> Ability {
     is_can = self.check(TokenKind.KW_CAN);
     ability_tok = self.expect_any(TokenKind.KW_DEF, TokenKind.KW_CAN);
     access = self.parse_access_tag();
-    name: NameAtom | CtName | None = None;
+    name: NameAtom | None = None;
 
-    if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
-        ct_nm = self.parse_ct_name();
-        name = ct_nm if isinstance(ct_nm, CtName) else None;
-    } elif self.check_name() {
+    if self.check_name() {
         name_tok = self.expect_name();
         name = self.make_name(name_tok);
     } elif self.is_keyword_token() and not (is_can and self.check(TokenKind.KW_WITH)) {
@@ -5937,7 +5907,7 @@ impl Parser._parse_post_async_modifiers(
 }
 
 impl Parser.parse_func_signature -> FuncSignature {
-    all_params: list[ParamVar | CtFor | CtIf] = [];
+    all_params: list[ParamVar] = [];
     return_type = None;
     kid: list[UniNode] = [];
     if self.match_tok(TokenKind.LPAREN) {
@@ -5958,9 +5928,9 @@ impl Parser.parse_func_signature -> FuncSignature {
         kid.append(EmptyToken());
     }
 
-    posonly_params: list[ParamVar | CtFor | CtIf] = [];
-    regular_params: list[ParamVar | CtFor | CtIf] = [];
-    kwonly_params: list[ParamVar | CtFor | CtIf] = [];
+    posonly_params: list[ParamVar] = [];
+    regular_params: list[ParamVar] = [];
+    kwonly_params: list[ParamVar] = [];
     varargs_param: ParamVar | None = None;
     kwargs_param: ParamVar | None = None;
 
@@ -5976,12 +5946,6 @@ impl Parser.parse_func_signature -> FuncSignature {
                 varargs_param = k;
                 saw_bare_star = True;
             } elif saw_bare_star {
-                kwonly_params.append(k);
-            } else {
-                regular_params.append(k);
-            }
-        } elif isinstance(k, CtFor) or isinstance(k, CtIf) {
-            if saw_bare_star {
                 kwonly_params.append(k);
             } else {
                 regular_params.append(k);
@@ -6025,8 +5989,8 @@ impl Parser.parse_func_signature -> FuncSignature {
     );
 }
 
-impl Parser.parse_func_params(kid: list[UniNode]) -> list[ParamVar | CtFor | CtIf] {
-    params: list[ParamVar | CtFor | CtIf] = [];
+impl Parser.parse_func_params(kid: list[UniNode]) -> list[ParamVar] {
+    params: list[ParamVar] = [];
     while not self.check(TokenKind.RPAREN) {
         if self.check(TokenKind.STAR_MUL)
             and (
@@ -6050,18 +6014,6 @@ impl Parser.parse_func_params(kid: list[UniNode]) -> list[ParamVar | CtFor | CtI
                 break;
             }
             kid.append(self.make_uni_token(self.previous()));
-        } elif self.check(TokenKind.KW_COMPTIME) {
-            cf = self.parse_ct_element(2);
-            if cf is None {
-                break;
-            }
-            if isinstance(cf, CtFor) or isinstance(cf, CtIf) {
-                params.append(cf);
-            }
-            kid.append(cf);
-            if self.match_tok(TokenKind.COMMA) {
-                kid.append(self.make_uni_token(self.previous()));
-            }
         } else {
             pv = self.parse_param_var();
             if pv is None {
@@ -6085,10 +6037,7 @@ impl Parser.parse_param_var -> ParamVar | None {
         unpack = self.make_uni_token(unpack_tok);
     }
 
-    if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
-        ct_nm = self.parse_ct_name();
-        name = ct_nm if isinstance(ct_nm, CtName) else self.make_name(self.current());
-    } elif self.check_name() {
+    if self.check_name() {
         name_tok = self.expect_name();
         name = self.make_name_or_special(name_tok);
     } elif self.check(TokenKind.KW_SELF) {
@@ -6217,14 +6166,7 @@ impl Parser.parse_enum -> Enum {
         enum_lb_uni = self.make_uni_token(self.previous());
         item: UniNode | None = None;
         while not self.check(TokenKind.RBRACE) and not self.at_end() {
-            if self.check(TokenKind.KW_COMPTIME) {
-                cf = self.parse_ct_element(4);
-                if cf is None {
-                    break;
-                }
-                body_l.append(cf);
-                body_kid.append(cf);
-            } elif self.check_name() {
+            if self.check_name() {
                 member = self.parse_enum_member();
                 body_l.append(member);
                 body_kid.append(member);
@@ -6298,13 +6240,8 @@ impl Parser.parse_enum -> Enum {
 
 impl Parser.parse_enum_member -> Assignment {
     name: Expr;
-    if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
-        ct_nm = self.parse_ct_name();
-        name = ct_nm if ct_nm is not None else self.make_name(self.current());
-    } else {
-        name_tok = self.expect_name();
-        name = self.make_name(name_tok, is_enum_stmt=True);
-    }
+    name_tok = self.expect_name();
+    name = self.make_name(name_tok, is_enum_stmt=True);
     value: (Expr | None) = None;
     em_eq_uni: Token | None = None;
     if self.match_tok(TokenKind.EQ) {
@@ -6336,64 +6273,34 @@ impl Parser.parse_test -> Test {
     }
     test_kw_uni = self.consume_uni(TokenKind.KW_TEST);
 
-    cur = self.current();
-    name: Token = Token(
-        orig_src=self.source,
-        name=Tok.NAME.value,
-        value="",
-        line=cur.loc.line,
-        end_line=cur.loc.end_line,
-        col_start=cur.loc.col_start,
-        col_end=cur.loc.col_end,
-        pos_start=cur.loc.pos_start,
-        pos_end=cur.loc.pos_end
-    );
+    name_tok = self.current();
     has_description = False;
     description: String | None = None;
+    ident = "";
     if self.check(TokenKind.STRING) {
         str_tok = self.expect(TokenKind.STRING);
         description = self.make_string(str_tok);
 
         desc_text = _string_lit_text(str_tok.value);
-        ident_chars: list[str] = [];
-        prev_sep = False;
-        for ch in desc_text {
-            is_word = ("a" <= ch and ch <= "z")
-                or ("A" <= ch and ch <= "Z")
-                or ("0" <= ch and ch <= "9");
-            if is_word {
-                ident_chars.append(ch);
-                prev_sep = False;
-            } elif not prev_sep {
-                ident_chars.append("_");
-                prev_sep = True;
-            }
-        }
-        ident: str = str("".join(ident_chars));
-        if ident.startswith("_") {
-            ident = ident[1:];
-        }
-        if ident.endswith("_") {
-            ident = ident[:-1];
-        }
-        ident = ident.lower();
-        if not ident {
-            self._gen_test_idx += 1;
-            ident = f"_jac_gen_{self._gen_test_idx}";
-        }
-        name = Name(
-            orig_src=self.source,
-            name=Tok.NAME.value,
-            value=ident,
-            line=str_tok.loc.line,
-            end_line=str_tok.loc.end_line,
-            col_start=str_tok.loc.col_start,
-            col_end=str_tok.loc.col_end,
-            pos_start=str_tok.loc.pos_start,
-            pos_end=str_tok.loc.pos_end
-        );
+        ident = _test_ident_from_desc(desc_text);
+        name_tok = str_tok;
         has_description = True;
     }
+    if not ident {
+        self._gen_test_idx += 1;
+        ident = f"_jac_gen_{self._gen_test_idx}";
+    }
+    name: Name = Name(
+        orig_src=self.source,
+        name=Tok.NAME.value,
+        value=ident,
+        line=name_tok.loc.line,
+        end_line=name_tok.loc.end_line,
+        col_start=name_tok.loc.col_start,
+        col_end=name_tok.loc.col_end,
+        pos_start=name_tok.loc.pos_start,
+        pos_end=name_tok.loc.pos_end
+    );
     test_lb_uni = self.consume_uni(TokenKind.LBRACE);
     body = self.parse_code_block_stmts();
     test_rb_uni = self.consume_uni(TokenKind.RBRACE);
@@ -6514,9 +6421,7 @@ impl Parser.parse_global_var -> GlobalVars {
 impl Parser.parse_global_var_assignment -> Assignment {
     name: Expr | None = None;
     name_tok: LexToken;
-    if self.check(TokenKind.DOLLAR_LBRACE) or self._ct_name_follows() {
-        name = self.parse_ct_name();
-    } elif self.check_name() {
+    if self.check_name() {
         name_tok = self.expect_name();
     } elif self.is_keyword_token() {
         name_tok = self.advance();
@@ -6651,11 +6556,11 @@ impl Parser.parse_impl_def -> ImplDef {
     body_expr3: Expr | None = None;
     lb_uni: Token | None = None;
     rb_uni: Token | None = None;
+    impl_enum_commas: list[Token] = [];
     if self.match_tok(TokenKind.LBRACE) {
         lb_uni = self.make_uni_token(self.previous());
         if self._is_impl_enum_body() {
-            self._impl_enum_comma_unis = [];
-            body_stmts3 = self.parse_impl_enum_body();
+            (body_stmts3, impl_enum_commas) = self.parse_impl_enum_body();
         } else {
             body_stmts3 = self._apply_implicit_return(self.parse_code_block_stmts());
         }
@@ -6697,19 +6602,12 @@ impl Parser.parse_impl_def -> ImplDef {
         if lb_uni {
             kid.append(lb_uni);
         }
-        impl_enum_commas = self._impl_enum_comma_unis;
-        comma_idx = 0;
         for (i, raw_item) in enumerate(body_stmts3) {
             item: UniNode = raw_item;
             kid.append(item);
 
-            if isinstance(item, EnumBlockStmt)
-                and item.is_enum_stmt
-                and i < len(body_stmts3) - 1 {
-                if comma_idx < len(impl_enum_commas) {
-                    kid.append(impl_enum_commas[comma_idx]);
-                    comma_idx += 1;
-                }
+            if i < len(body_stmts3) - 1 and i < len(impl_enum_commas) {
+                kid.append(impl_enum_commas[i]);
             }
         }
         if rb_uni {
@@ -6858,8 +6756,9 @@ impl Parser.parse_impl_target_name -> NameAtom {
     }
 }
 
-impl Parser.parse_impl_enum_body -> list[Assignment] {
+impl Parser.parse_impl_enum_body -> tuple[(list[Assignment], list[Token])] {
     members: list[Assignment] = [];
+    comma_unis: list[Token] = [];
     while not self.check(TokenKind.RBRACE) and not self.at_end() {
         if self.check_name() {
             name_tok = self.expect_name();
@@ -6898,13 +6797,13 @@ impl Parser.parse_impl_enum_body -> list[Assignment] {
             );
 
             if self.match_tok(TokenKind.COMMA) {
-                self._impl_enum_comma_unis.append(self.make_uni_token(self.previous()));
+                comma_unis.append(self.make_uni_token(self.previous()));
             }
         } else {
             break;
         }
     }
-    return members;
+    return (members, comma_unis);
 }
 
 impl Parser.parse_sem_def -> SemDef {
@@ -7102,224 +7001,6 @@ impl Parser.parse_report_stmt -> ReportStmt {
     return ReportStmt(expr=expr, kid=kid);
 }
 
-impl Parser.parse_ct_element(mode: int) -> CtFor | CtIf | Ability | None {
-    ct_uni = self.consume_uni(TokenKind.KW_COMPTIME);
-    if self.check(TokenKind.KW_FOR) {
-        return self.parse_ct_for(mode, ct_uni);
-    }
-    if self.check(TokenKind.KW_IF) {
-        return self.parse_ct_if(mode, ct_uni);
-    }
-    if self.check_any(TokenKind.KW_DEF, TokenKind.KW_CAN) {
-        abil = self.parse_ability();
-        if abil is not None {
-            abil.is_ct_only = True;
-            abil.add_kids_left([ct_uni]);
-        }
-        return abil;
-    }
-    self.emit_diag("Expected 'for', 'if', or '{' after 'comptime'", "E0033");
-    return None;
-}
-
-impl Parser.parse_ct_for(mode: int, ct_uni: Token) -> CtFor | None {
-    for_uni = self.consume_uni(TokenKind.KW_FOR);
-    name_tok = self.expect_name();
-    target = self.make_name(name_tok);
-    in_uni = self.consume_uni(TokenKind.KW_IN);
-    iter_expr = self.parse_expression();
-    lb_uni = self.consume_uni(TokenKind.LBRACE);
-    kid: list[UniNode] = [ct_uni, for_uni, target, in_uni, iter_expr, lb_uni];
-    body = self.parse_ct_body(mode, kid);
-    rb_uni = self.consume_uni(TokenKind.RBRACE);
-    kid.append(rb_uni);
-    return CtFor(target=target, iter=iter_expr, body=body, kid=kid);
-}
-
-impl Parser.parse_ct_if(mode: int, ct_uni: Token) -> CtIf | None {
-    if_uni = self.consume_uni(TokenKind.KW_IF);
-    condition = self.parse_expression();
-    lb_uni = self.consume_uni(TokenKind.LBRACE);
-    kid: list[UniNode] = [ct_uni, if_uni, condition, lb_uni];
-    body = self.parse_ct_body(mode, kid);
-    rb_uni = self.consume_uni(TokenKind.RBRACE);
-    kid.append(rb_uni);
-    else_body = None;
-    if self.check(TokenKind.KW_ELIF) {
-        else_body = self.parse_ct_elif(mode);
-    } elif self.check(TokenKind.KW_ELSE) {
-        else_body = self.parse_ct_else(mode);
-    }
-    if else_body {
-        kid.append(else_body);
-    }
-    return CtIf(condition=condition, body=body, else_body=else_body, kid=kid);
-}
-
-impl Parser.parse_ct_elif(mode: int) -> CtIf | None {
-    elif_uni = self.consume_uni(TokenKind.KW_ELIF);
-    condition = self.parse_expression();
-    lb_uni = self.consume_uni(TokenKind.LBRACE);
-    kid: list[UniNode] = [elif_uni, condition, lb_uni];
-    body = self.parse_ct_body(mode, kid);
-    rb_uni = self.consume_uni(TokenKind.RBRACE);
-    kid.append(rb_uni);
-    else_body = None;
-    if self.check(TokenKind.KW_ELIF) {
-        else_body = self.parse_ct_elif(mode);
-    } elif self.check(TokenKind.KW_ELSE) {
-        else_body = self.parse_ct_else(mode);
-    }
-    if else_body {
-        kid.append(else_body);
-    }
-    return CtIf(condition=condition, body=body, else_body=else_body, kid=kid);
-}
-
-impl Parser.parse_ct_else(mode: int) -> CtElse | None {
-    else_uni = self.consume_uni(TokenKind.KW_ELSE);
-    lb_uni = self.consume_uni(TokenKind.LBRACE);
-    kid: list[UniNode] = [else_uni, lb_uni];
-    body = self.parse_ct_body(mode, kid);
-    rb_uni = self.consume_uni(TokenKind.RBRACE);
-    kid.append(rb_uni);
-    return CtElse(body=body, kid=kid);
-}
-
-impl Parser.parse_ct_body(mode: int, kid: list[UniNode]) -> list[UniNode] {
-    body: list[UniNode] = [];
-    enum_item: UniNode | None = None;
-    param_item: UniNode | None = None;
-    if mode == 4 {
-        while not self.check(TokenKind.RBRACE) and not self.at_end() {
-            if self.check(TokenKind.KW_COMPTIME) {
-                enum_item = self.parse_ct_element(4);
-            } else {
-                enum_item = self.parse_enum_member();
-            }
-            if enum_item is None {
-                break;
-            }
-            body.append(enum_item);
-            kid.append(enum_item);
-            if not self.match_tok(TokenKind.COMMA) {
-                break;
-            }
-            kid.append(self.make_uni_token(self.previous()));
-        }
-        return body;
-    }
-    if mode == 2 {
-        while not self.check(TokenKind.RBRACE) and not self.at_end() {
-            if self.check(TokenKind.KW_COMPTIME) {
-                param_item = self.parse_ct_element(2);
-            } else {
-                param_item = self.parse_param_var();
-            }
-            if param_item is None {
-                break;
-            }
-            body.append(param_item);
-            kid.append(param_item);
-            if not self.match_tok(TokenKind.COMMA) {
-                break;
-            }
-            kid.append(self.make_uni_token(self.previous()));
-        }
-        return body;
-    }
-    stmt_item: UniNode | None = None;
-    while not self.check(TokenKind.RBRACE) and not self.at_end() {
-        before = self.pos;
-        stmt_item = None;
-        if mode == 0 {
-            stmt_item = self.parse_element_stmt();
-        } elif mode == 3 {
-            stmt_item = self.parse_archetype_member();
-        } else {
-            stmt_item = self.parse_statement();
-        }
-        if stmt_item is not None {
-            body.append(stmt_item);
-            kid.append(stmt_item);
-        }
-        if self.pos == before {
-            self._ct_body_recover();
-        }
-    }
-    return body;
-}
-
-impl Parser._ct_body_recover -> None {
-    self.advance();
-}
-
 impl Parser._lookahead_advance -> None {
     self.advance();
-}
-
-impl Parser.parse_ct_block -> Expr | None {
-    ct_uni = self.consume_uni(TokenKind.KW_COMPTIME);
-    lb_uni = self.consume_uni(TokenKind.LBRACE);
-    expr = self.parse_expression();
-    rb_uni = self.consume_uni(TokenKind.RBRACE);
-    return CtBlock(expr=expr, kid=[ct_uni, lb_uni, expr, rb_uni]);
-}
-
-impl Parser.parse_ct_splice -> Expr | None {
-    dl_uni = self.consume_uni(TokenKind.DOLLAR_LBRACE);
-    expr = self.parse_expression();
-    rb_uni = self.consume_uni(TokenKind.RBRACE);
-    return CtSplice(expr=expr, kid=[dl_uni, expr, rb_uni]);
-}
-
-impl Parser._ct_name_follows -> bool {
-    if not self.check(TokenKind.NAME) {
-        return False;
-    }
-    nxt = self.peek();
-    return (
-        nxt.kind == TokenKind.DOLLAR_LBRACE
-        and nxt.loc.pos_start == self.current().loc.pos_end
-    );
-}
-
-impl Parser.parse_ct_name(as_name: bool = True) -> Expr | None {
-    parts: list[Expr] = [];
-    kid: list[UniNode] = [];
-    splice_count = 0;
-    while True {
-        if self.check(TokenKind.DOLLAR_LBRACE) {
-            if parts and self.current().loc.pos_start != self.previous().loc.pos_end {
-                break;
-            }
-            sp = self.parse_ct_splice();
-            if sp is not None {
-                parts.append(sp);
-                kid.append(sp);
-                splice_count += 1;
-            }
-        } elif self.check(TokenKind.NAME) {
-            if parts and self.current().loc.pos_start != self.previous().loc.pos_end {
-                break;
-            }
-            if not parts and not self._ct_name_follows() {
-                break;
-            }
-            name_tok = self.expect_name();
-            nm = self.make_name(name_tok);
-            parts.append(nm);
-            kid.append(nm);
-        } else {
-            break;
-        }
-    }
-    if not parts {
-        self.emit_diag("Expected interpolated name", "E0033");
-        return None;
-    }
-    if len(parts) == 1 and splice_count == 1 and not as_name {
-        return parts[0];
-    }
-    return CtName(parts=parts, kid=kid);
 }

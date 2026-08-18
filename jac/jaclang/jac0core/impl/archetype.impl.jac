@@ -2,7 +2,7 @@ impl Access.check(anchor: str) -> (AccessLevel | None) {
     return self.anchors.get(anchor);
 }
 
-impl PermissionDenied.to_dict -> dict[(str, Any)] {
+impl PermissionDenied.to_dict -> dict[(str, any)] {
     return {
         "operation": self.operation,
         "target_id": self.target_id,
@@ -62,7 +62,7 @@ impl Anchor.__getattr__(name: str) -> object {
     );
 }
 
-impl Anchor.__getstate__ -> dict[(str, Any)] {
+impl Anchor.__getstate__ -> dict[(str, any)] {
     if self.is_populated() {
         unlinked = object.__new__(self.archetype.__class__);
         unlinked.__dict__.update(self.archetype.__dict__);
@@ -79,7 +79,7 @@ impl Anchor.__getstate__ -> dict[(str, Any)] {
     }
 }
 
-impl Anchor.__setstate__(state: dict[(str, Any)]) -> None {
+impl Anchor.__setstate__(state: dict[(str, any)]) -> None {
     self.__dict__.update(state);
     if (self.is_populated() and self.archetype) {
         self.archetype.__jac__ = self;

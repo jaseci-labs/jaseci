@@ -1,6 +1,6 @@
 """Native-codespace (.jac) test file.
 
-Exercises the pytest collector's module-name derivation for compound codespace
+Exercises the collector's module-name derivation for compound codespace
 suffixes: `foo.jac` must import as module `foo`, not `foo.na` (issue #7150).
 A well-formed `.jac` test file must collect and run its `test` blocks rather
 than silently collecting 0 items and passing.

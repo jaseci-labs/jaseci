@@ -13,7 +13,6 @@ import sys;
 import tempfile;
 import shutil;
 import importlib;
-import pytest;
 import from pathlib { Path }
 import from tests.support { JAC_ROOT }
 import from unittest.mock { patch }
@@ -25,10 +24,8 @@ import from jaclang.jac0core.jir { get_jir_cache_dir, get_module_cache_path }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
 import from jaclang.compiler.passes.tool.unparse_pass { unparse_module }
-import from jaclang.jac0core.helpers {
-    read_file_with_encoding,
-    read_toml_with_encoding
-}
+import from jaclang.jac0core.helpers { read_file_with_encoding }
+import from jaclang.jac0core.tomlio { read_toml_with_encoding }
 import tomllib;
 
 glob FIXTURES = os.path.join(JAC_ROOT, "tests", "language", "fixtures"),
