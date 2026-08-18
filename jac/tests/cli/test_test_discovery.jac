@@ -199,20 +199,20 @@ test "a suite inside a package resolves package-absolute imports" {
 
 
 """Create a temp project shaped like this repo: the package root sits one
-level below the project root (`sub/mypkg`, the `jac/tests` analog), and the
+level below the project root (`sub/gappkg`, the `jac/tests` analog), and the
 suite is nested under a directory with *no* `__init__` (`gap/`, the
 `tests/compiler/passes` analog). Returns the project root."""
 def make_gapped_project -> str {
     proj = tempfile.mkdtemp(prefix="jacgap-");
     (Path(proj) / "jac.toml").write_text(
-        '[project]\nname = "r"\n\n[test]\ndirectory = "sub/mypkg"\n'
+        '[project]\nname = "r"\n\n[test]\ndirectory = "sub/gappkg"\n'
     );
-    pkg = Path(proj) / "sub" / "mypkg";
+    pkg = Path(proj) / "sub" / "gappkg";
     (pkg / "gap").mkdir(parents=True);
     (pkg / "__init__.py").write_text("");
     (pkg / "support.jac").write_text("glob VALUE: int = 42;\n");
     (pkg / "gap" / "phase1_tests.jac").write_text(
-        "import from mypkg.support { VALUE }\n\n"
+        "import from gappkg.support { VALUE }\n\n"
         'test "gapped" {\n    assert VALUE == 42;\n}\n'
     );
     return proj;
@@ -222,7 +222,7 @@ def make_gapped_project -> str {
 test "a suite below a non-package directory still resolves its package root" {
     # `_package_basedir` walks up only while every ancestor carries an
     # `__init__`, so it stops dead at `gap/` and never reaches the dir that
-    # makes `mypkg` importable. This repo's own suite is shaped exactly that
+    # makes `gappkg` importable. This repo's own suite is shaped exactly that
     # way -- `tests/` and `tests/compiler/` are packages, `tests/compiler/
     # passes/` is not -- and it resolved `import from tests.support` only
     # because a jac.toml happened to sit in `jac/`, putting the right dir on
@@ -237,6 +237,6 @@ test "a suite below a non-package directory still resolves its package root" {
         shutil.rmtree(proj, ignore_errors=True);
     }
     assert rc == 0 , (
-        f"gapped suite must import mypkg.support and pass; got exit {rc}"
+        f"gapped suite must import gappkg.support and pass; got exit {rc}"
     );
 }
