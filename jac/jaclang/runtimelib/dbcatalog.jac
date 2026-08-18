@@ -1,7 +1,5 @@
 import logging;
 import from enum { StrEnum }
-import from typing { Any }
-
 import from jaclang.runtimelib.store { ConnInfo, SCHEMA_STAMP_KEY }
 
 glob logger = logging.getLogger(__name__),
@@ -82,20 +80,20 @@ def this_host -> str;
 def is_jac_database(database: str) -> bool;
 def sqlstate_of(err: Exception) -> str;
 def admin_conninfo(info: ConnInfo) -> ConnInfo;
-def connect_admin(info: ConnInfo) -> Any;
+def connect_admin(info: ConnInfo) -> any;
 def holds_no_data(info: ConnInfo, database: str) -> bool;
-def ensure_registry(conn: Any) -> bool;
-def record_database(conn: Any, database: str, kind: DbKind, owner_path: str) -> None;
+def ensure_registry(conn: any) -> bool;
+def record_database(conn: any, database: str, kind: DbKind, owner_path: str) -> None;
 
-def forget_database(conn: Any, database: str) -> None;
-def list_databases(conn: Any) -> list[DbRecord];
-def load_record(conn: Any, database: str) -> (DbRecord | None);
-def drop_database(conn: Any, database: str, force: bool = False) -> bool;
-def drop_if_still_dead(conn: Any, database: str) -> bool;
-def condemn_stale_scratch(conn: Any, records: list[DbRecord]) -> list[str];
+def forget_database(conn: any, database: str) -> None;
+def list_databases(conn: any) -> list[DbRecord];
+def load_record(conn: any, database: str) -> (DbRecord | None);
+def drop_database(conn: any, database: str, force: bool = False) -> bool;
+def drop_if_still_dead(conn: any, database: str) -> bool;
+def condemn_stale_scratch(conn: any, records: list[DbRecord]) -> list[str];
 def process_alive(host: str, pid: int) -> bool;
 def dead_scratch_databases(records: list[DbRecord]) -> list[str];
-def expired_databases(conn: Any, days: int, keep: str) -> list[str];
-def touch_heartbeat(conn: Any, database: str) -> bool;
+def expired_databases(conn: any, days: int, keep: str) -> list[str];
+def touch_heartbeat(conn: any, database: str) -> bool;
 def start_heartbeat(info: ConnInfo, database: str) -> None;
 def stop_heartbeat(database: str) -> None;

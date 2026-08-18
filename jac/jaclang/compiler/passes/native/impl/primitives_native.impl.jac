@@ -2595,6 +2595,14 @@ impl NativeListEmitter.emit_extend(
     if not isinstance(src.type, ir.PointerType) or src.type.is_opaque {
         return None;
     }
+    if not isinstance(src.type.pointee, ir.BaseStructType) {
+        src = p._coerce_type(src, target.type);
+        if not isinstance(src.type, ir.PointerType)
+            or src.type.is_opaque
+            or not isinstance(src.type.pointee, ir.BaseStructType) {
+            return None;
+        }
+    }
     src_len_ptr = b.gep(
         src, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="ext.src.len.ptr"
     );
