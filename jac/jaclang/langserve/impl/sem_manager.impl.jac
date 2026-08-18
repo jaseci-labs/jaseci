@@ -44,8 +44,8 @@ impl SemTokManager.collect_resolved_nodes(ir: uni.Module) -> list {
 
 impl SemTokManager.gen_sem_tok_node(
     ir: uni.Module
-) -> List[Tuple[(lspt.Position, int, int, uni.AstSymbolNode)]] {
-    tokens: List[Tuple[(lspt.Position, int, int, uni.AstSymbolNode)]] = [];
+) -> list[tuple[(lspt.Position, int, int, uni.AstSymbolNode)]] {
+    tokens: list[tuple[(lspt.Position, int, int, uni.AstSymbolNode)]] = [];
     seen_locs: dict = {};
     try {
         for nd in self.collect_resolved_nodes(ir) {
