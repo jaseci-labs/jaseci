@@ -495,6 +495,7 @@ jobs:
           if ! [ -s "$RUNNER_TEMP/jac-dylibs.txt" ]; then
             echo "(no libjac_*.dylib on the runner: the seal died before it emitted one)"
           fi
+          : > "$RUNNER_TEMP/jac-dylibs-bad.txt"
           while IFS= read -r dl; do
             [ -n "$dl" ] || continue
             echo "===== $dl ($(wc -c < "$dl") bytes)"
@@ -504,7 +505,9 @@ jobs:
             # view of the seal never shows.
             perl -e 'alarm 240; exec @ARGV' \
               "$PY" "$RUNNER_TEMP/jac-load-probe.py" "$dl" 2>&1 | tail -40
-            echo "----- exit: ${PIPESTATUS[0]:-?}"
+            rc="${PIPESTATUS[0]:-1}"
+            echo "----- exit: $rc"
+            [ "$rc" = 0 ] || echo "$dl" >> "$RUNNER_TEMP/jac-dylibs-bad.txt"
             perl -e 'alarm 240; exec @ARGV' \
               lldb --batch -o run -k "thread backtrace all" -k "image list -o -f" \
                    -k quit -- "$PY" "$RUNNER_TEMP/jac-load-probe.py" "$dl" 2>&1 | tail -80
@@ -529,6 +532,13 @@ jobs:
             nm -n "$dl" > "$OUT/$(basename "$dl").nm" 2>/dev/null
             otool -l "$dl" > "$OUT/$(basename "$dl").otool" 2>/dev/null
           done < "$RUNNER_TEMP/jac-dylibs.txt"
+          # The artifacts that actually failed their standalone load ride along
+          # whole: a miscompiled artifact is only diagnosable with its bytes,
+          # and the runner is gone by the time anyone reads this.
+          while IFS= read -r dl; do
+            [ -n "$dl" ] || continue
+            cp -f "$dl" "$OUT"/ 2>/dev/null
+          done < "$RUNNER_TEMP/jac-dylibs-bad.txt"
           ls -la "$OUT"
           exit 0
 
