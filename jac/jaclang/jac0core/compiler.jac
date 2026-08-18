@@ -1273,7 +1273,8 @@ obj JacCompiler {
         source_str: str,
         file_path: str,
         target_program: JacProgram,
-        cancel_token: (Event | None) = None
+        cancel_token: (Event | None) = None,
+        prefix_kind: str = ''
     ) -> uni.Module;
 
     def load_annex_modules(
