@@ -6,7 +6,7 @@ class Context(object) {
         self.identified_types = {};
     }
 
-    def get_identified_type(self: Context, name: Any, packed: Any = False) -> object {
+    def get_identified_type(self: Context, name: any, packed: any = False) -> object {
         if (name not in self.identified_types) {
             self.scope.register(name);
             ty = types.IdentifiedStructType(self, name, packed);

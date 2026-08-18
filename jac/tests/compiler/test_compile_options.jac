@@ -326,8 +326,26 @@ test "native type identity never reads walk-time registration maps" {
     );
     assert os.path.isdir(native_dir) , f"native dir missing: {native_dir}";
     impl_dir = os.path.join(native_dir, "na_ir_gen_pass.impl");
-    dead_tokens = ["_try_resolve_field_type", "struct_field_opaque"];
+    dead_tokens = ["_try_resolve_field_type"];
     write_pat = re.compile(r"self\.type_map\s*\[[^\]]*\]\s*=");
+    # `struct_field_opaque` is a live name again, and it means the opposite of
+    # what it meant when this test banned it outright. The old table was a
+    # `set[str]` of fields the constructor, the defaults loop and the arena
+    # skipped without saying so -- the silent i8* rescue #7871 deleted. The
+    # table now maps field -> refusal reason and exists so that
+    # `_refuse_opaque_field` can raise E5092 at every read, write and
+    # constructor keyword that names an erased slot.
+    #
+    # Banning the name would only push the mechanism to a synonym, so what is
+    # pinned instead is the property the ban was protecting: the table stays
+    # confined to the declaration and to the one impl that erases and refuses,
+    # so no third site can quietly consume an erased slot. The behavioural half
+    # -- that a touch really does refuse and demote -- is in
+    # `test_native_walk_order.jac`.
+    opaque_ok = [
+        "na_ir_gen_pass.jac",
+        os.path.join("na_ir_gen_pass.impl", "objects.impl.jac")
+    ];
     offenders: list[str] = [];
     for (dirpath, _dirs, files) in os.walk(native_dir) {
         for fname in files {
@@ -343,6 +361,9 @@ test "native type identity never reads walk-time registration maps" {
                             offenders.append(f"{rel}:{lineno}: {line.strip()}");
                         }
                     }
+                    if "struct_field_opaque" in line and rel not in opaque_ok {
+                        offenders.append(f"{rel}:{lineno}: {line.strip()}");
+                    }
                     if write_pat.search(line)
                         and rel
                             != os.path.join("na_ir_gen_pass.impl", "core.impl.jac") {
@@ -355,8 +376,26 @@ test "native type identity never reads walk-time registration maps" {
     assert not offenders , (
         "walk-time type registration found in the native pass (type identity "
         "and layout must resolve through the layout authority; type_map is a "
-        "static primitive table seeded once in postinit):\n"
+        "static primitive table seeded once in postinit; an erased-field table "
+        "is only honest where it is refused):\n"
         + "\n".join(offenders)
+    );
+    objects_impl = os.path.join(impl_dir, "objects.impl.jac");
+    with open(objects_impl, "r", encoding="utf-8") as f {
+        objects_src = f.read();
+    }
+    refuse_marker = "impl NaIRGenPass._refuse_opaque_field(";
+    r_start = objects_src.find(refuse_marker);
+    assert r_start >= 0 , (
+        "_refuse_opaque_field impl not found; the erased-field table has no "
+        "refusal to pair with and the silent i8* rescue is back"
+    );
+    r_nxt = objects_src.find("\nimpl ", r_start + len(refuse_marker));
+    refuse_block = objects_src[r_start:r_nxt] if r_nxt >= 0 else objects_src[r_start:];
+    assert "E5092" in refuse_block , (
+        "the reader of struct_field_opaque must refuse loudly (E5092); an "
+        "erased slot answered from its own uninitialised bits is the "
+        "miscompile this gate exists to prevent"
     );
     enums_impl = os.path.join(impl_dir, "enums.impl.jac");
     with open(enums_impl, "r", encoding="utf-8") as f {

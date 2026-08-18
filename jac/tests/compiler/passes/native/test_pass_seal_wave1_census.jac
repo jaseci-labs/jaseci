@@ -28,14 +28,15 @@ Every waiver names what blocks it and what clears it:
     (the same family as unitree's waived `UniNode.gen.__get__`). They
     clear when endpoint effects are emitted as data the driver collects,
     the #86 diagnostics-as-data pattern.
-  - `ModuleCodegenPass.iter_context_stmts` hits one backend gap:
-    `isinstance` over an element-erased sequence element (`module.body`
-    reaches it as a bare `Sequence`). `iter_module_imports`,
-    `iter_nested_imports`, `has_native_context_stmts`,
-    `shared_archetypes_for_context` and `client_capability_violations`
-    are pure call-cascades of that one method. All six clear together
-    when the native backend lowers `isinstance` over erased operands,
-    the unlanded remainder of the #8214 family.
+  - `module_codegen_pass` used to waive six, led by
+    `ModuleCodegenPass.iter_context_stmts` running `isinstance` over an
+    element-erased sequence element, with the other five as pure call
+    cascades of it. The clearing mechanism recorded here was "when the
+    native backend lowers `isinstance` over erased operands"; what
+    actually cleared them was the other end of the same sentence --
+    `iter_woven_segments` no longer erases the element, so the operand
+    arrives typed and the backend gap is never reached. All six are gone
+    and the waiver tuple with them.
   - `UniPass.get_all_sub_nodes` / `.find_parent_of_type` are `type[T]`
     TypeVar-generic statics that only forward to the same-named `UniNode`
     methods; the backend cannot lower a TypeVar-bound signature. They

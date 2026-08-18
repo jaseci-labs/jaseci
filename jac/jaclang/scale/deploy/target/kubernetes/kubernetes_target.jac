@@ -1,4 +1,3 @@
-import from typing { Any }
 import from jaclang.scale.deploy.target.deployment_target { DeploymentTarget }
 import from jaclang.scale.models.resource_status { ResourceStatus, ResourceStatusInfo }
 import from jaclang.scale.models.progress { EventSink, NoopSink, ProgressEvent }
@@ -99,7 +98,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
         }
     }
 
-    def _get_database_init_containers(app_name: str) -> list[dict[(str, Any)]] {
+    def _get_database_init_containers(app_name: str) -> list[dict[(str, any)]] {
         init_containers = [];
         wait_image = self.k8s_config.wait_image;
 
@@ -116,7 +115,7 @@ obj KubernetesTargetBase(DeploymentTarget) {
         return init_containers;
     }
 
-    def _deploy_databases(app_name: str, namespace: str, apps_v1: Any, core_v1: Any) {
+    def _deploy_databases(app_name: str, namespace: str, apps_v1: any, core_v1: any) {
         if not self.k8s_config.database_enabled() {
             return;
         }

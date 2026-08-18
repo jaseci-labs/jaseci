@@ -296,6 +296,8 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "compiler/passes/main/sem_def_match_pass.jac",
          "compiler/passes/main/access_check_pass.jac",
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
+         "compiler/passes/main/cfg_build_pass.jac",
+         "compiler/passes/main/rc_facts_pass.jac",
          "jac0core/passes/jcir_gen_pass.jac",
          "compiler/native_materialize.jac",
 
@@ -322,9 +324,13 @@ glob NATIVE_SEAL_ROOTS: tuple = (
          "jac0core/passes/uni_pass.jac",
          "jac0core/srcloc.jac",
          "jac0core/unitree.jac",
+         "compiler/expr_keys.jac",
          "compiler/native_materialize.jac",
          "compiler/passes/main/access_check_pass.jac",
+         "compiler/passes/main/cfg_build_pass.jac",
+         "compiler/passes/main/dataflow.jac",
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac",
+         "compiler/passes/main/rc_facts_pass.jac",
          "compiler/passes/main/sem_def_match_pass.jac",
          "compiler/type_registry.jac",
          "compiler/type_system/type_utils.jac",
@@ -358,7 +364,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
      _TYPES_SEAM_WAIVERS: tuple = (
          "compiler/type_system/types.jac::ClassType.lookup_member_symbol",
          "compiler/type_system/types.jac::FunctionType.specialize",
-         "compiler/type_system/types.jac::create_callable_type",
 
      ),
      _TYPE_UTILS_SEAM_WAIVERS: tuple = (
@@ -393,15 +398,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
      ),
-     _MODULE_CODEGEN_SEAM_WAIVERS: tuple = (
-         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_context_stmts",
-         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_module_imports",
-         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.iter_nested_imports",
-         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.has_native_context_stmts",
-         "jac0core/passes/module_codegen_pass.jac::ModuleCodegenPass.shared_archetypes_for_context",
-         "jac0core/passes/module_codegen_pass.jac::client_capability_violations",
-
-     ),
      _UNI_PASS_SEAM_WAIVERS: tuple = (
          "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
          "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
@@ -418,6 +414,16 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
      ),
      _SYM_TAB_BUILD_SEAM_WAIVERS: tuple = (
          "jac0core/passes/sym_tab_build_pass.jac::SymTabBuildPass.exit_global_vars",
+
+     ),
+     _CFG_BUILD_SEAM_WAIVERS: tuple = (
+         "compiler/passes/main/cfg_build_pass.jac::cfg_dot_from_file",
+         "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass.enter_node",
+         "compiler/passes/main/cfg_build_pass.jac::CoalesceBBPass._node_label",
+         (
+             "compiler/passes/main/cfg_build_pass.jac::"
+             "CFGBuildPass._find_next_cfg_stmt_after"
+         ),
 
      ),
      _JCIR_INTEROP_SEAM_WAIVERS: tuple = (
@@ -461,9 +467,7 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/module_codegen_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _MODULE_CODEGEN_SEAM_WAIVERS
-         ),
+         "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _UNI_PASS_SEAM_WAIVERS
          ),
@@ -481,6 +485,10 @@ glob _UNITREE_SEAM_WAIVERS: tuple = (
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/main/cfg_build_pass.jac": (
+             _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
+         ),
+         "compiler/passes/main/rc_facts_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/jcir_gen_pass.jac": (
              _CLOSURE_SEAM_WAIVERS
              + _JCIR_INTEROP_SEAM_WAIVERS
@@ -509,10 +517,10 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "`lookup_member_symbol` and `specialize` are cascades of the "
              "`type_utils` waivers below -- `collect_member_syms` and "
              "`build_type_var_solution` -- and clear with their callees. "
-             "`create_callable_type` reads `ParameterCategory.Positional`, an "
-             "`IntEnum` member accessed off the class rather than through an "
-             "instance, whose `auto()` values no constant fold reaches; it "
-             "clears when class-level enum member reads lower."
+             "`create_callable_type` used to sit here for reading "
+             "`ParameterCategory.Positional`, whose `auto()` value no "
+             "constant fold reached; generated enum values gave it one and "
+             "the read lowers."
          ),
          (
              "type utils erased operands and unreachable layouts",
@@ -543,16 +551,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "function-local import that keeps `helpers` out of a "
              "module-level cycle with `unitree`; hoisting it is the clearing "
              "mechanism and it needs the cycle broken first."
-         ),
-         (
-             "module_codegen erased-operand isinstance",
-             _MODULE_CODEGEN_SEAM_WAIVERS,
-             "One backend gap and five call-cascades of it: "
-             "`iter_context_stmts` runs `isinstance` over an "
-             "element-erased sequence element, because `module.body` "
-             "reaches it as a bare `Sequence`. All six clear together "
-             "when the backend lowers `isinstance` over erased operands, "
-             "the unlanded remainder of the #8214 family."
          ),
          (
              "uni_pass TypeVar-generic statics",
@@ -588,6 +586,22 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple = (
              "twin of the `semantic_analysis` waiver and clears the same "
              "way: when ice construction lowers, or when the internal-error "
              "guard moves behind the emit-as-data path."
+         ),
+         (
+             "cfg_build graph tooling and erased basic-block storage",
+             _CFG_BUILD_SEAM_WAIVERS,
+             "`cfg_dot_from_file` opens a file and drives a whole "
+             "`JacProgram` -- the `jac dot` tool, never the compile "
+             "schedule -- and `CoalesceBBPass` exists only to serve it. "
+             "`enter_node` and `_node_label` are that pass's own surface: "
+             "the first subscripts `basic_blocks`, a "
+             "`dict[int, dict[str, list[UniCFGNode]]]` whose inner entry "
+             "reaches the emitter as a bare pointer, and the second "
+             "cascades on `unparse_node`. They clear together when a "
+             "container stored inside a container keeps its layout. "
+             "`_find_next_cfg_stmt_after` is on the real schedule and "
+             "reads a `Sequence` element through `cast`; it clears when "
+             "that read lowers."
          ),
          (
              "jcir interop manifest and driver reads",

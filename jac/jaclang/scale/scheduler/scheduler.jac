@@ -1,7 +1,6 @@
 import json;
 import logging;
 import datetime;
-import from typing { Any }
 import from uuid { uuid4 }
 import from jaclang.scale._optdeps.apscheduler {
     BackgroundScheduler,
@@ -33,7 +32,7 @@ obj JobStore {
 }
 
 obj PgJobStore(JobStore) {
-    has store: Any,
+    has store: any,
         _collection: str;
 
     def insert(job: dict) -> str;
@@ -87,19 +86,19 @@ obj TriggerSpec {
 }
 
 obj JacScaleScheduler {
-    has _apscheduler: Any | None = None,
+    has _apscheduler: any | None = None,
         _system_user_id: str = '__system__',
         _store: JobStore | None = None,
-        _server: Any | None = None,
+        _server: any | None = None,
         _user_exists_cache: dict[str, float] | None = None,
         _user_exists_ttl: float = 30.0;
 
     def postinit -> None;
     static def instance -> JacScaleScheduler;
-    def setup(system_user_id: str, server: Any | None = None) -> None;
+    def setup(system_user_id: str, server: any | None = None) -> None;
     def start -> None;
     def stop(drain: bool = False) -> None;
-    def register_static_tasks(walkers: dict, functions: dict, server: Any) -> None;
+    def register_static_tasks(walkers: dict, functions: dict, server: any) -> None;
     def register_dynamic_tasks_from_db -> None;
     def create_job(name: str, spec: TriggerSpec, created_by: str) -> dict;
     def list_jobs(

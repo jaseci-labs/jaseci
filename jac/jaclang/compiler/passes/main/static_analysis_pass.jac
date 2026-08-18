@@ -48,7 +48,6 @@ import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.constant { ExprCtx, SymbolType }
 import from jaclang.jac0core.diagnostics {
     W1103,
-    W1104,
     W2001,
     W2002,
     W2003,
@@ -57,6 +56,7 @@ import from jaclang.jac0core.diagnostics {
     W2070,
     W2074,
     W2075,
+    E1122,
     E2018,
     E2027,
     E2055,
@@ -227,8 +227,8 @@ glob BUILTIN_NAMES: set[str] = {
 
 obj StaticAnalysisPass(Transform) {
     has ir_in: Module,
-        prog: any,
-        cancel_token: any = None;
+        cancel_token: any = None,
+        _checked_scopes: set[int] = set();
 
     static has PROVIDES: tuple = ('static-checks', );
 
@@ -241,6 +241,7 @@ obj StaticAnalysisPass(Transform) {
     def _native_type_position(name_nd: Name) -> (str | None);
     def _check_unreachable_code(mod: Module) -> None;
     def _check_semantic_patterns(mod: Module) -> None;
+    def _check_typing_any_import(mod: Module) -> None;
     def _check_redundant_imports(mod: Module) -> None;
     def _check_client_imports(mod: Module) -> None;
     def _check_placement_warnings(mod: Module) -> None;

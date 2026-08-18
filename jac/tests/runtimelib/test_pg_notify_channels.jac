@@ -22,7 +22,6 @@ import atexit;
 import shutil;
 import time;
 import from tempfile { mkdtemp }
-import from typing { Any }
 import from jaclang.runtimelib.pgembed { PgRuntime }
 import from jaclang.runtimelib.store { PgStore }
 
@@ -46,7 +45,7 @@ def _discard_runtime {
 }
 
 
-def _runtime -> Any {
+def _runtime -> any {
     if 'rt' not in _holder {
         home = mkdtemp(prefix='jacnotify_');
         _holder['home'] = home;
@@ -203,7 +202,7 @@ test "unlisten stops delivery and parks the listen thread" {
         _settle();
         pub.notify('cache:invalidate', 'first');
         _wait_for(got, 1);
-        parked: Any = sub._listen_thread;
+        parked: any = sub._listen_thread;
         sub.unlisten('cache:invalidate');
         # unlisten joins the thread, so it is gone the moment it returns.
         alive_after = parked is not None and parked.is_alive();

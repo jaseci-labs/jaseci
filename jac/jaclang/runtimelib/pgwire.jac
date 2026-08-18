@@ -6,8 +6,6 @@ import secrets as _pysecrets;
 import socket;
 import struct;
 import from collections { deque }
-import from typing { Any }
-
 glob logger = logging.getLogger(__name__),
      PROTOCOL_VERSION = 196608,
      __all__ = ['PgWireConnection', 'PgWireError'];
@@ -33,7 +31,7 @@ obj PgWireConnection {
         application_name: str = 'jac',
         notifications: deque postinit,
         parameters: dict[str, str] postinit,
-        _sock: (Any | None) postinit,
+        _sock: (any | None) postinit,
         _closed: bool postinit;
 
     def postinit -> None;

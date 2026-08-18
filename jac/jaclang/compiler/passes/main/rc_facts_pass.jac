@@ -45,7 +45,7 @@ import from jaclang.jac0core.unitree {
     WhileStmt,
     YieldExpr
 }
-import from jaclang.compiler.passes.main.dataflow { solve_backward }
+import from jaclang.compiler.passes.main.dataflow { solve_backward_gen_kill }
 import from jaclang.jac0core.constant {
     OwnershipKind,
     SymbolStorage,
@@ -114,7 +114,6 @@ def loop_body_locals(body: (Sequence[UniNode] | None)) -> list[str] {
 
 obj RcFactsPass(Transform) {
     has ir_in: Module,
-        prog: any,
         cancel_token: any = None,
         _node_use: dict[int, set[SymId]] = {},
         _node_def: dict[int, set[SymId]] = {};
@@ -137,7 +136,10 @@ obj RcFactsPass(Transform) {
     def _stamp_last_use(ir_in: Module) -> None;
     def _stamp_move_in(ir_in: Module) -> None;
     def _stamp_anon_regions(ir_in: Module) -> None;
-    def _scan_anon_region_block(body: Sequence[UniNode]) -> list[tuple];
+    def _scan_anon_region_block(
+        body: Sequence[UniNode]
+    ) -> list[tuple[int, int, list[str]]];
+
     def _arch_of_call(expr: (UniNode | None)) -> (Archetype | None);
     def _connect_chain_leaves(expr: UniNode) -> (list[Name] | None);
     def _blessed_arch_call(fc: FuncCall, member_sids: set[int]) -> bool;
@@ -155,7 +157,6 @@ obj RcFactsPass(Transform) {
     def _is_def_name(nm: NameAtom) -> bool;
     def _is_alias_value(nm: Name) -> bool;
     def _move_candidate_source(nd: Assignment) -> (Name | None);
-    def _live_transfer(nd: UniCFGNode, out_set: set[SymId]) -> set[SymId];
     def _solve_liveness(
         cfg_nodes: list[UniCFGNode], tracked: set[SymId]
     ) -> dict[int, set[SymId]];
