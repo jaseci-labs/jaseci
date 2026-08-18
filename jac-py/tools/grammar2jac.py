@@ -233,6 +233,16 @@ class JacCallMakerVisitor(GrammarVisitor):
         return name, call
 
     def _lookahead_token_expr(self, node: Any) -> str | None:
+        if isinstance(node, NameLeaf):
+            name = node.value
+            if name in TOKEN_CALLS:
+                _, call = TOKEN_CALLS[name]
+                return call
+            if name in ("NEWLINE", "DEDENT", "INDENT", "ENDMARKER"):
+                return f"peg_expect_token(p, {name})"
+            if name in self.gen.tokens:
+                return f"peg_expect_token(p, {name})"
+            return None
         if isinstance(node, StringLeaf):
             _, inner = self.visit(node)
             if "peg_expect_token(p," in inner:

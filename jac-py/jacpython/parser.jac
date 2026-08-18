@@ -3530,7 +3530,7 @@ def rule_atom(p: peg_parser) -> expr | None {
         return res;
     }
     peg_reset(p, mark);
-    if ((rule__tmp_8(p) is not None)) {
+    if ((peg_positive_lookahead_token(p, STRING) or peg_positive_lookahead_token(p, FSTRING_START) or peg_positive_lookahead_token(p, TSTRING_START))) {
         strings = rule_strings(p);
         if strings is not None {
             res = strings;
@@ -9680,7 +9680,7 @@ def rule_literal_expr(p: peg_parser) -> expr | None {
         return res;
     }
     peg_reset(p, mark);
-    if ((rule__tmp_8(p) is not None)) {
+    if ((peg_positive_lookahead_token(p, STRING) or peg_positive_lookahead_token(p, FSTRING_START) or peg_positive_lookahead_token(p, TSTRING_START))) {
         strings = rule_strings(p);
         if strings is not None {
             res = strings;

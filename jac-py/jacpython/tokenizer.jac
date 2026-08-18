@@ -11,6 +11,7 @@ import from token_model {
     ENDMARKER,
     NAME,
     NUMBER,
+    STRING,
     NEWLINE,
     INDENT,
     DEDENT,
@@ -454,6 +455,156 @@ def _read_name(st: tok_state) -> tok_token {
     );
 }
 
+def _is_string_prefix_char(ch: str) -> bool {
+    if ch == "b" or ch == "B" {
+        return True;
+    }
+    if ch == "r" or ch == "R" {
+        return True;
+    }
+    if ch == "f" or ch == "F" {
+        return True;
+    }
+    if ch == "u" or ch == "U" {
+        return True;
+    }
+    return False;
+}
+
+def _is_string_start(st: tok_state) -> bool {
+    ch = _peek(st);
+    if ch == "'" or ch == "\"" {
+        return True;
+    }
+    if not _is_string_prefix_char(ch) {
+        return False;
+    }
+    p = st.pos + 1;
+    while p < len(st.source) {
+        c = st.source[p];
+        if _is_string_prefix_char(c) {
+            p = p + 1;
+            continue;
+        }
+        return c == "'" or c == "\"";
+    }
+    return False;
+}
+
+def _string_syntax_error(st: tok_state, msg: str, start_col: int) -> tok_diag {
+    bad = mk_diag(
+        "SyntaxError",
+        msg,
+        tok_loc_span(st.lineno, st.lineno, start_col, st.col_offset),
+        st.filename
+    );
+    st.error = bad;
+    st.done = True;
+    return bad;
+}
+
+def _read_string(st: tok_state) -> tok_token | tok_diag {
+    start = st.pos;
+    start_col = st.col_offset;
+    raw = False;
+    while st.pos < len(st.source) {
+        c = _peek(st);
+        if c == "r" or c == "R" {
+            raw = True;
+            _advance(st);
+            continue;
+        }
+        if _is_string_prefix_char(c) {
+            _advance(st);
+            continue;
+        }
+        break;
+    }
+    quote = _peek(st);
+    if quote != "'" and quote != "\"" {
+        return _string_syntax_error(st, "invalid syntax", start_col);
+    }
+    qlen = 1;
+    _advance(st);
+    if _peek(st) == quote {
+        _advance(st);
+        qlen = 2;
+        if _peek(st) == quote {
+            _advance(st);
+            qlen = 3;
+        }
+    }
+    while st.pos < len(st.source) {
+        ch = _peek(st);
+        if qlen == 1 {
+            if ch == quote {
+                _advance(st);
+                spell = st.source[start:st.pos];
+                tok = tok_token(
+                    tok_type=STRING,
+                    spelling=spell,
+                    lineno=st.lineno,
+                    col_offset=start_col,
+                    end_lineno=st.lineno,
+                    end_col_offset=st.col_offset
+                );
+                st.paren_level = st.paren_level + _track_paren_delta(STRING);
+                return tok;
+            }
+            if ch == "\n" or ch == "\r" {
+                return _string_syntax_error(st, "EOL while scanning string literal", start_col);
+            }
+            if ch == "\\" and not raw {
+                _advance(st);
+                if st.pos < len(st.source) {
+                    _advance(st);
+                }
+                continue;
+            }
+            _advance(st);
+            continue;
+        }
+        if ch == quote {
+            matched = 1;
+            i = 1;
+            while i < qlen {
+                if st.pos + i >= len(st.source) or st.source[st.pos + i] != quote {
+                    matched = 0;
+                    break;
+                }
+                i = i + 1;
+            }
+            if matched {
+                j = 0;
+                while j < qlen {
+                    _advance(st);
+                    j = j + 1;
+                }
+                spell = st.source[start:st.pos];
+                tok = tok_token(
+                    tok_type=STRING,
+                    spelling=spell,
+                    lineno=st.lineno,
+                    col_offset=start_col,
+                    end_lineno=st.lineno,
+                    end_col_offset=st.col_offset
+                );
+                st.paren_level = st.paren_level + _track_paren_delta(STRING);
+                return tok;
+            }
+        }
+        if ch == "\\" and not raw {
+            _advance(st);
+            if st.pos < len(st.source) {
+                _advance(st);
+            }
+            continue;
+        }
+        _advance(st);
+    }
+    return _string_syntax_error(st, "EOL while scanning string literal", start_col);
+}
+
 def tokenizer_from_string(
     source: str, filename: str, exec_input: bool
 ) -> tok_state {
@@ -561,6 +712,13 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
             tok = _read_name(st);
             st.paren_level = st.paren_level + _track_paren_delta(tok.tok_type);
             return tok;
+        }
+        if _is_string_start(st) {
+            tok = _read_string(st);
+            if isinstance(tok, tok_diag) {
+                return tok;
+            }
+            return tok as tok_token;
         }
         op = _match_operator(st);
         if op is not None {

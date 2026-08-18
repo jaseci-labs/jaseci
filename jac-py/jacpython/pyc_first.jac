@@ -193,6 +193,12 @@ def _jac_is_exception_type(host_val):
     # a user class like `class Exc(Exception)` whose host base proxy is here).
     return isinstance(host_val, type) and issubclass(host_val, BaseException)
 
+def _jac_host_exception_instance(raw):
+  # True with (type_name, message) when raw is a raised host BaseException instance.
+    if isinstance(raw, BaseException):
+        return (True, type(raw).__name__, str(raw))
+    return (False, "", "")
+
 def _jac_host_issubclass(host_cls, host_type):
     try:
         return issubclass(host_cls, host_type)
@@ -3865,6 +3871,31 @@ def py_raise_value(value: PyObj) -> PyObj {
             return instance;
         }
         return py_raise_value(instance);
+    }
+    if isinstance(value, PyHostProxy) {
+        raw = (value as PyHostProxy).val;
+        if bool(_jac_is_exception_type(raw)) {
+            return PyError(
+                t="error",
+                exception=PyException(
+                    t="exception",
+                    type_name=str(_jac_host_class_name(raw)),
+                    message=""
+                )
+            );
+        }
+        inst = _jac_host_exception_instance(raw);
+        if bool(inst[0]) {
+            return PyError(
+                t="error",
+                exception=PyException(
+                    t="exception",
+                    type_name=str(inst[1]),
+                    message=str(inst[2]),
+                    raw=value
+                )
+            );
+        }
     }
     return py_error("TypeError", "exceptions must derive from BaseException");
 }

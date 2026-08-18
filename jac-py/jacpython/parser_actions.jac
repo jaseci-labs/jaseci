@@ -4,7 +4,7 @@
 # objects. Generated parser rules call these helpers; this file is hand-written
 # and grows with each grammar profile.
 
-import from objects { PyObj, PyInt, PyBool, py_none }
+import from objects { PyObj, PyInt, PyBool, PyStr, py_none }
 import from ast_nodes {
     ast_node,
     expr,
@@ -167,6 +167,189 @@ def pa_parse_int_spelling(spelling: str) -> int {
         i = i + 1;
     }
     return n;
+}
+
+def _hex_digit_val(c: str) -> int {
+    d = _digit_val(c);
+    if d >= 0 {
+        return d;
+    }
+    if c >= "a" and c <= "f" {
+        return ord(c) - ord("a") + 10;
+    }
+    if c >= "A" and c <= "F" {
+        return ord(c) - ord("A") + 10;
+    }
+    return -1;
+}
+
+def pa_decode_escape_body(body: str) -> str {
+    out = "";
+    i = 0;
+    while i < len(body) {
+        c = body[i];
+        if c != "\\" {
+            out = out + c;
+            i = i + 1;
+            continue;
+        }
+        i = i + 1;
+        if i >= len(body) {
+            out = out + "\\";
+            break;
+        }
+        e = body[i];
+        if e == "n" {
+            out = out + "\n";
+            i = i + 1;
+            continue;
+        }
+        if e == "t" {
+            out = out + "\t";
+            i = i + 1;
+            continue;
+        }
+        if e == "r" {
+            out = out + "\r";
+            i = i + 1;
+            continue;
+        }
+        if e == "\\" {
+            out = out + "\\";
+            i = i + 1;
+            continue;
+        }
+        if e == "'" {
+            out = out + "'";
+            i = i + 1;
+            continue;
+        }
+        if e == "\"" {
+            out = out + "\"";
+            i = i + 1;
+            continue;
+        }
+        if e == "x" and i + 2 < len(body) {
+            h1 = _hex_digit_val(body[i + 1]);
+            h2 = _hex_digit_val(body[i + 2]);
+            if h1 >= 0 and h2 >= 0 {
+                out = out + chr(h1 * 16 + h2);
+                i = i + 3;
+                continue;
+            }
+        }
+        out = out + e;
+        i = i + 1;
+    }
+    return out;
+}
+
+def pa_decode_string_literal_spelling(spelling: str) -> str | None {
+    if len(spelling) == 0 {
+        return None;
+    }
+    i = 0;
+    raw = False;
+    while i < len(spelling) {
+        c = spelling[i];
+        if c == "r" or c == "R" {
+            raw = True;
+            i = i + 1;
+            continue;
+        }
+        if c == "b" or c == "B" or c == "u" or c == "U" or c == "f" or c == "F" {
+            i = i + 1;
+            continue;
+        }
+        break;
+    }
+    if i >= len(spelling) {
+        return None;
+    }
+    quote = spelling[i];
+    if quote != "'" and quote != "\"" {
+        return None;
+    }
+    qlen = 1;
+    if i + qlen < len(spelling) and spelling[i + qlen] == quote {
+        qlen = 2;
+        if i + qlen < len(spelling) and spelling[i + qlen] == quote {
+            qlen = 3;
+        }
+    }
+    start = i + qlen;
+    end = len(spelling) - qlen;
+    if end < start {
+        return None;
+    }
+    body = spelling[start:end];
+    if raw {
+        return body;
+    }
+    return pa_decode_escape_body(body);
+}
+
+def pa_constant_from_string(tok: peg_token | None) -> Constant | None {
+    if tok is None {
+        return None;
+    }
+    decoded = pa_decode_string_literal_spelling(tok.spelling);
+    if decoded is None {
+        return None;
+    }
+    return Constant(
+        value=PyStr(t="str", val=decoded),
+        kind=None,
+        lineno=tok.lineno,
+        col_offset=tok.col_offset,
+        end_lineno=tok.end_lineno,
+        end_col_offset=tok.end_col_offset
+    );
+}
+
+def pa_concatenate_strings(parts: list[object]) -> expr | None {
+    if len(parts) == 0 {
+        return None;
+    }
+    if len(parts) == 1 {
+        c = parts[0];
+        if isinstance(c, Constant) {
+            return c as Constant;
+        }
+        return None;
+    }
+    out = "";
+    i = 0;
+    while i < len(parts) {
+        c = parts[i];
+        if not isinstance(c, Constant) {
+            return None;
+        }
+        cc = c as Constant;
+        if not isinstance(cc.value, PyStr) {
+            return None;
+        }
+        out = out + (cc.value as PyStr).val;
+        i = i + 1;
+    }
+    first = parts[0] as Constant;
+    last = parts[len(parts) - 1] as Constant;
+    return Constant(
+        value=PyStr(t="str", val=out),
+        kind=None,
+        lineno=first.lineno,
+        col_offset=first.col_offset,
+        end_lineno=last.end_lineno,
+        end_col_offset=last.end_col_offset
+    );
+}
+
+def pa_constant_from_token(tok: peg_token | None) -> Constant | None {
+    return pa_constant_from_string(tok);
+}
+
+def pa_decoded_constant_from_token(tok: peg_token | None) -> Constant | None {
+    return pa_constant_from_string(tok);
 }
 
 def pa_number_from_token(tok: peg_token | None) -> Constant | None {
@@ -1082,19 +1265,7 @@ def pa_arguments_parsing_error(`node: object) -> object {
 def pa_check_legacy_stmt(p: peg_parser, `node: object) -> bool {
     return False;
 }
-def pa_concatenate_strings(parts: list[object]) -> expr | None {
-    return None;
-}
 def pa_concatenate_tstrings(parts: list[object]) -> expr | None {
-    return None;
-}
-def pa_constant_from_string(spelling: str) -> Constant | None {
-    return None;
-}
-def pa_constant_from_token(tok: peg_token | None) -> Constant | None {
-    return None;
-}
-def pa_decoded_constant_from_token(tok: peg_token | None) -> Constant | None {
     return None;
 }
 def pa_ensure_imaginary(`node: expr) -> expr {
