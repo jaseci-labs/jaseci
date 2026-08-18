@@ -260,7 +260,7 @@ impl ExecutionManager.report_collector(call_state: CallState) -> dict[str, JsonV
     }
 }
 
-async def _begin_request_context(user_root_id: str) -> tuple[(ExecutionContext, Any)] {
+async def _begin_request_context(user_root_id: str) -> tuple[(ExecutionContext, any)] {
     import from jaclang.jac0core.osp_kernel_sv { isolate_request_walk_stack }
     parent = Jac.get_context();
     req_ctx = ExecutionContext(_parent=parent);
@@ -273,7 +273,7 @@ async def _begin_request_context(user_root_id: str) -> tuple[(ExecutionContext, 
 
 async def _abegin_user_request_context(
     user_manager: UserManager, username: str
-) -> tuple[(ExecutionContext, Any, str)] | dict[str, JsonValue] {
+) -> tuple[(ExecutionContext, any, str)] | dict[str, JsonValue] {
     import from jaclang.runtimelib.exceptions { MissingAnchorError }
     root_id = await user_manager.aget_root_id(username);
     if not root_id {
@@ -315,7 +315,7 @@ async def _abegin_user_request_context(
     }
 }
 
-def _deserialize_wire_args(args: dict[(str, Any)]) {
+def _deserialize_wire_args(args: dict[(str, any)]) {
     for (k, v) in list(args.items()) {
         if isinstance(v, dict) and '__type__' in v {
             deserialized = Serializer.deserialize(v);
@@ -380,7 +380,7 @@ impl ExecutionManager._finalize_call_response(
 
 async def _run_function_with_occ(
     mgr: ExecutionManager,
-    args: dict[(str, Any)],
+    args: dict[(str, any)],
     username: str,
     run_attempt: Callable,
     deserialize_args: bool = True,
@@ -450,7 +450,7 @@ async def _run_function_with_occ(
 }
 
 impl ExecutionManager.execute_function(
-    func: Callable[(..., Any)], args: dict[(str, Any)], username: str
+    func: Callable[(..., any)], args: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
     import inspect;
 
@@ -461,7 +461,7 @@ impl ExecutionManager.execute_function(
 }
 
 impl ExecutionManager.execute_function_sync(
-    func: Callable[(..., Any)], args: dict[(str, Any)], username: str
+    func: Callable[(..., any)], args: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
     async def run_attempt(call_state: CallState, _ctx: ExecutionContext) {
         result = await asyncio.to_thread(func, **args);
@@ -475,7 +475,7 @@ impl ExecutionManager.execute_function_sync(
 }
 
 impl ExecutionManager.execute_function_async(
-    func: Callable[(..., Any)], args: dict[(str, Any)], username: str
+    func: Callable[(..., any)], args: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
     async def run_attempt(call_state: CallState, _ctx: ExecutionContext) {
         result = await func(**args);
@@ -485,7 +485,7 @@ impl ExecutionManager.execute_function_async(
 }
 
 impl ExecutionManager.spawn_walker(
-    walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
+    walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
     if walker_cls.__jac_async__ {
         return await self.spawn_walker_async(walker_cls, fields, username);
@@ -494,7 +494,7 @@ impl ExecutionManager.spawn_walker(
 }
 
 impl ExecutionManager.spawn_walker_sync(
-    walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
+    walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
     import from jaclang.jac0core.constructs { NodeArchetype }
     target_node_id = fields.pop('_jac_spawn_node', None);
@@ -528,7 +528,7 @@ impl ExecutionManager.spawn_walker_sync(
 }
 
 impl ExecutionManager.spawn_walker_async(
-    walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
+    walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
 ) -> dict[str, JsonValue] {
     import from jaclang.jac0core.constructs { NodeArchetype }
     target_node_id = fields.pop('_jac_spawn_node', None);
@@ -563,7 +563,9 @@ impl ExecutionManager.spawn_walker_async(
 }
 
 impl ModuleIntrospector.postinit -> None {
+    import threading;
     self._bundle_builder = Jac.get_client_bundle_builder();
+    self._bundle_lock = threading.Lock();
 }
 
 impl ModuleIntrospector.load(force_reload: bool = False) -> None {
@@ -604,8 +606,7 @@ impl ModuleIntrospector.load(force_reload: bool = False) -> None {
 
     self._collect_cross_boundary_endpoints();
     self._fill_endpoint_effect_defaults();
-    self._bundle = None;
-    self._bundle_error = None;
+    self._invalidate_bundle();
 }
 
 impl ModuleIntrospector._load_manifest -> None {
@@ -993,11 +994,11 @@ impl ModuleIntrospector._fill_endpoint_effect_defaults -> None {
 }
 
 
-impl ModuleIntrospector._collect_functions -> dict[str, Callable[(..., Any)]] {
+impl ModuleIntrospector._collect_functions -> dict[str, Callable[(..., any)]] {
     if not self._module {
         return {};
     }
-    functions: dict[(str, Callable[(..., Any)])] = {};
+    functions: dict[(str, Callable[(..., any)])] = {};
     export_names = set(self._client_manifest.get('exports', []));
     for (name, `obj) in inspect.getmembers(self._module) {
         if (inspect.isfunction(`obj) and not name.startswith('_')) {
@@ -1054,8 +1055,7 @@ impl ModuleIntrospector._check_module_freshness -> None {
         self._walkers = self._collect_walkers();
         self._collect_cross_boundary_endpoints();
         self._fill_endpoint_effect_defaults();
-        self._bundle = None;
-        self._bundle_error = None;
+        self._invalidate_bundle();
         return;
     }
 
@@ -1073,12 +1073,11 @@ impl ModuleIntrospector._check_module_freshness -> None {
         self._functions = self._collect_functions();
         self._walkers = self._collect_walkers();
         self._collect_cross_boundary_endpoints();
-        self._bundle = None;
-        self._bundle_error = None;
+        self._invalidate_bundle();
     }
 }
 
-impl ModuleIntrospector.get_functions -> dict[str, Callable[(..., Any)]] {
+impl ModuleIntrospector.get_functions -> dict[str, Callable[(..., any)]] {
     if not self._functions {
         self.load();
     } else {
@@ -1104,7 +1103,7 @@ impl ModuleIntrospector.get_walkers -> dict[str, type[WalkerArchetype]] {
     };
 }
 
-impl ModuleIntrospector.get_client_functions -> dict[str, Callable[(..., Any)]] {
+impl ModuleIntrospector.get_client_functions -> dict[str, Callable[(..., any)]] {
     if not self._client_functions {
         self.load();
     }
@@ -1134,7 +1133,7 @@ impl ModuleIntrospector.resolve_root_app(configured: str = "") -> str {
 }
 
 impl ModuleIntrospector.introspect_callable(
-    func: Callable[(..., Any)]
+    func: Callable[(..., any)]
 ) -> dict[str, any] {
     try {
         sig = inspect.signature(func);
@@ -1145,7 +1144,7 @@ impl ModuleIntrospector.introspect_callable(
     params = {
         name: {
             'type': getattr(
-                type_hints.get(name, Any), '__name__', str(type_hints.get(name, Any))
+                type_hints.get(name, any), '__name__', str(type_hints.get(name, any))
             ),
             'required': (param.default == inspect.Parameter.empty),
             'default': None
@@ -1153,7 +1152,7 @@ impl ModuleIntrospector.introspect_callable(
                 else str(param.default)
         } for (name, param) in sig.parameters.items()
     };
-    return_type = type_hints.get('return', Any);
+    return_type = type_hints.get('return', any);
     return {
         'parameters': params,
         'return_type': getattr(return_type, '__name__', str(return_type))
@@ -1226,6 +1225,13 @@ impl ModuleIntrospector.introspect_walker(
     return {'fields': fields};
 }
 
+impl ModuleIntrospector._invalidate_bundle -> None {
+    with self._bundle_lock {
+        self._bundle = None;
+        self._bundle_error = None;
+    }
+}
+
 impl ModuleIntrospector.ensure_bundle -> str {
     if not self._module {
         raise RuntimeError('Module not loaded');
@@ -1234,25 +1240,33 @@ impl ModuleIntrospector.ensure_bundle -> str {
         return self._bundle.hash;
     }
 
-    if self._bundle_error {
-        raise ClientBundleError(self._bundle_error);
-    }
-    try {
-        self._bundle = self._bundle_builder.build(self._module);
-        self._bundle_error = None;
-        return self._bundle.hash;
-    } except MissingBunError {
-        self._bundle = None;
-        raise;
-    } except Exception as exc {
-        self._bundle = None;
-        self._bundle_error = str(exc);
-        raise ClientBundleError(self._bundle_error);
+    entry_epoch = self._bundle_epoch;
+    with self._bundle_lock {
+        if self._bundle {
+            return self._bundle.hash;
+        }
+        if self._bundle_error is not None and self._bundle_epoch != entry_epoch {
+            raise ClientBundleError(self._bundle_error);
+        }
+        try {
+            self._bundle = self._bundle_builder.build(self._module);
+            self._bundle_error = None;
+            self._bundle_epoch += 1;
+            return self._bundle.hash;
+        } except MissingBunError {
+            self._bundle_epoch += 1;
+            raise;
+        } except Exception as exc {
+            self._bundle_error = str(exc)
+                or f"{type(exc).__name__} raised with no message";
+            self._bundle_epoch += 1;
+            raise ClientBundleError(self._bundle_error);
+        }
     }
 }
 
 impl ModuleIntrospector.render_page(
-    function_name: str, args: dict[(str, Any)], username: str
+    function_name: str, args: dict[(str, any)], username: str
 ) -> dict[str, any] {
     return Jac.render_page(self, function_name, args, username);
 }
@@ -1567,7 +1581,7 @@ impl IntrospectionHandler.get_walker_info(name: str) -> TransportResponse {
 }
 
 impl ExecutionHandler.call_function(
-    name: str, args: dict[(str, Any)], username: str
+    name: str, args: dict[(str, any)], username: str
 ) -> TransportResponse {
     self.introspector.load();
     functions = self.introspector.get_functions();
@@ -1587,7 +1601,7 @@ impl ExecutionHandler.call_function(
 }
 
 impl ExecutionHandler.spawn_walker(
-    name: str, fields: dict[(str, Any)], username: str
+    name: str, fields: dict[(str, any)], username: str
 ) -> TransportResponse {
     self.introspector.load();
     walkers = self.introspector.get_walkers();
@@ -2315,7 +2329,7 @@ impl JacAPIServer.module.getter -> object {
     return self.introspector._module;
 }
 
-impl JacAPIServer.get_functions -> dict[str, Callable[(..., Any)]] {
+impl JacAPIServer.get_functions -> dict[str, Callable[(..., any)]] {
     return self.introspector.get_functions();
 }
 
@@ -2504,7 +2518,7 @@ impl print_endpoint_docs(server: JacAPIServer) -> None {
         }
     }
     """Format parameter info.""";
-    def format_param(name: str, info: dict[(str, Any)]) -> str {
+    def format_param(name: str, info: dict[(str, any)]) -> str {
         req = 'required' if info['required'] else 'optional';
         `default = f", default: {info['default']}" if info.get('default') else '';
         return f"{name}: {info['type']} ({req}{default})";

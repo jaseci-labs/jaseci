@@ -104,6 +104,7 @@ impl drop_scratch_database -> None {
         return;
     }
     state = _scratch.pop();
+    stop_heartbeat(state.database);
     try {
         rt = PgRuntime(data_dir=shared_pg_data_dir(), database=MAINTENANCE_DB);
         if rt.is_running() {
@@ -274,7 +275,7 @@ impl Session.postinit -> None {
 
 
 impl Session.data_location -> (str | None) {
-    rt: Any = self._runtime;
+    rt: any = self._runtime;
     if rt is not None {
         return f"{rt.data_dir}/{rt.database}";
     }
@@ -898,7 +899,7 @@ impl Session._materialize(
 }
 
 
-impl Session.run_request(body: Callable) -> Any {
+impl Session.run_request(body: Callable) -> any {
     attempt = 0;
     while True {
         try {

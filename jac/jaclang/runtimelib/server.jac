@@ -10,14 +10,7 @@ import threading;
 import from collections.abc { Callable }
 import from inspect { iscoroutine, isgenerator }
 import from pathlib { Path }
-import from typing {
-    Any,
-    AsyncGenerator,
-    Generator,
-    Literal,
-    TypeAlias,
-    get_type_hints
-}
+import from typing { AsyncGenerator, Generator, Literal, TypeAlias, get_type_hints }
 import from urllib.parse { parse_qs, urlparse }
 import from jaclang.runtimelib.client_bundle { ClientBundleError }
 import from jaclang.runtimelib.context { CallState, ExecutionContext }
@@ -86,27 +79,27 @@ obj ExecutionManager {
         user_manager: UserManager;
 
     async def execute_function(
-        func: Callable[(..., Any)], args: dict[(str, Any)], username: str
+        func: Callable[(..., any)], args: dict[(str, any)], username: str
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
 
     async def execute_function_sync(
-        func: Callable[(..., Any)], args: dict[(str, Any)], username: str
+        func: Callable[(..., any)], args: dict[(str, any)], username: str
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
 
     async def execute_function_async(
-        func: Callable[(..., Any)], args: dict[(str, Any)], username: str
+        func: Callable[(..., any)], args: dict[(str, any)], username: str
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
 
     async def spawn_walker(
-        walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
+        walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
 
     async def spawn_walker_sync(
-        walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
+        walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
 
     async def spawn_walker_async(
-        walker_cls: type[WalkerArchetype], fields: dict[(str, Any)], username: str
+        walker_cls: type[WalkerArchetype], fields: dict[(str, any)], username: str
     ) -> dict[str, JsonValue] | Generator | AsyncGenerator;
 
     async def report_collector(call_state: CallState) -> dict[str, JsonValue];
@@ -120,13 +113,15 @@ obj ModuleIntrospector {
         base_path: (str | None),
         module_file: (str | None) = None,
         _module: any = None,
-        _functions: dict[(str, Callable[(..., Any)])] = {},
+        _functions: dict[(str, Callable[(..., any)])] = {},
         _walkers: dict[(str, type[WalkerArchetype])] = {},
-        _client_functions: dict[(str, Callable[(..., Any)])] = {},
-        _client_manifest: dict[(str, Any)] = {},
+        _client_functions: dict[(str, Callable[(..., any)])] = {},
+        _client_manifest: dict[(str, any)] = {},
         _bundle: any = None,
         _bundle_error: (str | None) = None,
+        _bundle_epoch: int = 0,
         _bundle_builder: any postinit,
+        _bundle_lock: any postinit,
         _function_access: dict[(str, bool)] = {},
         _walker_access: dict[(str, bool)] = {},
         _spa_routes_loaded: bool = False,
@@ -139,18 +134,19 @@ obj ModuleIntrospector {
     def _collect_cross_boundary_endpoints -> None;
     def _register_sealed_bindings(sm: dict[str, any], img_root: str) -> None;
     def _fill_endpoint_effect_defaults -> None;
-    def _collect_functions -> dict[str, Callable[(..., Any)]];
+    def _collect_functions -> dict[str, Callable[(..., any)]];
     def _collect_walkers -> dict[str, type[WalkerArchetype]];
     def _check_module_freshness -> None;
-    def get_functions -> dict[str, Callable[(..., Any)]];
+    def get_functions -> dict[str, Callable[(..., any)]];
     def get_walkers -> dict[str, type[WalkerArchetype]];
-    def get_client_functions -> dict[str, Callable[(..., Any)]];
+    def get_client_functions -> dict[str, Callable[(..., any)]];
     def resolve_root_app(configured: str = "") -> str;
-    def introspect_callable(func: Callable[(..., Any)]) -> dict[str, any];
+    def introspect_callable(func: Callable[(..., any)]) -> dict[str, any];
     def introspect_walker(walker_cls: type[WalkerArchetype]) -> dict[str, any];
     def ensure_bundle -> str;
+    def _invalidate_bundle -> None;
     def render_page(
-        function_name: str, args: dict[(str, Any)], username: str
+        function_name: str, args: dict[(str, any)], username: str
     ) -> dict[str, any];
 
     def spa_fallback_status(url_path: str) -> int;
@@ -196,11 +192,11 @@ obj ExecutionHandler {
         user_manager: UserManager;
 
     async def call_function(
-        name: str, args: dict[(str, Any)], username: str
+        name: str, args: dict[(str, any)], username: str
     ) -> TransportResponse;
 
     async def spawn_walker(
-        name: str, fields: dict[(str, Any)], username: str
+        name: str, fields: dict[(str, any)], username: str
     ) -> TransportResponse;
 }
 
@@ -237,7 +233,7 @@ obj JacAPIServer {
 
     has module: object { getter; }
 
-    def get_functions -> dict[str, Callable[(..., Any)]];
+    def get_functions -> dict[str, Callable[(..., any)]];
     def get_walkers -> dict[str, type[WalkerArchetype]];
     def print_endpoint_docs -> None;
     def _ensure_sv_siblings -> None;

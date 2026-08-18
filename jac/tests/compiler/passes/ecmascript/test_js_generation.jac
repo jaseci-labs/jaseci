@@ -26,6 +26,7 @@ import from jaclang.compiler.passes.main.type_checker_pass { TypeCheckPass }
 import from jaclang.jac0core.modresolver { convert_to_js_import_path }
 import from jaclang.jac0core.passes.transform { Alert }
 import from jaclang.jac0core.program { JacProgram }
+import from jaclang.jac0core.compiler { run_pass }
 
 glob FIXTURES = os.path.join(
          JAC_ROOT, "tests", "compiler", "passes", "ecmascript", "fixtures"
@@ -87,7 +88,7 @@ def compile_fixture_to_js(fixture_name: str, fixture_dir: str = "") -> str {
         f"Compilation errors in {fixture_name}: {[str(e) for e in _fatal]}"
     );
 
-    es_pass = EsastGenPass(ir_in=ir, prog=prog);
+    es_pass = run_pass(EsastGenPass, ir, prog);
     es_ir = es_pass.ir_out;
 
     assert hasattr(es_ir.gen, "es_ast") , "es_ast attribute missing";
@@ -520,11 +521,83 @@ test "effect lambda local hoists its declaration into the effect body" {
     temp_path = write_temp_jac(jac_code);
     js_code = compile_fixture_to_js(temp_path);
 
-    assert "let probe;" in js_code , (
+    assert 'let probe = "READY";' in js_code , (
         "a local first-assigned inside an effect lambda must keep its `let`; "
         "a bare assignment throws ReferenceError in a strict-mode bundle"
     );
     assert "let setup = () => {" in js_code;
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda-body local stays per-invocation so map closures capture their own item" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        tid = str(t.id);\n        return <button onClick={lambda { print(tid); }}>{tid}</button>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let tid = " in js_code , (
+        "an unannotated lambda-body local must be declared inside the lambda; "
+        "hoisting it to component scope makes every .map() closure share one "
+        "binding and capture the last item"
+    );
+    assert "let tid;" not in js_code , (
+        "no empty hoisted declaration of a lambda-body local may exist at "
+        "component-function scope"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "annotated lambda-body local stays per-invocation" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        aid: any = str(t.id);\n        return <button onClick={lambda { print(aid); }}>{aid}</button>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let aid = " in js_code;
+    assert "let aid;" not in js_code;
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "branch-assigned lambda local hoists to the lambda not the component" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        if ti > 0 { bid = str(t.id); } else { bid = \"zero\"; }\n        return <button onClick={lambda { print(bid); }}>{bid}</button>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    lambda_start = js_code.find("map((t, ti) =>");
+    assert lambda_start >= 0;
+    hoist_pos = js_code.find("let bid;");
+    assert hoist_pos > lambda_start , (
+        "a lambda local assigned only in branches must hoist to the top of "
+        "the lambda body, not past the lambda into the component function"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "walrus target inside a lambda binds in the lambda not the component" {
+    jac_code = "def:pub app -> any {\n    has items: any = [{\"id\": \"a\"}, {\"id\": \"b\"}];\n    return <div>{items.map(lambda (t: any, ti: any) -> any {\n        if (wid := str(t.id)) {\n            return <button onClick={lambda { print(wid); }}>{wid}</button>;\n        }\n        return <span>none</span>;\n    })}</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    lambda_start = js_code.find("map((t, ti) =>");
+    assert lambda_start >= 0;
+    hoist_pos = js_code.find("let wid;");
+    assert hoist_pos > lambda_start , (
+        "a walrus-bound lambda name must be declared inside the lambda; "
+        "binding it in the enclosing component makes .map() closures share it"
+    );
+    assert_balanced_syntax(js_code, temp_path);
+}
+
+test "lambda assignment to an enclosing local stays a closure rebind" {
+    jac_code = "def:pub app -> any {\n    can with entry {\n        count = 0;\n        inc = lambda -> int { count = count + 1; return count; };\n        inc();\n    }\n    return <div>ok</div>;\n}\n";
+    temp_path = write_temp_jac(jac_code);
+    js_code = compile_fixture_to_js(temp_path);
+
+    assert "let count = 0;" in js_code;
+    assert "count = (count + 1);" in js_code , (
+        "an assignment to a name that already has an enclosing binding must "
+        "rebind that binding (closure mutation), not shadow it with a fresh "
+        "lambda-local"
+    );
+    assert "let count = (count + 1);" not in js_code;
     assert_balanced_syntax(js_code, temp_path);
 }
 
@@ -1093,7 +1166,7 @@ test "sv import duplicate kwarg is a compile error" {
     fixture = os.path.join(FIXTURES, "svc_kwargs/sv_import_kwargs_dup.jac");
     prog = JacProgram();
     ir = prog.compile(file_path=fixture, no_cgen=True, type_check=True);
-    EsastGenPass(ir_in=ir, prog=prog);
+    run_pass(EsastGenPass, ir, prog);
 
     dup_errs = [
         e
@@ -2842,8 +2915,7 @@ test "builtin functions lower to runtime helpers without type-check (#7480)" {
 
     import shutil;
     if not shutil.which("node") {
-        import pytest;
-        pytest.skip("node not on PATH");
+        testskip("node not on PATH");
     }
     wrapper = (
         js_code
@@ -2998,7 +3070,7 @@ test "unimplemented client statement is a hard error, not a silent drop (#7922)"
     try {
         prog = JacProgram();
         ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
-        EsastGenPass(ir_in=ir, prog=prog);
+        run_pass(EsastGenPass, ir, prog);
         drops = [
             e
             for e in prog.errors_had
@@ -3037,7 +3109,7 @@ test "supported client statements do not trip the completeness guard (#7922)" {
     try {
         prog = JacProgram();
         ir = prog.compile(file_path=temp_path, no_cgen=True, type_check=True);
-        EsastGenPass(ir_in=ir, prog=prog);
+        run_pass(EsastGenPass, ir, prog);
         drops = [
             e
             for e in prog.errors_had

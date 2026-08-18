@@ -769,7 +769,14 @@ impl NaIRGenPass._build_iter_from_expr(expr: uni.UniNode) -> (tuple | None) {
     if val is None {
         return None;
     }
-    return self._make_iter_from_value(val, expr);
+    _built = self._make_iter_from_value(val, expr);
+    if _built is not None
+        and self._iter_owned_srcs is not None
+        and _built[0] is not val
+        and self._is_owned(val) {
+        self._iter_owned_srcs.append(val);
+    }
+    return _built;
 }
 
 impl NaIRGenPass._make_map_iter(up: tuple, callee: tuple) -> (tuple | None) {
@@ -1274,8 +1281,12 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     is_user_iterable = _ustruct is not None and self._arch_implements_iter(_ustruct);
     built: (tuple | None) = None;
     owns_iter = False;
+    _saved_srcs = self._iter_owned_srcs;
+    _iter_srcs: list = [];
     if is_adapter_call or is_user_iterable {
+        self._iter_owned_srcs = _iter_srcs;
         built = self._build_iter_from_expr(coll);
+        self._iter_owned_srcs = _saved_srcs;
         owns_iter = True;
     } else {
         elem_t = self._iter_elem_llvm_of(coll);
@@ -1301,6 +1312,18 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
         and self.builder.function is self._gen_ctx["resume_fn"] {
         _gen_it_spill = self._entry_alloca(iter_val.type, "iterf.itslot");
         self.builder.store(iter_val, _gen_it_spill);
+    }
+
+    _it_slot_var: (str | None) = None;
+    if _gen_it_spill is None and owns_iter {
+        _it_slot_var = self._bind_loop_coll_slot(iter_val);
+    }
+    _src_slot_vars: list[str] = [];
+    for _src in _iter_srcs {
+        _src_nm = self._bind_loop_coll_slot(_src);
+        if _src_nm is not None {
+            _src_slot_vars.append(_src_nm);
+        }
     }
 
     elem_slot = self._entry_alloca(elem_type, "iter.elem");
@@ -1366,8 +1389,13 @@ impl NaIRGenPass._try_iter_protocol_for(nd: uni.InForStmt) -> bool {
     if _gen_it_spill is not None {
         iter_val = self.builder.load(_gen_it_spill, name="iterf.it.end");
     }
-    if owns_iter {
+    if _it_slot_var is not None {
+        self._release_loop_coll_slot(_it_slot_var, op="iter_end", loc=_loc);
+    } elif owns_iter {
         self._emit_rc_release_simple(iter_val, op="iter_end", loc=_loc);
+    }
+    for _src_nm in _src_slot_vars {
+        self._release_loop_coll_slot(_src_nm, op="iter_src_end", loc=_loc);
     }
     return True;
 }

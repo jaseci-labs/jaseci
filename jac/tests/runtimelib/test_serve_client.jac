@@ -7,7 +7,6 @@ import io;
 import json;
 import logging;
 import os;
-import pytest;
 import re;
 import shutil;
 import uuid;
@@ -27,7 +26,7 @@ suite); core CI skips them.
 """
 def _require_client_integration {
     if not os.environ.get("JAC_CLIENT_INTEGRATION") {
-        pytest.skip(
+        testskip(
             "client render requires the Vite/Bun toolchain; "
             "set JAC_CLIENT_INTEGRATION=1 to run"
         );
@@ -2230,7 +2229,7 @@ test "stdlib server answers health endpoints" {
 """A missing bun is an environmental precondition, cheap to re-check - the
 bundle layer must retry it on every request (so fetching bun fixes serving
 without a restart), while genuine build failures stay memoized."""
-test "ensure_bundle retries a missing-bun failure but memoizes build errors" {
+test "ensure_bundle retries a missing-bun failure and a build error alike" {
     import from unittest.mock { MagicMock }
     import from jaclang.runtimelib.server { ModuleIntrospector }
     import from jaclang.runtimelib.client_bundle { ClientBundleError, MissingBunError }
@@ -2258,7 +2257,87 @@ test "ensure_bundle retries a missing-bun failure but memoizes build errors" {
             assert False , "ensure_bundle should raise for a broken build";
         } except ClientBundleError { }
     }
-    assert broken.build.call_count == 1 , "a real build failure stays memoized until reload";
+    assert broken.build.call_count == 2 , (
+        "a build failure must be retried on the next call: the serving core builds "
+        "at boot and keeps serving when that fails, so memoizing the error left "
+        "every client page 503 until the process restarted"
+    );
+}
+
+"""A deliberately slow real builder: holds each build open long enough for
+other threads to pile in, then returns a distinct real bundle per call."""
+obj _SlowRealBuilder {
+    has hold: float = 0.4,
+        calls: int = 0;
+
+    def build(module: object, force: bool = False) -> object {
+        import time;
+        import from jaclang.runtimelib.client_bundle { ClientBundle }
+        self.calls += 1;
+        mine = self.calls;
+        time.sleep(self.hold);
+        return ClientBundle(
+            module_name="race_probe",
+            code=f"export const page = {mine};",
+            client_functions=[],
+            client_globals=[],
+            hash=f"hash-{mine}"
+        );
+    }
+}
+
+test "concurrent ensure_bundle callers share one build instead of each running their own" {
+    import from concurrent.futures { ThreadPoolExecutor }
+    import from jaclang.runtimelib.server { ModuleIntrospector }
+    intro = ModuleIntrospector("serve_api", FIXTURES);
+    intro._module = object();
+    builder = _SlowRealBuilder();
+    intro._bundle_builder = builder;
+
+    def _one(_i: int) -> str {
+        return intro.ensure_bundle();
+    }
+    executor = ThreadPoolExecutor(max_workers=6);
+    try {
+        results = list(executor.map(_one, range(6)));
+    } finally {
+        executor.shutdown(wait=True);
+    }
+    assert builder.calls == 1 , (
+        f"the bundle was built {builder.calls} times for 6 concurrent callers; "
+        "unlocked entry runs parallel builds into the same client tree"
+    );
+    assert set(results) == {"hash-1"} , (
+        f"concurrent callers got different bundles: {sorted(set(results))}"
+    );
+}
+
+test "a module reload during a build wins over the build's result" {
+    import threading;
+    import time;
+    import from jaclang.runtimelib.server { ModuleIntrospector }
+    intro = ModuleIntrospector("serve_api", FIXTURES);
+    intro._module = object();
+    builder = _SlowRealBuilder();
+    intro._bundle_builder = builder;
+
+    build_thread = threading.Thread(target=intro.ensure_bundle);
+    build_thread.start();
+    time.sleep(0.1);
+    # A reload arriving mid-build (load()/_check_module_freshness path) must not
+    # be overwritten when the in-flight build lands: it queues on the lock and
+    # then clears, so the next request rebuilds from the new module.
+    intro._invalidate_bundle();
+    build_thread.join(timeout=30);
+    assert not build_thread.is_alive() , "build thread never finished";
+
+    assert intro._bundle is None , (
+        "a bundle compiled from the pre-reload module survived the reload; "
+        "stale client code would be served until the next restart"
+    );
+    assert intro.ensure_bundle() == "hash-2" , (
+        "the request after the reload did not rebuild"
+    );
 }
 
 """/graph, /graph/data and /docs must be served by the stdlib server too -

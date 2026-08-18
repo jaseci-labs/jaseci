@@ -2,7 +2,6 @@ import io;
 import unittest.mock as mock;
 import from contextlib { redirect_stdout }
 import from pathlib { Path }
-import from typing { Any }
 import from jaclang.scale.runtime.cli.plan { print_plan }
 import from jaclang.scale.runtime.cli.diagnostics {
     Diagnostic,
@@ -26,20 +25,20 @@ obj _StubConfig {
 
 
 obj _StubTarget {
-    has _bundle: dict[str, Any] = {},
+    has _bundle: dict[str, any] = {},
         k8s_config: _StubConfig postinit;
 
     def postinit {
         self.k8s_config = _StubConfig();
     }
 
-    def generate_manifests(app_config: Any) -> dict[str, Any] {
+    def generate_manifests(app_config: any) -> dict[str, any] {
         return self._bundle;
     }
 }
 
 
-def _make_app_config -> Any {
+def _make_app_config -> any {
     import types;
     return types.SimpleNamespace(code_folder=".", file_name="main.jac");
 }
@@ -89,7 +88,7 @@ def _teardown_ms_config(project_dir: str) {
 
 
 def _run_plan(
-    bundle: dict[str, Any], show_yaml: bool = False, ms_toml: str = ""
+    bundle: dict[str, any], show_yaml: bool = False, ms_toml: str = ""
 ) -> tuple {
     target = _StubTarget(_bundle=bundle);
     buf = io.StringIO();
@@ -149,7 +148,7 @@ test "dry-run contract: print_plan must NOT call deploy / apply_manifests" {
 
 
 test "--show-yaml gate: YAML hidden by default, dumped on opt-in" {
-    bundle: dict[str, Any] = {
+    bundle: dict[str, any] = {
         "deployments": {
             "a": {
                 "apiVersion": "apps/v1",
@@ -169,7 +168,7 @@ test "--show-yaml gate: YAML hidden by default, dumped on opt-in" {
 
 
 test "--show-yaml dumps rendered autoscaler manifests alongside the rest" {
-    bundle: dict[str, Any] = {
+    bundle: dict[str, any] = {
         "deployments": {"api": _dep()},
         "autoscaler_manifests": [
             {
@@ -190,7 +189,7 @@ test "every manifest-bearing bundle key reaches --show-yaml" {
     # The summary counts these resources; the reviewed YAML must carry them
     # all. Excluded by design: pod_specs and injector (not manifests) and
     # autoscalers (configs, rendered into autoscaler_manifests).
-    bundle: dict[str, Any] = {
+    bundle: dict[str, any] = {
         "user_secret": {"metadata": {"name": "sentinel-user-secret"}},
         "pvcs": {"a": {"metadata": {"name": "sentinel-pvc"}}},
         "deployments": {"a": {"metadata": {"name": "sentinel-deployment"}}},
@@ -215,7 +214,7 @@ test "every manifest-bearing bundle key reaches --show-yaml" {
 
 
 test "render smoke: realistic bundle prints every section" {
-    bundle: dict[str, Any] = {
+    bundle: dict[str, any] = {
         "deployments": {
             "api": _dep(
                 image="api:v1", requests={"cpu": "100m"}, limits={"cpu": "500m"}

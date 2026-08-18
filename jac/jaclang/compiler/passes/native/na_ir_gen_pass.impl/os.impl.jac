@@ -1,3 +1,21 @@
+glob _OS_CONSTS: dict[str, str] = {
+         "sep": "/",
+         "extsep": ".",
+         "pardir": "..",
+         "curdir": ".",
+         "pathsep": ":",
+         "linesep": "\n",
+         "devnull": "/dev/null",
+
+     };
+
+impl NaIRGenPass._emit_os_const(name: str) -> (ir.Value | None) {
+    if name not in _OS_CONSTS {
+        return None;
+    }
+    return self._make_global_string(_OS_CONSTS[name], name_prefix=f".os.{name}");
+}
+
 impl NaIRGenPass._emit_os_environ_call(
     name: str, nd: uni.FuncCall
 ) -> (ir.Value | None) {
@@ -442,6 +460,55 @@ impl NaIRGenPass._emit_ospath_call(name: str, nd: uni.FuncCall) -> (ir.Value | N
             "==", fmt, ir.Constant(i32, want), name=f"ospath.{name}.kind"
         );
         return self.builder.and_(ok, kind, name=f"ospath.{name}");
+    }
+
+    if name == "normcase" and params {
+        p = self._str_arg(self._codegen_expr(params[0]));
+        if p is None {
+            return None;
+        }
+        return self._rc_strdup(p, name="ospath.normcase");
+    }
+
+    if name == "getmtime" and params {
+        p = self._str_arg(self._codegen_expr(params[0]));
+        if p is None {
+            return None;
+        }
+        triple = str(self.llvm_module.triple or "").lower();
+        stat_sym = "stat";
+        sec_off = 88;
+        if ("darwin" in triple) or ("apple" in triple) or ("macos" in triple) {
+            sec_off = 48;
+            if "x86_64" in triple {
+                stat_sym = "stat$INODE64";
+            }
+        }
+        buf = self.builder.alloca(ir.ArrayType(i8, 144), name="gmt.buf");
+        bufp = self.builder.gep(
+            buf, [ir.Constant(i32, 0), ir.Constant(i32, 0)], name="gmt.bufp"
+        );
+        fn = self._get_or_declare_extern(stat_sym, i32, [i8p, i8p]);
+        rc = self.builder.call(fn, [p, bufp], name="ospath.gmt.stat");
+        ok = self.builder.icmp_signed("==", rc, ir.Constant(i32, 0), name="gmt.ok");
+        f64 = ir.DoubleType();
+        sec_p8 = self.builder.gep(bufp, [ir.Constant(i64, sec_off)], name="gmt.secp8");
+        sec_p = self.builder.bitcast(sec_p8, i64.as_pointer(), name="gmt.secp");
+        sec = self.builder.load(sec_p, name="gmt.sec");
+        nsec_p8 = self.builder.gep(
+            bufp, [ir.Constant(i64, sec_off + 8)], name="gmt.nsecp8"
+        );
+        nsec_p = self.builder.bitcast(nsec_p8, i64.as_pointer(), name="gmt.nsecp");
+        nsec = self.builder.load(nsec_p, name="gmt.nsec");
+        sec_f = self.builder.sitofp(sec, f64, name="gmt.secf");
+        nsec_f = self.builder.sitofp(nsec, f64, name="gmt.nsecf");
+        scaled = self.builder.fmul(
+            nsec_f, ir.Constant(f64, 1e-9), name="gmt.nsecscaled"
+        );
+        stamp = self.builder.fadd(sec_f, scaled, name="ospath.getmtime.val");
+        return self.builder.select(
+            ok, stamp, ir.Constant(f64, -1.0), name="ospath.getmtime"
+        );
     }
 
     if name == "getsize" and params {

@@ -3,7 +3,6 @@ import logging;
 import os;
 import threading;
 import from enum { StrEnum }
-import from typing { Any }
 import from uuid { UUID }
 
 import from jaclang.runtimelib.pgwire { PgWireError }
@@ -73,7 +72,7 @@ obj AnchorRow {
 obj ChannelListener {
     has channel: str,
         ident: str,
-        callback: Any;
+        callback: any;
 }
 
 
@@ -115,19 +114,19 @@ obj Store {
 
 obj PgStore(Store) {
     has conninfo: ConnInfo,
-        ensure_cb: (Any | None) = None,
+        ensure_cb: (any | None) = None,
         promotions: dict[str, list[str]] = {},
         auto_schema: bool = False,
-        _conn: (Any | None) postinit,
-        _side_conn: (Any | None) postinit,
+        _conn: (any | None) postinit,
+        _side_conn: (any | None) postinit,
         _lock: threading.RLock postinit,
         _server_version: (int | None) postinit,
         _in_txn: bool postinit,
         _isolation: (TxnIsolation | None) postinit,
         _known_types: set[str] postinit,
         _listeners: list[ChannelListener] postinit,
-        _listen_thread: (Any | None) postinit,
-        _listen_stop: (Any | None) postinit,
+        _listen_thread: (any | None) postinit,
+        _listen_stop: (any | None) postinit,
         _booted: bool postinit,
         _ready: bool postinit,
         _readying: (int | None) postinit;
@@ -136,6 +135,7 @@ obj PgStore(Store) {
     def is_available -> bool;
     def server_version -> int;
     def ensure_schema(promotions: dict[str, list[str]]) -> None;
+    def ensure_schema_once(promotions: dict[str, list[str]]) -> None;
     def reset_data -> None;
     def takeover -> int;
     def begin(isolation: TxnIsolation = TxnIsolation.SERIALIZABLE) -> None;
@@ -156,21 +156,21 @@ obj PgStore(Store) {
     def kv_delete(key: str) -> None;
     def quarantine(missing_id: UUID, referrer_id: (UUID | None), kind: str) -> None;
     def notify(channel: str, payload: str) -> None;
-    def listen(channel: str, callback: Any) -> None;
+    def listen(channel: str, callback: any) -> None;
     def unlisten(channel: str) -> None;
     def close -> None;
     def _ensure_ready -> None;
-    def _connect -> Any;
-    def _main -> Any;
-    def _side -> Any;
+    def _connect -> any;
+    def _main -> any;
+    def _side -> any;
     def _run(sql: str, params: dict) -> list;
     def _promotion_columns -> list[tuple[str, str, str]];
     def _apply_promotions -> None;
     def _property_graph_ddl -> None;
     def _listen_loop -> None;
     def _dispatch_notification(channel: str, payload: str) -> None;
-    def _stop_listen_thread -> Any;
-    def _join_listen_thread(parked: Any) -> None;
+    def _stop_listen_thread -> any;
+    def _join_listen_thread(parked: any) -> None;
     def _schema_fingerprint -> str;
     def _schema_stamp -> (str | None);
     def _apply_schema_ddl -> None;
