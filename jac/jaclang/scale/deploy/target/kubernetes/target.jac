@@ -9,7 +9,6 @@ import from jaclang.scale._optdeps.kubernetes { client, ApiException }
 import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
     ensure_namespace_exists,
     create_k8s_secret,
-    secret_resource_version,
     delete_if_exists,
     get_cluster_provider,
     _resolve_current_rs_hashes,
@@ -941,15 +940,21 @@ obj KubernetesTarget(KubernetesTargetBase) {
         config_revision: str = "";
         user_secret = bundle.get("user_secret");
         if user_secret {
-            create_k8s_secret(
+            config_revision = create_k8s_secret(
                 core_v1,
                 namespace,
                 user_secret["metadata"]["name"],
                 user_secret["stringData"]
             );
-            config_revision = secret_resource_version(
-                core_v1, namespace, str(user_secret["metadata"]["name"])
-            );
+            if not config_revision {
+                raise RuntimeError(
+                    f"Applied the Secret for '{self.k8s_config.app_name}' but "
+                    "could not read the "
+                    "revision it returned, so a config change could not be made "
+                    "to reach running pods. Refusing to deploy workloads rather "
+                    "than reporting a success that leaves the old config live."
+                );
+            }
             if self.logger {
                 self.logger.info(
                     f"Applied Secret for user-defined [scale.secrets] "

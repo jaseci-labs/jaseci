@@ -770,26 +770,14 @@ impl load_env_variables(code_folder: str) -> list {
     return env_list;
 }
 
-impl secret_resource_version(
-    core_v1: client.CoreV1Api, namespace: str, secret_name: str
-) -> str {
-    try {
-        secret = core_v1.read_namespaced_secret(name=secret_name, namespace=namespace);
-        return str(secret.metadata.resource_version or "");
-    } except Exception {
-        return "";
-    }
-}
-
-
 impl create_k8s_secret(
     core_v1: client.CoreV1Api,
     namespace: str,
     secret_name: str,
     secret_data: dict[str, str]
-) -> bool {
+) -> str {
     if not secret_data {
-        return False;
+        return "";
     }
     secret_body = {
         'apiVersion': 'v1',
@@ -802,18 +790,21 @@ impl create_k8s_secret(
         'type': 'Opaque',
         'stringData': secret_data
     };
+    applied: any = None;
     try {
-        core_v1.create_namespaced_secret(namespace=namespace, body=secret_body);
+        applied = core_v1.create_namespaced_secret(
+            namespace=namespace, body=secret_body
+        );
     } except ApiException as e {
         if e.status == 409 {
-            core_v1.replace_namespaced_secret(
+            applied = core_v1.replace_namespaced_secret(
                 name=secret_name, namespace=namespace, body=secret_body
             );
         } else {
             raise;
         }
     }
-    return True;
+    return str(applied.metadata.resource_version or "") if applied else "";
 }
 
 impl delete_k8s_secret(

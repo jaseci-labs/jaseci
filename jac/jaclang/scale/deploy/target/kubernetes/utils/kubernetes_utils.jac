@@ -56,10 +56,6 @@ def create_k8s_secret(
     namespace: str,
     secret_name: str,
     secret_data: dict[str, str]
-) -> bool;
-
-def secret_resource_version(
-    core_v1: client.CoreV1Api, namespace: str, secret_name: str
 ) -> str;
 
 def delete_k8s_secret(

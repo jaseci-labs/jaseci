@@ -12,6 +12,10 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
     KubernetesConfig
 }
 import from jaclang.scale.config.app_config { AppConfig }
+import from jaclang.scale.deploy.target.kubernetes.utils.kubernetes_utils {
+    create_k8s_secret
+}
+import from types { SimpleNamespace }
 import from jaclang.scale.deploy.target.kubernetes.runtime_resolver {
     build_k8s_registry,
     K8sRuntimeServiceResolver
@@ -467,4 +471,49 @@ test "url_for derives when no override is set" {
     } finally {
         _peer_env_restore(saved);
     }
+}
+
+
+# The revision comes from the apply response rather than a follow up read. A
+# second read would need get on secrets, which a least privilege deployer may
+# not have, and a read that failed would silently produce no marker, no
+# rollout, and a successful looking deploy: exactly the bug this fixes.
+
+obj _FakeSecrets {
+    has created: list = [],
+        version: str = "77";
+
+    def create_namespaced_secret(namespace: str, body: any) -> any {
+        self.created.append(body["metadata"]["name"]);
+        return SimpleNamespace(metadata=SimpleNamespace(resource_version=self.version));
+    }
+}
+
+
+test "the config revision comes from the applied Secret itself" {
+    api = _FakeSecrets();
+
+    revision = create_k8s_secret(api, "ns", "app-secrets", {"MARKER": "v1"});
+
+    assert revision == "77" , "the apply response already carries the revision";
+    assert api.created == ["app-secrets"];
+}
+
+
+# An apply that returns no usable revision must not fall through to a deploy
+# with no marker: that is the stale config failure the fix exists to remove.
+test "an unusable revision is reported rather than silently skipped" {
+    api = _FakeSecrets(version="");
+
+    assert create_k8s_secret(api, "ns", "app-secrets", {"MARKER": "v1"}) == "";
+    assert with_config_revision(_deployment({"MARKER": "v1"}), "")
+        == _deployment({"MARKER": "v1"}) , "an empty revision stamps nothing, so the caller has to fail loudly";
+}
+
+
+test "an app with no secrets applies none and needs no revision" {
+    api = _FakeSecrets();
+
+    assert create_k8s_secret(api, "ns", "app-secrets", {}) == "";
+    assert api.created == [];
 }
