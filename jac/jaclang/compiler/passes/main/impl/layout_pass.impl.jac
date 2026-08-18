@@ -234,6 +234,22 @@ impl LayoutPass._topo_sort(arch_map: dict[str, Archetype]) -> list[str] {
 }
 
 impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
+    """Assign an archetype's header and field slots.
+
+    `needs_vtable` folds two different questions together. `parents_set` and
+    `isinstance_targets` ask "is anything dispatched through me", which is a
+    real requirement. `bool(parents)` asks "do I have a base", which is a
+    property of the declaration and says nothing about dispatch -- and this
+    pass is per-module, so a base whose only subclass lives elsewhere is
+    nobody's parent here and comes out flat while its child, merely for
+    having a base, claims a vtable slot the base lacks. Their headers then
+    disagree and `adopt_imported_bases` declines the pair.
+
+    The build-time answer is left exactly as it was, so no existing layout
+    moves. `vtable_by_dispatch` records which of the two questions answered,
+    which is what lets adoption -- where both layouts are finally in hand --
+    tell a header the class needs from one it merely inherited the habit of.
+    """;
     reg = self.registry;
     aname = arch.name.value if arch.name else "unknown";
     mro = reg.mro_order.get(aname, [aname]);
@@ -248,9 +264,11 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
             parents_set.add(p);
         }
     }
-    needs_vtable = (
-        bool(parents) or aname in parents_set or aname in self.isinstance_targets
+
+    vtable_by_dispatch = (
+        is_osp or aname in parents_set or aname in self.isinstance_targets
     );
+    needs_vtable = bool(parents) or vtable_by_dispatch;
 
     fields: list[FieldInfo] = [];
     field_index: dict[str, int] = {};
@@ -349,6 +367,7 @@ impl LayoutPass._build_layout(arch: Archetype) -> ArchetypeLayout {
         fields=fields,
         field_index=field_index,
         has_vtable=needs_vtable,
+        vtable_by_dispatch=vtable_by_dispatch,
         parent_field_start=parent_field_start,
         is_osp=is_osp,
         vtable_ptr_slot=vtable_ptr_slot,
