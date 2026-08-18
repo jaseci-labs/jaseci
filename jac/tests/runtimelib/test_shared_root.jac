@@ -185,9 +185,7 @@ test "get_shared_root re-queries resolver when cached id goes stale" {
         # persistence in the swapped context, only from the resolver retry.
         with TemporaryDirectory() as isolated {
             new_ctx = Jac.create_j_context(
-                user_root=None,
-                base_path_dir=isolated,
-                full_target_path=isolated
+                user_root=None, base_path_dir=isolated, full_target_path=isolated
             );
             Jac.set_context(new_ctx);
             try {
