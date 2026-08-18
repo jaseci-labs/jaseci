@@ -1593,3 +1593,47 @@ test "compiler_slice: band6 with parsed executes in ceval" {
     assert not is_error(out);
     assert expect_int(ns["result"]) == 42;
 }
+
+# ---------------- Band 6 slice 6: assert ----------------
+
+test "compiler_slice: band6 assert parsed matches oracle co_code" {
+    src = "x = 1\nassert x == 1\nresult = x\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 assert parsed executes in ceval" {
+    src = "x = 1\nassert x == 1\nresult = x\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1;
+}
+
+test "compiler_slice: band6 assert failure parsed matches oracle co_code" {
+    src = "x = 0\nassert x == 1, 'fail'\nresult = x\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+test "compiler_slice: band6 assert failure parsed raises AssertionError in ceval" {
+    src = "x = 0\nassert x == 1, 'fail'\nresult = x\n";
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "AssertionError";
+    assert err.exception.message == "fail";
+}

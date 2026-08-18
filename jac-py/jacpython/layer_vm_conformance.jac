@@ -605,6 +605,20 @@ test "vm: WITH_EXCEPT_START handles context manager exit" {
     assert_vm_value_matches_host(setup, body, "exec", "result");
 }
 
+# vm-opcode: OP_LOAD_COMMON_CONSTANT
+test "vm: LOAD_COMMON_CONSTANT raises AssertionError on failed assert" {
+    setup = "";
+    body = "x = 0\nassert x == 1, 'fail'\nresult = x\n";
+    host_exc = host_raises(setup, body);
+    assert host_exc is not None;
+    ns: dict[str, PyObj] = {};
+    out = jac_run_oracle(setup, body, "exec", ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "AssertionError";
+    assert err.exception.message == (host_exc[1] as str);
+}
+
 # vm-opcode: OP_IMPORT_NAME
 test "vm: IMPORT_NAME loads module" {
     assert_vm_value_matches_host("", "import os\nresult = os.name\n", "exec", "result");

@@ -87,6 +87,7 @@ import from opcode_meta {
     OP_RAISE_VARARGS,
     OP_LOAD_SPECIAL,
     OP_WITH_EXCEPT_START,
+    OP_LOAD_COMMON_CONSTANT,
     NB_ADD,
     NB_SUBTRACT,
     NB_MULTIPLY,
@@ -2935,6 +2936,29 @@ def visit_with(
     return stmt_cont(loc=wloc, terminated=True);
 }
 
+# Lower assert (test + optional message).
+def visit_assert_stmt(g: cfg_builder, a: Assert) -> stmt_cont {
+    aloc = nloc(a.lineno, a.end_lineno, a.col_offset, a.end_col_offset);
+    test_loc = expr_loc(a.test);
+    visit_test_expr(g, a.test, test_loc);
+    if codegen_busy(g) {
+        return stmt_cont(loc=aloc);
+    }
+    ok = g.new_block();
+    g.emit_jump(OP_POP_JUMP_IF_TRUE, ok.id, test_loc);
+    g.emit_op(OP_LOAD_COMMON_CONSTANT, 0, aloc);
+    if a.msg is not None {
+        visit_expr(g, a.msg);
+        if codegen_busy(g) {
+            return stmt_cont(loc=aloc);
+        }
+        g.emit_op(OP_CALL, 0, aloc);
+    }
+    g.emit_op(OP_RAISE_VARARGS, 1, aloc);
+    g.use(ok);
+    return stmt_cont(loc=aloc);
+}
+
 # Lower statements [from_idx..] in order. When tail/tail_idx are set, the suffix
 # starting at tail_idx is the enclosing construct's continuation. tail_join is an
 # optional shared join block for nested if/loop tails owned by an outer visitor.
@@ -3673,6 +3697,9 @@ def visit_stmt(
             t = [];
         }
         return visit_with(g, s as With, more_code_follows, t, tail_idx, tail_join);
+    }
+    if isinstance(s, Assert) {
+        return visit_assert_stmt(g, s as Assert);
     }
     codegen_fail(
         g,

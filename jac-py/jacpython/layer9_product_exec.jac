@@ -980,6 +980,54 @@ test "layer9: band6 with executes in ceval" {
     assert expect_int(ns["result"]) == 42;
 }
 
+# ---------------- Band 6 slice 6: assert ----------------
+
+test "layer9: band6 assert matches oracle" {
+    src = "x = 1\nassert x == 1\nresult = x\n";
+    actual = product_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert isinstance(actual, PyCode);
+    act = actual as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.exceptiontable == exp.exceptiontable;
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: band6 assert executes in ceval" {
+    src = "x = 1\nassert x == 1\nresult = x\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 1;
+}
+
+test "layer9: band6 assert failure matches oracle" {
+    src = "x = 0\nassert x == 1, 'fail'\nresult = x\n";
+    actual = product_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert isinstance(actual, PyCode);
+    act = actual as PyCode;
+    assert act.co_code == exp.co_code;
+    assert act.exceptiontable == exp.exceptiontable;
+    assert act.stacksize == exp.stacksize;
+}
+
+test "layer9: band6 assert failure raises AssertionError in ceval" {
+    src = "x = 0\nassert x == 1, 'fail'\nresult = x\n";
+    co = product_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co as PyCode, [], ns);
+    assert is_error(out);
+    err = out as PyError;
+    assert err.exception.type_name == "AssertionError";
+    assert err.exception.message == "fail";
+}
+
 # ---------------- VM execution ----------------
 
 test "layer9: side_effect chained assignment evaluates RHS once" {

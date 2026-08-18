@@ -104,6 +104,7 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "RAISE_VARARGS",
     "LOAD_SPECIAL",
     "WITH_EXCEPT_START",
+    "LOAD_COMMON_CONSTANT",
     "IMPORT_NAME",
     "IMPORT_FROM",
     # Band 4 closures: cell/free var emission.
@@ -354,6 +355,7 @@ FIXTURES: tuple[VmFixture, ...] = (
         "with CM() as x:\n"
         "    result = x\n",
     ),
+    VmFixture("LOAD_COMMON_CONSTANT", "x = 0\nassert x == 1, 'fail'\nresult = x\n"),
     VmFixture("IMPORT_NAME", "import os\nresult = os.name\n"),
     VmFixture("IMPORT_FROM", "from os import path\nresult = path.sep\n"),
 )
