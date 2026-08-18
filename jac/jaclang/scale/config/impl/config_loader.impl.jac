@@ -470,7 +470,7 @@ impl JacScaleConfig.get_scheduler_config(self: JacScaleConfig) -> dict[str, any]
     };
 }
 
-impl JacScaleConfig.get_emailer_config(self: JacScaleConfig) -> dict[str, Any] {
+impl JacScaleConfig.get_emailer_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     emailer_config = config.get('emailer', {}) or {};
     smtp_config = dict(emailer_config.get('smtp', {}) or {});
@@ -493,7 +493,7 @@ impl JacScaleConfig.get_emailer_config(self: JacScaleConfig) -> dict[str, Any] {
     };
 }
 
-impl JacScaleConfig.get_auth_config(self: JacScaleConfig) -> dict[str, Any] {
+impl JacScaleConfig.get_auth_config(self: JacScaleConfig) -> dict[str, any] {
     config = self.load();
     auth_config = config.get('auth', {}) or {};
     return {
@@ -613,6 +613,11 @@ impl normalize_microservices_config(
             'dist_dir': client_config.get('dist_dir', '.jac/client/dist'),
             'base_route': client_config.get('base_route', '/'),
             'static_mounts': list(client_config.get('static_mounts', []) or [])
+        },
+        'identity': {
+            'gateway_owned': bool(
+                dict(ms_config.get('identity', {})).get('gateway_owned', True)
+            )
         },
         'ingress': dict(ms_config.get('ingress', {})),
         'shared_volumes': list(ms_config.get('shared_volumes', [])),

@@ -40,14 +40,19 @@ layout dependency on a module the unit was not allowed to contain. With the
 keystone linkable the unit grows by the type system's lower half plus the
 pure-leaf modules those two drag in.
 
-Thirty-two seams, and most of them are one of three causes rather than
-thirty-two separate ones: an enum member read off the class has no instance
-layout (`ParameterCategory.Positional`); an imported archetype's layout is not
-reachable for `isinstance` even when its module is in the unit; and a
-function-local `import jaclang.jac0core.unitree`
+Thirty seams, and most of them are one of two causes rather than thirty
+separate ones: an imported archetype's layout is not reachable for
+`isinstance` even when its module is in the unit; and a function-local
+`import jaclang.jac0core.unitree`
 in `helpers.jac` -- the one thing keeping `helpers` out of a module-level
 cycle -- is a Python module import the native lane refuses. The rest are
 cascades on those, each naming its callee.
+
+A third cause used to head that list and is gone. `create_callable_type`
+reads `ParameterCategory.Positional`, an `IntEnum` member off the class, and
+the members are spelled `auto()` -- a value no constant fold reached, so the
+layout had no table to read. Generated enum values resolve beside the
+layout now, so the read lowers and the waiver went with it.
 
 Growing the closure was a net subtraction of four waivers.
 `Ability.event_trigger_type_names` was waived for calling `TypeBase.mangle`
@@ -90,18 +95,33 @@ by unitree's `TypeBase`-typed fields once the keystone became linkable.
 `helpers.jac` arrives with them, and the remaining five are pure leaves those
 two reach: `pathlib`, `fnmatch`, `hashlib`, `_hashlib_native` and
 `type_registry` all lower whole and contribute no waiver.
+
+The pass base chain -- `transform`, `module_codegen_pass`, `uni_pass`, and
+`diagnostics`/`diagnostic_utils`/`logging` behind them -- joined when
+`transform.jac` stopped asking `codeinfo.jac` for `CodeLocInfo`, a symbol
+`srcloc.jac` declares. `codeinfo` fails the native placement pre-scan on its
+own `import from typing { Any }`, and the pre-scan is all-or-nothing over
+the transitive set, so that one re-export import had been keeping the whole
+chain out of every root's walk. `codeinfo` itself stays absent, for the
+reasons above.
 """
 glob UNITREE_CLOSURE: tuple = (
          "_hashlib_native.jac",
          "constant.jac",
+         "diagnostic_utils.jac",
+         "diagnostics.jac",
          "fnmatch.jac",
          "hashlib.jac",
          "helpers.jac",
+         "logging.jac",
+         "module_codegen_pass.jac",
          "pathlib.jac",
          "srcloc.jac",
+         "transform.jac",
          "type_registry.jac",
          "type_utils.jac",
          "types.jac",
+         "uni_pass.jac",
          "unitree.jac"
      ),
      # Seams that stay, each naming what has to land before it goes. Keyed
@@ -173,12 +193,6 @@ glob UNITREE_CLOSURE: tuple = (
              "dependency's demotion set before it emits, so the caller "
              "demotes here instead of linking against the name the demotion "
              "renamed away. Clears with its callee."
-         ),
-         "types.jac::create_callable_type": (
-             "Backend gap -- class-level slot: reads "
-             "`ParameterCategory.Positional`, an `IntEnum` member read off the "
-             "class rather than through an instance, which is not what #8256's "
-             "per-class constant covers."
          ),
          "type_utils.jac::expr_primitive_name": (
              "Python-only: narrows its `prog` to `JacProgram` and reaches "
@@ -264,6 +278,30 @@ glob UNITREE_CLOSURE: tuple = (
              "Python-only: same function-local unitree import. This is the "
              "`.pyi` ingestion path -- version-guarded typeshed blocks -- "
              "which no sealed parse reaches."
+         ),
+         "transform.jac::Alert.pretty_print": (
+             "Rim work: renders source spans through "
+             "`helpers.pretty_print_source_location`, itself waived above. "
+             "Clears with it, and with diagnostics crossing as data."
+         ),
+         "transform.jac::BaseTransform.is_canceled": (
+             "Rim work: reads a `threading.Event` the driver owns. Clears "
+             "when cancellation crosses as a scalar the crossing reads."
+         ),
+         "transform.jac::Transform.ice": (
+             "Rim work: raises E9001 through Python diagnostics machinery. "
+             "Clears when ice construction lowers, or when the internal-"
+             "error guard moves behind the emit-as-data path."
+         ),
+         "uni_pass.jac::UniPass.get_all_sub_nodes": (
+             "Backend gap: a `type[T]`-generic static forwarding to the "
+             "same-named `UniNode` method; a TypeVar-bound signature does "
+             "not lower. Clears when generic statics lower, or when the "
+             "forwarding shim is retired."
+         ),
+         "uni_pass.jac::UniPass.find_parent_of_type": (
+             "Backend gap: the twin of `get_all_sub_nodes` above, and it "
+             "clears the same way."
          )
      };
 

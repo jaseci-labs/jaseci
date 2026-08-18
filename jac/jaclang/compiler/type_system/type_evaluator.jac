@@ -111,8 +111,6 @@ import from jaclang.jac0core.constant {
     SymbolAccess,
     OwnershipKind,
 }
-import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
-import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
 import from jaclang.compiler.type_system.types {
     AnyType,
     ClassDetailsPrivate,
@@ -137,6 +135,7 @@ import from jaclang.compiler.type_system.types {
     create_callable_type
 }
 import from jaclang.jac0core.helpers { read_file_with_encoding }
+import from jaclang.jac0core.passes.transform { Transform }
 import type from jaclang.jac0core.program { JacProgram }
 
 import from jaclang.compiler.type_system.operations {
@@ -167,7 +166,6 @@ import from jaclang.compiler.type_system.properties {
     is_cached_property_decorator_type,
     is_property_decorator_type
 }
-import from jaclang.compiler.symbol_utils { int_subscript_suffix }
 import from jaclang.compiler.type_system.enum_utils {
     build_enum_members,
     get_special_enum_value_type_from_bases
@@ -316,7 +314,7 @@ obj ConditionInfo {
 glob _stub_module_memo: dict[str, tuple[float, Module]] = {};
 
 obj TypeEvaluator {
-    has program: "JacProgram",
+    has program: JacProgram,
         _BUILTINS_STUB_FILE_PATH: str postinit,
         _TYPING_STUB_FILE_PATH: str postinit,
         _TYPES_STUB_FILE_PATH: str postinit,
@@ -330,9 +328,10 @@ obj TypeEvaluator {
         _ENUM_STUB_FILE_PATH: str postinit,
         symbol_resolution_stack: list[Symbol] = [],
         prefetch: PrefetchedTypes postinit,
-        _pass: object | None = None,
+        _pass: Transform | None = None,
         builtins_module: Module | None = None,
-        _flow_node_type_cache: dict[tuple, TypeBase | None] = {},
+        _flow_node_type_cache: dict[tuple[int, int], TypeBase | None] = {},
+        _flow_key_type_cache: dict[tuple[int, str], TypeBase | None] = {},
         _flow_pending_symbols: set[int] postinit,
         _flow_pending_keys: set[str] postinit,
         _module_type_cache: dict[str, ModuleType] = {},
@@ -720,6 +719,7 @@ obj TypeEvaluator {
     def _get_type_from_match_pattern(pattern: MatchPattern) -> TypeBase | None;
     def _union_contains_none(union_type: TypeBase) -> bool;
     def _extract_isinstance_info(condition: Expr) -> tuple[str, TypeBase] | None;
+    def _isinstance_tuple_alternatives(arg_type: TypeBase) -> list[TypeBase] | None;
     def _extract_type_guard_info(condition: Expr) -> tuple[str, TypeBase, bool] | None;
     def _create_type_guard_type(name: str, guarded: TypeBase | None) -> TypeBase;
     def _type_guard_form_of(ty: TypeBase) -> str | None;

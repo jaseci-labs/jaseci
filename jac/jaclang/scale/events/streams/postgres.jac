@@ -5,7 +5,7 @@ import os;
 import time;
 import uuid;
 import from threading { Thread, Event as _ThreadStop }
-import from typing { Any, Callable, cast }
+import from typing { Callable, cast }
 import from jaclang.runtimelib.store { TxnIsolation }
 import from jaclang.scale.events.broker {
     EventStreamBroker,
@@ -49,7 +49,7 @@ glob _logger = logging.getLogger(__name__),
 
 obj PgEventStream(EventStreamBroker) {
     has config: dict[str, any] = {},
-        _store: Any = None,
+        _store: any = None,
         _consumer_name: str = "",
         _default_group: str = "jac-scale",
         _default_retry: RetryPolicy = RetryPolicy(),
@@ -63,7 +63,7 @@ obj PgEventStream(EventStreamBroker) {
         );
     }
 
-    def _ensure_store -> Any {
+    def _ensure_store -> any {
         if self._store is None {
             import from jaclang.runtimelib.session { conninfo_from_url }
             import from jaclang.runtimelib.store { PgStore }
@@ -232,7 +232,7 @@ obj PgEventStream(EventStreamBroker) {
     def _handle_with_retry(
         topic: str, group: str, event: Event, handler: Callable, retry: RetryPolicy
     ) {
-        h: Any = handler;
+        h: any = handler;
         for attempt in range(retry.max_attempts) {
             try {
                 h(event);

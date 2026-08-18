@@ -63,7 +63,7 @@ impl EsastGenPass._literal_value(expr: (uni.UniNode | None)) -> (object | None) 
         }
     }
     if isinstance(expr, uni.DictVal) {
-        items: dict[(str, Any)] = {};
+        items: dict[(str, any)] = {};
         for pair in expr.kv_pairs {
             if (isinstance(pair, uni.KVPair) and pair.key) {
                 key_val = self._literal_value(pair.key);
@@ -1272,7 +1272,7 @@ impl EsastGenPass._extract_return_type(
 impl EsastGenPass._wrap_return_with_boundary(
     call_expr: es.Expression,
     ret_type: str,
-    boundary_types: dict[(str, Any)],
+    boundary_types: dict[(str, any)],
     jac_node: uni.UniNode,
     pre_awaited: bool
 ) -> es.Expression {
@@ -1396,7 +1396,7 @@ impl EsastGenPass._wrap_return_with_boundary(
 impl EsastGenPass._wrap_to_wire_if_boundary(
     expr: es.Expression,
     type_name: str,
-    boundary_types: dict[(str, Any)],
+    boundary_types: dict[(str, any)],
     jac_node: uni.UniNode
 ) -> es.Expression {
     if (type_name in boundary_types and boundary_types[type_name].kind != "enum") {
@@ -7938,11 +7938,11 @@ impl EsastGenPass.before_pass -> None {
         client_capability_violations
     }
     import from jaclang.jac0core.diagnostics { E5096 }
-    if not self.ir_in.gen.client_viols_reported {
+    if not self.ir_in.client_viols_reported {
         for (_vnode, _vkind) in client_capability_violations(self.ir_in) {
             self.emit(E5096, node_override=_vnode, kind=_vkind);
         }
-        self.ir_in.gen.client_viols_reported = True;
+        self.ir_in.client_viols_reported = True;
     }
     self.child_passes = self._init_child_passes(EsastGenPass);
     self.client_manifest = ClientManifest();
