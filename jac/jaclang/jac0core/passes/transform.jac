@@ -1,5 +1,5 @@
 import time;
-import from jaclang.jac0core.codeinfo { CodeLocInfo }
+import from jaclang.jac0core.srcloc { CodeLocInfo }
 import from jaclang.jac0core.diagnostics {
     DiagnosticInfo,
     E9001,
