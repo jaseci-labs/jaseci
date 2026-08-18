@@ -111,17 +111,17 @@ def _membership_diagnosis(output: str, base: any, excluded: any) -> str {
 
 
 def _vite_env_keys(base: any) -> dict[str, list[str]] {
+    import from pathlib { Path }
     found: dict[str, list[str]] = {};
     for name in _VITE_BUILD_ENV_FILES {
-        env_file = base / name;
+        env_file: Path = Path(base, name);
         if not env_file.is_file() {
             continue;
         }
         keys: list[str] = [];
-        for raw in env_file.read_text(
-            encoding="utf-8", errors="replace"
-        ).splitlines() {
-            line = raw.strip();
+        text: str = env_file.read_text(encoding="utf-8", errors="replace");
+        for raw in text.splitlines() {
+            line: str = raw.strip();
             if line.startswith("export ") {
                 line = line[len("export "):].lstrip();
             }
