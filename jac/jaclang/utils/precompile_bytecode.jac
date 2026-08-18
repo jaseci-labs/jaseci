@@ -448,7 +448,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      _MODULE_CODEGEN_ROOT_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/transform.jac::BaseTransform.is_canceled",
          "jac0core/passes/transform.jac::Transform.ice",
-         "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
          "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
          "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
 
