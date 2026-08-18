@@ -694,6 +694,20 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " layout reaches the comparison.",
          blocks_codegen=True
      ),
+     E1125 = _err(
+         "E1125",
+         Category.IMPORT,
+         "'{name}' is ambient and cannot be imported from '{module}'",
+         help="Jac provides '{name}' in every module's scope and generated"
+         " code re-imports it automatically, so the explicit import is a"
+         " second spelling of the same binding -- and when the source is"
+         " 'typing', the import alone keeps the module off the native"
+         " pathway. Drop '{name}' from the import list (remove the import"
+         " when it was the only name) and keep writing '{name}' as before."
+         " Binding a different local name on purpose stays legal: alias it"
+         " ('{name} as LocalName').",
+         blocks_codegen=True
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,
