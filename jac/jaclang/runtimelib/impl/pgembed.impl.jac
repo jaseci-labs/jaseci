@@ -657,7 +657,7 @@ impl PgRuntime._wait_ready(timeout: float = 60.0) -> None {
     last: (Exception | None) = None;
     while time.monotonic() < deadline {
         try {
-            conn: Any = connect(
+            conn: any = connect(
                 info.user,
                 host=info.host,
                 port=info.port,
@@ -681,7 +681,7 @@ impl PgRuntime._ensure_database -> None {
         record_database,
         start_heartbeat
     }
-    conn: Any = connect_admin(self.conninfo());
+    conn: any = connect_admin(self.conninfo());
     try {
         rows = conn.run(
             "SELECT 1 FROM pg_database WHERE datname = :n", n=self.database
@@ -703,7 +703,7 @@ impl PgRuntime._ensure_database -> None {
 }
 
 
-impl PgRuntime._reap_scratch(conn: Any) -> int {
+impl PgRuntime._reap_scratch(conn: any) -> int {
     import from jaclang.runtimelib.dbcatalog {
         condemn_stale_scratch,
         dead_scratch_databases,
@@ -744,7 +744,7 @@ impl PgRuntime.drop_database(database: str, force: bool = False) -> bool {
         connect_admin,
         drop_database as catalog_drop
     }
-    conn: Any = connect_admin(self.conninfo());
+    conn: any = connect_admin(self.conninfo());
     try {
         return catalog_drop(conn, database, force=force);
     } finally {
@@ -755,7 +755,7 @@ impl PgRuntime.drop_database(database: str, force: bool = False) -> bool {
 
 impl PgRuntime.databases -> list {
     import from jaclang.runtimelib.dbcatalog { connect_admin, list_databases }
-    conn: Any = connect_admin(self.conninfo());
+    conn: any = connect_admin(self.conninfo());
     try {
         return list_databases(conn);
     } finally {
@@ -771,7 +771,7 @@ impl PgRuntime._sweep_on_start -> None {
         expired_databases
     }
     try {
-        conn: Any = connect_admin(self.conninfo());
+        conn: any = connect_admin(self.conninfo());
     } except Exception as e {
         logger.debug(f"cluster sweep skipped, no admin connection: {e}");
         return;
@@ -821,7 +821,7 @@ impl PgRuntime.serve -> int {
     proc = subprocess.Popen(argv, **self._as_user());
     self._proc = proc;
 
-    def _forward(signum: int, frame: Any) {
+    def _forward(signum: int, frame: any) {
         proc.send_signal(int(signal.SIGINT));
     }
     signal.signal(int(signal.SIGTERM), _forward);

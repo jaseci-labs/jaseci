@@ -1,4 +1,3 @@
-import from typing { Any }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder { GATEWAY_NAME }
 import from jaclang.scale.runtime.cli._narrow {
     bget,
@@ -18,7 +17,7 @@ obj Diagnostic {
 }
 
 
-def _cpu_to_millicores(val: Any) -> int | None {
+def _cpu_to_millicores(val: any) -> int | None {
     if val is None {
         return None;
     }
@@ -37,7 +36,7 @@ def _cpu_to_millicores(val: Any) -> int | None {
 }
 
 
-def _mem_to_bytes(val: Any) -> int | None {
+def _mem_to_bytes(val: any) -> int | None {
     if val is None {
         return None;
     }
@@ -73,9 +72,9 @@ def _mem_to_bytes(val: Any) -> int | None {
 
 
 obj PlanValidator {
-    has bundle: Any,
-        ms_cfg: Any,
-        svc_configs: Any;
+    has bundle: any,
+        ms_cfg: any,
+        svc_configs: any;
 
     def run -> list[Diagnostic] {
         out: list[Diagnostic] = [];
@@ -171,7 +170,7 @@ obj PlanValidator {
     }
 
     def _check_hpa(
-        svc_name: str, svc_cfg: Any, deployment: Any, out: list[Diagnostic]
+        svc_name: str, svc_cfg: any, deployment: any, out: list[Diagnostic]
     ) {
         hpa = dget(svc_cfg, "hpa");
         if not bget(hpa, "enabled", True) {
@@ -246,7 +245,7 @@ obj PlanValidator {
     }
 
     def _check_pdb(
-        svc_name: str, svc_cfg: Any, deployment: Any, out: list[Diagnostic]
+        svc_name: str, svc_cfg: any, deployment: any, out: list[Diagnostic]
     ) {
         pdb_cfg = dget(svc_cfg, "pdb");
         if not bget(pdb_cfg, "enabled", True) {
@@ -270,7 +269,7 @@ obj PlanValidator {
         }
     }
 
-    def _check_resources(svc_name: str, deployment: Any, out: list[Diagnostic]) {
+    def _check_resources(svc_name: str, deployment: any, out: list[Diagnostic]) {
         (cpu_req, cpu_lim, mem_req, mem_lim) = effective_resources(deployment);
         cpu_req_m = _cpu_to_millicores(cpu_req);
         cpu_lim_m = _cpu_to_millicores(cpu_lim);
@@ -356,7 +355,7 @@ obj PlanValidator {
         }
     }
 
-    def _check_image(svc_name: str, deployment: Any, out: list[Diagnostic]) {
+    def _check_image(svc_name: str, deployment: any, out: list[Diagnostic]) {
         for c in lget(pod_spec(deployment), "containers") {
             if isinstance(c, dict) and c.get("image") {
                 return;

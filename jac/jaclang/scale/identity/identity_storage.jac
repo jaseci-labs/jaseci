@@ -6,7 +6,6 @@ import from jaclang.runtimelib.serving.authcrypt {
 }
 import uuid;
 import from datetime { datetime, UTC }
-import from typing { Any }
 import from jaclang.jac0core.constant { Constants as Con }
 import from jaclang.scale.config.config_loader { get_scale_config }
 
@@ -61,7 +60,7 @@ obj IdentityStorage {
 }
 
 obj PgIdentityStorage(IdentityStorage) {
-    has store: Any;
+    has store: any;
 
     def postinit -> None;
     def _store_user(user_doc: dict[str, any]) -> None;

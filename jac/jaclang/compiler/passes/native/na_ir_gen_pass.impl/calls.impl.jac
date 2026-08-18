@@ -371,6 +371,10 @@ impl NaIRGenPass._codegen_bound_args(
     } else {
         _fixed = list(callee_sig.posonly_params or []) + list(callee_sig.params or []);
         _n_posonly = len(callee_sig.posonly_params or []);
+        if _self_skip and _fixed {
+            _fixed = _fixed[1:];
+            _n_posonly = _n_posonly - 1 if _n_posonly > 0 else 0;
+        }
         _bind_records: list = [];
         for (pix, sp) in enumerate(_fixed) {
             slot = self_offset + pix;
@@ -1205,11 +1209,22 @@ impl NaIRGenPass._emit_intrinsic_bits_float(
 
 impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     import from jaclang.compiler.intrinsic_registry { INTRINSIC_REGISTRY }
-    import from jaclang.compiler.symbol_utils { comptime_identity_call_arg }
+    import from jaclang.compiler.symbol_utils {
+        erased_field_marker_default,
+        erased_identity_call_arg,
+        is_erased_field_marker
+    }
 
-    _identity_arg = comptime_identity_call_arg(nd);
+    _identity_arg = erased_identity_call_arg(nd);
     if _identity_arg is not None {
         return self._codegen_expr(_identity_arg);
+    }
+
+    if is_erased_field_marker(nd) {
+        _marker_default = erased_field_marker_default(nd);
+        return (
+            self._codegen_expr(_marker_default) if _marker_default is not None else None
+        );
     }
 
     _call_kind = nd.call_kind;
@@ -1235,6 +1250,13 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
     _intrinsic_entry = INTRINSIC_REGISTRY.get(func_name);
     if _intrinsic_entry is not None {
         return self._codegen_intrinsic(nd, _intrinsic_entry);
+    }
+
+    if _call_kind != "method" and func_name not in self.local_vars {
+        _ec_name = self._enum_ctor_target(nd);
+        if _ec_name is not None {
+            return self._codegen_enum_ctor(nd, _ec_name);
+        }
     }
 
     import from jaclang.compiler.type_system { types as jtypes }
@@ -1290,7 +1312,7 @@ impl NaIRGenPass._codegen_call(nd: uni.FuncCall) -> (ir.Value | None) {
         }
 
         if func_name == "Region" {
-            import from jaclang.compiler.symbol_utils { is_builtin_region_name }
+            import from jaclang.compiler.expr_keys { is_builtin_region_name }
             if is_builtin_region_name(nd.target) {
                 self._emit_arena_helpers();
                 return self.builder.call(self.region_new_fn, [], name="region.new");

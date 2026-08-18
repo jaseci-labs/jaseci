@@ -1079,7 +1079,9 @@ impl NaIRGenPass._emit_unlowerable_type(type_expr: uni.UniNode, tb: any) -> ir.T
         _tag = type_expr?.type_tag;
         _label = self._get_name(_tag?.tag) or str(tb);
     }
-    self.emit(E5092, node_override=type_expr, kind="type", name=_label);
+    self.emit(
+        E5092, node_override=type_expr, kind=self._sig_decl_kind or "type", name=_label
+    );
 
     import logging as _logging;
     _logging.getLogger("jaclang.native").debug(

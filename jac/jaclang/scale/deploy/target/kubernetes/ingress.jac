@@ -18,10 +18,10 @@ obj IngressDeployer {
         app_name: str,
         namespace: str,
         provider: ClusterProvider,
-        apps_v1: Any,
-        core_v1: Any,
-        rbac_v1: Any,
-        networking_v1: Any
+        apps_v1: any,
+        core_v1: any,
+        rbac_v1: any,
+        networking_v1: any
     ) {
         controller_name = f"{app_name}-ingress-nginx";
         cluster_resource_name = f"{namespace}-{app_name}-ingress-nginx";
@@ -521,10 +521,10 @@ obj IngressDeployer {
         app_name: str,
         namespace: str,
         provider: ClusterProvider,
-        apps_v1: Any,
-        core_v1: Any,
-        rbac_v1: Any,
-        networking_v1: Any
+        apps_v1: any,
+        core_v1: any,
+        rbac_v1: any,
+        networking_v1: any
     ) {
         if not self.k8s_config.shared_ingress {
             self._deploy_nginx_controller(

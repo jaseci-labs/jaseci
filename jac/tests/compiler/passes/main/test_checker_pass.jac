@@ -4166,11 +4166,18 @@ test "root_cause_9_any_in_union" {
         for e in program.errors_had
         if e.loc and 396 <= e.loc.first_line <= 415
     ];
-    # 2 errors. The Any-in-union attr-access bug is fixed (#7158): `Any` now
-    # absorbs, so no E1099 "missing from Any" is emitted here. The 2 remaining
-    # errors are E1002/E1053 cascades from the fixture's undefined EdgeAnchor /
-    # GenericEdge symbols (Unknown members), not the union-with-Any handling.
-    assert len(rc9_errors) == 2 , f"Expected 2 any-in-union errors, got {len(
+    # 1 error. The any-in-union attr-access bug is fixed (#7158): `any`
+    # absorbs, so no E1099 "missing from any" is emitted here.
+    #
+    # This was 2 while the fixture spelled the union member `Any` without
+    # importing it: an unbound name made the whole union Unknown, so
+    # `edge.__jac__` errored for a reason that had nothing to do with union
+    # handling. Spelling it `any` lets the absorb actually run, and that
+    # error is gone. What remains is one E1053 in fail_any_in_union_method:
+    # `(any | str).upper()` yields Unknown rather than `str | any`, so it
+    # cannot pass as Sized -- a real remaining gap, which is what this
+    # fixture exists to pin.
+    assert len(rc9_errors) == 1 , f"Expected 1 any-in-union error, got {len(
         rc9_errors
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in rc9_errors);
@@ -4265,21 +4272,24 @@ test "root_causes_total_error_count" {
     );
     run_pass(TypeCheckPass, mod, program);
 
-    # 25 errors located in the fixture itself (the count is scoped to the
+    # 24 errors located in the fixture itself (the count is scoped to the
     # fixture file: stub-evaluation diagnostics such as typeshed E0075 are
     # attributed to whichever program first evaluates the stub classes, so
-    # an unscoped count is process-order-dependent). Down from 29: dotted
-    # stdlib submodules (`importlib.util`) resolve through ModuleType
-    # attribute access, removing the `.util`-on-Unknown errors from the
-    # Root Cause 6 corpus. Before that, 29 was down from 35: partial union
-    # member access returning resolved types instead of Unknown eliminated
-    # 6 cascading errors.
+    # an unscoped count is process-order-dependent). Down from 25: Root
+    # Cause 9's union member is spelled `any` now instead of an `Any` the
+    # fixture never imported, so the union absorbs instead of collapsing to
+    # Unknown and one error there is gone (see root_cause_9_any_in_union).
+    # 25 was down from 29: dotted stdlib submodules (`importlib.util`)
+    # resolve through ModuleType attribute access, removing the
+    # `.util`-on-Unknown errors from the Root Cause 6 corpus. Before that,
+    # 29 was down from 35: partial union member access returning resolved
+    # types instead of Unknown eliminated 6 cascading errors.
     _fixture_errors = [
         e
         for e in program.errors_had
         if e.loc and str(e.loc.mod_path).endswith("checker_narrowing_root_causes.jac")
     ];
-    assert len(_fixture_errors) == 25 , f"Expected 25 fixture errors, got {len(
+    assert len(_fixture_errors) == 24 , f"Expected 24 fixture errors, got {len(
         _fixture_errors
     )}:\n"
         + "\n---\n".join(e.pretty_print() for e in _fixture_errors);

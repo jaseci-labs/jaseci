@@ -81,7 +81,7 @@ def inferred_brand_errors -> list[str] {
 
 
 """Stand in for an inference schedule that cannot be built at this instant."""
-def unbuilt_sched -> list[type[Transform[uni.Module, uni.Module]]] {
+def unbuilt_sched -> list[type[Transform]] {
     return [];
 }
 

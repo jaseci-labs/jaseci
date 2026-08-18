@@ -139,10 +139,12 @@ test "releasing the native owner drops its Python shadow" {
 }
 
 test "a subscripted generic Python-side base still bridges" {
-    # Every compiler pass inherits through a subscripted generic
-    # (`Transform[Module, Module]`), so the base reference is an AtomTrailer
-    # carrying an IndexSlice rather than a bare Name. The bridge must unwrap
-    # it; before it did, inherited stores and calls demoted silently.
+    # A subscripted base reference is an AtomTrailer carrying an IndexSlice
+    # rather than a bare Name, and the bridge must unwrap it; before it did,
+    # inherited stores and calls demoted silently. The shape was found on the
+    # compiler's own pass chain, which spelled `Transform[Module, Module]`
+    # until the chain went monomorphic; user code still writes it, which is
+    # why the fixture keeps measuring it.
     (eng, ir) = compile_native("pyb_gen_base_main.jac");
     layout = ir.gen.native_layout;
     assert layout is not None , "no native layout was exported";

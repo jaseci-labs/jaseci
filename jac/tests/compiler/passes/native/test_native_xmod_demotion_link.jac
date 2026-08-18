@@ -27,7 +27,10 @@ capability class: the partition sees the body-scoped Python import
 statically. `xmod_demote_dyn_lib.jac` is the S5 class: an enum invoked as
 a constructor, which only the backend's emitter refuses, so no AST-level
 check can know the callee will demote -- the verdict exists only after the
-dependency's own codegen has run.
+dependency's own codegen has run. Since #8266 the int-valued spelling of
+that call lowers, so the fixture carries the string-valued one, whose
+runtime form is the ordinal rather than the value; the refusal is the same
+emit-time-only class either way.
 """
 
 import ctypes;

@@ -17,7 +17,8 @@ import from jaclang.jac0core.unitree {
     UniNode,
     UniScopeNode,
     bind_assignment_targets,
-    find_python_scope_node_of
+    find_python_scope_node_of,
+    is_identifier_slot
 }
 import from jaclang.jac0core.passes.transform { Transform }
 import from jaclang.jac0core.diagnostics {
@@ -31,7 +32,7 @@ import from jaclang.jac0core.diagnostics {
     W2080
 }
 
-class DeclImplMatchPass(Transform[Module, Module]) {
+class DeclImplMatchPass(Transform) {
     has _e2026_reported: set[int];
 
     def transform(self: DeclImplMatchPass, ir_in: Module) -> Module;

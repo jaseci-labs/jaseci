@@ -6,6 +6,7 @@ import from jaclang.jac0core.diagnostics {
     E2018,
     E5026,
     E5060,
+    E5088,
     E5090,
     E5091,
     E5092,
@@ -154,6 +155,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         struct_field_types: dict[str, dict] = {},
         struct_field_defaults: dict[str, object] = {},
         struct_field_foreign: dict[str, set] = {},
+        struct_field_opaque: dict[str, dict] = {},
         struct_field_erased_tv: dict[str, dict] = {},
         arch_type_params: dict[str, list] = {},
         struct_field_inline: dict[str, set] = {},
@@ -178,6 +180,7 @@ obj NaIRGenPass(ModuleCodegenPass) {
         _native_skipped_methods: set[str] = set(),
         _capability_demotions: dict[int, list] = {},
         _claimed_capability_demotions: set[int] = set(),
+        _sig_decl_kind: (str | None) = None,
         _class_name_consts: dict[str, ir.Value] = {},
         _isa_fn: (ir.Function | None) = None,
         _isa_seq_fn: (ir.Function | None) = None,
@@ -644,6 +647,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
     ) -> dict;
 
     def _default_arg_fallback(t: ir.Type) -> ir.Value;
+    def _empty_container_for_field(
+        ftype: (ir.Type | None), label: str
+    ) -> (ir.Value | None);
+
     def _get_name(nd: (uni.UniNode | None)) -> (str | None);
     def _to_bool(val: ir.Value) -> ir.Value;
     def _jacval_truthy(jv: ir.Value) -> ir.Value;
@@ -717,6 +724,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _codegen_enum(nd: (uni.Enum | uni.Archetype)) -> None;
     def _codegen_enum_layout(enum_name: str, owner: (uni.Module | None)) -> None;
+    def _enum_ctor_layout(enum_name: str) -> (any | None);
+    def _enum_ctor_target(nd: uni.FuncCall) -> (str | None);
+    def _emit_enum_ctor_refusal(nd: uni.FuncCall, enum_name: str, why: str) -> None;
+    def _codegen_enum_ctor(nd: uni.FuncCall, enum_name: str) -> (ir.Value | None);
     def _build_enum_string_table(
         enum_name: str, entries: list, with_values: bool = True
     ) -> None;
@@ -866,12 +877,29 @@ obj NaIRGenPass(ModuleCodegenPass) {
     def _osp_isa_bases(arch_name: str) -> list[int];
     def _codegen_archetype(nd: uni.Archetype) -> None;
     def _register_static_fields(arch_name: str, archhas: uni.ArchHas) -> None;
+    def _register_class_consts(
+        nd: uni.Archetype, arch_name: str, block: uni.ModuleCode
+    ) -> None;
+
+    def _register_one_class_const(
+        arch_name: str,
+        fname: str,
+        target: uni.UniNode,
+        assign: uni.Assignment,
+        owns: bool
+    ) -> None;
+
+    def _class_const_enum_init(
+        value: uni.UniNode, ftype: ir.Type
+    ) -> (ir.Constant | None);
+
     def _forward_declare_method(
         arch_name: str, method: uni.Ability, field: (uni.HasVar | None) = None
     ) -> None;
 
     def _visit_nonprimary_ancestor_methods(arch: uni.Archetype, declare: bool) -> None;
     def _pyb_base_of(arch_name: str) -> (tuple | None);
+    def _pyb_shadow_postinit_owner(arch_name: str) -> (str | None);
     def _pyb_helper(name: str) -> ir.Function;
     def _pyb_emit_conv1(
         name: str,
@@ -931,6 +959,17 @@ obj NaIRGenPass(ModuleCodegenPass) {
         obj_val: ir.Value, type_name: str, field_name: str, ftype: ir.Type
     ) -> (ir.Value | None);
 
+    def _narrow_receiver_ptr(obj_val: ir.Value, type_name: str) -> (ir.Value | None);
+    def _class_const_global(
+        arch_name: str, field_name: str
+    ) -> (ir.GlobalVariable | None);
+
+    def _class_const_variants(arch_name: str, field_name: str) -> tuple;
+    def _codegen_class_const_read(
+        obj_val: ir.Value, type_name: str, field_name: str
+    ) -> (ir.Value | None);
+
+    def _class_const_declarer(arch_name: str, field_name: str) -> (str | None);
     def _emit_class_routed_call(
         nd: uni.FuncCall,
         _sfull: str,
@@ -945,6 +984,15 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _demote_method_if_unlowerable(
         full_name: str, func: ir.Function, local_mark: int, keep_func: bool = False
+    ) -> bool;
+
+    def _seam_warnings_on -> bool;
+    def _opaque_field_if_unlowerable(
+        arch_name: str, fname: str, local_mark: int
+    ) -> (ir.Type | None);
+
+    def _refuse_opaque_field(
+        nd: (uni.UniNode | None), type_name: (str | None), fname: str
     ) -> bool;
 
     def _predemote_capability_unit(
@@ -1042,7 +1090,10 @@ obj NaIRGenPass(ModuleCodegenPass) {
 
     def _repr_call_elem_fn(elem_fn: ir.Function, elem: ir.Value) -> ir.Value;
     def _codegen_field_access(
-        obj_val: ir.Value, field_name: str, type_name: str
+        obj_val: ir.Value,
+        field_name: str,
+        type_name: str,
+        nd: (uni.UniNode | None) = None
     ) -> (ir.Value | None);
 
     def _codegen_field_aug_assign(

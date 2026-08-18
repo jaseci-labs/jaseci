@@ -7,7 +7,6 @@ import sys;
 import warnings;
 import unittest.mock;
 
-import pytest;
 import yaml;
 import from fixtures { python_lib_mode }
 
@@ -324,7 +323,11 @@ test "with llm type" {
 }
 
 test "with llm image" {
-    pytest.importorskip("PIL", reason="This test requires Pillow to be installed");
+    try {
+        import PIL;
+    } except ImportError {
+        testskip("This test requires Pillow to be installed");
+    }
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     jac_import("with_llm_image", base_path=FIXTURE_DIR + "/");
@@ -346,7 +349,11 @@ test "webp image support" {
 }
 
 test "with llm video" {
-    pytest.importorskip("cv2", reason="This test requires OpenCV to be installed");
+    try {
+        import cv2;
+    } except ImportError {
+        testskip("This test requires OpenCV to be installed");
+    }
     captured_output = io.StringIO();
     sys.stdout = captured_output;
     jac_import("with_llm_video", base_path=FIXTURE_DIR + "/");
@@ -658,7 +665,7 @@ test "resolved api_base reaches the litellm call" {
     # therefore dropped and requests went to the provider's own endpoint
     # (api.openai.com for gpt-*) instead of the configured gateway.
     if not hasattr(_byllm_llm_mod.litellm, "completion") {
-        pytest.skip("litellm is not installed");
+        testskip("litellm is not installed");
     }
     seen: dict[str, object] = {};
 

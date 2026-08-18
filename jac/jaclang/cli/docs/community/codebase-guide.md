@@ -122,9 +122,8 @@ The compiler orchestrator in `jac0core/compiler.jac` defines several pass schedu
 2. `EsastGenPass` -- Generate JavaScript AST (for JS target)
 3. `NaIRGenPass` -- Generate LLVM IR (for native target)
 4. `NativeCompilePass` -- JIT-compile LLVM IR to machine code
-5. `PyastGenPass` -- Convert the unitree to a Python AST
-6. `PyJacAstLinkPass` -- Link the generated Python AST back to Jac source nodes
-7. `PyBytecodeGenPass` -- Compile the Python AST to bytecode
+5. `JcirGenPass` -- Lower the unitree into the compact codegen IR container
+6. `JcirBytecodeGenPass` -- Rebuild the Python AST from the container and compile it to bytecode
 
 See `jac0core/compiler.jac` for the authoritative ordering -- it uses re-entrancy guards during bootstrap that slightly alter the schedule when the compiler is compiling itself.
 
@@ -206,15 +205,18 @@ tests/
 **Running tests:**
 
 ```bash
-# All tests (parallel)
-pytest jac -n auto
+# All tests (parallel; worker count is sized from available memory)
+jac test jac/tests
 
 # Specific area
-pytest jac/tests/compiler -n auto
-pytest jac/tests/language -n auto
+jac test jac/tests/compiler
+jac test jac/tests/language
 
 # Single test file
-pytest jac/tests/compiler/passes/test_type_checker.py -v
+jac test jac/tests/compiler/test_compilation.jac -v
+
+# Pin the worker count (0 or 1 runs everything in one process)
+JAC_TEST_JOBS=8 jac test jac/tests
 ```
 
 Many language tests use **fixture files** -- small `.jac` programs in `fixtures/` directories that exercise specific features. The `fixtures_list.jac` file registers them. When you add a new language feature or fix a bug, adding a fixture test is usually the right move.

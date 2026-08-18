@@ -37,9 +37,10 @@ extern "c" fn unsetenv(name: [*:0]const u8) c_int;
 ///
 /// Pinning `sys.executable` is load-bearing: under embedding, getpath derives
 /// `sys.executable` from the program name, and anything that re-spawns it must
-/// come back through THIS binary -- worker mode below is what makes execnet /
-/// pytest-xdist / multiprocessing re-spawns land on the right interpreter
-/// instead of a foreign PATH `python3`.
+/// come back through THIS binary -- worker mode below is what makes
+/// multiprocessing re-spawns land on the right interpreter instead of a
+/// foreign PATH `python3`. (`jac test` forks rather than re-spawning, so it
+/// does not depend on this; other embedders still do.)
 /// The path is passed in via the JAC_EXECUTABLE env var (set by embed.open) to
 /// avoid embedding a runtime path into this compile-time string.
 const BOOT_SRC =
@@ -156,9 +157,9 @@ fn boot(emb: *const embed.Embed, exe_z: [*:0]const u8, init: std.process.Init) u
     }
     const argv = argv_storage[0..argc];
 
-    // Worker mode: when re-invoked as a Python interpreter (execnet/xdist and
-    // multiprocessing re-spawn `sys.executable` with flags like `-u -c ...`),
-    // behave exactly like `python` (parse_argv) instead of booting the jac CLI.
+    // Worker mode: when re-invoked as a Python interpreter (multiprocessing
+    // re-spawns `sys.executable` with flags like `-u -c ...`), behave exactly
+    // like `python` (parse_argv) instead of booting the jac CLI.
     const worker = isPythonInvocation(init);
 
     // A non-null result means the interpreter handled a print-and-exit flag
@@ -428,7 +429,7 @@ fn runNinja(init: std.process.Init, exe_path: []const u8, exe_z: [*:0]const u8, 
 /// ...). Single-dash short flags mean "act like python"; jac subcommands (`run`,
 /// `test`), long flags (`--version`), and the `-h` help alias keep the jac CLI.
 /// This dispatch is a CONTRACT: the jac CLI must never accept a single-dash short
-/// flag (other than `-h`) as its first argument, or execnet/xdist worker re-spawns
+/// flag (other than `-h`) as its first argument, or interpreter re-spawns
 /// (`jac -u -c ...`) would be misrouted. See `isPythonFirstArg` for the rule.
 fn isPythonInvocation(init: std.process.Init) bool {
     var it = init.minimal.args.iterate();
@@ -443,9 +444,9 @@ fn isPythonInvocation(init: std.process.Init) bool {
 /// A bare `-` or any single-dash short flag (`-c`, `-u`, `-m`, ...) means "act
 /// like python" (worker re-spawns). `-h` is the ONE exception: it is a jac CLI
 /// help alias handled in cli.impl.jac (alongside `--help`), and a human types it
-/// expecting jac's help, not the embedded interpreter's. No
-/// execnet/xdist/multiprocessing worker ever re-spawns with `-h` (a print-and-exit
-/// flag), so exempting it cannot misroute a worker. Without the exemption `-h`
+/// expecting jac's help, not the embedded interpreter's. No multiprocessing
+/// worker ever re-spawns with `-h` (a print-and-exit flag), so exempting it
+/// cannot misroute a worker. Without the exemption `-h`
 /// routes to parse_argv worker mode, where CPython prints its own interpreter
 /// usage and the config read requests a clean exit that the embed layer misreports
 /// as an init failure (exit 70).
