@@ -79,7 +79,7 @@ worker thread must leave `next()`, see the stop flag, and run `gen.close()`,
 which fires the generator's own `finally`. Merely freezing (blocked forever on
 the backpressure semaphore) is a thread leak, not a stop, so the assertion is
 on the close count, and progress must fall short of exhaustion."""
-def _assert_producer_stopped(client: any) -> None {
+def _assert_producer_stopped(client: any) {
     deadline = time.monotonic() + 3.0;
     while _call_int(client, "closed") < 1 and time.monotonic() < deadline {
         time.sleep(0.05);

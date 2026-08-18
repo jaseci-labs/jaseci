@@ -41,9 +41,8 @@ glob ROOT_STREAM_APP: str = (
          '        report count_gen();\n'
          '    }\n'
          '}\n'
-     );
-
-glob FAILING_STREAM_APP: str = (
+     ),
+     FAILING_STREAM_APP: str = (
          'import from typing { Generator }\n'
          'def:pub failing_stream -> Generator[dict, None, None] {\n'
          '    yield {"n": 0};\n'
