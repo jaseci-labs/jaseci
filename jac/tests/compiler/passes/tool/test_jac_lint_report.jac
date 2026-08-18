@@ -11,6 +11,7 @@ import tempfile;
 import from tests.support { JAC_ROOT }
 import from jaclang.jac0core.program { JacProgram }
 import from jaclang.jac0core.compiler { JacCompiler, get_lint_sched, run_pass }
+import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.tool.jac_auto_lint_pass {
     JacAutoLintPass,
     JacLintCheckPass
@@ -189,5 +190,38 @@ test "lint report path matches mutation pass on auto_lint fixtures" {
         if name not in SECOND_ORDER_FIXTURES {
             _assert_report_matches_full(path);
         }
+    }
+}
+
+test "exit_if_else_expr report_only does not mutate is_null_ok on trailers" {
+    src = (
+        "obj Foo { has val: int = 0; }\n"
+        "with entry {\n"
+        "    f: Foo | None = None;\n"
+        "    x = f?.val if f is not None else f.val;\n"
+        "}\n"
+    );
+    path = _write_tmp(src);
+    try {
+        (p, m) = JacCompiler._prepare_tool_program(src, path);
+        assert m is not None;
+        not_null_ok_before = {
+            id(t)
+            for t in m.get_all_sub_nodes(uni.AtomTrailer)
+            if not t.is_null_ok
+        };
+        run_pass(JacLintCheckPass, m, p);
+        trailers_after = m.get_all_sub_nodes(uni.AtomTrailer);
+        mutated = [
+            t
+            for t in trailers_after
+            if id(t) in not_null_ok_before and t.is_null_ok
+        ];
+        assert not mutated , (
+            f"report_only pass mutated is_null_ok on {len(mutated)} AtomTrailer(s); "
+            f"exit_if_else_expr must not call _make_null_ok in report_only mode"
+        );
+    } finally {
+        os.remove(path);
     }
 }

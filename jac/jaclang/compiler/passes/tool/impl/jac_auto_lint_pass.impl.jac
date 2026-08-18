@@ -1228,7 +1228,7 @@ impl JacAutoLintPass.exit_if_else_expr(if_else_node: uni.IfElseExpr) -> None {
     if not self._is_suppressed(W3008) and self._convert_ternary_to_or(if_else_node) {
         return;
     }
-    if self._is_suppressed(W3007) {
+    if self.report_only or self._is_suppressed(W3007) {
         return;
     }
     trailers: list[uni.AtomTrailer] = [];
