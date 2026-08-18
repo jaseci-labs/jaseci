@@ -3,6 +3,7 @@ import dataclasses;
 import hashlib;
 import inspect;
 import json;
+import logging;
 import os;
 import secrets;
 import sqlite3;
@@ -49,6 +50,29 @@ glob JsonValue: TypeAlias = None
          | list['JsonValue']
          | dict[(str, 'JsonValue')],
      StatusCode: TypeAlias = Literal[(200, 201, 400, 401, 404, 500, 503)];
+
+glob logger: logging.Logger = logging.getLogger("jaclang.serve");
+
+obj StreamSlot {
+    has pool: StreamPool,
+        started: bool = False,
+        released: bool = False;
+
+    def start -> None;
+    def release -> None;
+    def release_unstarted -> None;
+}
+
+obj StreamPool {
+    has _lock: threading.Lock postinit,
+        active: int = 0;
+
+    def postinit -> None;
+    def acquire(limit: int) -> (StreamSlot | None);
+    def _release(slot: StreamSlot) -> None;
+}
+
+glob _stream_pool: StreamPool = StreamPool();
 
 obj UserManager {
     has base_path: str,

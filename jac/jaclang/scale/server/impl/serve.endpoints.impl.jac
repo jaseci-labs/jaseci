@@ -148,10 +148,10 @@ impl JacAPIServerEndpoints.create_walker_callback(
                 );
             }
             return TransportResponse.fail(
-                code='EXECUTION_ERROR',
+                code=execution_error_code(result),
                 message=result.get('error', 'Walker execution failed'),
                 details=result.get('traceback') if 'traceback' in result else None,
-                meta=Meta(extra={'http_status': 500})
+                meta=Meta(extra={'http_status': execution_error_status(result)})
             );
         }
         return TransportResponse.success(
@@ -301,10 +301,10 @@ impl JacAPIServerEndpoints.create_function_callback(
                 );
             }
             return TransportResponse.fail(
-                code='EXECUTION_ERROR',
+                code=execution_error_code(result),
                 message=result.get('error', 'Function execution failed'),
                 details=result.get('traceback') if 'traceback' in result else None,
-                meta=Meta(extra={'http_status': 500})
+                meta=Meta(extra={'http_status': execution_error_status(result)})
             );
         }
         if raw_body {
@@ -520,9 +520,9 @@ impl JacAPIServerEndpoints.create_webhook_callback(
                 f"{result.get('error')} {result.get('traceback', '')}"
             );
             return TransportResponse.fail(
-                code='EXECUTION_ERROR',
+                code=execution_error_code(result),
                 message='Webhook processing failed',
-                meta=Meta(extra={'http_status': 500})
+                meta=Meta(extra={'http_status': execution_error_status(result)})
             );
         }
 

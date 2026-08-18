@@ -83,7 +83,8 @@ obj ServeConfig {
         base_route_app: str = "",
         on_conflict: str = "retry",
         conflict_max_attempts: int = 5,
-        conflict_backoff_ms: int = 0;
+        conflict_backoff_ms: int = 0,
+        max_concurrent_streams: int = 1024;
 }
 
 obj FormatConfig {

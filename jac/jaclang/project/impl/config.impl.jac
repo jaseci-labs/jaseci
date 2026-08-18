@@ -1226,7 +1226,8 @@ impl _parse_toml_data(
             base_route_app=serve_data.get("base_route_app", ""),
             on_conflict=on_conflict,
             conflict_max_attempts=serve_data.get("conflict_max_attempts", 5),
-            conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0)
+            conflict_backoff_ms=serve_data.get("conflict_backoff_ms", 0),
+            max_concurrent_streams=serve_data.get("max_concurrent_streams", 1024)
         );
     }
     if "format" in data {

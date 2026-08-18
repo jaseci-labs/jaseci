@@ -232,9 +232,14 @@ on_conflict = "retry"        # "retry": abort + replay so the loser converges
                              # "fail":  no replay, return HTTP 409 immediately
 conflict_max_attempts = 5    # max walker/function attempts under "retry"
 conflict_backoff_ms = 0      # linear backoff between replay attempts (0 = none)
+
+# Ceiling on streamed (SSE / WebSocket) responses open at once per process.
+max_concurrent_streams = 1024  # past the limit a new stream gets 503 stream_limit (0 = unlimited)
 ```
 
 `on_conflict` controls what happens when two concurrent requests race a "look it up, create it if missing" against the same node and the loser's commit is rejected. `retry` (default) re-runs the request against the now-current graph so it converges on the winner's node; `fail` surfaces a typed `409 write_conflict` for the client to handle. See [Persistence -> Concurrent writes: check-then-create](../persistence.md#concurrent-writes-check-then-create-and-convergence) for the full model.
+
+`max_concurrent_streams` bounds how many streamed responses (a `def:pub` or walker `report` that yields) may be open at the same time in one server process. Each open stream from a synchronous producer holds a dedicated worker thread for its whole life, so the ceiling is what keeps a burst of long-lived readers from growing the process without bound. A request that would exceed it is refused before any bytes are streamed with a typed `503 stream_limit`, so clients and load balancers can retry; `0` removes the ceiling.
 
 ---
 

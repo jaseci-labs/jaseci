@@ -43,6 +43,14 @@ glob ROOT_STREAM_APP: str = (
          '}\n'
      );
 
+glob FAILING_STREAM_APP: str = (
+         'import from typing { Generator }\n'
+         'def:pub failing_stream -> Generator[dict, None, None] {\n'
+         '    yield {"n": 0};\n'
+         '    raise RuntimeError("boom after first item");\n'
+         '}\n'
+     );
+
 test "streamed generator reads the caller's graph, not an empty root" {
     with TemporaryDirectory() as tmp {
         app = Path(tmp) / "stream_root_app.jac";
@@ -95,6 +103,25 @@ test "walker reporting a generator streams under the caller's root" {
             assert "text/event-stream" in streamed.headers.get("Content-Type", "");
             assert 'data: {"count": 1}' in streamed.text , f"got: {streamed.text}";
             assert "event: end" in streamed.text;
+        } finally {
+            client.close();
+        }
+    }
+}
+
+test "a producer that fails after a yield surfaces a framed error, not a dropped stream" {
+    with TemporaryDirectory() as tmp {
+        app = Path(tmp) / "failing_stream_app.jac";
+        app.write_text(FAILING_STREAM_APP);
+        client = JacTestClient.from_file(str(app), base_path=tmp);
+        try {
+            resp = client.post("/function/failing_stream", json={});
+            assert resp.status_code == 200 , f"failing stream: {resp.text}";
+            assert 'data: {"n": 0}' in resp.text , f"got: {resp.text}";
+            assert "event: error" in resp.text , f"got: {resp.text}";
+            assert '"error_type": "RuntimeError"' in resp.text , f"got: {resp.text}";
+            assert "boom after first item" in resp.text , f"got: {resp.text}";
+            assert "event: end" not in resp.text , f"got: {resp.text}";
         } finally {
             client.close();
         }

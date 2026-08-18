@@ -3,6 +3,7 @@ import logging;
 import time;
 import uuid;
 import from asyncio { Lock }
+import from jaclang.runtimelib.serving.streams { close_stream_like }
 import from jaclang.runtimelib.serving.ws { WebSocket }
 import from jaclang.runtimelib.serving.datatypes { WebSocketDisconnect }
 import from inspect { isgenerator }

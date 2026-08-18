@@ -2,6 +2,7 @@ import inspect;
 import logging;
 import from collections.abc { AsyncIterator, Iterator }
 import from json { dumps, loads }
+import from jaclang.runtimelib.serving.streams { close_stream_like }
 
 
 glob _logger: logging.Logger = logging.getLogger("jaclang.runtimelib.serving.sse");
@@ -53,15 +54,7 @@ async def _sse_frame_stream_inner(source: any) -> AsyncIterator[str] {
             event='error'
         );
     } finally {
-        try {
-            if hasattr(source, 'aclose') {
-                await source.aclose();
-            } elif hasattr(source, 'close') {
-                source.close();
-            }
-        } except Exception {
-            _logger.exception("SSE stream close failed");
-        }
+        await close_stream_like(source, what="SSE source");
     }
 }
 

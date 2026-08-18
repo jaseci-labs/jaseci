@@ -290,15 +290,7 @@ impl _ws_stream_result(send_result: any, result: any) {
         logger.error(f"WS stream error: {e}");
         stream_error = str(e);
     } finally {
-        try {
-            if hasattr(result, 'aclose') {
-                await result.aclose();
-            } elif hasattr(result, 'close') {
-                result.close();
-            }
-        } except Exception as ce {
-            logger.debug(f"WS stream close failed: {ce}");
-        }
+        await close_stream_like(result, what="WS stream");
     }
     if stream_error is None {
         await send_result({'ok': True, 'type': 'done'});
