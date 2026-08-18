@@ -178,16 +178,18 @@ test "get_shared_root re-queries resolver when cached id goes stale" {
         client = make_shared_client(tmpdir);
         first = client.post("/walker/whereami", json={});
         assert first.ok;
-        stale_id = first.data["reports"][1];
         client.close();
         prior = Jac.get_context();
-        # Isolated from the server's store: stale_id must not load from
-        # persistence in the swapped context, only from the resolver retry.
+        # Use an id guaranteed absent from mem/store. The server's real guest
+        # root id would still resolve via persistence or a lingering request
+        # context even after a context swap, so it cannot stand in for "stale".
+        stale_id = "00000000000000000000000000000001";
         with TemporaryDirectory() as isolated {
             new_ctx = Jac.create_j_context(
                 user_root=None, base_path_dir=isolated, full_target_path=isolated
             );
             Jac.set_context(new_ctx);
+            ctx_token = Jac.push_request_context(new_ctx);
             try {
                 import from jaclang.jac0core.constructs { Root }
                 healed_root = Root();
@@ -214,6 +216,7 @@ test "get_shared_root re-queries resolver when cached id goes stale" {
                     "stale cache must trigger exactly one resolver re-query"
                 );
             } finally {
+                Jac.reset_request_context(ctx_token);
                 Jac.set_context(prior);
                 Jac.set_shared_root_resolver(None);
             }
