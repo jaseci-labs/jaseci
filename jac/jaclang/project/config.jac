@@ -3,8 +3,6 @@ import re;
 import sys;
 import tomllib;
 import from pathlib { Path }
-import from typing { Any }
-
 glob VALID_CLIENT_KINDS: list[str] = ["web", "mobui"];
 
 obj PersonConfig {
@@ -260,3 +258,5 @@ def set_config(config: JacConfig) -> None;
 def get_explicit_config -> JacConfig | None;
 
 def get_config_for_path(start_path: Path) -> JacConfig | None;
+
+def get_config_for_dir(start_dir: str) -> JacConfig | None;

@@ -721,7 +721,7 @@ impl JacLangServer.get_completion_items_of(
         items.append(
             lspt.CompletionItem(
                 label=item.label,
-                kind=item.kind,
+                kind=lspt.CompletionItemKind(item.kind.value),
                 label_details=detail,
                 documentation=documentation,
             )

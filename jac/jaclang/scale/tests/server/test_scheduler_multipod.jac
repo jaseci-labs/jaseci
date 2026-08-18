@@ -10,7 +10,6 @@ on every pod without a restart.
 """
 
 import time;
-import pytest;
 import from tempfile { mkdtemp }
 import from jaclang.runtimelib.pgembed { PgRuntime }
 import from jaclang.runtimelib.store { PgStore }
@@ -140,7 +139,7 @@ test "jobs-changed NOTIFY from one pod reaches the other pod's listener" {
 
 test "two live pods fire a due job exactly once and DELETE stops both" {
     if not HAS_APSCHEDULER {
-        pytest.skip('apscheduler not installed; covered in CI');
+        testskip('apscheduler not installed; covered in CI');
     }
     import datetime as _dt;
     import from apscheduler.schedulers.background { BackgroundScheduler }
@@ -199,7 +198,7 @@ test "events url scheme is validated with a clean error" {
     _validate_events_url(None);
     _validate_events_url('postgresql://u:p@h:5432/db');
     _validate_events_url('postgres://u:p@h:5432/db');
-    with pytest.raises(ValueError) as exc {
+    with testraises(ValueError) as exc {
         _validate_events_url('redis://localhost:6379/0');
     }
     assert '[scale.events].url' in str(exc.value);

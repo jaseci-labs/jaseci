@@ -825,3 +825,56 @@ test "parser module naming and test slugs are python-free" {
     tnode = module3.body[0];
     assert tnode.name.value == "hello_world_42";
 }
+
+glob GEN_TEST_SRC_LINES = [
+         "test box_holds { assert True; }",
+         "test { assert True; }",
+         'test "desc here" { assert True; }',
+         'test "..." { assert True; }'
+     ];
+
+def gen_test_src -> str {
+    return chr(10).join(GEN_TEST_SRC_LINES);
+}
+
+def gen_test_syms(src: str, path: str) -> list[str] {
+    (module, _had_error) = rd_parse(src, path);
+    return [
+        nd.sym_name
+        for nd in module._in_mod_nodes
+        if isinstance(nd, uni.Test)
+    ];
+}
+
+test "generated test symbols are per-module ordinals, not process-global (#8177)" {
+    # A test whose name the parser has to synthesize -- the identifier-named
+    # form and the bare form both -- must number off the per-module parser
+    # counter, so the same source always yields the same symbols no matter
+    # what else this process parsed first.
+    src = gen_test_src();
+    first = gen_test_syms(src, "__gen_test_names__.jac");
+    assert sorted(first)
+        == [
+            "test__jac_gen_1",
+            "test__jac_gen_2",
+            "test__jac_gen_3",
+            "test_desc_here"
+        ] , f"unexpected generated symbols: {sorted(first)}";
+    assert gen_test_syms(src, "__gen_test_names__.jac") == first , (
+        "a second parse of the same source disagreed with the first"
+    );
+    gen_test_syms(src, "__gen_test_names_other__.jac");
+    gen_test_syms("test { assert True; }", "__gen_test_names_third__.jac");
+    assert gen_test_syms(src, "__gen_test_names__.jac") == first , (
+        "unrelated parses shifted the generated symbols"
+    );
+}
+
+test "reparsing a module with generated test names yields an identical tree (#8177)" {
+    src = gen_test_src();
+    (m1, _e1) = rd_parse(src, "__gen_test_tree__.jac");
+    (m2, _e2) = rd_parse(src, "__gen_test_tree__.jac");
+    assert print_ast_tree(m1) == print_ast_tree(m2) , (
+        "two parses of one source produced different trees"
+    );
+}

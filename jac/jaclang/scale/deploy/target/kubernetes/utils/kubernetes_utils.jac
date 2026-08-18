@@ -16,6 +16,14 @@ import from jaclang.scale._optdeps.kubernetes {
 import from jaclang.scale.deploy.target.kubernetes.cluster_provider { ClusterProvider }
 import from requests.exceptions { RequestException, SSLError }
 
+glob PSS_ENFORCE_LABEL: str = "pod-security.kubernetes.io/enforce",
+     PSS_WARN_LABEL: str = "pod-security.kubernetes.io/warn",
+     PSS_SOURCE_LABEL: str = "jac-scale.jaseci.org/pss-enforce-source";
+
+def default_pss_labels -> dict[str, str];
+
+def privileged_pss_labels(existing: dict[str, str]) -> dict[str, str] | None;
+
 glob COMPANION_DEFS: list = [
          ("", "Jaseci App", False),
          ("-postgres", "PostgreSQL", True),
@@ -56,7 +64,7 @@ def create_k8s_secret(
     namespace: str,
     secret_name: str,
     secret_data: dict[str, str]
-) -> bool;
+) -> str;
 
 def delete_k8s_secret(
     core_v1: client.CoreV1Api, namespace: str, secret_name: str
