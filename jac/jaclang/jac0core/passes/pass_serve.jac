@@ -1,4 +1,4 @@
-import from jaclang.jac0core.passes.transform { _NATIVE_SERVED_PASSES }
+import from jaclang.jac0core.passes.pass_rim { _NATIVE_SERVED_PASSES }
 
 glob _PASS_ARTIFACT_PREFIXES: tuple = (
          "jaclang.jac0core.passes.",

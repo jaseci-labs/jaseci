@@ -200,6 +200,8 @@
 "prim_enums.enums_na" = "native"
 "prim_hetero.hetero_na" = "native"
 "prim_int.int_cl" = "client"
+"prim_in_erased.in_erased_cl" = "client"
+"prim_in_erased.in_erased_na" = "native"
 "prim_int.int_na" = "native"
 "prim_json.json_cl" = "client"
 "prim_json.json_na" = "native"

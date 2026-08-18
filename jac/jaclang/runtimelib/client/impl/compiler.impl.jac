@@ -253,7 +253,7 @@ impl ViteCompiler.init(
     runtime_path: (Path | None) = None,
     compile_to_js_func: Callable[([Path], tuple[(str, (ModuleType | None))])],
     extract_exports_func: Callable[([any], list[str])],
-    extract_globals_func: Callable[([any, ModuleType], dict[(str, Any)])]
+    extract_globals_func: Callable[([any, ModuleType], dict[(str, any)])]
 ) {
     if (not vite_package_json or not vite_package_json.exists()) {
         raise ClientBundleError(

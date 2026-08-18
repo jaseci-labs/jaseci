@@ -317,3 +317,14 @@ def collect_assigned_symbols(nd: UniNode) -> set[str] {
     }
     return symbols;
 }
+
+def is_builtin_region_name(nm: (UniNode | None)) -> bool {
+    if not isinstance(nm, Name) or nm.sym_name != "Region" {
+        return False;
+    }
+    if nm.sym is None or nm.sym.decl is None {
+        return True;
+    }
+    _loc = nm.sym.decl.loc;
+    return _loc is not None and _loc.mod_path.endswith(".pyi");
+}

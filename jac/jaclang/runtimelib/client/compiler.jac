@@ -2,7 +2,7 @@ import contextlib;
 import from collections.abc { Callable }
 import from pathlib { Path }
 import from types { ModuleType }
-import from typing { TYPE_CHECKING, Any }
+import from typing { TYPE_CHECKING }
 import from jaclang.runtimelib.client_bundle { ClientBundleError }
 import from jaclang.runtimelib.client.jac_to_js { JacToJSCompiler }
 import from jaclang.runtimelib.client.jac_client_compiler { JacClientCompiler }
@@ -21,7 +21,7 @@ class ViteCompiler {
         runtime_path: (Path | None) = None,
         compile_to_js_func: Callable[([Path], tuple[(str, (ModuleType | None))])],
         extract_exports_func: Callable[([any], list[str])],
-        extract_globals_func: Callable[([any, ModuleType], dict[(str, Any)])]
+        extract_globals_func: Callable[([any, ModuleType], dict[(str, any)])]
     );
 
     def compile_runtime_utils(self: ViteCompiler) -> tuple[str, list[str]];
