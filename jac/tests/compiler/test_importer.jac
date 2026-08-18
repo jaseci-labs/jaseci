@@ -22,6 +22,7 @@ import from jaclang.jac0core.jir {
     get_module_cache_path,
     read_bytecode_only,
     SEC_LLVM_IR,
+    SEC_PLACEMENT,
     SECTIONS_MAGIC,
     HEADER_SIZE,
     read_sections
@@ -532,6 +533,24 @@ test "fresh mtime does not admit a cache written under a different environment" 
     }
 }
 
+def _cached_pins(jir_bytes: bytes) -> dict[str, str] {
+    import from jaclang.jac0core.placement { summary_from_bytes }
+    pos = jir_bytes.find(SECTIONS_MAGIC, HEADER_SIZE);
+    if pos < 0 {
+        return {};
+    }
+    secs = read_sections(jir_bytes, pos + len(SECTIONS_MAGIC));
+    placement = secs.get(SEC_PLACEMENT);
+    if placement is None {
+        return {};
+    }
+    summary = summary_from_bytes(placement);
+    if summary is None {
+        return {};
+    }
+    return {e.name: e.pinned for e in summary.elements};
+}
+
 test "editing placement pins in jac.toml invalidates the module cache" {
     import from jaclang.jac0core.jir { is_module_cache_valid }
     with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as proj {
@@ -559,6 +578,9 @@ test "editing placement pins in jac.toml invalidates the module cache" {
             );
 
             stale = cache_path.read_bytes();
+            assert _cached_pins(stale).get("helper_fn", "") == "" , (
+                "the pre-edit placement summary should carry no pin"
+            );
             with open(toml_path, "a") as f {
                 f.write('\n[placement.pins]\n"m.helper_fn" = "server"\n');
             }
@@ -572,6 +594,9 @@ test "editing placement pins in jac.toml invalidates the module cache" {
             );
             assert is_module_cache_valid(jac_file, cache_path) , (
                 "the rewritten cache must be valid under the new pins"
+            );
+            assert _cached_pins(cache_path.read_bytes()).get("helper_fn") == "server" , (
+                "the recompiled placement summary must honor the new pin"
             );
         } finally {
             if cache_path.exists() {
