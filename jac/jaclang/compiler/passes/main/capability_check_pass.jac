@@ -61,7 +61,7 @@ def native_capability_demotion_owner(viol_node: UniNode) -> (Ability | None);
 
 def partition_native_capability_violations(viols: list) -> tuple;
 
-obj PortabilityWarnPass(Transform[Module, Module]) {
+obj PortabilityWarnPass(Transform) {
     has ir_in: Module,
         prog: any,
         cancel_token: any = None;
@@ -77,7 +77,7 @@ obj PortabilityWarnPass(Transform[Module, Module]) {
     def _check_js_properties(mod: Module) -> None;
 }
 
-obj NativeCapabilityCheckPass(Transform[Module, Module]) {
+obj NativeCapabilityCheckPass(Transform) {
     static has PROVIDES: tuple = ('capability', );
     has ir_in: Module,
         prog: any,
@@ -87,7 +87,7 @@ obj NativeCapabilityCheckPass(Transform[Module, Module]) {
     def transform(ir_in: Module) -> Module;
 }
 
-obj ClientCapabilityCheckPass(Transform[Module, Module]) {
+obj ClientCapabilityCheckPass(Transform) {
     static has PROVIDES: tuple = ('client_capability', );
     has ir_in: Module,
         prog: any,

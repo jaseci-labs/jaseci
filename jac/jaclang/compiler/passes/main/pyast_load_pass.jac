@@ -107,7 +107,7 @@ import type from jaclang.jac0core.program { JacProgram }
 glob T = TypeVar('T', bound=UniNode),
      _reserved_keywords = RESERVED_IDENT_NAMES;
 
-obj PyastBuildPass(Transform[PythonModuleAst, Module]) {
+obj PyastBuildPass(Transform) {
     has ir_in: PythonModuleAst,
         prog: JacProgram,
         cancel_token: Event | None = None,

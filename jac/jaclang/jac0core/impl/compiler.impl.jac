@@ -895,6 +895,26 @@ impl JacCompiler.stamp_access_check_facts(mod: uni.Module) -> None {
     mod.access_enforced = enforce;
 }
 
+impl JacCompiler.stamp_native_import_facts(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    """Stamp each import with the emitter's native-only verdict.
+
+    Whether an import resolves to a module the native lane owns, and
+    whether that module lives inside jaclang's own tree, are both
+    import-resolution questions: they need the hub, the placement pins
+    and the filesystem, which is the driver's ground and not a pass's.
+    The emitter used to ask for them through `self.prog`, the one
+    driver read left in a sealed pass. It now consumes a bool.
+    """;
+    import os;
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        target = native_only_import_target(imp, target_program);
+        imp.native_only_drop = target is not None
+            and (os.sep + 'jaclang' + os.sep) not in os.path.abspath(target);
+    }
+}
+
 impl JacCompiler.stamp_client_kind_facts(
     mod: uni.Module, target_program: JacProgram
 ) -> None {
@@ -1353,7 +1373,7 @@ impl JacCompiler._compile_once(
         and not had_blocking_errors
         and is_explicit_native
     ) {
-        _parity_passes: list[type[Transform[uni.Module, uni.Module]]] = [];
+        _parity_passes: list[type[Transform]] = [];
         if run_inference {
             try {
                 import from jaclang.compiler.passes.native { NaIRGenPass }
@@ -1493,7 +1513,7 @@ impl JacCompiler.build(
 impl JacCompiler.run_schedule(
     mod: uni.Module,
     target_program: JacProgram,
-    passes: list[type[Transform[uni.Module, uni.Module]]],
+    passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
     provided = target_program._analyses_run.get(id(mod));
@@ -1518,6 +1538,9 @@ impl JacCompiler.run_schedule(
         }
         if current_pass is BoundaryAnalysisPass {
             self.stamp_boundary_facts(mod, target_program);
+        }
+        if current_pass is JcirGenPass {
+            self.stamp_native_import_facts(mod, target_program);
         }
         if jsx_guard_pass is not None and current_pass is jsx_guard_pass {
             self.stamp_client_kind_facts(mod, target_program);
@@ -1640,7 +1663,7 @@ impl JacCompiler._report_missing_native_ir(
             "diagnostic; this is a compiler bug -- please report it"
         );
     }
-    from_pass: any = PyastGenPass;
+    from_pass: any = JcirGenPass;
     try {
         import from jaclang.compiler.passes.native { NaIRGenPass }
         from_pass = NaIRGenPass;

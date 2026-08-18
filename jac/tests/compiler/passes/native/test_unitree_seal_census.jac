@@ -30,10 +30,43 @@ among them -- on an abort stub. `unitree.decode_string_literal` replaced it
 with one implementation both lanes run, proved CPython-exact against `eval`
 in `tests/compiler/test_literal_decoding.jac`, so the pair lowers and the
 two waivers are gone rather than reworded.
+
+The closure went from three modules to eleven when `ClassVar` joined the
+compile-time import vocabulary. `types.jac` declares its per-subclass
+`CATEGORY` slots with it, and `scan_native_blockers` read that line-4
+`import from typing { ClassVar }` as a non-native import, so the keystone
+could never be linked and `unitree`'s three `TypeBase`-typed fields were a
+layout dependency on a module the unit was not allowed to contain. With the
+keystone linkable the unit grows by the type system's lower half plus the
+pure-leaf modules those two drag in.
+
+Thirty-two seams, and most of them are one of three causes rather than
+thirty-two separate ones: an enum member read off the class has no instance
+layout (`ParameterCategory.Positional`); an imported archetype's layout is not
+reachable for `isinstance` even when its module is in the unit; and a
+function-local `import jaclang.jac0core.unitree`
+in `helpers.jac` -- the one thing keeping `helpers` out of a module-level
+cycle -- is a Python module import the native lane refuses. The rest are
+cascades on those, each naming its callee.
+
+Growing the closure was a net subtraction of four waivers.
+`Ability.event_trigger_type_names` was waived for calling `TypeBase.mangle`
+"through a typing-only import", and now that `types.jac` is in the unit it
+lowers. `type_utils.lookup_symtab` was waived for calling the imported
+generic `UniNode.find_parent_of_type`, which monomorphizes across the
+boundary now that the failure path erases an unfillable specialization shell
+instead of leaving it in the module. `convert_to_instance` and
+`apply_solved_type_vars` were waived as cascades on
+`ClassType.clone_as_instance`, and they lower now that the importer has a
+verdict for it: a demoted method keeps its own name and stays in
+`layout.functions` as an abort stub, and availability is read off that table,
+so the call resolves. Two new seams arrived with
+#8272's verdict-before-emission protocol -- `FunctionType.specialize` and
+`collect_member_syms` -- both cross-module cascades that used to link against
+a renamed symbol instead of demoting.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -46,13 +79,31 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 
 """Every module the native compile of `unitree.jac` puts in its closure.
 
-`codeinfo`, `treeprinter` and `helpers` are deliberately absent: unitree reads
-them through `import type` (typing-only) or through function-local imports, so
-they never enter the native unit. `codeinfo` in particular *cannot*, because
+`codeinfo` and `treeprinter` are deliberately absent: unitree reads them
+through `import type` (typing-only) or through function-local imports, so they
+never enter the native unit. `codeinfo` in particular *cannot*, because
 `CodeGenTarget` carries LLVM binding and estree handles and imports `unitree`
 back, which would make the unit circular.
+
+`types.jac` and `type_utils.jac` are the type system's lower half, pulled in
+by unitree's `TypeBase`-typed fields once the keystone became linkable.
+`helpers.jac` arrives with them, and the remaining five are pure leaves those
+two reach: `pathlib`, `fnmatch`, `hashlib`, `_hashlib_native` and
+`type_registry` all lower whole and contribute no waiver.
 """
-glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
+glob UNITREE_CLOSURE: tuple = (
+         "_hashlib_native.jac",
+         "constant.jac",
+         "fnmatch.jac",
+         "hashlib.jac",
+         "helpers.jac",
+         "pathlib.jac",
+         "srcloc.jac",
+         "type_registry.jac",
+         "type_utils.jac",
+         "types.jac",
+         "unitree.jac"
+     ),
      # Seams that stay, each naming what has to land before it goes. Keyed
      # `<module>::<Type>.<method>` exactly as `_seal_demotions` keys them, so
      # an entry reads the same as one in `NATIVE_SEAL_DEMOTION_WAIVERS` --
@@ -79,10 +130,6 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
              "never share a native unit with `unitree` (LLVM binding and "
              "estree handles, and it imports `unitree` back)."
          ),
-         "unitree.jac::Ability.event_trigger_type_names": (
-             "Python-only: calls `TypeBase.mangle`, and `TypeBase` is the "
-             "type system's, reached through a typing-only import."
-         ),
          "unitree.jac::UniNode.gen.__get__": (
              "Python-only: lazily constructs a `CodeGenTarget` through a "
              "function-local import of `jac0core.codeinfo`, the module that "
@@ -108,16 +155,115 @@ glob UNITREE_CLOSURE: tuple = ("constant.jac", "srcloc.jac", "unitree.jac"),
              "`jac0core.modresolver`. The census reports E5092 -- the call "
              "will not lower -- not an E5090 import."
          ),
-         "unitree.jac::DeleteStmt.py_ast_targets.__get__": (
-             "Python-only: reads `gen.py_ast`, a list of CPython `ast` "
-             "objects. Reached only from `PyastGenPass`."
-         ),
          "unitree.jac::BuiltinType.lit_value.__get__": (
              "Python-only: indexes `Literal.type_map`, a static dict of "
              "`type` objects, which has no native layout."
          ),
          "unitree.jac::Ellipsis.lit_value.__get__": (
              "Python-only: returns `...`, which has no native value."
+         ),
+         "types.jac::ClassType.lookup_member_symbol": (
+             "Cascade: calls `type_utils.collect_member_syms`, waived below. "
+             "Clears with its callee."
+         ),
+         "types.jac::FunctionType.specialize": (
+             "Cascade: calls `type_utils.build_type_var_solution`, waived "
+             "below for its `enumerate(...)` for-loop iterable. This is the "
+             "seam #8272 made measurable: the importer now learns a "
+             "dependency's demotion set before it emits, so the caller "
+             "demotes here instead of linking against the name the demotion "
+             "renamed away. Clears with its callee."
+         ),
+         "types.jac::create_callable_type": (
+             "Backend gap -- class-level slot: reads "
+             "`ParameterCategory.Positional`, an `IntEnum` member read off the "
+             "class rather than through an instance, which is not what #8256's "
+             "per-class constant covers."
+         ),
+         "type_utils.jac::expr_primitive_name": (
+             "Python-only: narrows its `prog` to `JacProgram` and reaches "
+             "`get_type_evaluator`. `type_evaluator.jac` is not in this unit "
+             "and cannot be, so the attribute chain has no layout to walk."
+         ),
+         "type_utils.jac::class_implements_protocol": (
+             "Backend gap -- imported isinstance: `isinstance` against "
+             "`UniScopeNode`, whose layout is not reachable from this unit's "
+             "root even though `unitree.jac` is a member."
+         ),
+         "type_utils.jac::doc_of_sym": (
+             "Backend gap -- imported isinstance: `isinstance` against "
+             "`AstDocNode`, same unreachable-layout shape."
+         ),
+         "type_utils.jac::completion_item_from_sym": (
+             "Cascade: calls `doc_of_sym`, waived above."
+         ),
+         "type_utils.jac::get_completion_items": (
+             "Cascade: calls `completion_item_from_sym`, waived above."
+         ),
+         "type_utils.jac::completion_kind_from_sym": (
+             "Backend gap: a `match` over unitree archetypes; the "
+             "`MatchArch` pattern has no native lowering."
+         ),
+         "type_utils.jac::collect_member_syms": (
+             "Cascade: calls `helpers.evaluate_version_condition`, waived "
+             "below for its function-local unitree import. Clears with that "
+             "import's hoist."
+         ),
+         "type_utils.jac::compute_mro_linearization": (
+             "Backend gap: builds the linearization from a call whose result "
+             "the emitter cannot place in expression position."
+         ),
+         "type_utils.jac::build_type_var_solution": (
+             "Backend gap: iterates `enumerate(...)` directly, and a "
+             "`FuncCall` is not a lowerable for-loop iterable. `types.jac`'s "
+             "`FunctionType.specialize` cascades on it."
+         ),
+         "type_utils.jac::shadowed_type_var_names": (
+             "Backend gap: a comprehension over an element-erased collection, "
+             "so the emitter has no layout for the element it binds."
+         ),
+         "type_utils.jac::build_solution_from_specialized_class": (
+             "Backend gap: the same `enumerate(...)` for-loop iterable as "
+             "`build_type_var_solution`."
+         ),
+         "helpers.jac::pretty_print_source_location": (
+             "Backend gap: its gutter arithmetic asks for `MOD` on mismatched "
+             "integer widths. The `ANSIColors` reads that used to sit beside "
+             "it lower since #8256; the width mismatch is what is left."
+         ),
+         "helpers.jac::format_related_spans": (
+             "Cascade: calls `pretty_print_source_location`, waived above. "
+             "Its own `ANSIColors` reads lower since #8256."
+         ),
+         "helpers.jac::read_file_with_encoding": (
+             "Python-only: `open()` with an encoding keyword. The native lane "
+             "refuses the keyword out loud since #8255 rather than lowering a "
+             "call that would ignore it."
+         ),
+         "helpers.jac::normalize_exclude_patterns": (
+             "Backend gap: `str.strip`, `.startswith` and `.rstrip` on an "
+             "element-erased list member."
+         ),
+         "helpers.jac::read_jacignore_patterns": (
+             "Cascade: calls `normalize_exclude_patterns`, waived above."
+         ),
+         "helpers.jac::_is_version_info_access": (
+             "Python-only: reads unitree through a function-local "
+             "`import jaclang.jac0core.unitree as uni`, a bare Python module "
+             "import. The local import is what keeps `helpers` out of a "
+             "module-level cycle with `unitree`; hoisting it is the clearing "
+             "mechanism, and it needs the cycle to be safe first."
+         ),
+         "helpers.jac::_is_type_checking_ref": (
+             "Python-only: same function-local unitree import."
+         ),
+         "helpers.jac::_extract_version_tuple": (
+             "Python-only: same function-local unitree import."
+         ),
+         "helpers.jac::evaluate_version_condition": (
+             "Python-only: same function-local unitree import. This is the "
+             "`.pyi` ingestion path -- version-guarded typeshed blocks -- "
+             "which no sealed parse reaches."
          )
      };
 
@@ -138,7 +284,7 @@ def _unitree_census -> tuple[(dict, bool)] {
     # census at seal time (seal_demotion_report refuses un-waived seams),
     # which is the invariant this file pins for source lanes.
     if native_artifact_for("jaclang.jac0core.unitree") is not None {
-        pytest.skip(
+        testskip(
             "unitree is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );

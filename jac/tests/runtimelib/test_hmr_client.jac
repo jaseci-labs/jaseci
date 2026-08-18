@@ -448,7 +448,7 @@ test "reload with code change preserves functionality" {
 # --- TestHMRClientCodeRecompilation ---
 
 # NOTE: test "client JS file updated on change" is commented out because it was
-# marked with @pytest.mark.xfail in the Python version due to HotReloader having
+# marked xfail in the Python version due to HotReloader having
 # a global state issue causing cross-test contamination.
 #
 # test "client JS file updated on change" {

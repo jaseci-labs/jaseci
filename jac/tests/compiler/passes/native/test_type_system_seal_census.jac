@@ -7,7 +7,7 @@ module-scoped refusal denies the whole module its IR, so a seam census taken
 against it reads "not reached" rather than "clean" -- which is why `has_ir` is
 asserted before any seam count is believed.
 
-Three measurements, one memoized census each, and they answer different
+Five measurements, one memoized census each, and they answer different
 questions:
 
 * `types.jac` -- does the keystone reach codegen at all, and which of its
@@ -15,6 +15,9 @@ questions:
   dependency (a module-level import replacing a typing-only or function-local
   one) has to reach zero seams before the stage can seal, so it fails loudly
   here rather than at seal time.
+* `properties.jac` -- lowers whole. It is the first module above the keystone
+  to do so, and it does it with no waiver of its own, which is the shape the
+  rest of the stage is aiming at.
 * `ts_decl_parser.jac` -- already clean, and pinned so it stays that way.
 * `type_evaluator.jac` -- measurable at all. A construct that no callable owns
   refuses the module instead of demoting one method, and the census then
@@ -23,17 +26,24 @@ questions:
   demotion, plus an enumeration of the refusals that still escape an owner.
   Since #8234 a constructor owns its own body, so what remains ownerless here
   is field declarations alone.
+* `enum_utils.jac` and `operations.jac` -- measurable since #8285. A parameter
+  typed `TypeEvaluator` is resolved when the ability is declared, which used to
+  be before any body opened a demotion window, so it stranded the module the
+  way a field declaration does. The declaration owns the refusal now: each
+  callable that names an evaluator-side type in its signature is a seam, every
+  other body in both modules lowers, and the module keeps its IR.
 
 Waivers are enumerated one at a time and name what blocks each, so the suite
 never degrades into a "fewer than N" threshold: an un-waived seam fails, and a
 waiver that stops matching a real seam fails too, which keeps the baseline
 current as the backend grows. Only seams in files this stage owns are
-enumerated -- `unitree.jac` rides in `types.jac`'s closure and its seams are
-owned by `test_unitree_seal_census.jac`, which would double-book them here.
+enumerated -- `unitree.jac`, `type_utils.jac` and `helpers.jac` ride in
+`types.jac`'s closure and their seams are owned by
+`test_unitree_seal_census.jac`, the seal's own gate, which would double-book
+them here.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -46,20 +56,67 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 
 """Every module the native compile of `types.jac` puts in its closure.
 
-`type_utils`, `operations` and the evaluator are deliberately absent: the
-methods that reach them are seams, so their calls never become native edges.
-`unitree` is present and cannot be avoided -- `ClassDetailsShared.symbol_table`
-is a `UniScopeNode` field, which is a layout dependency no matter that the
-import is `import type`.
+`operations` and the evaluator are deliberately absent: the methods that reach
+them are seams, so their calls never become native edges. `unitree` is present
+and cannot be avoided -- `ClassDetailsShared.symbol_table` is a `UniScopeNode`
+field, which is a layout dependency no matter that the import is `import type`.
+
+`type_utils` is present now and was not before. `ClassVar` becoming a
+compile-time import name made `types.jac` linkable, which closed the
+`unitree <-> types` layout cycle in the other direction too, and the modules
+on the far side of it are in the unit whichever end is the root. This set is
+`unitree`'s closure exactly -- `test_unitree_seal_census.jac` pins the same
+eleven from the other root, and that is the seal's own view.
 """
 glob TYPES_CLOSURE: tuple = (
+         "_hashlib_native.jac",
          "constant.jac",
+         "fnmatch.jac",
+         "hashlib.jac",
+         "helpers.jac",
          "pathlib.jac",
          "srcloc.jac",
+         "type_registry.jac",
+         "type_utils.jac",
          "types.jac",
          "unitree.jac"
      ),
-     DECL_PARSER_CLOSURE: tuple = ("ts_decl_parser.jac", );
+     DECL_PARSER_CLOSURE: tuple = ("ts_decl_parser.jac", ),
+     # `properties.jac` links the keystone and nothing above it, so its unit is
+     # the eleven minus `type_utils`'s own leaves that it does not reach.
+     PROPERTIES_CLOSURE: tuple = (
+         "_hashlib_native.jac",
+         "constant.jac",
+         "fnmatch.jac",
+         "hashlib.jac",
+         "helpers.jac",
+         "pathlib.jac",
+         "properties.jac",
+         "srcloc.jac",
+         "type_registry.jac",
+         "type_utils.jac",
+         "types.jac",
+         "unitree.jac"
+     ),
+     # The two modules whose evaluator-side signatures demote (#8285) reach the
+     # same set, so it is named once and the module's own file is added per
+     # case. A signature refusal costs its callable a native body, not the unit
+     # around it, so this is the closure of a module that lowers.
+     SIGNATURE_SEAM_CLOSURE: tuple = (
+         "_hashlib_native.jac",
+         "const_fold.jac",
+         "constant.jac",
+         "diagnostics.jac",
+         "fnmatch.jac",
+         "hashlib.jac",
+         "helpers.jac",
+         "pathlib.jac",
+         "srcloc.jac",
+         "type_registry.jac",
+         "type_utils.jac",
+         "types.jac",
+         "unitree.jac"
+     );
 
 """Files this stage owns; seams outside them belong to another census test."""
 glob STAGE_FILES: tuple = ("types.jac", "ts_decl_parser.jac");
@@ -98,19 +155,29 @@ so the emitter checks it against the declared member table and raises the
 `ValueError` CPython raises. `create_callable_type` is unaffected: its
 `ParameterCategory` members are `auto()`, which no fold reaches, so the table
 that read needs still cannot be encoded.
+
+An eighth left when `type_utils` joined the closure.
+`FunctionType.specialize_func_type_vars` was waived as calling a function
+"outside this closure", and it is inside now, so it lowers.
+
+Two arrived in their place, and both are cross-module cascades #8272 made
+measurable: `FunctionType.specialize` and `ClassType.lookup_member_symbol`
+each call a `type_utils` function that demotes. Before that protocol the
+importer emitted their call sites before the dependency's verdicts existed,
+so the caller lowered and the artifact linked against a name the demotion had
+renamed away. Every seam this table holds is identical to the one the unitree
+census records for `types.jac` from the other root, which is the point: the
+seal reads the closure, not the entry it was reached from.
 """
 glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
          "types.jac::ClassType.lookup_member_symbol": (
-             "Python-only: calls `collect_member_syms` from `type_utils`, a "
-             "module outside this closure that walks symbol tables."
+             "Cascade: calls `type_utils.collect_member_syms`, which demotes "
+             "on `helpers.evaluate_version_condition` and is waived in the "
+             "unitree census."
          ),
          "types.jac::FunctionType.specialize": (
-             "Python-only: calls `build_type_var_solution` from `type_utils`, "
-             "outside this closure."
-         ),
-         "types.jac::FunctionType.specialize_func_type_vars": (
-             "Python-only: calls `apply_solved_type_vars` from `type_utils`, "
-             "outside this closure. Its optional-list iteration lowers now."
+             "Cascade: calls `type_utils.build_type_var_solution`, waived in "
+             "the unitree census for its `enumerate(...)` for-loop iterable."
          ),
          "types.jac::create_callable_type": (
              "Backend gap: reads `ParameterCategory.Positional`, an `IntEnum` "
@@ -124,27 +191,34 @@ glob TYPES_SEAM_WAIVERS: dict[(str, str)] = {
          )
      };
 
-"""Native refusals in the evaluator that no method owns, and so refuse the module.
+"""Native refusals the evaluator's compile records that no method owns.
 
 Keyed `<file>::<message>` with the location dropped, because these move with
-every edit above them. What is left is field declarations: a `has` type that
-has no native layout is not inside any ability body, so there is nothing to
-demote and the module pays for it. The seven CPython `ast` handles that used
-to head this list moved into `TypeEvaluator._read_dunder_all` and
+every edit above them. What is left in the evaluator itself is field
+declarations: a `has` type that has no native layout is not inside any ability
+body, so there is nothing to demote and the module pays for it. The seven
+CPython `ast` handles that used to head this list moved into
+`TypeEvaluator._read_dunder_all` and
 `TypeEvaluator._read_ambient_imports_by_module` (#8237); the three that
 `postinit` used to strand are owned seams since #8234 made a constructor
 demotable like any other callable, and now read as
 `TypeEvaluator.__post_init__` in the census instead.
+
+Three entries used to name a different file: the evaluator imports
+`enum_utils` and `operations`, both are compiled as dependencies now that
+`types.jac` links, and each carried a declaration-time signature refusal that
+joined this compile's error list. #8285 gave those refusals their owning
+callable, so they are seams in their own modules' tables below and no longer
+reach anyone's error list.
 """
 glob EVALUATOR_FATAL_WAIVERS: dict[(str, str)] = {
-         "type_evaluator.jac::Native lowering failed for type 'TypeBase'": (
-             "Field declaration: `NarrowingTarget.declared_type` and "
-             "`NarrowingPredicate.narrow_type` hold the abstract `TypeBase`, "
-             "which has no concrete layout. A field is not an ability, so "
-             "there is no owner to demote."
-         ),
          "type_evaluator.jac::Native lowering failed for type '[MultiString]'": (
-             "Field declaration: a list of `MultiString` unitree nodes."
+             "Field declaration: `TypeEvaluator.program` is annotated "
+             "`\"JacProgram\"`, a quoted forward reference. The backend reads "
+             "the quotes literally, so `[MultiString]` names the string "
+             "literal node rather than any list of unitree nodes. Unquoting it "
+             "needs `JacProgram` to have a native layout, which is the same "
+             "thing `enum_utils` and `operations` wait on below."
          ),
          (
              "type_evaluator.jac::Native lowering failed for type "
@@ -152,15 +226,39 @@ glob EVALUATOR_FATAL_WAIVERS: dict[(str, str)] = {
          ): (
              "Field declaration: a cache keyed by tuple holding optional "
              "`TypeBase`; neither half has a native layout."
-         ),
-         (
-             "type_evaluator.jac::Native lowering failed for type "
-             "'dict[str, ModuleType]'"
-         ): "Field declaration: a module cache holding `ModuleType` values.",
-         (
-             "type_evaluator.jac::Native lowering failed for type "
-             "'dict[int, TypeBase]'"
-         ): "Field declaration: a cache holding abstract `TypeBase` values."
+         )
+     };
+
+"""Seams in the two modules that used to be refused whole by a signature.
+
+Both hold `def f(evaluator: TypeEvaluator, ...)` at module scope, and
+`TypeEvaluator` is the stage's upper half -- a class with no native layout. A
+signature is resolved when the ability is declared, and until #8285 that was
+before any body opened a demotion window, so the failure had no owner and cost
+the module its IR the way an un-lowerable field declaration does. The
+declaration now owns it, which is the same clearing mechanism #8234 and #8237
+applied to constructors and to `postinit` handles.
+
+What is left is a seam per callable that names the evaluator-side type in its
+signature, and nothing else: every other body in both modules lowers. These go
+when `type_evaluator.jac` gets a native layout, which is M2's work, not this
+table's.
+"""
+glob SIGNATURE_SEAM_WAIVERS: dict[(str, dict)] = {
+         "enum_utils.jac": {
+             "enum_utils.jac::create_enum_member_info": "TypeEvaluator",
+             "enum_utils.jac::validate_enum_member_annotation": "TypeEvaluator",
+             "enum_utils.jac::build_enum_members": "TypeEvaluator",
+             "enum_utils.jac::get_special_enum_value_type_from_bases": (
+                 "PrefetchedTypes"
+             )
+         },
+         "operations.jac": {
+             "operations.jac::get_numeric_promotion_type": "TypeEvaluator",
+             "operations.jac::get_pow_result_type": "TypeEvaluator",
+             "operations.jac::is_annotation_type": "TypeEvaluator",
+             "operations.jac::get_type_of_binary_operation": "TypeEvaluator"
+         }
      };
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
@@ -178,7 +276,7 @@ def _census_of(src: Path) -> tuple[(dict, bool, list)] {
     # so the compile would be answered by the sealed artifact and every
     # assertion below would read an empty closure and pass vacuously.
     if native_artifact_for("jaclang.jac0core.unitree") is not None {
-        pytest.skip(
+        testskip(
             "unitree is served from this runtime's native seal, so the "
             "type-system closure cannot be measured from source here"
         );
@@ -214,12 +312,12 @@ def _census_of(src: Path) -> tuple[(dict, bool, list)] {
     return result;
 }
 
-"""Census seams as `<module>::<Type>.<method>` -> reason, stage files only."""
-def _stage_seams(census: dict) -> dict[(str, str)] {
+"""Census seams as `<module>::<Type>.<method>` -> reason, for the named files."""
+def _seams_of(census: dict, files: tuple) -> dict[(str, str)] {
     found: dict[(str, str)] = {};
     for (path, rec) in sorted(census.items()) {
         where = os.path.basename(path);
-        if where not in STAGE_FILES {
+        if where not in files {
             continue;
         }
         for seam in (rec["seams"] or []) {
@@ -292,7 +390,29 @@ test "types.jac's native closure is exactly the measured set" {
 
 test "every types.jac seam is waived, and every waiver is live" {
     (census, _has_ir, _fatal) = _census_of(TS_PATH / "types.jac");
-    _assert_waivers_match(_stage_seams(census), TYPES_SEAM_WAIVERS, "types.jac");
+    _assert_waivers_match(
+        _seams_of(census, STAGE_FILES), TYPES_SEAM_WAIVERS, "types.jac"
+    );
+}
+
+
+test "properties.jac lowers whole" {
+    (census, has_ir, fatal) = _census_of(TS_PATH / "properties.jac");
+    assert has_ir , (
+        "no LLVM IR for properties.jac -- it links the keystone, so a refusal "
+        "here means the keystone stopped being linkable:\n"
+        + "\n".join(f"  {f}" for f in fatal)
+    );
+    seen = tuple(sorted({os.path.basename(p) for p in census}));
+    assert seen == PROPERTIES_CLOSURE , (
+        f"properties.jac's native closure changed: {seen} != " f"{PROPERTIES_CLOSURE}."
+    );
+    own_seams = _seams_of(census, ("properties.jac", ));
+    assert not own_seams , (
+        f"{len(own_seams)} seam(s) in properties.jac, which lowered whole when "
+        "the keystone became linkable:\n"
+        + "\n".join(f"  {k}: {own_seams[k]}" for k in sorted(own_seams))
+    );
 }
 
 
@@ -307,7 +427,7 @@ test "ts_decl_parser stays clean" {
         f"{DECL_PARSER_CLOSURE}."
     );
     _assert_waivers_match(
-        _stage_seams(census), DECL_PARSER_SEAM_WAIVERS, "ts_decl_parser.jac"
+        _seams_of(census, STAGE_FILES), DECL_PARSER_SEAM_WAIVERS, "ts_decl_parser.jac"
     );
 }
 
@@ -351,4 +471,33 @@ test "every ownerless refusal in the evaluator is enumerated" {
         "waived refusals that no longer fire -- drop them:\n"
         + "\n".join(f"  {k}" for k in stale)
     );
+}
+
+
+test "a signature type demotes its callable, not its module" {
+    for (mod, waived) in sorted(SIGNATURE_SEAM_WAIVERS.items()) {
+        (census, has_ir, fatal) = _census_of(TS_PATH / mod);
+        assert has_ir , (
+            f"no LLVM IR for {mod} -- a signature the backend cannot resolve "
+            f"has to demote the ability that carries it, so nothing here is "
+            f"module-fatal any more:\n"
+            + "\n".join(f"  {f}" for f in fatal)
+        );
+        found = _seams_of(census, (mod, ));
+        _assert_waivers_match(found, waived, mod);
+        for (key, tname) in sorted(waived.items()) {
+            assert "signature type" in found[key] and tname in found[key] , (
+                f"{key} demotes for a different reason now; a signature "
+                f"refusal has to name the annotation it could not resolve: "
+                f"{found[key]}"
+            );
+        }
+        seen = tuple(sorted({os.path.basename(p) for p in census}));
+        want = tuple(sorted(SIGNATURE_SEAM_CLOSURE + (mod, )));
+        assert seen == want , (
+            f"{mod}'s closure is {seen}, not {want}. The demotions cost each "
+            "callable its native body, not the unit around them, so a change "
+            "here is a change in what the module links."
+        );
+    }
 }

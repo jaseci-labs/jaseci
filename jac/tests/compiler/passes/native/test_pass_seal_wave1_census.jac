@@ -57,7 +57,6 @@ self-clearing condition are pinned in `test_sealed_seam_reachability.jac`.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -81,29 +80,61 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
 """Each root's exact native closure, as package-relative paths."""
 glob WAVE1_CLOSURES: dict[(str, tuple)] = {
          "jac0core/passes/annex_pass.jac": (
+             "compiler/type_registry.jac",
+             "compiler/type_system/type_utils.jac",
+             "compiler/type_system/types.jac",
              "jac0core/constant.jac",
+             "jac0core/helpers.jac",
              "jac0core/passes/annex_pass.jac",
              "jac0core/passes/annex_weave.jac",
              "jac0core/srcloc.jac",
-             "jac0core/unitree.jac"
+             "jac0core/unitree.jac",
+             "runtimelib/na_stdlib/_hashlib_native.jac",
+             "runtimelib/na_stdlib/fnmatch.jac",
+             "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/pathlib.jac"
          ),
          "jac0core/passes/module_codegen_pass.jac": (
+             "compiler/type_registry.jac",
+             "compiler/type_system/type_utils.jac",
+             "compiler/type_system/types.jac",
              "jac0core/constant.jac",
+             "jac0core/helpers.jac",
              "jac0core/passes/module_codegen_pass.jac",
              "jac0core/srcloc.jac",
-             "jac0core/unitree.jac"
+             "jac0core/unitree.jac",
+             "runtimelib/na_stdlib/_hashlib_native.jac",
+             "runtimelib/na_stdlib/fnmatch.jac",
+             "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/pathlib.jac"
          ),
          "jac0core/passes/uni_pass.jac": (
+             "compiler/type_registry.jac",
+             "compiler/type_system/type_utils.jac",
+             "compiler/type_system/types.jac",
              "jac0core/constant.jac",
+             "jac0core/helpers.jac",
              "jac0core/passes/uni_pass.jac",
              "jac0core/srcloc.jac",
-             "jac0core/unitree.jac"
+             "jac0core/unitree.jac",
+             "runtimelib/na_stdlib/_hashlib_native.jac",
+             "runtimelib/na_stdlib/fnmatch.jac",
+             "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/pathlib.jac"
          ),
          "jac0core/passes/endpoint_effect_pass.jac": (
+             "compiler/type_registry.jac",
+             "compiler/type_system/type_utils.jac",
+             "compiler/type_system/types.jac",
              "jac0core/constant.jac",
+             "jac0core/helpers.jac",
              "jac0core/passes/endpoint_effect_pass.jac",
              "jac0core/srcloc.jac",
-             "jac0core/unitree.jac"
+             "jac0core/unitree.jac",
+             "runtimelib/na_stdlib/_hashlib_native.jac",
+             "runtimelib/na_stdlib/fnmatch.jac",
+             "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/pathlib.jac"
          )
      };
 
@@ -117,7 +148,7 @@ def _root_module_name(rel: str) -> str {
 """Compile one root the way seal_native_artifacts does, up to the census."""
 def _root_census(rel: str) -> tuple {
     if native_artifact_for(_root_module_name(rel)) is not None {
-        pytest.skip(
+        testskip(
             f"{rel} is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );

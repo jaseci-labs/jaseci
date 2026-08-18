@@ -11,7 +11,6 @@ how a shipped binary meets a stripped, stale, or wrong-platform install.
 import json;
 import os;
 import platform;
-import pytest;
 import sys;
 import tempfile;
 import from pathlib { Path }
@@ -106,7 +105,7 @@ test "a declared root with no artifact entry refuses to load, by name" {
         native={"roots": ["jaclang.jac0core.unitree"], "skip_reason": None},
         artifacts={}
     );
-    with pytest.raises(RuntimeError, match="jaclang.jac0core.unitree") {
+    with testraises(RuntimeError, `match="jaclang.jac0core.unitree") {
         load_image(pdir);
     }
 }
@@ -117,7 +116,7 @@ test "a deliberately removed artifact file fails the image at load" {
         artifacts={"jaclang.jac0core.unitree": _root_entry("unitree")}
     );
     (pdir / "native/host/libjac_unitree.so").unlink();
-    with pytest.raises(RuntimeError, match="missing its artifact file") {
+    with testraises(RuntimeError, `match="missing its artifact file") {
         load_image(pdir);
     }
 }
@@ -129,14 +128,14 @@ test "a wrong-platform artifact refuses to load rather than dlopen-failing later
             "jaclang.jac0core.unitree": _root_entry("unitree", triple=WRONG_TRIPLE)
         }
     );
-    with pytest.raises(RuntimeError, match="targets") {
+    with testraises(RuntimeError, `match="targets") {
         load_image(pdir);
     }
 }
 
 test "an image that skipped its native seal is refused on a native-capable host" {
     pdir = _write_image(native={"roots": [], "skip_reason": "platform:win"});
-    with pytest.raises(RuntimeError, match="without its native seal") {
+    with testraises(RuntimeError, `match="without its native seal") {
         load_image(pdir);
     }
 }
@@ -153,7 +152,7 @@ test "a skip stamped with THIS capable platform is a build defect, refused" {
         pdir = _write_image(
             native={"roots": [], "skip_reason": f"platform:{sys.platform}"}
         );
-        with pytest.raises(RuntimeError, match="native backend") {
+        with testraises(RuntimeError, `match="native backend") {
             load_image(pdir);
         }
     }
@@ -161,14 +160,14 @@ test "a skip stamped with THIS capable platform is a build defect, refused" {
 
 test "a jaclang image behind the current manifest format refuses to load" {
     pdir = _write_image(fmt=MANIFEST_FORMAT - 1);
-    with pytest.raises(RuntimeError, match="stale or partially updated") {
+    with testraises(RuntimeError, `match="stale or partially updated") {
         load_image(pdir);
     }
 }
 
 test "a current-format jaclang image without a native record refuses to load" {
     pdir = _write_image(native=None);
-    with pytest.raises(RuntimeError, match="no.*native seal record") {
+    with testraises(RuntimeError, `match="no.*native seal record") {
         load_image(pdir);
     }
 }
@@ -188,7 +187,7 @@ test "JAC_NO_SEAL against an existing image refuses instead of degrading" {
     saved = os.environ.pop("JAC_NO_SEAL", None);
     os.environ["JAC_NO_SEAL"] = "1";
     try {
-        with pytest.raises(RuntimeError, match="JAC_NO_SEAL") {
+        with testraises(RuntimeError, `match="JAC_NO_SEAL") {
             load_image(pdir);
         }
     } finally {
@@ -212,7 +211,7 @@ test "a corrupt artifact entry raises at resolution; an absent one is None" {
     # Present-but-corrupt entry: the sha in the manifest does not match the
     # bytes on disk. A sealed build has no fallback tier for this module, so
     # the resolver must raise, never quietly downgrade.
-    with pytest.raises(RuntimeError, match="sha256") {
+    with testraises(RuntimeError, `match="sha256") {
         image.native_artifact("jaclang.jac0core.unitree");
     }
 }

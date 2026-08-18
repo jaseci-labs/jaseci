@@ -16,7 +16,6 @@ which is the only tier a sealed build has (#8139).
 import gc;
 import json;
 import os;
-import pytest;
 import resource;
 import sys;
 import tempfile;
@@ -62,7 +61,7 @@ obj _ServeLocalArtifact {
 def _build_binding -> tuple {
     if "/.cache/jac/rt/"
         in str(Path(jaclang.__file__).resolve()).replace(os.sep, "/") {
-        pytest.skip(
+        testskip(
             "sealed-payload runtime: the parser seal is gated in source "
             "environments (dev lanes, macOS, build time), not from inside "
             "an installed payload"
@@ -772,10 +771,10 @@ test "the tripwire: bytecode branch refuses inside a native-sealed image" {
     frontend._NATIVE_PARSE_MEMO.append(None);
     sealed.native_tier_required = _tier_required_stub;
     try {
-        with pytest.raises(RuntimeError, match="bytecode parser was reached") {
+        with testraises(RuntimeError, `match="bytecode parser was reached") {
             frontend.parse_diags("with entry { x = 1; }", "__tripwire__.jac");
         }
-        with pytest.raises(RuntimeError, match="bytecode parser was reached") {
+        with testraises(RuntimeError, `match="bytecode parser was reached") {
             frontend.parse("with entry { x = 1; }", "__tripwire__.jac");
         }
     } finally {

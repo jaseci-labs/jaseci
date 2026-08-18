@@ -22,7 +22,9 @@ import from jaclang.jac0core.constant {
 }
 import from jaclang.jac0core.passes.transform { Transform }
 
-obj ModuleCodegenPass(Transform[Module, Module]) {
+obj ModuleCodegenPass(Transform) {
+    has ir_in: Module;
+
     static def unwrap_body(nd: Archetype | Enum | Ability) -> (Sequence | None) {
         body = nd.body;
         if (isinstance(body, ImplDef) and isinstance(body.body, `list)) {
