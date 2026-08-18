@@ -206,3 +206,60 @@ test "the verdict resolver refuses an inflight or mid-compile callee" {
     );
     prog._na_dep_inflight.discard(helpers_path);
 }
+
+
+"""The methods-side twin of the free-function trust hole, pinned closed.
+
+A consumer method reading `CodeGenTarget.doc_ir` -- an accessor its
+jaclang-internal defining module demotes -- must end in one of two honest
+states: the verdict binds and the consumer demotes with the census saying
+so, or the module never joins the unit and the read refuses by name. What
+it must never do is dangle: a declared symbol whose only definition was
+renamed away. The same `_dangling_demoted` scan the cycle tests use is the
+arbiter here, over a unit whose betrayal vector is a method rather than a
+free function.
+"""
+test "an internal module's demoted method cannot dangle through a consumer" {
+    if _jaclang_image() is not None {
+        testskip("a sealed image measures its trust boundary, not this");
+    }
+    path = os.path.join(FIXTURES, "demote_internal_method.jac");
+    prog = JacProgram();
+    na_census_begin();
+    try {
+        ir = prog.compile(
+            file_path=path,
+            options=CompileOptions(
+                aot_mode=True,
+                type_check=False,
+                force_codespace='native',
+                force_target_program=True,
+                na_gc_mode='cycles',
+                no_ir_cache=True
+            )
+        );
+    } finally {
+        census = na_census_end();
+    }
+    assert ir is not None and ir.gen.llvm_ir is not None , (
+        "the internal-method probe produced no linked native IR, so nothing "
+        "here measures anything"
+    );
+    ir_text = str(ir.gen.llvm_ir);
+    dangling = _dangling_demoted(ir_text);
+    assert not dangling , (
+        f"the linked unit declares {dangling} without defining them, each "
+        "with a `.__jac_demoted` twin -- the methods-side emission ran "
+        "ahead of its callee module's verdict (#8323 A10b's scenario)"
+    );
+    rec = census.get(os.path.realpath(path));
+    seams = {
+        str(s).partition(": ")[0] for s in ((rec or {}).get("seams") or [])
+    };
+    assert "InternalProbe.read_docir" in seams , (
+        "the consumer's read of a demoted internal accessor neither demoted "
+        "nor refused -- if it lowers now, the internal module's accessor "
+        "learned to cross, which needs its own measurement; re-pin this "
+        "with the mechanism named"
+    );
+}
