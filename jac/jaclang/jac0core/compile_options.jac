@@ -31,17 +31,32 @@ def _project_config -> any {
     }
 }
 
+def _cfg_attr(owner: any, name: str) -> any {
+    if owner is None {
+        return None;
+    }
+    try {
+        return getattr(owner, name);
+    } except AttributeError {
+        return None;
+    }
+}
+
 def resolved_graphmend_setting -> bool {
     cfg = _project_config();
     if cfg is None {
         return True;
     }
-    return bool(cfg.run.graphmend);
+    val = _cfg_attr(_cfg_attr(cfg, 'run'), 'graphmend');
+    if val is None {
+        return True;
+    }
+    return bool(val);
 }
 
 def resolved_graphmend_disable_setting -> list[str] {
     cfg = _project_config();
-    raw = str(cfg.run.graphmend_disable) if cfg is not None else "";
+    raw = str(_cfg_attr(_cfg_attr(cfg, 'run'), 'graphmend_disable') or '');
     out: list[str] = [];
     for part in raw.split(',') {
         stripped = part.strip().lower();
@@ -57,7 +72,7 @@ def resolved_graphmend_claim_imports_setting -> bool {
     if cfg is None {
         return False;
     }
-    return bool(cfg.run.graphmend_claim_imports);
+    return bool(_cfg_attr(_cfg_attr(cfg, 'run'), 'graphmend_claim_imports'));
 }
 
 obj CompileOptions {
@@ -98,8 +113,8 @@ obj CompileOptions {
     def postinit {
         import os;
         cfg = _project_config();
-        gc_cfg = cfg.gc if cfg is not None else None;
-        native_cfg = cfg.build.native if cfg is not None else None;
+        gc_cfg = _cfg_attr(cfg, 'gc');
+        native_cfg = _cfg_attr(_cfg_attr(cfg, 'build'), 'native');
         if self.graphmend is None {
             self.graphmend = resolved_graphmend_setting();
         }
@@ -108,7 +123,7 @@ obj CompileOptions {
         }
         if self.graphmend_claim_imports is None {
             self.graphmend_claim_imports = (
-                bool(cfg.run.graphmend_claim_imports) if cfg is not None else False
+                bool(_cfg_attr(_cfg_attr(cfg, 'run'), 'graphmend_claim_imports'))
             );
         }
         if self.na_gc_mode is None {
