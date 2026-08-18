@@ -532,6 +532,55 @@ test "fresh mtime does not admit a cache written under a different environment" 
     }
 }
 
+test "editing placement pins in jac.toml invalidates the module cache" {
+    import from jaclang.jac0core.jir { is_module_cache_valid }
+    with tempfile.TemporaryDirectory(dir=_test_tmp_dir) as proj {
+        toml_path = os.path.join(proj, "jac.toml");
+        jac_file = os.path.join(proj, "m.jac");
+        with open(toml_path, "w") as f {
+            f.write('[project]\nname = "pins_cache_probe"\n');
+        }
+        with open(jac_file, "w") as f {
+            f.write("def helper_fn() -> int { return 42; }\n");
+        }
+        past = time.time() - 2;
+        os.utime(jac_file, (past, past));
+        os.utime(toml_path, (past, past));
+        compiler = JacCompiler();
+        assert compiler.get_bytecode(jac_file, JacProgram()) is not None;
+        cache_path = get_module_cache_path(jac_file);
+        try {
+            assert cache_path.exists() , "JIR cache was not written";
+            assert os.path.getmtime(cache_path) > os.path.getmtime(jac_file) , (
+                "cache must be newer than source for the mtime fast path to apply"
+            );
+            assert is_module_cache_valid(jac_file, cache_path) , (
+                "fresh cache should be valid"
+            );
+
+            stale = cache_path.read_bytes();
+            with open(toml_path, "a") as f {
+                f.write('\n[placement.pins]\n"m.helper_fn" = "server"\n');
+            }
+            assert not is_module_cache_valid(jac_file, cache_path) , (
+                "a jac.toml pins edit must invalidate the module cache"
+            );
+
+            assert compiler.get_bytecode(jac_file, JacProgram()) is not None;
+            assert cache_path.read_bytes() != stale , (
+                "a recompile must overwrite the stale cache entry"
+            );
+            assert is_module_cache_valid(jac_file, cache_path) , (
+                "the rewritten cache must be valid under the new pins"
+            );
+        } finally {
+            if cache_path.exists() {
+                cache_path.unlink();
+            }
+        }
+    }
+}
+
 test "stub module cache key is source focused" {
     import from jaclang.jac0core.jir {
         compute_module_key,
