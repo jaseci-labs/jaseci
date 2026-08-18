@@ -243,32 +243,47 @@ test "constructing a pass in a native root lowers, with the base chain linked" {
 }
 
 
-"""Running a natively constructed pass is the next gap, and it is named.
+"""The traversal seam cleared, and the waiver table says so.
 
-Construction lowers; the traversal does not. `UniPass.transform` and
-`UniPass.traverse` refuse on a store to `ir_out` and `cur_node`, slots
-inherited from `BaseTransform` rather than declared on `UniPass`, and
-`UniPass.__post_init__` refuses on its `super.__post_init__` call. Until
-those lower, a fused root can build a pass but its traversal still bridges
-to Python, so the pass tier is not yet zero-bytecode by construction.
+This test used to pin the opposite: `UniPass.transform`, `UniPass.traverse`
+and `UniPass.__post_init__` as waived seams -- stores to `ir_out` and
+`cur_node`, slots inherited from `BaseTransform`, and a
+`super.__post_init__` call. The inherited-slot fix (#8320: `extended_mro`
+continuing truncated linearizations, keyed by declaring-module provenance)
+cleared all three, and the payout commit dropped their waivers. What
+remains waived on `uni_pass.jac` is a different family entirely: the two
+`type[T]`-generic statics.
 
-Pinned as a waived seam set rather than a prediction: the day inherited-slot
-stores lower, these drop out of the census and this test says so.
+Pinned both ways so a regression names itself: the cleared three must stay
+out of the waiver table (a re-appearance means inherited-slot access broke
+again and the fused prefix is re-blocked), and the generic statics must
+stay in it until generic statics lower. The mechanism itself is measured in
+`test_inherited_slot_adoption.jac`.
 """
-test "the pass traversal itself is the named remaining seam" {
+test "the traversal seams stay cleared, and the generic statics stay named" {
     (seams, _closure) = _ctor_probe();
     _ = seams;
     import from jaclang.utils.precompile_bytecode { _UNI_PASS_SEAM_WAIVERS }
-    for seam in (
+    for gone in (
         "jac0core/passes/uni_pass.jac::UniPass.transform",
         "jac0core/passes/uni_pass.jac::UniPass.traverse",
         "jac0core/passes/uni_pass.jac::UniPass.__post_init__"
     ) {
-        assert seam in _UNI_PASS_SEAM_WAIVERS , (
-            f"{seam} is no longer waived. If it lowers now, a pass runs "
-            "natively end to end and the fused prefix is unblocked -- drop "
-            "the waiver and say so; if it was merely renamed, the waiver has "
-            "to follow it"
+        assert gone not in _UNI_PASS_SEAM_WAIVERS , (
+            f"{gone} is waived again. The inherited-slot fix cleared it; a "
+            "returning waiver means a natively constructed pass lost its "
+            "traversal again, which re-blocks the fused prefix -- fix the "
+            "slot access rather than re-waiving it"
+        );
+    }
+    for kept in (
+        "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
+        "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type"
+    ) {
+        assert kept in _UNI_PASS_SEAM_WAIVERS , (
+            f"{kept} is no longer waived. If generic statics lower now, "
+            "collect the payout and say so; if the waiver merely moved, it "
+            "has to be findable here"
         );
     }
 }

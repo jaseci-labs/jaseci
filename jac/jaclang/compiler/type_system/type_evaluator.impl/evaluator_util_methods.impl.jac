@@ -48,8 +48,23 @@ impl TypeEvaluator._type_from_union_annotation_arg(val: Expr) -> TypeBase {
 impl TypeEvaluator._build_field_params(
     class_type: ClassType, skip_deferred: bool = True
 ) -> dict[str, Parameter] {
+    # A native-erased rim base (PassRim) annotates what a driver-side
+    # metaclass stamps -- `prog` -- so bytecode-lane constructions are
+    # required to pass it. The native lane erases that base before
+    # dependency resolution: a natively constructed pass has no metaclass,
+    # no `prog` slot and no way to spell a `JacProgram`, so requiring the
+    # keyword there demands an argument the native object model cannot
+    # accept. Skip the erased base's annotations exactly where the erasure
+    # applies: a construction site in native context. Results here are
+    # built per call, not cached on the class, so the context sensitivity
+    # cannot leak between lanes.
+    import from jaclang.jac0core.codeinfo { NATIVE_ERASED_RIM_BASES }
     param_map: dict[str, Parameter] = {};
+    _erase_rim = self._in_native_context();
     for cls in class_type.shared.mro[::-1] {
+        if _erase_rim and cls.shared.class_name in NATIVE_ERASED_RIM_BASES {
+            continue;
+        }
         for has_var in cls.shared.symbol_table.get_has_vars() {
             if skip_deferred and has_var.defer {
                 continue;
