@@ -57,6 +57,7 @@ import from jaclang.jac0core.diagnostics {
     W2074,
     W2075,
     E1122,
+    E1123,
     E2018,
     E2027,
     E2055,
@@ -223,6 +224,14 @@ glob BUILTIN_NAMES: set[str] = {
          'type',
          'vars',
          'zip'
+     },
+     DEPRECATED_TYPING_ALIASES: dict[str, str] = {
+         'Dict': 'dict',
+         'FrozenSet': 'frozenset',
+         'List': 'list',
+         'Set': 'set',
+         'Tuple': 'tuple',
+         'Type': 'type'
      };
 
 obj StaticAnalysisPass(Transform) {
@@ -241,7 +250,7 @@ obj StaticAnalysisPass(Transform) {
     def _native_type_position(name_nd: Name) -> (str | None);
     def _check_unreachable_code(mod: Module) -> None;
     def _check_semantic_patterns(mod: Module) -> None;
-    def _check_typing_any_import(mod: Module) -> None;
+    def _check_typing_import_refusals(mod: Module) -> None;
     def _check_redundant_imports(mod: Module) -> None;
     def _check_client_imports(mod: Module) -> None;
     def _check_placement_warnings(mod: Module) -> None;

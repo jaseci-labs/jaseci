@@ -667,6 +667,18 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          " typing;` then `typing.Any`.",
          blocks_codegen=True
      ),
+     E1123 = _err(
+         "E1123",
+         Category.IMPORT,
+         "'{name}' cannot be imported from 'typing' -- use the builtin `{remedy}`",
+         help="'{name}' is the deprecated typing alias for the builtin"
+         " `{remedy}`. The two spell the same type, and jac subscripts the"
+         " builtin directly, so the alias buys nothing and costs an import."
+         " Drop '{name}' from the import list (remove the import when it was"
+         " the only name) and write the builtin instead -- `{remedy}[int]`,"
+         " not `{name}[int]`.",
+         blocks_codegen=True
+     ),
      E1301 = _err(
          "E1301",
          Category.SEMANTIC,
