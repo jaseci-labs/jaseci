@@ -173,7 +173,7 @@ class CallInstr(Instruction) {
         return self.operands[0];
     }
 
-    @callee.`setter
+    @callee.setter
     def callee(self: CallInstr, newcallee: Any) -> object {
         self.operands[0] = newcallee;
     }

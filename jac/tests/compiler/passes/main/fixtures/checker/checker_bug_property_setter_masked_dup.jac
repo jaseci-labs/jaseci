@@ -13,7 +13,7 @@ obj Container {
         return 1;
     }
 
-    @bar.`setter
+    @bar.setter
     def foo -> int {
         return 2;
     }

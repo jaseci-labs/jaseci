@@ -13,17 +13,17 @@ obj Container {
         return self._val;
     }
 
-    @val.`getter
+    @val.getter
     def val -> int {
         return self._val;
     }
 
-    @val.`setter
+    @val.setter
     def val(new_val: int) {
         self._val = new_val;
     }
 
-    @val.`deleter
+    @val.deleter
     def val {
         self._val = 0;
     }

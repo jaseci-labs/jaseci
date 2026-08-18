@@ -1045,7 +1045,7 @@ class FunctionAttributes(AttributeSet) {
         return self._alignstack;
     }
 
-    @alignstack.`setter
+    @alignstack.setter
     def alignstack(self: FunctionAttributes, val: Any) -> object {
         assert (val >= 0);
         self._alignstack = val;
@@ -1056,7 +1056,7 @@ class FunctionAttributes(AttributeSet) {
         return self._personality;
     }
 
-    @personality.`setter
+    @personality.setter
     def personality(self: FunctionAttributes, val: Any) -> object {
         assert ((val is None) or isinstance(val, GlobalValue));
         self._personality = val;
@@ -1244,7 +1244,7 @@ class ArgumentAttributes(AttributeSet) {
         return self._align;
     }
 
-    @align.`setter
+    @align.setter
     def align(self: ArgumentAttributes, val: Any) -> object {
         assert (isinstance(val, int) and (val >= 0));
         self._align = val;
@@ -1255,7 +1255,7 @@ class ArgumentAttributes(AttributeSet) {
         return self._dereferenceable;
     }
 
-    @dereferenceable.`setter
+    @dereferenceable.setter
     def dereferenceable(self: ArgumentAttributes, val: Any) -> object {
         assert (isinstance(val, int) and (val >= 0));
         self._dereferenceable = val;
@@ -1266,7 +1266,7 @@ class ArgumentAttributes(AttributeSet) {
         return self._dereferenceable_or_null;
     }
 
-    @dereferenceable_or_null.`setter
+    @dereferenceable_or_null.setter
     def dereferenceable_or_null(self: ArgumentAttributes, val: Any) -> object {
         assert (isinstance(val, int) and (val >= 0));
         self._dereferenceable_or_null = val;

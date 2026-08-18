@@ -608,7 +608,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
         return self._speed_level;
     }
 
-    @speed_level.`setter
+    @speed_level.setter
     def speed_level(self: PipelineTuningOptions, value: Any) -> object {
         if not (0 <= value <= 3) {
             raise ValueError("Optimization level for speed should be 0, 1, 2, or 3");
@@ -621,7 +621,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
         return ffi.lib.LLVMPY_PTOGetLoopInterleaving(self);
     }
 
-    @loop_interleaving.`setter
+    @loop_interleaving.setter
     def loop_interleaving(self: PipelineTuningOptions, value: Any) -> object {
         ffi.lib.LLVMPY_PTOSetLoopInterleaving(self, value);
     }
@@ -631,7 +631,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
         return ffi.lib.LLVMPY_PTOGetLoopVectorization(self);
     }
 
-    @loop_vectorization.`setter
+    @loop_vectorization.setter
     def loop_vectorization(self: PipelineTuningOptions, value: Any) -> object {
         ffi.lib.LLVMPY_PTOSetLoopVectorization(self, value);
     }
@@ -641,7 +641,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
         return ffi.lib.LLVMPY_PTOGetSLPVectorization(self);
     }
 
-    @slp_vectorization.`setter
+    @slp_vectorization.setter
     def slp_vectorization(self: PipelineTuningOptions, value: Any) -> object {
         ffi.lib.LLVMPY_PTOSetSLPVectorization(self, value);
     }
@@ -651,7 +651,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
         return ffi.lib.LLVMPY_PTOGetLoopUnrolling(self);
     }
 
-    @loop_unrolling.`setter
+    @loop_unrolling.setter
     def loop_unrolling(self: PipelineTuningOptions, value: Any) -> object {
         ffi.lib.LLVMPY_PTOSetLoopUnrolling(self, value);
     }
@@ -661,7 +661,7 @@ class PipelineTuningOptions(ffi.ObjectRef) {
         return ffi.lib.LLVMPY_PTOGetInlinerThreshold(self);
     }
 
-    @inlining_threshold.`setter
+    @inlining_threshold.setter
     def inlining_threshold(self: PipelineTuningOptions, value: Any) -> object {
         ffi.lib.LLVMPY_PTOSetInlinerThreshold(self, value);
     }
