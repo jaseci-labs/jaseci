@@ -179,40 +179,46 @@ test "get_shared_root re-queries resolver when cached id goes stale" {
         first = client.post("/walker/whereami", json={});
         assert first.ok;
         stale_id = first.data["reports"][1];
+        client.close();
         prior = Jac.get_context();
-        new_ctx = Jac.create_j_context(
-            user_root=None, base_path_dir=tmpdir, full_target_path=str(tmpdir)
-        );
-        Jac.set_context(new_ctx);
-        try {
-            import from jaclang.jac0core.constructs { Root }
-            healed_root = Root();
-            root_anchor = healed_root.__jac__;
-            Jac.save(root_anchor);
-            Jac.commit(root_anchor);
-            healed_id = root_anchor.id.hex;
-            calls = [0];
+        # Isolated from the server's store: stale_id must not load from
+        # persistence in the swapped context, only from the resolver retry.
+        with TemporaryDirectory() as isolated {
+            new_ctx = Jac.create_j_context(
+                user_root=None,
+                base_path_dir=isolated,
+                full_target_path=isolated
+            );
+            Jac.set_context(new_ctx);
+            try {
+                import from jaclang.jac0core.constructs { Root }
+                healed_root = Root();
+                root_anchor = healed_root.__jac__;
+                Jac.save(root_anchor);
+                Jac.commit(root_anchor);
+                healed_id = jid(healed_root);
+                calls = [0];
 
-            def healing_resolver -> (str | None) {
-                calls[0] += 1;
-                if calls[0] == 1 {
-                    return stale_id;
+                def healing_resolver -> (str | None) {
+                    calls[0] += 1;
+                    if calls[0] == 1 {
+                        return stale_id;
+                    }
+                    return healed_id;
                 }
-                return healed_id;
-            }
 
-            Jac.set_shared_root_resolver(healing_resolver);
-            shared = Jac.get_shared_root();
-            assert jid(shared) == healed_id , (
-                "get_shared_root did not follow the resolver's healed root"
-            );
-            assert calls[0] == 2 , (
-                "stale cache must trigger exactly one resolver re-query"
-            );
-        } finally {
-            Jac.set_context(prior);
-            client.close();
-            Jac.set_shared_root_resolver(None);
+                Jac.set_shared_root_resolver(healing_resolver);
+                shared = Jac.get_shared_root();
+                assert jid(shared) == healed_id , (
+                    "get_shared_root did not follow the resolver's healed root"
+                );
+                assert calls[0] == 2 , (
+                    "stale cache must trigger exactly one resolver re-query"
+                );
+            } finally {
+                Jac.set_context(prior);
+                Jac.set_shared_root_resolver(None);
+            }
         }
     }
 }
