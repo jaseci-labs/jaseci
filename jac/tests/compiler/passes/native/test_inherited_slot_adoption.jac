@@ -23,16 +23,19 @@ each recorded chain through its ancestors' own recorded chains. What it may
 not do is trust a bare name: the registry holds one layout per name, so
 `type_utils`'s `class PropertyWriteKind(Enum)` -- Python's enum -- resolves
 to unitree's `Enum` archetype, and an unguarded repair walked straight into
-unitree's scope methods. `corroborates` is the guard, and it asks for
-evidence rather than a name match: a real ancestor's slots already sit at the
-indices the child carries.
+unitree's scope methods. Provenance is the guard: `parent_mods` records,
+while the symbol is in hand, which module each parent reference resolved
+to, and the splice happens only where that matches the ancestor layout's
+own `decl_mod`.
 
 Pinned here two ways. The fixtures measure the mechanism directly, so a
-regression names itself here rather than as a seam count in a census.
+regression names itself here rather than as a seam count in a census. The
+flat-header configuration over the same fixtures is owned by
+`test_inherited_slot_headers.jac` (#8343), where `relax_vtable_header`
+made the pair agree; this file measures the linearization repair.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from jaclang.jac0core.compile_options { CompileOptions }
 import from jaclang.jac0core.compiler { na_census_begin, na_census_end }
@@ -52,7 +55,7 @@ glob FIXTURES = os.path.join(
 """Seams the native census records for `rel`, keyed by callable."""
 def _seams(rel: str) -> dict[(str, str)] {
     if _jaclang_image() is not None {
-        pytest.skip("a sealed image measures its trust boundary, not this");
+        testskip("a sealed image measures its trust boundary, not this");
     }
     if rel in _MEMO {
         return _MEMO[rel];
@@ -107,7 +110,7 @@ test "a leaf reaches a slot its grandparent declares, across two modules" {
 """The chain the compiler's own passes form, measured on the real thing."""
 test "the pass chain's traversal methods lower" {
     if _jaclang_image() is not None {
-        pytest.skip("a sealed image measures its trust boundary, not this");
+        testskip("a sealed image measures its trust boundary, not this");
     }
     pkg = os.path.dirname(os.path.realpath(jaclang.__file__));
     prog = JacProgram();
@@ -145,23 +148,25 @@ test "the pass chain's traversal methods lower" {
 }
 
 
-"""What the repair still refuses, kept honest rather than hidden.
+"""The flat-header case this file used to pin as refused now lowers.
 
-`UniPass.__post_init__` refuses on `super.__post_init__`, a different
-mechanism from the slot access this file fixes, and the flat-header case
-below is a second one: `adopt_imported_bases` declines to reassign where a
-flat ancestor sits under a subclass that carries a vtable, because no
-assignment satisfies both units. `SlotChild` overrides a method and so needs
-one; `SlotBase`, having no subclass in its own unit, does not.
+The old test here held the refusal: a flat imported ancestor under a
+vtable-carrying child had no slot assignment satisfying both units, so
+`SlotChild.store_inherited` stayed a seam. #8343's `relax_vtable_header`
+answered it at the root -- a vtable nothing dispatches through is a habit,
+not a requirement -- and `test_inherited_slot_headers.jac` owns that
+measurement now, both header agreement and the store lowering. What
+remains pinned here is the half that suite does not touch: the
+linearization repair above, which is #8320's half of the same arrival.
 """
-test "the flat-base header disagreement is still refused, and says so" {
+test "the relaxed flat-base store lowers, and its seam stays gone" {
     seams = _seams("inherited_slot_child.jac");
     why = seams.get("SlotChild.store_inherited", "");
-    assert why , (
-        "the flat-ancestor/vtable-child case started lowering. That is real "
-        "progress -- `needs_vtable` is `bool(parents)` in "
-        "`layout_pass.impl.jac`, so a child of a flat base carries a vtable "
-        "its base lacks -- but it needs its own measurement, so record it "
-        "and drop this test"
+    assert not why , (
+        f"SlotChild.store_inherited refused again: {why}. The header "
+        "relaxation (#8343) made the flat pair agree; a returning seam "
+        "means the header decision regressed -- look at "
+        "relax_vtable_header and vtable_by_dispatch before re-waiving "
+        "anything"
     );
 }
