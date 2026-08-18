@@ -282,26 +282,12 @@ glob UNITREE_CLOSURE: tuple = (
          "transform.jac::Alert.pretty_print": (
              "Rim work: renders source spans through "
              "`helpers.pretty_print_source_location`, itself waived above. "
-             "Clears with it, and with diagnostics crossing as data."
-         ),
-         "transform.jac::BaseTransform.is_canceled": (
-             "Rim work: reads a `threading.Event` the driver owns. Clears "
-             "when cancellation crosses as a scalar the crossing reads."
-         ),
-         "transform.jac::Transform.ice": (
-             "Rim work: raises E9001 through Python diagnostics machinery. "
-             "Clears when ice construction lowers, or when the internal-"
-             "error guard moves behind the emit-as-data path."
-         ),
-         "uni_pass.jac::UniPass.get_all_sub_nodes": (
-             "Backend gap: a `type[T]`-generic static forwarding to the "
-             "same-named `UniNode` method; a TypeVar-bound signature does "
-             "not lower. Clears when generic statics lower, or when the "
-             "forwarding shim is retired."
-         ),
-         "uni_pass.jac::UniPass.find_parent_of_type": (
-             "Backend gap: the twin of `get_all_sub_nodes` above, and it "
-             "clears the same way."
+             "Clears with it, and with diagnostics crossing as data. The "
+             "four entries that used to sit beside it cleared for the fused "
+             "prefix: `is_canceled` reads the `cancel_requested` scalar, "
+             "`ice` builds the message its callers raise, and the two "
+             "generic-static shims were retired for the `UniNode` methods "
+             "they wrapped."
          )
      };
 
