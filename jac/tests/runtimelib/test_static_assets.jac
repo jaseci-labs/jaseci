@@ -231,7 +231,7 @@ test "asset_response serves 200 with the right content type" {
     proj = _project();
     target = _write(proj, "public/logo.png", b"PNG_DATA");
 
-    resp = asset_response(target, {});
+    resp = asset_response(target);
     assert resp.status_code == 200;
     assert resp.body_bytes() == b"PNG_DATA";
     assert "image/png" in resp.content_type_header();
@@ -242,7 +242,7 @@ test "asset_response does not blanket-cache mutable files for a year" {
     proj = _project();
     target = _write(proj, "public/logo.png", b"PNG_DATA");
 
-    resp = asset_response(target, {});
+    resp = asset_response(target);
     cache = resp.headers.get("Cache-Control") or "";
     # The monolith's blanket `max-age=31536000` on every file is the bug we are
     # removing. A hashed/immutable long-cache split is #8126; #8125 just must not
