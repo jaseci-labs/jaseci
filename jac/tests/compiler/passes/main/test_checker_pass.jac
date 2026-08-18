@@ -4817,19 +4817,40 @@ test "jsx_children_must_be_declared_by_the_component" {
         for w in program.warnings_had
         if w.code and w.code.code == "W1053"
     ];
-    # Three call sites drop children: two on `Titled`, one on `ZeroParam`.
-    # `WithChildren` declares them, `TypedBag` receives the whole props object,
-    # and comment/whitespace-only bodies are not children.
-    assert len(w1053) == 3 , f"Expected exactly 3 W1053, got {len(w1053)}:\n"
+    # Five call sites drop children: two on `Titled`, one on `ZeroParam`, one
+    # on the `-> JsxPage` route component, one on `Required`. `WithChildren`
+    # declares them, `TypedBag` receives the whole props object, and
+    # comment/whitespace-only bodies are not children.
+    assert len(w1053) == 5 , f"Expected exactly 5 W1053, got {len(w1053)}:\n"
         + "\n---\n".join(w.pretty_print() for w in program.warnings_had);
     flagged = sorted(w.msg for w in w1053);
     named = [
         name
-        for name in ["Titled", "WithChildren", "ZeroParam", "TypedBag"]
+        for name in [
+            "Titled",
+            "TitledPage",
+            "Required",
+            "WithChildren",
+            "ZeroParam",
+            "TypedBag"
+        ]
         if any(f"Component '{name}'" in m for m in flagged)
     ];
-    assert named == ["Titled", "ZeroParam"] , f"Expected W1053 only on 'Titled' and 'ZeroParam', got {named}:\n"
+    assert named == ["Titled", "TitledPage", "Required", "ZeroParam"] , f"Expected W1053 only on 'Titled', 'TitledPage', 'Required' and 'ZeroParam', got {named}:\n"
         + "\n".join(flagged);
+
+    # A component element with children parses into three JsxElement nodes --
+    # opening tag, closing tag, complete element -- and only the last is a call
+    # site. Validating a tag node reports every required prop as missing, so
+    # `<Required title="ok">hello</Required>` would draw a blocking E1102 for
+    # the `title` it plainly passes.
+    e1102 = [
+        e
+        for e in program.errors_had
+        if e.code and e.code.code == "E1102"
+    ];
+    assert not e1102 , f"A JSX tag node was validated as a call site:\n"
+        + "\n---\n".join(e.pretty_print() for e in e1102);
     assert len(
         [
             m
@@ -4875,18 +4896,25 @@ test "jsx_props_bundle_must_be_the_only_parameter" {
         if e.code and e.code.code == "E1109"
     ];
     msgs = sorted(e.msg for e in e1109);
-    assert len(e1109) == 2 , f"Expected exactly 2 E1109, got {len(e1109)}:\n"
+    assert len(e1109) == 5 , f"Expected exactly 5 E1109, got {len(e1109)}:\n"
         + "\n---\n".join(
             f"{err.code.code if err.code else '?'}: {err.pretty_print()}"
             for err in program.errors_had
         );
-    # `Mixed` and `MixedKw` only: a lone bundle, plain named parameters, and a
-    # non-JSX function that happens to take a `props` argument are all fine.
-    for name in ["Mixed", "MixedKw"] {
+    # The rule reaches every return annotation the codegen lowers through the
+    # props protocol, not just the exact `JsxElement` one: `JsxPage` and
+    # `JsxLayout` are what every `pages/` route module returns, and a union is
+    # a component if either arm is. Keying this on `JsxElement` alone let the
+    # broken declarations through in precisely the files the diagnostic is for.
+    for name in ["Mixed", "MixedKw", "MixedPage", "MixedLayout", "MixedUnion"] {
         assert any(f"'{name}'" in m for m in msgs) , f"Expected E1109 for '{name}':\n"
             + "\n".join(msgs);
     }
-    for name in ["Bag", "Named", "NotAComponent"] {
+    # A lone bundle (whatever it returns), plain named parameters, a non-JSX
+    # function that happens to take a `props` argument, and the runtime's own
+    # `__jac`-prefixed helpers -- which the codegen calls directly rather than
+    # through the props protocol -- are all fine.
+    for name in ["Bag", "BagPage", "Named", "NotAComponent", "__jacMixedHelper"] {
         assert not any(f"'{name}'" in m for m in msgs) , f"'{name}' must not be flagged:\n"
             + "\n".join(msgs);
     }

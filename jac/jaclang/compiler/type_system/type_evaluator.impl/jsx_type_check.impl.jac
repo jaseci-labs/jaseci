@@ -85,10 +85,17 @@ impl TypeEvaluator._resolve_intrinsic_jsx_tag(part: Name, tag_name: str) -> None
     }
 }
 
+impl TypeEvaluator._is_jsx_tag_node(expr: JsxElement) -> bool {
+    if expr.is_self_closing or expr.is_fragment or not expr.kid {
+        return False;
+    }
+    return isinstance(expr.kid[0], Token);
+}
+
 impl TypeEvaluator._validate_jsx_props(
     expr: JsxElement, expected_type: TypeBase | None = None
 ) -> None {
-    if not expr.name {
+    if not expr.name or self._is_jsx_tag_node(expr) {
         return;
     }
     first_part = expr.name.parts[0] if expr.name.parts else None;
@@ -127,8 +134,10 @@ impl TypeEvaluator._validate_component_jsx_props(
     }
     matched_params: set[str] = set();
 
-    if self._validate_jsx_children(expr, component_name, param_map) {
+    has_children = self._has_rendered_jsx_children(expr);
+    if has_children {
         matched_params.add("children");
+        self._validate_jsx_children(expr, component_name, param_map);
     }
 
     if len(param_map) == 1 and "props" in param_map {
@@ -264,17 +273,11 @@ impl TypeEvaluator._has_rendered_jsx_children(expr: JsxElement) -> bool {
 
 impl TypeEvaluator._validate_jsx_children(
     expr: JsxElement, component_name: str, param_map: dict[str, Parameter]
-) -> bool {
-    has_children = self._has_rendered_jsx_children(expr);
-    if not has_children or "children" in param_map {
-        return has_children;
-    }
-
-    if "props" in param_map {
-        return has_children;
+) -> None {
+    if "children" in param_map or "props" in param_map {
+        return;
     }
     self.emit_diag(W1053, expr.name or expr, component=component_name);
-    return has_children;
 }
 
 impl TypeEvaluator._validate_intrinsic_jsx_props(

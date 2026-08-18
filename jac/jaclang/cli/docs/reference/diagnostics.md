@@ -284,6 +284,8 @@ Emitted by `JsxIntrinsicGuardPass` when a `mobui` project (see [React Native tar
 
 ### JSX Children
 
+These three apply to every **component** -- any ability whose return annotation names `JsxElement`, `JsxPage` or `JsxLayout`, including a union with one of them (`JsxPage` and `JsxLayout` are what a `pages/` route or layout module returns). That is the same predicate the client codegen uses to pick a component's call ABI, so a declaration these reject is exactly a declaration it would mis-lower. The runtime's own `__jac`-prefixed helpers are called directly rather than through the props protocol, and are not components.
+
 A component receives JSX children only if it declares a parameter literally named `children`. The codegen destructures a component's declared parameter names out of `props` with no rest element, so children handed to a component that never declares them are discarded with no runtime signal -- the failure mode is a blank render with a clean `jac check`. A component whose single parameter is named `props` receives the object whole, so children arrive as `props.children` and are never dropped.
 
 | Code | Message |

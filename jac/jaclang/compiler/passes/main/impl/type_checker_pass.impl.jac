@@ -781,19 +781,10 @@ impl TypeCheckPass._jsx_component_params(
 ) -> (list[ParamVar] | None) {
     if (
         not isinstance(nd.signature, FuncSignature)
-        or nd.signature.return_type is None
         or nd.find_parent_of_type(ImplDef) is not None
+        or not return_type_is_jsx(nd.signature.return_type)
+        or is_jsx_runtime_helper(nd.name_spec.sym_name)
     ) {
-        return None;
-    }
-    jsx_cls = self.evaluator.prefetch.jsx_element_class
-        if self.evaluator.prefetch
-        else None;
-    if jsx_cls is None {
-        return None;
-    }
-    ret_type = self.evaluator.get_type_of_expression(nd.signature.return_type);
-    if not isinstance(ret_type, ClassType) or ret_type.shared != jsx_cls.shared {
         return None;
     }
     return [
@@ -810,10 +801,6 @@ impl TypeCheckPass._check_props_bundle_is_exclusive(
         return;
     }
     component = nd.name_spec.sym_name;
-
-    if component.startswith("__jac") {
-        return;
-    }
     for p in comp_params {
         if isinstance(p.name, Name) and p.name.value == "props" {
             self.emit(E1109, node_override=p, name=component);

@@ -76,6 +76,7 @@ import from jaclang.compiler.type_system.operations {
     get_numeric_promotion_type,
     get_pow_result_type
 }
+import from jaclang.compiler.jsx_component { is_jsx_runtime_helper, return_type_is_jsx }
 import from jaclang.jac0core.diagnostics {
     Category,
     DiagnosticInfo,
