@@ -1,6 +1,5 @@
 import json;
-import from collections.abc { Callable, Sequence }
-import from typing { TypeVar, cast }
+import from typing { cast }
 import jaclang.compiler.passes.ecmascript.estree as es;
 import jaclang.jac0core.unitree as uni;
 import from jaclang.compiler.passes.ecmascript.es_unparse { es_to_js }
