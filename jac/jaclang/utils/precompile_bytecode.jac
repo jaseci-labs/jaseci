@@ -409,6 +409,10 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
      _MODULE_CODEGEN_SEAM_WAIVERS: tuple[str, ...] = (
          (
              "jac0core/passes/module_codegen_pass.jac::"
+             "ModuleCodegenPass.archetype_refs"
+         ),
+         (
+             "jac0core/passes/module_codegen_pass.jac::"
              "ModuleCodegenPass.iter_context_stmts"
          ),
          (
@@ -619,17 +623,22 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
          (
              "module_codegen isinstance against an unreachable layout",
              _MODULE_CODEGEN_SEAM_WAIVERS,
-             "One cause and five cascades, and they demote in exactly one "
-             "root -- `uni_pass.jac`, the only root that links "
+             "One mechanism and its cascades, demoting in exactly one root "
+             "-- `uni_pass.jac`, the only root that links "
              "`module_codegen_pass` without also linking the unitree layout "
-             "that would make the test resolvable. `iter_context_stmts` "
+             "that would make its reads resolvable. `iter_context_stmts` "
              "tests `isinstance` against `ElementStmt`, a unitree class "
              "whose layout is not reachable there, which is the same named "
              "backend gap `type_utils`'s `class_implements_protocol` and "
-             "`doc_of_sym` are waived for above. The other five all call it. "
-             "They clear together the day `isinstance` against an "
-             "unreachable layout lowers -- one mechanism, six waivers, and "
-             "no separate work of their own."
+             "`doc_of_sym` are waived for above; five of the others call "
+             "it, and `archetype_refs` hits the same wall one door over, "
+             "calling `UniNode.get_all_sub_nodes` on the layout that is "
+             "not there. It was always this way on this root -- the "
+             "ordering bug #8320's A1 fixed had been emitting it against "
+             "an unlanded verdict, so the seam only became visible when "
+             "the verdict started binding. They clear together the day a "
+             "call against an unreachable layout lowers -- one mechanism, "
+             "seven waivers, and no separate work of their own."
          ),
          (
              "uni_pass generic statics",
