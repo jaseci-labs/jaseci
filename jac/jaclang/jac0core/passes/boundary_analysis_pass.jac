@@ -8,8 +8,6 @@ import from jaclang.jac0core.unitree {
     BinaryExpr,
     Bool,
     BuiltinType,
-    CtFor,
-    CtIf,
     DictVal,
     Enum,
     Float,

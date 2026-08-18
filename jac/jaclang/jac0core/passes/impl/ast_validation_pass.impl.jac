@@ -375,7 +375,7 @@ impl ASTValidationPass.enter_archetype(self: ASTValidationPass, nd: Archetype) -
             for dec in item.decorators {
                 if isinstance(dec, Name) and dec.value == "property" {
                     pref = item.name_ref;
-                    if isinstance(pref, (Name, CtName)) {
+                    if isinstance(pref, Name) {
                         properties_seen.add(pref.value);
                     }
                     break;
@@ -413,7 +413,7 @@ impl ASTValidationPass.enter_archetype(self: ASTValidationPass, nd: Archetype) -
             continue;
         }
         nref = item.name_ref;
-        if not isinstance(nref, (Name, CtName)) {
+        if not isinstance(nref, Name) {
             continue;
         }
         mname = nref.value;
