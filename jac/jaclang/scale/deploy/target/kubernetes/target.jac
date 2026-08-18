@@ -19,7 +19,6 @@ import from jaclang.scale.deploy.target.kubernetes.kubernetes_config {
 }
 import from jaclang.scale.deploy.target.kubernetes.manifest_builder {
     with_config_revision,
-    CONFIG_REVISION_ANNOTATION,
     ManifestBuilder,
     GATEWAY_NAME,
     k8s_safe_name
@@ -85,20 +84,17 @@ def releases_from_revisions(entries: list[dict[str, any]]) -> list[dict[str, any
         if not digest {
             continue;
         }
-        config = str(item.get("config_revision", "") or "");
-        key = f"{digest}@{config}";
         name = str(item.get("deployment", "") or "");
         revision = int(item.get("revision", 0) or 0);
-        if key not in by_digest {
-            by_digest[key] = {
+        if digest not in by_digest {
+            by_digest[digest] = {
                 "bundle_digest": digest,
-                "config_revision": config,
                 "revision": revision,
                 "created": str(item.get("created", "") or ""),
                 "deployments": {}
             };
         }
-        release = by_digest[key];
+        release = by_digest[digest];
         release["deployments"][name] = revision;
         if revision > int(release["revision"]) {
             release["revision"] = revision;
@@ -1381,22 +1377,6 @@ obj KubernetesTarget(KubernetesTargetBase) {
                         "bundle_keys": bundle_keys_from_pod_spec(dict(pod_spec)),
                         "bundle_digest": app_bundle_digest(
                             bundle_keys_from_pod_spec(dict(pod_spec))
-                        ),
-                        "config_revision": str(
-                            dict(
-                                dict(
-                                    serializer.sanitize_for_serialization(
-                                        rs.spec.template
-                                    )
-                                ).get(
-                                    "metadata", {}
-                                )
-                            ).get(
-                                "annotations", {}
-                            ).get(
-                                CONFIG_REVISION_ANNOTATION, ""
-                            )
-                                or ""
                         ),
                         "created": created.isoformat() if created else "",
                         "replicas": int(rs.spec.replicas or 0)

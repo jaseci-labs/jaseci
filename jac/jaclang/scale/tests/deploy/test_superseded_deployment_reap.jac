@@ -371,37 +371,32 @@ test "a complete release resolves every member's own revision" {
 }
 
 
-# A release is code AND config. A config-only deploy (#8115) leaves the bundle
-# digest unchanged and stamps a new jac-scale.config-revision, so grouping by
-# digest alone folds it into the release it shares a bundle with and the earlier
-# config becomes unreachable.
-test "a config-only redeploy is its own rollback target" {
+# A release is the code bundle. A config-only deploy leaves the bundle digest
+# unchanged, so it folds into the release it shares a bundle with rather than
+# appearing as a rollback target of its own: reverting a pod template restores
+# code, and the Secret it reads is always the current one.
+test "a config-only redeploy is not a rollback target of its own" {
     releases = releases_from_revisions(
         [
             {
                 "deployment": "orders-app-deployment",
                 "revision": 1,
                 "bundle_digest": "aaa",
-                "config_revision": "100",
                 "created": "t1"
             },
             {
                 "deployment": "orders-app-deployment",
                 "revision": 2,
                 "bundle_digest": "aaa",
-                "config_revision": "101",
                 "created": "t2"
             }
         ]
     );
 
-    assert len(releases) == 2 , (
-        f"same bundle, different config, so two releases; got {len(releases)}"
+    assert len(releases) == 1 , (
+        f"same bundle is one release whatever config it ran with; got {len(releases)}"
     );
-    assert [r["revision"] for r in releases] == [2, 1];
-    assert releases[1]["deployments"] == {"orders-app-deployment": 1} , (
-        "the earlier config must stay selectable, or a config rollback is " "impossible"
-    );
+    assert releases[0]["revision"] == 2 , "the newest revision carries the release";
 }
 
 
@@ -412,14 +407,12 @@ test "the same code and config stays one release across services" {
                 "deployment": "orders-app-deployment",
                 "revision": 4,
                 "bundle_digest": "aaa",
-                "config_revision": "100",
                 "created": "t"
             },
             {
                 "deployment": "gateway-deployment",
                 "revision": 2,
                 "bundle_digest": "aaa",
-                "config_revision": "100",
                 "created": "t"
             }
         ]
