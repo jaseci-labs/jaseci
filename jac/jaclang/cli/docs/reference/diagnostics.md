@@ -426,7 +426,6 @@ Emitted by `jac check --lint`. Rules can be configured in [`jac.toml`](config/in
 | `W3003` | `combine-glob` | Consecutive 'glob' declarations can be combined | default |
 | `W3004` | `init-to-can` | '{name}' should use Jac keyword | default |
 | `W3005` | `remove-empty-parens` | Empty parentheses can be removed | default |
-| `W3006` | `remove-kwesc` | Unnecessary keyword escape on '{name}' | default |
 | `W3007` | `hasattr-to-null-ok` | hasattr() should use null-safe access | default |
 | `W3008` | `simplify-ternary` | Ternary can be simplified | default |
 | `W3009` | `remove-future-annotations` | 'from \_\_future\_\_ import annotations' is unnecessary | default |

@@ -107,8 +107,8 @@ test "expansion errors surface as diagnostics with locations" {
 
 test "comptime if selects by target context" {
     src = (
-        "comptime if target.has(\"server\") {\n    glob W: int = 1;\n}\n"
-        "comptime if target.has(\"nonexistent\") {\n    glob BAD: int = 2;\n}\n"
+        "comptime if target.`has(\"server\") {\n    glob W: int = 1;\n}\n"
+        "comptime if target.`has(\"nonexistent\") {\n    glob BAD: int = 2;\n}\n"
     );
     import from jaclang.jac0core.unitree { GlobalVars }
     (mod, err) = parse(src, "ct_tgt.jac");

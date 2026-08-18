@@ -611,58 +611,15 @@ impl JacAutoLintPass.enter_module(nd: uni.Module) -> None {
     module.set_kids(nodes=new_kid if len(new_kid) else [uni.EmptyToken()]);
 }
 
-impl JacAutoLintPass.enter_name(nd: uni.Name) -> None {
-    if not self.lint_enabled {
-        return;
-    }
-    if not nd.is_kwesc or isinstance(nd, uni.SpecialVarRef) {
-        return;
-    }
-    jac_keywords = set(KEYWORDS.keys());
-    python_keywords = set(keyword.kwlist);
-    reserved = jac_keywords | python_keywords;
-    raw_value = nd.value[1:] if nd.value.startswith("`") else nd.value;
-    if raw_value not in reserved
-        and self.emit(W3006, node_override=nd, name=raw_value)
-        and not self.report_only {
-        nd.is_kwesc = False;
-        if nd.name == Tok.KWESC_NAME {
-            nd.name = Tok.NAME;
-        }
-    }
-}
-
 impl JacAutoLintPass.enter_special_var_ref(nd: uni.SpecialVarRef) -> None {
     if not self.lint_enabled {
         return;
-    }
-    if nd.orig.is_kwesc and self.emit(W3006, node_override=nd, name=nd.orig.value) {
-        if not self.report_only {
-            nd.orig.is_kwesc = False;
-            if nd.orig.name == Tok.KWESC_NAME {
-                nd.orig.name = Tok.NAME;
-            }
-        }
     }
     if self.report_only {
         return;
     }
     if nd.is_kwesc {
         nd.is_kwesc = False;
-    }
-}
-
-impl JacAutoLintPass.enter_builtin_type(nd: uni.BuiltinType) -> None {
-    if not self.lint_enabled {
-        return;
-    }
-    if nd.is_kwesc and self.emit(W3006, node_override=nd, name=nd.value) {
-        if not self.report_only {
-            nd.is_kwesc = False;
-            if nd.name == Tok.KWESC_NAME {
-                nd.name = Tok.NAME;
-            }
-        }
     }
 }
 

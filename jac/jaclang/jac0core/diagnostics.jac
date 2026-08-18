@@ -1209,9 +1209,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          Category.LINT,
          "Empty parentheses can be removed [remove-empty-parens]"
      ),
-     W3006 = _warn(
-         "W3006", Category.LINT, "Unnecessary keyword escape on '{name}' [remove-kwesc]"
-     ),
      W3007 = _warn(
          "W3007",
          Category.LINT,
@@ -1353,7 +1350,6 @@ glob E0001 = _err("E0001", Category.SYNTAX, "Expected '{expected}', got '{got}'"
          "combine-glob": "W3003",
          "init-to-can": "W3004",
          "remove-empty-parens": "W3005",
-         "remove-kwesc": "W3006",
          "hasattr-to-null-ok": "W3007",
          "simplify-ternary": "W3008",
          "remove-future-annotations": "W3009",
