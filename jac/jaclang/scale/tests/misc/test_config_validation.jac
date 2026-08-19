@@ -343,13 +343,13 @@ def _collect_schema_keys(schema: dict, out: set) -> None {
 }
 
 
-# The blocker this guards: a KubernetesConfig field that from_config reads but
+# The blocker this guards: a KubernetesConfig field that from_dict reads but
 # the schema never declares. _walk_schema then warns "unknown key ... defaults
 # apply instead" on every command, and hard-fails under
 # JAC_SCALE_CONFIG_STRICT, for a key the loader does read. Walking the DEFAULT
 # config dict cannot catch it, because the default dict is not what
 # from_config consumes.
-test "every [scale.kubernetes] key from_config reads is declared in the schema" {
+test "every [scale.kubernetes] key the constructor reads is declared in the schema" {
     import re;
     import from pathlib { Path }
     source = (
@@ -359,9 +359,17 @@ test "every [scale.kubernetes] key from_config reads is declared in the schema" 
         / "kubernetes"
         / "kubernetes_config.jac"
     ).read_text();
-    body = source.split("from_config", 1)[-1];
+    # Split on the constructor's real name. Splitting on a name the file does
+    # not contain returns the WHOLE source, so the scrape silently widens to
+    # every config.get in the module and the guard below can never fire.
+    marker = "from_dict";
+    assert marker in source , (
+        f"'{marker}' is gone from kubernetes_config.jac, so this test is "
+        "scraping the whole file instead of the constructor; update it"
+    );
+    body = source.split(marker, 1)[-1];
     consumed = set(re.findall(r"config\.get\(\s*'([a-z_]+)'", body));
-    assert consumed , "could not read from_config's keys; update this test";
+    assert consumed , "could not read the constructor's keys; update this test";
 
     # Any section: a few keys the kubernetes block reads are owned by another
     # section and merged in, so "declared somewhere" is the honest bar. What
@@ -379,7 +387,7 @@ test "every [scale.kubernetes] key from_config reads is declared in the schema" 
 
     missing = sorted(consumed - declared - derived);
     assert missing == [] , (
-        f"from_config reads {missing} but [scale.kubernetes] does not declare "
+        f"the constructor reads {missing} but [scale.kubernetes] does not declare "
         "them, so a user setting one gets an 'unknown key' warning and the "
         "value is reported as ignored while the loader actually uses it"
     );

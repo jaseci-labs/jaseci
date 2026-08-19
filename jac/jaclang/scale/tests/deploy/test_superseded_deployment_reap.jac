@@ -873,3 +873,49 @@ test "a compensating restore puts back the marker the live template carried" {
         "template back is a template CHANGE and rolls the service for nothing"
     );
 }
+
+
+obj _UnreadableApps {
+    def list_namespaced_deployment(namespace: str, **kwargs: any) -> any {
+        return SimpleNamespace(items=[]);
+    }
+
+    def list_namespaced_replica_set(namespace: str, **kwargs: any) -> any {
+        raise RuntimeError("replicasets is forbidden: RBAC");
+    }
+}
+
+
+# The retention contract is "a bundle a retained revision references is never
+# deleted". An unreadable cluster returning an empty keep-set is that contract
+# inverted: a pruner reads it as "nothing is referenced" and deletes every
+# bundle the app owns, including the one its live pods mount. list_revisions
+# stays lenient -- an empty history costs a rollback, not the app.
+test "the retention keep-set refuses to answer from an unreadable cluster" {
+    api = _UnreadableApps();
+    raised = False;
+
+    with unittest.mock.patch.object(target_mod, "client", _FakeClient(apps=api)) {
+        with unittest.mock.patch.object(
+            target_mod.KubernetesTarget, "_load_cluster_config", return_value=None
+        ) {
+            t = target_mod.KubernetesTarget(
+                config=KubernetesConfig(app_name="shop", namespace="shop"),
+                microservices_config={"routes": {}}
+            );
+            try {
+                t.referenced_bundle_keys("shop");
+            } except Exception {
+                raised = True;
+            }
+            assert t.list_revisions("shop") == [] , (
+                "list_revisions stays lenient; only the keep-set is strict"
+            );
+        }
+    }
+
+    assert raised , (
+        "an empty keep-set from an unreadable cluster tells a pruner to delete "
+        "every bundle the app references"
+    );
+}

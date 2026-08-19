@@ -1323,7 +1323,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
         return fleet_revert_order(names);
     }
 
-    def _owned_replica_sets(apps_v1: any, namespace: str) -> list[any] {
+    def _owned_replica_sets(
+        apps_v1: any, namespace: str, strict: bool = False
+    ) -> list[any] {
         owned: list[str] = self._fleet_deployment_names(apps_v1, namespace);
         try {
             listed = list(
@@ -1345,6 +1347,9 @@ obj KubernetesTarget(KubernetesTargetBase) {
             }
             return scoped;
         } except Exception as e {
+            if strict {
+                raise;
+            }
             if self.logger {
                 self.logger.warn(
                     f"Could not list ReplicaSets: {e}", {"namespace": namespace}
@@ -1354,14 +1359,14 @@ obj KubernetesTarget(KubernetesTargetBase) {
         }
     }
 
-    def _revision_entries -> list[dict[str, any]] {
+    def _revision_entries(strict: bool = False) -> list[dict[str, any]] {
         self._load_cluster_config();
         apps_v1 = client.AppsV1Api();
         namespace: str = self.k8s_config.namespace;
         serializer = client.ApiClient();
         revisions: list[dict[str, any]] = [];
 
-        for rs in self._owned_replica_sets(apps_v1, namespace) {
+        for rs in self._owned_replica_sets(apps_v1, namespace, strict=strict) {
             try {
                 annotations = dict(rs.metadata.annotations or {});
                 raw_revision = annotations.get(REVISION_ANNOTATION);
@@ -1411,7 +1416,7 @@ obj KubernetesTarget(KubernetesTargetBase) {
     def referenced_bundle_keys(app_name: str) -> set[str] {
         self._assert_own_app(app_name);
         keys: set[str] = set();
-        for item in self._revision_entries() {
+        for item in self._revision_entries(strict=True) {
             for key in item.get("bundle_keys", []) {
                 keys.add(str(key));
             }
