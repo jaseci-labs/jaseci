@@ -200,7 +200,7 @@ test "an un-lowerable method fails the seal with an actionable diagnostic" {
 
 test "a demotion one hop out cannot hide behind a warm native IR cache" {
     # One test, not three: every stage below touches the same on-disk cache
-    # entries for seal_xmod_dep.jac, so splitting them would race under xdist.
+    # entries for seal_xmod_dep.jac, so splitting them would race across workers.
 
     # Stage 1: the demotion is in a transitive native import, not in the sealed
     # module itself. The census loop must see more than one module.

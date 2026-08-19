@@ -11,3 +11,5 @@ def print_final_summary(passed_count: int, failed_count: int, elapsed: float) ->
 def print_native_census(census: dict) -> None;
 
 def print_placement_report(rows_by_module: dict) -> None;
+
+def print_compile_stats -> None;

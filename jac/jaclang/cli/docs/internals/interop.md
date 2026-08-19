@@ -314,7 +314,7 @@ libraries (`_precompiled/native/<triple>/libjac_native_materialize.*`,
 `MANIFEST.json` format 4 under `native_artifacts` (sha256-verified,
 fail-closed). The materializer root is itself native jac, GENERATED AT SEAL TIME by
 `jaclang/utils/gen_native_materialize.py` (never checked in; issue #8133
-tracks the comptime end state): typed per-class emitters rebuild
+tracks the end state): typed per-class emitters rebuild
 the parsed tree as real CPython objects at about 1.6 us per node through
 `import from python` clib externs -- resolved from the host process via ELF
 lazy PLT binds on Linux and Mach-O flat-lookup binds on macOS, so no second

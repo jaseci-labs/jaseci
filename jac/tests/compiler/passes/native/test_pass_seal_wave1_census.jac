@@ -28,14 +28,15 @@ Every waiver names what blocks it and what clears it:
     (the same family as unitree's waived `UniNode.gen.__get__`). They
     clear when endpoint effects are emitted as data the driver collects,
     the #86 diagnostics-as-data pattern.
-  - `ModuleCodegenPass.iter_context_stmts` hits one backend gap:
-    `isinstance` over an element-erased sequence element (`module.body`
-    reaches it as a bare `Sequence`). `iter_module_imports`,
-    `iter_nested_imports`, `has_native_context_stmts`,
-    `shared_archetypes_for_context` and `client_capability_violations`
-    are pure call-cascades of that one method. All six clear together
-    when the native backend lowers `isinstance` over erased operands,
-    the unlanded remainder of the #8214 family.
+  - `module_codegen_pass` used to waive six, led by
+    `ModuleCodegenPass.iter_context_stmts` running `isinstance` over an
+    element-erased sequence element, with the other five as pure call
+    cascades of it. The clearing mechanism recorded here was "when the
+    native backend lowers `isinstance` over erased operands"; what
+    actually cleared them was the other end of the same sentence --
+    `iter_woven_segments` no longer erases the element, so the operand
+    arrives typed and the backend gap is never reached. All six are gone
+    and the waiver tuple with them.
   - `UniPass.get_all_sub_nodes` / `.find_parent_of_type` are `type[T]`
     TypeVar-generic statics that only forward to the same-named `UniNode`
     methods; the backend cannot lower a TypeVar-bound signature. They
@@ -57,7 +58,6 @@ self-clearing condition are pinned in `test_sealed_seam_reachability.jac`.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -85,14 +85,20 @@ glob WAVE1_CLOSURES: dict[(str, tuple)] = {
              "compiler/type_system/type_utils.jac",
              "compiler/type_system/types.jac",
              "jac0core/constant.jac",
+             "jac0core/diagnostic_utils.jac",
+             "jac0core/diagnostics.jac",
              "jac0core/helpers.jac",
              "jac0core/passes/annex_pass.jac",
              "jac0core/passes/annex_weave.jac",
+             "jac0core/passes/module_codegen_pass.jac",
+             "jac0core/passes/transform.jac",
+             "jac0core/passes/uni_pass.jac",
              "jac0core/srcloc.jac",
              "jac0core/unitree.jac",
              "runtimelib/na_stdlib/_hashlib_native.jac",
              "runtimelib/na_stdlib/fnmatch.jac",
              "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/logging.jac",
              "runtimelib/na_stdlib/pathlib.jac"
          ),
          "jac0core/passes/module_codegen_pass.jac": (
@@ -100,13 +106,18 @@ glob WAVE1_CLOSURES: dict[(str, tuple)] = {
              "compiler/type_system/type_utils.jac",
              "compiler/type_system/types.jac",
              "jac0core/constant.jac",
+             "jac0core/diagnostic_utils.jac",
+             "jac0core/diagnostics.jac",
              "jac0core/helpers.jac",
              "jac0core/passes/module_codegen_pass.jac",
+             "jac0core/passes/transform.jac",
+             "jac0core/passes/uni_pass.jac",
              "jac0core/srcloc.jac",
              "jac0core/unitree.jac",
              "runtimelib/na_stdlib/_hashlib_native.jac",
              "runtimelib/na_stdlib/fnmatch.jac",
              "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/logging.jac",
              "runtimelib/na_stdlib/pathlib.jac"
          ),
          "jac0core/passes/uni_pass.jac": (
@@ -114,13 +125,18 @@ glob WAVE1_CLOSURES: dict[(str, tuple)] = {
              "compiler/type_system/type_utils.jac",
              "compiler/type_system/types.jac",
              "jac0core/constant.jac",
+             "jac0core/diagnostic_utils.jac",
+             "jac0core/diagnostics.jac",
              "jac0core/helpers.jac",
+             "jac0core/passes/module_codegen_pass.jac",
+             "jac0core/passes/transform.jac",
              "jac0core/passes/uni_pass.jac",
              "jac0core/srcloc.jac",
              "jac0core/unitree.jac",
              "runtimelib/na_stdlib/_hashlib_native.jac",
              "runtimelib/na_stdlib/fnmatch.jac",
              "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/logging.jac",
              "runtimelib/na_stdlib/pathlib.jac"
          ),
          "jac0core/passes/endpoint_effect_pass.jac": (
@@ -128,13 +144,19 @@ glob WAVE1_CLOSURES: dict[(str, tuple)] = {
              "compiler/type_system/type_utils.jac",
              "compiler/type_system/types.jac",
              "jac0core/constant.jac",
+             "jac0core/diagnostic_utils.jac",
+             "jac0core/diagnostics.jac",
              "jac0core/helpers.jac",
              "jac0core/passes/endpoint_effect_pass.jac",
+             "jac0core/passes/module_codegen_pass.jac",
+             "jac0core/passes/transform.jac",
+             "jac0core/passes/uni_pass.jac",
              "jac0core/srcloc.jac",
              "jac0core/unitree.jac",
              "runtimelib/na_stdlib/_hashlib_native.jac",
              "runtimelib/na_stdlib/fnmatch.jac",
              "runtimelib/na_stdlib/hashlib.jac",
+             "runtimelib/na_stdlib/logging.jac",
              "runtimelib/na_stdlib/pathlib.jac"
          )
      };
@@ -149,7 +171,7 @@ def _root_module_name(rel: str) -> str {
 """Compile one root the way seal_native_artifacts does, up to the census."""
 def _root_census(rel: str) -> tuple {
     if native_artifact_for(_root_module_name(rel)) is not None {
-        pytest.skip(
+        testskip(
             f"{rel} is served from this runtime's native seal; the census "
             "gated the build via seal_demotion_report"
         );

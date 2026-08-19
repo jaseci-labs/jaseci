@@ -599,7 +599,7 @@ test "spec file exists" {
     spec_path = Path(SPEC_PATH);
     assert spec_path.exists() , (
         f"Grammar spec file missing: {SPEC_PATH}\n"
-        f"Generate it with: jac grammar -o {SPEC_PATH}"
+        f"Generate it with: jac tool grammar -o {SPEC_PATH}"
     );
 }
 
@@ -620,14 +620,14 @@ test "grammar matches spec" {
     missing = set(spec_rules) - set(current_rules);
     assert not missing , (
         f"Rules in jac.spec but no longer extracted: {missing}\n"
-        f"If intentional: jac grammar -o {SPEC_PATH}"
+        f"If intentional: jac tool grammar -o {SPEC_PATH}"
     );
 
     # Check for new rules not in spec
     added = set(current_rules) - set(spec_rules);
     assert not added , (
         f"New rules not in jac.spec: {added}\n"
-        f"If intentional: jac grammar -o {SPEC_PATH}"
+        f"If intentional: jac tool grammar -o {SPEC_PATH}"
     );
 
     # Check each rule body matches
@@ -647,6 +647,6 @@ test "grammar matches spec" {
     assert not changed , (
         f"{len(changed)} rule(s) changed:\n"
         + "\n".join(changed)
-        + f"\n\nIf intentional: jac grammar -o {SPEC_PATH}"
+        + f"\n\nIf intentional: jac tool grammar -o {SPEC_PATH}"
     );
 }

@@ -8,7 +8,7 @@ def get_global_context -> object {
 }
 
 class ContextRef(ffi.ObjectRef) {
-    def init(self: ContextRef, context_ptr: Any) -> object {
+    def init(self: ContextRef, context_ptr: any) -> object {
         super.init(context_ptr);
     }
 

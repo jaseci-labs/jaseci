@@ -679,7 +679,8 @@ impl JacCompiler.parse_str(
     source_str: str,
     file_path: str,
     target_program: JacProgram,
-    cancel_token: (Event | None) = None
+    cancel_token: (Event | None) = None,
+    prefix_kind: str = ''
 ) -> uni.Module {
     had_error = False;
     run_codespace_infer = False;
@@ -697,7 +698,6 @@ impl JacCompiler.parse_str(
         had_error = len(py_ast_ret.errors_had) > 0;
         mod = py_ast_ret.ir_out;
     } else {
-        import from jaclang.jac0core.parser { parse as rd_parse }
         import from jaclang.jac0core.ext_registry {
             is_retired_client_marker,
             is_retired_native_marker
@@ -718,7 +718,15 @@ impl JacCompiler.parse_str(
                 "'jac fix placement' to migrate the project."
             );
         }
-        (mod, had_error) = rd_parse(source_str, file_path, prog=target_program);
+        import from jaclang.jac0core.prefix_flip { parse_with_prefix }
+        _p_opts_pre = target_program._compile_options;
+        (mod, had_error) = parse_with_prefix(
+            source_str,
+            file_path,
+            target_program,
+            kind=prefix_kind,
+            no_cgen=bool(_p_opts_pre.no_cgen) if _p_opts_pre is not None else False
+        );
         codespace = '';
         import from jaclang.jac0core.codeinfo {
             is_client_by_location as _cbl,
@@ -893,6 +901,26 @@ impl JacCompiler.stamp_access_check_facts(mod: uni.Module) -> None {
         enforce = False;
     }
     mod.access_enforced = enforce;
+}
+
+impl JacCompiler.stamp_native_import_facts(
+    mod: uni.Module, target_program: JacProgram
+) -> None {
+    """Stamp each import with the emitter's native-only verdict.
+
+    Whether an import resolves to a module the native lane owns, and
+    whether that module lives inside jaclang's own tree, are both
+    import-resolution questions: they need the hub, the placement pins
+    and the filesystem, which is the driver's ground and not a pass's.
+    The emitter used to ask for them through `self.prog`, the one
+    driver read left in a sealed pass. It now consumes a bool.
+    """;
+    import os;
+    for imp in mod.get_all_sub_nodes(uni.Import) {
+        target = native_only_import_target(imp, target_program);
+        imp.native_only_drop = target is not None
+            and (os.sep + 'jaclang' + os.sep) not in os.path.abspath(target);
+    }
 }
 
 impl JacCompiler.stamp_client_kind_facts(
@@ -1173,6 +1201,10 @@ impl JacCompiler.compile(
         if _outer_prog is not None and _outer_opts is not None {
             _outer_prog._compile_options = _outer_opts;
         }
+        if _depth_prev == 0 {
+            import from jaclang.jac0core.prefix_flip { emit_prefix_summary }
+            emit_prefix_summary();
+        }
     }
 }
 
@@ -1220,33 +1252,49 @@ impl JacCompiler._compile_once(
     }
     keep_str = use_str or read_file_with_encoding(file_path);
     had_parse_errors = len(actual_program.errors_had);
+    import from jaclang.jac0core.prefix_flip {
+        drop_executed_prefix,
+        mark_prefix_provided,
+        prefix_span_blocking,
+        prefix_span_errors,
+        take_prefix_handoff
+    }
     mod_targ = self.parse_str(
-        keep_str, file_path, actual_program, cancel_token=options.cancel_token
+        keep_str,
+        file_path,
+        actual_program,
+        cancel_token=options.cancel_token,
+        prefix_kind=('symtab-ir' if options.symtab_ir_only else 'ir-gen')
     );
-    had_parse_errors = len(actual_program.errors_had) > had_parse_errors;
+    _prefix_span = take_prefix_handoff(mod_targ);
+    _prefix_ran = _prefix_span[0];
+    had_parse_errors = (
+        len(actual_program.errors_had) - prefix_span_errors(_prefix_span)
+    )
+        > had_parse_errors;
 
     cur_mod_path = os.path.normpath(file_path);
     blocking_errs_pre_ir = self._count_module_blocking_errors(
         actual_program, cur_mod_path
-    );
+    )
+        - prefix_span_blocking(actual_program, _prefix_span, cur_mod_path);
     if options.symtab_ir_only {
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=get_symtab_ir_sched(),
-            cancel_token=options.cancel_token
-        );
+        _head_sched = get_symtab_ir_sched();
     } else {
-        self.run_schedule(
-            mod=mod_targ,
-            target_program=actual_program,
-            passes=get_ir_gen_sched(
-                is_internal=(actual_program is self._internal_program),
-                gen_mtir=not options.no_cgen
-            ),
-            cancel_token=options.cancel_token
+        _head_sched = get_ir_gen_sched(
+            is_internal=(actual_program is self._internal_program),
+            gen_mtir=not options.no_cgen
         );
     }
+    if _prefix_ran {
+        mark_prefix_provided(actual_program, mod_targ, _head_sched[:len(_prefix_ran)]);
+    }
+    self.run_schedule(
+        mod=mod_targ,
+        target_program=actual_program,
+        passes=drop_executed_prefix(_head_sched, _prefix_ran),
+        cancel_token=options.cancel_token
+    );
 
     blocking_errs_post_ir = self._count_module_blocking_errors(
         actual_program, cur_mod_path
@@ -1353,7 +1401,7 @@ impl JacCompiler._compile_once(
         and not had_blocking_errors
         and is_explicit_native
     ) {
-        _parity_passes: list[type[Transform[uni.Module, uni.Module]]] = [];
+        _parity_passes: list[type[Transform]] = [];
         if run_inference {
             try {
                 import from jaclang.compiler.passes.native { NaIRGenPass }
@@ -1493,7 +1541,7 @@ impl JacCompiler.build(
 impl JacCompiler.run_schedule(
     mod: uni.Module,
     target_program: JacProgram,
-    passes: list[type[Transform[uni.Module, uni.Module]]],
+    passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
     provided = target_program._analyses_run.get(id(mod));
@@ -1518,6 +1566,9 @@ impl JacCompiler.run_schedule(
         }
         if current_pass is BoundaryAnalysisPass {
             self.stamp_boundary_facts(mod, target_program);
+        }
+        if current_pass is JcirGenPass {
+            self.stamp_native_import_facts(mod, target_program);
         }
         if jsx_guard_pass is not None and current_pass is jsx_guard_pass {
             self.stamp_client_kind_facts(mod, target_program);
@@ -1665,14 +1716,12 @@ impl JacCompiler._report_missing_native_ir(
 }
 
 impl JacCompiler._prepare_tool_program(
-    source_str: str, file_path: str, expand: bool = False
+    source_str: str, file_path: str
 ) -> tuple[JacProgram, (uni.Module | None)] {
     import from jaclang.jac0core.program { JacProgram }
     import from jaclang.jac0core.parser { parse as rd_parse }
     prog = JacProgram();
-    (current_mod, had_error) = rd_parse(
-        source_str, file_path, prog=prog, expand=expand
-    );
+    (current_mod, had_error) = rd_parse(source_str, file_path, prog=prog);
     if had_error {
         prog.mod = uni.ProgramModule(main_mod=current_mod);
         return (prog, None);
@@ -1712,9 +1761,7 @@ impl JacCompiler.jac_str_formatter(
 
 impl JacCompiler.jac_file_linter(file_path: str) -> JacProgram {
     source_str = read_file_with_encoding(file_path);
-    (prog, current_mod) = JacCompiler._prepare_tool_program(
-        source_str, file_path, expand=True
-    );
+    (prog, current_mod) = JacCompiler._prepare_tool_program(source_str, file_path);
     if current_mod is None {
         return prog;
     }

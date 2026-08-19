@@ -25,7 +25,6 @@ own coupling; `_pass_census` skips there.
 """
 
 import os;
-import pytest;
 import jaclang;
 import from pathlib { Path }
 import from jaclang.jac0core.compile_options { CompileOptions }
@@ -55,13 +54,15 @@ glob DRIVER_SEAM_MARKERS: tuple = (
 """Backend gaps that keep a sym_tab_build method demoted, keyed as the census
 keys them. None of these touch the driver: each names a construct the native
 backend cannot lower yet, and each stays reachable through its Python fallback.
+
+This table held `SymTabBuildPass.exit_global_vars` until the inherited-slot
+repair (#8320) linked the base chain's method slots: its call to the
+inherited `Transform.ice` lowers through the adopted slot now, so the method
+stopped demoting and the waiver came out. What that call reaches at runtime
+is `ice`'s own waived stub -- the reachability suite carries that as the
+base chain's named construction gate.
 """
-glob SYM_TAB_SEAM_WAIVERS: dict[(str, str)] = {
-         "SymTabBuildPass.exit_global_vars": (
-             "backend gap: calls the inherited `Transform.ice`, which raises "
-             "through Python diagnostics machinery."
-         )
-     };
+glob SYM_TAB_SEAM_WAIVERS: dict[(str, str)] = {};
 
 glob _CENSUS_MEMO: dict[(str, tuple)] = {};
 
@@ -69,7 +70,7 @@ glob _CENSUS_MEMO: dict[(str, tuple)] = {};
 def _pass_census(pass_file: str) -> tuple {
     unit = f"jaclang.jac0core.passes.{pass_file[:-4]}";
     if _jaclang_image() is not None {
-        pytest.skip(
+        testskip(
             "this runtime is a sealed jaclang image, so na_ir_gen_pass "
             "untrusts every method of an imported jaclang-internal archetype "
             "that the image's layout does not carry; a source census here "
@@ -79,7 +80,7 @@ def _pass_census(pass_file: str) -> tuple {
         );
     }
     if native_artifact_for(unit) is not None {
-        pytest.skip(
+        testskip(
             f"{pass_file} is served from this runtime's native seal; the "
             "census gated the build via seal_demotion_report"
         );

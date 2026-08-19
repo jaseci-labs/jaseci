@@ -15,6 +15,12 @@ impl JacProgram.init(
 
     self._na_dep_inflight: set = set();
 
+    self._na_verdict_resolving: set = set();
+
+    self._na_unverified_live: dict = {};
+
+    self._na_verdict_misses: int = 0;
+
     self._hub_cache_times: dict[str, float] = {};
 
     self._dependents: dict[str, set[str]] = {};
@@ -415,7 +421,7 @@ impl JacProgram.build(
 impl JacProgram.run_schedule(
     self: JacProgram,
     mod: uni.Module,
-    passes: list[type[Transform[uni.Module, uni.Module]]],
+    passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
     self._get_compiler().run_schedule(mod, self, passes, cancel_token);

@@ -328,6 +328,13 @@ def _command_routes -> list[CommandMeta] {
                     help='Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision',
                     short=''
                 ),
+                ArgMeta(
+                    name='compile-stats',
+                    typ='bool',
+                    default=False,
+                    help="Report how much of each module's pass schedule the binary executed natively, and name every module that fell back to the staged pass loop",
+                    short=''
+                ),
 
             ]
         ),
@@ -1999,7 +2006,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='filter',
                     default='',
-                    help='Filter test files (Unix patterns)',
+                    help='Select tests by name expression (and/or/not, parens)',
                     short='f'
                 ),
                 ArgMeta(
@@ -2024,7 +2031,7 @@ def _command_routes -> list[CommandMeta] {
                 ArgMeta(
                     name='ignore',
                     default='',
-                    help='Path to skip during collection (pytest --ignore)',
+                    help='Path to skip during collection',
                     short='i'
                 ),
                 ArgMeta(
