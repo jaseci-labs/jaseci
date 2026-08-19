@@ -96,6 +96,46 @@ impl native_verdict_blast_guard(
     );
 }
 
+impl native_ir_live_externs(llvm_ir_text: str) -> set[str] {
+    import re as _dc_re;
+    _dc_decl = _dc_re.compile(
+        r'^declare\b[^@\n]*@(?:"([^"]+)"|([A-Za-z0-9_.$\-]+))\s*\(', _dc_re.MULTILINE
+    );
+    declared: set[str] = set();
+    for (_dc_q, _dc_bare) in _dc_decl.findall(llvm_ir_text) {
+        declared.add(_dc_q or _dc_bare);
+    }
+    if not declared {
+        return declared;
+    }
+    _dc_use = _dc_re.compile(r'@(?:"([^"]+)"|([A-Za-z0-9_.$\-]+))');
+    counts: dict[str, int] = {};
+    for (_dc_q, _dc_bare) in _dc_use.findall(llvm_ir_text) {
+        _dc_name = _dc_q or _dc_bare;
+        if _dc_name in declared {
+            counts[_dc_name] = counts.get(_dc_name, 0) + 1;
+        }
+    }
+    return {
+        _dc_name
+        for (_dc_name, _dc_n) in counts.items()
+        if _dc_n > 1
+    };
+}
+
+impl native_prune_live_record(
+    pending: dict, declared: set[str]
+) -> dict[str, set[str]] {
+    pruned: dict[str, set[str]] = {};
+    for (_pr_callee, _pr_names) in (pending or {}).items() {
+        _pr_hit = set(_pr_names) & declared;
+        if _pr_hit {
+            pruned[_pr_callee] = _pr_hit;
+        }
+    }
+    return pruned;
+}
+
 impl native_unit_demotions(
     prog: any, real_path: str, options: any
 ) -> (set[str] | None) {
@@ -123,6 +163,21 @@ impl native_unit_demotions(
         and real_path not in prog._na_verdict_resolving
         and _ud_os.path.isfile(real_path)
     ) {
+        if not getattr(options, "no_ir_cache", False) {
+            try {
+                import json as _ud_json;
+                (_, _ud_meta_path) = native_dep_cache_paths(real_path, options);
+                if _ud_os.path.exists(_ud_meta_path) {
+                    with open(_ud_meta_path, "r") as _ud_mf {
+                        _ud_meta = _ud_json.loads(_ud_mf.read());
+                    }
+                    _ud_cached = _ud_meta.get("demoted_symbols");
+                    if _ud_cached is not None {
+                        return set(_ud_cached);
+                    }
+                }
+            } except Exception { }
+        }
         prog._na_verdict_resolving.add(real_path);
         try {
             entry = prog.compile(
@@ -633,9 +688,15 @@ impl NativeCompilePass._compile_and_link_native_imports(
         }
 
         if _cache_hit and meta.unverified_live_calls {
-            _uv_cached_conflicts = native_live_call_conflicts(
-                self.prog, meta.unverified_live_calls, _link_opts
+            _uv_cached_pending = native_prune_live_record(
+                meta.unverified_live_calls,
+                native_ir_live_externs(imported_llvm_str_raw)
             );
+            _uv_cached_conflicts = native_live_call_conflicts(
+                self.prog, _uv_cached_pending, _link_opts
+            )
+                if _uv_cached_pending
+                else {};
             if _uv_cached_conflicts {
                 _cache_hit = False;
                 imported_llvm_str_raw = "";
@@ -679,7 +740,12 @@ impl NativeCompilePass._compile_and_link_native_imports(
                 self.emit(E5024, path=full_path, error="No LLVM IR generated");
                 continue;
             }
-            _uv_pending = dict(self.prog._na_unverified_live.get(real_path) or {});
+            _uv_record = self.prog._na_unverified_live.get(real_path) or {};
+            _uv_pending = native_prune_live_record(
+                _uv_record, native_ir_live_externs(str(imported_ir.gen.llvm_ir))
+            )
+                if _uv_record
+                else {};
             _uv_attempts = 0;
             _uv_failed = "";
             while _uv_pending and _uv_attempts < 3 {
@@ -719,7 +785,12 @@ impl NativeCompilePass._compile_and_link_native_imports(
                     _uv_failed = "No LLVM IR generated on re-emission";
                     break;
                 }
-                _uv_pending = dict(self.prog._na_unverified_live.get(real_path) or {});
+                _uv_record = self.prog._na_unverified_live.get(real_path) or {};
+                _uv_pending = native_prune_live_record(
+                    _uv_record, native_ir_live_externs(str(imported_ir.gen.llvm_ir))
+                )
+                    if _uv_record
+                    else {};
             }
             if _uv_failed {
                 self.emit(E5024, path=full_path, error=_uv_failed);
