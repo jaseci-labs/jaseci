@@ -608,6 +608,25 @@ test "compiler_slice: raise / assert register name USE for LOAD_GLOBAL" {
     }
 }
 
+# A loop `else` that terminates (no break) makes the statements after the loop
+# unreachable -- normal completion always runs the else. CPython drops them (DCE);
+# native must not emit them, or it crashes with dead code after a terminator.
+test "compiler_slice: loop-else that terminates drops unreachable trailing code" {
+    for src in [
+        "def f(x):\n    for i in x:\n        pass\n    else:\n        return 1\n    return 2\n",
+        "def f(x):\n    while x:\n        pass\n    else:\n        return 1\n    return 2\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        af = nested_code_by_name(actual, "f");
+        ef = nested_code_by_name(expected as PyCode, "f");
+        assert af.co_code == ef.co_code;
+        assert af.exceptiontable == ef.exceptiontable;
+        assert af.stacksize == ef.stacksize;
+    }
+}
+
 # global / nonlocal are scope declarations (no bytecode of their own); they
 # retarget stores/deletes to STORE_GLOBAL / DELETE_GLOBAL / STORE_DEREF. Checked
 # via nested function co_code (module co_code is blind to the bodies).

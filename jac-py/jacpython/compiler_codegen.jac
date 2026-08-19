@@ -5730,13 +5730,22 @@ def visit_while(
             }
         }
         g.use(exit_blk);
+        else_terminated = False;
         if len(w.orelse) > 0 {
             else_cont = visit_stmts(g, w.orelse);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
+            else_terminated = else_cont.terminated;
         }
         if has_break and not tail_more {
+            return stmt_cont(loc=wloc, next_si=len(tail), terminated=True);
+        }
+        if else_terminated and not has_break {
+            # Normal loop exit runs the else, which terminates; with no break
+            # there is no path to the trailing statements, so they are
+            # unreachable. CPython drops them (DCE); emitting them here would be
+            # dead code after a terminator ("Invalid CFG").
             return stmt_cont(loc=wloc, next_si=len(tail), terminated=True);
         }
         tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
@@ -5845,13 +5854,22 @@ def visit_for(
         g.use(after);
         g.emit_op(OP_END_FOR, 0, iter_loc);
         g.emit_op(OP_POP_ITER, 0, iter_loc);
+        else_terminated = False;
         if len(f.orelse) > 0 {
             else_cont = visit_stmts(g, f.orelse);
             if codegen_busy(g) {
                 return stmt_cont(loc=else_cont.loc);
             }
+            else_terminated = else_cont.terminated;
         }
         if has_break and not tail_more {
+            return stmt_cont(loc=floc, next_si=len(tail), terminated=True);
+        }
+        if else_terminated and not has_break {
+            # Normal loop exit runs the else, which terminates; with no break
+            # there is no path to the trailing statements, so they are
+            # unreachable. CPython drops them (DCE); emitting them here would be
+            # dead code after a terminator ("Invalid CFG").
             return stmt_cont(loc=floc, next_si=len(tail), terminated=True);
         }
         tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
