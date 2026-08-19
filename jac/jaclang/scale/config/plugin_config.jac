@@ -1,3 +1,135 @@
+def _http_activation_nested_schema -> dict[str, any] {
+    """The `nested` fields shared verbatim by [scale.kubernetes.http_activation]
+    and [scale.microservices.services.NAME.http_activation] -- factored out so
+    the two call sites (top-level default, per-service override) can't drift
+    out of sync on a field's type/default the way two independent copies
+    would.
+    """;
+    return {
+        "enabled": {
+            "type": "bool",
+            "default": False,
+            "description": "Master switch. Off by default."
+        },
+        "min_replicas": {
+            "type": "int",
+            "default": 0,
+            "description": "Replica floor while inactive. 0 enables true scale-to-zero."
+        },
+        "max_replicas": {
+            "type": "int",
+            "default": 1,
+            "description": "Replica ceiling once activated."
+        },
+        "polling_interval": {
+            "type": "int",
+            "default": 30,
+            "description": "How often KEDA evaluates the HTTP scaling metric, in seconds."
+        },
+        "cooldown_period": {
+            "type": "int",
+            "default": 300,
+            "description": "Seconds of inactivity before scaling back to min_replicas."
+        },
+        "target_port": {
+            "type": "int",
+            "default": None,
+            "description": "Container port on the target's own generated Service. Exactly one of target_port/target_port_name must be set when enabled."
+        },
+        "target_port_name": {
+            "type": "string",
+            "default": None,
+            "description": "Named container port on the target's own generated Service, as an alternative to target_port."
+        },
+        "concurrency_target": {
+            "type": "int",
+            "default": None,
+            "description": "In-flight-request concurrency target. Exactly one of concurrency_target/request_rate_target must be set when enabled."
+        },
+        "request_rate_target": {
+            "type": "int",
+            "default": None,
+            "description": "Requests-per-window target, as an alternative to concurrency_target."
+        },
+        "request_rate_window": {
+            "type": "string",
+            "default": "1m",
+            "description": "Window duration for request_rate_target."
+        },
+        "request_rate_granularity": {
+            "type": "string",
+            "default": "1s",
+            "description": "Sampling granularity for request_rate_target."
+        },
+        "cold_start_status_code": {
+            "type": "int",
+            "default": 503,
+            "description": "HTTP status the interceptor returns while the target cold-starts, if a placeholder response is configured."
+        },
+        "cold_start_body": {
+            "type": "string",
+            "default": None,
+            "description": "Static placeholder response body served while the target cold-starts."
+        },
+        "cold_start_body_config_map": {
+            "type": "dict",
+            "default": None,
+            "description": "ConfigMap reference to source the placeholder response body from, as an alternative to cold_start_body."
+        },
+        "cold_start_headers": {
+            "type": "dict",
+            "default": {},
+            "description": "Extra headers on the placeholder response."
+        },
+        "cold_start_fallback_service": {
+            "type": "string",
+            "default": None,
+            "description": "Service name to forward requests to while the target cold-starts, as an alternative to a static placeholder response."
+        },
+        "cold_start_fallback_port": {
+            "type": "int",
+            "default": None,
+            "description": "Port on cold_start_fallback_service."
+        },
+        "timeout_readiness": {
+            "type": "string",
+            "default": None,
+            "description": "Duration (e.g. \"30s\") the interceptor waits for the target to become ready after scaling up."
+        },
+        "timeout_request": {
+            "type": "string",
+            "default": None,
+            "description": "Duration the interceptor waits for the forwarded request to complete."
+        },
+        "timeout_response_header": {
+            "type": "string",
+            "default": None,
+            "description": "Duration the interceptor waits for response headers from the target."
+        },
+        "scale_target_kind": {
+            "type": "string",
+            "default": "Deployment",
+            "description": "Kind of the scale target. Deployment/StatefulSet work directly; other kinds require scale_target_plural."
+        },
+        "scale_target_api_version": {
+            "type": "string",
+            "default": "apps/v1",
+            "description": "apiVersion of the scale target, used when scale_target_plural is set for a custom-resource target."
+        },
+        "scale_target_plural": {
+            "type": "string",
+            "default": None,
+            "description": "Plural resource name for a custom-resource scale target (e.g. \"rollouts\"), enabling existence validation before writing anything."
+        },
+        "rules": {
+            "type": "list",
+            "default": [],
+            "description": "[[...rules]] array-of-tables. Each entry: hosts (list[str]), paths (list[str]), headers (list of {name, value?}). Fields within one rule are AND'd; separate rules are OR'd. At least one rule is required -- leaving this empty raises an error at build time, since no traffic would ever match and the target would never wake. Use hosts = [\"*\"] for an explicit catch-all."
+        }
+    };
+}
+
+
 class JacScalePluginConfig {
     static def get_plugin_metadata -> dict[str, any] {
         return {
@@ -449,128 +581,7 @@ class JacScalePluginConfig {
                             "type": "dict",
                             "default": {},
                             "description": "KEDA HTTP Add-on scale-to-zero activation for the monolith app (or shared defaults inherited by microservices unless overridden per-service). Requires the KEDA HTTP Add-on installed separately from core KEDA. For per-service activation use [scale.microservices.services.NAME.http_activation] instead.",
-                            "nested": {
-                                "enabled": {
-                                    "type": "bool",
-                                    "default": False,
-                                    "description": "Master switch. Off by default."
-                                },
-                                "min_replicas": {
-                                    "type": "int",
-                                    "default": 0,
-                                    "description": "Replica floor while inactive. 0 enables true scale-to-zero."
-                                },
-                                "max_replicas": {
-                                    "type": "int",
-                                    "default": 1,
-                                    "description": "Replica ceiling once activated."
-                                },
-                                "polling_interval": {
-                                    "type": "int",
-                                    "default": 30,
-                                    "description": "How often KEDA evaluates the HTTP scaling metric, in seconds."
-                                },
-                                "cooldown_period": {
-                                    "type": "int",
-                                    "default": 300,
-                                    "description": "Seconds of inactivity before scaling back to min_replicas."
-                                },
-                                "target_port": {
-                                    "type": "int",
-                                    "default": None,
-                                    "description": "Container port on the app's Service. Exactly one of target_port/target_port_name must be set when enabled."
-                                },
-                                "target_port_name": {
-                                    "type": "string",
-                                    "default": None,
-                                    "description": "Named container port on the app's Service, as an alternative to target_port."
-                                },
-                                "concurrency_target": {
-                                    "type": "int",
-                                    "default": None,
-                                    "description": "In-flight-request concurrency target. Exactly one of concurrency_target/request_rate_target must be set when enabled."
-                                },
-                                "request_rate_target": {
-                                    "type": "int",
-                                    "default": None,
-                                    "description": "Requests-per-window target, as an alternative to concurrency_target."
-                                },
-                                "request_rate_window": {
-                                    "type": "string",
-                                    "default": "1m",
-                                    "description": "Window duration for request_rate_target."
-                                },
-                                "request_rate_granularity": {
-                                    "type": "string",
-                                    "default": "1s",
-                                    "description": "Sampling granularity for request_rate_target."
-                                },
-                                "cold_start_status_code": {
-                                    "type": "int",
-                                    "default": 503,
-                                    "description": "HTTP status the interceptor returns while the target cold-starts, if a placeholder response is configured."
-                                },
-                                "cold_start_body": {
-                                    "type": "string",
-                                    "default": None,
-                                    "description": "Static placeholder response body served while the target cold-starts."
-                                },
-                                "cold_start_body_config_map": {
-                                    "type": "dict",
-                                    "default": None,
-                                    "description": "ConfigMap reference to source the placeholder response body from, as an alternative to cold_start_body."
-                                },
-                                "cold_start_headers": {
-                                    "type": "dict",
-                                    "default": {},
-                                    "description": "Extra headers on the placeholder response."
-                                },
-                                "cold_start_fallback_service": {
-                                    "type": "string",
-                                    "default": None,
-                                    "description": "Service name to forward requests to while the target cold-starts, as an alternative to a static placeholder response."
-                                },
-                                "cold_start_fallback_port": {
-                                    "type": "int",
-                                    "default": None,
-                                    "description": "Port on cold_start_fallback_service."
-                                },
-                                "timeout_readiness": {
-                                    "type": "string",
-                                    "default": None,
-                                    "description": "Duration (e.g. \"30s\") the interceptor waits for the target to become ready after scaling up."
-                                },
-                                "timeout_request": {
-                                    "type": "string",
-                                    "default": None,
-                                    "description": "Duration the interceptor waits for the forwarded request to complete."
-                                },
-                                "timeout_response_header": {
-                                    "type": "string",
-                                    "default": None,
-                                    "description": "Duration the interceptor waits for response headers from the target."
-                                },
-                                "scale_target_kind": {
-                                    "type": "string",
-                                    "default": "Deployment",
-                                    "description": "Kind of the scale target. Deployment/StatefulSet work directly; other kinds require scale_target_plural."
-                                },
-                                "scale_target_api_version": {
-                                    "type": "string",
-                                    "default": "apps/v1",
-                                    "description": "apiVersion of the scale target, used when scale_target_plural is set for a custom-resource target."
-                                },
-                                "scale_target_plural": {
-                                    "type": "string",
-                                    "default": None,
-                                    "description": "Plural resource name for a custom-resource scale target (e.g. \"rollouts\"), enabling existence validation before writing anything."
-                                },
-                                "rules": {
-                                    "type": "list",
-                                    "default": [],
-                                    "description": "[[...rules]] array-of-tables. Each entry: hosts (list[str]), paths (list[str]), headers (list of {name, value?}). Fields within one rule are AND'd; separate rules are OR'd. Empty (default) matches all traffic to the target."
-                                }
-                            }
+                            "nested": _http_activation_nested_schema()
                         }
                     }
                 },
@@ -823,128 +834,7 @@ class JacScalePluginConfig {
                                     "type": "dict",
                                     "default": {},
                                     "description": "(KEDA HTTP Add-on only) Per-service HTTP scale-to-zero activation. Same keys as [scale.kubernetes.http_activation]; the target Service is always this service's own generated Service, never user-set. Falls back to [scale.kubernetes.http_activation]'s values for any key left unset.",
-                                    "nested": {
-                                        "enabled": {
-                                            "type": "bool",
-                                            "default": False,
-                                            "description": "Master switch. Off by default."
-                                        },
-                                        "min_replicas": {
-                                            "type": "int",
-                                            "default": 0,
-                                            "description": "Replica floor while inactive. 0 enables true scale-to-zero."
-                                        },
-                                        "max_replicas": {
-                                            "type": "int",
-                                            "default": 1,
-                                            "description": "Replica ceiling once activated."
-                                        },
-                                        "polling_interval": {
-                                            "type": "int",
-                                            "default": 30,
-                                            "description": "How often KEDA evaluates the HTTP scaling metric, in seconds."
-                                        },
-                                        "cooldown_period": {
-                                            "type": "int",
-                                            "default": 300,
-                                            "description": "Seconds of inactivity before scaling back to min_replicas."
-                                        },
-                                        "target_port": {
-                                            "type": "int",
-                                            "default": None,
-                                            "description": "Container port on the service's Service. Exactly one of target_port/target_port_name must be set when enabled."
-                                        },
-                                        "target_port_name": {
-                                            "type": "string",
-                                            "default": None,
-                                            "description": "Named container port on the service's Service, as an alternative to target_port."
-                                        },
-                                        "concurrency_target": {
-                                            "type": "int",
-                                            "default": None,
-                                            "description": "In-flight-request concurrency target. Exactly one of concurrency_target/request_rate_target must be set when enabled."
-                                        },
-                                        "request_rate_target": {
-                                            "type": "int",
-                                            "default": None,
-                                            "description": "Requests-per-window target, as an alternative to concurrency_target."
-                                        },
-                                        "request_rate_window": {
-                                            "type": "string",
-                                            "default": "1m",
-                                            "description": "Window duration for request_rate_target."
-                                        },
-                                        "request_rate_granularity": {
-                                            "type": "string",
-                                            "default": "1s",
-                                            "description": "Sampling granularity for request_rate_target."
-                                        },
-                                        "cold_start_status_code": {
-                                            "type": "int",
-                                            "default": 503,
-                                            "description": "HTTP status the interceptor returns while the target cold-starts, if a placeholder response is configured."
-                                        },
-                                        "cold_start_body": {
-                                            "type": "string",
-                                            "default": None,
-                                            "description": "Static placeholder response body served while the target cold-starts."
-                                        },
-                                        "cold_start_body_config_map": {
-                                            "type": "dict",
-                                            "default": None,
-                                            "description": "ConfigMap reference to source the placeholder response body from, as an alternative to cold_start_body."
-                                        },
-                                        "cold_start_headers": {
-                                            "type": "dict",
-                                            "default": {},
-                                            "description": "Extra headers on the placeholder response."
-                                        },
-                                        "cold_start_fallback_service": {
-                                            "type": "string",
-                                            "default": None,
-                                            "description": "Service name to forward requests to while the target cold-starts, as an alternative to a static placeholder response."
-                                        },
-                                        "cold_start_fallback_port": {
-                                            "type": "int",
-                                            "default": None,
-                                            "description": "Port on cold_start_fallback_service."
-                                        },
-                                        "timeout_readiness": {
-                                            "type": "string",
-                                            "default": None,
-                                            "description": "Duration (e.g. \"30s\") the interceptor waits for the target to become ready after scaling up."
-                                        },
-                                        "timeout_request": {
-                                            "type": "string",
-                                            "default": None,
-                                            "description": "Duration the interceptor waits for the forwarded request to complete."
-                                        },
-                                        "timeout_response_header": {
-                                            "type": "string",
-                                            "default": None,
-                                            "description": "Duration the interceptor waits for response headers from the target."
-                                        },
-                                        "scale_target_kind": {
-                                            "type": "string",
-                                            "default": "Deployment",
-                                            "description": "Kind of the scale target. Deployment/StatefulSet work directly; other kinds require scale_target_plural."
-                                        },
-                                        "scale_target_api_version": {
-                                            "type": "string",
-                                            "default": "apps/v1",
-                                            "description": "apiVersion of the scale target, used when scale_target_plural is set for a custom-resource target."
-                                        },
-                                        "scale_target_plural": {
-                                            "type": "string",
-                                            "default": None,
-                                            "description": "Plural resource name for a custom-resource scale target (e.g. \"rollouts\"), enabling existence validation before writing anything."
-                                        },
-                                        "rules": {
-                                            "type": "list",
-                                            "default": [],
-                                            "description": "[[...rules]] array-of-tables. Each entry: hosts (list[str]), paths (list[str]), headers (list of {name, value?}). Fields within one rule are AND'd; separate rules are OR'd. Empty (default) matches all traffic to the target."
-                                        }
-                                    }
+                                    "nested": _http_activation_nested_schema()
                                 }
                             }
                         },

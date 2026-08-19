@@ -57,16 +57,33 @@ def build_http_activation_spec(
         );
     }
 
+    raw_rules: list[dict[str, any]] = cfg.get("rules", []);
+    if not raw_rules {
+        raise ValueError(
+            "[*.http_activation]: at least one [[rules]] entry is required. "
+            "Leaving rules empty means no traffic ever matches, so the "
+            "interceptor never forwards anything and the target never wakes; "
+            "use hosts = [\"*\"] for an explicit catch-all."
+        );
+    }
+
     rules: list[HTTPRoutingRule] = [];
-    for rule in cfg.get("rules", []) {
+    for rule in raw_rules {
+        headers: list[HTTPHeaderMatch] = [];
+        for h in rule.get("headers", []) {
+            if "name" not in h {
+                raise ValueError(
+                    "[*.http_activation]: a [[rules.headers]] entry is "
+                    f"missing its required 'name' key: {h}."
+                );
+            }
+            headers.append(HTTPHeaderMatch(name=h["name"], value=h.get("value")));
+        }
         rules.append(
             HTTPRoutingRule(
                 hosts=list(rule.get("hosts", [])),
                 paths=[HTTPPathMatch(value=p) for p in rule.get("paths", [])],
-                headers=[
-                    HTTPHeaderMatch(name=h["name"], value=h.get("value"))
-                    for h in rule.get("headers", [])
-                ]
+                headers=headers
             )
         );
     }

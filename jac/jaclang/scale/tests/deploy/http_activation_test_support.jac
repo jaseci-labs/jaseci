@@ -43,15 +43,17 @@ def default_http_activation_spec(**overrides: any) -> HTTPActivationSpec {
 
 # Base jac.toml [*.http_activation] config dict, the dict-side counterpart to
 # default_http_activation_spec above: enabled, target_port=8080,
-# concurrency_target=10. Override only what a given test cares about; pass
-# request_rate_target=... to switch to the request-rate metric (drops
-# concurrency_target the same way default_http_activation_spec drops
-# concurrency when request_rate is supplied).
+# concurrency_target=10, rules=[{hosts=["*"]}]. Override only what a given
+# test cares about; pass request_rate_target=... to switch to the
+# request-rate metric (drops concurrency_target the same way
+# default_http_activation_spec drops concurrency when request_rate is
+# supplied); pass rules=[] to exercise the empty-rules rejection itself.
 def default_http_activation_config(**overrides: any) -> dict[str, any] {
     defaults: dict[str, any] = {
         "enabled": True,
         "target_port": 8080,
-        "concurrency_target": 10
+        "concurrency_target": 10,
+        "rules": [{"hosts": ["*"]}]
     };
     if "request_rate_target" in overrides {
         defaults.pop("concurrency_target");

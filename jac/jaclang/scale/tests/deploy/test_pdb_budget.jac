@@ -154,7 +154,8 @@ test "an HTTP-activated service gets no PDB even with pdb.min_available set" {
                 "http_activation": {
                     "enabled": True,
                     "target_port": 8080,
-                    "concurrency_target": 10
+                    "concurrency_target": 10,
+                    "rules": [{"hosts": ["*"]}]
                 }
             }
         }
