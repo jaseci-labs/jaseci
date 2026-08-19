@@ -555,7 +555,10 @@ def _read_string(st: tok_state) -> tok_token | tok_diag {
             if ch == "\n" or ch == "\r" {
                 return _string_syntax_error(st, "EOL while scanning string literal", start_col);
             }
-            if ch == "\\" and not raw {
+            if ch == "\\" {
+                # Backslash escapes the next char for TERMINATION scanning in raw
+                # strings too (r'\'' is not closed by the escaped quote); the raw
+                # flag only affects decoding, handled later.
                 _advance(st);
                 if st.pos < len(st.source) {
                     _advance(st);
@@ -676,6 +679,24 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
                 and _peek(st) != "\n" and _peek(st) != "\r" {
                 _advance(st);
             }
+            continue;
+        }
+        if ch == "\\" and st.pos + 1 < len(st.source)
+            and (st.source[st.pos + 1] == "\n" or st.source[st.pos + 1] == "\r") {
+            # Explicit line continuation: backslash-newline joins physical lines,
+            # emitting no NEWLINE and doing no indentation processing.
+            _advance(st);
+            if _peek(st) == "\r" {
+                _advance(st);
+                if _peek(st) == "\n" {
+                    _advance(st);
+                }
+            } else {
+                _advance(st);
+            }
+            st.line_start = st.pos;
+            st.lineno = st.lineno + 1;
+            st.col_offset = 0;
             continue;
         }
         if ch == "\n" {
