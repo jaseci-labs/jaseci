@@ -11060,7 +11060,7 @@ def rule_single_subscript_attribute_target(p: peg_parser) -> expr | None {
         start_lineno = t0.lineno;
         start_col_offset = t0.col_offset;
     }
-    a = rule_atom(p);
+    a = rule_t_primary(p);
     if a is not None {
         lit = peg_expect_token(p, 23);
         if lit is not None {
@@ -11077,7 +11077,7 @@ def rule_single_subscript_attribute_target(p: peg_parser) -> expr | None {
         }
     }
     peg_reset(p, mark);
-    a = rule_atom(p);
+    a = rule_t_primary(p);
     if a is not None {
         lit = peg_expect_token(p, 9);
         if lit is not None {
@@ -11954,25 +11954,24 @@ def rule_sum_raw(p: peg_parser) -> expr | None {
 }
 
 def rule_t_lookahead(p: peg_parser) -> object | None {
+    # Positive lookahead &('(' | '[' | '.'): MUST NOT consume. peg_expect_token
+    # advances on match, so reset the mark before returning either way.
     mark = peg_mark(p);
     lit = peg_expect_token(p, 7);
-    if lit is not None {
-        res = lit;
-        return res;
-    }
     peg_reset(p, mark);
+    if lit is not None {
+        return lit;
+    }
     lit = peg_expect_token(p, 9);
-    if lit is not None {
-        res = lit;
-        return res;
-    }
     peg_reset(p, mark);
+    if lit is not None {
+        return lit;
+    }
     lit = peg_expect_token(p, 23);
-    if lit is not None {
-        res = lit;
-        return res;
-    }
     peg_reset(p, mark);
+    if lit is not None {
+        return lit;
+    }
     return None;
 }
 
@@ -12101,7 +12100,7 @@ def rule_target_with_star_atom(p: peg_parser) -> expr | None {
         start_lineno = t0.lineno;
         start_col_offset = t0.col_offset;
     }
-    a = rule_atom(p);
+    a = rule_t_primary(p);
     if a is not None {
         lit = peg_expect_token(p, 23);
         if lit is not None {
@@ -12119,7 +12118,7 @@ def rule_target_with_star_atom(p: peg_parser) -> expr | None {
         }
     }
     peg_reset(p, mark);
-    a = rule_atom(p);
+    a = rule_t_primary(p);
     if a is not None {
         lit = peg_expect_token(p, 9);
         if lit is not None {
