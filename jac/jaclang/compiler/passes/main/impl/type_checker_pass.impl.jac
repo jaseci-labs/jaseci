@@ -406,6 +406,14 @@ impl TypeCheckPass._check_immutable_write(self: TypeCheckPass, target: Expr) -> 
             return;
         }
         decl_node = attr_sym.decl.name_of;
+        # A no-default Final field is writable anywhere inside init/postinit.
+        # This is a scope rule, not a write count: repeated, branched, and
+        # looped writes all pass. Pyright behaves identically (verified on
+        # 1.1.411, basic and strict) -- it flags only a Final that already has
+        # a default, which the `decl_node.value is None` guard above preserves.
+        # Counting writes without definite-assignment analysis would reject the
+        # legal if/else form, where exactly one branch runs, so the permissive
+        # rule is the one that avoids false positives.
         if (
             isinstance(decl_node, HasVar)
             and decl_node.value is None
