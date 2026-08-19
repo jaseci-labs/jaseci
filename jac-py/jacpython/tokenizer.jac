@@ -341,11 +341,13 @@ def _match_operator(st: tok_state) -> tok_token | None {
 def _read_number(st: tok_state) -> tok_token {
     start = st.pos;
     start_col = st.col_offset;
+    based = False;
     ch = _peek(st);
     if ch == "0" {
         _advance(st);
         nxt = _peek(st);
         if nxt == "x" or nxt == "X" or nxt == "b" or nxt == "B" or nxt == "o" or nxt == "O" {
+            based = True;
             _advance(st);
             while st.pos < len(st.source) {
                 c = _peek(st);
@@ -420,6 +422,13 @@ def _read_number(st: tok_state) -> tok_token {
                 }
                 break;
             }
+        }
+    }
+    if not based {
+        # Imaginary suffix on a decimal int/float (3j, 3.5j, 1e10j).
+        jc = _peek(st);
+        if jc == "j" or jc == "J" {
+            _advance(st);
         }
     }
     spell = st.source[start:st.pos];
