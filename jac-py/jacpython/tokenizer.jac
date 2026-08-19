@@ -725,17 +725,20 @@ def tokenizer_next(st: tok_state) -> tok_token | tok_diag {
             st.paren_level = st.paren_level + _track_paren_delta(tok.tok_type);
             return tok;
         }
-        if _is_id_start(ch) {
-            tok = _read_name(st);
-            st.paren_level = st.paren_level + _track_paren_delta(tok.tok_type);
-            return tok;
-        }
+        # String-start MUST precede identifier: a prefixed string (b'', r'', u'',
+        # f'') begins with an id-start char; _is_string_start only matches when a
+        # quote follows the prefix, so a plain identifier still falls through.
         if _is_string_start(st) {
             tok = _read_string(st);
             if isinstance(tok, tok_diag) {
                 return tok;
             }
             return tok as tok_token;
+        }
+        if _is_id_start(ch) {
+            tok = _read_name(st);
+            st.paren_level = st.paren_level + _track_paren_delta(tok.tok_type);
+            return tok;
         }
         op = _match_operator(st);
         if op is not None {
