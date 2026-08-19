@@ -21,9 +21,14 @@ obj Tagged {
     }
 }
 
-# Assigning a no-default Final in init is a scope rule, not a count (Pyright
-# does no definite-assignment analysis here). Repeated writes -- sequential,
-# branched, or in a loop -- are all legal inside init/postinit.
+# Assigning a no-default Final in init is a scope rule, not a count. Repeated
+# writes -- sequential, branched, or in a loop -- are all legal inside
+# init/postinit, and only a Final that already has a default errors there.
+# Pyright behaves identically: on the direct Python equivalent of Pair/Cond/
+# LoopInit/Tagged below it reports exactly one diagnostic, on Tagged, in both
+# basic and strict mode (verified against 1.1.411). Counting writes instead
+# would need definite-assignment analysis the checker does not have, and would
+# reject the legal Cond form where exactly one branch runs.
 obj Pair {
     has a: Final[int];
 
@@ -69,6 +74,15 @@ def for_target_shadows_final(items: list[int]) -> int {
     return total;
 }
 
+# Bare `Final` (no subscript) infers the declared type from the initializer.
+# This lives in a function so it is unambiguously a local: at `with entry`
+# statement level the same line parses as a module global, and `jac fmt`
+# rewrites it to `glob b: Final = 99;`.
+def bare_final_infers -> int {
+    b: Final = 99;  # OK: bare Final infers from value
+    return b;
+}
+
 glob RATE: Final[float] = 1.5;
 
 with entry {
@@ -78,8 +92,7 @@ with entry {
     print(p.x);
 
     y: Final[int] = 10;  # OK: declaring assignment
-    b: Final = 99;  # OK: bare Final infers from value
-    print(y + b);
+    print(y + bare_final_infers());
 
     c.name = "b";  # <-- Error (Final attribute reassigned)
     y = 2;  # <-- Error (Final local reassigned)
