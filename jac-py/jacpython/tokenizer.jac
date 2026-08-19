@@ -388,6 +388,11 @@ def _read_number(st: tok_state) -> tok_token {
             }
             break;
         }
+    }
+    if not based {
+        # Fractional/exponent/imaginary apply to ANY decimal literal, including
+        # zero-leading floats (0.0, 0.5, 0e10) — the '0' integer branch above only
+        # reads the integer part.
         if _peek(st) == "." {
             _advance(st);
             while st.pos < len(st.source) {
@@ -423,9 +428,7 @@ def _read_number(st: tok_state) -> tok_token {
                 break;
             }
         }
-    }
-    if not based {
-        # Imaginary suffix on a decimal int/float (3j, 3.5j, 1e10j).
+        # Imaginary suffix on a decimal int/float (3j, 3.5j, 1e10j, 0.5j).
         jc = _peek(st);
         if jc == "j" or jc == "J" {
             _advance(st);
