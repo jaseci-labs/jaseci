@@ -102,6 +102,21 @@ impl print_native_census(census: dict) -> None {
             console.print(f"  {p}");
         }
     }
+    seamed = sorted(
+        (_census_relpath(p), rec)
+        for (p, rec) in census.items()
+        if rec['outcome'] == 'native' and rec.get('seams')
+    );
+    if seamed {
+        console.print("");
+        console.print("native seams (callables demoted to Python-only):");
+        for (p, rec) in seamed {
+            console.print(f"  {p}  ({len(rec['seams'])})");
+            for s in rec['seams'] {
+                console.print(f"    {s}");
+            }
+        }
+    }
     demoted = [
         (p, rec)
         for (p, rec) in census.items()
@@ -158,5 +173,89 @@ impl print_native_census(census: dict) -> None {
                 console.print(f"    {s}");
             }
         }
+    }
+}
+
+impl print_placement_report(rows_by_module: dict) -> None {
+    import from jaclang.cli.console { console }
+    console.print("");
+    console.print(separator("placements"));
+    if not rows_by_module {
+        console.print("no modules compiled");
+        return;
+    }
+    counts: dict[str, int] = {};
+    for entry in rows_by_module.values() {
+        for row in entry['rows'] {
+            key = 'dual' if row['dual'] else row['space'];
+            counts[key] = counts.get(key, 0) + 1;
+        }
+    }
+    total_crossings = 0;
+    for entry in rows_by_module.values() {
+        total_crossings += entry.get('crossings', 0);
+    }
+    console.print(
+        ", ".join(
+            f"{counts.get(k, 0)} {k}" for k in ('server', 'client', 'native', 'dual')
+        )
+    );
+    console.print(
+        f"estimated boundary crossings: {total_crossings} "
+        f"(client import items bridged over RPC)"
+    );
+    for path in sorted(rows_by_module.keys()) {
+        entry = rows_by_module[path];
+        decided = entry['decided'];
+        rel = _census_relpath(path);
+        suffix = '';
+        if decided {
+            suffix = f"  [decided {decided}]";
+        }
+        console.print("");
+        console.print(rel + suffix);
+        for row in entry['rows'] {
+            row_space = row['space'];
+            if row['dual'] {
+                row_space = row_space + ' (dual)';
+            }
+            nm = row['name'];
+            knd = row['kind'];
+            label = f"{nm} ({knd})";
+            console.print("  " + label.ljust(44) + " " + row_space);
+            for note in row['evidence'] {
+                console.print("      - " + note);
+            }
+        }
+    }
+}
+
+impl print_compile_stats -> None {
+    import from jaclang.cli.console { console }
+    import from jaclang.jac0core.prefix_flip {
+        prefix_clause_help,
+        prefix_fallbacks_by_clause,
+        prefix_report_lines,
+        prefix_stats_lines
+    }
+    console.print("");
+    console.print(separator("compile stats"));
+    for line in prefix_stats_lines() {
+        console.print(line);
+    }
+    by_clause = prefix_fallbacks_by_clause();
+    if not by_clause {
+        return;
+    }
+    console.print("");
+    console.print("staged fallbacks (ranked by clause):");
+    ranked = sorted(by_clause.items(), key=lambda (x: tuple) { (-x[1], x[0]); });
+    for (clause, count) in ranked {
+        console.print(f"  {clause}  ({count})  -- {prefix_clause_help(clause)}");
+    }
+    console.print("");
+    console.print("per module:");
+    for line in prefix_report_lines() {
+        console.print(line);
     }
 }

@@ -10,7 +10,6 @@ import os;
 import sys;
 import tempfile;
 import shutil;
-import pytest;
 import from pathlib { Path }
 import from subprocess { run }
 
@@ -26,7 +25,7 @@ test "lazy finder loads a .jac submodule of a no-__init__ package" {
         # This asserts the clean-room pip/.pth precondition (jaclang not yet
         # imported). Under the single binary jaclang IS the runtime and is always
         # loaded, so the precondition cannot hold -- the scenario is pip-only.
-        pytest.skip("pip/.pth clean-room scenario is N/A under the single binary");
+        testskip("pip/.pth clean-room scenario is N/A under the single binary");
     }
     # The package directory has no __init__.py, so `import pkg.mod` must resolve
     # a .jac submodule without anything having imported jaclang first -- exactly
@@ -40,7 +39,9 @@ test "lazy finder loads a .jac submodule of a no-__init__ package" {
         );
 
         snippet = (
-            "import sys; sys.path.insert(0, " + repr(tmp_path) + ");"
+            "import sys; sys.path.insert(0, "
+            + repr(tmp_path)
+            + ");"
             "import _jac_finder; _jac_finder.install();"
             "assert 'jaclang' not in sys.modules, 'jaclang imported before first .jac use';"
             "import demopkg.greet;"
@@ -65,7 +66,9 @@ test "lazy finder loads a top-level .jac module" {
         );
 
         snippet = (
-            "import sys; sys.path.insert(0, " + repr(tmp_path) + ");"
+            "import sys; sys.path.insert(0, "
+            + repr(tmp_path)
+            + ");"
             "import _jac_finder; _jac_finder.install();"
             "import solo;"
             "print(solo.ping());"

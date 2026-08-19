@@ -148,6 +148,9 @@ impl NaIRGenPass._emit_exc_raise_helper -> None {
     err_fmt_global.initializer = err_fmt_const;
     err_fmt_ptr = b.bitcast(err_fmt_global, i8p);
     b.call(printf_fn, [err_fmt_ptr, msg_val]);
+
+    _fflush = self._get_or_declare_extern("fflush", ir.IntType(32), [i8p]);
+    b.call(_fflush, [ir.Constant(i8p, None)]);
     abort_fn = self.extern_funcs["abort"];
     b.call(abort_fn, []);
     b.unreachable();
@@ -244,7 +247,8 @@ impl NaIRGenPass._codegen_raise(nd: uni.RaiseStmt) -> None {
     i32 = ir.IntType(32);
 
     if getattr(self.ir_in.gen, "nogc_enforced", False)
-    and not self._raise_has_frame_handler(nd) {
+        and not self._raise_has_frame_handler(nd) {
+        self._emit_scope_cleanup(loc="nogc.abort");
         _abort_fn = self._get_or_declare_extern("abort", ir.VoidType(), []);
         _msg = self._make_global_string(
             "jac: unhandled exception in nogc-enforced module (abort)",
@@ -253,6 +257,8 @@ impl NaIRGenPass._codegen_raise(nd: uni.RaiseStmt) -> None {
         _puts_fn = self._get_or_declare_extern("puts", i32, [i8p]);
         _msg_i8 = self.builder.bitcast(_msg, i8p, name="nogc.abort.msg");
         self.builder.call(_puts_fn, [_msg_i8]);
+        _fflush_fn = self._get_or_declare_extern("fflush", i32, [i8p]);
+        self.builder.call(_fflush_fn, [ir.Constant(i8p, None)]);
         self.builder.call(_abort_fn, []);
         self.builder.unreachable();
         return;
@@ -301,6 +307,8 @@ impl NaIRGenPass._codegen_raise(nd: uni.RaiseStmt) -> None {
     if exc_msg is None {
         exc_msg = self._make_global_string(exc_type_name, name_prefix=".exc.msg");
     }
+    exc_msg = self._str_norm(exc_msg);
+    exc_payload = self._str_norm(exc_payload);
 
     if isinstance(exc_msg.type, ir.PointerType) and exc_msg.type != i8p {
         exc_msg = self.builder.bitcast(exc_msg, i8p, name="exc.msg.cast");

@@ -47,9 +47,7 @@ def test_string_literal_ne(v: str | None) -> str {
 }
 
 def test_error_membership_non_literal_element(ak: str | None, other: str) -> str {
-    return ak
-        if ak in (other, "walker")
-        else "obj";  # <-- Error: tuple has a non-literal element, no narrowing possible
+    return ak if ak in (other, "walker") else "obj";  # <-- Error: tuple has a non-literal element, no narrowing possible
 }
 
 def test_error_membership_false_branch_unnarrowed(ak: str | None) -> str {

@@ -11,6 +11,16 @@ impl JacProgram.init(
     self._compile_options: CompileOptions = CompileOptions();
     self._native_cache: dict = {};
 
+    self._na_dep_units: dict = {};
+
+    self._na_dep_inflight: set = set();
+
+    self._na_verdict_resolving: set = set();
+
+    self._na_unverified_live: dict = {};
+
+    self._na_verdict_misses: int = 0;
+
     self._hub_cache_times: dict[str, float] = {};
 
     self._dependents: dict[str, set[str]] = {};
@@ -20,6 +30,10 @@ impl JacProgram.init(
     self._inferred_mods: set = set();
 
     self._analyses_run: dict = {};
+
+    self._placement_summaries: dict = {};
+
+    self._placement_state: dict = {};
 }
 
 impl JacProgram.hub_cache_stamp(self: JacProgram, resolved_path: str) -> None {
@@ -29,10 +43,7 @@ impl JacProgram.hub_cache_stamp(self: JacProgram, resolved_path: str) -> None {
 
 impl JacProgram.is_hub_entry_fresh(self: JacProgram, resolved_path: str) -> bool {
     import os;
-    import from jaclang.jac0core.bccache {
-        discover_annex_files,
-        discover_variant_files
-    }
+    import from jaclang.jac0core.bccache { discover_annex_files }
     cached_at = self._hub_cache_times.get(resolved_path);
     if cached_at is None {
         return True;
@@ -43,11 +54,6 @@ impl JacProgram.is_hub_entry_fresh(self: JacProgram, resolved_path: str) -> bool
         }
 
         for related in discover_annex_files(resolved_path) {
-            if os.path.getmtime(related) > cached_at {
-                return False;
-            }
-        }
-        for related in discover_variant_files(resolved_path) {
             if os.path.getmtime(related) > cached_at {
                 return False;
             }
@@ -137,6 +143,10 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
         del (self._native_cache[resolved_path], );
     }
 
+    if resolved_path in self._placement_summaries {
+        del (self._placement_summaries[resolved_path], );
+    }
+
     te = self.type_evaluator;
     if te is not None {
         try {
@@ -149,6 +159,110 @@ impl JacProgram.invalidate_module(self: JacProgram, resolved_path: str) -> None 
     for bucket in self._dependents.values() {
         bucket.discard(resolved_path);
     }
+}
+
+impl JacProgram.load_dependency_module(
+    self: JacProgram,
+    source_path: str,
+    importer_path: (str | None) = None,
+    use_str: (str | None) = None
+) -> uni.Module {
+    import from pathlib { Path }
+
+    resolved_path = str(Path(source_path).resolve());
+    compiler = self._get_compiler();
+    target_program = compiler._resolve_program(resolved_path, self);
+    target_hub = target_program.mod.hub;
+
+    if (resolved_path in self.mod.hub and not self.is_hub_entry_fresh(resolved_path)) {
+        self.invalidate_module(resolved_path);
+    }
+    if (
+        resolved_path in target_hub
+        and target_program is not self
+        and not target_program.is_hub_entry_fresh(resolved_path)
+    ) {
+        target_program.invalidate_module(resolved_path);
+    }
+
+    mod: uni.Module;
+    if resolved_path in self.mod.hub {
+        mod = self.mod.hub[resolved_path];
+    } elif resolved_path in target_hub {
+        mod = target_hub[resolved_path];
+    } else {
+        if resolved_path.endswith('.pyi') {
+            import ast as py_ast;
+            import from jaclang.compiler.passes.main.pyast_load_pass { PyastBuildPass }
+            import from jaclang.jac0core.compiler { run_pass }
+            import from jaclang.jac0core.passes.sym_tab_build_pass { SymTabBuildPass }
+            import from jaclang.jac0core.helpers { read_file_with_encoding }
+            src = use_str or read_file_with_encoding(source_path);
+            uni_source = uni.Source(src, source_path);
+            mod = run_pass(
+                PyastBuildPass,
+                uni.PythonModuleAst(py_ast.parse(src), orig_src=uni_source,),
+                self
+            ).ir_out;
+            compiler.resolve_absorb_imports(mod, self);
+            run_pass(SymTabBuildPass, mod, self);
+            mod.stub_only = True;
+        } else {
+            mod = self.compile(
+                source_path,
+                use_str=use_str,
+                no_cgen=True,
+                type_check=False,
+                symtab_ir_only=True
+            );
+        }
+        target_hub[resolved_path] = mod;
+        target_program.hub_cache_stamp(resolved_path);
+    }
+
+    if importer_path is not None {
+        self.record_dependency(importer_path, resolved_path);
+    }
+    return mod;
+}
+
+impl JacProgram.hub_key(path: str) -> str {
+    import from pathlib { Path }
+    return str(Path(path).resolve());
+}
+
+impl JacProgram.has_failed_parse(self: JacProgram, path: str) -> bool {
+    mod = self.mod.hub.get(JacProgram.hub_key(path));
+    return mod is not None and mod.parse_failed;
+}
+
+impl JacProgram.drop_module_alerts(self: JacProgram, resolved_path: str) -> None {
+    import os;
+    try {
+        norm = os.path.realpath(resolved_path);
+    } except OSError {
+        return;
+    }
+    import from jaclang.jac0core.ext_registry { is_annex_path_of }
+
+    def owned(alert: Alert) -> bool {
+        try {
+            alert_path = os.path.realpath(alert.loc.mod_path);
+        } except Exception {
+            return False;
+        }
+        return alert_path == norm or is_annex_path_of(alert_path, norm);
+    }
+    self.errors_had = [
+        a
+        for a in self.errors_had
+        if not owned(a)
+    ];
+    self.warnings_had = [
+        a
+        for a in self.warnings_had
+        if not owned(a)
+    ];
 }
 
 impl JacProgram._get_compiler(self: JacProgram) -> JacCompiler {
@@ -176,6 +290,7 @@ impl JacProgram.clear_type_system(self: JacProgram, clear_hub: bool = False) -> 
         for mod in self.mod.hub.values() {
             for nd in mod.get_all_sub_nodes(uni.Expr) {
                 nd.type = None;
+                nd.narrowed_type = None;
             }
         }
     }
@@ -306,7 +421,7 @@ impl JacProgram.build(
 impl JacProgram.run_schedule(
     self: JacProgram,
     mod: uni.Module,
-    passes: list[type[Transform[uni.Module, uni.Module]]],
+    passes: list[type[Transform]],
     cancel_token: (Event | None) = None
 ) -> None {
     self._get_compiler().run_schedule(mod, self, passes, cancel_token);
