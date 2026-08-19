@@ -91,7 +91,7 @@ test "full config translates rules, cold_start, timeouts, request_rate, and cust
     assert spec.target.port_name == "http";
     assert spec.concurrency is None;
     assert spec.request_rate.target_value == 50;
-    assert spec.request_rate.window == "5m";
+    assert spec.request_rate.rate_window == "5m";
     assert spec.request_rate.granularity == "10s";
     assert len(spec.rules) == 1;
     assert spec.rules[0].hosts == ["preview.jac.dev"];

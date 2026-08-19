@@ -60,7 +60,7 @@ test "validate requires at least one of concurrency or request_rate" {
 
 test "request_rate defaults window to 1m and granularity to 1s when unset" {
     metric = HTTPRequestRateMetric(target_value=100);
-    assert metric.window == "1m";
+    assert metric.rate_window == "1m";
     assert metric.granularity == "1s";
 }
 
@@ -184,7 +184,7 @@ test "build_interceptor_route encodes request_rate as scalingMetric.requestRate"
     keda = KEDAAutoscaler();
     spec = _spec(
         request_rate=HTTPRequestRateMetric(
-            target_value=50, window="5m", granularity="10s"
+            target_value=50, rate_window="5m", granularity="10s"
         )
     );
     m = keda._build_interceptor_route(spec);
@@ -241,7 +241,7 @@ test "build_http_scaled_object encodes request_rate metric with window and granu
     keda = KEDAAutoscaler();
     spec = _spec(
         request_rate=HTTPRequestRateMetric(
-            target_value=50, window="5m", granularity="10s"
+            target_value=50, rate_window="5m", granularity="10s"
         )
     );
     m = keda._build_http_scaled_object(spec);

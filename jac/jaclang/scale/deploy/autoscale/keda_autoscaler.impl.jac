@@ -607,7 +607,7 @@ impl KEDAAutoscaler._build_interceptor_route{
     } elif spec.request_rate is not None {
         scaling_metric["requestRate"] = {
             "targetValue": spec.request_rate.target_value,
-            "window": spec.request_rate.window,
+            "window": spec.request_rate.rate_window,
             "granularity": spec.request_rate.granularity
         };
     }
@@ -694,7 +694,7 @@ impl KEDAAutoscaler._build_http_scaled_object{
         trigger_metadata["targetValue"] = str(spec.concurrency.target_value);
     } elif spec.request_rate is not None {
         trigger_metadata["targetValue"] = str(spec.request_rate.target_value);
-        trigger_metadata["window"] = spec.request_rate.window;
+        trigger_metadata["window"] = spec.request_rate.rate_window;
         trigger_metadata["granularity"] = spec.request_rate.granularity;
     }
 

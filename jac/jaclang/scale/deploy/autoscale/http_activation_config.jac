@@ -52,7 +52,7 @@ def build_http_activation_spec(
     if request_rate_target is not None {
         request_rate = HTTPRequestRateMetric(
             target_value=request_rate_target,
-            window=cfg.get("request_rate_window", "1m"),
+            rate_window=cfg.get("request_rate_window", "1m"),
             granularity=cfg.get("request_rate_granularity", "1s")
         );
     }
