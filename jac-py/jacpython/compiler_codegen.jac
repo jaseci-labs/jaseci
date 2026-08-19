@@ -5689,7 +5689,9 @@ def visit_while(
             return stmt_cont(loc=wloc, next_si=len(tail), terminated=True);
         }
         tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
-        return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+        return stmt_cont(
+            loc=tail_cont.loc, next_si=len(tail), terminated=tail_cont.terminated
+        );
     }
     if len(g.loop_stack) > 0 {
         after_body = g.new_block();
@@ -5802,7 +5804,9 @@ def visit_for(
             return stmt_cont(loc=floc, next_si=len(tail), terminated=True);
         }
         tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
-        return stmt_cont(loc=tail_cont.loc, next_si=len(tail));
+        return stmt_cont(
+            loc=tail_cont.loc, next_si=len(tail), terminated=tail_cont.terminated
+        );
     }
     break_blk = after;
     needs_break_stub = has_break;

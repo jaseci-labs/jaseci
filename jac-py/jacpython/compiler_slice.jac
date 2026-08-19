@@ -640,6 +640,32 @@ test "compiler_slice: is-None jump peephole matches oracle PyCode" {
     }
 }
 
+# A loop (while/for) followed by more statements in a function body: the loop's
+# tail-threaded continuation must propagate `terminated`, else compile_fn_cfg
+# appends a second LOAD_CONST None; RETURN_VALUE after the tail's own return,
+# producing dead code after a terminator (ValueError "Invalid CFG"). This asserts
+# the crash is gone and the block structure matches (co_code length, except table,
+# stacksize). Exact co_code still awaits the LOAD_FAST_BORROW escape-analysis pass
+# (bare `return <local>` should upgrade the borrow to LOAD_FAST).
+test "compiler_slice: loop then trailing statements compile with sound structure" {
+    for src in [
+        "def f(a):\n    while a:\n        pass\n    return a\n",
+        "def f(a):\n    while a:\n        a = a.b\n    return a\n",
+        "def f(a):\n    for x in a:\n        pass\n    return a\n",
+        "def f(a):\n    for x in a:\n        y = x\n    z = 1\n    return z\n",
+        "def f(a):\n    while a:\n        break\n    return a\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        af = nested_code_by_name(actual, "f");
+        ef = nested_code_by_name(expected as PyCode, "f");
+        assert len(af.co_code) == len(ef.co_code);
+        assert af.exceptiontable == ef.exceptiontable;
+        assert af.stacksize == ef.stacksize;
+    }
+}
+
 test "compiler_slice: 1+1 matches oracle PyCode" {
     assert_matches_oracle(ast_one_plus_one(), "1+1");
 }
