@@ -1690,6 +1690,172 @@ test "prompt caching disabled via config" {
     }
 }
 
+"""Attribute-style streaming chunks: dispatch_streaming reads `chunk?.usage` /
+`chunk?.choices` by attribute, not dict subscript (unlike the tool-call
+streaming path, which falls back to dict access)."""
+def _plain_answer_chunks(text: str) -> list {
+    out: list = [];
+    for word in text.split(" ") {
+        out.append(
+            types.SimpleNamespace(
+                usage=None,
+                choices=[
+                    types.SimpleNamespace(
+                        delta=types.SimpleNamespace(content=word + " ")
+                    )
+                ]
+            )
+        );
+    }
+    return out;
+}
+
+# Regression guard for the cache-invalidation bug (jac#8381): the final-answer
+# call after a successful finish_tool used to shrink mt_run.tools down to
+# [finish_tool], which sits before the message list in Anthropic's wire
+# format and so broke the cached prefix for the whole conversation.
+test "_stream_final_answer keeps the tools array intact (no cache-prefix break)" {
+    def tool_a(x: str) -> str {
+        return x;
+    }
+    def tool_b(y: str) -> str {
+        return y;
+    }
+
+    model = Model(model_name="anthropic/claude-3-5-sonnet-20241022");
+    mt_run = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are an agent."),
+            Message(role=MessageRole.USER, content="Do the thing.")
+        ],
+        resp_type=str,
+        stream=True,
+        tools=[Tool(func=tool_a), Tool(func=tool_b), Tool.make_finish_tool(str)],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+    original_tool_names = [t.get_name() for t in mt_run.tools];
+
+    captured: list = [];
+    def _serve(params: dict) -> list {
+        captured.append(
+            {"tools": params.get("tools"), "tool_choice": params.get("tool_choice")}
+        );
+        return _plain_answer_chunks("Done.");
+    }
+
+    with unittest.mock.patch.object(
+        model, "model_call_with_stream", side_effect=_serve
+    ) {
+        list(model._stream_final_answer(mt_run));
+    }
+
+    assert len(captured) == 1;
+    sent_tools = captured[0]["tools"];
+    sent_names = [t.get("function", {}).get("name") for t in sent_tools];
+    assert sent_names == original_tool_names , (
+        f"the final-answer call must keep the same tools array as every other "
+        f"call in the conversation so Anthropic's cache prefix still matches; "
+        f"got {sent_names}, expected {original_tool_names}"
+    );
+    assert captured[0]["tool_choice"] == "none" , (
+        "the final-answer call must still forbid further tool calls"
+    );
+    assert [t.get_name() for t in mt_run.tools] == original_tool_names , (
+        "mt_run.tools must be left untouched by the final-answer call"
+    );
+}
+
+test "finish_tool exit sends an identical tools array on the narration call" {
+    def search_files(query: str) -> str {
+        return f"found: {query}";
+    }
+
+    model = Model(model_name="anthropic/claude-3-5-sonnet-20241022");
+    mt_run = MTRuntime(
+        messages=[
+            Message(role=MessageRole.SYSTEM, content="You are an agent."),
+            Message(role=MessageRole.USER, content="Find the bug.")
+        ],
+        resp_type=str,
+        stream=True,
+        tools=[Tool(func=search_files), Tool.make_finish_tool(str)],
+        call_params={},
+        mtir=None  # type: ignore[arg-type]
+    );
+
+    base = {
+        "id": "call-1",
+        "object": "chat.completion.chunk",
+        "created": 1,
+        "model": "claude-3-5-sonnet-20241022"
+    };
+    finish_call_chunks = [
+        {
+            ** base,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "id": "call_finish",
+                                "type": "function",
+                                "function": {"name": "finish_tool", "arguments": ""}
+                            }
+                        ]
+                    },
+                    "finish_reason": None
+                }
+            ]
+        },
+        {
+            ** base,
+            "choices": [
+                {
+                    "index": 0,
+                    "delta": {
+                        "tool_calls": [
+                            {
+                                "index": 0,
+                                "function": {
+                                    "arguments": '{"final_output": "Fixed it."}'
+                                }
+                            }
+                        ]
+                    },
+                    "finish_reason": None
+                }
+            ]
+        },
+        {** base, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+    ];
+
+    calls: list = [];
+    def _serve(params: dict) -> list {
+        calls.append(params.get("tools"));
+        idx = len(calls) - 1;
+        return finish_call_chunks if idx == 0 else _plain_answer_chunks("Fixed it.");
+    }
+
+    with unittest.mock.patch.object(
+        model, "model_call_with_stream", side_effect=_serve
+    ) {
+        list(model._invoke_streaming(mt_run));
+    }
+
+    assert len(calls) == 2 , f"expected exactly 2 LLM calls, got {len(calls)}";
+    names_1 = [t.get("function", {}).get("name") for t in calls[0]];
+    names_2 = [t.get("function", {}).get("name") for t in calls[1]];
+    assert names_1 == names_2 , (
+        f"the finish_tool exit's narration call must send the identical tools "
+        f"array as the call before it, or Anthropic's cache prefix breaks; "
+        f"call 1={names_1}, call 2={names_2}"
+    );
+}
+
 import asyncio;
 import inspect;
 

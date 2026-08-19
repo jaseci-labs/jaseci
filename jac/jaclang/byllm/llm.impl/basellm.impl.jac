@@ -1753,10 +1753,6 @@ impl BaseLLM._stream_final_answer(mt_run: MTRuntime) -> Generator[str, None, Non
     );
     mt_run.add_scaffolding_message(final_instruction);
 
-    original_tools = mt_run.tools;
-    finish_tool_obj = mt_run.get_tool("finish_tool");
-    mt_run.tools = [finish_tool_obj] if finish_tool_obj else [];
-
     original_tool_choice = mt_run.call_params.pop("tool_choice", None);
     mt_run.call_params["tool_choice"] = "none";
     accumulated: str = "";
@@ -1766,7 +1762,6 @@ impl BaseLLM._stream_final_answer(mt_run: MTRuntime) -> Generator[str, None, Non
             yield token;
         }
     } finally {
-        mt_run.tools = original_tools;
         mt_run.call_params.pop("tool_choice", None);
         if original_tool_choice is not None {
             mt_run.call_params["tool_choice"] = original_tool_choice;
