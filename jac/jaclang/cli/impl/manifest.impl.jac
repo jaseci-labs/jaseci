@@ -328,6 +328,13 @@ def _command_routes -> list[CommandMeta] {
                     help='Report where every top-level element was placed (server / client / native / dual) with the evidence behind each decision',
                     short=''
                 ),
+                ArgMeta(
+                    name='compile-stats',
+                    typ='bool',
+                    default=False,
+                    help="Report how much of each module's pass schedule the binary executed natively, and name every module that fell back to the staged pass loop",
+                    short=''
+                ),
 
             ]
         ),
