@@ -30,11 +30,14 @@ And pinned here too, because this is the file that owns the question: what
 a pass *construction* inside a native root does now. Section 11.1 of
 `internals/fused-pipeline.md` measured it as a discarded
 `_pyb_instantiate` bridge after which the field read answered the field's
-declared default -- the pass did not run and nothing said so. Then it
-refused, with E5088, because the base modules were not in the root's
-closure. Now it lowers: the base chain links, and the last two tests in
-this file pin that, together with the seam that is next -- the traversal
-methods still refuse on stores to slots they inherit.
+declared default -- the pass did not run and nothing said so. #8305 made
+that refuse with E5088, whose remedy named the gate: the base modules were
+not in the root's closure. Two landings opened it -- the re-export import
+that dragged `codeinfo.jac` into the chain was retargeted to the declaring
+module, and B4 (#8323) emptied `PLACEMENT_INFERENCE_HELD`. The chain
+links, and the last tests in this file pin the construction lowering over
+it -- and pin that omitting `prog` is a compile-time error now rather than
+a run-time `TypeError`.
 """
 
 import os;
@@ -189,39 +192,39 @@ def _ctor_probe -> tuple {
 }
 
 
-"""The base chain links, and a pass construction inside a native root lowers.
+"""The rung-3 gate, measured open.
 
-This test used to pin the opposite. Section 11.1 of
-`internals/fused-pipeline.md` measured the construction as a silent
-`_pyb_instantiate` bridge whose result was discarded; #8305 turned that into
-E5088, #8306 and rung 2 emptied the unit of everything un-lowerable, and
-what was left was a refusal whose reason was the closure: an
-`import from ... { UniPass }` inside a native root pulled in none of
-`uni_pass.jac`, `module_codegen_pass.jac` or `transform.jac`, so
-`UniPass.postinit` would have run on a Python shadow.
+Section 11.1 of `internals/fused-pipeline.md` measured this construction as
+a silent `_pyb_instantiate` bridge whose result was discarded -- the pass
+did not run and nothing said so. #8305 turned the shadow-initialized
+construction into E5088; #8306 plus rung 2 emptied the unit of everything
+that made it un-lowerable; and the refusal's own remedy -- bring the base
+into the native unit -- landed with B4 (#8323): emptying
+`PLACEMENT_INFERENCE_HELD` made `codeinfo` admissible and the whole chain
+with it, so `import from ... { UniPass }` inside a native root now pulls
+`uni_pass.jac`, `module_codegen_pass.jac` and `transform.jac` into the
+unit, and the construction lowers over real layouts instead of refusing
+over a shadow.
 
-The cause was one import. A native root's walk filters candidates through
-`native_default_path_ok`, the placement pre-scan, run over the candidate and
-every transitive `.jac` dependency, all-or-nothing. `transform.jac` asked
-`codeinfo.jac` for `CodeLocInfo` -- a symbol `srcloc.jac` declares and
-`codeinfo` merely re-exports -- and `codeinfo.jac` scans dirty on its own
-`import from typing { Any }`. Retargeting the import to the declaring module
-took `codeinfo.jac` out of the chain's closure, and all three base modules
-now pass the scan and link.
-
-So E5088 is gone here because its precondition is gone, which is the remedy
-its own help text names. What the probe pins now is that state, both ways:
-the construction lowers with no seam at all, and the three base modules are
-in the closure. If either half regresses, the walk stopped reaching the base
-chain again and the first place to look is a re-export import.
+Two things this pins beyond the happy path. The chain's own waived seams
+(`UniPass.transform`/`traverse`) ride along and are someone else's table -- the fixture's own file must stay seam-free, or a
+fused root cannot trust its smallest operation. And the rim's construction
+contract became a compile-time fact here: a probe that omits `prog` no
+longer demotes or bridges, it fails the compile outright with the missing-
+parameter error, which is the same `TypeError` the Python lane raises at
+run time (`test_sealed_pass_tier.jac`), caught earlier.
 """
-test "constructing a pass in a native root lowers, with the base chain linked" {
+test "a native root constructs a pass over the linked base chain" {
     (seams, closure) = _ctor_probe();
-    why = seams.get("probe_construct", "");
-    assert not why , (
-        f"constructing a pass inside a native root demoted again: {why}. If "
-        "this is E5088, the base chain fell out of the root's closure -- "
-        f"check for a re-export import (closure was {closure})"
+    assert "probe_construct" not in seams , (
+        "constructing a pass inside a native root demotes again: "
+        + seams.get("probe_construct", "")
+        + ". Rung 3's gate was measured open when B4 linked the base chain; "
+        "find which chain member fell out of the unit before re-pinning"
+    );
+    assert "LocalCountPass.enter_name" not in seams , (
+        "the probe pass's own visitor demoted; the fixture must stay "
+        "seam-free for the construction measurement to mean anything"
     );
     for base in (
         "jac0core/passes/transform.jac",
@@ -229,9 +232,8 @@ test "constructing a pass in a native root lowers, with the base chain linked" {
         "jac0core/passes/module_codegen_pass.jac"
     ) {
         assert base in closure , (
-            f"{base} left the native root's closure. The construction may "
-            "still lower by accident; the base chain linking is the thing "
-            "this test exists to hold"
+            f"{base} left the native root's closure. The chain linking is "
+            "what rung 3 is; see this test's docstring"
         );
     }
     assert "jac0core/codeinfo.jac" not in closure , (
@@ -243,39 +245,44 @@ test "constructing a pass in a native root lowers, with the base chain linked" {
 }
 
 
-"""uni_pass carries no waivers at all, and the table's shape says so.
+"""The retired generic-static shims stay retired, table-wide.
 
 This test has pinned three successive states of the same file. First the
 traversal methods as waived seams (inherited-slot stores, cleared by
 #8320's linearization repair). Then the two `type[T]`-generic statics as
-the honest remainder. Now those are gone too -- not lowered, RETIRED:
+the honest remainder. Those are gone -- not lowered, RETIRED:
 `get_all_sub_nodes` and `find_parent_of_type` were forwarding shims for
 the same-named `UniNode` methods, every caller lived outside the sealed
 closure and calls the node methods directly now, and a shim with no
 callers is not a seam worth waiving, it is dead code the seal was
-carrying. With them gone, `uni_pass.jac` contributes zero entries to
-`NATIVE_SEAL_DEMOTION_WAIVERS`, which is what this pins: any name from
-this module reappearing in the table means pass machinery demoted again,
-and the fused prefix is re-blocked by whatever did it.
+carrying. B4's grown closures then re-admitted `uni_pass.jac` to the
+table with the base-chain field wall (`__post_init__`/`transform`/
+`traverse`, waived and family-documented in `precompile_bytecode.jac`),
+so zero-entries is no longer the pin; the retired shims are. A shim name
+reappearing means someone re-created dead code the seal must carry, and
+the fused prefix is re-blocked by whatever did it.
 """
-test "uni_pass contributes no waiver at all" {
+test "the retired uni_pass shims never re-enter the waiver table" {
     (seams, _closure) = _ctor_probe();
     _ = seams;
     import from jaclang.utils.precompile_bytecode { NATIVE_SEAL_DEMOTION_WAIVERS }
+    retired = (
+        "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
+        "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
+
+    );
     offending: list[str] = [];
     for names in NATIVE_SEAL_DEMOTION_WAIVERS.values() {
         for entry in names {
-            if entry.startswith("jac0core/passes/uni_pass.jac::")
-                and entry not in offending {
+            if entry in retired and entry not in offending {
                 offending.append(entry);
             }
         }
     }
     assert not offending , (
-        f"uni_pass.jac is back in the waiver table: {sorted(offending)}. "
-        "The traversal seams cleared with #8320's slot repair and the "
-        "generic-static shims were retired outright; a returning entry "
-        "means pass machinery demotes again and the fused prefix is "
-        "re-blocked -- fix the lowering rather than re-waiving it"
+        "a retired generic-static shim is back in the waiver table: "
+        f"{sorted(offending)}. These were deleted as dead forwarding code, "
+        "not lowered; a returning entry means the shim was re-created and "
+        "demotes again -- delete the shim rather than re-waiving it"
     );
 }

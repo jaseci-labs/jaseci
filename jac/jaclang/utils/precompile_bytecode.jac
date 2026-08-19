@@ -302,9 +302,22 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "compiler/native_materialize.jac",
 
      ),
-     NATIVE_SEAL_REFUSED_ROOTS: dict[str, str] = {},
+     NATIVE_SEAL_REFUSED_ROOTS: dict[str, str] = {
+         "compiler/passes/main/capability_check_pass.jac": (
+             "one own seam left (native_capability_violations, the "
+             "pass-tier crossing into ModuleCodegenPass.iter_context_stmts) "
+             "and it cannot be waived: the seal's abort-stub linkage check "
+             "reads the IR that ships and NativeCapabilityCheckPass."
+             "transform -- the root's live entry point -- links the stub "
+             "directly, so the artifact would abort on its first native "
+             "run. Seals when the pass-tier crossing links artifacts "
+             "instead of stubbing, or when transform stops calling the "
+             "demoted function natively."
+         )
+     },
      NATIVE_SEAL_CLOSURE: tuple[str, ...] = (
          "jac0core/codegen_ir.jac",
+         "jac0core/codeinfo.jac",
          "jac0core/constant.jac",
          "jac0core/diagnostic_utils.jac",
          "jac0core/diagnostics.jac",
@@ -340,6 +353,7 @@ glob NATIVE_SEAL_ROOTS: tuple[str, ...] = (
          "project/client_kind_paths.jac",
          "runtimelib/client/targets/react_native/html_tag_map.jac",
          "runtimelib/na_stdlib/_hashlib_native.jac",
+         "runtimelib/na_stdlib/contextvars.jac",
          "runtimelib/na_stdlib/fnmatch.jac",
          "runtimelib/na_stdlib/hashlib.jac",
          "runtimelib/na_stdlib/keyword.jac",
@@ -356,7 +370,6 @@ glob NATIVE_SEAL_UNITREE_ROOT: str = "jac0core/unitree.jac",
 glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/unitree.jac::ModulePath.resolve_relative_path",
          "jac0core/unitree.jac::ModulePath.native_bundled_path",
-         "jac0core/unitree.jac::UniNode.gen.__get__",
          "jac0core/unitree.jac::Module.annexable_by.__get__",
          "jac0core/unitree.jac::Import.__jac_detected.__get__",
          "jac0core/unitree.jac::Import.is_service_import.__get__",
@@ -384,8 +397,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
 
      ),
      _HELPERS_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/helpers.jac::pretty_print_source_location",
-         "jac0core/helpers.jac::format_related_spans",
          "jac0core/helpers.jac::read_file_with_encoding",
          "jac0core/helpers.jac::normalize_exclude_patterns",
          "jac0core/helpers.jac::read_jacignore_patterns",
@@ -395,22 +406,54 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/helpers.jac::evaluate_version_condition",
 
      ),
-     _TRANSFORM_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/transform.jac::Alert.pretty_print",
+     _CODEINFO_SEAM_WAIVERS: tuple[str, ...] = (
+         "jac0core/codeinfo.jac::CodeGenTarget.doc_ir.__get__",
+         "jac0core/codeinfo.jac::_func_layout_to_dict",
+         "jac0core/codeinfo.jac::_inferred_native_path",
+         "jac0core/codeinfo.jac::effective_default_codespace",
+         "jac0core/codeinfo.jac::effective_native_closure_cap",
+         "jac0core/codeinfo.jac::install_native_static_init",
+         "jac0core/codeinfo.jac::is_bundled_native_module",
+         "jac0core/codeinfo.jac::is_client_by_location",
+         "jac0core/codeinfo.jac::is_native_by_location",
+         "jac0core/codeinfo.jac::native_layout_to_dict",
+         "jac0core/codeinfo.jac::native_stdlib_root",
+         "jac0core/codeinfo.jac::native_wasm_stem",
+         "jac0core/codeinfo.jac::resolve_native_module",
 
      ),
-     _MODULE_CODEGEN_SEAM_WAIVERS: tuple[str, ...] = (
+     _UNI_PASS_SEAM_WAIVERS: tuple[str, ...] = (
+         "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
+         "jac0core/passes/uni_pass.jac::UniPass.transform",
+         "jac0core/passes/uni_pass.jac::UniPass.traverse",
+
+     ),
+     _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
+         _UNITREE_SEAM_WAIVERS
+         + _TYPES_SEAM_WAIVERS
+         + _TYPE_UTILS_SEAM_WAIVERS
+         + _HELPERS_SEAM_WAIVERS
+         + _CODEINFO_SEAM_WAIVERS
+         + _UNI_PASS_SEAM_WAIVERS
+     ),
+     _MCP_ABSENT_SEAMS: tuple[str, ...] = (
+         "jac0core/passes/uni_pass.jac::UniPass.transform",
+         "jac0core/passes/uni_pass.jac::UniPass.traverse",
+
+     ),
+     _MCP_SEAM_WAIVERS: tuple[str, ...] = tuple(
+         w
+         for w in _CLOSURE_SEAM_WAIVERS
+         if w not in _MCP_ABSENT_SEAMS
+     ),
+     _MCP_PASSENGER_SEAM_WAIVERS: tuple[str, ...] = (
          (
              "jac0core/passes/module_codegen_pass.jac::"
-             "ModuleCodegenPass.archetype_refs"
+             "ModuleCodegenPass.has_native_context_stmts"
          ),
          (
              "jac0core/passes/module_codegen_pass.jac::"
              "ModuleCodegenPass.iter_context_stmts"
-         ),
-         (
-             "jac0core/passes/module_codegen_pass.jac::"
-             "ModuleCodegenPass.has_native_context_stmts"
          ),
          (
              "jac0core/passes/module_codegen_pass.jac::"
@@ -424,21 +467,26 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
              "jac0core/passes/module_codegen_pass.jac::"
              "ModuleCodegenPass.shared_archetypes_for_context"
          ),
-         ("jac0core/passes/module_codegen_pass.jac::" "client_capability_violations"),
+         "jac0core/passes/module_codegen_pass.jac::client_capability_violations",
 
-     ),
-     _LEAF_SEAM_WAIVERS: tuple[str, ...] = (
-         _UNITREE_SEAM_WAIVERS
-         + _TYPES_SEAM_WAIVERS
-         + _TYPE_UTILS_SEAM_WAIVERS
-         + _HELPERS_SEAM_WAIVERS
-     ),
-     _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
-         _LEAF_SEAM_WAIVERS + _TRANSFORM_SEAM_WAIVERS
      ),
      _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_ability",
          "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
+
+     ),
+     _JSX_INTRINSIC_SEAM_WAIVERS: tuple[str, ...] = (
+         (
+             "compiler/passes/main/jsx_intrinsic_guard_pass.jac::"
+             "JsxIntrinsicGuardPass.before_pass"
+         ),
+
+     ),
+     _CAPABILITY_SEAM_WAIVERS: tuple[str, ...] = (
+         (
+             "compiler/passes/main/capability_check_pass.jac::"
+             "native_capability_violations"
+         ),
 
      ),
      _CFG_BUILD_SEAM_WAIVERS: tuple[str, ...] = (
@@ -458,10 +506,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
              "jac0core/passes/jcir_gen_pass.jac::"
              "JcirGenPass._native_import_registration_map"
          ),
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._native_test_shim_stmts",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._gen_py_sv_func_stub",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._gen_py_sv_walker_stub",
-         "jac0core/passes/jcir_gen_pass.jac::JcirGenPass._gen_py_boundary_stub_class",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_test",
          "jac0core/passes/jcir_gen_pass.jac::JcirGenPass.exit_import",
 
@@ -492,9 +536,9 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "jac0core/passes/module_codegen_pass.jac": _MCP_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _MODULE_CODEGEN_SEAM_WAIVERS
+             _CLOSURE_SEAM_WAIVERS + _MCP_PASSENGER_SEAM_WAIVERS
          ),
          "jac0core/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/endpoint_effect_pass.jac": (
@@ -506,11 +550,16 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": (
+             _CLOSURE_SEAM_WAIVERS + _JSX_INTRINSIC_SEAM_WAIVERS
+         ),
          "compiler/passes/main/cfg_build_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
          ),
          "compiler/passes/main/rc_facts_pass.jac": _CLOSURE_SEAM_WAIVERS,
+         "compiler/passes/main/capability_check_pass.jac": (
+             _CLOSURE_SEAM_WAIVERS + _CAPABILITY_SEAM_WAIVERS
+         ),
          "jac0core/passes/jcir_gen_pass.jac": (
              _CLOSURE_SEAM_WAIVERS
              + _JCIR_INTEROP_SEAM_WAIVERS
@@ -526,12 +575,14 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              _UNITREE_SEAM_WAIVERS,
              "Import resolution, filesystem and jac.toml reads, the "
              "CPython ast bridge, the `type`-object literal map and the `...` "
-             "value, plus the lazy `CodeGenTarget` construction behind "
-             "`UniNode.gen`. Each is infrastructure no native unit can host. "
+             "value. Each is infrastructure no native unit can host. "
              "They clear as the driver hands the tree data instead of "
              "handles: import detection stamped onto the node (the #8242 "
              "`absorbed_mod` pattern), codegen state crossing as records, "
-             "and a native value for `Ellipsis`."
+             "and a native value for `Ellipsis`. `UniNode.gen.__get__` sat "
+             "here until `codeinfo` joined the closure; with the module in "
+             "the unit the lazy `CodeGenTarget` construction lowers and the "
+             "waiver is gone."
          ),
          (
              "type system cross-module cascades",
@@ -561,52 +612,97 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "as data."
          ),
          (
-             "helpers rendering, file reads and the unitree cycle",
+             "helpers file reads and the unitree cycle",
              _HELPERS_SEAM_WAIVERS,
-             "Three groups. `pretty_print_source_location` asks for `MOD` on "
-             "mismatched integer widths and `format_related_spans` cascades "
-             "on it. `read_file_with_encoding` passes an encoding keyword to "
-             "`open()`, which the native lane refuses out loud since #8255; "
-             "`normalize_exclude_patterns` and `read_jacignore_patterns` are "
-             "string methods on element-erased list members. The "
-             "`sys.version_info` family reads unitree through a "
-             "function-local import that keeps `helpers` out of a "
-             "module-level cycle with `unitree`; hoisting it is the clearing "
-             "mechanism and it needs the cycle broken first."
+             "Two groups. `read_file_with_encoding` passes an encoding "
+             "keyword to `open()`, which the native lane refuses out loud "
+             "since #8255; `normalize_exclude_patterns` and "
+             "`read_jacignore_patterns` are string methods on "
+             "element-erased list members. The `sys.version_info` family "
+             "reads unitree through a function-local import that keeps "
+             "`helpers` out of a module-level cycle with `unitree`; "
+             "hoisting it is the clearing mechanism and it needs the cycle "
+             "broken first. `pretty_print_source_location` and "
+             "`format_related_spans` sat here until their old-style `%` "
+             "formatting (the `MOD on i8*` gap) became plain padding; the "
+             "console gutter lowers now and `Alert.pretty_print` with it."
          ),
          (
-             "pass base chain rim surface",
-             _TRANSFORM_SEAM_WAIVERS,
-             "One left of the three the base chain's arrival brought in. "
-             "`Alert.pretty_print` renders source spans through "
-             "`helpers.pretty_print_source_location`, already waived above, "
-             "and clears with it. `BaseTransform.is_canceled` cleared when "
-             "cancellation started crossing as a scalar the pass reads "
-             "(`cancel_requested`; the event poll lives on the driver and "
-             "the Python loader now), and `Transform.ice` cleared when it "
-             "became the message-builder half of the internal-error guard "
-             "-- callers raise `RuntimeError(self.ice(...))`, a statement "
-             "the native raise path lowers."
+             "codeinfo Python-only machinery and named backend gaps",
+             _CODEINFO_SEAM_WAIVERS,
+             "The module the emptied `PLACEMENT_INFERENCE_HELD` entry was "
+             "holding out of every unit (#8323 B4). Its data model lowers "
+             "whole; every seam is filesystem, config or Python-codegen "
+             "machinery no native unit can host, or a named backend gap. "
+             "Python-only: `native_stdlib_root`, `is_native_by_location`, "
+             "`is_client_by_location` (a `jaclang.__file__` read), "
+             "`effective_default_codespace` and `effective_native_closure_"
+             "cap` (`project.config` reads), `_inferred_native_path` and "
+             "`resolve_native_module` (the placement scan, the driver's "
+             "ground), `is_bundled_native_module` (cascade), "
+             "`CodeGenTarget.doc_ir.__get__` (lazy `doc_ir` import), "
+             "`install_native_static_init` (writes an `any`-typed engine "
+             "handle). Backend gaps: `native_layout_to_dict` and "
+             "`_func_layout_to_dict` (`any` box of an optional), "
+             "`native_wasm_stem` (`os.path.splitext`). None is reachable "
+             "from a parse; each Python-only entry clears when its answer "
+             "crosses as driver-stamped data, the #8274 pattern."
          ),
          (
-             "module_codegen isinstance against an unreachable layout",
-             _MODULE_CODEGEN_SEAM_WAIVERS,
-             "One mechanism and its cascades, demoting in exactly one root "
-             "-- `uni_pass.jac`, the only root that links "
-             "`module_codegen_pass` without also linking the unitree layout "
-             "that would make its reads resolvable. `iter_context_stmts` "
-             "tests `isinstance` against `ElementStmt`, a unitree class "
-             "whose layout is not reachable there, which is the same named "
-             "backend gap `type_utils`'s `class_implements_protocol` and "
-             "`doc_of_sym` are waived for above; five of the others call "
-             "it, and `archetype_refs` hits the same wall one door over, "
-             "calling `UniNode.get_all_sub_nodes` on the layout that is "
-             "not there. It was always this way on this root -- the "
-             "ordering bug #8320's A1 fixed had been emitting it against "
-             "an unlanded verdict, so the seam only became visible when "
-             "the verdict started binding. They clear together the day a "
-             "call against an unreachable layout lowers -- one mechanism, "
-             "seven waivers, and no separate work of their own."
+             "uni_pass base-chain field wall",
+             _UNI_PASS_SEAM_WAIVERS,
+             "`transform` and `traverse` "
+             "write the base chain's `ir_out` / `cur_node` fields and "
+             "`__post_init__` chains `super.__post_init__` -- the "
+             "inherited-field wall the type-system census records as the "
+             "checker's `ir_in` cause; all three clear when a subclass "
+             "body can address a base-declared field's slot. "
+             "`get_all_sub_nodes` and `find_parent_of_type` sat here as "
+             "TypeVar-generic statics until their forwarding shims were "
+             "retired for the `UniNode` methods they wrap. The driver "
+             "calls them through the serving binder, which routes a "
+             "demoted method to its Python body, so none ships live."
+         ),
+         (
+             "jsx_intrinsic_guard base-chain field read",
+             _JSX_INTRINSIC_SEAM_WAIVERS,
+             "`before_pass` reads the inherited `ir_in`, the same "
+             "base-chain field wall as the `uni_pass` entries above; it "
+             "appeared the moment `transform.jac` joined the closure and "
+             "clears the same way."
+         ),
+         (
+             "module_codegen passengers in the uni_pass artifact",
+             _MCP_PASSENGER_SEAM_WAIVERS,
+             "In `uni_pass.jac`'s own unit the seat class is an ancestor "
+             "rather than the root, and `iter_context_stmts`'s "
+             "`isinstance` against `ElementStmt` loses the root-relative "
+             "layout reachability it has in every other unit; the other "
+             "five are cascades of it. The copies are dead passengers -- "
+             "the serving binder answers `module_codegen_pass` calls from "
+             "that root's own artifact -- and they clear when imported "
+             "isinstance stops being root-relative. The same root-relative "
+             "asymmetry runs the other way and is encoded as a subtraction "
+             "rather than a waiver: compiling `module_codegen_pass` AS the "
+             "root lowers its descendants' base-chain writes "
+             "(`_MCP_ABSENT_SEAMS`), measured by the stale-waiver half of "
+             "the wave-1 census."
+         ),
+         (
+             "capability pass-tier crossing",
+             _CAPABILITY_SEAM_WAIVERS,
+             "`native_capability_violations` calls "
+             "`ModuleCodegenPass.iter_context_stmts`, a method on another "
+             "sealed root's class, and the crossing clears when sealed "
+             "artifacts link each other rather than when the callee is "
+             "fixed -- the callee reached zero seams in wave 6. The waiver "
+             "does NOT make the root sealable: the seal's abort-stub "
+             "linkage check measured `NativeCapabilityCheckPass.transform` "
+             "-- the live entry point -- linking this stub directly, which "
+             "is why the root sits in `NATIVE_SEAL_REFUSED_ROOTS` with "
+             "that finding as its blocker. The accounting stays so the "
+             "audit keeps measuring the refused root; "
+             "`test_pass_seal_wave6_census.jac` carries the census."
          ),
          (
              "endpoint effects written as codegen state",
@@ -643,8 +739,11 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "them is gone: `exit_import` consumes "
              "`Import.native_only_drop` instead of asking the driver for "
              "`native_only_import_target`, so this root names no driver "
-             "entry point at all. Clears the rest of the way when the "
-             "manifest crosses as a native-clean record instead of a "
+             "entry point at all. Four entries cleared when `codeinfo` "
+             "joined the closure -- the py-sv stub builders and "
+             "`_native_test_shim_stmts` read manifest state whose types "
+             "now have in-unit layouts. Clears the rest of the way when "
+             "the manifest crosses as a native-clean record instead of a "
              "Python object."
          ),
          (

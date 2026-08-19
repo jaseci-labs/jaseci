@@ -16,13 +16,14 @@ vocabulary to decide. The first test below pins that -- the vocabulary must
 keep refusing `Any`, now for a reason that cannot change back.
 
 `codeinfo` spells its four annotations `any` and imports nothing from
-`typing`, so the import-shaped blocker is gone. Inference is still held for
-it, deliberately now rather than by accident: `PLACEMENT_INFERENCE_HELD`
-names the module and the reason, and `test_codeinfo_census.jac` carries the
-measurement -- letting it through takes `unitree`'s closure from 11 members
-to 19 and picks up `UniPass.transform`, `UniPass.traverse` and
-`UniPass.get_all_sub_nodes`, pass machinery a parse reaches, inside a root
-that is actually sealed.
+`typing`, so the import-shaped blocker is gone. The deliberate hold that
+replaced the accident is gone too: B4 (#8323) emptied
+`PLACEMENT_INFERENCE_HELD` after answering what it priced --
+`test_codeinfo_census.jac` carries the 19-member closure, the 21 arriving
+seams are waived by name in `NATIVE_SEAL_DEMOTION_WAIVERS`, and
+`test_unitree_seal_census.jac` pins the sealed root that absorbs them. The
+third test below now guards the emptiness: a module held again must bring
+its reason and its census with it.
 
 The clearing list, and where each item stands:
 
@@ -42,13 +43,12 @@ The clearing list, and where each item stands:
      change, and it did: a flat `list[str]` of "/"-joined relative paths,
      rejoined with `os.sep` at its one use site.
 
-So the list is spent as a list: nothing on it blocks anything any more. What
-replaces it is a single named hold with a measured reason, and the work it
-names is `codeinfo`'s own 13 seams plus the closure they travel in. When that
-clears, four of `capability_check_pass`'s five seams clear with it -- three
-because it reads `codeinfo`'s tables, and `ClientCapabilityCheckPass.transform`
-because `module_codegen_pass` joins alongside. That was measured on this base
-too, and it is what the hold is holding back.
+So the list is spent as a list: nothing on it blocks anything any more. The
+single named hold that replaced it is spent too, and its prediction held
+exactly: with the entry empty, four of `capability_check_pass`'s five seams
+cleared -- three because it reads `codeinfo`'s tables in-unit, and
+`ClientCapabilityCheckPass.transform` because `module_codegen_pass` joined
+alongside. `test_pass_seal_wave6_census.jac` carries the measurement.
 
 The last test keeps the half of the old reasoning that outlived the rest.
 `ModuleCodegenPass.is_erased_type_decl` reads the *marker* set
@@ -109,17 +109,14 @@ test "a module annotated with the any keyword needs no import to infer native" {
 }
 
 
-test "codeinfo's hold is deliberate and names its reason" {
+test "the inference hold table is empty, and emptying it was answered" {
     import from jaclang.jac0core.placement { PLACEMENT_INFERENCE_HELD }
-    held = PLACEMENT_INFERENCE_HELD.get("jac0core/codeinfo.jac");
-    assert held , (
-        "codeinfo is no longer held out of native inference. If that is "
-        "intended, the closure it joins has to be answered first: see "
-        "test_codeinfo_census.jac for the 21-seam measurement, and expect "
-        "test_unitree_seal_census.jac to fail loudly until it is"
-    );
-    assert "uni_pass" in held , (
-        f"the hold must name what it is holding back, got {held!r}"
+    assert not PLACEMENT_INFERENCE_HELD , (
+        "a module is held out of native inference again: "
+        f"{PLACEMENT_INFERENCE_HELD!r}. A hold is a deliberate debt with a "
+        "named reason and a census that prices it -- codeinfo's was carried "
+        "here until B4 (#8323) answered its 21-seam closure; a new one "
+        "needs the same treatment, not just this assertion flipped back"
     );
 }
 

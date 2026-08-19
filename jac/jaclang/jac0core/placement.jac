@@ -11,9 +11,7 @@ glob PLACEMENT_SCHEMA: int = 1,
          ("JsxElement", uni.JsxElement)
      ),
      PLACEMENT_NATIVE_REJECT_NODES: tuple = (),
-     PLACEMENT_INFERENCE_HELD: dict[str, str] = {
-         "jac0core/codeinfo.jac": "13 own seams, and a closure that reaches uni_pass (#8201 wave work)"
-     };
+     PLACEMENT_INFERENCE_HELD: dict[str, str] = {};
 
 obj ElementSummary {
     has index: int = -1,
