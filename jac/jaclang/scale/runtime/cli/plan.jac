@@ -452,11 +452,14 @@ obj Plan {
             plan_svc: Any = scaling.get(svc);
             mode: Any = plan_svc.get("mode") if isinstance(plan_svc, dict) else None;
             hpa: Any = (
-                plan_svc.get("autoscaler") if mode == ScalingMode.METRIC else None
+                plan_svc.get("autoscaler")
+                    if isinstance(plan_svc, dict) and mode == ScalingMode.METRIC
+                    else None
             );
             http: Any = (
                 plan_svc.get("http_activation")
-                    if mode == ScalingMode.HTTP_ACTIVATION
+                    if isinstance(plan_svc, dict)
+                        and mode == ScalingMode.HTTP_ACTIVATION
                     else None
             );
             services.append(
