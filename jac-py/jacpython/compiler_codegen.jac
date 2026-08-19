@@ -4018,10 +4018,6 @@ def visit_try(
     tail_join: basicblock | None = None
 ) -> stmt_cont {
     tloc = stmt_loc(t);
-    if t.orelse is not None and len(t.orelse) > 0 {
-        codegen_fail(g, "NotImplementedError", "try/else not supported");
-        return stmt_cont(loc=tloc);
-    }
     if t.finalbody is not None and len(t.finalbody) > 0 {
         if t.handlers is not None and len(t.handlers) > 0 {
             codegen_fail(
@@ -4055,6 +4051,18 @@ def visit_try(
     after_try_epilogue = g.new_block();
     g.use(protect_end);
     g.use(after_try_epilogue);
+    normal_terminated = body_cont.terminated;
+    if t.orelse is not None and len(t.orelse) > 0 and not body_cont.terminated {
+        else_cont = visit_stmts(
+            g, t.orelse, 0, try_follows, tail, tail_idx, tail_join
+        );
+        if codegen_busy(g) {
+            return stmt_cont(loc=tloc);
+        }
+        if else_cont.terminated {
+            normal_terminated = True;
+        }
+    }
     if try_follows {
         tail_more = False;
         if tail is not None and tail_idx + 1 < len(tail) {
@@ -4064,11 +4072,11 @@ def visit_try(
         if codegen_busy(g) {
             return stmt_cont(loc=body_cont.loc);
         }
-        if not tail_cont.terminated and not body_cont.terminated {
+        if not tail_cont.terminated and not normal_terminated {
             emit_module_return(g, tail_cont.loc);
         }
     } else {
-        if not body_cont.terminated {
+        if not normal_terminated {
             emit_module_return(g, body_cont.loc);
         }
     }
