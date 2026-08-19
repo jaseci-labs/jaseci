@@ -2017,25 +2017,64 @@ def visit_expr(
         dkeys = dd.keys if dd.keys is not None else [];
         dvals = dd.values if dd.values is not None else [];
         dloc = nloc(dd.lineno, dd.end_lineno, dd.col_offset, dd.end_col_offset);
+        has_star = False;
+        si2 = 0;
+        while si2 < len(dkeys) {
+            if dkeys[si2] is None {
+                has_star = True;
+            }
+            si2 = si2 + 1;
+        }
+        if not has_star {
+            di = 0;
+            while di < len(dkeys) {
+                visit_expr(g, dkeys[di]);
+                visit_expr(g, dvals[di]);
+                di = di + 1;
+            }
+            if codegen_busy(g) {
+                return None;
+            }
+            g.emit_op(OP_BUILD_MAP, len(dkeys), dloc);
+            return None;
+        }
+        # dict-merge display: `{**a, 'k': v, ...}`. Walk left-to-right,
+        # accumulating consecutive literal k:v pairs into `n`. When a `**x`
+        # (key None) is reached, flush any pending pairs as BUILD_MAP n (which
+        # DICT_UPDATEs onto the running base once one exists), then merge x with
+        # DICT_UPDATE 1. Mirrors CPython 3.14 codegen_dict.
+        n = 0;
+        have_dict = False;
         di = 0;
         while di < len(dkeys) {
             k = dkeys[di];
             if k is None {
-                codegen_fail(
-                    g,
-                    "NotImplementedError",
-                    "dict-merge (**) display not supported"
-                );
-                return None;
+                if n > 0 or (not have_dict) {
+                    g.emit_op(OP_BUILD_MAP, n, dloc);
+                    if have_dict {
+                        g.emit_op(OP_DICT_UPDATE, 1, dloc);
+                    }
+                    have_dict = True;
+                    n = 0;
+                }
+                visit_expr(g, dvals[di]);
+                g.emit_op(OP_DICT_UPDATE, 1, dloc);
+            } else {
+                visit_expr(g, k);
+                visit_expr(g, dvals[di]);
+                n = n + 1;
             }
-            visit_expr(g, k);
-            visit_expr(g, dvals[di]);
             di = di + 1;
+        }
+        if n > 0 or (not have_dict) {
+            g.emit_op(OP_BUILD_MAP, n, dloc);
+            if have_dict {
+                g.emit_op(OP_DICT_UPDATE, 1, dloc);
+            }
         }
         if codegen_busy(g) {
             return None;
         }
-        g.emit_op(OP_BUILD_MAP, len(dkeys), dloc);
         return None;
     }
     codegen_fail(

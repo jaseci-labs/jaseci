@@ -127,6 +127,9 @@ test "display: dict build" { assert_matches_oracle("x = {a: b, c: d}\n"); }
 test "display: starred list" { assert_matches_oracle("x = [*a, b]\n"); }
 test "display: starred tuple" { assert_matches_oracle("x = (*a, b)\n"); }
 test "display: set update" { assert_matches_oracle("x = {*a, b}\n"); }
+test "display: dict merge starred" { assert_matches_oracle("x = {**a, 'k': v}\n"); }
+test "display: dict merge double" { assert_matches_oracle("x = {**a, **b}\n"); }
+test "display: dict merge mixed" { assert_matches_oracle("x = {'j': w, **a, 'k': v}\n"); }
 
 # ---------------- execution: set/dict/starred displays ----------------
 
@@ -153,4 +156,19 @@ test "exec: starred tuple value" {
 test "exec: starred set update value" {
     ns = run_module("a = [1, 2]\nb = 3\ns = {*a, b}\nr = len(s)\n");
     assert expect_int(ns["r"]) == 3;
+}
+
+test "exec: dict merge starred value" {
+    ns = run_module("a = {'x': 1}\nv = 2\nm = {**a, 'k': v}\nr = m['x'] + m['k']\n");
+    assert expect_int(ns["r"]) == 3;
+}
+
+test "exec: dict merge double value" {
+    ns = run_module("a = {'x': 1}\nb = {'y': 2}\nm = {**a, **b}\nr = m['x'] + m['y']\n");
+    assert expect_int(ns["r"]) == 3;
+}
+
+test "exec: dict merge mixed override value" {
+    ns = run_module("w = 1\na = {'k': 5}\nv = 9\nm = {'j': w, **a, 'k': v}\nr = m['j'] + m['k']\n");
+    assert expect_int(ns["r"]) == 10;
 }
