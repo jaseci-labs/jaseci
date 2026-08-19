@@ -150,41 +150,16 @@ glob PKG_PATH = Path(jaclang.__file__).parent,
      # promised: `is_canceled` reads the `cancel_requested` scalar now,
      # `ice` builds the message its callers raise, and the generic-static
      # shims were retired outright for the `UniNode` methods they wrapped.
-     # What follows is its successor one closure-growth later: B4 (#8323)
-     # emptied `PLACEMENT_INFERENCE_HELD` and the base chain joined every
-     # sealed closure the way the type system did before it, bringing the
-     # field-wall trio back into reach of the walks.
-     #
-     # The walk flags these through edges the sealed entry surface cannot
-     # perform: `__post_init__` and `transform` only run when a
-     # UniPass-family object is *constructed*, and no sealed artifact
-     # constructs a pass -- passes are driver-side Python objects, built
-     # and run in the Python lane, where the serving binder never routes
-     # a demoted method into an artifact.
-     #
-     # Each entry is checked below to be declared in the jac0core pass
-     # spine, so this table can never quietly excuse a seam elsewhere,
-     # and a stale entry fails the way every other carve-out does.
-     SPINE_ARGUED: tuple = ("UniPass.__post_init__", "UniPass.transform"),
-     # The pass roots' own walks flag the same family plus `traverse`,
-     # through live methods this time -- the dunder-seeded `__post_init__`
-     # chain, the base-chain field writes. The argument that excuses
-     # them is NOT that certified callers never link a stub -- the seal's
-     # abort-stub linkage check disproved exactly that on
-     # `capability_check_pass`, whose live `transform` linked its waived
-     # stub and whose seal is refused for it. The argument is that the
-     # linkage check reads the IR that actually ships for every sealed
-     # root and refuses any artifact whose live surface links one of these
-     # stubs; the sixteen sealed roots pass it, so the walk's
-     # receiver-blind over-approximation is answered by a stronger,
-     # shipped-IR check downstream. Union staleness below keeps the set
-     # honest: an entry no pass root's walk flags any more has cleared
-     # and must leave.
-     SPINE_ROOT_ARGUED: tuple = (
-         "UniPass.__post_init__",
-         "UniPass.transform",
-         "UniPass.traverse"
-     ),
+     # Its successor, the SPINE tables, retired one landing later: B4's
+     # grown closures re-admitted the base-chain field-wall trio
+     # (`__post_init__`/`transform`/`traverse`) and argued them here, but
+     # the composed measurement read the wall as down in every root, the
+     # waivers left the tables, and union staleness emptied the argument.
+     # The tables stay so the next carve-out has a policed place to land;
+     # every entry must be waived, flagged by a walk, and declared in the
+     # pass spine, or the suite fails it.
+     SPINE_ARGUED: tuple = (),
+     SPINE_ROOT_ARGUED: tuple = (),
      _SPINE_FLAGGED: set = set(),
      TYPE_SYSTEM_DIR = "compiler/type_system",
      PASS_SPINE_DIR = "jac0core/passes",

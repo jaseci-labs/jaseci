@@ -292,11 +292,12 @@ test "the unit is clean enough to link, and the sealed roots link it" {
         f"transform.jac stopped linking unitree ({linked}); the measurement "
         "moved rather than the unit getting cleaner"
     );
-    assert "jac0core/codeinfo.jac" not in linked , (
-        "transform.jac reaches codeinfo.jac again. The import was retargeted "
-        "to the declaring module (srcloc.jac) so the chain's own unit stays "
-        "lean; a re-export creeping back in grows every sealed closure that "
-        "links the chain -- ask the declaring module instead"
+    assert "jac0core/codeinfo.jac" in linked , (
+        "codeinfo.jac left transform's unit. Since B4 emptied "
+        "PLACEMENT_INFERENCE_HELD it joins through unitree's own edges "
+        "(UniNode.gen lowers), with its seams waived by name; its absence "
+        "means the placement walk is refusing it again -- find the blocker "
+        "before re-pinning"
     );
     import from jaclang.utils.precompile_bytecode {
         NATIVE_SEAL_CLOSURE,

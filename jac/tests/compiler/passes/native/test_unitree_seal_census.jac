@@ -95,9 +95,11 @@ kind that pulled `types.jac` in) and through `UniNode.gen`'s function-local
 import, which now lowers; `uni_pass` through the `import type { UniPass }`
 the visitor signatures carry; and `module_codegen_pass`, `transform`,
 `diagnostics`, `diagnostic_utils`, `contextvars` and `logging` ride their
-module-level imports. Only `codeinfo` and `uni_pass` bring seams,
-all waived below (`transform`'s trio cleared: the gutter formatting,
-the cancel scalar, and `ice` as a message-builder); the old reading that `codeinfo` could "never share
+module-level imports. Only `codeinfo` brings seams, all
+waived below (`transform`'s trio cleared -- the gutter formatting, the
+cancel scalar, `ice` as a message-builder -- and the base-chain field
+wall is down everywhere: every measured root lowers
+`__post_init__`/`transform`/`traverse` now); the old reading that `codeinfo` could "never share
 a native unit with unitree" predicted a cycle that `import type` erasure
 never actually forms. `treeprinter` stays absent: function-local only.
 """
@@ -266,12 +268,12 @@ glob UNITREE_CLOSURE: tuple = (
              "`.pyi` ingestion path -- version-guarded typeshed blocks -- "
              "which no sealed parse reaches."
          ),
-         # `transform.jac` contributes no entry: `Alert.pretty_print`
-         # cleared when the helpers gutter formatting lowered, and
-         # `is_canceled`/`ice` cleared for the fused prefix (the cancel
-         # scalar; ice as the message its callers raise). The retired
-         # generic-static shims left `uni_pass.jac` with the field-wall
-         # trio below.
+         # `transform.jac` and `uni_pass.jac` contribute no entry:
+         # `Alert.pretty_print` cleared when the helpers gutter formatting
+         # lowered, `is_canceled`/`ice` cleared for the fused prefix (the
+         # cancel scalar; ice as the message its callers raise), and the
+         # base-chain field wall is down everywhere -- no measured root
+         # demotes `__post_init__`/`transform`/`traverse` any more.
          "codeinfo.jac::CodeGenTarget.doc_ir.__get__": (
              "Python-only: lazily imports `compiler.passes.tool.doc_ir`, "
              "the formatter's IR, which stays Python-side. Only the "
@@ -321,21 +323,6 @@ glob UNITREE_CLOSURE: tuple = (
          "codeinfo.jac::resolve_native_module": (
              "Cascade: `_inferred_native_path` and `native_stdlib_root`, "
              "waived above, plus `os.path.abspath`."
-         ),
-         "uni_pass.jac::UniPass.__post_init__": (
-             "Backend gap: `super.__post_init__` chaining through the "
-             "now-native base chain."
-         ),
-         "uni_pass.jac::UniPass.transform": (
-             "Backend gap: writes the base chain's `ir_out`, the "
-             "inherited-field wall the type-system census records as the "
-             "checker's `ir_in` cause. The driver reaches it through the "
-             "serving binder, which routes a demoted method to its Python "
-             "body."
-         ),
-         "uni_pass.jac::UniPass.traverse": (
-             "Backend gap: writes the base chain's `cur_node`, the same "
-             "inherited-field wall, behind the same binder routing."
          )
      };
 

@@ -36,8 +36,10 @@ not in the root's closure. Two landings opened it -- the re-export import
 that dragged `codeinfo.jac` into the chain was retargeted to the declaring
 module, and B4 (#8323) emptied `PLACEMENT_INFERENCE_HELD`. The chain
 links, and the last tests in this file pin the construction lowering over
-it -- and pin that omitting `prog` is a compile-time error now rather than
-a run-time `TypeError`.
+it. The probe passes no `prog`: the rim base is native-erased, so ctor
+synthesis in a native context declares none (#8341's design) -- the
+handle is driver-stamped, and the Python lane's `TypeError` contract
+lives in `test_sealed_pass_tier.jac`.
 """
 
 import os;
@@ -104,16 +106,10 @@ def _transform_seams -> dict[(str, str)] {
         (name, sep, why) = str(seam).partition(": ");
         found[name if sep else str(seam)] = why if sep else "";
     }
-    # The unit exports no LLVM IR and no layout of its own -- it is in no
-    # closure, which is section 11.1's symptom rather than its disease --
-    # so the census record is the whole measurement. It is guarded against
-    # vacuity from the other side: the seam set is pinned both ways below,
-    # and an unreached compile would empty it and fail on the stale half.
-    assert found , (
-        "the census recorded no seam at all for transform.jac, which on "
-        "this unit means the compile was never reached rather than that it "
-        "is clean"
-    );
+    # Zero seams is the real state now -- the gutter fix lowered
+    # Alert.pretty_print and the prefix work cleared is_canceled/ice --
+    # so an empty set is clean, not vacuous. Vacuity is guarded above:
+    # the census record must exist with outcome "native".
     _MEMO.append(found);
     return found;
 }
@@ -206,13 +202,13 @@ with it, so `import from ... { UniPass }` inside a native root now pulls
 unit, and the construction lowers over real layouts instead of refusing
 over a shadow.
 
-Two things this pins beyond the happy path. The chain's own waived seams
-(`UniPass.transform`/`traverse`) ride along and are someone else's table -- the fixture's own file must stay seam-free, or a
-fused root cannot trust its smallest operation. And the rim's construction
-contract became a compile-time fact here: a probe that omits `prog` no
-longer demotes or bridges, it fails the compile outright with the missing-
-parameter error, which is the same `TypeError` the Python lane raises at
-run time (`test_sealed_pass_tier.jac`), caught earlier.
+One thing this pins beyond the happy path: the chain's own waived seams
+(`UniPass.transform`/`traverse`) ride along and are someone else's table --
+the fixture's own file must stay seam-free, or a fused root cannot trust
+its smallest operation. The probe passes no `prog` (the rim base is
+native-erased and ctor synthesis declares none in a native context); the
+Python lane's run-time `TypeError` contract for the rim handle lives in
+`test_sealed_pass_tier.jac`.
 """
 test "a native root constructs a pass over the linked base chain" {
     (seams, closure) = _ctor_probe();
@@ -236,16 +232,16 @@ test "a native root constructs a pass over the linked base chain" {
             "what rung 3 is; see this test's docstring"
         );
     }
-    assert "jac0core/codeinfo.jac" not in closure , (
-        "codeinfo.jac is back in the pass base chain's closure. It scans "
-        "dirty on `import from typing { Any }`, so it does not merely cost "
-        "compile time -- it takes the whole chain out of the walk. Whatever "
-        "re-export pulled it in should ask the declaring module instead"
+    assert "jac0core/codeinfo.jac" in closure , (
+        "codeinfo.jac left the probe's closure. Since B4 emptied "
+        "PLACEMENT_INFERENCE_HELD it rides every unit that links the base "
+        "chain, its seams waived by name; its absence means the placement "
+        "walk is refusing it again -- find the blocker before re-pinning"
     );
 }
 
 
-"""The retired generic-static shims stay retired, table-wide.
+"""uni_pass carries no waivers at all, and the table's shape says so.
 
 This test has pinned three successive states of the same file. First the
 traversal methods as waived seams (inherited-slot stores, cleared by
@@ -255,34 +251,33 @@ the honest remainder. Those are gone -- not lowered, RETIRED:
 the same-named `UniNode` methods, every caller lived outside the sealed
 closure and calls the node methods directly now, and a shim with no
 callers is not a seam worth waiving, it is dead code the seal was
-carrying. B4's grown closures then re-admitted `uni_pass.jac` to the
-table with the base-chain field wall (`__post_init__`/`transform`/
-`traverse`, waived and family-documented in `precompile_bytecode.jac`),
-so zero-entries is no longer the pin; the retired shims are. A shim name
-reappearing means someone re-created dead code the seal must carry, and
-the fused prefix is re-blocked by whatever did it.
+carrying. B4's branch had re-admitted the base-chain field-wall trio
+(`__post_init__`/`transform`/`traverse`) as waivers, but the composed
+measurement read them stale in every root -- the wall lowered with the
+gate work -- so zero entries is the pin again. Any name from this module
+reappearing in the table means pass machinery demoted again, and the
+fused prefix is re-blocked by whatever did it.
 """
-test "the retired uni_pass shims never re-enter the waiver table" {
+test "uni_pass contributes no waiver at all" {
     (seams, _closure) = _ctor_probe();
     _ = seams;
     import from jaclang.utils.precompile_bytecode { NATIVE_SEAL_DEMOTION_WAIVERS }
-    retired = (
-        "jac0core/passes/uni_pass.jac::UniPass.get_all_sub_nodes",
-        "jac0core/passes/uni_pass.jac::UniPass.find_parent_of_type",
-
-    );
     offending: list[str] = [];
     for names in NATIVE_SEAL_DEMOTION_WAIVERS.values() {
         for entry in names {
-            if entry in retired and entry not in offending {
+            if entry.startswith("jac0core/passes/uni_pass.jac::")
+                and entry not in offending {
                 offending.append(entry);
             }
         }
     }
     assert not offending , (
-        "a retired generic-static shim is back in the waiver table: "
-        f"{sorted(offending)}. These were deleted as dead forwarding code, "
-        "not lowered; a returning entry means the shim was re-created and "
-        "demotes again -- delete the shim rather than re-waiving it"
+        "uni_pass.jac is back in the waiver table: "
+        f"{sorted(offending)}. The traversal seams cleared with #8320's "
+        "slot repair, the generic-static shims were retired outright, and "
+        "B4's grown closures re-measured the field-wall trio as lowering "
+        "in every root; a returning entry means pass machinery demotes "
+        "again and the fused prefix is re-blocked -- fix the lowering "
+        "rather than re-waiving it"
     );
 }

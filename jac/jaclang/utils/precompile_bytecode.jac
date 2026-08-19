@@ -422,29 +422,12 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "jac0core/codeinfo.jac::resolve_native_module",
 
      ),
-     _UNI_PASS_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/uni_pass.jac::UniPass.__post_init__",
-         "jac0core/passes/uni_pass.jac::UniPass.transform",
-         "jac0core/passes/uni_pass.jac::UniPass.traverse",
-
-     ),
      _CLOSURE_SEAM_WAIVERS: tuple[str, ...] = (
          _UNITREE_SEAM_WAIVERS
          + _TYPES_SEAM_WAIVERS
          + _TYPE_UTILS_SEAM_WAIVERS
          + _HELPERS_SEAM_WAIVERS
          + _CODEINFO_SEAM_WAIVERS
-         + _UNI_PASS_SEAM_WAIVERS
-     ),
-     _MCP_ABSENT_SEAMS: tuple[str, ...] = (
-         "jac0core/passes/uni_pass.jac::UniPass.transform",
-         "jac0core/passes/uni_pass.jac::UniPass.traverse",
-
-     ),
-     _MCP_SEAM_WAIVERS: tuple[str, ...] = tuple(
-         w
-         for w in _CLOSURE_SEAM_WAIVERS
-         if w not in _MCP_ABSENT_SEAMS
      ),
      _MCP_PASSENGER_SEAM_WAIVERS: tuple[str, ...] = (
          (
@@ -468,18 +451,6 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
              "ModuleCodegenPass.shared_archetypes_for_context"
          ),
          "jac0core/passes/module_codegen_pass.jac::client_capability_violations",
-
-     ),
-     _ENDPOINT_EFFECT_SEAM_WAIVERS: tuple[str, ...] = (
-         "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_ability",
-         "jac0core/passes/endpoint_effect_pass.jac::EndpointEffectPass.enter_archetype",
-
-     ),
-     _JSX_INTRINSIC_SEAM_WAIVERS: tuple[str, ...] = (
-         (
-             "compiler/passes/main/jsx_intrinsic_guard_pass.jac::"
-             "JsxIntrinsicGuardPass.before_pass"
-         ),
 
      ),
      _CAPABILITY_SEAM_WAIVERS: tuple[str, ...] = (
@@ -536,23 +507,19 @@ glob _UNITREE_SEAM_WAIVERS: tuple[str, ...] = (
          "compiler/native_materialize.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/unitree.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/annex_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/module_codegen_pass.jac": _MCP_SEAM_WAIVERS,
+         "jac0core/passes/module_codegen_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/uni_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _MCP_PASSENGER_SEAM_WAIVERS
          ),
          "jac0core/passes/transform.jac": _CLOSURE_SEAM_WAIVERS,
-         "jac0core/passes/endpoint_effect_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _ENDPOINT_EFFECT_SEAM_WAIVERS
-         ),
+         "jac0core/passes/endpoint_effect_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/ast_validation_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/semantic_analysis_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/sym_tab_build_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "jac0core/passes/decl_impl_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/sem_def_match_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/access_check_pass.jac": _CLOSURE_SEAM_WAIVERS,
-         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": (
-             _CLOSURE_SEAM_WAIVERS + _JSX_INTRINSIC_SEAM_WAIVERS
-         ),
+         "compiler/passes/main/jsx_intrinsic_guard_pass.jac": _CLOSURE_SEAM_WAIVERS,
          "compiler/passes/main/cfg_build_pass.jac": (
              _CLOSURE_SEAM_WAIVERS + _CFG_BUILD_SEAM_WAIVERS
          ),
@@ -649,29 +616,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "crosses as driver-stamped data, the #8274 pattern."
          ),
          (
-             "uni_pass base-chain field wall",
-             _UNI_PASS_SEAM_WAIVERS,
-             "`transform` and `traverse` "
-             "write the base chain's `ir_out` / `cur_node` fields and "
-             "`__post_init__` chains `super.__post_init__` -- the "
-             "inherited-field wall the type-system census records as the "
-             "checker's `ir_in` cause; all three clear when a subclass "
-             "body can address a base-declared field's slot. "
-             "`get_all_sub_nodes` and `find_parent_of_type` sat here as "
-             "TypeVar-generic statics until their forwarding shims were "
-             "retired for the `UniNode` methods they wrap. The driver "
-             "calls them through the serving binder, which routes a "
-             "demoted method to its Python body, so none ships live."
-         ),
-         (
-             "jsx_intrinsic_guard base-chain field read",
-             _JSX_INTRINSIC_SEAM_WAIVERS,
-             "`before_pass` reads the inherited `ir_in`, the same "
-             "base-chain field wall as the `uni_pass` entries above; it "
-             "appeared the moment `transform.jac` joined the closure and "
-             "clears the same way."
-         ),
-         (
              "module_codegen passengers in the uni_pass artifact",
              _MCP_PASSENGER_SEAM_WAIVERS,
              "In `uni_pass.jac`'s own unit the seat class is an ancestor "
@@ -681,12 +625,10 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "five are cascades of it. The copies are dead passengers -- "
              "the serving binder answers `module_codegen_pass` calls from "
              "that root's own artifact -- and they clear when imported "
-             "isinstance stops being root-relative. The same root-relative "
-             "asymmetry runs the other way and is encoded as a subtraction "
-             "rather than a waiver: compiling `module_codegen_pass` AS the "
-             "root lowers its descendants' base-chain writes "
-             "(`_MCP_ABSENT_SEAMS`), measured by the stale-waiver half of "
-             "the wave-1 census."
+             "isinstance stops being root-relative. The base-chain field "
+             "wall that once ran the other way is gone: every measured "
+             "root lowers `__post_init__`/`transform`/`traverse` now, so "
+             "uni_pass contributes no waiver of its own anywhere."
          ),
          (
              "capability pass-tier crossing",
@@ -703,15 +645,6 @@ glob NATIVE_SEAL_WAIVER_FAMILIES: tuple[tuple[str, tuple[str, ...], str], ...] =
              "that finding as its blocker. The accounting stays so the "
              "audit keeps measuring the refused root; "
              "`test_pass_seal_wave6_census.jac` carries the census."
-         ),
-         (
-             "endpoint effects written as codegen state",
-             _ENDPOINT_EFFECT_SEAM_WAIVERS,
-             "Both write endpoint classifications through `UniNode.gen` "
-             "into the `InteropManifest`, Python-only codegen state, the "
-             "same family as unitree's waived `UniNode.gen.__get__`. They "
-             "clear when endpoint effects are emitted as data the driver "
-             "collects, the diagnostics-as-data pattern."
          ),
          (
              "cfg_build graph tooling and erased basic-block storage",

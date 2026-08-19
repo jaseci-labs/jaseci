@@ -26,12 +26,12 @@ Every waiver names what blocks it and what clears it:
   - `unitree`'s fifteen seams recur in every closure and are documented in
     `test_unitree_seal_census.jac`; each pass root's waiver tuple extends
     `_UNITREE_SEAM_WAIVERS` rather than restating them.
-  - `EndpointEffectPass.enter_ability` / `.enter_archetype` are
-    Python-only: they write endpoint classifications through
-    `UniNode.gen` into the `InteropManifest`, Python-only codegen state
-    (the same family as unitree's waived `UniNode.gen.__get__`). They
-    clear when endpoint effects are emitted as data the driver collects,
-    the #86 diagnostics-as-data pattern.
+  - `EndpointEffectPass.enter_ability` / `.enter_archetype` wrote
+    endpoint classifications through `UniNode.gen`, Python-only while
+    the lazy `CodeGenTarget` construction could not lower. They cleared
+    when `codeinfo` joined every closure (B4) and `.gen` lowered with
+    it -- the same mechanism that cleared unitree's
+    `UniNode.gen.__get__` waiver.
   - `module_codegen_pass` used to waive six, led by
     `ModuleCodegenPass.iter_context_stmts` running `isinstance` over an
     element-erased sequence element, with the other five as pure call
