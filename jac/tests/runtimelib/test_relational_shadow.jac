@@ -321,3 +321,32 @@ test "backfill mirrors pre-shadow anchors so relational reads see them" {
         }
     }
 }
+
+
+test "resident populated nodes are the fetch skip-list, not re-read" {
+    with TemporaryDirectory() as td {
+        old = JacRuntime.exec_ctx;
+        ctx = _make_ctx(td);
+        JacRuntime.exec_ctx = ctx;
+        try {
+            ranch = _root(ctx);
+            _attach(ctx, ranch, "resident", 3);
+            ctx.mem.commit();
+            # first traversal materializes the item
+            first = _out_items(ctx, ranch);
+            assert len(first) == 1;
+            before = ctx.mem._fetch_count;
+            # second traversal: the item is already resident+populated, so the
+            # store is never asked to reconstruct it again
+            second = _out_items(ctx, ranch);
+            assert len(second) == 1;
+            assert second[0] is first[0] , "same object served from the session map";
+            assert ctx.mem._fetch_count == before , (
+                f"resident node re-fetched: {before} -> {ctx.mem._fetch_count}"
+            );
+        } finally {
+            JacRuntime.exec_ctx = old;
+            ctx.close();
+        }
+    }
+}
