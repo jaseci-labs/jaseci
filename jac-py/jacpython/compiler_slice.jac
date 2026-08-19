@@ -509,6 +509,61 @@ test "compiler_slice: (x<y<z) and q matches oracle PyCode" {
     assert actual.stacksize == exp.stacksize;
 }
 
+# is / is not / in / not in in value context: IS_OP / CONTAINS_OP with the
+# negation folded into oparg 1. Value-context identity against None is plain
+# IS_OP (the jump peephole only fires in test context, handled in a later slice).
+test "compiler_slice: is / is not / in / not in value context match oracle PyCode" {
+    src = (
+        "r1 = a is b\n"
+            + "r2 = a is not b\n"
+            + "r3 = a in xs\n"
+            + "r4 = a not in xs\n"
+            + "r5 = a is None\n"
+            + "r6 = a is not None\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
+# Membership / non-None identity in test (jump) context: CONTAINS_OP / IS_OP
+# consumed by POP_JUMP_IF_FALSE. Each in its own single-`if` module so the
+# operands stay LOAD_NAME (the LOAD_FAST_LOAD_FAST fuse and consecutive-`if`
+# layout are separate pre-existing concerns, not the comparison lowering here).
+test "compiler_slice: in / is test context match oracle co_code" {
+    for src in [
+        "if a in xs:\n    r = 1\n",
+        "if a not in xs:\n    r = 1\n",
+        "if a is b:\n    r = 1\n",
+        "if a is not b:\n    r = 1\n"
+    ] {
+        actual = compile_parsed_exec(src);
+        expected = oracle_exec(src, "<f>");
+        assert isinstance(expected, PyCode);
+        exp = expected as PyCode;
+        assert actual.co_code == exp.co_code;
+        assert actual.exceptiontable == exp.exceptiontable;
+        assert actual.stacksize == exp.stacksize;
+    }
+}
+
+# CONTAINS_OP in a comprehension filter (bool context). List comprehensions are
+# inlined in 3.14, so the membership op lands directly in the module co_code.
+test "compiler_slice: membership filter comprehension matches oracle PyCode" {
+    src = "ys = [i for i in xs if i in seen]\n";
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    assert actual.co_code == exp.co_code;
+    assert actual.exceptiontable == exp.exceptiontable;
+    assert actual.stacksize == exp.stacksize;
+}
+
 test "compiler_slice: 1+1 matches oracle PyCode" {
     assert_matches_oracle(ast_one_plus_one(), "1+1");
 }

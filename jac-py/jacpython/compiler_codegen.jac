@@ -13,7 +13,7 @@
 # Product module: imports compiler_ir + opcode_meta + ast_nodes only. No host
 # tokenize/ast/compile/marshal.
 
-import from objects { PyObj, PyInt, PyStr, py_none, PySlice, PyCode, PyTuple }
+import from objects { PyObj, PyInt, PyStr, py_none, PyNoneType, PySlice, PyCode, PyTuple }
 import from opcode_meta {
     OP_RESUME,
     OP_RETURN_GENERATOR,
@@ -59,6 +59,7 @@ import from opcode_meta {
     OP_LOAD_LOCALS,
     OP_COMPARE_OP,
     OP_IS_OP,
+    OP_CONTAINS_OP,
     OP_POP_TOP,
     OP_IMPORT_NAME,
     OP_IMPORT_FROM,
@@ -181,6 +182,10 @@ import from ast_nodes {
     NotEq,
     LtE,
     GtE,
+    Is,
+    IsNot,
+    In,
+    NotIn,
     Add,
     Sub,
     Mult,
@@ -1059,6 +1064,54 @@ def visit_subscript_index(
 
 
 
+# Emit the single comparison opcode for one cmpop link. Identity/membership ops
+# lower to IS_OP / CONTAINS_OP (negation folded into oparg 1) and always yield a
+# bool, so bool_context only affects the COMPARE_OP oparg. Returns False when the
+# op node is not a recognized cmpop (caller reports NotImplementedError).
+def emit_cmp_link(g: cfg_builder, op: PyObj, lc: cloc, bool_context: bool) -> bool {
+    if isinstance(op, Is) {
+        g.emit_op(OP_IS_OP, 0, lc);
+        return True;
+    }
+    if isinstance(op, IsNot) {
+        g.emit_op(OP_IS_OP, 1, lc);
+        return True;
+    }
+    if isinstance(op, In) {
+        g.emit_op(OP_CONTAINS_OP, 0, lc);
+        return True;
+    }
+    if isinstance(op, NotIn) {
+        g.emit_op(OP_CONTAINS_OP, 1, lc);
+        return True;
+    }
+    kind = ast_cmp_kind(op);
+    if kind < 0 {
+        return False;
+    }
+    if bool_context {
+        g.emit_op(OP_COMPARE_OP, compare_filter_oparg(kind), lc);
+    } else {
+        g.emit_op(OP_COMPARE_OP, compare_oparg(kind), lc);
+    }
+    return True;
+}
+
+# CPython folds `x is None` / `x is not None` in bool (test/filter) context into
+# POP_JUMP_IF_NONE / POP_JUMP_IF_NOT_NONE, dropping the LOAD_CONST None + IS_OP.
+# That jump peephole is a separate slice; until it lands, identity tests against
+# the None literal in bool context must fail loudly rather than emit
+# non-conformant IS_OP bytecode. Value-context `x is None` (plain IS_OP) is fine.
+def is_none_identity_test(op: PyObj, comparand: expr) -> bool {
+    if not isinstance(op, Is) and not isinstance(op, IsNot) {
+        return False;
+    }
+    if not isinstance(comparand, Constant) {
+        return False;
+    }
+    return isinstance((comparand as Constant).value, PyNoneType);
+}
+
 # Chained-compare lowering (compile.c): keep the middle operand on the stack
 # across links; short-circuit on the first false with SWAP/POP cleanup.
 # false_shortcircuit_returns: only the eval-mode top-level expression may return
@@ -1081,12 +1134,10 @@ def visit_compare(
             g.emit_op(OP_SWAP, 2, cloc_cmp);
             g.emit_op(OP_COPY, 2, cloc_cmp);
         }
-        oparg = cmpop_oparg(c.ops[ei]);
-        if oparg < 0 {
+        if not emit_cmp_link(g, c.ops[ei], cloc_cmp, False) {
             codegen_fail(g, "NotImplementedError", "unsupported comparison operator");
             return None;
         }
-        g.emit_op(OP_COMPARE_OP, oparg, cloc_cmp);
         if ei < n - 1 {
             g.emit_op(OP_COPY, 1, cloc_cmp);
             g.emit_op(OP_TO_BOOL, 0, cloc_cmp);
@@ -2045,21 +2096,22 @@ def visit_comp_elt(
         }
         ci = 0;
         while ci < len(c.comparators) {
+            if filter_compare and is_none_identity_test(c.ops[ci], c.comparators[ci]) {
+                codegen_fail(
+                    g, "NotImplementedError", "is-None jump peephole not supported"
+                );
+                return;
+            }
             visit_comp_elt(g, c.comparators[ci], bound_names, filter_compare);
             if codegen_busy(g) {
                 return;
             }
-            oparg = cmpop_oparg(c.ops[ci]);
-            if filter_compare {
-                oparg = cmpop_filter_oparg(c.ops[ci]);
-            }
-            if oparg < 0 {
+            if not emit_cmp_link(g, c.ops[ci], cloc_cmp, filter_compare) {
                 codegen_fail(
                     g, "NotImplementedError", "unsupported comparison operator"
                 );
                 return;
             }
-            g.emit_op(OP_COMPARE_OP, oparg, cloc_cmp);
             ci = ci + 1;
         }
         return;
@@ -5389,16 +5441,20 @@ def visit_test_expr(g: cfg_builder, e: expr, test_loc: cloc) {
         c = e as Compare;
         if len(c.ops) == 1 {
             cloc_cmp = nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
+            if is_none_identity_test(c.ops[0], c.comparators[0]) {
+                codegen_fail(
+                    g, "NotImplementedError", "is-None jump peephole not supported"
+                );
+                return;
+            }
             visit_expr(g, c.left);
             visit_expr(g, c.comparators[0]);
-            oparg = cmpop_filter_oparg(c.ops[0]);
-            if oparg < 0 {
+            if not emit_cmp_link(g, c.ops[0], cloc_cmp, True) {
                 codegen_fail(
                     g, "NotImplementedError", "unsupported comparison operator"
                 );
                 return;
             }
-            g.emit_op(OP_COMPARE_OP, oparg, cloc_cmp);
             return;
         }
     }
