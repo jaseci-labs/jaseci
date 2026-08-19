@@ -101,7 +101,7 @@ obj PyInt(PyObj) {
         }
         if kind == 6 {
             if b == 0 {
-                return py_error("ZeroDivisionError", "integer modulo by zero");
+                return py_error("ZeroDivisionError", "division by zero");
             }
             return PyInt(t="int", val=a % b);
         }
@@ -113,9 +113,7 @@ obj PyInt(PyObj) {
         }
         if kind == 2 {
             if b == 0 {
-                return py_error(
-                    "ZeroDivisionError", "integer division or modulo by zero"
-                );
+                return py_error("ZeroDivisionError", "division by zero");
             }
             return PyInt(t="int", val=a // b);
         }
@@ -385,19 +383,19 @@ obj PyFloat(PyObj) {
         }
         if kind == 11 {
             if b == 0.0 {
-                return py_error("ZeroDivisionError", "float division by zero");
+                return py_error("ZeroDivisionError", "division by zero");
             }
             return PyFloat(t="float", val=a / b);
         }
         if kind == 6 {
             if b == 0.0 {
-                return py_error("ZeroDivisionError", "float modulo");
+                return py_error("ZeroDivisionError", "division by zero");
             }
             return PyFloat(t="float", val=a % b);
         }
         if kind == 2 {
             if b == 0.0 {
-                return py_error("ZeroDivisionError", "float floor division by zero");
+                return py_error("ZeroDivisionError", "division by zero");
             }
             return PyFloat(t="float", val=a // b);
         }
@@ -1151,6 +1149,12 @@ obj PyException(PyObj) {
             items: list[PyObj] = [];
             items.extend(self.args);
             return PyTuple(t="tuple", items=items);
+        }
+        if name == "value" {
+            if self.value is not None {
+                return self.value as PyObj;
+            }
+            return py_none();
         }
         if self.raw is not None {
             r = (self.raw as PyObj).tp_getattro(name);

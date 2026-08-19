@@ -2184,7 +2184,8 @@ def is_unconditional_jump_opcode(op: int) -> bool {
         or op == OP_JUMP_NO_INTERRUPT
         or op == OP_JUMP_FORWARD
         or op == OP_JUMP_BACKWARD
-        or op == OP_JUMP_BACKWARD_NO_INTERRUPT {
+        or op == OP_JUMP_BACKWARD_NO_INTERRUPT
+        or op == OP_END_ASYNC_FOR {
         return True;
     }
     return False;

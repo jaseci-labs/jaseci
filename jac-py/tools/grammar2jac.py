@@ -500,7 +500,7 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
         self.print("    Expression, Interactive, FunctionType, Module, Name, Load, Store, Del,")
         self.print("    Assign, AnnAssign, AugAssign, Expr, Return, Pass, Break, Continue, Delete, Raise,")
         self.print("    Import, ImportFrom, Global, Nonlocal, Assert, If, For, AsyncFor, While, With, AsyncWith,")
-        self.print("    FunctionDef, AsyncFunctionDef, ClassDef, Try, TryStar, Match, TypeAlias,")
+        self.print("    FunctionDef, AsyncFunctionDef, ClassDef, Try, TryStar, ExceptHandler, Match, TypeAlias,")
         self.print("    Attribute, Subscript, Slice, Tuple, List, Dict, Set, Starred, NamedExpr, Lambda,")
         self.print("    BinOp, UnaryOp, BoolOp, Compare, Call, IfExp, Await, Yield, YieldFrom,")
         self.print("    ListComp, SetComp, DictComp, GeneratorExp, Constant, JoinedStr, TemplateStr,")
@@ -542,7 +542,8 @@ class JacParserGenerator(ParserGenerator, GrammarVisitor):
             self.print("return lists;")
         self.print("}")
         soft = sorted(self.soft_keywords)
-        self.print(f"glob SOFT_KEYWORDS: list[str] = {[repr(s) for s in soft]};")
+        soft_quoted = ", ".join(f'"{s}"' for s in soft)
+        self.print(f"glob SOFT_KEYWORDS: list[str] = [{soft_quoted}];")
         self.print("")
 
     def _emit_entry_points(self) -> None:

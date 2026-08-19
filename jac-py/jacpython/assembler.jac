@@ -39,27 +39,63 @@ def append_except_varint(out: list[int], value: int, first_msb: int) {
     out.append((value & 0x3F) | msb);
 }
 
+def region_start_offset(reg: except_region, block_starts: list[int]) -> int {
+    if reg.start_block < 0 or reg.start_block >= len(block_starts) {
+        return 2147483647;
+    }
+    return block_starts[reg.start_block];
+}
+
+# CPython encodes co_exceptiontable entries sorted by protected-range start.
+def sort_except_region_indices(
+    regions: list[except_region], block_starts: list[int]
+) -> list[int] {
+    indices: list[int] = [];
+    ri = 0;
+    while ri < len(regions) {
+        indices.append(ri);
+        ri = ri + 1;
+    }
+    ni = 0;
+    while ni < len(indices) {
+        nj = ni + 1;
+        while nj < len(indices) {
+            si = region_start_offset(regions[indices[ni]], block_starts);
+            sj = region_start_offset(regions[indices[nj]], block_starts);
+            if sj < si {
+                tmp = indices[ni];
+                indices[ni] = indices[nj];
+                indices[nj] = tmp;
+            }
+            nj = nj + 1;
+        }
+        ni = ni + 1;
+    }
+    return indices;
+}
+
 def assemble_exception_table(
     regions: list[except_region], block_starts: list[int]
 ) -> list[int] {
     out: list[int] = [];
-    ri = 0;
-    while ri < len(regions) {
-        reg = regions[ri];
+    order = sort_except_region_indices(regions, block_starts);
+    oi = 0;
+    while oi < len(order) {
+        reg = regions[order[oi]];
         if reg.start_block < 0
             or reg.end_block < 0
             or reg.handler_block < 0
             or reg.start_block >= len(block_starts)
             or reg.end_block >= len(block_starts)
             or reg.handler_block >= len(block_starts) {
-            ri = ri + 1;
+            oi = oi + 1;
             continue;
         }
         start = block_starts[reg.start_block];
         end = block_starts[reg.end_block];
         target = block_starts[reg.handler_block];
         if end <= start {
-            ri = ri + 1;
+            oi = oi + 1;
             continue;
         }
         depth = reg.stack_depth - 1;
@@ -77,7 +113,7 @@ def assemble_exception_table(
         append_except_varint(out, end - start, 0);
         append_except_varint(out, target, 0);
         append_except_varint(out, depth_lasti, 0);
-        ri = ri + 1;
+        oi = oi + 1;
     }
     return out;
 }

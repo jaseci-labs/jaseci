@@ -1501,7 +1501,7 @@ test "compiler_slice: band6 try except as parsed executes in ceval" {
     ns: dict[str, PyObj] = {};
     out = exec_code(co, [], ns);
     assert not is_error(out);
-    assert expect_str(ns["result"]) == "integer division or modulo by zero";
+    assert expect_str(ns["result"]) == "division by zero";
 }
 
 # ---------------- Band 6 slice 4: try/finally ----------------
@@ -1786,4 +1786,270 @@ test "compiler_slice: band7 await parsed executes in ceval" {
     finished = (done as PyError).exception;
     assert finished.type_name == "StopIteration";
     assert expect_int(finished.value as PyObj) == 1;
+}
+
+# ---------------- Band 7 slice 5: async for ----------------
+
+test "compiler_slice: band7 async for parsed matches oracle nested co_code" {
+    src = (
+        "class AI:\n"
+            + "    def __aiter__(self):\n"
+            + "        return self\n"
+            + "    async def __anext__(self):\n"
+            + "        if getattr(self, 'done', False):\n"
+            + "            raise StopAsyncIteration\n"
+            + "        self.done = True\n"
+            + "        return 42\n"
+            + "\n"
+            + "async def f():\n"
+            + "    total = 0\n"
+            + "    async for x in AI():\n"
+            + "        total = total + x\n"
+            + "    return total\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    f_fn = nested_code_by_name(actual, "f");
+    exp_f = nested_code_by_name(exp, "f");
+    assert f_fn.co_code == exp_f.co_code;
+    assert f_fn.exceptiontable == exp_f.exceptiontable;
+    assert f_fn.stacksize == exp_f.stacksize;
+    assert f_fn.flags == exp_f.flags;
+}
+
+test "compiler_slice: band7 async for parsed executes in ceval" {
+    src = (
+        "class AI:\n"
+            + "    def __aiter__(self):\n"
+            + "        return self\n"
+            + "    async def __anext__(self):\n"
+            + "        if getattr(self, 'done', False):\n"
+            + "            raise StopAsyncIteration\n"
+            + "        self.done = True\n"
+            + "        return 42\n"
+            + "\n"
+            + "async def f():\n"
+            + "    total = 0\n"
+            + "    async for x in AI():\n"
+            + "        total = total + x\n"
+            + "    return total\n"
+            + "c = f()\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    coro = ns["c"];
+    assert coro.t == "coroutine";
+    done = gen_send(coro as PyGenerator, py_none());
+    assert is_error(done);
+    finished = (done as PyError).exception;
+    assert finished.type_name == "StopIteration";
+    assert expect_int(finished.value as PyObj) == 42;
+}
+
+# ---------------- Band 7 slice 6: async with ----------------
+
+test "compiler_slice: band7 async with parsed matches oracle nested co_code" {
+    src = (
+        "class CM:\n"
+            + "    async def __aenter__(self):\n"
+            + "        return 42\n"
+            + "    async def __aexit__(self, *a):\n"
+            + "        pass\n"
+            + "\n"
+            + "async def f():\n"
+            + "    async with CM() as x:\n"
+            + "        result = x\n"
+            + "    return result\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    f_fn = nested_code_by_name(actual, "f");
+    exp_f = nested_code_by_name(exp, "f");
+    assert f_fn.co_code == exp_f.co_code;
+    assert f_fn.exceptiontable == exp_f.exceptiontable;
+    assert f_fn.stacksize == exp_f.stacksize;
+    assert f_fn.flags == exp_f.flags;
+}
+
+test "compiler_slice: band7 async with parsed executes in ceval" {
+    src = (
+        "class CM:\n"
+            + "    async def __aenter__(self):\n"
+            + "        return 42\n"
+            + "    async def __aexit__(self, *a):\n"
+            + "        pass\n"
+            + "\n"
+            + "async def f():\n"
+            + "    async with CM() as x:\n"
+            + "        result = x\n"
+            + "    return result\n"
+            + "c = f()\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    coro = ns["c"];
+    assert coro.t == "coroutine";
+    done = gen_send(coro as PyGenerator, py_none());
+    assert is_error(done);
+    finished = (done as PyError).exception;
+    assert finished.type_name == "StopIteration";
+    assert expect_int(finished.value as PyObj) == 42;
+}
+
+# ---------------- Band 8 slice 1: match literal int ----------------
+
+test "compiler_slice: band8 match literal int parsed matches oracle nested f co_code" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case 1:\n"
+            + "            return 'one'\n"
+            + "        case _:\n"
+            + "            return 'other'\n"
+            + "\n"
+            + "result = f(1)\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    fn = first_nested_code(actual);
+    exp_fn = first_nested_code(exp);
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.exceptiontable == exp_fn.exceptiontable;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.argcount == 1;
+    assert fn.varnames == ["x"];
+}
+
+test "compiler_slice: band8 match literal int parsed executes in ceval" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case 1:\n"
+            + "            return 'one'\n"
+            + "        case _:\n"
+            + "            return 'other'\n"
+            + "\n"
+            + "result = f(1)\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_str(ns["result"]) == "one";
+}
+
+test "compiler_slice: band8 match literal int wildcard executes in ceval" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case 1:\n"
+            + "            return 'one'\n"
+            + "        case _:\n"
+            + "            return 'other'\n"
+            + "\n"
+            + "result = f(2)\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_str(ns["result"]) == "other";
+}
+
+# ---------------- Band 8 slice 2: match guards ----------------
+
+test "compiler_slice: band8 match guard parsed matches oracle nested f co_code" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case 1 if x > 0:\n"
+            + "            return 'one'\n"
+            + "        case _:\n"
+            + "            return 'other'\n"
+            + "\n"
+            + "result = f(1)\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    fn = first_nested_code(actual);
+    exp_fn = first_nested_code(exp);
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.exceptiontable == exp_fn.exceptiontable;
+    assert fn.stacksize == exp_fn.stacksize;
+}
+
+test "compiler_slice: band8 match guard executes in ceval" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case 1 if x > 0:\n"
+            + "            return 'one'\n"
+            + "        case _:\n"
+            + "            return 'other'\n"
+            + "\n"
+            + "result = f(1)\n"
+    );
+    co = compile_parsed_exec(src);
+    ns: dict[str, PyObj] = {};
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_str(ns["result"]) == "one";
+}
+
+# ---------------- Band 8 slice 3: match sequence ----------------
+
+test "compiler_slice: band8 match sequence parsed matches oracle nested f co_code" {
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [a, b]:\n"
+            + "            return a + b\n"
+            + "        case _:\n"
+            + "            return 0\n"
+    );
+    actual = compile_parsed_exec(src);
+    expected = oracle_exec(src, "<f>");
+    assert isinstance(expected, PyCode);
+    exp = expected as PyCode;
+    fn = first_nested_code(actual);
+    exp_fn = first_nested_code(exp);
+    assert fn.co_code == exp_fn.co_code;
+    assert fn.exceptiontable == exp_fn.exceptiontable;
+    assert fn.stacksize == exp_fn.stacksize;
+    assert fn.varnames == ["x", "a", "b"];
+}
+
+test "compiler_slice: band8 match sequence executes in ceval" {
+    setup = unmarshal(
+        host_compile_marshal("def make():\n    return [1, 2]\n", "<setup>", "exec", 0)
+    );
+    ns: dict[str, PyObj] = {};
+    setup_out = exec_code(setup, [], ns);
+    assert not is_error(setup_out);
+    src = (
+        "def f(x):\n"
+            + "    match x:\n"
+            + "        case [a, b]:\n"
+            + "            return a + b\n"
+            + "        case _:\n"
+            + "            return 0\n"
+            + "\n"
+            + "result = f(make())\n"
+    );
+    co = compile_parsed_exec(src);
+    out = exec_code(co, [], ns);
+    assert not is_error(out);
+    assert expect_int(ns["result"]) == 3;
 }

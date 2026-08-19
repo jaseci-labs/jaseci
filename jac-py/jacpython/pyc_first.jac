@@ -188,6 +188,18 @@ def _jac_host_isinstance(host_obj, host_type):
     except BaseException:
         return False
 
+def _jac_type_has_flag(host_obj, flag_bit):
+    try:
+        return bool(type(host_obj).__flags__ & flag_bit)
+    except BaseException:
+        return False
+
+def _jac_host_type_name(host_obj):
+    try:
+        return type(host_obj).__name__
+    except BaseException:
+        return "?"
+
 def _jac_is_exception_type(host_val):
     # True iff host_val is a class deriving from BaseException (used to recognize
     # a user class like `class Exc(Exception)` whose host base proxy is here).
@@ -975,6 +987,9 @@ import from opcode_meta {
     OP_COPY,
     OP_COPY_FREE_VARS,
     OP_END_FOR,
+    OP_END_ASYNC_FOR,
+    OP_GET_AITER,
+    OP_GET_ANEXT,
     OP_GET_ITER,
     OP_IMPORT_FROM,
     OP_IMPORT_NAME,
@@ -993,6 +1008,7 @@ import from opcode_meta {
     OP_LOAD_FAST,
     OP_LOAD_FAST_BORROW,
     OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW,
+    OP_LOAD_FAST_CHECK,
     OP_LOAD_FAST_LOAD_FAST,
     OP_LOAD_GLOBAL,
     OP_LOAD_NAME,
@@ -1041,6 +1057,11 @@ import from opcode_meta {
     OP_UNARY_NEGATIVE,
     OP_UNARY_INVERT,
     OP_UNPACK_SEQUENCE,
+    OP_GET_LEN,
+    OP_MATCH_SEQUENCE,
+    OP_MATCH_MAPPING,
+    OP_MATCH_KEYS,
+    OP_MATCH_CLASS,
     OP_DELETE_SUBSCR,
     OP_MAP_ADD,
     OP_DICT_MERGE,
@@ -3283,7 +3304,14 @@ def py_binop(kind: int, lhs: PyObj, rhs: PyObj) -> PyObj {
         }
     }
     if is_error(result) and _host_representable(lhs.t) and _host_representable(rhs.t) {
-        return host_binop(kind, lhs, rhs);
+        # Fall back when native slots are incomplete (TypeError, ValueError from
+        # partial str %-format, ...). Operational numeric errors must stay native
+        # so exception messages match CPython in-VM (e.g. str(e) after `1 // 0`).
+        err = result as PyError;
+        tn = err.exception.type_name;
+        if tn != "ZeroDivisionError" and tn != "OverflowError" {
+            return host_binop(kind, lhs, rhs);
+        }
     }
     return result;
 }
@@ -3525,6 +3553,68 @@ def py_iter(value: PyObj) -> PyObj {
     return value.tp_iter();
 }
 
+def py_aiter_has_anext(value: PyObj) -> bool {
+    if isinstance(value, PyUserObj) {
+        return user_has_dunder(value as PyUserObj, "__anext__");
+    }
+    return not is_error(py_attr(value, "__anext__"));
+}
+
+# `async for`: call __aiter__ and verify the result exposes __anext__.
+def py_aiter(value: PyObj) -> PyObj {
+    if isinstance(value, PyUserObj) and user_has_dunder(value as PyUserObj, "__aiter__") {
+        result = call_user_dunder(value as PyUserObj, "__aiter__", []);
+    } else {
+        method = py_attr(value, "__aiter__");
+        if is_error(method) {
+            return method;
+        }
+        result = py_invoke(method, [], {});
+    }
+    if is_error(result) {
+        return result;
+    }
+    if not py_aiter_has_anext(result) {
+        type_label = result.t;
+        if isinstance(result, PyUserObj) {
+            type_label = (result as PyUserObj).cls.name;
+        }
+        return py_error(
+            "TypeError",
+            "'async for' received an object from __aiter__ that does not implement __anext__: "
+            + type_label
+        );
+    }
+    return result;
+}
+
+# Resolve a value to the iterator GET_AWAITABLE / SEND drive (native coroutine or
+# generator only for now -- same surface as `await`).
+def py_get_awaitable(value: PyObj) -> PyObj {
+    if value.t == "coroutine" or value.t == "generator" {
+        return value;
+    }
+    return py_error("TypeError", "object can't be used in 'await' expression");
+}
+
+# `async for` loop step: call __anext__ on the async iterator and wrap the result
+# as an awaitable for the following SEND loop.
+def py_anext(aiter: PyObj) -> PyObj {
+    if isinstance(aiter, PyUserObj) and user_has_dunder(aiter as PyUserObj, "__anext__") {
+        result = call_user_dunder(aiter as PyUserObj, "__anext__", []);
+    } else {
+        method = py_attr(aiter, "__anext__");
+        if is_error(method) {
+            return method;
+        }
+        result = py_invoke(method, [], {});
+    }
+    if is_error(result) {
+        return result;
+    }
+    return py_get_awaitable(result);
+}
+
 # len() computed in-VM from a native container's own storage so a native
 # list/tuple/str/bytes/dict/set -- and especially one holding plain user
 # objects -- reports its size directly instead of round-tripping through
@@ -3597,6 +3687,279 @@ def py_len(value: PyObj) -> PyObj {
     return py_error(
         "TypeError", "object of type '" + value.t + "' has no len()"
     );
+}
+
+# CPython tp_flags bits (Include/object.h) used by MATCH_* opcodes.
+glob _TPFLAGS_SEQUENCE: int = 32;
+glob _TPFLAGS_MAPPING: int = 64;
+glob _TPFLAGS_MATCH_SELF: int = 4194304;
+glob _match_keys_dummy: PyObj = py_none();
+
+def match_keys_dummy -> PyObj {
+    if _match_keys_dummy.t == "none" {
+        built = _jac_construct_builtin("object", []);
+        if host_result_ok(built) {
+            _match_keys_dummy = from_host(built[1]);
+        }
+    }
+    return _match_keys_dummy;
+}
+
+def py_type_has_sequence_flag(value: PyObj) -> bool {
+    if value.t == "list" or value.t == "tuple" {
+        return True;
+    }
+    if value.t == "str" or value.t == "bytes" {
+        return False;
+    }
+    if isinstance(value, PyUserObj) {
+        return obj_is_builtin(value, "list") or obj_is_builtin(value, "tuple");
+    }
+    if isinstance(value, PyHostProxy) {
+        host_val = (value as PyHostProxy).val;
+        if _jac_isinstance_of_builtin(host_val, "str")
+            or _jac_isinstance_of_builtin(host_val, "bytes") {
+            return False;
+        }
+        if _jac_type_has_flag(host_val, _TPFLAGS_SEQUENCE) {
+            return True;
+        }
+        return _jac_isinstance_of_builtin(host_val, "list")
+            or _jac_isinstance_of_builtin(host_val, "tuple");
+    }
+    return False;
+}
+
+def py_type_has_mapping_flag(value: PyObj) -> bool {
+    if value.t == "dict" {
+        return True;
+    }
+    if isinstance(value, PyUserObj) {
+        return obj_is_builtin(value, "dict");
+    }
+    if isinstance(value, PyHostProxy) {
+        host_val = (value as PyHostProxy).val;
+        if _jac_type_has_flag(host_val, _TPFLAGS_MAPPING) {
+            return True;
+        }
+        return _jac_isinstance_of_builtin(host_val, "dict");
+    }
+    return False;
+}
+
+def py_type_has_match_self_flag(type_obj: PyObj) -> bool {
+    if isinstance(type_obj, PyHostProxy) {
+        return _jac_type_has_flag((type_obj as PyHostProxy).val, _TPFLAGS_MATCH_SELF);
+    }
+    return False;
+}
+
+def match_class_type_name(type_obj: PyObj) -> str {
+    if isinstance(type_obj, PyClass) {
+        return (type_obj as PyClass).name;
+    }
+    if isinstance(type_obj, PyHostProxy) {
+        return str(_jac_host_type_name((type_obj as PyHostProxy).val));
+    }
+    return "?";
+}
+
+def py_match_attr_optional(value: PyObj, name: str) -> PyObj {
+    attr = py_attr(value, name);
+    if is_error(attr) {
+        if isinstance(attr, PyError)
+            and (attr as PyError).exception.type_name == "AttributeError" {
+            return py_none();
+        }
+        return attr;
+    }
+    return attr;
+}
+
+def py_match_type_attr_optional(type_obj: PyObj, name: str) -> PyObj {
+    if isinstance(type_obj, PyClass) {
+        found = class_lookup_attr(type_obj as PyClass, name);
+        if not is_error(found) {
+            return found;
+        }
+        if isinstance(found, PyError)
+            and (found as PyError).exception.type_name == "AttributeError" {
+            return py_none();
+        }
+        return found;
+    }
+    return py_match_attr_optional(type_obj, name);
+}
+
+def py_match_class_attr(
+    subject: PyObj,
+    type_obj: PyObj,
+    name: PyObj,
+    seen: PySet
+) -> PyObj {
+    if not isinstance(name, PyStr) {
+        return py_error(
+            "TypeError",
+            "__match_args__ elements must be strings (got " + name.t + ")",
+        );
+    }
+    if seen.set_contains(name) {
+        return py_error(
+            "TypeError",
+            match_class_type_name(type_obj)
+            + "() got multiple sub-patterns for attribute "
+            + dict_key_repr(name),
+        );
+    }
+    seen.set_add(name);
+    attr = py_match_attr_optional(subject, (name as PyStr).val);
+    if is_error(attr) {
+        return attr;
+    }
+    if attr.t == "none" {
+        return py_none();
+    }
+    return attr;
+}
+
+def py_match_keys(map_obj: PyObj, keys: PyObj) -> PyObj {
+    if not isinstance(keys, PyTuple) {
+        return py_error("TypeError", "MATCH_KEYS keys must be a tuple");
+    }
+    key_items = (keys as PyTuple).items;
+    nkeys = len(key_items);
+    if nkeys == 0 {
+        return PyTuple(t="tuple", items=[]);
+    }
+    get_m = py_attr(map_obj, "get");
+    if is_error(get_m) {
+        return get_m;
+    }
+    dummy = match_keys_dummy();
+    seen = PySet(t="set", items={}, frozen=False);
+    values: list[PyObj] = [];
+    ki = 0;
+    while ki < nkeys {
+        key = key_items[ki];
+        if seen.set_contains(key) {
+            return py_error(
+                "ValueError",
+                "mapping pattern checks duplicate key (" + dict_key_repr(key) + ")",
+            );
+        }
+        seen.set_add(key);
+        val = py_invoke(get_m, [key, dummy], {});
+        if is_error(val) {
+            return val;
+        }
+        if val is dummy {
+            return py_none();
+        }
+        values.append(val);
+        ki = ki + 1;
+    }
+    return PyTuple(t="tuple", items=values);
+}
+
+def py_match_class(
+    subject: PyObj,
+    type_obj: PyObj,
+    nargs: int,
+    kw_names: PyObj
+) -> PyObj {
+    if not isinstance(type_obj, PyClass) and not isinstance(type_obj, PyHostProxy) {
+        return py_error("TypeError", "called match pattern must be a class");
+    }
+    if not isinstance(kw_names, PyTuple) {
+        return py_error("TypeError", "MATCH_CLASS names must be a tuple");
+    }
+    if not py_isinstance(subject, type_obj) {
+        return py_none();
+    }
+    seen = PySet(t="set", items={}, frozen=False);
+    attrs_list: list[PyObj] = [];
+    if nargs > 0 {
+        match_args_obj = py_match_type_attr_optional(type_obj, "__match_args__");
+        if is_error(match_args_obj) {
+            return match_args_obj;
+        }
+        match_self = 0;
+        match_args: PyTuple;
+        if match_args_obj.t == "none" {
+            match_args = PyTuple(t="tuple", items=[]);
+            if py_type_has_match_self_flag(type_obj) {
+                match_self = 1;
+            }
+        } else {
+            if not isinstance(match_args_obj, PyTuple) {
+                got = match_args_obj.t;
+                if isinstance(match_args_obj, PyHostProxy) {
+                    got = str(_jac_host_type_name((match_args_obj as PyHostProxy).val));
+                }
+                return py_error(
+                    "TypeError",
+                    match_class_type_name(type_obj)
+                    + ".__match_args__ must be a tuple (got "
+                    + got
+                    + ")",
+                );
+            }
+            match_args = match_args_obj as PyTuple;
+        }
+        allowed = len(match_args.items);
+        if match_self {
+            allowed = 1;
+        }
+        if allowed < nargs {
+            plural = "s";
+            if allowed == 1 {
+                plural = "";
+            }
+            return py_error(
+                "TypeError",
+                match_class_type_name(type_obj)
+                + "() accepts "
+                + str(allowed)
+                + " positional sub-pattern"
+                + plural
+                + " ("
+                + str(nargs)
+                + " given)",
+            );
+        }
+        if match_self {
+            attrs_list.append(subject);
+        } else {
+            pi = 0;
+            while pi < nargs {
+                name = match_args.items[pi];
+                attr = py_match_class_attr(subject, type_obj, name, seen);
+                if is_error(attr) {
+                    return attr;
+                }
+                if attr.t == "none" {
+                    return py_none();
+                }
+                attrs_list.append(attr);
+                pi = pi + 1;
+            }
+        }
+    }
+    kw_tuple = kw_names as PyTuple;
+    ki = 0;
+    while ki < len(kw_tuple.items) {
+        name = kw_tuple.items[ki];
+        attr = py_match_class_attr(subject, type_obj, name, seen);
+        if is_error(attr) {
+            return attr;
+        }
+        if attr.t == "none" {
+            return py_none();
+        }
+        attrs_list.append(attr);
+        ki = ki + 1;
+    }
+    return PyTuple(t="tuple", items=attrs_list);
 }
 
 # Materialize a host iterable (range, dict-view, map/filter object, ...) into a
@@ -3693,6 +4056,36 @@ def fast_value(
         return fast[arg];
     }
     return py_error("UnboundLocalError", "local variable is not set");
+}
+
+def fast_value_check(
+    co: PyCode,
+    arg: int,
+    fast: list[PyObj],
+    assigned: list[bool],
+    cells: list[PyCell],
+    closure: list[PyCell],
+) -> PyObj {
+    # LOAD_FAST_CHECK: like LOAD_FAST but raises UnboundLocalError when the
+    # plain-local slot was never STORE_FAST-bound (CPython 3.14+ null check).
+    cell = resolve_cell(co, arg, cells, closure);
+    if cell is not None {
+        return cell as PyObj;
+    }
+    if arg >= len(fast) {
+        return py_error("UnboundLocalError", "local variable is not set");
+    }
+    if arg < len(assigned) and not assigned[arg] {
+        vname = "?";
+        if arg < len(co.varnames) {
+            vname = co.varnames[arg];
+        }
+        return py_error(
+            "UnboundLocalError",
+            "cannot access local variable '" + vname + "' where it is not associated with a value",
+        );
+    }
+    return fast[arg];
 }
 
 def deref_cell(
@@ -6297,6 +6690,14 @@ def run_frame(frame: PyFrame) -> PyObj {
             stack.append(fast_result);
             continue;
         }
+        if op == OP_LOAD_FAST_CHECK {
+            fast_result = fast_value_check(co, arg, fast, assigned, cells, closure);
+            if is_error(fast_result) {
+                return fast_result;
+            }
+            stack.append(fast_result);
+            continue;
+        }
         if op == OP_STORE_FAST {
             if arg < len(fast) {
                 fast[arg] = stack.pop();
@@ -6818,6 +7219,65 @@ def run_frame(frame: PyFrame) -> PyObj {
             }
             continue;
         }
+        if op == OP_GET_LEN {
+            len_obj = stack[len(stack) - 1];
+            len_res = py_len(len_obj);
+            if is_error(len_res) {
+                target = recover_exception(co, len_res, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return len_res;
+            }
+            stack.append(len_res);
+            continue;
+        }
+        if op == OP_MATCH_SEQUENCE {
+            seq_subject = stack[len(stack) - 1];
+            stack.append(
+                PyBool(t="bool", val=py_type_has_sequence_flag(seq_subject))
+            );
+            continue;
+        }
+        if op == OP_MATCH_MAPPING {
+            map_subject = stack[len(stack) - 1];
+            stack.append(
+                PyBool(t="bool", val=py_type_has_mapping_flag(map_subject))
+            );
+            continue;
+        }
+        if op == OP_MATCH_KEYS {
+            mk_keys = stack[len(stack) - 1];
+            mk_subject = stack[len(stack) - 2];
+            mk_res = py_match_keys(mk_subject, mk_keys);
+            if is_error(mk_res) {
+                target = recover_exception(co, mk_res, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return mk_res;
+            }
+            stack.append(mk_res);
+            continue;
+        }
+        if op == OP_MATCH_CLASS {
+            mc_names = stack.pop();
+            mc_type = stack.pop();
+            mc_subject = stack.pop();
+            mc_res = py_match_class(mc_subject, mc_type, arg, mc_names);
+            if is_error(mc_res) {
+                target = recover_exception(co, mc_res, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return mc_res;
+            }
+            stack.append(mc_res);
+            continue;
+        }
         if op == OP_GET_ITER {
             iterable = py_iter(stack.pop());
             if is_error(iterable) {
@@ -6853,23 +7313,66 @@ def run_frame(frame: PyFrame) -> PyObj {
         }
         if op == OP_GET_AWAITABLE {
             # `await x`: resolve x to the iterator the following SEND loop drives.
-            # A native coroutine is its own awaitable (coroutine.__await__ returns
-            # self), so it is left in place -- identical to a generator under
-            # GET_YIELD_FROM_ITER. Anything else needs a real __await__ we don't
-            # port yet.
             top = stack[len(stack) - 1];
-            if top.t == "coroutine" or top.t == "generator" {
+            awaitable = py_get_awaitable(top);
+            if is_error(awaitable) {
+                target = recover_exception(co, awaitable, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return awaitable;
+            }
+            stack[len(stack) - 1] = awaitable;
+            continue;
+        }
+        if op == OP_GET_AITER {
+            iterable = stack.pop();
+            aiter = py_aiter(iterable);
+            if is_error(aiter) {
+                target = recover_exception(co, aiter, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return aiter;
+            }
+            stack.append(aiter);
+            continue;
+        }
+        if op == OP_GET_ANEXT {
+            aiter = stack[len(stack) - 1];
+            awaitable = py_anext(aiter);
+            if is_error(awaitable) {
+                target = recover_exception(co, awaitable, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return awaitable;
+            }
+            stack.append(awaitable);
+            continue;
+        }
+        if op == OP_END_ASYNC_FOR {
+            # Async-for cleanup: [..., aiter, exc]. StopAsyncIteration ends the
+            # loop (pop both, jump past the body); anything else re-raises.
+            exc = stack.pop();
+            stack.pop();
+            exc_name = "";
+            if exc.t == "exception" {
+                exc_name = (exc as PyException).type_name;
+            }
+            if exc_name == "StopAsyncIteration" {
                 continue;
             }
-            awaitable = py_error(
-                "TypeError", "object can't be used in 'await' expression"
-            );
-            target = recover_exception(co, awaitable, offset, stack);
+            reraised = py_raise_value(exc);
+            target = recover_exception(co, reraised, offset, stack);
             if target >= 0 {
                 ip = target;
                 continue;
             }
-            return awaitable;
+            return reraised;
         }
         if op == OP_SEND {
             # yield-from step. Stack: [..., receiver, sent]. Drive the receiver
@@ -7463,8 +7966,9 @@ def run_frame(frame: PyFrame) -> PyObj {
                 return method;
             }
             if isinstance(method, PyBoundMethod) {
-                stack.append((method as PyBoundMethod).function);
-                stack.append(py_none());
+                bm = method as PyBoundMethod;
+                stack.append(bm.function);
+                stack.append(bm.receiver);
             } else {
                 stack.append(method);
                 stack.append(owner);
@@ -7579,12 +8083,12 @@ def run_frame(frame: PyFrame) -> PyObj {
                 if operand.t == "exception" {
                     exc_name = (operand as PyException).type_name;
                 }
-                if exc_name == "StopIteration" or exc_name == "StopAsyncIteration" {
+                if exc_name == "StopIteration" {
                     stack.append(
                         PyException(
                             t="exception",
                             type_name="RuntimeError",
-                            message="generator raised " + exc_name,
+                            message="generator raised StopIteration",
                         )
                     );
                 } else {

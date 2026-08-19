@@ -609,11 +609,33 @@ def validate_stmt(
         if body.diag is not None {
             return body;
         }
-        body = validate_stmt_list(tr.orelse, in_function, in_loop, in_async);
-        if body.diag is not None {
-            return body;
+        if tr.orelse is not None {
+            body = validate_stmt_list(tr.orelse, in_function, in_loop, in_async);
+            if body.diag is not None {
+                return body;
+            }
         }
-        return validate_stmt_list(tr.finalbody, in_function, in_loop, in_async);
+        if tr.handlers is not None {
+            hi = 0;
+            while hi < len(tr.handlers) {
+                h = tr.handlers[hi];
+                if h.type is not None {
+                    te = validate_load_expr(h.type, in_function);
+                    if te.diag is not None {
+                        return te;
+                    }
+                }
+                body = validate_stmt_list(h.body, in_function, in_loop, in_async);
+                if body.diag is not None {
+                    return body;
+                }
+                hi = hi + 1;
+            }
+        }
+        if tr.finalbody is not None {
+            return validate_stmt_list(tr.finalbody, in_function, in_loop, in_async);
+        }
+        return validation_ok();
     }
     if isinstance(s, With) {
         wi = s as With;

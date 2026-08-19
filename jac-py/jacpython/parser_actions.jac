@@ -99,7 +99,7 @@ obj kv_pair {
         value: expr;
 }
 
-obj pa_key_pattern_pair {
+obj kp_pair {
     has key: expr,
         pattern: pattern;
 }
@@ -992,13 +992,31 @@ def pa_get_values(pairs: list[object]) -> list[expr] {
     return [];
 }
 def pa_get_patterns(pairs: list[object]) -> list[pattern] {
-    return [];
+    out: list[pattern] = [];
+    i = 0;
+    while i < len(pairs) {
+        out.append((pairs[i] as kp_pair).pattern);
+        i = i + 1;
+    }
+    return out;
 }
 def pa_get_pattern_keys(pairs: list[object]) -> list[expr] {
-    return [];
+    out: list[expr] = [];
+    i = 0;
+    while i < len(pairs) {
+        out.append((pairs[i] as kp_pair).key);
+        i = i + 1;
+    }
+    return out;
 }
 def pa_map_names_to_ids(names: list[expr]) -> list[str] {
-    return [];
+    out: list[str] = [];
+    i = 0;
+    while i < len(names) {
+        out.append(pa_name_id(names[i]));
+        i = i + 1;
+    }
+    return out;
 }
 def pa_seq_count_dots(name: expr) -> int {
     return 0;
@@ -1400,8 +1418,8 @@ def pa_key_pattern_pair(
     col_offset: int,
     end_lineno: int,
     end_col_offset: int
-) -> pa_key_pattern_pair {
-    return pa_key_pattern_pair(key=key, pattern=pat);
+) -> kp_pair {
+    return kp_pair(key=key, pattern=pat);
 }
 
 def pa_name_default_pair(

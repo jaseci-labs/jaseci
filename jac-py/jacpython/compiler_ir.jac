@@ -89,7 +89,9 @@ obj cfg_builder {
         private: str | None = None,
         loop_stack: list[loop_frame] = [],
         # Suspendable function (generator/coroutine) PEP 479 protect start block id.
-        generator_protect_start: int = -1;
+        generator_protect_start: int = -1,
+        # END_ASYNC_FOR handler block id (async-for PEP 479 unwind region).
+        async_for_end_async_block: int = -1;
 
     def emit(ins: cinstr) {
         self.cur.instrs.append(ins);
@@ -132,7 +134,17 @@ obj cfg_builder {
         return self.u.add_block();
     }
 
+    def new_deferred_block -> basicblock {
+        return self.u.add_deferred_block();
+    }
+
     def use(b: basicblock) {
+        # Lay out a deferred block at the current end of the layout list on first
+        # use (CPython USE_LABEL). Already-placed blocks just become current.
+        if not b.placed {
+            b.placed = True;
+            self.u.blocks.append(b);
+        }
         self.cur = b;
     }
 }
@@ -159,7 +171,18 @@ obj stmt_cont {
 # allocation order and resolves each jump's target_block to a code-unit offset.
 obj basicblock {
     has id: int,
-        instrs: list[cinstr];
+        instrs: list[cinstr],
+        # False for a deferred block (allocated but not yet laid out). use() lays
+        # it out at the current end of the layout list, mirroring CPython's split
+        # of NEW_JUMP_TARGET_LABEL (allocate) from USE_LABEL (place).
+        placed: bool = True,
+        # True on match join/end blocks: the shared success target of match-arm
+        # (and MatchOr alternative) success jumps. The flowgraph's small-exit
+        # inliner only tail-duplicates into these blocks, keeping the pass scoped
+        # to match the way optimize_swap_range is scoped to match arms. Other
+        # constructs already emit CPython's post-optimizer shape by hand, so a
+        # global inliner would mis-fire (e.g. on generator/async-for back-edges).
+        exit_inline_ok: bool = False;
 }
 
 # Deferred comprehension cleanup handler (emitted after module RETURN_VALUE).
@@ -210,12 +233,28 @@ obj unverified_cfg {
         # Set after MAKE_FUNCTION; suppresses dead small-int consts on call args.
         nested_code_emitted: bool = False,
         # except_region indices whose handler_block is the PEP 479 handler (filled at end).
-        pending_pep479_regions: list[int] = [];
+        pending_pep479_regions: list[int] = [],
+        # try/except unwind handler_block indices (filled after reraise epilogue).
+        pending_try_unwind_regions: list[int] = [],
+        # Inner try/finally success-path bounds for outer try/except wrapping.
+        nested_try_finally_success_start: int = -1,
+        nested_try_finally_success_end: int = -1,
+        nested_try_finally_unwind_start: int = -1;
 
     def add_block -> basicblock {
         b = basicblock(id=self.next_block_id, instrs=[]);
         self.next_block_id = self.next_block_id + 1;
         self.blocks.append(b);
+        return b;
+    }
+
+    # Allocate a block id without placing it in the layout. The block is laid out
+    # later, at its first use() (CPython NEW_JUMP_TARGET_LABEL vs USE_LABEL). Lets
+    # codegen allocate a forward target (e.g. a MatchOr shared end) up front and
+    # place it after the intervening bodies, so layout order != allocation order.
+    def add_deferred_block -> basicblock {
+        b = basicblock(id=self.next_block_id, instrs=[], placed=False);
+        self.next_block_id = self.next_block_id + 1;
         return b;
     }
 

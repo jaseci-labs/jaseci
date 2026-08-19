@@ -21,6 +21,9 @@ import from opcode_meta {
     OP_YIELD_VALUE,
     OP_GET_YIELD_FROM_ITER,
     OP_GET_AWAITABLE,
+    OP_GET_AITER,
+    OP_GET_ANEXT,
+    OP_END_ASYNC_FOR,
     OP_SEND,
     OP_END_SEND,
     OP_CLEANUP_THROW,
@@ -54,6 +57,7 @@ import from opcode_meta {
     OP_CALL_KW,
     OP_LOAD_LOCALS,
     OP_COMPARE_OP,
+    OP_IS_OP,
     OP_POP_TOP,
     OP_IMPORT_NAME,
     OP_IMPORT_FROM,
@@ -66,12 +70,21 @@ import from opcode_meta {
     OP_DELETE_SUBSCR,
     OP_POP_JUMP_IF_FALSE,
     OP_POP_JUMP_IF_TRUE,
+    OP_POP_JUMP_IF_NOT_NONE,
+    OP_POP_JUMP_IF_NONE,
     OP_JUMP_FORWARD,
     OP_JUMP_BACKWARD,
     OP_COPY,
     OP_SWAP,
+    OP_GET_LEN,
+    OP_MATCH_SEQUENCE,
+    OP_MATCH_MAPPING,
+    OP_MATCH_KEYS,
+    OP_MATCH_CLASS,
+    OP_DICT_UPDATE,
     OP_TO_BOOL,
     OP_NOP,
+    OP_NOT_TAKEN,
     OP_GET_ITER,
     OP_FOR_ITER,
     OP_END_FOR,
@@ -84,6 +97,7 @@ import from opcode_meta {
     OP_MAP_ADD,
     OP_LOAD_FAST,
     OP_LOAD_FAST_BORROW,
+    OP_LOAD_FAST_CHECK,
     OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW,
     OP_LOAD_FAST_AND_CLEAR,
     OP_STORE_FAST,
@@ -216,6 +230,16 @@ import from ast_nodes {
     With,
     AsyncWith,
     Match,
+    match_case,
+    pattern,
+    MatchValue,
+    MatchSingleton,
+    MatchAs,
+    MatchOr,
+    MatchSequence,
+    MatchMapping,
+    MatchClass,
+    MatchStar,
     Raise,
     Try,
     TryStar,
@@ -261,7 +285,7 @@ import from compiler_symtable {
     sym_block_tuple_names,
 }
 import from compiler_diagnostics { lowering_diagnostic }
-import from flowgraph { verify_cfg }
+import from flowgraph { verify_cfg, optimize_swap_range }
 import from assembler { assemble }
 
 # Record the first codegen diagnostic on the builder's unit.
@@ -291,11 +315,10 @@ def fast_varnames_from_sym(block: sym_block) -> list[str] {
             out.append(block.varnames[pi]);
             pi = pi + 1;
         }
-        names = sym_sorted_names(block.symbols);
-        ni = 0;
-        while ni < len(names) {
-            name = names[ni];
-            flags = block.symbols[name];
+        li = 0;
+        while li < len(block.local_varnames) {
+            name = block.local_varnames[li];
+            flags = sym_dict_get(block.symbols, name, 0);
             if sym_scope_of(flags) == SCOPE_LOCAL {
                 found = False;
                 fi = 0;
@@ -309,7 +332,7 @@ def fast_varnames_from_sym(block: sym_block) -> list[str] {
                     out.append(name);
                 }
             }
-            ni = ni + 1;
+            li = li + 1;
         }
         return out;
     }
@@ -441,6 +464,9 @@ def emit_generator_except_handler(g: cfg_builder, protect_start: int) {
     while pi < len(g.u.pending_pep479_regions) {
         ri = g.u.pending_pep479_regions[pi];
         g.u.except_regions[ri].handler_block = handler.id;
+        if g.u.except_regions[ri].end_block < 0 {
+            g.u.except_regions[ri].end_block = handler.id;
+        }
         pi = pi + 1;
     }
 }
@@ -453,6 +479,30 @@ def emit_send_delegation_loop(
     resume_after_yield_arg: int,
     yloc: cloc
 ) {
+    als = emit_await_send_loop_header(
+        g, get_iter_op, get_iter_arg, resume_after_yield_arg, yloc
+    );
+    (ct, cj) = emit_await_send_loop_footer(g, als, yloc);
+    emit_await_send_except_regions(g, als, ct, cj, 3, -1);
+    g.use(als.end_send_blk);
+}
+
+# GET_AWAITABLE / GET_YIELD_FROM_ITER + SEND loop (footer deferred for async-with).
+obj await_send_loop {
+    has send_blk: basicblock,
+        yield_blk: basicblock,
+        after_resume_blk: basicblock,
+        end_send_blk: basicblock;
+}
+
+def emit_await_send_loop_header(
+    g: cfg_builder,
+    get_iter_op: int,
+    get_iter_arg: int,
+    resume_after_yield_arg: int,
+    yloc: cloc,
+    emit_end_send: bool = True
+) -> await_send_loop {
     g.emit_op(get_iter_op, get_iter_arg, yloc);
     none_idx = g.u.add_const(py_none());
     g.emit_op(OP_LOAD_CONST, none_idx, yloc);
@@ -460,8 +510,153 @@ def emit_send_delegation_loop(
     yield_blk = g.new_block();
     after_resume_blk = g.new_block();
     end_send_blk = g.new_block();
+    g.use(send_blk);
+    g.emit_jump(OP_SEND, end_send_blk.id, yloc);
+    g.use(yield_blk);
+    g.emit_op(OP_YIELD_VALUE, 1, yloc);
+    g.use(after_resume_blk);
+    g.emit_op(OP_RESUME, resume_after_yield_arg, yloc);
+    g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, send_blk.id, yloc);
+    g.use(end_send_blk);
+    if emit_end_send {
+        g.emit_op(OP_END_SEND, 0, yloc);
+    }
+    return await_send_loop(
+        send_blk=send_blk,
+        yield_blk=yield_blk,
+        after_resume_blk=after_resume_blk,
+        end_send_blk=end_send_blk
+    );
+}
+
+def emit_await_send_loop_footer(
+    g: cfg_builder, als: await_send_loop, yloc: cloc
+) -> tuple[basicblock, basicblock] {
     cleanup_throw_blk = g.new_block();
     cleanup_jump_blk = g.new_block();
+    g.use(cleanup_throw_blk);
+    g.emit_op(OP_CLEANUP_THROW, 0, yloc);
+    g.use(cleanup_jump_blk);
+    g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, als.end_send_blk.id, yloc);
+    return (cleanup_throw_blk, cleanup_jump_blk);
+}
+
+# Inline footer before END_SEND (async-with except __aexit__ await).
+def emit_await_send_loop_inline_footer(
+    g: cfg_builder,
+    get_iter_op: int,
+    get_iter_arg: int,
+    resume_after_yield_arg: int,
+    yloc: cloc
+) -> tuple[await_send_loop, basicblock, basicblock] {
+    g.emit_op(get_iter_op, get_iter_arg, yloc);
+    none_idx = g.u.add_const(py_none());
+    g.emit_op(OP_LOAD_CONST, none_idx, yloc);
+    send_blk = g.new_block();
+    yield_blk = g.new_block();
+    after_resume_blk = g.new_block();
+    cleanup_throw_blk = g.new_block();
+    end_send_blk = g.new_block();
+    g.use(send_blk);
+    g.emit_jump(OP_SEND, end_send_blk.id, yloc);
+    g.use(yield_blk);
+    g.emit_op(OP_YIELD_VALUE, 1, yloc);
+    g.use(after_resume_blk);
+    g.emit_op(OP_RESUME, resume_after_yield_arg, yloc);
+    g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, send_blk.id, yloc);
+    g.use(cleanup_throw_blk);
+    g.emit_op(OP_CLEANUP_THROW, 0, yloc);
+    g.use(end_send_blk);
+    als = await_send_loop(
+        send_blk=send_blk,
+        yield_blk=yield_blk,
+        after_resume_blk=after_resume_blk,
+        end_send_blk=end_send_blk
+    );
+    return (als, cleanup_throw_blk, end_send_blk);
+}
+
+def emit_await_send_except_regions(
+    g: cfg_builder,
+    als: await_send_loop,
+    cleanup_throw_blk: basicblock,
+    cleanup_jump_blk: basicblock,
+    cleanup_stack_depth: int,
+    after_resume_handler: int,
+    pep479_start: int = -1,
+    pep479_end: int = -1,
+    after_resume_stack_depth: int = 2,
+    after_resume_preserve_lasti: bool = True
+) {
+    protect = g.generator_protect_start;
+    if protect < 0 {
+        return;
+    }
+    if pep479_start >= 0 {
+        protect = pep479_start;
+    }
+    pep479_end_blk = cleanup_jump_blk.id;
+    if pep479_end >= 0 {
+        pep479_end_blk = pep479_end;
+    }
+    g.u.except_regions.append(
+        except_region(
+            start_block=protect,
+            end_block=als.yield_blk.id,
+            handler_block=-1,
+            stack_depth=2,
+            preserve_lasti=True
+        )
+    );
+    g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
+    g.u.except_regions.append(
+        except_region(
+            start_block=als.yield_blk.id,
+            end_block=als.after_resume_blk.id,
+            handler_block=cleanup_throw_blk.id,
+            stack_depth=cleanup_stack_depth,
+            preserve_lasti=False
+        )
+    );
+    ar_handler = after_resume_handler;
+    if ar_handler < 0 {
+        ar_handler = -1;
+    }
+    g.u.except_regions.append(
+        except_region(
+            start_block=als.after_resume_blk.id,
+            end_block=pep479_end_blk,
+            handler_block=ar_handler,
+            stack_depth=after_resume_stack_depth,
+            preserve_lasti=after_resume_preserve_lasti
+        )
+    );
+    if after_resume_handler < 0 {
+        g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
+    }
+}
+
+# GET_ANEXT + SEND loop blocks for async-for (footer emitted after the loop body).
+obj anext_send_loop {
+    has loop_hdr: basicblock,
+        send_blk: basicblock,
+        yield_blk: basicblock,
+        after_resume_blk: basicblock,
+        end_send_blk: basicblock;
+}
+
+# Loop header: GET_ANEXT, LOAD_CONST None, SEND/YIELD/RESUME/END_SEND.
+def emit_anext_send_loop_header(
+    g: cfg_builder, loop_hdr: basicblock, resume_after_yield_arg: int, yloc: cloc
+) -> anext_send_loop {
+    g.use(loop_hdr);
+    g.emit_op(OP_GET_ANEXT, 0, yloc);
+    none_idx = g.u.add_const(py_none());
+    g.emit_op(OP_LOAD_CONST, none_idx, yloc);
+    send_blk = g.new_block();
+    yield_blk = g.new_block();
+    after_resume_blk = g.new_block();
+    end_send_blk = g.new_block();
     g.use(send_blk);
     g.emit_jump(OP_SEND, end_send_blk.id, yloc);
     g.use(yield_blk);
@@ -471,17 +666,57 @@ def emit_send_delegation_loop(
     g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, send_blk.id, yloc);
     g.use(end_send_blk);
     g.emit_op(OP_END_SEND, 0, yloc);
-    g.use(cleanup_throw_blk);
-    g.emit_op(OP_CLEANUP_THROW, 0, yloc);
-    g.use(cleanup_jump_blk);
-    g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, end_send_blk.id, yloc);
-    g.use(end_send_blk);
+    return anext_send_loop(
+        loop_hdr=loop_hdr,
+        send_blk=send_blk,
+        yield_blk=yield_blk,
+        after_resume_blk=after_resume_blk,
+        end_send_blk=end_send_blk
+    );
+}
+
+def emit_anext_send_except_regions(
+    g: cfg_builder,
+    als: anext_send_loop,
+    store_blk: basicblock,
+    cleanup_throw_blk: basicblock,
+    cleanup_jump_blk: basicblock,
+    async_for_handler: basicblock
+) {
+    g.u.except_regions.append(
+        except_region(
+            start_block=als.loop_hdr.id,
+            end_block=als.yield_blk.id,
+            handler_block=async_for_handler.id,
+            stack_depth=2,
+            preserve_lasti=False
+        )
+    );
+    # END_SEND through NOT_TAKEN only; loop body uses a separate PEP 479 region.
+    g.u.except_regions.append(
+        except_region(
+            start_block=als.after_resume_blk.id,
+            end_block=store_blk.id,
+            handler_block=async_for_handler.id,
+            stack_depth=2,
+            preserve_lasti=False
+        )
+    );
+    g.u.except_regions.append(
+        except_region(
+            start_block=cleanup_throw_blk.id,
+            end_block=cleanup_jump_blk.id,
+            handler_block=async_for_handler.id,
+            stack_depth=2,
+            preserve_lasti=False
+        )
+    );
     protect = g.generator_protect_start;
     if protect >= 0 {
         g.u.except_regions.append(
             except_region(
                 start_block=protect,
-                end_block=yield_blk.id,
+                end_block=als.loop_hdr.id,
                 handler_block=-1,
                 stack_depth=2,
                 preserve_lasti=True
@@ -490,24 +725,27 @@ def emit_send_delegation_loop(
         g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
         g.u.except_regions.append(
             except_region(
-                start_block=yield_blk.id,
-                end_block=after_resume_blk.id,
+                start_block=als.yield_blk.id,
+                end_block=als.after_resume_blk.id,
                 handler_block=cleanup_throw_blk.id,
-                stack_depth=3,
+                stack_depth=4,
                 preserve_lasti=False
             )
         );
-        g.u.except_regions.append(
-            except_region(
-                start_block=after_resume_blk.id,
-                end_block=cleanup_jump_blk.id,
-                handler_block=-1,
-                stack_depth=2,
-                preserve_lasti=True
-            )
-        );
-        g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
     }
+}
+
+# CLEANUP_THROW footer for async-for (laid out after the loop body's JUMP_BACK).
+def emit_anext_send_loop_footer(
+    g: cfg_builder, als: anext_send_loop, yloc: cloc
+) -> tuple[basicblock, basicblock] {
+    cleanup_throw_blk = g.new_block();
+    cleanup_jump_blk = g.new_block();
+    g.use(cleanup_throw_blk);
+    g.emit_op(OP_CLEANUP_THROW, 0, yloc);
+    g.use(cleanup_jump_blk);
+    g.emit_jump(OP_JUMP_BACKWARD_NO_INTERRUPT, als.end_send_blk.id, yloc);
+    return (cleanup_throw_blk, cleanup_jump_blk);
 }
 
 # Fold default expressions when every value is a Constant (CPython LOAD_CONST tuple).
@@ -1368,6 +1606,37 @@ def emit_folded_int(g: cfg_builder, v: int, lc: cloc) {
     g.emit_op(OP_LOAD_CONST, idx, lc);
 }
 
+# Register literal int operands in co_consts without emitting (CPython dead
+# small-int slot + out-of-range LOAD_CONST operands). Used by Constant visit
+# and by peephole-folded BinOp so folded exprs keep the same const pool.
+def register_int_literal_const(
+    g: cfg_builder, e: expr, register_int_const: bool
+) {
+    if not register_int_const {
+        return;
+    }
+    if not isinstance(e, Constant) {
+        return;
+    }
+    c = e as Constant;
+    if not isinstance(c.value, PyInt) {
+        return;
+    }
+    v = (c.value as PyInt).val;
+    in_class_body = g.sym_top is not None and g.sym_top.block_type == "class";
+    if in_class_body {
+        return;
+    }
+    if v >= 0 and v <= 255 {
+        if not g.u.dead_small_int_const {
+            g.u.add_const(c.value);
+            g.u.dead_small_int_const = True;
+        }
+    } else {
+        g.u.add_const(c.value);
+    }
+}
+
 # BoolOp lowering (compile.c): short-circuit and/or chains with COPY/TO_BOOL.
 # Returns the false-exit block when false_shortcircuit_returns so the caller
 # can place its RETURN after the true-path suffix (CPython block layout).
@@ -1441,17 +1710,7 @@ def visit_expr(
         cloc = nloc(c.lineno, c.end_lineno, c.col_offset, c.end_col_offset);
         if isinstance(c.value, PyInt) {
             v = (c.value as PyInt).val;
-            in_class_body = g.sym_top is not None and g.sym_top.block_type == "class";
-            if register_int_const
-                and not in_class_body
-                and v >= 0
-                and v <= 255
-                and not g.u.dead_small_int_const {
-                g.u.add_const(c.value);
-                g.u.dead_small_int_const = True;
-            } elif register_int_const and (v < 0 or v > 255) {
-                g.u.add_const(c.value);
-            }
+            register_int_literal_const(g, e, register_int_const);
             emit_folded_int(g, v, cloc);
             return None;
         }
@@ -1471,14 +1730,10 @@ def visit_expr(
     if isinstance(e, BinOp) {
         b = e as BinOp;
         bl = nloc(b.lineno, b.end_lineno, b.col_offset, b.end_col_offset);
-        if isinstance(b.left, Constant) {
-            g.u.add_const((b.left as Constant).value);
-        }
-        if isinstance(b.right, Constant) {
-            g.u.add_const((b.right as Constant).value);
-        }
         folded = try_fold_binop(b.left, b.op, b.right);
         if folded is not None and isinstance(folded, PyInt) {
+            register_int_literal_const(g, b.left, register_int_const);
+            register_int_literal_const(g, b.right, register_int_const);
             emit_folded_int(g, (folded as PyInt).val, bl);
             return None;
         }
@@ -2730,6 +2985,24 @@ def visit_raise_stmt(g: cfg_builder, r: Raise) -> stmt_cont {
     return stmt_cont(loc=rloc, terminated=True);
 }
 
+# True when `body` is a single try/finally-only statement (no except on inner).
+def body_is_try_finally_only(body: list[stmt]) -> bool {
+    if len(body) != 1 {
+        return False;
+    }
+    if not isinstance(body[0], Try) {
+        return False;
+    }
+    inner = body[0] as Try;
+    if inner.finalbody is None or len(inner.finalbody) == 0 {
+        return False;
+    }
+    if inner.handlers is not None and len(inner.handlers) > 0 {
+        return False;
+    }
+    return True;
+}
+
 # Lower try/finally without except/else.
 def visit_try_finally(
     g: cfg_builder,
@@ -2740,16 +3013,21 @@ def visit_try_finally(
     tail_join: basicblock | None = None
 ) -> stmt_cont {
     tloc = stmt_loc(t);
+    nop_blk = g.new_block();
+    try_entry = g.new_block();
     protect_end = g.new_block();
+    after_protected = g.new_block();
     finally_except = g.new_block();
     unwind = g.new_block();
+    g.use(nop_blk);
     g.emit_op(OP_NOP, 0, tloc);
+    g.use(try_entry);
     protect_start = g.cur.id;
     try_follows = more_code_follows;
     if not try_follows and tail is not None and tail_idx < len(tail) {
         try_follows = True;
     }
-    body_cont = visit_stmts(g, t.body, True);
+    body_cont = visit_stmts(g, t.body, 0, True);
     if codegen_busy(g) {
         return stmt_cont(loc=tloc);
     }
@@ -2758,21 +3036,33 @@ def visit_try_finally(
     if codegen_busy(g) {
         return stmt_cont(loc=tloc);
     }
-    if try_follows {
+    g.u.nested_try_finally_success_start = protect_end.id;
+    g.use(after_protected);
+    fallthrough_blk: basicblock | None = None;
+    tail_end_blk: basicblock | None = None;
+    tail_done = False;
+    tail_terminated = False;
+    if try_follows and tail is not None and tail_idx < len(tail) {
         tail_more = False;
-        if tail is not None and tail_idx + 1 < len(tail) {
+        if tail_idx + 1 < len(tail) {
             tail_more = exec_tail_emits_code(tail, tail_idx + 1);
         }
         tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
         if codegen_busy(g) {
             return stmt_cont(loc=finally_cont.loc);
         }
-        if not tail_cont.terminated {
+        tail_done = True;
+        tail_terminated = tail_cont.terminated;
+        tail_end_blk = g.cur;
+        if tail_cont.terminated {
             emit_module_return(g, tail_cont.loc);
         }
+    } elif try_follows {
+        fallthrough_blk = g.cur;
     } else {
         emit_module_return(g, finally_cont.loc);
     }
+    g.u.nested_try_finally_success_end = after_protected.id;
     noloc = no_loc();
     g.use(finally_except);
     g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
@@ -2781,7 +3071,6 @@ def visit_try_finally(
         return stmt_cont(loc=tloc);
     }
     g.emit_op(OP_RERAISE, 0, finally_except_cont.loc);
-    finally_except_end = g.new_block();
     g.u.except_regions.append(
         except_region(
             start_block=protect_start,
@@ -2793,17 +3082,44 @@ def visit_try_finally(
     g.u.except_regions.append(
         except_region(
             start_block=finally_except.id,
-            end_block=finally_except_end.id,
+            end_block=unwind.id,
             handler_block=unwind.id,
-            stack_depth=2,
+            stack_depth=3,
             preserve_lasti=True
         )
     );
     g.use(unwind);
+    g.u.nested_try_finally_unwind_start = unwind.id;
     g.emit_op(OP_COPY, 3, noloc);
     g.emit_op(OP_POP_EXCEPT, 0, noloc);
     g.emit_op(OP_RERAISE, 1, noloc);
+    if fallthrough_blk is not None {
+        g.use(fallthrough_blk);
+        return stmt_cont(loc=tloc, terminated=False);
+    }
+    if tail_done {
+        if tail_end_blk is not None {
+            g.use(tail_end_blk);
+        }
+        return stmt_cont(
+            loc=tloc, next_si=len(tail), terminated=tail_terminated
+        );
+    }
     return stmt_cont(loc=tloc, terminated=True);
+}
+
+def append_try_unwind_region(g: cfg_builder, reg: except_region) {
+    g.u.except_regions.append(reg);
+    g.u.pending_try_unwind_regions.append(len(g.u.except_regions) - 1);
+}
+
+def bind_try_unwind_handlers(g: cfg_builder, unwind_block: int) {
+    pi = 0;
+    while pi < len(g.u.pending_try_unwind_regions) {
+        ri = g.u.pending_try_unwind_regions[pi];
+        g.u.except_regions[ri].handler_block = unwind_block;
+        pi = pi + 1;
+    }
 }
 
 # Lower try/except (typed handlers; optional finally deferred).
@@ -2816,12 +3132,12 @@ def visit_try(
     tail_join: basicblock | None = None
 ) -> stmt_cont {
     tloc = stmt_loc(t);
-    if len(t.orelse) > 0 {
+    if t.orelse is not None and len(t.orelse) > 0 {
         codegen_fail(g, "NotImplementedError", "try/else not supported");
         return stmt_cont(loc=tloc);
     }
-    if len(t.finalbody) > 0 {
-        if len(t.handlers) > 0 {
+    if t.finalbody is not None and len(t.finalbody) > 0 {
+        if t.handlers is not None and len(t.handlers) > 0 {
             codegen_fail(
                 g, "NotImplementedError", "try/except/finally not supported"
             );
@@ -2831,7 +3147,7 @@ def visit_try(
             g, t, more_code_follows, tail, tail_idx, tail_join
         );
     }
-    if len(t.handlers) == 0 {
+    if t.handlers is None or len(t.handlers) == 0 {
         codegen_fail(g, "NotImplementedError", "try without except");
         return stmt_cont(loc=tloc);
     }
@@ -2844,31 +3160,24 @@ def visit_try(
         }
         hi = hi + 1;
     }
-    protect_end = g.new_block();
-    handler_entry = g.new_block();
-    unwind = g.new_block();
-    reraise_blk = g.new_block();
+    nop_blk = g.new_block();
+    try_body = g.new_block();
+    g.use(nop_blk);
     g.emit_op(OP_NOP, 0, tloc);
+    g.use(try_body);
     protect_start = g.cur.id;
     try_follows = more_code_follows;
     if not try_follows and tail is not None and tail_idx < len(tail) {
         try_follows = True;
     }
-    body_cont = visit_stmts(g, t.body, try_follows, tail, tail_idx, tail_join);
+    body_cont = visit_stmts(g, t.body, 0, try_follows, tail, tail_idx, tail_join);
     if codegen_busy(g) {
         return stmt_cont(loc=tloc);
     }
+    protect_end = g.new_block();
+    after_try_epilogue = g.new_block();
     g.use(protect_end);
-    g.u.except_regions.append(
-        except_region(
-            start_block=protect_start,
-            end_block=protect_end.id,
-            handler_block=handler_entry.id,
-            stack_depth=1
-        )
-    );
-    after_try = g.new_block();
-    g.use(after_try);
+    g.use(after_try_epilogue);
     if try_follows {
         tail_more = False;
         if tail is not None and tail_idx + 1 < len(tail) {
@@ -2878,113 +3187,200 @@ def visit_try(
         if codegen_busy(g) {
             return stmt_cont(loc=body_cont.loc);
         }
-        if not tail_cont.terminated {
+        if not tail_cont.terminated and not body_cont.terminated {
             emit_module_return(g, tail_cont.loc);
         }
     } else {
-        emit_module_return(g, body_cont.loc);
+        if not body_cont.terminated {
+            emit_module_return(g, body_cont.loc);
+        }
+    }
+    handler_entry = g.new_block();
+    handler_body_entries: list[basicblock] = [];
+    handler_tails: list[tuple[basicblock, basicblock]] = [];
+    as_unwind_tails: list[tuple[basicblock, basicblock]] = [];
+    next_handlers: list[basicblock] = [];
+    hi = 0;
+    while hi < len(t.handlers) {
+        handler_body_entries.append(g.new_block());
+        handler_tails.append((g.new_block(), g.new_block()));
+        as_unwind_tails.append((g.new_block(), g.new_block()));
+        if hi < len(t.handlers) - 1 {
+            next_handlers.append(g.new_block());
+        }
+        hi = hi + 1;
+    }
+    reraise_blk = g.new_block();
+    if body_is_try_finally_only(t.body) {
+        if g.u.nested_try_finally_success_start >= 0
+            and g.u.nested_try_finally_success_end >= 0 {
+            g.u.except_regions.append(
+                except_region(
+                    start_block=g.u.nested_try_finally_success_start,
+                    end_block=g.u.nested_try_finally_success_end,
+                    handler_block=handler_entry.id,
+                    stack_depth=1
+                )
+            );
+        }
+        if g.u.nested_try_finally_unwind_start >= 0 {
+            g.u.except_regions.append(
+                except_region(
+                    start_block=g.u.nested_try_finally_unwind_start,
+                    end_block=handler_entry.id,
+                    handler_block=handler_entry.id,
+                    stack_depth=1
+                )
+            );
+        }
+    } else {
+        g.u.except_regions.append(
+            except_region(
+                start_block=protect_start,
+                end_block=protect_end.id,
+                handler_block=handler_entry.id,
+                stack_depth=1
+            )
+        );
     }
     noloc = no_loc();
     g.use(handler_entry);
     handler_region_start = handler_entry.id;
     g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
     hloc = try_handler_span(t.handlers[0]);
+    need_reraise_except_region = False;
+    merged_handler_unwind_start = -1;
+    except_as_unwind_start = -1;
     hi = 0;
     while hi < len(t.handlers) {
         h = t.handlers[hi];
+        if hi > 0 {
+            g.use(next_handlers[hi - 1]);
+            handler_region_start = g.cur.id;
+        }
         hloc = try_handler_span(h);
         visit_expr(g, h.type);
         if codegen_busy(g) {
             return stmt_cont(loc=tloc);
         }
         g.emit_op(OP_CHECK_EXC_MATCH, 0, hloc);
-        no_match = reraise_blk;
         if hi < len(t.handlers) - 1 {
-            no_match = g.new_block();
+            g.emit_jump(OP_POP_JUMP_IF_FALSE, next_handlers[hi].id, hloc);
+        } else {
+            g.emit_jump(OP_POP_JUMP_IF_FALSE, reraise_blk.id, hloc);
         }
-        g.emit_jump(OP_POP_JUMP_IF_FALSE, no_match.id, hloc);
         bind_name = h.name;
         if bind_name is not None {
             emit_name_store(g, bind_name, hloc);
         } else {
             g.emit_op(OP_POP_TOP, 0, hloc);
         }
-        handler_body_start = g.cur.id;
+        handler_body_start = handler_body_entries[hi].id;
+        g.use(handler_body_entries[hi]);
         hbody = visit_stmts(g, h.body);
         if codegen_busy(g) {
             return stmt_cont(loc=tloc);
         }
+        handler_region_end = handler_tails[hi][0];
+        handler_success = handler_tails[hi][1];
+        g.use(handler_region_end);
         if not hbody.terminated {
+            need_reraise_except_region = True;
+            g.use(handler_success);
             g.emit_op(OP_POP_EXCEPT, 0, hbody.loc);
             if bind_name is not None {
                 emit_except_as_cleanup(g, bind_name, hbody.loc);
             }
             emit_module_return(g, hbody.loc);
+        } else {
+            if merged_handler_unwind_start < 0 {
+                merged_handler_unwind_start = handler_region_start;
+            }
         }
-        handler_region_end = g.new_block();
         if bind_name is not None {
-            g.u.except_regions.append(
+            append_try_unwind_region(
+                g,
                 except_region(
                     start_block=handler_region_start,
                     end_block=handler_body_start,
-                    handler_block=unwind.id,
-                    stack_depth=2,
+                    handler_block=-1,
+                    stack_depth=3,
                     preserve_lasti=True
                 )
             );
-            as_unwind = g.new_block();
+            as_unwind = as_unwind_tails[hi][0];
             g.use(as_unwind);
+            except_as_unwind_start = as_unwind.id;
             emit_except_as_cleanup(g, bind_name, hbody.loc);
             g.emit_op(OP_RERAISE, 1, hbody.loc);
-            as_unwind_end = g.new_block();
+            as_unwind_end = as_unwind_tails[hi][1];
             g.u.except_regions.append(
                 except_region(
                     start_block=handler_body_start,
                     end_block=handler_region_end.id,
                     handler_block=as_unwind.id,
-                    stack_depth=2,
-                    preserve_lasti=True
-                )
-            );
-            g.u.except_regions.append(
-                except_region(
-                    start_block=as_unwind.id,
-                    end_block=as_unwind_end.id,
-                    handler_block=unwind.id,
-                    stack_depth=2,
+                    stack_depth=3,
                     preserve_lasti=True
                 )
             );
         } else {
-            g.u.except_regions.append(
-                except_region(
-                    start_block=handler_region_start,
-                    end_block=handler_region_end.id,
-                    handler_block=unwind.id,
-                    stack_depth=2,
-                    preserve_lasti=True
-                )
-            );
-        }
-        if hi < len(t.handlers) - 1 {
-            g.use(no_match);
-            handler_region_start = no_match.id;
+            if not hbody.terminated {
+                append_try_unwind_region(
+                    g,
+                    except_region(
+                        start_block=handler_region_start,
+                        end_block=handler_region_end.id,
+                        handler_block=-1,
+                        stack_depth=3,
+                        preserve_lasti=True
+                    )
+                );
+            }
         }
         hi = hi + 1;
     }
     g.use(reraise_blk);
     g.emit_op(OP_RERAISE, 0, hloc);
     reraise_end = g.new_block();
-    g.u.except_regions.append(
-        except_region(
-            start_block=reraise_blk.id,
-            end_block=reraise_end.id,
-            handler_block=unwind.id,
-            stack_depth=2,
-            preserve_lasti=True
-        )
-    );
-    g.use(unwind);
+    unwind_blk = g.new_block();
+    if need_reraise_except_region {
+        if except_as_unwind_start >= 0 {
+            append_try_unwind_region(
+                g,
+                except_region(
+                    start_block=except_as_unwind_start,
+                    end_block=unwind_blk.id,
+                    handler_block=-1,
+                    stack_depth=3,
+                    preserve_lasti=True
+                )
+            );
+        } else {
+            append_try_unwind_region(
+                g,
+                except_region(
+                    start_block=reraise_blk.id,
+                    end_block=reraise_end.id,
+                    handler_block=-1,
+                    stack_depth=3,
+                    preserve_lasti=True
+                )
+            );
+        }
+    } else {
+        append_try_unwind_region(
+            g,
+            except_region(
+                start_block=merged_handler_unwind_start,
+                end_block=unwind_blk.id,
+                handler_block=-1,
+                stack_depth=3,
+                preserve_lasti=True
+            )
+        );
+    }
+    bind_try_unwind_handlers(g, unwind_blk.id);
+    g.use(unwind_blk);
     g.emit_op(OP_COPY, 3, noloc);
     g.emit_op(OP_POP_EXCEPT, 0, noloc);
     g.emit_op(OP_RERAISE, 1, noloc);
@@ -3024,16 +3420,20 @@ def visit_with(
     if codegen_busy(g) {
         return stmt_cont(loc=wloc);
     }
+    bind_blk = g.new_block();
+    g.use(bind_blk);
     bind = visit_store_target_tos(g, item.optional_vars);
     if codegen_busy(g) {
         return stmt_cont(loc=wloc);
     }
     protect_start = g.cur.id;
+    with_body = g.new_block();
+    g.use(with_body);
     with_follows = more_code_follows;
     if not with_follows and tail is not None and tail_idx < len(tail) {
         with_follows = True;
     }
-    body_cont = visit_stmts(g, w.body, with_follows, tail, tail_idx, tail_join);
+    body_cont = visit_stmts(g, w.body, 0, with_follows, tail, tail_idx, tail_join);
     if codegen_busy(g) {
         return stmt_cont(loc=wloc);
     }
@@ -3061,7 +3461,6 @@ def visit_with(
         emit_module_return(g, body_cont.loc);
     }
     with_except = g.new_block();
-    unwind = g.new_block();
     noloc = no_loc();
     g.use(with_except);
     g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
@@ -3070,21 +3469,22 @@ def visit_with(
     suppressed = g.new_block();
     g.emit_jump(OP_POP_JUMP_IF_TRUE, suppressed.id, noloc);
     g.emit_op(OP_RERAISE, 2, noloc);
-    reraise_stub = g.new_block();
     g.use(suppressed);
     g.emit_op(OP_POP_TOP, 0, noloc);
     cleanup_end = g.new_block();
+    g.use(cleanup_end);
     g.emit_op(OP_POP_EXCEPT, 0, noloc);
     g.emit_op(OP_POP_TOP, 0, noloc);
     g.emit_op(OP_POP_TOP, 0, noloc);
     g.emit_op(OP_POP_TOP, 0, noloc);
     emit_module_return(g, wloc);
+    unwind = g.new_block();
     g.u.except_regions.append(
         except_region(
             start_block=protect_start,
             end_block=protect_end.id,
             handler_block=with_except.id,
-            stack_depth=2,
+            stack_depth=4,
             preserve_lasti=True
         )
     );
@@ -3093,7 +3493,7 @@ def visit_with(
             start_block=with_except.id,
             end_block=cleanup_end.id,
             handler_block=unwind.id,
-            stack_depth=4,
+            stack_depth=6,
             preserve_lasti=True
         )
     );
@@ -3101,6 +3501,230 @@ def visit_with(
     g.emit_op(OP_COPY, 3, noloc);
     g.emit_op(OP_POP_EXCEPT, 0, noloc);
     g.emit_op(OP_RERAISE, 1, noloc);
+    return stmt_cont(loc=wloc, terminated=True);
+}
+
+# Lower async with (single item, optional_vars required).
+def visit_async_with(
+    g: cfg_builder,
+    w: AsyncWith,
+    more_code_follows: bool,
+    tail: list[stmt] | None = None,
+    tail_idx: int = 0,
+    tail_join: basicblock | None = None
+) -> stmt_cont {
+    wloc = stmt_loc(w);
+    if len(w.items) != 1 {
+        codegen_fail(g, "NotImplementedError", "multiple with items not supported");
+        return stmt_cont(loc=wloc);
+    }
+    item = w.items[0];
+    if item.optional_vars is None {
+        codegen_fail(g, "NotImplementedError", "with without as not supported");
+        return stmt_cont(loc=wloc);
+    }
+    cloc = expr_loc(item.context_expr);
+    visit_expr(g, item.context_expr);
+    if codegen_busy(g) {
+        return stmt_cont(loc=wloc);
+    }
+    g.emit_op(OP_COPY, 1, cloc);
+    g.emit_op(OP_LOAD_SPECIAL, 3, cloc);
+    g.emit_op(OP_SWAP, 2, cloc);
+    g.emit_op(OP_SWAP, 3, cloc);
+    g.emit_op(OP_LOAD_SPECIAL, 2, cloc);
+    g.emit_op(OP_CALL, 0, cloc);
+    if codegen_busy(g) {
+        return stmt_cont(loc=wloc);
+    }
+    enter_als = emit_await_send_loop_header(
+        g, OP_GET_AWAITABLE, 1, 3, cloc
+    );
+    bind_blk = g.new_block();
+    g.use(bind_blk);
+    bind = visit_store_target_tos(g, item.optional_vars);
+    if codegen_busy(g) {
+        return stmt_cont(loc=wloc);
+    }
+    protect_start = bind_blk.id;
+    with_body = g.new_block();
+    g.use(with_body);
+    with_follows = more_code_follows;
+    if not with_follows and tail is not None and tail_idx < len(tail) {
+        with_follows = True;
+    }
+    body_cont = visit_stmts(g, w.body, 0, with_follows, tail, tail_idx, tail_join);
+    if codegen_busy(g) {
+        return stmt_cont(loc=wloc);
+    }
+    protect_end = g.new_block();
+    g.use(protect_end);
+    none_idx = g.u.add_const(py_none());
+    g.emit_op(OP_LOAD_CONST, none_idx, wloc);
+    g.emit_op(OP_LOAD_CONST, none_idx, wloc);
+    g.emit_op(OP_LOAD_CONST, none_idx, wloc);
+    g.emit_op(OP_CALL, 3, wloc);
+    exit_als = emit_await_send_loop_header(
+        g, OP_GET_AWAITABLE, 2, 3, wloc
+    );
+    g.emit_op(OP_POP_TOP, 0, wloc);
+    if with_follows {
+        tail_more = False;
+        if tail is not None and tail_idx + 1 < len(tail) {
+            tail_more = exec_tail_emits_code(tail, tail_idx + 1);
+        }
+        if tail is not None and tail_idx < len(tail) {
+            ts = tail[tail_idx];
+            if isinstance(ts, Return) {
+                visit_return_stmt(g, ts as Return, False, True);
+            } else {
+                tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+                if codegen_busy(g) {
+                    return stmt_cont(loc=body_cont.loc);
+                }
+                if not tail_cont.terminated {
+                    emit_module_return(g, tail_cont.loc);
+                }
+            }
+        } else {
+            tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+            if codegen_busy(g) {
+                return stmt_cont(loc=body_cont.loc);
+            }
+            if not tail_cont.terminated {
+                emit_module_return(g, tail_cont.loc);
+            }
+        }
+    } else {
+        emit_module_return(g, body_cont.loc);
+    }
+    (enter_ct, enter_cj) = emit_await_send_loop_footer(g, enter_als, cloc);
+    emit_await_send_except_regions(
+        g, enter_als, enter_ct, enter_cj, 5, -1, -1, bind_blk.id, 2, True
+    );
+    (exit_ct, exit_cj) = emit_await_send_loop_footer(g, exit_als, wloc);
+    emit_await_send_except_regions(
+        g,
+        exit_als,
+        exit_ct,
+        exit_cj,
+        3,
+        -1,
+        protect_end.id,
+        enter_cj.id,
+        2,
+        True
+    );
+    g.u.except_regions.append(
+        except_region(
+            start_block=exit_ct.id,
+            end_block=exit_cj.id,
+            handler_block=-1,
+            stack_depth=2,
+            preserve_lasti=True
+        )
+    );
+    g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
+    with_except = g.new_block();
+    noloc = no_loc();
+    g.use(with_except);
+    g.emit_op(OP_PUSH_EXC_INFO, 0, noloc);
+    g.emit_op(OP_WITH_EXCEPT_START, 0, noloc);
+    (except_als, except_ct, except_cj) = emit_await_send_loop_inline_footer(
+        g, OP_GET_AWAITABLE, 2, 3, noloc
+    );
+    g.use(except_als.end_send_blk);
+    g.emit_op(OP_END_SEND, 0, noloc);
+    g.emit_op(OP_TO_BOOL, 0, noloc);
+    not_taken_blk = g.new_block();
+    reraise_blk = g.new_block();
+    suppressed = g.new_block();
+    g.emit_jump(OP_POP_JUMP_IF_TRUE, suppressed.id, noloc);
+    g.use(not_taken_blk);
+    g.emit_op(OP_NOT_TAKEN, 0, noloc);
+    g.use(reraise_blk);
+    g.emit_op(OP_RERAISE, 2, noloc);
+    g.use(suppressed);
+    g.emit_op(OP_POP_TOP, 0, noloc);
+    cleanup_end = g.new_block();
+    g.use(cleanup_end);
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    g.emit_op(OP_POP_TOP, 0, noloc);
+    g.emit_op(OP_POP_TOP, 0, noloc);
+    g.emit_op(OP_POP_TOP, 0, noloc);
+    if with_follows and tail is not None and tail_idx < len(tail) {
+        ts = tail[tail_idx];
+        if isinstance(ts, Return) {
+            visit_return_stmt(g, ts as Return, True);
+        } else {
+            emit_module_return(g, wloc);
+        }
+    } else {
+        emit_module_return(g, wloc);
+    }
+    g.u.except_regions.append(
+        except_region(
+            start_block=cleanup_end.id,
+            end_block=-1,
+            handler_block=-1,
+            stack_depth=2,
+            preserve_lasti=True
+        )
+    );
+    g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
+    unwind = g.new_block();
+    g.u.except_regions.append(
+        except_region(
+            start_block=except_als.yield_blk.id,
+            end_block=except_als.after_resume_blk.id,
+            handler_block=except_ct.id,
+            stack_depth=8,
+            preserve_lasti=False
+        )
+    );
+    g.u.except_regions.append(
+        except_region(
+            start_block=except_als.after_resume_blk.id,
+            end_block=not_taken_blk.id,
+            handler_block=unwind.id,
+            stack_depth=6,
+            preserve_lasti=True
+        )
+    );
+    g.u.except_regions.append(
+        except_region(
+            start_block=protect_start,
+            end_block=protect_end.id,
+            handler_block=with_except.id,
+            stack_depth=4,
+            preserve_lasti=True
+        )
+    );
+    g.u.except_regions.append(
+        except_region(
+            start_block=with_except.id,
+            end_block=except_als.yield_blk.id,
+            handler_block=unwind.id,
+            stack_depth=6,
+            preserve_lasti=True
+        )
+    );
+    g.u.except_regions.append(
+        except_region(
+            start_block=reraise_blk.id,
+            end_block=cleanup_end.id,
+            handler_block=unwind.id,
+            stack_depth=6,
+            preserve_lasti=True
+        )
+    );
+    g.use(unwind);
+    g.emit_op(OP_COPY, 3, noloc);
+    g.emit_op(OP_POP_EXCEPT, 0, noloc);
+    g.emit_op(OP_RERAISE, 1, noloc);
+    if with_follows {
+        return stmt_cont(loc=wloc, next_si=len(tail), terminated=True);
+    }
     return stmt_cont(loc=wloc, terminated=True);
 }
 
@@ -3187,6 +3811,941 @@ def emit_tail_and_finish(
     }
     emit_module_return(g, tail_cont.loc);
     return stmt_cont(loc=end_loc, next_si=len(tail), terminated=True);
+}
+
+obj match_pat_ctx {
+    has stores: list[str];
+    has on_top: int;
+    has cleanup_blocks: list[basicblock];
+    has max_cleanup: int;
+    has allow_irrefutable: bool;
+}
+
+def match_pattern_loc(p: pattern) -> cloc {
+    return nloc(p.lineno, p.end_lineno, p.col_offset, p.end_col_offset);
+}
+
+def match_pattern_unwrap_or(p: pattern) -> pattern {
+    if isinstance(p, MatchOr) {
+        mo = p as MatchOr;
+        if len(mo.patterns) == 1 {
+            return mo.patterns[0];
+        }
+    }
+    return p;
+}
+
+def match_pattern_wildcard(p: pattern) -> bool {
+    p = match_pattern_unwrap_or(p);
+    if not isinstance(p, MatchAs) {
+        return False;
+    }
+    ma = p as MatchAs;
+    return ma.pattern is None and ma.name is None;
+}
+
+def match_subject_use_load_fast(g: cfg_builder, m: Match) -> bool {
+    has_default = 0;
+    if len(m.cases) > 1 {
+        if match_pattern_wildcard(m.cases[len(m.cases) - 1].pattern) {
+            has_default = 1;
+        }
+    }
+    if len(m.cases) - has_default > 1 {
+        return True;
+    }
+    ci = 0;
+    while ci < len(m.cases) {
+        raw = m.cases[ci].pattern;
+        if isinstance(raw, MatchOr) and len((raw as MatchOr).patterns) > 1 {
+            # Multi-alternative OR copies the subject per alternative, so it must
+            # be owned (LOAD_FAST), not borrowed.
+            return True;
+        }
+        p = match_pattern_unwrap_or(raw);
+        if isinstance(p, MatchSequence) or isinstance(p, MatchMapping) {
+            return True;
+        }
+        ci = ci + 1;
+    }
+    return False;
+}
+
+def match_emit_subject(g: cfg_builder, m: Match) {
+    subj = m.subject;
+    if isinstance(subj, Name) {
+        n = subj as Name;
+        tloc = nloc(n.lineno, n.end_lineno, n.col_offset, n.end_col_offset);
+        name = codegen_mangle(g, n.id);
+        fi = fast_local_index(g, name);
+        if fi >= 0 {
+            if match_subject_use_load_fast(g, m) {
+                g.emit_op(OP_LOAD_FAST, fi, tloc);
+            } else {
+                g.emit_op(OP_LOAD_FAST_BORROW, fi, tloc);
+            }
+            return;
+        }
+    }
+    visit_expr(g, subj);
+}
+
+obj match_case_start {
+    has ctx: match_pat_ctx;
+    has next_arm: basicblock;
+}
+
+# Exact maximum fail-pop depth for a pattern entered with `on_top` extra stack
+# items and `nstores` deferred capture names. Mirrors emit_match_pattern's
+# on_top/stores accounting so cleanup blocks can be pre-allocated in layout order
+# (block id order == layout order is assumed by the flowgraph). Returns
+# (max_pops, nstores_after); max_pops is -1 when the pattern never jumps to fail.
+def match_fail_levels(p: pattern, on_top: int, nstores: int) -> tuple[int, int] {
+    p = match_pattern_unwrap_or(p);
+    if isinstance(p, MatchValue) or isinstance(p, MatchSingleton) {
+        return (on_top + nstores, nstores);
+    }
+    if isinstance(p, MatchAs) {
+        ma = p as MatchAs;
+        if ma.pattern is None {
+            ns = nstores;
+            if ma.name is not None {
+                ns = nstores + 1;
+            }
+            return (-1, ns);
+        }
+        sub = match_fail_levels(ma.pattern, on_top + 1, nstores);
+        ns2 = sub[1];
+        if ma.name is not None {
+            ns2 = ns2 + 1;
+        }
+        return (sub[0], ns2);
+    }
+    if isinstance(p, MatchSequence) {
+        ms = p as MatchSequence;
+        patterns = ms.patterns;
+        size = len(patterns);
+        star = -1;
+        only_wildcard = True;
+        pi = 0;
+        while pi < size {
+            pat = patterns[pi];
+            if isinstance(pat, MatchStar) {
+                star = pi;
+                mst = pat as MatchStar;
+                if mst.name is not None {
+                    only_wildcard = False;
+                }
+            } elif not match_pattern_wildcard(pat) {
+                only_wildcard = False;
+            }
+            pi = pi + 1;
+        }
+        d1 = (on_top + 1) + nstores;
+        if star >= 0 {
+            return (d1, nstores);
+        }
+        if only_wildcard or match_sequence_all_captures(patterns) {
+            return (d1, nstores);
+        }
+        maxf = d1;
+        cur = on_top + size;
+        ns = nstores;
+        pi = 0;
+        while pi < size {
+            cur = cur - 1;
+            sub = match_fail_levels(patterns[pi], cur, ns);
+            if sub[0] > maxf {
+                maxf = sub[0];
+            }
+            ns = sub[1];
+            pi = pi + 1;
+        }
+        return (maxf, ns);
+    }
+    if isinstance(p, MatchMapping) {
+        mm = p as MatchMapping;
+        mm_keys: list[expr] = mm.keys if mm.keys is not None else [];
+        mm_patterns: list[pattern] = mm.patterns if mm.patterns is not None else [];
+        size = len(mm_keys);
+        d1 = (on_top + 1) + nstores;
+        if size == 0 and mm.rest is None {
+            return (d1, nstores);
+        }
+        maxf = d1;
+        f2 = (on_top + 3) + nstores;
+        if f2 > maxf {
+            maxf = f2;
+        }
+        cur = on_top + size + 2;
+        ns = nstores;
+        pi = 0;
+        while pi < size {
+            cur = cur - 1;
+            sub = match_fail_levels(mm_patterns[pi], cur, ns);
+            if sub[0] > maxf {
+                maxf = sub[0];
+            }
+            ns = sub[1];
+            pi = pi + 1;
+        }
+        if mm.rest is not None {
+            ns = ns + 1;
+        }
+        return (maxf, ns);
+    }
+    if isinstance(p, MatchClass) {
+        mc = p as MatchClass;
+        mc_patterns: list[pattern] = mc.patterns if mc.patterns is not None else [];
+        mc_kwd: list[pattern] = mc.kwd_patterns if mc.kwd_patterns is not None else [];
+        nargs = len(mc_patterns);
+        nattrs = len(mc_kwd);
+        total = nargs + nattrs;
+        maxf = (on_top + 1) + nstores;
+        cur = on_top + total;
+        ns = nstores;
+        i = 0;
+        while i < total {
+            cur = cur - 1;
+            sp: pattern = mc_patterns[i] if i < nargs else mc_kwd[i - nargs];
+            if not match_pattern_wildcard(sp) {
+                sub = match_fail_levels(sp, cur, ns);
+                if sub[0] > maxf {
+                    maxf = sub[0];
+                }
+                ns = sub[1];
+            }
+            i = i + 1;
+        }
+        return (maxf, ns);
+    }
+    return (on_top + nstores, nstores);
+}
+
+def match_arm_cleanup_levels(p: pattern) -> int {
+    res = match_fail_levels(p, 0, 0);
+    if res[0] < 0 {
+        return 0;
+    }
+    return res[0];
+}
+
+# Allocate `levels` cleanup blocks + next_arm so their block ids ascend in the
+# exact layout order needed for fail-pop fallthrough chaining: the block reached
+# by an N-deep fail pops N items across N contiguous blocks that fall through to
+# next_arm. cleanup_blocks[i] is the target for a fail that must pop i+1 items.
+def match_begin_case(g: cfg_builder, levels: int) -> match_case_start {
+    # Deferred blocks: laid out at use() (CPython USE_LABEL) so the fail-pop chain
+    # and next_arm land after the arm body, and after any deferred blocks a MatchOr
+    # alternative emits. Placement order (not allocation order) is authoritative.
+    cleanup: list[basicblock] = [];
+    i = 0;
+    while i < levels {
+        blk = g.new_deferred_block();
+        blk.exit_inline_ok = True;
+        cleanup.append(blk);
+        i = i + 1;
+    }
+    next_arm = g.new_deferred_block();
+    next_arm.exit_inline_ok = True;
+    ctx = match_pat_ctx(
+        stores=[],
+        on_top=0,
+        cleanup_blocks=cleanup,
+        max_cleanup=0,
+        allow_irrefutable=False
+    );
+    return match_case_start(ctx=ctx, next_arm=next_arm);
+}
+
+def match_ensure_cleanup_blocks(g: cfg_builder, ctx: match_pat_ctx, n: int) {
+    while len(ctx.cleanup_blocks) < n {
+        blk = g.new_deferred_block();
+        ctx.cleanup_blocks.append(blk);
+    }
+}
+
+def match_jump_to_fail(
+    g: cfg_builder,
+    ctx: match_pat_ctx,
+    next_arm: basicblock,
+    jump_op: int,
+    loc: cloc
+) {
+    pops = ctx.on_top + len(ctx.stores);
+    if pops > ctx.max_cleanup {
+        ctx.max_cleanup = pops;
+    }
+    if pops == 0 {
+        g.emit_jump(jump_op, next_arm.id, loc);
+        return;
+    }
+    match_ensure_cleanup_blocks(g, ctx, pops);
+    g.emit_jump(jump_op, ctx.cleanup_blocks[pops - 1].id, loc);
+}
+
+def match_emit_reset_fail_pop(
+    g: cfg_builder, ctx: match_pat_ctx, next_arm: basicblock, loc: cloc
+) {
+    idx = ctx.max_cleanup - 1;
+    while idx >= 0 {
+        g.use(ctx.cleanup_blocks[idx]);
+        g.emit_op(OP_POP_TOP, 0, loc);
+        idx = idx - 1;
+    }
+    g.use(next_arm);
+    ctx.max_cleanup = 0;
+}
+
+def match_pattern_rotate(g: cfg_builder, loc: cloc, count: int) {
+    while count > 1 {
+        g.emit_op(OP_SWAP, count, loc);
+        count = count - 1;
+    }
+}
+
+def match_pattern_helper_store_name(
+    g: cfg_builder, name: str | None, ctx: match_pat_ctx, loc: cloc
+) -> bool {
+    if name is None {
+        g.emit_op(OP_POP_TOP, 0, loc);
+        return True;
+    }
+    si = 0;
+    while si < len(ctx.stores) {
+        if ctx.stores[si] == name {
+            codegen_fail(
+                g,
+                "SyntaxError",
+                "multiple assignments to name in pattern"
+            );
+            return False;
+        }
+        si = si + 1;
+    }
+    rot = ctx.on_top + len(ctx.stores) + 1;
+    match_pattern_rotate(g, loc, rot);
+    ctx.stores.append(name);
+    return True;
+}
+
+def match_emit_case_stores(g: cfg_builder, ctx: match_pat_ctx, loc: cloc) {
+    # Emit separate stores in capture order; optimize_swap_range folds adjacent
+    # STORE_FAST pairs into STORE_FAST_STORE_FAST (and reorders via static swaps)
+    # to match CPython's post-optimizer shape.
+    n = len(ctx.stores);
+    si = 0;
+    while si < n {
+        emit_name_store(g, ctx.stores[si], loc);
+        si = si + 1;
+    }
+}
+
+def emit_match_pattern_sub(
+    g: cfg_builder,
+    p: pattern,
+    ctx: match_pat_ctx,
+    next_arm: basicblock,
+    ploc: cloc
+) -> bool {
+    allow = ctx.allow_irrefutable;
+    ctx.allow_irrefutable = True;
+    ok = emit_match_pattern(g, p, ctx, next_arm, ploc);
+    ctx.allow_irrefutable = allow;
+    return ok;
+}
+
+def emit_match_pattern_value(
+    g: cfg_builder,
+    mv: MatchValue,
+    ctx: match_pat_ctx,
+    next_arm: basicblock,
+    ploc: cloc
+) -> bool {
+    visit_expr(g, mv.value);
+    if codegen_busy(g) {
+        return False;
+    }
+    oparg = compare_filter_oparg(CMP_EQ);
+    g.emit_op(OP_COMPARE_OP, oparg, ploc);
+    match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_FALSE, ploc);
+    return True;
+}
+
+def emit_match_pattern_singleton(
+    g: cfg_builder,
+    ms: MatchSingleton,
+    ctx: match_pat_ctx,
+    next_arm: basicblock,
+    ploc: cloc
+) -> bool {
+    if ms.value is None {
+        match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_NOT_NONE, ploc);
+        return True;
+    }
+    idx = g.u.add_const(ms.value);
+    g.emit_op(OP_LOAD_CONST, idx, ploc);
+    g.emit_op(OP_IS_OP, 0, ploc);
+    match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_FALSE, ploc);
+    return True;
+}
+
+def emit_match_pattern_as(
+    g: cfg_builder,
+    ma: MatchAs,
+    ctx: match_pat_ctx,
+    next_arm: basicblock,
+    ploc: cloc
+) -> bool {
+    if ma.pattern is None {
+        if not ctx.allow_irrefutable {
+            if ma.name is not None {
+                codegen_fail(
+                    g,
+                    "SyntaxError",
+                    "name capture makes remaining patterns unreachable"
+                );
+                return False;
+            }
+            codegen_fail(
+                g, "SyntaxError", "wildcard makes remaining patterns unreachable"
+            );
+            return False;
+        }
+        return match_pattern_helper_store_name(g, ma.name, ctx, ploc);
+    }
+    ctx.on_top = ctx.on_top + 1;
+    g.emit_op(OP_COPY, 1, ploc);
+    if not emit_match_pattern(g, ma.pattern, ctx, next_arm, ploc) {
+        return False;
+    }
+    ctx.on_top = ctx.on_top - 1;
+    return match_pattern_helper_store_name(g, ma.name, ctx, ploc);
+}
+
+def match_sequence_all_captures(patterns: list[pattern]) -> bool {
+    if len(patterns) == 0 {
+        return False;
+    }
+    pi = 0;
+    while pi < len(patterns) {
+        p = match_pattern_unwrap_or(patterns[pi]);
+        if not isinstance(p, MatchAs) {
+            return False;
+        }
+        ma = p as MatchAs;
+        if ma.pattern is not None or ma.name is None or ma.name == "_" {
+            return False;
+        }
+        pi = pi + 1;
+    }
+    return True;
+}
+
+def match_emit_sequence_capture_stores(
+    g: cfg_builder, patterns: list[pattern], ploc: cloc
+) {
+    n = len(patterns);
+    if n == 2 {
+        na = codegen_mangle(g, (match_pattern_unwrap_or(patterns[0]) as MatchAs).name);
+        nb = codegen_mangle(g, (match_pattern_unwrap_or(patterns[1]) as MatchAs).name);
+        fa = fast_local_index(g, na);
+        fb = fast_local_index(g, nb);
+        if fa >= 0 and fb >= 0 {
+            pair = fa * 16 + fb;
+            g.emit_op(OP_STORE_FAST_STORE_FAST, pair, ploc);
+            return;
+        }
+    }
+    pi = n - 1;
+    while pi >= 0 {
+        ma = match_pattern_unwrap_or(patterns[pi]) as MatchAs;
+        emit_name_store(g, ma.name, ploc);
+        pi = pi - 1;
+    }
+}
+
+def emit_match_pattern_sequence(
+    g: cfg_builder, ms: MatchSequence, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
+) -> bool {
+    patterns = ms.patterns;
+    size = len(patterns);
+    star = -1;
+    only_wildcard = 1;
+    pi = 0;
+    while pi < size {
+        pat = patterns[pi];
+        if isinstance(pat, MatchStar) {
+            if star >= 0 {
+                codegen_fail(
+                    g,
+                    "SyntaxError",
+                    "multiple starred names in sequence pattern"
+                );
+                return False;
+            }
+            star = pi;
+            mst = pat as MatchStar;
+            if mst.name is None {
+                only_wildcard = only_wildcard and 1;
+            } else {
+                only_wildcard = 0;
+            }
+            pi = pi + 1;
+            continue;
+        }
+        if match_pattern_wildcard(pat) {
+            only_wildcard = only_wildcard and 1;
+        } else {
+            only_wildcard = 0;
+        }
+        pi = pi + 1;
+    }
+    if star >= 0 {
+        codegen_fail(g, "NotImplementedError", "star sequence pattern not supported");
+        return False;
+    }
+    ctx.on_top = ctx.on_top + 1;
+    g.emit_op(OP_MATCH_SEQUENCE, 0, ploc);
+    match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_FALSE, ploc);
+    g.emit_op(OP_GET_LEN, 0, ploc);
+    # CPython interns the length const (ADDOP_LOAD_CONST_NEW) and the optimizer
+    # folds it to LOAD_SMALL_INT while keeping it in the pool, so later consts
+    # (e.g. a following class pattern's attr-name tuple) keep CPython's indices.
+    seq_sz_idx = g.u.add_const(PyInt(t="int", val=size));
+    g.emit_op(OP_LOAD_CONST, seq_sz_idx, ploc);
+    oparg = compare_oparg(CMP_EQ);
+    g.emit_op(OP_COMPARE_OP, oparg, ploc);
+    match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_FALSE, ploc);
+    ctx.on_top = ctx.on_top - 1;
+    if only_wildcard {
+        g.emit_op(OP_POP_TOP, 0, ploc);
+        return True;
+    }
+    if match_sequence_all_captures(patterns) {
+        g.emit_op(OP_UNPACK_SEQUENCE, size, ploc);
+        match_emit_sequence_capture_stores(g, patterns, ploc);
+        return True;
+    }
+    g.emit_op(OP_UNPACK_SEQUENCE, size, ploc);
+    ctx.on_top = ctx.on_top + size;
+    pi = 0;
+    while pi < size {
+        ctx.on_top = ctx.on_top - 1;
+        if not emit_match_pattern_sub(g, patterns[pi], ctx, next_arm, ploc) {
+            return False;
+        }
+        pi = pi + 1;
+    }
+    return True;
+}
+
+# CPython codegen_pattern_class. Emits the class-check, then unpacks the
+# attribute tuple and matches sub-patterns. Positional patterns first, then
+# keyword patterns (attr names carried in a const tuple for MATCH_CLASS).
+def emit_match_pattern_class(
+    g: cfg_builder, mc: MatchClass, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
+) -> bool {
+    cls_patterns: list[pattern] = mc.patterns if mc.patterns is not None else [];
+    kwd_attrs: list[str] = mc.kwd_attrs if mc.kwd_attrs is not None else [];
+    kwd_patterns: list[pattern] = mc.kwd_patterns if mc.kwd_patterns is not None else [];
+    nargs = len(cls_patterns);
+    nattrs = len(kwd_attrs);
+    if nattrs != len(kwd_patterns) {
+        codegen_fail(g, "SyntaxError", "kwd_attrs / kwd_patterns length mismatch in class pattern");
+        return False;
+    }
+    ai = 0;
+    while ai < nattrs {
+        aj = ai + 1;
+        while aj < nattrs {
+            if kwd_attrs[ai] == kwd_attrs[aj] {
+                codegen_fail(
+                    g, "SyntaxError", "attribute name repeated in class pattern: " + kwd_attrs[ai]
+                );
+                return False;
+            }
+            aj = aj + 1;
+        }
+        ai = ai + 1;
+    }
+    visit_expr(g, mc.cls);
+    if codegen_busy(g) {
+        return False;
+    }
+    attr_items: list[PyObj] = [];
+    ki = 0;
+    while ki < nattrs {
+        attr_items.append(PyStr(t="str", val=kwd_attrs[ki]));
+        ki = ki + 1;
+    }
+    names_idx = g.u.add_const(PyTuple(t="tuple", items=attr_items));
+    g.emit_op(OP_LOAD_CONST, names_idx, ploc);
+    g.emit_op(OP_MATCH_CLASS, nargs, ploc);
+    g.emit_op(OP_COPY, 1, ploc);
+    ctx.on_top = ctx.on_top + 1;
+    match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_NONE, ploc);
+    total = nargs + nattrs;
+    g.emit_op(OP_UNPACK_SEQUENCE, total, ploc);
+    ctx.on_top = ctx.on_top + total - 1;
+    i = 0;
+    while i < total {
+        ctx.on_top = ctx.on_top - 1;
+        sp: pattern = cls_patterns[i] if i < nargs else kwd_patterns[i - nargs];
+        if match_pattern_wildcard(sp) {
+            g.emit_op(OP_POP_TOP, 0, ploc);
+        } elif not emit_match_pattern_sub(g, sp, ctx, next_arm, ploc) {
+            return False;
+        }
+        i = i + 1;
+    }
+    return True;
+}
+
+# CPython codegen_pattern_mapping. MATCH_MAPPING + length check, MATCH_KEYS
+# against a key tuple, then sub-patterns on the values; **rest binds remaining
+# items via the CPython dict-copy/delete idiom.
+def emit_match_pattern_mapping(
+    g: cfg_builder, mm: MatchMapping, ctx: match_pat_ctx, next_arm: basicblock, ploc: cloc
+) -> bool {
+    keys: list[expr] = mm.keys if mm.keys is not None else [];
+    patterns: list[pattern] = mm.patterns if mm.patterns is not None else [];
+    size = len(keys);
+    if size != len(patterns) {
+        codegen_fail(g, "SyntaxError", "keys / patterns length mismatch in mapping pattern");
+        return False;
+    }
+    ctx.on_top = ctx.on_top + 1;
+    g.emit_op(OP_MATCH_MAPPING, 0, ploc);
+    match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_FALSE, ploc);
+    if size == 0 and mm.rest is None {
+        ctx.on_top = ctx.on_top - 1;
+        g.emit_op(OP_POP_TOP, 0, ploc);
+        return True;
+    }
+    if size > 0 {
+        g.emit_op(OP_GET_LEN, 0, ploc);
+        # CPython emits LOAD_CONST(size) (ADDOP_LOAD_CONST_NEW); rewrite_small_ints
+        # folds it to LOAD_SMALL_INT but keeps the const in the pool, so later
+        # consts (the key tuple) keep CPython's indices.
+        sz_idx = g.u.add_const(PyInt(t="int", val=size));
+        g.emit_op(OP_LOAD_CONST, sz_idx, ploc);
+        g.emit_op(OP_COMPARE_OP, compare_oparg(CMP_GE), ploc);
+        match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_FALSE, ploc);
+    }
+    all_const = True;
+    seen: list[PyObj] = [];
+    ki = 0;
+    while ki < size {
+        key = keys[ki];
+        if isinstance(key, Constant) {
+            kv = (key as Constant).value;
+            hk = kv.tp_hashkey();
+            si = 0;
+            while si < len(seen) {
+                if seen[si].tp_hashkey() == hk {
+                    codegen_fail(g, "SyntaxError", "mapping pattern checks duplicate key");
+                    return False;
+                }
+                si = si + 1;
+            }
+            seen.append(kv);
+        } elif isinstance(key, Attribute) {
+            all_const = False;
+        } else {
+            codegen_fail(
+                g, "SyntaxError", "mapping pattern keys may only match literals and attribute lookups"
+            );
+            return False;
+        }
+        ki = ki + 1;
+    }
+    if all_const {
+        key_items: list[PyObj] = [];
+        ki = 0;
+        while ki < size {
+            key_items.append((keys[ki] as Constant).value);
+            ki = ki + 1;
+        }
+        keys_idx = g.u.add_const(PyTuple(t="tuple", items=key_items));
+        g.emit_op(OP_LOAD_CONST, keys_idx, ploc);
+    } else {
+        ki = 0;
+        while ki < size {
+            visit_expr(g, keys[ki]);
+            if codegen_busy(g) {
+                return False;
+            }
+            ki = ki + 1;
+        }
+        g.emit_op(OP_BUILD_TUPLE, size, ploc);
+    }
+    g.emit_op(OP_MATCH_KEYS, 0, ploc);
+    ctx.on_top = ctx.on_top + 2;
+    g.emit_op(OP_COPY, 1, ploc);
+    match_jump_to_fail(g, ctx, next_arm, OP_POP_JUMP_IF_NONE, ploc);
+    g.emit_op(OP_UNPACK_SEQUENCE, size, ploc);
+    ctx.on_top = ctx.on_top + size - 1;
+    pi = 0;
+    while pi < size {
+        ctx.on_top = ctx.on_top - 1;
+        if not emit_match_pattern_sub(g, patterns[pi], ctx, next_arm, ploc) {
+            return False;
+        }
+        pi = pi + 1;
+    }
+    ctx.on_top = ctx.on_top - 2;
+    if mm.rest is not None {
+        g.emit_op(OP_BUILD_MAP, 0, ploc);
+        g.emit_op(OP_SWAP, 3, ploc);
+        g.emit_op(OP_DICT_UPDATE, 2, ploc);
+        g.emit_op(OP_UNPACK_SEQUENCE, size, ploc);
+        sz = size;
+        while sz > 0 {
+            g.emit_op(OP_COPY, 1 + sz, ploc);
+            g.emit_op(OP_SWAP, 2, ploc);
+            g.emit_op(OP_DELETE_SUBSCR, 0, ploc);
+            sz = sz - 1;
+        }
+        return match_pattern_helper_store_name(g, mm.rest, ctx, ploc);
+    }
+    g.emit_op(OP_POP_TOP, 0, ploc);
+    g.emit_op(OP_POP_TOP, 0, ploc);
+    return True;
+}
+
+# Lower a multi-alternative MatchOr (CPython codegen_pattern_or). Each alternative
+# copies the subject, tests it, and on success jumps to a shared `end`. On failure
+# it falls to the next alternative (subject preserved underneath); the last
+# alternative's failure pops the surviving subject and jumps to next_arm. `end`
+# and the per-alternative entries are deferred blocks so they lay out after the
+# preceding alternative bodies (allocation order != layout order). Captures inside
+# alternatives (name permutation across arms) need a sequence/display subject to
+# oracle-verify and are gated off until that slice lands.
+def emit_match_pattern_or(
+    g: cfg_builder,
+    mo: MatchOr,
+    ctx: match_pat_ctx,
+    next_arm: basicblock,
+    ploc: cloc
+) -> bool {
+    end = g.new_deferred_block();
+    end.exit_inline_ok = True;
+    size = len(mo.patterns);
+    outer_allow = ctx.allow_irrefutable;
+    i = 0;
+    while i < size {
+        alt = mo.patterns[i];
+        is_last = i == size - 1;
+        alt_fail = g.new_deferred_block();
+        g.emit_op(OP_COPY, 1, ploc);
+        alt_ctx = match_pat_ctx(
+            stores=[],
+            on_top=0,
+            cleanup_blocks=[],
+            max_cleanup=0,
+            allow_irrefutable=is_last and outer_allow
+        );
+        if not emit_match_pattern(g, alt, alt_ctx, alt_fail, ploc) {
+            return False;
+        }
+        if codegen_busy(g) {
+            return False;
+        }
+        if len(alt_ctx.stores) != 0 {
+            codegen_fail(
+                g, "NotImplementedError", "capture inside match-or alternative"
+            );
+            return False;
+        }
+        g.emit_jump(OP_JUMP_FORWARD, end.id, ploc);
+        g.use(alt_fail);
+        if is_last {
+            # Total failure: pop the subject copy that survived every alternative,
+            # then continue to the arm's fail target.
+            g.emit_op(OP_POP_TOP, 0, ploc);
+            g.emit_jump(OP_JUMP_FORWARD, next_arm.id, ploc);
+        }
+        i = i + 1;
+    }
+    g.use(end);
+    g.emit_op(OP_POP_TOP, 0, ploc);
+    return True;
+}
+
+def emit_match_pattern(
+    g: cfg_builder,
+    p: pattern,
+    ctx: match_pat_ctx,
+    next_arm: basicblock,
+    ploc: cloc
+) -> bool {
+    if isinstance(p, MatchOr) {
+        mo = p as MatchOr;
+        if len(mo.patterns) > 1 {
+            return emit_match_pattern_or(g, mo, ctx, next_arm, ploc);
+        }
+    }
+    p = match_pattern_unwrap_or(p);
+    if isinstance(p, MatchValue) {
+        return emit_match_pattern_value(g, p as MatchValue, ctx, next_arm, ploc);
+    }
+    if isinstance(p, MatchSingleton) {
+        return emit_match_pattern_singleton(g, p as MatchSingleton, ctx, next_arm, ploc);
+    }
+    if isinstance(p, MatchAs) {
+        return emit_match_pattern_as(g, p as MatchAs, ctx, next_arm, ploc);
+    }
+    if isinstance(p, MatchSequence) {
+        return emit_match_pattern_sequence(g, p as MatchSequence, ctx, next_arm, ploc);
+    }
+    if isinstance(p, MatchClass) {
+        return emit_match_pattern_class(g, p as MatchClass, ctx, next_arm, ploc);
+    }
+    if isinstance(p, MatchMapping) {
+        return emit_match_pattern_mapping(g, p as MatchMapping, ctx, next_arm, ploc);
+    }
+    codegen_fail(g, "NotImplementedError", "unsupported match pattern");
+    return False;
+}
+
+# Lower match (CPython codegen_match_inner shape; slice 1–3 patterns + guards).
+def visit_match(
+    g: cfg_builder,
+    m: Match,
+    more_code_follows: bool,
+    tail: list[stmt] | None = None,
+    tail_idx: int = 0,
+    tail_join: basicblock | None = None
+) -> stmt_cont {
+    mloc = stmt_loc(m);
+    if len(m.cases) == 0 {
+        return stmt_cont(loc=mloc);
+    }
+    match_emit_subject(g, m);
+    if codegen_busy(g) {
+        return stmt_cont(loc=mloc);
+    }
+    has_default = 0;
+    if len(m.cases) > 1 {
+        last_pat = m.cases[len(m.cases) - 1].pattern;
+        if match_pattern_wildcard(last_pat) {
+            has_default = 1;
+        }
+    }
+    join_blk = tail_join;
+    owns_join = False;
+    if more_code_follows {
+        if join_blk is None {
+            join_blk = g.new_deferred_block();
+            join_blk.exit_inline_ok = True;
+            owns_join = True;
+        }
+    }
+    match_end = join_blk;
+    owns_match_end = False;
+    if match_end is None {
+        match_end = g.new_deferred_block();
+        match_end.exit_inline_ok = True;
+        owns_match_end = True;
+    }
+    body_follows = more_code_follows;
+    if not body_follows and tail is not None and tail_idx < len(tail) {
+        body_follows = True;
+    }
+    loop_end = len(m.cases) - has_default;
+    terminated = False;
+    ci = 0;
+    while ci < loop_end {
+        arm = m.cases[ci];
+        ploc = match_pattern_loc(arm.pattern);
+        start = match_begin_case(g, match_arm_cleanup_levels(arm.pattern));
+        ctx = start.ctx;
+        next_arm = start.next_arm;
+        if ci != loop_end - 1 {
+            g.emit_op(OP_COPY, 1, ploc);
+        }
+        ctx.allow_irrefutable = arm.guard is not None or ci == loop_end - 1;
+        opt_lo = len(g.cur.instrs);
+        if not emit_match_pattern(g, arm.pattern, ctx, next_arm, ploc) {
+            return stmt_cont(loc=mloc);
+        }
+        if codegen_busy(g) {
+            return stmt_cont(loc=mloc);
+        }
+        match_emit_case_stores(g, ctx, ploc);
+        # Fold the arm's naive rotate (SWAP) + separate stores into CPython's
+        # optimized shape (swaptimize + static swaps + STORE_FAST_STORE_FAST).
+        optimize_swap_range(g.cur, opt_lo);
+        if arm.guard is not None {
+            gloc = expr_loc(arm.guard);
+            visit_test_expr(g, arm.guard, gloc);
+            if codegen_busy(g) {
+                return stmt_cont(loc=mloc);
+            }
+            g.emit_jump(OP_POP_JUMP_IF_FALSE, next_arm.id, gloc);
+        }
+        if ci != loop_end - 1 {
+            g.emit_op(OP_POP_TOP, 0, ploc);
+        }
+        body_cont = visit_stmts(
+            g, arm.body, 0, body_follows, tail, tail_idx, join_blk
+        );
+        if codegen_busy(g) {
+            return stmt_cont(loc=mloc);
+        }
+        if body_cont.terminated {
+            terminated = True;
+        } else {
+            g.emit_jump(OP_JUMP_FORWARD, match_end.id, ploc);
+        }
+        match_emit_reset_fail_pop(g, ctx, next_arm, ploc);
+        ci = ci + 1;
+    }
+    if has_default {
+        arm = m.cases[len(m.cases) - 1];
+        ploc = match_pattern_loc(arm.pattern);
+        if len(m.cases) == 1 {
+            g.emit_op(OP_POP_TOP, 0, ploc);
+        } else {
+            g.emit_op(OP_NOP, 0, ploc);
+        }
+        if arm.guard is not None {
+            gloc = expr_loc(arm.guard);
+            visit_test_expr(g, arm.guard, gloc);
+            if codegen_busy(g) {
+                return stmt_cont(loc=mloc);
+            }
+            g.emit_jump(OP_POP_JUMP_IF_FALSE, match_end.id, gloc);
+        }
+        body_cont = visit_stmts(
+            g, arm.body, 0, body_follows, tail, tail_idx, join_blk
+        );
+        if codegen_busy(g) {
+            return stmt_cont(loc=mloc);
+        }
+        if body_cont.terminated {
+            terminated = True;
+        }
+    }
+    if owns_match_end {
+        g.use(match_end);
+        if not more_code_follows and not terminated {
+            emit_module_return(g, mloc);
+            terminated = True;
+        }
+    }
+    if owns_join and join_blk is not None {
+        g.use(join_blk);
+        tail_more = exec_tail_emits_code(tail, tail_idx);
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        return stmt_cont(
+            loc=tail_cont.loc,
+            next_si=len(tail),
+            terminated=terminated or tail_cont.terminated
+        );
+    }
+    return stmt_cont(loc=mloc, terminated=terminated);
 }
 
 # Lower an if/while test (CPython bool context): single Compare uses COMPARE_OP
@@ -3540,6 +5099,171 @@ def visit_for(
     return stmt_cont(loc=floc, terminated=True);
 }
 
+def visit_async_for(
+    g: cfg_builder, af: AsyncFor, more_code_follows: bool, tail: list[stmt], tail_idx: int
+) -> stmt_cont {
+    floc = nloc(af.lineno, af.end_lineno, af.col_offset, af.end_col_offset);
+    iter_loc = expr_loc(af.iter);
+    visit_expr(g, af.iter);
+    if codegen_busy(g) {
+        return stmt_cont(loc=floc);
+    }
+    g.emit_op(OP_GET_AITER, 0, iter_loc);
+    loop_hdr = g.new_block();
+    has_break = loop_body_has_break(af.body);
+    als = emit_anext_send_loop_header(g, loop_hdr, 3, iter_loc);
+    if more_code_follows {
+        store_blk = g.new_block();
+        g.use(store_blk);
+        g.emit_op(OP_NOT_TAKEN, 0, iter_loc);
+        break_tgt = loop_hdr;
+        if has_break {
+            break_tgt = g.new_block();
+        }
+        g.push_loop(loop_hdr, break_tgt, has_break);
+        store = visit_store_target_tos(g, af.target);
+        if codegen_busy(g) {
+            g.pop_loop();
+            return stmt_cont(loc=store.loc);
+        }
+        body_cont = visit_stmts(g, af.body);
+        if codegen_busy(g) {
+            g.pop_loop();
+            return stmt_cont(loc=body_cont.loc);
+        }
+        if not body_cont.terminated {
+            g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, body_cont.loc);
+        }
+        g.pop_loop();
+        (cleanup_throw, cleanup_jump) = emit_anext_send_loop_footer(g, als, iter_loc);
+        end_async_handler = g.new_block();
+        emit_anext_send_except_regions(
+            g, als, store_blk, cleanup_throw, cleanup_jump, end_async_handler
+        );
+        g.u.except_regions.append(
+            except_region(
+                start_block=store_blk.id,
+                end_block=cleanup_throw.id,
+                handler_block=-1,
+                stack_depth=2,
+                preserve_lasti=True
+            )
+        );
+        g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
+        tail_more = exec_tail_emits_code(tail, tail_idx);
+        after = g.new_block();
+        if has_break {
+            g.use(break_tgt);
+            g.emit_op(OP_POP_TOP, 0, iter_loc);
+            if tail_more {
+                g.emit_jump(OP_JUMP_FORWARD, after.id, iter_loc);
+            } else {
+                br_cont = emit_tail_and_finish(g, tail, tail_idx, floc);
+                if codegen_busy(g) {
+                    return br_cont;
+                }
+            }
+        }
+        g.use(end_async_handler);
+        g.emit_jump(OP_END_ASYNC_FOR, als.end_send_blk.id, iter_loc);
+        g.async_for_end_async_block = end_async_handler.id;
+        g.u.except_regions.append(
+            except_region(
+                start_block=end_async_handler.id,
+                end_block=-1,
+                handler_block=-1,
+                stack_depth=2,
+                preserve_lasti=True
+            )
+        );
+        g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
+        g.use(after);
+        if len(af.orelse) > 0 {
+            else_cont = visit_stmts(g, af.orelse);
+            if codegen_busy(g) {
+                return stmt_cont(loc=else_cont.loc);
+            }
+        }
+        if has_break and not tail_more {
+            return stmt_cont(loc=floc, next_si=len(tail), terminated=True);
+        }
+        tail_cont = visit_stmt_tail(g, tail, tail_idx, tail_more);
+        return stmt_cont(
+            loc=tail_cont.loc,
+            next_si=len(tail),
+            terminated=tail_cont.terminated
+        );
+    }
+    needs_break_stub = has_break;
+    store_blk = g.new_block();
+    g.use(store_blk);
+    g.emit_op(OP_NOT_TAKEN, 0, iter_loc);
+    break_tgt = loop_hdr;
+    if needs_break_stub {
+        break_tgt = g.new_block();
+    }
+    g.push_loop(loop_hdr, break_tgt, needs_break_stub);
+    store = visit_store_target_tos(g, af.target);
+    if codegen_busy(g) {
+        g.pop_loop();
+        return stmt_cont(loc=store.loc);
+    }
+    body_cont = visit_stmts(g, af.body);
+    if codegen_busy(g) {
+        g.pop_loop();
+        return stmt_cont(loc=body_cont.loc);
+    }
+    if not body_cont.terminated {
+        g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, body_cont.loc);
+    }
+    g.pop_loop();
+    (cleanup_throw, cleanup_jump) = emit_anext_send_loop_footer(g, als, iter_loc);
+    end_async_handler = g.new_block();
+    emit_anext_send_except_regions(
+        g, als, store_blk, cleanup_throw, cleanup_jump, end_async_handler
+    );
+    g.u.except_regions.append(
+        except_region(
+            start_block=store_blk.id,
+            end_block=cleanup_throw.id,
+            handler_block=-1,
+            stack_depth=2,
+            preserve_lasti=True
+        )
+    );
+    g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
+    if needs_break_stub {
+        g.use(break_tgt);
+        g.emit_op(OP_POP_TOP, 0, iter_loc);
+        emit_module_return(g, iter_loc);
+    }
+    after = g.new_block();
+    g.use(end_async_handler);
+    g.emit_jump(OP_END_ASYNC_FOR, als.end_send_blk.id, iter_loc);
+    g.async_for_end_async_block = end_async_handler.id;
+    g.u.except_regions.append(
+        except_region(
+            start_block=end_async_handler.id,
+            end_block=-1,
+            handler_block=-1,
+            stack_depth=2,
+            preserve_lasti=True
+        )
+    );
+    g.u.pending_pep479_regions.append(len(g.u.except_regions) - 1);
+    g.use(after);
+    if len(af.orelse) > 0 {
+        else_cont = visit_stmts(g, af.orelse);
+        if codegen_busy(g) {
+            return stmt_cont(loc=else_cont.loc);
+        }
+        emit_module_return(g, else_cont.loc);
+    } else {
+        emit_module_return(g, iter_loc);
+    }
+    return stmt_cont(loc=floc, terminated=True);
+}
+
 # Module-local name bound by `import` / `from ... import`.
 def import_bind_name(a: alias) -> str {
     if a.asname is not None {
@@ -3635,6 +5359,16 @@ def visit_stmt(
         copy_loc = nloc(
             asgn.lineno, asgn.end_lineno, asgn.col_offset, asgn.end_col_offset
         );
+        if len(asgn.targets) == 1 and isinstance(asgn.value, Name) {
+            vn = asgn.value as Name;
+            vfi = fast_local_index(g, codegen_mangle(g, vn.id));
+            if vfi >= 0 {
+                vloc = expr_loc(vn);
+                g.emit_op(OP_LOAD_FAST, vfi, vloc);
+                emit = visit_store_target_tos(g, asgn.targets[0]);
+                return stmt_cont(loc=emit.loc);
+            }
+        }
         cmp_cleanup = visit_expr(g, asgn.value, False, False);
         if cmp_cleanup is not None and more_code_follows {
             join = g.new_block();
@@ -3807,6 +5541,13 @@ def visit_stmt(
         }
         return visit_for(g, s as For, more_code_follows, t, tail_idx);
     }
+    if isinstance(s, AsyncFor) {
+        t = tail;
+        if t is None {
+            t = [];
+        }
+        return visit_async_for(g, s as AsyncFor, more_code_follows, t, tail_idx);
+    }
     if isinstance(s, Break) {
         b = s as Break;
         bloc = stmt_loc(b);
@@ -3869,6 +5610,20 @@ def visit_stmt(
         }
         return visit_with(g, s as With, more_code_follows, t, tail_idx, tail_join);
     }
+    if isinstance(s, AsyncWith) {
+        t = tail;
+        if t is None {
+            t = [];
+        }
+        return visit_async_with(g, s as AsyncWith, more_code_follows, t, tail_idx, tail_join);
+    }
+    if isinstance(s, Match) {
+        t = tail;
+        if t is None {
+            t = [];
+        }
+        return visit_match(g, s as Match, more_code_follows, t, tail_idx, tail_join);
+    }
     if isinstance(s, Assert) {
         return visit_assert_stmt(g, s as Assert);
     }
@@ -3881,9 +5636,27 @@ def visit_stmt(
 }
 
 # Emit a Return statement and finish the compile unit (no module epilogue).
-def visit_return_stmt(g: cfg_builder, r: Return) {
+def visit_return_stmt(
+    g: cfg_builder, r: Return, check_fast: bool = False, borrow_fast: bool = False
+) {
     rloc = nloc(r.lineno, r.end_lineno, r.col_offset, r.end_col_offset);
     if r.value is not None {
+        if isinstance(r.value, Name) {
+            n = r.value as Name;
+            name = codegen_mangle(g, n.id);
+            fi = fast_local_index(g, name);
+            if fi >= 0 {
+                if check_fast {
+                    g.emit_op(OP_LOAD_FAST_CHECK, fi, rloc);
+                } elif borrow_fast {
+                    g.emit_op(OP_LOAD_FAST_BORROW, fi, rloc);
+                } else {
+                    g.emit_op(OP_LOAD_FAST, fi, rloc);
+                }
+                g.emit_op(OP_RETURN_VALUE, 0, rloc);
+                return;
+            }
+        }
         visit_expr(g, r.value);
         g.emit_op(OP_RETURN_VALUE, 0, rloc);
         return;

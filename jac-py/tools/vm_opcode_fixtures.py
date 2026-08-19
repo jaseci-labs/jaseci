@@ -77,7 +77,10 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "DELETE_ATTR",
     "DELETE_SUBSCR",
     "POP_JUMP_IF_FALSE",
+    "NOT_TAKEN",
     "POP_JUMP_IF_TRUE",
+    "POP_JUMP_IF_NOT_NONE",
+    "IS_OP",
     "JUMP_FORWARD",
     "COPY",
     "SWAP",
@@ -90,6 +93,9 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "SET_ADD",
     "BUILD_MAP",
     "MAP_ADD",
+    "DICT_UPDATE",
+    "LOAD_FAST",
+    "LOAD_FAST_CHECK",
     "LOAD_FAST_BORROW",
     "LOAD_FAST_BORROW_LOAD_FAST_BORROW",
     "STORE_FAST_STORE_FAST",
@@ -128,6 +134,15 @@ EMISSION_OPCODES: tuple[str, ...] = (
     "CLEANUP_THROW",
     "JUMP_BACKWARD_NO_INTERRUPT",
     "GET_AWAITABLE",
+    "GET_AITER",
+    "GET_ANEXT",
+    "END_ASYNC_FOR",
+    # Band 8: structural pattern matching opcodes.
+    "GET_LEN",
+    "MATCH_SEQUENCE",
+    "MATCH_MAPPING",
+    "MATCH_KEYS",
+    "MATCH_CLASS",
 )
 
 # CPython 3.14 may not emit JUMP_FORWARD in normal compilation; jacpython's
@@ -228,6 +243,11 @@ FIXTURES: tuple[VmFixture, ...] = (
         "if x:\n    result = 1\nelse:\n    result = 2\n",
         setup="x = 0\n",
     ),
+    VmFixture(
+        "NOT_TAKEN",
+        "if x:\n    result = 1\nelse:\n    result = 2\n",
+        setup="x = 0\n",
+    ),
     VmFixture("POP_JUMP_IF_TRUE", "result = x or y\n", setup="x = 0\ny = 2\n"),
     VmFixture("COPY", "x = y = 42\nresult = x + y\n"),
     VmFixture(
@@ -290,6 +310,41 @@ FIXTURES: tuple[VmFixture, ...] = (
         "MAP_ADD",
         "result = {x: x for x in y}\n",
         setup="y = [1, 2, 3]\n",
+    ),
+    VmFixture(
+        "DICT_UPDATE",
+        "result = {**y, 'z': 9}\n",
+        setup="y = {'a': 1}\n",
+    ),
+    VmFixture(
+        "LOAD_FAST",
+        "class AI:\n"
+        "    def __aiter__(self):\n"
+        "        return self\n"
+        "    async def __anext__(self):\n"
+        "        if getattr(self, 'done', False):\n"
+        "            raise StopAsyncIteration\n"
+        "        self.done = True\n"
+        "        return 42\n"
+        "async def f():\n"
+        "    total = 0\n"
+        "    async for x in AI():\n"
+        "        total = total + x\n"
+        "    return total\n"
+        "c = f()\n"
+        "result = 0\n"
+        "try:\n"
+        "    c.send(None)\n"
+        "except StopIteration as e:\n"
+        "    result = e.value\n",
+    ),
+    VmFixture(
+        "LOAD_FAST_CHECK",
+        "def f(x):\n"
+        "    if x:\n"
+        "        y = 1\n"
+        "    return y\n"
+        "result = f(1)\n",
     ),
     VmFixture(
         "LOAD_FAST_BORROW",
@@ -448,6 +503,100 @@ FIXTURES: tuple[VmFixture, ...] = (
         "    c.send(None)\n"
         "except StopIteration as e:\n"
         "    result = e.value\n",
+    ),
+    VmFixture(
+        "GET_AITER",
+        "class AI:\n"
+        "    def __aiter__(self):\n"
+        "        return self\n"
+        "    async def __anext__(self):\n"
+        "        if getattr(self, 'done', False):\n"
+        "            raise StopAsyncIteration\n"
+        "        self.done = True\n"
+        "        return 42\n"
+        "async def f():\n"
+        "    total = 0\n"
+        "    async for x in AI():\n"
+        "        total = total + x\n"
+        "    return total\n"
+        "c = f()\n"
+        "result = 0\n"
+        "try:\n"
+        "    c.send(None)\n"
+        "except StopIteration as e:\n"
+        "    result = e.value\n",
+    ),
+    VmFixture(
+        "GET_ANEXT",
+        "class AI:\n"
+        "    def __aiter__(self):\n"
+        "        return self\n"
+        "    async def __anext__(self):\n"
+        "        if getattr(self, 'done', False):\n"
+        "            raise StopAsyncIteration\n"
+        "        self.done = True\n"
+        "        return 42\n"
+        "async def f():\n"
+        "    total = 0\n"
+        "    async for x in AI():\n"
+        "        total = total + x\n"
+        "    return total\n"
+        "c = f()\n"
+        "result = 0\n"
+        "try:\n"
+        "    c.send(None)\n"
+        "except StopIteration as e:\n"
+        "    result = e.value\n",
+    ),
+    VmFixture(
+        "END_ASYNC_FOR",
+        "class AI:\n"
+        "    def __aiter__(self):\n"
+        "        return self\n"
+        "    async def __anext__(self):\n"
+        "        if getattr(self, 'done', False):\n"
+        "            raise StopAsyncIteration\n"
+        "        self.done = True\n"
+        "        return 42\n"
+        "async def f():\n"
+        "    total = 0\n"
+        "    async for x in AI():\n"
+        "        total = total + x\n"
+        "    return total\n"
+        "c = f()\n"
+        "result = 0\n"
+        "try:\n"
+        "    c.send(None)\n"
+        "except StopIteration as e:\n"
+        "    result = e.value\n",
+    ),
+    VmFixture(
+        "MATCH_SEQUENCE",
+        "x = [1, 2]\nmatch x:\n    case [a, b]:\n        result = a + b\n    case _:\n        result = 0\n",
+    ),
+    VmFixture(
+        "GET_LEN",
+        "x = [1, 2]\nmatch x:\n    case [a, b]:\n        result = a + b\n    case _:\n        result = 0\n",
+    ),
+    VmFixture(
+        "MATCH_MAPPING",
+        "x = {'a': 1, 'b': 2}\nmatch x:\n    case {'a': av, 'b': bv}:\n        result = av + bv\n    case _:\n        result = 0\n",
+    ),
+    VmFixture(
+        "MATCH_KEYS",
+        "x = {'a': 1, 'b': 2}\nmatch x:\n    case {'a': av, 'b': bv}:\n        result = av + bv\n    case _:\n        result = 0\n",
+    ),
+    VmFixture(
+        "MATCH_CLASS",
+        "class Point:\n    __match_args__ = ('x', 'y')\n    def __init__(self, x, y):\n        self.x = x\n        self.y = y\np = Point(1, 2)\nmatch p:\n    case Point(x, y):\n        result = x + y\n    case _:\n        result = 0\n",
+    ),
+    VmFixture(
+        "POP_JUMP_IF_NOT_NONE",
+        "def f(x):\n    match x:\n        case None:\n            return 0\n        case _:\n            return 1\nresult = f(1)\n",
+    ),
+    VmFixture(
+        "IS_OP",
+        "def f(x):\n    match x:\n        case True:\n            return 1\n        case _:\n            return 0\nresult = f(True)\n",
     ),
 )
 

@@ -56,6 +56,17 @@ import from ast_nodes {
     Del,
     arg,
     arguments,
+    Match,
+    match_case,
+    pattern,
+    MatchValue,
+    MatchSingleton,
+    MatchAs,
+    MatchOr,
+    MatchSequence,
+    MatchStar,
+    MatchMapping,
+    MatchClass,
 }
 import from compiler_diagnostics {
     symbol_diagnostic,
@@ -91,6 +102,7 @@ obj sym_block {
         comprehension: str | None = None,
         symbols: dict[str, int] = {},
         varnames: list[str] = [],
+        local_varnames: list[str] = [],
         directive_lineno: dict[str, int] = {},
         directive_col: dict[str, int] = {},
         children: list[sym_block] = [];
@@ -237,6 +249,11 @@ obj sym_builder {
         }
         if sym_flag_set(flags, DEF_PARAM) {
             self.cur.varnames.append(mangled);
+        } elif self.cur.block_type == "function" and sym_flag_set(flags, DEF_LOCAL) {
+            if not sym_flag_set(cur_flags, DEF_LOCAL)
+                and not sym_flag_set(cur_flags, DEF_PARAM) {
+                self.cur.local_varnames.append(mangled);
+            }
         }
         return True;
     }
@@ -716,6 +733,132 @@ def sym_import_bind_name(a: alias) -> str {
     return parts[0];
 }
 
+def sym_visit_pattern(b: sym_builder, p: pattern) -> bool {
+    if b.diag is not None {
+        return False;
+    }
+    p = sym_match_pattern_unwrap_or(p);
+    if isinstance(p, MatchValue) {
+        return sym_visit_load_expr(b, (p as MatchValue).value);
+    }
+    if isinstance(p, MatchSingleton) {
+        return True;
+    }
+    if isinstance(p, MatchSequence) {
+        ms = p as MatchSequence;
+        pi = 0;
+        while pi < len(ms.patterns) {
+            if not sym_visit_pattern(b, ms.patterns[pi]) {
+                return False;
+            }
+            pi = pi + 1;
+        }
+        return True;
+    }
+    if isinstance(p, MatchStar) {
+        mst = p as MatchStar;
+        if mst.name is not None and mst.name != "_" {
+            if not b.add_def(mst.name, DEF_LOCAL, mst.lineno, mst.col_offset) {
+                return False;
+            }
+        }
+        return True;
+    }
+    if isinstance(p, MatchOr) {
+        mo = p as MatchOr;
+        pi = 0;
+        while pi < len(mo.patterns) {
+            if not sym_visit_pattern(b, mo.patterns[pi]) {
+                return False;
+            }
+            pi = pi + 1;
+        }
+        return True;
+    }
+    if isinstance(p, MatchAs) {
+        ma = p as MatchAs;
+        if ma.pattern is not None {
+            if not sym_visit_pattern(b, ma.pattern) {
+                return False;
+            }
+        }
+        if ma.name is not None and ma.name != "_" {
+            if not b.add_def(ma.name, DEF_LOCAL, ma.lineno, ma.col_offset) {
+                return False;
+            }
+        }
+        return True;
+    }
+    if isinstance(p, MatchMapping) {
+        mm = p as MatchMapping;
+        if mm.keys is not None {
+            ki = 0;
+            while ki < len(mm.keys) {
+                if not sym_visit_load_expr(b, mm.keys[ki]) {
+                    return False;
+                }
+                ki = ki + 1;
+            }
+        }
+        if mm.patterns is not None {
+            pi = 0;
+            while pi < len(mm.patterns) {
+                if not sym_visit_pattern(b, mm.patterns[pi]) {
+                    return False;
+                }
+                pi = pi + 1;
+            }
+        }
+        if mm.rest is not None and mm.rest != "_" {
+            if not b.add_def(mm.rest, DEF_LOCAL, mm.lineno, mm.col_offset) {
+                return False;
+            }
+        }
+        return True;
+    }
+    if isinstance(p, MatchClass) {
+        mc = p as MatchClass;
+        if not sym_visit_load_expr(b, mc.cls) {
+            return False;
+        }
+        if mc.patterns is not None {
+            pi = 0;
+            while pi < len(mc.patterns) {
+                if not sym_visit_pattern(b, mc.patterns[pi]) {
+                    return False;
+                }
+                pi = pi + 1;
+            }
+        }
+        if mc.kwd_patterns is not None {
+            ki = 0;
+            while ki < len(mc.kwd_patterns) {
+                if not sym_visit_pattern(b, mc.kwd_patterns[ki]) {
+                    return False;
+                }
+                ki = ki + 1;
+            }
+        }
+        return True;
+    }
+    return b.fail(
+        "NotImplementedError",
+        "unsupported match pattern",
+        p.lineno,
+        p.col_offset
+    );
+}
+
+def sym_match_pattern_unwrap_or(p: pattern) -> pattern {
+    if isinstance(p, MatchOr) {
+        mo = p as MatchOr;
+        if len(mo.patterns) == 1 {
+            return mo.patterns[0];
+        }
+    }
+    return p;
+}
+
 def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
     if b.diag is not None {
         return False;
@@ -822,6 +965,7 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
         return True;
     }
     if isinstance(s, For)
+        or isinstance(s, AsyncFor)
         or isinstance(s, While)
         or isinstance(s, If)
         or isinstance(s, Try) {
@@ -837,6 +981,16 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
             }
             body = fo.body;
             orelse = fo.orelse;
+        } elif isinstance(s, AsyncFor) {
+            afo = s as AsyncFor;
+            if not sym_visit_store_target(b, afo.target) {
+                return False;
+            }
+            if not sym_visit_load_expr(b, afo.iter) {
+                return False;
+            }
+            body = afo.body;
+            orelse = afo.orelse;
         } elif isinstance(s, While) {
             wh = s as While;
             if not sym_visit_load_expr(b, wh.test) {
@@ -855,34 +1009,38 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
             tr = s as Try;
             body = tr.body;
             orelse = tr.orelse;
-            hi = 0;
-            while hi < len(tr.handlers) {
-                h = tr.handlers[hi];
-                if h.type is not None {
-                    if not sym_visit_load_expr(b, h.type) {
-                        return False;
+            if tr.handlers is not None {
+                hi = 0;
+                while hi < len(tr.handlers) {
+                    h = tr.handlers[hi];
+                    if h.type is not None {
+                        if not sym_visit_load_expr(b, h.type) {
+                            return False;
+                        }
                     }
-                }
-                if h.name is not None {
-                    if not b.add_def(h.name, DEF_LOCAL, h.lineno, h.col_offset) {
-                        return False;
+                    if h.name is not None {
+                        if not b.add_def(h.name, DEF_LOCAL, h.lineno, h.col_offset) {
+                            return False;
+                        }
                     }
-                }
-                bi = 0;
-                while bi < len(h.body) {
-                    if not sym_visit_stmt(b, h.body[bi]) {
-                        return False;
+                    bi = 0;
+                    while bi < len(h.body) {
+                        if not sym_visit_stmt(b, h.body[bi]) {
+                            return False;
+                        }
+                        bi = bi + 1;
                     }
-                    bi = bi + 1;
+                    hi = hi + 1;
                 }
-                hi = hi + 1;
             }
             fi = 0;
-            while fi < len(tr.finalbody) {
-                if not sym_visit_stmt(b, tr.finalbody[fi]) {
-                    return False;
+            if tr.finalbody is not None {
+                while fi < len(tr.finalbody) {
+                    if not sym_visit_stmt(b, tr.finalbody[fi]) {
+                        return False;
+                    }
+                    fi = fi + 1;
                 }
-                fi = fi + 1;
             }
         }
         bi = 0;
@@ -893,16 +1051,42 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
             bi = bi + 1;
         }
         oi = 0;
-        while oi < len(orelse) {
-            if not sym_visit_stmt(b, orelse[oi]) {
-                return False;
+        if orelse is not None {
+            while oi < len(orelse) {
+                if not sym_visit_stmt(b, orelse[oi]) {
+                    return False;
+                }
+                oi = oi + 1;
             }
-            oi = oi + 1;
         }
         return True;
     }
     if isinstance(s, With) {
         wi = s as With;
+        ii = 0;
+        while ii < len(wi.items) {
+            item = wi.items[ii];
+            if not sym_visit_load_expr(b, item.context_expr) {
+                return False;
+            }
+            if item.optional_vars is not None {
+                if not sym_visit_store_target(b, item.optional_vars) {
+                    return False;
+                }
+            }
+            ii = ii + 1;
+        }
+        bi = 0;
+        while bi < len(wi.body) {
+            if not sym_visit_stmt(b, wi.body[bi]) {
+                return False;
+            }
+            bi = bi + 1;
+        }
+        return True;
+    }
+    if isinstance(s, AsyncWith) {
+        wi = s as AsyncWith;
         ii = 0;
         while ii < len(wi.items) {
             item = wi.items[ii];
@@ -1041,6 +1225,33 @@ def sym_visit_stmt(b: sym_builder, s: stmt) -> bool {
                 return False;
             }
             ni = ni + 1;
+        }
+        return True;
+    }
+    if isinstance(s, Match) {
+        m = s as Match;
+        if not sym_visit_load_expr(b, m.subject) {
+            return False;
+        }
+        ci = 0;
+        while ci < len(m.cases) {
+            mc = m.cases[ci];
+            if mc.guard is not None {
+                if not sym_visit_load_expr(b, mc.guard) {
+                    return False;
+                }
+            }
+            if not sym_visit_pattern(b, mc.pattern) {
+                return False;
+            }
+            bi = 0;
+            while bi < len(mc.body) {
+                if not sym_visit_stmt(b, mc.body[bi]) {
+                    return False;
+                }
+                bi = bi + 1;
+            }
+            ci = ci + 1;
         }
         return True;
     }

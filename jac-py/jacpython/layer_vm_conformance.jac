@@ -340,6 +340,13 @@ test "vm: POP_JUMP_IF_FALSE selects else branch" {
     );
 }
 
+# vm-opcode: OP_NOT_TAKEN
+test "vm: NOT_TAKEN follows conditional branch in if/else" {
+    assert_vm_value_matches_host(
+        "x = 0\n", "if x:\n    result = 1\nelse:\n    result = 2\n", "exec", "result",
+    );
+}
+
 # vm-opcode: OP_POP_JUMP_IF_TRUE
 test "vm: POP_JUMP_IF_TRUE short-circuits or" {
     assert_vm_value_matches_host(
@@ -479,6 +486,30 @@ test "vm: BUILD_MAP builds dict comprehension accumulator" {
 test "vm: MAP_ADD adds in dict comprehension" {
     assert_vm_value_matches_host(
         "y = [1, 2, 3]\n", "result = {x: x for x in y}\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_DICT_UPDATE
+test "vm: DICT_UPDATE merges dict unpacking" {
+    assert_vm_value_matches_host(
+        "y = {'a': 1}\n", "result = {**y, 'z': 9}\n", "exec", "result",
+    );
+}
+
+# vm-opcode: OP_LOAD_FAST
+test "vm: LOAD_FAST loads async-for loop accumulator" {
+    setup = "";
+    body = "class AI:\n    def __aiter__(self):\n        return self\n    async def __anext__(self):\n        if getattr(self, 'done', False):\n            raise StopAsyncIteration\n        self.done = True\n        return 42\nasync def f():\n    total = 0\n    async for x in AI():\n        total = total + x\n    return total\nc = f()\nresult = 0\ntry:\n    c.send(None)\nexcept StopIteration as e:\n    result = e.value\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_LOAD_FAST_CHECK
+test "vm: LOAD_FAST_CHECK loads possibly-unbound local" {
+    assert_vm_value_matches_host(
+        "",
+        "def f(x):\n    if x:\n        y = 1\n    return y\nresult = f(1)\n",
+        "exec",
+        "result",
     );
 }
 
@@ -694,6 +725,27 @@ test "vm: GET_AWAITABLE drives await on native coroutine" {
     assert_vm_value_matches_host(setup, body, "exec", "result");
 }
 
+# vm-opcode: OP_GET_AITER
+test "vm: GET_AITER obtains async iterator from __aiter__" {
+    setup = "";
+    body = "class AI:\n    def __aiter__(self):\n        return self\n    async def __anext__(self):\n        if getattr(self, 'done', False):\n            raise StopAsyncIteration\n        self.done = True\n        return 42\nasync def f():\n    total = 0\n    async for x in AI():\n        total = total + x\n    return total\nc = f()\nresult = 0\ntry:\n    c.send(None)\nexcept StopIteration as e:\n    result = e.value\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_GET_ANEXT
+test "vm: GET_ANEXT awaits __anext__ in async for loop" {
+    setup = "";
+    body = "class AI:\n    def __aiter__(self):\n        return self\n    async def __anext__(self):\n        if getattr(self, 'done', False):\n            raise StopAsyncIteration\n        self.done = True\n        return 42\nasync def f():\n    total = 0\n    async for x in AI():\n        total = total + x\n    return total\nc = f()\nresult = 0\ntry:\n    c.send(None)\nexcept StopIteration as e:\n    result = e.value\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_END_ASYNC_FOR
+test "vm: END_ASYNC_FOR handles StopAsyncIteration in async for" {
+    setup = "";
+    body = "class AI:\n    def __aiter__(self):\n        return self\n    async def __anext__(self):\n        if getattr(self, 'done', False):\n            raise StopAsyncIteration\n        self.done = True\n        return 42\nasync def f():\n    total = 0\n    async for x in AI():\n        total = total + x\n    return total\nc = f()\nresult = 0\ntry:\n    c.send(None)\nexcept StopIteration as e:\n    result = e.value\n";
+    assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
 # ---------------- semantic categories ----------------
 
 test "vm: namespace mutation matches host for multi-assign" {
@@ -779,4 +831,74 @@ test "vm: while loop break matches host" {
         "result = i\n"
     );
     assert_vm_value_matches_host(setup, body, "exec", "result");
+}
+
+# vm-opcode: OP_MATCH_SEQUENCE
+test "vm: MATCH_SEQUENCE matches list pattern" {
+    assert_vm_value_matches_host(
+        "",
+        "x = [1, 2]\nmatch x:\n    case [a, b]:\n        result = a + b\n    case _:\n        result = 0\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_GET_LEN
+test "vm: GET_LEN checks sequence pattern length" {
+    assert_vm_value_matches_host(
+        "",
+        "x = [1, 2]\nmatch x:\n    case [a, b]:\n        result = a + b\n    case _:\n        result = 0\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_MATCH_MAPPING
+test "vm: MATCH_MAPPING matches dict pattern" {
+    assert_vm_value_matches_host(
+        "",
+        "x = {'a': 1, 'b': 2}\nmatch x:\n    case {'a': av, 'b': bv}:\n        result = av + bv\n    case _:\n        result = 0\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_MATCH_KEYS
+test "vm: MATCH_KEYS extracts mapping pattern keys" {
+    assert_vm_value_matches_host(
+        "",
+        "x = {'a': 1, 'b': 2}\nmatch x:\n    case {'a': av, 'b': bv}:\n        result = av + bv\n    case _:\n        result = 0\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_MATCH_CLASS
+test "vm: MATCH_CLASS matches class pattern" {
+    assert_vm_value_matches_host(
+        "",
+        "class Point:\n    __match_args__ = ('x', 'y')\n    def __init__(self, x, y):\n        self.x = x\n        self.y = y\np = Point(1, 2)\nmatch p:\n    case Point(x, y):\n        result = x + y\n    case _:\n        result = 0\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_POP_JUMP_IF_NOT_NONE
+test "vm: POP_JUMP_IF_NOT_NONE matches non-None singleton" {
+    assert_vm_value_matches_host(
+        "",
+        "def f(x):\n    match x:\n        case None:\n            return 0\n        case _:\n            return 1\nresult = f(1)\n",
+        "exec",
+        "result",
+    );
+}
+
+# vm-opcode: OP_IS_OP
+test "vm: IS_OP matches True singleton pattern" {
+    assert_vm_value_matches_host(
+        "",
+        "def f(x):\n    match x:\n        case True:\n            return 1\n        case _:\n            return 0\nresult = f(True)\n",
+        "exec",
+        "result",
+    );
 }
