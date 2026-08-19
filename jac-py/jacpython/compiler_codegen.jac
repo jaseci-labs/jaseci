@@ -91,6 +91,7 @@ import from opcode_meta {
     OP_POP_ITER,
     OP_BUILD_LIST,
     OP_LIST_APPEND,
+    OP_LIST_EXTEND,
     OP_BUILD_SET,
     OP_SET_ADD,
     OP_BUILD_MAP,
@@ -105,6 +106,7 @@ import from opcode_meta {
     OP_STORE_FAST_STORE_FAST,
     OP_STORE_FAST_LOAD_FAST,
     OP_UNPACK_SEQUENCE,
+    OP_UNPACK_EX,
     OP_PUSH_EXC_INFO,
     OP_POP_EXCEPT,
     OP_CHECK_EXC_MATCH,
@@ -946,6 +948,25 @@ def emit_name_load(
     name = codegen_mangle(g, name);
     fi = fast_local_index(g, name);
     if fi >= 0 {
+        # Inside a comprehension body the loop target's borrowed copy is left on
+        # the stack by STORE_FAST_LOAD_FAST at bind time; the first evaluated
+        # reference to it consumes that copy (emits nothing). Every later
+        # reference loads its own borrow.
+        if fi == g.u.comp_pending_borrow {
+            g.u.comp_pending_borrow = -1;
+            return True;
+        }
+        # Inside a comprehension body, coalesce with an immediately preceding
+        # borrow load into LOAD_FAST_BORROW_LOAD_FAST_BORROW, keeping the first
+        # load's position (CPython's superinstruction peephole).
+        if g.u.comp_depth > 0 and len(g.cur.instrs) > 0 {
+            prev = g.cur.instrs[len(g.cur.instrs) - 1];
+            if prev.opcode == OP_LOAD_FAST_BORROW {
+                prev.opcode = OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW;
+                prev.oparg = prev.oparg * 16 + fi;
+                return True;
+            }
+        }
         g.emit_op(OP_LOAD_FAST_BORROW, fi, tloc);
         return True;
     }
@@ -1390,6 +1411,10 @@ def expr_loc(e: expr) -> cloc {
     if isinstance(e, Tuple) {
         t = e as Tuple;
         return nloc(t.lineno, t.end_lineno, t.col_offset, t.end_col_offset);
+    }
+    if isinstance(e, List) {
+        l = e as List;
+        return nloc(l.lineno, l.end_lineno, l.col_offset, l.end_col_offset);
     }
     return loc(1, 1, 0, 0);
 }
@@ -1886,6 +1911,58 @@ def visit_expr(
         emit_send_delegation_loop(g, OP_GET_AWAITABLE, 0, 3, aloc);
         return None;
     }
+    if isinstance(e, Tuple) {
+        tup = e as Tuple;
+        telts = tup.elts if tup.elts is not None else [];
+        dloc = nloc(tup.lineno, tup.end_lineno, tup.col_offset, tup.end_col_offset);
+        if display_has_starred(telts) {
+            codegen_fail(g, "NotImplementedError", "starred tuple display not supported");
+            return None;
+        }
+        if display_all_constant(telts) {
+            cidx = g.u.add_const(PyTuple(t="tuple", items=display_const_items(telts)));
+            g.emit_op(OP_LOAD_CONST, cidx, dloc);
+            return None;
+        }
+        di = 0;
+        while di < len(telts) {
+            visit_expr(g, telts[di]);
+            di = di + 1;
+        }
+        if codegen_busy(g) {
+            return None;
+        }
+        g.emit_op(OP_BUILD_TUPLE, len(telts), dloc);
+        return None;
+    }
+    if isinstance(e, List) {
+        lst = e as List;
+        lelts = lst.elts if lst.elts is not None else [];
+        dloc = nloc(lst.lineno, lst.end_lineno, lst.col_offset, lst.end_col_offset);
+        if display_has_starred(lelts) {
+            codegen_fail(g, "NotImplementedError", "starred list display not supported");
+            return None;
+        }
+        if len(lelts) > 0 and display_all_constant(lelts) {
+            # CPython packs an all-constant list as an empty list extended by a
+            # folded const tuple: BUILD_LIST 0; LOAD_CONST (tuple); LIST_EXTEND 1.
+            g.emit_op(OP_BUILD_LIST, 0, dloc);
+            cidx = g.u.add_const(PyTuple(t="tuple", items=display_const_items(lelts)));
+            g.emit_op(OP_LOAD_CONST, cidx, dloc);
+            g.emit_op(OP_LIST_EXTEND, 1, dloc);
+            return None;
+        }
+        di = 0;
+        while di < len(lelts) {
+            visit_expr(g, lelts[di]);
+            di = di + 1;
+        }
+        if codegen_busy(g) {
+            return None;
+        }
+        g.emit_op(OP_BUILD_LIST, len(lelts), dloc);
+        return None;
+    }
     codegen_fail(
         g,
         "NotImplementedError",
@@ -2119,6 +2196,10 @@ def visit_store_target_tos(g: cfg_builder, t: expr) -> stmt_cont {
         g.emit_op(OP_STORE_SUBSCR, 0, sloc);
         return stmt_cont(loc=sloc);
     }
+    if isinstance(t, Tuple) or isinstance(t, List) {
+        last_loc = emit_unpack_stores(g, seq_target_elts(t), expr_loc(t));
+        return stmt_cont(loc=last_loc);
+    }
     codegen_fail(
         g,
         "NotImplementedError",
@@ -2127,10 +2208,141 @@ def visit_store_target_tos(g: cfg_builder, t: expr) -> stmt_cont {
     return stmt_cont(loc=expr_loc(t));
 }
 
-# Store value into an assignment target (name / attribute / subscript).
+# Elements of a Tuple or List target/value node.
+def seq_target_elts(e: expr) -> list[expr] {
+    if isinstance(e, Tuple) {
+        return (e as Tuple).elts;
+    }
+    return (e as List).elts;
+}
+
+def is_seq_literal(e: expr) -> bool {
+    return isinstance(e, Tuple) or isinstance(e, List);
+}
+
+# Whether any display element is a Starred unpack.
+def display_has_starred(elts: list[expr]) -> bool {
+    i = 0;
+    while i < len(elts) {
+        if isinstance(elts[i], Starred) {
+            return True;
+        }
+        i = i + 1;
+    }
+    return False;
+}
+
+# Whether every display element is a compile-time Constant (empty => True).
+def display_all_constant(elts: list[expr]) -> bool {
+    i = 0;
+    while i < len(elts) {
+        if not isinstance(elts[i], Constant) {
+            return False;
+        }
+        i = i + 1;
+    }
+    return True;
+}
+
+# Extract the constant PyObj values from an all-constant display.
+def display_const_items(elts: list[expr]) -> list[PyObj] {
+    items: list[PyObj] = [];
+    i = 0;
+    while i < len(elts) {
+        items.append((elts[i] as Constant).value);
+        i = i + 1;
+    }
+    return items;
+}
+
+# Index of the first Starred element in a target list, or -1 if none.
+def starred_target_index(elts: list[expr]) -> int {
+    i = 0;
+    while i < len(elts) {
+        if isinstance(elts[i], Starred) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+# With the sequence value on TOS, emit UNPACK_SEQUENCE (no star) or UNPACK_EX
+# (starred), then store each element target left-to-right. Nested Tuple/List
+# targets recurse; a Starred target stores the captured list into its .value.
+def emit_unpack_stores(g: cfg_builder, elts: list[expr], tloc: cloc) -> cloc {
+    star = starred_target_index(elts);
+    n = len(elts);
+    if star < 0 {
+        g.emit_op(OP_UNPACK_SEQUENCE, n, tloc);
+    } else {
+        before = star;
+        after = n - star - 1;
+        g.emit_op(OP_UNPACK_EX, before + after * 256, tloc);
+    }
+    last_loc = tloc;
+    i = 0;
+    while i < n {
+        el = elts[i];
+        if isinstance(el, Starred) {
+            se = visit_store_target_tos(g, (el as Starred).value);
+        } else {
+            se = visit_store_target_tos(g, el);
+        }
+        last_loc = se.loc;
+        i = i + 1;
+    }
+    return last_loc;
+}
+
+# Store `value` into a target. CPython elides the sequence round-trip when both
+# sides are same-arity sequence literals with no starred target: evaluate the
+# RHS elements in order, reorder (SWAP for n<=3, BUILD_TUPLE+UNPACK_SEQUENCE for
+# n>=4), then store each target left-to-right.
 def visit_store_target(g: cfg_builder, t: expr, value: expr) -> stmt_cont {
+    if is_seq_literal(t) and is_seq_literal(value) {
+        telts = seq_target_elts(t);
+        velts = seq_target_elts(value);
+        if len(telts) == len(velts)
+            and starred_target_index(telts) < 0
+            and starred_target_index(velts) < 0 {
+            return visit_store_seq_literal(g, telts, velts, expr_loc(t));
+        }
+    }
     visit_expr(g, value);
     return visit_store_target_tos(g, t);
+}
+
+def visit_store_seq_literal(
+    g: cfg_builder, telts: list[expr], velts: list[expr], tloc: cloc, vloc: cloc
+) -> stmt_cont {
+    n = len(velts);
+    i = 0;
+    while i < n {
+        visit_expr(g, velts[i]);
+        i = i + 1;
+    }
+    if codegen_busy(g) {
+        return stmt_cont(loc=tloc);
+    }
+    if n == 1 {
+        return visit_store_target_tos(g, telts[0]);
+    }
+    if n <= 3 {
+        # SWAP carries the target span; BUILD_TUPLE carries the RHS span.
+        g.emit_op(OP_SWAP, n, tloc);
+    } else {
+        g.emit_op(OP_BUILD_TUPLE, n, vloc);
+        g.emit_op(OP_UNPACK_SEQUENCE, n, tloc);
+    }
+    last_loc = tloc;
+    i = 0;
+    while i < n {
+        se = visit_store_target_tos(g, telts[i]);
+        last_loc = se.loc;
+        i = i + 1;
+    }
+    return stmt_cont(loc=last_loc);
 }
 
 # Delete one target (name / attribute / subscript).
@@ -2204,6 +2416,11 @@ def try_emit_fast_local_pair_load(
     if lfi < 0 or rfi < 0 {
         return False;
     }
+    # A pending comprehension borrow means one operand consumes the copy already
+    # on the stack (emits nothing), so the two loads cannot fuse into a pair.
+    if lfi == g.u.comp_pending_borrow or rfi == g.u.comp_pending_borrow {
+        return False;
+    }
     pair_arg = lfi * 16 + rfi;
     g.emit_op(OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW, pair_arg, tloc);
     return True;
@@ -2263,6 +2480,71 @@ def comp_bound_names_from_target(target: expr) -> list[str] | None {
     return None;
 }
 
+# Leftmost sub-expression in CPython evaluation order (the first leaf pushed).
+def comp_leftmost_leaf(e: expr) -> expr {
+    cur = e;
+    while True {
+        if isinstance(cur, BinOp) {
+            cur = (cur as BinOp).left;
+        } elif isinstance(cur, Compare) {
+            cur = (cur as Compare).left;
+        } elif isinstance(cur, UnaryOp) {
+            cur = (cur as UnaryOp).operand;
+        } elif isinstance(cur, BoolOp) {
+            vals = (cur as BoolOp).values;
+            if len(vals) == 0 {
+                return cur;
+            }
+            cur = vals[0];
+        } elif isinstance(cur, Call) {
+            cur = (cur as Call).func;
+        } elif isinstance(cur, Attribute) {
+            cur = (cur as Attribute).value;
+        } elif isinstance(cur, Subscript) {
+            cur = (cur as Subscript).value;
+        } elif isinstance(cur, Tuple) {
+            elts = (cur as Tuple).elts;
+            if len(elts) == 0 {
+                return cur;
+            }
+            cur = elts[0];
+        } elif isinstance(cur, List) {
+            elts2 = (cur as List).elts;
+            if len(elts2) == 0 {
+                return cur;
+            }
+            cur = elts2[0];
+        } else {
+            return cur;
+        }
+    }
+    return cur;
+}
+
+# True when the comprehension's first evaluated body expression begins with the
+# single loop variable -- the case CPython fuses into STORE_FAST_LOAD_FAST.
+def comp_lead_is_loopvar(
+    g: cfg_builder, gen: comprehension, body_first: expr,
+    bound_names: list[str], slots: list[int]
+) -> bool {
+    if len(slots) != 1 {
+        return False;
+    }
+    first: expr = body_first;
+    if len(gen.ifs) > 0 {
+        first = gen.ifs[0];
+    }
+    leaf = comp_leftmost_leaf(first);
+    if not isinstance(leaf, Name) {
+        return False;
+    }
+    nid = (leaf as Name).id;
+    if not comp_name_bound(nid, bound_names) {
+        return False;
+    }
+    return fast_local_index(g, nid) == slots[0];
+}
+
 def comp_name_fast_index(g: cfg_builder, e: expr, bound_names: list[str]) -> int {
     if not isinstance(e, Name) {
         return -1;
@@ -2310,10 +2592,9 @@ def visit_comp_elt(
     g: cfg_builder, e: expr, bound_names: list[str], filter_compare: bool = False
 ) {
     if isinstance(e, Name) {
-        n = e as Name;
-        if comp_name_bound(n.id, bound_names) {
-            return;
-        }
+        # Loop-var and ordinary name loads both go through emit_name_load, which
+        # consumes the STORE_FAST_LOAD_FAST borrow for the first loop-var
+        # reference and emits LOAD_FAST_BORROW for the rest.
         visit_expr(g, e);
         return;
     }
@@ -2376,17 +2657,20 @@ def visit_comp_elt(
     if isinstance(e, BinOp) {
         b = e as BinOp;
         bl = nloc(b.lineno, b.end_lineno, b.col_offset, b.end_col_offset);
+        opid = binop_id(b.op);
+        if opid < 0 {
+            codegen_fail(g, "NotImplementedError", "unsupported binary operator");
+            return;
+        }
+        # Operands emit LOAD_FAST_BORROW individually; adjacent borrow loads are
+        # coalesced into LOAD_FAST_BORROW_LOAD_FAST_BORROW by emit_name_load's
+        # in-comprehension fuse (CPython's superinstruction peephole).
         visit_comp_elt(g, b.left, bound_names, filter_compare);
         if codegen_busy(g) {
             return;
         }
         visit_comp_elt(g, b.right, bound_names, filter_compare);
         if codegen_busy(g) {
-            return;
-        }
-        opid = binop_id(b.op);
-        if opid < 0 {
-            codegen_fail(g, "NotImplementedError", "unsupported binary operator");
             return;
         }
         g.emit_op(OP_BINARY_OP, opid, bl);
@@ -2410,11 +2694,24 @@ def visit_comp_elt(
     visit_expr(g, e);
 }
 
-def comp_emit_bind_target(g: cfg_builder, target: expr, slots: list[int]) {
+# Bind the comprehension loop target. When `lead` is true the first evaluated
+# reference in the body is the (single) loop var, so CPython fuses the store with
+# that first load into STORE_FAST_LOAD_FAST, leaving a borrowed copy on the stack
+# that emit_name_load consumes for that reference (comp_pending_borrow). Otherwise
+# a plain STORE_FAST binds it and every reference loads its own borrow.
+def comp_emit_bind_target(
+    g: cfg_builder, target: expr, slots: list[int], lead: bool = False
+) {
     tloc = expr_loc(target);
+    g.u.comp_pending_borrow = -1;
     if len(slots) == 1 {
-        pair_arg = slots[0] * 16 + slots[0];
-        g.emit_op(OP_STORE_FAST_LOAD_FAST, pair_arg, tloc);
+        if lead {
+            pair_arg = slots[0] * 16 + slots[0];
+            g.emit_op(OP_STORE_FAST_LOAD_FAST, pair_arg, tloc);
+            g.u.comp_pending_borrow = slots[0];
+        } else {
+            g.emit_op(OP_STORE_FAST, slots[0], tloc);
+        }
         return;
     }
     unpack_loc = tloc;
@@ -2548,54 +2845,10 @@ def comp_dict_map_loc(dc: DictComp) -> cloc {
 def visit_comp_dict_kv(
     g: cfg_builder, dc: DictComp, bound_names: list[str], has_filters: bool = False
 ) {
-    kfi = comp_name_fast_index(g, dc.key, bound_names);
-    kv_loc = expr_loc(dc.key);
+    # Key then value in evaluation order; the first loop-var reference (usually
+    # the key) consumes the STORE_FAST_LOAD_FAST borrow via emit_name_load, and
+    # adjacent loop-var value loads fuse into LOAD_FAST_BORROW_LOAD_FAST_BORROW.
     map_loc = comp_dict_map_loc(dc);
-    if isinstance(dc.key, Name) and isinstance(dc.value, Name) and kfi >= 0 {
-        vfi = comp_name_fast_index(g, dc.value, bound_names);
-        if vfi >= 0 {
-            pair_arg = kfi * 16 + vfi;
-            g.emit_op(OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW, pair_arg, expr_loc(dc.key));
-            g.emit_op(OP_MAP_ADD, 2, map_loc);
-            return;
-        }
-    }
-    if isinstance(dc.key, Name) and kfi >= 0 {
-        if isinstance(dc.value, BinOp) {
-            b = dc.value as BinOp;
-            if isinstance(b.left, Name)
-                and (b.left as Name).id == (dc.key as Name).id {
-                pair_arg = kfi * 16 + kfi;
-                pair_loc = expr_loc(b.left);
-                if has_filters {
-                    pair_loc = expr_loc(dc.key);
-                }
-                g.emit_op(OP_LOAD_FAST_BORROW_LOAD_FAST_BORROW, pair_arg, pair_loc);
-                visit_comp_elt(g, b.right, bound_names);
-                if codegen_busy(g) {
-                    return;
-                }
-                opid = binop_id(b.op);
-                if opid < 0 {
-                    codegen_fail(
-                        g, "NotImplementedError", "unsupported binary operator"
-                    );
-                    return;
-                }
-                bl = nloc(b.lineno, b.end_lineno, b.col_offset, b.end_col_offset);
-                g.emit_op(OP_BINARY_OP, opid, bl);
-                g.emit_op(OP_MAP_ADD, 2, map_loc);
-                return;
-            }
-        }
-        g.emit_op(OP_LOAD_FAST_BORROW, kfi, kv_loc);
-        visit_comp_elt(g, dc.value, bound_names);
-        if codegen_busy(g) {
-            return;
-        }
-        g.emit_op(OP_MAP_ADD, 2, map_loc);
-        return;
-    }
     visit_comp_elt(g, dc.key, bound_names);
     if codegen_busy(g) {
         return;
@@ -2721,6 +2974,7 @@ def visit_list_comp(g: cfg_builder, lc: ListComp) {
     if codegen_busy(g) {
         return;
     }
+    g.u.comp_depth = g.u.comp_depth + 1;
     start_blk = setup[0];
     loop_hdr = setup[1];
     for_iter_idx = setup[2];
@@ -2732,7 +2986,10 @@ def visit_list_comp(g: cfg_builder, lc: ListComp) {
         stack_depth = 4;
         second_fast = slots[1];
     }
-    comp_emit_bind_target(g, gen.target, slots);
+    comp_emit_bind_target(
+        g, gen.target, slots,
+        comp_lead_is_loopvar(g, gen, lc.elt, bound_names, slots)
+    );
     if codegen_busy(g) {
         return;
     }
@@ -2771,6 +3028,7 @@ def visit_list_comp(g: cfg_builder, lc: ListComp) {
     } else {
         g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, elt_loc);
     }
+    g.u.comp_depth = g.u.comp_depth - 1;
     comp_finish_loop(
         g,
         loop_hdr,
@@ -2809,6 +3067,7 @@ def visit_set_comp(g: cfg_builder, sc: SetComp) {
     if codegen_busy(g) {
         return;
     }
+    g.u.comp_depth = g.u.comp_depth + 1;
     start_blk = setup[0];
     loop_hdr = setup[1];
     for_iter_idx = setup[2];
@@ -2820,7 +3079,10 @@ def visit_set_comp(g: cfg_builder, sc: SetComp) {
         stack_depth = 4;
         second_fast = slots[1];
     }
-    comp_emit_bind_target(g, gen.target, slots);
+    comp_emit_bind_target(
+        g, gen.target, slots,
+        comp_lead_is_loopvar(g, gen, sc.elt, bound_names, slots)
+    );
     if codegen_busy(g) {
         return;
     }
@@ -2853,6 +3115,7 @@ def visit_set_comp(g: cfg_builder, sc: SetComp) {
     } else {
         g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, elt_loc);
     }
+    g.u.comp_depth = g.u.comp_depth - 1;
     comp_finish_loop(
         g,
         loop_hdr,
@@ -2890,6 +3153,7 @@ def visit_dict_comp(g: cfg_builder, dc: DictComp) {
     if codegen_busy(g) {
         return;
     }
+    g.u.comp_depth = g.u.comp_depth + 1;
     start_blk = setup[0];
     loop_hdr = setup[1];
     for_iter_idx = setup[2];
@@ -2901,7 +3165,10 @@ def visit_dict_comp(g: cfg_builder, dc: DictComp) {
         stack_depth = 4;
         second_fast = slots[1];
     }
-    comp_emit_bind_target(g, gen.target, slots);
+    comp_emit_bind_target(
+        g, gen.target, slots,
+        comp_lead_is_loopvar(g, gen, dc.key, bound_names, slots)
+    );
     if codegen_busy(g) {
         return;
     }
@@ -2932,6 +3199,7 @@ def visit_dict_comp(g: cfg_builder, dc: DictComp) {
     } else {
         g.emit_jump(OP_JUMP_BACKWARD, loop_hdr.id, comp_dict_map_loc(dc));
     }
+    g.u.comp_depth = g.u.comp_depth - 1;
     comp_finish_loop(
         g,
         loop_hdr,
@@ -5359,6 +5627,23 @@ def visit_stmt(
         copy_loc = nloc(
             asgn.lineno, asgn.end_lineno, asgn.col_offset, asgn.end_col_offset
         );
+        # Same-arity, no-star sequence-literal elision: CPython avoids the
+        # build/unpack round-trip by evaluating the RHS elements and reordering
+        # in place (SWAP for n<=3, BUILD_TUPLE+UNPACK_SEQUENCE for n>=4).
+        if len(asgn.targets) == 1
+            and is_seq_literal(asgn.targets[0])
+            and is_seq_literal(asgn.value) {
+            telts = seq_target_elts(asgn.targets[0]);
+            velts = seq_target_elts(asgn.value);
+            if len(telts) == len(velts)
+                and starred_target_index(telts) < 0
+                and starred_target_index(velts) < 0 {
+                emit = visit_store_seq_literal(
+                    g, telts, velts, expr_loc(asgn.targets[0]), expr_loc(asgn.value)
+                );
+                return stmt_cont(loc=emit.loc);
+            }
+        }
         if len(asgn.targets) == 1 and isinstance(asgn.value, Name) {
             vn = asgn.value as Name;
             vfi = fast_local_index(g, codegen_mangle(g, vn.id));

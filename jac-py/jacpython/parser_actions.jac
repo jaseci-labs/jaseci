@@ -830,7 +830,7 @@ def pa_ast_tuple(
     end_col_offset: int
 ) -> Tuple {
     return Tuple(
-        elts=elts,
+        elts=elts if elts is not None else [],
         ctx=ctx,
         lineno=lineno,
         col_offset=col_offset,

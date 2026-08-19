@@ -157,6 +157,48 @@ test "layer10: set comprehension filter matches oracle" {
     assert_matches_oracle("result = {x for x in y if x > 0}\n");
 }
 
+# ---- multi-reference loop var: STORE_FAST_LOAD_FAST + LOAD_FAST_BORROW ----
+
+test "layer10: list comprehension multi-ref element matches oracle" {
+    assert_matches_oracle("result = [x * x for x in y]\n");
+}
+
+test "layer10: list comprehension triple-ref element matches oracle" {
+    assert_matches_oracle("result = [x * x * x for x in y]\n");
+}
+
+test "layer10: list comprehension leading-nonloopvar matches oracle" {
+    assert_matches_oracle("result = [w * x for x in y]\n");
+}
+
+test "layer10: list comprehension tuple element matches oracle" {
+    assert_matches_oracle("result = [(x, x) for x in y]\n");
+}
+
+test "layer10: list comprehension call element matches oracle" {
+    assert_matches_oracle("result = [f(x, x) for x in y]\n");
+}
+
+test "layer10: list comprehension multi-ref with filter matches oracle" {
+    assert_matches_oracle("result = [x + z for x in y if x * x > z]\n");
+}
+
+test "layer10: set comprehension multi-ref element matches oracle" {
+    assert_matches_oracle("result = {x * x for x in y}\n");
+}
+
+test "layer10: dict comprehension multi-ref value matches oracle" {
+    assert_matches_oracle("result = {x: x * x for x in y}\n");
+}
+
+test "layer10: dict comprehension both-name kv matches oracle" {
+    assert_matches_oracle("result = {x: x for x in y}\n");
+}
+
+test "layer10: dict comprehension multi-ref value with filter matches oracle" {
+    assert_matches_oracle("result = {x: x * x for x in y if x > 0}\n");
+}
+
 # ---------------- Band 8 slice 1: match literal int ----------------
 
 test "layer10: band8 match literal int nested f matches oracle co_code" {

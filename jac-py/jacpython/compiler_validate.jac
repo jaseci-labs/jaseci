@@ -217,9 +217,10 @@ def validate_load_expr(e: expr, in_function: bool) -> validation_result {
     }
     if isinstance(e, List) {
         li = e as List;
+        li_elts = li.elts if li.elts is not None else [];
         ei = 0;
-        while ei < len(li.elts) {
-            vr = validate_load_expr(li.elts[ei], in_function);
+        while ei < len(li_elts) {
+            vr = validate_load_expr(li_elts[ei], in_function);
             if vr.diag is not None {
                 return vr;
             }
@@ -229,9 +230,10 @@ def validate_load_expr(e: expr, in_function: bool) -> validation_result {
     }
     if isinstance(e, Tuple) {
         tu = e as Tuple;
+        tu_elts = tu.elts if tu.elts is not None else [];
         ei = 0;
-        while ei < len(tu.elts) {
-            vr = validate_load_expr(tu.elts[ei], in_function);
+        while ei < len(tu_elts) {
+            vr = validate_load_expr(tu_elts[ei], in_function);
             if vr.diag is not None {
                 return vr;
             }

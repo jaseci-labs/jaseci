@@ -225,6 +225,15 @@ obj unverified_cfg {
         except_regions: list[except_region] = [],
         comp_handlers: list[comp_handler] = [],
         comp_handler_group: int = 0,
+        # Comprehension loop-var slot whose borrowed copy is sitting on the
+        # stack (left by STORE_FAST_LOAD_FAST at bind), awaiting consumption by
+        # the first evaluated reference to that loop var. -1 = none pending.
+        # Subsequent references emit LOAD_FAST_BORROW (CPython's scheme).
+        comp_pending_borrow: int = -1,
+        # >0 while emitting a comprehension body: enables coalescing of adjacent
+        # LOAD_FAST_BORROW loads into LOAD_FAST_BORROW_LOAD_FAST_BORROW (CPython's
+        # superinstruction peephole), scoped so ordinary code is untouched.
+        comp_depth: int = 0,
         # Set by codegen on unsupported nodes; product_compile checks before
         # flowgraph verification (PLAN.md: no silent codegen paths).
         diag: compiler_diagnostic | None = None,

@@ -1057,6 +1057,7 @@ import from opcode_meta {
     OP_UNARY_NEGATIVE,
     OP_UNARY_INVERT,
     OP_UNPACK_SEQUENCE,
+    OP_UNPACK_EX,
     OP_GET_LEN,
     OP_MATCH_SEQUENCE,
     OP_MATCH_MAPPING,
@@ -7216,6 +7217,73 @@ def run_frame(frame: PyFrame) -> PyObj {
             while k >= 0 {
                 stack.append(unpacked[k]);
                 k = k - 1;
+            }
+            continue;
+        }
+        if op == OP_UNPACK_EX {
+            # oparg = before | (after << 8); a starred target captures the middle.
+            before = arg % 256;
+            after = arg // 256;
+            seq = stack.pop();
+            it = py_iter(seq);
+            if is_error(it) {
+                target = recover_exception(co, it, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return it;
+            }
+            unpacked = [];
+            if isinstance(it, PyIter) {
+                unpacked = (it as PyIter).items;
+            } elif it.t == "generator" {
+                while True {
+                    nxt = gen_resume(it as PyGenerator, py_none());
+                    if is_error(nxt) {
+                        return nxt;
+                    }
+                    if nxt.t == "genstop" {
+                        break;
+                    }
+                    unpacked.append(nxt);
+                }
+            }
+            m = len(unpacked);
+            if m < before + after {
+                ex_err = py_error(
+                    "ValueError",
+                    "not enough values to unpack (expected at least "
+                    + str(before + after)
+                    + ", got "
+                    + str(m)
+                    + ")",
+                );
+                target = recover_exception(co, ex_err, offset, stack);
+                if target >= 0 {
+                    ip = target;
+                    continue;
+                }
+                return ex_err;
+            }
+            # Stack top->bottom must be: head[0..before-1], middle-list,
+            # tail[m-after..m-1]. Push tail deepest-first, then middle, then head.
+            j = m - 1;
+            while j >= m - after {
+                stack.append(unpacked[j]);
+                j = j - 1;
+            }
+            middle_items: list[PyObj] = [];
+            mk = before;
+            while mk < m - after {
+                middle_items.append(unpacked[mk]);
+                mk = mk + 1;
+            }
+            stack.append(PyList(t="list", items=middle_items));
+            b = before - 1;
+            while b >= 0 {
+                stack.append(unpacked[b]);
+                b = b - 1;
             }
             continue;
         }

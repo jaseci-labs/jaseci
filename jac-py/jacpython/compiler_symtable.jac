@@ -490,7 +490,8 @@ def sym_visit_load_expr(b: sym_builder, e: expr) -> bool {
         if isinstance(e, Tuple) {
             elts = (e as Tuple).elts;
         } else {
-            elts = (e as List).elts;
+            le = (e as List).elts;
+            elts = le if le is not None else [];
         }
         ei = 0;
         while ei < len(elts) {
@@ -583,7 +584,8 @@ def sym_visit_store_target(b: sym_builder, t: expr) -> bool {
         if isinstance(t, Tuple) {
             elts = (t as Tuple).elts;
         } else {
-            elts = (t as List).elts;
+            le = (t as List).elts;
+            elts = le if le is not None else [];
         }
         ei = 0;
         while ei < len(elts) {
